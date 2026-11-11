@@ -13,4 +13,12 @@ Versionamento: SemVer com commits convencionais e release-please, veja [`docs/ve
 
 Nasce da experiência com o [ctower-agents](https://github.com/deep-ion-ai/ctower-agents).
 
+## Compilar localmente
+
+Pré-requisitos por sistema e comandos em [Compilar localmente](CONTRIBUTING.md#compilar-localmente), no CONTRIBUTING.
+
+## Contribuir
+
+[CONTRIBUTING](CONTRIBUTING.md) · [Código de conduta](CODE_OF_CONDUCT.md) · [Segurança](SECURITY.md) · [CLA](docs/cla/CLA.md)
+
 Licença: [Apache-2.0](LICENSE).
