@@ -105,8 +105,11 @@ impl Notificador for DiarioEventos {
         fs::create_dir_all(&self.pasta)?;
         let mut linha = serde_json::to_vec(evento).map_err(io::Error::other)?;
         linha.push(b'\n');
+        // No Windows, a trava (LockFileEx) exige acesso de leitura ou de escrita
+        // completa; um arquivo aberto só para acréscimo dá "acesso negado".
         let mut arquivo = OpenOptions::new()
             .create(true)
+            .read(true)
             .append(true)
             .open(self.arquivo(&evento.sistema))?;
         // A trava exclusiva garante uma linha inteira por vez, mesmo com vários
