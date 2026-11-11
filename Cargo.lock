@@ -407,12 +407,16 @@ name = "cba-tools"
 version = "0.0.0"
 dependencies = [
  "cba-core",
+ "cba-docs",
  "cba-index",
  "cba-kb",
  "serde",
  "serde_json",
+ "serde_norway",
+ "sha2",
  "tempfile",
  "thiserror 2.0.21",
+ "tracing",
 ]
 
 [[package]]

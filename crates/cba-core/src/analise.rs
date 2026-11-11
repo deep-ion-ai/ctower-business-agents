@@ -1,5 +1,5 @@
-//! Modelo da análise: análise, sessão, afirmação, evidência, pergunta e sugestão,
-//! cada uma com o seu estado (spec, seções 4, 6.5 e 11).
+//! Modelo da análise: análise, sessão, afirmação, evidência, pergunta, sugestão e
+//! termo proposto, cada um com o seu estado (spec, seções 4, 6.5 e 11).
 //!
 //! Este módulo é só domínio: tipos, invariantes e transições de estado, sem disco.
 //! A persistência (um arquivo de estado por análise, na base) e a notificação ao app
@@ -16,9 +16,10 @@
 //! Evidência: valida ──► a-revalidar (o hash do trecho não confere mais)
 //! Pergunta:  aberta ──► respondida | descartada
 //! Sugestão:  proposta ──► aceita | recusada
+//! Termo:     proposto ──► aceito | recusado
 //! ```
 //!
-//! Itens de uma análise (afirmações, perguntas, sugestões) têm número sequencial a
+//! Itens de uma análise (afirmações, perguntas, sugestões, termos) têm número sequencial a
 //! partir de 1, único dentro da análise e nunca reaproveitado.
 
 use cba_kb::frontmatter::{Linhas, StatusAnalise, StatusSugestao, TipoDocumento};
@@ -222,11 +223,22 @@ pub struct Pergunta {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Sugestao {
     pub numero: u32,
+    /// Documento da sugestão na base (`S-NNNN`, em `sugestoes/`), quando criado.
+    #[serde(default)]
+    pub id: Option<Id>,
+    #[serde(default)]
+    pub titulo: String,
     pub arquivo: CaminhoRelativo,
     pub trecho_atual: String,
     pub trecho_proposto: String,
     pub motivo: String,
     pub impacto: String,
+    /// Exemplo com números do antes e depois (spec, seção 4.6).
+    #[serde(default)]
+    pub exemplo: Option<String>,
+    /// Onde está o trecho atual, conferido no registro (como uma evidência).
+    #[serde(default)]
+    pub evidencia: Option<Evidencia>,
     pub estado: StatusSugestao,
     #[serde(default)]
     pub sessao: Option<String>,
@@ -236,11 +248,61 @@ pub struct Sugestao {
 /// Dados de uma sugestão nova.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NovaSugestao {
+    /// Documento da sugestão, se já reservado.
+    pub id: Option<Id>,
+    pub titulo: String,
     pub arquivo: CaminhoRelativo,
     pub trecho_atual: String,
     pub trecho_proposto: String,
     pub motivo: String,
     pub impacto: String,
+    pub exemplo: Option<String>,
+    pub evidencia: Option<Evidencia>,
+    pub sessao: Option<String>,
+}
+
+/// Estado de um termo proposto para o glossário.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum EstadoTermo {
+    /// Proposto pelo agente; vira entrada do glossário se aceito na aprovação.
+    Proposto,
+    Aceito,
+    Recusado,
+}
+
+/// Termo de negócio proposto para o glossário (`propor_termo`, spec, seções 6.1 e
+/// 7.4). Fica na análise até a aprovação, quando o analista decide se entra no
+/// glossário.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TermoProposto {
+    pub numero: u32,
+    pub termo: String,
+    pub definicao: String,
+    #[serde(default)]
+    pub sinonimos: Vec<String>,
+    /// Onde o termo vive no código: entidades, tabelas, telas, serviços, documentos.
+    #[serde(default)]
+    pub onde_vive: Vec<String>,
+    #[serde(default)]
+    pub area: Option<String>,
+    #[serde(default)]
+    pub evidencias: Vec<Evidencia>,
+    pub estado: EstadoTermo,
+    #[serde(default)]
+    pub sessao: Option<String>,
+    pub registrada_ms: u64,
+}
+
+/// Dados de um termo novo.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NovoTermo {
+    pub termo: String,
+    pub definicao: String,
+    pub sinonimos: Vec<String>,
+    pub onde_vive: Vec<String>,
+    pub area: Option<String>,
+    pub evidencias: Vec<Evidencia>,
     pub sessao: Option<String>,
 }
 
@@ -270,6 +332,8 @@ pub struct Analise {
     pub perguntas: Vec<Pergunta>,
     #[serde(default)]
     pub sugestoes: Vec<Sugestao>,
+    #[serde(default)]
+    pub termos: Vec<TermoProposto>,
 }
 
 /// Operação recusada pelo modelo. As mensagens se dirigem a quem chamou (o agente
@@ -303,6 +367,11 @@ pub enum ErroModelo {
     ItemDesconhecido { tipo: &'static str, numero: u32 },
     #[error("{tipo} número {numero} já foi decidida e não muda mais de estado")]
     ItemDecidido { tipo: &'static str, numero: u32 },
+    #[error(
+        "o termo `{termo}` já foi proposto nesta análise (número {numero}); \
+         não registre de novo"
+    )]
+    TermoRepetido { termo: String, numero: u32 },
 }
 
 fn exigir(campo: &'static str, valor: &str) -> Result<(), ErroModelo> {
@@ -344,6 +413,7 @@ impl Analise {
             afirmacoes: Vec::new(),
             perguntas: Vec::new(),
             sugestoes: Vec::new(),
+            termos: Vec::new(),
         }
     }
 
@@ -551,6 +621,7 @@ impl Analise {
         nova: NovaSugestao,
         agora_ms: u64,
     ) -> Result<u32, ErroModelo> {
+        exigir("titulo", &nova.titulo)?;
         exigir("trecho_proposto", &nova.trecho_proposto)?;
         exigir("motivo", &nova.motivo)?;
         exigir("impacto", &nova.impacto)?;
@@ -558,16 +629,82 @@ impl Analise {
         let numero = proximo(&self.sugestoes, |s| s.numero);
         self.sugestoes.push(Sugestao {
             numero,
+            id: nova.id,
+            titulo: nova.titulo.trim().to_owned(),
             arquivo: nova.arquivo,
             trecho_atual: nova.trecho_atual,
             trecho_proposto: nova.trecho_proposto,
             motivo: nova.motivo.trim().to_owned(),
             impacto: nova.impacto.trim().to_owned(),
+            exemplo: nova
+                .exemplo
+                .map(|e| e.trim().to_owned())
+                .filter(|e| !e.is_empty()),
+            evidencia: nova.evidencia,
             estado: StatusSugestao::Proposta,
             sessao: nova.sessao,
             registrada_ms: agora_ms,
         });
         Ok(numero)
+    }
+
+    /// Registra um termo proposto para o glossário e devolve o número dele. O
+    /// mesmo termo (pelo nome normalizado) não é proposto duas vezes na análise.
+    pub fn registrar_termo(&mut self, novo: NovoTermo, agora_ms: u64) -> Result<u32, ErroModelo> {
+        exigir("termo", &novo.termo)?;
+        exigir("definicao", &novo.definicao)?;
+        let chave = cba_kb::slug(&novo.termo);
+        if let Some(t) = self.termos.iter().find(|t| cba_kb::slug(&t.termo) == chave) {
+            return Err(ErroModelo::TermoRepetido {
+                termo: t.termo.clone(),
+                numero: t.numero,
+            });
+        }
+        self.aceitar_registro()?;
+        let limpar = |lista: Vec<String>| -> Vec<String> {
+            let mut saida: Vec<String> = Vec::new();
+            for item in lista.iter().map(|s| s.trim()).filter(|s| !s.is_empty()) {
+                if !saida.iter().any(|s| s == item) {
+                    saida.push(item.to_owned());
+                }
+            }
+            saida
+        };
+        let numero = proximo(&self.termos, |t| t.numero);
+        self.termos.push(TermoProposto {
+            numero,
+            termo: novo.termo.trim().to_owned(),
+            definicao: novo.definicao.trim().to_owned(),
+            sinonimos: limpar(novo.sinonimos),
+            onde_vive: limpar(novo.onde_vive),
+            area: novo
+                .area
+                .map(|a| a.trim().to_owned())
+                .filter(|a| !a.is_empty()),
+            evidencias: novo.evidencias,
+            estado: EstadoTermo::Proposto,
+            sessao: novo.sessao,
+            registrada_ms: agora_ms,
+        });
+        Ok(numero)
+    }
+
+    /// Aceita ou recusa um termo proposto.
+    pub fn decidir_termo(&mut self, numero: u32, estado: EstadoTermo) -> Result<(), ErroModelo> {
+        let t = self.termos.iter_mut().find(|t| t.numero == numero).ok_or(
+            ErroModelo::ItemDesconhecido {
+                tipo: "termo",
+                numero,
+            },
+        )?;
+        if t.estado != EstadoTermo::Proposto {
+            return Err(ErroModelo::ItemDecidido {
+                tipo: "o termo",
+                numero,
+            });
+        }
+        t.estado = estado;
+        Ok(())
     }
 
     /// Aceita ou recusa uma sugestão proposta.
@@ -594,22 +731,40 @@ impl Analise {
         Ok(())
     }
 
-    /// Marca como a revalidar as evidências do arquivo cujo hash não confere mais, e
-    /// as afirmações que dependem delas. Devolve quantas afirmações mudaram.
-    pub fn marcar_a_revalidar(&mut self, arquivo: &CaminhoRelativo, hash_atual: &str) -> usize {
+    /// Marca como a revalidar as evidências que não conferem mais com o código, e
+    /// as afirmações que dependem delas. `confere` diz se a evidência ainda vale; o
+    /// hash é do intervalo citado, não do arquivo inteiro (veja
+    /// `cba_tools::evidencias::hash_das_linhas`). Devolve quantas afirmações mudaram.
+    pub fn marcar_a_revalidar(&mut self, confere: impl Fn(&Evidencia) -> bool) -> usize {
+        let marcar = |e: &mut Evidencia| {
+            let mudou = e.estado == EstadoEvidencia::Valida && !confere(e);
+            if mudou {
+                e.estado = EstadoEvidencia::ARevalidar;
+            }
+            mudou
+        };
         let mut mudaram = 0;
         for a in &mut self.afirmacoes {
             let mut mudou = false;
             for e in &mut a.evidencias {
-                if &e.arquivo == arquivo && e.hash != hash_atual {
-                    e.estado = EstadoEvidencia::ARevalidar;
-                    mudou = true;
-                }
+                mudou |= marcar(e);
             }
             if mudou && a.estado != EstadoAfirmacao::ARevalidar {
                 a.estado = EstadoAfirmacao::ARevalidar;
                 mudaram += 1;
             }
+        }
+        let outras = self
+            .termos
+            .iter_mut()
+            .flat_map(|t| t.evidencias.iter_mut())
+            .chain(
+                self.sugestoes
+                    .iter_mut()
+                    .filter_map(|s| s.evidencia.as_mut()),
+            );
+        for e in outras {
+            marcar(e);
         }
         mudaram
     }
@@ -794,6 +949,10 @@ mod tests {
         ));
 
         let nova = NovaSugestao {
+            id: None,
+            titulo: "Multa de 3%".into(),
+            exemplo: None,
+            evidencia: None,
             arquivo: CaminhoRelativo::novo("db/03_pkg_cobranca.sql").unwrap(),
             trecho_atual: "0.02".into(),
             trecho_proposto: "0.03".into(),
@@ -807,13 +966,50 @@ mod tests {
     }
 
     #[test]
+    fn termos_propostos() {
+        let mut a = analise();
+        let novo = |termo: &str| NovoTermo {
+            termo: termo.into(),
+            definicao: "Valor cobrado por atraso.".into(),
+            sinonimos: vec![" encargo ".into(), "encargo".into(), "".into()],
+            onde_vive: vec!["PKG_COBRANCA.FN_CALCULAR_MULTA".into()],
+            area: Some(" ".into()),
+            evidencias: vec![],
+            sessao: None,
+        };
+        assert_eq!(a.registrar_termo(novo("Multa"), 2).unwrap(), 1);
+        assert_eq!(a.termos[0].sinonimos, vec!["encargo".to_owned()]);
+        assert_eq!(a.termos[0].area, None);
+        assert_eq!(a.estado, EstadoAnalise::EmAndamento);
+        assert_eq!(
+            a.registrar_termo(novo(" multa "), 3),
+            Err(ErroModelo::TermoRepetido {
+                termo: "Multa".into(),
+                numero: 1
+            })
+        );
+        let mut vazio = novo("Juros");
+        vazio.definicao = " ".into();
+        assert_eq!(
+            a.registrar_termo(vazio, 3),
+            Err(ErroModelo::CampoVazio("definicao"))
+        );
+        a.decidir_termo(1, EstadoTermo::Aceito).unwrap();
+        assert!(matches!(
+            a.decidir_termo(1, EstadoTermo::Recusado),
+            Err(ErroModelo::ItemDecidido { .. })
+        ));
+    }
+
+    #[test]
     fn hash_diferente_marca_a_revalidar() {
         let mut a = analise();
         a.registrar_afirmacao(afirmacao(Confianca::Confirmado, vec![evidencia()]), 2)
             .unwrap();
-        let arquivo = CaminhoRelativo::novo("db/03_pkg_cobranca.sql").unwrap();
-        assert_eq!(a.marcar_a_revalidar(&arquivo, "abc"), 0);
-        assert_eq!(a.marcar_a_revalidar(&arquivo, "def"), 1);
+        assert_eq!(a.marcar_a_revalidar(|e| e.hash == "abc"), 0);
+        assert_eq!(a.marcar_a_revalidar(|e| e.hash == "def"), 1);
+        // Já marcada: não conta de novo.
+        assert_eq!(a.marcar_a_revalidar(|e| e.hash == "def"), 0);
         assert_eq!(a.afirmacoes[0].estado, EstadoAfirmacao::ARevalidar);
         assert_eq!(
             a.afirmacoes[0].evidencias[0].estado,

@@ -28,6 +28,8 @@ pub enum Mudanca {
     Afirmacao,
     Pergunta,
     Sugestao,
+    /// Termo proposto para o glossário.
+    Termo,
 }
 
 /// Uma linha do diário.

@@ -185,6 +185,20 @@ impl Analises {
         mudanca: Mudanca,
         alterar: impl FnOnce(&mut Analise, u64) -> Result<T, ErroModelo>,
     ) -> Result<(T, Analise), Erro> {
+        self.alterar_e(id, mudanca, alterar, |_| ())
+    }
+
+    /// Como [`Analises::alterar`], e ainda executa `depois` com a análise gravada,
+    /// sob a mesma trava e antes da notificação. Serve para remontar o documento da
+    /// análise: duas sessões gravando juntas não deixam o documento mais velho que o
+    /// estado, e o app, ao ser notificado, já encontra o documento novo.
+    pub fn alterar_e<T>(
+        &self,
+        id: &Id,
+        mudanca: Mudanca,
+        alterar: impl FnOnce(&mut Analise, u64) -> Result<T, ErroModelo>,
+        depois: impl FnOnce(&Analise),
+    ) -> Result<(T, Analise), Erro> {
         let analise = {
             let _trava = self.travar()?;
             let mut analise = self.carregar(id)?;
@@ -197,6 +211,7 @@ impl Analises {
             if analise.estado.status_documento() != estado_anterior.status_documento() {
                 self.atualizar_status_do_documento(&analise)?;
             }
+            depois(&analise);
             (resultado, analise)
         };
         self.notificar(&analise.1, mudanca);
