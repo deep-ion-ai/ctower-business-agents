@@ -1,4 +1,5 @@
-//! Diretório de dados do app: índice, configuração e logs.
+//! Diretório de dados do app: índice, configuração, cadastro dos sistemas, eventos e
+//! logs.
 //!
 //! Fica no diretório de dados locais do usuário, numa pasta com o identificador do
 //! app, separado da pasta da base de conhecimento (os Markdown, numa pasta escolhida
@@ -67,6 +68,16 @@ impl DiretorioDados {
     pub fn logs(&self) -> PathBuf {
         self.raiz.join("logs")
     }
+
+    /// Cadastro dos sistemas (`cba_index::Cadastro`).
+    pub fn sistemas(&self) -> PathBuf {
+        self.raiz.join("sistemas")
+    }
+
+    /// Diário de mudanças das análises, que o app acompanha ([`crate::eventos`]).
+    pub fn eventos(&self) -> PathBuf {
+        self.raiz.join("eventos")
+    }
 }
 
 #[cfg(test)]
@@ -81,6 +92,8 @@ mod tests {
         assert_eq!(d.indice(), raiz.join("indice"));
         assert_eq!(d.config(), raiz.join("config"));
         assert_eq!(d.logs(), raiz.join("logs"));
+        assert_eq!(d.sistemas(), raiz.join("sistemas"));
+        assert_eq!(d.eventos(), raiz.join("eventos"));
     }
 
     #[test]
