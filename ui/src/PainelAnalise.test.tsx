@@ -2,10 +2,13 @@ import { act } from "react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { PainelAnalise, type Abertura } from "./PainelAnalise";
 import type { VistaAnalise } from "./analise";
+import type { OpcoesConversa } from "./conversa";
 import {
   AFIRMACAO_MULTA,
   apiAnaliseFalsa,
+  apiConversaFalsa,
   apiTerminalFalsa,
+  opcoesFicticias,
   telaFalsa,
   vistaFicticia,
 } from "./test/falsos";
@@ -13,9 +16,10 @@ import {
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(), Channel: vi.fn() }));
 vi.mock("./telaXterm", () => ({ criarTelaXterm: vi.fn() }));
 
-function montar(abertura: Abertura, vista?: VistaAnalise) {
+function montar(abertura: Abertura, vista?: VistaAnalise, opcoes?: OpcoesConversa) {
   const analise = apiAnaliseFalsa(vista);
   const terminal = apiTerminalFalsa();
+  const conversa = apiConversaFalsa(opcoes);
   const tela = telaFalsa();
   const aoVoltar = vi.fn();
   const r = render(
@@ -26,10 +30,11 @@ function montar(abertura: Abertura, vista?: VistaAnalise) {
       abertura={abertura}
       aoVoltar={aoVoltar}
       apiTerminal={terminal.api}
+      apiConversa={conversa}
       criarTela={() => tela}
     />,
   );
-  return { ...analise, terminal, aoVoltar, ...r };
+  return { ...analise, terminal, conversa, aoVoltar, ...r };
 }
 
 async function terminalAberto(t: ReturnType<typeof apiTerminalFalsa>, id = 1) {
@@ -175,6 +180,7 @@ describe("PainelAnalise", () => {
         abertura={{ tipo: "nova", promptInicial: "Inicie" }}
         aoVoltar={() => undefined}
         apiTerminal={terminal.api}
+        apiConversa={apiConversaFalsa()}
         criarTela={telaFalsa}
       />,
     );
@@ -189,7 +195,7 @@ describe("PainelAnalise", () => {
   });
 
   it("continua no Desktop com o documento ao vivo e volta à conversa", async () => {
-    const { terminal } = montar(
+    const { terminal, conversa } = montar(
       { tipo: "nova", promptInicial: "Inicie" },
       vistaFicticia({ sessao: { id: "sessao-1", estado: "ativa", cliente: "claude-code" } }),
     );
@@ -199,6 +205,7 @@ describe("PainelAnalise", () => {
     fireEvent.click(continuar);
     await waitFor(() => expect(terminal.api.enviarPrompt).toHaveBeenCalledWith(3, "/desktop"));
     expect(await screen.findByText(/A conversa continua no Claude Desktop/)).toBeVisible();
+    expect(conversa.passouAoDesktop).toHaveBeenCalledWith("faturamento-exemplo", "A-0001");
     expect(screen.getByTestId("terminal-tela")).not.toBeVisible();
     // O documento continua na tela.
     expect(screen.getByRole("article", { name: "Documento da análise" })).toBeVisible();
@@ -234,5 +241,213 @@ describe("PainelAnalise", () => {
     expect(terminal.aberturas[0].pedido).toEqual({
       promptInicial: "Retome a análise A-0001 pelo ctower",
     });
+  });
+
+  it("com o Desktop preferido, a análise nova abre o link do Desktop e não o terminal", async () => {
+    const { terminal, conversa } = montar(
+      { tipo: "nova", promptInicial: "Inicie" },
+      undefined,
+      opcoesFicticias({
+        preferido: "claudeDesktop",
+        opcoes: [
+          { cliente: "claudeDesktop", disponivel: true },
+          { cliente: "terminalEmbutido", disponivel: true },
+          { cliente: "terminalDoAnalista", disponivel: true },
+        ],
+      }),
+    );
+    await waitFor(() =>
+      expect(conversa.abrirPorLink).toHaveBeenCalledWith(
+        "faturamento-exemplo",
+        "A-0001",
+        "claudeDesktop",
+      ),
+    );
+    expect(conversa.abrirPorLink).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText(/confirme a pasta e envie/)).toBeVisible();
+    expect(terminal.api.abrir).not.toHaveBeenCalled();
+    // O preferido aparece primeiro, marcado; o terminal embutido fica no botão de voltar.
+    const cartoes = within(screen.getByRole("group", { name: "Clientes da conversa" }))
+      .getAllByRole("region")
+      .map((r) => r.getAttribute("data-cliente"));
+    expect(cartoes).toEqual(["claudeDesktop", "terminalDoAnalista"]);
+    expect(screen.getByText("preferido")).toBeInTheDocument();
+    // Voltar à conversa aqui, sem sessão ligada ainda: a mais recente da pasta.
+    fireEvent.click(screen.getByRole("button", { name: "Voltar à conversa aqui" }));
+    await waitFor(() => expect(terminal.aberturas).toHaveLength(1));
+    expect(terminal.aberturas[0].pedido).toEqual({ retomada: { modo: "continuar" } });
+  });
+
+  it("sem as opções (comando ausente), a análise nova usa o terminal embutido", async () => {
+    const analise = apiAnaliseFalsa();
+    const terminal = apiTerminalFalsa();
+    const conversa = apiConversaFalsa();
+    conversa.opcoes.mockRejectedValue("comando desconhecido");
+    render(
+      <PainelAnalise
+        api={analise.api}
+        sistema="faturamento-exemplo"
+        analise="A-0001"
+        abertura={{ tipo: "nova", promptInicial: "Inicie" }}
+        aoVoltar={() => undefined}
+        apiTerminal={terminal.api}
+        apiConversa={conversa}
+        criarTela={telaFalsa}
+      />,
+    );
+    await waitFor(() => expect(terminal.aberturas).toHaveLength(1));
+    expect(terminal.aberturas[0].pedido).toEqual({ promptInicial: "Inicie" });
+    // Sem as opções, o botão do Desktop não aparece.
+    expect(
+      screen.queryByRole("button", { name: "Continuar no Claude Desktop" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("retoma no Desktop a sessão iniciada no terminal embutido e volta", async () => {
+    const { terminal, conversa } = montar(
+      { tipo: "reabrir" },
+      vistaFicticia({ sessao: { id: "sessao-1", estado: "encerrada", cliente: "claude-code" } }),
+      opcoesFicticias({ sessao: "sessao-1" }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Retomar no Claude Desktop" }));
+    await waitFor(() =>
+      expect(conversa.retomarNoDesktop).toHaveBeenCalledWith("faturamento-exemplo", "A-0001"),
+    );
+    expect(await screen.findByText(/A conversa continua no Claude Desktop/)).toBeVisible();
+    expect(terminal.api.abrir).not.toHaveBeenCalled();
+    // E volta ao terminal embutido pela mesma sessão.
+    fireEvent.click(screen.getByRole("button", { name: "Voltar à conversa aqui" }));
+    await waitFor(() => expect(terminal.aberturas).toHaveLength(1));
+    expect(terminal.aberturas[0].pedido).toEqual({
+      retomada: { modo: "sessao", id: "sessao-1" },
+    });
+  });
+
+  it("mostra por que o Desktop não abriu a sessão e oferece a conversa nova", async () => {
+    const { conversa } = montar(
+      { tipo: "reabrir" },
+      vistaFicticia({
+        sessao: { id: "sessao-1", estado: "encerrada", cliente: "claude-desktop" },
+      }),
+      opcoesFicticias({ sessao: "sessao-1" }),
+    );
+    conversa.retomarNoDesktop.mockResolvedValue({
+      aberto: false,
+      codigo: 1,
+      mensagem: "Session is open in another terminal",
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Retomar no Claude Desktop" }));
+    const alerta = await screen.findByRole("alert");
+    expect(alerta).toHaveTextContent("Session is open in another terminal");
+    expect(alerta).toHaveTextContent("conversa nova no Desktop");
+    fireEvent.click(screen.getByRole("button", { name: "Nova conversa no Claude Desktop" }));
+    await waitFor(() =>
+      expect(conversa.abrirPorLink).toHaveBeenCalledWith(
+        "faturamento-exemplo",
+        "A-0001",
+        "claudeDesktop",
+      ),
+    );
+  });
+
+  it("recusa do Desktop vinda do Rust mostra a mensagem", async () => {
+    const { conversa } = montar(
+      { tipo: "reabrir" },
+      vistaFicticia({ sessao: { id: "sessao-1", estado: "encerrada", cliente: "claude-code" } }),
+      opcoesFicticias({ sessao: "sessao-1" }),
+    );
+    conversa.retomarNoDesktop.mockRejectedValue({
+      motivo: "desktopIndisponivel",
+      detalhe: "versão antiga",
+      orientacao: [],
+      mensagem: "o Claude Code 2.1.200 não abre sessões no Desktop",
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Retomar no Claude Desktop" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "o Claude Code 2.1.200 não abre sessões no Desktop",
+    );
+  });
+
+  it("oferece o terminal do analista com o comando e o link", async () => {
+    const { conversa } = montar(
+      { tipo: "reabrir" },
+      vistaFicticia({ sessao: { id: "sessao-1", estado: "encerrada", cliente: "claude-code" } }),
+      opcoesFicticias({
+        sessao: "sessao-1",
+        comandoRetomada: "cd /codigo/faturamento-exemplo && claude --resume sessao-1",
+      }),
+    );
+    const cartao = await screen.findByRole("region", { name: "No meu terminal" });
+    expect(
+      within(cartao).getByText("cd /codigo/faturamento-exemplo && claude --resume sessao-1"),
+    ).toBeInTheDocument();
+    fireEvent.click(within(cartao).getByRole("button", { name: "Copiar o comando de retomada" }));
+    await waitFor(() =>
+      expect(conversa.copiar).toHaveBeenCalledWith(
+        "cd /codigo/faturamento-exemplo && claude --resume sessao-1",
+      ),
+    );
+    expect(await screen.findByText(/Comando copiado/)).toBeInTheDocument();
+    fireEvent.click(
+      within(cartao).getByRole("button", { name: "Copiar o comando de conversa nova" }),
+    );
+    await waitFor(() =>
+      expect(conversa.copiar).toHaveBeenLastCalledWith(
+        "cd /codigo/faturamento-exemplo && claude 'Inicie a análise A-0001 pelo ctower'",
+      ),
+    );
+    fireEvent.click(within(cartao).getByRole("button", { name: "Abrir pelo link claude-cli://" }));
+    await waitFor(() =>
+      expect(conversa.abrirPorLink).toHaveBeenCalledWith(
+        "faturamento-exemplo",
+        "A-0001",
+        "terminalDoAnalista",
+      ),
+    );
+    expect(await screen.findByText(/A conversa continua no seu terminal/)).toBeVisible();
+  });
+
+  it("passa do terminal embutido para o do analista encerrando o daqui", async () => {
+    const { terminal } = montar(
+      { tipo: "nova", promptInicial: "Inicie" },
+      vistaFicticia({ sessao: { id: "sessao-1", estado: "ativa", cliente: "claude-code" } }),
+      opcoesFicticias({
+        sessao: "sessao-1",
+        comandoRetomada: "cd /codigo/faturamento-exemplo && claude --resume sessao-1",
+      }),
+    );
+    await terminalAberto(terminal, 4);
+    fireEvent.click(screen.getByRole("button", { name: "Continuar no meu terminal" }));
+    await waitFor(() => expect(terminal.api.encerrar).toHaveBeenCalledWith(4));
+    expect(await screen.findByText(/A conversa continua no seu terminal/)).toBeVisible();
+    expect(
+      screen.getByText("cd /codigo/faturamento-exemplo && claude --resume sessao-1"),
+    ).toBeVisible();
+  });
+
+  it("Desktop indisponível fica no fim, com o motivo, e sem o botão do /desktop", async () => {
+    const { terminal } = montar(
+      { tipo: "nova", promptInicial: "Inicie" },
+      undefined,
+      opcoesFicticias({
+        plataforma: "linux",
+        opcoes: [
+          { cliente: "terminalEmbutido", disponivel: true },
+          { cliente: "terminalDoAnalista", disponivel: true },
+          {
+            cliente: "claudeDesktop",
+            disponivel: false,
+            motivo: "o Claude Desktop não existe para Linux",
+          },
+        ],
+      }),
+    );
+    await terminalAberto(terminal);
+    expect(screen.getByRole("button", { name: "Continuar no meu terminal" })).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: "Continuar no Claude Desktop" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Continuar no meu terminal" }));
+    expect(await screen.findByText("o Claude Desktop não existe para Linux")).toBeVisible();
   });
 });
