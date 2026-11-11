@@ -8,3 +8,10 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+serde.workspace = true
+serde_norway.workspace = true
+# Caminho do campo (`demanda.origem`) nos erros de frontmatter.
+serde_path_to_error = "0.1"
+# Arquivo temporário na mesma pasta e renomeação atômica (inclusive sem sobrescrever).
+tempfile = "3"
+thiserror = "2"
