@@ -8,9 +8,21 @@
 //!
 //! Falha ao notificar nunca desfaz nem impede a gravação: o estado já está na base,
 //! e o app o encontra ao reler.
+//!
+//! # Leitura e compactação
+//!
+//! O app acompanha o diário com um [`LeitorDiario`]: cada leitura devolve só as
+//! linhas acrescentadas desde a anterior. Como o diário só serve para avisar o app
+//! (o estado completo está na base), ele não precisa guardar histórico: quando o
+//! leitor já leu tudo e o arquivo passou de [`LIMITE_DO_DIARIO`], ele o esvazia,
+//! sob a mesma trava que os processos usam para acrescentar linhas. Assim nenhuma
+//! linha é perdida entre a leitura e o esvaziamento, e o diário não cresce sem
+//! limite. Um leitor que encontra o arquivo menor do que a posição em que parou
+//! (outro leitor o esvaziou) recomeça do início e avisa com
+//! [`Leitura::reiniciado`], para quem o usa reler o estado.
 
-use std::fs::{self, OpenOptions};
-use std::io::{self, Write};
+use std::fs::{self, File, OpenOptions};
+use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -86,6 +98,112 @@ impl DiarioEventos {
     pub fn ler(&self, sistema: &str) -> io::Result<Vec<Evento>> {
         ler(&self.arquivo(sistema))
     }
+
+    /// Leitor das linhas que forem acrescentadas daqui em diante ao diário de um
+    /// sistema (o que já está no arquivo é ignorado: o estado atual está na base).
+    pub fn leitor(&self, sistema: &str) -> LeitorDiario {
+        let arquivo = self.arquivo(sistema);
+        let posicao = fs::metadata(&arquivo).map(|m| m.len()).unwrap_or(0);
+        LeitorDiario {
+            arquivo,
+            posicao,
+            limite: LIMITE_DO_DIARIO,
+        }
+    }
+}
+
+/// Tamanho a partir do qual o leitor esvazia o diário depois de lê-lo (1 MiB, uns
+/// 8 mil eventos).
+pub const LIMITE_DO_DIARIO: u64 = 1024 * 1024;
+
+/// Resultado de [`LeitorDiario::ler_novos`].
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Leitura {
+    /// Eventos acrescentados desde a leitura anterior, na ordem.
+    pub eventos: Vec<Evento>,
+    /// O arquivo encolheu ou sumiu desde a leitura anterior (outro leitor o
+    /// esvaziou): eventos podem ter se perdido, e quem lê deve reler o estado.
+    pub reiniciado: bool,
+}
+
+/// Acompanha o diário de um sistema, lendo só o que foi acrescentado.
+#[derive(Debug, Clone)]
+pub struct LeitorDiario {
+    arquivo: PathBuf,
+    posicao: u64,
+    limite: u64,
+}
+
+impl LeitorDiario {
+    /// Troca o tamanho a partir do qual o diário é esvaziado (testes).
+    pub fn com_limite(mut self, limite: u64) -> Self {
+        self.limite = limite;
+        self
+    }
+
+    /// Posição (em bytes) até onde o diário já foi lido.
+    pub fn posicao(&self) -> u64 {
+        self.posicao
+    }
+
+    /// Lê as linhas acrescentadas desde a leitura anterior. Sem mudança no tamanho
+    /// do arquivo, não abre nem trava nada (é chamado a cada poucos milissegundos).
+    pub fn ler_novos(&mut self) -> io::Result<Leitura> {
+        let tamanho = match fs::metadata(&self.arquivo) {
+            Ok(m) => m.len(),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                let reiniciado = self.posicao > 0;
+                self.posicao = 0;
+                return Ok(Leitura {
+                    eventos: Vec::new(),
+                    reiniciado,
+                });
+            }
+            Err(e) => return Err(e),
+        };
+        if tamanho == self.posicao {
+            return Ok(Leitura::default());
+        }
+        // Leitura e escrita: a trava no Windows exige uma das duas, e o esvaziamento
+        // precisa da escrita.
+        let mut arquivo = match OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&self.arquivo)
+        {
+            Ok(a) => a,
+            Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(Leitura::default()),
+            Err(e) => return Err(e),
+        };
+        arquivo.lock()?;
+        self.ler_travado(&mut arquivo)
+    }
+
+    fn ler_travado(&mut self, arquivo: &mut File) -> io::Result<Leitura> {
+        let mut leitura = Leitura::default();
+        let tamanho = arquivo.metadata()?.len();
+        if tamanho < self.posicao {
+            self.posicao = 0;
+            leitura.reiniciado = true;
+        }
+        arquivo.seek(SeekFrom::Start(self.posicao))?;
+        let mut bytes = Vec::new();
+        arquivo.read_to_end(&mut bytes)?;
+        // Só linhas completas; uma gravação interrompida fica para a próxima leitura
+        // (e, se nunca terminar, é ignorada como linha ilegível quando terminar).
+        let consumido = bytes.iter().rposition(|&b| b == b'\n').map_or(0, |i| i + 1);
+        leitura.eventos = String::from_utf8_lossy(&bytes[..consumido])
+            .lines()
+            .filter_map(|l| serde_json::from_str(l).ok())
+            .collect();
+        self.posicao += consumido as u64;
+        if self.posicao >= self.limite && self.posicao == tamanho {
+            // Tudo lido e ninguém grava enquanto a trava é nossa: pode esvaziar.
+            arquivo.set_len(0)?;
+            self.posicao = 0;
+        }
+        Ok(leitura)
+    }
 }
 
 fn ler(arquivo: &Path) -> io::Result<Vec<Evento>> {
@@ -147,6 +265,86 @@ mod tests {
         assert_eq!(lidos, vec![evento(1), evento(2)]);
         let texto = fs::read_to_string(diario.arquivo("faturamento-exemplo")).unwrap();
         assert!(texto.contains(r#""mudanca":"afirmacao""#), "{texto}");
+    }
+
+    #[test]
+    fn leitor_devolve_so_o_que_foi_acrescentado() {
+        let dir = tempfile::tempdir().unwrap();
+        let diario = DiarioEventos::em(dir.path());
+        diario.notificar(&evento(1)).unwrap();
+        let mut leitor = diario.leitor("faturamento-exemplo");
+        assert_eq!(leitor.ler_novos().unwrap(), Leitura::default());
+        diario.notificar(&evento(2)).unwrap();
+        diario.notificar(&evento(3)).unwrap();
+        assert_eq!(
+            leitor.ler_novos().unwrap().eventos,
+            vec![evento(2), evento(3)]
+        );
+        assert!(leitor.ler_novos().unwrap().eventos.is_empty());
+    }
+
+    #[test]
+    fn leitor_sem_arquivo_espera_o_primeiro_evento() {
+        let dir = tempfile::tempdir().unwrap();
+        let diario = DiarioEventos::em(dir.path().join("eventos"));
+        let mut leitor = diario.leitor("faturamento-exemplo");
+        assert_eq!(leitor.ler_novos().unwrap(), Leitura::default());
+        diario.notificar(&evento(1)).unwrap();
+        assert_eq!(leitor.ler_novos().unwrap().eventos, vec![evento(1)]);
+    }
+
+    #[test]
+    fn linha_incompleta_fica_para_a_proxima_leitura() {
+        let dir = tempfile::tempdir().unwrap();
+        let diario = DiarioEventos::em(dir.path());
+        let mut leitor = diario.leitor("faturamento-exemplo");
+        let linha = serde_json::to_string(&evento(1)).unwrap();
+        let (a, b) = linha.split_at(10);
+        let caminho = diario.arquivo("faturamento-exemplo");
+        fs::write(&caminho, a).unwrap();
+        assert!(leitor.ler_novos().unwrap().eventos.is_empty());
+        let mut f = OpenOptions::new().append(true).open(&caminho).unwrap();
+        writeln!(f, "{b}").unwrap();
+        assert_eq!(leitor.ler_novos().unwrap().eventos, vec![evento(1)]);
+    }
+
+    #[test]
+    fn leitor_esvazia_o_diario_acima_do_limite_sem_perder_eventos() {
+        let dir = tempfile::tempdir().unwrap();
+        let diario = DiarioEventos::em(dir.path());
+        let mut leitor = diario.leitor("faturamento-exemplo").com_limite(500);
+        let mut recebidos = Vec::new();
+        for i in 0..40 {
+            diario.notificar(&evento(i)).unwrap();
+            let leitura = leitor.ler_novos().unwrap();
+            assert!(!leitura.reiniciado);
+            recebidos.extend(leitura.eventos);
+            let tamanho = fs::metadata(diario.arquivo("faturamento-exemplo"))
+                .unwrap()
+                .len();
+            assert!(
+                tamanho < 500 + 200,
+                "o diário cresceu sem limite: {tamanho}"
+            );
+        }
+        assert_eq!(recebidos, (0..40).map(evento).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn diario_esvaziado_por_outro_leitor_reinicia() {
+        let dir = tempfile::tempdir().unwrap();
+        let diario = DiarioEventos::em(dir.path());
+        let mut leitor = diario.leitor("faturamento-exemplo");
+        diario.notificar(&evento(1)).unwrap();
+        diario.notificar(&evento(2)).unwrap();
+        leitor.ler_novos().unwrap();
+        fs::write(diario.arquivo("faturamento-exemplo"), "").unwrap();
+        diario.notificar(&evento(3)).unwrap();
+        let leitura = leitor.ler_novos().unwrap();
+        assert!(leitura.reiniciado);
+        assert_eq!(leitura.eventos, vec![evento(3)]);
+        fs::remove_file(diario.arquivo("faturamento-exemplo")).unwrap();
+        assert!(leitor.ler_novos().unwrap().reiniciado);
     }
 
     #[test]

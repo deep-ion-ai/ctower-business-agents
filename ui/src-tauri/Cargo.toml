@@ -19,6 +19,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 cba-core.workspace = true
 cba-index.workspace = true
+cba-kb.workspace = true
 cba-mcp.workspace = true
 cba-session.workspace = true
 cba-tools.workspace = true
@@ -31,7 +32,6 @@ tracing.workspace = true
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Console"] }
 
 [dev-dependencies]
-cba-kb.workspace = true
 serde_norway.workspace = true
 tempfile = "3"
 toml = "0.9"

@@ -3,7 +3,9 @@
 use cba_core::dados::DiretorioDados;
 use cba_session::clientes::{self, EstadoClientes};
 
-use crate::{prompts, terminal};
+use std::sync::Arc;
+
+use crate::{analise, prompts, terminal, vigia};
 
 pub fn rodar() {
     // Sem log o app ainda funciona; o erro não tem para onde ir antes da janela.
@@ -12,8 +14,10 @@ pub fn rodar() {
     }
     tracing::info!(versao = cba_core::VERSAO, "app iniciado");
     let sessoes = terminal::Estado::default();
+    let vigias = Arc::new(vigia::Vigias::padrao());
     tauri::Builder::default()
         .manage(sessoes.clone())
+        .manage(vigias)
         .invoke_handler(tauri::generate_handler![
             estado_clientes,
             terminal::listar_sistemas,
@@ -23,6 +27,18 @@ pub fn rodar() {
             terminal::enviar_prompt_terminal,
             terminal::encerrar_terminal,
             terminal::ultima_sessao_terminal,
+            analise::situacao_app,
+            analise::configurar_base_app,
+            analise::cadastrar_sistema_app,
+            analise::verificar_ambiente_sistema,
+            analise::planejar_preparo_sistema,
+            analise::preparar_ambiente_sistema,
+            analise::listar_analises_sistema,
+            analise::criar_analise_pergunta,
+            analise::carregar_analise_sistema,
+            analise::trecho_evidencia_sistema,
+            vigia::vigiar_analises,
+            vigia::parar_vigia,
             prompts::prompts_prontos,
         ])
         .build(tauri::generate_context!())

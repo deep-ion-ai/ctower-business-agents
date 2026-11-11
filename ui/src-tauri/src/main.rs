@@ -27,12 +27,14 @@
 
 #![windows_subsystem = "windows"]
 
+mod analise;
 mod cli;
 #[cfg(windows)]
 mod console;
 mod gui;
 mod prompts;
 mod terminal;
+mod vigia;
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();

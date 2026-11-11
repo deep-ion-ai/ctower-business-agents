@@ -281,7 +281,7 @@ Para clientes que não são o Claude Desktop nem o Claude Code, o app terá um l
 - **Fora do repositório do sistema** e fora de qualquer pasta temporária. A pasta é do analista e sobrevive à reinstalação do app.
 - **Caminhos relativos** em todos os documentos, nunca absolutos, para a base continuar válida em outra máquina ou sistema operacional.
 - **Gravação contínua:** o documento de uma análise é atualizado a cada registro, não só no fim. Uma sessão interrompida não perde o que já foi apurado.
-- **Estado da análise:** os registros (sessões, afirmações com evidências, perguntas, sugestões) ficam em `analises/<id>.estado.json`, gravado a cada mudança sob uma trava de arquivo, porque o app, o servidor MCP de cada sessão e o receptor de hooks gravam na mesma análise. O documento Markdown é montado a partir dele. Cada mudança é anotada no diário de eventos do app (no diretório de dados, só com identificadores), que o app acompanha para atualizar os painéis ao vivo.
+- **Estado da análise:** os registros (sessões, afirmações com evidências, perguntas, sugestões) ficam em `analises/<id>.estado.json`, gravado a cada mudança sob uma trava de arquivo, porque o app, o servidor MCP de cada sessão e o receptor de hooks gravam na mesma análise. O documento Markdown é montado a partir dele. Cada mudança é anotada no diário de eventos do app (no diretório de dados, só com identificadores), que o app acompanha para atualizar os painéis ao vivo: uma vigia por sistema consulta o tamanho do arquivo a cada 100 ms, lê só as linhas novas e relê a análise citada (menos de 1 s do registro à tela). Como o estado completo está na base, o diário não guarda histórico: depois de ler tudo, a vigia o esvazia quando passa de 1 MiB, sob a mesma trava de quem acrescenta linhas.
 
 ### 7.2 Frontmatter
 
@@ -387,7 +387,7 @@ Pontos validados na prova de conceito (seção 13):
 
 - **Início:** sistemas cadastrados, análises recentes e em andamento (com estado vindo dos hooks), botões dos fluxos, estado dos clientes de IA (instalado, logado).
 - **Sistema:** mapa, glossário, regras (com as que estão "a revalidar"), áreas.
-- **Análise:** documento sendo montado ao vivo, afirmações com selo de confiança, evidência selecionada com o trecho destacado, perguntas, sugestões, aviso de alteração no repositório. Terminal embutido com o Claude Code, quando esse for o cliente escolhido. Botões: abrir no cliente escolhido (Desktop, terminal embutido, comando para o terminal do analista), retomar, continuar no Desktop, confirmar, marcar incorreta, aprovar, exportar.
+- **Análise:** criada pelo app a partir da pergunta (o terminal abre com o pedido de `iniciar_analise` com o identificador, para a sessão ficar ligada à análise desde a primeira chamada); documento sendo montado ao vivo, afirmações com selo de confiança, evidência selecionada com o trecho destacado, perguntas, sugestões, aviso de alteração no repositório. Terminal embutido com o Claude Code, quando esse for o cliente escolhido. Botões: abrir no cliente escolhido (Desktop, terminal embutido, comando para o terminal do analista), retomar, continuar no Desktop, confirmar, marcar incorreta, aprovar, exportar.
 - **Base de conhecimento:** busca em regras, termos e análises.
 - **Configurações:** cliente de IA preferido (padrão: Claude Code no terminal embutido), pasta da base, sistemas e exclusões, templates, regras do sistema, ambiente do Claude (registro do MCP e dos hooks), proteção opcional contra edição.
 
