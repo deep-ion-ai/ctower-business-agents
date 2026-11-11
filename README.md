@@ -9,6 +9,8 @@ Assistente desktop para analistas de requisitos e de negócio entenderem sistema
 
 Status: em especificação. Veja [`docs/specs/2026-11-11-mvp-standalone.md`](docs/specs/2026-11-11-mvp-standalone.md).
 
+Versionamento: SemVer com commits convencionais e release-please, veja [`docs/versionamento.md`](docs/versionamento.md).
+
 Nasce da experiência com o [ctower-agents](https://github.com/deep-ion-ai/ctower-agents).
 
 Licença: [Apache-2.0](LICENSE).
