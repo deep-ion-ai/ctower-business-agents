@@ -99,6 +99,35 @@ fn cria_a_estrutura_da_spec() {
 }
 
 #[test]
+fn regras_do_sistema_criadas_com_o_padrao_sem_sobrescrever() {
+    let (_dir, base, sistema) = criar_base();
+    let arquivo = sistema.raiz().join("regras-do-sistema.md");
+    assert_eq!(
+        fs::read_to_string(&arquivo).unwrap(),
+        cba_kb::PADRAO_REGRAS_DO_SISTEMA
+    );
+    assert_eq!(
+        sistema.ler_regras_do_sistema().unwrap().as_deref(),
+        Some(cba_kb::PADRAO_REGRAS_DO_SISTEMA)
+    );
+
+    // Editado pelo analista: nem garantir nem criar o sistema de novo sobrescrevem.
+    fs::write(&arquivo, "- Valores em centavos.\n").unwrap();
+    assert!(!sistema.garantir_regras_do_sistema().unwrap());
+    base.criar_sistema(&documento_do_sistema()).unwrap();
+    assert_eq!(
+        sistema.ler_regras_do_sistema().unwrap().as_deref(),
+        Some("- Valores em centavos.\n")
+    );
+
+    // Apagado: a leitura diz que não há, e garantir cria de novo.
+    fs::remove_file(&arquivo).unwrap();
+    assert_eq!(sistema.ler_regras_do_sistema().unwrap(), None);
+    assert!(sistema.garantir_regras_do_sistema().unwrap());
+    assert!(arquivo.is_file());
+}
+
+#[test]
 fn recusa_sistemas_e_bases_invalidos() {
     let (_dir, base, _sistema) = criar_base();
     assert!(matches!(
@@ -186,8 +215,8 @@ fn reserva_sem_colisao_entre_threads() {
 
     let sistema = base.sistema(SISTEMA).unwrap();
     let docs = sistema.documentos().unwrap();
-    // 40 análises e o sistema.md, sem temporários.
-    assert_eq!(docs.len(), 41, "{docs:?}");
+    // 40 análises, o sistema.md e o regras-do-sistema.md, sem temporários.
+    assert_eq!(docs.len(), 42, "{docs:?}");
     assert!(docs.iter().all(|d| !d.nome().starts_with('.')));
 }
 

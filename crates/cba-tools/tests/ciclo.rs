@@ -555,3 +555,113 @@ fn concluir_analise_monta_o_documento_final_e_aponta_pendencias() {
         .unwrap();
     assert!(r.texto.contains("(mudou desde o registro)"), "{}", r.texto);
 }
+
+#[test]
+fn roteiro_da_base_sobrepoe_o_padrao_em_iniciar_e_retomar() {
+    let c = cenario();
+    c.criar(
+        Fluxo::Perguntar,
+        "Multa por atraso",
+        "Como é calculada a multa por atraso de pagamento?",
+    );
+    let base = &c.amb.base;
+    let arquivo = cba_tools::roteiro::arquivo_do_roteiro(Fluxo::Perguntar);
+    std::fs::create_dir_all(base.caminho(&arquivo).parent().unwrap()).unwrap();
+    base.gravar_texto(
+        &arquivo,
+        "<!-- roteiro da casa -->\n# Roteiro da casa para {{id}}\n\n{{entrada}}\n\nSeções: {{secoes_obrigatorias}}. {{responsavel}}\n\n{{secoes}}\n\n## Contexto\n\n{{contexto}}",
+    )
+    .unwrap();
+
+    let saida = c
+        .saida("iniciar_analise", json!({ "analise": "A-0001" }))
+        .unwrap();
+    let texto = &saida.texto;
+    assert!(
+        texto.starts_with("# Roteiro da casa para A-0001\n\n> Como é calculada"),
+        "{texto}"
+    );
+    assert!(
+        texto.contains("Seções: `resposta`. {{responsavel}}"),
+        "{texto}"
+    );
+    assert!(!texto.contains("roteiro da casa -->"), "{texto}");
+    assert!(
+        texto.contains(
+            "Aviso: roteiro da base: _templates/roteiros/perguntar.md, linha 6: variável desconhecida `{{responsavel}}`"
+        ),
+        "{texto}"
+    );
+    // A cópia do padrão não sobrescreveu o roteiro editado.
+    assert!(
+        base.ler_texto(&arquivo)
+            .unwrap()
+            .starts_with("<!-- roteiro da casa -->")
+    );
+    let dados = saida.dados.unwrap();
+    assert!(
+        dados["roteiro"]
+            .as_str()
+            .unwrap()
+            .starts_with("# Roteiro da casa para A-0001")
+    );
+    assert_eq!(dados["avisos"].as_array().unwrap().len(), 1);
+
+    // retomar_analise usa o mesmo roteiro.
+    let r = c
+        .saida("retomar_analise", json!({ "analise": "A-0001" }))
+        .unwrap();
+    assert!(
+        r.texto.contains("# Roteiro da casa para A-0001"),
+        "{}",
+        r.texto
+    );
+    assert!(
+        r.texto.contains("variável desconhecida `{{responsavel}}`"),
+        "{}",
+        r.texto
+    );
+}
+
+#[test]
+fn prompts_prontos_da_analise_com_o_texto_da_base() {
+    let c = cenario();
+    c.criar(
+        Fluxo::Perguntar,
+        "Multa por atraso",
+        "Como é calculada a multa?",
+    );
+    c.chamar("iniciar_analise", json!({ "analise": "A-0001" }));
+    let dados = DiretorioDados::em(c.dir.path().join("dados"));
+    let arquivo = cba_tools::prompts::arquivo_do_prompt("aprofundar").unwrap();
+    assert!(
+        c.amb.base.caminho(&arquivo).is_file(),
+        "cópia editável na base"
+    );
+    c.amb
+        .base
+        .gravar_texto(&arquivo, "Aprofunde {{id}}: {{titulo}}.\nSó a resposta.\n")
+        .unwrap();
+
+    let prontos = cba_tools::prompts::da_analise(&dados, "faturamento-exemplo", "A-0001").unwrap();
+    let aprofundar = prontos.iter().find(|p| p.id == "aprofundar").unwrap();
+    assert_eq!(
+        aprofundar.texto,
+        "Aprofunde A-0001: Multa por atraso. Só a resposta."
+    );
+    let retomar = prontos.iter().find(|p| p.id == "retomar").unwrap();
+    assert_eq!(retomar.texto, "Retome a análise A-0001 pelo ctower.");
+
+    let erro = cba_tools::prompts::da_analise(&dados, "faturamento-exemplo", "A-0099")
+        .unwrap_err()
+        .to_string();
+    assert!(erro.contains("A-0099"), "{erro}");
+    let erro = cba_tools::prompts::da_analise(&dados, "outro", "A-0001")
+        .unwrap_err()
+        .to_string();
+    assert!(erro.contains("`outro` não está cadastrado"), "{erro}");
+    let erro = cba_tools::prompts::da_analise(&dados, "faturamento-exemplo", "S-0001")
+        .unwrap_err()
+        .to_string();
+    assert!(erro.contains("A-NNNN"), "{erro}");
+}

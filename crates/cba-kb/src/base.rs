@@ -12,6 +12,10 @@ use crate::frontmatter::{Frontmatter, FrontmatterSistema};
 use crate::id::{Id, Serie};
 use crate::layout;
 
+/// Conteúdo inicial do `regras-do-sistema.md`: só um título e um comentário com
+/// as instruções, que não chega ao agente.
+pub const PADRAO_REGRAS_DO_SISTEMA: &str = include_str!("../modelos/regras-do-sistema.md");
+
 /// Quantas vezes [`Sistema::criar_numerado`] tenta o número seguinte quando outro
 /// processo reservou o mesmo antes.
 const TENTATIVAS_DE_RESERVA: u32 = 1000;
@@ -97,9 +101,11 @@ impl Base {
                 .map_err(|erro| sistema.erro_io(&relativo, erro))?;
         }
         match sistema.criar(&layout::sistema(), documento) {
-            Ok(()) | Err(Erro::JaExiste(_)) => Ok(sistema),
-            Err(e) => Err(e),
+            Ok(()) | Err(Erro::JaExiste(_)) => {}
+            Err(e) => return Err(e),
         }
+        sistema.garantir_regras_do_sistema()?;
+        Ok(sistema)
     }
 
     /// Nomes dos sistemas da base (pastas com `sistema.md`), em ordem alfabética.
@@ -186,6 +192,32 @@ impl Sistema {
             });
         }
         Ok(doc)
+    }
+
+    /// Cria o `regras-do-sistema.md` com o conteúdo padrão
+    /// ([`PADRAO_REGRAS_DO_SISTEMA`]) se ele ainda não existir; nunca sobrescreve.
+    /// Devolve se criou.
+    pub fn garantir_regras_do_sistema(&self) -> Resultado<bool> {
+        let relativo = layout::regras_do_sistema();
+        match arquivo::criar(
+            &self.caminho(&relativo),
+            PADRAO_REGRAS_DO_SISTEMA.as_bytes(),
+        ) {
+            Ok(()) => Ok(true),
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => Ok(false),
+            Err(erro) => Err(self.erro_io(&relativo, erro)),
+        }
+    }
+
+    /// Texto do `regras-do-sistema.md`, como está no arquivo (`None` se não
+    /// existir).
+    pub fn ler_regras_do_sistema(&self) -> Resultado<Option<String>> {
+        let relativo = layout::regras_do_sistema();
+        match ler_texto(&self.caminho(&relativo), &self.na_base(&relativo)) {
+            Ok(texto) => Ok(Some(texto)),
+            Err(Erro::Io { erro, .. }) if erro.kind() == io::ErrorKind::NotFound => Ok(None),
+            Err(e) => Err(e),
+        }
     }
 
     /// Lê um documento por caminho relativo à raiz do sistema.

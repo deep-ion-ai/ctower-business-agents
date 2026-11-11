@@ -480,16 +480,27 @@ fn mcp_pergunta_ao_sistema_do_inicio_ao_documento_na_base() {
     ));
     mensagens.push(chamada(
         6,
+        "afirmar",
+        json!({
+            "analise": "A-0001",
+            "secao": "exemplo",
+            "texto": "Fatura de R$ 1.000,00 paga depois da carência: multa de 2% = R$ 20,00.",
+            "confianca": "inferido",
+            "evidencias": [evidencias[0]]
+        }),
+    ));
+    mensagens.push(chamada(
+        7,
         "perguntar",
         json!({
             "analise": "A-0001",
             "texto": "O lote de cobrança também deveria ler o percentual da tabela de parâmetros?"
         }),
     ));
-    mensagens.push(chamada(7, "concluir_analise", json!({"analise": "A-0001"})));
-    mensagens.push(chamada(8, "concluir_analise", json!({"analise": "A-0099"})));
+    mensagens.push(chamada(8, "concluir_analise", json!({"analise": "A-0001"})));
+    mensagens.push(chamada(9, "concluir_analise", json!({"analise": "A-0099"})));
     let respostas = conversar(iniciar_mcp(&fixture(), dados.raiz()), &mensagens);
-    assert_eq!(respostas.len(), 8, "{respostas:?}");
+    assert_eq!(respostas.len(), 9, "{respostas:?}");
 
     let ferramentas: Vec<&str> = respostas[1]["result"]["tools"]
         .as_array()
@@ -500,7 +511,7 @@ fn mcp_pergunta_ao_sistema_do_inicio_ao_documento_na_base() {
     for nome in ["iniciar_analise", "retomar_analise", "concluir_analise"] {
         assert!(ferramentas.contains(&nome), "{ferramentas:?}");
     }
-    for r in &respostas[2..7] {
+    for r in &respostas[2..8] {
         assert_eq!(r["result"]["isError"], false, "{r}");
     }
 
@@ -514,9 +525,31 @@ fn mcp_pergunta_ao_sistema_do_inicio_ao_documento_na_base() {
         "{roteiro}"
     );
     assert!(roteiro.contains("concluir_analise"), "{roteiro}");
+    // O roteiro de perguntar ao sistema, com as variáveis preenchidas.
+    assert!(
+        roteiro.contains(
+            "Fluxo: pergunta ao sistema. Documento na base: `faturamento-exemplo/analises/A-0001.md`"
+        ),
+        "{roteiro}"
+    );
+    assert!(
+        roteiro.contains(
+            "## Pergunta do analista\n\n> Como é calculada a multa por atraso de pagamento?"
+        ),
+        "{roteiro}"
+    );
+    for secao in [
+        "`resposta` (Resposta) (obrigatória)",
+        "`regras_encontradas`",
+        "`exemplo`",
+    ] {
+        assert!(roteiro.contains(secao), "{secao}: {roteiro}");
+    }
+    assert!(roteiro.contains("## Contexto da base"), "{roteiro}");
+    assert!(!roteiro.contains("{{"), "{roteiro}");
 
     // concluir_analise: o caminho que o agente cita no chat.
-    let concluir = &respostas[6]["result"];
+    let concluir = &respostas[7]["result"];
     let documento = "faturamento-exemplo/analises/A-0001.md";
     assert_eq!(concluir["structuredContent"]["documento"], documento);
     assert_eq!(concluir["structuredContent"]["estado"], "concluida");
@@ -525,7 +558,7 @@ fn mcp_pergunta_ao_sistema_do_inicio_ao_documento_na_base() {
     assert!(texto.contains("Perguntas em aberto (1)"), "{texto}");
 
     // Identificador desconhecido: erro da ferramenta, com instrução.
-    let desconhecida = &respostas[7]["result"];
+    let desconhecida = &respostas[8]["result"];
     assert_eq!(desconhecida["isError"], true);
     let texto = desconhecida["content"][0]["text"].as_str().unwrap();
     assert!(texto.contains("A-0099 não existe"), "{texto}");
@@ -584,6 +617,26 @@ fn mcp_pergunta_ao_sistema_do_inicio_ao_documento_na_base() {
         "{corpo}"
     );
     assert_eq!(corpo.matches("[^1]:").count(), 1, "{corpo}");
+    // Cada seção que o fluxo preenche tem conteúdo.
+    for secao in [
+        "Pergunta",
+        "Resposta",
+        "Regras encontradas",
+        "Exemplo",
+        "Perguntas em aberto",
+        "Evidências",
+    ] {
+        let (_, depois) = corpo.split_once(&format!("## {secao}\n\n")).unwrap();
+        assert!(
+            !depois.starts_with("_Nada registrado._"),
+            "{secao}: {corpo}"
+        );
+        assert!(!depois.starts_with("_Nenhuma"), "{secao}: {corpo}");
+    }
+    assert!(
+        corpo.contains("- **[inferido]** Fatura de R$ 1.000,00 paga depois da carência"),
+        "{corpo}"
+    );
     // Caminhos relativos: nada da máquina no documento.
     assert!(
         !markdown.contains(&*dir.path().to_string_lossy()),
@@ -593,6 +646,30 @@ fn mcp_pergunta_ao_sistema_do_inicio_ao_documento_na_base() {
         dir.path().join("base/_templates/pergunta.md").is_file(),
         "templates padrão copiados para a base"
     );
+    // Roteiro revisado e prompts prontos: a cópia editável, na base.
+    assert!(
+        dir.path()
+            .join("base/_templates/roteiros/perguntar.md")
+            .is_file()
+    );
+    assert!(
+        !dir.path()
+            .join("base/_templates/roteiros/impacto.md")
+            .exists()
+    );
+    assert!(
+        dir.path()
+            .join("base/_templates/prompts/aprofundar.md")
+            .is_file()
+    );
+
+    // Os prompts prontos da análise, como o comando `prompts_prontos` da janela.
+    let prontos = cba_tools::prompts::da_analise(&dados, "faturamento-exemplo", "A-0001").unwrap();
+    assert_eq!(prontos.len(), 5);
+    for p in &prontos {
+        assert!(p.texto.contains("A-0001"), "{p:?}");
+        assert!(!p.texto.contains("{{"), "{p:?}");
+    }
 
     // Sessão nova (outro processo): retomar_analise devolve todo o estado.
     let mut mensagens = inicio_da_conversa();
@@ -606,7 +683,7 @@ fn mcp_pergunta_ao_sistema_do_inicio_ao_documento_na_base() {
         estado["entrada"],
         "Como é calculada a multa por atraso de pagamento?"
     );
-    assert_eq!(estado["afirmacoes"].as_array().unwrap().len(), 2);
+    assert_eq!(estado["afirmacoes"].as_array().unwrap().len(), 3);
     assert_eq!(
         estado["afirmacoes"][0]["evidencias"]
             .as_array()
@@ -660,8 +737,17 @@ fn rodar_hook(evento: &str, entrada: &Value, dados: &Path) -> Output {
         .unwrap();
     let saida = filho.wait_with_output().unwrap();
     assert_eq!(saida.status.code(), Some(0), "{evento}: {saida:?}");
-    assert_eq!(texto(&saida.stdout).trim(), "{}", "{evento}");
     saida
+}
+
+/// A saída padrão do hook: um objeto JSON só, como o Claude Code espera.
+fn saida_do_hook(saida: &Output) -> Value {
+    serde_json::from_str(texto(&saida.stdout).trim()).expect("saída do hook em JSON")
+}
+
+/// Confere que o hook respondeu `{}` (o cliente segue sem contexto extra).
+fn sem_contexto(saida: &Output, evento: &str) {
+    assert_eq!(texto(&saida.stdout).trim(), "{}", "{evento}");
 }
 
 /// Entrada de exemplo de cada evento, no formato da documentação do Claude Code
@@ -702,7 +788,8 @@ fn estado_da_sessao(dados: &Path, sessao: &str) -> Value {
 }
 
 /// Uma sessão inteira na pasta do sistema: cada evento muda o estado da sessão e da
-/// análise ligada, e o executável sempre responde `{}` com código 0.
+/// análise ligada. O executável responde com código 0: no `SessionStart`, com os
+/// limites em `additionalContext` (#31); nos demais, `{}`.
 #[test]
 fn hook_acompanha_a_sessao_na_pasta_do_sistema() {
     let dir = tempfile::tempdir().unwrap();
@@ -735,11 +822,21 @@ fn hook_acompanha_a_sessao_na_pasta_do_sistema() {
         ("SessionEnd", "encerrada", Some("encerrada")),
     ];
     for (evento, na_sessao, na_analise) in esperado {
-        rodar_hook(
+        let saida = rodar_hook(
             evento,
             &entrada_do_hook(evento, sessao, &cwd, &id),
             dados.raiz(),
         );
+        if evento == "SessionStart" {
+            let json = saida_do_hook(&saida);
+            assert_eq!(json["hookSpecificOutput"]["hookEventName"], "SessionStart");
+            let contexto = json["hookSpecificOutput"]["additionalContext"]
+                .as_str()
+                .unwrap();
+            assert!(contexto.contains("registrar_sugestao"), "{contexto}");
+        } else {
+            sem_contexto(&saida, evento);
+        }
         let estado = estado_da_sessao(dados.raiz(), sessao);
         assert_eq!(estado["estado"], na_sessao, "{evento}: {estado}");
         assert_eq!(estado["sistema"], "faturamento-exemplo");
@@ -773,19 +870,21 @@ fn hook_fora_de_sistema_nao_grava_e_ambos_os_caminhos_sao_rapidos() {
     let sessao = "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d";
 
     for evento in cba_session::hooks::EVENTOS {
-        rodar_hook(
+        let saida = rodar_hook(
             evento,
             &entrada_do_hook(evento, sessao, fora.path(), "A-0001"),
             dados.raiz(),
         );
+        sem_contexto(&saida, evento);
     }
     assert!(!dados.sessoes().exists());
 
     let mediana = |entrada: &Value| {
+        let evento = entrada["hook_event_name"].as_str().unwrap().to_owned();
         let mut tempos: Vec<Duration> = (0..5)
             .map(|_| {
                 let inicio = Instant::now();
-                rodar_hook("PreToolUse", entrada, dados.raiz());
+                rodar_hook(&evento, entrada, dados.raiz());
                 inicio.elapsed()
             })
             .collect();
@@ -808,5 +907,11 @@ fn hook_fora_de_sistema_nao_grava_e_ambos_os_caminhos_sao_rapidos() {
     no_sistema["tool_input"] = json!({"file_path": "db/01_tabelas.sql"});
     let no_sistema = mediana(&no_sistema);
     assert!(no_sistema < LIMITE_HOOK, "no sistema: {no_sistema:?}");
+
+    // O SessionStart no sistema lê a base e as regras do sistema (#31).
+    let mut inicio = entrada_do_hook("SessionStart", sessao, &fixture(), "A-0001");
+    inicio["source"] = "resume".into();
+    let inicio = mediana(&inicio);
+    assert!(inicio < LIMITE_HOOK, "SessionStart no sistema: {inicio:?}");
     assert!(dados.sessoes().join(format!("{sessao}.json")).is_file());
 }

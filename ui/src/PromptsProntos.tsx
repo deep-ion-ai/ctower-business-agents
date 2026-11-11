@@ -38,7 +38,7 @@ export function PromptsProntos({ api, sistema, analise, habilitado, aoEnviar }: 
           key={p.id}
           type="button"
           disabled={!habilitado}
-          title={p.texto}
+          title={p.descricao || p.texto}
           onClick={() => aoEnviar(p.texto)}
         >
           {p.rotulo}

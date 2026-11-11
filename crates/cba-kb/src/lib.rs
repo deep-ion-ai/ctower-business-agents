@@ -7,6 +7,7 @@
 //!   _templates/
 //!   <sistema>/
 //!     sistema.md
+//!     regras-do-sistema.md         # regras do sistema para o agente (#31)
 //!     glossario/<termo>.md
 //!     regras/RN-<AREA>-<NNN>.md
 //!     areas/<area>/memoria.md
@@ -38,7 +39,7 @@ pub mod frontmatter;
 mod id;
 pub mod layout;
 
-pub use base::{Base, Sistema};
+pub use base::{Base, PADRAO_REGRAS_DO_SISTEMA, Sistema};
 pub use caminho::{CaminhoInvalido, CaminhoRelativo, e_slug, slug};
 pub use documento::{Documento, ErroFrontmatter};
 pub use erro::{Erro, Resultado};

@@ -31,7 +31,7 @@ describe("api da tela da análise", () => {
   });
 
   it("prompts prontos: repassa a lista do comando", async () => {
-    const lista = [{ id: "resumir", rotulo: "Resumir", texto: "Resuma." }];
+    const lista = [{ id: "resumir", rotulo: "Resumir", descricao: "Resumo", texto: "Resuma." }];
     mockInvoke.mockResolvedValue(lista);
     await expect(apiAnaliseTauri.promptsProntos("faturamento-exemplo", "A-0001")).resolves.toEqual(
       lista,

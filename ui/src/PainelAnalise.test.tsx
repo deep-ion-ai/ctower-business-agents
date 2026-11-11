@@ -159,7 +159,12 @@ describe("PainelAnalise", () => {
   it("envia um prompt pronto à sessão viva", async () => {
     const analise = apiAnaliseFalsa();
     analise.api.promptsProntos.mockResolvedValue([
-      { id: "resumir", rotulo: "Resumir para o solicitante", texto: "Resuma para o solicitante." },
+      {
+        id: "resumir",
+        rotulo: "Resumir para o solicitante",
+        descricao: "Resumo em linguagem de negócio",
+        texto: "Resuma para o solicitante.",
+      },
     ]);
     const terminal = apiTerminalFalsa();
     render(
