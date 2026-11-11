@@ -9,26 +9,18 @@ Assistente desktop para analistas de requisitos e de negócio entenderem sistema
 
 Status: em desenvolvimento (M1, esqueleto). O app abre uma tela vazia; o servidor MCP (`cba mcp`) e o receptor de hooks (`cba hook <evento>`) respondem, ainda sem ferramentas. Veja a spec em [`docs/specs/2026-11-11-mvp-standalone.md`](docs/specs/2026-11-11-mvp-standalone.md) e o plano em [`docs/plans/2026-11-11-plano-mvp.md`](docs/plans/2026-11-11-plano-mvp.md).
 
-## Desenvolvimento
-
-Pré-requisitos: Rust (a versão do `rust-toolchain.toml` é instalada sozinha pelo `rustup`), Node 22 e as [dependências do Tauri 2](https://v2.tauri.app/start/prerequisites/) do seu sistema.
-
-```sh
-cd ui
-npm ci
-npm run tauri dev        # app com recarga da UI
-npm run build            # constrói ui/dist, exigido para compilar o cba-app
-cd ..
-cargo test --workspace   # testes do Rust (depois do npm run build)
-cargo run -p cba-app -- --version
-```
-
-O executável `cba` tem os modos: sem argumentos abre o app; `cba mcp` sobe o servidor MCP em stdio; `cba hook <evento>` lê o JSON do hook na entrada padrão. Dados do app (índice, configuração, logs) ficam no diretório de dados do usuário, em `ai.deep-ion.ctower-business-agents` (`CBA_DATA_DIR` troca o lugar).
-
-Os instaladores de Windows e macOS saem a cada release; veja [`docs/versionamento.md`](docs/versionamento.md).
+Instalação: cada [release](https://github.com/deep-ion-ai/ctower-business-agents/releases) traz o instalador do Windows x64 e o DMG universal do macOS, ainda sem assinatura; as notas da release explicam como instalar.
 
 Versionamento: SemVer com commits convencionais e release-please, veja [`docs/versionamento.md`](docs/versionamento.md).
 
 Nasce da experiência com o [ctower-agents](https://github.com/deep-ion-ai/ctower-agents).
+
+## Compilar localmente
+
+Pré-requisitos por sistema e comandos em [Compilar localmente](CONTRIBUTING.md#compilar-localmente), no CONTRIBUTING. Em resumo: `(cd ui && npm ci && npm run build)`, depois `cargo test --workspace`; `npm run tauri dev` em `ui/` abre o app em modo de desenvolvimento.
+
+## Contribuir
+
+[CONTRIBUTING](CONTRIBUTING.md) · [Código de conduta](CODE_OF_CONDUCT.md) · [Segurança](SECURITY.md) · [CLA](docs/cla/CLA.md)
 
 Licença: [Apache-2.0](LICENSE).
