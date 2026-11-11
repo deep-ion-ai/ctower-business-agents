@@ -21,6 +21,8 @@
 //!   (spec, seção 6.5) e o hash do trecho.
 //! - [`documento`]: o documento da análise remontado a partir do estado a cada
 //!   registro.
+//! - [`revalidacao`]: a revalidação das evidências das regras e das análises por
+//!   hash, que o app chama ao abrir o sistema e sob demanda (spec, seção 6.5).
 //!
 //! Papel na arquitetura: seção 5 de `docs/specs/2026-11-11-mvp-standalone.md`.
 
@@ -35,6 +37,7 @@ pub mod evidencias;
 pub mod perguntar;
 pub mod prompts;
 mod registro;
+pub mod revalidacao;
 pub mod roteiro;
 pub mod schema;
 pub mod sugestao;
