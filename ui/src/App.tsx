@@ -2,16 +2,16 @@ import { useCallback, useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { mensagemDe } from "./analise";
 import { AssistentePrimeiroUso, type FimPrimeiroUso } from "./AssistentePrimeiroUso";
-import { ClientesIA } from "./ClientesIA";
 import { apiPrimeiroUsoTauri, type ApiPrimeiroUso, type Situacao } from "./primeiroUso";
-import { TelaAnalise } from "./TelaAnalise";
+import { Navegacao } from "./Navegacao";
 
 export const PRODUTO = "Ctower Business Agents";
 
 /**
  * Tela inicial: nome do produto e versão do app. No primeiro uso, o assistente
- * (cliente de IA, base, sistema e ambiente); depois, o estado dos clientes de IA e a
- * pergunta ao sistema, com a tela da análise (terminal e documento ao vivo).
+ * (cliente de IA, base, sistema e ambiente); depois, a navegação entre o início, o
+ * sistema, a base de conhecimento e as análises ({@link Navegacao}). Ao concluir o
+ * assistente, abre a análise com a pergunta sugerida.
  */
 export function App({ api = apiPrimeiroUsoTauri }: { api?: ApiPrimeiroUso }) {
   const [versao, setVersao] = useState<string | null>(null);
@@ -78,11 +78,14 @@ export function App({ api = apiPrimeiroUsoTauri }: { api?: ApiPrimeiroUso }) {
       )}
       {(falha || (situacao && !assistente)) && (
         <>
-          <ClientesIA abrirLink={api.abrirLink} />
-          <TelaAnalise
+          <Navegacao
             key={inicio?.sistema ?? ""}
-            sistemaInicial={inicio?.sistema}
-            perguntaInicial={inicio?.pergunta}
+            inicial={
+              inicio
+                ? { tipo: "analise", sistema: inicio.sistema, pergunta: inicio.pergunta }
+                : undefined
+            }
+            abrirLink={api.abrirLink}
             aoPrimeiroUso={reabrir}
           />
           {situacao && (
