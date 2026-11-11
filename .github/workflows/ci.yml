@@ -1,0 +1,52 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [develop, main, 'wip/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Um push novo no mesmo PR ou branch cancela a execução anterior.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    strategy:
+      # Um sistema que falha não cancela os outros.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-15, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      # Instala a versão fixada no rust-toolchain.toml, com rustfmt e clippy.
+      - name: Toolchain do rust-toolchain.toml
+        run: |
+          rustup toolchain install
+          rustc --version
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked
+
+  # Regras do repositório que não dependem do sistema operacional.
+  politicas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Toolchain do rust-toolchain.toml
+        run: rustup toolchain install
+      - name: Testes dos scripts
+        run: python3 -m unittest discover -s scripts -p 'test_*.py'
+      # Mesma versão em todos os arquivos de versão (lista nos extra-files do
+      # release-please-config.json) e no Cargo.lock.
+      - name: Versões
+        run: python3 scripts/check-versions.py
+      # Só o cba-app depende do Tauri (spec, seção 5).
+      - name: Nenhuma crate além do cba-app depende do Tauri
+        run: python3 scripts/check-deps.py
