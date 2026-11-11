@@ -37,9 +37,9 @@ pub mod sql;
 // Linhas reservadas (#17). Descomente a da sua linguagem.
 pub mod cobol;
 //
-// pub mod delphi;
+pub mod delphi;
 //
-// pub mod vb6;
+pub mod vb6;
 
 /// Arquivo entregue ao extrator.
 #[derive(Debug, Clone, Copy)]
@@ -93,9 +93,9 @@ impl Registro {
         // Linhas reservadas (#17). Descomente a da sua linguagem.
         r.registrar(cobol::ExtratorCobol);
         //
-        // r.registrar(delphi::ExtratorDelphi);
+        r.registrar(delphi::ExtratorDelphi);
         //
-        // r.registrar(vb6::ExtratorVb6);
+        r.registrar(vb6::ExtratorVb6);
         r
     }
 
