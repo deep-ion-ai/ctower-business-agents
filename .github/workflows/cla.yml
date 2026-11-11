@@ -9,6 +9,9 @@ name: CLA
 on:
   pull_request_target:
     types: [opened, synchronize, closed]
+    # Contribuições externas entram por develop (ou main). PRs internos para branches de
+    # trabalho (ex.: wip/* de um épico) não passam pelo CLA.
+    branches: [develop, main]
   issue_comment:
     types: [created]
 
