@@ -26,6 +26,8 @@ cba-session = { path = "crates/cba-session" }
 dirs = "6"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# serde_yaml e serde_yml foram descontinuadas; serde_norway é o fork mantido.
+serde_norway = "0.9"
 tracing = "0.1"
 tracing-appender = "0.2"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
