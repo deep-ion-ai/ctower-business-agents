@@ -88,3 +88,42 @@ jobs:
       # Só o cba-app depende do Tauri (spec, seção 5).
       - name: Nenhuma crate além do cba-app depende do Tauri
         run: python3 scripts/check-deps.py
+
+  # Scripts de instalação (#45): análise estática e testes com uma release falsa
+  # (sem instalar nada; veja packaging/tests).
+  instalador-sh:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: shellcheck
+        if: runner.os == 'Linux'
+        run: shellcheck -s sh packaging/install/install.sh
+      - run: sh -n packaging/install/install.sh
+      - name: Testes com sh
+        run: python3 -m unittest discover -v -s packaging/tests -p 'test_*.py'
+      - name: Testes com dash
+        if: runner.os == 'Linux'
+        run: CBA_TEST_SH=dash python3 -m unittest discover -s packaging/tests -p 'test_*.py'
+
+  instalador-ps1:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+      - name: PSScriptAnalyzer
+        run: |
+          if (-not (Get-Module -ListAvailable PSScriptAnalyzer)) { Install-Module PSScriptAnalyzer -Force -Scope CurrentUser }
+          $r = 'packaging/install/install.ps1', 'packaging/tests/test-install.ps1' |
+            ForEach-Object { Invoke-ScriptAnalyzer -Path $_ -Severity Warning, Error -ExcludeRule PSAvoidUsingWriteHost }
+          $r | Format-Table -AutoSize -Wrap RuleName, Line, Message
+          if ($r) { exit 1 }
+      - name: Testes com PowerShell 5.1
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File packaging/tests/test-install.ps1 -Shell powershell
+      - name: Testes com PowerShell 7
+        run: pwsh -NoProfile -File packaging/tests/test-install.ps1 -Shell pwsh
