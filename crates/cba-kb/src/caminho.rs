@@ -184,7 +184,7 @@ pub fn e_slug(texto: &str) -> bool {
             .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
 }
 
-fn sem_acento(c: char) -> char {
+pub(crate) fn sem_acento(c: char) -> char {
     match c {
         'á' | 'à' | 'â' | 'ã' | 'ä' => 'a',
         'é' | 'è' | 'ê' | 'ë' => 'e',
