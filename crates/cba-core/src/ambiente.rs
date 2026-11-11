@@ -89,6 +89,8 @@ pub struct Ambiente {
     /// O sistema dentro da base.
     pub kb: cba_kb::Sistema,
     pub analises: Analises,
+    /// Diretório de dados do app (índice da base, cadastro e mapa do sistema).
+    pub dados: DiretorioDados,
 }
 
 impl Ambiente {
@@ -144,6 +146,7 @@ impl Ambiente {
             escopo,
             base,
             kb,
+            dados: dados.clone(),
         })
     }
 }

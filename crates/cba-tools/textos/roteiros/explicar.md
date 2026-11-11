@@ -24,8 +24,8 @@ Fluxo: {{fluxo}}. Documento na base: `{{documento}}` (montado pelo app a partir 
 
 Descreva a funcionalidade para quem não lê código: objetivo, quem usa, fluxo principal, alternativos e exceções, regras (cada uma com evidência), dados lidos e gravados e integrações.
 
-1. Consulte primeiro o contexto da base (abaixo): regras já confirmadas e termos do glossário poupam exploração e não precisam ser redescobertos.
-2. Leia o código do sistema com as suas ferramentas de leitura e busca. O que não está no código (parâmetros em tabela, jobs agendados, sistemas vizinhos) vira pergunta, não suposição.
+1. Consulte primeiro o contexto da base (abaixo) e, para outros conceitos da entrada, `conhecimento`: regras já confirmadas e termos do glossário poupam exploração e não precisam ser redescobertos.
+2. Localize no código antes de ler: `referencias` diz onde uma rotina, tabela ou campo é usado (e, com `sentido: "o_que_usa"`, o que ele usa), `estrutura` lista as rotinas de um arquivo com as linhas, `schema` mostra tabelas e colunas e `mapa` dá a visão das pastas. Depois leia o código com as suas ferramentas de leitura e busca. O que não está no código (parâmetros em tabela, jobs agendados, sistemas vizinhos) vira pergunta, não suposição.
 3. Registre o conteúdo com `afirmar` (analise: "{{id}}"), uma regra ou fato por chamada, com a confiança honesta e as evidências (arquivo relativo à raiz do sistema, linhas e o trecho copiado do código). Evidência recusada volta com o motivo e a correção: corrija e chame de novo. Seções desta análise:
 {{secoes}}
 4. O que o código não responde, ou uma premissa a confirmar, vai para `perguntar`.

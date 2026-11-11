@@ -11,6 +11,9 @@
 //!   módulo: [`analises`] (`listar_analises`), [`ciclo`] (`iniciar_analise`,
 //!   `retomar_analise` e `concluir_analise`), [`afirmar`], [`perguntar`],
 //!   [`sugestao`] (`registrar_sugestao`) e [`termo`] (`propor_termo`).
+//! - Consulta, só de leitura e paginada ([`paginacao`]): [`conhecimento`] (busca no
+//!   índice da base), [`mapa`], [`estrutura`], [`banco`] (`schema`) e
+//!   [`referencias`], a partir do mapa estrutural do sistema ([`fontes`]).
 //! - [`roteiro`] e [`contexto`]: o roteiro do fluxo e o contexto da base que
 //!   `iniciar_analise` e `retomar_analise` devolvem ao agente.
 //! - [`prompts`]: os prompts prontos da tela da análise (aprofundar, resumir,
@@ -21,19 +24,29 @@
 //!   (spec, seção 6.5) e o hash do trecho.
 //! - [`documento`]: o documento da análise remontado a partir do estado a cada
 //!   registro.
+//! - [`aprovacao`]: a aprovação da análise pelo analista, que leva à base as
+//!   afirmações confirmadas (regras) e os termos aceitos (glossário).
 //!
 //! Papel na arquitetura: seção 5 de `docs/specs/2026-11-11-mvp-standalone.md`.
 
 pub mod afirmar;
 pub mod analises;
+pub mod aprovacao;
+pub mod banco;
 pub mod ciclo;
 mod comum;
+pub mod conhecimento;
 pub mod contexto;
 pub mod documento;
 pub mod editavel;
+pub mod estrutura;
 pub mod evidencias;
+mod fontes;
+pub mod mapa;
+mod paginacao;
 pub mod perguntar;
 pub mod prompts;
+pub mod referencias;
 mod registro;
 pub mod roteiro;
 pub mod schema;
@@ -54,6 +67,11 @@ pub fn registro_padrao() -> Registro {
         .registrar(analises::listar_analises())
         .registrar(ciclo::iniciar_analise())
         .registrar(ciclo::retomar_analise())
+        .registrar(conhecimento::conhecimento())
+        .registrar(referencias::referencias())
+        .registrar(mapa::mapa())
+        .registrar(estrutura::estrutura())
+        .registrar(banco::schema())
         .registrar(afirmar::afirmar())
         .registrar(perguntar::perguntar())
         .registrar(sugestao::registrar_sugestao())
@@ -78,6 +96,11 @@ mod tests {
             "listar_analises",
             "iniciar_analise",
             "retomar_analise",
+            "conhecimento",
+            "referencias",
+            "mapa",
+            "estrutura",
+            "schema",
             "afirmar",
             "perguntar",
             "registrar_sugestao",
@@ -90,7 +113,16 @@ mod tests {
         assert!(!r.obter("afirmar").unwrap().e_somente_leitura());
         assert!(!r.obter("iniciar_analise").unwrap().e_somente_leitura());
         assert!(!r.obter("concluir_analise").unwrap().e_somente_leitura());
-        assert!(r.obter("retomar_analise").unwrap().e_somente_leitura());
+        for consulta in [
+            "retomar_analise",
+            "conhecimento",
+            "referencias",
+            "mapa",
+            "estrutura",
+            "schema",
+        ] {
+            assert!(r.obter(consulta).unwrap().e_somente_leitura(), "{consulta}");
+        }
         for f in r.ferramentas() {
             assert!(!f.descricao().is_empty(), "{}", f.nome());
             assert_eq!(f.schema()["type"], "object");
