@@ -96,7 +96,7 @@ Os exemplos usam um sistema fictício de faturamento ("Faturamento Exemplo").
 
 1. O analista instala o app e o abre.
 2. O analista escolhe como prefere conversar com a IA. O app apresenta o Claude Code no terminal embutido como recomendado ("tudo numa janela só") e o Claude Desktop como opção para quem não quer usar terminal ("conversa no Desktop, documento aqui"). O app verifica se o cliente escolhido está instalado e logado; se não estiver, mostra o passo a passo oficial (página de download do Desktop ou comando de instalação do Claude Code) e pede que o analista faça login com a própria conta, pelo fluxo do próprio cliente.
-3. O analista escolhe a pasta da **base de conhecimento** (padrão sugerido: `Documentos/ctower-business`). Pode ser uma pasta sincronizada ou um repositório git próprio.
+3. O analista escolhe a pasta da **base de conhecimento** (padrão sugerido: `Documentos/ctower-business`). Pode ser uma pasta sincronizada ou um repositório git próprio. O app recusa pasta temporária, o diretório de dados do app e pasta dentro do repositório (ou das pastas) de um sistema cadastrado; no cadastro, recusa também o sistema cujo repositório contém a base.
 4. O analista cadastra o sistema: nome e uma ou mais pastas. O app mostra o que vai analisar (contagem de arquivos por tipo) e o que vai ignorar (binários, dependências, arquivos com segredos), e permite ajustar.
 5. O app prepara o ambiente do sistema, com consentimento (seção 6.2): registra o servidor MCP e os hooks. Nenhum arquivo é criado dentro do repositório do sistema.
 6. O mapeamento estrutural roda com barra de progresso (sem IA, sem custo).

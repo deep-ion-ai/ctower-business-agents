@@ -351,3 +351,173 @@ body {
 .documento-caminho code {
   word-break: break-all;
 }
+
+/* Primeiro uso */
+
+.assistente {
+  margin-top: 1.5rem;
+  width: min(56rem, calc(100% - 2rem));
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.titulo-assistente {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.etapas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  margin: 0;
+  padding-left: 1.25rem;
+  color: var(--suave);
+}
+
+.etapas .atual {
+  color: var(--texto);
+  font-weight: 600;
+}
+
+.etapas .feita::marker {
+  content: "✓ ";
+}
+
+.passo-assistente {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--suave) 40%, transparent);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+}
+
+.passo-assistente h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.passo-assistente p {
+  margin: 0;
+}
+
+.passo-assistente textarea,
+.passo-assistente input.caminho {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.passo-assistente input.caminho {
+  max-width: 36rem;
+}
+
+.opcoes-cliente {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 0.75rem;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.opcao {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--suave) 40%, transparent);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+}
+
+.opcao .suave {
+  grid-column: 2;
+}
+
+.opcao.escolhida {
+  border-color: color-mix(in srgb, #3b82f6 70%, transparent);
+}
+
+.acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+button.primario {
+  font-weight: 600;
+}
+
+button.link {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.pendencia {
+  color: color-mix(in srgb, #d4a017 70%, var(--texto));
+}
+
+.confirmacao {
+  color: color-mix(in srgb, #2e9e5b 75%, var(--texto));
+}
+
+.comando {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pastas-sistema {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--suave) 30%, transparent);
+  border-radius: 8px;
+}
+
+.pastas-sistema > button {
+  align-self: flex-start;
+}
+
+.resumo-inventario {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 1rem;
+}
+
+.resumo-inventario h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.resumo-inventario .numero {
+  text-align: right;
+  padding-left: 1rem;
+}
+
+.lista-ignorados {
+  max-height: 16rem;
+  overflow: auto;
+  padding-left: 1.25rem;
+}
+
+.sugestoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.progresso {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}

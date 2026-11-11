@@ -12,31 +12,37 @@ function montar(analise = apiAnaliseFalsa()) {
 }
 
 describe("TelaAnalise", () => {
-  it("pede a pasta da base e o cadastro do sistema antes de perguntar", async () => {
+  it("sem base ou sem sistema, leva ao primeiro uso", async () => {
     const analise = apiAnaliseFalsa();
-    analise.api.situacao
-      .mockResolvedValueOnce({ base: null, sistemas: [] })
-      .mockResolvedValueOnce({ base: "/base", sistemas: [] });
-    montar(analise);
-    const base = await screen.findByRole("form", { name: "Pasta da base de conhecimento" });
-    fireEvent.change(screen.getByLabelText("Pasta da base (caminho completo)"), {
-      target: { value: "/base" },
+    analise.api.situacao.mockResolvedValueOnce({ base: "/base", sistemas: [] });
+    const aoPrimeiroUso = vi.fn();
+    render(<TelaAnalise api={analise.api} aoPrimeiroUso={aoPrimeiroUso} />);
+    expect(await screen.findByText(/Nenhum sistema cadastrado/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Abrir o primeiro uso" }));
+    expect(aoPrimeiroUso).toHaveBeenCalled();
+    expect(screen.queryByRole("form", { name: "Nova pergunta" })).not.toBeInTheDocument();
+  });
+
+  it("abre com o sistema e a pergunta sugeridos pelo primeiro uso", async () => {
+    const analise = apiAnaliseFalsa();
+    analise.api.situacao.mockResolvedValueOnce({
+      base: "/base",
+      sistemas: [
+        { id: "estoque-exemplo", nome: "Estoque Exemplo" },
+        { id: "faturamento-exemplo", nome: "Faturamento Exemplo" },
+      ],
     });
-    fireEvent.submit(base);
-    await waitFor(() => expect(analise.api.configurarBase).toHaveBeenCalledWith("/base"));
-    const cadastro = await screen.findByRole("form", { name: "Cadastrar sistema" });
-    fireEvent.change(screen.getByLabelText("Nome"), { target: { value: "Faturamento Exemplo" } });
-    fireEvent.change(screen.getByLabelText(/Pasta do código/), {
-      target: { value: "/codigo/faturamento-exemplo" },
-    });
-    fireEvent.submit(cadastro);
-    await waitFor(() =>
-      expect(analise.api.cadastrarSistema).toHaveBeenCalledWith(
-        "Faturamento Exemplo",
-        "/codigo/faturamento-exemplo",
-      ),
+    render(
+      <TelaAnalise
+        api={analise.api}
+        sistemaInicial="faturamento-exemplo"
+        perguntaInicial="Quais são as principais regras de negócio deste sistema?"
+      />,
     );
-    expect(await screen.findByRole("option", { name: "Faturamento Exemplo" })).toBeInTheDocument();
+    expect(await screen.findByLabelText("Pergunta")).toHaveValue(
+      "Quais são as principais regras de negócio deste sistema?",
+    );
+    expect(screen.getByRole("combobox")).toHaveValue("faturamento-exemplo");
   });
 
   it("só prepara o ambiente depois de mostrar o plano e do consentimento", async () => {
