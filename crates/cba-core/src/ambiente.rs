@@ -247,13 +247,22 @@ pub fn identificar(
     }
 }
 
-/// O sistema na base; cria a pasta e o `sistema.md` se ainda não existirem.
+/// O sistema na base; cria a pasta, o `sistema.md` e o `regras-do-sistema.md` se
+/// ainda não existirem.
 fn garantir_na_base(
     base: &Base,
     sistema: &cba_index::Sistema,
 ) -> Result<cba_kb::Sistema, cba_kb::Erro> {
     match base.sistema(&sistema.id) {
-        Ok(s) => Ok(s),
+        Ok(s) => {
+            // Sistemas criados antes da #31 ganham o arquivo de regras do sistema;
+            // uma falha aqui não impede o servidor de subir (o log não leva o
+            // erro, que cita o sistema e o caminho).
+            if s.garantir_regras_do_sistema().is_err() {
+                tracing::warn!("regras do sistema não criadas na base");
+            }
+            Ok(s)
+        }
         Err(cba_kb::Erro::SistemaInexistente(_)) => base.criar_sistema(&Documento::novo(
             FrontmatterSistema {
                 tipo: TipoDocumento::Sistema,
