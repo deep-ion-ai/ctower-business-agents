@@ -151,7 +151,11 @@ pub async fn enviar_prompt_terminal(
 
 #[tauri::command]
 pub async fn encerrar_terminal(sessoes: State<'_, Estado>, id: u64) -> Result<(), String> {
-    sessoes.encerrar(id).map_err(|e| e.to_string())
+    // Espera o processo sair (até alguns segundos): fora da thread da interface.
+    let sessoes = Arc::clone(&sessoes);
+    bloqueante(move || sessoes.encerrar(id))
+        .await?
+        .map_err(|e| e.to_string())
 }
 
 /// A última sessão do terminal embutido do sistema, para oferecer a retomada.

@@ -21,6 +21,9 @@ use serde::{Deserialize, Serialize};
 /// neto que herdou o terminal e continua vivo não segura o aviso de fim.
 const ESPERA_DRENAGEM: Duration = Duration::from_secs(2);
 
+/// Quanto [`Terminal::encerrar`] espera o processo sair depois do pedido.
+pub const ESPERA_ENCERRAR: Duration = Duration::from_secs(5);
+
 /// Tamanho do terminal, em caracteres.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -120,7 +123,10 @@ struct Interno {
     master: Mutex<Option<Box<dyn MasterPty + Send>>>,
     escritor: Mutex<Option<Box<dyn Write + Send>>>,
     matador: Mutex<Box<dyn ChildKiller + Send + Sync>>,
+    /// O processo saiu (antes de a saída restante ser entregue).
+    saiu: Mutex<bool>,
     fim: Mutex<Option<Fim>>,
+    /// Avisa as mudanças de `saiu` e de `fim`.
     terminou: Condvar,
 }
 
@@ -183,6 +189,7 @@ impl Terminal {
             matador: Mutex::new(filho.clone_killer()),
             master: Mutex::new(Some(par.master)),
             escritor: Mutex::new(Some(escritor)),
+            saiu: Mutex::new(false),
             fim: Mutex::new(None),
             terminou: Condvar::new(),
         });
@@ -210,6 +217,8 @@ impl Terminal {
                         sinal: None,
                     },
                 };
+                *esperando.saiu.lock().unwrap() = true;
+                esperando.terminou.notify_all();
                 // Fechar o PTY: no Windows é o que faz o ConPTY entregar o resto da
                 // saída e fechar o pipe; no macOS e no Linux o leitor tem a própria
                 // cópia do descritor e continua até o fim.
@@ -251,18 +260,44 @@ impl Terminal {
             .map_err(|e| ErroTerminal::Redimensionar(e.to_string()))
     }
 
-    /// Encerra o processo (sem efeito se já terminou). O fim chega pelo evento
-    /// [`Evento::Encerrado`].
+    /// Encerra o processo (sem efeito se já terminou) e espera ele sair, até
+    /// [`ESPERA_ENCERRAR`]. O fim chega pelo evento [`Evento::Encerrado`].
+    ///
+    /// O sucesso é conferido pela saída do processo, e não pelo resultado do pedido: no
+    /// Windows, o `ChildKiller` do portable-pty 0.9 devolve o resultado de
+    /// `TerminateProcess` invertido (erro com o código que sobrou em `GetLastError`,
+    /// por exemplo "The handle is invalid", quando o processo foi encerrado, e `Ok`
+    /// quando falhou).
     pub fn encerrar(&self) -> Result<(), ErroTerminal> {
-        if self.fim().is_some() {
+        if self.saiu() {
             return Ok(());
         }
-        match self.interno.matador.lock().unwrap().kill() {
-            Ok(()) => Ok(()),
-            // Terminou entre a verificação e o pedido.
-            Err(_) if self.fim().is_some() => Ok(()),
-            Err(e) => Err(e.into()),
+        let pedido = self.matar();
+        let saiu = self.interno.saiu.lock().unwrap();
+        let (saiu, _) = self
+            .interno
+            .terminou
+            .wait_timeout_while(saiu, ESPERA_ENCERRAR, |s| !*s)
+            .unwrap();
+        if *saiu {
+            return Ok(());
         }
+        Err(match pedido {
+            Err(e) => e.into(),
+            Ok(()) => ErroTerminal::Io(std::io::Error::other(
+                "o processo não terminou depois do pedido de encerramento",
+            )),
+        })
+    }
+
+    /// Pede o fim do processo sem esperar (o resultado não é confiável no Windows, veja
+    /// [`Terminal::encerrar`]).
+    fn matar(&self) -> std::io::Result<()> {
+        self.interno.matador.lock().unwrap().kill()
+    }
+
+    fn saiu(&self) -> bool {
+        *self.interno.saiu.lock().unwrap()
     }
 
     /// `None` enquanto o processo roda.
@@ -288,7 +323,9 @@ impl Terminal {
 
 impl Drop for Terminal {
     fn drop(&mut self) {
-        let _ = self.encerrar();
+        if !self.saiu() {
+            let _ = self.matar();
+        }
     }
 }
 
