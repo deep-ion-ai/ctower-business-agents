@@ -235,6 +235,14 @@ Diferenças em relação ao Desktop:
 - **Mais plataformas:** funciona onde o Claude Code roda, inclusive Linux e WSL.
 - **Passagem para o Desktop:** o botão "Continuar no Claude Desktop" envia `/desktop`, que move a sessão para a aba de código do Desktop com o mesmo histórico (macOS e Windows x64).
 
+Como o terminal embutido inicia e conversa com o `claude` (`cba_session::terminal`), só com opções documentadas da linha de comando:
+
+- O terminal só abre com o ambiente preparado (servidor MCP e hooks, seção 6.2) e com o Claude Code instalado; senão, mostra o que falta e o passo a passo oficial.
+- Conversa nova com `--session-id <uuid>` gerado pelo app, que guarda a última sessão de cada sistema e, ao reabrir, oferece retomá-la com `--resume <id>` (ou `--continue`, se o identificador não for conhecido). O pedido inicial vai como prompt posicional.
+- A pasta do `claude` vai na frente do `PATH` do processo, porque o app aberto pelo Finder ou pelo menu Iniciar tem `PATH` mínimo.
+- Prompts prontos (e o `/desktop`) são digitados na sessão viva: o texto, uma pausa curta e o Enter. Quebras de linha vão como `Ctrl+J`, a nova linha documentada do Claude Code.
+- Com o Claude Code instalado pelo npm no Windows (`claude.cmd`), o prompt inicial não pode ter caracteres que o `cmd.exe` interpretaria (aspas, `%`, `!`, quebras de linha e, numa palavra solta, `& | < > ^ ( )`); o instalador nativo não tem essa limitação.
+
 ### 6.5 Evidências
 
 - O conteúdo de uma análise é composto de **afirmações** registradas pela ferramenta `afirmar`, não de texto livre. Cada afirmação tem: seção do documento, texto, nível de confiança e evidências.

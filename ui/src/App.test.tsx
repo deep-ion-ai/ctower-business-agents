@@ -10,6 +10,9 @@ vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(() => Promise.reject(new Error("fora do Tauri"))),
 }));
 
+// O xterm.js precisa de canvas, que o jsdom não tem; o terminal tem testes próprios.
+vi.mock("./telaXterm", () => ({ criarTelaXterm: vi.fn() }));
+
 describe("App", () => {
   it("mostra o nome do produto e a versão do app", async () => {
     render(<App />);

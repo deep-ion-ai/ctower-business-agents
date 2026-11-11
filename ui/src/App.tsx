@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { ClientesIA } from "./ClientesIA";
+import { TerminalTeste } from "./TerminalTeste";
 
 export const PRODUTO = "Ctower Business Agents";
 
-/** Tela inicial: nome do produto, versão do app e estado dos clientes de IA. */
+/**
+ * Tela inicial: nome do produto, versão do app, estado dos clientes de IA e a tela
+ * mínima do terminal embutido.
+ */
 export function App() {
   const [versao, setVersao] = useState<string | null>(null);
 
@@ -26,6 +30,7 @@ export function App() {
         {versao ? `Versão ${versao}` : " "}
       </p>
       <ClientesIA />
+      <TerminalTeste />
     </main>
   );
 }
