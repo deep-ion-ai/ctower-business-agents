@@ -1,0 +1,31 @@
+[workspace]
+resolver = "2"
+# Toda crate em crates/ entra sozinha. O app Tauri (cba-app, em ui/src-tauri) entra
+# explicitamente. Para compilar o cba-app, a UI precisa estar construída antes
+# (`npm run build` em ui/), porque o Tauri embute ui/dist no binário.
+members = ["crates/*", "ui/src-tauri"]
+
+[workspace.package]
+# Versão única do projeto. Quem muda é o release-please (docs/versionamento.md);
+# não edite à mão.
+version = "0.0.0"
+edition = "2024"
+license = "Apache-2.0"
+repository = "https://github.com/deep-ion-ai/ctower-business-agents"
+
+[workspace.dependencies]
+cba-core = { path = "crates/cba-core" }
+cba-kb = { path = "crates/cba-kb" }
+cba-docs = { path = "crates/cba-docs" }
+cba-tools = { path = "crates/cba-tools" }
+cba-mcp = { path = "crates/cba-mcp" }
+cba-index = { path = "crates/cba-index" }
+cba-session = { path = "crates/cba-session" }
+
+# Dependências de terceiros usadas por mais de uma crate.
+dirs = "6"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-appender = "0.2"
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }

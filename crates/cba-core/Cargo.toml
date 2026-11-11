@@ -1,0 +1,17 @@
+[package]
+name = "cba-core"
+description = "Domínio, casos de uso e eventos do ctower-business-agents"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+dirs.workspace = true
+tracing.workspace = true
+tracing-appender.workspace = true
+tracing-subscriber.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

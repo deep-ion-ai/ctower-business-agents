@@ -1,0 +1,3 @@
+# Fixtures com finais de linha estáveis em qualquer sistema operacional:
+# os gabaritos citam linhas e trechos desses arquivos.
+fixtures/** text eol=lf

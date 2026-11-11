@@ -1,0 +1,5 @@
+# Versão fixa: o CI e todas as máquinas compilam com o mesmo rustc. Para atualizar,
+# troque o channel num PR próprio e corrija os avisos novos do clippy.
+[toolchain]
+channel = "1.99.1"
+components = ["clippy", "rustfmt"]

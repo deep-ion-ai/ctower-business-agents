@@ -7,8 +7,34 @@ Assistente desktop para analistas de requisitos e de negócio entenderem sistema
 - Analisa, não desenvolve: o agente é orientado a não alterar código nem publicar nada.
 - Evidência para cada afirmação, validada pelo app, e base de conhecimento local do sistema.
 
-Status: em especificação. Veja [`docs/specs/2026-11-11-mvp-standalone.md`](docs/specs/2026-11-11-mvp-standalone.md).
+## Instalação
+
+macOS:
+
+```sh
+curl -fsSL https://github.com/deep-ion-ai/ctower-business-agents/releases/latest/download/install.sh | sh
+```
+
+Windows (PowerShell):
+
+```powershell
+irm https://github.com/deep-ion-ai/ctower-business-agents/releases/latest/download/install.ps1 | iex
+```
+
+Instalam o app e o que faltar (git, WebView2), sem administrador, e mostram como instalar o Claude Code. Detalhes, opções e Linux (do código-fonte) em [`packaging/install`](packaging/install/README.md). Os instaladores (`cba-windows-x64-setup.exe`, `cba-macos-universal.dmg`, ainda sem assinatura) também estão em cada [release](https://github.com/deep-ion-ai/ctower-business-agents/releases), com instruções nas notas.
+
+Status: em desenvolvimento (M1, esqueleto). O app abre uma tela vazia; o servidor MCP (`cba mcp`) e o receptor de hooks (`cba hook <evento>`) respondem, ainda sem ferramentas. Veja a spec em [`docs/specs/2026-11-11-mvp-standalone.md`](docs/specs/2026-11-11-mvp-standalone.md) e o plano em [`docs/plans/2026-11-11-plano-mvp.md`](docs/plans/2026-11-11-plano-mvp.md).
+
+Versionamento: SemVer com commits convencionais e release-please, veja [`docs/versionamento.md`](docs/versionamento.md).
 
 Nasce da experiência com o [ctower-agents](https://github.com/deep-ion-ai/ctower-agents).
+
+## Compilar localmente
+
+Pré-requisitos por sistema e comandos em [Compilar localmente](CONTRIBUTING.md#compilar-localmente), no CONTRIBUTING. Em resumo: `(cd ui && npm ci && npm run build)`, depois `cargo test --workspace`; `npm run tauri dev` em `ui/` abre o app em modo de desenvolvimento.
+
+## Contribuir
+
+[CONTRIBUTING](CONTRIBUTING.md) · [Código de conduta](CODE_OF_CONDUCT.md) · [Segurança](SECURITY.md) · [CLA](docs/cla/CLA.md)
 
 Licença: [Apache-2.0](LICENSE).
