@@ -157,14 +157,27 @@ pub struct InicioDeSessao {
     pub analise: Option<Id>,
     /// `source` do evento (`startup`, `resume`, `clear`, `compact`, `fork`).
     pub origem: Option<String>,
+    /// Texto do `regras-do-sistema.md` da base, como está no arquivo (`None` se não
+    /// houver base, sistema na base ou arquivo).
+    pub regras: Option<String>,
 }
 
 /// Texto que o `SessionStart` acrescenta ao contexto do agente numa sessão de
-/// sistema cadastrado: os limites fixos e as regras do sistema (spec, seção 8).
-///
-/// Ponto de extensão da #31; por enquanto não há conteúdo, e a resposta é `{}`.
-pub fn contexto_inicial(_inicio: &InicioDeSessao) -> Option<String> {
-    None
+/// sistema cadastrado: os limites fixos, as regras do sistema e uma nota da sessão
+/// (spec, seção 8; detalhes em [`limites`]). Vale para toda origem, inclusive a
+/// retomada (`resume`), a compactação (`compact`) e o `/clear`, em que o Claude
+/// Code roda o `SessionStart` de novo.
+pub fn contexto_inicial(inicio: &InicioDeSessao) -> Option<String> {
+    let regras = inicio
+        .regras
+        .as_deref()
+        .and_then(limites::regras_para_o_agente);
+    Some(limites::montar(
+        &inicio.sistema,
+        regras.as_deref(),
+        inicio.analise.as_ref(),
+        inicio.origem.as_deref(),
+    ))
 }
 
 /// Como terminou o tratamento de um evento (para o log, sem identificadores).
@@ -358,6 +371,7 @@ fn receber(evento: &str, dados: &Value, contexto: &Contexto) -> Desfecho {
                 sistema: sistema.clone(),
                 analise: atual.and_then(|r| r.analise.clone()),
                 origem: atual.and_then(|r| r.origem.clone()),
+                regras: regras_do_sistema(dados_app, &sistema),
             });
             Desfecho::Sessao {
                 inicio,
@@ -498,6 +512,25 @@ pub fn sincronizar(
     }
 }
 
+/// Texto do `regras-do-sistema.md` do sistema na base configurada. Falhas só vão
+/// para o log (sem caminhos): os limites seguem para a sessão sem as regras.
+fn regras_do_sistema(dados: &DiretorioDados, sistema: &str) -> Option<String> {
+    let ler = || -> Result<Option<String>, &'static str> {
+        let config = Config::ler(dados).map_err(|_| "config_ilegivel")?;
+        let raiz = config.base().ok_or("base_nao_configurada")?;
+        let base = Base::abrir(raiz).map_err(|_| "base_inacessivel")?;
+        let kb = base.sistema(sistema).map_err(|_| "sistema_fora_da_base")?;
+        kb.ler_regras_do_sistema().map_err(|_| "regras_ilegiveis")
+    };
+    match ler() {
+        Ok(regras) => regras,
+        Err(motivo) => {
+            tracing::info!(motivo, "sessão sem as regras do sistema");
+            None
+        }
+    }
+}
+
 /// Análises do sistema na base configurada, sem montar o ambiente inteiro (sem
 /// escopo nem exclusões, e sem criar nada na base).
 fn analises_do_sistema(dados: &DiretorioDados, sistema: &str) -> Result<Analises, &'static str> {
@@ -510,6 +543,8 @@ fn analises_do_sistema(dados: &DiretorioDados, sistema: &str) -> Result<Analises
         Arc::new(DiarioEventos::em(dados.eventos())),
     ))
 }
+
+pub mod limites;
 
 #[cfg(test)]
 mod tests;

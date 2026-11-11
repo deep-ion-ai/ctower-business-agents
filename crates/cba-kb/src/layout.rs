@@ -7,6 +7,11 @@ use crate::caminho::{CaminhoInvalido, CaminhoRelativo, slug};
 pub const TEMPLATES: &str = "_templates";
 /// Documento do sistema, na raiz do sistema.
 pub const ARQUIVO_SISTEMA: &str = "sistema.md";
+/// Regras do sistema para o agente (convenções do sistema e da organização), na
+/// raiz do sistema. Editáveis pelo analista e versionadas com a base; o hook
+/// `SessionStart` as soma aos limites fixos (spec, seção 8). Não confundir com
+/// `regras/`, onde ficam as regras de negócio (`RN-<AREA>-<NNN>.md`).
+pub const ARQUIVO_REGRAS_DO_SISTEMA: &str = "regras-do-sistema.md";
 /// Memória de uma área, em `areas/<area>/`.
 pub const ARQUIVO_MEMORIA: &str = "memoria.md";
 
@@ -50,6 +55,11 @@ pub fn sistema() -> CaminhoRelativo {
     CaminhoRelativo::novo(ARQUIVO_SISTEMA).expect("nome fixo válido")
 }
 
+/// `regras-do-sistema.md`.
+pub fn regras_do_sistema() -> CaminhoRelativo {
+    CaminhoRelativo::novo(ARQUIVO_REGRAS_DO_SISTEMA).expect("nome fixo válido")
+}
+
 /// `glossario/<slug do termo>.md`.
 pub fn termo(termo: &str) -> Result<CaminhoRelativo, CaminhoInvalido> {
     caminho(format!("{GLOSSARIO}/{}.{EXTENSAO}", exigir_slug(termo)?))
@@ -77,6 +87,7 @@ mod tests {
     #[test]
     fn caminhos_padrao() {
         assert_eq!(sistema().as_str(), "sistema.md");
+        assert_eq!(regras_do_sistema().as_str(), "regras-do-sistema.md");
         assert_eq!(
             termo("Nota Fiscal").unwrap().as_str(),
             "glossario/nota-fiscal.md"
