@@ -10,6 +10,7 @@ publish = false
 [dependencies]
 dunce = "1"
 globset = "0.4"
+regex = "1"
 serde.workspace = true
 serde_json.workspace = true
 sha2 = "0.10"
