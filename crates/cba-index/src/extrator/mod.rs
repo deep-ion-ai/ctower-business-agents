@@ -35,7 +35,7 @@ pub mod sql;
 // pub mod typescript;
 //
 // Linhas reservadas (#17). Descomente a da sua linguagem.
-// pub mod cobol;
+pub mod cobol;
 //
 // pub mod delphi;
 //
@@ -91,7 +91,7 @@ impl Registro {
         // r.registrar(typescript::ExtratorTypeScript);
         //
         // Linhas reservadas (#17). Descomente a da sua linguagem.
-        // r.registrar(cobol::ExtratorCobol);
+        r.registrar(cobol::ExtratorCobol);
         //
         // r.registrar(delphi::ExtratorDelphi);
         //
@@ -358,8 +358,8 @@ mod tests {
         let r = Registro::padrao();
         assert_eq!(r.para(Linguagem::Sql).nome(), "sql");
         assert_eq!(r.para(Linguagem::Python).nome(), "generico");
-        let mut r = Registro::padrao();
-        r.registrar(Falso);
+        let mut r = Registro::so_generico();
+        r.registrar(sql::ExtratorSql).registrar(Falso);
         assert_eq!(r.para(Linguagem::Sql).nome(), "falso");
         assert_eq!(
             format!("{r:?}"),
