@@ -12,8 +12,8 @@
 //!                 (registro ou sessão)  (concluir / registro novo)
 //! Sessão:    ativa ◄──► aguardando-analista ──► concluida ──► encerrada
 //!            (qualquer estado volta a ativa, menos encerrada)
-//! Afirmação: registrada ──► confirmada | incorreta | aprofundar ; qualquer ──► a-revalidar
-//! Evidência: valida ──► a-revalidar (o hash do trecho não confere mais)
+//! Afirmação: registrada ──► confirmada | incorreta | aprofundar ; qualquer ◄──► a-revalidar
+//! Evidência: valida ◄──► a-revalidar (o hash do trecho não confere mais / voltou a conferir)
 //! Pergunta:  aberta ──► respondida | descartada
 //! Sugestão:  proposta ──► aceita | recusada
 //! Termo:     proposto ──► aceito | recusado
@@ -179,6 +179,11 @@ pub struct Afirmacao {
     pub evidencias: Vec<Evidencia>,
     #[serde(flatten)]
     pub estado: EstadoAfirmacao,
+    /// Estado da afirmação antes de a revalidação a marcar como a revalidar. Volta a
+    /// valer quando todas as evidências voltam a conferir ([`Analise::revalidar`]).
+    /// Só existe enquanto a marca for da revalidação: a decisão do analista apaga.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub antes_de_revalidar: Option<EstadoAfirmacao>,
     /// Sessão que registrou, quando conhecida.
     #[serde(default)]
     pub sessao: Option<String>,
@@ -304,6 +309,28 @@ pub struct NovoTermo {
     pub area: Option<String>,
     pub evidencias: Vec<Evidencia>,
     pub sessao: Option<String>,
+}
+
+/// O que [`Analise::revalidar`] mudou.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Revalidada {
+    /// Evidências que deixaram de conferir.
+    pub evidencias_marcadas: usize,
+    /// Evidências que voltaram a conferir.
+    pub evidencias_restauradas: usize,
+    /// Afirmações que passaram a a revalidar, pelo número.
+    pub afirmacoes_marcadas: Vec<u32>,
+    /// Afirmações que voltaram ao estado anterior, pelo número.
+    pub afirmacoes_restauradas: Vec<u32>,
+}
+
+impl Revalidada {
+    /// Alguma coisa mudou.
+    pub fn mudou(&self) -> bool {
+        self.evidencias_marcadas + self.evidencias_restauradas > 0
+            || !self.afirmacoes_marcadas.is_empty()
+            || !self.afirmacoes_restauradas.is_empty()
+    }
 }
 
 /// Estado completo de uma análise.
@@ -545,6 +572,7 @@ impl Analise {
             confianca: nova.confianca,
             evidencias: nova.evidencias,
             estado: EstadoAfirmacao::Registrada,
+            antes_de_revalidar: None,
             sessao: nova.sessao,
             registrada_ms: agora_ms,
         });
@@ -569,6 +597,7 @@ impl Analise {
                 numero,
             })?;
         a.estado = estado;
+        a.antes_de_revalidar = None;
         Ok(())
     }
 
@@ -749,23 +778,61 @@ impl Analise {
     /// as afirmações que dependem delas. `confere` diz se a evidência ainda vale; o
     /// hash é do intervalo citado, não do arquivo inteiro (veja
     /// `cba_tools::evidencias::hash_das_linhas`). Devolve quantas afirmações mudaram.
+    ///
+    /// Só marca: não desfaz marca nenhuma (para isso, [`Analise::revalidar`]).
     pub fn marcar_a_revalidar(&mut self, confere: impl Fn(&Evidencia) -> bool) -> usize {
-        let marcar = |e: &mut Evidencia| {
-            let mudou = e.estado == EstadoEvidencia::Valida && !confere(e);
-            if mudou {
+        self.revalidar(|e| (!confere(e)).then_some(false))
+            .afirmacoes_marcadas
+            .len()
+    }
+
+    /// Revalidação nos dois sentidos (spec, seção 6.5): `confere` diz se a evidência
+    /// ainda vale (`None`: não se sabe, e ela fica como está).
+    ///
+    /// - Evidência válida que não confere fica a revalidar, e a afirmação que depende
+    ///   dela também (o estado anterior fica em [`Afirmacao::antes_de_revalidar`]).
+    /// - Evidência a revalidar que volta a conferir fica válida. A afirmação marcada
+    ///   pela revalidação volta ao estado anterior quando todas as evidências dela
+    ///   conferem de novo; a marcada pelo analista fica como está.
+    ///
+    /// Vale também para as evidências dos termos e das sugestões.
+    pub fn revalidar(&mut self, confere: impl Fn(&Evidencia) -> Option<bool>) -> Revalidada {
+        let mut r = Revalidada::default();
+        // Devolve se a evidência acabou de deixar de conferir.
+        let conferir = |e: &mut Evidencia, r: &mut Revalidada| match (e.estado, confere(e)) {
+            (EstadoEvidencia::Valida, Some(false)) => {
                 e.estado = EstadoEvidencia::ARevalidar;
+                r.evidencias_marcadas += 1;
+                true
             }
-            mudou
+            (EstadoEvidencia::ARevalidar, Some(true)) => {
+                e.estado = EstadoEvidencia::Valida;
+                r.evidencias_restauradas += 1;
+                false
+            }
+            _ => false,
         };
-        let mut mudaram = 0;
         for a in &mut self.afirmacoes {
-            let mut mudou = false;
+            let mut marcou = false;
             for e in &mut a.evidencias {
-                mudou |= marcar(e);
+                marcou |= conferir(e, &mut r);
             }
-            if mudou && a.estado != EstadoAfirmacao::ARevalidar {
-                a.estado = EstadoAfirmacao::ARevalidar;
-                mudaram += 1;
+            let alguma_a_revalidar = a
+                .evidencias
+                .iter()
+                .any(|e| e.estado == EstadoEvidencia::ARevalidar);
+            // Só a evidência que mudou agora marca a afirmação: a decisão do analista
+            // sobre uma afirmação já marcada é respeitada.
+            if marcou && a.estado != EstadoAfirmacao::ARevalidar {
+                let antes = std::mem::replace(&mut a.estado, EstadoAfirmacao::ARevalidar);
+                a.antes_de_revalidar = Some(antes);
+                r.afirmacoes_marcadas.push(a.numero);
+            } else if !alguma_a_revalidar
+                && a.estado == EstadoAfirmacao::ARevalidar
+                && let Some(antes) = a.antes_de_revalidar.take()
+            {
+                a.estado = antes;
+                r.afirmacoes_restauradas.push(a.numero);
             }
         }
         let outras = self
@@ -778,9 +845,9 @@ impl Analise {
                     .filter_map(|s| s.evidencia.as_mut()),
             );
         for e in outras {
-            marcar(e);
+            conferir(e, &mut r);
         }
-        mudaram
+        r
     }
 
     /// Sessão ativa mais recente, se houver.
@@ -1041,11 +1108,61 @@ mod tests {
         assert_eq!(a.marcar_a_revalidar(|e| e.hash == "def"), 1);
         // Já marcada: não conta de novo.
         assert_eq!(a.marcar_a_revalidar(|e| e.hash == "def"), 0);
+        // Só marca: conferir de novo não desfaz.
+        assert_eq!(a.marcar_a_revalidar(|_| true), 0);
         assert_eq!(a.afirmacoes[0].estado, EstadoAfirmacao::ARevalidar);
         assert_eq!(
             a.afirmacoes[0].evidencias[0].estado,
             EstadoEvidencia::ARevalidar
         );
+    }
+
+    #[test]
+    fn revalidar_desfaz_a_marca_e_devolve_o_estado_anterior() {
+        let mut a = analise();
+        a.registrar_afirmacao(afirmacao(Confianca::Confirmado, vec![evidencia()]), 2)
+            .unwrap();
+        a.marcar_afirmacao(1, EstadoAfirmacao::Confirmada).unwrap();
+        let r = a.revalidar(|_| Some(false));
+        assert_eq!(r.afirmacoes_marcadas, [1]);
+        assert_eq!(r.evidencias_marcadas, 1);
+        assert_eq!(a.afirmacoes[0].estado, EstadoAfirmacao::ARevalidar);
+        let json = serde_json::to_value(&a).unwrap();
+        assert_eq!(
+            json["afirmacoes"][0]["antes_de_revalidar"]["estado"],
+            "confirmada"
+        );
+        let volta: Analise = serde_json::from_value(json).unwrap();
+        assert_eq!(volta, a);
+        // Sem saber se confere: nada muda.
+        assert!(!a.revalidar(|_| None).mudou());
+        let r = a.revalidar(|_| Some(true));
+        assert_eq!(r.afirmacoes_restauradas, [1]);
+        assert_eq!(r.evidencias_restauradas, 1);
+        assert_eq!(a.afirmacoes[0].estado, EstadoAfirmacao::Confirmada);
+        assert_eq!(a.afirmacoes[0].antes_de_revalidar, None);
+        assert_eq!(
+            a.afirmacoes[0].evidencias[0].estado,
+            EstadoEvidencia::Valida
+        );
+    }
+
+    #[test]
+    fn marca_do_analista_nao_e_desfeita_pela_revalidacao() {
+        let mut a = analise();
+        a.registrar_afirmacao(afirmacao(Confianca::Confirmado, vec![evidencia()]), 2)
+            .unwrap();
+        a.marcar_afirmacao(1, EstadoAfirmacao::ARevalidar).unwrap();
+        assert!(!a.revalidar(|_| Some(true)).mudou());
+        assert_eq!(a.afirmacoes[0].estado, EstadoAfirmacao::ARevalidar);
+        // A decisão do analista depois da marca automática apaga o estado anterior.
+        let mut b = analise();
+        b.registrar_afirmacao(afirmacao(Confianca::Confirmado, vec![evidencia()]), 2)
+            .unwrap();
+        b.revalidar(|_| Some(false));
+        b.marcar_afirmacao(1, EstadoAfirmacao::Aprofundar).unwrap();
+        b.revalidar(|_| Some(true));
+        assert_eq!(b.afirmacoes[0].estado, EstadoAfirmacao::Aprofundar);
     }
 
     #[test]
