@@ -412,6 +412,224 @@ fn dois_processos_mcp_simultaneos() {
     );
 }
 
+/// Regra do gabarito do sistema fictício, como JSON (enunciado e evidências no
+/// formato dos argumentos de `afirmar`).
+fn regra_do_gabarito(id: &str) -> Value {
+    let caminho = raiz_do_repositorio().join("fixtures/gabaritos/faturamento-exemplo.yaml");
+    let gabarito: serde_norway::Value =
+        serde_norway::from_str(&std::fs::read_to_string(caminho).unwrap()).unwrap();
+    let gabarito = serde_json::to_value(gabarito).unwrap();
+    gabarito["regras"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["id"] == id)
+        .cloned()
+        .unwrap_or_else(|| panic!("{id} no gabarito"))
+}
+
+fn chamada(id: i64, nome: &str, argumentos: Value) -> Value {
+    json!({"jsonrpc": "2.0", "id": id, "method": "tools/call", "params": {
+        "name": nome, "arguments": argumentos
+    }})
+}
+
+/// O critério do M1 pelo executável: uma pergunta ao sistema fictício, de
+/// `iniciar_analise` a `concluir_analise`, gera o documento padronizado na base,
+/// com a evidência do gabarito validada; uma sessão nova retoma a análise com
+/// todo o estado.
+#[test]
+fn mcp_pergunta_ao_sistema_do_inicio_ao_documento_na_base() {
+    let dir = tempfile::tempdir().unwrap();
+    let dados = preparar_dados(dir.path());
+    let regra = regra_do_gabarito("RN-FAT-001");
+    let evidencias = regra["evidencias"].clone();
+    assert_eq!(evidencias.as_array().unwrap().len(), 2);
+
+    let mut mensagens = inicio_da_conversa();
+    mensagens.push(chamada(
+        3,
+        "iniciar_analise",
+        json!({
+            "fluxo": "perguntar",
+            "entrada": "Como é calculada a multa por atraso de pagamento?",
+            "titulo": "Multa por atraso"
+        }),
+    ));
+    mensagens.push(chamada(
+        4,
+        "afirmar",
+        json!({
+            "analise": "A-0001",
+            "secao": "resposta",
+            "texto": "A multa por atraso é única, de 2% sobre o valor original da fatura, cobrada depois da carência.",
+            "confianca": "confirmado",
+            "evidencias": evidencias
+        }),
+    ));
+    mensagens.push(chamada(
+        5,
+        "afirmar",
+        json!({
+            "analise": "A-0001",
+            "secao": "regras_encontradas",
+            "texto": format!("{}: {}", regra["titulo"].as_str().unwrap(), regra["enunciado"].as_str().unwrap()),
+            "confianca": "confirmado",
+            "evidencias": [evidencias[0]]
+        }),
+    ));
+    mensagens.push(chamada(
+        6,
+        "perguntar",
+        json!({
+            "analise": "A-0001",
+            "texto": "O lote de cobrança também deveria ler o percentual da tabela de parâmetros?"
+        }),
+    ));
+    mensagens.push(chamada(7, "concluir_analise", json!({"analise": "A-0001"})));
+    mensagens.push(chamada(8, "concluir_analise", json!({"analise": "A-0099"})));
+    let respostas = conversar(iniciar_mcp(&fixture(), dados.raiz()), &mensagens);
+    assert_eq!(respostas.len(), 8, "{respostas:?}");
+
+    let ferramentas: Vec<&str> = respostas[1]["result"]["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| f["name"].as_str().unwrap())
+        .collect();
+    for nome in ["iniciar_analise", "retomar_analise", "concluir_analise"] {
+        assert!(ferramentas.contains(&nome), "{ferramentas:?}");
+    }
+    for r in &respostas[2..7] {
+        assert_eq!(r["result"]["isError"], false, "{r}");
+    }
+
+    // iniciar_analise: o roteiro vem no texto que o agente lê.
+    let iniciar = &respostas[2]["result"];
+    assert_eq!(iniciar["structuredContent"]["analise"], "A-0001");
+    let roteiro = iniciar["content"][0]["text"].as_str().unwrap();
+    assert!(roteiro.contains("Análise A-0001 criada"), "{roteiro}");
+    assert!(
+        roteiro.contains("# Roteiro da análise A-0001: Multa por atraso"),
+        "{roteiro}"
+    );
+    assert!(roteiro.contains("concluir_analise"), "{roteiro}");
+
+    // concluir_analise: o caminho que o agente cita no chat.
+    let concluir = &respostas[6]["result"];
+    let documento = "faturamento-exemplo/analises/A-0001.md";
+    assert_eq!(concluir["structuredContent"]["documento"], documento);
+    assert_eq!(concluir["structuredContent"]["estado"], "concluida");
+    let texto = concluir["content"][0]["text"].as_str().unwrap();
+    assert!(texto.contains(documento), "{texto}");
+    assert!(texto.contains("Perguntas em aberto (1)"), "{texto}");
+
+    // Identificador desconhecido: erro da ferramenta, com instrução.
+    let desconhecida = &respostas[7]["result"];
+    assert_eq!(desconhecida["isError"], true);
+    let texto = desconhecida["content"][0]["text"].as_str().unwrap();
+    assert!(texto.contains("A-0099 não existe"), "{texto}");
+
+    // O documento padronizado, na base.
+    let markdown = std::fs::read_to_string(dir.path().join("base").join(documento)).unwrap();
+    let (frontmatter, corpo) = markdown
+        .strip_prefix("---\n")
+        .and_then(|m| m.split_once("\n---\n"))
+        .expect("frontmatter YAML");
+    let frontmatter: serde_norway::Value = serde_norway::from_str(frontmatter).unwrap();
+    assert_eq!(frontmatter["tipo"].as_str(), Some("pergunta"));
+    assert_eq!(frontmatter["id"].as_str(), Some("A-0001"));
+    assert_eq!(frontmatter["titulo"].as_str(), Some("Multa por atraso"));
+    assert_eq!(frontmatter["sistema"].as_str(), Some("faturamento-exemplo"));
+    assert_eq!(frontmatter["status"].as_str(), Some("em-revisao"));
+    let secoes: Vec<&str> = corpo.lines().filter(|l| l.starts_with("## ")).collect();
+    assert_eq!(
+        secoes,
+        [
+            "## Pergunta",
+            "## Resposta",
+            "## Regras encontradas",
+            "## Exemplo",
+            "## Perguntas em aberto",
+            "## Sugestões de alteração",
+            "## Evidências"
+        ],
+        "{corpo}"
+    );
+    assert!(corpo.contains("# A-0001 · Multa por atraso"), "{corpo}");
+    assert!(
+        corpo.contains("## Pergunta\n\nComo é calculada a multa por atraso de pagamento?"),
+        "{corpo}"
+    );
+    assert!(
+        corpo.contains("- **[confirmado]** A multa por atraso é única, de 2% sobre o valor original da fatura, cobrada depois da carência.[^1][^2]"),
+        "{corpo}"
+    );
+    // O mesmo trecho citado de novo usa a mesma nota.
+    assert!(
+        corpo.contains("- **[confirmado]** Multa por atraso vem de parâmetro: Passada a carência"),
+        "{corpo}"
+    );
+    assert!(corpo.contains("arredondada em 2 casas.[^1]\n"), "{corpo}");
+    assert!(
+        corpo.contains("1. O lote de cobrança também deveria ler o percentual"),
+        "{corpo}"
+    );
+    assert!(
+        corpo.contains("[^1]: `db/03_pkg_cobranca.sql:71-72` · hash `"),
+        "{corpo}"
+    );
+    assert!(
+        corpo.contains("[^2]: `db/02_parametros.sql:6-7`"),
+        "{corpo}"
+    );
+    assert_eq!(corpo.matches("[^1]:").count(), 1, "{corpo}");
+    // Caminhos relativos: nada da máquina no documento.
+    assert!(
+        !markdown.contains(&*dir.path().to_string_lossy()),
+        "{markdown}"
+    );
+    assert!(
+        dir.path().join("base/_templates/pergunta.md").is_file(),
+        "templates padrão copiados para a base"
+    );
+
+    // Sessão nova (outro processo): retomar_analise devolve todo o estado.
+    let mut mensagens = inicio_da_conversa();
+    mensagens.push(chamada(3, "retomar_analise", json!({"analise": "A-0001"})));
+    let respostas = conversar(iniciar_mcp(&fixture().join("db"), dados.raiz()), &mensagens);
+    let retomar = &respostas[2]["result"];
+    assert_eq!(retomar["isError"], false, "{retomar}");
+    let estado = &retomar["structuredContent"];
+    assert_eq!(estado["estado"], "concluida");
+    assert_eq!(
+        estado["entrada"],
+        "Como é calculada a multa por atraso de pagamento?"
+    );
+    assert_eq!(estado["afirmacoes"].as_array().unwrap().len(), 2);
+    assert_eq!(
+        estado["afirmacoes"][0]["evidencias"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert_eq!(estado["afirmacoes"][0]["evidencias"][0]["linhas"], "71-72");
+    assert_eq!(estado["perguntas"][0]["estado"], "aberta");
+    let texto = retomar["content"][0]["text"].as_str().unwrap();
+    assert!(
+        texto.contains("Próximo passo: A rodada foi concluída"),
+        "{texto}"
+    );
+    assert!(texto.contains("`db/02_parametros.sql:6-7`"), "{texto}");
+
+    // O log registra as ferramentas, não o conteúdo.
+    let logs = logs(dados.raiz());
+    assert!(logs.contains("concluir_analise"), "{logs}");
+    assert!(!logs.contains("PERC_MULTA_ATRASO"), "{logs}");
+    assert!(!logs.contains("Multa por atraso"), "{logs}");
+}
+
 #[test]
 fn argumentos_invalidos_saem_com_codigo_1() {
     let dados = tempfile::tempdir().unwrap();

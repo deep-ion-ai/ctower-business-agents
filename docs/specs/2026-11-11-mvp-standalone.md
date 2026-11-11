@@ -184,7 +184,7 @@ Operam só dentro das pastas cadastradas do sistema, respeitam a lista de exclus
 
 | Ferramenta | O que faz |
 |---|---|
-| `iniciar_analise` | Devolve o roteiro do fluxo, a entrada e o contexto da base (regras, termos e memória da área relacionados). |
+| `iniciar_analise` | Devolve o roteiro do fluxo, a entrada e o contexto da base (regras, termos e memória da área relacionados). Recebe a análise criada pelo app (`analise`) ou, quando o analista pede direto no chat, cria uma a partir de `fluxo` e `entrada`. |
 | `retomar_analise` | Devolve o estado de uma análise: entrada, afirmações, evidências, perguntas, sugestões. |
 | `listar_analises` | Lista as análises do sistema (identificador, título, fluxo, estado, documento), para achar a que o analista citou pelo assunto. |
 | `conhecimento` | Busca na base: regras confirmadas, glossário, análises anteriores. |
@@ -196,7 +196,7 @@ Operam só dentro das pastas cadastradas do sistema, respeitam a lista de exclus
 | `perguntar` | Registra uma pergunta em aberto para o solicitante. |
 | `registrar_sugestao` | Registra uma sugestão de alteração: arquivo, trecho atual, trecho proposto, motivo, impacto. |
 | `propor_termo` | Propõe uma entrada para o glossário (termo de negócio, sinônimos, onde vive no código). |
-| `concluir_analise` | Fecha a rodada: o app monta o documento e devolve o caminho, que o agente cita na resposta. |
+| `concluir_analise` | Fecha a rodada: confere as pendências (sem afirmações ou seção obrigatória do fluxo vazia recusam; evidência que não confere mais com o código e afirmação inferida sem evidência voltam como pendência para o analista), o app monta o documento e devolve o caminho, que o agente cita na resposta, com as perguntas em aberto. |
 
 Os fluxos guiados são ferramentas (`iniciar_analise`), e não prompts MCP, porque o suporte a prompts de servidores locais no Claude Desktop não está confirmado.
 

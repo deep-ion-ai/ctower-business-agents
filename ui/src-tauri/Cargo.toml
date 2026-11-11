@@ -32,5 +32,6 @@ windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_
 
 [dev-dependencies]
 cba-kb.workspace = true
+serde_norway.workspace = true
 tempfile = "3"
 toml = "0.9"
