@@ -440,6 +440,20 @@ impl Analise {
         Ok(())
     }
 
+    /// O agente começou a trabalhar na análise (`iniciar_analise`): criada passa a
+    /// em andamento. Em andamento e concluída ficam como estão (a concluída volta a
+    /// em andamento no primeiro registro novo). Aprovada recusa.
+    pub fn iniciar(&mut self) -> Result<(), ErroModelo> {
+        match self.estado {
+            EstadoAnalise::Aprovada => Err(ErroModelo::AnaliseAprovada(self.id.clone())),
+            EstadoAnalise::Criada => {
+                self.estado = EstadoAnalise::EmAndamento;
+                Ok(())
+            }
+            EstadoAnalise::EmAndamento | EstadoAnalise::Concluida => Ok(()),
+        }
+    }
+
     /// Fecha a rodada: em andamento → concluída.
     pub fn concluir(&mut self) -> Result<(), ErroModelo> {
         let ok = matches!(
@@ -822,6 +836,23 @@ mod tests {
         assert_eq!(a.documento.as_str(), "analises/A-0007.md");
         assert_eq!(a.fluxo.tipo_documento(), TipoDocumento::Pergunta);
         assert_eq!(a.estado.status_documento(), StatusAnalise::Rascunho);
+    }
+
+    #[test]
+    fn iniciar_poe_em_andamento_sem_reabrir_nem_aprovar() {
+        let mut a = analise();
+        a.iniciar().unwrap();
+        assert_eq!(a.estado, EstadoAnalise::EmAndamento);
+        a.iniciar().unwrap();
+        assert_eq!(a.estado, EstadoAnalise::EmAndamento);
+        a.concluir().unwrap();
+        a.iniciar().unwrap();
+        assert_eq!(a.estado, EstadoAnalise::Concluida);
+        a.aprovar().unwrap();
+        assert_eq!(
+            a.iniciar(),
+            Err(ErroModelo::AnaliseAprovada(Serie::Analise.id(7)))
+        );
     }
 
     #[test]
