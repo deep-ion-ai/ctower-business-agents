@@ -2,81 +2,28 @@
 //! glossário, memórias de área e análises anteriores relacionados à entrada
 //! (spec, seções 6.1 e 8).
 //!
-//! Sem o índice (#8) e a ferramenta `conhecimento` (#22), a relação é feita por
-//! palavras em comum entre o título e a entrada da análise e o título da regra, o
-//! termo e seus sinônimos, a área ou o título da análise anterior. Documentos
-//! ilegíveis são ignorados. A lista é curta de propósito: o agente lê o documento
-//! completo na base quando precisar.
+//! A relação vem do índice da base (`cba_kb::indice`, o mesmo da ferramenta
+//! `conhecimento`): busca com qualquer palavra do título e da entrada da análise,
+//! os documentos com mais palavras (e mais raras) antes. As memórias são as das
+//! áreas das regras e termos encontrados e as que a busca achar. Regras obsoletas
+//! ficam de fora. A lista é curta de propósito: o agente lê o documento completo
+//! na base, ou pede mais com `conhecimento`, quando precisar. Sem o índice, o
+//! contexto vem vazio, com o motivo.
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
 
 use cba_core::ambiente::Ambiente;
 use cba_core::analise::Analise;
-use cba_kb::frontmatter::{FrontmatterRegra, FrontmatterTermo, StatusRegra};
-use cba_kb::{CaminhoRelativo, layout};
+use cba_kb::frontmatter::FrontmatterTermo;
+use cba_kb::indice::{Consulta, Indice, Modo, Resultado, Tipo};
+use cba_kb::{CaminhoRelativo, Id, TipoDocumento, layout};
 use serde_json::{Value, json};
+
+use crate::fontes;
 
 /// Itens no máximo por tipo.
 const LIMITE: usize = 10;
-
-/// Palavras curtas e comuns demais para relacionar documentos.
-const IGNORADAS: [&str; 16] = [
-    "como", "qual", "quais", "quando", "onde", "para", "pela", "pelo", "sobre", "entre", "deve",
-    "pode", "esta", "este", "isso", "sistema",
-];
-
-/// Palavras de um texto, em minúsculas e sem acentos, com 4 letras ou mais.
-fn palavras(texto: &str) -> BTreeSet<String> {
-    texto
-        .chars()
-        .map(sem_acento)
-        .collect::<String>()
-        .to_lowercase()
-        .split(|c: char| !c.is_alphanumeric())
-        .filter(|p| p.chars().count() >= 4 && !IGNORADAS.contains(p))
-        .map(str::to_owned)
-        .collect()
-}
-
-fn sem_acento(c: char) -> char {
-    match c {
-        'á' | 'à' | 'â' | 'ã' | 'ä' => 'a',
-        'Á' | 'À' | 'Â' | 'Ã' | 'Ä' => 'A',
-        'é' | 'è' | 'ê' | 'ë' => 'e',
-        'É' | 'È' | 'Ê' | 'Ë' => 'E',
-        'í' | 'ì' | 'î' | 'ï' => 'i',
-        'Í' | 'Ì' | 'Î' | 'Ï' => 'I',
-        'ó' | 'ò' | 'ô' | 'õ' | 'ö' => 'o',
-        'Ó' | 'Ò' | 'Ô' | 'Õ' | 'Ö' => 'O',
-        'ú' | 'ù' | 'û' | 'ü' => 'u',
-        'Ú' | 'Ù' | 'Û' | 'Ü' => 'U',
-        'ç' => 'c',
-        'Ç' => 'C',
-        outro => outro,
-    }
-}
-
-/// Quantas palavras de `chave` aparecem em `texto`. Uma palavra que começa com a
-/// outra conta (multa, multas), para plural e flexões simples.
-fn pontos(chave: &BTreeSet<String>, texto: &str) -> usize {
-    let alvo = palavras(texto);
-    chave
-        .iter()
-        .filter(|p| {
-            alvo.iter()
-                .any(|a| a.starts_with(p.as_str()) || p.starts_with(a.as_str()))
-        })
-        .count()
-}
-
-/// Os `LIMITE` itens de maior pontuação (maior que zero), na ordem original em
-/// caso de empate.
-fn melhores<T>(mut itens: Vec<(usize, T)>) -> Vec<T> {
-    itens.retain(|(p, _)| *p > 0);
-    itens.sort_by_key(|a| std::cmp::Reverse(a.0));
-    itens.into_iter().take(LIMITE).map(|(_, t)| t).collect()
-}
 
 /// Contexto da base relacionado a uma análise.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -88,120 +35,181 @@ pub struct Contexto {
     /// Totais na base, para o agente saber o tamanho do que não veio.
     pub total_de_regras: usize,
     pub total_de_termos: usize,
+    /// Por que o contexto não pôde ser montado (índice indisponível).
+    pub aviso: Option<String>,
+}
+
+/// Busca de um tipo de documento no índice, só do sistema da análise.
+fn buscar(
+    indice: &Indice,
+    ambiente: &Ambiente,
+    texto: &str,
+    tipos: &[Tipo],
+    limite: usize,
+) -> Vec<Resultado> {
+    let consulta = Consulta::nova(texto)
+        .modo(Modo::Qualquer)
+        .sistema(ambiente.kb.nome())
+        .tipos(tipos.iter().copied())
+        .pagina(limite, 0);
+    indice
+        .buscar(&consulta)
+        .map(|p| p.resultados)
+        .unwrap_or_else(|_| {
+            tracing::warn!("busca no índice da base falhou");
+            Vec::new()
+        })
+}
+
+/// Caminho de um resultado, relativo à pasta do sistema na base.
+fn no_sistema(ambiente: &Ambiente, r: &Resultado) -> Option<CaminhoRelativo> {
+    let prefixo = format!("{}/", ambiente.kb.nome());
+    CaminhoRelativo::novo(r.caminho.as_str().strip_prefix(&prefixo)?).ok()
 }
 
 impl Contexto {
     /// Monta o contexto da análise com o que há na base do sistema.
     pub fn da_analise(ambiente: &Ambiente, analise: &Analise) -> Self {
         let kb = &ambiente.kb;
-        let chave = palavras(&format!("{} {}", analise.titulo, analise.entrada));
+        let mut contexto = Contexto::default();
         let documentos = kb.documentos().unwrap_or_default();
-        let na_pasta = |pasta: &'static str| -> Vec<CaminhoRelativo> {
+        let na_pasta = |pasta: &str| {
             documentos
                 .iter()
                 .filter(|d| d.partes().next() == Some(pasta))
-                .cloned()
-                .collect()
+                .count()
         };
-        let mut contexto = Contexto::default();
+        contexto.total_de_regras = na_pasta(layout::REGRAS);
+        contexto.total_de_termos = na_pasta(layout::GLOSSARIO);
+
+        let indice = match fontes::indice(ambiente) {
+            Ok(i) => i,
+            Err(e) => {
+                contexto.aviso = Some(e.to_string());
+                return contexto;
+            }
+        };
+        let texto = format!("{} {}", analise.titulo, analise.entrada);
         let mut areas = BTreeSet::new();
 
-        let mut regras = Vec::new();
-        for caminho in na_pasta(layout::REGRAS) {
-            let Ok(doc) = kb.ler::<FrontmatterRegra>(&caminho) else {
-                continue;
-            };
-            let f = doc.frontmatter;
-            if f.status == StatusRegra::Obsoleta {
-                continue;
-            }
-            contexto.total_de_regras += 1;
-            let p = pontos(&chave, &format!("{} {}", f.titulo, f.area));
-            regras.push((p, (f, kb.na_base(&caminho))));
-        }
-        for (f, arquivo) in melhores(regras) {
-            areas.insert(f.area.clone());
+        let regras = buscar(
+            &indice,
+            ambiente,
+            &texto,
+            &[Tipo::Documento(TipoDocumento::Regra)],
+            LIMITE * 2,
+        );
+        for r in regras
+            .iter()
+            .filter(|r| r.status.as_deref() != Some("obsoleta"))
+            .take(LIMITE)
+        {
+            areas.extend(r.area.clone());
             contexto.regras.push(json!({
-                "id": f.id,
-                "titulo": f.titulo,
-                "area": f.area,
-                "status": f.status,
-                "arquivo": arquivo,
+                "id": r.identificador,
+                "titulo": r.titulo,
+                "area": r.area,
+                "status": r.status,
+                "arquivo": r.caminho,
             }));
         }
 
-        let mut termos = Vec::new();
-        for caminho in na_pasta(layout::GLOSSARIO) {
-            let Ok(doc) = kb.ler::<FrontmatterTermo>(&caminho) else {
-                continue;
-            };
-            let f = doc.frontmatter;
-            contexto.total_de_termos += 1;
-            let p = pontos(&chave, &format!("{} {}", f.termo, f.sinonimos.join(" ")));
-            termos.push((p, (f, kb.na_base(&caminho))));
-        }
-        for (f, arquivo) in melhores(termos) {
-            if let Some(area) = &f.area {
-                areas.insert(area.clone());
-            }
+        for r in buscar(
+            &indice,
+            ambiente,
+            &texto,
+            &[Tipo::Documento(TipoDocumento::Termo)],
+            LIMITE,
+        ) {
+            areas.extend(r.area.clone());
+            let sinonimos = no_sistema(ambiente, &r)
+                .and_then(|c| kb.ler::<FrontmatterTermo>(&c).ok())
+                .map(|d| d.frontmatter.sinonimos)
+                .unwrap_or_default();
             contexto.termos.push(json!({
-                "termo": f.termo,
-                "sinonimos": f.sinonimos,
-                "arquivo": arquivo,
+                "termo": r.identificador.as_deref().unwrap_or(&r.titulo),
+                "sinonimos": sinonimos,
+                "arquivo": r.caminho,
             }));
         }
 
-        // Memória da área: das áreas das regras e termos relacionados, ou cujo nome
-        // aparece na entrada.
-        for caminho in na_pasta(layout::AREAS) {
-            let partes: Vec<&str> = caminho.partes().collect();
-            let [_, area, arquivo] = partes[..] else {
-                continue;
-            };
-            if arquivo != layout::ARQUIVO_MEMORIA {
-                continue;
-            }
-            if areas.contains(area) || pontos(&chave, &area.replace('-', " ")) > 0 {
-                contexto.memorias.push(json!({
-                    "area": area,
-                    "arquivo": kb.na_base(&caminho),
-                }));
+        // Memória das áreas: das regras e termos relacionados e as que a busca achar.
+        let mut memorias = BTreeSet::new();
+        for area in &areas {
+            if let Ok(c) = layout::memoria(area)
+                && kb.existe(&c)
+            {
+                memorias.insert((area.clone(), kb.na_base(&c)));
             }
         }
-        contexto.memorias.truncate(LIMITE);
-
-        let anteriores: Vec<_> = ambiente
-            .analises
-            .listar()
-            .unwrap_or_default()
+        for r in buscar(
+            &indice,
+            ambiente,
+            &texto,
+            &[Tipo::Documento(TipoDocumento::MemoriaArea)],
+            LIMITE,
+        ) {
+            let area = r.area.clone().or_else(|| {
+                let partes: Vec<&str> = r.caminho.partes().collect();
+                partes.get(2).map(|a| (*a).to_owned())
+            });
+            if let Some(area) = area {
+                memorias.insert((area, r.caminho.clone()));
+            }
+        }
+        contexto.memorias = memorias
             .into_iter()
-            .filter(|a| a.id != analise.id)
-            .map(|a| (pontos(&chave, &format!("{} {}", a.titulo, a.entrada)), a))
+            .take(LIMITE)
+            .map(|(area, arquivo)| json!({ "area": area, "arquivo": arquivo }))
             .collect();
-        contexto.analises = melhores(anteriores)
-            .into_iter()
-            .map(|a| {
-                json!({
+
+        for r in buscar(&indice, ambiente, &texto, &Tipo::ANALISES, LIMITE + 1) {
+            let Some(id) = r
+                .identificador
+                .as_deref()
+                .and_then(|i| Id::analisar(i).ok())
+            else {
+                continue;
+            };
+            if id == analise.id || contexto.analises.len() >= LIMITE {
+                continue;
+            }
+            let v = match ambiente.analises.carregar(&id) {
+                Ok(a) => json!({
                     "id": a.id,
                     "titulo": a.titulo,
                     "fluxo": a.fluxo,
                     "estado": a.estado,
                     "documento": kb.na_base(&a.documento),
-                })
-            })
-            .collect();
+                }),
+                // Documento sem estado (importado, ou o estado ficou ilegível): o que o
+                // índice sabe.
+                Err(_) => json!({
+                    "id": id,
+                    "titulo": r.titulo,
+                    "fluxo": Value::Null,
+                    "estado": r.status,
+                    "documento": r.caminho,
+                }),
+            };
+            contexto.analises.push(v);
+        }
         contexto
     }
 
     pub fn json(&self) -> Value {
-        json!({
+        let mut v = json!({
             "regras": self.regras,
             "termos": self.termos,
             "memorias": self.memorias,
             "analises": self.analises,
             "total_de_regras": self.total_de_regras,
             "total_de_termos": self.total_de_termos,
-        })
+        });
+        if let Some(aviso) = &self.aviso {
+            v["aviso"] = json!(aviso);
+        }
+        v
     }
 
     /// O contexto em Markdown, para o roteiro. Caminhos relativos à base.
@@ -213,10 +221,14 @@ impl Contexto {
             && self.memorias.is_empty()
             && self.analises.is_empty()
         {
+            if let Some(aviso) = &self.aviso {
+                let _ = writeln!(t, "Contexto da base indisponível: {aviso}.");
+            }
             let _ = writeln!(
                 t,
-                "Nada relacionado na base ({} regras e {} termos no total). Trabalhe a \
-                 partir do código.",
+                "Nada relacionado na base ({} regras e {} termos no total). Consulte \
+                 `conhecimento` com outros termos e trabalhe a partir do código, \
+                 começando por `referencias` e `estrutura`.",
                 self.total_de_regras, self.total_de_termos
             );
             return t;
@@ -260,32 +272,5 @@ impl Contexto {
             }
         }
         t
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn palavras_sem_acento_e_sem_as_comuns() {
-        let p = palavras("Como é calculada a MULTA por atraso? Ação!");
-        assert_eq!(
-            p.into_iter().collect::<Vec<_>>(),
-            ["acao", "atraso", "calculada", "multa"]
-        );
-    }
-
-    #[test]
-    fn pontos_aceitam_plural() {
-        let chave = palavras("multa por atraso");
-        assert_eq!(pontos(&chave, "Multas de atrasos"), 2);
-        assert_eq!(pontos(&chave, "Juros de mora"), 0);
-    }
-
-    #[test]
-    fn melhores_descarta_zero_e_ordena() {
-        let v = melhores(vec![(0, "a"), (2, "b"), (1, "c"), (2, "d")]);
-        assert_eq!(v, ["b", "d", "c"]);
     }
 }
