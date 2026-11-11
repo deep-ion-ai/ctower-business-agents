@@ -8,7 +8,9 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+cba-core.workspace = true
 cba-index.workspace = true
+cba-kb.workspace = true
 dirs.workspace = true
 dunce = "1"
 # PTY multiplataforma (ConPTY no Windows, openpty no macOS e no Linux), do wezterm.
