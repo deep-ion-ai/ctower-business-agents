@@ -24,11 +24,14 @@
 //!   (spec, seção 6.5) e o hash do trecho.
 //! - [`documento`]: o documento da análise remontado a partir do estado a cada
 //!   registro.
+//! - [`aprovacao`]: a aprovação da análise pelo analista, que leva à base as
+//!   afirmações confirmadas (regras) e os termos aceitos (glossário).
 //!
 //! Papel na arquitetura: seção 5 de `docs/specs/2026-11-11-mvp-standalone.md`.
 
 pub mod afirmar;
 pub mod analises;
+pub mod aprovacao;
 pub mod banco;
 pub mod ciclo;
 mod comum;
