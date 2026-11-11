@@ -311,15 +311,18 @@ O agente registra dados estruturados pelas ferramentas MCP, e o app monta cada d
 | Tipo | Seções fixas |
 |---|---|
 | Análise de impacto | demanda como veio · demanda como entendida · como é hoje · funcionalidades · dados · integrações · documentos e telas · riscos · abrangência · perguntas para o solicitante · sugestões · evidências |
-| Pergunta ao sistema | pergunta · resposta · regras encontradas · exemplo · perguntas em aberto · evidências |
-| Documento negocial da funcionalidade | objetivo · atores e telas · fluxo principal · fluxos alternativos · exceções · regras · dados · integrações · perguntas · evidências |
+| Pergunta ao sistema | pergunta · resposta · regras encontradas · exemplo · perguntas em aberto · sugestões · evidências |
+| Documento negocial da funcionalidade | objetivo · atores e telas · fluxo principal · fluxos alternativos · exceções · regras · dados · integrações · perguntas · sugestões · evidências |
 | Caso de uso | identificação · objetivo · gatilho · pré-condições · fluxo principal · alternativos · exceções · regras · evidências |
 | Regra de negócio | identificador estável · enunciado · área · evidências com hash · origem |
 | Termo do glossário | termo · sinônimos · definição de negócio · onde vive no código (entidades, tabelas, telas, serviços, documentos) |
 | Sugestão de alteração | contexto · trecho atual · trecho proposto · motivo · impacto · exemplo |
 
 - **Templates editáveis:** ficam em `<base>/_templates/` como Markdown com marcadores. O app traz um conjunto padrão; cada organização pode ajustar ao seu (por exemplo, um padrão de documento negocial já adotado).
-- **Evidências no documento:** cada afirmação traz o selo de confiança e uma nota de rodapé com `arquivo:linhas`. No app, a nota abre o trecho.
+  - Um arquivo por tipo, com o nome do campo `tipo` (`_templates/analise-impacto.md`). Sem o arquivo, vale o padrão embutido; o app copia o padrão para a base sem sobrescrever o que foi editado.
+  - Marcadores `{{nome}}`: de campo (preenchidos pelo frontmatter, como `{{id}}` e `{{titulo}}`) e de seção (`{{como_e_hoje}}`, `{{perguntas}}`, `{{sugestoes}}`, `{{evidencias}}`). Um comentário HTML no início do template é instrução para quem edita e não vai para o documento.
+  - Marcador desconhecido gera aviso e fica no texto. Seção com registros cujo marcador foi removido vai para o fim do documento, com aviso, para nada registrado se perder.
+- **Evidências no documento:** cada afirmação traz o selo de confiança e uma nota de rodapé com `arquivo:linhas`. No app, a nota abre o trecho. As notas são numeradas na ordem em que aparecem; o mesmo trecho citado de novo usa a mesma nota, e a seção de evidências lista as definições.
 - **O chat não é o documento.** No chat, o agente dá um resumo e o link do documento (devolvido por `concluir_analise`). O documento completo se lê no app ou em qualquer editor de Markdown.
 
 ### 7.4 Como a base cresce

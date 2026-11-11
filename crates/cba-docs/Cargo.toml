@@ -8,3 +8,10 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+cba-kb.workspace = true
+serde.workspace = true
+thiserror = "2"
+
+[dev-dependencies]
+serde_norway.workspace = true
+tempfile = "3"
