@@ -54,9 +54,16 @@ impl DiretorioDados {
         &self.raiz
     }
 
-    /// Índice SQLite (reconstruível a partir da base de conhecimento).
+    /// Pasta do índice SQLite (reconstruível a partir da base de conhecimento).
     pub fn indice(&self) -> PathBuf {
         self.raiz.join("indice")
+    }
+
+    /// Arquivo do índice da base de conhecimento ([`cba_kb::indice::Indice`]),
+    /// dentro de [`DiretorioDados::indice`]. Os arquivos `-wal` e `-shm` do SQLite
+    /// ficam ao lado.
+    pub fn arquivo_do_indice(&self) -> PathBuf {
+        self.indice().join(cba_kb::indice::ARQUIVO)
     }
 
     /// Configuração do app.
@@ -96,6 +103,10 @@ mod tests {
         let d = DiretorioDados::em(raiz);
         assert_eq!(d.raiz(), raiz);
         assert_eq!(d.indice(), raiz.join("indice"));
+        assert_eq!(
+            d.arquivo_do_indice(),
+            raiz.join("indice").join("base.sqlite")
+        );
         assert_eq!(d.config(), raiz.join("config"));
         assert_eq!(d.logs(), raiz.join("logs"));
         assert_eq!(d.sistemas(), raiz.join("sistemas"));
