@@ -1,0 +1,61 @@
+# Verifica se todos os autores dos commits de um PR aceitaram o CLA (docs/cla/CLA.md).
+#
+# Segurança: `pull_request_target` roda com o token do repositório base, com permissão de escrita,
+# inclusive em PRs de fork. Por isso este workflow NÃO faz checkout e NÃO executa nada do PR:
+# a action só consulta a API do GitHub (autores dos commits, comentários) e grava a assinatura
+# no arquivo da branch `cla-signatures`. Não acrescente passos que façam checkout do código do PR.
+name: CLA
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, closed]
+  issue_comment:
+    types: [created]
+
+permissions:
+  actions: write # reexecutar a verificação quando alguém assina
+  contents: write # gravar a assinatura na branch cla-signatures
+  pull-requests: write # comentar no PR e trancá-lo depois do merge
+  statuses: write # publicar o status "CLA"
+
+concurrency:
+  group: cla-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  cla:
+    name: CLA
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Em comentários, só reage em PRs e só à frase de assinatura ou a "recheck".
+    # `contains` ignora maiúsculas; a action confere a frase exata (sem diferenciar maiúsculas).
+    if: >-
+      github.event_name == 'pull_request_target' ||
+      (github.event.issue.pull_request &&
+        (contains(github.event.comment.body, 'recheck') ||
+         contains(github.event.comment.body, 'Li o CLA e concordo com os seus termos')))
+    steps:
+      - name: Verificar assinaturas do CLA
+        # contributor-assistant/github-action v2.6.1, fixada por SHA
+        uses: contributor-assistant/github-action@ca4a40a7d1004f18d9960b404b97e5f30a505a08
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          path-to-document: https://github.com/deep-ion-ai/ctower-business-agents/blob/develop/docs/cla/CLA.md
+          # A branch precisa existir e não pode ser protegida.
+          branch: cla-signatures
+          path-to-signatures: signatures/v1/cla.json
+          allowlist: dependabot[bot],github-actions[bot],release-please[bot],*[bot]
+          custom-pr-sign-comment: Li o CLA e concordo com os seus termos
+          custom-notsigned-prcomment: >-
+            Obrigado pela contribuição! Antes do merge, cada autor dos commits deste PR precisa
+            aceitar o [Acordo de Licença de Contribuidor (CLA)](https://github.com/deep-ion-ai/ctower-business-agents/blob/develop/docs/cla/CLA.md)
+            do projeto. Com ele, você mantém os direitos sobre a sua contribuição e concede ao
+            mantenedor uma licença de direitos autorais e de patentes, inclusive para distribuí-la
+            sob outros termos. Leia o texto e, se concordar, comente neste PR exatamente a frase
+            abaixo. A assinatura vale para as próximas contribuições. Se a verificação não
+            atualizar, comente `recheck`.
+          custom-allsigned-prcomment: Todos os autores dos commits deste PR aceitaram o CLA. Obrigado!
+          create-file-commit-message: "chore(cla): cria o arquivo de assinaturas do CLA"
+          signed-commit-message: "chore(cla): $contributorName assinou o CLA em $owner/$repo#$pullRequestNo"
+          lock-pullrequest-aftermerge: true
