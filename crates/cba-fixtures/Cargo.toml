@@ -1,9 +1,10 @@
 [package]
 name = "cba-fixtures"
 description = "Testes de integridade das fixtures (sistemas fictícios e gabaritos)."
-version = "0.0.0"
-edition = "2021"
-license = "Apache-2.0"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
 publish = false
 
 # Crate só de testes: o código está em tests/. A lib vazia existe porque o

@@ -156,11 +156,7 @@ const PESOS_CNPJ: [u32; 13] = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
 
 fn digito(soma: u32) -> u32 {
     let resto = soma % 11;
-    if resto < 2 {
-        0
-    } else {
-        11 - resto
-    }
+    if resto < 2 { 0 } else { 11 - resto }
 }
 
 fn documento_valido(documento: &str) -> bool {
