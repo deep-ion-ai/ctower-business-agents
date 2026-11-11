@@ -5,10 +5,8 @@ on:
     branches: [main]
   # Constrói os instaladores da branch escolhida sem publicar nada: ficam como
   # artefatos do run, para testar antes de uma release.
+  # Só funciona depois que este workflow existir na branch padrão (develop).
   workflow_dispatch:
-  # TEMPORÁRIO (PR de #3): valida os instaladores no PR, porque o workflow_dispatch só
-  # funciona depois que o workflow existir na branch padrão. Removido antes do merge.
-  pull_request:
 
 permissions:
   contents: read
