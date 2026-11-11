@@ -26,7 +26,7 @@ O projeto nasce da experiência com o [ctower-agents](https://github.com/deep-io
 - **Simples antes de completo.** Um usuário, uma máquina, sem servidor nosso, sem conta nossa. Cada passo de instalação ou configuração a mais é um ponto de abandono.
 - **Usa a assinatura que o analista já tem.** A maioria desse público usa contas pessoais de IA; cobrar por API inviabiliza a adoção. A conversa acontece no aplicativo oficial do provedor; o nosso app não oferece login nem intermedeia credenciais.
 - **O app governa, a IA conversa.** Demandas, análises, documentos e base de conhecimento são do app. A conversa pode acontecer em mais de um cliente de IA sem perder nada.
-- **O analista escolhe como conversar.** Claude Desktop para quem não quer terminal; Claude Code no terminal para quem tem mais familiaridade. Os dois são de primeira linha, com as mesmas ferramentas, o mesmo roteiro e os mesmos documentos.
+- **O analista escolhe como conversar, e o app recomenda o CLI.** Claude Code no terminal embutido é a **experiência completa**: conversa, documento ao vivo, evidências e governança numa janela só, no nosso app. Claude Desktop atende quem não quer terminal, ao custo de alternar entre dois aplicativos. Os dois têm as mesmas ferramentas, o mesmo roteiro e os mesmos documentos.
 - **Fluxos guiados, não prompt livre.** O analista escolhe o que quer fazer ("analisar impacto", "explicar funcionalidade"); o roteiro é do produto.
 - **Sem evidência, não é fato.** O agente distingue o que viu no código do que está inferindo, e a interface deixa essa diferença visível.
 - **O produto analisa, não desenvolve; o analista é responsável pelo repositório.** O prompt orienta o agente a não alterar código e a registrar sugestões de alteração. O app não bloqueia ferramentas por padrão: avisa quando a pasta do sistema foi alterada. A proteção técnica existe como opção.
@@ -52,8 +52,8 @@ Ambiente típico: notebook (Windows ou macOS), assinatura pessoal de IA, acesso 
 - **Mapeamento estrutural** do sistema (inventário, linguagens, rotinas, tabelas, referências), sem IA.
 - **Servidor MCP local** do app, com as ferramentas de análise, a validação de evidências e o acesso à base de conhecimento.
 - **Dois clientes, à escolha do analista** (preferência padrão nas configurações, trocável a cada análise), ambos com o ambiente já preparado:
-  - **Claude Desktop** (aba de código), aberto pelo app por link (seção 6.3);
-  - **Claude Code CLI**, no terminal embutido do app ou no terminal do próprio analista (seção 6.4).
+  - **Claude Code CLI no terminal embutido (recomendado):** experiência completa num aplicativo só (seção 6.4); também no terminal do próprio analista;
+  - **Claude Desktop** (aba de código), aberto pelo app por link, para quem não quer terminal; a conversa fica no Desktop e o documento no nosso app (seção 6.3).
 - Três fluxos guiados:
   1. **Perguntar ao sistema:** pergunta livre, resposta com evidências.
   2. **Explicar funcionalidade:** regras de negócio, entradas, saídas, validações e casos de exceção de uma funcionalidade.
@@ -95,7 +95,7 @@ Os exemplos usam um sistema fictício de faturamento ("Faturamento Exemplo").
 ### 4.1 Primeiro uso
 
 1. O analista instala o app e o abre.
-2. O analista escolhe como prefere conversar com a IA (Claude Desktop ou Claude Code no terminal). O app verifica se o cliente escolhido está instalado e logado; se não estiver, mostra o passo a passo oficial (página de download do Desktop ou comando de instalação do Claude Code) e pede que o analista faça login com a própria conta, pelo fluxo do próprio cliente.
+2. O analista escolhe como prefere conversar com a IA. O app apresenta o Claude Code no terminal embutido como recomendado ("tudo numa janela só") e o Claude Desktop como opção para quem não quer usar terminal ("conversa no Desktop, documento aqui"). O app verifica se o cliente escolhido está instalado e logado; se não estiver, mostra o passo a passo oficial (página de download do Desktop ou comando de instalação do Claude Code) e pede que o analista faça login com a própria conta, pelo fluxo do próprio cliente.
 3. O analista escolhe a pasta da **base de conhecimento** (padrão sugerido: `Documentos/ctower-business`). Pode ser uma pasta sincronizada ou um repositório git próprio.
 4. O analista cadastra o sistema: nome e uma ou mais pastas. O app mostra o que vai analisar (contagem de arquivos por tipo) e o que vai ignorar (binários, dependências, arquivos com segredos), e permite ajustar.
 5. O app prepara o ambiente do sistema, com consentimento (seção 6.2): registra o servidor MCP e os hooks. Nenhum arquivo é criado dentro do repositório do sistema.
@@ -214,17 +214,20 @@ Feito pelo app no cadastro do sistema, com consentimento, sem criar arquivos no 
 - O roteiro não vai no link: os limites entram pelo hook `SessionStart` e o roteiro do fluxo pela resposta de `iniciar_analise` (seção 8).
 - A aba de código roda a própria cópia do Claude Code, com versão que pode diferir da do CLI. O app não depende de recursos de uma versão específica.
 - Funciona só com assinatura do Claude (não com chave de API nem provedores de nuvem) e só no macOS e no Windows x64.
+- **Dois aplicativos:** a conversa acontece no Desktop e o documento, as evidências, a revisão e a aprovação ficam no nosso app. O analista alterna entre as janelas; o app minimiza isso trazendo o documento atualizado ao vivo e um botão para voltar à conversa.
 
-### 6.4 Cliente: Claude Code CLI
+### 6.4 Cliente: Claude Code CLI (recomendado)
 
-Para analistas com mais familiaridade com terminal. O app usa o `claude` instalado e logado pelo próprio analista, **sem modificação**, em modo interativo, de duas formas:
+É a experiência completa do produto. O app usa o `claude` instalado e logado pelo próprio analista, **sem modificação**, em modo interativo, de duas formas:
 
-- **Terminal embutido no app** (PTY), na pasta do sistema, ao lado dos painéis da análise (documento ao vivo, evidências, perguntas), como no ctower-agents. O app inicia a sessão com o pedido e acompanha pelos hooks.
+- **Terminal embutido no app** (PTY), na pasta do sistema, ao lado dos painéis da análise (documento ao vivo, evidências, perguntas, sugestões), como no ctower-agents. É a forma recomendada: **conversa, documento e governança numa janela só**, sem alternar entre aplicativos. Clicar numa evidência abre o trecho ao lado da conversa; confirmar uma afirmação ou pedir aprofundamento acontece no mesmo lugar. O app inicia a sessão com o pedido e acompanha pelos hooks.
 - **Terminal do próprio analista** (o que ele já usa, com seu shell, tema e atalhos): o app oferece o comando pronto ou o link `claude-cli://` com o pedido preenchido. O app não controla esse terminal, mas acompanha a sessão pelos hooks e atualiza o documento pelo MCP do mesmo jeito.
 
 Diferenças em relação ao Desktop:
 
+- **Um aplicativo só:** no terminal embutido, tudo acontece no nosso app; com o Desktop, são dois.
 - **Sem as confirmações do link:** no terminal embutido a sessão já começa com o pedido.
+- **Botões que agem na conversa:** "aprofundar esta afirmação", "resumir para o solicitante" e os demais prompts prontos são enviados direto ao terminal embutido; com o Desktop, viram um link novo com o pedido preenchido.
 - **Mais provedores:** o Claude Code CLI aceita assinatura, chave de API e provedores de nuvem (Bedrock, Vertex). O app não configura nem lê essas credenciais; usa o que o analista já configurou no Claude Code. Isso abre o caminho corporativo antes do laço próprio da fase 2.
 - **Mais plataformas:** funciona onde o Claude Code roda, inclusive Linux e WSL.
 - **Passagem para o Desktop:** o botão "Continuar no Claude Desktop" envia `/desktop`, que move a sessão para a aba de código do Desktop com o mesmo histórico (macOS e Windows x64).
@@ -362,7 +365,7 @@ Pontos validados na prova de conceito (seção 13):
 - **Sistema:** mapa, glossário, regras (com as que estão "a revalidar"), áreas.
 - **Análise:** documento sendo montado ao vivo, afirmações com selo de confiança, evidência selecionada com o trecho destacado, perguntas, sugestões, aviso de alteração no repositório. Terminal embutido com o Claude Code, quando esse for o cliente escolhido. Botões: abrir no cliente escolhido (Desktop, terminal embutido, comando para o terminal do analista), retomar, continuar no Desktop, confirmar, marcar incorreta, aprovar, exportar.
 - **Base de conhecimento:** busca em regras, termos e análises.
-- **Configurações:** cliente de IA preferido, pasta da base, sistemas e exclusões, templates, regras do sistema, ambiente do Claude (registro do MCP e dos hooks), proteção opcional contra edição.
+- **Configurações:** cliente de IA preferido (padrão: Claude Code no terminal embutido), pasta da base, sistemas e exclusões, templates, regras do sistema, ambiente do Claude (registro do MCP e dos hooks), proteção opcional contra edição.
 
 Toda a interface em português no MVP, com textos preparados para tradução.
 

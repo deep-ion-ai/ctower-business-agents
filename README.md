@@ -3,7 +3,7 @@
 Assistente desktop para analistas de requisitos e de negócio entenderem sistemas legados **a partir do código**: responde perguntas, explica funcionalidades e analisa o impacto de demandas, com evidência citada para cada afirmação.
 
 - Standalone: instala, aponta para a pasta do sistema e usa. Sem servidor e sem conta nossa.
-- Usa a assinatura de IA que o analista já tem, pelo cliente que ele preferir: Claude Desktop ou Claude Code no terminal.
+- Usa a assinatura de IA que o analista já tem. Recomendado: Claude Code no terminal embutido, com conversa, documento e evidências numa janela só. Para quem não quer terminal: Claude Desktop.
 - Analisa, não desenvolve: o agente é orientado a não alterar código nem publicar nada.
 - Evidência para cada afirmação, validada pelo app, e base de conhecimento local do sistema.
 
