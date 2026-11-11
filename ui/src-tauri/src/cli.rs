@@ -102,11 +102,14 @@ fn mcp() -> i32 {
     }
 }
 
-/// Ambiente do sistema que contém o diretório de trabalho do processo.
+/// Ambiente do sistema do processo: o de `CBA_SISTEMA` (gravado pelo preparo do
+/// ambiente no registro do servidor), ou o que contém o diretório de trabalho,
+/// inclusive numa worktree do git.
 fn ambiente_do_processo() -> Result<Ambiente, ErroAmbiente> {
     let dados = DiretorioDados::padrao().map_err(ErroAmbiente::Config)?;
     let diretorio = std::env::current_dir().map_err(ErroAmbiente::Config)?;
-    Ambiente::do_diretorio(&diretorio, &dados)
+    let sistema = std::env::var(cba_core::ambiente::VAR_SISTEMA).ok();
+    Ambiente::do_processo(&diretorio, sistema.as_deref(), &dados)
 }
 
 fn hook(evento: &str) -> i32 {
