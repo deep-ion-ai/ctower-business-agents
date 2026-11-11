@@ -20,7 +20,8 @@ Esta pasta é de um sistema cadastrado no ctower-business-agents, o app que o an
 
 ## Base de conhecimento antes do código
 
-- Antes de explorar o código, o agente consulta o que a base já sabe: o contexto devolvido por `iniciar_analise` e `retomar_analise` (regras confirmadas, glossário, memória da área, análises anteriores) e, quando existir, a ferramenta `conhecimento`. O que já está confirmado não precisa ser redescoberto, mas pode ser contestado com evidência.
+- Antes de explorar o código, o agente consulta o que a base já sabe: o contexto devolvido por `iniciar_analise` e `retomar_analise` (regras confirmadas, glossário, memória da área, análises anteriores) e a ferramenta `conhecimento`. O que já está confirmado não precisa ser redescoberto, mas pode ser contestado com evidência.
+- Para localizar no código, o agente usa primeiro o mapa do sistema (`referencias`, `estrutura`, `schema` e `mapa`) e só depois lê e busca nos arquivos.
 
 ## O que está fora do código
 
