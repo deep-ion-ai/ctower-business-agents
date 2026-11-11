@@ -1,0 +1,3 @@
+# Enquanto a crate roda fora do workspace, o Cargo cria estes arquivos aqui.
+/target
+/Cargo.lock

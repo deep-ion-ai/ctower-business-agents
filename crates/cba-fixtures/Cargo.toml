@@ -1,0 +1,20 @@
+[package]
+name = "cba-fixtures"
+description = "Testes de integridade das fixtures (sistemas fictícios e gabaritos)."
+version = "0.0.0"
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+# Crate só de testes: o código está em tests/. A lib vazia existe porque o
+# Cargo exige ao menos um alvo além dos testes de integração.
+[lib]
+path = "src/lib.rs"
+test = false
+doctest = false
+
+[dev-dependencies]
+serde = { version = "1", features = ["derive"] }
+# serde_yaml foi descontinuada e serde_yml também; serde_norway é o fork
+# mantido de serde_yaml, com a mesma API.
+serde_norway = "0.9"
