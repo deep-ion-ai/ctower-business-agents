@@ -7,6 +7,22 @@ Assistente desktop para analistas de requisitos e de negócio entenderem sistema
 - Analisa, não desenvolve: o agente é orientado a não alterar código nem publicar nada.
 - Evidência para cada afirmação, validada pelo app, e base de conhecimento local do sistema.
 
+## Instalação
+
+macOS:
+
+```sh
+curl -fsSL https://github.com/deep-ion-ai/ctower-business-agents/releases/latest/download/install.sh | sh
+```
+
+Windows (PowerShell):
+
+```powershell
+irm https://github.com/deep-ion-ai/ctower-business-agents/releases/latest/download/install.ps1 | iex
+```
+
+Instalam o app e o que faltar (git, WebView2), sem administrador, e mostram como instalar o Claude Code. Detalhes, opções e Linux (do código-fonte) em [`packaging/install`](packaging/install/README.md).
+
 Status: em especificação. Veja [`docs/specs/2026-11-11-mvp-standalone.md`](docs/specs/2026-11-11-mvp-standalone.md).
 
 Versionamento: SemVer com commits convencionais e release-please, veja [`docs/versionamento.md`](docs/versionamento.md).
