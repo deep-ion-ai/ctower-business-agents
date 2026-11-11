@@ -35,11 +35,11 @@ pub mod csharp;
 pub mod typescript;
 //
 // Linhas reservadas (#17). Descomente a da sua linguagem.
-// pub mod cobol;
+pub mod cobol;
 //
-// pub mod delphi;
+pub mod delphi;
 //
-// pub mod vb6;
+pub mod vb6;
 
 /// Arquivo entregue ao extrator.
 #[derive(Debug, Clone, Copy)]
@@ -91,11 +91,11 @@ impl Registro {
         r.registrar(typescript::ExtratorTypeScript);
         //
         // Linhas reservadas (#17). Descomente a da sua linguagem.
-        // r.registrar(cobol::ExtratorCobol);
+        r.registrar(cobol::ExtratorCobol);
         //
-        // r.registrar(delphi::ExtratorDelphi);
+        r.registrar(delphi::ExtratorDelphi);
         //
-        // r.registrar(vb6::ExtratorVb6);
+        r.registrar(vb6::ExtratorVb6);
         r
     }
 
@@ -358,7 +358,6 @@ mod tests {
         let r = Registro::padrao();
         assert_eq!(r.para(Linguagem::Sql).nome(), "sql");
         assert_eq!(r.para(Linguagem::Python).nome(), "generico");
-        // Sem os demais extratores, para o Debug não depender de quais existem.
         let mut r = Registro::so_generico();
         r.registrar(sql::ExtratorSql).registrar(Falso);
         assert_eq!(r.para(Linguagem::Sql).nome(), "falso");
