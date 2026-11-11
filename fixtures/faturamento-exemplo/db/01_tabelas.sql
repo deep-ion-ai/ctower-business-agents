@@ -1,0 +1,68 @@
+-- =====================================================================
+-- Faturamento Exemplo
+-- Empresa Exemplo de Servicos Ltda. (empresa ficticia)
+-- Script 01: criacao das tabelas
+-- =====================================================================
+
+CREATE TABLE CLIENTE (
+    ID_CLIENTE        NUMBER(10)     NOT NULL,
+    NOME              VARCHAR2(120)  NOT NULL,
+    DOCUMENTO         VARCHAR2(18)   NOT NULL,
+    -- PF = pessoa fisica, PJ = pessoa juridica, PUB = orgao publico
+    TIPO_CLIENTE      VARCHAR2(3)    NOT NULL,
+    -- S = cliente isento de encargos por atraso (cadastro manual)
+    ISENTO_ENCARGOS   CHAR(1)        DEFAULT 'N' NOT NULL,
+    CONSTRAINT PK_CLIENTE PRIMARY KEY (ID_CLIENTE),
+    CONSTRAINT CK_CLIENTE_TIPO CHECK (TIPO_CLIENTE IN ('PF', 'PJ', 'PUB')),
+    CONSTRAINT CK_CLIENTE_ISENTO CHECK (ISENTO_ENCARGOS IN ('S', 'N'))
+);
+
+CREATE TABLE FATURA (
+    ID_FATURA         NUMBER(12)     NOT NULL,
+    ID_CLIENTE        NUMBER(10)     NOT NULL,
+    DT_EMISSAO        DATE           NOT NULL,
+    DT_VENCIMENTO     DATE           NOT NULL,
+    VL_ORIGINAL       NUMBER(12,2)   NOT NULL,
+    VL_PAGO           NUMBER(12,2)   DEFAULT 0 NOT NULL,
+    -- ABERTA, PAGA, PARCELADA, CANCELADA
+    STATUS            VARCHAR2(10)   DEFAULT 'ABERTA' NOT NULL,
+    MOTIVO_CANCEL     VARCHAR2(200),
+    DT_CANCELAMENTO   DATE,
+    USUARIO_CANCEL    VARCHAR2(30),
+    CONSTRAINT PK_FATURA PRIMARY KEY (ID_FATURA),
+    CONSTRAINT FK_FATURA_CLIENTE FOREIGN KEY (ID_CLIENTE)
+        REFERENCES CLIENTE (ID_CLIENTE),
+    CONSTRAINT CK_FATURA_STATUS
+        CHECK (STATUS IN ('ABERTA', 'PAGA', 'PARCELADA', 'CANCELADA'))
+);
+
+CREATE TABLE PARCELA (
+    ID_FATURA         NUMBER(12)     NOT NULL,
+    NR_PARCELA        NUMBER(2)      NOT NULL,
+    DT_VENCIMENTO     DATE           NOT NULL,
+    VL_PARCELA        NUMBER(12,2)   NOT NULL,
+    STATUS            VARCHAR2(10)   DEFAULT 'ABERTA' NOT NULL,
+    CONSTRAINT PK_PARCELA PRIMARY KEY (ID_FATURA, NR_PARCELA),
+    CONSTRAINT FK_PARCELA_FATURA FOREIGN KEY (ID_FATURA)
+        REFERENCES FATURA (ID_FATURA)
+);
+
+-- Parametros de negocio alteraveis pela area de cobranca
+CREATE TABLE PARAMETRO (
+    CHAVE             VARCHAR2(40)   NOT NULL,
+    VALOR             NUMBER(12,4)   NOT NULL,
+    DESCRICAO         VARCHAR2(200),
+    CONSTRAINT PK_PARAMETRO PRIMARY KEY (CHAVE)
+);
+
+CREATE TABLE LOG_FATURA (
+    ID_LOG            NUMBER(14)     NOT NULL,
+    ID_FATURA         NUMBER(12)     NOT NULL,
+    DT_EVENTO         DATE           DEFAULT SYSDATE NOT NULL,
+    EVENTO            VARCHAR2(30)   NOT NULL,
+    USUARIO           VARCHAR2(30)   NOT NULL,
+    DETALHE           VARCHAR2(400),
+    CONSTRAINT PK_LOG_FATURA PRIMARY KEY (ID_LOG)
+);
+
+CREATE SEQUENCE SQ_LOG_FATURA START WITH 1 INCREMENT BY 1;
