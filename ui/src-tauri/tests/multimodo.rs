@@ -707,6 +707,115 @@ fn mcp_pergunta_ao_sistema_do_inicio_ao_documento_na_base() {
     assert!(!logs.contains("Multa por atraso"), "{logs}");
 }
 
+/// As ferramentas de consulta pelo executável (#22): sem mapa gravado, a primeira
+/// chamada gera o mapa; `referencias` acha quem chama a função de multa, com
+/// paginação; `conhecimento` acha o termo gravado na base depois de o servidor
+/// subir.
+#[test]
+fn mcp_ferramentas_de_consulta_de_ponta_a_ponta() {
+    let dir = tempfile::tempdir().unwrap();
+    let dados = preparar_dados(dir.path());
+    let ambiente = cba_core::ambiente::Ambiente::do_diretorio(&fixture(), &dados).unwrap();
+    let mapa = dados.sistemas().join("faturamento-exemplo/mapa.json");
+    assert!(!mapa.exists());
+
+    let mut mensagens = inicio_da_conversa();
+    mensagens.push(chamada(
+        3,
+        "referencias",
+        json!({"identificador": "PKG_COBRANCA.FN_CALCULAR_MULTA"}),
+    ));
+    mensagens.push(chamada(4, "conhecimento", json!({"termo": "carencia"})));
+    mensagens.push(chamada(5, "schema", json!({"limite": 1})));
+    let respostas = conversar(iniciar_mcp(&fixture(), dados.raiz()), &mensagens);
+    assert_eq!(respostas.len(), 5, "{respostas:?}");
+
+    let ferramentas: Vec<&str> = respostas[1]["result"]["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| f["name"].as_str().unwrap())
+        .collect();
+    for nome in ["conhecimento", "mapa", "estrutura", "schema", "referencias"] {
+        assert!(ferramentas.contains(&nome), "{nome}: {ferramentas:?}");
+        let f = respostas[1]["result"]["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|f| f["name"] == nome)
+            .unwrap();
+        assert_eq!(f["annotations"]["readOnlyHint"], true, "{f}");
+    }
+
+    let referencias = &respostas[2]["result"];
+    assert_eq!(referencias["isError"], false, "{referencias}");
+    let dados_ref = &referencias["structuredContent"];
+    assert_eq!(dados_ref["mapa"]["gerado_agora"], true);
+    assert_eq!(
+        dados_ref["referencias"][0]["arquivo"],
+        "backend/src/main/java/exemplo/faturamento/EncargosService.java"
+    );
+    assert_eq!(dados_ref["referencias"][0]["linha"], 28);
+    assert!(
+        referencias["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .contains("EncargosService.java:28"),
+        "{referencias}"
+    );
+    assert!(mapa.is_file(), "o mapa gerado fica gravado no cadastro");
+
+    assert_eq!(
+        respostas[3]["result"]["structuredContent"]["pagina"]["total"],
+        0
+    );
+
+    let schema = &respostas[4]["result"]["structuredContent"];
+    assert_eq!(schema["pagina"]["quantidade"], 1, "{schema}");
+    assert_eq!(schema["pagina"]["proximo_cursor"], 1, "{schema}");
+
+    // Um termo gravado na base depois: um processo novo o encontra, e o mapa
+    // gravado é reaproveitado.
+    ambiente
+        .kb
+        .criar(
+            &cba_kb::layout::termo("Carência").unwrap(),
+            &cba_kb::Documento::novo(
+                cba_kb::frontmatter::FrontmatterTermo {
+                    tipo: cba_kb::TipoDocumento::Termo,
+                    termo: "Carência".into(),
+                    sinonimos: vec![],
+                    area: Some("cobranca".into()),
+                    origem: None,
+                },
+                "\nDias de atraso sem encargos (DIAS_CARENCIA).\n",
+            ),
+        )
+        .unwrap();
+    let mut mensagens = inicio_da_conversa();
+    mensagens.push(chamada(3, "conhecimento", json!({"termo": "carencia"})));
+    mensagens.push(chamada(
+        4,
+        "estrutura",
+        json!({"arquivo": "db/03_pkg_cobranca.sql"}),
+    ));
+    let respostas = conversar(iniciar_mcp(&fixture(), dados.raiz()), &mensagens);
+    let conhecimento = &respostas[2]["result"]["structuredContent"];
+    assert_eq!(
+        conhecimento["resultados"][0]["caminho"], "faturamento-exemplo/glossario/carencia.md",
+        "{conhecimento}"
+    );
+    let estrutura = &respostas[3]["result"]["structuredContent"];
+    assert_eq!(estrutura["mapa"]["gerado_agora"], false, "{estrutura}");
+    assert_eq!(estrutura["arquivo"], "db/03_pkg_cobranca.sql");
+
+    // O log registra as ferramentas, não o conteúdo.
+    let logs = logs(dados.raiz());
+    assert!(logs.contains("referencias"), "{logs}");
+    assert!(!logs.contains("FN_CALCULAR_MULTA"), "{logs}");
+    assert!(!logs.contains("carencia"), "{logs}");
+}
+
 #[test]
 fn argumentos_invalidos_saem_com_codigo_1() {
     let dados = tempfile::tempdir().unwrap();
