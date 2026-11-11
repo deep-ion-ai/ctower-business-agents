@@ -28,6 +28,9 @@
 //!   reservados sem colisão por [`Sistema::criar_numerado`], mesmo com dois
 //!   processos (app e servidor MCP) gravando ao mesmo tempo.
 //!
+//! - Índice SQLite com busca FTS5 ([`indice`]): espelho reconstruível da base, no
+//!   diretório de dados do app.
+//!
 //! Papel na arquitetura: seção 5 de `docs/specs/2026-11-11-mvp-standalone.md`.
 
 pub mod arquivo;
@@ -37,6 +40,7 @@ mod documento;
 mod erro;
 pub mod frontmatter;
 mod id;
+pub mod indice;
 pub mod layout;
 
 pub use base::{Base, PADRAO_REGRAS_DO_SISTEMA, Sistema};
