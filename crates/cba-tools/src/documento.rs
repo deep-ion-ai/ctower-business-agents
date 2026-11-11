@@ -11,6 +11,8 @@
 //! - a entrada do analista, na seção da entrada do fluxo ([`secao_da_entrada`]);
 //! - as afirmações, menos as marcadas como incorretas pelo analista, com o selo de
 //!   confiança e as evidências como notas de rodapé;
+//! - na análise de impacto, a abrangência estimada no frontmatter, tirada da
+//!   afirmação mais recente da seção `abrangencia` ([`abrangencia_do_texto`]);
 //! - as perguntas abertas;
 //! - as sugestões que têm documento e não foram recusadas, com link para ele.
 //!
@@ -18,7 +20,7 @@
 
 use cba_core::analise::{Analise, Confianca, EstadoAfirmacao, EstadoPergunta, Evidencia, Fluxo};
 use cba_docs::{Citacao, Conteudo, Templates, Texto};
-use cba_kb::frontmatter::{FrontmatterAnalise, StatusSugestao};
+use cba_kb::frontmatter::{Abrangencia, FrontmatterAnalise, StatusSugestao};
 use cba_kb::{Base, Documento};
 
 /// Seções com papel especial, que não recebem afirmações.
@@ -50,6 +52,27 @@ pub fn secoes_de_afirmacao(fluxo: Fluxo) -> Vec<&'static str> {
         .unwrap_or_default()
 }
 
+/// Seção da análise de impacto com a estimativa da abrangência.
+pub const SECAO_DA_ABRANGENCIA: &str = "abrangencia";
+
+/// A estimativa com que começa o texto de uma afirmação da seção `abrangencia`
+/// ("Média: muda o parâmetro e o lote COBOL"), sem diferenciar maiúsculas, com ou
+/// sem acento e com ou sem negrito. `None` se o texto não começa por ela.
+pub fn abrangencia_do_texto(texto: &str) -> Option<Abrangencia> {
+    let inicio = texto.trim_start().trim_start_matches(['*', '_']);
+    let palavra: String = inicio
+        .chars()
+        .take_while(|c| c.is_alphabetic())
+        .collect::<String>()
+        .to_lowercase();
+    match palavra.as_str() {
+        "pequena" => Some(Abrangencia::Pequena),
+        "média" | "media" => Some(Abrangencia::Media),
+        "grande" => Some(Abrangencia::Grande),
+        _ => None,
+    }
+}
+
 /// Citação do documento a partir de uma evidência.
 pub fn citacao(e: &Evidencia) -> Citacao {
     Citacao {
@@ -76,6 +99,15 @@ pub fn conteudo(
 ) -> Conteudo<FrontmatterAnalise> {
     frontmatter.status = analise.estado.status_documento();
     frontmatter.titulo.clone_from(&analise.titulo);
+    if analise.fluxo == Fluxo::Impacto {
+        frontmatter.abrangencia = analise
+            .afirmacoes
+            .iter()
+            .rev()
+            .filter(|a| !matches!(a.estado, EstadoAfirmacao::Incorreta { .. }))
+            .filter(|a| a.secao == SECAO_DA_ABRANGENCIA)
+            .find_map(|a| abrangencia_do_texto(&a.texto));
+    }
     let mut conteudo = Conteudo::novo(frontmatter, analise.documento.clone());
     if let Some(secao) = secao_da_entrada(analise.fluxo) {
         conteudo
@@ -151,6 +183,22 @@ mod tests {
             for s in secoes_de_afirmacao(fluxo) {
                 assert!(!ESPECIAIS.contains(&s));
             }
+        }
+        assert!(secoes_de_afirmacao(Fluxo::Impacto).contains(&SECAO_DA_ABRANGENCIA));
+    }
+
+    #[test]
+    fn abrangencia_vem_do_inicio_do_texto() {
+        for (texto, esperada) in [
+            ("Pequena: só o parâmetro.", Some(Abrangencia::Pequena)),
+            ("Média: parâmetro e lote COBOL.", Some(Abrangencia::Media)),
+            ("media - duas camadas", Some(Abrangencia::Media)),
+            ("  **GRANDE**: migração de dados", Some(Abrangencia::Grande)),
+            ("A abrangência é pequena.", None),
+            ("Pequenas mudanças", None),
+            ("", None),
+        ] {
+            assert_eq!(abrangencia_do_texto(texto), esperada, "{texto}");
         }
     }
 }

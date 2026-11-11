@@ -6,7 +6,7 @@ use serde::Deserialize;
 use serde_json::json;
 
 use crate::comum;
-use crate::documento::secoes_de_afirmacao;
+use crate::documento::{SECAO_DA_ABRANGENCIA, abrangencia_do_texto, secoes_de_afirmacao};
 use crate::evidencias::{self, EvidenciaCitada};
 use crate::registro::{ErroFerramenta, Ferramenta, ler_argumentos};
 
@@ -48,7 +48,8 @@ pub fn afirmar() -> Ferramenta {
          Confiança: `confirmado` (evidência direta; exige ao menos uma evidência), \
          `inferido` (dedução a partir das evidências listadas) ou `a_confirmar` (sem \
          evidência suficiente; cria também uma pergunta para o solicitante). Registre \
-         uma regra ou fato por afirmação.",
+         uma regra ou fato por afirmação. Na seção `abrangencia` da análise de impacto, \
+         o texto começa pela estimativa (\"Pequena:\", \"Média:\" ou \"Grande:\").",
         json!({
             "type": "object",
             "properties": {
@@ -104,6 +105,15 @@ pub fn afirmar() -> Ferramenta {
                     analise.fluxo.tipo_documento(),
                     secoes.join(", ")
                 )));
+            }
+            if secao == SECAO_DA_ABRANGENCIA && abrangencia_do_texto(&args.texto).is_none() {
+                return Err(ErroFerramenta::Recusa(
+                    "a afirmação da seção `abrangencia` começa pela estimativa: \"Pequena:\", \
+                     \"Média:\" ou \"Grande:\", seguida da justificativa (\"Média: o parâmetro \
+                     muda no banco, mas o lote também usa o valor fixo\"). Corrija o texto e \
+                     chame de novo"
+                        .to_owned(),
+                ));
             }
             if args.confianca == Confianca::Confirmado && args.evidencias.is_empty() {
                 return Err(comum::recusa(ErroModelo::ConfirmadoSemEvidencia));
