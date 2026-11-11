@@ -34,8 +34,9 @@ use crate::comum;
 use crate::contexto::Contexto;
 use crate::documento::secoes_de_afirmacao;
 use crate::evidencias::{ArquivoDoSistema, hash_das_linhas};
+use crate::prompts::Prompts;
 use crate::registro::{ErroFerramenta, Ferramenta, Saida, ler_argumentos};
-use crate::roteiro::{self, nome_do_fluxo, secoes_obrigatorias, titulo_da_secao};
+use crate::roteiro::{Roteiros, nome_do_fluxo, secoes_obrigatorias, titulo_da_secao};
 
 /// Tamanho máximo do título derivado da entrada, em caracteres.
 const TITULO_MAXIMO: usize = 80;
@@ -214,12 +215,35 @@ fn iniciar(ambiente: &Ambiente, id: &Id, criada: bool) -> Result<Saida, ErroFerr
              padrão embutido"
         )),
     }
+    // Roteiros revisados e prompts prontos: a cópia editável na base, como os
+    // templates. Falhar aqui não impede a análise: vale o padrão embutido.
+    let copiados = Roteiros::copiar_padrao(&ambiente.base).and_then(|mut r| {
+        Prompts::copiar_padrao(&ambiente.base).map(|p| {
+            r.extend(p);
+            r
+        })
+    });
+    match copiados {
+        Ok(criados) if !criados.is_empty() => {
+            tracing::info!(
+                arquivos = criados.len(),
+                "roteiros e prompts padrão copiados para a base"
+            );
+        }
+        Ok(_) => {}
+        Err(e) => avisos.push(format!(
+            "os roteiros e prompts padrão não foram copiados para a base ({e}); vale o \
+             padrão embutido"
+        )),
+    }
     let registrado = comum::alterar(ambiente, id, Mudanca::Estado, |a, _| a.iniciar())?;
     avisos.extend(registrado.aviso.clone());
     let analise = &registrado.analise;
     let contexto = Contexto::da_analise(ambiente, analise);
     let documento = documento(ambiente, analise);
-    let roteiro = roteiro::roteiro(analise, &documento, &contexto.markdown());
+    let (roteiros, a) = Roteiros::da_base(&ambiente.base);
+    let (roteiro, b) = roteiros.montar(analise, &documento, &contexto.markdown());
+    avisos.extend(a.iter().chain(&b).map(aviso_do_roteiro));
 
     let mut texto = String::new();
     if criada {
@@ -452,12 +476,19 @@ fn retomar(ambiente: &Ambiente, analise: &Analise) -> Saida {
         }
         let _ = writeln!(t);
     }
+    let mut avisos = Vec::new();
     let roteiro = (analise.estado != EstadoAnalise::Aprovada).then(|| {
         let contexto = Contexto::da_analise(ambiente, analise);
-        roteiro::roteiro(analise, &documento, &contexto.markdown())
+        let (roteiros, a) = Roteiros::da_base(&ambiente.base);
+        let (roteiro, b) = roteiros.montar(analise, &documento, &contexto.markdown());
+        avisos.extend(a.iter().chain(&b).map(aviso_do_roteiro));
+        roteiro
     });
     if let Some(r) = &roteiro {
         t.push_str(r);
+    }
+    for aviso in &avisos {
+        let _ = write!(t, "\nAviso: {aviso}\n");
     }
 
     let afirmacoes: Vec<Value> = analise
@@ -543,8 +574,14 @@ fn retomar(ambiente: &Ambiente, analise: &Analise) -> Saida {
                 .collect::<Vec<_>>(),
             "proximo_passo": proximo_passo(analise),
             "roteiro": roteiro,
+            "avisos": avisos,
         }),
     )
+}
+
+/// Aviso do roteiro da base, para o agente repassar ao analista.
+fn aviso_do_roteiro(aviso: &crate::editavel::Aviso) -> String {
+    format!("roteiro da base: {aviso}")
 }
 
 // ---------------------------------------------------------------------------
