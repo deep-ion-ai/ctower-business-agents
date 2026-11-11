@@ -1,14 +1,16 @@
 //! Sessões dos clientes de IA.
 //!
-//! Preparo do ambiente (MCP e hooks na configuração do cliente, [`preparo`]), links do Claude Desktop,
-//! receptor dos hooks ([`hooks`]) e estado das sessões ([`sessoes`]), retomada de
-//! sessões, detecção dos clientes de IA instalados e logados ([`clientes`]) e o
+//! Preparo do ambiente (MCP e hooks na configuração do cliente, [`preparo`]), links do
+//! Claude Desktop e do terminal do analista e a passagem entre clientes
+//! ([`passagem`]), receptor dos hooks ([`hooks`]) e estado das sessões ([`sessoes`]),
+//! retomada de sessões, detecção dos clientes de IA instalados e logados ([`clientes`]) e o
 //! terminal embutido com o Claude Code ([`terminal`]).
 //!
 //! Papel na arquitetura: seção 5 de `docs/specs/2026-11-11-mvp-standalone.md`.
 
 pub mod clientes;
 pub mod hooks;
+pub mod passagem;
 pub mod preparo;
 pub mod sessoes;
 pub mod terminal;
