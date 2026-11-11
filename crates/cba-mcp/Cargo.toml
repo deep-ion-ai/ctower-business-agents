@@ -8,5 +8,12 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+cba-core.workspace = true
+cba-tools.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+cba-index.workspace = true
+cba-kb.workspace = true
+tempfile = "3"
