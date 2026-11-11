@@ -72,7 +72,12 @@ fn multa_e_faturas_com_arquivo_e_linhas() {
         .collect();
     assert_eq!(colunas.len(), 10);
     assert_eq!(colunas[0], "ID_FATURA");
-    let status = mapa.buscar("FATURA.STATUS");
+    // A busca também acha o componente `status` do record Java `Fatura`.
+    let status: Vec<_> = mapa
+        .buscar("FATURA.STATUS")
+        .into_iter()
+        .filter(|a| a.simbolo.tipo == TipoSimbolo::Coluna)
+        .collect();
     assert_eq!(status.len(), 1);
     assert_eq!(status[0].simbolo.linhas, Linhas::new(28, 28));
     assert_eq!(
@@ -159,14 +164,15 @@ fn quem_chama_as_rotinas_do_pacote() {
             .collect()
     };
 
-    // O backend chama a função de multa pelo nome, numa string.
+    // O backend chama a função de multa pelo nome, numa string, de dentro do
+    // método `calcular`.
     assert_eq!(
         chamadas("PKG_COBRANCA.FN_CALCULAR_MULTA"),
         [(
             "backend/src/main/java/exemplo/faturamento/EncargosService.java".into(),
             28,
             TipoReferencia::Mencao,
-            Some("EncargosService".into())
+            Some("exemplo.faturamento.EncargosService.calcular".into())
         )]
     );
     // A tela de cancelamento chama a procedure de cancelamento.
