@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Janela principal: permissões padrão do núcleo do Tauri (inclui a versão do app).",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

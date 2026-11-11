@@ -5,6 +5,8 @@
 //!
 //! Papel na arquitetura: seção 5 de `docs/specs/2026-11-11-mvp-standalone.md`.
 
+pub mod hooks;
+
 /// Nome da crate, para diagnóstico.
 pub const NOME: &str = env!("CARGO_PKG_NAME");
 

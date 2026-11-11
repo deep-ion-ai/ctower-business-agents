@@ -21,9 +21,9 @@ Windows (PowerShell):
 irm https://github.com/deep-ion-ai/ctower-business-agents/releases/latest/download/install.ps1 | iex
 ```
 
-Instalam o app e o que faltar (git, WebView2), sem administrador, e mostram como instalar o Claude Code. Detalhes, opções e Linux (do código-fonte) em [`packaging/install`](packaging/install/README.md).
+Instalam o app e o que faltar (git, WebView2), sem administrador, e mostram como instalar o Claude Code. Detalhes, opções e Linux (do código-fonte) em [`packaging/install`](packaging/install/README.md). Os instaladores (`cba-windows-x64-setup.exe`, `cba-macos-universal.dmg`, ainda sem assinatura) também estão em cada [release](https://github.com/deep-ion-ai/ctower-business-agents/releases), com instruções nas notas.
 
-Status: em especificação. Veja [`docs/specs/2026-11-11-mvp-standalone.md`](docs/specs/2026-11-11-mvp-standalone.md).
+Status: em desenvolvimento (M1, esqueleto). O app abre uma tela vazia; o servidor MCP (`cba mcp`) e o receptor de hooks (`cba hook <evento>`) respondem, ainda sem ferramentas. Veja a spec em [`docs/specs/2026-11-11-mvp-standalone.md`](docs/specs/2026-11-11-mvp-standalone.md) e o plano em [`docs/plans/2026-11-11-plano-mvp.md`](docs/plans/2026-11-11-plano-mvp.md).
 
 Versionamento: SemVer com commits convencionais e release-please, veja [`docs/versionamento.md`](docs/versionamento.md).
 
@@ -31,7 +31,7 @@ Nasce da experiência com o [ctower-agents](https://github.com/deep-ion-ai/ctowe
 
 ## Compilar localmente
 
-Pré-requisitos por sistema e comandos em [Compilar localmente](CONTRIBUTING.md#compilar-localmente), no CONTRIBUTING.
+Pré-requisitos por sistema e comandos em [Compilar localmente](CONTRIBUTING.md#compilar-localmente), no CONTRIBUTING. Em resumo: `(cd ui && npm ci && npm run build)`, depois `cargo test --workspace`; `npm run tauri dev` em `ui/` abre o app em modo de desenvolvimento.
 
 ## Contribuir
 

@@ -30,9 +30,47 @@ jobs:
           rustup toolchain install
           rustc --version
       - uses: Swatinem/rust-cache@v2
+      # Bibliotecas de sistema que o Tauri 2 usa no Linux (webview e ícones).
+      - name: Dependências do Tauri (Linux)
+        if: runner.os == 'Linux'
+        timeout-minutes: 15
+        run: |
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
+      # O cba-app embute ui/dist no binário (generate_context! exige a pasta), então a
+      # UI é construída antes do clippy e dos testes.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Construir a UI
+        working-directory: ui
+        run: |
+          npm ci
+          npm run build
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
+
+  # Frontend do app: tipos, testes de componentes e build do Vite.
+  ui:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
 
   # Regras do repositório que não dependem do sistema operacional.
   politicas:

@@ -89,10 +89,25 @@ Para outras distribuições, veja os [pré-requisitos do Tauri 2](https://v2.tau
 ```sh
 git clone https://github.com/deep-ion-ai/ctower-business-agents.git
 cd ctower-business-agents
+(cd ui && npm ci && npm run build)   # o cba-app embute ui/dist no binário
 cargo test --workspace
 ```
 
-O núcleo (`cba-core` e as crates de baixo) não depende do Tauri e é testado só com o `cargo`. Os comandos da interface e do app empacotado ficam documentados aqui assim que entrarem no repositório.
+O núcleo (`cba-core` e as crates de baixo) não depende do Tauri. O app (`cba-app`, em `ui/src-tauri`) faz parte do workspace e só compila depois que `ui/dist` existe; para trabalhar só no núcleo sem construir a UI, use `cargo test --workspace --exclude cba-app`.
+
+Interface e app:
+
+```sh
+cd ui
+npm run tauri dev     # app com recarga da UI
+npm run typecheck
+npm test              # Vitest
+npm run tauri build   # instalador do sistema atual (sem assinatura)
+```
+
+O executável `cba` tem os modos: sem argumentos abre o app; `cba mcp` sobe o servidor MCP em stdio; `cba hook <evento>` lê o JSON do hook na entrada padrão e responde; `cba --version` mostra a versão. Ex.: `cargo run -p cba-app -- --version`.
+
+Os dados do app (índice, configuração, logs) ficam no diretório de dados do usuário, numa pasta `ai.deep-ion.ctower-business-agents` (`%LOCALAPPDATA%` no Windows, `~/Library/Application Support` no macOS, `~/.local/share` no Linux), separada da base de conhecimento. A variável `CBA_DATA_DIR` troca o lugar; `CBA_LOG` muda o nível do log (padrão `info`).
 
 ## Antes de enviar o PR
 
