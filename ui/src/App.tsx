@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
+import { ClientesIA } from "./ClientesIA";
 
 export const PRODUTO = "Ctower Business Agents";
 
-/** Tela inicial, ainda vazia: nome do produto e versão do app. */
+/** Tela inicial: nome do produto, versão do app e estado dos clientes de IA. */
 export function App() {
   const [versao, setVersao] = useState<string | null>(null);
 
@@ -24,6 +25,7 @@ export function App() {
       <p className="versao" aria-label="Versão">
         {versao ? `Versão ${versao}` : " "}
       </p>
+      <ClientesIA />
     </main>
   );
 }
