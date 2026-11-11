@@ -8,3 +8,5 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+serde_json.workspace = true
+tracing.workspace = true
