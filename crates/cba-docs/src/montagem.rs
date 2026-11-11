@@ -349,7 +349,7 @@ fn recuar(texto: &str, espacos: usize) -> String {
 
 /// Junta linhas em branco repetidas (fora de blocos de código), tira espaços do
 /// fim das linhas fora dos blocos e termina com uma quebra de linha.
-fn normalizar(corpo: &str) -> String {
+pub(crate) fn normalizar(corpo: &str) -> String {
     let mut saida = String::with_capacity(corpo.len());
     let mut em_bloco = false;
     let mut anterior_vazia = false;
