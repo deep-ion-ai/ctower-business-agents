@@ -28,11 +28,11 @@ use crate::linguagem::Linguagem;
 pub mod generico;
 pub mod sql;
 // Linhas reservadas (#16). Descomente a da sua linguagem.
-// pub mod java;
+pub mod java;
 //
-// pub mod csharp;
+pub mod csharp;
 //
-// pub mod typescript;
+pub mod typescript;
 //
 // Linhas reservadas (#17). Descomente a da sua linguagem.
 // pub mod cobol;
@@ -84,11 +84,11 @@ impl Registro {
         let mut r = Self::so_generico();
         r.registrar(sql::ExtratorSql);
         // Linhas reservadas (#16). Descomente a da sua linguagem.
-        // r.registrar(java::ExtratorJava);
+        r.registrar(java::ExtratorJava);
         //
-        // r.registrar(csharp::ExtratorCSharp);
+        r.registrar(csharp::ExtratorCSharp);
         //
-        // r.registrar(typescript::ExtratorTypeScript);
+        r.registrar(typescript::ExtratorTypeScript);
         //
         // Linhas reservadas (#17). Descomente a da sua linguagem.
         // r.registrar(cobol::ExtratorCobol);
@@ -358,8 +358,9 @@ mod tests {
         let r = Registro::padrao();
         assert_eq!(r.para(Linguagem::Sql).nome(), "sql");
         assert_eq!(r.para(Linguagem::Python).nome(), "generico");
-        let mut r = Registro::padrao();
-        r.registrar(Falso);
+        // Sem os demais extratores, para o Debug não depender de quais existem.
+        let mut r = Registro::so_generico();
+        r.registrar(sql::ExtratorSql).registrar(Falso);
         assert_eq!(r.para(Linguagem::Sql).nome(), "falso");
         assert_eq!(
             format!("{r:?}"),
