@@ -1,0 +1,10 @@
+[package]
+name = "cba-session"
+description = "Sessões dos clientes de IA"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]

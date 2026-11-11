@@ -1,0 +1,10 @@
+[package]
+name = "cba-docs"
+description = "Documentos das análises"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
