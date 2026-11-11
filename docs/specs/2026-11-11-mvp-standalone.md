@@ -264,6 +264,8 @@ Para clientes que não são o Claude Desktop nem o Claude Code, o app terá um l
 ```
 <base>/
   _templates/                        # templates dos documentos (editáveis)
+    roteiros/<fluxo>.md              # roteiro de cada fluxo (editável, seção 8)
+    prompts/<id>.md                  # prompts prontos (editáveis, seção 8)
   <sistema>/
     sistema.md                       # visão, áreas, estado, próximo passo
     regras-do-sistema.md             # regras do sistema para o agente (seção 8)
@@ -360,6 +362,8 @@ Modelo em camadas, como no ctower-agents:
 | Regras do sistema | convenções do sistema e da organização, editáveis e versionadas na base, em `<sistema>/regras-do-sistema.md` (criado com um padrão só de comentários, que não chega ao agente) | junto dos limites, no `SessionStart` |
 | Roteiro do fluxo | um template por fluxo, com variáveis (identificador, entrada, contexto da base) | resposta de `iniciar_analise` |
 | Prompts prontos | aprofundar, resumir para o solicitante, gerar critérios de aceite, conferir evidências, retomar | botões no app, que abrem o cliente com o pedido preenchido |
+
+Roteiros e prompts prontos são editáveis na base, como os templates (7.3): `_templates/roteiros/<fluxo>.md` (`perguntar`, `explicar`, `impacto`) e `_templates/prompts/<id>.md`. Sem o arquivo, vale o padrão embutido; o app copia o padrão para a base sem sobrescrever o que foi editado (dos roteiros, só os já revisados). Variáveis são `{{nome}}`: no roteiro, `{{id}}`, `{{titulo}}`, `{{fluxo}}`, `{{documento}}`, `{{entrada}}`, `{{secoes}}`, `{{secoes_obrigatorias}}` e `{{contexto}}`; nos prompts, `{{id}}`, `{{titulo}}`, `{{fluxo}}` e `{{documento}}`. Variável desconhecida gera aviso e fica no texto; variável essencial ausente (no roteiro, entrada, seções e contexto; nos prompts, o identificador) vai para o fim, com aviso; arquivo ilegível gera aviso e usa o padrão. O prompt pronto vai ao cliente numa linha só.
 
 O texto dos limites fica em `crates/cba-session/prompts/limites.md`, embutido no executável. O `SessionStart` responde em `hookSpecificOutput.additionalContext` com os limites, as regras do sistema (sem comentários HTML, cortadas em 5.000 caracteres) e uma nota da sessão (sistema e análise ligada), em toda origem (`startup`, `resume`, `compact`, `clear`), abaixo do limite de 10.000 caracteres do Claude Code. Fora dos sistemas cadastrados, nada é acrescentado.
 

@@ -31,6 +31,7 @@ mod cli;
 #[cfg(windows)]
 mod console;
 mod gui;
+mod prompts;
 mod terminal;
 
 fn main() {

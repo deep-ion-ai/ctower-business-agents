@@ -13,6 +13,10 @@
 //!   [`sugestao`] (`registrar_sugestao`) e [`termo`] (`propor_termo`).
 //! - [`roteiro`] e [`contexto`]: o roteiro do fluxo e o contexto da base que
 //!   `iniciar_analise` e `retomar_analise` devolvem ao agente.
+//! - [`prompts`]: os prompts prontos da tela da análise (aprofundar, resumir,
+//!   critérios de aceite, conferir evidências, retomar).
+//! - [`editavel`]: roteiros e prompts editáveis na base (`_templates/roteiros/` e
+//!   `_templates/prompts/`), com o padrão embutido.
 //! - [`evidencias`]: a validação de cada evidência citada contra o código atual
 //!   (spec, seção 6.5) e o hash do trecho.
 //! - [`documento`]: o documento da análise remontado a partir do estado a cada
@@ -26,8 +30,10 @@ pub mod ciclo;
 mod comum;
 pub mod contexto;
 pub mod documento;
+pub mod editavel;
 pub mod evidencias;
 pub mod perguntar;
+pub mod prompts;
 mod registro;
 pub mod roteiro;
 pub mod schema;
