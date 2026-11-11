@@ -1,7 +1,7 @@
 //! Mapeamento do sistema analisado.
 //!
-//! Cadastro do sistema, inventário dos arquivos, exclusões e, depois, extratores por
-//! linguagem e mapa do sistema.
+//! Cadastro do sistema, inventário dos arquivos, exclusões, extratores por
+//! linguagem ([`extrator`]) e mapa estrutural do sistema ([`Mapa`]).
 //!
 //! Papel na arquitetura: seção 5 de `docs/specs/2026-11-11-mvp-standalone.md`. O
 //! cadastro e o inventário seguem a seção 4.1 (passo 4) e as exclusões padrão, a
@@ -18,6 +18,14 @@
 //! cadastro.cadastrar(&sistema)?;
 //! let inventario = cadastro.inventariar(&sistema.id)?;
 //! println!("{:?}", inventario.resumo());
+//!
+//! // Mapa estrutural: símbolos, referências e módulos (incremental, pelo hash).
+//! let mapa = cadastro.mapear(&sistema.id)?;
+//! for multa in mapa.buscar("PKG_COBRANCA.FN_CALCULAR_MULTA") {
+//!     for uso in mapa.referencias_a(multa.id) {
+//!         println!("{}:{}", uso.arquivo, uso.referencia.linha);
+//!     }
+//! }
 //!
 //! // Ferramentas (validação de evidências, leitura) resolvem caminhos pelo escopo,
 //! // que recusa caminhos fora das pastas do sistema e arquivos excluídos.
@@ -37,19 +45,28 @@
 mod cadastro;
 mod erro;
 mod exclusoes;
+pub mod extrator;
 mod git;
 mod inventario;
 mod linguagem;
+mod mapa;
 mod sistema;
 
 pub use cadastro::Cadastro;
 pub use erro::Erro;
 pub use exclusoes::{Exclusao, Exclusoes, Motivo, REGRAS_PADRAO};
+pub use extrator::{
+    Extracao, Extrator, Fonte, Linhas, Referencia, Registro, Simbolo, TipoReferencia, TipoSimbolo,
+};
 pub use git::{RepositorioGit, detectar_git};
 pub use inventario::{
     ArquivoInventariado, Estatisticas, Ignorado, Inventario, PastaInventariada, Resumo, inventariar,
 };
 pub use linguagem::Linguagem;
+pub use mapa::{
+    Achado, ArquivoMapeado, Dependencia, EstatisticasMapa, FORMATO_MAPA, LIMITE_EXTRACAO, Mapa,
+    Modulo, SimboloId, Uso, mapear,
+};
 pub use sistema::{Escopo, Pasta, Recusa, Sistema, slug};
 
 /// Nome da crate, para diagnóstico.

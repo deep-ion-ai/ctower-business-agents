@@ -5,7 +5,13 @@
 //! ```text
 //! <raiz>/<id>/sistema.json
 //! <raiz>/<id>/inventario.json
+//! <raiz>/<id>/mapa.json
 //! ```
+//!
+//! O `mapa.json` guarda a extração de cada arquivo (símbolos e referências pelo
+//! nome, com o hash do arquivo e o extrator usado), em JSON compacto. As ligações
+//! entre referências e símbolos são refeitas ao carregar. Apagá-lo só faz o
+//! próximo mapeamento ler todos os arquivos de novo.
 //!
 //! A raiz fica no diretório de dados do app (`cba_core::dados`), por exemplo
 //! `<dados>/sistemas`. Quando o índice SQLite existir (#8), o cadastro pode migrar
@@ -20,11 +26,14 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 
 use crate::Erro;
+use crate::extrator::Registro;
 use crate::inventario::{Inventario, inventariar};
+use crate::mapa::{Mapa, mapear};
 use crate::sistema::Sistema;
 
 const SISTEMA: &str = "sistema.json";
 const INVENTARIO: &str = "inventario.json";
+const MAPA: &str = "mapa.json";
 
 /// Cadastro dos sistemas numa pasta.
 #[derive(Debug, Clone)]
@@ -83,7 +92,7 @@ impl Cadastro {
         gravar(&self.dir(&sistema.id)?.join(SISTEMA), sistema)
     }
 
-    /// Remove o sistema e o inventário dele. Devolve se existia.
+    /// Remove o sistema, o inventário e o mapa dele. Devolve se existia.
     ///
     /// Não toca nas pastas do sistema nem na base de conhecimento.
     pub fn remover(&self, id: &str) -> Result<bool, Erro> {
@@ -117,6 +126,34 @@ impl Cadastro {
         Ok(novo)
     }
 
+    /// Último mapa gravado do sistema.
+    pub fn mapa(&self, id: &str) -> Result<Option<Mapa>, Erro> {
+        let arq = self.dir(id)?.join(MAPA);
+        if !arq.is_file() {
+            return Ok(None);
+        }
+        ler(&arq).map(Some)
+    }
+
+    /// Inventaria e mapeia o sistema com todos os extratores, aproveitando o
+    /// inventário e o mapa anteriores, e grava os dois.
+    pub fn mapear(&self, id: &str) -> Result<Mapa, Erro> {
+        self.mapear_com(id, &Registro::padrao())
+    }
+
+    /// Como [`Cadastro::mapear`], com outro conjunto de extratores.
+    pub fn mapear_com(&self, id: &str, registro: &Registro) -> Result<Mapa, Erro> {
+        let inventario = self.inventariar(id)?;
+        let sistema = self
+            .obter(id)?
+            .ok_or_else(|| Erro::NaoCadastrado(id.to_string()))?;
+        // Mapa anterior ilegível só faz perder o cache.
+        let anterior = self.mapa(id).ok().flatten();
+        let mapa = mapear(&inventario, &sistema.escopo()?, anterior.as_ref(), registro);
+        gravar_json(&self.dir(id)?.join(MAPA), &mapa, false)?;
+        Ok(mapa)
+    }
+
     fn dir(&self, id: &str) -> Result<PathBuf, Erro> {
         // O id vira nome de pasta: só o formato de slug, sem `..` nem separadores.
         let valido = !id.is_empty()
@@ -139,9 +176,18 @@ fn ler<T: DeserializeOwned>(arq: &Path) -> Result<T, Erro> {
 }
 
 fn gravar<T: Serialize>(arq: &Path, valor: &T) -> Result<(), Erro> {
+    gravar_json(arq, valor, true)
+}
+
+fn gravar_json<T: Serialize>(arq: &Path, valor: &T, legivel: bool) -> Result<(), Erro> {
     let dir = arq.parent().expect("arquivo do cadastro tem pasta");
     fs::create_dir_all(dir).map_err(|e| Erro::io(dir, e))?;
-    let json = serde_json::to_vec_pretty(valor).map_err(|fonte| Erro::Json {
+    let json = if legivel {
+        serde_json::to_vec_pretty(valor)
+    } else {
+        serde_json::to_vec(valor)
+    }
+    .map_err(|fonte| Erro::Json {
         caminho: arq.to_path_buf(),
         fonte,
     })?;
