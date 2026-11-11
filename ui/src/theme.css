@@ -109,20 +109,6 @@ body {
   align-self: flex-start;
 }
 
-.terminal-teste {
-  margin-top: 2rem;
-  width: min(56rem, calc(100% - 2rem));
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.terminal-teste h2 {
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 600;
-}
-
 .terminal-controles {
   display: flex;
   flex-wrap: wrap;
@@ -151,4 +137,217 @@ body {
   border: 1px solid color-mix(in srgb, #d33 50%, transparent);
   border-radius: 8px;
   padding: 0.75rem 1rem;
+}
+
+.tela-analise {
+  margin-top: 2rem;
+  width: min(100rem, calc(100% - 2rem));
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.tela-analise h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.tela-analise h3 {
+  margin: 0.5rem 0 0.25rem;
+  font-size: 1rem;
+}
+
+.nova-pergunta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.nova-pergunta label {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 0.25rem;
+}
+
+.nova-pergunta textarea {
+  font: inherit;
+}
+
+.lista-analises {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.preparar-ambiente,
+.aviso-desktop,
+.iniciar-conversa {
+  border: 1px solid color-mix(in srgb, var(--suave) 40%, transparent);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+
+.trecho-erro {
+  color: #c33;
+}
+
+.painel-barra {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.painel-colunas {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (max-width: 60rem) {
+  .painel-colunas {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.painel-conversa,
+.painel-documento {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.painel-documento {
+  max-height: calc(100vh - 6rem);
+  overflow-y: auto;
+}
+
+.prompts-prontos {
+  display: contents;
+}
+
+.documento-ao-vivo h2 {
+  margin: 0;
+}
+
+.documento-ao-vivo blockquote {
+  margin: 0;
+  padding-left: 0.75rem;
+  border-left: 3px solid color-mix(in srgb, var(--suave) 50%, transparent);
+}
+
+.documento-ao-vivo h4 {
+  margin: 0.5rem 0 0.25rem;
+}
+
+.afirmacao {
+  margin-bottom: 0.5rem;
+}
+
+.afirmacao.estado-incorreta .texto {
+  text-decoration: line-through;
+}
+
+.selo {
+  display: inline-block;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.selo-confirmado {
+  background: color-mix(in srgb, #2a9d4b 25%, transparent);
+}
+
+.selo-inferido {
+  background: color-mix(in srgb, #d4a017 30%, transparent);
+}
+
+.selo-a_confirmar {
+  background: color-mix(in srgb, #c33 25%, transparent);
+}
+
+.selo-sessao {
+  margin: 0.25rem 0;
+  font-size: 0.9rem;
+}
+
+.selo-sessao::before {
+  content: "●";
+  margin-right: 0.35rem;
+  color: var(--suave);
+}
+
+.sessao-ativa::before {
+  color: #2a9d4b;
+}
+
+.sessao-aguardando-analista::before {
+  color: #d4a017;
+}
+
+.sessao-concluida::before {
+  color: #3a7bd5;
+}
+
+.evidencias {
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.evidencia {
+  font-family: Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  font-size: 0.8rem;
+}
+
+.evidencia[aria-pressed="true"] {
+  outline: 2px solid #3a7bd5;
+}
+
+.trecho-evidencia header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.trecho-codigo {
+  max-height: 22rem;
+  overflow: auto;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--suave) 40%, transparent);
+}
+
+.trecho-codigo table {
+  border-collapse: collapse;
+  width: 100%;
+  font-family: Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  font-size: 0.8rem;
+}
+
+.trecho-codigo .numero {
+  text-align: right;
+  padding: 0 0.5rem;
+  color: var(--suave);
+  user-select: none;
+}
+
+.trecho-codigo .codigo {
+  white-space: pre;
+}
+
+.trecho-codigo .citada {
+  background: color-mix(in srgb, #d4a017 25%, transparent);
+}
+
+.documento-caminho code {
+  word-break: break-all;
 }
