@@ -1,5 +1,5 @@
-//! Diretório de dados do app: índice, configuração, cadastro dos sistemas, eventos e
-//! logs.
+//! Diretório de dados do app: índice, configuração, cadastro dos sistemas, eventos,
+//! sessões e logs.
 //!
 //! Fica no diretório de dados locais do usuário, numa pasta com o identificador do
 //! app, separado da pasta da base de conhecimento (os Markdown, numa pasta escolhida
@@ -78,6 +78,12 @@ impl DiretorioDados {
     pub fn eventos(&self) -> PathBuf {
         self.raiz.join("eventos")
     }
+
+    /// Estado das sessões dos clientes de IA, gravado pelo receptor de hooks
+    /// (`cba_session::sessoes`).
+    pub fn sessoes(&self) -> PathBuf {
+        self.raiz.join("sessoes")
+    }
 }
 
 #[cfg(test)]
@@ -94,6 +100,7 @@ mod tests {
         assert_eq!(d.logs(), raiz.join("logs"));
         assert_eq!(d.sistemas(), raiz.join("sistemas"));
         assert_eq!(d.eventos(), raiz.join("eventos"));
+        assert_eq!(d.sessoes(), raiz.join("sessoes"));
     }
 
     #[test]

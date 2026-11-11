@@ -334,3 +334,174 @@ fn argumentos_invalidos_saem_com_codigo_1() {
         assert!(saida.stdout.is_empty());
     }
 }
+
+/// Roda `cba hook <evento>` como o Claude Code, sem herdar o `CLAUDE_PROJECT_DIR`
+/// de quem roda os testes.
+fn rodar_hook(evento: &str, entrada: &Value, dados: &Path) -> Output {
+    let mut filho = Command::new(CBA)
+        .args(["hook", evento])
+        .env("CBA_DATA_DIR", dados)
+        .env_remove("CLAUDE_PROJECT_DIR")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("executar o cba hook");
+    filho
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(entrada.to_string().as_bytes())
+        .unwrap();
+    let saida = filho.wait_with_output().unwrap();
+    assert_eq!(saida.status.code(), Some(0), "{evento}: {saida:?}");
+    assert_eq!(texto(&saida.stdout).trim(), "{}", "{evento}");
+    saida
+}
+
+/// Entrada de exemplo de cada evento, no formato da documentação do Claude Code
+/// (code.claude.com/docs/en/hooks.md), na pasta `cwd`.
+fn entrada_do_hook(evento: &str, sessao: &str, cwd: &Path, analise: &str) -> Value {
+    let mut e = json!({
+        "session_id": sessao,
+        "transcript_path": "/tmp/projetos/transcricao-secreta.jsonl",
+        "cwd": cwd,
+        "permission_mode": "default",
+        "hook_event_name": evento,
+    });
+    let extra = match evento {
+        "SessionStart" => json!({"source": "startup", "model": "claude-opus-5"}),
+        "UserPromptSubmit" => json!({"prompt": "Inicie a análise secreta pelo ctower"}),
+        "PreToolUse" => json!({
+            "tool_name": "mcp__cba__iniciar_analise",
+            "tool_input": {"analise": analise},
+            "tool_use_id": "toolu_01ABC"
+        }),
+        "Notification" => json!({
+            "message": "Claude needs your permission",
+            "title": "Permission needed",
+            "notification_type": "permission_prompt"
+        }),
+        "Stop" => json!({"stop_hook_active": false, "last_assistant_message": "resposta secreta"}),
+        "SessionEnd" => json!({"reason": "other"}),
+        _ => unreachable!(),
+    };
+    for (k, v) in extra.as_object().unwrap() {
+        e[k] = v.clone();
+    }
+    e
+}
+
+fn estado_da_sessao(dados: &Path, sessao: &str) -> Value {
+    ler_json(&dados.join("sessoes").join(format!("{sessao}.json")))
+}
+
+/// Uma sessão inteira na pasta do sistema: cada evento muda o estado da sessão e da
+/// análise ligada, e o executável sempre responde `{}` com código 0.
+#[test]
+fn hook_acompanha_a_sessao_na_pasta_do_sistema() {
+    let dir = tempfile::tempdir().unwrap();
+    let dados = preparar_dados(dir.path());
+    let ambiente = cba_core::ambiente::Ambiente::do_diretorio(&fixture(), &dados).unwrap();
+    let analise = ambiente
+        .analises
+        .criar(cba_core::analises::NovaAnalise {
+            fluxo: cba_core::analise::Fluxo::Perguntar,
+            titulo: "Multa por atraso".into(),
+            entrada: "Como é calculada a multa por atraso de pagamento?".into(),
+            analista: None,
+            base: None,
+        })
+        .unwrap();
+    let id = analise.id.to_string();
+    let sessao = "0b7e2c4a-1d3f-4a5b-9c8d-7e6f5a4b3c2d";
+    let cwd = fixture().join("db");
+
+    let esperado = [
+        ("SessionStart", "ativa", None),
+        ("UserPromptSubmit", "ativa", None),
+        ("PreToolUse", "ativa", Some("ativa")),
+        (
+            "Notification",
+            "aguardando-analista",
+            Some("aguardando-analista"),
+        ),
+        ("Stop", "concluida", Some("concluida")),
+        ("SessionEnd", "encerrada", Some("encerrada")),
+    ];
+    for (evento, na_sessao, na_analise) in esperado {
+        rodar_hook(
+            evento,
+            &entrada_do_hook(evento, sessao, &cwd, &id),
+            dados.raiz(),
+        );
+        let estado = estado_da_sessao(dados.raiz(), sessao);
+        assert_eq!(estado["estado"], na_sessao, "{evento}: {estado}");
+        assert_eq!(estado["sistema"], "faturamento-exemplo");
+        let a = ambiente.analises.carregar(&analise.id).unwrap();
+        let s = a.sessoes.iter().find(|s| s.id == sessao);
+        assert_eq!(
+            s.map(|s| serde_json::to_value(s.estado).unwrap()),
+            na_analise.map(Value::from),
+            "{evento}"
+        );
+    }
+    let estado = estado_da_sessao(dados.raiz(), sessao);
+    assert_eq!(estado["analise"], id.as_str());
+    assert_eq!(estado["motivo_fim"], "other");
+
+    // O log não traz o identificador da sessão, caminhos nem conteúdo.
+    let logs = logs(dados.raiz());
+    assert!(logs.contains("registrado"), "{logs}");
+    for proibido in [sessao, "secreta", "faturamento", "A-0001"] {
+        assert!(!logs.contains(proibido), "{proibido}: {logs}");
+    }
+}
+
+/// Com o sistema cadastrado, uma sessão em outra pasta não deixa rastro e o hook
+/// segue rápido, assim como o evento mais frequente de uma sessão do sistema.
+#[test]
+fn hook_fora_de_sistema_nao_grava_e_ambos_os_caminhos_sao_rapidos() {
+    let dir = tempfile::tempdir().unwrap();
+    let dados = preparar_dados(dir.path());
+    let fora = tempfile::tempdir().unwrap();
+    let sessao = "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d";
+
+    for evento in cba_session::hooks::EVENTOS {
+        rodar_hook(
+            evento,
+            &entrada_do_hook(evento, sessao, fora.path(), "A-0001"),
+            dados.raiz(),
+        );
+    }
+    assert!(!dados.sessoes().exists());
+
+    let mediana = |entrada: &Value| {
+        let mut tempos: Vec<Duration> = (0..5)
+            .map(|_| {
+                let inicio = Instant::now();
+                rodar_hook("PreToolUse", entrada, dados.raiz());
+                inicio.elapsed()
+            })
+            .collect();
+        tempos.sort();
+        tempos[tempos.len() / 2]
+    };
+    let fora_do_sistema = mediana(&entrada_do_hook(
+        "PreToolUse",
+        sessao,
+        fora.path(),
+        "A-0001",
+    ));
+    assert!(
+        fora_do_sistema < LIMITE_HOOK,
+        "fora do sistema: {fora_do_sistema:?}"
+    );
+
+    let mut no_sistema = entrada_do_hook("PreToolUse", sessao, &fixture(), "A-0001");
+    no_sistema["tool_name"] = "Read".into();
+    no_sistema["tool_input"] = json!({"file_path": "db/01_tabelas.sql"});
+    let no_sistema = mediana(&no_sistema);
+    assert!(no_sistema < LIMITE_HOOK, "no sistema: {no_sistema:?}");
+    assert!(dados.sessoes().join(format!("{sessao}.json")).is_file());
+}

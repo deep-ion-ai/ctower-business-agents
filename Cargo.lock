@@ -390,7 +390,9 @@ dependencies = [
 name = "cba-session"
 version = "0.0.0"
 dependencies = [
+ "cba-core",
  "cba-index",
+ "cba-kb",
  "dirs 6.0.0",
  "dunce",
  "serde",
