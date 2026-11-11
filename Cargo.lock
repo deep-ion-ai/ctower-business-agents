@@ -322,6 +322,13 @@ dependencies = [
 [[package]]
 name = "cba-docs"
 version = "0.0.0"
+dependencies = [
+ "cba-kb",
+ "serde",
+ "serde_norway",
+ "tempfile",
+ "thiserror 2.0.21",
+]
 
 [[package]]
 name = "cba-fixtures"
