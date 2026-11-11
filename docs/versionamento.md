@@ -25,7 +25,10 @@ O título do PR é conferido pelo workflow `pr-title`, porque é ele que vira a 
 
 1. O trabalho entra na `develop` e, quando é hora de publicar, a `develop` é mesclada na `main`.
 2. A cada push na `main`, o workflow `release` abre ou atualiza o PR de release, com a versão nova e o `CHANGELOG.md`. O job `lockfiles` acerta o `Cargo.lock` nesse PR.
-3. Mesclar o PR de release cria a tag `vX.Y.Z` e a GitHub Release. Os jobs de build dos instaladores rodam no mesmo workflow, logo depois (tags criadas pelo `GITHUB_TOKEN` não disparam outros workflows).
+3. Mesclar o PR de release cria a tag `vX.Y.Z` e a GitHub Release em rascunho. Os jobs de build dos instaladores rodam no mesmo workflow, logo depois (tags criadas pelo `GITHUB_TOKEN` não disparam outros workflows).
+4. O job `publicar` anexa à release os instaladores (`cba-windows-x64-setup.exe`, `cba-macos-universal.dmg`), os scripts de `packaging/install/` e o `SHA256SUMS`, acrescenta às notas as instruções de instalação (`packaging/notas-da-release.md`) e tira a release do rascunho. Assim, `releases/latest` só muda quando a release está completa.
+
+Para testar os instaladores de uma branch sem publicar, dispare o workflow `release` manualmente (`gh workflow run release.yml --ref <branch>`): os instaladores ficam como artefatos do run.
 
 ## Primeira versão
 
@@ -35,7 +38,7 @@ A versão inicial é `0.0.0`, no manifest e no `Cargo.toml`. Com `bump-minor-pre
 
 - `.release-please-manifest.json`: a versão da última release, referência para o release-please.
 - `Cargo.toml` (`[workspace.package] version`): herdada por todas as crates com `version.workspace = true`.
-- `ui/package.json` e `ui/src-tauri/tauri.conf.json`, quando o app existir.
-- `Cargo.lock`: a versão das crates do workspace.
+- `ui/package.json` e `ui/src-tauri/tauri.conf.json` (o `cba-app` herda a do workspace).
+- `Cargo.lock` e `ui/package-lock.json`: lockfiles, sincronizados pelo job `lockfiles`.
 
 A lista dos arquivos de versão fica num lugar só: os `extra-files` do `release-please-config.json`. Arquivo novo de versão entra ali. O `scripts/check-versions.py` lê essa lista, ignora os arquivos que ainda não existem e falha no CI se alguma versão divergir. Não edite as versões à mão.

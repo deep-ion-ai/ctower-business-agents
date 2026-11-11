@@ -3,26 +3,32 @@ name: release
 on:
   push:
     branches: [main]
+  # Constrói os instaladores da branch escolhida sem publicar nada: ficam como
+  # artefatos do run, para testar antes de uma release.
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+# Por ref: um disparo manual numa branch não segura a release da main.
 concurrency:
-  group: release
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 # Tudo o que acontece numa release fica NESTE workflow, em jobs que dependem do
 # job release-please: tags e releases criadas com o GITHUB_TOKEN não disparam
-# outros workflows (nem `on: push: tags` nem `on: release`). Os jobs de build dos
-# instaladores (#3) entram aqui com:
-#   needs: release-please
-#   if: needs.release-please.outputs.release_created == 'true'
-# e fazem checkout de needs.release-please.outputs.tag_name.
+# outros workflows (nem `on: push: tags` nem `on: release`).
+#
+# A release nasce como rascunho (draft no release-please-config.json, com a tag
+# criada na hora por force-tag-creation). O job publicar anexa os instaladores e só
+# então tira a release do rascunho: até lá, releases/latest/download/... (usado
+# pelos scripts de instalação) continua apontando para a versão anterior completa.
 jobs:
   # Cada push na main abre ou atualiza o PR de release com a versão nova nos
   # arquivos de versão (extra-files do release-please-config.json) e o
   # CHANGELOG.md. Mesclar esse PR cria a tag vX.Y.Z e a GitHub Release.
   release-please:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -41,11 +47,11 @@ jobs:
           # Explícito: a branch padrão do repositório é a develop.
           target-branch: main
 
-  # O release-please não mexe no Cargo.lock, que guarda a versão das crates do
-  # workspace; sem ajustar, o `--locked` do CI falharia no PR de release. Com o
-  # PR aberto, este job atualiza o Cargo.lock e faz o commit na branch dele.
-  # O release-please reescreve a branch a cada push na main, e este job refaz o
-  # commit em seguida.
+  # O release-please não mexe nos lockfiles, que guardam a versão das crates do
+  # workspace (Cargo.lock) e do app (ui/package-lock.json); sem ajustar, o
+  # `--locked` do CI falharia no PR de release. Com o PR aberto, este job atualiza
+  # os lockfiles e faz o commit na branch dele. O release-please reescreve a branch
+  # a cada push na main, e este job refaz o commit em seguida.
   lockfiles:
     needs: release-please
     if: needs.release-please.outputs.pr != ''
@@ -58,17 +64,177 @@ jobs:
           ref: ${{ fromJSON(needs.release-please.outputs.pr).headBranchName }}
       - name: Toolchain do rust-toolchain.toml
         run: rustup toolchain install
-      - name: Sincronizar o Cargo.lock
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Sincronizar os lockfiles
         run: |
           cargo update --workspace
+          (cd ui && npm install --package-lock-only --ignore-scripts --no-audit --no-fund)
           python3 scripts/check-versions.py
       - name: Commit na branch do PR de release
         run: |
           if git diff --quiet; then
-            echo "Cargo.lock já em dia."
+            echo "Lockfiles já em dia."
             exit 0
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -am 'chore: sincroniza o Cargo.lock com a versão da release'
+          git commit -am 'chore: sincroniza os lockfiles com a versão da release'
           git push
+
+  # Instaladores sem assinatura (#41): NSIS por usuário no Windows x64 e DMG
+  # universal (Apple Silicon e Intel) no macOS. Roda na release recém-criada e no
+  # disparo manual. Depois do build, instala e executa o binário nos modos de linha
+  # de comando, para a release não sair com um instalador quebrado.
+  instaladores:
+    needs: release-please
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.release-please.outputs.release_created == 'true') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            bundles: nsis
+            alvo: ''
+            origem: target/release/bundle/nsis/*-setup.exe
+            nome: cba-windows-x64-setup.exe
+          - os: macos-15
+            bundles: dmg
+            alvo: universal-apple-darwin
+            origem: target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            nome: cba-macos-universal.dmg
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Vazio no disparo manual: a ref do próprio run.
+          ref: ${{ needs.release-please.outputs.tag_name }}
+      - name: Toolchain do rust-toolchain.toml
+        run: |
+          rustup toolchain install
+          if [ "${{ runner.os }}" = macOS ]; then
+            rustup target add aarch64-apple-darwin x86_64-apple-darwin
+          fi
+          rustc --version
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: instaladores
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Dependências da UI
+        working-directory: ui
+        run: npm ci
+      # O beforeBuildCommand do tauri.conf.json constrói a UI antes.
+      - name: Construir o instalador
+        working-directory: ui
+        run: |
+          if [ -n "${{ matrix.alvo }}" ]; then
+            npx tauri build --ci --bundles ${{ matrix.bundles }} --target ${{ matrix.alvo }}
+          else
+            npx tauri build --ci --bundles ${{ matrix.bundles }}
+          fi
+      - name: Nome do contrato
+        run: |
+          mkdir -p dist
+          ARQUIVOS=( ${{ matrix.origem }} )
+          if [ "${#ARQUIVOS[@]}" -ne 1 ] || [ ! -f "${ARQUIVOS[0]}" ]; then
+            echo "::error::Esperado um instalador em ${{ matrix.origem }}, achados: ${ARQUIVOS[*]}"
+            exit 1
+          fi
+          cp "${ARQUIVOS[0]}" "dist/${{ matrix.nome }}"
+          ls -l dist
+      # Instala do jeito que o usuário (ou o script de #45) instala e roda o
+      # executável instalado nos modos de linha de comando.
+      - name: Instalar e testar (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          ./dist/${{ matrix.nome }} /S
+          CBA="$(cygpath -u "$LOCALAPPDATA")/Ctower Business Agents/cba.exe"
+          ls -l "$CBA"
+          echo "CBA=$CBA" >> "$GITHUB_ENV"
+      - name: Instalar e testar (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          MONTAGEM=$(mktemp -d)
+          hdiutil attach -nobrowse -readonly -mountpoint "$MONTAGEM" "dist/${{ matrix.nome }}"
+          ls "$MONTAGEM"
+          cp -R "$MONTAGEM/Ctower Business Agents.app" "$RUNNER_TEMP/"
+          hdiutil detach "$MONTAGEM"
+          CBA="$RUNNER_TEMP/Ctower Business Agents.app/Contents/MacOS/cba"
+          ARQUITETURAS=$(lipo -archs "$CBA")
+          echo "Arquiteturas: $ARQUITETURAS"
+          [[ "$ARQUITETURAS" == *x86_64* && "$ARQUITETURAS" == *arm64* ]]
+          echo "CBA=$CBA" >> "$GITHUB_ENV"
+      - name: Modos de linha de comando do binário instalado
+        env:
+          CBA_DATA_DIR: ${{ runner.temp }}/cba-dados
+        run: |
+          VERSAO=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          SAIDA=$("$CBA" --version | tr -d '\r')
+          echo "$SAIDA"
+          [ "$SAIDA" = "cba $VERSAO" ]
+          time (echo '{"hook_event_name":"SessionStart","source":"startup"}' | "$CBA" hook SessionStart > hook.txt)
+          RESPOSTA=$(tr -d '\r\n' < hook.txt)
+          echo "hook: $RESPOSTA"
+          [ "$RESPOSTA" = "{}" ]
+          printf '%s\n' \
+            '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}' \
+            '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+            '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
+            | "$CBA" mcp | tee mcp.txt
+          grep -q '"protocolVersion":"2025-06-18"' mcp.txt
+          grep -q '"tools":\[\]' mcp.txt
+      - uses: actions/upload-artifact@v7
+        with:
+          name: instalador-${{ matrix.nome }}
+          path: dist/${{ matrix.nome }}
+          if-no-files-found: error
+          retention-days: 14
+
+  # Anexa à release (em rascunho) os instaladores, os scripts de instalação de
+  # packaging/install/ (#45) e o SHA256SUMS de todos eles, acrescenta as
+  # instruções de instalação às notas e publica a release.
+  publicar:
+    needs: [release-please, instaladores]
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: instalador-*
+          merge-multiple: true
+          path: dist
+      - name: Scripts de instalação e SHA256SUMS
+        run: |
+          if [ -d packaging/install ]; then
+            find packaging/install -maxdepth 1 -type f -exec cp {} dist/ \;
+          fi
+          cd dist
+          sha256sum -- * > "$RUNNER_TEMP/SHA256SUMS"
+          mv "$RUNNER_TEMP/SHA256SUMS" .
+          cat SHA256SUMS
+      - name: Anexar e publicar
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          gh release upload "$TAG" dist/* --clobber
+          CORPO=$(gh release view "$TAG" --json body --jq .body)
+          # Num re-run, as instruções já estão lá.
+          if ! grep -q 'cba:instalacao' <<< "$CORPO"; then
+            { printf '%s\n\n' "$CORPO"; cat packaging/notas-da-release.md; } > "$RUNNER_TEMP/notas.md"
+            gh release edit "$TAG" --notes-file "$RUNNER_TEMP/notas.md"
+          fi
+          gh release edit "$TAG" --draft=false --latest
