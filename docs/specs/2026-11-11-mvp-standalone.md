@@ -10,25 +10,27 @@ Analistas de requisitos e de negócio que atuam em sistemas legados trabalham se
 
 Hoje o uso de IA por esse público costuma ser um chat genérico: cola-se um trecho de documento ou de e-mail e recebe-se uma resposta convincente, sem nenhuma relação verificável com o que o sistema faz de fato. Não há gestão do que foi perguntado, nem rastreabilidade, nem reaproveitamento do que foi descoberto.
 
-**Objetivo:** um aplicativo desktop, instalado e configurado pelo próprio analista, que conduz análises sobre um sistema legado (perguntas, regras de negócio de uma funcionalidade, impacto de uma demanda) **a partir do código**, com **evidência citada para cada afirmação**, e que guarda o que foi descoberto numa base de conhecimento local.
+**Objetivo:** um aplicativo desktop, instalado e configurado pelo próprio analista, que organiza e governa análises sobre um sistema legado (perguntas, regras de negócio de uma funcionalidade, impacto de uma demanda), conduzidas pela IA que o analista já assina, **a partir do código**, com **evidência citada para cada afirmação**, e que guarda o resultado em **documentos padronizados** numa base de conhecimento local.
 
-O projeto nasce da experiência com o [ctower-agents](https://github.com/deep-ion-ai/ctower-agents) (orquestração de agentes de código), mas é um produto separado, para outro público, e começa deliberadamente simples.
+O projeto nasce da experiência com o [ctower-agents](https://github.com/deep-ion-ai/ctower-agents) (orquestração de agentes de código) e de bases de conhecimento de engenharia reversa mantidas à mão em Markdown. É um produto separado, para outro público, e começa deliberadamente simples.
 
 ### Critérios de sucesso
 
-1. Um analista sem experiência com terminal, que já tem uma assinatura de IA pessoal, instala o app, cadastra o sistema e recebe a primeira resposta com evidências em menos de 15 minutos, sem ajuda de alguém de TI.
+1. Um analista sem experiência com terminal, com o Claude Desktop instalado e uma assinatura pessoal, instala o app, cadastra o sistema e recebe a primeira análise com evidências em menos de 15 minutos, sem ajuda de alguém de TI.
 2. Toda afirmação de uma análise aponta para pelo menos um trecho de código, schema ou documento que a sustenta, ou está marcada explicitamente como "a confirmar".
-3. Uma análise de impacto de uma demanda típica sai como documento revisável e exportável (Markdown e Word) sem que o analista escreva prompt.
-4. Uma análise iniciada no app pode continuar no Claude Desktop e volta ao app para revisão, sem perder afirmações nem evidências.
+3. Uma análise de impacto de uma demanda típica sai como documento padronizado, guardado na base do analista e exportável (Markdown e Word), sem que o analista escreva prompt.
+4. Uma análise retomada dias depois, em outra sessão de IA, continua de onde parou, sem perder afirmações, evidências ou perguntas.
 
 ### Princípios
 
 - **Simples antes de completo.** Um usuário, uma máquina, sem servidor nosso, sem conta nossa. Cada passo de instalação ou configuração a mais é um ponto de abandono.
-- **Usa a assinatura que o analista já tem.** A maioria desse público usa contas pessoais de IA; cobrar por API inviabiliza a adoção. Chave de API e provedores de nuvem ficam para o uso corporativo.
+- **Usa a assinatura que o analista já tem.** A maioria desse público usa contas pessoais de IA; cobrar por API inviabiliza a adoção. A conversa acontece no aplicativo oficial do provedor; o nosso app não oferece login nem intermedeia credenciais.
+- **O app governa, a IA conversa.** Demandas, análises, documentos e base de conhecimento são do app. A conversa pode acontecer em mais de um cliente de IA sem perder nada.
 - **Fluxos guiados, não prompt livre.** O analista escolhe o que quer fazer ("analisar impacto", "explicar funcionalidade"); o roteiro é do produto.
 - **Sem evidência, não é fato.** O agente distingue o que viu no código do que está inferindo, e a interface deixa essa diferença visível.
-- **O produto analisa, não desenvolve.** O agente é orientado a não alterar código nem publicar nada. A garantia contra push é o token de acesso ao repositório configurado pelo analista (somente leitura recomendado); configurá-lo com escrita é responsabilidade dele.
-- **O estado é do app, não da conversa.** Análises, afirmações, evidências e base de conhecimento ficam no app. A conversa pode acontecer em mais de um cliente de IA sem perder nada.
+- **O produto analisa, não desenvolve; o analista é responsável pelo repositório.** O prompt orienta o agente a não alterar código e a registrar sugestões de alteração. O app não bloqueia ferramentas por padrão: avisa quando a pasta do sistema foi alterada. A proteção técnica existe como opção.
+- **Documentos padronizados por construção.** O agente registra dados estruturados; o app monta os documentos a partir de templates. O padrão não depende da obediência do agente.
+- **Arquivos são a fonte da verdade.** A base de conhecimento é uma pasta de Markdown com frontmatter, legível e útil mesmo sem o app. O banco local é só índice.
 - **O analista assina o resultado.** O agente produz rascunhos; o documento final é revisado e aprovado por uma pessoa.
 
 ## 2. Público
@@ -37,37 +39,36 @@ O projeto nasce da experiência com o [ctower-agents](https://github.com/deep-io
 - **Analista de negócio / product owner:** precisa entender como o sistema trata um caso de negócio hoje ("o que acontece com um contrato cancelado no meio do ciclo de faturamento?").
 - **Usuário secundário:** desenvolvedor que valida uma análise e confere as evidências.
 
-Ambiente típico: notebook pessoal ou corporativo (Windows ou macOS), assinatura pessoal de IA (Claude Pro/Max ou ChatGPT Plus/Pro), acesso de leitura ao repositório do sistema.
+Ambiente típico: notebook (Windows ou macOS), assinatura pessoal de IA, acesso de leitura ao repositório do sistema.
 
 ## 3. Escopo
 
 ### MVP
 
-- App desktop (Windows e macOS), instalação por usuário, sem permissão de administrador.
+- App desktop (Windows x64 e macOS), instalação por usuário, sem permissão de administrador.
 - Cadastro de **sistemas**: um sistema é uma ou mais pastas locais com código-fonte, scripts de banco e documentos. O analista aponta para pastas que já existem na máquina.
-- **Mapeamento estrutural** do sistema (inventário, linguagens, rotinas, tabelas, referências), sem IA, atualizado de forma incremental.
+- **Base de conhecimento** em Markdown padronizado, numa pasta escolhida pelo analista (seção 7).
+- **Mapeamento estrutural** do sistema (inventário, linguagens, rotinas, tabelas, referências), sem IA.
 - **Servidor MCP local** do app, com as ferramentas de análise, a validação de evidências e o acesso à base de conhecimento.
-- **Cliente principal: Claude Code** instalado e logado pelo próprio analista, aberto pelo app num terminal embutido, já com o servidor MCP e o roteiro do fluxo.
-- **Continuação no Claude Desktop** (seção 6.4).
+- **Cliente principal: Claude Desktop** (aba de código), aberto pelo app por link, com o ambiente já preparado (seção 6.3).
+- **Cliente alternativo: Claude Code no terminal embutido**, para quem preferir (seção 6.4).
 - Três fluxos guiados:
   1. **Perguntar ao sistema:** pergunta livre, resposta com evidências.
   2. **Explicar funcionalidade:** regras de negócio, entradas, saídas, validações e casos de exceção de uma funcionalidade.
-  3. **Analisar impacto de uma demanda:** a partir do texto da demanda (colado), o que muda, onde, quais regras existentes são afetadas, riscos e perguntas em aberto.
-- **Painéis ao vivo** no app: afirmações, evidências e documento sendo montados enquanto a conversa acontece.
-- **Base de conhecimento local:** regras de negócio e termos do glossário confirmados pelo analista, usados nas análises seguintes.
-- **Documento da análise:** editável no app, com evidências navegáveis, revisão e aprovação, exportação para Markdown e Word.
-- **Aviso de token com escrita:** se o token do repositório informado tiver permissão de escrita, o app avisa uma vez. Não bloqueia.
+  3. **Analisar impacto de uma demanda:** a partir do texto da demanda, o que muda, onde, quais regras existentes são afetadas, riscos e perguntas para o solicitante.
+- **Sugestão de alteração** como saída de primeira classe: quando o analista pede "corrige isso", o agente registra a proposta para o time de desenvolvimento em vez de alterar o código.
+- **Documentos padronizados** por tipo, gerados pelo app a partir de templates editáveis, com revisão, aprovação e exportação para Markdown e Word.
+- **Governança das sessões** pelos hooks do Claude Code: estado (em andamento, aguardando o analista, concluída), identificador da sessão e retomada.
+- **Aviso de alteração no repositório:** se a pasta do sistema tiver arquivos alterados depois de uma sessão, o app mostra quais, o diff e a opção de desfazer.
 
 ### Fase 2 (ainda standalone)
 
-- **Cliente ChatGPT:** laço de agente próprio no app com "Entrar com ChatGPT" (Plus/Pro), usando as mesmas ferramentas (seção 6.5).
-- **Clientes corporativos:** o mesmo laço próprio com chave de API da Anthropic, Amazon Bedrock ou Google Vertex AI.
-- **Resumos por IA** no mapeamento (por arquivo e por módulo), gerados sob demanda pelo cliente em uso.
-- Fluxos **revisar história** e **gerar cenários de teste**.
-- Integração com Jira (ler a demanda pela chave e publicar a análise como comentário ou anexo).
-- Clone de repositório Git pelo app.
+- **Laço de agente próprio** no app, com as mesmas ferramentas: ChatGPT Plus/Pro pelo programa "Sign in with ChatGPT" da OpenAI e, para uso corporativo, chave de API da Anthropic, Amazon Bedrock ou Google Vertex AI.
+- Integração com Jira e GitLab/GitHub para ler a demanda pela chave e publicar o documento como comentário ou anexo.
+- Fluxos **revisar história** e **gerar critérios de aceite e cenários de teste**.
+- **Importação de bases existentes** em Markdown (catálogos de regras, casos de uso, memórias de engenharia reversa), com revalidação das evidências contra o código atual.
 - Conexão a um banco de dados para extrair o schema, além de arquivos DDL.
-- Exportação para Confluence.
+- Busca semântica (embeddings) sobre a base de conhecimento, só se a busca textual se mostrar insuficiente (seção 7.5).
 
 ### Edição comercial (EE), futura e condicionada à adoção
 
@@ -82,8 +83,8 @@ Fora deste repositório. Só registrada aqui para orientar decisões do núcleo:
 
 - Desenvolvimento: gerar ou alterar código, abrir PR, fazer push.
 - Execução do sistema analisado ou de testes.
-- Uso multiusuário ou sincronização entre máquinas.
-- Embutir, instalar ou modificar o binário do Claude Code, ou intermediar o login do analista em qualquer provedor (seção 9).
+- Uso multiusuário ou sincronização entre máquinas (a base pode ficar numa pasta sincronizada ou num repositório git, por conta do analista).
+- Embutir, instalar ou modificar o binário do Claude Code, ou intermediar o login do analista em qualquer provedor.
 
 ## 4. Fluxos
 
@@ -92,215 +93,333 @@ Os exemplos usam um sistema fictício de faturamento ("Faturamento Exemplo").
 ### 4.1 Primeiro uso
 
 1. O analista instala o app e o abre.
-2. O app verifica se o Claude Code está instalado e logado. Se não estiver, mostra o passo a passo oficial de instalação (botão de copiar o comando e link para a página oficial) e pede que o analista faça o login pelo próprio Claude Code. O app não instala, não embute e não lê credenciais do Claude Code.
-3. O analista cadastra o sistema: nome e uma ou mais pastas. O app mostra o que vai analisar (contagem de arquivos por tipo) e o que vai ignorar (binários, dependências, arquivos com segredos), e permite ajustar.
-4. O app registra o seu servidor MCP no Claude Code com escopo local daquela pasta (`claude mcp add --scope local`), com consentimento, para que o CLI e a aba de código do Claude Desktop o enxerguem. Nenhum arquivo é criado dentro do repositório do sistema.
-5. Mapeamento estrutural roda com barra de progresso (sem IA, sem custo).
-6. Ao final, mostra o mapa do sistema e sugere uma primeira pergunta.
+2. O app verifica se o Claude Desktop está instalado. Se não estiver, mostra o link da página oficial e pede que o analista faça login com a própria conta.
+3. O analista escolhe a pasta da **base de conhecimento** (padrão sugerido: `Documentos/ctower-business`). Pode ser uma pasta sincronizada ou um repositório git próprio.
+4. O analista cadastra o sistema: nome e uma ou mais pastas. O app mostra o que vai analisar (contagem de arquivos por tipo) e o que vai ignorar (binários, dependências, arquivos com segredos), e permite ajustar.
+5. O app prepara o ambiente do sistema, com consentimento (seção 6.2): registra o servidor MCP e os hooks. Nenhum arquivo é criado dentro do repositório do sistema.
+6. O mapeamento estrutural roda com barra de progresso (sem IA, sem custo).
+7. O app mostra o mapa do sistema e sugere uma primeira análise.
 
-### 4.2 Perguntar ao sistema
+### 4.2 Iniciar uma análise
+
+1. O analista escolhe o fluxo e informa a entrada (pergunta, funcionalidade ou texto da demanda).
+2. O app cria a análise (identificador, fluxo, entrada) e o documento em rascunho na base.
+3. O app abre o Claude Desktop por link, na pasta do sistema, com um pedido curto já preenchido ("Inicie a análise A-0193 pelo ctower").
+4. O analista confirma a pasta e envia. Essas duas confirmações são do próprio Claude Desktop e não podem ser puladas.
+5. O agente chama `iniciar_analise`, recebe o roteiro do fluxo e o contexto da base, e trabalha.
+6. Enquanto isso, o app acompanha pelos hooks (sessão ativa, aguardando o analista, concluída) e atualiza o documento a cada afirmação registrada.
+
+### 4.3 Perguntar ao sistema
 
 Exemplo: "Como é calculada a multa por atraso de pagamento?"
 
-1. O analista escolhe "Perguntar ao sistema" e digita a pergunta no app.
-2. O app abre o Claude Code no terminal embutido, na pasta do sistema, com o roteiro do fluxo e a pergunta já enviados.
-3. O agente consulta o mapa e a base de conhecimento pelas ferramentas MCP, lê os trechos relevantes e registra cada afirmação com `afirmar`.
-4. Ao lado do terminal, o painel da análise mostra as afirmações chegando, cada uma com suas evidências. Clicar abre o trecho no visualizador do app.
-5. O analista pode continuar a conversa no terminal ou marcar afirmações como **confirmadas** (vão para a base de conhecimento), **incorretas** (com comentário) ou pedir aprofundamento (botão que envia a instrução ao terminal).
+O agente consulta a base e o mapa, lê os trechos que decidem o comportamento e registra cada regra com `afirmar`. No chat, o analista recebe um resumo com as regras numeradas, um exemplo com números e as perguntas em aberto, mais o link para o documento completo. No app, o analista marca afirmações como **confirmadas** (viram regras na base), **incorretas** (com comentário) ou pede aprofundamento.
 
-### 4.3 Explicar funcionalidade
+### 4.4 Explicar funcionalidade
 
-O analista escolhe a funcionalidade no mapa ou a descreve. O resultado é um documento com seções fixas: objetivo, atores e telas, entradas, regras de negócio (numeradas, cada uma com evidência), validações, mensagens ao usuário, efeitos em dados (tabelas lidas e gravadas), integrações, casos de exceção e perguntas em aberto.
+O resultado é um documento negocial da funcionalidade: objetivo, atores e telas, fluxo principal, fluxos alternativos, exceções, regras de negócio (cada uma com evidência), dados lidos e gravados, integrações e perguntas em aberto.
 
-### 4.4 Analisar impacto de uma demanda
+### 4.5 Analisar impacto de uma demanda
 
 Exemplo de demanda: "Permitir parcelamento da fatura em até 3 vezes para clientes pessoa jurídica."
 
-1. O analista cola o texto da demanda (e, se quiser, anexa um documento).
-2. O agente identifica os conceitos da demanda, localiza no sistema onde eles vivem e levanta as regras existentes relacionadas.
-3. Resultado em seções fixas: resumo da demanda como entendida, funcionalidades afetadas, regras existentes afetadas (com evidência), dados afetados, integrações afetadas, conflitos e riscos, perguntas para o solicitante, estimativa qualitativa de abrangência (pequena, média, grande, com justificativa).
-4. O analista revisa, edita, aprova e exporta.
+O roteiro pede ao agente que:
 
-### 4.5 Continuar no Claude Desktop
+- separe o que o solicitante afirmou como fato do que ele supôs ("acho que", "salvo engano") e verifique as afirmações no código;
+- descreva como o sistema trata o assunto hoje;
+- levante o que muda em funcionalidades, dados, integrações, documentos e telas;
+- registre riscos, como dados já gravados no formato antigo, integrações que recebem o formato atual e relatórios que agrupam pelos dados alterados;
+- estime a abrangência (pequena, média ou grande) com justificativa e faça as perguntas para o solicitante.
 
-Para o analista que prefere não usar o terminal, cada análise tem o botão **"Continuar no Claude Desktop"** (detalhes na seção 6.4). A análise continua lá e as afirmações registradas voltam ao app.
+Uma análise de impacto bem feita costuma **corrigir a premissa da demanda**: mostrar que parte do que o solicitante pediu já existe, ou que o impacto real é menor (ou maior) do que ele supôs. O documento deve deixar isso explícito na seção "Demanda como entendida".
+
+### 4.6 Pedido de alteração
+
+Quando o analista pede "corrige", "muda" ou "implementa", o agente não altera o código. Ele explica o que mudaria e registra uma **sugestão de alteração** com o trecho atual, o trecho proposto, o motivo e o impacto, incluindo exemplos com números. A sugestão entra no documento da análise, para o time de desenvolvimento. Se o analista insistir, a decisão é dele: o agente diz exatamente o que alterou e o app mostra o aviso de alteração no repositório.
+
+### 4.7 Retomar uma análise
+
+- **Mesma conversa:** o app reabre a sessão no Claude Desktop pelo identificador capturado nos hooks (`claude --desktop --resume <id>`, que exige o Claude Code de linha de comando instalado e a sessão fechada no outro cliente).
+- **Conversa nova (caminho garantido):** o app abre uma sessão nova com o pedido "Retome a análise A-0193". O agente chama `retomar_analise` e recebe a entrada, as afirmações, as evidências, as perguntas e as sugestões registradas até ali.
 
 ## 5. Arquitetura
 
 ```
-┌──────────────────────────────── App desktop (Tauri) ────────────────────────────────┐
-│  UI (web): fluxos, mapa, painéis da análise, documento, base de conhecimento        │
-│     │ comandos Tauri                                                                │
-│  cba-app (casca: janelas, terminal embutido, diálogos, cofre de credenciais)        │
-│     │                                                                               │
-│  cba-core ── domínio, casos de uso, persistência (SQLite), eventos                  │
-│     ├── cba-tools ── ferramentas de análise e validação de evidências               │
-│     ├── cba-mcp ──── servidor MCP local (expõe cba-tools)                           │
-│     ├── cba-index ── inventário, extratores, mapa do sistema, busca                 │
-│     ├── cba-session ─ abre e acompanha o Claude Code (PTY), handoff para o Desktop  │
-│     └── cba-export ─ Markdown e Word                                                │
-└─────────────────────────────────────────────────────────────────────────────────────┘
-        │ MCP (stdio)                    │ MCP (stdio)                 │ fase 2
-  Claude Code (CLI do analista)   Claude Desktop (do analista)   laço próprio (ChatGPT, API)
-        │ leitura                        │
-  pastas do sistema analisado ───────────┘
+┌──────────────────────────────── App desktop (Tauri) ─────────────────────────────────┐
+│  UI (web): sistemas, fluxos, análises, documentos, base de conhecimento               │
+│     │ comandos Tauri                                                                 │
+│  cba-app (casca: janelas, terminal embutido opcional, diálogos)                      │
+│     │                                                                                │
+│  cba-core ── domínio, casos de uso, eventos                                          │
+│     ├── cba-kb ────── base de conhecimento: leitura e escrita dos Markdown, índice   │
+│     ├── cba-docs ──── templates e montagem dos documentos, exportação (MD, Word)     │
+│     ├── cba-tools ─── ferramentas de análise e validação de evidências               │
+│     ├── cba-mcp ───── servidor MCP local (expõe cba-tools)                           │
+│     ├── cba-index ─── inventário, extratores, mapa do sistema                        │
+│     └── cba-session ─ preparo do ambiente, links do Desktop, hooks, retomada         │
+└──────────────────────────────────────────────────────────────────────────────────────┘
+        │ MCP (stdio) + hooks                │ MCP (stdio) + hooks           │ fase 2
+  Claude Desktop, aba de código        Claude Code (terminal embutido)   laço próprio
+        │ leitura                            │
+  pastas do sistema analisado ───────────────┘          base de conhecimento (Markdown)
 ```
 
-- **O servidor MCP é o centro do produto.** As ferramentas, a validação de evidências e a base de conhecimento vivem nele. Cada cliente de IA é só uma porta de entrada, e todos escrevem na mesma análise.
-- **Um app só.** O servidor MCP é o próprio executável do app iniciado em modo `mcp` pelo cliente de IA; os dois processos compartilham o mesmo banco SQLite (modo WAL) e o app é notificado das mudanças para atualizar os painéis.
+- **O servidor MCP é o centro do produto.** Ferramentas, validação de evidências e acesso à base vivem nele. Cada cliente de IA é só uma porta de entrada, e todos escrevem na mesma análise.
+- **Um executável só.** O servidor MCP e o receptor dos hooks são o próprio executável do app, iniciado em modo `mcp` ou `hook` pelo cliente de IA. Os processos compartilham o índice SQLite (modo WAL) e o app é notificado das mudanças.
 - **O núcleo não depende do Tauri.** `cba-core` e as crates abaixo dele não conhecem a UI, o que permite testes sem interface e, no futuro, um servidor EE com o mesmo núcleo.
 - **Linguagem:** Rust no backend e a mesma pilha web de UI do ctower-agents.
-- **Reaproveitamento do ctower-agents:** sem dependência entre os repositórios. Trechos úteis (PTY, hooks e retomada de sessão do Claude Code, execução de processo, segredos) são copiados e adaptados, com comentário de origem no topo do arquivo.
+- **Reaproveitamento do ctower-agents:** sem dependência entre os repositórios. Trechos úteis (PTY, hooks, retomada de sessão, execução de processo) são copiados e adaptados, com comentário de origem no topo do arquivo.
 
 ## 6. Agente e clientes
 
 ### 6.1 Ferramentas MCP
 
-Operam só dentro das pastas cadastradas do sistema, respeitam a lista de exclusões e têm limites de tamanho. O Claude Code também usa as suas ferramentas próprias de leitura (`Read`, `Grep`, `Glob`); as nossas acrescentam o que ele não tem.
+Operam só dentro das pastas cadastradas do sistema, respeitam a lista de exclusões e têm limites de tamanho. O cliente de IA usa também as suas próprias ferramentas de leitura e busca; as nossas acrescentam o que ele não tem.
 
 | Ferramenta | O que faz |
 |---|---|
+| `iniciar_analise` | Devolve o roteiro do fluxo, a entrada e o contexto da base (regras, termos e memória da área relacionados). |
+| `retomar_analise` | Devolve o estado de uma análise: entrada, afirmações, evidências, perguntas, sugestões. |
+| `conhecimento` | Busca na base: regras confirmadas, glossário, análises anteriores. |
 | `mapa` | Retorna o mapa do sistema ou de um módulo. |
-| `estrutura` | Lista rotinas, procedures, classes e telas de um arquivo (extratores da seção 7). |
+| `estrutura` | Lista rotinas, procedures, classes e telas de um arquivo. |
 | `schema` | Consulta tabelas, colunas e relacionamentos extraídos dos scripts de banco. |
-| `referencias` | Onde um identificador (rotina, tabela, campo) é usado. |
-| `conhecimento` | Consulta a base de conhecimento local (regras confirmadas, glossário). |
-| `iniciar_analise` | Cria uma análise a partir de um fluxo e de uma entrada; devolve o roteiro do fluxo. |
-| `retomar_analise` | Devolve o estado de uma análise: entrada, afirmações, evidências, perguntas em aberto. |
-| `afirmar` | Registra uma afirmação com suas evidências (ver 6.2). |
+| `referencias` | Onde um identificador (rotina, tabela, campo, componente) é usado. |
+| `afirmar` | Registra uma afirmação: `secao`, texto, confiança e evidências (6.5). |
 | `perguntar` | Registra uma pergunta em aberto para o solicitante. |
+| `registrar_sugestao` | Registra uma sugestão de alteração: arquivo, trecho atual, trecho proposto, motivo, impacto. |
+| `propor_termo` | Propõe uma entrada para o glossário (termo de negócio, sinônimos, onde vive no código). |
+| `concluir_analise` | Fecha a rodada: o app monta o documento e devolve o caminho, que o agente cita na resposta. |
 
-Os fluxos guiados são expostos como ferramentas (`iniciar_analise`), e não só como prompts MCP, porque o suporte a prompts de servidores locais no Claude Desktop não está confirmado.
+Os fluxos guiados são ferramentas (`iniciar_analise`), e não prompts MCP, porque o suporte a prompts de servidores locais no Claude Desktop não está confirmado.
 
-### 6.2 Evidências
+### 6.2 Preparo do ambiente
 
-- O resultado de uma análise é composto de **afirmações** registradas pela ferramenta `afirmar`, não de texto livre. Cada afirmação tem: texto, seção do documento, nível de confiança e lista de evidências.
-- Uma **evidência** é `(arquivo, linha inicial, linha final, trecho citado)`. O servidor valida no registro: o arquivo existe dentro das pastas do sistema, o intervalo é válido e o trecho citado confere com o conteúdo atual. Guarda o hash do trecho. Evidência inválida é recusada com o motivo, para o agente corrigir.
-- **Níveis de confiança:**
-  - **confirmado no código:** evidência direta;
-  - **inferido:** dedução a partir de evidências, que ficam listadas;
-  - **a confirmar:** sem evidência suficiente; vira pergunta em aberto no documento.
-- Se o arquivo mudar depois da análise, o hash denuncia e a evidência aparece como **desatualizada**.
+Feito pelo app no cadastro do sistema, com consentimento, sem criar arquivos no repositório do sistema:
 
-### 6.3 Cliente principal: Claude Code no terminal embutido
+- **Servidor MCP:** registrado na configuração do usuário do Claude Code com escopo local da pasta do sistema. A aba de código do Claude Desktop e o Claude Code de linha de comando leem a mesma configuração. Atenção: numa worktree do git, o escopo local é gravado na entrada do repositório principal, não da worktree. O app deve registrar pelo caminho que o Claude Code usa como chave e remover o registro quando o sistema for descadastrado.
+- **Hooks:** `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `Notification`, `Stop` e `SessionEnd`, apontando para o executável do app. Também são compartilhados entre o Desktop e o CLI.
+- **Edição da configuração do usuário:** a gravação preserva o que já existe e é desfeita no descadastro. O app nunca lê nem grava credenciais.
 
-- O app abre o `claude` instalado pelo analista, **sem modificação**, num terminal embutido (PTY), na pasta do sistema, em modo interativo. O analista vê e usa o Claude Code como ele é.
-- Parâmetros passados pelo app: o roteiro do fluxo (`--append-system-prompt`), as ferramentas permitidas e o primeiro pedido.
-- **Orientação contra desenvolvimento:** o roteiro instrui o agente a não editar arquivos, não executar comandos de build, commit ou push e, se o analista pedir uma alteração, registrá-la como sugestão na análise. As ferramentas de escrita do Claude Code (`Edit`, `Write`) ficam fora da lista permitida; `Bash` fica sujeito à confirmação padrão do Claude Code. Não há garantia técnica adicional (seção 1, princípios).
-- Hooks do Claude Code (como no ctower-agents) informam ao app o estado da sessão e o identificador da sessão, para retomada.
-- O consumo é o da assinatura do analista, dentro dos limites do plano dele.
+### 6.3 Cliente principal: Claude Desktop
 
-### 6.4 Continuação no Claude Desktop
+- O app abre `claude://code/new?folder=<pasta do sistema>&q=<pedido>`. O Desktop abre uma sessão na aba de código com o pedido preenchido.
+- O Desktop **sempre** pede confirmação de pasta recebida por link e **nunca** envia o pedido sozinho. São duas ações do analista, aceitas como custo do desenho.
+- O roteiro não vai no link: os limites entram pelo hook `SessionStart` e o roteiro do fluxo pela resposta de `iniciar_analise` (seção 8).
+- A aba de código roda a própria cópia do Claude Code, com versão que pode diferir da do CLI. O app não depende de recursos de uma versão específica.
+- Funciona só com assinatura do Claude (não com chave de API nem provedores de nuvem) e só no macOS e no Windows x64.
 
-Dois caminhos, nesta ordem de preferência:
+### 6.4 Cliente alternativo: Claude Code no terminal embutido
 
-1. **Mover a sessão do Claude Code para o Desktop:** o botão "Continuar no Claude Desktop" envia `/desktop` ao terminal embutido. O Claude Code salva a sessão, abre-a na aba de código do Claude Desktop e encerra o CLI. A conversa continua com o mesmo histórico, e o servidor MCP registrado com escopo local da pasta continua disponível. Documentado para macOS e Windows x64.
-2. **Abrir um chat no Claude Desktop:** para quem prefere o chat comum, o app abre `claude://claude.ai/new?q=<instrução>` com a instrução de continuar a análise ("Continue a análise 0193… do Faturamento Exemplo"). O texto fica preenchido para o analista revisar e enviar. Requer o servidor MCP instalado no Claude Desktop como extensão (`.mcpb`), que o app gera e o analista instala com um clique; o agente chama `retomar_analise` e segue.
+Para quem prefere o terminal. O app abre o `claude` instalado pelo analista, **sem modificação**, em modo interativo, num terminal embutido (PTY), na pasta do sistema. O consumo é o da assinatura do analista. O botão "Continuar no Claude Desktop" envia `/desktop`, que move a sessão para a aba de código do Desktop com o mesmo histórico.
 
-Em ambos os casos a análise continua sendo a mesma no app: as afirmações registradas no Desktop aparecem nos painéis e no documento. O caminho inverso (Desktop para o app) não depende de handoff de sessão: o analista volta ao app, e uma nova sessão no terminal embutido chama `retomar_analise`.
+### 6.5 Evidências
 
-### 6.5 Laço próprio (fase 2)
+- O conteúdo de uma análise é composto de **afirmações** registradas pela ferramenta `afirmar`, não de texto livre. Cada afirmação tem: seção do documento, texto, nível de confiança e evidências.
+- Uma **evidência** é `(arquivo, linha inicial, linha final, trecho citado)`, com o caminho relativo à raiz do sistema. O servidor valida no registro: o arquivo existe dentro das pastas do sistema, o intervalo é válido e o trecho confere com o conteúdo atual. Guarda o hash do trecho e o commit. Evidência inválida é recusada com o motivo, para o agente corrigir.
+- **Níveis de confiança:** `confirmado` (evidência direta), `inferido` (dedução a partir de evidências listadas) e `a_confirmar` (sem evidência suficiente; vira pergunta).
+- Se o arquivo mudar, o hash denuncia e a evidência, e as regras que dependem dela, aparecem como **a revalidar**.
 
-Para clientes que não são o Claude Code nem o Claude Desktop, o app tem um laço de agente próprio que chama o modelo e executa as mesmas ferramentas de `cba-tools`, numa interface de chat do próprio app:
+### 6.6 Laço próprio (fase 2)
 
-- **ChatGPT Plus/Pro** pelo programa "Sign in with ChatGPT" da OpenAI (em preview, liberado para apps open-source e locais): login OAuth pelo navegador, consumo do plano do usuário, chamadas à Responses API com ferramentas próprias.
+Para clientes que não são o Claude Desktop nem o Claude Code, o app terá um laço de agente que chama o modelo e executa as mesmas ferramentas de `cba-tools`, numa interface de chat do próprio app:
+
+- **ChatGPT Plus/Pro** pelo programa "Sign in with ChatGPT" da OpenAI (em preview, liberado para apps open-source e locais): login OAuth pelo navegador, consumo do plano do usuário, ferramentas próprias pela Responses API.
 - **Chave de API da Anthropic, Amazon Bedrock, Google Vertex AI:** uso corporativo e base para a EE.
 
-## 7. Mapeamento do sistema
+## 7. Base de conhecimento e documentos
 
-Objetivo: dar ao agente um ponto de partida barato, para que cada pergunta não comece explorando o sistema do zero.
+### 7.1 Estrutura
 
-1. **Inventário:** arquivos, tamanho, linguagem (por extensão e conteúdo), exclusões aplicadas.
-2. **Extração estrutural** (sem IA, por extratores por linguagem): rotinas, procedures, classes, telas, tabelas e colunas (DDL), chamadas e referências entre elas, quando o extrator consegue identificar.
-3. **Resumos** (fase 2): por arquivo e por módulo, em linguagem de negócio, gerados sob demanda pelo cliente de IA em uso e guardados no app.
-4. **Glossário candidato:** termos de negócio recorrentes, para o analista confirmar. Nasce das análises (o agente propõe termos) e não de uma passada própria.
+```
+<base>/
+  _templates/                        # templates dos documentos (editáveis)
+  <sistema>/
+    sistema.md                       # visão, áreas, estado, próximo passo
+    glossario/<termo>.md             # negócio → código
+    regras/RN-<AREA>-<NNN>.md        # uma regra por arquivo
+    areas/<area>/memoria.md          # memória de uma área funcional
+    funcionalidades/<area>/<tema>/   # documento negocial, casos de uso, rastreabilidade
+    analises/<id>.md                 # análises de impacto, perguntas, explicações
+    sugestoes/<id>.md                # sugestões de alteração
+```
 
-Tudo é guardado por hash de arquivo. Na reabertura, só o que mudou é reprocessado.
+- **Fora do repositório do sistema** e fora de qualquer pasta temporária. A pasta é do analista e sobrevive à reinstalação do app.
+- **Caminhos relativos** em todos os documentos, nunca absolutos, para a base continuar válida em outra máquina ou sistema operacional.
+- **Gravação contínua:** o documento de uma análise é atualizado a cada registro, não só no fim. Uma sessão interrompida não perde o que já foi apurado.
 
-### Extratores no MVP
+### 7.2 Frontmatter
 
-Extrator genérico (texto, identificadores, comentários) para qualquer linguagem, mais extratores específicos para: SQL e PL/SQL (DDL, procedures, triggers), COBOL (divisões, parágrafos, copybooks, `CALL`), Delphi/Pascal (units, forms `.dfm`), Visual Basic 6 (módulos, forms), Java e C#. A lista final depende dos sistemas usados no piloto (ver seção 13).
+Todo documento começa com frontmatter YAML, que o app usa para indexar, filtrar e validar. Exemplo de análise:
 
-## 8. Modelo de dados
+```yaml
+---
+tipo: analise-impacto
+id: A-0193
+titulo: Parcelamento da fatura para pessoa jurídica
+sistema: faturamento-exemplo
+demanda: {origem: texto, chave: null}
+status: rascunho            # rascunho | em-revisao | aprovada
+abrangencia: media
+base: {branch: develop, commit: 1a2b3c4d}
+criado: 2026-11-11
+analista: Ana Exemplo
+---
+```
 
-SQLite local, um arquivo por instalação, identificadores UUID v7. Mudanças relevantes geram um registro em `evento` (quem, quando, o quê, por qual cliente), pensando em auditoria e numa futura sincronização com a EE.
+Exemplo de regra:
 
-| Entidade | Conteúdo principal |
+```yaml
+---
+tipo: regra
+id: RN-FAT-007
+titulo: Juros de atraso contam a partir do primeiro dia
+area: cobranca
+status: confirmada          # confirmada | a-revalidar | obsoleta
+evidencias:
+  - arquivo: db/multa.sql
+    linhas: 10-10
+    hash: 9f3c2a…
+    commit: 1a2b3c4d
+origem: analises/A-0193.md
+---
+```
+
+### 7.3 Tipos de documento e padronização
+
+O agente registra dados estruturados pelas ferramentas MCP, e o app monta cada documento a partir do template do seu tipo. O texto do agente fica só dentro dos campos.
+
+| Tipo | Seções fixas |
 |---|---|
-| `sistema` | nome, pastas, exclusões |
-| `arquivo` | caminho, hash, linguagem, resumo |
-| `simbolo` | rotina, procedure, tabela, tela, com arquivo e intervalo |
-| `referencia` | símbolo de origem → símbolo de destino |
-| `analise` | fluxo, entrada (pergunta ou demanda), estado (rascunho, em revisão, aprovada) |
-| `sessao` | análise, cliente (Claude Code, Claude Desktop, laço próprio), identificador da sessão do cliente, início e fim |
-| `afirmacao` | análise, sessão, seção, texto, confiança, estado da revisão |
-| `evidencia` | afirmação, arquivo, intervalo, trecho, hash |
-| `pergunta` | análise, texto, estado |
-| `regra` | regra de negócio confirmada, com evidências e análise de origem |
-| `termo` | termo do glossário, definição, estado |
-| `envio` | sessão, ferramenta, horário, conteúdo devolvido ao cliente de IA |
-| `evento` | registro de mudanças |
+| Análise de impacto | demanda como veio · demanda como entendida · como é hoje · funcionalidades · dados · integrações · documentos e telas · riscos · abrangência · perguntas para o solicitante · sugestões · evidências |
+| Pergunta ao sistema | pergunta · resposta · regras encontradas · exemplo · perguntas em aberto · evidências |
+| Documento negocial da funcionalidade | objetivo · atores e telas · fluxo principal · fluxos alternativos · exceções · regras · dados · integrações · perguntas · evidências |
+| Caso de uso | identificação · objetivo · gatilho · pré-condições · fluxo principal · alternativos · exceções · regras · evidências |
+| Regra de negócio | identificador estável · enunciado · área · evidências com hash · origem |
+| Termo do glossário | termo · sinônimos · definição de negócio · onde vive no código (entidades, tabelas, telas, serviços, documentos) |
+| Sugestão de alteração | contexto · trecho atual · trecho proposto · motivo · impacto · exemplo |
+
+- **Templates editáveis:** ficam em `<base>/_templates/` como Markdown com marcadores. O app traz um conjunto padrão; cada organização pode ajustar ao seu (por exemplo, um padrão de documento negocial já adotado).
+- **Evidências no documento:** cada afirmação traz o selo de confiança e uma nota de rodapé com `arquivo:linhas`. No app, a nota abre o trecho.
+- **O chat não é o documento.** No chat, o agente dá um resumo e o link do documento (devolvido por `concluir_analise`). O documento completo se lê no app ou em qualquer editor de Markdown.
+
+### 7.4 Como a base cresce
+
+- **Análise aprovada alimenta a base:** as afirmações confirmadas pelo analista viram regras (com identificador estável) e os termos propostos viram entradas do glossário.
+- **Glossário negócio → código** é a peça que mais acelera as análises seguintes: o maior custo de uma análise é localizar no código os conceitos da demanda.
+- **Revalidação:** ao reabrir o sistema, o app confere os hashes das evidências contra o código atual e marca como "a revalidar" o que mudou.
+
+### 7.5 Índice e busca
+
+- **SQLite é só índice,** reconstruído a partir dos arquivos: busca textual (FTS5), ligações entre regras, termos e análises, estado das evidências. Apagá-lo não perde nada.
+- **Sem RAG vetorial no MVP.** Para código, a busca do próprio agente (termos, leitura, referências) é mais precisa do que trechos recuperados por similaridade, e a evidência exige o trecho exato. A base em linguagem de negócio é pequena e curada, e a busca textual basta. Embeddings entram só se a prática mostrar falhas de busca, e sobre a base, não sobre o código.
+
+## 8. Prompts
+
+Modelo em camadas, como no ctower-agents:
+
+| Camada | Conteúdo | Como chega ao agente |
+|---|---|---|
+| Limites fixos | papel (apoia analista, não desenvolve), sugestão em vez de alteração, evidência obrigatória e honesta, consultar a base antes, declarar o que está fora do código, segredos, linguagem de negócio | hook `SessionStart`, em toda sessão, inclusive na retomada e em qualquer cliente |
+| Regras do sistema | convenções do sistema e da organização, editáveis e versionadas na base | junto dos limites, no `SessionStart` |
+| Roteiro do fluxo | um template por fluxo, com variáveis (identificador, entrada, contexto da base) | resposta de `iniciar_analise` |
+| Prompts prontos | aprofundar, resumir para o solicitante, gerar critérios de aceite, conferir evidências, retomar | botões no app, que abrem o cliente com o pedido preenchido |
+
+Pontos validados na prova de conceito (seção 13):
+
+- os limites injetados pelo `SessionStart` são seguidos na aba de código do Claude Desktop;
+- com o prompt de limites, um pedido explícito de correção, com o analista aprovando todas as permissões, resultou em sugestão de alteração e nenhum arquivo alterado;
+- sem o prompt de limites, o mesmo pedido levou o agente a editar o arquivo por comando de shell, contornando a negação das ferramentas de edição.
 
 ## 9. Provedores, credenciais e privacidade
 
-- **Claude Code e Claude Desktop:** o analista instala e faz login pelos fluxos oficiais da Anthropic. O app não oferece login do Claude, não lê, não guarda e não intermedeia credenciais ou tokens, não embute nem instala o binário e não o modifica. Isso segue a página de questões legais e de conformidade do Claude Code, que proíbe terceiros de oferecer o login do Claude.ai ou intermediar credenciais, mas não impede o usuário de usar o binário original com a própria assinatura. Antes de distribuir, pedir confirmação por escrito à Anthropic de que o desenho da seção 6.3 está dentro das regras.
+- **Claude Desktop e Claude Code:** o analista instala e faz login pelos fluxos oficiais da Anthropic. O app não oferece login do Claude, não lê, não guarda e não intermedeia credenciais ou tokens, e não embute, instala ou modifica nenhum binário. Isso segue a página de questões legais e de conformidade do Claude Code, que proíbe terceiros de oferecer o login do Claude.ai ou intermediar credenciais, mas não impede o usuário de usar os aplicativos oficiais com a própria assinatura. Antes de distribuir, pedir confirmação por escrito à Anthropic de que o desenho das seções 6.2 a 6.4 está dentro das regras.
 - **ChatGPT (fase 2):** "Sign in with ChatGPT" está em preview e liberado para apps open-source e locais; app pago ou hospedado depende de aprovação da OpenAI. Afeta a EE, não o MVP.
-- **Token do repositório:** o app recomenda um token somente leitura e avisa quando o token informado tiver escrita. O token fica no cofre do sistema operacional.
-- **Exclusões padrão:** dependências de terceiros, binários, arquivos com padrão de segredo (`.env`, chaves, `*.pfx`, configuração com senha detectada). O analista vê e ajusta a lista. As ferramentas MCP respeitam as exclusões; as ferramentas próprias do Claude Code não, e o roteiro orienta o agente a evitá-las.
-- **Registro de envios:** o servidor MCP registra tudo o que as nossas ferramentas devolveram ao cliente de IA. Não cobre o que o Claude Code leu com as ferramentas próprias dele; os transcripts do Claude Code ficam na máquina do analista.
+- **Repositório do sistema:** o app recomenda token somente leitura e avisa quando a pasta do sistema foi alterada. A responsabilidade pelo que vai para o repositório é do analista.
+- **Exclusões padrão:** dependências de terceiros, binários, arquivos com padrão de segredo. As ferramentas MCP respeitam as exclusões; as ferramentas próprias do cliente de IA não, e os limites orientam o agente a evitá-las.
+- **Dados do sistema analisado** ficam na máquina do analista: na base de conhecimento e nos históricos do próprio cliente de IA. O app não envia nada a serviços próprios.
 - **Sem telemetria** no MVP.
 
 ## 10. Interface
 
-- **Início:** sistemas cadastrados, análises recentes, botões dos fluxos, estado do Claude Code (instalado, logado).
-- **Sistema:** mapa (módulos, funcionalidades, tabelas), estado do mapeamento, glossário.
-- **Análise:** terminal embutido com o Claude Code de um lado; do outro, painéis com as afirmações chegando (selo de confiança), a evidência selecionada (trecho com destaque) e as perguntas em aberto. Botões: confirmar, marcar incorreta, aprofundar, continuar no Claude Desktop.
-- **Documento da análise:** texto por seções, revisão, aprovação, exportação.
-- **Base de conhecimento:** regras confirmadas e glossário, com busca e a análise de origem.
-- **Configurações:** sistemas e exclusões, token do repositório, extensão do Claude Desktop, registro de envios.
+- **Início:** sistemas cadastrados, análises recentes e em andamento (com estado vindo dos hooks), botões dos fluxos, estado do Claude Desktop.
+- **Sistema:** mapa, glossário, regras (com as que estão "a revalidar"), áreas.
+- **Análise:** documento sendo montado ao vivo, afirmações com selo de confiança, evidência selecionada com o trecho destacado, perguntas, sugestões, aviso de alteração no repositório. Botões: abrir no Claude Desktop, retomar, confirmar, marcar incorreta, aprovar, exportar.
+- **Base de conhecimento:** busca em regras, termos e análises.
+- **Configurações:** pasta da base, sistemas e exclusões, templates, regras do sistema, ambiente do Claude (registro do MCP e dos hooks), proteção opcional contra edição.
 
 Toda a interface em português no MVP, com textos preparados para tradução.
 
-## 11. Exportação
+## 11. Modelo de dados do índice
 
-- **Markdown:** documento com as evidências como notas de rodapé (`arquivo:linhas`).
-- **Word (.docx):** mesmo conteúdo, com estilos simples e apêndice de evidências com os trechos.
-- O selo de confiança de cada afirmação aparece nos dois formatos.
+SQLite local, reconstruível a partir da base, identificadores UUID v7 internos e identificadores legíveis nos documentos (`A-0193`, `RN-FAT-007`).
+
+| Entidade | Conteúdo principal |
+|---|---|
+| `sistema` | nome, pastas, exclusões, chave do Claude Code para o registro do MCP |
+| `arquivo`, `simbolo`, `referencia` | mapa estrutural, por hash |
+| `documento` | caminho na base, tipo, frontmatter, hash do arquivo |
+| `analise` | fluxo, entrada, estado, documento |
+| `sessao` | análise, cliente, identificador da sessão do cliente, estado, início e fim |
+| `afirmacao`, `evidencia` | seção, texto, confiança; arquivo, intervalo, trecho, hash, commit |
+| `pergunta`, `sugestao` | registros da análise |
+| `regra`, `termo` | espelho indexado dos documentos da base |
+| `evento` | registro de mudanças (quem, quando, o quê, por qual cliente) |
 
 ## 12. Distribuição e licença
 
 - **Instaladores assinados:** MSI ou NSIS por usuário no Windows (sem administrador) e DMG notarizado no macOS. Atualização automática pelo atualizador do Tauri, desligável.
 - **Licença:** Apache-2.0 neste repositório. A EE, se existir, fica em repositório separado e fechado.
-- **Contribuições externas:** exigem aceite de um CLA antes da primeira contribuição, para preservar a possibilidade da EE. Definir o texto do CLA antes de abrir o repositório para contribuições.
-- **Nome e marca:** o produto pode dizer em texto que usa o Claude Code, mas não usa nomes ou logotipos da Anthropic ou da OpenAI no nome ou na identidade visual.
+- **Contribuições externas:** exigem aceite de um CLA antes da primeira contribuição, para preservar a possibilidade da EE.
+- **Nome e marca:** o produto pode dizer em texto que funciona com o Claude, mas não usa nomes ou logotipos da Anthropic ou da OpenAI no nome ou na identidade visual.
 - **Branches:** `develop` para integração e `main` para releases, como no ctower-agents.
 
-## 13. Riscos e questões em aberto
+## 13. Prova de conceito (2026-11-11)
+
+Feita com um servidor MCP mínimo, hooks e o Claude Desktop numa máquina macOS, primeiro com o sistema fictício e depois com um sistema real de grande porte (cujos dados não são registrados aqui).
+
+| Verificação | Resultado |
+|---|---|
+| Link `claude://code/new` com pasta e pedido | abre a sessão; o analista confirma a pasta e envia |
+| MCP com escopo local visto pela aba de código do Desktop | sim, sem arquivo no repositório |
+| Limites pelo hook `SessionStart` no Desktop | seguidos |
+| Roteiro vindo de `iniciar_analise` | seguido, inclusive "separar fato de suposição do solicitante" |
+| Afirmações com evidência validada | sim; evidência recusada pelo servidor foi corrigida pelo agente na hora |
+| Hooks no Desktop | início, cada ferramenta, aguardando permissão e fim, com o identificador da sessão |
+| Sessões do CLI e do Desktop | no mesmo histórico local; `claude --desktop --resume <id>` abre no Desktop se a sessão estiver fechada no outro lado e houver terminal (PTY) |
+| Pedido de correção, analista aprovando tudo, sem prompt de limites | arquivo alterado por comando de shell |
+| O mesmo, com prompt de limites | nenhum arquivo alterado; sugestão de alteração registrada com exemplo numérico |
+| Análise de impacto num sistema real | cerca de 6 minutos, 35 afirmações (todas com evidência válida), 8 perguntas pertinentes; encontrou a causa técnica que o solicitante só intuía e corrigiu a estimativa de abrangência da demanda |
+
+Ajustes que vieram da prova de conceito e já estão nesta spec: campo `secao` em `afirmar`; `concluir_analise` e documento fora do chat; gravação contínua do documento na base; escopo local do MCP em worktrees; base de conhecimento alimentada pela análise aprovada.
+
+## 14. Riscos e questões em aberto
 
 **Riscos**
 
-- **Resposta errada com cara de autoridade.** O público não consegue auditar o código. Mitigação: afirmações estruturadas, evidência validada, nível de confiança visível, revisão obrigatória antes de aprovar.
-- **Mudança nas regras dos provedores** sobre o uso de assinaturas por apps de terceiros. Mitigação: o app nunca toca em credenciais; confirmação por escrito antes de distribuir; laço próprio com API como alternativa.
-- **Instalação do Claude Code** ainda passa por um comando no terminal. Mitigação: passo a passo guiado com um único comando para copiar; o critério de sucesso 1 mede se é aceitável.
-- **O agente sair desenvolvendo.** Mitigação: roteiro, ferramentas de escrita fora da lista permitida, token somente leitura recomendado e aviso de token com escrita. Responsabilidade final do analista.
-- **Limites do plano pessoal** em sistemas grandes. Mitigação: mapeamento estrutural sem IA e ferramentas que devolvem pouco e preciso.
-- **Regra de negócio fora do código analisável:** parâmetros em tabela no banco de produção, jobs agendados, sistemas vizinhos. Mitigação: o agente declara o limite como pergunta em aberto.
-- **Adoção.** O concorrente é o chat genérico, com atrito zero. O primeiro uso precisa ser rápido (critério de sucesso 1).
+- **Resposta errada com cara de autoridade.** Mitigação: afirmações estruturadas, evidência validada, confiança visível, revisão antes de aprovar.
+- **Mudança nas regras dos provedores** sobre o uso de assinaturas com apps de terceiros. Mitigação: o app nunca toca em credenciais e só abre os aplicativos oficiais; confirmação por escrito antes de distribuir; laço próprio na fase 2 como alternativa.
+- **Mudança no Claude Desktop** (formato do link, configuração compartilhada, hooks). Mitigação: dependência só de recursos documentados; terminal embutido como alternativa; testes de fumaça a cada versão nova.
+- **Alteração indevida do repositório.** Mitigação: prompt de limites (validado), aviso de alteração, proteção técnica opcional. Responsabilidade final do analista.
+- **Base desatualizada.** Mitigação: hash e commit em toda evidência, revalidação ao reabrir o sistema.
+- **Limites do plano pessoal** em sistemas grandes. Mitigação: base e glossário reduzem a exploração repetida; mapeamento estrutural sem IA.
+- **Regra de negócio fora do código analisável:** parâmetros em tabela, jobs agendados, sistemas vizinhos. Mitigação: o agente declara o limite como pergunta.
 
 **Questões em aberto**
 
-1. Extensões locais (`.mcpb`) e servidores MCP locais estão disponíveis em todos os planos pessoais do Claude Desktop? Confirmar na documentação oficial.
-2. O servidor MCP registrado com escopo local no Claude Code é visto pela aba de código do Claude Desktop depois do `/desktop`? Verificar na prática.
-3. Sessões da aba de código do Claude Desktop podem voltar ao CLI? A documentação descreve só o caminho do CLI para o Desktop.
+1. Extensões e servidores MCP locais no chat comum do Claude Desktop (fora da aba de código) estão disponíveis em todos os planos pessoais? Só importa se quisermos oferecer também o chat comum.
+2. `claude --desktop --resume` funciona para sessões criadas no próprio Desktop, depois de fechadas lá? A prova de conceito só confirmou para sessões criadas no CLI.
+3. Formato da base: uma regra por arquivo escala bem para centenas de regras, ou convém um catálogo por área com entradas?
 4. Quais linguagens legadas priorizar nos extratores? Depende do primeiro piloto.
-5. Conexão a banco de dados (somente schema) entra no MVP ou fica para a fase 2?
-6. Precisamos de um modo "pacote de código", em que um desenvolvedor prepara a pasta do sistema para um analista sem acesso ao repositório?
+5. Como importar bases de conhecimento já existentes, e com que regras de revalidação?
 
-## 14. Critérios de aceite do MVP
+## 15. Critérios de aceite do MVP
 
 1. Instalação no Windows sem permissão de administrador e no macOS, com o primeiro uso concluído dentro do critério de sucesso 1, verificada com pelo menos três analistas de fora do time.
-2. Em um sistema de teste com regras conhecidas (fixture do repositório), os três fluxos encontram as regras esperadas, e nenhuma afirmação marcada como "confirmado no código" fica sem evidência válida.
-3. Uma análise iniciada no terminal embutido e continuada no Claude Desktop, pelos dois caminhos da seção 6.4, termina no app com todas as afirmações e evidências das duas partes.
-4. O app não lê nem grava credenciais do Claude Code ou do Claude Desktop (verificado por revisão de código e por teste que confirma que nenhum arquivo de credencial é aberto).
-5. Reabrir um sistema após alterar arquivos reprocessa só os arquivos alterados, e as evidências afetadas aparecem como desatualizadas.
-6. Exportação em Markdown e Word preserva seções, confiança e evidências.
+2. Em um sistema de teste com regras conhecidas (fixture do repositório), os três fluxos encontram as regras esperadas, e nenhuma afirmação marcada como `confirmado` fica sem evidência válida.
+3. Todo documento gerado segue o template do seu tipo, tem frontmatter válido e caminhos relativos, e é gravado na base durante a análise.
+4. Uma análise interrompida no meio é retomada numa sessão nova com todas as afirmações, evidências, perguntas e sugestões.
+5. Descadastrar um sistema remove o registro do MCP e dos hooks da configuração do Claude, preservando o restante dela.
+6. O app não lê nem grava credenciais do Claude (verificado por revisão de código e teste).
+7. Reabrir um sistema após alterar arquivos marca como "a revalidar" as evidências e regras afetadas.
+8. Exportação em Markdown e Word preserva seções, confiança e evidências.
