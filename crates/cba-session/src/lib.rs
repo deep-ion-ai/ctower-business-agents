@@ -1,10 +1,12 @@
 //! Sessões dos clientes de IA.
 //!
 //! Preparo do ambiente (MCP e hooks na configuração do cliente), links do Claude Desktop,
-//! receptor dos hooks e retomada de sessões.
+//! receptor dos hooks, retomada de sessões e detecção dos clientes de IA instalados
+//! e logados ([`clientes`]).
 //!
 //! Papel na arquitetura: seção 5 de `docs/specs/2026-11-11-mvp-standalone.md`.
 
+pub mod clientes;
 pub mod hooks;
 
 /// Nome da crate, para diagnóstico.
