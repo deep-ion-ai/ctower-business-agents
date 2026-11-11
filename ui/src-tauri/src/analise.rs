@@ -210,6 +210,18 @@ pub fn criar_analise(
     entrada: &str,
     titulo: Option<&str>,
 ) -> Result<AnaliseCriada, String> {
+    criar_analise_do_fluxo(dados, sistema, Fluxo::Perguntar, entrada, titulo)
+}
+
+/// Cria a análise de qualquer fluxo (perguntar, explicar ou impacto), com o pedido
+/// que abre a conversa. Usada pelos botões dos fluxos do início ([`crate::inicio`]).
+pub fn criar_analise_do_fluxo(
+    dados: &DiretorioDados,
+    sistema: &str,
+    fluxo: Fluxo,
+    entrada: &str,
+    titulo: Option<&str>,
+) -> Result<AnaliseCriada, String> {
     let ambiente = ambiente(dados, sistema)?;
     let titulo = titulo
         .map(str::trim)
@@ -228,7 +240,7 @@ pub fn criar_analise(
     let analise = ambiente
         .analises
         .criar(NovaAnalise {
-            fluxo: Fluxo::Perguntar,
+            fluxo,
             titulo,
             entrada: entrada.to_owned(),
             analista: None,
@@ -266,7 +278,7 @@ pub struct VistaAnalise {
 
 /// Sessão mais recente: o registro dos hooks (#25), que guarda o instante da última
 /// mudança, ou, sem ele, a última sessão gravada na análise.
-fn sessao_recente(dados: &DiretorioDados, analise: &Analise) -> Option<SessaoVista> {
+pub(crate) fn sessao_recente(dados: &DiretorioDados, analise: &Analise) -> Option<SessaoVista> {
     let registros = Sessoes::do_diretorio(dados)
         .da_analise(&analise.sistema, &analise.id)
         .unwrap_or_default();
