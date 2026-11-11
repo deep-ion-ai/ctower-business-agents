@@ -1,7 +1,8 @@
 //! Documentos das análises.
 //!
 //! Templates por tipo de documento e montagem dos documentos (spec, seção 7.3).
-//! A exportação (Markdown e Word) vem depois, na #10.
+//! Exportação para Markdown e Word: [`exportar_markdown`], [`exportar_word`] e
+//! [`gravar_exportacao`] (módulo `exportacao`).
 //!
 //! O agente registra dados estruturados pelas ferramentas MCP, e o app monta cada
 //! documento a partir do template do tipo:
@@ -20,14 +21,20 @@
 //! Papel na arquitetura: seção 5 de `docs/specs/2026-11-11-mvp-standalone.md`.
 
 mod conteudo;
+mod exportacao;
 mod modelo;
 mod montagem;
 mod template;
+mod word;
 
 use cba_kb::CaminhoRelativo;
 
 pub use conteudo::{
     Afirmacao, Citacao, Confianca, Conteudo, Pergunta, ReferenciaSugestao, Texto, bloco_de_codigo,
+};
+pub use exportacao::{
+    CodigoEmPasta, ErroExportacao, FonteDeTrechos, Formato, OpcoesExportacao, exportar,
+    exportar_markdown, exportar_word, gravar_exportacao,
 };
 pub use modelo::{MODELOS, Modelo, Montavel, Secao, modelo};
 pub use montagem::{ErroMontagem, Montado};

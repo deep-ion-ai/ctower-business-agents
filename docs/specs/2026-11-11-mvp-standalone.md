@@ -409,6 +409,13 @@ SQLite local, reconstruível a partir da base, identificadores UUID v7 internos 
 | `regra`, `termo` | espelho indexado dos documentos da base |
 | `evento` | registro de mudanças (quem, quando, o quê, por qual cliente) |
 
+Implementação da base (#8, `cba_kb::indice`):
+
+- **Arquivo:** `<dados>/indice/base.sqlite`, no diretório de dados do app (nunca na base), em modo WAL, aberto pelo app e pelos processos `mcp` e `hook`. Esquema com versão em `PRAGMA user_version`; versão diferente, outra pasta de base ou arquivo corrompido fazem o índice ser recriado e reconstruído, sem migração.
+- **Tabelas:** `documento` (caminho relativo à base, sistema, tipo, identificador, título, área, status, frontmatter em JSON, erro de validação, hash SHA-256, tamanho e data do arquivo), `evidencia` (das regras), `ligacao` (campos `origem` e `analise`) e `busca` (FTS5 com título, chaves e corpo, `unicode61 remove_diacritics 2`). `regra`, `termo` e `analise` são linhas de `documento` do tipo correspondente; o identificador interno é o `rowid` (descartável, como o índice). O `regras-do-sistema.md`, sem frontmatter, entra como o tipo `regras-do-sistema`, sem os comentários HTML; documento ilegível não interrompe a sincronização e aparece numa lista de problemas.
+- **Atualização:** incremental por tamanho e data, confirmada pelo hash. O app mantém uma vigia por consulta (`Vigia`, a cada 2 s) para refletir edições externas; quem não a mantém (o servidor MCP) sincroniza antes de buscar, o que custa pouco quando nada mudou.
+- **Fora do índice por enquanto:** `sistema` (o cadastro, com pastas e exclusões, não está na base e por isso não pode viver num índice descartável: continua em JSON no diretório de dados, `cba-index`), `arquivo`/`simbolo`/`referencia` (mapeamento, #15), `sessao`, `afirmacao`, `pergunta`, `sugestao` da análise e `evento` (estão em `analises/<id>.estado.json`, em `<dados>/sessoes` e no diário de eventos; o texto das análises entra na busca pelo documento Markdown montado).
+
 ## 12. Distribuição e licença
 
 - **Instaladores assinados:** MSI ou NSIS por usuário no Windows (sem administrador) e DMG notarizado no macOS. Atualização automática pelo atualizador do Tauri, desligável.
