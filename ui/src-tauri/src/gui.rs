@@ -3,7 +3,7 @@
 use cba_core::dados::DiretorioDados;
 use cba_session::clientes::{self, EstadoClientes};
 
-use crate::terminal;
+use crate::{prompts, terminal};
 
 pub fn rodar() {
     // Sem log o app ainda funciona; o erro não tem para onde ir antes da janela.
@@ -23,6 +23,7 @@ pub fn rodar() {
             terminal::enviar_prompt_terminal,
             terminal::encerrar_terminal,
             terminal::ultima_sessao_terminal,
+            prompts::prompts_prontos,
         ])
         .build(tauri::generate_context!())
         .expect("erro ao iniciar o app")
