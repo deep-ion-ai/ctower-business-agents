@@ -372,18 +372,20 @@ impl Indice {
             }
             let bytes = match fs::read(&e.disco) {
                 Ok(b) => b,
-                // Sumiu entre a listagem e a leitura: sai na próxima sincronização.
+                // Sumiu entre a listagem e a leitura: sai do índice com os demais
+                // removidos, no fim.
                 Err(erro) if erro.kind() == io::ErrorKind::NotFound => {
                     if let Some(g) = anterior {
                         guardados.insert(e.caminho.clone(), g);
                     }
                     continue;
                 }
+                // Ilegível agora (no Windows, um editor pode estar com o arquivo
+                // travado): fica como estava e é lido de novo na próxima vez,
+                // porque o tamanho e a data guardados continuam diferentes.
                 Err(erro) => {
-                    return Err(ErroIndice::Io {
-                        caminho: e.disco.clone(),
-                        erro,
-                    });
+                    tracing::warn!(arquivo = %e.caminho, %erro, "índice: arquivo ilegível");
+                    continue;
                 }
             };
             let hash = hash(&bytes);
