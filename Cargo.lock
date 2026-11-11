@@ -348,7 +348,10 @@ dependencies = [
 name = "cba-session"
 version = "0.0.0"
 dependencies = [
+ "dirs 6.0.0",
+ "serde",
  "serde_json",
+ "tempfile",
  "tracing",
 ]
 

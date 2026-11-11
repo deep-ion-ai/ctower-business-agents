@@ -45,3 +45,64 @@ body {
   margin: 0;
   color: var(--suave);
 }
+
+.suave {
+  color: var(--suave);
+}
+
+.clientes {
+  margin-top: 2rem;
+  width: min(56rem, calc(100% - 2rem));
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.clientes h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.clientes-lista {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 0.75rem;
+}
+
+.cliente {
+  border: 1px solid color-mix(in srgb, var(--suave) 40%, transparent);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+
+.cliente h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+}
+
+.cliente p {
+  margin: 0.25rem 0;
+}
+
+.passos {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+  color: var(--suave);
+}
+
+.passos pre {
+  margin: 0.25rem 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: all;
+}
+
+.passos .link {
+  user-select: all;
+  word-break: break-all;
+}
+
+.clientes button {
+  align-self: flex-start;
+}
