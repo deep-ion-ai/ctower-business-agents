@@ -7,17 +7,16 @@
 //! ([`crate::vigia`]) e abre o trecho das evidências.
 //!
 //! A lógica fica em funções comuns que recebem o [`DiretorioDados`], testadas sem a
-//! janela; os comandos só as levam para fora da thread da interface. O que basta do
-//! primeiro uso para o fluxo funcionar (pasta da base, cadastro do sistema e preparo
-//! do ambiente com consentimento) também está aqui; a tela completa é a da #35.
+//! janela; os comandos só as levam para fora da thread da interface. A verificação e o
+//! preparo do ambiente com consentimento ficam aqui e servem também ao assistente do
+//! primeiro uso ([`crate::primeiro_uso`]), que cuida da base e do cadastro.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use cba_core::ambiente::Ambiente;
 use cba_core::analise::{Analise, Cliente, EstadoAnalise, EstadoSessao, Fluxo};
 use cba_core::analises::NovaAnalise;
-use cba_core::config::Config;
 use cba_core::dados::DiretorioDados;
 use cba_core::eventos::DiarioEventos;
 use cba_index::{Cadastro, detectar_git};
@@ -28,8 +27,6 @@ use cba_session::sessoes::Sessoes;
 use cba_session::terminal::pendencias;
 use cba_tools::evidencias::{ArquivoDoSistema, intervalo};
 use serde::Serialize;
-
-use crate::terminal::SistemaResumo;
 
 /// Linhas mostradas antes e depois do intervalo de uma evidência.
 pub const CONTEXTO_DO_TRECHO: u32 = 8;
@@ -49,71 +46,6 @@ async fn bloqueante<T: Send + 'static>(
 fn preparador() -> Result<Preparador, String> {
     let exe = std::env::current_exe().map_err(|e| format!("caminho do executável do app: {e}"))?;
     Preparador::padrao(exe).map_err(|e| e.to_string())
-}
-
-// ---------------------------------------------------------------------------
-// Base e cadastro mínimos
-
-/// O que a tela precisa saber antes de tudo: a base e os sistemas.
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Situacao {
-    /// Pasta da base de conhecimento, se já escolhida.
-    pub base: Option<PathBuf>,
-    pub sistemas: Vec<SistemaResumo>,
-}
-
-pub fn situacao(dados: &DiretorioDados) -> Result<Situacao, String> {
-    let config = Config::ler(dados).map_err(|e| format!("configuração do app ilegível: {e}"))?;
-    let sistemas = Cadastro::em(dados.sistemas())
-        .listar()
-        .map_err(|e| e.to_string())?
-        .into_iter()
-        .map(|s| SistemaResumo {
-            id: s.id,
-            nome: s.nome,
-        })
-        .collect();
-    Ok(Situacao {
-        base: config.base,
-        sistemas,
-    })
-}
-
-/// Escolhe a pasta da base (criada se não existir).
-pub fn configurar_base(dados: &DiretorioDados, pasta: &str) -> Result<PathBuf, String> {
-    let pasta = PathBuf::from(pasta.trim());
-    if !pasta.is_absolute() {
-        return Err("informe o caminho completo da pasta da base".into());
-    }
-    cba_kb::Base::criar(&pasta).map_err(|e| e.to_string())?;
-    let mut config = Config::ler(dados).map_err(|e| e.to_string())?;
-    config.base = Some(pasta.clone());
-    config
-        .gravar(dados)
-        .map_err(|e| format!("não foi possível gravar a configuração: {e}"))?;
-    Ok(pasta)
-}
-
-/// Cadastra um sistema com uma pasta (o cadastro completo, com várias pastas e
-/// exclusões, é o do primeiro uso, #35).
-pub fn cadastrar_sistema(
-    dados: &DiretorioDados,
-    nome: &str,
-    pasta: &str,
-) -> Result<SistemaResumo, String> {
-    let pasta = Path::new(pasta.trim());
-    if !pasta.is_absolute() {
-        return Err("informe o caminho completo da pasta do sistema".into());
-    }
-    let sistema = cba_index::Sistema::novo(nome, [pasta]).map_err(|e| e.to_string())?;
-    Cadastro::em(dados.sistemas())
-        .cadastrar(&sistema)
-        .map_err(|e| e.to_string())?;
-    Ok(SistemaResumo {
-        id: sistema.id,
-        nome: sistema.nome,
-    })
 }
 
 // ---------------------------------------------------------------------------
@@ -177,7 +109,7 @@ pub fn preparar_ambiente(
 // ---------------------------------------------------------------------------
 // Análises
 
-fn ambiente(dados: &DiretorioDados, sistema: &str) -> Result<Ambiente, String> {
+pub(crate) fn ambiente(dados: &DiretorioDados, sistema: &str) -> Result<Ambiente, String> {
     let cadastrado = Cadastro::em(dados.sistemas())
         .obter(sistema)
         .map_err(|e| e.to_string())?
@@ -436,24 +368,6 @@ pub fn trecho_evidencia(
 // Comandos
 
 #[tauri::command]
-pub async fn situacao_app() -> Result<Situacao, String> {
-    let dados = dados()?;
-    bloqueante(move || situacao(&dados)).await
-}
-
-#[tauri::command]
-pub async fn configurar_base_app(pasta: String) -> Result<PathBuf, String> {
-    let dados = dados()?;
-    bloqueante(move || configurar_base(&dados, &pasta)).await
-}
-
-#[tauri::command]
-pub async fn cadastrar_sistema_app(nome: String, pasta: String) -> Result<SistemaResumo, String> {
-    let dados = dados()?;
-    bloqueante(move || cadastrar_sistema(&dados, &nome, &pasta)).await
-}
-
-#[tauri::command]
 pub async fn verificar_ambiente_sistema(sistema: String) -> Result<AmbienteClaude, String> {
     let dados = dados()?;
     bloqueante(move || verificar_ambiente(&dados, &preparador()?, &sistema)).await
@@ -527,7 +441,10 @@ mod tests {
     use cba_session::preparo::ConfigClaude;
     use serde_json::json;
 
+    use std::path::Path;
+
     use super::*;
+    use crate::primeiro_uso;
     use crate::vigia::{Aviso, INTERVALO, Vigias};
 
     const SISTEMA: &str = "faturamento-exemplo";
@@ -548,8 +465,21 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let dados = DiretorioDados::em(dir.path().join("dados"));
         let base = dir.path().join("base");
-        configurar_base(&dados, base.to_str().unwrap()).unwrap();
-        cadastrar_sistema(&dados, "Faturamento Exemplo", fixture().to_str().unwrap()).unwrap();
+        primeiro_uso::configurar_base(
+            &dados,
+            &primeiro_uso::Restricoes::default(),
+            base.to_str().unwrap(),
+        )
+        .unwrap();
+        primeiro_uso::cadastrar_sistema(
+            &dados,
+            &primeiro_uso::PedidoSistema {
+                nome: "Faturamento Exemplo".into(),
+                pastas: vec![fixture().to_str().unwrap().into()],
+                ..Default::default()
+            },
+        )
+        .unwrap();
         Cenario { dir, dados }
     }
 
@@ -593,30 +523,6 @@ mod tests {
             )
             .unwrap()
         }
-    }
-
-    #[test]
-    fn base_e_cadastro_minimos() {
-        let dir = tempfile::tempdir().unwrap();
-        let dados = DiretorioDados::em(dir.path().join("dados"));
-        let antes = situacao(&dados).unwrap();
-        assert!(antes.base.is_none());
-        assert!(antes.sistemas.is_empty());
-        assert!(configurar_base(&dados, "relativa/base").is_err());
-        let base = dir.path().join("base");
-        configurar_base(&dados, base.to_str().unwrap()).unwrap();
-        assert!(base.join("_templates").is_dir());
-        assert!(cadastrar_sistema(&dados, "Faturamento Exemplo", "relativa").is_err());
-        let s =
-            cadastrar_sistema(&dados, "Faturamento Exemplo", fixture().to_str().unwrap()).unwrap();
-        assert_eq!(s.id, SISTEMA);
-        let depois = situacao(&dados).unwrap();
-        assert_eq!(depois.base.as_deref(), Some(base.as_path()));
-        assert_eq!(depois.sistemas.len(), 1);
-        // O mesmo sistema de novo é recusado.
-        assert!(
-            cadastrar_sistema(&dados, "Faturamento Exemplo", fixture().to_str().unwrap()).is_err()
-        );
     }
 
     #[test]

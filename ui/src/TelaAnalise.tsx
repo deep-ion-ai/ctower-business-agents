@@ -6,10 +6,10 @@ import {
   type AnaliseResumo,
   type ApiAnalise,
   type EstadoAnalise,
-  type PlanoPreparo,
   type Situacao,
 } from "./analise";
 import { PainelAnalise, type Abertura } from "./PainelAnalise";
+import { PrepararAmbiente } from "./PrepararAmbiente";
 import type { ApiTerminal } from "./terminal";
 import type { TelaTerminal } from "./telaXterm";
 
@@ -18,6 +18,12 @@ interface Props {
   api?: ApiAnalise;
   apiTerminal?: ApiTerminal;
   criarTela?: () => TelaTerminal;
+  /** Sistema escolhido ao abrir (ex.: o recém-cadastrado no primeiro uso). */
+  sistemaInicial?: string;
+  /** Pergunta já preenchida (a sugestão do fim do primeiro uso). */
+  perguntaInicial?: string;
+  /** Abre o assistente do primeiro uso quando falta a base ou um sistema. */
+  aoPrimeiroUso?: () => void;
 }
 
 const ESTADO: Record<EstadoAnalise, string> = {
@@ -28,14 +34,21 @@ const ESTADO: Record<EstadoAnalise, string> = {
 };
 
 /**
- * Pergunta ao sistema, do início ao documento: escolher o sistema (com o mínimo do
- * primeiro uso para isso: pasta da base, cadastro e preparo do ambiente com
- * consentimento), perguntar, acompanhar a análise ao vivo e reabrir as anteriores.
+ * Pergunta ao sistema, do início ao documento: escolher o sistema (preparando o
+ * ambiente com consentimento, se faltar), perguntar, acompanhar a análise ao vivo e
+ * reabrir as anteriores. A base e o cadastro ficam no primeiro uso.
  */
-export function TelaAnalise({ api = apiAnaliseTauri, apiTerminal, criarTela }: Props) {
+export function TelaAnalise({
+  api = apiAnaliseTauri,
+  apiTerminal,
+  criarTela,
+  sistemaInicial = "",
+  perguntaInicial = "",
+  aoPrimeiroUso,
+}: Props) {
   const [situacao, setSituacao] = useState<Situacao | null>(null);
   const [erro, setErro] = useState<string | null>(null);
-  const [sistema, setSistema] = useState("");
+  const [sistema, setSistema] = useState(sistemaInicial);
   const [aberta, setAberta] = useState<{ id: string; abertura: Abertura } | null>(null);
 
   const recarregar = useCallback(() => {
@@ -79,9 +92,17 @@ export function TelaAnalise({ api = apiAnaliseTauri, apiTerminal, criarTela }: P
         </p>
       )}
       {!situacao && !erro && <p className="suave">Carregando…</p>}
-      {situacao && !situacao.base && <EscolherBase api={api} aoConcluir={recarregar} />}
-      {situacao?.base && situacao.sistemas.length === 0 && (
-        <CadastrarSistema api={api} aoConcluir={recarregar} />
+      {situacao && (!situacao.base || situacao.sistemas.length === 0) && (
+        <p>
+          {!situacao.base
+            ? "Falta escolher a pasta da base de conhecimento."
+            : "Nenhum sistema cadastrado."}{" "}
+          {aoPrimeiroUso && (
+            <button type="button" onClick={aoPrimeiroUso}>
+              Abrir o primeiro uso
+            </button>
+          )}
+        </p>
       )}
       {situacao?.base && situacao.sistemas.length > 0 && (
         <>
@@ -100,6 +121,7 @@ export function TelaAnalise({ api = apiAnaliseTauri, apiTerminal, criarTela }: P
               key={sistema}
               api={api}
               sistema={sistema}
+              perguntaInicial={perguntaInicial}
               aoAbrir={(id, abertura) => setAberta({ id, abertura })}
             />
           )}
@@ -112,16 +134,18 @@ export function TelaAnalise({ api = apiAnaliseTauri, apiTerminal, criarTela }: P
 function Sistema({
   api,
   sistema,
+  perguntaInicial,
   aoAbrir,
 }: {
   api: ApiAnalise;
   sistema: string;
+  perguntaInicial: string;
   aoAbrir: (id: string, abertura: Abertura) => void;
 }) {
   const [ambiente, setAmbiente] = useState<AmbienteClaude | null>(null);
   const [falhaAmbiente, setFalhaAmbiente] = useState<string | null>(null);
   const [analises, setAnalises] = useState<AnaliseResumo[] | null>(null);
-  const [entrada, setEntrada] = useState("");
+  const [entrada, setEntrada] = useState(perguntaInicial);
   const [titulo, setTitulo] = useState("");
   const [criando, setCriando] = useState(false);
   const [falha, setFalha] = useState<string | null>(null);
@@ -220,162 +244,5 @@ function Sistema({
         )}
       </section>
     </>
-  );
-}
-
-/**
- * Preparo do ambiente com consentimento: mostra o que falta, o que será alterado na
- * configuração do Claude (sem gravar) e só prepara quando o analista concorda.
- */
-export function PrepararAmbiente({
-  api,
-  sistema,
-  ambiente,
-  aoConcluir,
-}: {
-  api: ApiAnalise;
-  sistema: string;
-  ambiente: AmbienteClaude;
-  aoConcluir: () => void;
-}) {
-  const [plano, setPlano] = useState<PlanoPreparo | null>(null);
-  const [ocupado, setOcupado] = useState(false);
-  const [falha, setFalha] = useState<string | null>(null);
-
-  const planejar = () => {
-    setOcupado(true);
-    setFalha(null);
-    api
-      .planejarPreparo(sistema)
-      .then(setPlano)
-      .catch((e: unknown) => setFalha(mensagemDe(e)))
-      .finally(() => setOcupado(false));
-  };
-
-  const preparar = () => {
-    setOcupado(true);
-    setFalha(null);
-    api
-      .prepararAmbiente(sistema)
-      .then(() => aoConcluir())
-      .catch((e: unknown) => setFalha(mensagemDe(e)))
-      .finally(() => setOcupado(false));
-  };
-
-  const mudancas = plano?.alteracoes.filter((a) => a.acao !== "semMudanca") ?? [];
-
-  return (
-    <div className="preparar-ambiente" role="region" aria-label="Preparar o ambiente">
-      <p>O ambiente do Claude ainda não está preparado para este sistema:</p>
-      <ul>
-        {ambiente.pendencias.map((p) => (
-          <li key={p}>{p}</li>
-        ))}
-      </ul>
-      {!plano && (
-        <button type="button" onClick={planejar} disabled={ocupado}>
-          Ver o que será alterado
-        </button>
-      )}
-      {plano && (
-        <>
-          <p>
-            O app vai registrar o servidor MCP e os hooks na configuração do Claude Code. Nada é
-            criado nas pastas do sistema, e o app faz uma cópia de segurança de cada arquivo antes
-            de gravar.
-          </p>
-          <ul className="plano-preparo">
-            {mudancas.map((a) => (
-              <li key={`${a.arquivo}-${a.item.tipo === "hook" ? a.item.evento : a.item.chave}`}>
-                {a.item.tipo === "hook"
-                  ? `Hook ${a.item.evento}`
-                  : `Servidor MCP "cba" para a pasta ${a.item.chave}`}{" "}
-                <span className="suave">
-                  ({a.acao === "atualizado" ? "atualizado" : "adicionado"} em {a.arquivo})
-                </span>
-              </li>
-            ))}
-          </ul>
-          <button type="button" onClick={preparar} disabled={ocupado}>
-            Concordo, preparar o ambiente
-          </button>{" "}
-          <button type="button" onClick={() => setPlano(null)} disabled={ocupado}>
-            Agora não
-          </button>
-        </>
-      )}
-      {falha && (
-        <p className="trecho-erro" role="alert">
-          {falha}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function EscolherBase({ api, aoConcluir }: { api: ApiAnalise; aoConcluir: () => void }) {
-  const [pasta, setPasta] = useState("");
-  const [falha, setFalha] = useState<string | null>(null);
-  const salvar = (ev: FormEvent) => {
-    ev.preventDefault();
-    setFalha(null);
-    api
-      .configurarBase(pasta)
-      .then(() => aoConcluir())
-      .catch((e: unknown) => setFalha(mensagemDe(e)));
-  };
-  return (
-    <form onSubmit={salvar} aria-label="Pasta da base de conhecimento">
-      <p>
-        Escolha a pasta da base de conhecimento, onde ficam os documentos das análises (ex.:
-        Documentos/ctower-business). Pode ser uma pasta sincronizada ou um repositório git.
-      </p>
-      <label>
-        Pasta da base (caminho completo){" "}
-        <input value={pasta} onChange={(e) => setPasta(e.target.value)} />
-      </label>{" "}
-      <button type="submit" disabled={!pasta.trim()}>
-        Usar esta pasta
-      </button>
-      {falha && (
-        <p className="trecho-erro" role="alert">
-          {falha}
-        </p>
-      )}
-    </form>
-  );
-}
-
-function CadastrarSistema({ api, aoConcluir }: { api: ApiAnalise; aoConcluir: () => void }) {
-  const [nome, setNome] = useState("");
-  const [pasta, setPasta] = useState("");
-  const [falha, setFalha] = useState<string | null>(null);
-  const salvar = (ev: FormEvent) => {
-    ev.preventDefault();
-    setFalha(null);
-    api
-      .cadastrarSistema(nome, pasta)
-      .then(() => aoConcluir())
-      .catch((e: unknown) => setFalha(mensagemDe(e)));
-  };
-  return (
-    <form onSubmit={salvar} aria-label="Cadastrar sistema">
-      <p>Cadastre o sistema que vai analisar: um nome e a pasta do código.</p>
-      <label>
-        Nome <input value={nome} onChange={(e) => setNome(e.target.value)} />
-      </label>{" "}
-      <label>
-        Pasta do código (caminho completo){" "}
-        <input value={pasta} onChange={(e) => setPasta(e.target.value)} />
-      </label>{" "}
-      <button type="submit" disabled={!nome.trim() || !pasta.trim()}>
-        Cadastrar
-      </button>
-      {falha && (
-        <p className="trecho-erro" role="alert">
-          {falha}
-        </p>
-      )}
-    </form>
   );
 }

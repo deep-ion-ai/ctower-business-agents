@@ -10,6 +10,17 @@ import type {
   Analise,
   VistaAnalise,
 } from "../analise";
+import type { EstadoClientes } from "../clientes";
+import type {
+  ApiPrimeiroUso,
+  AvaliacaoBase,
+  ClientePreferido,
+  PedidoSistema,
+  PreviaSistema,
+  ResumoInventario,
+  SistemaCadastrado,
+  Situacao as SituacaoPrimeiroUso,
+} from "../primeiroUso";
 import type { ApiTerminal, EventoTerminal, PedidoClaude, Tamanho } from "../terminal";
 import type { TelaTerminal } from "../telaXterm";
 
@@ -77,8 +88,6 @@ export function apiAnaliseFalsa(vista: VistaAnalise = vistaFicticia()) {
         sistemas: [{ id: "faturamento-exemplo", nome: "Faturamento Exemplo" }],
       }),
     ),
-    configurarBase: vi.fn((pasta: string) => Promise.resolve(pasta)),
-    cadastrarSistema: vi.fn((nome: string) => Promise.resolve({ id: "faturamento-exemplo", nome })),
     verificarAmbiente: vi.fn((): Promise<AmbienteClaude> =>
       Promise.resolve({ pronto: true, pendencias: [] }),
     ),
@@ -157,4 +166,116 @@ export function telaFalsa(): TelaTerminal {
     focar: vi.fn(),
     descartar: vi.fn(),
   };
+}
+
+/** Clientes de IA prontos (Claude Code instalado e logado, Desktop instalado). */
+export function clientesProntos(parcial: Partial<EstadoClientes> = {}): EstadoClientes {
+  return {
+    plataforma: "macOs",
+    claudeCode: {
+      instalacao: {
+        estado: "encontrado",
+        caminho: "/Users/analista/.local/bin/claude",
+        origem: "path",
+        versao: "2.1.0",
+      },
+      login: { estado: "logado", metodo: "claude.ai", provedor: "firstParty" },
+      orientacao: [],
+    },
+    claudeDesktop: {
+      instalacao: { estado: "encontrado", caminho: "/Applications/Claude.app" },
+      orientacao: [{ texto: "Confira no próprio Claude Desktop se você entrou." }],
+    },
+    ...parcial,
+  };
+}
+
+/** Inventário do sistema fictício "Faturamento Exemplo". */
+export function inventarioFicticio(parcial: Partial<ResumoInventario> = {}): ResumoInventario {
+  return {
+    analisados: 14,
+    bytesAnalisados: 48_000,
+    ignorados: 1,
+    porLinguagem: [
+      { chave: "sql", rotulo: "SQL", quantidade: 3 },
+      { chave: "delphi", rotulo: "Delphi", quantidade: 2 },
+      { chave: "cobol", rotulo: "COBOL", quantidade: 1 },
+    ],
+    porMotivo: [{ chave: "segredo", rotulo: "possível segredo", quantidade: 1 }],
+    itensIgnorados: [
+      {
+        caminho: ".env",
+        pasta: false,
+        motivo: "segredo",
+        rotulo: "possível segredo",
+        regra: ".env",
+        ajustavel: true,
+      },
+    ],
+    duracaoMs: 12,
+    ...parcial,
+  };
+}
+
+export function situacaoInicial(parcial: Partial<SituacaoPrimeiroUso> = {}): SituacaoPrimeiroUso {
+  return {
+    base: null,
+    baseSugerida: "/Users/analista/Documents/ctower-business",
+    sistemas: [],
+    cliente: null,
+    primeiroUsoConcluido: false,
+    ...parcial,
+  };
+}
+
+/** API do primeiro uso falsa: tudo dá certo, salvo o que o teste mudar. */
+export function apiPrimeiroUsoFalsa() {
+  const api = {
+    situacao: vi.fn((): Promise<SituacaoPrimeiroUso> => Promise.resolve(situacaoInicial())),
+    estadoClientes: vi.fn((): Promise<EstadoClientes> => Promise.resolve(clientesProntos())),
+    escolherCliente: vi.fn((_c: ClientePreferido) => Promise.resolve()),
+    avaliarBase: vi.fn((pasta: string): Promise<AvaliacaoBase> =>
+      Promise.resolve({ caminho: pasta, estado: "nova", recusa: null, git: false }),
+    ),
+    configurarBase: vi.fn((pasta: string) => Promise.resolve(pasta)),
+    previaSistema: vi.fn((p: PedidoSistema): Promise<PreviaSistema> =>
+      Promise.resolve({
+        id: "faturamento-exemplo",
+        nome: p.nome,
+        pastas: p.pastas.map((caminho, i) => ({
+          caminho,
+          prefixo: i === 0 ? null : `pasta-${i + 1}`,
+          branch: "main",
+          git: true,
+        })),
+        exclusoes: p.exclusoes,
+        inclusoes: p.inclusoes,
+        jaCadastrado: false,
+        inventario: inventarioFicticio(),
+      }),
+    ),
+    cadastrarSistema: vi.fn((p: PedidoSistema): Promise<SistemaCadastrado> =>
+      Promise.resolve({
+        id: "faturamento-exemplo",
+        nome: p.nome,
+        pastas: [],
+        inventario: inventarioFicticio(),
+      }),
+    ),
+    concluir: vi.fn(() => Promise.resolve()),
+    abrirLink: vi.fn((_url: string) => Promise.resolve()),
+    escolherPasta: vi.fn((_t: string, _i?: string): Promise<string | null> =>
+      Promise.resolve("/codigo/faturamento-exemplo"),
+    ),
+    verificarAmbiente: vi.fn((): Promise<AmbienteClaude> =>
+      Promise.resolve({ pronto: true, pendencias: [] }),
+    ),
+    planejarPreparo: vi.fn((): Promise<PlanoPreparo> =>
+      Promise.resolve({ diretorio: "/codigo", alteracoes: [], gravado: false }),
+    ),
+    prepararAmbiente: vi.fn((): Promise<PlanoPreparo> =>
+      Promise.resolve({ diretorio: "/codigo", alteracoes: [], gravado: true }),
+    ),
+  } satisfies ApiPrimeiroUso;
+  return api;
 }

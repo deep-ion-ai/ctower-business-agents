@@ -186,14 +186,19 @@ export function mensagemDe(e: unknown): string {
   return String(e);
 }
 
-/** Operações da tela da análise. A interface usa {@link apiAnaliseTauri}; os testes, uma falsa. */
-export interface ApiAnalise {
-  situacao(): Promise<Situacao>;
-  configurarBase(pasta: string): Promise<string>;
-  cadastrarSistema(nome: string, pasta: string): Promise<SistemaResumo>;
+/** Verificação e preparo do ambiente do Claude, usados pela análise e pelo primeiro uso. */
+export interface ApiAmbiente {
   verificarAmbiente(sistema: string): Promise<AmbienteClaude>;
+  /** O que o preparo mudaria, sem gravar. */
   planejarPreparo(sistema: string): Promise<PlanoPreparo>;
+  /** Prepara; só depois do consentimento do analista. */
   prepararAmbiente(sistema: string): Promise<PlanoPreparo>;
+}
+
+/** Operações da tela da análise. A interface usa {@link apiAnaliseTauri}; os testes, uma falsa. */
+export interface ApiAnalise extends ApiAmbiente {
+  /** A base e os sistemas (o comando devolve também os campos do primeiro uso). */
+  situacao(): Promise<Situacao>;
   listarAnalises(sistema: string): Promise<AnaliseResumo[]>;
   criarAnalise(sistema: string, entrada: string, titulo?: string): Promise<AnaliseCriada>;
   carregarAnalise(sistema: string, analise: string): Promise<VistaAnalise>;
@@ -206,8 +211,6 @@ export interface ApiAnalise {
 
 export const apiAnaliseTauri: ApiAnalise = {
   situacao: () => invoke("situacao_app"),
-  configurarBase: (pasta) => invoke("configurar_base_app", { pasta }),
-  cadastrarSistema: (nome, pasta) => invoke("cadastrar_sistema_app", { nome, pasta }),
   verificarAmbiente: (sistema) => invoke("verificar_ambiente_sistema", { sistema }),
   planejarPreparo: (sistema) => invoke("planejar_preparo_sistema", { sistema }),
   prepararAmbiente: (sistema) => invoke("preparar_ambiente_sistema", { sistema }),

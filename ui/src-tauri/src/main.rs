@@ -32,6 +32,7 @@ mod cli;
 #[cfg(windows)]
 mod console;
 mod gui;
+mod primeiro_uso;
 mod prompts;
 mod terminal;
 mod vigia;
