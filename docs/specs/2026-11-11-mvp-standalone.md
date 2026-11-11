@@ -266,6 +266,7 @@ Para clientes que não são o Claude Desktop nem o Claude Code, o app terá um l
   _templates/                        # templates dos documentos (editáveis)
   <sistema>/
     sistema.md                       # visão, áreas, estado, próximo passo
+    regras-do-sistema.md             # regras do sistema para o agente (seção 8)
     glossario/<termo>.md             # negócio → código
     regras/RN-<AREA>-<NNN>.md        # uma regra por arquivo
     areas/<area>/memoria.md          # memória de uma área funcional
@@ -356,9 +357,11 @@ Modelo em camadas, como no ctower-agents:
 | Camada | Conteúdo | Como chega ao agente |
 |---|---|---|
 | Limites fixos | papel (apoia analista, não desenvolve), sugestão em vez de alteração, evidência obrigatória e honesta, consultar a base antes, declarar o que está fora do código, segredos, linguagem de negócio | hook `SessionStart`, em toda sessão, inclusive na retomada e em qualquer cliente |
-| Regras do sistema | convenções do sistema e da organização, editáveis e versionadas na base | junto dos limites, no `SessionStart` |
+| Regras do sistema | convenções do sistema e da organização, editáveis e versionadas na base, em `<sistema>/regras-do-sistema.md` (criado com um padrão só de comentários, que não chega ao agente) | junto dos limites, no `SessionStart` |
 | Roteiro do fluxo | um template por fluxo, com variáveis (identificador, entrada, contexto da base) | resposta de `iniciar_analise` |
 | Prompts prontos | aprofundar, resumir para o solicitante, gerar critérios de aceite, conferir evidências, retomar | botões no app, que abrem o cliente com o pedido preenchido |
+
+O texto dos limites fica em `crates/cba-session/prompts/limites.md`, embutido no executável. O `SessionStart` responde em `hookSpecificOutput.additionalContext` com os limites, as regras do sistema (sem comentários HTML, cortadas em 5.000 caracteres) e uma nota da sessão (sistema e análise ligada), em toda origem (`startup`, `resume`, `compact`, `clear`), abaixo do limite de 10.000 caracteres do Claude Code. Fora dos sistemas cadastrados, nada é acrescentado.
 
 Pontos validados na prova de conceito (seção 13):
 

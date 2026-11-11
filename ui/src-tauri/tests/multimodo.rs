@@ -660,8 +660,17 @@ fn rodar_hook(evento: &str, entrada: &Value, dados: &Path) -> Output {
         .unwrap();
     let saida = filho.wait_with_output().unwrap();
     assert_eq!(saida.status.code(), Some(0), "{evento}: {saida:?}");
-    assert_eq!(texto(&saida.stdout).trim(), "{}", "{evento}");
     saida
+}
+
+/// A saída padrão do hook: um objeto JSON só, como o Claude Code espera.
+fn saida_do_hook(saida: &Output) -> Value {
+    serde_json::from_str(texto(&saida.stdout).trim()).expect("saída do hook em JSON")
+}
+
+/// Confere que o hook respondeu `{}` (o cliente segue sem contexto extra).
+fn sem_contexto(saida: &Output, evento: &str) {
+    assert_eq!(texto(&saida.stdout).trim(), "{}", "{evento}");
 }
 
 /// Entrada de exemplo de cada evento, no formato da documentação do Claude Code
@@ -702,7 +711,8 @@ fn estado_da_sessao(dados: &Path, sessao: &str) -> Value {
 }
 
 /// Uma sessão inteira na pasta do sistema: cada evento muda o estado da sessão e da
-/// análise ligada, e o executável sempre responde `{}` com código 0.
+/// análise ligada. O executável responde com código 0: no `SessionStart`, com os
+/// limites em `additionalContext` (#31); nos demais, `{}`.
 #[test]
 fn hook_acompanha_a_sessao_na_pasta_do_sistema() {
     let dir = tempfile::tempdir().unwrap();
@@ -735,11 +745,21 @@ fn hook_acompanha_a_sessao_na_pasta_do_sistema() {
         ("SessionEnd", "encerrada", Some("encerrada")),
     ];
     for (evento, na_sessao, na_analise) in esperado {
-        rodar_hook(
+        let saida = rodar_hook(
             evento,
             &entrada_do_hook(evento, sessao, &cwd, &id),
             dados.raiz(),
         );
+        if evento == "SessionStart" {
+            let json = saida_do_hook(&saida);
+            assert_eq!(json["hookSpecificOutput"]["hookEventName"], "SessionStart");
+            let contexto = json["hookSpecificOutput"]["additionalContext"]
+                .as_str()
+                .unwrap();
+            assert!(contexto.contains("registrar_sugestao"), "{contexto}");
+        } else {
+            sem_contexto(&saida, evento);
+        }
         let estado = estado_da_sessao(dados.raiz(), sessao);
         assert_eq!(estado["estado"], na_sessao, "{evento}: {estado}");
         assert_eq!(estado["sistema"], "faturamento-exemplo");
@@ -773,19 +793,21 @@ fn hook_fora_de_sistema_nao_grava_e_ambos_os_caminhos_sao_rapidos() {
     let sessao = "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d";
 
     for evento in cba_session::hooks::EVENTOS {
-        rodar_hook(
+        let saida = rodar_hook(
             evento,
             &entrada_do_hook(evento, sessao, fora.path(), "A-0001"),
             dados.raiz(),
         );
+        sem_contexto(&saida, evento);
     }
     assert!(!dados.sessoes().exists());
 
     let mediana = |entrada: &Value| {
+        let evento = entrada["hook_event_name"].as_str().unwrap().to_owned();
         let mut tempos: Vec<Duration> = (0..5)
             .map(|_| {
                 let inicio = Instant::now();
-                rodar_hook("PreToolUse", entrada, dados.raiz());
+                rodar_hook(&evento, entrada, dados.raiz());
                 inicio.elapsed()
             })
             .collect();
@@ -808,5 +830,11 @@ fn hook_fora_de_sistema_nao_grava_e_ambos_os_caminhos_sao_rapidos() {
     no_sistema["tool_input"] = json!({"file_path": "db/01_tabelas.sql"});
     let no_sistema = mediana(&no_sistema);
     assert!(no_sistema < LIMITE_HOOK, "no sistema: {no_sistema:?}");
+
+    // O SessionStart no sistema lê a base e as regras do sistema (#31).
+    let mut inicio = entrada_do_hook("SessionStart", sessao, &fixture(), "A-0001");
+    inicio["source"] = "resume".into();
+    let inicio = mediana(&inicio);
+    assert!(inicio < LIMITE_HOOK, "SessionStart no sistema: {inicio:?}");
     assert!(dados.sessoes().join(format!("{sessao}.json")).is_file());
 }

@@ -118,13 +118,116 @@ fn resposta_padrao_e_contexto_do_session_start() {
         r.saida["hookSpecificOutput"]["additionalContext"],
         "limites"
     );
-    // A #31 preenche o conteúdo; até lá, nada é acrescentado.
+    // Sessão de sistema cadastrado: sempre os limites, mesmo sem base nem regras.
     let inicio = InicioDeSessao {
         sistema: "x".into(),
         analise: None,
         origem: None,
+        regras: None,
     };
-    assert_eq!(contexto_inicial(&inicio), None);
+    let texto = contexto_inicial(&inicio).unwrap();
+    assert!(texto.starts_with(limites::LIMITES.trim_end()));
+    assert!(!texto.contains("## Regras do sistema"));
+}
+
+/// O `additionalContext` de uma resposta do `SessionStart`.
+fn contexto_de(r: &Resposta) -> &str {
+    assert_eq!(
+        r.saida["hookSpecificOutput"]["hookEventName"], "SessionStart",
+        "{}",
+        r.saida
+    );
+    r.saida["hookSpecificOutput"]["additionalContext"]
+        .as_str()
+        .unwrap()
+}
+
+#[test]
+fn session_start_injeta_limites_e_regras_em_toda_origem() {
+    let c = Cenario::novo();
+    let kb = Base::abrir(c.codigo.parent().unwrap().join("base"))
+        .unwrap()
+        .sistema("faturamento-exemplo")
+        .unwrap();
+    let arquivo = kb.raiz().join("regras-do-sistema.md");
+
+    // O sistema na base ganhou o arquivo padrão, só com comentários: nada de regras.
+    assert_eq!(
+        fs::read_to_string(&arquivo).unwrap(),
+        cba_kb::PADRAO_REGRAS_DO_SISTEMA
+    );
+    let r = c.enviar("SessionStart", json!({"source": "startup"}), &c.codigo);
+    let texto = contexto_de(&r);
+    assert!(texto.starts_with("# Limites do ctower-business-agents"));
+    assert!(!texto.contains("## Regras do sistema"));
+    assert!(!texto.contains("Como usar"), "comentário do padrão vazou");
+
+    // Regras editadas pelo analista chegam, sem os comentários.
+    fs::write(
+        &arquivo,
+        "# Regras do sistema\n\n<!-- instruções -->\n\n\
+         - Valores monetários estão em centavos nas tabelas.\n",
+    )
+    .unwrap();
+    for origem in ["startup", "resume", "compact", "clear"] {
+        let r = c.enviar("SessionStart", json!({"source": origem}), &c.codigo);
+        assert_eq!(r.codigo, 0);
+        let texto = contexto_de(&r);
+        assert!(texto.contains("não desenvolve"), "{origem}");
+        assert!(texto.contains("registrar_sugestao"), "{origem}");
+        assert!(texto.contains("## Regras do sistema"), "{origem}");
+        assert!(
+            texto.contains("- Valores monetários estão em centavos nas tabelas."),
+            "{origem}"
+        );
+        assert!(!texto.contains("instruções"), "{origem}");
+        assert!(texto.chars().count() < limites::MAX_CONTEXTO);
+        // A saída é um objeto JSON só, como o Claude Code espera.
+        let saida = serde_json::to_string(&r.saida).unwrap();
+        let lido: Value = serde_json::from_str(&saida).unwrap();
+        assert_eq!(lido.as_object().unwrap().len(), 1);
+    }
+
+    // Retomada de uma sessão já ligada a uma análise: a nota cita a análise.
+    c.enviar(
+        "PreToolUse",
+        json!({"tool_name": "mcp__cba__iniciar_analise", "tool_input": {"analise": c.analise.to_string()}}),
+        &c.codigo,
+    );
+    c.enviar("SessionEnd", json!({"reason": "other"}), &c.codigo);
+    let r = c.enviar("SessionStart", json!({"source": "resume"}), &c.codigo);
+    let texto = contexto_de(&r);
+    assert!(texto.contains("Sessão retomada"));
+    assert!(texto.contains(&format!("Análise ligada a esta sessão: {}", c.analise)));
+    assert!(texto.contains("centavos"));
+
+    // Os outros eventos não acrescentam contexto.
+    for evento in ["UserPromptSubmit", "Stop", "SessionEnd"] {
+        assert_eq!(
+            c.enviar(evento, json!({}), &c.codigo),
+            Resposta::seguir(),
+            "{evento}"
+        );
+    }
+
+    // Sem o arquivo (ou sem base configurada), os limites vão assim mesmo.
+    fs::remove_file(&arquivo).unwrap();
+    let r = c.enviar("SessionStart", json!({"source": "compact"}), &c.codigo);
+    let texto = contexto_de(&r);
+    assert!(texto.contains("registrar_sugestao"));
+    assert!(!texto.contains("## Regras do sistema"));
+    assert!(texto.contains("Conversa compactada"));
+}
+
+#[test]
+fn session_start_fora_de_sistema_nao_acrescenta_nada() {
+    let c = Cenario::novo();
+    for origem in ["startup", "resume", "compact"] {
+        assert_eq!(
+            c.enviar("SessionStart", json!({"source": origem}), &c.fora),
+            Resposta::seguir()
+        );
+    }
 }
 
 #[test]
@@ -188,13 +291,14 @@ fn ciclo_completo_de_uma_sessao_ligada_a_analise() {
     let c = Cenario::novo();
     let id = c.analise.to_string();
 
-    // Início: registrada, ainda sem análise.
+    // Início: registrada, ainda sem análise; o agente recebe os limites.
     let r = c.enviar(
         "SessionStart",
         json!({"source": "startup"}),
         &c.codigo.join("db"),
     );
-    assert_eq!(r, Resposta::seguir());
+    assert_eq!(r.codigo, 0);
+    assert!(contexto_de(&r).contains("registrar_sugestao"));
     let reg = c.registro().unwrap();
     assert_eq!(reg.sistema, "faturamento-exemplo");
     assert_eq!(reg.estado, EstadoSessao::Ativa);
