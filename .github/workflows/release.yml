@@ -1,0 +1,74 @@
+name: release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+# Tudo o que acontece numa release fica NESTE workflow, em jobs que dependem do
+# job release-please: tags e releases criadas com o GITHUB_TOKEN não disparam
+# outros workflows (nem `on: push: tags` nem `on: release`). Os jobs de build dos
+# instaladores (#3) entram aqui com:
+#   needs: release-please
+#   if: needs.release-please.outputs.release_created == 'true'
+# e fazem checkout de needs.release-please.outputs.tag_name.
+jobs:
+  # Cada push na main abre ou atualiza o PR de release com a versão nova nos
+  # arquivos de versão (extra-files do release-please-config.json) e o
+  # CHANGELOG.md. Mesclar esse PR cria a tag vX.Y.Z e a GitHub Release.
+  release-please:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.rp.outputs.release_created }}
+      tag_name: ${{ steps.rp.outputs.tag_name }}
+      version: ${{ steps.rp.outputs.version }}
+      pr: ${{ steps.rp.outputs.pr }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: rp
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          # Explícito: a branch padrão do repositório é a develop.
+          target-branch: main
+
+  # O release-please não mexe no Cargo.lock, que guarda a versão das crates do
+  # workspace; sem ajustar, o `--locked` do CI falharia no PR de release. Com o
+  # PR aberto, este job atualiza o Cargo.lock e faz o commit na branch dele.
+  # O release-please reescreve a branch a cada push na main, e este job refaz o
+  # commit em seguida.
+  lockfiles:
+    needs: release-please
+    if: needs.release-please.outputs.pr != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ fromJSON(needs.release-please.outputs.pr).headBranchName }}
+      - name: Toolchain do rust-toolchain.toml
+        run: rustup toolchain install
+      - name: Sincronizar o Cargo.lock
+        run: |
+          cargo update --workspace
+          python3 scripts/check-versions.py
+      - name: Commit na branch do PR de release
+        run: |
+          if git diff --quiet; then
+            echo "Cargo.lock já em dia."
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -am 'chore: sincroniza o Cargo.lock com a versão da release'
+          git push
