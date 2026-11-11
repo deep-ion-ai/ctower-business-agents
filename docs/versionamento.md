@@ -26,7 +26,7 @@ O título do PR é conferido pelo workflow `pr-title`, porque é ele que vira a 
 1. O trabalho entra na `develop` e, quando é hora de publicar, a `develop` é mesclada na `main`.
 2. A cada push na `main`, o workflow `release` abre ou atualiza o PR de release, com a versão nova e o `CHANGELOG.md`. O job `lockfiles` acerta o `Cargo.lock` nesse PR.
 3. Mesclar o PR de release cria a tag `vX.Y.Z` e a GitHub Release em rascunho. Os jobs de build dos instaladores rodam no mesmo workflow, logo depois (tags criadas pelo `GITHUB_TOKEN` não disparam outros workflows).
-4. O job `publicar` anexa à release os instaladores (`cba-windows-x64-setup.exe`, `cba-macos-universal.dmg`), os scripts de `packaging/install/` e o `SHA256SUMS`, acrescenta às notas as instruções de instalação (`packaging/notas-da-release.md`) e tira a release do rascunho. Assim, `releases/latest` só muda quando a release está completa.
+4. O job `publicar` anexa à release os instaladores (`cba-windows-x64-setup.exe`, `cba-macos-universal.dmg`), os scripts `packaging/install/install.sh` e `install.ps1` (#45, quando existirem) e o `SHA256SUMS` de todos eles, acrescenta às notas as instruções de instalação (`packaging/notas-da-release.md`) e tira a release do rascunho. Assim, `releases/latest` só muda quando a release está completa.
 
 Para testar os instaladores de uma branch sem publicar, dispare o workflow `release` manualmente (`gh workflow run release.yml --ref <branch>`): os instaladores ficam como artefatos do run.
 

@@ -108,6 +108,7 @@ jobs:
             origem: target/universal-apple-darwin/release/bundle/dmg/*.dmg
             nome: cba-macos-universal.dmg
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
     defaults:
       run:
         shell: bash
@@ -157,11 +158,26 @@ jobs:
       # executável instalado nos modos de linha de comando.
       - name: Instalar e testar (Windows)
         if: runner.os == 'Windows'
+        shell: pwsh
+        timeout-minutes: 10
         run: |
-          ./dist/${{ matrix.nome }} /S
-          CBA="$(cygpath -u "$LOCALAPPDATA")/Ctower Business Agents/cba.exe"
-          ls -l "$CBA"
-          echo "CBA=$CBA" >> "$GITHUB_ENV"
+          $webview = 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+          Write-Host "WebView2: $((Get-ItemProperty $webview -ErrorAction SilentlyContinue).pv)"
+          $instalador = Start-Process -FilePath 'dist\${{ matrix.nome }}' -ArgumentList '/S' -PassThru
+          if (-not $instalador.WaitForExit(300000)) {
+            Get-Process | Sort-Object StartTime -ErrorAction SilentlyContinue | Select-Object -Last 15 Name, Id, StartTime | Format-Table | Out-String | Write-Host
+            throw 'O instalador não terminou em 5 minutos.'
+          }
+          Write-Host "Código de saída do instalador: $($instalador.ExitCode)"
+          if ($instalador.ExitCode -ne 0) { throw 'Instalação falhou.' }
+          $cba = Join-Path $env:LOCALAPPDATA 'Ctower Business Agents\cba.exe'
+          Get-Item $cba | Format-List FullName, Length | Out-String | Write-Host
+          # Os scripts de instalação (#45) leem a versão instalada daqui.
+          $versaoArquivo = (Get-Item $cba).VersionInfo.ProductVersion
+          $versaoConf = (Get-Content ui\src-tauri\tauri.conf.json -Raw | ConvertFrom-Json).version
+          Write-Host "ProductVersion: $versaoArquivo (tauri.conf.json: $versaoConf)"
+          if ($versaoArquivo -ne $versaoConf) { throw 'ProductVersion diferente da versão do tauri.conf.json.' }
+          "CBA=$cba" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - name: Instalar e testar (macOS)
         if: runner.os == 'macOS'
         run: |
@@ -174,11 +190,18 @@ jobs:
           ARQUITETURAS=$(lipo -archs "$CBA")
           echo "Arquiteturas: $ARQUITETURAS"
           [[ "$ARQUITETURAS" == *x86_64* && "$ARQUITETURAS" == *arm64* ]]
+          # Os scripts de instalação (#45) leem a versão do Info.plist (XML).
+          PLIST="$RUNNER_TEMP/Ctower Business Agents.app/Contents/Info.plist"
+          head -c 5 "$PLIST" | grep -q '<?xml'
+          VERSAO_PLIST=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")
+          echo "CFBundleShortVersionString: $VERSAO_PLIST"
+          [ "$VERSAO_PLIST" = "$(jq -r .version ui/src-tauri/tauri.conf.json)" ]
           echo "CBA=$CBA" >> "$GITHUB_ENV"
       - name: Modos de linha de comando do binário instalado
         env:
           CBA_DATA_DIR: ${{ runner.temp }}/cba-dados
         run: |
+          if command -v cygpath >/dev/null; then CBA=$(cygpath -u "$CBA"); fi
           VERSAO=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
           SAIDA=$("$CBA" --version | tr -d '\r')
           echo "$SAIDA"
@@ -202,7 +225,7 @@ jobs:
           retention-days: 14
 
   # Anexa à release (em rascunho) os instaladores, os scripts de instalação de
-  # packaging/install/ (#45) e o SHA256SUMS de todos eles, acrescenta as
+  # packaging/install/ (install.sh e install.ps1, de #45) e o SHA256SUMS de todos eles, acrescenta as
   # instruções de instalação às notas e publica a release.
   publicar:
     needs: [release-please, instaladores]
@@ -221,9 +244,10 @@ jobs:
           path: dist
       - name: Scripts de instalação e SHA256SUMS
         run: |
-          if [ -d packaging/install ]; then
-            find packaging/install -maxdepth 1 -type f -exec cp {} dist/ \;
-          fi
+          # Só os scripts (a pasta tem também um README); sem falhar se faltarem.
+          for script in packaging/install/install.sh packaging/install/install.ps1; do
+            if [ -f "$script" ]; then cp "$script" dist/; fi
+          done
           cd dist
           sha256sum -- * > "$RUNNER_TEMP/SHA256SUMS"
           mv "$RUNNER_TEMP/SHA256SUMS" .
