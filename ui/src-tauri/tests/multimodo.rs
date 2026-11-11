@@ -119,10 +119,59 @@ fn hook_com_entrada_invalida_nao_bloqueia() {
     assert_eq!(texto(&saida.stdout).trim(), "{}");
 }
 
-#[test]
-fn mcp_initialize_e_tools_list() {
-    let dados = tempfile::tempdir().unwrap();
-    let entrada = [
+fn fixture() -> PathBuf {
+    raiz_do_repositorio().join("fixtures/faturamento-exemplo")
+}
+
+/// Diretório de dados com o sistema fictício cadastrado e a base em `raiz/base`
+/// (sem o sistema dentro: o servidor cria na primeira vez).
+fn preparar_dados(raiz: &Path) -> cba_core::dados::DiretorioDados {
+    let dados = cba_core::dados::DiretorioDados::em(raiz.join("dados"));
+    let sistema = cba_index::Sistema::novo("Faturamento Exemplo", [fixture()]).unwrap();
+    cba_index::Cadastro::em(dados.sistemas())
+        .cadastrar(&sistema)
+        .unwrap();
+    cba_kb::Base::criar(raiz.join("base")).unwrap();
+    cba_core::config::Config {
+        base: Some(raiz.join("base")),
+    }
+    .gravar(&dados)
+    .unwrap();
+    dados
+}
+
+/// Inicia o `cba mcp` em `pasta`, como o cliente de IA faz.
+fn iniciar_mcp(pasta: &Path, dados: &Path) -> std::process::Child {
+    Command::new(CBA)
+        .arg("mcp")
+        .current_dir(pasta)
+        .env("CBA_DATA_DIR", dados)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("executar o cba mcp")
+}
+
+/// Envia as mensagens (uma por linha), fecha a entrada e devolve as respostas.
+fn conversar(mut filho: std::process::Child, mensagens: &[Value]) -> Vec<Value> {
+    let entrada: String = mensagens.iter().map(|m| format!("{m}\n")).collect();
+    filho
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(entrada.as_bytes())
+        .unwrap();
+    let saida = filho.wait_with_output().unwrap();
+    assert_eq!(saida.status.code(), Some(0), "{saida:?}");
+    texto(&saida.stdout)
+        .lines()
+        .map(|l| serde_json::from_str(l).expect("cada linha é um JSON"))
+        .collect()
+}
+
+fn inicio_da_conversa() -> Vec<Value> {
+    vec![
         json!({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
             "protocolVersion": "2025-06-18",
             "capabilities": {},
@@ -130,19 +179,49 @@ fn mcp_initialize_e_tools_list() {
         }}),
         json!({"jsonrpc": "2.0", "method": "notifications/initialized"}),
         json!({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}),
-        json!({"jsonrpc": "2.0", "id": 3, "method": "inexistente"}),
     ]
-    .iter()
-    .map(|m| format!("{m}\n"))
-    .collect::<String>();
+}
 
-    let saida = rodar(&["mcp"], entrada.as_bytes(), dados.path());
-    assert_eq!(saida.status.code(), Some(0), "{saida:?}");
-    let respostas: Vec<Value> = texto(&saida.stdout)
-        .lines()
-        .map(|l| serde_json::from_str(l).expect("cada linha é um JSON"))
-        .collect();
-    assert_eq!(respostas.len(), 3, "{respostas:?}");
+fn logs(dados: &Path) -> String {
+    std::fs::read_dir(dados.join("logs"))
+        .expect("pasta de logs")
+        .map(|e| std::fs::read_to_string(e.unwrap().path()).unwrap())
+        .collect()
+}
+
+/// De ponta a ponta, como o Claude Code: o processo começa na pasta do sistema,
+/// inicializa, lista as ferramentas e chama uma.
+#[test]
+fn mcp_de_ponta_a_ponta_na_pasta_do_sistema() {
+    let dir = tempfile::tempdir().unwrap();
+    let dados = preparar_dados(dir.path());
+    // Uma análise criada pelo app antes da sessão.
+    let ambiente = cba_core::ambiente::Ambiente::do_diretorio(&fixture(), &dados).unwrap();
+    let analise = ambiente
+        .analises
+        .criar(cba_core::analises::NovaAnalise {
+            fluxo: cba_core::analise::Fluxo::Perguntar,
+            titulo: "Multa por atraso secreta".into(),
+            entrada: "Como é calculada a multa por atraso de pagamento?".into(),
+            analista: None,
+            base: None,
+        })
+        .unwrap();
+
+    let mut mensagens = inicio_da_conversa();
+    mensagens.push(
+        json!({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {
+            "name": "listar_analises", "arguments": {}
+        }}),
+    );
+    mensagens.push(
+        json!({"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {
+            "name": "listar_analises", "arguments": {"estado": "inexistente"}
+        }}),
+    );
+    mensagens.push(json!({"jsonrpc": "2.0", "id": 5, "method": "inexistente"}));
+    let respostas = conversar(iniciar_mcp(&fixture(), dados.raiz()), &mensagens);
+    assert_eq!(respostas.len(), 5, "{respostas:?}");
 
     assert_eq!(respostas[0]["id"], 1);
     assert_eq!(respostas[0]["result"]["protocolVersion"], "2025-06-18");
@@ -151,9 +230,99 @@ fn mcp_initialize_e_tools_list() {
         respostas[0]["result"]["serverInfo"]["version"],
         versao_do_workspace().as_str()
     );
-    assert_eq!(respostas[1]["id"], 2);
-    assert_eq!(respostas[1]["result"]["tools"], json!([]));
-    assert_eq!(respostas[2]["error"]["code"], -32601);
+
+    let ferramentas: Vec<&str> = respostas[1]["result"]["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| f["name"].as_str().unwrap())
+        .collect();
+    assert!(ferramentas.contains(&"listar_analises"), "{ferramentas:?}");
+
+    let resultado = &respostas[2]["result"];
+    assert_eq!(resultado["isError"], false, "{resultado}");
+    assert_eq!(
+        resultado["structuredContent"]["sistema"]["id"],
+        "faturamento-exemplo"
+    );
+    assert_eq!(
+        resultado["structuredContent"]["analises"][0]["id"],
+        analise.id.to_string()
+    );
+
+    assert_eq!(respostas[3]["result"]["isError"], true);
+    assert_eq!(respostas[4]["error"]["code"], -32601);
+
+    // O log registra as ferramentas chamadas, não o conteúdo nem os caminhos.
+    let logs = logs(dados.raiz());
+    assert!(logs.contains("listar_analises"), "{logs}");
+    assert!(!logs.contains("secreta"), "{logs}");
+    assert!(!logs.contains("faturamento"), "{logs}");
+}
+
+/// Processo iniciado fora de uma pasta de sistema cadastrado: conecta e lista as
+/// ferramentas, e a chamada responde com um erro que diz o que fazer.
+#[test]
+fn mcp_fora_de_sistema_responde_erro_claro() {
+    let dir = tempfile::tempdir().unwrap();
+    let dados = preparar_dados(dir.path());
+    let fora = tempfile::tempdir().unwrap();
+    let mut mensagens = inicio_da_conversa();
+    mensagens.push(
+        json!({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {
+            "name": "listar_analises"
+        }}),
+    );
+    let respostas = conversar(iniciar_mcp(fora.path(), dados.raiz()), &mensagens);
+    assert_eq!(respostas.len(), 3, "{respostas:?}");
+    assert!(respostas[0]["result"]["serverInfo"].is_object());
+    assert!(
+        !respostas[1]["result"]["tools"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    let resultado = &respostas[2]["result"];
+    assert_eq!(resultado["isError"], true, "{resultado}");
+    let mensagem = resultado["content"][0]["text"].as_str().unwrap();
+    assert!(
+        mensagem.contains("não está na pasta de um sistema cadastrado"),
+        "{mensagem}"
+    );
+}
+
+/// Duas sessões ao mesmo tempo, com a base ainda sem o sistema: as duas criam o
+/// sistema na base sem se atrapalhar e respondem normalmente.
+#[test]
+fn dois_processos_mcp_simultaneos() {
+    let dir = tempfile::tempdir().unwrap();
+    let dados = preparar_dados(dir.path());
+    let mut mensagens = inicio_da_conversa();
+    mensagens.push(
+        json!({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {
+            "name": "listar_analises"
+        }}),
+    );
+    let a = iniciar_mcp(&fixture(), dados.raiz());
+    let b = iniciar_mcp(&fixture().join("db"), dados.raiz());
+    let (ra, rb) = std::thread::scope(|s| {
+        let ta = s.spawn(|| conversar(a, &mensagens));
+        let tb = s.spawn(|| conversar(b, &mensagens));
+        (ta.join().unwrap(), tb.join().unwrap())
+    });
+    for r in [ra, rb] {
+        assert_eq!(r[2]["result"]["isError"], false, "{r:?}");
+        assert_eq!(
+            r[2]["result"]["structuredContent"]["sistema"]["id"],
+            "faturamento-exemplo"
+        );
+    }
+    let base = cba_kb::Base::abrir(dir.path().join("base")).unwrap();
+    let sistema = base.sistema("faturamento-exemplo").unwrap();
+    assert_eq!(
+        sistema.ler_sistema().unwrap().frontmatter.nome,
+        "Faturamento Exemplo"
+    );
 }
 
 #[test]

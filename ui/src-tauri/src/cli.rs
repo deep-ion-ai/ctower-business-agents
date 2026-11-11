@@ -5,6 +5,7 @@
 
 use std::io::{self, Write};
 
+use cba_core::ambiente::{Ambiente, ErroAmbiente};
 use cba_core::dados::DiretorioDados;
 
 const USO: &str = "\
@@ -73,11 +74,22 @@ fn iniciar_log(modo: &str) {
 fn mcp() -> i32 {
     iniciar_log("mcp");
     tracing::info!(versao = cba_core::VERSAO, "servidor MCP iniciado");
-    let mut servidor = cba_mcp::Servidor::new(cba_mcp::InfoServidor {
-        nome: "cba".into(),
-        titulo: cba_core::PRODUTO.into(),
-        versao: cba_core::VERSAO.into(),
-    });
+    // O sistema é o da pasta em que o cliente iniciou o processo. Se não houver, o
+    // servidor sobe assim mesmo e cada chamada de ferramenta explica o que fazer.
+    let ambiente = ambiente_do_processo();
+    match &ambiente {
+        Ok(_) => tracing::info!("sistema identificado"),
+        Err(e) => tracing::warn!(erro = e.tipo(), "sistema não identificado"),
+    }
+    let mut servidor = cba_mcp::Servidor::new(
+        cba_mcp::InfoServidor {
+            nome: "cba".into(),
+            titulo: cba_core::PRODUTO.into(),
+            versao: cba_core::VERSAO.into(),
+        },
+        cba_tools::registro_padrao(),
+        ambiente,
+    );
     match cba_mcp::servir(io::stdin().lock(), io::stdout().lock(), &mut servidor) {
         Ok(()) => {
             tracing::info!("servidor MCP encerrado: fim da entrada");
@@ -88,6 +100,13 @@ fn mcp() -> i32 {
             1
         }
     }
+}
+
+/// Ambiente do sistema que contém o diretório de trabalho do processo.
+fn ambiente_do_processo() -> Result<Ambiente, ErroAmbiente> {
+    let dados = DiretorioDados::padrao().map_err(ErroAmbiente::Config)?;
+    let diretorio = std::env::current_dir().map_err(ErroAmbiente::Config)?;
+    Ambiente::do_diretorio(&diretorio, &dados)
 }
 
 fn hook(evento: &str) -> i32 {

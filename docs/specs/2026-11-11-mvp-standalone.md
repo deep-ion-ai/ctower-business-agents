@@ -186,6 +186,7 @@ Operam só dentro das pastas cadastradas do sistema, respeitam a lista de exclus
 |---|---|
 | `iniciar_analise` | Devolve o roteiro do fluxo, a entrada e o contexto da base (regras, termos e memória da área relacionados). |
 | `retomar_analise` | Devolve o estado de uma análise: entrada, afirmações, evidências, perguntas, sugestões. |
+| `listar_analises` | Lista as análises do sistema (identificador, título, fluxo, estado, documento), para achar a que o analista citou pelo assunto. |
 | `conhecimento` | Busca na base: regras confirmadas, glossário, análises anteriores. |
 | `mapa` | Retorna o mapa do sistema ou de um módulo. |
 | `estrutura` | Lista rotinas, procedures, classes e telas de um arquivo. |
@@ -198,6 +199,8 @@ Operam só dentro das pastas cadastradas do sistema, respeitam a lista de exclus
 | `concluir_analise` | Fecha a rodada: o app monta o documento e devolve o caminho, que o agente cita na resposta. |
 
 Os fluxos guiados são ferramentas (`iniciar_analise`), e não prompts MCP, porque o suporte a prompts de servidores locais no Claude Desktop não está confirmado.
+
+O servidor identifica o sistema pelo diretório de trabalho do processo (a pasta em que o cliente o iniciou): é o sistema cadastrado que tem uma pasta contendo esse diretório. Fora de um sistema cadastrado, o servidor conecta e lista as ferramentas, e cada chamada responde com um erro que diz ao agente o que pedir ao analista. Argumentos fora do schema e recusas (evidência que não confere, análise inexistente) voltam como resultado de erro da ferramenta, com o motivo, para o agente corrigir a chamada.
 
 ### 6.2 Preparo do ambiente
 
@@ -260,12 +263,14 @@ Para clientes que não são o Claude Desktop nem o Claude Code, o app terá um l
     areas/<area>/memoria.md          # memória de uma área funcional
     funcionalidades/<area>/<tema>/   # documento negocial, casos de uso, rastreabilidade
     analises/<id>.md                 # análises de impacto, perguntas, explicações
+    analises/<id>.estado.json        # estado da análise: sessões, afirmações, evidências, perguntas, sugestões
     sugestoes/<id>.md                # sugestões de alteração
 ```
 
 - **Fora do repositório do sistema** e fora de qualquer pasta temporária. A pasta é do analista e sobrevive à reinstalação do app.
 - **Caminhos relativos** em todos os documentos, nunca absolutos, para a base continuar válida em outra máquina ou sistema operacional.
 - **Gravação contínua:** o documento de uma análise é atualizado a cada registro, não só no fim. Uma sessão interrompida não perde o que já foi apurado.
+- **Estado da análise:** os registros (sessões, afirmações com evidências, perguntas, sugestões) ficam em `analises/<id>.estado.json`, gravado a cada mudança sob uma trava de arquivo, porque o app, o servidor MCP de cada sessão e o receptor de hooks gravam na mesma análise. O documento Markdown é montado a partir dele. Cada mudança é anotada no diário de eventos do app (no diretório de dados, só com identificadores), que o app acompanha para atualizar os painéis ao vivo.
 
 ### 7.2 Frontmatter
 

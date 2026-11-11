@@ -4,9 +4,25 @@
 //! interface e reaproveitar o núcleo fora do app.
 //!
 //! Papel na arquitetura: seção 5 de `docs/specs/2026-11-11-mvp-standalone.md`.
+//!
+//! - [`analise`]: modelo da análise (análise, sessão, afirmação, evidência, pergunta,
+//!   sugestão) e as transições de estado.
+//! - [`analises`]: persistência na base, com trava entre processos e notificação ao
+//!   app ([`eventos`]).
+//! - [`ambiente`]: identificação do sistema pelo diretório de trabalho do processo.
+//! - [`config`], [`dados`] e [`log`]: configuração, diretório de dados e log.
+//!
+//! Dependências: `cba-kb` (base de conhecimento) e `cba-index` (cadastro e escopo do
+//! sistema). As crates de cima (`cba-tools`, `cba-mcp`, o app) usam este núcleo.
 
+pub mod ambiente;
+pub mod analise;
+pub mod analises;
+pub mod config;
 pub mod dados;
+pub mod eventos;
 pub mod log;
+pub mod tempo;
 
 /// Nome da crate, para diagnóstico.
 pub const NOME: &str = env!("CARGO_PKG_NAME");
