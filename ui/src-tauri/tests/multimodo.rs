@@ -142,7 +142,22 @@ fn preparar_dados(raiz: &Path) -> cba_core::dados::DiretorioDados {
 
 /// Inicia o `cba mcp` em `pasta`, como o cliente de IA faz.
 fn iniciar_mcp(pasta: &Path, dados: &Path) -> std::process::Child {
-    Command::new(CBA)
+    iniciar_mcp_do_sistema(pasta, dados, None)
+}
+
+/// Inicia o `cba mcp` em `pasta`, com `CBA_SISTEMA` quando informado (como o
+/// preparo do ambiente registra o servidor).
+fn iniciar_mcp_do_sistema(
+    pasta: &Path,
+    dados: &Path,
+    sistema: Option<&str>,
+) -> std::process::Child {
+    let mut comando = Command::new(CBA);
+    comando.env_remove("CBA_SISTEMA");
+    if let Some(s) = sistema {
+        comando.env("CBA_SISTEMA", s);
+    }
+    comando
         .arg("mcp")
         .current_dir(pasta)
         .env("CBA_DATA_DIR", dados)
@@ -289,6 +304,78 @@ fn mcp_fora_de_sistema_responde_erro_claro() {
         mensagem.contains("não está na pasta de um sistema cadastrado"),
         "{mensagem}"
     );
+}
+
+/// Sessão fora da pasta do sistema, com o `CBA_SISTEMA` que o preparo grava (como
+/// numa worktree ou no Desktop): o sistema vem da variável, a evidência válida é
+/// registrada e a que não confere volta como erro da ferramenta, com o motivo.
+#[test]
+fn mcp_com_cba_sistema_registra_afirmacao_e_recusa_evidencia() {
+    let dir = tempfile::tempdir().unwrap();
+    let dados = preparar_dados(dir.path());
+    let ambiente = cba_core::ambiente::Ambiente::do_diretorio(&fixture(), &dados).unwrap();
+    let analise = ambiente
+        .analises
+        .criar(cba_core::analises::NovaAnalise {
+            fluxo: cba_core::analise::Fluxo::Perguntar,
+            titulo: "Multa por atraso".into(),
+            entrada: "Como é calculada a multa por atraso de pagamento?".into(),
+            analista: None,
+            base: None,
+        })
+        .unwrap();
+    let afirmar = |id: i64, trecho: &str| {
+        json!({"jsonrpc": "2.0", "id": id, "method": "tools/call", "params": {
+            "name": "afirmar", "arguments": {
+                "analise": analise.id,
+                "secao": "regras_encontradas",
+                "texto": "A multa por atraso é de 2% sobre o valor original.",
+                "confianca": "confirmado",
+                "evidencias": [{
+                    "arquivo": "db/02_parametros.sql",
+                    "linha_inicial": 6,
+                    "linha_final": 7,
+                    "trecho": trecho
+                }]
+            }
+        }})
+    };
+    let mut mensagens = inicio_da_conversa();
+    mensagens.push(afirmar(3, "'PERC_MULTA_ATRASO', 2.0000"));
+    mensagens.push(afirmar(4, "'PERC_MULTA_ATRASO', 9.9999"));
+    let fora = tempfile::tempdir().unwrap();
+    let respostas = conversar(
+        iniciar_mcp_do_sistema(fora.path(), dados.raiz(), Some("faturamento-exemplo")),
+        &mensagens,
+    );
+    assert_eq!(respostas.len(), 4, "{respostas:?}");
+    let ferramentas: Vec<&str> = respostas[1]["result"]["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| f["name"].as_str().unwrap())
+        .collect();
+    for nome in ["afirmar", "perguntar", "registrar_sugestao", "propor_termo"] {
+        assert!(ferramentas.contains(&nome), "{ferramentas:?}");
+    }
+
+    let ok = &respostas[2]["result"];
+    assert_eq!(ok["isError"], false, "{ok}");
+    assert_eq!(ok["structuredContent"]["afirmacao"], 1);
+    let recusa = &respostas[3]["result"];
+    assert_eq!(recusa["isError"], true, "{recusa}");
+    let texto = recusa["content"][0]["text"].as_str().unwrap();
+    assert!(texto.contains("não aparece nessas linhas"), "{texto}");
+
+    let estado = ambiente.analises.carregar(&analise.id).unwrap();
+    assert_eq!(estado.afirmacoes.len(), 1);
+    let doc = std::fs::read_to_string(ambiente.kb.caminho(&estado.documento)).unwrap();
+    assert!(doc.contains("**[confirmado]** A multa por atraso"), "{doc}");
+
+    // O log não guarda o conteúdo citado.
+    let logs = logs(dados.raiz());
+    assert!(logs.contains("afirmar"), "{logs}");
+    assert!(!logs.contains("PERC_MULTA_ATRASO"), "{logs}");
 }
 
 /// Duas sessões ao mesmo tempo, com a base ainda sem o sistema: as duas criam o
