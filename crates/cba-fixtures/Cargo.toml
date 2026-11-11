@@ -16,6 +16,4 @@ doctest = false
 
 [dev-dependencies]
 serde = { version = "1", features = ["derive"] }
-# serde_yaml foi descontinuada e serde_yml também; serde_norway é o fork
-# mantido de serde_yaml, com a mesma API.
-serde_norway = "0.9"
+serde_norway.workspace = true
