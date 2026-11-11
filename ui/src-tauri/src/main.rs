@@ -31,6 +31,7 @@ mod cli;
 #[cfg(windows)]
 mod console;
 mod gui;
+mod terminal;
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();

@@ -13,10 +13,13 @@ cba-index.workspace = true
 cba-kb.workspace = true
 dirs.workspace = true
 dunce = "1"
+# PTY multiplataforma (ConPTY no Windows, openpty no macOS e no Linux), do wezterm.
+portable-pty = "0.9"
 serde.workspace = true
 serde_json.workspace = true
 thiserror = "2"
 tracing.workspace = true
+uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]
 tempfile = "3"

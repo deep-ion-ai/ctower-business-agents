@@ -3,16 +3,35 @@
 use cba_core::dados::DiretorioDados;
 use cba_session::clientes::{self, EstadoClientes};
 
+use crate::terminal;
+
 pub fn rodar() {
     // Sem log o app ainda funciona; o erro não tem para onde ir antes da janela.
     if let Ok(dados) = DiretorioDados::padrao() {
         let _ = cba_core::log::iniciar(&dados.logs(), "app");
     }
     tracing::info!(versao = cba_core::VERSAO, "app iniciado");
+    let sessoes = terminal::Estado::default();
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![estado_clientes])
-        .run(tauri::generate_context!())
-        .expect("erro ao iniciar o app");
+        .manage(sessoes.clone())
+        .invoke_handler(tauri::generate_handler![
+            estado_clientes,
+            terminal::listar_sistemas,
+            terminal::abrir_terminal_claude,
+            terminal::escrever_terminal,
+            terminal::redimensionar_terminal,
+            terminal::enviar_prompt_terminal,
+            terminal::encerrar_terminal,
+            terminal::ultima_sessao_terminal,
+        ])
+        .build(tauri::generate_context!())
+        .expect("erro ao iniciar o app")
+        .run(move |_, evento| {
+            // Ao fechar o app, nenhum `claude` fica rodando sem janela.
+            if let tauri::RunEvent::Exit = evento {
+                sessoes.encerrar_todas();
+            }
+        });
 }
 
 /// Estado do Claude Code e do Claude Desktop (instalado, versão, logado) e o passo a
