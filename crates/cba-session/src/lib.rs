@@ -1,6 +1,6 @@
 //! Sessões dos clientes de IA.
 //!
-//! Preparo do ambiente (MCP e hooks na configuração do cliente), links do Claude Desktop,
+//! Preparo do ambiente (MCP e hooks na configuração do cliente, [`preparo`]), links do Claude Desktop,
 //! receptor dos hooks, retomada de sessões e detecção dos clientes de IA instalados
 //! e logados ([`clientes`]).
 //!
@@ -8,6 +8,7 @@
 
 pub mod clientes;
 pub mod hooks;
+pub mod preparo;
 
 /// Nome da crate, para diagnóstico.
 pub const NOME: &str = env!("CARGO_PKG_NAME");
