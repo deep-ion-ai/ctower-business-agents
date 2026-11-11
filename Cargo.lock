@@ -303,6 +303,7 @@ dependencies = [
  "cba-session",
  "cba-tools",
  "serde_json",
+ "serde_norway",
  "tauri",
  "tauri-build",
  "tempfile",
