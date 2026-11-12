@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { mensagemDe, type SituacaoProtecao } from "./analise";
-import { CadastroSistema, ResumoDoInventario } from "./CadastroSistema";
+import { CadastroProjeto, ResumoDoInventario } from "./CadastroProjeto";
 import {
   ESTADO_DO_TEXTO,
   apiConfiguracoesTauri,
@@ -10,14 +10,14 @@ import {
   type Configuracoes,
   type GrupoTexto,
   type ModoTroca,
-  type SistemaConfig,
+  type ProjetoConfig,
   type TextoEditavel,
   type TrocaBase,
 } from "./configuracoes";
 import { EscolhaBase } from "./EscolhaBase";
 import { EscolhaCliente } from "./EscolhaCliente";
-import { AmbienteDoSistema } from "./PrepararAmbiente";
-import { padraoDoCaminho, tamanhoLegivel, type PreviaSistema } from "./primeiroUso";
+import { AmbienteDoProjeto } from "./PrepararAmbiente";
+import { padraoDoCaminho, tamanhoLegivel, type PreviaProjeto } from "./primeiroUso";
 import "./configuracoes.css";
 import { THEME_PREFS, useTheme } from "./shell/theme";
 
@@ -27,20 +27,20 @@ const CLIENTE = {
 } as const;
 
 /**
- * Configurações (spec, seção 10): cliente de IA preferido, pasta da base, sistemas
- * (pastas, exclusões, ambiente do Claude, proteção contra edição, regras do sistema,
+ * Configurações (spec, seção 10): cliente de IA preferido, pasta da base, projetos
+ * (pastas, exclusões, ambiente do Claude, proteção contra edição, regras do projeto,
  * descadastro) e os textos editáveis da base (templates, roteiros e prompts). Monta
  * os passos do primeiro uso ({@link EscolhaCliente}, {@link EscolhaBase},
- * {@link CadastroSistema}, {@link AmbienteDoSistema}) com o que só as configurações
+ * {@link CadastroProjeto}, {@link AmbienteDoProjeto}) com o que só as configurações
  * fazem: mover ou reapontar a base, desfazer o ambiente e descadastrar.
  */
 export function TelaConfiguracoes({
   api = apiConfiguracoesTauri,
-  aoMudarSistemas,
+  aoMudarProjetos,
 }: {
   api?: ApiConfiguracoes;
-  /** Os sistemas ou a base mudaram: as outras telas devem reler. */
-  aoMudarSistemas?: () => void;
+  /** Os projetos ou a base mudaram: as outras telas devem reler. */
+  aoMudarProjetos?: () => void;
 }) {
   const [cfg, setCfg] = useState<Configuracoes | null>(null);
   const [textos, setTextos] = useState<TextoEditavel[]>([]);
@@ -62,7 +62,7 @@ export function TelaConfiguracoes({
 
   const mudou = () => {
     carregar();
-    aoMudarSistemas?.();
+    aoMudarProjetos?.();
   };
 
   if (!cfg) {
@@ -90,14 +90,14 @@ export function TelaConfiguracoes({
       <SecaoAparencia />
       <SecaoCliente api={api} cfg={cfg} aoMudar={carregar} />
       <SecaoBase api={api} cfg={cfg} aoMudar={mudou} />
-      <SecaoSistemas api={api} cfg={cfg} textos={textos} aoMudar={mudou} aoAbrirTexto={carregar} />
+      <SecaoProjetos api={api} cfg={cfg} textos={textos} aoMudar={mudou} aoAbrirTexto={carregar} />
       {cfg.base && <SecaoTextos api={api} textos={textos} aoAbrir={carregar} />}
     </section>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Aparência (#85): tema claro, escuro ou do sistema, o mesmo da barra de título.
+// Aparência (#85): tema claro, escuro ou do projeto, o mesmo da barra de título.
 
 function SecaoAparencia() {
   const [pref, mudar] = useTheme();
@@ -427,9 +427,9 @@ function ResultadoTroca({ feito }: { feito: TrocaBase }) {
 }
 
 // ---------------------------------------------------------------------------
-// Sistemas
+// Projetos
 
-function SecaoSistemas({
+function SecaoProjetos({
   api,
   cfg,
   textos,
@@ -444,21 +444,21 @@ function SecaoSistemas({
 }) {
   const [cadastrando, setCadastrando] = useState(false);
   return (
-    <section className="secao-config" aria-label="Sistemas">
-      <h3>Sistemas</h3>
-      {cfg.sistemas.length === 0 && <p className="muted">Nenhum sistema cadastrado.</p>}
+    <section className="secao-config" aria-label="Projetos">
+      <h3>Projetos</h3>
+      {cfg.projetos.length === 0 && <p className="muted">Nenhum projeto cadastrado.</p>}
       {cfg.configClaude && (
         <p className="muted">
           O ambiente do Claude fica em {cfg.configClaude.estado} (servidor MCP) e{" "}
           {cfg.configClaude.settings} (hooks e proteção).
         </p>
       )}
-      {cfg.sistemas.map((s) => (
-        <CartaoSistema
+      {cfg.projetos.map((s) => (
+        <CartaoProjeto
           key={s.id}
           api={api}
-          sistema={s}
-          regras={textos.find((t) => t.grupo === "regrasDoSistema" && t.id === s.id)}
+          projeto={s}
+          regras={textos.find((t) => t.grupo === "regrasDoProjeto" && t.id === s.id)}
           aoMudar={aoMudar}
           aoAbrirTexto={aoAbrirTexto}
         />
@@ -466,7 +466,7 @@ function SecaoSistemas({
       {cfg.base &&
         (cadastrando ? (
           <>
-            <CadastroSistema
+            <CadastroProjeto
               api={api}
               aoConcluir={() => {
                 setCadastrando(false);
@@ -479,22 +479,22 @@ function SecaoSistemas({
           </>
         ) : (
           <button className="btn" type="button" onClick={() => setCadastrando(true)}>
-            Cadastrar outro sistema
+            Cadastrar outro projeto
           </button>
         ))}
     </section>
   );
 }
 
-function CartaoSistema({
+function CartaoProjeto({
   api,
-  sistema,
+  projeto,
   regras,
   aoMudar,
   aoAbrirTexto,
 }: {
   api: ApiConfiguracoes;
-  sistema: SistemaConfig;
+  projeto: ProjetoConfig;
   regras?: TextoEditavel;
   aoMudar: () => void;
   aoAbrirTexto: () => void;
@@ -502,10 +502,10 @@ function CartaoSistema({
   // Muda depois de desfazer o ambiente, para a verificação rodar de novo.
   const [vez, setVez] = useState(0);
   return (
-    <article className="cartao-sistema" aria-label={sistema.nome}>
-      <h4>{sistema.nome}</h4>
+    <article className="cartao-projeto" aria-label={projeto.nome}>
+      <h4>{projeto.nome}</h4>
       <ul className="muted">
-        {sistema.pastas.map((p) => (
+        {projeto.pastas.map((p) => (
           <li key={p.caminho}>
             {p.caminho}
             {p.prefixo && ` (aparece como ${p.prefixo}/)`}
@@ -514,28 +514,28 @@ function CartaoSistema({
         ))}
       </ul>
       <p className="muted">
-        Para mudar as pastas, descadastre o sistema e cadastre de novo (os documentos ficam na
+        Para mudar as pastas, descadastre o projeto e cadastre de novo (os documentos ficam na
         base).
       </p>
-      <AjusteDeExclusoes api={api} sistema={sistema} aoSalvar={aoMudar} />
-      <div role="group" aria-label={`Ambiente do Claude de ${sistema.nome}`}>
+      <AjusteDeExclusoes api={api} projeto={projeto} aoSalvar={aoMudar} />
+      <div role="group" aria-label={`Ambiente do Claude de ${projeto.nome}`}>
         <h5>Ambiente do Claude</h5>
-        <DetalheDoAmbiente key={`d${vez}`} api={api} sistema={sistema.id} />
-        <AmbienteDoSistema key={vez} api={api} sistema={sistema.id} />
-        <DesfazerAmbiente api={api} sistema={sistema} aoDesfazer={() => setVez((v) => v + 1)} />
+        <DetalheDoAmbiente key={`d${vez}`} api={api} projeto={projeto.id} />
+        <AmbienteDoProjeto key={vez} api={api} projeto={projeto.id} />
+        <DesfazerAmbiente api={api} projeto={projeto} aoDesfazer={() => setVez((v) => v + 1)} />
       </div>
-      <Protecao key={`p${vez}`} api={api} sistema={sistema} />
+      <Protecao key={`p${vez}`} api={api} projeto={projeto} />
       {regras && (
-        <div role="group" aria-label={`Regras do sistema ${sistema.nome}`}>
-          <h5>Regras do sistema</h5>
+        <div role="group" aria-label={`Regras do projeto ${projeto.nome}`}>
+          <h5>Regras do projeto</h5>
           <p className="muted">
-            Instruções que o agente recebe em toda análise deste sistema ({regras.arquivo}):{" "}
+            Instruções que o agente recebe em toda análise deste projeto ({regras.arquivo}):{" "}
             {ESTADO_DO_TEXTO[regras.estado]}.
           </p>
           <AbrirTexto api={api} texto={regras} aoAbrir={aoAbrirTexto} />
         </div>
       )}
-      <Descadastrar api={api} sistema={sistema} aoDescadastrar={aoMudar} />
+      <Descadastrar api={api} projeto={projeto} aoDescadastrar={aoMudar} />
     </article>
   );
 }
@@ -549,22 +549,22 @@ function linhas(texto: string): string[] {
 
 function AjusteDeExclusoes({
   api,
-  sistema,
+  projeto,
   aoSalvar,
 }: {
   api: ApiConfiguracoes;
-  sistema: SistemaConfig;
+  projeto: ProjetoConfig;
   aoSalvar: () => void;
 }) {
-  const [exclusoes, setExclusoes] = useState(sistema.exclusoes.join("\n"));
-  const [inclusoes, setInclusoes] = useState<string[]>(sistema.inclusoes);
-  const [previa, setPrevia] = useState<PreviaSistema | null>(null);
+  const [exclusoes, setExclusoes] = useState(projeto.exclusoes.join("\n"));
+  const [inclusoes, setInclusoes] = useState<string[]>(projeto.inclusoes);
+  const [previa, setPrevia] = useState<PreviaProjeto | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [salvo, setSalvo] = useState(false);
   const [falha, setFalha] = useState<string | null>(null);
 
   const ajuste = (inc = inclusoes) => ({
-    sistema: sistema.id,
+    projeto: projeto.id,
     exclusoes: linhas(exclusoes),
     inclusoes: inc,
   });
@@ -648,7 +648,7 @@ function AjusteDeExclusoes({
       )}
       {salvo && (
         <p className="ok-text" role="status">
-          Exclusões salvas e sistema inventariado de novo.
+          Exclusões salvas e projeto inventariado de novo.
         </p>
       )}
       {falha && (
@@ -675,18 +675,18 @@ const SITUACAO = {
   conflito: "conflito (há um servidor “cba” que não é do app)",
 } as const;
 
-function DetalheDoAmbiente({ api, sistema }: { api: ApiConfiguracoes; sistema: string }) {
+function DetalheDoAmbiente({ api, projeto }: { api: ApiConfiguracoes; projeto: string }) {
   const [ambiente, setAmbiente] = useState<AmbienteDetalhado | null>(null);
   useEffect(() => {
     let ativo = true;
     api
-      .verificarAmbiente(sistema)
+      .verificarAmbiente(projeto)
       .then((a) => ativo && setAmbiente(a))
       .catch(() => ativo && setAmbiente(null));
     return () => {
       ativo = false;
     };
-  }, [api, sistema]);
+  }, [api, projeto]);
   const v = ambiente?.verificacao;
   if (!v) return null;
   const hooksOk = v.hooks.filter((h) => h.situacao === "ok").length;
@@ -703,11 +703,11 @@ function DetalheDoAmbiente({ api, sistema }: { api: ApiConfiguracoes; sistema: s
 
 function DesfazerAmbiente({
   api,
-  sistema,
+  projeto,
   aoDesfazer,
 }: {
   api: ApiConfiguracoes;
-  sistema: SistemaConfig;
+  projeto: ProjetoConfig;
   aoDesfazer: () => void;
 }) {
   const [confirmando, setConfirmando] = useState(false);
@@ -719,7 +719,7 @@ function DesfazerAmbiente({
     setOcupado(true);
     setFalha(null);
     api
-      .desfazerAmbiente(sistema.id)
+      .desfazerAmbiente(projeto.id)
       .then((r) => {
         setConfirmando(false);
         setFeito(r.avisos);
@@ -734,7 +734,7 @@ function DesfazerAmbiente({
       {feito && (
         <div className="ok-text" role="status">
           <p>
-            Ambiente desfeito: a configuração do Claude voltou a ser a de antes para este sistema.
+            Ambiente desfeito: a configuração do Claude voltou a ser a de antes para este projeto.
           </p>
           {feito.map((a) => (
             <p key={a} className="attention-text">
@@ -757,8 +757,8 @@ function DesfazerAmbiente({
       ) : (
         <div className="confirmar-alteracao" role="region" aria-label="Confirmar desfazer o ambiente">
           <p>
-            O app vai tirar da configuração do Claude o servidor MCP deste sistema, a proteção
-            contra edição (se ligada) e, se nenhum outro sistema usar, os hooks. Sem eles, as
+            O app vai tirar da configuração do Claude o servidor MCP deste projeto, a proteção
+            contra edição (se ligada) e, se nenhum outro projeto usar, os hooks. Sem eles, as
             conversas nesta pasta não enxergam o ctower. Você pode preparar de novo depois.
           </p>
           <button type="button" className="btn btn-primary" onClick={desfazer} disabled={ocupado}>
@@ -783,7 +783,7 @@ function DesfazerAmbiente({
   );
 }
 
-function Protecao({ api, sistema }: { api: ApiConfiguracoes; sistema: SistemaConfig }) {
+function Protecao({ api, projeto }: { api: ApiConfiguracoes; projeto: ProjetoConfig }) {
   const [situacao, setSituacao] = useState<SituacaoProtecao | null>(null);
   const [confirmando, setConfirmando] = useState(false);
   const [ocupado, setOcupado] = useState(false);
@@ -792,19 +792,19 @@ function Protecao({ api, sistema }: { api: ApiConfiguracoes; sistema: SistemaCon
   useEffect(() => {
     let ativo = true;
     api
-      .situacaoProtecao(sistema.id)
+      .situacaoProtecao(projeto.id)
       .then((s) => ativo && setSituacao(s))
       .catch((e: unknown) => ativo && setFalha(mensagemDe(e)));
     return () => {
       ativo = false;
     };
-  }, [api, sistema.id]);
+  }, [api, projeto.id]);
 
   const mudar = (ligada: boolean) => {
     setOcupado(true);
     setFalha(null);
     api
-      .mudarProtecao(sistema.id, ligada)
+      .mudarProtecao(projeto.id, ligada)
       .then((s) => {
         setSituacao(s);
         setConfirmando(false);
@@ -814,15 +814,15 @@ function Protecao({ api, sistema }: { api: ApiConfiguracoes; sistema: SistemaCon
   };
 
   return (
-    <div role="group" aria-label={`Proteção contra edição de ${sistema.nome}`}>
+    <div role="group" aria-label={`Proteção contra edição de ${projeto.nome}`}>
       <h5>Proteção contra edição</h5>
       {situacao && (
         <p>
           {situacao.ligada
             ? situacao.completa
-              ? "Ligada: o Claude não edita arquivos nem usa o terminal nas pastas do sistema."
+              ? "Ligada: o Claude não edita arquivos nem usa o terminal nas pastas do projeto."
               : "Ligada, mas faltam regras no arquivo de configuração do Claude. Ligue de novo para completar."
-            : "Desligada (padrão): o app só avisa quando a pasta do sistema é alterada."}
+            : "Desligada (padrão): o app só avisa quando a pasta do projeto é alterada."}
         </p>
       )}
       {situacao && !confirmando && (
@@ -835,14 +835,14 @@ function Protecao({ api, sistema }: { api: ApiConfiguracoes; sistema: SistemaCon
           {situacao.ligada ? (
             <p>
               O app vai tirar de {situacao.arquivo} só as regras que ele mesmo acrescentou, e o
-              terminal (Bash) volta a funcionar nas conversas deste sistema.
+              terminal (Bash) volta a funcionar nas conversas deste projeto.
             </p>
           ) : (
             <>
               <p>
                 O app vai acrescentar em {situacao.arquivo} estas regras, que valem mesmo que você
                 aprove a edição, e negar o terminal ({situacao.negadasPeloHook.join(", ")}) nas
-                conversas deste sistema:
+                conversas deste projeto:
               </p>
               <ul>
                 {situacao.regras.map((r) => (
@@ -882,11 +882,11 @@ function Protecao({ api, sistema }: { api: ApiConfiguracoes; sistema: SistemaCon
 
 function Descadastrar({
   api,
-  sistema,
+  projeto,
   aoDescadastrar,
 }: {
   api: ApiConfiguracoes;
-  sistema: SistemaConfig;
+  projeto: ProjetoConfig;
   aoDescadastrar: () => void;
 }) {
   const [confirmando, setConfirmando] = useState(false);
@@ -898,7 +898,7 @@ function Descadastrar({
     setOcupado(true);
     setFalha(null);
     api
-      .descadastrar(sistema.id)
+      .descadastrar(projeto.id)
       .then(() => aoDescadastrar())
       .catch((e: unknown) => {
         setFalha(mensagemDe(e));
@@ -910,18 +910,18 @@ function Descadastrar({
     <div className="descadastrar">
       {!confirmando ? (
         <button type="button" className="link perigo" onClick={() => setConfirmando(true)}>
-          Descadastrar o sistema
+          Descadastrar o projeto
         </button>
       ) : (
         <div
           className="confirmar-alteracao"
           role="region"
-          aria-label={`Confirmar o descadastro de ${sistema.nome}`}
+          aria-label={`Confirmar o descadastro de ${projeto.nome}`}
         >
           <p>
-            O app vai desfazer o ambiente do Claude deste sistema (servidor MCP, proteção contra
-            edição e, se for o último sistema, os hooks) e apagar o cadastro, o inventário e o mapa.
-            Os documentos do sistema na base de conhecimento ficam, e as pastas do código não são
+            O app vai desfazer o ambiente do Claude deste projeto (servidor MCP, proteção contra
+            edição e, se for o último projeto, os hooks) e apagar o cadastro, o inventário e o mapa.
+            Os documentos do projeto na base de conhecimento ficam, e as pastas do código não são
             tocadas.
           </p>
           <label>
@@ -930,7 +930,7 @@ function Descadastrar({
               checked={confirmado}
               onChange={(e) => setConfirmado(e.target.checked)}
             />{" "}
-            Confirmo o descadastro de {sistema.nome}
+            Confirmo o descadastro de {projeto.nome}
           </label>
           <div className="acoes">
             <button

@@ -6,19 +6,19 @@ import type {
   Inicio,
   MapaVista,
   ResumoRevalidacao,
-  VisaoSistema,
+  VisaoProjeto,
 } from "../conhecimento";
 
 /** Dados do sistema fictício "Faturamento Exemplo" depois de uma análise aprovada. */
-export const SISTEMA = "faturamento-exemplo";
-export const REGRA = `${SISTEMA}/regras/RN-COB-001.md`;
-export const ANALISE = `${SISTEMA}/analises/A-0001.md`;
-export const TERMO = `${SISTEMA}/glossario/carencia.md`;
+export const PROJETO = "faturamento-exemplo";
+export const REGRA = `${PROJETO}/regras/RN-COB-001.md`;
+export const ANALISE = `${PROJETO}/analises/A-0001.md`;
+export const TERMO = `${PROJETO}/glossario/carencia.md`;
 
 export function inicioFicticio(parcial: Partial<Inicio> = {}): Inicio {
   const multa = {
-    sistema: SISTEMA,
-    sistemaNome: "Faturamento Exemplo",
+    projeto: PROJETO,
+    projetoNome: "Faturamento Exemplo",
     id: "A-0001",
     titulo: "Multa por atraso",
     fluxo: "perguntar" as const,
@@ -37,9 +37,9 @@ export function inicioFicticio(parcial: Partial<Inicio> = {}): Inicio {
   };
   return {
     base: "/base",
-    sistemas: [
+    projetos: [
       {
-        id: SISTEMA,
+        id: PROJETO,
         nome: "Faturamento Exemplo",
         analises: 2,
         regras: 1,
@@ -54,18 +54,18 @@ export function inicioFicticio(parcial: Partial<Inicio> = {}): Inicio {
   };
 }
 
-export function visaoFicticia(parcial: Partial<VisaoSistema> = {}): VisaoSistema {
+export function visaoFicticia(parcial: Partial<VisaoProjeto> = {}): VisaoProjeto {
   return {
-    id: SISTEMA,
+    id: PROJETO,
     nome: "Faturamento Exemplo",
-    documento: `${SISTEMA}/sistema.md`,
+    documento: `${PROJETO}/projeto.md`,
     regras: [
       {
         id: "RN-COB-002",
         titulo: "Juros contam a partir do primeiro dia",
         area: "cobranca",
         status: "a-revalidar",
-        caminho: `${SISTEMA}/regras/RN-COB-002.md`,
+        caminho: `${PROJETO}/regras/RN-COB-002.md`,
         origem: ANALISE,
         evidencias: 1,
       },
@@ -83,7 +83,7 @@ export function visaoFicticia(parcial: Partial<VisaoSistema> = {}): VisaoSistema
         titulo: "Parcelamento em até 3 vezes",
         area: "parcelamento",
         status: "confirmada",
-        caminho: `${SISTEMA}/regras/RN-PAR-001.md`,
+        caminho: `${PROJETO}/regras/RN-PAR-001.md`,
         origem: null,
         evidencias: 1,
       },
@@ -132,7 +132,7 @@ export function buscaFicticia(): Busca {
     resultados: [
       {
         caminho: REGRA,
-        sistema: SISTEMA,
+        projeto: PROJETO,
         tipo: "regra",
         identificador: "RN-COB-001",
         titulo: "Passada a carência, a multa é de 2% sobre o valor original",
@@ -142,7 +142,7 @@ export function buscaFicticia(): Busca {
       },
       {
         caminho: ANALISE,
-        sistema: SISTEMA,
+        projeto: PROJETO,
         tipo: "pergunta",
         identificador: "A-0001",
         titulo: "Multa por atraso",
@@ -158,7 +158,7 @@ export function documentoFicticio(caminho: string): DocumentoAberto {
   if (caminho === ANALISE) {
     return {
       caminho,
-      sistema: SISTEMA,
+      projeto: PROJETO,
       tipo: "pergunta",
       titulo: "Multa por atraso",
       status: "aprovada",
@@ -167,13 +167,13 @@ export function documentoFicticio(caminho: string): DocumentoAberto {
       ligacoes: [
         { caminho: REGRA, titulo: "Passada a carência…", campo: "origem", sai: false, existe: true },
       ],
-      analise: { sistema: SISTEMA, id: "A-0001" },
+      analise: { projeto: PROJETO, id: "A-0001" },
       problema: null,
     };
   }
   return {
     caminho,
-    sistema: SISTEMA,
+    projeto: PROJETO,
     tipo: "regra",
     titulo: "Passada a carência, a multa é de 2% sobre o valor original",
     status: "confirmada",
@@ -201,7 +201,7 @@ export function documentoFicticio(caminho: string): DocumentoAberto {
   };
 }
 
-/** API falsa das telas do início, do sistema e da base, com a vigia controlada pelo teste. */
+/** API falsa das telas do início, do projeto e da base, com a vigia controlada pelo teste. */
 export function apiConhecimentoFalsa() {
   const avisos: (() => void)[] = [];
   const parar = vi.fn();
@@ -235,7 +235,7 @@ export function apiConhecimentoFalsa() {
       (): Promise<Situacao> =>
         Promise.resolve({
           base: "/base",
-          sistemas: [{ id: SISTEMA, nome: "Faturamento Exemplo" }],
+          projetos: [{ id: PROJETO, nome: "Faturamento Exemplo" }],
         }),
     ),
     inicio: vi.fn((): Promise<Inicio> => Promise.resolve(inicioFicticio())),
@@ -251,7 +251,7 @@ export function apiConhecimentoFalsa() {
         promptInicial: "Inicie a análise A-0003 pelo ctower",
       }),
     ),
-    visaoSistema: vi.fn((): Promise<VisaoSistema> => Promise.resolve(visaoFicticia())),
+    visaoProjeto: vi.fn((): Promise<VisaoProjeto> => Promise.resolve(visaoFicticia())),
     revalidar: vi.fn((): Promise<ResumoRevalidacao> => Promise.resolve(revalidacao)),
     mapa: vi.fn(
       (_s: string, modulo?: string): Promise<MapaVista | null> =>

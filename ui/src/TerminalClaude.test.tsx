@@ -9,7 +9,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(), Channel: vi.fn() }));
 vi.mock("./telaXterm", () => ({ criarTelaXterm: vi.fn() }));
 
 interface Abertura {
-  sistema: string;
+  projeto: string;
   pedido: PedidoClaude;
   tamanho: Tamanho;
   aoEvento: (e: EventoTerminal) => void;
@@ -21,9 +21,9 @@ function apiFalsa() {
   const aberturas: Abertura[] = [];
   const api = {
     abrir: vi.fn(
-      (sistema: string, pedido: PedidoClaude, tamanho: Tamanho, aoEvento: Abertura["aoEvento"]) =>
+      (projeto: string, pedido: PedidoClaude, tamanho: Tamanho, aoEvento: Abertura["aoEvento"]) =>
         new Promise<number>((resolver, rejeitar) => {
-          aberturas.push({ sistema, pedido, tamanho, aoEvento, resolver, rejeitar });
+          aberturas.push({ projeto, pedido, tamanho, aoEvento, resolver, rejeitar });
         }),
     ),
     escrever: vi.fn(() => Promise.resolve()),
@@ -65,7 +65,7 @@ function montar(pedido?: PedidoClaude) {
   const resultado = render(
     <TerminalClaude
       ref={ref}
-      sistema="faturamento-exemplo"
+      projeto="faturamento-exemplo"
       pedido={pedido}
       api={api}
       criarTela={() => tela}
@@ -80,12 +80,12 @@ async function abrirCom(aberturas: Abertura[], id: number, indice = 0) {
 }
 
 describe("TerminalClaude", () => {
-  it("abre o claude do sistema com o pedido e o tamanho da tela", async () => {
+  it("abre o claude do projeto com o pedido e o tamanho da tela", async () => {
     const pedido: PedidoClaude = { promptInicial: "Inicie a análise A-0001 pelo ctower" };
     const { aberturas, tela, api } = montar(pedido);
     expect(screen.getByRole("status")).toHaveTextContent("Abrindo o Claude Code");
     await abrirCom(aberturas, 1);
-    expect(aberturas[0].sistema).toBe("faturamento-exemplo");
+    expect(aberturas[0].projeto).toBe("faturamento-exemplo");
     expect(aberturas[0].pedido).toEqual(pedido);
     expect(aberturas[0].tamanho).toEqual({ linhas: 24, colunas: 80 });
     expect(tela.abrirEm).toHaveBeenCalledWith(screen.getByTestId("terminal-tela"));
@@ -159,7 +159,7 @@ describe("TerminalClaude", () => {
     await act(async () =>
       aberturas[0].rejeitar({
         motivo: "ambienteNaoPreparado",
-        mensagem: "o ambiente do Claude ainda não está preparado para este sistema",
+        mensagem: "o ambiente do Claude ainda não está preparado para este projeto",
         pendencias: ["o servidor MCP do app não está registrado para esta pasta"],
       }),
     );

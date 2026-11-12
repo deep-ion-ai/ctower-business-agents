@@ -1,4 +1,4 @@
-//! A base de conhecimento e os sistemas dentro dela.
+//! A base de conhecimento e os projetos dentro dela.
 
 use std::fs;
 use std::io;
@@ -8,15 +8,15 @@ use crate::arquivo;
 use crate::caminho::{CaminhoRelativo, e_slug};
 use crate::documento::Documento;
 use crate::erro::{Erro, Resultado};
-use crate::frontmatter::{Frontmatter, FrontmatterSistema};
+use crate::frontmatter::{Frontmatter, FrontmatterProjeto};
 use crate::id::{Id, Serie};
 use crate::layout;
 
-/// Conteúdo inicial do `regras-do-sistema.md`: só um título e um comentário com
+/// Conteúdo inicial do `regras-do-projeto.md`: só um título e um comentário com
 /// as instruções, que não chega ao agente.
-pub const PADRAO_REGRAS_DO_SISTEMA: &str = include_str!("../modelos/regras-do-sistema.md");
+pub const PADRAO_REGRAS_DO_PROJETO: &str = include_str!("../modelos/regras-do-projeto.md");
 
-/// Quantas vezes [`Sistema::criar_numerado`] tenta o número seguinte quando outro
+/// Quantas vezes [`Projeto::criar_numerado`] tenta o número seguinte quando outro
 /// processo reservou o mesmo antes.
 const TENTATIVAS_DE_RESERVA: u32 = 1000;
 
@@ -26,9 +26,9 @@ pub struct Base {
     raiz: PathBuf,
 }
 
-/// Um sistema dentro da base: a pasta `<base>/<sistema>/`.
+/// Um projeto dentro da base: a pasta `<base>/<projeto>/`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Sistema {
+pub struct Projeto {
     base: PathBuf,
     nome: String,
 }
@@ -69,47 +69,47 @@ impl Base {
         self.raiz.join(layout::TEMPLATES)
     }
 
-    /// Sistema existente na base.
-    pub fn sistema(&self, nome: &str) -> Resultado<Sistema> {
+    /// Projeto existente na base.
+    pub fn projeto(&self, nome: &str) -> Resultado<Projeto> {
         if !e_slug(nome) {
-            return Err(Erro::NomeDeSistema(nome.to_owned()));
+            return Err(Erro::NomeDeProjeto(nome.to_owned()));
         }
         if !self.raiz.join(nome).is_dir() {
-            return Err(Erro::SistemaInexistente(nome.to_owned()));
+            return Err(Erro::ProjetoInexistente(nome.to_owned()));
         }
-        Ok(Sistema {
+        Ok(Projeto {
             base: self.raiz.clone(),
             nome: nome.to_owned(),
         })
     }
 
-    /// Cria o sistema descrito em `documento` (pasta com o nome do `id`, as
-    /// subpastas e o `sistema.md`). Se o sistema já existir, só cria as pastas que
-    /// faltarem e mantém o `sistema.md` que já está lá.
-    pub fn criar_sistema(&self, documento: &Documento<FrontmatterSistema>) -> Resultado<Sistema> {
+    /// Cria o projeto descrito em `documento` (pasta com o nome do `id`, as
+    /// subpastas e o `projeto.md`). Se o projeto já existir, só cria as pastas que
+    /// faltarem e mantém o `projeto.md` que já está lá.
+    pub fn criar_projeto(&self, documento: &Documento<FrontmatterProjeto>) -> Resultado<Projeto> {
         let nome = documento.frontmatter.id.clone();
         if !e_slug(&nome) {
-            return Err(Erro::NomeDeSistema(nome));
+            return Err(Erro::NomeDeProjeto(nome));
         }
-        let sistema = Sistema {
+        let projeto = Projeto {
             base: self.raiz.clone(),
             nome,
         };
-        for pasta in layout::PASTAS_DO_SISTEMA {
+        for pasta in layout::PASTAS_DO_PROJETO {
             let relativo = CaminhoRelativo::novo(pasta)?;
-            fs::create_dir_all(sistema.caminho(&relativo))
-                .map_err(|erro| sistema.erro_io(&relativo, erro))?;
+            fs::create_dir_all(projeto.caminho(&relativo))
+                .map_err(|erro| projeto.erro_io(&relativo, erro))?;
         }
-        match sistema.criar(&layout::sistema(), documento) {
+        match projeto.criar(&layout::projeto(), documento) {
             Ok(()) | Err(Erro::JaExiste(_)) => {}
             Err(e) => return Err(e),
         }
-        sistema.garantir_regras_do_sistema()?;
-        Ok(sistema)
+        projeto.garantir_regras_do_projeto()?;
+        Ok(projeto)
     }
 
-    /// Nomes dos sistemas da base (pastas com `sistema.md`), em ordem alfabética.
-    pub fn sistemas(&self) -> Resultado<Vec<String>> {
+    /// Nomes dos projetos da base (pastas com `projeto.md`), em ordem alfabética.
+    pub fn projetos(&self) -> Resultado<Vec<String>> {
         let entradas = fs::read_dir(&self.raiz).map_err(|erro| Erro::PastaDaBase {
             caminho: self.raiz.clone(),
             erro,
@@ -119,7 +119,7 @@ impl Base {
             let Ok(nome) = entrada.file_name().into_string() else {
                 continue;
             };
-            if e_slug(&nome) && entrada.path().join(layout::ARQUIVO_SISTEMA).is_file() {
+            if e_slug(&nome) && entrada.path().join(layout::ARQUIVO_PROJETO).is_file() {
                 nomes.push(nome);
             }
         }
@@ -155,23 +155,23 @@ impl Base {
     }
 }
 
-impl Sistema {
-    /// Nome (slug) do sistema, igual ao nome da pasta.
+impl Projeto {
+    /// Nome (slug) do projeto, igual ao nome da pasta.
     pub fn nome(&self) -> &str {
         &self.nome
     }
 
-    /// Pasta do sistema na base.
+    /// Pasta do projeto na base.
     pub fn raiz(&self) -> PathBuf {
         self.base.join(&self.nome)
     }
 
-    /// Caminho no disco de um caminho relativo à raiz do sistema.
+    /// Caminho no disco de um caminho relativo à raiz do projeto.
     pub fn caminho(&self, relativo: &CaminhoRelativo) -> PathBuf {
         relativo.em(&self.raiz())
     }
 
-    /// O mesmo caminho, relativo à raiz da base (`<sistema>/<relativo>`).
+    /// O mesmo caminho, relativo à raiz da base (`<projeto>/<relativo>`).
     pub fn na_base(&self, relativo: &CaminhoRelativo) -> CaminhoRelativo {
         CaminhoRelativo::novo(&self.nome)
             .and_then(|s| s.juntar(relativo.as_str()))
@@ -182,11 +182,11 @@ impl Sistema {
         self.caminho(relativo).exists()
     }
 
-    /// Lê o `sistema.md`.
-    pub fn ler_sistema(&self) -> Resultado<Documento<FrontmatterSistema>> {
-        let doc: Documento<FrontmatterSistema> = self.ler(&layout::sistema())?;
+    /// Lê o `projeto.md`.
+    pub fn ler_projeto(&self) -> Resultado<Documento<FrontmatterProjeto>> {
+        let doc: Documento<FrontmatterProjeto> = self.ler(&layout::projeto())?;
         if doc.frontmatter.id != self.nome {
-            return Err(Erro::IdDoSistema {
+            return Err(Erro::IdDoProjeto {
                 id: doc.frontmatter.id,
                 pasta: self.nome.clone(),
             });
@@ -194,14 +194,14 @@ impl Sistema {
         Ok(doc)
     }
 
-    /// Cria o `regras-do-sistema.md` com o conteúdo padrão
-    /// ([`PADRAO_REGRAS_DO_SISTEMA`]) se ele ainda não existir; nunca sobrescreve.
+    /// Cria o `regras-do-projeto.md` com o conteúdo padrão
+    /// ([`PADRAO_REGRAS_DO_PROJETO`]) se ele ainda não existir; nunca sobrescreve.
     /// Devolve se criou.
-    pub fn garantir_regras_do_sistema(&self) -> Resultado<bool> {
-        let relativo = layout::regras_do_sistema();
+    pub fn garantir_regras_do_projeto(&self) -> Resultado<bool> {
+        let relativo = layout::regras_do_projeto();
         match arquivo::criar(
             &self.caminho(&relativo),
-            PADRAO_REGRAS_DO_SISTEMA.as_bytes(),
+            PADRAO_REGRAS_DO_PROJETO.as_bytes(),
         ) {
             Ok(()) => Ok(true),
             Err(e) if e.kind() == io::ErrorKind::AlreadyExists => Ok(false),
@@ -209,10 +209,10 @@ impl Sistema {
         }
     }
 
-    /// Texto do `regras-do-sistema.md`, como está no arquivo (`None` se não
+    /// Texto do `regras-do-projeto.md`, como está no arquivo (`None` se não
     /// existir).
-    pub fn ler_regras_do_sistema(&self) -> Resultado<Option<String>> {
-        let relativo = layout::regras_do_sistema();
+    pub fn ler_regras_do_projeto(&self) -> Resultado<Option<String>> {
+        let relativo = layout::regras_do_projeto();
         match ler_texto(&self.caminho(&relativo), &self.na_base(&relativo)) {
             Ok(texto) => Ok(Some(texto)),
             Err(Erro::Io { erro, .. }) if erro.kind() == io::ErrorKind::NotFound => Ok(None),
@@ -220,7 +220,7 @@ impl Sistema {
         }
     }
 
-    /// Lê um documento por caminho relativo à raiz do sistema.
+    /// Lê um documento por caminho relativo à raiz do projeto.
     pub fn ler<F: Frontmatter>(&self, relativo: &CaminhoRelativo) -> Resultado<Documento<F>> {
         ler(&self.raiz(), relativo, &self.na_base(relativo))
     }
@@ -258,7 +258,7 @@ impl Sistema {
     }
 
     /// Próximo identificador livre da série, sem reservar. Para criar o documento,
-    /// use [`Sistema::criar_numerado`], que reserva sem colisão.
+    /// use [`Projeto::criar_numerado`], que reserva sem colisão.
     pub fn proximo_id(&self, serie: &Serie) -> Resultado<Id> {
         Ok(serie.id(self.maior_numero(serie)? + 1))
     }
@@ -290,8 +290,8 @@ impl Sistema {
         }
     }
 
-    /// Documentos Markdown do sistema (recursivo), em ordem, relativos à raiz do
-    /// sistema. Ignora arquivos e pastas que começam com `.` (temporários da
+    /// Documentos Markdown do projeto (recursivo), em ordem, relativos à raiz do
+    /// projeto. Ignora arquivos e pastas que começam com `.` (temporários da
     /// gravação atômica, `.git`).
     pub fn documentos(&self) -> Resultado<Vec<CaminhoRelativo>> {
         let mut saida = Vec::new();

@@ -119,6 +119,9 @@ jobs:
       # Só o cba-app depende do Tauri (spec, seção 5).
       - name: Nenhuma crate além do cba-app depende do Tauri
         run: python3 scripts/check-deps.py
+      # A entidade cadastrada se chama projeto (#95); "sistema" só para o software.
+      - name: Termo "projeto" nos nomes do código
+        run: python3 scripts/check-termos.py
 
   # Scripts de instalação (#45): análise estática e testes com uma release falsa
   # (sem instalar nada; veja packaging/tests).

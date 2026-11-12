@@ -41,14 +41,14 @@ type Fora = { cliente: "claudeDesktop" | "terminalDoAnalista"; aviso: string };
 
 interface Props {
   api: ApiAnalise;
-  sistema: string;
+  projeto: string;
   analise: string;
   abertura: Abertura;
   aoVoltar: () => void;
   /** Para testes. */
   apiTerminal?: ApiTerminal;
   apiConversa?: ApiConversa;
-  /** Aviso de alteração na pasta do sistema (#29); para testes. */
+  /** Aviso de alteração na pasta do projeto (#29); para testes. */
   apiAlteracoes?: ApiAlteracoes;
   /** Revisão, aprovação e exportação (#37); para testes. */
   apiRevisao?: ApiRevisao;
@@ -76,7 +76,7 @@ const AVISO_TERMINAL =
  */
 export function PainelAnalise({
   api,
-  sistema,
+  projeto,
   analise,
   abertura,
   aoVoltar,
@@ -86,7 +86,7 @@ export function PainelAnalise({
   apiAlteracoes = apiAlteracoesTauri,
   apiRevisao = apiRevisaoTauri,
 }: Props) {
-  const { vista, erro, recarregar } = useAnaliseAoVivo(api, sistema, analise);
+  const { vista, erro, recarregar } = useAnaliseAoVivo(api, projeto, analise);
   const [revisando, setRevisando] = useState(false);
   const [falhaRevisao, setFalhaRevisao] = useState<string | null>(null);
   const [opcoes, setOpcoes] = useState<OpcoesConversa | null>(null);
@@ -110,14 +110,14 @@ export function PainelAnalise({
     let cancelado = false;
     // Sem o comando (ou com resposta inesperada), fica só o terminal embutido.
     Promise.resolve()
-      .then(() => apiConversa.opcoes(sistema, analise))
+      .then(() => apiConversa.opcoes(projeto, analise))
       .then((o) => !cancelado && setOpcoes(comoOpcoes(o)))
       .catch(() => !cancelado && setOpcoes(null))
       .finally(() => !cancelado && setOpcoesProntas(true));
     return () => {
       cancelado = true;
     };
-  }, [apiConversa, sistema, analise, vista?.sessao?.id]);
+  }, [apiConversa, projeto, analise, vista?.sessao?.id]);
 
   const conversar = useCallback((pedido: PedidoClaude) => {
     setFora(null);
@@ -134,7 +134,7 @@ export function PainelAnalise({
   const abrirPorLink = (cliente: "claudeDesktop" | "terminalDoAnalista") => {
     setFalhaEnvio(null);
     apiConversa
-      .abrirPorLink(sistema, analise, cliente)
+      .abrirPorLink(projeto, analise, cliente)
       .then(() =>
         setFora({
           cliente,
@@ -165,7 +165,7 @@ export function PainelAnalise({
       ?.continuarNoDesktop()
       .then(() => {
         setFora({ cliente: "claudeDesktop", aviso: AVISO_DESKTOP });
-        apiConversa.passouAoDesktop(sistema, analise).catch(() => undefined);
+        apiConversa.passouAoDesktop(projeto, analise).catch(() => undefined);
       })
       .catch(falhar);
   };
@@ -177,7 +177,7 @@ export function PainelAnalise({
     if (vivo) return continuarNoDesktop();
     setOcupado(true);
     apiConversa
-      .retomarNoDesktop(sistema, analise)
+      .retomarNoDesktop(projeto, analise)
       .then((r) => {
         if (r.aberto) setFora({ cliente: "claudeDesktop", aviso: AVISO_DESKTOP });
         else
@@ -229,7 +229,7 @@ export function PainelAnalise({
   const aprofundar = (numero: number) => {
     if (!vivo) return setAviso(AVISO_APROFUNDAR);
     api
-      .promptsProntos(sistema, analise)
+      .promptsProntos(projeto, analise)
       .then((lista) => {
         const pronto = lista.find((p) => p.id === "aprofundar");
         if (pronto) enviar(`${pronto.texto} Comece pela afirmação ${numero}.`);
@@ -244,7 +244,7 @@ export function PainelAnalise({
       setRevisando(true);
       setFalhaRevisao(null);
       return apiRevisao
-        .revisar(sistema, analise, d)
+        .revisar(projeto, analise, d)
         .then(() => {
           recarregar();
           if (d.tipo === "afirmacao" && d.estado === "aprofundar") aprofundar(d.numero);
@@ -262,7 +262,7 @@ export function PainelAnalise({
     const { inicio, fim } = intervaloDe(e.linhas);
     setTrecho({ tipo: "carregando", chave });
     api
-      .trechoEvidencia(sistema, e.arquivo, inicio, fim)
+      .trechoEvidencia(projeto, e.arquivo, inicio, fim)
       .then((t) =>
         setTrecho((atual) =>
           atual?.chave === chave ? { tipo: "pronto", chave, trecho: t } : atual,
@@ -330,7 +330,7 @@ export function PainelAnalise({
               <div className="terminal-controles">
                 <PromptsProntos
                   api={api}
-                  sistema={sistema}
+                  projeto={projeto}
                   analise={analise}
                   habilitado={vivo}
                   aoEnviar={enviar}
@@ -352,7 +352,7 @@ export function PainelAnalise({
               <TerminalClaude
                 key={conversa.chave}
                 ref={controle}
-                sistema={sistema}
+                projeto={projeto}
                 pedido={conversa.pedido}
                 aoMudarEstado={setEstadoTerminal}
                 api={apiTerminal}
@@ -365,7 +365,7 @@ export function PainelAnalise({
           <AvisoAlteracao
             api={apiAlteracoes}
             vigiar={api.vigiar}
-            sistema={sistema}
+            projeto={projeto}
             analise={analise}
           />
           {trecho && <TrechoEvidencia carga={trecho} aoFechar={() => setTrecho(null)} />}
@@ -392,14 +392,14 @@ export function PainelAnalise({
             <div className="revisao-analise">
               <AprovacaoAnalise
                 api={apiRevisao}
-                sistema={sistema}
+                projeto={projeto}
                 analise={analise}
                 versao={vista.analise.versao}
                 aoAprovar={recarregar}
               />
               <ExportacaoAnalise
                 api={apiRevisao}
-                sistema={sistema}
+                projeto={projeto}
                 analise={analise}
                 aprovada={vista.analise.estado === "aprovada"}
               />

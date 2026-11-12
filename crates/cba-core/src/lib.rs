@@ -9,11 +9,11 @@
 //!   sugestão) e as transições de estado.
 //! - [`analises`]: persistência na base, com trava entre processos e notificação ao
 //!   app ([`eventos`]).
-//! - [`ambiente`]: identificação do sistema pelo diretório de trabalho do processo.
+//! - [`ambiente`]: identificação do projeto pelo diretório de trabalho do processo.
 //! - [`config`], [`dados`] e [`log`]: configuração, diretório de dados e log.
 //!
 //! Dependências: `cba-kb` (base de conhecimento) e `cba-index` (cadastro e escopo do
-//! sistema). As crates de cima (`cba-tools`, `cba-mcp`, o app) usam este núcleo.
+//! projeto). As crates de cima (`cba-tools`, `cba-mcp`, o app) usam este núcleo.
 
 pub mod ambiente;
 pub mod analise;

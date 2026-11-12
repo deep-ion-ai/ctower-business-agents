@@ -5,9 +5,9 @@
 //!
 //! | Item | Arquivo | Escopo |
 //! |---|---|---|
-//! | `Edit(//<pasta do sistema>/**)` em `permissions.deny`, uma por pasta | `~/.claude/settings.json` | usuário: vale em toda sessão, de qualquer pasta |
+//! | `Edit(//<pasta do projeto>/**)` em `permissions.deny`, uma por pasta | `~/.claude/settings.json` | usuário: vale em toda sessão, de qualquer pasta |
 //!
-//! O `Bash` não tem regra por pasta: quem o nega, nas sessões do sistema protegido,
+//! O `Bash` não tem regra por pasta: quem o nega, nas sessões do projeto protegido,
 //! é o receptor de hooks (`PreToolUse`, [`crate::protecao`]).
 //!
 //! # Por que assim
@@ -26,9 +26,9 @@
 //! - `//caminho` é absoluto; `/caminho` no `settings.json` do usuário seria relativo
 //!   a `~/.claude`. No Windows, o caminho vai na forma POSIX (`//c/Users/...`).
 //! - O escopo é o do usuário porque os de projeto (`.claude/settings*.json`) ficam
-//!   dentro do repositório do sistema, onde o app não escreve (spec, seção 6.2), e o
+//!   dentro do repositório do projeto, onde o app não escreve (spec, seção 6.2), e o
 //!   `~/.claude.json` não é local documentado de permissões. Como o caminho é
-//!   absoluto, a regra só pega a pasta do sistema.
+//!   absoluto, a regra só pega a pasta do projeto.
 //! - Uma regra `Bash` sem padrão tira a ferramenta de todas as sessões do analista;
 //!   regras de Bash casam o texto do comando, não a pasta. Daí o hook.
 //!

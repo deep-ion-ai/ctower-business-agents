@@ -42,29 +42,29 @@ export interface ResultadoDesktop {
 
 /** Operações dos clientes da conversa. A interface usa {@link apiConversaTauri}; os testes, uma falsa. */
 export interface ApiConversa {
-  opcoes(sistema: string, analise: string): Promise<OpcoesConversa>;
+  opcoes(projeto: string, analise: string): Promise<OpcoesConversa>;
   /** Abre o link de uma conversa nova no Desktop ou no terminal do analista. */
   abrirPorLink(
-    sistema: string,
+    projeto: string,
     analise: string,
     cliente: "claudeDesktop" | "terminalDoAnalista",
   ): Promise<void>;
   /** `claude --desktop --resume <id>` da sessão da análise. */
-  retomarNoDesktop(sistema: string, analise: string): Promise<ResultadoDesktop>;
+  retomarNoDesktop(projeto: string, analise: string): Promise<ResultadoDesktop>;
   /** Avisa que a sessão passou ao Desktop pelo `/desktop`. */
-  passouAoDesktop(sistema: string, analise: string): Promise<void>;
+  passouAoDesktop(projeto: string, analise: string): Promise<void>;
   /** Copia um texto para a área de transferência. */
   copiar(texto: string): Promise<void>;
 }
 
 export const apiConversaTauri: ApiConversa = {
-  opcoes: (sistema, analise) => invoke("opcoes_conversa_analise", { sistema, analise }),
-  abrirPorLink: (sistema, analise, cliente) =>
-    invoke("abrir_conversa_por_link", { sistema, analise, cliente }),
-  retomarNoDesktop: (sistema, analise) =>
-    invoke("retomar_conversa_no_desktop", { sistema, analise }),
-  passouAoDesktop: (sistema, analise) =>
-    invoke("conversa_passou_ao_desktop", { sistema, analise }),
+  opcoes: (projeto, analise) => invoke("opcoes_conversa_analise", { projeto, analise }),
+  abrirPorLink: (projeto, analise, cliente) =>
+    invoke("abrir_conversa_por_link", { projeto, analise, cliente }),
+  retomarNoDesktop: (projeto, analise) =>
+    invoke("retomar_conversa_no_desktop", { projeto, analise }),
+  passouAoDesktop: (projeto, analise) =>
+    invoke("conversa_passou_ao_desktop", { projeto, analise }),
   async copiar(texto) {
     if (!navigator.clipboard) throw new Error("área de transferência indisponível");
     await navigator.clipboard.writeText(texto);

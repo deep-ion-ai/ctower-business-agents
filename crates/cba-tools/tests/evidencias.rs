@@ -4,7 +4,7 @@
 
 use std::path::{Path, PathBuf};
 
-use cba_index::{Escopo, Motivo as MotivoDaExclusao, Recusa, Sistema};
+use cba_index::{Escopo, Motivo as MotivoDaExclusao, Projeto, Recusa};
 use cba_kb::frontmatter::Linhas;
 use cba_tools::evidencias::{EvidenciaCitada, Motivo, validar, validar_todas};
 
@@ -17,7 +17,7 @@ fn gabarito() -> PathBuf {
 }
 
 fn escopo() -> Escopo {
-    Sistema::novo("Faturamento Exemplo", [fixture()])
+    Projeto::novo("Faturamento Exemplo", [fixture()])
         .unwrap()
         .escopo()
         .unwrap()
@@ -158,7 +158,7 @@ fn intervalo_invalido_ou_fora_do_arquivo_e_recusado() {
 }
 
 #[test]
-fn arquivo_excluido_fora_do_sistema_ou_inexistente_e_recusado() {
+fn arquivo_excluido_fora_do_projeto_ou_inexistente_e_recusado() {
     // Segredo, do gabarito (exclusoes).
     let m = motivo(&citada(".env", 1, 1, "Arquivo FALSO"));
     assert!(
@@ -167,7 +167,7 @@ fn arquivo_excluido_fora_do_sistema_ou_inexistente_e_recusado() {
     );
     assert!(m.to_string().contains("excluído da análise"), "{m}");
 
-    // O gabarito fica fora da pasta do sistema.
+    // O gabarito fica fora da pasta do projeto.
     for caminho in [
         "../gabaritos/faturamento-exemplo.yaml",
         "/etc/passwd",
@@ -178,7 +178,7 @@ fn arquivo_excluido_fora_do_sistema_ou_inexistente_e_recusado() {
             matches!(m, Motivo::Caminho(Recusa::CaminhoInvalido(_))),
             "{caminho}: {m:?}"
         );
-        assert!(m.to_string().contains("relativo à raiz do sistema"));
+        assert!(m.to_string().contains("relativo à raiz do projeto"));
     }
     let m = motivo(&citada("db/99_inexistente.sql", 1, 1, "x"));
     assert_eq!(m, Motivo::Caminho(Recusa::NaoEncontrado));
@@ -208,16 +208,16 @@ fn todas_as_recusas_vem_numa_mensagem_so() {
 fn link_simbolico_que_escapa_e_recusado() {
     use std::os::unix::fs::symlink;
     let dir = tempfile::tempdir().unwrap();
-    let sistema = dir.path().join("sistema");
+    let projeto = dir.path().join("projeto");
     let fora = dir.path().join("fora");
-    std::fs::create_dir_all(sistema.join("db")).unwrap();
+    std::fs::create_dir_all(projeto.join("db")).unwrap();
     std::fs::create_dir_all(&fora).unwrap();
-    std::fs::write(sistema.join("db/regra.sql"), "SELECT 1 FROM DUAL;\n").unwrap();
+    std::fs::write(projeto.join("db/regra.sql"), "SELECT 1 FROM DUAL;\n").unwrap();
     std::fs::write(fora.join("segredo.sql"), "SELECT SENHA FROM USUARIO;\n").unwrap();
-    // Pasta que leva para fora do sistema e arquivo que é link.
-    symlink(&fora, sistema.join("db/escapa")).unwrap();
-    symlink(fora.join("segredo.sql"), sistema.join("db/atalho.sql")).unwrap();
-    let escopo = Sistema::novo("Com links", [&sistema])
+    // Pasta que leva para fora do projeto e arquivo que é link.
+    symlink(&fora, projeto.join("db/escapa")).unwrap();
+    symlink(fora.join("segredo.sql"), projeto.join("db/atalho.sql")).unwrap();
+    let escopo = Projeto::novo("Com links", [&projeto])
         .unwrap()
         .escopo()
         .unwrap();
@@ -228,8 +228,8 @@ fn link_simbolico_que_escapa_e_recusado() {
         &citada("db/escapa/segredo.sql", 1, 1, "SELECT SENHA"),
     )
     .unwrap_err();
-    assert_eq!(r.motivo, Motivo::Caminho(Recusa::ForaDoSistema), "{r}");
-    assert!(r.to_string().contains("fora das pastas do sistema"));
+    assert_eq!(r.motivo, Motivo::Caminho(Recusa::ForaDoProjeto), "{r}");
+    assert!(r.to_string().contains("fora das pastas do projeto"));
     let r = validar(&escopo, &citada("db/atalho.sql", 1, 1, "SELECT SENHA")).unwrap_err();
     assert!(
         matches!(&r.motivo, Motivo::Caminho(Recusa::Excluido(e)) if e.motivo == MotivoDaExclusao::LinkSimbolico),
@@ -247,7 +247,7 @@ fn arquivo_binario_e_recusado_e_windows_1252_e_lido() {
         b"// Cobran\xE7a\nx := 1;\n",
     )
     .unwrap();
-    let escopo = Sistema::novo("Legado", [dir.path()])
+    let escopo = Projeto::novo("Legado", [dir.path()])
         .unwrap()
         .escopo()
         .unwrap();

@@ -1,15 +1,15 @@
 //! De onde as ferramentas de consulta leem: o índice da base de conhecimento
-//! (`cba_kb::indice`) e o mapa estrutural do sistema (`cba_index::mapa`).
+//! (`cba_kb::indice`) e o mapa estrutural do projeto (`cba_index::mapa`).
 //!
 //! - **Índice:** aberto a cada chamada no diretório de dados e sincronizado antes da
 //!   busca, o que custa pouco quando nada mudou na base. O servidor MCP não mantém
 //!   uma vigia, então é a sincronização que reflete as edições recentes.
-//! - **Mapa:** o último mapa gravado no cadastro do sistema. Se ainda não existe
-//!   (sistema cadastrado antes do primeiro mapeamento) ou se é de outro formato, a
+//! - **Mapa:** o último mapa gravado no cadastro do projeto. Se ainda não existe
+//!   (projeto cadastrado antes do primeiro mapeamento) ou se é de outro formato, a
 //!   ferramenta o gera na hora, uma vez, e avisa o agente. Um mapa existente não é
-//!   refeito pela ferramenta: o app o atualiza (no cadastro e ao reabrir o sistema),
+//!   refeito pela ferramenta: o app o atualiza (no cadastro e ao reabrir o projeto),
 //!   e a resposta traz a data em que foi gerado. O mapa lido fica em memória
-//!   enquanto o arquivo não mudar, porque num sistema grande ele tem dezenas de
+//!   enquanto o arquivo não mudar, porque num projeto grande ele tem dezenas de
 //!   megabytes.
 
 use std::path::PathBuf;
@@ -24,7 +24,7 @@ use serde_json::{Value, json};
 
 use crate::registro::ErroFerramenta;
 
-/// Nome do arquivo do mapa na pasta do sistema no cadastro (o mesmo de
+/// Nome do arquivo do mapa na pasta do projeto no cadastro (o mesmo de
 /// `cba_index::cadastro`).
 const ARQUIVO_DO_MAPA: &str = "mapa.json";
 
@@ -45,13 +45,13 @@ pub(crate) fn indice(ambiente: &Ambiente) -> Result<Indice, ErroFerramenta> {
 
 /// Mapa carregado para uma consulta.
 #[derive(Debug, Clone)]
-pub(crate) struct MapaDoSistema {
+pub(crate) struct MapaDoProjeto {
     pub mapa: Arc<Mapa>,
     /// O mapa não existia (ou era de outro formato) e foi gerado nesta chamada.
     pub gerado_agora: bool,
 }
 
-impl MapaDoSistema {
+impl MapaDoProjeto {
     /// Resumo do mapa para a resposta estruturada.
     pub fn json(&self) -> Value {
         json!({
@@ -66,14 +66,14 @@ impl MapaDoSistema {
     pub fn nota(&self) -> String {
         if self.gerado_agora {
             format!(
-                "O mapa do sistema não existia e foi gerado agora ({} arquivos). Ele é \
+                "O mapa do projeto não existia e foi gerado agora ({} arquivos). Ele é \
                  estrutural (nomes de rotinas, tabelas e referências, sem IA): confirme \
                  no código antes de afirmar.",
                 self.mapa.arquivos().len()
             )
         } else {
             format!(
-                "Mapa do sistema gerado em {} ({} arquivos). Ele é estrutural: confirme \
+                "Mapa do projeto gerado em {} ({} arquivos). Ele é estrutural: confirme \
                  no código antes de afirmar.",
                 data(self.mapa.gerado_em),
                 self.mapa.arquivos().len()
@@ -98,10 +98,10 @@ fn versao(arquivo: &std::path::Path) -> Option<(SystemTime, u64)> {
 
 static EM_MEMORIA: Mutex<Option<MapaEmMemoria>> = Mutex::new(None);
 
-/// O mapa do sistema: o gravado ou, se não houver um válido, um gerado agora.
-pub(crate) fn mapa(ambiente: &Ambiente) -> Result<MapaDoSistema, ErroFerramenta> {
-    let id = &ambiente.sistema.id;
-    let cadastro = Cadastro::em(ambiente.dados.sistemas());
+/// O mapa do projeto: o gravado ou, se não houver um válido, um gerado agora.
+pub(crate) fn mapa(ambiente: &Ambiente) -> Result<MapaDoProjeto, ErroFerramenta> {
+    let id = &ambiente.projeto.id;
+    let cadastro = Cadastro::em(ambiente.dados.projetos());
     let arquivo = cadastro.raiz().join(id).join(ARQUIVO_DO_MAPA);
     let modificado = versao(&arquivo);
 
@@ -112,7 +112,7 @@ pub(crate) fn mapa(ambiente: &Ambiente) -> Result<MapaDoSistema, ErroFerramenta>
             .and_then(|g| g.as_ref().cloned())
             .filter(|(a, m, _)| *a == arquivo && *m == modificado);
         if let Some((_, _, mapa)) = guardado {
-            return Ok(MapaDoSistema {
+            return Ok(MapaDoProjeto {
                 mapa,
                 gerado_agora: false,
             });
@@ -121,7 +121,7 @@ pub(crate) fn mapa(ambiente: &Ambiente) -> Result<MapaDoSistema, ErroFerramenta>
             Ok(Some(mapa)) if mapa.formato == FORMATO_MAPA => {
                 let mapa = Arc::new(mapa);
                 guardar(arquivo, modificado, &mapa);
-                return Ok(MapaDoSistema {
+                return Ok(MapaDoProjeto {
                     mapa,
                     gerado_agora: false,
                 });
@@ -131,20 +131,20 @@ pub(crate) fn mapa(ambiente: &Ambiente) -> Result<MapaDoSistema, ErroFerramenta>
         }
     }
 
-    tracing::info!("mapa do sistema ausente; gerando sob demanda");
+    tracing::info!("mapa do projeto ausente; gerando sob demanda");
     let mapa = cadastro.mapear(id).map_err(|e| {
-        tracing::warn!("mapa do sistema não gerado");
+        tracing::warn!("mapa do projeto não gerado");
         ErroFerramenta::Recusa(format!(
-            "o mapa do sistema ainda não existe e não pôde ser gerado agora ({e}). Use as \
+            "o mapa do projeto ainda não existe e não pôde ser gerado agora ({e}). Use as \
              suas ferramentas de leitura e busca no código e peça ao analista para refazer \
-             o mapeamento do sistema no app"
+             o mapeamento do projeto no app"
         ))
     })?;
     let mapa = Arc::new(mapa);
     if let Some(modificado) = versao(&arquivo) {
         guardar(arquivo, modificado, &mapa);
     }
-    Ok(MapaDoSistema {
+    Ok(MapaDoProjeto {
         mapa,
         gerado_agora: true,
     })

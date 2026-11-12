@@ -8,14 +8,14 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use cba_kb::frontmatter::{
-    Area, Data, Demanda, Evidencia, FrontmatterAnalise, FrontmatterRegra, FrontmatterSistema,
+    Area, Data, Demanda, Evidencia, FrontmatterAnalise, FrontmatterProjeto, FrontmatterRegra,
     FrontmatterSugestao, FrontmatterTermo, Linhas, StatusAnalise, StatusRegra, StatusSugestao,
 };
 use cba_kb::indice::{Consulta, Indice, Modo, Sincronizacao, Tipo, Vigia};
-use cba_kb::{Base, CaminhoRelativo, Documento, Id, Sistema, TipoDocumento, layout};
+use cba_kb::{Base, CaminhoRelativo, Documento, Id, Projeto, TipoDocumento, layout};
 use serde::Deserialize;
 
-const SISTEMA: &str = "faturamento-exemplo";
+const PROJETO: &str = "faturamento-exemplo";
 
 #[derive(Deserialize)]
 struct Gabarito {
@@ -52,10 +52,10 @@ fn caminho(texto: &str) -> CaminhoRelativo {
     CaminhoRelativo::novo(texto).unwrap()
 }
 
-fn criar_sistema(base: &Base, id: &str, nome: &str) -> Sistema {
-    base.criar_sistema(&Documento::novo(
-        FrontmatterSistema {
-            tipo: TipoDocumento::Sistema,
+fn criar_projeto(base: &Base, id: &str, nome: &str) -> Projeto {
+    base.criar_projeto(&Documento::novo(
+        FrontmatterProjeto {
+            tipo: TipoDocumento::Projeto,
             id: id.into(),
             nome: nome.into(),
             areas: vec![Area {
@@ -105,12 +105,12 @@ fn termo(nome: &str, sinonimos: &[&str], corpo: &str) -> Documento<FrontmatterTe
 }
 
 /// Base numa pasta com espaços e acentos: o Faturamento Exemplo com as regras do
-/// gabarito, dois termos, uma análise, uma sugestão, as regras do sistema e dois
-/// documentos com problema; e um segundo sistema, para os filtros.
-fn montar_base() -> (tempfile::TempDir, Base, Sistema, PathBuf) {
+/// gabarito, dois termos, uma análise, uma sugestão, as regras do projeto e dois
+/// documentos com problema; e um segundo projeto, para os filtros.
+fn montar_base() -> (tempfile::TempDir, Base, Projeto, PathBuf) {
     let dir = tempfile::tempdir().unwrap();
     let base = Base::criar(dir.path().join("Base de Conhecimento – Análises")).unwrap();
-    let sistema = criar_sistema(&base, SISTEMA, "Faturamento Exemplo");
+    let projeto = criar_projeto(&base, PROJETO, "Faturamento Exemplo");
 
     for r in gabarito().regras {
         let evidencias = r
@@ -124,11 +124,11 @@ fn montar_base() -> (tempfile::TempDir, Base, Sistema, PathBuf) {
             })
             .collect();
         let doc = regra(&r.id, &r.titulo, &r.area, &r.enunciado, evidencias);
-        sistema
+        projeto
             .criar(&Id::analisar(&r.id).unwrap().arquivo(), &doc)
             .unwrap();
     }
-    sistema
+    projeto
         .criar(
             &layout::termo("Carência").unwrap(),
             &termo(
@@ -138,7 +138,7 @@ fn montar_base() -> (tempfile::TempDir, Base, Sistema, PathBuf) {
             ),
         )
         .unwrap();
-    sistema
+    projeto
         .criar(
             &layout::termo("Fatura").unwrap(),
             &termo(
@@ -148,7 +148,7 @@ fn montar_base() -> (tempfile::TempDir, Base, Sistema, PathBuf) {
             ),
         )
         .unwrap();
-    sistema
+    projeto
         .criar(
             &caminho("analises/A-0001.md"),
             &Documento::novo(
@@ -156,7 +156,7 @@ fn montar_base() -> (tempfile::TempDir, Base, Sistema, PathBuf) {
                     tipo: TipoDocumento::Pergunta,
                     id: Id::analisar("A-0001").unwrap(),
                     titulo: "Como são calculados multa e juros de atraso?".into(),
-                    sistema: SISTEMA.into(),
+                    projeto: PROJETO.into(),
                     demanda: Demanda {
                         origem: "texto".into(),
                         chave: None,
@@ -173,7 +173,7 @@ fn montar_base() -> (tempfile::TempDir, Base, Sistema, PathBuf) {
             ),
         )
         .unwrap();
-    sistema
+    projeto
         .criar(
             &caminho("sugestoes/S-0001.md"),
             &Documento::novo(
@@ -181,7 +181,7 @@ fn montar_base() -> (tempfile::TempDir, Base, Sistema, PathBuf) {
                     tipo: TipoDocumento::Sugestao,
                     id: Id::analisar("S-0001").unwrap(),
                     titulo: "Ler os parâmetros de cobrança no lote COBOL".into(),
-                    sistema: SISTEMA.into(),
+                    projeto: PROJETO.into(),
                     status: StatusSugestao::Proposta,
                     analise: Some(Id::analisar("A-0001").unwrap()),
                     arquivo: Some(caminho("cobol/CALCOBR.cbl")),
@@ -192,32 +192,32 @@ fn montar_base() -> (tempfile::TempDir, Base, Sistema, PathBuf) {
         )
         .unwrap();
     fs::write(
-        sistema.caminho(&layout::regras_do_sistema()),
-        "# Regras do sistema\n\n<!-- Instruções: palavrasecreta. -->\n\n\
+        projeto.caminho(&layout::regras_do_projeto()),
+        "# Regras do projeto\n\n<!-- Instruções: palavrasecreta. -->\n\n\
          - Chame o cliente de contratante nos documentos.\n",
     )
     .unwrap();
     // Status inválido: fica nos problemas, mas continua na busca pelo título.
     fs::write(
-        sistema.raiz().join("regras").join("RN-FAT-900.md"),
+        projeto.raiz().join("regras").join("RN-FAT-900.md"),
         "---\ntipo: regra\nid: RN-FAT-900\ntitulo: Arredondamento bancário\narea: cobranca\n\
          status: talvez\n---\n\nTexto.\n",
     )
     .unwrap();
     // Sem frontmatter: fica só nos problemas.
     fs::write(
-        sistema.raiz().join("areas").join("rascunho.md"),
+        projeto.raiz().join("areas").join("rascunho.md"),
         "Anotações soltas sobre arredondamento.\n",
     )
     .unwrap();
 
-    let outro = criar_sistema(&base, "outro-sistema", "Outro Sistema");
+    let outro = criar_projeto(&base, "outro-projeto", "Outro Projeto");
     outro
         .criar(
             &caminho("regras/RN-FAT-001.md"),
             &regra(
                 "RN-FAT-001",
-                "Carência de 5 dias no outro sistema",
+                "Carência de 5 dias no outro projeto",
                 "cobranca",
                 "Atraso de até 5 dias não gera encargos.",
                 Vec::new(),
@@ -226,7 +226,7 @@ fn montar_base() -> (tempfile::TempDir, Base, Sistema, PathBuf) {
         .unwrap();
 
     let arquivo = dir.path().join("dados").join("indice").join("base.sqlite");
-    (dir, base, sistema, arquivo)
+    (dir, base, projeto, arquivo)
 }
 
 fn abrir(arquivo: &Path, base: &Base) -> Indice {
@@ -249,7 +249,7 @@ fn achados(indice: &Indice, consulta: &Consulta) -> Vec<String> {
 fn consultas() -> Vec<Consulta> {
     vec![
         Consulta::nova("carencia"),
-        Consulta::nova("multa juros").sistema(SISTEMA),
+        Consulta::nova("multa juros").projeto(PROJETO),
         Consulta::nova("parcelamento").tipos([Tipo::Documento(TipoDocumento::Regra)]),
         Consulta::nova("Como é calculada a multa por atraso?").modo(Modo::Qualquer),
         Consulta::nova("RN-FAT-003"),
@@ -274,11 +274,11 @@ fn fotografia(indice: &Indice) -> Vec<String> {
 
 #[test]
 fn carencia_encontra_carencia() {
-    let (_dir, base, _sistema, arquivo) = montar_base();
+    let (_dir, base, _projeto, arquivo) = montar_base();
     let indice = abrir(&arquivo, &base);
 
     let regras = Consulta::nova("carencia")
-        .sistema(SISTEMA)
+        .projeto(PROJETO)
         .tipos([Tipo::Documento(TipoDocumento::Regra)]);
     let pagina = indice.buscar(&regras).unwrap();
     let primeiro = &pagina.resultados[0];
@@ -311,18 +311,18 @@ fn carencia_encontra_carencia() {
     }
 
     // Termos e análises também, e sinônimos contam.
-    let todos = achados(&indice, &Consulta::nova("carencia").sistema(SISTEMA));
+    let todos = achados(&indice, &Consulta::nova("carencia").projeto(PROJETO));
     assert!(
-        todos.contains(&format!("{SISTEMA}/glossario/carencia.md")),
+        todos.contains(&format!("{PROJETO}/glossario/carencia.md")),
         "{todos:?}"
     );
     assert!(
-        todos.contains(&format!("{SISTEMA}/analises/A-0001.md")),
+        todos.contains(&format!("{PROJETO}/analises/A-0001.md")),
         "{todos:?}"
     );
     assert_eq!(
         achados(&indice, &Consulta::nova("tolerancia")),
-        [format!("{SISTEMA}/glossario/carencia.md")]
+        [format!("{PROJETO}/glossario/carencia.md")]
     );
     // Cedilha também: "cobranca" encontra "cobrança".
     assert!(!achados(&indice, &Consulta::nova("cobranca encargos")).is_empty());
@@ -330,7 +330,7 @@ fn carencia_encontra_carencia() {
 
 #[test]
 fn apagar_o_indice_e_reabrir_reconstroi_o_mesmo_resultado() {
-    let (_dir, base, _sistema, arquivo) = montar_base();
+    let (_dir, base, _projeto, arquivo) = montar_base();
     let indice = abrir(&arquivo, &base);
     let antes = fotografia(&indice);
     assert!(antes.len() > 10, "{antes:?}");
@@ -351,7 +351,7 @@ fn apagar_o_indice_e_reabrir_reconstroi_o_mesmo_resultado() {
 
 #[test]
 fn atualizacao_incremental_por_hash() {
-    let (_dir, base, sistema, arquivo) = montar_base();
+    let (_dir, base, projeto, arquivo) = montar_base();
     let mut indice = Indice::abrir(&arquivo, &base).unwrap();
     let primeira = indice.sincronizar().unwrap();
     assert!(primeira.novos > 15, "{primeira:?}");
@@ -370,7 +370,7 @@ fn atualizacao_incremental_por_hash() {
     );
 
     // Edição externa, novo arquivo e arquivo apagado.
-    let rn001 = sistema.caminho(&caminho("regras/RN-FAT-001.md"));
+    let rn001 = projeto.caminho(&caminho("regras/RN-FAT-001.md"));
     let texto = fs::read_to_string(&rn001).unwrap();
     fs::write(
         &rn001,
@@ -378,13 +378,13 @@ fn atualizacao_incremental_por_hash() {
     )
     .unwrap();
     fs::write(
-        sistema.raiz().join("glossario").join("multa.md"),
+        projeto.raiz().join("glossario").join("multa.md"),
         "---\ntipo: termo\ntermo: Multa\n---\n\nPenalidade por atraso.\n",
     )
     .unwrap();
-    fs::remove_file(sistema.raiz().join("glossario").join("fatura.md")).unwrap();
+    fs::remove_file(projeto.raiz().join("glossario").join("fatura.md")).unwrap();
     // Gravado de novo com o mesmo conteúdo: não conta como alterado.
-    let a1 = sistema.caminho(&caminho("analises/A-0001.md"));
+    let a1 = projeto.caminho(&caminho("analises/A-0001.md"));
     fs::write(&a1, fs::read(&a1).unwrap()).unwrap();
 
     let terceira = indice.sincronizar().unwrap();
@@ -394,43 +394,43 @@ fn atualizacao_incremental_por_hash() {
     );
     assert_eq!(
         achados(&indice, &Consulta::nova("palavranova")),
-        [format!("{SISTEMA}/regras/RN-FAT-001.md")]
+        [format!("{PROJETO}/regras/RN-FAT-001.md")]
     );
     assert_eq!(
         achados(&indice, &Consulta::nova("penalidade")),
-        [format!("{SISTEMA}/glossario/multa.md")]
+        [format!("{PROJETO}/glossario/multa.md")]
     );
     let termos = achados(
         &indice,
         &Consulta::nova("fatura").tipos([Tipo::Documento(TipoDocumento::Termo)]),
     );
     assert!(
-        !termos.contains(&format!("{SISTEMA}/glossario/fatura.md")),
+        !termos.contains(&format!("{PROJETO}/glossario/fatura.md")),
         "{termos:?}"
     );
 }
 
 #[test]
-fn regras_do_sistema_e_documentos_com_problema() {
-    let (_dir, base, _sistema, arquivo) = montar_base();
+fn regras_do_projeto_e_documentos_com_problema() {
+    let (_dir, base, _projeto, arquivo) = montar_base();
     let indice = abrir(&arquivo, &base);
 
     let pagina = indice.buscar(&Consulta::nova("contratante")).unwrap();
     assert_eq!(pagina.total, 1);
     let r = &pagina.resultados[0];
-    assert_eq!(r.tipo, Some(Tipo::RegrasDoSistema));
-    assert_eq!(r.titulo, "Regras do sistema");
+    assert_eq!(r.tipo, Some(Tipo::RegrasDoProjeto));
+    assert_eq!(r.titulo, "Regras do projeto");
     assert_eq!(
         r.caminho.as_str(),
-        format!("{SISTEMA}/regras-do-sistema.md")
+        format!("{PROJETO}/regras-do-projeto.md")
     );
-    // Os comentários são instrução, não conteúdo; o padrão do outro sistema só tem
+    // Os comentários são instrução, não conteúdo; o padrão do outro projeto só tem
     // comentários.
     assert!(achados(&indice, &Consulta::nova("palavrasecreta")).is_empty());
     assert!(
         achados(
             &indice,
-            &Consulta::nova("Exemplos").tipos([Tipo::RegrasDoSistema])
+            &Consulta::nova("Exemplos").tipos([Tipo::RegrasDoProjeto])
         )
         .is_empty()
     );
@@ -440,8 +440,8 @@ fn regras_do_sistema_e_documentos_com_problema() {
     assert_eq!(
         caminhos,
         [
-            format!("{SISTEMA}/areas/rascunho.md"),
-            format!("{SISTEMA}/regras/RN-FAT-900.md"),
+            format!("{PROJETO}/areas/rascunho.md"),
+            format!("{PROJETO}/regras/RN-FAT-900.md"),
         ]
     );
     assert!(
@@ -457,25 +457,25 @@ fn regras_do_sistema_e_documentos_com_problema() {
     // A regra com status inválido continua na busca; o arquivo sem frontmatter não.
     assert_eq!(
         achados(&indice, &Consulta::nova("arredondamento")),
-        [format!("{SISTEMA}/regras/RN-FAT-900.md")]
+        [format!("{PROJETO}/regras/RN-FAT-900.md")]
     );
 }
 
 #[test]
 fn filtros_e_paginacao() {
-    let (_dir, base, _sistema, arquivo) = montar_base();
+    let (_dir, base, _projeto, arquivo) = montar_base();
     let indice = abrir(&arquivo, &base);
 
     let todos = achados(&indice, &Consulta::nova("carencia").pagina(100, 0));
-    assert!(todos.iter().any(|c| c.starts_with("outro-sistema/")));
+    assert!(todos.iter().any(|c| c.starts_with("outro-projeto/")));
     let so_um = achados(
         &indice,
-        &Consulta::nova("carencia").sistema("outro-sistema"),
+        &Consulta::nova("carencia").projeto("outro-projeto"),
     );
-    assert_eq!(so_um, ["outro-sistema/regras/RN-FAT-001.md"]);
+    assert_eq!(so_um, ["outro-projeto/regras/RN-FAT-001.md"]);
 
     let analises = achados(&indice, &Consulta::nova("multa").tipos(Tipo::ANALISES));
-    assert_eq!(analises, [format!("{SISTEMA}/analises/A-0001.md")]);
+    assert_eq!(analises, [format!("{PROJETO}/analises/A-0001.md")]);
 
     let consulta = Consulta::nova("multa juros carencia parcelas").modo(Modo::Qualquer);
     let total = indice.buscar(&consulta).unwrap().total;
@@ -510,9 +510,9 @@ fn filtros_e_paginacao() {
 
 #[test]
 fn ligacoes_e_evidencias() {
-    let (_dir, base, _sistema, arquivo) = montar_base();
+    let (_dir, base, _projeto, arquivo) = montar_base();
     let indice = abrir(&arquivo, &base);
-    let a1 = caminho(&format!("{SISTEMA}/analises/A-0001.md"));
+    let a1 = caminho(&format!("{PROJETO}/analises/A-0001.md"));
 
     let ligacoes = indice.ligacoes(&a1).unwrap();
     let regras = gabarito().regras;
@@ -520,20 +520,20 @@ fn ligacoes_e_evidencias() {
     assert_eq!(ligacoes.len(), regras.len() + 3);
     assert!(ligacoes.iter().all(|l| l.para == a1 && l.existe));
     assert!(ligacoes.iter().any(|l| {
-        l.de.as_str() == format!("{SISTEMA}/sugestoes/S-0001.md") && l.campo == "analise"
+        l.de.as_str() == format!("{PROJETO}/sugestoes/S-0001.md") && l.campo == "analise"
     }));
     assert!(ligacoes.iter().any(|l| {
-        l.de.as_str() == format!("{SISTEMA}/regras/RN-FAT-003.md") && l.campo == "origem"
+        l.de.as_str() == format!("{PROJETO}/regras/RN-FAT-003.md") && l.campo == "origem"
     }));
 
-    // A regra do outro sistema aponta para uma análise que não existe.
+    // A regra do outro projeto aponta para uma análise que não existe.
     let outra = indice
-        .ligacoes(&caminho("outro-sistema/regras/RN-FAT-001.md"))
+        .ligacoes(&caminho("outro-projeto/regras/RN-FAT-001.md"))
         .unwrap();
     assert_eq!(outra.len(), 1);
     assert!(!outra[0].existe);
 
-    let evidencias = indice.evidencias(Some(SISTEMA)).unwrap();
+    let evidencias = indice.evidencias(Some(PROJETO)).unwrap();
     let esperadas: usize = regras.iter().map(|r| r.evidencias.len()).sum();
     assert_eq!(evidencias.len(), esperadas);
     let primeira = &evidencias[0];
@@ -544,12 +544,12 @@ fn ligacoes_e_evidencias() {
         regras[0].evidencias[0].linha_inicial
     );
     assert_eq!(primeira.commit.as_deref(), Some("1a2b3c4d"));
-    assert!(indice.evidencias(Some("outro-sistema")).unwrap().is_empty());
+    assert!(indice.evidencias(Some("outro-projeto")).unwrap().is_empty());
 }
 
 #[test]
 fn vigia_reflete_edicao_externa_em_poucos_segundos() {
-    let (_dir, base, sistema, arquivo) = montar_base();
+    let (_dir, base, projeto, arquivo) = montar_base();
     let mudancas = Arc::new(Mutex::new(Vec::new()));
     let anotadas = Arc::clone(&mudancas);
     let vigia = Vigia::iniciar(&arquivo, &base, Duration::from_millis(100), move |s| {
@@ -571,11 +571,11 @@ fn vigia_reflete_edicao_externa_em_poucos_segundos() {
             thread::sleep(Duration::from_millis(50));
         }
     };
-    esperar("carencia", format!("{SISTEMA}/regras/RN-FAT-003.md"));
+    esperar("carencia", format!("{PROJETO}/regras/RN-FAT-003.md"));
 
     // Edição como a de um editor externo: grava num temporário e renomeia.
-    let destino = sistema.caminho(&caminho("glossario/carencia.md"));
-    let temporario = sistema.raiz().join("glossario").join(".carencia.md.tmp");
+    let destino = projeto.caminho(&caminho("glossario/carencia.md"));
+    let temporario = projeto.raiz().join("glossario").join(".carencia.md.tmp");
     let texto = fs::read_to_string(&destino).unwrap();
     fs::write(
         &temporario,
@@ -583,7 +583,7 @@ fn vigia_reflete_edicao_externa_em_poucos_segundos() {
     )
     .unwrap();
     fs::rename(&temporario, &destino).unwrap();
-    let demora = esperar("bloqueio", format!("{SISTEMA}/glossario/carencia.md"));
+    let demora = esperar("bloqueio", format!("{PROJETO}/glossario/carencia.md"));
     assert!(demora < Duration::from_secs(5), "{demora:?}");
 
     vigia.parar();
@@ -594,7 +594,7 @@ fn vigia_reflete_edicao_externa_em_poucos_segundos() {
 
 #[test]
 fn processos_ao_mesmo_tempo() {
-    let (_dir, base, _sistema, arquivo) = montar_base();
+    let (_dir, base, _projeto, arquivo) = montar_base();
     let threads: Vec<_> = (0..4)
         .map(|_| {
             let base = base.clone();
@@ -619,7 +619,7 @@ fn processos_ao_mesmo_tempo() {
 
 #[test]
 fn indice_corrompido_ou_de_outra_base_recomeca() {
-    let (dir, base, _sistema, arquivo) = montar_base();
+    let (dir, base, _projeto, arquivo) = montar_base();
     let antes = fotografia(&abrir(&arquivo, &base));
 
     // Arquivo que não é SQLite.
@@ -630,7 +630,7 @@ fn indice_corrompido_ou_de_outra_base_recomeca() {
 
     // Outra base no mesmo arquivo: o conteúdo da anterior sai.
     let outra = Base::criar(dir.path().join("outra")).unwrap();
-    criar_sistema(&outra, "vazio", "Vazio");
+    criar_projeto(&outra, "vazio", "Vazio");
     let indice = abrir(&arquivo, &outra);
     assert!(fotografia(&indice).is_empty());
     assert!(achados(&indice, &Consulta::nova("vazio")).len() == 1);

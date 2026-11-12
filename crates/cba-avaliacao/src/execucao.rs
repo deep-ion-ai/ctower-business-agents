@@ -3,8 +3,8 @@
 //! Para cada execução:
 //!
 //! 1. copia a fixture para uma pasta temporária e cria nela um repositório git (como
-//!    o sistema de um analista);
-//! 2. cria dados do app e base de conhecimento temporários, cadastra o sistema e cria
+//!    o projeto de um analista);
+//! 2. cria dados do app e base de conhecimento temporários, cadastra o projeto e cria
 //!    a análise, como o app faz (spec, seção 4.2);
 //! 3. gera o registro do servidor MCP e os hooks com o mesmo preparo do app
 //!    ([`cba_session::preparo`]), mas em arquivos temporários, e os passa ao `claude`
@@ -97,19 +97,19 @@ struct Preparado {
     settings: PathBuf,
 }
 
-fn preparar(raiz: &Path, sistema: &Path, item: &Item, cba: &Path) -> Result<Preparado, String> {
+fn preparar(raiz: &Path, projeto: &Path, item: &Item, cba: &Path) -> Result<Preparado, String> {
     let codigo = raiz.join("faturamento");
-    pastas::copiar(sistema, &codigo).map_err(erro("cópia da fixture"))?;
+    pastas::copiar(projeto, &codigo).map_err(erro("cópia da fixture"))?;
     git(&codigo, &["init", "-q"])?;
     git(&codigo, &["add", "-A"])?;
     git(&codigo, &["commit", "-q", "-m", "inicial"])?;
 
     let dados = DiretorioDados::em(raiz.join("dados"));
-    let cadastro = cba_index::Sistema::novo("Faturamento Exemplo", [&codigo])
-        .map_err(erro("cadastro do sistema"))?;
-    cba_index::Cadastro::em(dados.sistemas())
+    let cadastro = cba_index::Projeto::novo("Faturamento Exemplo", [&codigo])
+        .map_err(erro("cadastro do projeto"))?;
+    cba_index::Cadastro::em(dados.projetos())
         .cadastrar(&cadastro)
-        .map_err(erro("cadastro do sistema"))?;
+        .map_err(erro("cadastro do projeto"))?;
     let base = raiz.join("base");
     cba_kb::Base::criar(&base).map_err(erro("base de conhecimento"))?;
     Config {
@@ -119,7 +119,7 @@ fn preparar(raiz: &Path, sistema: &Path, item: &Item, cba: &Path) -> Result<Prep
     .map_err(erro("configuração do app"))?;
 
     let ambiente = cba_core::ambiente::Ambiente::do_diretorio(&codigo, &dados)
-        .map_err(erro("ambiente do sistema"))?;
+        .map_err(erro("ambiente do projeto"))?;
     let analise = ambiente
         .analises
         .criar(NovaAnalise {
@@ -218,7 +218,7 @@ fn rodar_claude(p: &Preparado, o: &Opcoes, pasta_saida: &Path) -> Result<String,
         // Uma sessão do Claude Code em volta não deve influir na execução.
         .env_remove("CLAUDECODE")
         .env_remove("CLAUDE_CODE_ENTRYPOINT")
-        .env_remove("CBA_SISTEMA")
+        .env_remove("CBA_PROJETO")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -298,9 +298,9 @@ pub fn executar(
     };
     let raiz =
         dunce::canonicalize(temporaria.path()).unwrap_or_else(|_| temporaria.path().to_path_buf());
-    let sistema = gabarito.raiz_do_sistema();
+    let projeto = gabarito.raiz_do_projeto();
 
-    let preparado = match preparar(&raiz, &sistema, item, &opcoes.cba) {
+    let preparado = match preparar(&raiz, &projeto, item, &opcoes.cba) {
         Ok(p) => p,
         Err(e) => {
             execucao.erro = Some(e);
@@ -312,7 +312,7 @@ pub fn executar(
         Err(e) => execucao.erro = Some(e),
     }
 
-    match pastas::diferencas(&sistema, &preparado.codigo) {
+    match pastas::diferencas(&projeto, &preparado.codigo) {
         Ok(d) => execucao.arquivos_alterados = d,
         Err(e) => execucao.erro = Some(format!("comparação da cópia: {e}")),
     }
@@ -357,15 +357,15 @@ fn copiar_documento(raiz: &Path, analise: &Analise, pasta_saida: &Path) {
         .documento
         .as_str()
         .split('/')
-        .fold(raiz.join("base").join(&analise.sistema), |acc, p| {
+        .fold(raiz.join("base").join(&analise.projeto), |acc, p| {
             acc.join(p)
         });
     let _ = fs::copy(&documento, pasta_saida.join("documento.md"));
 }
 
-/// Escopo do sistema da fixture, para conferir as evidências.
+/// Escopo do projeto da fixture, para conferir as evidências.
 pub fn escopo(gabarito: &Gabarito) -> Result<cba_index::Escopo, String> {
-    cba_index::Sistema::novo("Faturamento Exemplo", [gabarito.raiz_do_sistema()])
+    cba_index::Projeto::novo("Faturamento Exemplo", [gabarito.raiz_do_projeto()])
         .and_then(|s| s.escopo())
         .map_err(erro("escopo da fixture"))
 }

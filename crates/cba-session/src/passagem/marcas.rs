@@ -23,7 +23,7 @@ struct Conteudo {
     /// Por `session_id`.
     #[serde(default)]
     sessoes: BTreeMap<String, Marca>,
-    /// Por `<sistema>/<análise>`: a próxima sessão ligada à análise.
+    /// Por `<projeto>/<análise>`: a próxima sessão ligada à análise.
     #[serde(default)]
     analises: BTreeMap<String, Marca>,
 }
@@ -82,14 +82,14 @@ impl ClientesDasSessoes {
     /// identificador (links do Desktop e do terminal do analista).
     pub fn marcar_analise(
         &self,
-        sistema: &str,
+        projeto: &str,
         analise: &str,
         cliente: Cliente,
         em_ms: u64,
     ) -> io::Result<()> {
         let mut c = self.ler();
         c.analises
-            .insert(format!("{sistema}/{analise}"), Marca { cliente, em_ms });
+            .insert(format!("{projeto}/{analise}"), Marca { cliente, em_ms });
         self.gravar(c)
     }
 
@@ -106,7 +106,7 @@ impl ClientesDasSessoes {
         registro
             .analise
             .as_ref()
-            .and_then(|a| c.analises.get(&format!("{}/{a}", registro.sistema)))
+            .and_then(|a| c.analises.get(&format!("{}/{a}", registro.projeto)))
             // Tolerância de um segundo: os relógios são do mesmo computador, mas o
             // registro pode nascer no mesmo instante do clique.
             .filter(|m| m.em_ms <= registro.inicio_ms.saturating_add(1_000))

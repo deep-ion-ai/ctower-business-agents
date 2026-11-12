@@ -26,10 +26,10 @@ use tauri::ipc::Channel;
 /// Terminais abertos pela janela.
 pub type Estado = Arc<Sessoes>;
 
-/// Sistema cadastrado, como a tela de escolha mostra.
+/// Projeto cadastrado, como a tela de escolha mostra.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SistemaResumo {
+pub struct ProjetoResumo {
     pub id: String,
     pub nome: String,
 }
@@ -46,17 +46,17 @@ async fn bloqueante<T: Send + 'static>(
         .map_err(|e| format!("falha interna do terminal: {e}"))
 }
 
-/// Sistemas cadastrados, para escolher onde abrir o terminal.
+/// Projetos cadastrados, para escolher onde abrir o terminal.
 #[tauri::command]
-pub async fn listar_sistemas() -> Result<Vec<SistemaResumo>, String> {
+pub async fn listar_projetos() -> Result<Vec<ProjetoResumo>, String> {
     let dados = dados()?;
     bloqueante(move || {
-        Cadastro::em(dados.sistemas())
+        Cadastro::em(dados.projetos())
             .listar()
             .map(|lista| {
                 lista
                     .into_iter()
-                    .map(|s| SistemaResumo {
+                    .map(|s| ProjetoResumo {
                         id: s.id,
                         nome: s.nome,
                     })
@@ -67,13 +67,13 @@ pub async fn listar_sistemas() -> Result<Vec<SistemaResumo>, String> {
     .await?
 }
 
-/// Abre o `claude` num terminal novo, na pasta do sistema. Recusa com orientação se o
+/// Abre o `claude` num terminal novo, na pasta do projeto. Recusa com orientação se o
 /// ambiente não está preparado ou o Claude Code não está instalado. Devolve o
 /// identificador do terminal; a saída e o fim chegam por `canal`.
 #[tauri::command]
 pub async fn abrir_terminal_claude(
     sessoes: State<'_, Estado>,
-    sistema: String,
+    projeto: String,
     pedido: Option<PedidoClaude>,
     tamanho: Tamanho,
     canal: Channel<Evento>,
@@ -83,12 +83,12 @@ pub async fn abrir_terminal_claude(
     let sessoes = Arc::clone(&sessoes);
     let pedido = pedido.unwrap_or_default();
     bloqueante(move || {
-        let cadastrado = Cadastro::em(dados.sistemas())
-            .obter(&sistema)
+        let cadastrado = Cadastro::em(dados.projetos())
+            .obter(&projeto)
             .map_err(|e| falha(e.to_string()))?
             .ok_or_else(|| {
-                ErroAbertura::SistemaNaoCadastrado {
-                    sistema: sistema.clone(),
+                ErroAbertura::ProjetoNaoCadastrado {
+                    projeto: projeto.clone(),
                 }
                 .relatorio()
             })?;
@@ -113,7 +113,7 @@ pub async fn abrir_terminal_claude(
             tracing::warn!(erro = %e, "não foi possível marcar o cliente da sessão");
         }
         if let Err(e) =
-            UltimasSessoes::no_diretorio(dados.raiz()).registrar(&sistema, lancamento.id_sessao)
+            UltimasSessoes::no_diretorio(dados.raiz()).registrar(&projeto, lancamento.id_sessao)
         {
             tracing::warn!(erro = %e, "não foi possível registrar a última sessão do terminal");
         }
@@ -170,9 +170,9 @@ pub async fn encerrar_terminal(sessoes: State<'_, Estado>, id: u64) -> Result<()
         .map_err(|e| e.to_string())
 }
 
-/// A última sessão do terminal embutido do sistema, para oferecer a retomada.
+/// A última sessão do terminal embutido do projeto, para oferecer a retomada.
 #[tauri::command]
-pub async fn ultima_sessao_terminal(sistema: String) -> Result<Option<UltimaSessao>, String> {
+pub async fn ultima_sessao_terminal(projeto: String) -> Result<Option<UltimaSessao>, String> {
     let dados = dados()?;
-    bloqueante(move || UltimasSessoes::no_diretorio(dados.raiz()).obter(&sistema)).await
+    bloqueante(move || UltimasSessoes::no_diretorio(dados.raiz()).obter(&projeto)).await
 }

@@ -1,7 +1,7 @@
 //! Comparação do estado de uma análise (`A-NNNN.estado.json`) com o gabarito.
 //!
 //! É a parte determinística da avaliação: recebe o estado gravado, o item do gabarito
-//! (pergunta, funcionalidade ou demanda) e o escopo do sistema, e mede, sem chamar
+//! (pergunta, funcionalidade ou demanda) e o escopo do projeto, e mede, sem chamar
 //! nenhum modelo:
 //!
 //! - **evidências válidas:** cada evidência das afirmações é conferida de novo contra
@@ -252,7 +252,7 @@ fn encontra(regra: &Regra, evidencias: &[&Evidencia]) -> bool {
     }
 }
 
-/// Compara `analise` com `item`, conferindo as evidências em `escopo` (o sistema da
+/// Compara `analise` com `item`, conferindo as evidências em `escopo` (o projeto da
 /// fixture).
 pub fn avaliar(analise: &Analise, item: &Item, gabarito: &Gabarito, escopo: &Escopo) -> Avaliacao {
     let mut por_confianca = PorConfianca::default();

@@ -2,11 +2,11 @@
 #
 # Este arquivo NÃO faz parte do sistema analisado: ele fica fora da pasta
 # fixtures/faturamento-exemplo/ de propósito, para que nenhuma ferramenta
-# que cadastre aquela pasta como sistema leia as respostas.
+# que cadastre aquela pasta como projeto leia as respostas.
 #
 # Convenções:
-# - `raiz` é a pasta do sistema, relativa a este arquivo.
-# - `arquivo` é sempre relativo à raiz do sistema, com `/` como separador.
+# - `raiz` é a pasta do projeto, relativa a este arquivo.
+# - `arquivo` é sempre relativo à raiz do projeto, com `/` como separador.
 # - `linha_inicial` e `linha_final` são inclusivas, contadas a partir de 1.
 # - `trecho` é um texto curto que precisa aparecer dentro do intervalo
 #   (o mesmo papel do "trecho citado" de uma evidência, spec seção 6.5).
@@ -26,7 +26,7 @@
 # - A avaliação dos fluxos (crate cba-avaliacao, docs/avaliacao.md) usa este
 #   arquivo como referência.
 
-sistema: faturamento-exemplo
+projeto: faturamento-exemplo
 raiz: ../faturamento-exemplo
 
 regras:
@@ -382,7 +382,7 @@ perguntas:
       Ponto em aberto: o lote de cobrança calcula a multa com valor fixo.
     regras: [RN-FAT-001, RN-FAT-002, RN-FAT-003, RN-FAT-004, RN-FAT-005, RN-FAT-006, INC-FAT-002]
     perguntas_esperadas:
-      - tema: O lote de cobrança deveria seguir o cálculo do sistema (parâmetros, exceção do órgão público, teto)?
+      - tema: O lote de cobrança deveria seguir o cálculo do projeto (parâmetros, exceção do órgão público, teto)?
         palavras_chave: [[lote, lotes, cobol, calcobr*, batch], [fix*, parametr*, diverg*, "2%", "2 %", hardcode*, teto*, pub, "orgao publico", exce*, isenc*, intencional]]
 
   - id: P-FAT-002
@@ -455,7 +455,7 @@ demandas:
   - id: D-FAT-001
     texto: >-
       Permitir parcelamento da fatura em até 3 vezes para clientes pessoa
-      jurídica. Acho que hoje o sistema não parcela fatura nenhuma.
+      jurídica. Acho que hoje o projeto não parcela fatura nenhuma.
     premissa: >-
       A suposição está errada: o parcelamento já existe para pessoa jurídica
       (e órgão público), em até 6 vezes. A demanda já está atendida; se o

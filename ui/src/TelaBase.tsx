@@ -10,7 +10,7 @@ import {
 } from "./conhecimento";
 import { DocumentoBase } from "./DocumentoBase";
 import type { Tela } from "./Navegacao";
-import type { SistemaResumo } from "./terminal";
+import type { ProjetoResumo } from "./terminal";
 
 const FILTROS: { tipo: FiltroTipo; rotulo: string }[] = [
   { tipo: "regra", rotulo: "Regras" },
@@ -28,20 +28,20 @@ const POR_PAGINA = 20;
  */
 export function TelaBase({
   api,
-  sistemas,
+  projetos,
   documentoInicial,
   navegar,
   aoAbrirDocumento,
 }: {
   api: ApiConhecimento;
-  sistemas: SistemaResumo[];
+  projetos: ProjetoResumo[];
   documentoInicial?: string;
   navegar: (t: Tela) => void;
   /** Avisa o shell do documento aberto, para listá-lo no painel lateral (#85). */
   aoAbrirDocumento?: (caminho: string) => void;
 }) {
   const [texto, setTexto] = useState("");
-  const [sistema, setSistema] = useState("");
+  const [projeto, setProjeto] = useState("");
   const [tipos, setTipos] = useState<FiltroTipo[]>([]);
   const [busca, setBusca] = useState<Busca | null>(null);
   const [consulta, setConsulta] = useState<{ texto: string; deslocamento: number } | null>(null);
@@ -59,7 +59,7 @@ export function TelaBase({
     let ativo = true;
     api
       .buscar(consulta.texto, {
-        sistema: sistema || undefined,
+        projeto: projeto || undefined,
         tipos,
         deslocamento: consulta.deslocamento,
       })
@@ -72,7 +72,7 @@ export function TelaBase({
     return () => {
       ativo = false;
     };
-  }, [api, consulta, sistema, tipos, rodada]);
+  }, [api, consulta, projeto, tipos, rodada]);
 
   // Documento aberto.
   useEffect(() => {
@@ -137,10 +137,10 @@ export function TelaBase({
           Buscar
         </button>
         <label>
-          Sistema{" "}
-          <select value={sistema} onChange={(e) => setSistema(e.target.value)}>
+          Projeto{" "}
+          <select value={projeto} onChange={(e) => setProjeto(e.target.value)}>
             <option value="">Todos</option>
-            {sistemas.map((s) => (
+            {projetos.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.nome}
               </option>
@@ -187,7 +187,7 @@ export function TelaBase({
                     {r.titulo}
                   </button>{" "}
                   <span className="muted">
-                    {rotuloTipo(r.tipo)} · {r.sistema}
+                    {rotuloTipo(r.tipo)} · {r.projeto}
                     {r.area && ` · ${r.area}`}
                   </span>
                   {r.status === "a-revalidar" && (
@@ -262,7 +262,7 @@ export function TelaBase({
                 aoAbrirAnalise={(s, id) =>
                   navegar({
                     tipo: "analise",
-                    sistema: s,
+                    projeto: s,
                     aberta: { id, abertura: { tipo: "reabrir" } },
                   })
                 }

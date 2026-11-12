@@ -29,8 +29,8 @@ export interface ControleTerminal {
 }
 
 export interface PropsTerminalClaude {
-  /** Identificador do sistema cadastrado: o `claude` roda na pasta dele. */
-  sistema: string;
+  /** Identificador do projeto cadastrado: o `claude` roda na pasta dele. */
+  projeto: string;
   /** Prompt inicial, retomada e argumentos do `claude` (opcionais). */
   pedido?: PedidoClaude;
   aoMudarEstado?: (estado: EstadoTerminal) => void;
@@ -41,7 +41,7 @@ export interface PropsTerminalClaude {
 }
 
 /**
- * Terminal embutido com o Claude Code do analista, na pasta do sistema.
+ * Terminal embutido com o Claude Code do analista, na pasta do projeto.
  *
  * Abre ao montar, repassa o teclado ao processo, acompanha o tamanho do elemento e
  * encerra o processo ao desmontar. Se o ambiente não está preparado ou o Claude Code
@@ -50,7 +50,7 @@ export interface PropsTerminalClaude {
  */
 export const TerminalClaude = forwardRef<ControleTerminal, PropsTerminalClaude>(
   function TerminalClaude(
-    { sistema, pedido, aoMudarEstado, api = apiTauri, criarTela = criarTelaXterm },
+    { projeto, pedido, aoMudarEstado, api = apiTauri, criarTela = criarTelaXterm },
     ref,
   ) {
     const elemento = useRef<HTMLDivElement>(null);
@@ -95,12 +95,12 @@ export const TerminalClaude = forwardRef<ControleTerminal, PropsTerminalClaude>(
       };
     }, [api, criarTela]);
 
-    // Outro sistema: a sessão nova usa o pedido das props.
+    // Outro projeto: a sessão nova usa o pedido das props.
     useEffect(() => {
       pedidoAtual.current = pedidoProps.current ?? {};
-    }, [sistema]);
+    }, [projeto]);
 
-    // Uma sessão por abertura (e por sistema).
+    // Uma sessão por abertura (e por projeto).
     useEffect(() => {
       const t = tela.current;
       if (!t) return;
@@ -110,7 +110,7 @@ export const TerminalClaude = forwardRef<ControleTerminal, PropsTerminalClaude>(
       t.limpar();
       setEstado({ fase: "abrindo" });
       api
-        .abrir(sistema, pedidoAtual.current, t.ajustar(), (evento) => {
+        .abrir(projeto, pedidoAtual.current, t.ajustar(), (evento) => {
           if (cancelado) return;
           if (evento.tipo === "saida") {
             t.escrever(evento.texto);
@@ -141,7 +141,7 @@ export const TerminalClaude = forwardRef<ControleTerminal, PropsTerminalClaude>(
         idAtual.current = null;
         if (id !== null && !terminou) api.encerrar(id).catch(() => undefined);
       };
-    }, [api, sistema, abertura, setEstado]);
+    }, [api, projeto, abertura, setEstado]);
 
     const reabrir = useCallback(
       (novo?: PedidoClaude) => {
@@ -248,7 +248,7 @@ function OrientacaoErro({ erro }: { erro: ErroAbertura }) {
         </ul>
         <p>
           O app registra o servidor MCP e os hooks na configuração do Claude ao preparar o
-          ambiente do sistema. Depois disso, tente de novo.
+          ambiente do projeto. Depois disso, tente de novo.
         </p>
       </>
     );

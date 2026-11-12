@@ -2,9 +2,9 @@
 //! seção 6.2).
 //!
 //! Qualquer sessão do Claude Code (terminal embutido, terminal do analista ou aba de
-//! código do Claude Desktop) aberta na pasta de um sistema cadastrado precisa enxergar
+//! código do Claude Desktop) aberta na pasta de um projeto cadastrado precisa enxergar
 //! o servidor MCP do app e mandar os eventos para o receptor de hooks, sem que nenhum
-//! arquivo seja criado no repositório do sistema.
+//! arquivo seja criado no repositório do projeto.
 //!
 //! # O que é gravado, e onde
 //!
@@ -35,7 +35,7 @@
 //! # Por que esses escopos
 //!
 //! - **MCP no escopo local** (e não no de projeto, `.mcp.json`) porque o de projeto
-//!   cria arquivo no repositório do sistema, e não no de usuário porque o servidor só
+//!   cria arquivo no repositório do projeto, e não no de usuário porque o servidor só
 //!   faz sentido nas pastas cadastradas.
 //! - **A chave do escopo local** não está documentada. Verificado com o Claude Code
 //!   2.1.322 (`claude mcp add-json --scope local` com `CLAUDE_CONFIG_DIR` temporário):
@@ -45,8 +45,8 @@
 //! - **Hooks no escopo de usuário** porque os únicos locais por projeto ficam dentro
 //!   do repositório (`.claude/settings*.json`). Os hooks disparam em qualquer sessão
 //!   do analista; o receptor responde `{}` rápido e ignora as sessões fora das pastas
-//!   cadastradas (pelo `cwd` do evento, #25). São compartilhados entre os sistemas:
-//!   saem só quando o último sistema preparado é desfeito.
+//!   cadastradas (pelo `cwd` do evento, #25). São compartilhados entre os projetos:
+//!   saem só quando o último projeto preparado é desfeito.
 //!
 //! # Garantias
 //!
@@ -60,7 +60,7 @@
 //!   [`arquivo`].
 //! - **Sem credenciais:** os arquivos são tratados como JSON genérico; nenhum campo
 //!   além dos nossos é interpretado, registrado no log ou copiado para outro lugar.
-//! - **Nada nas pastas do sistema:** só os dois arquivos acima (e as cópias de
+//! - **Nada nas pastas do projeto:** só os dois arquivos acima (e as cópias de
 //!   segurança ao lado deles) são escritos.
 //!
 //! O consentimento do analista fica com a interface: [`Preparador::planejar`] mostra
@@ -101,8 +101,8 @@ use json::{Json, Objeto};
 
 /// Nome do servidor MCP na configuração (as ferramentas aparecem como `mcp__cba__*`).
 pub const NOME_SERVIDOR: &str = "cba";
-/// Variável de ambiente com o identificador do sistema, passada ao servidor MCP.
-pub const VAR_SISTEMA: &str = "CBA_SISTEMA";
+/// Variável de ambiente com o identificador do projeto, passada ao servidor MCP.
+pub const VAR_PROJETO: &str = "CBA_PROJETO";
 /// Limite de tempo de cada hook, em segundos (o padrão do Claude Code é 600).
 pub const LIMITE_HOOK_S: u64 = 10;
 /// Nome do executável do app, sem extensão: identifica as nossas entradas.
@@ -117,7 +117,7 @@ pub enum Erro {
     #[error("o caminho do executável precisa ser absoluto e sem aspas, $ ou crase: {0}")]
     ExecutavelInvalido(PathBuf),
 
-    #[error("pasta do sistema inacessível: {0}")]
+    #[error("pasta do projeto inacessível: {0}")]
     Pasta(PathBuf),
 
     #[error("falha de acesso a {arquivo}: {tipo:?}")]
@@ -173,12 +173,12 @@ impl ConfigClaude {
     }
 }
 
-/// Pasta de um sistema, já com a chave que o Claude Code usa no escopo local.
+/// Pasta de um projeto, já com a chave que o Claude Code usa no escopo local.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Alvo {
-    /// Identificador do sistema (vai para o servidor MCP em [`VAR_SISTEMA`]).
-    pub sistema: String,
+    /// Identificador do projeto (vai para o servidor MCP em [`VAR_PROJETO`]).
+    pub projeto: String,
     /// Diretório de trabalho da sessão do Claude (canônico).
     pub diretorio: PathBuf,
     /// Chave em `projects` do `.claude.json`.
@@ -188,25 +188,25 @@ pub struct Alvo {
 }
 
 impl Alvo {
-    /// Alvo de um sistema cadastrado: a pasta raiz (sem prefixo) ou, na falta dela, a
+    /// Alvo de um projeto cadastrado: a pasta raiz (sem prefixo) ou, na falta dela, a
     /// primeira.
-    pub fn do_sistema(sistema: &cba_index::Sistema) -> Result<Self, Erro> {
-        let pasta = sistema
+    pub fn do_projeto(projeto: &cba_index::Projeto) -> Result<Self, Erro> {
+        let pasta = projeto
             .pastas
             .iter()
             .find(|p| p.prefixo.is_none())
-            .or_else(|| sistema.pastas.first())
+            .or_else(|| projeto.pastas.first())
             .ok_or_else(|| Erro::Pasta(PathBuf::new()))?;
-        Self::da_pasta(&sistema.id, &pasta.caminho)
+        Self::da_pasta(&projeto.id, &pasta.caminho)
     }
 
     /// Alvo de uma pasta, na plataforma atual.
-    pub fn da_pasta(sistema: &str, pasta: &Path) -> Result<Self, Erro> {
-        Self::da_pasta_em(sistema, pasta, Plataforma::atual())
+    pub fn da_pasta(projeto: &str, pasta: &Path) -> Result<Self, Erro> {
+        Self::da_pasta_em(projeto, pasta, Plataforma::atual())
     }
 
     /// Alvo de uma pasta, com a chave no formato de `plataforma`.
-    pub fn da_pasta_em(sistema: &str, pasta: &Path, plataforma: Plataforma) -> Result<Self, Erro> {
+    pub fn da_pasta_em(projeto: &str, pasta: &Path, plataforma: Plataforma) -> Result<Self, Erro> {
         let diretorio = dunce::canonicalize(pasta).map_err(|_| Erro::Pasta(pasta.to_path_buf()))?;
         if !diretorio.is_dir() {
             return Err(Erro::Pasta(diretorio));
@@ -216,7 +216,7 @@ impl Alvo {
             None => (diretorio.clone(), false),
         };
         Ok(Self {
-            sistema: sistema.to_string(),
+            projeto: projeto.to_string(),
             chave: chave_do_caminho(&raiz, plataforma),
             diretorio,
             worktree,
@@ -336,7 +336,7 @@ pub struct Verificacao {
     pub pronto: bool,
 }
 
-/// Prepara, verifica e desfaz o ambiente de um sistema.
+/// Prepara, verifica e desfaz o ambiente de um projeto.
 #[derive(Debug, Clone)]
 pub struct Preparador {
     pub config: ConfigClaude,
@@ -352,7 +352,7 @@ enum Modo {
 }
 
 impl Preparador {
-    /// Configuração no local padrão do sistema atual.
+    /// Configuração no local padrão do usuário atual.
     pub fn padrao(executavel: PathBuf) -> Result<Self, Erro> {
         Self::do_ambiente(&AmbienteReal, executavel)
     }
@@ -479,7 +479,7 @@ impl Preparador {
                 }));
         }
         tracing::info!(
-            sistema = alvo.sistema,
+            projeto = alvo.projeto,
             mudou = resultado.houve_mudanca(),
             hooks_mantidos = restam,
             "preparo desfeito"
@@ -533,7 +533,7 @@ impl Preparador {
 
         if modo == Modo::Gravar {
             tracing::info!(
-                sistema = alvo.sistema,
+                projeto = alvo.projeto,
                 worktree = alvo.worktree,
                 mudou = resultado.houve_mudanca(),
                 "ambiente preparado"
@@ -545,7 +545,7 @@ impl Preparador {
     /// Entrada do servidor MCP, no formato que `claude mcp add-json` grava.
     fn entrada_mcp(&self, alvo: &Alvo) -> Json {
         let mut env = Objeto::default();
-        env.inserir(VAR_SISTEMA, Json::texto(&alvo.sistema));
+        env.inserir(VAR_PROJETO, Json::texto(&alvo.projeto));
         let mut o = Objeto::default();
         o.inserir("type", Json::texto("stdio"));
         o.inserir("command", Json::texto(self.executavel.to_string_lossy()));

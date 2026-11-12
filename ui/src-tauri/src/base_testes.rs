@@ -5,7 +5,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use super::*;
-use crate::teste_base::{SISTEMA, cenario};
+use crate::teste_base::{PROJETO, cenario};
 
 fn caminhos(b: &Busca) -> Vec<&str> {
     b.resultados.iter().map(|r| r.caminho.as_str()).collect()
@@ -17,8 +17,8 @@ fn caminhos(b: &Busca) -> Vec<&str> {
 fn busca_encontra_a_regra_e_a_analise_de_origem() {
     let c = cenario();
     let aprovacao = c.aprovar_analise_da_multa();
-    let regra = format!("{SISTEMA}/{}", aprovacao.regras[0].arquivo);
-    let analise = format!("{SISTEMA}/analises/A-0001.md");
+    let regra = format!("{PROJETO}/{}", aprovacao.regras[0].arquivo);
+    let analise = format!("{PROJETO}/analises/A-0001.md");
 
     let b = buscar(&c.dados, "multa", None, &[], 0).unwrap();
     let achados = caminhos(&b);
@@ -31,8 +31,8 @@ fn busca_encontra_a_regra_e_a_analise_de_origem() {
     assert!(r.trecho.contains("**"), "{}", r.trecho);
     assert!(!b.qualquer_palavra);
 
-    // Sem acento e só no sistema; filtro por tipo.
-    let b = buscar(&c.dados, "carencia", Some(SISTEMA), &["termo".into()], 0).unwrap();
+    // Sem acento e só no projeto; filtro por tipo.
+    let b = buscar(&c.dados, "carencia", Some(PROJETO), &["termo".into()], 0).unwrap();
     assert_eq!(b.total, 1, "{:?}", caminhos(&b));
     assert_eq!(b.resultados[0].tipo.as_deref(), Some("termo"));
     let b = buscar(&c.dados, "multa", None, &["analise".into()], 0).unwrap();
@@ -56,12 +56,12 @@ fn busca_encontra_a_regra_e_a_analise_de_origem() {
 fn abre_a_regra_com_a_ligacao_para_a_analise_de_origem() {
     let c = cenario();
     let aprovacao = c.aprovar_analise_da_multa();
-    let regra = format!("{SISTEMA}/{}", aprovacao.regras[0].arquivo);
-    let analise = format!("{SISTEMA}/analises/A-0001.md");
+    let regra = format!("{PROJETO}/{}", aprovacao.regras[0].arquivo);
+    let analise = format!("{PROJETO}/analises/A-0001.md");
 
     let d = abrir_documento(&c.dados, &regra).unwrap();
     assert_eq!(d.tipo.as_deref(), Some("regra"));
-    assert_eq!(d.sistema.as_deref(), Some(SISTEMA));
+    assert_eq!(d.projeto.as_deref(), Some(PROJETO));
     assert_eq!(d.status.as_deref(), Some("confirmada"));
     assert!(d.problema.is_none());
     assert!(!d.markdown.starts_with("---"), "{}", d.markdown);
@@ -86,7 +86,7 @@ fn abre_a_regra_com_a_ligacao_para_a_analise_de_origem() {
     assert_eq!(
         a.analise,
         Some(AnaliseDoDocumento {
-            sistema: SISTEMA.into(),
+            projeto: PROJETO.into(),
             id: "A-0001".into()
         })
     );
@@ -94,9 +94,9 @@ fn abre_a_regra_com_a_ligacao_para_a_analise_de_origem() {
     assert!(!vinda.sai);
     assert!(a.ligacoes.iter().any(|l| l.caminho.contains("glossario/")));
 
-    // O regras-do-sistema.md não tem frontmatter.
-    let r = abrir_documento(&c.dados, &format!("{SISTEMA}/regras-do-sistema.md")).unwrap();
-    assert_eq!(r.titulo, "Regras do sistema");
+    // O regras-do-projeto.md não tem frontmatter.
+    let r = abrir_documento(&c.dados, &format!("{PROJETO}/regras-do-projeto.md")).unwrap();
+    assert_eq!(r.titulo, "Regras do projeto");
     assert!(r.campos.is_empty());
 }
 
@@ -108,8 +108,8 @@ fn so_abre_documentos_markdown_dentro_da_base() {
         "/etc/passwd".to_owned(),
         "C:/Windows/win.ini".to_owned(),
         String::new(),
-        format!("{SISTEMA}/analises/A-0001.estado.json"),
-        format!("{SISTEMA}/nao-existe.md"),
+        format!("{PROJETO}/analises/A-0001.estado.json"),
+        format!("{PROJETO}/nao-existe.md"),
         "_templates/pergunta.md".to_owned(),
     ] {
         assert!(abrir_documento(&c.dados, &caminho).is_err(), "{caminho}");
@@ -118,9 +118,9 @@ fn so_abre_documentos_markdown_dentro_da_base() {
     {
         let fora = c.dir.path().join("fora.md");
         std::fs::write(&fora, "segredo").unwrap();
-        let link = c.dir.path().join("base").join(SISTEMA).join("link.md");
+        let link = c.dir.path().join("base").join(PROJETO).join("link.md");
         std::os::unix::fs::symlink(&fora, &link).unwrap();
-        let erro = abrir_documento(&c.dados, &format!("{SISTEMA}/link.md")).unwrap_err();
+        let erro = abrir_documento(&c.dados, &format!("{PROJETO}/link.md")).unwrap_err();
         assert!(erro.contains("fora da base"), "{erro}");
     }
 }
@@ -148,7 +148,7 @@ fn vigia_avisa_quando_a_base_muda_fora_do_app() {
         .dir
         .path()
         .join("base")
-        .join(SISTEMA)
+        .join(PROJETO)
         .join("glossario")
         .join("fatura.md");
     std::fs::create_dir_all(novo.parent().unwrap()).unwrap();

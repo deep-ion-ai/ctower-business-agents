@@ -42,7 +42,7 @@ use serde_json::Value;
 
 use crate::schema;
 
-/// O que uma ferramenta executa: recebe o ambiente do sistema e os argumentos já
+/// O que uma ferramenta executa: recebe o ambiente do projeto e os argumentos já
 /// conferidos contra o schema.
 pub type Executar = dyn Fn(&Ambiente, Value) -> Result<Saida, ErroFerramenta> + Send + Sync;
 
@@ -84,9 +84,9 @@ pub enum ErroFerramenta {
     /// inexistente, transição de estado inválida).
     #[error("{0}")]
     Recusa(String),
-    /// O processo não está num sistema cadastrado ou a base não está acessível.
+    /// O processo não está num projeto cadastrado ou a base não está acessível.
     #[error("{0}")]
-    SemSistema(String),
+    SemProjeto(String),
     /// Falha nossa, sem ação do agente que resolva.
     #[error("falha interna do Ctower Business Agents: {0}")]
     Interno(String),
@@ -98,7 +98,7 @@ impl ErroFerramenta {
         match self {
             Self::Argumentos(_) => "argumentos",
             Self::Recusa(_) => "recusa",
-            Self::SemSistema(_) => "sem_sistema",
+            Self::SemProjeto(_) => "sem_projeto",
             Self::Interno(_) => "interno",
         }
     }
@@ -249,7 +249,7 @@ impl Registro {
     }
 
     /// Chama uma ferramenta: confere os argumentos contra o schema, exige o ambiente
-    /// do sistema e executa. Sem argumentos, a ferramenta recebe `{}`. Um pânico na
+    /// do projeto e executa. Sem argumentos, a ferramenta recebe `{}`. Um pânico na
     /// ferramenta vira [`ErroFerramenta::Interno`], sem derrubar o processo.
     pub fn chamar(
         &self,
@@ -262,7 +262,7 @@ impl Registro {
             .ok_or_else(|| ErroChamada::Desconhecida(nome.to_owned()))?;
         let argumentos = argumentos.unwrap_or_else(|| Value::Object(Default::default()));
         schema::validar(&argumentos, &ferramenta.schema).map_err(ErroFerramenta::Argumentos)?;
-        let ambiente = ambiente.map_err(|e| ErroFerramenta::SemSistema(e.to_string()))?;
+        let ambiente = ambiente.map_err(|e| ErroFerramenta::SemProjeto(e.to_string()))?;
         catch_unwind(AssertUnwindSafe(|| {
             (ferramenta.executar)(ambiente, argumentos)
         }))

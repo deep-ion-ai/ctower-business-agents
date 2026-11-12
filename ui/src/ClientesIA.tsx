@@ -114,7 +114,7 @@ export function CartaoClaudeDesktop({
     return (
       <article className="cliente" aria-label="Claude Desktop">
         <h3>Claude Desktop</h3>
-        <p>Não disponível neste sistema (só macOS e Windows).</p>
+        <p>Não disponível neste projeto (só macOS e Windows).</p>
       </article>
     );
   }

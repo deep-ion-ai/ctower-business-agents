@@ -1,6 +1,6 @@
 //! Confere a integridade dos gabaritos em `fixtures/gabaritos/`.
 //!
-//! Para cada gabarito: todo arquivo citado existe dentro da raiz do sistema,
+//! Para cada gabarito: todo arquivo citado existe dentro da raiz do projeto,
 //! todo intervalo de linhas é válido, o trecho esperado aparece no
 //! intervalo, os ids são únicos, toda regra citada existe e os três fluxos
 //! da spec (pergunta, funcionalidade, impacto) têm ao menos um item.
@@ -16,7 +16,7 @@ use serde::Deserialize;
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Gabarito {
-    sistema: String,
+    projeto: String,
     raiz: String,
     regras: Vec<Regra>,
     #[serde(default)]
@@ -168,7 +168,7 @@ impl Conferencia {
             .all(|c| matches!(c, Component::Normal(_)));
         if relativo.is_empty() || relativo.contains('\\') || !so_normais {
             self.erro(format!(
-                "{onde}: caminho `{relativo}` deve ser relativo à raiz do sistema, \
+                "{onde}: caminho `{relativo}` deve ser relativo à raiz do projeto, \
                  com `/` e sem `..`"
             ));
             return None;
@@ -252,7 +252,7 @@ fn conferir(caminho: &Path) -> Vec<String> {
         erros: Vec::new(),
     };
 
-    c.texto_preenchido("gabarito", "sistema", &gabarito.sistema);
+    c.texto_preenchido("gabarito", "projeto", &gabarito.projeto);
     if !raiz.is_dir() {
         c.erro(format!("raiz `{}` não é uma pasta", gabarito.raiz));
         return c.erros;
@@ -261,7 +261,7 @@ fn conferir(caminho: &Path) -> Vec<String> {
     let raiz_canonica = raiz.canonicalize().expect("raiz canônica");
     let gabarito_canonico = caminho.canonicalize().expect("gabarito canônico");
     if gabarito_canonico.starts_with(&raiz_canonica) {
-        c.erro("o gabarito não pode ficar dentro da raiz do sistema".to_string());
+        c.erro("o gabarito não pode ficar dentro da raiz do projeto".to_string());
     }
 
     // Os três fluxos da spec.

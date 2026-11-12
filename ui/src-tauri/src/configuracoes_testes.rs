@@ -13,7 +13,7 @@ use cba_session::clientes::{Ambiente, ErroExecucao, Plataforma, Saida};
 use cba_session::preparo::{Preparador, Situacao};
 
 use super::*;
-use crate::teste_base::{SISTEMA, cenario};
+use crate::teste_base::{PROJETO, cenario};
 use crate::{alteracoes, analise};
 
 /// Conteúdo de todos os arquivos de uma pasta, pelo caminho relativo.
@@ -80,7 +80,7 @@ fn mover_copia_confere_apaga_a_origem_e_reconstroi_o_indice() {
     assert!(busca.total > 0);
     // A análise continua acessível pelo app.
     assert_eq!(
-        analise::listar_analises(&c.dados, SISTEMA).unwrap().len(),
+        analise::listar_analises(&c.dados, PROJETO).unwrap().len(),
         1
     );
 }
@@ -211,7 +211,7 @@ fn copia_que_nao_confere_e_desfeita() {
 fn exclusoes_com_previa_e_gravacao() {
     let c = cenario();
     let ajuste = AjusteExclusoes {
-        sistema: SISTEMA.into(),
+        projeto: PROJETO.into(),
         exclusoes: vec!["cobol/".into(), " ".into()],
         inclusoes: vec![],
     };
@@ -225,10 +225,10 @@ fn exclusoes_com_previa_e_gravacao() {
             .any(|l| l.chave == "cobol")
     );
     // A prévia não grava.
-    let cadastro = Cadastro::em(c.dados.sistemas());
+    let cadastro = Cadastro::em(c.dados.projetos());
     assert!(
         cadastro
-            .obter(SISTEMA)
+            .obter(PROJETO)
             .unwrap()
             .unwrap()
             .exclusoes
@@ -244,10 +244,10 @@ fn exclusoes_com_previa_e_gravacao() {
             .any(|l| l.chave == "cobol")
     );
     assert_eq!(
-        cadastro.obter(SISTEMA).unwrap().unwrap().exclusoes,
+        cadastro.obter(PROJETO).unwrap().unwrap().exclusoes,
         ["cobol/"]
     );
-    let gravado = cadastro.inventario(SISTEMA).unwrap().unwrap();
+    let gravado = cadastro.inventario(PROJETO).unwrap().unwrap();
     assert!(
         !gravado
             .resumo()
@@ -262,7 +262,7 @@ fn exclusoes_com_previa_e_gravacao() {
     };
     assert!(salvar_exclusoes(&c.dados, &invalido).is_err());
     let desconhecido = AjusteExclusoes {
-        sistema: "outro".into(),
+        projeto: "outro".into(),
         ..ajuste
     };
     assert!(previa_exclusoes(&c.dados, &desconhecido).is_err());
@@ -357,11 +357,11 @@ fn configuracao_do_analista(raiz: &Path) -> (Preparador, PathBuf, PathBuf) {
 
 /// Prepara o ambiente e liga a proteção, conferindo que a configuração mudou.
 fn preparar_com_protecao(dados: &DiretorioDados, preparador: &Preparador, e: &Path, s: &Path) {
-    analise::preparar_ambiente(dados, preparador, SISTEMA).unwrap();
-    let p = alteracoes::mudar_protecao(dados, preparador, SISTEMA, true).unwrap();
+    analise::preparar_ambiente(dados, preparador, PROJETO).unwrap();
+    let p = alteracoes::mudar_protecao(dados, preparador, PROJETO, true).unwrap();
     assert!(p.ligada && p.completa);
     assert!(
-        analise::verificar_ambiente(dados, preparador, SISTEMA)
+        analise::verificar_ambiente(dados, preparador, PROJETO)
             .unwrap()
             .pronto
     );
@@ -376,23 +376,23 @@ fn desfazer_o_ambiente_deixa_a_configuracao_do_claude_como_antes() {
     let (preparador, estado, settings) = configuracao_do_analista(&raiz);
     preparar_com_protecao(&c.dados, &preparador, &estado, &settings);
 
-    let feito = desfazer_ambiente(&c.dados, &preparador, SISTEMA).unwrap();
+    let feito = desfazer_ambiente(&c.dados, &preparador, PROJETO).unwrap();
     assert_eq!(feito.protecao_tirada.len(), 1);
     assert!(feito.avisos.is_empty());
     // Byte a byte, como antes do preparo.
     assert_eq!(fs::read_to_string(&estado).unwrap(), ESTADO_DO_ANALISTA);
     assert_eq!(fs::read_to_string(&settings).unwrap(), SETTINGS_DO_ANALISTA);
-    let v = analise::verificar_ambiente(&c.dados, &preparador, SISTEMA).unwrap();
+    let v = analise::verificar_ambiente(&c.dados, &preparador, PROJETO).unwrap();
     assert_eq!(v.verificacao.servidor_mcp, Situacao::Ausente);
-    assert!(!protecao::protegido(&c.dados, SISTEMA));
-    // O sistema continua cadastrado; desfazer de novo não muda nada.
+    assert!(!protecao::protegido(&c.dados, PROJETO));
+    // O projeto continua cadastrado; desfazer de novo não muda nada.
     assert!(
-        Cadastro::em(c.dados.sistemas())
-            .obter(SISTEMA)
+        Cadastro::em(c.dados.projetos())
+            .obter(PROJETO)
             .unwrap()
             .is_some()
     );
-    desfazer_ambiente(&c.dados, &preparador, SISTEMA).unwrap();
+    desfazer_ambiente(&c.dados, &preparador, PROJETO).unwrap();
     assert_eq!(fs::read_to_string(&settings).unwrap(), SETTINGS_DO_ANALISTA);
 }
 
@@ -404,63 +404,63 @@ fn descadastro_desfaz_o_ambiente_e_a_protecao_e_mantem_os_documentos() {
     let (preparador, estado, settings) = configuracao_do_analista(&raiz);
     preparar_com_protecao(&c.dados, &preparador, &estado, &settings);
     let base = base_atual(&c.dados);
-    let documentos = conteudo(&base.join(SISTEMA));
+    let documentos = conteudo(&base.join(PROJETO));
 
-    let feito = descadastrar(&c.dados, &preparador, SISTEMA).unwrap();
+    let feito = descadastrar(&c.dados, &preparador, PROJETO).unwrap();
     assert_eq!(fs::read_to_string(&estado).unwrap(), ESTADO_DO_ANALISTA);
     assert_eq!(fs::read_to_string(&settings).unwrap(), SETTINGS_DO_ANALISTA);
-    assert!(!protecao::protegido(&c.dados, SISTEMA));
+    assert!(!protecao::protegido(&c.dados, PROJETO));
     assert!(
-        Cadastro::em(c.dados.sistemas())
-            .obter(SISTEMA)
+        Cadastro::em(c.dados.projetos())
+            .obter(PROJETO)
             .unwrap()
             .is_none()
     );
-    assert_eq!(feito.documentos, Some(base.join(SISTEMA)));
-    assert_eq!(conteudo(&base.join(SISTEMA)), documentos);
-    assert!(descadastrar(&c.dados, &preparador, SISTEMA).is_err());
+    assert_eq!(feito.documentos, Some(base.join(PROJETO)));
+    assert_eq!(conteudo(&base.join(PROJETO)), documentos);
+    assert!(descadastrar(&c.dados, &preparador, PROJETO).is_err());
     assert!(
         configuracoes(&c.dados, Some(&preparador))
             .unwrap()
-            .sistemas
+            .projetos
             .is_empty()
     );
 }
 
 #[test]
-fn descadastro_com_a_pasta_do_sistema_apagada() {
+fn descadastro_com_a_pasta_do_projeto_apagada() {
     let c = cenario();
     let raiz = dunce::canonicalize(c.dir.path()).unwrap();
     let (preparador, estado, settings) = configuracao_do_analista(&raiz);
     preparar_com_protecao(&c.dados, &preparador, &estado, &settings);
     fs::remove_dir_all(&c.codigo).unwrap();
 
-    let feito = descadastrar(&c.dados, &preparador, SISTEMA).unwrap();
+    let feito = descadastrar(&c.dados, &preparador, PROJETO).unwrap();
     assert_eq!(feito.ambiente.avisos.len(), 1);
     assert_eq!(fs::read_to_string(&estado).unwrap(), ESTADO_DO_ANALISTA);
     assert_eq!(fs::read_to_string(&settings).unwrap(), SETTINGS_DO_ANALISTA);
 }
 
 #[test]
-fn descadastro_de_um_sistema_mantem_o_ambiente_do_outro() {
+fn descadastro_de_um_projeto_mantem_o_ambiente_do_outro() {
     let c = cenario();
     let raiz = dunce::canonicalize(c.dir.path()).unwrap();
     let (preparador, _, _) = configuracao_do_analista(&raiz);
     let outro = raiz.join("codigo").join("outro");
     fs::create_dir_all(&outro).unwrap();
     fs::write(outro.join("a.sql"), "select 1;\n").unwrap();
-    primeiro_uso::cadastrar_sistema(
+    primeiro_uso::cadastrar_projeto(
         &c.dados,
-        &primeiro_uso::PedidoSistema {
+        &primeiro_uso::PedidoProjeto {
             nome: "Outro".into(),
             pastas: vec![outro.to_str().unwrap().into()],
             ..Default::default()
         },
     )
     .unwrap();
-    analise::preparar_ambiente(&c.dados, &preparador, SISTEMA).unwrap();
+    analise::preparar_ambiente(&c.dados, &preparador, PROJETO).unwrap();
     analise::preparar_ambiente(&c.dados, &preparador, "outro").unwrap();
-    descadastrar(&c.dados, &preparador, SISTEMA).unwrap();
+    descadastrar(&c.dados, &preparador, PROJETO).unwrap();
     assert!(
         analise::verificar_ambiente(&c.dados, &preparador, "outro")
             .unwrap()
@@ -479,7 +479,7 @@ fn textos_mostram_quando_a_base_sobrepoe_o_padrao() {
     assert!(de(GrupoTexto::Template) > 0);
     assert_eq!(de(GrupoTexto::Roteiro), 3);
     assert_eq!(de(GrupoTexto::Prompt), 5);
-    assert_eq!(de(GrupoTexto::RegrasDoSistema), 1);
+    assert_eq!(de(GrupoTexto::RegrasDoProjeto), 1);
     let json = serde_json::to_value(&lista).unwrap();
     assert!(json[0]["grupo"].is_string() && json[0]["estado"].is_string());
 
@@ -507,7 +507,7 @@ fn textos_mostram_quando_a_base_sobrepoe_o_padrao() {
         "# Meu roteiro\n\n{{entrada}}\n"
     );
 
-    let regras = format!("{SISTEMA}/regras-do-sistema.md");
+    let regras = format!("{PROJETO}/regras-do-projeto.md");
     let caminho = preparar_texto(&c.dados, &regras).unwrap();
     fs::write(&caminho, "# Regras\n\nNunca citar o banco de produção.\n").unwrap();
     assert_eq!(estado(&regras), EstadoTexto::Editado);
@@ -515,7 +515,7 @@ fn textos_mostram_quando_a_base_sobrepoe_o_padrao() {
     // Só os textos do catálogo.
     for fora in [
         "../fora.md",
-        "faturamento-exemplo/sistema.md",
+        "faturamento-exemplo/projeto.md",
         "_templates/inexistente.md",
         "/etc/passwd",
     ] {
@@ -524,15 +524,15 @@ fn textos_mostram_quando_a_base_sobrepoe_o_padrao() {
 }
 
 #[test]
-fn configuracoes_reunem_cliente_base_e_sistemas() {
+fn configuracoes_reunem_cliente_base_e_projetos() {
     let c = cenario();
     primeiro_uso::escolher_cliente(&c.dados, ClientePreferido::ClaudeDesktop).unwrap();
     let cfg = configuracoes(&c.dados, None).unwrap();
     assert_eq!(cfg.cliente, Some(ClientePreferido::ClaudeDesktop));
     assert_eq!(cfg.base, Some(base_atual(&c.dados)));
-    assert_eq!(cfg.sistemas.len(), 1);
-    assert!(cfg.sistemas[0].pastas[0].existe);
+    assert_eq!(cfg.projetos.len(), 1);
+    assert!(cfg.projetos[0].pastas[0].existe);
     let json = serde_json::to_value(&cfg).unwrap();
-    assert_eq!(json["sistemas"][0]["id"], SISTEMA);
+    assert_eq!(json["projetos"][0]["id"], PROJETO);
     assert!(json["configClaude"].is_null());
 }

@@ -31,9 +31,9 @@ fn cenario() -> Cenario {
     let dir = tempfile::tempdir().unwrap();
     let raiz = dir.path();
     let dados = DiretorioDados::em(raiz.join("dados"));
-    let sistema = cba_index::Sistema::novo("Faturamento Exemplo", [fixture()]).unwrap();
-    cba_index::Cadastro::em(dados.sistemas())
-        .cadastrar(&sistema)
+    let projeto = cba_index::Projeto::novo("Faturamento Exemplo", [fixture()]).unwrap();
+    cba_index::Cadastro::em(dados.projetos())
+        .cadastrar(&projeto)
         .unwrap();
     cba_kb::Base::criar(raiz.join("base")).unwrap();
     Config {
@@ -432,7 +432,7 @@ fn estrutura_lista_as_rotinas_com_linhas() {
         "{texto}"
     );
 
-    // Pelo caminho absoluto dentro do sistema também.
+    // Pelo caminho absoluto dentro do projeto também.
     let absoluto = fixture().join("db/03_pkg_cobranca.sql");
     let absoluto = dunce_canonico(&absoluto);
     let (_, mesmo) = c.chamar("estrutura", json!({ "arquivo": absoluto, "limite": 50 }));
@@ -441,7 +441,7 @@ fn estrutura_lista_as_rotinas_com_linhas() {
     // Caminho errado: recusa com a sugestão do arquivo de mesmo nome.
     let m = c.recusa("estrutura", json!({ "arquivo": "03_pkg_cobranca.sql" }));
     assert!(m.contains("`db/03_pkg_cobranca.sql`"), "{m}");
-    // Fora do sistema: recusa com o motivo.
+    // Fora do projeto: recusa com o motivo.
     let m = c.recusa("estrutura", json!({ "arquivo": "../segredo.txt" }));
     assert!(m.contains("não pode ser consultado"), "{m}");
 }
@@ -478,7 +478,7 @@ fn schema_da_tabela_de_faturas() {
 }
 
 #[test]
-fn mapa_do_sistema_e_de_um_modulo() {
+fn mapa_do_projeto_e_de_um_modulo() {
     let c = cenario();
     let (texto, dados) = c.chamar("mapa", json!({}));
     let pastas: Vec<&str> = dados["entradas"]
@@ -489,7 +489,7 @@ fn mapa_do_sistema_e_de_um_modulo() {
         .map(|e| e["caminho"].as_str().unwrap())
         .collect();
     assert_eq!(pastas, ["backend", "cobol", "db", "delphi", "frontend"]);
-    assert!(texto.starts_with("Sistema Faturamento Exemplo:"), "{texto}");
+    assert!(texto.starts_with("Projeto Faturamento Exemplo:"), "{texto}");
     let db = dados["entradas"]
         .as_array()
         .unwrap()

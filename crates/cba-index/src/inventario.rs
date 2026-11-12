@@ -1,4 +1,4 @@
-//! Inventário dos arquivos de um sistema: o que será analisado e o que foi ignorado.
+//! Inventário dos arquivos de um projeto: o que será analisado e o que foi ignorado.
 //!
 //! Para cada arquivo analisado guarda caminho relativo, tamanho, data de
 //! modificação, linguagem e hash SHA-256 do conteúdo. O inventário anterior serve
@@ -23,7 +23,7 @@ use crate::Erro;
 use crate::exclusoes::{Exclusoes, Motivo};
 use crate::git::{RepositorioGit, detectar_git};
 use crate::linguagem::Linguagem;
-use crate::sistema::Sistema;
+use crate::projeto::Projeto;
 
 /// Bytes do início do arquivo usados para detectar binário e linguagem.
 const INICIO: usize = 8 * 1024;
@@ -31,7 +31,7 @@ const INICIO: usize = 8 * 1024;
 /// Arquivo que entra na análise.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ArquivoInventariado {
-    /// Caminho relativo à raiz do sistema, com `/`.
+    /// Caminho relativo à raiz do projeto, com `/`.
     pub caminho: String,
     pub tamanho: u64,
     /// Data de modificação em nanossegundos desde 1970 (UTC), quando disponível.
@@ -45,7 +45,7 @@ pub struct ArquivoInventariado {
 /// Arquivo ou pasta que ficou fora da análise.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Ignorado {
-    /// Caminho relativo à raiz do sistema, com `/`.
+    /// Caminho relativo à raiz do projeto, com `/`.
     pub caminho: String,
     /// Pasta inteira (o conteúdo não é listado).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -65,7 +65,7 @@ pub struct Ignorado {
     pub modificado: Option<u64>,
 }
 
-/// Pasta do sistema no momento do inventário, com o estado do git.
+/// Pasta do projeto no momento do inventário, com o estado do git.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PastaInventariada {
     pub caminho: PathBuf,
@@ -85,11 +85,11 @@ pub struct Estatisticas {
     pub duracao_ms: u64,
 }
 
-/// Inventário de um sistema.
+/// Inventário de um projeto.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Inventario {
-    /// Identificador do sistema.
-    pub sistema: String,
+    /// Identificador do projeto.
+    pub projeto: String,
     /// Quando foi gerado, em segundos desde 1970 (UTC).
     pub gerado_em: u64,
     pub pastas: Vec<PastaInventariada>,
@@ -158,11 +158,11 @@ enum Resultado {
     Ignorado(Ignorado, bool),
 }
 
-/// Inventaria o sistema. Com o inventário anterior, não lê de novo os arquivos de
+/// Inventaria o projeto. Com o inventário anterior, não lê de novo os arquivos de
 /// mesmo tamanho e mesma data de modificação.
-pub fn inventariar(sistema: &Sistema, anterior: Option<&Inventario>) -> Result<Inventario, Erro> {
+pub fn inventariar(projeto: &Projeto, anterior: Option<&Inventario>) -> Result<Inventario, Erro> {
     let inicio = Instant::now();
-    let escopo = sistema.escopo()?;
+    let escopo = projeto.escopo()?;
     let exclusoes = escopo.exclusoes();
 
     let mut ignorados = Vec::new();
@@ -212,7 +212,7 @@ pub fn inventariar(sistema: &Sistema, anterior: Option<&Inventario>) -> Result<I
     est.duracao_ms = inicio.elapsed().as_millis().try_into().unwrap_or(u64::MAX);
 
     Ok(Inventario {
-        sistema: sistema.id.clone(),
+        projeto: projeto.id.clone(),
         gerado_em: SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map(|d| d.as_secs())

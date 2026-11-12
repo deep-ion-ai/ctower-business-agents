@@ -1,4 +1,4 @@
-//! Cenário dos testes das telas do início, do sistema e da base: uma cópia do
+//! Cenário dos testes das telas do início, do projeto e da base: uma cópia do
 //! sistema fictício "Faturamento Exemplo" numa pasta temporária (para a revalidação
 //! poder mudar o código), cadastrada pelo primeiro uso, com uma base vazia.
 
@@ -15,7 +15,7 @@ use serde_json::json;
 
 use crate::{analise, primeiro_uso};
 
-pub const SISTEMA: &str = "faturamento-exemplo";
+pub const PROJETO: &str = "faturamento-exemplo";
 pub const PKG: &str = "db/03_pkg_cobranca.sql";
 
 fn fixture() -> PathBuf {
@@ -56,9 +56,9 @@ pub fn cenario() -> Cenario {
         base.to_str().unwrap(),
     )
     .unwrap();
-    primeiro_uso::cadastrar_sistema(
+    primeiro_uso::cadastrar_projeto(
         &dados,
-        &primeiro_uso::PedidoSistema {
+        &primeiro_uso::PedidoProjeto {
             nome: "Faturamento Exemplo".into(),
             pastas: vec![codigo.to_str().unwrap().into()],
             ..Default::default()
@@ -70,7 +70,7 @@ pub fn cenario() -> Cenario {
 
 impl Cenario {
     pub fn ambiente(&self) -> Ambiente {
-        analise::ambiente(&self.dados, SISTEMA).unwrap()
+        analise::ambiente(&self.dados, PROJETO).unwrap()
     }
 
     pub fn chamar(&self, ferramenta: &str, args: serde_json::Value) {
@@ -86,7 +86,7 @@ impl Cenario {
     pub fn aprovar_analise_da_multa(&self) -> Aprovacao {
         let criada = analise::criar_analise(
             &self.dados,
-            SISTEMA,
+            PROJETO,
             "Como é calculada a multa por atraso de pagamento?",
             Some("Multa por atraso"),
         )

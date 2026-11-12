@@ -26,12 +26,12 @@ struct Args {
     pagina: ArgsPagina,
 }
 
-/// `schema(tabela?)`: o modelo de dados do sistema ou de uma tabela.
+/// `schema(tabela?)`: o modelo de dados do projeto ou de uma tabela.
 pub fn schema() -> Ferramenta {
     Ferramenta::nova(
         "schema",
         "Schema do banco",
-        "Consulta o modelo de dados extraído dos scripts de banco do sistema. Sem \
+        "Consulta o modelo de dados extraído dos scripts de banco do projeto. Sem \
          `tabela`: lista tabelas, visões, sequências, índices e sinônimos, com arquivo, \
          linhas e quantidade de colunas. Com `tabela`: as colunas (tipo e comentário), \
          as chaves estrangeiras de e para a tabela e quantas vezes ela é lida e gravada \
@@ -114,7 +114,7 @@ fn de_todas(mapa: &Mapa, args: ArgsPagina) -> (String, Value) {
     if pagina.total == 0 {
         let _ = writeln!(
             texto,
-            "Nenhuma tabela extraída dos scripts do sistema. O modelo de dados pode estar \
+            "Nenhuma tabela extraída dos scripts do projeto. O modelo de dados pode estar \
              fora do código (banco sem scripts versionados): procure o uso das tabelas \
              no código com `referencias` ou registre a dúvida com `perguntar`."
         );
@@ -312,7 +312,7 @@ fn nao_encontrada(mapa: &Mapa, tabela: &str, achados: &[Achado<'_>]) -> ErroFerr
     if parecidos.is_empty() {
         mensagem.push_str(
             ". Chame `schema` sem `tabela` para a lista; se a tabela não tem script no \
-             sistema, procure o uso dela com `referencias`",
+             projeto, procure o uso dela com `referencias`",
         );
     } else {
         let _ = write!(mensagem, ". Nomes parecidos: {}", parecidos.join(", "));

@@ -47,7 +47,7 @@ pub enum Retomada {
     /// Conversa nova, com identificador gerado pelo app.
     #[default]
     Nova,
-    /// A conversa mais recente na pasta do sistema (`--continue`).
+    /// A conversa mais recente na pasta do projeto (`--continue`).
     Continuar,
     /// Uma conversa conhecida (`--resume <id>`).
     Sessao { id: String },
@@ -83,11 +83,11 @@ pub struct Lancamento {
     rename_all_fields = "camelCase"
 )]
 pub enum ErroAbertura {
-    #[error("o sistema \"{sistema}\" não está cadastrado")]
-    SistemaNaoCadastrado { sistema: String },
+    #[error("o projeto \"{projeto}\" não está cadastrado")]
+    ProjetoNaoCadastrado { projeto: String },
 
     #[error(
-        "o ambiente do Claude ainda não está preparado para este sistema: prepare-o pelo app antes de abrir o terminal"
+        "o ambiente do Claude ainda não está preparado para este projeto: prepare-o pelo app antes de abrir o terminal"
     )]
     AmbienteNaoPreparado {
         /// O que falta, em linguagem do analista.
@@ -139,19 +139,19 @@ impl ErroAbertura {
     }
 }
 
-/// Confere o ambiente e monta o comando do `claude` para a sessão de `sistema`.
+/// Confere o ambiente e monta o comando do `claude` para a sessão de `projeto`.
 ///
 /// Recusa com orientação quando o ambiente não está preparado
 /// ([`Preparador::verificar`]) ou o Claude Code não está instalado
-/// ([`clientes::localizar_claude`]). O `claude` roda na pasta do sistema
+/// ([`clientes::localizar_claude`]). O `claude` roda na pasta do projeto
 /// ([`Alvo::diretorio`]).
 pub fn lancamento(
-    sistema: &cba_index::Sistema,
+    projeto: &cba_index::Projeto,
     pedido: &PedidoClaude,
     preparador: &Preparador,
     ambiente: &dyn Ambiente,
 ) -> Result<Lancamento, ErroAbertura> {
-    let alvo = Alvo::do_sistema(sistema).map_err(|e| ErroAbertura::Falha {
+    let alvo = Alvo::do_projeto(projeto).map_err(|e| ErroAbertura::Falha {
         mensagem: e.to_string(),
     })?;
     let verificacao = preparador
@@ -352,7 +352,7 @@ mod tests {
     fn montar_unix(pedido: &PedidoClaude) -> Result<Lancamento, ErroAbertura> {
         montar(
             Path::new("/home/a/.local/bin/claude"),
-            Path::new("/sistemas/fat"),
+            Path::new("/projetos/fat"),
             pedido,
             Plataforma::Linux,
             Some(OsStr::new("/usr/bin:/bin")),
@@ -387,7 +387,7 @@ mod tests {
             l.id_sessao.as_deref(),
             Some("11111111-2222-4333-8444-555555555555")
         );
-        assert_eq!(l.comando.diretorio, Path::new("/sistemas/fat"));
+        assert_eq!(l.comando.diretorio, Path::new("/projetos/fat"));
         assert_eq!(
             env(&l, "PATH").as_deref(),
             Some("/home/a/.local/bin:/usr/bin:/bin")
@@ -470,7 +470,7 @@ mod tests {
         let l = montar(
             // Com `/`, para o caminho ter pasta também quando o teste roda fora do Windows.
             Path::new("C:/Users/a/.local/bin/claude.exe"),
-            Path::new(r"C:\sistemas\fat"),
+            Path::new(r"C:\projetos\fat"),
             &PedidoClaude::default(),
             Plataforma::Windows,
             Some(OsStr::new(r"C:\Windows\system32")),

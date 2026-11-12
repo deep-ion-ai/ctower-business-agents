@@ -109,7 +109,7 @@ fn dica_da_secao(fluxo: Fluxo, marcador: &str) -> &'static str {
             "uma afirmação por premissa do solicitante (\"Premissa do solicitante: ... Verificação: confere | não confere | confere em parte. ...\"), verificada no código, e uma afirmação final com a demanda como entendida, já com as correções"
         }
         (Fluxo::Impacto, "como_e_hoje") => {
-            "como o sistema trata o assunto hoje: as regras atuais, com valores e condições"
+            "como o projeto trata o assunto hoje: as regras atuais, com valores e condições"
         }
         (Fluxo::Impacto, "funcionalidades") => {
             "o que muda em cada funcionalidade ou regra, com o lugar no código; itens repetidos agrupados, com a contagem"
@@ -146,7 +146,7 @@ fn dica_da_secao(fluxo: Fluxo, marcador: &str) -> &'static str {
             "uma regra de negócio por afirmação, com valores e de onde vêm; a mesma regra em mais de uma camada vai numa afirmação só, com as evidências de cada uma e as divergências"
         }
         (Fluxo::Explicar, "dados") => "tabelas e campos lidos e gravados, e em que passo",
-        (Fluxo::Explicar, "integracoes") => "sistemas, lotes e serviços chamados ou que chamam",
+        (Fluxo::Explicar, "integracoes") => "projetos, lotes e serviços chamados ou que chamam",
         _ => "",
     }
 }

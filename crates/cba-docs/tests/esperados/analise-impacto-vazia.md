@@ -2,7 +2,7 @@
 tipo: analise-impacto
 id: A-0009
 titulo: Sem registros ainda
-sistema: faturamento-exemplo
+projeto: faturamento-exemplo
 demanda:
   origem: texto
   chave: null
@@ -17,7 +17,7 @@ analista: Ana Exemplo
 
 # A-0009 · Sem registros ainda
 
-Análise de impacto · Sistema `faturamento-exemplo` · Status: rascunho · Criada em 2026-11-11 · Analista: Ana Exemplo · Código: `develop` @ `1a2b3c4d`
+Análise de impacto · Projeto `faturamento-exemplo` · Status: rascunho · Criada em 2026-11-11 · Analista: Ana Exemplo · Código: `develop` @ `1a2b3c4d`
 
 ## Demanda como veio
 

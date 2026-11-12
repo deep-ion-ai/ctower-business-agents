@@ -43,7 +43,7 @@ export interface Prontidao {
   pendencias: Pendencia[];
   avisos: string[];
   areas: Area[];
-  /** Mais de uma área no `sistema.md`: a área precisa ser escolhida. */
+  /** Mais de uma área no `projeto.md`: a área precisa ser escolhida. */
   areaObrigatoria: boolean;
   regras: RegraPrevista[];
   incorretas: number[];
@@ -86,21 +86,21 @@ export const EXTENSAO: Record<FormatoExportacao, string> = { markdown: "md", wor
 
 /** Operações da revisão. A interface usa {@link apiRevisaoTauri}; os testes, uma falsa. */
 export interface ApiRevisao {
-  revisar(sistema: string, analise: string, decisao: DecisaoRevisao): Promise<VistaAnalise>;
-  prontidao(sistema: string, analise: string): Promise<Prontidao>;
-  aprovar(sistema: string, analise: string, opcoes: OpcoesAprovacao): Promise<AprovacaoFeita>;
-  /** Diálogo de salvar do sistema; `null` se o analista cancelar. */
+  revisar(projeto: string, analise: string, decisao: DecisaoRevisao): Promise<VistaAnalise>;
+  prontidao(projeto: string, analise: string): Promise<Prontidao>;
+  aprovar(projeto: string, analise: string, opcoes: OpcoesAprovacao): Promise<AprovacaoFeita>;
+  /** Diálogo de salvar do projeto; `null` se o analista cancelar. */
   escolherDestino(nome: string, formato: FormatoExportacao): Promise<string | null>;
   /** Exporta e devolve o caminho gravado. */
-  exportar(sistema: string, analise: string, pedido: PedidoExportacao): Promise<string>;
+  exportar(projeto: string, analise: string, pedido: PedidoExportacao): Promise<string>;
 }
 
 export const apiRevisaoTauri: ApiRevisao = {
-  revisar: (sistema, analise, decisao) =>
-    invoke("revisar_analise_sistema", { sistema, analise, decisao }),
-  prontidao: (sistema, analise) => invoke("prontidao_aprovacao_sistema", { sistema, analise }),
-  aprovar: (sistema, analise, opcoes) =>
-    invoke("aprovar_analise_sistema", { sistema, analise, opcoes }),
+  revisar: (projeto, analise, decisao) =>
+    invoke("revisar_analise_projeto", { projeto, analise, decisao }),
+  prontidao: (projeto, analise) => invoke("prontidao_aprovacao_projeto", { projeto, analise }),
+  aprovar: (projeto, analise, opcoes) =>
+    invoke("aprovar_analise_projeto", { projeto, analise, opcoes }),
   escolherDestino: (nome, formato) =>
     save({
       title: "Exportar a análise",
@@ -111,6 +111,6 @@ export const apiRevisaoTauri: ApiRevisao = {
           : { name: "Markdown", extensions: ["md"] },
       ],
     }),
-  exportar: (sistema, analise, pedido) =>
-    invoke("exportar_analise_sistema", { sistema, analise, pedido }),
+  exportar: (projeto, analise, pedido) =>
+    invoke("exportar_analise_projeto", { projeto, analise, pedido }),
 };

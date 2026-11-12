@@ -110,7 +110,7 @@ pub struct Template {
 
 impl Template {
     /// Analisa o texto de um template do tipo. Devolve os avisos de marcadores
-    /// desconhecidos. `None` se o tipo não tiver template (`sistema`,
+    /// desconhecidos. `None` se o tipo não tiver template (`projeto`,
     /// `memoria-area`).
     pub fn analisar(
         tipo: TipoDocumento,
@@ -374,7 +374,7 @@ mod tests {
 
     #[test]
     fn tipos_sem_template() {
-        assert!(Template::analisar(TipoDocumento::Sistema, "x", Origem::Padrao).is_none());
+        assert!(Template::analisar(TipoDocumento::Projeto, "x", Origem::Padrao).is_none());
         assert!(
             Templates::padrao()
                 .template(TipoDocumento::MemoriaArea)

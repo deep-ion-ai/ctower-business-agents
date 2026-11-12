@@ -43,7 +43,7 @@ pub fn propor_termo() -> Ferramenta {
     Ferramenta::nova(
         "propor_termo",
         "Propor termo do glossário",
-        "Propõe uma entrada para o glossário do sistema: um termo de negócio, a \
+        "Propõe uma entrada para o glossário do projeto: um termo de negócio, a \
          definição, os sinônimos e onde ele vive no código (entidades, tabelas, \
          colunas, telas, serviços, documentos). Use quando descobrir como um conceito \
          do negócio aparece no código. As evidências, se houver, são conferidas como \

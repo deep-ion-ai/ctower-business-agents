@@ -20,7 +20,7 @@ function concluido() {
   api.situacao.mockResolvedValue(
     situacaoInicial({
       base: "/base",
-      sistemas: [{ id: "faturamento-exemplo", nome: "Faturamento Exemplo" }],
+      projetos: [{ id: "faturamento-exemplo", nome: "Faturamento Exemplo" }],
       cliente: "terminalEmbutido",
       primeiroUsoConcluido: true,
     }),
@@ -49,7 +49,7 @@ describe("App", () => {
     api.situacao.mockResolvedValueOnce(situacaoInicial()).mockResolvedValue(
       situacaoInicial({
         base: "/base",
-        sistemas: [{ id: "faturamento-exemplo", nome: "Faturamento Exemplo" }],
+        projetos: [{ id: "faturamento-exemplo", nome: "Faturamento Exemplo" }],
         primeiroUsoConcluido: true,
       }),
     );
@@ -60,7 +60,7 @@ describe("App", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Continuar" }));
     await screen.findByText(/o app vai criá-la/);
     fireEvent.click(screen.getByRole("button", { name: "Usar esta pasta" }));
-    fireEvent.change(await screen.findByLabelText("Nome do sistema"), {
+    fireEvent.change(await screen.findByLabelText("Nome do projeto"), {
       target: { value: "Faturamento Exemplo" },
     });
     fireEvent.change(screen.getByLabelText(/Pasta principal/), {
@@ -68,7 +68,7 @@ describe("App", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Ver o que será analisado" }));
     await screen.findByRole("region", { name: "Prévia do inventário" });
-    fireEvent.click(screen.getByRole("button", { name: "Cadastrar o sistema" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cadastrar o projeto" }));
     await screen.findByText(/O ambiente do Claude está preparado/);
     fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
     fireEvent.click(await screen.findByRole("button", { name: "Fazer a primeira análise" }));

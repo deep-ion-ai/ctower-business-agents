@@ -1,4 +1,4 @@
-//! Terminais abertos pelo app, por identificador, e a última sessão de cada sistema.
+//! Terminais abertos pelo app, por identificador, e a última sessão de cada projeto.
 
 use std::collections::{BTreeMap, HashMap};
 use std::io;
@@ -111,7 +111,7 @@ impl Sessoes {
     }
 }
 
-/// A última sessão do terminal embutido de um sistema: o que o app oferece para
+/// A última sessão do terminal embutido de um projeto: o que o app oferece para
 /// retomar quando é reaberto.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -123,7 +123,7 @@ pub struct UltimaSessao {
     pub aberta_em: u64,
 }
 
-/// Arquivo JSON com a [`UltimaSessao`] de cada sistema
+/// Arquivo JSON com a [`UltimaSessao`] de cada projeto
 /// (`<dados>/terminal/ultimas-sessoes.json`). Guarda só identificadores e datas.
 #[derive(Debug, Clone)]
 pub struct UltimasSessoes {
@@ -149,21 +149,21 @@ impl UltimasSessoes {
             .unwrap_or_default()
     }
 
-    pub fn obter(&self, sistema: &str) -> Option<UltimaSessao> {
-        self.ler().remove(sistema)
+    pub fn obter(&self, projeto: &str) -> Option<UltimaSessao> {
+        self.ler().remove(projeto)
     }
 
     /// Registra que uma sessão foi aberta agora. Sem `id_sessao` (`--continue`), mantém
     /// o identificador que já havia.
-    pub fn registrar(&self, sistema: &str, id_sessao: Option<String>) -> io::Result<()> {
+    pub fn registrar(&self, projeto: &str, id_sessao: Option<String>) -> io::Result<()> {
         let mut todas = self.ler();
-        let id_sessao = id_sessao.or_else(|| todas.get(sistema).and_then(|u| u.id_sessao.clone()));
+        let id_sessao = id_sessao.or_else(|| todas.get(projeto).and_then(|u| u.id_sessao.clone()));
         let aberta_em = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or_default();
         todas.insert(
-            sistema.to_string(),
+            projeto.to_string(),
             UltimaSessao {
                 id_sessao,
                 aberta_em,
@@ -182,7 +182,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn ultima_sessao_por_sistema() {
+    fn ultima_sessao_por_projeto() {
         let tmp = tempfile::tempdir().unwrap();
         let ultimas = UltimasSessoes::no_diretorio(tmp.path());
         assert_eq!(ultimas.obter("fat"), None);

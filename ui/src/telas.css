@@ -1,5 +1,5 @@
 /*
- * Telas do app (#85): primeiro uso, início, sistema, base, análise e revisão, no
+ * Telas do app (#85): primeiro uso, início, projeto, base, análise e revisão, no
  * visual do Control Tower. Cores só por token (theme.css); âmbar só para o que
  * exige o analista: afirmação sem decisão, regra a revalidar, aviso de alteração
  * e sessão aguardando o analista. O estado vem sempre também por texto.
@@ -29,7 +29,7 @@
 
 /* Seções de uma tela: painéis. */
 .tela-inicio > section,
-.tela-sistema > section,
+.tela-projeto > section,
 .tela-base > section,
 .tela-analise.page > section,
 .tela-analise.page > form {
@@ -43,7 +43,7 @@
 }
 
 .tela-inicio > section > h2,
-.tela-sistema > section > h3,
+.tela-projeto > section > h3,
 .tela-analise.page > section > h3 {
   font-size: 13px;
   font-weight: 600;
@@ -94,8 +94,8 @@
   gap: 8px;
 }
 
-/* Listas de itens (sistemas, análises, regras, termos, pastas, resultados). */
-.lista-sistemas,
+/* Listas de itens (projetos, análises, regras, termos, pastas, resultados). */
+.lista-projetos,
 .lista-analises,
 .lista-regras,
 .lista-termos,
@@ -109,7 +109,7 @@
   flex-direction: column;
 }
 
-.lista-sistemas > li,
+.lista-projetos > li,
 .lista-analises > li,
 .lista-regras > li,
 .lista-termos > li,
@@ -125,7 +125,7 @@
   border-bottom: 1px solid var(--border);
 }
 
-.lista-sistemas > li:last-child,
+.lista-projetos > li:last-child,
 .lista-analises > li:last-child,
 .lista-regras > li:last-child,
 .lista-termos > li:last-child,
@@ -263,7 +263,7 @@
   background: var(--selected);
 }
 
-.pastas-sistema {
+.pastas-projeto {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -272,7 +272,7 @@
   border-radius: 8px;
 }
 
-.pastas-sistema > button {
+.pastas-projeto > button {
   align-self: flex-start;
 }
 
@@ -376,9 +376,9 @@
   word-break: break-all;
 }
 
-/* ---- Sistema ---- */
+/* ---- Projeto ---- */
 
-.mapa-sistema,
+.mapa-projeto,
 .resultados-base,
 .documento-aberto {
   padding: 14px 16px;
@@ -808,7 +808,7 @@
   word-break: break-all;
 }
 
-/* Aviso de alteração na pasta do sistema: pede o analista. */
+/* Aviso de alteração na pasta do projeto: pede o analista. */
 .aviso-alteracao {
   padding: 12px 14px;
   border: 1px solid var(--attention-border);

@@ -1,8 +1,8 @@
-//! Aviso de alteração na pasta do sistema (spec, princípios e seção 4.6; #29).
+//! Aviso de alteração na pasta do projeto (spec, princípios e seção 4.6; #29).
 //!
 //! O produto analisa e não desenvolve, mas o app não bloqueia ferramentas por
 //! padrão: ao fim de cada resposta do agente (`Stop`) e da sessão (`SessionEnd`), o
-//! app confere as pastas do sistema contra o retrato tirado no início da sessão e,
+//! app confere as pastas do projeto contra o retrato tirado no início da sessão e,
 //! se algo mudou, avisa na análise, com o diff e a opção de desfazer.
 //!
 //! # Retrato e conferência
@@ -16,7 +16,7 @@
 //!   `.gitignore` ou removido), o conteúdo naquele instante, guardado por SHA-256 em
 //!   `conteudo/`. O conteúdo dos demais arquivos é o do commit, que o git já guarda:
 //!   o retrato custa um `git status` e a cópia dos poucos arquivos sujos, e não a
-//!   leitura do sistema inteiro.
+//!   leitura do projeto inteiro.
 //! - **Pastas fora do git** (ou sem o `git` instalado): tamanho e data de
 //!   modificação de cada arquivo. A conferência lista o que mudou, sem diff nem
 //!   desfazer.
@@ -33,7 +33,7 @@
 //!
 //! O receptor de hooks não faz nada disso no caminho do evento: ele só dispara
 //! `cba fundo retratar|conferir <sessao>` como processo separado e responde
-//! ([`disparar`]). Num sistema grande, o `git status` pode passar do segundo; o
+//! ([`disparar`]). Num projeto grande, o `git status` pode passar do segundo; o
 //! hook continua abaixo dos 200 ms. Para a primeira escrita não chegar antes do
 //! retrato, o `PreToolUse` de uma ferramenta que escreve espera o retrato terminar
 //! (até [`ESPERA_DO_RETRATO`]); depois disso, é uma consulta de arquivo.
@@ -43,7 +43,7 @@
 //! Só no diretório de dados do app, na máquina do analista: o conteúdo dos arquivos
 //! sujos no início (para o diff e o desfazer) e a última conferência. O diário de
 //! eventos recebe só o identificador da análise ([`Mudanca::Alteracao`]). Nada é
-//! escrito nas pastas do sistema, exceto quando o analista pede para desfazer.
+//! escrito nas pastas do projeto, exceto quando o analista pede para desfazer.
 
 pub mod git;
 
@@ -88,15 +88,15 @@ pub const ESPERA_DO_RETRATO: Duration = Duration::from_secs(5);
 /// Árvore vazia do git, para comparar com um repositório que não tinha commits.
 const ARVORE_VAZIA: &str = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 
-/// Erro do aviso de alteração. As mensagens citam só caminhos relativos do sistema.
+/// Erro do aviso de alteração. As mensagens citam só caminhos relativos do projeto.
 #[derive(Debug, thiserror::Error)]
 pub enum Erro {
     #[error("a sessão não tem retrato do início")]
     SemRetrato,
     #[error("a sessão não está registrada")]
     SemSessao,
-    #[error("o sistema da sessão não está cadastrado")]
-    SemSistema,
+    #[error("o projeto da sessão não está cadastrado")]
+    SemProjeto,
     #[error("a sessão não é desta análise")]
     OutraAnalise,
     #[error(transparent)]
@@ -140,7 +140,7 @@ pub struct RetratoGit {
     /// Commit no início (`None` num repositório sem commits).
     #[serde(default)]
     pub head: Option<String>,
-    /// Pastas do sistema dentro do repositório, relativas à raiz (vazio: todo ele).
+    /// Pastas do projeto dentro do repositório, relativas à raiz (vazio: todo ele).
     #[serde(default)]
     pub pastas: Vec<String>,
     /// Arquivos que já diferiam do `head` no início. Os demais têm como base o
@@ -167,12 +167,12 @@ pub struct RetratoSemGit {
     pub incompleto: bool,
 }
 
-/// Estado das pastas do sistema no início de uma sessão.
+/// Estado das pastas do projeto no início de uma sessão.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Retrato {
     pub formato: u32,
     pub sessao: String,
-    pub sistema: String,
+    pub projeto: String,
     pub momento_ms: u64,
     #[serde(default)]
     pub repositorios: Vec<RetratoGit>,
@@ -413,13 +413,13 @@ fn tamanho_de_arquivo(caminho: &Path) -> Option<u64> {
         .map(|m| m.len())
 }
 
-/// Tira o retrato das `pastas` do sistema no início da sessão `sessao` e o grava.
+/// Tira o retrato das `pastas` do projeto no início da sessão `sessao` e o grava.
 /// Pastas inacessíveis ou falhas do git viram avisos no retrato, que é gravado
 /// assim mesmo (para a sessão não esperar por ele de novo).
 pub fn retratar(
     retratos: &Retratos,
     sessao: &str,
-    sistema: &str,
+    projeto: &str,
     pastas: &[PathBuf],
 ) -> Result<Retrato, Erro> {
     if retratos.da_sessao(sessao).is_none() {
@@ -429,7 +429,7 @@ pub fn retratar(
     let mut retrato = Retrato {
         formato: VERSAO_DO_FORMATO,
         sessao: sessao.to_owned(),
-        sistema: sistema.to_owned(),
+        projeto: projeto.to_owned(),
         momento_ms: tempo::agora_ms(),
         repositorios: Vec::new(),
         sem_git: Vec::new(),
@@ -443,7 +443,7 @@ pub fn retratar(
         let Ok(pasta) = dunce::canonicalize(pasta) else {
             retrato
                 .avisos
-                .push("uma pasta do sistema está inacessível".into());
+                .push("uma pasta do projeto está inacessível".into());
             continue;
         };
         match cba_index::detectar_git(&pasta).and_then(|g| {
@@ -711,7 +711,7 @@ fn comparar(
     Ok((lista, avisos))
 }
 
-/// Confere as pastas do sistema contra o retrato do início da sessão.
+/// Confere as pastas do projeto contra o retrato do início da sessão.
 pub fn conferir(retratos: &Retratos, sessao: &str) -> Result<Conferencia, Erro> {
     let retrato = retratos.obter(sessao)?.ok_or(Erro::SemRetrato)?;
     let (lista, avisos) = comparar(retratos, &retrato, false)?;
@@ -912,17 +912,17 @@ pub fn manter(retratos: &Retratos, sessao: &str, pedidos: &[Pedido]) -> Result<V
 // ---------------------------------------------------------------------------
 // Ligação com as sessões, as análises e o diário de eventos
 
-/// Pastas a retratar numa sessão: as do sistema cadastrado e, se a sessão foi
+/// Pastas a retratar numa sessão: as do projeto cadastrado e, se a sessão foi
 /// aberta numa worktree fora delas, a worktree.
 pub fn pastas_da_sessao(
     dados: &DiretorioDados,
     registro: &RegistroSessao,
 ) -> Result<Vec<PathBuf>, Erro> {
-    let sistema = cba_index::Cadastro::em(dados.sistemas())
-        .obter(&registro.sistema)
-        .map_err(|_| Erro::SemSistema)?
-        .ok_or(Erro::SemSistema)?;
-    let mut pastas: Vec<PathBuf> = sistema.pastas.into_iter().map(|p| p.caminho).collect();
+    let projeto = cba_index::Cadastro::em(dados.projetos())
+        .obter(&registro.projeto)
+        .map_err(|_| Erro::SemProjeto)?
+        .ok_or(Erro::SemProjeto)?;
+    let mut pastas: Vec<PathBuf> = projeto.pastas.into_iter().map(|p| p.caminho).collect();
     if let Some(dir) = registro
         .diretorio
         .as_ref()
@@ -1022,13 +1022,13 @@ pub fn executar(dados: &DiretorioDados, tarefa: Tarefa, sessao: &str) -> Result<
                 Ok(p) => p,
                 Err(e) => {
                     // Grava o retrato vazio, com o motivo: a sessão não espera de novo.
-                    let mut vazio = retratar(&retratos, sessao, &registro.sistema, &[])?;
+                    let mut vazio = retratar(&retratos, sessao, &registro.projeto, &[])?;
                     vazio.avisos.push(e.to_string());
                     retratos.gravar(&vazio)?;
                     return Err(e);
                 }
             };
-            retratar(&retratos, sessao, &registro.sistema, &pastas).map(drop)
+            retratar(&retratos, sessao, &registro.projeto, &pastas).map(drop)
         }
         Tarefa::Conferir => conferir_e_avisar(dados, &registro).map(drop),
     }
@@ -1049,21 +1049,21 @@ pub fn conferir_e_avisar(
         let mudou_lista =
             anterior.map(|a| a.alterados).unwrap_or_default() != conferencia.alterados;
         if mudou_lista && let Some(analise) = &registro.analise {
-            avisar(dados, &registro.sistema, analise);
+            avisar(dados, &registro.projeto, analise);
         }
     }
     tracing::info!(
         arquivos = conferencia.alterados.len(),
-        "pasta do sistema conferida"
+        "pasta do projeto conferida"
     );
     Ok(conferencia)
 }
 
-/// Linha [`Mudanca::Alteracao`] no diário de eventos do sistema (falhas só no log).
-pub fn avisar(dados: &DiretorioDados, sistema: &str, analise: &Id) {
+/// Linha [`Mudanca::Alteracao`] no diário de eventos do projeto (falhas só no log).
+pub fn avisar(dados: &DiretorioDados, projeto: &str, analise: &Id) {
     let evento = Evento {
         quando_ms: tempo::agora_ms(),
-        sistema: sistema.to_owned(),
+        projeto: projeto.to_owned(),
         analise: analise.to_string(),
         mudanca: Mudanca::Alteracao,
         // O estado da análise não muda; a tela relê o aviso, não a análise.
@@ -1079,13 +1079,13 @@ pub fn avisar(dados: &DiretorioDados, sistema: &str, analise: &Id) {
 /// mais recente vence quando duas alteraram o mesmo arquivo).
 pub fn da_analise(
     dados: &DiretorioDados,
-    sistema: &str,
+    projeto: &str,
     analise: &Id,
 ) -> Result<AvisoAlteracao, Erro> {
     let retratos = Retratos::do_diretorio(dados);
     let mut aviso = AvisoAlteracao::default();
     let mut vistos = BTreeSet::new();
-    for registro in Sessoes::do_diretorio(dados).da_analise(sistema, analise)? {
+    for registro in Sessoes::do_diretorio(dados).da_analise(projeto, analise)? {
         if !retratos.pronto(&registro.id) {
             continue;
         }
@@ -1108,13 +1108,13 @@ pub fn da_analise(
 /// por sessões dela. Depois, reconfere as sessões envolvidas e avisa as telas.
 pub fn resolver_na_analise(
     dados: &DiretorioDados,
-    sistema: &str,
+    projeto: &str,
     analise: &Id,
     pedidos: &[Pedido],
     desfazer_: bool,
 ) -> Result<Vec<String>, Erro> {
     let retratos = Retratos::do_diretorio(dados);
-    let registros = Sessoes::do_diretorio(dados).da_analise(sistema, analise)?;
+    let registros = Sessoes::do_diretorio(dados).da_analise(projeto, analise)?;
     let sessoes: BTreeSet<&str> = pedidos.iter().map(|p| p.sessao.as_str()).collect();
     let mut feitos = Vec::new();
     for sessao in sessoes {
@@ -1131,7 +1131,7 @@ pub fn resolver_na_analise(
             tracing::warn!(erro = %e, "reconferência depois de resolver falhou");
         }
     }
-    avisar(dados, sistema, analise);
+    avisar(dados, projeto, analise);
     Ok(feitos)
 }
 
@@ -1140,7 +1140,7 @@ pub fn tipo_do_erro(e: &Erro) -> &'static str {
     match e {
         Erro::SemRetrato => "sem_retrato",
         Erro::SemSessao => "sem_sessao",
-        Erro::SemSistema => "sem_sistema",
+        Erro::SemProjeto => "sem_projeto",
         Erro::OutraAnalise => "outra_analise",
         Erro::Git(git::ErroGit::NaoEncontrado) => "git_nao_encontrado",
         Erro::Git(git::ErroGit::Falhou(_)) => "git_falhou",

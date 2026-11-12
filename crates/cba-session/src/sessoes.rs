@@ -1,8 +1,8 @@
 //! Estado das sessões dos clientes de IA, gravado pelo receptor de hooks e consultado
 //! pelo app.
 //!
-//! Cada sessão vista nas pastas de um sistema cadastrado tem um arquivo em
-//! `<dados>/sessoes/<session_id>.json` ([`RegistroSessao`]): sistema, análise ligada,
+//! Cada sessão vista nas pastas de um projeto cadastrado tem um arquivo em
+//! `<dados>/sessoes/<session_id>.json` ([`RegistroSessao`]): projeto, análise ligada,
 //! estado, diretório (para a retomada, #28) e instantes. O registro existe desde o
 //! primeiro evento, antes de a sessão ser ligada a uma análise; quando é ligada, o
 //! estado também vai para a análise ([`cba_core::analise::Sessao`]), que é o que a
@@ -37,14 +37,14 @@ const TRAVA: &str = ".trava";
 /// Tamanho máximo aceito para o identificador de uma sessão.
 const TAMANHO_MAXIMO_DO_ID: usize = 128;
 
-/// Estado de uma sessão de cliente de IA numa pasta de sistema cadastrado.
+/// Estado de uma sessão de cliente de IA numa pasta de projeto cadastrado.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RegistroSessao {
     pub formato: u32,
     /// `session_id` dos hooks: o identificador da retomada (`claude --resume <id>`).
     pub id: String,
-    /// Slug do sistema cadastrado.
-    pub sistema: String,
+    /// Slug do projeto cadastrado.
+    pub projeto: String,
     /// Análise ligada à sessão (pela primeira ferramenta do `cba` chamada com o
     /// argumento `analise`, normalmente `iniciar_analise`).
     #[serde(default)]
@@ -72,11 +72,11 @@ pub struct RegistroSessao {
 
 impl RegistroSessao {
     /// Registro de uma sessão vista agora pela primeira vez.
-    pub fn novo(id: &str, sistema: &str, agora_ms: u64) -> Self {
+    pub fn novo(id: &str, projeto: &str, agora_ms: u64) -> Self {
         Self {
             formato: VERSAO_DO_FORMATO,
             id: id.to_owned(),
-            sistema: sistema.to_owned(),
+            projeto: projeto.to_owned(),
             analise: None,
             cliente: Cliente::Desconhecido,
             estado: EstadoSessao::Ativa,
@@ -187,17 +187,17 @@ impl Sessoes {
         Ok(registros)
     }
 
-    /// Sessões de um sistema, da mais recente para a mais antiga.
-    pub fn do_sistema(&self, sistema: &str) -> io::Result<Vec<RegistroSessao>> {
+    /// Sessões de um projeto, da mais recente para a mais antiga.
+    pub fn do_projeto(&self, projeto: &str) -> io::Result<Vec<RegistroSessao>> {
         let mut r = self.listar()?;
-        r.retain(|s| s.sistema == sistema);
+        r.retain(|s| s.projeto == projeto);
         Ok(r)
     }
 
     /// Sessões ligadas a uma análise, da mais recente para a mais antiga. A primeira
     /// é a candidata à retomada (#28).
-    pub fn da_analise(&self, sistema: &str, analise: &Id) -> io::Result<Vec<RegistroSessao>> {
-        let mut r = self.do_sistema(sistema)?;
+    pub fn da_analise(&self, projeto: &str, analise: &Id) -> io::Result<Vec<RegistroSessao>> {
+        let mut r = self.do_projeto(projeto)?;
         r.retain(|s| s.analise.as_ref() == Some(analise));
         Ok(r)
     }
@@ -324,7 +324,7 @@ mod tests {
             .collect();
         assert_eq!(ids, ["s3", "s2", "s1"]);
         let ids: Vec<_> = sessoes
-            .do_sistema("faturamento-exemplo")
+            .do_projeto("faturamento-exemplo")
             .unwrap()
             .into_iter()
             .map(|r| r.id)

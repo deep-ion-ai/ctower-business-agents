@@ -1,10 +1,10 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { TelaBase } from "./TelaBase";
-import { ANALISE, REGRA, SISTEMA, TERMO, apiConhecimentoFalsa } from "./test/conhecimentoFalso";
+import { ANALISE, REGRA, PROJETO, TERMO, apiConhecimentoFalsa } from "./test/conhecimentoFalso";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(), Channel: vi.fn() }));
 
-const SISTEMAS = [{ id: SISTEMA, nome: "Faturamento Exemplo" }];
+const PROJETOS = [{ id: PROJETO, nome: "Faturamento Exemplo" }];
 
 function montar(documentoInicial?: string) {
   const falsa = apiConhecimentoFalsa();
@@ -12,7 +12,7 @@ function montar(documentoInicial?: string) {
   render(
     <TelaBase
       api={falsa.api}
-      sistemas={SISTEMAS}
+      projetos={PROJETOS}
       documentoInicial={documentoInicial}
       navegar={navegar}
     />,
@@ -29,11 +29,11 @@ async function buscar(texto: string) {
 }
 
 describe("TelaBase", () => {
-  it("a busca por um termo do sistema mostra a regra e a análise de origem", async () => {
+  it("a busca por um termo do projeto mostra a regra e a análise de origem", async () => {
     const { api } = montar();
     const resultados = await buscar("multa");
     expect(api.buscar).toHaveBeenCalledWith("multa", {
-      sistema: undefined,
+      projeto: undefined,
       tipos: [],
       deslocamento: 0,
     });
@@ -50,13 +50,13 @@ describe("TelaBase", () => {
     expect(marcas[0]).toHaveTextContent("multa");
   });
 
-  it("filtra por sistema e por tipo", async () => {
+  it("filtra por projeto e por tipo", async () => {
     const { api } = montar();
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: SISTEMA } });
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: PROJETO } });
     fireEvent.click(screen.getByRole("checkbox", { name: "Regras" }));
     await buscar("carencia");
     expect(api.buscar).toHaveBeenLastCalledWith("carencia", {
-      sistema: SISTEMA,
+      projeto: PROJETO,
       tipos: ["regra"],
       deslocamento: 0,
     });
@@ -102,7 +102,7 @@ describe("TelaBase", () => {
     fireEvent.click(within(analise).getByRole("button", { name: "Abrir na tela da análise" }));
     expect(navegar).toHaveBeenCalledWith({
       tipo: "analise",
-      sistema: SISTEMA,
+      projeto: PROJETO,
       aberta: { id: "A-0001", abertura: { tipo: "reabrir" } },
     });
   });

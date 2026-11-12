@@ -3,7 +3,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { apiAnaliseTauri, type ApiAmbiente } from "./analise";
 import { estadoClientes, type EstadoClientes } from "./clientes";
-import type { SistemaResumo } from "./terminal";
+import type { ProjetoResumo } from "./terminal";
 
 /**
  * Espelho dos comandos do primeiro uso (`ui/src-tauri/src/primeiro_uso.rs`, campos em
@@ -16,7 +16,7 @@ export interface Situacao {
   base: string | null;
   /** `Documentos/ctower-business`, quando o sistema operacional informa a pasta. */
   baseSugerida: string | null;
-  sistemas: SistemaResumo[];
+  projetos: ProjetoResumo[];
   cliente: ClientePreferido | null;
   primeiroUsoConcluido: boolean;
 }
@@ -32,7 +32,7 @@ export interface AvaliacaoBase {
   git: boolean;
 }
 
-export interface PedidoSistema {
+export interface PedidoProjeto {
   nome: string;
   /** Caminhos completos; a primeira pasta é a raiz. */
   pastas: string[];
@@ -75,7 +75,7 @@ export interface ResumoInventario {
   duracaoMs: number;
 }
 
-export interface PreviaSistema {
+export interface PreviaProjeto {
   id: string;
   nome: string;
   pastas: PastaVista[];
@@ -85,7 +85,7 @@ export interface PreviaSistema {
   inventario: ResumoInventario;
 }
 
-export interface SistemaCadastrado {
+export interface ProjetoCadastrado {
   id: string;
   nome: string;
   pastas: PastaVista[];
@@ -99,8 +99,8 @@ export interface ApiPrimeiroUso extends ApiAmbiente {
   escolherCliente(cliente: ClientePreferido): Promise<void>;
   avaliarBase(pasta: string): Promise<AvaliacaoBase>;
   configurarBase(pasta: string): Promise<string>;
-  previaSistema(pedido: PedidoSistema): Promise<PreviaSistema>;
-  cadastrarSistema(pedido: PedidoSistema): Promise<SistemaCadastrado>;
+  previaProjeto(pedido: PedidoProjeto): Promise<PreviaProjeto>;
+  cadastrarProjeto(pedido: PedidoProjeto): Promise<ProjetoCadastrado>;
   concluir(): Promise<void>;
   /** Abre um link oficial no navegador. */
   abrirLink(url: string): Promise<void>;
@@ -114,8 +114,8 @@ export const apiPrimeiroUsoTauri: ApiPrimeiroUso = {
   escolherCliente: (cliente) => invoke("escolher_cliente_app", { cliente }),
   avaliarBase: (pasta) => invoke("avaliar_base_app", { pasta }),
   configurarBase: (pasta) => invoke("configurar_base_app", { pasta }),
-  previaSistema: (pedido) => invoke("previa_sistema_app", { pedido }),
-  cadastrarSistema: (pedido) => invoke("cadastrar_sistema_app", { pedido }),
+  previaProjeto: (pedido) => invoke("previa_projeto_app", { pedido }),
+  cadastrarProjeto: (pedido) => invoke("cadastrar_projeto_app", { pedido }),
   concluir: () => invoke("concluir_primeiro_uso_app"),
   abrirLink: (url) => openUrl(url),
   async escolherPasta(titulo, inicial) {

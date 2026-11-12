@@ -4,7 +4,7 @@ import type { ApiRevisao, FormatoExportacao, OpcoesExportacao } from "./revisao"
 
 interface Props {
   api: ApiRevisao;
-  sistema: string;
+  projeto: string;
   analise: string;
   /** A análise já foi aprovada (fora disso, o documento sai como rascunho). */
   aprovada: boolean;
@@ -12,10 +12,10 @@ interface Props {
 
 /**
  * Exportação do documento da análise para Markdown ou Word (#37, #10), com o
- * diálogo de salvar do sistema. O documento sai autocontido: sem o frontmatter
+ * diálogo de salvar do projeto. O documento sai autocontido: sem o frontmatter
  * interno, com as evidências como notas e, se marcado, os trechos citados.
  */
-export function ExportacaoAnalise({ api, sistema, analise, aprovada }: Props) {
+export function ExportacaoAnalise({ api, projeto, analise, aprovada }: Props) {
   const [formato, setFormato] = useState<FormatoExportacao>("word");
   const [opcoes, setOpcoes] = useState<OpcoesExportacao>({
     evidencias: true,
@@ -36,7 +36,7 @@ export function ExportacaoAnalise({ api, sistema, analise, aprovada }: Props) {
     try {
       const destino = await api.escolherDestino(analise, formato);
       if (!destino) return;
-      setFeito(await api.exportar(sistema, analise, { destino, formato, opcoes }));
+      setFeito(await api.exportar(projeto, analise, { destino, formato, opcoes }));
     } catch (e) {
       setErro(mensagemDe(e));
     } finally {

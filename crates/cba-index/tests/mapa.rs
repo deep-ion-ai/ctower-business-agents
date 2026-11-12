@@ -5,7 +5,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use cba_index::{
-    Cadastro, Extracao, Extrator, Fonte, Linguagem, Linhas, Mapa, Registro, Sistema,
+    Cadastro, Extracao, Extrator, Fonte, Linguagem, Linhas, Mapa, Projeto, Registro,
     TipoReferencia, TipoSimbolo, extrator::sql::ExtratorSql, inventariar, mapear,
 };
 use serde_norway::Value;
@@ -29,9 +29,9 @@ fn copiar(origem: &Path, destino: &Path) {
 
 fn mapa_da_fixture() -> Mapa {
     let raiz = fixtures().join("faturamento-exemplo");
-    let sistema = Sistema::novo("Faturamento Exemplo", [&raiz]).unwrap();
-    let inv = inventariar(&sistema, None).unwrap();
-    mapear(&inv, &sistema.escopo().unwrap(), None, &Registro::padrao())
+    let projeto = Projeto::novo("Faturamento Exemplo", [&raiz]).unwrap();
+    let inv = inventariar(&projeto, None).unwrap();
+    mapear(&inv, &projeto.escopo().unwrap(), None, &Registro::padrao())
 }
 
 /// Critério de aceite: a procedure de multa e a tabela de faturas aparecem com
@@ -321,11 +321,11 @@ impl Extrator for Panico {
 #[test]
 fn falha_do_extrator_fica_no_arquivo_e_o_resto_segue() {
     let raiz = fixtures().join("faturamento-exemplo");
-    let sistema = Sistema::novo("Faturamento Exemplo", [&raiz]).unwrap();
-    let inv = inventariar(&sistema, None).unwrap();
+    let projeto = Projeto::novo("Faturamento Exemplo", [&raiz]).unwrap();
+    let inv = inventariar(&projeto, None).unwrap();
     let mut registro = Registro::padrao();
     registro.registrar(Falha).registrar(Panico);
-    let mapa = mapear(&inv, &sistema.escopo().unwrap(), None, &registro);
+    let mapa = mapear(&inv, &projeto.escopo().unwrap(), None, &registro);
 
     let falhas: Vec<_> = mapa
         .falhas()
@@ -374,22 +374,22 @@ fn mapa_gravado_e_incremental() {
     let tmp = tempfile::tempdir().unwrap();
     let raiz = tmp.path().join("faturamento");
     copiar(&fixtures().join("faturamento-exemplo"), &raiz);
-    let cadastro = Cadastro::em(tmp.path().join("dados/sistemas"));
-    let sistema = Sistema::novo("Faturamento Exemplo", [&raiz]).unwrap();
-    cadastro.cadastrar(&sistema).unwrap();
-    assert!(cadastro.mapa(&sistema.id).unwrap().is_none());
+    let cadastro = Cadastro::em(tmp.path().join("dados/projetos"));
+    let projeto = Projeto::novo("Faturamento Exemplo", [&raiz]).unwrap();
+    cadastro.cadastrar(&projeto).unwrap();
+    assert!(cadastro.mapa(&projeto.id).unwrap().is_none());
 
-    let primeiro = cadastro.mapear(&sistema.id).unwrap();
+    let primeiro = cadastro.mapear(&projeto.id).unwrap();
     let n = primeiro.arquivos().len();
     assert_eq!(primeiro.estatisticas.processados, n);
     assert_eq!(primeiro.estatisticas.reaproveitados, 0);
     assert!(
         tmp.path()
-            .join("dados/sistemas/faturamento-exemplo/mapa.json")
+            .join("dados/projetos/faturamento-exemplo/mapa.json")
             .is_file()
     );
     // O gravado volta igual e com as referências resolvidas.
-    let lido = cadastro.mapa(&sistema.id).unwrap().unwrap();
+    let lido = cadastro.mapa(&projeto.id).unwrap().unwrap();
     assert_eq!(lido, primeiro);
     let multa = lido
         .buscar("FN_CALCULAR_MULTA")
@@ -399,7 +399,7 @@ fn mapa_gravado_e_incremental() {
     assert_eq!(lido.referencias_a(multa.id).len(), 1);
 
     // Sem mudanças, nada é extraído de novo.
-    let segundo = cadastro.mapear(&sistema.id).unwrap();
+    let segundo = cadastro.mapear(&projeto.id).unwrap();
     assert_eq!(segundo.estatisticas.processados, 0);
     assert_eq!(segundo.estatisticas.reaproveitados, n);
     assert_eq!(segundo.arquivos(), primeiro.arquivos());
@@ -408,7 +408,7 @@ fn mapa_gravado_e_incremental() {
     let alvo = raiz.join("db/03_pkg_cobranca.sql");
     let texto = fs::read_to_string(&alvo).unwrap();
     fs::write(&alvo, format!("-- linha nova\n{texto}")).unwrap();
-    let terceiro = cadastro.mapear(&sistema.id).unwrap();
+    let terceiro = cadastro.mapear(&projeto.id).unwrap();
     assert_eq!(terceiro.estatisticas.processados, 1);
     let multa = terceiro
         .buscar("FN_CALCULAR_MULTA")
@@ -421,21 +421,21 @@ fn mapa_gravado_e_incremental() {
     // Versão nova de um extrator reprocessa só os arquivos dele.
     let mut registro = Registro::padrao();
     registro.registrar(SqlV2);
-    let quarto = cadastro.mapear_com(&sistema.id, &registro).unwrap();
+    let quarto = cadastro.mapear_com(&projeto.id, &registro).unwrap();
     assert_eq!(quarto.estatisticas.processados, 3);
     assert_eq!(quarto.estatisticas.reaproveitados, n - 3);
 
     // Mapa ilegível só faz perder o cache.
     fs::write(
         tmp.path()
-            .join("dados/sistemas/faturamento-exemplo/mapa.json"),
+            .join("dados/projetos/faturamento-exemplo/mapa.json"),
         b"{",
     )
     .unwrap();
-    assert!(cadastro.mapa(&sistema.id).is_err());
-    let quinto = cadastro.mapear(&sistema.id).unwrap();
+    assert!(cadastro.mapa(&projeto.id).is_err());
+    let quinto = cadastro.mapear(&projeto.id).unwrap();
     assert_eq!(quinto.estatisticas.processados, n);
 
-    assert!(cadastro.remover(&sistema.id).unwrap());
-    assert!(cadastro.mapa(&sistema.id).unwrap().is_none());
+    assert!(cadastro.remover(&projeto.id).unwrap());
+    assert!(cadastro.mapa(&projeto.id).unwrap().is_none());
 }

@@ -25,7 +25,7 @@ function montar(abertura: Abertura, vista?: VistaAnalise, opcoes?: OpcoesConvers
   const r = render(
     <PainelAnalise
       api={analise.api}
-      sistema="faturamento-exemplo"
+      projeto="faturamento-exemplo"
       analise="A-0001"
       abertura={abertura}
       aoVoltar={aoVoltar}
@@ -49,7 +49,7 @@ describe("PainelAnalise", () => {
       promptInicial: "Inicie a análise A-0001 pelo ctower",
     });
     await waitFor(() => expect(terminal.api.abrir).toHaveBeenCalled());
-    expect(terminal.aberturas[0].sistema).toBe("faturamento-exemplo");
+    expect(terminal.aberturas[0].projeto).toBe("faturamento-exemplo");
     expect(terminal.aberturas[0].pedido).toEqual({
       promptInicial: "Inicie a análise A-0001 pelo ctower",
     });
@@ -122,11 +122,11 @@ describe("PainelAnalise", () => {
       vistaFicticia({}, { afirmacoes: [AFIRMACAO_MULTA] }),
     );
     api.trechoEvidencia.mockRejectedValue(
-      "`db/03_pkg_cobranca.sql`: caminho fora das pastas do sistema",
+      "`db/03_pkg_cobranca.sql`: caminho fora das pastas do projeto",
     );
     fireEvent.click(await screen.findByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "caminho fora das pastas do sistema",
+      "caminho fora das pastas do projeto",
     );
   });
 
@@ -175,7 +175,7 @@ describe("PainelAnalise", () => {
     render(
       <PainelAnalise
         api={analise.api}
-        sistema="faturamento-exemplo"
+        projeto="faturamento-exemplo"
         analise="A-0001"
         abertura={{ tipo: "nova", promptInicial: "Inicie" }}
         aoVoltar={() => undefined}
@@ -286,7 +286,7 @@ describe("PainelAnalise", () => {
     render(
       <PainelAnalise
         api={analise.api}
-        sistema="faturamento-exemplo"
+        projeto="faturamento-exemplo"
         analise="A-0001"
         abertura={{ tipo: "nova", promptInicial: "Inicie" }}
         aoVoltar={() => undefined}

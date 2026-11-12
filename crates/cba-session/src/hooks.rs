@@ -10,22 +10,22 @@
 //! - **Nunca bloqueia**, exceto pela proteção opcional. A resposta é sempre código 0
 //!   com um JSON válido (`{}`, ou o contexto do `SessionStart`). Entrada inválida,
 //!   evento desconhecido, base inacessível ou falha ao gravar só vão para o log. Com
-//!   a proteção contra edição ligada para o sistema ([`crate::protecao`]), o
+//!   a proteção contra edição ligada para o projeto ([`crate::protecao`]), o
 //!   `PreToolUse` de `Bash` e `PowerShell` responde `deny`.
 //! - **Rápido** (meta: menos de 200 ms). Os hooks ficam no escopo de usuário (#24) e
-//!   disparam em todas as sessões do analista; fora das pastas dos sistemas
+//!   disparam em todas as sessões do analista; fora das pastas dos projetos
 //!   cadastrados, o receptor só lê o cadastro e sai, sem gravar nada. Dentro, só
 //!   grava quando algo muda (o `PreToolUse` de uma sessão já ativa não grava).
 //! - **Sem conteúdo no log** (spec, seção 9): o log registra o evento, a duração e o
 //!   desfecho, nunca o JSON recebido, o identificador da sessão ou caminhos.
 //!
-//! # Qual sistema
+//! # Qual projeto
 //!
-//! Uma sessão já registrada continua no sistema do registro. Uma nova é do sistema
+//! Uma sessão já registrada continua no projeto do registro. Uma nova é do projeto
 //! cadastrado cuja pasta contém o `cwd` do evento ou, se não houver, o
 //! `CLAUDE_PROJECT_DIR` do processo (a pasta em que a sessão começou). Uma worktree
 //! do git conta como o repositório principal (`raiz_principal` de
-//! [`cba_index::detectar_git`]). Os hooks não recebem o `CBA_SISTEMA` do servidor
+//! [`cba_index::detectar_git`]). Os hooks não recebem o `CBA_PROJETO` do servidor
 //! MCP.
 //!
 //! # Estados
@@ -50,8 +50,8 @@
 //!
 //! # Aviso de alteração (#29)
 //!
-//! Numa sessão de sistema, o primeiro evento (normalmente o `SessionStart`) pede o
-//! retrato das pastas do sistema, e cada `Stop` e `SessionEnd` pede a conferência
+//! Numa sessão de projeto, o primeiro evento (normalmente o `SessionStart`) pede o
+//! retrato das pastas do projeto, e cada `Stop` e `SessionEnd` pede a conferência
 //! ([`crate::alteracoes`]). Os dois rodam num processo separado
 //! (`cba fundo <tarefa> <sessao>`, [`Fundo`]): o hook só dispara e responde. O
 //! `PreToolUse` de uma ferramenta que escreve espera o retrato pedido ficar pronto
@@ -96,7 +96,7 @@ pub const EVENTOS: &[&str] = &[
 
 /// Variável de ambiente com a pasta em que a sessão começou (documentada pelo
 /// Claude Code para os comandos de hook).
-pub const VAR_PROJETO: &str = "CLAUDE_PROJECT_DIR";
+pub const VAR_DIR_CLAUDE: &str = "CLAUDE_PROJECT_DIR";
 
 /// Tipos de `Notification` em que o cliente espera uma ação do analista.
 const NOTIFICACOES_DE_ESPERA: &[&str] = &[
@@ -174,7 +174,7 @@ pub struct Contexto {
     /// Diretório de dados do app; sem ele, o receptor só responde.
     pub dados: Option<DiretorioDados>,
     /// `CLAUDE_PROJECT_DIR`, quando definido.
-    pub diretorio_projeto: Option<PathBuf>,
+    pub diretorio_claude: Option<PathBuf>,
     /// Retrato e conferência do aviso de alteração.
     pub fundo: Fundo,
 }
@@ -185,7 +185,7 @@ impl Contexto {
     pub fn do_processo() -> Self {
         Self {
             dados: DiretorioDados::padrao().ok(),
-            diretorio_projeto: std::env::var_os(VAR_PROJETO)
+            diretorio_claude: std::env::var_os(VAR_DIR_CLAUDE)
                 .filter(|v| !v.is_empty())
                 .map(PathBuf::from),
             fundo: std::env::current_exe()
@@ -195,22 +195,22 @@ impl Contexto {
     }
 }
 
-/// Início de uma sessão num sistema cadastrado, para o contexto do `SessionStart`.
+/// Início de uma sessão num projeto cadastrado, para o contexto do `SessionStart`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InicioDeSessao {
-    /// Slug do sistema.
-    pub sistema: String,
+    /// Slug do projeto.
+    pub projeto: String,
     /// Análise já ligada à sessão (numa retomada).
     pub analise: Option<Id>,
     /// `source` do evento (`startup`, `resume`, `clear`, `compact`, `fork`).
     pub origem: Option<String>,
-    /// Texto do `regras-do-sistema.md` da base, como está no arquivo (`None` se não
-    /// houver base, sistema na base ou arquivo).
+    /// Texto do `regras-do-projeto.md` da base, como está no arquivo (`None` se não
+    /// houver base, projeto na base ou arquivo).
     pub regras: Option<String>,
 }
 
 /// Texto que o `SessionStart` acrescenta ao contexto do agente numa sessão de
-/// sistema cadastrado: os limites fixos, as regras do sistema e uma nota da sessão
+/// projeto cadastrado: os limites fixos, as regras do projeto e uma nota da sessão
 /// (spec, seção 8; detalhes em [`limites`]). Vale para toda origem, inclusive a
 /// retomada (`resume`), a compactação (`compact`) e o `/clear`, em que o Claude
 /// Code roda o `SessionStart` de novo.
@@ -220,7 +220,7 @@ pub fn contexto_inicial(inicio: &InicioDeSessao) -> Option<String> {
         .as_deref()
         .and_then(limites::regras_para_o_agente);
     Some(limites::montar(
-        &inicio.sistema,
+        &inicio.projeto,
         regras.as_deref(),
         inicio.analise.as_ref(),
         inicio.origem.as_deref(),
@@ -238,9 +238,9 @@ pub enum Desfecho {
     SemDados,
     /// Sem `session_id` utilizável.
     SemSessao,
-    /// Sessão fora das pastas dos sistemas cadastrados: nada gravado.
-    ForaDeSistema,
-    /// Sessão de um sistema; `gravou` diz se o registro mudou e `negar`, se a
+    /// Sessão fora das pastas dos projetos cadastrados: nada gravado.
+    ForaDeProjeto,
+    /// Sessão de um projeto; `gravou` diz se o registro mudou e `negar`, se a
     /// ferramenta do `PreToolUse` foi negada pela proteção.
     Sessao {
         inicio: Option<InicioDeSessao>,
@@ -259,7 +259,7 @@ impl Desfecho {
             Self::EventoDesconhecido => "evento_desconhecido",
             Self::SemDados => "sem_dados",
             Self::SemSessao => "sem_sessao",
-            Self::ForaDeSistema => "fora_de_sistema",
+            Self::ForaDeProjeto => "fora_de_projeto",
             Self::Sessao { negar: true, .. } => "negado_pela_protecao",
             Self::Sessao { gravou: true, .. } => "registrado",
             Self::Sessao { gravou: false, .. } => "sem_mudanca",
@@ -371,14 +371,14 @@ fn receber(evento: &str, dados: &Value, contexto: &Contexto) -> Desfecho {
     let sessoes = Sessoes::do_diretorio(dados_app);
 
     // Caminho rápido: sessão já conhecida não precisa do cadastro.
-    let sistema = match sessoes.obter(id) {
+    let projeto = match sessoes.obter(id) {
         Err(_) => return Desfecho::Falha("sessoes_ilegiveis"),
-        Ok(Some(r)) => r.sistema,
+        Ok(Some(r)) => r.projeto,
         Ok(None) => {
-            let candidatos = cwd.iter().chain(contexto.diretorio_projeto.iter());
-            match sistema_de(candidatos, dados_app) {
+            let candidatos = cwd.iter().chain(contexto.diretorio_claude.iter());
+            match projeto_de(candidatos, dados_app) {
                 Ok(Some(s)) => s,
-                Ok(None) => return Desfecho::ForaDeSistema,
+                Ok(None) => return Desfecho::ForaDeProjeto,
                 Err(motivo) => return Desfecho::Falha(motivo),
             }
         }
@@ -395,13 +395,13 @@ fn receber(evento: &str, dados: &Value, contexto: &Contexto) -> Desfecho {
     let motivo_fim = (evento == "SessionEnd")
         .then(|| texto_de(dados, "reason").map(str::to_owned))
         .flatten();
-    let diretorio = contexto.diretorio_projeto.clone().or(cwd);
+    let diretorio = contexto.diretorio_claude.clone().or(cwd);
 
     let resultado = sessoes.alterar_com(
         id,
         |anterior| {
             let mut r = anterior.clone().unwrap_or_else(|| {
-                let mut r = RegistroSessao::novo(id, &sistema, agora);
+                let mut r = RegistroSessao::novo(id, &projeto, agora);
                 r.diretorio = diretorio;
                 r
             });
@@ -430,15 +430,15 @@ fn receber(evento: &str, dados: &Value, contexto: &Contexto) -> Desfecho {
         Ok((alteracao, ())) => {
             let atual = alteracao.novo.as_ref().or(alteracao.anterior.as_ref());
             let inicio = (evento == "SessionStart").then(|| InicioDeSessao {
-                sistema: sistema.clone(),
+                projeto: projeto.clone(),
                 analise: atual.and_then(|r| r.analise.clone()),
                 origem: atual.and_then(|r| r.origem.clone()),
-                regras: regras_do_sistema(dados_app, &sistema),
+                regras: regras_do_projeto(dados_app, &projeto),
             });
             let negar = evento == "PreToolUse"
                 && texto_de(dados, "tool_name")
                     .is_some_and(|t| protecao::FERRAMENTAS_NEGADAS_PELO_HOOK.contains(&t))
-                && protecao::protegido(dados_app, &sistema);
+                && protecao::protegido(dados_app, &projeto);
             if !negar {
                 acompanhar_alteracoes(evento, dados, id, dados_app, &contexto.fundo);
             }
@@ -511,36 +511,36 @@ fn rodar_tarefa(tarefa: Tarefa, id: &str, dados_app: &DiretorioDados, fundo: &Fu
     }
 }
 
-/// Sistema cadastrado da primeira pasta de `pastas` que pertence a algum.
-fn sistema_de<'a>(
+/// Projeto cadastrado da primeira pasta de `pastas` que pertence a algum.
+fn projeto_de<'a>(
     pastas: impl Iterator<Item = &'a PathBuf>,
     dados: &DiretorioDados,
 ) -> Result<Option<String>, &'static str> {
-    let mut sistemas = None;
+    let mut projetos = None;
     for pasta in pastas {
         // O cadastro só é lido se houver uma pasta para conferir, e uma vez só.
-        if sistemas.is_none() {
-            let lista = cba_index::Cadastro::em(dados.sistemas())
+        if projetos.is_none() {
+            let lista = cba_index::Cadastro::em(dados.projetos())
                 .listar()
                 .map_err(|_| "cadastro_ilegivel")?;
             if lista.is_empty() {
                 return Ok(None);
             }
-            sistemas = Some(lista);
+            projetos = Some(lista);
         }
-        if let Some(s) = sistema_da_pasta(pasta, sistemas.as_deref().unwrap_or_default()) {
+        if let Some(s) = projeto_da_pasta(pasta, projetos.as_deref().unwrap_or_default()) {
             return Ok(Some(s));
         }
     }
     Ok(None)
 }
 
-/// Sistema cadastrado que contém `pasta`, vencendo a pasta cadastrada mais
+/// Projeto cadastrado que contém `pasta`, vencendo a pasta cadastrada mais
 /// específica. Numa worktree do git, vale o caminho correspondente no repositório
-/// principal. Não lê o escopo nem as exclusões dos sistemas: só os caminhos.
-pub fn sistema_da_pasta(pasta: &Path, sistemas: &[cba_index::Sistema]) -> Option<String> {
+/// principal. Não lê o escopo nem as exclusões dos projetos: só os caminhos.
+pub fn projeto_da_pasta(pasta: &Path, projetos: &[cba_index::Projeto]) -> Option<String> {
     let pasta = dunce::canonicalize(pasta).ok()?;
-    if let Some(s) = mais_especifico(&pasta, sistemas) {
+    if let Some(s) = mais_especifico(&pasta, projetos) {
         return Some(s);
     }
     let git = cba_index::detectar_git(&pasta)?;
@@ -548,11 +548,11 @@ pub fn sistema_da_pasta(pasta: &Path, sistemas: &[cba_index::Sistema]) -> Option
         return None;
     }
     let relativo = pasta.strip_prefix(&git.raiz).ok()?;
-    mais_especifico(&git.raiz_principal.join(relativo), sistemas)
+    mais_especifico(&git.raiz_principal.join(relativo), projetos)
 }
 
-fn mais_especifico(pasta: &Path, sistemas: &[cba_index::Sistema]) -> Option<String> {
-    sistemas
+fn mais_especifico(pasta: &Path, projetos: &[cba_index::Projeto]) -> Option<String> {
+    projetos
         .iter()
         .flat_map(|s| s.pastas.iter().map(move |p| (s, &p.caminho)))
         .filter(|(_, caminho)| pasta.starts_with(caminho))
@@ -577,7 +577,7 @@ fn levar_para_analises(alteracao: &Alteracao, dados: &DiretorioDados) {
     if !mudou_estado && !religou {
         return;
     }
-    let analises = match analises_do_sistema(dados, &novo.sistema) {
+    let analises = match analises_do_projeto(dados, &novo.projeto) {
         Ok(a) => a,
         Err(motivo) => {
             tracing::warn!(motivo, "estado da sessão não levado à análise");
@@ -642,32 +642,32 @@ pub fn sincronizar(
     }
 }
 
-/// Texto do `regras-do-sistema.md` do sistema na base configurada. Falhas só vão
+/// Texto do `regras-do-projeto.md` do projeto na base configurada. Falhas só vão
 /// para o log (sem caminhos): os limites seguem para a sessão sem as regras.
-fn regras_do_sistema(dados: &DiretorioDados, sistema: &str) -> Option<String> {
+fn regras_do_projeto(dados: &DiretorioDados, projeto: &str) -> Option<String> {
     let ler = || -> Result<Option<String>, &'static str> {
         let config = Config::ler(dados).map_err(|_| "config_ilegivel")?;
         let raiz = config.base().ok_or("base_nao_configurada")?;
         let base = Base::abrir(raiz).map_err(|_| "base_inacessivel")?;
-        let kb = base.sistema(sistema).map_err(|_| "sistema_fora_da_base")?;
-        kb.ler_regras_do_sistema().map_err(|_| "regras_ilegiveis")
+        let kb = base.projeto(projeto).map_err(|_| "projeto_fora_da_base")?;
+        kb.ler_regras_do_projeto().map_err(|_| "regras_ilegiveis")
     };
     match ler() {
         Ok(regras) => regras,
         Err(motivo) => {
-            tracing::info!(motivo, "sessão sem as regras do sistema");
+            tracing::info!(motivo, "sessão sem as regras do projeto");
             None
         }
     }
 }
 
-/// Análises do sistema na base configurada, sem montar o ambiente inteiro (sem
+/// Análises do projeto na base configurada, sem montar o ambiente inteiro (sem
 /// escopo nem exclusões, e sem criar nada na base).
-fn analises_do_sistema(dados: &DiretorioDados, sistema: &str) -> Result<Analises, &'static str> {
+fn analises_do_projeto(dados: &DiretorioDados, projeto: &str) -> Result<Analises, &'static str> {
     let config = Config::ler(dados).map_err(|_| "config_ilegivel")?;
     let raiz = config.base().ok_or("base_nao_configurada")?;
     let base = Base::abrir(raiz).map_err(|_| "base_inacessivel")?;
-    let kb = base.sistema(sistema).map_err(|_| "sistema_fora_da_base")?;
+    let kb = base.projeto(projeto).map_err(|_| "projeto_fora_da_base")?;
     Ok(Analises::new(
         kb,
         Arc::new(DiarioEventos::em(dados.eventos())),

@@ -135,7 +135,7 @@ pub enum EstadoEvidencia {
     ARevalidar,
 }
 
-/// Trecho do código que sustenta uma afirmação: caminho relativo à raiz do sistema,
+/// Trecho do código que sustenta uma afirmação: caminho relativo à raiz do projeto,
 /// intervalo de linhas, trecho citado, hash do trecho e commit (spec, seção 6.5).
 ///
 /// O modelo só guarda; quem confere o trecho e calcula o hash é a validação (#20).
@@ -344,14 +344,14 @@ impl Revalidada {
 pub struct Analise {
     pub formato: u32,
     pub id: Id,
-    /// Slug do sistema.
-    pub sistema: String,
+    /// Slug do projeto.
+    pub projeto: String,
     pub fluxo: Fluxo,
     pub titulo: String,
     /// Entrada do analista: a pergunta, a funcionalidade ou o texto da demanda.
     pub entrada: String,
     pub estado: EstadoAnalise,
-    /// Documento da análise, relativo à raiz do sistema na base.
+    /// Documento da análise, relativo à raiz do projeto na base.
     pub documento: CaminhoRelativo,
     /// Sobe a cada gravação. O app usa para saber se precisa reler.
     pub versao: u64,
@@ -424,7 +424,7 @@ impl Analise {
     /// `analises/<id>.md`.
     pub fn nova(
         id: Id,
-        sistema: impl Into<String>,
+        projeto: impl Into<String>,
         fluxo: Fluxo,
         titulo: impl Into<String>,
         entrada: impl Into<String>,
@@ -434,7 +434,7 @@ impl Analise {
             formato: VERSAO_DO_FORMATO,
             documento: id.arquivo(),
             id,
-            sistema: sistema.into(),
+            projeto: projeto.into(),
             fluxo,
             titulo: titulo.into(),
             entrada: entrada.into(),

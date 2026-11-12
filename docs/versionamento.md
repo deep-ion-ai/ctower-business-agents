@@ -34,6 +34,17 @@ Para testar os instaladores de uma branch sem publicar, dispare o workflow `rele
 
 A versão inicial é `0.0.0`, no manifest e no `Cargo.toml`. Com `bump-minor-pre-major`, o primeiro `feat` que chegar à `main` gera a `0.1.0`. Se a primeira release só tiver `fix`, ela seria `0.0.1`; para forçar a `0.1.0` nesse caso, use o rodapé `Release-As: 0.1.0` no commit.
 
+### Volta para a 0.x (2026-11-12)
+
+Sem `initial-version`, o release-please gerou a primeira release como `1.0.0`. Ela foi apagada, com a tag, e a versão voltou para `0.0.0`. Para a próxima release sair como `0.1.0`, com o CHANGELOG desde o primeiro commit, o pacote `.` do `release-please-config.json` tem por enquanto dois ajustes:
+
+- `release-as: 0.1.0`: força a versão;
+- `last-release-sha`: aponta para o commit inicial da `main` e faz o release-please ignorar o PR de release da `1.0.0`.
+
+**Os dois saem logo depois de publicada a `0.1.0`**, num PR para a `develop`. Se ficarem, toda release seguinte também sairia `0.1.0` com o histórico inteiro.
+
+Na série 0.x, uma quebra (`!`) sobe só a versão menor. A `1.0.0` fica para quando o projeto for considerado estável.
+
 ## Onde a versão vive
 
 - `.release-please-manifest.json`: a versão da última release, referência para o release-please.

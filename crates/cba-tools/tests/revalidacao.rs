@@ -16,7 +16,7 @@ use cba_core::eventos::Mudanca;
 use cba_kb::frontmatter::{FrontmatterRegra, Linhas, StatusRegra, TipoDocumento};
 use cba_kb::{CaminhoRelativo, Documento, Id};
 use cba_tools::evidencias::{EvidenciaCitada, hash_das_linhas, validar};
-use cba_tools::revalidacao::{Origem, Relatorio, revalidar_sistema};
+use cba_tools::revalidacao::{Origem, Relatorio, revalidar_projeto};
 
 const COMMIT_1: &str = "1111111111111111111111111111111111111111";
 const COMMIT_2: &str = "2222222222222222222222222222222222222222";
@@ -59,9 +59,9 @@ fn cenario() -> Cenario {
     fs::write(codigo.join(".git/refs/heads/main"), format!("{COMMIT_1}\n")).unwrap();
 
     let dados = DiretorioDados::em(raiz.join("dados"));
-    let sistema = cba_index::Sistema::novo("Faturamento Exemplo", [&codigo]).unwrap();
-    cba_index::Cadastro::em(dados.sistemas())
-        .cadastrar(&sistema)
+    let projeto = cba_index::Projeto::novo("Faturamento Exemplo", [&codigo]).unwrap();
+    cba_index::Cadastro::em(dados.projetos())
+        .cadastrar(&projeto)
         .unwrap();
     cba_kb::Base::criar(raiz.join("base")).unwrap();
     Config {
@@ -166,12 +166,12 @@ impl Cenario {
     }
 
     fn revalidar(&self) -> Relatorio {
-        revalidar_sistema(&self.amb, &self.dados).unwrap()
+        revalidar_projeto(&self.amb, &self.dados).unwrap()
     }
 
     fn inventariar(&self) {
-        cba_index::Cadastro::em(self.dados.sistemas())
-            .inventariar(&self.amb.sistema.id)
+        cba_index::Cadastro::em(self.dados.projetos())
+            .inventariar(&self.amb.projeto.id)
             .unwrap();
     }
 

@@ -31,9 +31,9 @@ fn cenario() -> Cenario {
     let dir = tempfile::tempdir().unwrap();
     let raiz = dir.path();
     let dados = DiretorioDados::em(raiz.join("dados"));
-    let sistema = cba_index::Sistema::novo("Faturamento Exemplo", [fixture()]).unwrap();
-    cba_index::Cadastro::em(dados.sistemas())
-        .cadastrar(&sistema)
+    let projeto = cba_index::Projeto::novo("Faturamento Exemplo", [fixture()]).unwrap();
+    cba_index::Cadastro::em(dados.projetos())
+        .cadastrar(&projeto)
         .unwrap();
     cba_kb::Base::criar(raiz.join("base")).unwrap();
     Config {
@@ -215,12 +215,12 @@ fn afirmar_recusa_e_nao_grava_nada() {
     let m = c.recusa("afirmar", args);
     assert!(m.contains("excluído da análise"), "{m}");
 
-    // Fora do sistema.
+    // Fora do projeto.
     let mut args = multa(&a);
     args["evidencias"][0]["arquivo"] = json!("../gabaritos/faturamento-exemplo.yaml");
     assert!(
         c.recusa("afirmar", args)
-            .contains("relativo à raiz do sistema")
+            .contains("relativo à raiz do projeto")
     );
 
     // Confirmado sem evidência.
@@ -245,7 +245,7 @@ fn afirmar_recusa_e_nao_grava_nada() {
     args["analise"] = json!("A-0099");
     assert!(
         c.recusa("afirmar", args)
-            .contains("não existe neste sistema")
+            .contains("não existe neste projeto")
     );
     let mut args = multa(&a);
     args["analise"] = json!("0001");

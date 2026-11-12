@@ -43,15 +43,15 @@ pub enum Erro {
         #[source]
         erro: io::Error,
     },
-    /// O sistema não tem pasta na base.
-    #[error("sistema `{0}` não encontrado na base")]
-    SistemaInexistente(String),
-    /// Nome de sistema que não é slug.
-    #[error("nome de sistema inválido `{0}`: use só a-z, 0-9 e -")]
-    NomeDeSistema(String),
-    /// O `id` do `sistema.md` difere do nome da pasta.
-    #[error("o id do sistema (`{id}`) precisa ser igual ao nome da pasta (`{pasta}`)")]
-    IdDoSistema { id: String, pasta: String },
+    /// O projeto não tem pasta na base.
+    #[error("projeto `{0}` não encontrado na base")]
+    ProjetoInexistente(String),
+    /// Nome de projeto que não é slug.
+    #[error("nome de projeto inválido `{0}`: use só a-z, 0-9 e -")]
+    NomeDeProjeto(String),
+    /// O `id` do `projeto.md` difere do nome da pasta.
+    #[error("o id do projeto (`{id}`) precisa ser igual ao nome da pasta (`{pasta}`)")]
+    IdDoProjeto { id: String, pasta: String },
     #[error(transparent)]
     Caminho(#[from] CaminhoInvalido),
     #[error(transparent)]

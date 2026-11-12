@@ -1,4 +1,4 @@
-//! Cadastro de um sistema e o escopo de caminhos que as ferramentas podem ler.
+//! Cadastro de um projeto e o escopo de caminhos que as ferramentas podem ler.
 
 use std::collections::HashSet;
 use std::fs;
@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::Erro;
 use crate::exclusoes::{Exclusao, Exclusoes, Motivo};
 
-/// Uma pasta local do sistema.
+/// Uma pasta local do projeto.
 ///
 /// No máximo uma pasta fica sem prefixo: é a raiz, e os caminhos dentro dela
 /// aparecem sem nada na frente (`db/01_tabelas.sql`). As demais aparecem sob o
@@ -24,11 +24,11 @@ pub struct Pasta {
     pub prefixo: Option<String>,
 }
 
-/// Sistema cadastrado: nome, pastas e ajustes de exclusão (spec, seção 4.1).
+/// Projeto cadastrado: nome, pastas e ajustes de exclusão (spec, seção 4.1).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Sistema {
+pub struct Projeto {
     /// Identificador legível e estável, derivado do nome (`faturamento-exemplo`).
-    /// Dá nome à pasta do sistema na base de conhecimento e no cadastro.
+    /// Dá nome à pasta do projeto na base de conhecimento e no cadastro.
     pub id: String,
     pub nome: String,
     pub pastas: Vec<Pasta>,
@@ -40,8 +40,8 @@ pub struct Sistema {
     pub inclusoes: Vec<String>,
 }
 
-impl Sistema {
-    /// Monta um sistema novo a partir do nome e das pastas.
+impl Projeto {
+    /// Monta um projeto novo a partir do nome e das pastas.
     ///
     /// A primeira pasta é a raiz (sem prefixo); as demais recebem o nome da pasta
     /// como prefixo, com sufixo numérico se repetir. Os caminhos são guardados
@@ -76,15 +76,15 @@ impl Sistema {
             };
             lista.push(Pasta { caminho, prefixo });
         }
-        let sistema = Self {
+        let projeto = Self {
             id: slug(nome),
             nome: nome.to_string(),
             pastas: lista,
             exclusoes: Vec::new(),
             inclusoes: Vec::new(),
         };
-        sistema.validar()?;
-        Ok(sistema)
+        projeto.validar()?;
+        Ok(projeto)
     }
 
     /// Confere o cadastro: identificador, pastas existentes e sem sobreposição,
@@ -146,12 +146,12 @@ impl Sistema {
         Ok(())
     }
 
-    /// Exclusões compiladas do sistema (padrão + ajustes do analista).
+    /// Exclusões compiladas do projeto (padrão + ajustes do analista).
     pub fn regras_de_exclusao(&self) -> Result<Exclusoes, Erro> {
         Exclusoes::novas(&self.exclusoes, &self.inclusoes)
     }
 
-    /// Escopo de leitura do sistema: resolve caminhos relativos e aplica as
+    /// Escopo de leitura do projeto: resolve caminhos relativos e aplica as
     /// exclusões. Falha se alguma pasta não existe mais.
     pub fn escopo(&self) -> Result<Escopo, Erro> {
         self.validar()?;
@@ -175,10 +175,10 @@ impl Sistema {
 /// Por que um caminho foi recusado pelo [`Escopo`].
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum Recusa {
-    #[error("caminho inválido: {0} (use um caminho relativo à raiz do sistema, com /)")]
+    #[error("caminho inválido: {0} (use um caminho relativo à raiz do projeto, com /)")]
     CaminhoInvalido(String),
-    #[error("caminho fora das pastas do sistema")]
-    ForaDoSistema,
+    #[error("caminho fora das pastas do projeto")]
+    ForaDoProjeto,
     #[error("caminho excluído da análise ({})", .0.motivo.descricao())]
     Excluido(Exclusao),
     #[error("arquivo não encontrado")]
@@ -187,10 +187,10 @@ pub enum Recusa {
     NaoEhArquivo,
 }
 
-/// Pastas e exclusões de um sistema, prontas para resolver caminhos.
+/// Pastas e exclusões de um projeto, prontas para resolver caminhos.
 ///
 /// É o que as ferramentas MCP e a validação de evidências (#20) usam para garantir
-/// que só leem dentro das pastas do sistema e fora das exclusões (spec, seção 6.1).
+/// que só leem dentro das pastas do projeto e fora das exclusões (spec, seção 6.1).
 #[derive(Debug, Clone)]
 pub struct Escopo {
     pastas: Vec<Pasta>,
@@ -206,9 +206,9 @@ impl Escopo {
         &self.exclusoes
     }
 
-    /// Resolve um caminho relativo à raiz do sistema para o arquivo no disco.
+    /// Resolve um caminho relativo à raiz do projeto para o arquivo no disco.
     ///
-    /// Recusa caminhos absolutos ou com `..`, fora das pastas do sistema (inclusive
+    /// Recusa caminhos absolutos ou com `..`, fora das pastas do projeto (inclusive
     /// por link simbólico), excluídos (pelos padrões) e inexistentes. Aceita `\`
     /// como separador. Não lê o conteúdo: binário pelo conteúdo fica para quem lê.
     pub fn resolver(&self, relativo: &str) -> Result<PathBuf, Recusa> {
@@ -216,7 +216,7 @@ impl Escopo {
         if let Some(e) = self.exclusoes.avaliar_caminho(&rel) {
             return Err(Recusa::Excluido(e));
         }
-        let (pasta, interno) = self.localizar(&rel).ok_or(Recusa::ForaDoSistema)?;
+        let (pasta, interno) = self.localizar(&rel).ok_or(Recusa::ForaDoProjeto)?;
         let caminho = interno
             .split('/')
             .fold(pasta.caminho.clone(), |c, parte| c.join(parte));
@@ -227,10 +227,10 @@ impl Escopo {
                 regra: None,
             }));
         }
-        // Uma pasta intermediária pode ser um link para fora do sistema.
+        // Uma pasta intermediária pode ser um link para fora do projeto.
         let canonico = dunce::canonicalize(&caminho).map_err(|_| Recusa::NaoEncontrado)?;
         if !canonico.starts_with(&pasta.caminho) {
-            return Err(Recusa::ForaDoSistema);
+            return Err(Recusa::ForaDoProjeto);
         }
         if !meta.is_file() {
             return Err(Recusa::NaoEhArquivo);
@@ -238,8 +238,8 @@ impl Escopo {
         Ok(canonico)
     }
 
-    /// Caminho relativo à raiz do sistema de um caminho absoluto, se ele estiver
-    /// dentro de alguma pasta do sistema. Não aplica as exclusões.
+    /// Caminho relativo à raiz do projeto de um caminho absoluto, se ele estiver
+    /// dentro de alguma pasta do projeto. Não aplica as exclusões.
     pub fn relativo(&self, absoluto: &Path) -> Option<String> {
         let absoluto = dunce::canonicalize(absoluto).unwrap_or_else(|_| absoluto.to_path_buf());
         self.pastas.iter().find_map(|p| {
@@ -255,13 +255,13 @@ impl Escopo {
         })
     }
 
-    /// Pasta do sistema que contém o caminho relativo (para detectar o git dela).
+    /// Pasta do projeto que contém o caminho relativo (para detectar o git dela).
     pub fn raiz_de(&self, relativo: &str) -> Option<&Path> {
         let rel = normalizar(relativo)?;
         self.localizar(&rel).map(|(p, _)| p.caminho.as_path())
     }
 
-    /// Separa o caminho relativo do sistema em (pasta, caminho dentro dela).
+    /// Separa o caminho relativo do projeto em (pasta, caminho dentro dela).
     fn localizar<'a>(&self, rel: &'a str) -> Option<(&Pasta, &'a str)> {
         let com_prefixo = self.pastas.iter().find_map(|p| {
             let x = p.prefixo.as_deref()?;
@@ -374,27 +374,27 @@ mod tests {
         for p in [&a, &b, &c] {
             fs::create_dir_all(p).unwrap();
         }
-        let s = Sistema::novo("Faturamento", [&a, &b, &c]).unwrap();
+        let s = Projeto::novo("Faturamento", [&a, &b, &c]).unwrap();
         assert_eq!(s.id, "faturamento");
         assert_eq!(s.pastas[0].prefixo, None);
         assert_eq!(s.pastas[1].prefixo.as_deref(), Some("telas-antigas"));
         assert_eq!(s.pastas[2].prefixo.as_deref(), Some("telas-antigas-2"));
 
         assert!(matches!(
-            Sistema::novo("x", [tmp.path().join("nao-existe")]),
+            Projeto::novo("x", [tmp.path().join("nao-existe")]),
             Err(Erro::PastaNaoEncontrada(_))
         ));
         assert!(matches!(
-            Sistema::novo("x", [tmp.path(), a.as_path()]),
+            Projeto::novo("x", [tmp.path(), a.as_path()]),
             Err(Erro::PastasSobrepostas(..))
         ));
-        assert!(matches!(Sistema::novo("  ", [&a]), Err(Erro::NomeVazio)));
+        assert!(matches!(Projeto::novo("  ", [&a]), Err(Erro::NomeVazio)));
         assert!(matches!(
-            Sistema::novo("???", [&a]),
+            Projeto::novo("???", [&a]),
             Err(Erro::IdInvalido(_))
         ));
         assert!(matches!(
-            Sistema::novo("x", Vec::<PathBuf>::new()),
+            Projeto::novo("x", Vec::<PathBuf>::new()),
             Err(Erro::SemPastas)
         ));
     }
@@ -407,7 +407,7 @@ mod tests {
         fs::create_dir_all(raiz.join("db")).unwrap();
         fs::create_dir_all(&extra).unwrap();
         assert!(matches!(
-            Sistema::novo("x", [&raiz, &extra]),
+            Projeto::novo("x", [&raiz, &extra]),
             Err(Erro::PrefixoConflitante { .. })
         ));
     }
@@ -426,7 +426,7 @@ mod tests {
         fs::write(telas.join("UFrm.pas"), "unit UFrm;").unwrap();
         fs::write(tmp.path().join("fora.txt"), "").unwrap();
 
-        let s = Sistema::novo("Sistema", [&raiz, &telas]).unwrap();
+        let s = Projeto::novo("Projeto", [&raiz, &telas]).unwrap();
         let e = s.escopo().unwrap();
         let canon = |p: PathBuf| dunce::canonicalize(p).unwrap();
 
@@ -493,8 +493,8 @@ mod tests {
         fs::write(fora.join("segredo.txt"), "x").unwrap();
         std::os::unix::fs::symlink(&fora, raiz.join("atalho")).unwrap();
         std::os::unix::fs::symlink(fora.join("segredo.txt"), raiz.join("link.txt")).unwrap();
-        let e = Sistema::novo("x", [&raiz]).unwrap().escopo().unwrap();
-        assert_eq!(e.resolver("atalho/segredo.txt"), Err(Recusa::ForaDoSistema));
+        let e = Projeto::novo("x", [&raiz]).unwrap().escopo().unwrap();
+        assert_eq!(e.resolver("atalho/segredo.txt"), Err(Recusa::ForaDoProjeto));
         assert!(matches!(
             e.resolver("link.txt"),
             Err(Recusa::Excluido(Exclusao {

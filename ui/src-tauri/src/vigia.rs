@@ -1,19 +1,19 @@
-//! Acompanhamento do diário de eventos (`<dados>/eventos/<sistema>.jsonl`) para a
+//! Acompanhamento do diário de eventos (`<dados>/eventos/<projeto>.jsonl`) para a
 //! tela da análise se atualizar ao vivo (spec, seção 4.2, passo 6).
 //!
 //! # Por que consulta periódica, e não notificação do sistema de arquivos
 //!
-//! O diário é um arquivo só por sistema, acrescentado por outros processos (`cba mcp`
+//! O diário é um arquivo só por projeto, acrescentado por outros processos (`cba mcp`
 //! e `cba hook`). Consultar o tamanho dele a cada [`INTERVALO`] custa uma chamada
 //! `stat` e só abre o arquivo quando ele mudou, e dá a mesma latência (no máximo o
 //! intervalo, bem abaixo do 1 s da issue) no Windows, no macOS e no Linux. A
-//! notificação do sistema (crate `notify`) traria uma dependência e comportamentos
+//! notificação do projeto (crate `notify`) traria uma dependência e comportamentos
 //! diferentes por plataforma: no macOS, o FSEvents agrupa os avisos com atraso
 //! configurável e não avisa por arquivo de forma confiável; no Windows, o
 //! `ReadDirectoryChangesW` vigia a pasta inteira e perde avisos quando o buffer
 //! enche. Cada aviso ainda exigiria ler o arquivo do mesmo jeito.
 //!
-//! Há uma vigia por sistema, compartilhada pelos assinantes (as telas abertas): só
+//! Há uma vigia por projeto, compartilhada pelos assinantes (as telas abertas): só
 //! ela lê e esvazia o diário ([`cba_core::eventos::LeitorDiario`]), então nenhuma
 //! tela do app perde evento por causa de outra.
 
@@ -40,7 +40,7 @@ pub const INTERVALO: Duration = Duration::from_millis(100);
     rename_all_fields = "camelCase"
 )]
 pub enum Aviso {
-    /// Uma análise do sistema mudou: a tela relê se for a que está aberta.
+    /// Uma análise do projeto mudou: a tela relê se for a que está aberta.
     Mudanca {
         analise: String,
         mudanca: Mudanca,
@@ -68,13 +68,13 @@ impl Vigia {
     }
 }
 
-/// Vigias abertas pelo app, uma por sistema.
+/// Vigias abertas pelo app, uma por projeto.
 pub struct Vigias {
     eventos: PathBuf,
     intervalo: Duration,
     proximo: AtomicU64,
-    por_sistema: Mutex<HashMap<String, Arc<Vigia>>>,
-    /// Sistema de cada assinatura.
+    por_projeto: Mutex<HashMap<String, Arc<Vigia>>>,
+    /// Projeto de cada assinatura.
     assinaturas: Mutex<HashMap<u64, String>>,
 }
 
@@ -85,7 +85,7 @@ impl Vigias {
             eventos: eventos.into(),
             intervalo,
             proximo: AtomicU64::new(1),
-            por_sistema: Mutex::new(HashMap::new()),
+            por_projeto: Mutex::new(HashMap::new()),
             assinaturas: Mutex::new(HashMap::new()),
         }
     }
@@ -98,13 +98,13 @@ impl Vigias {
         Self::em(pasta, INTERVALO)
     }
 
-    /// Passa a receber os avisos do sistema. Devolve o identificador da assinatura.
-    pub fn assinar(&self, sistema: &str, f: impl Fn(&Aviso) + Send + Sync + 'static) -> u64 {
+    /// Passa a receber os avisos do projeto. Devolve o identificador da assinatura.
+    pub fn assinar(&self, projeto: &str, f: impl Fn(&Aviso) + Send + Sync + 'static) -> u64 {
         let id = self.proximo.fetch_add(1, Ordering::Relaxed);
-        let mut por_sistema = self.por_sistema.lock().unwrap_or_else(|e| e.into_inner());
-        let vigia = por_sistema
-            .entry(sistema.to_owned())
-            .or_insert_with(|| self.iniciar(sistema));
+        let mut por_projeto = self.por_projeto.lock().unwrap_or_else(|e| e.into_inner());
+        let vigia = por_projeto
+            .entry(projeto.to_owned())
+            .or_insert_with(|| self.iniciar(projeto));
         vigia
             .assinantes
             .lock()
@@ -113,13 +113,13 @@ impl Vigias {
         self.assinaturas
             .lock()
             .unwrap_or_else(|e| e.into_inner())
-            .insert(id, sistema.to_owned());
+            .insert(id, projeto.to_owned());
         id
     }
 
-    /// Cancela uma assinatura. A vigia do sistema para com o último assinante.
+    /// Cancela uma assinatura. A vigia do projeto para com o último assinante.
     pub fn cancelar(&self, id: u64) {
-        let Some(sistema) = self
+        let Some(projeto) = self
             .assinaturas
             .lock()
             .unwrap_or_else(|e| e.into_inner())
@@ -127,30 +127,30 @@ impl Vigias {
         else {
             return;
         };
-        let mut por_sistema = self.por_sistema.lock().unwrap_or_else(|e| e.into_inner());
-        if let Some(vigia) = por_sistema.get(&sistema) {
+        let mut por_projeto = self.por_projeto.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(vigia) = por_projeto.get(&projeto) {
             let mut assinantes = vigia.assinantes.lock().unwrap_or_else(|e| e.into_inner());
             assinantes.remove(&id);
             if assinantes.is_empty() {
                 vigia.parar.store(true, Ordering::Relaxed);
                 drop(assinantes);
-                por_sistema.remove(&sistema);
+                por_projeto.remove(&projeto);
             }
         }
     }
 
-    /// Sistemas com vigia ativa (testes).
+    /// Projetos com vigia ativa (testes).
     #[cfg(test)]
     pub fn ativas(&self) -> usize {
-        self.por_sistema
+        self.por_projeto
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .len()
     }
 
-    fn iniciar(&self, sistema: &str) -> Arc<Vigia> {
+    fn iniciar(&self, projeto: &str) -> Arc<Vigia> {
         let vigia = Arc::new(Vigia::default());
-        let mut leitor = DiarioEventos::em(&self.eventos).leitor(sistema);
+        let mut leitor = DiarioEventos::em(&self.eventos).leitor(projeto);
         let intervalo = self.intervalo;
         let v = Arc::clone(&vigia);
         std::thread::Builder::new()
@@ -187,14 +187,14 @@ impl Vigias {
     }
 }
 
-/// Passa a mandar à tela, por `canal`, os avisos de mudança nas análises do sistema.
+/// Passa a mandar à tela, por `canal`, os avisos de mudança nas análises do projeto.
 #[tauri::command]
 pub fn vigiar_analises(
     vigias: State<'_, Arc<Vigias>>,
-    sistema: String,
+    projeto: String,
     canal: Channel<Aviso>,
 ) -> u64 {
-    vigias.assinar(&sistema, move |aviso| {
+    vigias.assinar(&projeto, move |aviso| {
         // A janela pode ter sido fechada; não há o que fazer com o erro.
         let _ = canal.send(aviso.clone());
     })
@@ -217,7 +217,7 @@ mod tests {
     fn evento(analise: &str, versao: u64) -> Evento {
         Evento {
             quando_ms: 0,
-            sistema: "faturamento-exemplo".into(),
+            projeto: "faturamento-exemplo".into(),
             analise: analise.into(),
             mudanca: Mudanca::Afirmacao,
             versao,
@@ -261,7 +261,7 @@ mod tests {
     }
 
     #[test]
-    fn varias_telas_do_mesmo_sistema_compartilham_a_vigia() {
+    fn varias_telas_do_mesmo_projeto_compartilham_a_vigia() {
         let dir = tempfile::tempdir().unwrap();
         let diario = DiarioEventos::em(dir.path());
         let vigias = Vigias::em(dir.path(), Duration::from_millis(20));

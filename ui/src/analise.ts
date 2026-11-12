@@ -1,5 +1,5 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
-import type { SistemaResumo } from "./terminal";
+import type { ProjetoResumo } from "./terminal";
 
 /**
  * Espelho do estado da análise (`cba_core::analise::Analise`), no formato do arquivo
@@ -82,7 +82,7 @@ export interface Sessao {
 
 export interface Analise {
   id: string;
-  sistema: string;
+  projeto: string;
   fluxo: Fluxo;
   titulo: string;
   entrada: string;
@@ -139,7 +139,7 @@ export interface Trecho {
 
 export interface Situacao {
   base: string | null;
-  sistemas: SistemaResumo[];
+  projetos: ProjetoResumo[];
 }
 
 export interface AmbienteClaude {
@@ -159,7 +159,7 @@ export interface PlanoPreparo {
   gravado: boolean;
 }
 
-/** Arquivo da pasta do sistema alterado durante uma sessão (`cba_session::alteracoes::Detalhe`). */
+/** Arquivo da pasta do projeto alterado durante uma sessão (`cba_session::alteracoes::Detalhe`). */
 export interface ArquivoAlterado {
   sessao: string;
   /** Raiz do repositório (ou a pasta, fora do git). */
@@ -176,7 +176,7 @@ export interface ArquivoAlterado {
   binario: boolean;
 }
 
-/** Aviso de alteração de uma análise (`alteracoes_da_analise_sistema`). */
+/** Aviso de alteração de uma análise (`alteracoes_da_analise_projeto`). */
 export interface AvisoAlteracao {
   arquivos: ArquivoAlterado[];
   /** Limitações da conferência (git ausente, pasta fora do git). */
@@ -193,7 +193,7 @@ export interface PedidoAlteracao {
 
 /** Situação da proteção opcional contra edição (`cba_session::protecao::SituacaoProtecao`). */
 export interface SituacaoProtecao {
-  sistema: string;
+  projeto: string;
   ligada: boolean;
   completa: boolean;
   /** `~/.claude/settings.json`. */
@@ -206,7 +206,7 @@ export interface SituacaoProtecao {
 export type AvisoAnalise =
   { tipo: "mudanca"; analise: string; mudanca: string; versao: number } | { tipo: "reinicio" };
 
-/** Prompt pronto (#32): `prompts_prontos { sistema, analise }`. */
+/** Prompt pronto (#32): `prompts_prontos { projeto, analise }`. */
 export interface PromptPronto {
   /** aprofundar, resumir, criterios-de-aceite, conferir-evidencias, retomar. */
   id: string;
@@ -235,73 +235,73 @@ export function mensagemDe(e: unknown): string {
 
 /** Verificação e preparo do ambiente do Claude, usados pela análise e pelo primeiro uso. */
 export interface ApiAmbiente {
-  verificarAmbiente(sistema: string): Promise<AmbienteClaude>;
+  verificarAmbiente(projeto: string): Promise<AmbienteClaude>;
   /** O que o preparo mudaria, sem gravar. */
-  planejarPreparo(sistema: string): Promise<PlanoPreparo>;
+  planejarPreparo(projeto: string): Promise<PlanoPreparo>;
   /** Prepara; só depois do consentimento do analista. */
-  prepararAmbiente(sistema: string): Promise<PlanoPreparo>;
+  prepararAmbiente(projeto: string): Promise<PlanoPreparo>;
   /** Proteção opcional contra edição (#29); a tela de configurações (#39) também usa. */
-  situacaoProtecao?(sistema: string): Promise<SituacaoProtecao>;
+  situacaoProtecao?(projeto: string): Promise<SituacaoProtecao>;
   /** Liga ou desliga a proteção; só depois do consentimento do analista. */
-  mudarProtecao?(sistema: string, ligada: boolean): Promise<SituacaoProtecao>;
+  mudarProtecao?(projeto: string, ligada: boolean): Promise<SituacaoProtecao>;
 }
 
-/** Aviso de alteração na pasta do sistema (#29). */
+/** Aviso de alteração na pasta do projeto (#29). */
 export interface ApiAlteracoes {
-  alteracoes(sistema: string, analise: string): Promise<AvisoAlteracao>;
+  alteracoes(projeto: string, analise: string): Promise<AvisoAlteracao>;
   /** Volta os arquivos ao início da sessão; só depois da confirmação na tela. */
-  desfazer(sistema: string, analise: string, pedidos: PedidoAlteracao[]): Promise<string[]>;
+  desfazer(projeto: string, analise: string, pedidos: PedidoAlteracao[]): Promise<string[]>;
   /** O analista mantém as alterações: elas saem do aviso. */
-  manter(sistema: string, analise: string, pedidos: PedidoAlteracao[]): Promise<string[]>;
+  manter(projeto: string, analise: string, pedidos: PedidoAlteracao[]): Promise<string[]>;
 }
 
 export const apiAlteracoesTauri: ApiAlteracoes = {
-  alteracoes: (sistema, analise) => invoke("alteracoes_da_analise_sistema", { sistema, analise }),
-  desfazer: (sistema, analise, pedidos) =>
-    invoke("desfazer_alteracoes_sistema", { sistema, analise, pedidos }),
-  manter: (sistema, analise, pedidos) =>
-    invoke("manter_alteracoes_sistema", { sistema, analise, pedidos }),
+  alteracoes: (projeto, analise) => invoke("alteracoes_da_analise_projeto", { projeto, analise }),
+  desfazer: (projeto, analise, pedidos) =>
+    invoke("desfazer_alteracoes_projeto", { projeto, analise, pedidos }),
+  manter: (projeto, analise, pedidos) =>
+    invoke("manter_alteracoes_projeto", { projeto, analise, pedidos }),
 };
 
 /** Operações da tela da análise. A interface usa {@link apiAnaliseTauri}; os testes, uma falsa. */
 export interface ApiAnalise extends ApiAmbiente {
-  /** A base e os sistemas (o comando devolve também os campos do primeiro uso). */
+  /** A base e os projetos (o comando devolve também os campos do primeiro uso). */
   situacao(): Promise<Situacao>;
-  listarAnalises(sistema: string): Promise<AnaliseResumo[]>;
-  criarAnalise(sistema: string, entrada: string, titulo?: string): Promise<AnaliseCriada>;
-  carregarAnalise(sistema: string, analise: string): Promise<VistaAnalise>;
-  trechoEvidencia(sistema: string, arquivo: string, inicio: number, fim: number): Promise<Trecho>;
-  /** Passa a receber os avisos do sistema; devolve a função que para. */
-  vigiar(sistema: string, aoAviso: (a: AvisoAnalise) => void): Promise<() => void>;
+  listarAnalises(projeto: string): Promise<AnaliseResumo[]>;
+  criarAnalise(projeto: string, entrada: string, titulo?: string): Promise<AnaliseCriada>;
+  carregarAnalise(projeto: string, analise: string): Promise<VistaAnalise>;
+  trechoEvidencia(projeto: string, arquivo: string, inicio: number, fim: number): Promise<Trecho>;
+  /** Passa a receber os avisos do projeto; devolve a função que para. */
+  vigiar(projeto: string, aoAviso: (a: AvisoAnalise) => void): Promise<() => void>;
   /** Prompts prontos da análise; lista vazia se o comando não existir (antes da #32). */
-  promptsProntos(sistema: string, analise: string): Promise<PromptPronto[]>;
+  promptsProntos(projeto: string, analise: string): Promise<PromptPronto[]>;
 }
 
 export const apiAnaliseTauri: ApiAnalise = {
   situacao: () => invoke("situacao_app"),
-  verificarAmbiente: (sistema) => invoke("verificar_ambiente_sistema", { sistema }),
-  planejarPreparo: (sistema) => invoke("planejar_preparo_sistema", { sistema }),
-  prepararAmbiente: (sistema) => invoke("preparar_ambiente_sistema", { sistema }),
-  situacaoProtecao: (sistema) => invoke("situacao_protecao_sistema", { sistema }),
-  mudarProtecao: (sistema, ligada) => invoke("mudar_protecao_sistema", { sistema, ligada }),
-  listarAnalises: (sistema) => invoke("listar_analises_sistema", { sistema }),
-  criarAnalise: (sistema, entrada, titulo) =>
-    invoke("criar_analise_pergunta", { sistema, entrada, titulo: titulo ?? null }),
-  carregarAnalise: (sistema, analise) => invoke("carregar_analise_sistema", { sistema, analise }),
-  trechoEvidencia: (sistema, arquivo, inicio, fim) =>
-    invoke("trecho_evidencia_sistema", { sistema, arquivo, inicio, fim }),
-  async vigiar(sistema, aoAviso) {
+  verificarAmbiente: (projeto) => invoke("verificar_ambiente_projeto", { projeto }),
+  planejarPreparo: (projeto) => invoke("planejar_preparo_projeto", { projeto }),
+  prepararAmbiente: (projeto) => invoke("preparar_ambiente_projeto", { projeto }),
+  situacaoProtecao: (projeto) => invoke("situacao_protecao_projeto", { projeto }),
+  mudarProtecao: (projeto, ligada) => invoke("mudar_protecao_projeto", { projeto, ligada }),
+  listarAnalises: (projeto) => invoke("listar_analises_projeto", { projeto }),
+  criarAnalise: (projeto, entrada, titulo) =>
+    invoke("criar_analise_pergunta", { projeto, entrada, titulo: titulo ?? null }),
+  carregarAnalise: (projeto, analise) => invoke("carregar_analise_projeto", { projeto, analise }),
+  trechoEvidencia: (projeto, arquivo, inicio, fim) =>
+    invoke("trecho_evidencia_projeto", { projeto, arquivo, inicio, fim }),
+  async vigiar(projeto, aoAviso) {
     const canal = new Channel<AvisoAnalise>();
     canal.onmessage = aoAviso;
-    const id = await invoke<number>("vigiar_analises", { sistema, canal });
+    const id = await invoke<number>("vigiar_analises", { projeto, canal });
     return () => {
       canal.onmessage = () => undefined;
       invoke("parar_vigia", { id }).catch(() => undefined);
     };
   },
-  async promptsProntos(sistema, analise) {
+  async promptsProntos(projeto, analise) {
     try {
-      const lista = await invoke<PromptPronto[]>("prompts_prontos", { sistema, analise });
+      const lista = await invoke<PromptPronto[]>("prompts_prontos", { projeto, analise });
       return Array.isArray(lista) ? lista : [];
     } catch {
       // O comando chega com a #32; sem ele (ou com falha), a tela fica sem os botões.

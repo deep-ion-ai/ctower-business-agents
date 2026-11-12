@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Testes de check-deps.py e check-versions.py.
+"""Testes de check-deps.py, check-versions.py e check-termos.py.
 
 Uso: python3 -m unittest discover -s scripts -p 'test_*.py'
 """
@@ -21,6 +21,7 @@ def carregar(arquivo):
 
 check_deps = carregar("check-deps.py")
 check_versions = carregar("check-versions.py")
+check_termos = carregar("check-termos.py")
 
 
 def metadata(grafo, membros):
@@ -122,6 +123,44 @@ class CheckVersions(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             r = self.raiz(d, com_ui=True, versao_ui="9.9.9")
             self.assertEqual(check_versions.main(["x", str(r)]), 1)
+
+
+
+
+class CheckTermos(unittest.TestCase):
+    def achados(self, caminho, texto):
+        return [n for n, _ in check_termos.ocorrencias(caminho, texto)]
+
+    def test_identificador_composto_falha_em_qualquer_arquivo(self):
+        for caminho, linha in [
+            ("a.rs", "fn cadastrar_sistema() {}"),
+            ("a.tsx", "export function TelaSistema() {}"),
+            ("a.rs", 'const VAR: &str = "CBA_SISTEMA";'),
+            ("a.md", "Veja `regras-do-sistema.md`."),
+            ("a.ts", "const sistemas_ativos = [];"),
+        ]:
+            with self.subTest(linha=linha):
+                self.assertEqual(self.achados(caminho, linha), [1])
+
+    def test_termo_isolado_como_nome_falha_no_codigo(self):
+        for linha in ["let sistema = x;", "a.sistema", "  sistema: String,", "abrir(sistema, pedido)"]:
+            with self.subTest(linha=linha):
+                self.assertEqual(self.achados("a.rs", linha), [1])
+
+    def test_texto_sobre_o_software_passa(self):
+        for caminho, linha in [
+            ("a.rs", "/// Pasta do sistema analisado."),
+            ("a.rs", '.split_once("Pergunta ao sistema:")'),
+            ("a.md", "Sistemas legados e o sistema operacional."),
+            ("a.rs", '"\\n# Exemplo\\n\\nSistema fictício.\\n"'),
+            ("a.rs", "// CREATE_NO_WINDOW: o app (subsistema windows)"),
+            ("a.yaml", "# Gabarito do sistema fictício."),
+        ]:
+            with self.subTest(linha=linha):
+                self.assertEqual(self.achados(caminho, linha), [])
+
+    def test_termo_isolado_no_texto_markdown_passa(self):
+        self.assertEqual(self.achados("a.md", "Abra o sistema: ele mostra a fatura."), [])
 
 
 if __name__ == "__main__":

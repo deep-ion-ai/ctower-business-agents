@@ -4,13 +4,13 @@ import {
   padraoDoCaminho,
   tamanhoLegivel,
   type ApiPrimeiroUso,
-  type PedidoSistema,
-  type PreviaSistema,
+  type PedidoProjeto,
+  type PreviaProjeto,
   type ResumoInventario,
-  type SistemaCadastrado,
+  type ProjetoCadastrado,
 } from "./primeiroUso";
 
-type Api = Pick<ApiPrimeiroUso, "previaSistema" | "cadastrarSistema" | "escolherPasta">;
+type Api = Pick<ApiPrimeiroUso, "previaProjeto" | "cadastrarProjeto" | "escolherPasta">;
 
 function linhas(texto: string): string[] {
   return texto
@@ -19,32 +19,32 @@ function linhas(texto: string): string[] {
     .filter(Boolean);
 }
 
-function chaveDoPedido(p: PedidoSistema): string {
+function chaveDoPedido(p: PedidoProjeto): string {
   return JSON.stringify(p);
 }
 
 /**
- * Cadastro de um sistema (passo do primeiro uso e das configurações): nome, uma ou mais
+ * Cadastro de um projeto (passo do primeiro uso e das configurações): nome, uma ou mais
  * pastas, a prévia do que será analisado e do que fica fora (binários, dependências,
  * possíveis segredos) e o ajuste das exclusões antes de cadastrar. O cadastro grava o
- * inventário e cria o sistema na base.
+ * inventário e cria o projeto na base.
  */
-export function CadastroSistema({
+export function CadastroProjeto({
   api,
   aoConcluir,
 }: {
   api: Api;
-  aoConcluir: (sistema: SistemaCadastrado) => void;
+  aoConcluir: (projeto: ProjetoCadastrado) => void;
 }) {
   const [nome, setNome] = useState("");
   const [pastas, setPastas] = useState<string[]>([""]);
   const [exclusoes, setExclusoes] = useState("");
   const [inclusoes, setInclusoes] = useState<string[]>([]);
-  const [previa, setPrevia] = useState<{ chave: string; dados: PreviaSistema } | null>(null);
+  const [previa, setPrevia] = useState<{ chave: string; dados: PreviaProjeto } | null>(null);
   const [ocupado, setOcupado] = useState<"previa" | "cadastro" | null>(null);
   const [falha, setFalha] = useState<string | null>(null);
 
-  const pedido: PedidoSistema = {
+  const pedido: PedidoProjeto = {
     nome: nome.trim(),
     pastas: pastas.map((p) => p.trim()).filter(Boolean),
     exclusoes: linhas(exclusoes),
@@ -53,11 +53,11 @@ export function CadastroSistema({
   const completo = pedido.nome !== "" && pedido.pastas.length > 0;
   const atualizada = previa !== null && previa.chave === chaveDoPedido(pedido);
 
-  const verPrevia = (p: PedidoSistema = pedido) => {
+  const verPrevia = (p: PedidoProjeto = pedido) => {
     setOcupado("previa");
     setFalha(null);
     api
-      .previaSistema(p)
+      .previaProjeto(p)
       .then((dados) => setPrevia({ chave: chaveDoPedido(p), dados }))
       .catch((e: unknown) => {
         setPrevia(null);
@@ -75,7 +75,7 @@ export function CadastroSistema({
     setOcupado("cadastro");
     setFalha(null);
     api
-      .cadastrarSistema(pedido)
+      .cadastrarProjeto(pedido)
       .then(aoConcluir)
       .catch((e: unknown) => {
         setFalha(mensagemDe(e));
@@ -99,27 +99,27 @@ export function CadastroSistema({
 
   const escolher = (i: number) => {
     api
-      .escolherPasta("Pasta do código do sistema", pastas[i]?.trim() || undefined)
+      .escolherPasta("Pasta do código do projeto", pastas[i]?.trim() || undefined)
       .then((p) => p && setPastas((l) => l.map((x, j) => (j === i ? p : x))))
       .catch((e: unknown) => setFalha(mensagemDe(e)));
   };
 
   return (
-    <form className="passo-assistente" onSubmit={cadastrar} aria-label="Cadastrar sistema">
-      <h2>Qual sistema você vai analisar?</h2>
+    <form className="passo-assistente" onSubmit={cadastrar} aria-label="Cadastrar projeto">
+      <h2>Qual projeto você vai analisar?</h2>
       <p>
-        Dê um nome ao sistema e indique as pastas do código (um clone do repositório, de preferência
+        Dê um nome ao projeto e indique as pastas do código (um clone do repositório, de preferência
         com acesso só de leitura). O app não grava nada nessas pastas.
       </p>
       <label>
-        Nome do sistema{" "}
+        Nome do projeto{" "}
         <input
           value={nome}
           onChange={(e) => setNome(e.target.value)}
           placeholder="Ex.: Faturamento Exemplo"
         />
       </label>
-      <fieldset className="pastas-sistema">
+      <fieldset className="pastas-projeto">
         <legend>Pastas do código</legend>
         {pastas.map((p, i) => (
           <div key={i} className="linha-pasta">
@@ -196,8 +196,8 @@ export function CadastroSistema({
       )}
       {ocupado === "cadastro" && (
         <div role="status" className="progresso">
-          <progress aria-label="Inventário do sistema" /> Cadastrando e inventariando as pastas do
-          sistema…
+          <progress aria-label="Inventário do projeto" /> Cadastrando e inventariando as pastas do
+          projeto…
         </div>
       )}
       {falha && (
@@ -219,7 +219,7 @@ export function CadastroSistema({
           className="btn btn-primary"
           disabled={!atualizada || ocupado !== null || previa?.dados.jaCadastrado === true}
         >
-          Cadastrar o sistema
+          Cadastrar o projeto
         </button>
       </div>
     </form>
@@ -232,16 +232,16 @@ function Previa({
   aoReincluir,
   ocupado,
 }: {
-  previa: PreviaSistema;
+  previa: PreviaProjeto;
   desatualizada: boolean;
   aoReincluir: (caminho: string) => void;
   ocupado: boolean;
 }) {
   return (
-    <section className="previa-sistema" aria-label="Prévia do inventário">
+    <section className="previa-projeto" aria-label="Prévia do inventário">
       {previa.jaCadastrado && (
         <p className="error-text" role="alert">
-          Já existe um sistema cadastrado com o nome “{previa.nome}”. Use outro nome.
+          Já existe um projeto cadastrado com o nome “{previa.nome}”. Use outro nome.
         </p>
       )}
       {desatualizada && (

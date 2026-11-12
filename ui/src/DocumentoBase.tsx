@@ -24,7 +24,7 @@ const ROTULO_CAMPO: Record<string, string> = {
  * Renderizador: `markdown-to-jsx` 7 (MIT, sem dependências). Ele monta elementos
  * React (nada de `innerHTML`), com `disableParsingRawHTML` o HTML do arquivo vira
  * texto e o sanitizador embutido descarta URLs `javascript:`/`data:`. O
- * `react-markdown` faria o mesmo com dezenas de pacotes do ecossistema unified.
+ * `react-markdown` faria o mesmo com dezenas de pacotes do ecosprojeto unified.
  */
 export function DocumentoBase({
   documento,
@@ -33,7 +33,7 @@ export function DocumentoBase({
 }: {
   documento: DocumentoAberto;
   aoAbrirDocumento: (caminho: string) => void;
-  aoAbrirAnalise?: (sistema: string, id: string) => void;
+  aoAbrirAnalise?: (projeto: string, id: string) => void;
 }) {
   const campos = documento.campos.filter((c) => !NO_CABECALHO.has(c.chave));
   const saem = documento.ligacoes.filter((l) => l.sai);
@@ -68,7 +68,7 @@ export function DocumentoBase({
       <header>
         <p className="muted">
           {rotuloTipo(documento.tipo)}
-          {documento.sistema && ` · ${documento.sistema}`} · <code>{documento.caminho}</code>
+          {documento.projeto && ` · ${documento.projeto}`} · <code>{documento.caminho}</code>
         </p>
         <h2>
           {documento.titulo}{" "}
@@ -85,7 +85,7 @@ export function DocumentoBase({
           <button
             className="btn"
             type="button"
-            onClick={() => aoAbrirAnalise(documento.analise!.sistema, documento.analise!.id)}
+            onClick={() => aoAbrirAnalise(documento.analise!.projeto, documento.analise!.id)}
           >
             Abrir na tela da análise
           </button>

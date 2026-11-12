@@ -39,7 +39,7 @@ pub struct Contexto {
     pub aviso: Option<String>,
 }
 
-/// Busca de um tipo de documento no índice, só do sistema da análise.
+/// Busca de um tipo de documento no índice, só do projeto da análise.
 fn buscar(
     indice: &Indice,
     ambiente: &Ambiente,
@@ -49,7 +49,7 @@ fn buscar(
 ) -> Vec<Resultado> {
     let consulta = Consulta::nova(texto)
         .modo(Modo::Qualquer)
-        .sistema(ambiente.kb.nome())
+        .projeto(ambiente.kb.nome())
         .tipos(tipos.iter().copied())
         .pagina(limite, 0);
     indice
@@ -61,14 +61,14 @@ fn buscar(
         })
 }
 
-/// Caminho de um resultado, relativo à pasta do sistema na base.
-fn no_sistema(ambiente: &Ambiente, r: &Resultado) -> Option<CaminhoRelativo> {
+/// Caminho de um resultado, relativo à pasta do projeto na base.
+fn no_projeto(ambiente: &Ambiente, r: &Resultado) -> Option<CaminhoRelativo> {
     let prefixo = format!("{}/", ambiente.kb.nome());
     CaminhoRelativo::novo(r.caminho.as_str().strip_prefix(&prefixo)?).ok()
 }
 
 impl Contexto {
-    /// Monta o contexto da análise com o que há na base do sistema.
+    /// Monta o contexto da análise com o que há na base do projeto.
     pub fn da_analise(ambiente: &Ambiente, analise: &Analise) -> Self {
         let kb = &ambiente.kb;
         let mut contexto = Contexto::default();
@@ -122,7 +122,7 @@ impl Contexto {
             LIMITE,
         ) {
             areas.extend(r.area.clone());
-            let sinonimos = no_sistema(ambiente, &r)
+            let sinonimos = no_projeto(ambiente, &r)
                 .and_then(|c| kb.ler::<FrontmatterTermo>(&c).ok())
                 .map(|d| d.frontmatter.sinonimos)
                 .unwrap_or_default();
