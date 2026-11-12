@@ -137,4 +137,4 @@ Como assinar:
 
 Todos os autores dos commits do PR precisam assinar, e o e-mail dos commits precisa estar ligado à sua conta do GitHub. As assinaturas ficam registradas na branch `cla-signatures` deste repositório.
 
-> **Pendência antes de exigir o CLA:** a assinatura de código gratuita da SignPath Foundation (#41) exige licença aprovada pela OSI sem licenciamento duplo. Antes de ativar a verificação, o mantenedor precisa confirmar com a SignPath se este desenho (núcleo Apache-2.0 aqui, edição comercial em repositório separado, CLA que permite relicenciar) é aceito. Até lá, o texto do CLA pode mudar.
+> O texto do CLA ainda pode mudar até passar por revisão jurídica.
