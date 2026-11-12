@@ -35,7 +35,7 @@ export function TelaSistema({
   const sistema = escolhido || sistemas[0]?.id || "";
 
   return (
-    <section className="tela-sistema" aria-label="Sistema">
+    <section className="tela-sistema page" aria-label="Sistema">
       {sistemas.length > 1 && (
         <label>
           Sistema{" "}
@@ -49,7 +49,7 @@ export function TelaSistema({
         </label>
       )}
       {sistemas.length === 0 && !sistemaInicial && (
-        <p className="suave">Nenhum sistema cadastrado.</p>
+        <p className="muted">Nenhum sistema cadastrado.</p>
       )}
       {sistema && <Sistema key={sistema} api={api} sistema={sistema} navegar={navegar} />}
     </section>
@@ -115,12 +115,12 @@ function Sistema({
 
   if (falha) {
     return (
-      <p className="trecho-erro" role="alert">
+      <p className="error-text" role="alert">
         Não foi possível ler o sistema: {falha}
       </p>
     );
   }
-  if (!visao) return <p className="suave">Carregando…</p>;
+  if (!visao) return <p className="muted">Carregando…</p>;
 
   const aRevalidar = visao.regras.filter((r) => r.status === "a-revalidar").length;
   const regras = area ? visao.regras.filter((r) => r.area === area) : visao.regras;
@@ -137,15 +137,20 @@ function Sistema({
 
       <div className="revalidacao" role="status" aria-label="Revalidação">
         {revalidacao.tipo === "conferindo" && (
-          <span className="suave">Conferindo as evidências com o código atual…</span>
+          <span className="muted">Conferindo as evidências com o código atual…</span>
         )}
         {revalidacao.tipo === "falha" && (
-          <span className="trecho-erro">
+          <span className="error-text">
             Não foi possível conferir as evidências: {revalidacao.mensagem}
           </span>
         )}
         {revalidacao.tipo === "feita" && <TextoRevalidacao resumo={revalidacao.resumo} />}{" "}
-        <button type="button" onClick={revalidar} disabled={revalidacao.tipo === "conferindo"}>
+        <button
+          className="btn"
+          type="button"
+          onClick={revalidar}
+          disabled={revalidacao.tipo === "conferindo"}
+        >
           Conferir de novo
         </button>
       </div>
@@ -160,11 +165,12 @@ function Sistema({
 
       <section aria-label="Áreas">
         <h3>Áreas</h3>
-        {visao.areas.length === 0 && <p className="suave">Nenhuma área declarada ainda.</p>}
+        {visao.areas.length === 0 && <p className="muted">Nenhuma área declarada ainda.</p>}
         <ul className="lista-areas">
           {visao.areas.map((a) => (
             <li key={a.id}>
               <button
+                className="btn"
                 type="button"
                 aria-pressed={area === a.id}
                 onClick={() => setArea(area === a.id ? null : a.id)}
@@ -172,12 +178,14 @@ function Sistema({
                 {a.nome}
                 {a.sigla && ` (${a.sigla})`}
               </button>{" "}
-              <span className="suave">
+              <span className="muted">
                 {a.regras} regra(s) · {a.termos} termo(s)
                 {!a.declarada && " · fora do sistema.md"}
               </span>
               {a.aRevalidar > 0 && (
-                <span className="selo selo-revalidar">{a.aRevalidar} a revalidar</span>
+                <span className="badge" data-tone="attention">
+                  {a.aRevalidar} a revalidar
+                </span>
               )}
               {a.memoria && (
                 <>
@@ -195,7 +203,7 @@ function Sistema({
       <section aria-label="Regras">
         <h3>Regras{area && ` da área ${area}`}</h3>
         {regras.length === 0 && (
-          <p className="suave">
+          <p className="muted">
             Nenhuma regra ainda: as afirmações confirmadas viram regras quando a análise é
             aprovada.
           </p>
@@ -204,18 +212,19 @@ function Sistema({
           {regras.map((r) => (
             <li
               key={r.id}
-              className={r.status === "a-revalidar" ? "regra-a-revalidar" : undefined}
+              className="regra"
               data-status={r.status}
             >
               <button type="button" className="link" onClick={() => abrir(r.caminho)}>
                 {r.id}: {r.titulo}
               </button>{" "}
               <span
-                className={`selo ${r.status === "a-revalidar" ? "selo-revalidar" : "selo-status"}`}
+                className="badge"
+                data-tone={r.status === "a-revalidar" ? "attention" : r.status === "confirmada" ? "done" : undefined}
               >
                 {ROTULO_STATUS_REGRA[r.status]}
               </span>{" "}
-              <span className="suave">{r.area}</span>
+              <span className="muted">{r.area}</span>
               {r.origem && (
                 <>
                   {" · "}
@@ -232,7 +241,7 @@ function Sistema({
       <section aria-label="Glossário">
         <h3>Glossário</h3>
         {termos.length === 0 && (
-          <p className="suave">
+          <p className="muted">
             Nenhum termo ainda: os termos aceitos viram glossário quando a análise é aprovada.
           </p>
         )}
@@ -243,9 +252,9 @@ function Sistema({
                 {t.termo}
               </button>
               {t.sinonimos.length > 0 && (
-                <span className="suave"> ({t.sinonimos.join(", ")})</span>
+                <span className="muted"> ({t.sinonimos.join(", ")})</span>
               )}
-              {t.area && <span className="suave"> · {t.area}</span>}
+              {t.area && <span className="muted"> · {t.area}</span>}
             </li>
           ))}
         </ul>
@@ -279,7 +288,7 @@ function TextoRevalidacao({ resumo }: { resumo: ResumoRevalidacao }) {
   if (restauradas.length > 0)
     partes.push(`voltaram a confirmadas: ${restauradas.map((r) => r.id).join(", ")}`);
   if (resumo.problemas.length > 0) partes.push(`${resumo.problemas.length} documento(s) com problema`);
-  return <span className="suave">{partes.join("; ")}.</span>;
+  return <span className="muted">{partes.join("; ")}.</span>;
 }
 
 /** Mapa estrutural por pasta (sem IA, sem custo), com as subpastas navegáveis. */
@@ -323,13 +332,13 @@ function MapaSistema({ api, sistema }: { api: ApiConhecimento; sistema: string }
     <section aria-label="Mapa do sistema" className="mapa-sistema">
       <h3>Mapa</h3>
       {falha && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           {falha}
         </p>
       )}
-      {mapa === undefined && !falha && <p className="suave">Carregando…</p>}
+      {mapa === undefined && !falha && <p className="muted">Carregando…</p>}
       {mapa === null && (
-        <p className="suave">O mapa do sistema ainda não foi gerado.</p>
+        <p className="muted">O mapa do sistema ainda não foi gerado.</p>
       )}
       {mapa && (
         <>
@@ -357,7 +366,7 @@ function MapaSistema({ api, sistema }: { api: ApiConhecimento; sistema: string }
             {mapa.modulo.falhas > 0 && ` · ${mapa.modulo.falhas} com falha de extração`}
           </p>
           {mapa.modulo.simbolos.length > 0 && (
-            <p className="suave">
+            <p className="muted">
               {mapa.modulo.simbolos.map((s) => `${s.rotulo} ${s.quantidade}`).join(" · ")}
             </p>
           )}
@@ -368,7 +377,7 @@ function MapaSistema({ api, sistema }: { api: ApiConhecimento; sistema: string }
                   <button type="button" className="link" onClick={() => setPasta(s.caminho)}>
                     {s.caminho.split("/").pop()}/
                   </button>{" "}
-                  <span className="suave">{s.arquivos} arquivo(s)</span>
+                  <span className="muted">{s.arquivos} arquivo(s)</span>
                 </li>
               ))}
             </ul>
@@ -389,18 +398,18 @@ function MapaSistema({ api, sistema }: { api: ApiConhecimento; sistema: string }
                 {mapa.modulo.dependencias.map((d) => (
                   <li key={`${d.de}->${d.para}`}>
                     {d.de || "(raiz)"} → {d.para || "(raiz)"}{" "}
-                    <span className="suave">{d.referencias} referência(s)</span>
+                    <span className="muted">{d.referencias} referência(s)</span>
                   </li>
                 ))}
               </ul>
             </>
           )}
-          <p className="suave">
+          <p className="muted">
             Gerado em {new Date(mapa.geradoEm * 1000).toLocaleString("pt-BR")}.
           </p>
         </>
       )}
-      <button type="button" onClick={mapear} disabled={mapeando}>
+      <button className="btn" type="button" onClick={mapear} disabled={mapeando}>
         {mapeando ? "Mapeando…" : mapa ? "Mapear de novo" : "Mapear agora"}
       </button>
     </section>

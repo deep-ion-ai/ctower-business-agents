@@ -127,12 +127,17 @@ export function AssistentePrimeiroUso({
           </p>
           <AmbienteDoSistema api={api} sistema={sistema.id} aoMudar={aoMudarAmbiente} />
           <div className="acoes">
-            <button type="button" onClick={() => setEtapa("pronto")} disabled={ambientePronto}>
+            <button
+              className="btn"
+              type="button"
+              onClick={() => setEtapa("pronto")}
+              disabled={ambientePronto}
+            >
               Preparar depois
             </button>
             <button
               type="button"
-              className="primario"
+              className="btn btn-primary"
               onClick={() => setEtapa("pronto")}
               disabled={!ambientePronto}
             >
@@ -182,10 +187,14 @@ function SistemaExistente({
           ))}
         </select>
       </label>{" "}
-      <button type="button" onClick={() => aoEscolher(sistemas.find((s) => s.id === id)!)}>
+      <button
+        className="btn"
+        type="button"
+        onClick={() => aoEscolher(sistemas.find((s) => s.id === id)!)}
+      >
         Usar este
       </button>
-      <p className="suave">Ou cadastre outro:</p>
+      <p className="muted">Ou cadastre outro:</p>
     </div>
   );
 }
@@ -221,7 +230,7 @@ function Pronto({
     <section className="passo-assistente" aria-label="Primeira análise">
       <h2>Tudo pronto para analisar “{sistema.nome}”</h2>
       {!ambientePronto && (
-        <p className="pendencia" role="status">
+        <p className="attention-text" role="status">
           O ambiente do Claude ainda não foi preparado. A tela da análise vai pedir o preparo antes
           da primeira pergunta.
         </p>
@@ -229,7 +238,7 @@ function Pronto({
       <p>Que tal começar com uma pergunta? Escolha uma sugestão ou escreva a sua.</p>
       <div className="sugestoes" role="group" aria-label="Sugestões">
         {SUGESTOES_PRIMEIRA_ANALISE.map((s) => (
-          <button key={s} type="button" onClick={() => setPergunta(s)}>
+          <button className="btn" key={s} type="button" onClick={() => setPergunta(s)}>
             {s}
           </button>
         ))}
@@ -239,17 +248,17 @@ function Pronto({
         <textarea rows={3} value={pergunta} onChange={(e) => setPergunta(e.target.value)} />
       </label>
       {falha && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           {falha}
         </p>
       )}
       <div className="acoes">
-        <button type="button" onClick={() => concluir(false)} disabled={gravando}>
+        <button className="btn" type="button" onClick={() => concluir(false)} disabled={gravando}>
           Ir para o início
         </button>
         <button
           type="button"
-          className="primario"
+          className="btn btn-primary"
           onClick={() => concluir(true)}
           disabled={gravando || !pergunta.trim()}
         >

@@ -48,7 +48,7 @@ export function ExportacaoAnalise({ api, sistema, analise, aprovada }: Props) {
     <section className="exportacao" aria-label="Exportação">
       <h3>Exportar</h3>
       {!aprovada && (
-        <p className="suave">A análise ainda não foi aprovada: o documento sai como rascunho.</p>
+        <p className="muted">A análise ainda não foi aprovada: o documento sai como rascunho.</p>
       )}
       <fieldset>
         <legend>Formato</legend>
@@ -91,7 +91,7 @@ export function ExportacaoAnalise({ api, sistema, analise, aprovada }: Props) {
           Perguntas em aberto
         </label>
       </fieldset>
-      <button type="button" disabled={ocupado} onClick={exportar}>
+      <button className="btn" type="button" disabled={ocupado} onClick={exportar}>
         Exportar…
       </button>
       {feito && (
@@ -100,7 +100,7 @@ export function ExportacaoAnalise({ api, sistema, analise, aprovada }: Props) {
         </p>
       )}
       {erro && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           {erro}
         </p>
       )}

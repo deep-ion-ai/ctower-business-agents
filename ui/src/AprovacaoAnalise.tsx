@@ -78,7 +78,7 @@ export function AprovacaoAnalise({ api, sistema, analise, versao, aoAprovar }: P
     };
   }, [api, sistema, analise, versao]);
 
-  if (!prontidao) return erro ? <p className="trecho-erro">{erro}</p> : null;
+  if (!prontidao) return erro ? <p className="error-text">{erro}</p> : null;
 
   const ajuste = (n: number) => ajustes[n] ?? { area: "", titulo: "" };
   const mudar = (n: number, campo: "area" | "titulo", valor: string) =>
@@ -125,7 +125,7 @@ export function AprovacaoAnalise({ api, sistema, analise, versao, aoAprovar }: P
         </div>
       )}
       {!aprovada && prontidao.avisos.length > 0 && (
-        <ul className="suave" aria-label="Avisos da aprovação">
+        <ul className="muted" aria-label="Avisos da aprovação">
           {prontidao.avisos.map((a) => (
             <li key={a}>{a}</li>
           ))}
@@ -133,7 +133,7 @@ export function AprovacaoAnalise({ api, sistema, analise, versao, aoAprovar }: P
       )}
       {!aprovada && (
         <>
-          <p className="suave">
+          <p className="muted">
             {prontidao.regras.length === 0
               ? "Nenhuma afirmação confirmada: a aprovação não cria regras."
               : `${prontidao.regras.length} afirmação(ões) confirmada(s) vão virar regra.`}
@@ -173,9 +173,10 @@ export function AprovacaoAnalise({ api, sistema, analise, versao, aoAprovar }: P
             </ol>
           )}
           {faltaArea && prontidao.podeAprovar && (
-            <p className="suave">O sistema tem mais de uma área: escolha a das regras.</p>
+            <p className="muted">O sistema tem mais de uma área: escolha a das regras.</p>
           )}
           <button
+            className="btn"
             type="button"
             disabled={!prontidao.podeAprovar || faltaArea || ocupado}
             onClick={aprovar}
@@ -185,7 +186,7 @@ export function AprovacaoAnalise({ api, sistema, analise, versao, aoAprovar }: P
         </>
       )}
       {erro && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           {erro}
         </p>
       )}
@@ -211,7 +212,7 @@ export function AprovacaoAnalise({ api, sistema, analise, versao, aoAprovar }: P
             </ul>
           )}
           {feita.avisos.map((a) => (
-            <p key={a} className="suave">
+            <p key={a} className="muted">
               {a}
             </p>
           ))}

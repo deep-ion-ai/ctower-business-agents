@@ -105,20 +105,20 @@ export function NovaAnalise({
       <div className="acoes">
         <button
           type="submit"
-          className="primario"
+          className="btn btn-primary"
           disabled={!pronto || criando || !entrada.trim()}
         >
           Iniciar a análise
         </button>
-        <button type="button" onClick={aoCancelar}>
+        <button className="btn" type="button" onClick={aoCancelar}>
           Cancelar
         </button>
       </div>
       {ambiente && !pronto && (
-        <p className="suave">Prepare o ambiente do Claude antes de iniciar a análise.</p>
+        <p className="muted">Prepare o ambiente do Claude antes de iniciar a análise.</p>
       )}
       {falha && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           {falha}
         </p>
       )}

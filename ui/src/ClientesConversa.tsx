@@ -49,7 +49,7 @@ export function ClientesConversa({
   return (
     <div className="clientes-conversa" role="group" aria-label="Clientes da conversa">
       {opcoes?.problema && (
-        <p className="suave" role="alert">
+        <p className="muted" role="alert">
           {opcoes.problema}
         </p>
       )}
@@ -62,17 +62,22 @@ export function ClientesConversa({
         >
           <h3>
             {TITULO[o.cliente]}
-            {opcoes?.preferido === o.cliente && <span className="selo-preferido"> preferido</span>}
+            {opcoes?.preferido === o.cliente && <span className="badge"> preferido</span>}
           </h3>
-          {!o.disponivel && <p className="suave">{o.motivo}</p>}
+          {!o.disponivel && <p className="muted">{o.motivo}</p>}
           {o.disponivel && o.cliente === "terminalEmbutido" && (
             <p>
               {temSessao && (
-                <button type="button" onClick={() => aoAqui("retomar")}>
+                <button className="btn" type="button" onClick={() => aoAqui("retomar")}>
                   Retomar a conversa
                 </button>
               )}{" "}
-              <button type="button" disabled={!podeNova} onClick={() => aoAqui("nova")}>
+              <button
+                className="btn"
+                type="button"
+                disabled={!podeNova}
+                onClick={() => aoAqui("nova")}
+              >
                 Nova conversa sobre esta análise
               </button>
             </p>
@@ -81,11 +86,17 @@ export function ClientesConversa({
             <>
               <p>
                 {temSessao && (
-                  <button type="button" disabled={ocupado} onClick={() => aoDesktop("retomar")}>
+                  <button
+                    className="btn"
+                    type="button"
+                    disabled={ocupado}
+                    onClick={() => aoDesktop("retomar")}
+                  >
                     Retomar no Claude Desktop
                   </button>
                 )}{" "}
                 <button
+                  className="btn"
                   type="button"
                   disabled={ocupado || !opcoes?.linkDesktop}
                   onClick={() => aoDesktop("nova")}
@@ -93,7 +104,7 @@ export function ClientesConversa({
                   Nova conversa no Claude Desktop
                 </button>
               </p>
-              <p className="suave">
+              <p className="muted">
                 O Desktop pede para você confirmar a pasta e não envia o pedido sozinho.
               </p>
             </>
@@ -128,19 +139,19 @@ function ComandosTerminal({
       {comandos.map((c) => (
         <p key={c.rotulo} className="comando-copiar">
           <code className="comando">{c.texto}</code>{" "}
-          <button type="button" onClick={() => aoCopiar(c.texto)}>
+          <button className="btn" type="button" onClick={() => aoCopiar(c.texto)}>
             {c.rotulo}
           </button>
         </p>
       ))}
       {opcoes.linkTerminal && (
         <p>
-          <button type="button" onClick={aoLink}>
+          <button className="btn" type="button" onClick={aoLink}>
             Abrir pelo link claude-cli://
           </button>
         </p>
       )}
-      <p className="suave">
+      <p className="muted">
         Retome no seu terminal só com a conversa fechada nas outras janelas: duas cópias do
         Claude na mesma conversa gravam uma por cima da outra.
       </p>

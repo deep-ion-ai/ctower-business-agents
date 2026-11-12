@@ -4,11 +4,13 @@ import { mensagemDe } from "./analise";
 import { AssistentePrimeiroUso, type FimPrimeiroUso } from "./AssistentePrimeiroUso";
 import { apiPrimeiroUsoTauri, type ApiPrimeiroUso, type Situacao } from "./primeiroUso";
 import { Navegacao } from "./Navegacao";
+import { Titlebar } from "./shell/Titlebar";
 
 export const PRODUTO = "Ctower Business Agents";
 
 /**
- * Tela inicial: nome do produto e versão do app. No primeiro uso, o assistente
+ * Raiz do app, no shell do Control Tower (#85): nome do produto e versão na barra de
+ * título. No primeiro uso, o assistente
  * (cliente de IA, base, sistema e ambiente); depois, a navegação entre o início, o
  * sistema, a base de conhecimento e as análises ({@link Navegacao}). Ao concluir o
  * assistente, abre a análise com a pergunta sugerida.
@@ -62,41 +64,38 @@ export function App({ api = apiPrimeiroUsoTauri }: { api?: ApiPrimeiroUso }) {
     carregar();
   };
 
+  const avisoFalha = falha && (
+    <div className="banner" role="alert">
+      Não foi possível ler a configuração do app: {falha}
+    </div>
+  );
+
+  if (falha || (situacao && !assistente)) {
+    return (
+      <Navegacao
+        key={inicio?.sistema ?? ""}
+        inicial={
+          inicio ? { tipo: "analise", sistema: inicio.sistema, pergunta: inicio.pergunta } : undefined
+        }
+        abrirLink={api.abrirLink}
+        aoPrimeiroUso={reabrir}
+        refazerPrimeiroUso={situacao ? reabrir : undefined}
+        produto={PRODUTO}
+        versao={versao}
+        banner={avisoFalha}
+      />
+    );
+  }
+
+  // Primeiro uso (ou carregando): sem barra de atividades, só a barra de título.
   return (
-    <main className="inicio">
-      <h1>{PRODUTO}</h1>
-      <p className="versao" aria-label="Versão">
-        {versao ? `Versão ${versao}` : " "}
-      </p>
-      {falha && (
-        <p className="trecho-erro" role="alert">
-          Não foi possível ler a configuração do app: {falha}
-        </p>
-      )}
-      {situacao && assistente && (
-        <AssistentePrimeiroUso api={api} situacao={situacao} aoConcluir={concluir} />
-      )}
-      {(falha || (situacao && !assistente)) && (
-        <>
-          <Navegacao
-            key={inicio?.sistema ?? ""}
-            inicial={
-              inicio
-                ? { tipo: "analise", sistema: inicio.sistema, pergunta: inicio.pergunta }
-                : undefined
-            }
-            abrirLink={api.abrirLink}
-            aoPrimeiroUso={reabrir}
-          />
-          {situacao && (
-            <p>
-              <button type="button" className="link" onClick={reabrir}>
-                Refazer o primeiro uso
-              </button>
-            </p>
-          )}
-        </>
-      )}
-    </main>
+    <div className="shell">
+      <Titlebar produto={PRODUTO} versao={versao} />
+      <main className="primeiro-uso">
+        {situacao && assistente && (
+          <AssistentePrimeiroUso api={api} situacao={situacao} aoConcluir={concluir} />
+        )}
+      </main>
+    </div>
   );
 }

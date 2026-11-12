@@ -19,13 +19,13 @@ export function TrechoEvidencia({ carga, aoFechar }: { carga: CargaTrecho; aoFec
     <section className="trecho-evidencia" aria-label="Trecho da evidência">
       <header>
         <h3>{carga.chave}</h3>
-        <button type="button" onClick={aoFechar}>
+        <button className="btn" type="button" onClick={aoFechar}>
           Fechar
         </button>
       </header>
-      {carga.tipo === "carregando" && <p className="suave">Abrindo o trecho…</p>}
+      {carga.tipo === "carregando" && <p className="muted">Abrindo o trecho…</p>}
       {carga.tipo === "erro" && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           {carga.mensagem}
         </p>
       )}
@@ -40,7 +40,8 @@ export function TrechoEvidencia({ carga, aoFechar }: { carga: CargaTrecho; aoFec
                   <tr
                     key={numero}
                     ref={numero === carga.trecho.inicio ? destaque : undefined}
-                    className={citada ? "linha citada" : "linha"}
+                    className="linha"
+                    data-citada={citada || undefined}
                     data-linha={numero}
                     aria-current={numero === carga.trecho.inicio ? "location" : undefined}
                   >

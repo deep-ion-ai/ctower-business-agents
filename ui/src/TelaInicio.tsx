@@ -63,9 +63,9 @@ export function TelaInicio({
   const semSistema = inicio !== null && (inicio.base === null || inicio.sistemas.length === 0);
 
   return (
-    <section className="tela-inicio" aria-label="Início">
+    <section className="tela-inicio page" aria-label="Início">
       {falha && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           Não foi possível carregar o início: {falha}
         </p>
       )}
@@ -75,7 +75,7 @@ export function TelaInicio({
             ? "Falta escolher a pasta da base de conhecimento."
             : "Nenhum sistema cadastrado."}{" "}
           {aoPrimeiroUso && (
-            <button type="button" onClick={aoPrimeiroUso}>
+            <button className="btn" type="button" onClick={aoPrimeiroUso}>
               Abrir o primeiro uso
             </button>
           )}
@@ -89,7 +89,7 @@ export function TelaInicio({
             <button
               key={f}
               type="button"
-              className={fluxo === f ? "primario" : undefined}
+              className="btn"
               aria-pressed={fluxo === f}
               disabled={!inicio || semSistema}
               onClick={() => setFluxo(fluxo === f ? null : f)}
@@ -138,18 +138,24 @@ export function TelaInicio({
             <ul className="lista-sistemas">
               {inicio.sistemas.map((s) => (
                 <li key={s.id}>
-                  <button type="button" onClick={() => navegar({ tipo: "sistema", sistema: s.id })}>
+                  <button
+                    className="link"
+                    type="button"
+                    onClick={() => navegar({ tipo: "sistema", sistema: s.id })}
+                  >
                     {s.nome}
                   </button>{" "}
                   {s.erro ? (
-                    <span className="trecho-erro">{s.erro}</span>
+                    <span className="error-text">{s.erro}</span>
                   ) : (
-                    <span className="suave">
+                    <span className="muted">
                       {s.analises} análise(s) · {s.regras} regra(s) · {s.termos} termo(s)
                     </span>
                   )}
                   {s.aRevalidar > 0 && (
-                    <span className="selo selo-revalidar">{s.aRevalidar} a revalidar</span>
+                    <span className="badge" data-tone="attention">
+                      {s.aRevalidar} a revalidar
+                    </span>
                   )}
                 </li>
               ))}
@@ -177,15 +183,15 @@ function ListaAnalises({
   return (
     <section aria-label={titulo}>
       <h2>{titulo}</h2>
-      {analises.length === 0 && <p className="suave">{vazio}</p>}
+      {analises.length === 0 && <p className="muted">{vazio}</p>}
       {analises.length > 0 && (
         <ul className="lista-analises">
           {analises.map((a) => (
             <li key={`${a.sistema}/${a.id}`}>
-              <button type="button" onClick={() => aoAbrir(a)}>
+              <button className="link" type="button" onClick={() => aoAbrir(a)}>
                 {a.id}: {a.titulo}
               </button>{" "}
-              <span className="suave">
+              <span className="muted">
                 {a.sistemaNome} · {ROTULO_FLUXO[a.fluxo].toLowerCase()} · {ESTADO[a.estado]}
                 {a.sessao && a.sessao.estado !== "encerrada" && ` · ${ROTULO_SESSAO[a.sessao.estado]}`}
               </span>

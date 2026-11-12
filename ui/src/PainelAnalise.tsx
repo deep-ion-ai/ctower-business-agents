@@ -292,7 +292,7 @@ export function PainelAnalise({
   return (
     <div className="painel-analise">
       <div className="painel-barra">
-        <button type="button" onClick={aoVoltar}>
+        <button className="btn" type="button" onClick={aoVoltar}>
           ← Análises
         </button>
         <strong>{analise}</strong>
@@ -300,19 +300,19 @@ export function PainelAnalise({
       <div className="painel-colunas">
         <section className="painel-conversa" aria-label="Conversa">
           {falhaEnvio && (
-            <p className="trecho-erro" role="alert">
+            <p className="error-text" role="alert">
               {falhaEnvio}
             </p>
           )}
           {aviso && (
-            <p className="suave" role="status">
+            <p className="muted" role="status">
               {aviso}
             </p>
           )}
           {fora && (
             <div className="aviso-desktop" role="status">
               <p>{fora.aviso}</p>
-              <button type="button" onClick={voltarAConversa}>
+              <button className="btn" type="button" onClick={voltarAConversa}>
                 Voltar à conversa aqui
               </button>
               {clientes(true)}
@@ -336,11 +336,16 @@ export function PainelAnalise({
                   aoEnviar={enviar}
                 />
                 {desktopDisponivel(opcoes) && (
-                  <button type="button" disabled={!vivo} onClick={continuarNoDesktop}>
+                  <button
+                    className="btn"
+                    type="button"
+                    disabled={!vivo}
+                    onClick={continuarNoDesktop}
+                  >
                     Continuar no Claude Desktop
                   </button>
                 )}{" "}
-                <button type="button" onClick={noMeuTerminal}>
+                <button className="btn" type="button" onClick={noMeuTerminal}>
                   Continuar no meu terminal
                 </button>
               </div>
@@ -365,13 +370,13 @@ export function PainelAnalise({
           />
           {trecho && <TrechoEvidencia carga={trecho} aoFechar={() => setTrecho(null)} />}
           {erro && (
-            <p className="trecho-erro" role="alert">
+            <p className="error-text" role="alert">
               {erro}
             </p>
           )}
-          {!vista && !erro && <p className="suave">Carregando a análise…</p>}
+          {!vista && !erro && <p className="muted">Carregando a análise…</p>}
           {falhaRevisao && (
-            <p className="trecho-erro" role="alert">
+            <p className="error-text" role="alert">
               {falhaRevisao}
             </p>
           )}
