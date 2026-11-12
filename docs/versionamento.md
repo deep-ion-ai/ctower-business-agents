@@ -41,7 +41,7 @@ Sem `initial-version`, o release-please gerou a primeira release como `1.0.0`. E
 - `release-as: 0.1.0`: força a versão;
 - `last-release-sha`: aponta para o commit inicial da `main` e faz o release-please ignorar o PR de release da `1.0.0`.
 
-**Os dois saem logo depois de publicada a `0.1.0`**, num PR para a `develop`. Se ficarem, toda release seguinte também sairia `0.1.0` com o histórico inteiro.
+Os dois saíram logo depois de publicada a `0.1.0`. Se tivessem ficado, toda release seguinte também sairia `0.1.0`, com o histórico inteiro.
 
 Na série 0.x, uma quebra (`!`) sobe só a versão menor. A `1.0.0` fica para quando o projeto for considerado estável.
 
