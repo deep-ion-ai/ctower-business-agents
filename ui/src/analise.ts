@@ -33,6 +33,8 @@ export type Afirmacao = {
   numero: number;
   secao: string;
   texto: string;
+  /** Texto do agente, guardado quando o analista edita o texto (#37). */
+  texto_original?: string | null;
   confianca: Confianca;
   evidencias: Evidencia[];
   sessao?: string | null;
@@ -65,6 +67,8 @@ export interface TermoProposto {
   numero: number;
   termo: string;
   definicao: string;
+  sinonimos?: string[];
+  onde_vive?: string[];
   estado: "proposto" | "aceito" | "recusado";
 }
 

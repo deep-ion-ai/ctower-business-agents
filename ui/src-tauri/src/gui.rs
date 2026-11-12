@@ -6,8 +6,8 @@ use cba_session::clientes::{self, EstadoClientes};
 use std::sync::Arc;
 
 use crate::{
-    alteracoes, analise, base, configuracoes, conversa, inicio, primeiro_uso, prompts, sistema,
-    terminal, vigia,
+    alteracoes, analise, base, configuracoes, conversa, inicio, primeiro_uso, prompts, revisao,
+    sistema, terminal, vigia,
 };
 
 pub fn rodar() {
@@ -23,7 +23,8 @@ pub fn rodar() {
         // domínios liberados em capabilities/default.json) e, pelo Rust, os links
         // `claude://` e `claude-cli://` montados em `conversa`.
         .plugin(tauri_plugin_opener::init())
-        // Seletor de pastas do primeiro uso (base e pastas do sistema).
+        // Seletor de pastas do primeiro uso (base e pastas do sistema) e diálogo de
+        // salvar da exportação.
         .plugin(tauri_plugin_dialog::init())
         .manage(sessoes.clone())
         .manage(vigias)
@@ -82,6 +83,10 @@ pub fn rodar() {
             configuracoes::descadastrar_sistema_app,
             configuracoes::textos_editaveis_app,
             configuracoes::abrir_texto_editavel,
+            revisao::revisar_analise_sistema,
+            revisao::prontidao_aprovacao_sistema,
+            revisao::aprovar_analise_sistema,
+            revisao::exportar_analise_sistema,
         ])
         .build(tauri::generate_context!())
         .expect("erro ao iniciar o app")
