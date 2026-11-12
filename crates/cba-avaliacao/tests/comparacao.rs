@@ -60,6 +60,7 @@ fn afirmar(a: &mut Analise, secao: &str, texto: &str, confianca: Confianca, evs:
         numero,
         secao: secao.into(),
         texto: texto.into(),
+        texto_original: None,
         confianca,
         evidencias: evs,
         estado: EstadoAfirmacao::Registrada,

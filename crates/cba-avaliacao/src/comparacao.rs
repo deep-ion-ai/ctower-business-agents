@@ -29,7 +29,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use cba_core::analise::{Analise, Confianca, EstadoAfirmacao, EstadoAnalise, Evidencia};
+use cba_core::analise::{Afirmacao, Analise, Confianca, EstadoAfirmacao, EstadoAnalise, Evidencia};
 use cba_index::Escopo;
 use cba_kb::frontmatter::Abrangencia;
 use cba_tools::documento::{SECAO_DA_ABRANGENCIA, abrangencia_do_texto};
@@ -390,8 +390,8 @@ pub fn avaliar(analise: &Analise, item: &Item, gabarito: &Gabarito, escopo: &Esc
                     .get(&a.numero)
                     .is_some_and(|ev| !ev.is_empty())
             })
-            .filter(|a| veredito_do_texto(&a.texto).is_some_and(aceita))
-            .find(|a| texto::atende(&a.texto, &v.palavras_chave))
+            .filter(|a| veredito_do_texto(do_agente(a)).is_some_and(aceita))
+            .find(|a| texto::atende(do_agente(a), &v.palavras_chave))
             .map(|a| a.numero);
         PremissaAvaliada {
             veredito_esperado: v.veredito,
@@ -408,7 +408,7 @@ pub fn avaliar(analise: &Analise, item: &Item, gabarito: &Gabarito, escopo: &Esc
             .rev()
             .filter(|a| a.secao == SECAO_DA_ABRANGENCIA)
             .filter(|a| !matches!(a.estado, EstadoAfirmacao::Incorreta { .. }))
-            .find_map(|a| abrangencia_do_texto(&a.texto))
+            .find_map(|a| abrangencia_do_texto(do_agente(a)))
             .map(|a| {
                 match a {
                     Abrangencia::Pequena => "pequena",
@@ -456,6 +456,11 @@ pub fn avaliar(analise: &Analise, item: &Item, gabarito: &Gabarito, escopo: &Esc
         premissa,
         abrangencia,
     }
+}
+
+/// Texto que o agente registrou (o analista pode ter editado depois).
+fn do_agente(a: &Afirmacao) -> &str {
+    a.texto_original.as_deref().unwrap_or(&a.texto)
 }
 
 /// Nome do fluxo como no estado e no `iniciar_analise`.
