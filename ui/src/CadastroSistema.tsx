@@ -132,11 +132,12 @@ export function CadastroSistema({
                 onChange={(e) => setPastas((l) => l.map((x, j) => (j === i ? e.target.value : x)))}
               />
             </label>{" "}
-            <button type="button" onClick={() => escolher(i)}>
+            <button className="btn" type="button" onClick={() => escolher(i)}>
               Escolher pasta…
             </button>
             {pastas.length > 1 && (
               <button
+                className="btn"
                 type="button"
                 aria-label={`Remover a pasta ${i + 1}`}
                 onClick={() => setPastas((l) => l.filter((_, j) => j !== i))}
@@ -146,7 +147,7 @@ export function CadastroSistema({
             )}
           </div>
         ))}
-        <button type="button" onClick={() => setPastas((l) => [...l, ""])}>
+        <button className="btn" type="button" onClick={() => setPastas((l) => [...l, ""])}>
           Acrescentar outra pasta
         </button>
       </fieldset>
@@ -171,6 +172,7 @@ export function CadastroSistema({
                 <li key={x}>
                   <code>{x}</code>{" "}
                   <button
+                    className="btn"
                     type="button"
                     aria-label={`Tirar a reinclusão de ${x}`}
                     onClick={() => tirarInclusao(x)}
@@ -199,17 +201,22 @@ export function CadastroSistema({
         </div>
       )}
       {falha && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           {falha}
         </p>
       )}
       <div className="acoes">
-        <button type="button" onClick={() => verPrevia()} disabled={!completo || ocupado !== null}>
+        <button
+          className="btn"
+          type="button"
+          onClick={() => verPrevia()}
+          disabled={!completo || ocupado !== null}
+        >
           {previa ? "Atualizar a prévia" : "Ver o que será analisado"}
         </button>
         <button
           type="submit"
-          className="primario"
+          className="btn btn-primary"
           disabled={!atualizada || ocupado !== null || previa?.dados.jaCadastrado === true}
         >
           Cadastrar o sistema
@@ -233,16 +240,16 @@ function Previa({
   return (
     <section className="previa-sistema" aria-label="Prévia do inventário">
       {previa.jaCadastrado && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           Já existe um sistema cadastrado com o nome “{previa.nome}”. Use outro nome.
         </p>
       )}
       {desatualizada && (
-        <p className="pendencia" role="status">
+        <p className="attention-text" role="status">
           Você mudou o cadastro depois da prévia. Atualize a prévia antes de cadastrar.
         </p>
       )}
-      <ul className="suave">
+      <ul className="muted">
         {previa.pastas.map((p) => (
           <li key={p.caminho}>
             {p.caminho}
@@ -313,11 +320,12 @@ export function ResumoDoInventario({
                     {i.caminho}
                     {i.pasta ? "/" : ""}
                   </code>{" "}
-                  <span className="suave">{i.rotulo}</span>
+                  <span className="muted">{i.rotulo}</span>
                   {aoReincluir && i.ajustavel && (
                     <>
                       {" "}
                       <button
+                        className="btn"
                         type="button"
                         disabled={ocupado}
                         aria-label={`Incluir ${i.caminho} na análise`}
@@ -330,7 +338,7 @@ export function ResumoDoInventario({
                 </li>
               ))}
             </ul>
-            {omitidos > 0 && <p className="suave">E mais {omitidos} itens.</p>}
+            {omitidos > 0 && <p className="muted">E mais {omitidos} itens.</p>}
           </details>
         )}
       </div>

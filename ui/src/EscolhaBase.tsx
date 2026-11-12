@@ -85,6 +85,7 @@ export function EscolhaBase({
         />
       </label>{" "}
       <button
+        className="btn"
         type="button"
         onClick={() => {
           api
@@ -103,20 +104,20 @@ export function EscolhaBase({
         </p>
       )}
       {avaliacao && !recusa && avaliacao.estado && (
-        <p className="suave" role="status">
+        <p className="muted" role="status">
           {ESTADO[avaliacao.estado]}
           {avaliacao.git && " Ela está num repositório git."}
         </p>
       )}
       {(recusa ?? falha) && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           {recusa ?? falha}
         </p>
       )}
       <div className="acoes">
         <button
           type="submit"
-          className="primario"
+          className="btn btn-primary"
           disabled={!pasta.trim() || gravando || recusa !== null}
         >
           {rotuloContinuar}

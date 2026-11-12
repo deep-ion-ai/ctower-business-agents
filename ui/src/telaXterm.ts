@@ -18,12 +18,23 @@ export interface TelaTerminal {
   descartar(): void;
 }
 
+/** Lê um token de theme.css; o terminal é sempre escuro, nos dois temas (#85). */
+function token(nome: string): string | undefined {
+  return getComputedStyle(document.documentElement).getPropertyValue(nome).trim() || undefined;
+}
+
 export function criarTelaXterm(): TelaTerminal {
   const term = new Terminal({
     cursorBlink: true,
     convertEol: false,
-    fontFamily: 'Menlo, Consolas, "DejaVu Sans Mono", monospace',
+    fontFamily: token("--mono"),
     fontSize: 13,
+    theme: {
+      background: token("--term-bg"),
+      foreground: token("--term-fg"),
+      cursor: token("--term-text"),
+      selectionBackground: token("--term-selection"),
+    },
     scrollback: 5000,
   });
   const fit = new FitAddon();

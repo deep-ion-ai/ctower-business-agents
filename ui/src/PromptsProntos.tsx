@@ -35,6 +35,7 @@ export function PromptsProntos({ api, sistema, analise, habilitado, aoEnviar }: 
     <div className="prompts-prontos" role="group" aria-label="Prompts prontos">
       {prompts.map((p) => (
         <button
+          className="btn"
           key={p.id}
           type="button"
           disabled={!habilitado}

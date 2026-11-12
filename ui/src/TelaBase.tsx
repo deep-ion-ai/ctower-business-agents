@@ -31,11 +31,14 @@ export function TelaBase({
   sistemas,
   documentoInicial,
   navegar,
+  aoAbrirDocumento,
 }: {
   api: ApiConhecimento;
   sistemas: SistemaResumo[];
   documentoInicial?: string;
   navegar: (t: Tela) => void;
+  /** Avisa o shell do documento aberto, para listá-lo no painel lateral (#85). */
+  aoAbrirDocumento?: (caminho: string) => void;
 }) {
   const [texto, setTexto] = useState("");
   const [sistema, setSistema] = useState("");
@@ -84,6 +87,7 @@ export function TelaBase({
         if (!ativo) return;
         setDocumento(d);
         setFalhaDocumento(null);
+        aoAbrirDocumento?.(aberto);
         topo.current?.scrollIntoView?.({ block: "start" });
       })
       .catch((e: unknown) => ativo && setFalhaDocumento(mensagemDe(e)));
@@ -119,7 +123,7 @@ export function TelaBase({
   const voltar = () => setHistorico((h) => h.slice(0, -1));
 
   return (
-    <section className="tela-base" aria-label="Base de conhecimento">
+    <section className="tela-base page" aria-label="Base de conhecimento">
       <h2>Base de conhecimento</h2>
       <form className="busca-base" role="search" onSubmit={buscar} aria-label="Busca na base">
         <input
@@ -129,7 +133,7 @@ export function TelaBase({
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
         />
-        <button type="submit" className="primario" disabled={!texto.trim()}>
+        <button type="submit" className="btn" disabled={!texto.trim()}>
           Buscar
         </button>
         <label>
@@ -144,7 +148,7 @@ export function TelaBase({
           </select>
         </label>
         <fieldset className="filtros">
-          <legend className="suave">Só</legend>
+          <legend className="muted">Só</legend>
           {FILTROS.map((f) => (
             <label key={f.tipo}>
               <input
@@ -158,7 +162,7 @@ export function TelaBase({
         </fieldset>
       </form>
       {falha && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           {falha}
         </p>
       )}
@@ -166,7 +170,7 @@ export function TelaBase({
       <div className="base-colunas">
         {busca && consulta && (
           <section aria-label="Resultados" className="resultados-base">
-            <p className="suave" role="status">
+            <p className="muted" role="status">
               {busca.total === 0
                 ? `Nada encontrado para "${consulta.texto}".`
                 : `${busca.total} documento(s) para "${consulta.texto}"${
@@ -182,12 +186,14 @@ export function TelaBase({
                     {r.identificador && r.identificador !== r.titulo && `${r.identificador}: `}
                     {r.titulo}
                   </button>{" "}
-                  <span className="suave">
+                  <span className="muted">
                     {rotuloTipo(r.tipo)} · {r.sistema}
                     {r.area && ` · ${r.area}`}
                   </span>
                   {r.status === "a-revalidar" && (
-                    <span className="selo selo-revalidar">a revalidar</span>
+                    <span className="badge" data-tone="attention">
+                      a revalidar
+                    </span>
                   )}
                   {r.trecho && (
                     <p className="trecho-busca">
@@ -202,6 +208,7 @@ export function TelaBase({
             {busca.total > POR_PAGINA && (
               <div className="acoes">
                 <button
+                  className="btn"
                   type="button"
                   disabled={busca.deslocamento === 0}
                   onClick={() =>
@@ -214,6 +221,7 @@ export function TelaBase({
                   Anteriores
                 </button>
                 <button
+                  className="btn"
                   type="button"
                   disabled={busca.deslocamento + POR_PAGINA >= busca.total}
                   onClick={() =>
@@ -234,16 +242,16 @@ export function TelaBase({
           <div className="documento-aberto" ref={topo}>
             <div className="acoes">
               {historico.length > 1 && (
-                <button type="button" onClick={voltar}>
+                <button className="btn" type="button" onClick={voltar}>
                   Voltar
                 </button>
               )}
-              <button type="button" onClick={() => setHistorico([])}>
+              <button className="btn" type="button" onClick={() => setHistorico([])}>
                 Fechar o documento
               </button>
             </div>
             {falhaDocumento && (
-              <p className="trecho-erro" role="alert">
+              <p className="error-text" role="alert">
                 Não foi possível abrir {aberto}: {falhaDocumento}
               </p>
             )}

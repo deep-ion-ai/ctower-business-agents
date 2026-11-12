@@ -54,7 +54,7 @@ export function PrepararAmbiente({
         ))}
       </ul>
       {!plano && (
-        <button type="button" onClick={planejar} disabled={ocupado}>
+        <button className="btn" type="button" onClick={planejar} disabled={ocupado}>
           Ver o que será alterado
         </button>
       )}
@@ -71,7 +71,7 @@ export function PrepararAmbiente({
                 {a.item.tipo === "hook"
                   ? `Hook ${a.item.evento}`
                   : `Servidor MCP "cba" para a pasta ${a.item.chave}`}{" "}
-                <span className="suave">
+                <span className="muted">
                   ({a.acao === "atualizado" ? "atualizado" : "adicionado"} em {a.arquivo})
                 </span>
               </li>
@@ -79,7 +79,7 @@ export function PrepararAmbiente({
             {proteger && (
               <li>
                 Proteção contra edição: regra <code>deny</code> de <code>Edit</code> para as pastas
-                do sistema <span className="suave">(adicionada nas configurações do usuário)</span>
+                do sistema <span className="muted">(adicionada nas configurações do usuário)</span>
               </li>
             )}
           </ul>
@@ -95,16 +95,16 @@ export function PrepararAmbiente({
               ela, o app só avisa quando a pasta for alterada.
             </label>
           )}
-          <button type="button" onClick={preparar} disabled={ocupado}>
+          <button className="btn" type="button" onClick={preparar} disabled={ocupado}>
             Concordo, preparar o ambiente
           </button>{" "}
-          <button type="button" onClick={() => setPlano(null)} disabled={ocupado}>
+          <button className="btn" type="button" onClick={() => setPlano(null)} disabled={ocupado}>
             Agora não
           </button>
         </>
       )}
       {falha && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           {falha}
         </p>
       )}
@@ -143,14 +143,14 @@ export function AmbienteDoSistema({
 
   return (
     <div className="ambiente-sistema">
-      {!ambiente && !falha && <p className="suave">Verificando o ambiente do Claude…</p>}
+      {!ambiente && !falha && <p className="muted">Verificando o ambiente do Claude…</p>}
       {falha && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           Não foi possível verificar o ambiente do Claude: {falha}
         </p>
       )}
       {ambiente?.pronto && (
-        <p className="confirmacao" role="status">
+        <p className="ok-text" role="status">
           O ambiente do Claude está preparado para este sistema.
         </p>
       )}

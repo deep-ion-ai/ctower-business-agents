@@ -1,45 +1,46 @@
-/* Tela de configurações (#39). As cores vêm dos tokens de theme.css. */
+/* Tela de configurações (#39, visual do Control Tower em #85). Cores só por token. */
 
 .configuracoes {
-  text-align: left;
   max-width: 60rem;
-  margin: 0 auto;
+}
+
+.configuracoes > h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
 }
 
 .secao-config {
-  margin: 1.25rem 0;
-  padding: 0.75rem 1rem;
-  border: 1px solid color-mix(in srgb, var(--suave) 35%, transparent);
+  padding: 18px;
+  border: 1px solid var(--border);
   border-radius: 8px;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .secao-config h3 {
-  margin-top: 0;
+  margin: 0;
+}
+
+.secao-config h4,
+.secao-config h5 {
+  margin: 8px 0 4px;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .cartao-sistema {
-  margin: 0.75rem 0;
-  padding: 0.5rem 0.75rem;
-  border-left: 3px solid color-mix(in srgb, var(--suave) 50%, transparent);
-}
-
-.cartao-sistema h5 {
-  margin: 0.75rem 0 0.25rem;
-}
-
-.opcoes-troca {
-  display: grid;
-  gap: 0.5rem;
-  border: none;
-  padding: 0;
-}
-
-.opcoes-troca .opcao span {
-  display: block;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface-2);
 }
 
 .detalhe-ambiente {
-  margin: 0.25rem 0;
+  margin: 4px 0;
 }
 
 .textos-editaveis {
@@ -48,8 +49,9 @@
 }
 
 .textos-editaveis td {
-  padding: 0.25rem 0.5rem 0.25rem 0;
+  padding: 6px 8px 6px 0;
   vertical-align: top;
+  border-bottom: 1px solid var(--border);
 }
 
 .estado-texto.editado {
@@ -57,15 +59,22 @@
 }
 
 .estado-texto.ilegivel {
-  color: #c33;
+  color: var(--error-soft);
 }
 
-.link.perigo {
-  color: #c33;
+button.link.perigo {
+  color: var(--error-soft);
 }
 
 @media (max-width: 40rem) {
   .textos-editaveis td {
     display: block;
   }
+}
+
+/* Na coluna da seção, o botão fica do tamanho do texto. */
+.secao-config > .btn,
+.secao-config > p > .btn,
+.cartao-sistema > .btn {
+  align-self: flex-start;
 }

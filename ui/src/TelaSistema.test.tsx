@@ -26,11 +26,11 @@ describe("TelaSistema", () => {
     await waitFor(() => expect(api.visaoSistema).toHaveBeenCalledTimes(2));
 
     const itens = within(regras).getAllByRole("listitem");
-    expect(itens[0]).toHaveClass("regra-a-revalidar");
+    // O estado vem por texto; o âmbar (tom "attention") só reforça.
     expect(itens[0]).toHaveAttribute("data-status", "a-revalidar");
-    expect(within(itens[0]).getByText("a revalidar")).toHaveClass("selo-revalidar");
-    expect(itens[1]).not.toHaveClass("regra-a-revalidar");
-    expect(within(itens[1]).getByText("confirmada")).not.toHaveClass("selo-revalidar");
+    expect(within(itens[0]).getByText("a revalidar")).toHaveAttribute("data-tone", "attention");
+    expect(itens[1]).toHaveAttribute("data-status", "confirmada");
+    expect(within(itens[1]).getByText("confirmada")).not.toHaveAttribute("data-tone", "attention");
 
     expect(screen.getByRole("alert")).toHaveTextContent("1 regra está a revalidar");
     expect(await screen.findByText(/passaram a revalidar: RN-COB-002/)).toBeInTheDocument();

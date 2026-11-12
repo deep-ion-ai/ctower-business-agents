@@ -66,7 +66,7 @@ export function DocumentoBase({
   return (
     <article className="documento-base" aria-label={documento.titulo}>
       <header>
-        <p className="suave">
+        <p className="muted">
           {rotuloTipo(documento.tipo)}
           {documento.sistema && ` · ${documento.sistema}`} · <code>{documento.caminho}</code>
         </p>
@@ -74,7 +74,8 @@ export function DocumentoBase({
           {documento.titulo}{" "}
           {documento.status && (
             <span
-              className={`selo ${documento.status === "a-revalidar" ? "selo-revalidar" : "selo-status"}`}
+              className="badge"
+              data-tone={documento.status === "a-revalidar" ? "attention" : undefined}
             >
               {documento.status === "a-revalidar" ? "a revalidar" : documento.status}
             </span>
@@ -82,6 +83,7 @@ export function DocumentoBase({
         </h2>
         {documento.analise && aoAbrirAnalise && (
           <button
+            className="btn"
             type="button"
             onClick={() => aoAbrirAnalise(documento.analise!.sistema, documento.analise!.id)}
           >
@@ -89,7 +91,7 @@ export function DocumentoBase({
           </button>
         )}
         {documento.problema && (
-          <p className="trecho-erro" role="alert">
+          <p className="error-text" role="alert">
             Frontmatter ilegível: {documento.problema}
           </p>
         )}
@@ -147,14 +149,14 @@ function Ligacoes({
       <ul>
         {ligacoes.map((l) => (
           <li key={`${l.campo}:${l.caminho}`}>
-            <span className="suave">{ROTULO_CAMPO[l.campo] ?? l.campo}: </span>
+            <span className="muted">{ROTULO_CAMPO[l.campo] ?? l.campo}: </span>
             {l.existe ? (
               <button type="button" className="link" onClick={() => aoAbrir(l.caminho)}>
                 {l.titulo ?? l.caminho}
               </button>
             ) : (
               <span title="O documento não está na base">
-                {l.caminho} <span className="suave">(não encontrado)</span>
+                {l.caminho} <span className="muted">(não encontrado)</span>
               </span>
             )}
           </li>

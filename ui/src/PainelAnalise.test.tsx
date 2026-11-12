@@ -72,7 +72,7 @@ describe("PainelAnalise", () => {
     );
     act(() => avisar({ tipo: "mudanca", analise: "A-0001", mudanca: "afirmacao", versao: 2 }));
     expect(await screen.findByText(AFIRMACAO_MULTA.texto)).toBeInTheDocument();
-    expect(screen.getByText("confirmado")).toHaveClass("selo-confirmado");
+    expect(screen.getByText("confirmado")).toHaveAttribute("data-tone", "done");
     expect(api.carregarAnalise).toHaveBeenCalledTimes(2);
 
     // Reinício da vigia: relê, mesmo sem versão nova.
@@ -102,10 +102,10 @@ describe("PainelAnalise", () => {
     const trecho = await screen.findByRole("region", { name: "Trecho da evidência" });
     await waitFor(() => expect(trecho.querySelector('[data-linha="71"]')).not.toBeNull());
     const linha = (n: number) => trecho.querySelector(`[data-linha="${n}"]`);
-    expect(linha(70)).not.toHaveClass("citada");
-    expect(linha(71)).toHaveClass("citada");
-    expect(linha(72)).toHaveClass("citada");
-    expect(linha(73)).not.toHaveClass("citada");
+    expect(linha(70)).not.toHaveAttribute("data-citada");
+    expect(linha(71)).toHaveAttribute("data-citada", "true");
+    expect(linha(72)).toHaveAttribute("data-citada", "true");
+    expect(linha(73)).not.toHaveAttribute("data-citada");
     expect(linha(71)).toHaveAttribute("aria-current", "location");
     expect(within(linha(71) as HTMLElement).getByText("linha 71")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" })).toHaveAttribute(

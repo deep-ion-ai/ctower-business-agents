@@ -77,7 +77,7 @@ export function EscolhaCliente({
     <section className="passo-assistente" aria-label="Cliente de IA">
       <h2>Como você prefere conversar com a IA?</h2>
       <fieldset className="opcoes-cliente">
-        <legend className="suave">Você pode trocar depois, nas configurações.</legend>
+        <legend className="muted">Você pode trocar depois, nas configurações.</legend>
         <label className={cliente === "terminalEmbutido" ? "opcao escolhida" : "opcao"}>
           <input
             type="radio"
@@ -87,7 +87,7 @@ export function EscolhaCliente({
             onChange={() => setCliente("terminalEmbutido")}
           />
           <strong>Claude Code no terminal do app (recomendado)</strong>
-          <span className="suave">Tudo numa janela só: a conversa ao lado do documento.</span>
+          <span className="muted">Tudo numa janela só: a conversa ao lado do documento.</span>
         </label>
         <label className={cliente === "claudeDesktop" ? "opcao escolhida" : "opcao"}>
           <input
@@ -99,7 +99,7 @@ export function EscolhaCliente({
             onChange={() => setCliente("claudeDesktop")}
           />
           <strong>Claude Desktop</strong>
-          <span className="suave">
+          <span className="muted">
             {desktopIndisponivel
               ? "Não disponível neste sistema (só macOS e Windows)."
               : "Para quem não quer usar terminal: a conversa no Desktop, o documento aqui."}
@@ -107,9 +107,9 @@ export function EscolhaCliente({
         </label>
       </fieldset>
 
-      {carga.tipo === "verificando" && <p className="suave">Verificando o cliente…</p>}
+      {carga.tipo === "verificando" && <p className="muted">Verificando o cliente…</p>}
       {carga.tipo === "erro" && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           Não foi possível verificar os clientes de IA. Você pode seguir assim mesmo e conferir
           depois.
         </p>
@@ -133,28 +133,33 @@ export function EscolhaCliente({
         </>
       )}
       {loginIncerto && (
-        <p className="suave">
+        <p className="muted">
           Não deu para confirmar o login. Se o Claude Code pedir para entrar quando abrir, entre com
           a sua conta.
         </p>
       )}
       {pendencia && (
-        <p className="pendencia" role="status">
+        <p className="attention-text" role="status">
           {pendencia}
         </p>
       )}
       {falha && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           {falha}
         </p>
       )}
       <div className="acoes">
-        <button type="button" onClick={verificar} disabled={carga.tipo === "verificando"}>
+        <button
+          className="btn"
+          type="button"
+          onClick={verificar}
+          disabled={carga.tipo === "verificando"}
+        >
           Verificar de novo
         </button>
         <button
           type="button"
-          className="primario"
+          className="btn btn-primary"
           onClick={continuar}
           disabled={
             gravando ||

@@ -73,7 +73,7 @@ export function TelaAnalise({
 
   if (aberta && sistema) {
     return (
-      <section className="tela-analise" aria-label="Análise">
+      <section className="tela-analise tela-analise-aberta" aria-label="Análise">
         <PainelAnalise
           key={aberta.id}
           api={api}
@@ -89,21 +89,21 @@ export function TelaAnalise({
   }
 
   return (
-    <section className="tela-analise" aria-label="Pergunta ao sistema">
+    <section className="tela-analise page" aria-label="Pergunta ao sistema">
       <h2>Pergunta ao sistema</h2>
       {erro && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           {erro}
         </p>
       )}
-      {!situacao && !erro && <p className="suave">Carregando…</p>}
+      {!situacao && !erro && <p className="muted">Carregando…</p>}
       {situacao && (!situacao.base || situacao.sistemas.length === 0) && (
         <p>
           {!situacao.base
             ? "Falta escolher a pasta da base de conhecimento."
             : "Nenhum sistema cadastrado."}{" "}
           {aoPrimeiroUso && (
-            <button type="button" onClick={aoPrimeiroUso}>
+            <button className="btn" type="button" onClick={aoPrimeiroUso}>
               Abrir o primeiro uso
             </button>
           )}
@@ -197,7 +197,7 @@ function Sistema({
   return (
     <>
       {falhaAmbiente && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           Não foi possível verificar o ambiente do Claude: {falhaAmbiente}
         </p>
       )}
@@ -219,30 +219,34 @@ function Sistema({
           Título (opcional)
           <input value={titulo} onChange={(e) => setTitulo(e.target.value)} />
         </label>
-        <button type="submit" disabled={!pronto || criando || !entrada.trim()}>
+        <button className="btn" type="submit" disabled={!pronto || criando || !entrada.trim()}>
           Perguntar
         </button>
         {!pronto && ambiente && (
-          <span className="suave"> Prepare o ambiente do Claude antes de perguntar.</span>
+          <span className="muted"> Prepare o ambiente do Claude antes de perguntar.</span>
         )}
       </form>
       {falha && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           {falha}
         </p>
       )}
 
       <section aria-label="Análises do sistema">
         <h3>Análises</h3>
-        {analises?.length === 0 && <p className="suave">Nenhuma análise ainda.</p>}
+        {analises?.length === 0 && <p className="muted">Nenhuma análise ainda.</p>}
         {analises && analises.length > 0 && (
           <ul className="lista-analises">
             {analises.map((a) => (
               <li key={a.id}>
-                <button type="button" onClick={() => aoAbrir(a.id, { tipo: "reabrir" })}>
+                <button
+                  className="link"
+                  type="button"
+                  onClick={() => aoAbrir(a.id, { tipo: "reabrir" })}
+                >
                   {a.id}: {a.titulo}
                 </button>{" "}
-                <span className="suave">{ESTADO[a.estado]}</span>
+                <span className="muted">{ESTADO[a.estado]}</span>
               </li>
             ))}
           </ul>

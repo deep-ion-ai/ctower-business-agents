@@ -216,10 +216,10 @@ function Situacao({
             A sessão terminou
             {estado.fim.sinal ? ` (${estado.fim.sinal})` : ` (código ${estado.fim.codigo})`}.
           </p>
-          <button type="button" onClick={aoContinuar}>
+          <button className="btn" type="button" onClick={aoContinuar}>
             Continuar a conversa
           </button>{" "}
-          <button type="button" onClick={aoNova}>
+          <button className="btn" type="button" onClick={aoNova}>
             Nova conversa
           </button>
         </div>
@@ -229,7 +229,7 @@ function Situacao({
         <div className="terminal-situacao terminal-erro" role="alert">
           <p>{estado.erro.mensagem}</p>
           <OrientacaoErro erro={estado.erro} />
-          <button type="button" onClick={aoNova}>
+          <button className="btn" type="button" onClick={aoNova}>
             Tentar de novo
           </button>
         </div>

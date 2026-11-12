@@ -19,6 +19,7 @@ import { EscolhaCliente } from "./EscolhaCliente";
 import { AmbienteDoSistema } from "./PrepararAmbiente";
 import { padraoDoCaminho, tamanhoLegivel, type PreviaSistema } from "./primeiroUso";
 import "./configuracoes.css";
+import { THEME_PREFS, useTheme } from "./shell/theme";
 
 const CLIENTE = {
   terminalEmbutido: "Claude Code no terminal do app",
@@ -66,30 +67,61 @@ export function TelaConfiguracoes({
 
   if (!cfg) {
     return (
-      <section className="configuracoes" aria-label="Configurações">
+      <section className="configuracoes page" aria-label="Configurações">
         {falha ? (
-          <p className="trecho-erro" role="alert">
+          <p className="error-text" role="alert">
             Não foi possível ler as configurações: {falha}
           </p>
         ) : (
-          <p className="suave">Carregando as configurações…</p>
+          <p className="muted">Carregando as configurações…</p>
         )}
       </section>
     );
   }
 
   return (
-    <section className="configuracoes" aria-label="Configurações">
+    <section className="configuracoes page" aria-label="Configurações">
       <h2>Configurações</h2>
       {falha && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           {falha}
         </p>
       )}
+      <SecaoAparencia />
       <SecaoCliente api={api} cfg={cfg} aoMudar={carregar} />
       <SecaoBase api={api} cfg={cfg} aoMudar={mudou} />
       <SecaoSistemas api={api} cfg={cfg} textos={textos} aoMudar={mudou} aoAbrirTexto={carregar} />
       {cfg.base && <SecaoTextos api={api} textos={textos} aoAbrir={carregar} />}
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Aparência (#85): tema claro, escuro ou do sistema, o mesmo da barra de título.
+
+function SecaoAparencia() {
+  const [pref, mudar] = useTheme();
+  return (
+    <section className="secao-config" aria-label="Aparência">
+      <h3>Aparência</h3>
+      <fieldset className="opcoes-troca">
+        <legend className="sr-only">Tema</legend>
+        {THEME_PREFS.map((t) => (
+          <label key={t.pref} className={pref === t.pref ? "opcao escolhida" : "opcao"}>
+            <input
+              type="radio"
+              name="tema"
+              value={t.pref}
+              checked={pref === t.pref}
+              onChange={() => mudar(t.pref)}
+            />
+            <span>{t.rotulo}</span>
+          </label>
+        ))}
+      </fieldset>
+      <p className="muted">
+        “Do sistema” acompanha o tema claro ou escuro do sistema operacional.
+      </p>
     </section>
   );
 }
@@ -112,10 +144,10 @@ function SecaoCliente({
       <h3>Cliente de IA preferido</h3>
       <p>
         {CLIENTE[cfg.cliente ?? "terminalEmbutido"]}
-        {!cfg.cliente && <span className="suave"> (padrão)</span>}
+        {!cfg.cliente && <span className="muted"> (padrão)</span>}
       </p>
       {!trocando ? (
-        <button type="button" onClick={() => setTrocando(true)}>
+        <button className="btn" type="button" onClick={() => setTrocando(true)}>
           Trocar o cliente
         </button>
       ) : (
@@ -170,11 +202,12 @@ function SecaoBase({
     <section className="secao-config" aria-label="Pasta da base">
       <h3>Pasta da base de conhecimento</h3>
       <p>
-        {cfg.base ? <code>{cfg.base}</code> : <span className="suave">Ainda não escolhida.</span>}
+        {cfg.base ? <code>{cfg.base}</code> : <span className="muted">Ainda não escolhida.</span>}
       </p>
       {feito && <ResultadoTroca feito={feito} />}
       {etapa === "ver" && (
         <button
+          className="btn"
           type="button"
           onClick={() => {
             setFeito(null);
@@ -268,11 +301,11 @@ function ConfirmarTroca({
       <p>
         Pasta nova: <code>{destino}</code>
       </p>
-      {!avaliacao && !falha && <p className="suave">Conferindo a pasta…</p>}
+      {!avaliacao && !falha && <p className="muted">Conferindo a pasta…</p>}
       {avaliacao && (
         <>
           {avaliacao.atual && (
-            <p className="suave">
+            <p className="muted">
               A base atual ({avaliacao.atual}) tem {avaliacao.arquivos} arquivos (
               {tamanhoLegivel(avaliacao.bytes)}).
             </p>
@@ -292,11 +325,11 @@ function ConfirmarTroca({
                 }}
               />
               <strong>Mover os documentos para a pasta nova</strong>
-              <span className="suave">
+              <span className="muted">
                 O app copia a base inteira, confere cada arquivo e só então passa a usar a pasta
                 nova e apaga a antiga. Se algo falhar, nada muda.
               </span>
-              {avaliacao.recusaMover && <span className="pendencia">{avaliacao.recusaMover}</span>}
+              {avaliacao.recusaMover && <span className="attention-text">{avaliacao.recusaMover}</span>}
             </label>
             <label className={modo === "reapontar" ? "opcao escolhida" : "opcao"}>
               <input
@@ -311,17 +344,17 @@ function ConfirmarTroca({
                 }}
               />
               <strong>Só passar a usar a pasta nova</strong>
-              <span className="suave">
+              <span className="muted">
                 Os documentos da pasta atual ficam onde estão, intactos, mas deixam de aparecer no
                 app. Útil quando a pasta nova já é uma base (outra máquina, outro clone).
               </span>
               {avaliacao.recusaReapontar && (
-                <span className="pendencia">{avaliacao.recusaReapontar}</span>
+                <span className="attention-text">{avaliacao.recusaReapontar}</span>
               )}
             </label>
           </fieldset>
           {avaliacao.sessoesAbertas > 0 && (
-            <p className="pendencia" role="status">
+            <p className="attention-text" role="status">
               Há {avaliacao.sessoesAbertas} conversa(s) com o Claude que podem estar abertas. Feche
               as conversas antes de trocar a base, para nada ser gravado na pasta antiga.
             </p>
@@ -339,7 +372,7 @@ function ConfirmarTroca({
             </label>
           )}
           {!modo && (
-            <p className="trecho-erro" role="alert">
+            <p className="error-text" role="alert">
               {recusa("reapontar") ?? recusa("mover")}
             </p>
           )}
@@ -352,17 +385,17 @@ function ConfirmarTroca({
         </div>
       )}
       {falha && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           {falha}
         </p>
       )}
       <div className="acoes">
-        <button type="button" onClick={aoCancelar} disabled={ocupado}>
+        <button className="btn" type="button" onClick={aoCancelar} disabled={ocupado}>
           Cancelar
         </button>
         <button
           type="button"
-          className="primario"
+          className="btn btn-primary"
           onClick={trocar}
           disabled={!modo || !confirmado || ocupado}
         >
@@ -375,7 +408,7 @@ function ConfirmarTroca({
 
 function ResultadoTroca({ feito }: { feito: TrocaBase }) {
   return (
-    <div className="confirmacao" role="status">
+    <div className="ok-text" role="status">
       <p>
         {feito.modo === "mover"
           ? `Base movida: ${feito.copiados} arquivos copiados e conferidos${
@@ -385,7 +418,7 @@ function ResultadoTroca({ feito }: { feito: TrocaBase }) {
         {feito.indexados !== null && `Índice reconstruído com ${feito.indexados} documentos.`}
       </p>
       {feito.avisos.map((a) => (
-        <p key={a} className="pendencia">
+        <p key={a} className="attention-text">
           {a}
         </p>
       ))}
@@ -413,9 +446,9 @@ function SecaoSistemas({
   return (
     <section className="secao-config" aria-label="Sistemas">
       <h3>Sistemas</h3>
-      {cfg.sistemas.length === 0 && <p className="suave">Nenhum sistema cadastrado.</p>}
+      {cfg.sistemas.length === 0 && <p className="muted">Nenhum sistema cadastrado.</p>}
       {cfg.configClaude && (
-        <p className="suave">
+        <p className="muted">
           O ambiente do Claude fica em {cfg.configClaude.estado} (servidor MCP) e{" "}
           {cfg.configClaude.settings} (hooks e proteção).
         </p>
@@ -445,7 +478,7 @@ function SecaoSistemas({
             </button>
           </>
         ) : (
-          <button type="button" onClick={() => setCadastrando(true)}>
+          <button className="btn" type="button" onClick={() => setCadastrando(true)}>
             Cadastrar outro sistema
           </button>
         ))}
@@ -471,16 +504,16 @@ function CartaoSistema({
   return (
     <article className="cartao-sistema" aria-label={sistema.nome}>
       <h4>{sistema.nome}</h4>
-      <ul className="suave">
+      <ul className="muted">
         {sistema.pastas.map((p) => (
           <li key={p.caminho}>
             {p.caminho}
             {p.prefixo && ` (aparece como ${p.prefixo}/)`}
-            {!p.existe && <strong className="pendencia"> · a pasta não existe mais</strong>}
+            {!p.existe && <strong className="attention-text"> · a pasta não existe mais</strong>}
           </li>
         ))}
       </ul>
-      <p className="suave">
+      <p className="muted">
         Para mudar as pastas, descadastre o sistema e cadastre de novo (os documentos ficam na
         base).
       </p>
@@ -495,7 +528,7 @@ function CartaoSistema({
       {regras && (
         <div role="group" aria-label={`Regras do sistema ${sistema.nome}`}>
           <h5>Regras do sistema</h5>
-          <p className="suave">
+          <p className="muted">
             Instruções que o agente recebe em toda análise deste sistema ({regras.arquivo}):{" "}
             {ESTADO_DO_TEXTO[regras.estado]}.
           </p>
@@ -591,6 +624,7 @@ function AjusteDeExclusoes({
               <li key={x}>
                 <code>{x}</code>{" "}
                 <button
+                  className="btn"
                   type="button"
                   aria-label={`Tirar a reinclusão de ${x}`}
                   onClick={() => mudarInclusoes(inclusoes.filter((y) => y !== x))}
@@ -613,20 +647,20 @@ function AjusteDeExclusoes({
         />
       )}
       {salvo && (
-        <p className="confirmacao" role="status">
+        <p className="ok-text" role="status">
           Exclusões salvas e sistema inventariado de novo.
         </p>
       )}
       {falha && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           {falha}
         </p>
       )}
       <div className="acoes">
-        <button type="button" onClick={() => verPrevia()} disabled={ocupado}>
+        <button className="btn" type="button" onClick={() => verPrevia()} disabled={ocupado}>
           Ver o que será analisado
         </button>
-        <button type="button" className="primario" onClick={salvar} disabled={ocupado}>
+        <button type="button" className="btn btn-primary" onClick={salvar} disabled={ocupado}>
           Salvar as exclusões
         </button>
       </div>
@@ -698,12 +732,12 @@ function DesfazerAmbiente({
   return (
     <div className="desfazer-ambiente">
       {feito && (
-        <div className="confirmacao" role="status">
+        <div className="ok-text" role="status">
           <p>
             Ambiente desfeito: a configuração do Claude voltou a ser a de antes para este sistema.
           </p>
           {feito.map((a) => (
-            <p key={a} className="pendencia">
+            <p key={a} className="attention-text">
               {a}
             </p>
           ))}
@@ -711,6 +745,7 @@ function DesfazerAmbiente({
       )}
       {!confirmando ? (
         <button
+          className="btn"
           type="button"
           onClick={() => {
             setFeito(null);
@@ -726,16 +761,21 @@ function DesfazerAmbiente({
             contra edição (se ligada) e, se nenhum outro sistema usar, os hooks. Sem eles, as
             conversas nesta pasta não enxergam o ctower. Você pode preparar de novo depois.
           </p>
-          <button type="button" className="primario" onClick={desfazer} disabled={ocupado}>
+          <button type="button" className="btn btn-primary" onClick={desfazer} disabled={ocupado}>
             Desfazer
           </button>{" "}
-          <button type="button" onClick={() => setConfirmando(false)} disabled={ocupado}>
+          <button
+            className="btn"
+            type="button"
+            onClick={() => setConfirmando(false)}
+            disabled={ocupado}
+          >
             Cancelar
           </button>
         </div>
       )}
       {falha && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           {falha}
         </p>
       )}
@@ -786,7 +826,7 @@ function Protecao({ api, sistema }: { api: ApiConfiguracoes; sistema: SistemaCon
         </p>
       )}
       {situacao && !confirmando && (
-        <button type="button" onClick={() => setConfirmando(true)}>
+        <button className="btn" type="button" onClick={() => setConfirmando(true)}>
           {situacao.ligada ? "Desligar a proteção" : "Ligar a proteção"}
         </button>
       )}
@@ -815,19 +855,24 @@ function Protecao({ api, sistema }: { api: ApiConfiguracoes; sistema: SistemaCon
           )}
           <button
             type="button"
-            className="primario"
+            className="btn btn-primary"
             onClick={() => mudar(!situacao.ligada)}
             disabled={ocupado}
           >
             {situacao.ligada ? "Concordo, desligar" : "Concordo, ligar"}
           </button>{" "}
-          <button type="button" onClick={() => setConfirmando(false)} disabled={ocupado}>
+          <button
+            className="btn"
+            type="button"
+            onClick={() => setConfirmando(false)}
+            disabled={ocupado}
+          >
             Cancelar
           </button>
         </div>
       )}
       {falha && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           {falha}
         </p>
       )}
@@ -888,12 +933,17 @@ function Descadastrar({
             Confirmo o descadastro de {sistema.nome}
           </label>
           <div className="acoes">
-            <button type="button" onClick={() => setConfirmando(false)} disabled={ocupado}>
+            <button
+              className="btn"
+              type="button"
+              onClick={() => setConfirmando(false)}
+              disabled={ocupado}
+            >
               Cancelar
             </button>
             <button
               type="button"
-              className="primario"
+              className="btn btn-primary"
               onClick={descadastrar}
               disabled={!confirmado || ocupado}
             >
@@ -903,7 +953,7 @@ function Descadastrar({
         </div>
       )}
       {falha && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           Não foi possível descadastrar: {falha}. O cadastro continua.
         </p>
       )}
@@ -944,14 +994,14 @@ function SecaoTextos({
   return (
     <section className="secao-config" aria-label="Textos editáveis">
       <h3>Templates, roteiros e prompts</h3>
-      <p className="suave">
+      <p className="muted">
         Ficam na base, em <code>_templates/</code>. Um arquivo na base sobrepõe o padrão do app;
         sem ele, vale o padrão. Os textos abrem no editor de texto do seu computador.
       </p>
       {GRUPOS.map((g) => (
         <div key={g.grupo} role="group" aria-label={g.titulo}>
           <h4>{g.titulo}</h4>
-          <p className="suave">{g.descricao}</p>
+          <p className="muted">{g.descricao}</p>
           <table className="textos-editaveis">
             <tbody>
               {textos
@@ -989,6 +1039,7 @@ function AbrirTexto({
   return (
     <>
       <button
+        className="btn"
         type="button"
         aria-label={`Abrir ${texto.rotulo} no editor`}
         onClick={() => {
@@ -1004,9 +1055,9 @@ function AbrirTexto({
       >
         {texto.estado === "padrao" ? "Criar a cópia e abrir" : "Abrir no editor"}
       </button>
-      {aberto && <span className="suave"> Aberto: {aberto}</span>}
+      {aberto && <span className="muted"> Aberto: {aberto}</span>}
       {falha && (
-        <span className="trecho-erro" role="alert">
+        <span className="error-text" role="alert">
           {" "}
           {falha}
         </span>

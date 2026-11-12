@@ -66,7 +66,7 @@ describe("AvisoAlteracao", () => {
     act(() => avisar({ tipo: "mudanca", analise: "A-0001", mudanca: "alteracao", versao: 0 }));
     const aviso = await screen.findByRole("alert", { name: "Aviso de alteração" });
     expect(within(aviso).getByText("db/03_pkg_cobranca.sql")).toBeInTheDocument();
-    expect(within(aviso).getByText("modificado")).toHaveClass("alteracao-modificado");
+    expect(within(aviso).getByText("modificado")).toHaveAttribute("data-tone", "attention");
   });
 
   it("mostra o diff e desfaz só depois da confirmação", async () => {

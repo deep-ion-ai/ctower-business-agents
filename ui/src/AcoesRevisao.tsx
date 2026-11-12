@@ -41,27 +41,40 @@ export function AcoesAfirmacao({ afirmacao, revisao }: { afirmacao: Afirmacao; r
       {!form && (
         <>
           <button
+            className="btn"
             type="button"
             disabled={revisao.ocupado || estado === "confirmada"}
             onClick={() => decidir({ tipo: "afirmacao", numero, estado: "confirmada" })}
           >
             Confirmar
           </button>
-          <button type="button" disabled={revisao.ocupado} onClick={() => abrir("incorreta")}>
+          <button
+            className="btn"
+            type="button"
+            disabled={revisao.ocupado}
+            onClick={() => abrir("incorreta")}
+          >
             Marcar incorreta
           </button>
           <button
+            className="btn"
             type="button"
             disabled={revisao.ocupado || estado === "aprofundar"}
             onClick={() => decidir({ tipo: "afirmacao", numero, estado: "aprofundar" })}
           >
             Aprofundar
           </button>
-          <button type="button" disabled={revisao.ocupado} onClick={() => abrir("editar")}>
+          <button
+            className="btn"
+            type="button"
+            disabled={revisao.ocupado}
+            onClick={() => abrir("editar")}
+          >
             Editar texto
           </button>
           {decidida && (
             <button
+              className="btn"
               type="button"
               disabled={revisao.ocupado}
               onClick={() => decidir({ tipo: "afirmacao", numero, estado: "registrada" })}
@@ -92,10 +105,10 @@ export function AcoesAfirmacao({ afirmacao, revisao }: { afirmacao: Afirmacao; r
           </label>
           <textarea id={id} value={texto} rows={3} onChange={(e) => setTexto(e.target.value)} />
           <div>
-            <button type="submit" disabled={revisao.ocupado || !texto.trim()}>
+            <button className="btn" type="submit" disabled={revisao.ocupado || !texto.trim()}>
               {form.tipo === "incorreta" ? "Marcar como incorreta" : "Salvar texto"}
             </button>{" "}
-            <button type="button" onClick={() => setForm(null)}>
+            <button className="btn" type="button" onClick={() => setForm(null)}>
               Cancelar
             </button>
           </div>
@@ -130,10 +143,10 @@ export function AcoesPergunta({ pergunta, revisao }: { pergunta: Pergunta; revis
         <label htmlFor={id}>Resposta</label>
         <textarea id={id} value={resposta} rows={2} onChange={(e) => setResposta(e.target.value)} />
         <div>
-          <button type="submit" disabled={revisao.ocupado || !resposta.trim()}>
+          <button className="btn" type="submit" disabled={revisao.ocupado || !resposta.trim()}>
             Salvar resposta
           </button>{" "}
-          <button type="button" onClick={() => setRespondendo(false)}>
+          <button className="btn" type="button" onClick={() => setRespondendo(false)}>
             Cancelar
           </button>
         </div>
@@ -141,10 +154,16 @@ export function AcoesPergunta({ pergunta, revisao }: { pergunta: Pergunta; revis
     );
   return (
     <div className="acoes-revisao" role="group" aria-label={`Revisão da pergunta ${numero}`}>
-      <button type="button" disabled={revisao.ocupado} onClick={() => setRespondendo(true)}>
+      <button
+        className="btn"
+        type="button"
+        disabled={revisao.ocupado}
+        onClick={() => setRespondendo(true)}
+      >
         Responder
       </button>
       <button
+        className="btn"
         type="button"
         disabled={revisao.ocupado}
         onClick={() => decidir({ tipo: "pergunta", numero, estado: "descartada" })}
@@ -176,10 +195,20 @@ export function AcoesAceite({
   };
   return (
     <div className="acoes-revisao" role="group" aria-label={`Revisão ${rotulo}`}>
-      <button type="button" disabled={revisao.ocupado} onClick={() => decidir(true)}>
+      <button
+        className="btn"
+        type="button"
+        disabled={revisao.ocupado}
+        onClick={() => decidir(true)}
+      >
         Aceitar
       </button>
-      <button type="button" disabled={revisao.ocupado} onClick={() => decidir(false)}>
+      <button
+        className="btn"
+        type="button"
+        disabled={revisao.ocupado}
+        onClick={() => decidir(false)}
+      >
         Recusar
       </button>
     </div>

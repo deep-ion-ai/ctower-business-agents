@@ -1,157 +1,426 @@
-/* Navegação, início, sistema e base de conhecimento (#38). As cores e os selos
-   seguem o theme.css. */
+/*
+ * Telas do app (#85): primeiro uso, início, sistema, base, análise e revisão, no
+ * visual do Control Tower. Cores só por token (theme.css); âmbar só para o que
+ * exige o analista: afirmação sem decisão, regra a revalidar, aviso de alteração
+ * e sessão aguardando o analista. O estado vem sempre também por texto.
+ */
 
-.navegacao {
-  width: 100%;
+/* ---- Estrutura comum ---- */
+
+.page h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.page h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.page p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Seções de uma tela: painéis. */
+.tela-inicio > section,
+.tela-sistema > section,
+.tela-base > section,
+.tela-analise.page > section,
+.tela-analise.page > form {
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
   display: flex;
   flex-direction: column;
+  gap: 10px;
+}
+
+.tela-inicio > section > h2,
+.tela-sistema > section > h3,
+.tela-analise.page > section > h3 {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.page ul,
+.page ol {
+  margin: 0;
+}
+
+.acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.comando {
+  display: flex;
   align-items: center;
+  gap: 8px;
 }
 
-.abas {
-  margin-top: 1rem;
+.comando-copiar code,
+.comando code {
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.progresso {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sugestoes,
+.botoes-fluxo,
+.terminal-controles,
+.acoes-revisao,
+.revalidacao,
+.busca-base {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--suave) 40%, transparent);
-  width: min(100rem, calc(100% - 2rem));
+  align-items: center;
+  gap: 8px;
 }
 
-.abas button {
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: none;
-  color: inherit;
-  font: inherit;
-  padding: 0.4rem 0.75rem;
-  cursor: pointer;
-}
-
-.abas button[aria-current="page"] {
-  border-bottom-color: #3b82f6;
-  font-weight: 600;
-}
-
-.tela-inicio,
-.tela-sistema,
-.tela-base {
-  margin-top: 1.5rem;
-  width: min(100rem, calc(100% - 2rem));
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.tela-inicio > .clientes {
-  width: 100%;
-  margin-top: 1rem;
-}
-
-.tela-inicio h2,
-.tela-sistema h2,
-.tela-base h2 {
-  margin: 0.5rem 0 0.25rem;
-  font-size: 1.1rem;
-  font-weight: 600;
-}
-
-.tela-sistema h3 {
-  margin: 0.75rem 0 0.25rem;
-  font-size: 1rem;
-}
-
-.botoes-fluxo {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
+/* Listas de itens (sistemas, análises, regras, termos, pastas, resultados). */
 .lista-sistemas,
+.lista-analises,
 .lista-regras,
 .lista-termos,
 .lista-areas,
 .lista-pastas,
 .lista-arquivos,
 .resultados-base ul {
-  margin: 0;
-  padding-left: 1.25rem;
+  list-style: none;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
 }
 
-.selo-status {
-  background: color-mix(in srgb, var(--suave) 20%, transparent);
-}
-
-/* Regra "a revalidar" (spec, seção 6.5): o código citado mudou. */
-.selo-revalidar {
-  background: color-mix(in srgb, #e07a10 35%, transparent);
-  margin-left: 0.4rem;
-}
-
-.regra-a-revalidar {
-  border-left: 3px solid #e07a10;
-  padding-left: 0.5rem;
-  background: color-mix(in srgb, #e07a10 8%, transparent);
-}
-
-.aviso-revalidar {
-  margin: 0;
-  color: color-mix(in srgb, #e07a10 75%, var(--texto));
-  font-weight: 600;
-}
-
-.revalidacao {
+.lista-sistemas > li,
+.lista-analises > li,
+.lista-regras > li,
+.lista-termos > li,
+.lista-areas > li,
+.lista-pastas > li,
+.lista-arquivos > li,
+.resultados-base li {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
+  gap: 4px 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
 }
+
+.lista-sistemas > li:last-child,
+.lista-analises > li:last-child,
+.lista-regras > li:last-child,
+.lista-termos > li:last-child,
+.lista-areas > li:last-child,
+.lista-pastas > li:last-child,
+.lista-arquivos > li:last-child,
+.resultados-base li:last-child {
+  border-bottom: 0;
+}
+
+.resultados-base li[aria-current="true"] {
+  background: var(--selected);
+  font-weight: 600;
+}
+
+/* Regra a revalidar (spec, seção 6.5): o código citado mudou; pede o analista. */
+.regra[data-status="a-revalidar"] {
+  background: var(--attention-card);
+  box-shadow: inset 3px 0 0 var(--attention);
+}
+
+.regra[data-status="obsoleta"] {
+  color: var(--muted);
+}
+
+.aviso-revalidar {
+  color: var(--attention);
+  font-weight: 600;
+}
+
+.link-externo {
+  text-decoration: underline dotted;
+}
+
+/* ---- Primeiro uso ---- */
+
+.primeiro-uso {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 24px;
+  display: flex;
+  justify-content: center;
+}
+
+.assistente {
+  width: min(56rem, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.titulo-assistente {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.etapas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin: 0;
+  padding-left: 20px;
+  color: var(--muted);
+}
+
+.etapas .atual {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.etapas .feita::marker {
+  content: "✓ ";
+  color: var(--ok);
+}
+
+.passo-assistente {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.passo-assistente h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.passo-assistente p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.passo-assistente textarea,
+.passo-assistente input.caminho {
+  width: 100%;
+}
+
+.passo-assistente input.caminho {
+  max-width: 36rem;
+}
+
+.opcoes-cliente,
+.opcoes-troca {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 12px;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.opcao {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface-2);
+  cursor: pointer;
+}
+
+.opcao .muted {
+  grid-column: 2;
+}
+
+.opcao.escolhida {
+  border-color: var(--accent);
+  background: var(--selected);
+}
+
+.pastas-sistema {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.pastas-sistema > button {
+  align-self: flex-start;
+}
+
+.resumo-inventario {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 16px;
+}
+
+.resumo-inventario h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.resumo-inventario .numero {
+  text-align: right;
+  padding-left: 16px;
+  font-family: var(--mono);
+}
+
+.lista-ignorados {
+  max-height: 16rem;
+  overflow: auto;
+  padding-left: 20px;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+/* ---- Clientes de IA ---- */
+
+.clientes {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.clientes h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.clientes-lista {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 12px;
+}
+
+.cliente,
+.cliente-conversa {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.cliente h3,
+.cliente-conversa h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--text);
+}
+
+.cliente p {
+  margin: 4px 0;
+}
+
+.clientes button {
+  align-self: flex-start;
+}
+
+.clientes-conversa {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.passos {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  color: var(--muted);
+}
+
+.passos pre {
+  margin: 4px 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: all;
+}
+
+.passos .link,
+.terminal-claude .link {
+  font-family: var(--mono);
+  user-select: all;
+  word-break: break-all;
+}
+
+/* ---- Sistema ---- */
 
 .mapa-sistema,
 .resultados-base,
 .documento-aberto {
-  border: 1px solid color-mix(in srgb, var(--suave) 40%, transparent);
+  padding: 14px 16px;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 0.75rem 1rem;
+  background: var(--surface);
 }
 
 .trilha {
-  margin-bottom: 0.5rem;
-}
-
-.busca-base {
+  margin-bottom: 8px;
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
+  gap: 4px;
+  color: var(--muted);
 }
 
+/* ---- Base de conhecimento ---- */
+
 .busca-base input[type="search"] {
-  font: inherit;
   flex: 1 1 20rem;
-  padding: 0.3rem 0.5rem;
 }
 
 .filtros {
   border: 0;
   display: flex;
-  gap: 0.75rem;
+  flex-wrap: wrap;
+  gap: 12px;
   padding: 0;
   margin: 0;
+  color: var(--text-2);
 }
 
 .filtros legend {
   float: left;
-  margin-right: 0.5rem;
+  margin-right: 8px;
+  color: var(--muted);
 }
 
 .base-colunas {
   display: grid;
-  grid-template-columns: minmax(18rem, 1fr) minmax(0, 2fr);
-  gap: 1rem;
+  grid-template-columns: minmax(16rem, 1fr) minmax(0, 2fr);
+  gap: 16px;
   align-items: start;
 }
 
@@ -159,36 +428,28 @@
   grid-column: 1 / -1;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
   .base-colunas {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
-.resultados-base li[aria-current="true"] {
-  font-weight: 600;
-}
-
 .trecho-busca {
-  margin: 0.15rem 0 0.4rem;
-  color: var(--suave);
-  font-size: 0.9rem;
-}
-
-.trecho-busca mark {
-  background: color-mix(in srgb, #d4a017 40%, transparent);
-  color: inherit;
+  flex-basis: 100%;
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .documento-base header h2 {
-  margin: 0.25rem 0;
+  margin: 4px 0;
 }
 
 .campos-documento {
   display: grid;
   grid-template-columns: max-content 1fr;
-  gap: 0.15rem 0.75rem;
-  font-size: 0.9rem;
+  gap: 2px 12px;
+  font-size: 13px;
 }
 
 .campos-documento div {
@@ -196,40 +457,34 @@
 }
 
 .campos-documento dt {
-  color: var(--suave);
+  color: var(--muted);
 }
 
 .campos-documento dd {
   margin: 0;
+  font-family: var(--mono);
+  font-size: 12px;
 }
 
 .ligacoes {
   display: flex;
   flex-wrap: wrap;
-  gap: 1.5rem;
-  font-size: 0.9rem;
+  gap: 24px;
+  font-size: 13px;
 }
 
 .ligacoes h3 {
-  margin: 0.5rem 0 0.25rem;
-  font-size: 0.95rem;
+  margin: 8px 0 4px;
 }
 
 .ligacoes ul {
   margin: 0;
-  padding-left: 1.25rem;
+  padding-left: 20px;
 }
 
 .markdown {
-  line-height: 1.5;
+  line-height: 1.6;
   overflow-wrap: anywhere;
-}
-
-.markdown pre {
-  overflow-x: auto;
-  padding: 0.5rem;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--suave) 15%, transparent);
 }
 
 .markdown table {
@@ -238,10 +493,381 @@
 
 .markdown th,
 .markdown td {
-  border: 1px solid color-mix(in srgb, var(--suave) 40%, transparent);
-  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--border);
+  padding: 4px 8px;
 }
 
-.link-externo {
-  text-decoration: underline dotted;
+.markdown th {
+  background: var(--surface-2);
+}
+
+/* ---- Análise: ocupa a área de editor ---- */
+
+.tela-analise-aberta {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.nova-pergunta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.nova-pergunta label {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.nova-pergunta textarea {
+  width: 100%;
+  font-family: var(--sans);
+  font-size: 14px;
+  color: var(--text);
+}
+
+.painel-analise {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.painel-barra {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-side);
+}
+
+/* Terminal à esquerda, documento ao vivo à direita, cada um com a própria rolagem. */
+.painel-colunas {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+@media (max-width: 1100px) {
+  .painel-colunas {
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: minmax(28rem, auto);
+    overflow: auto;
+  }
+}
+
+.painel-conversa,
+.painel-documento {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+}
+
+.painel-conversa {
+  border-right: 1px solid var(--border);
+}
+
+.painel-documento {
+  overflow-y: auto;
+  background: var(--surface);
+}
+
+.painel-terminal,
+.terminal-claude {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.painel-terminal[hidden] {
+  display: none;
+}
+
+/* Terminal sempre escuro, nos dois temas (tokens --term-*). */
+.terminal-tela {
+  flex: 1;
+  min-height: 20rem;
+  padding: 6px;
+  border: 1px solid var(--term-border);
+  border-radius: 6px;
+  background: var(--term-bg);
+}
+
+.terminal-situacao p {
+  margin: 0 0 8px;
+}
+
+.terminal-situacao,
+.preparar-ambiente,
+.aviso-desktop,
+.iniciar-conversa {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.terminal-erro {
+  border-color: var(--error-border);
+  background: var(--error-bg);
+}
+
+.prompts-prontos {
+  display: contents;
+}
+
+/* Documento ao vivo */
+
+.documento-ao-vivo {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  line-height: 1.5;
+}
+
+.documento-ao-vivo header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.documento-ao-vivo h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.documento-ao-vivo h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.documento-ao-vivo h4 {
+  margin: 8px 0 4px;
+  font-size: 14px;
+}
+
+.documento-ao-vivo blockquote {
+  margin: 0;
+  padding: 6px 12px;
+  border-left: 3px solid var(--border-strong);
+  color: var(--text-2);
+}
+
+.documento-ao-vivo ol,
+.documento-ao-vivo ul {
+  padding-left: 20px;
+}
+
+.afirmacao,
+.pergunta,
+.termo {
+  margin-bottom: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+/* Afirmação sem decisão do analista: âmbar (o texto diz "sem decisão"). */
+.afirmacao[data-pendente="true"] {
+  background: var(--attention-card);
+  box-shadow: inset 3px 0 0 var(--attention);
+}
+
+.afirmacao[data-estado="a-revalidar"] .estado-afirmacao {
+  color: var(--attention);
+}
+
+.afirmacao[data-estado="incorreta"] .texto {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.afirmacao[data-estado="confirmada"] .estado-afirmacao {
+  color: var(--ok);
+}
+
+/* Estado da sessão: ponto colorido + texto. */
+.selo-sessao {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.selo-sessao::before {
+  content: "●";
+  margin-right: 6px;
+  color: var(--faint);
+}
+
+.selo-sessao[data-estado="ativa"]::before {
+  color: var(--running);
+}
+
+.selo-sessao[data-estado="aguardando-analista"] {
+  color: var(--attention);
+  font-weight: 600;
+}
+
+.selo-sessao[data-estado="aguardando-analista"]::before {
+  color: var(--attention);
+}
+
+.selo-sessao[data-estado="concluida"]::before {
+  color: var(--done);
+}
+
+.evidencias {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.evidencia {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.trecho-evidencia {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.trecho-evidencia header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.trecho-codigo {
+  max-height: 22rem;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+
+.trecho-codigo table {
+  border-collapse: collapse;
+  width: 100%;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.trecho-codigo .numero {
+  text-align: right;
+  padding: 0 8px;
+  color: var(--muted);
+  user-select: none;
+}
+
+.trecho-codigo .codigo {
+  white-space: pre;
+}
+
+.trecho-codigo code {
+  font-size: inherit;
+}
+
+.trecho-codigo .linha[data-citada="true"] {
+  background: var(--selected);
+}
+
+.trecho-codigo .linha[data-citada="true"] .numero {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.documento-caminho code {
+  word-break: break-all;
+}
+
+/* Aviso de alteração na pasta do sistema: pede o analista. */
+.aviso-alteracao {
+  padding: 12px 14px;
+  border: 1px solid var(--attention-border);
+  border-radius: 8px;
+  background: var(--attention-card);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.aviso-alteracao h3 {
+  margin: 0;
+  font-size: 14px;
+  color: var(--attention);
+}
+
+.arquivos-alterados {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.diff {
+  max-height: 20rem;
+  overflow: auto;
+  margin: 4px 0;
+  white-space: pre;
+}
+
+.confirmar-alteracao {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--danger-border);
+  border-radius: 6px;
+  background: var(--danger-bg);
+}
+
+.protecao-opcional {
+  margin: 8px 0;
+}
+
+/* Revisão, aprovação e exportação da análise (#37). */
+
+.form-revisao textarea {
+  display: block;
+  width: 100%;
+  margin: 4px 0;
+}
+
+.revisao-analise {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.revisao-analise > section {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
 }

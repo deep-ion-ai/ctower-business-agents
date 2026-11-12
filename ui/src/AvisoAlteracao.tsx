@@ -8,6 +8,13 @@ import {
   type PedidoAlteracao,
 } from "./analise";
 
+/** Tom do selo: a modificação pede o olhar do analista (âmbar); o texto diz o tipo. */
+const TOM_TIPO: Record<ArquivoAlterado["tipo"], string> = {
+  criado: "done",
+  modificado: "attention",
+  removido: "error",
+};
+
 const ROTULO_TIPO: Record<ArquivoAlterado["tipo"], string> = {
   criado: "criado",
   modificado: "modificado",
@@ -136,15 +143,18 @@ export function AvisoAlteracao({
           <ul className="arquivos-alterados">
             {arquivos.map((a) => (
               <li key={chave(a)}>
-                <span className={`selo alteracao-${a.tipo}`}>{ROTULO_TIPO[a.tipo]}</span>{" "}
+                <span className="badge" data-tone={TOM_TIPO[a.tipo]}>
+                  {ROTULO_TIPO[a.tipo]}
+                </span>{" "}
                 <code>{a.caminho}</code>{" "}
                 {a.diff !== null && (
-                  <button type="button" onClick={() => alternar(a)}>
+                  <button className="btn" type="button" onClick={() => alternar(a)}>
                     {abertos.has(chave(a)) ? "Esconder o diff" : "Ver o diff"}
                   </button>
                 )}{" "}
                 {a.desfazivel && (
                   <button
+                    className="btn"
                     type="button"
                     disabled={ocupado}
                     onClick={() => setConfirmacao({ acao: "desfazer", arquivos: [a] })}
@@ -153,15 +163,16 @@ export function AvisoAlteracao({
                   </button>
                 )}{" "}
                 <button
+                  className="btn"
                   type="button"
                   disabled={ocupado || !a.desfazivel}
                   onClick={() => setConfirmacao({ acao: "manter", arquivos: [a] })}
                 >
                   Manter
                 </button>
-                {a.binario && <span className="suave"> (arquivo binário, sem diff)</span>}
+                {a.binario && <span className="muted"> (arquivo binário, sem diff)</span>}
                 {!a.desfazivel && (
-                  <span className="suave"> (sem conteúdo anterior guardado: confira pelo git)</span>
+                  <span className="muted"> (sem conteúdo anterior guardado: confira pelo git)</span>
                 )}
                 {a.diff !== null && abertos.has(chave(a)) && (
                   <pre className="diff" aria-label={`Diff de ${a.caminho}`}>
@@ -173,6 +184,7 @@ export function AvisoAlteracao({
           </ul>
           {desfaziveis.length > 1 && (
             <button
+              className="btn"
               type="button"
               disabled={ocupado}
               onClick={() => setConfirmacao({ acao: "desfazer", arquivos: desfaziveis })}
@@ -189,21 +201,26 @@ export function AvisoAlteracao({
               ? `Desfazer ${nomes(confirmacao.arquivos)}? O conteúdo volta ao do início da sessão e o que a sessão escreveu se perde.`
               : `Manter ${nomes(confirmacao.arquivos)}? A alteração sai deste aviso e fica no repositório, sob sua responsabilidade.`}
           </p>
-          <button type="button" disabled={ocupado} onClick={executar}>
+          <button className="btn" type="button" disabled={ocupado} onClick={executar}>
             {confirmacao.acao === "desfazer" ? "Sim, desfazer" : "Sim, manter"}
           </button>{" "}
-          <button type="button" disabled={ocupado} onClick={() => setConfirmacao(null)}>
+          <button
+            className="btn"
+            type="button"
+            disabled={ocupado}
+            onClick={() => setConfirmacao(null)}
+          >
             Cancelar
           </button>
         </div>
       )}
       {aviso?.avisos.map((t) => (
-        <p key={t} className="suave">
+        <p key={t} className="muted">
           {t}
         </p>
       ))}
       {falha && (
-        <p className="trecho-erro" role="status">
+        <p className="error-text" role="status">
           {falha}
         </p>
       )}
