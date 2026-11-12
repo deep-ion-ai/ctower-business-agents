@@ -7,6 +7,8 @@ import {
   type ApiAnalise,
   type Evidencia,
 } from "./analise";
+import type { Revisao } from "./AcoesRevisao";
+import { AprovacaoAnalise } from "./AprovacaoAnalise";
 import { AvisoAlteracao } from "./AvisoAlteracao";
 import { ClientesConversa, type Modo } from "./ClientesConversa";
 import {
@@ -18,7 +20,9 @@ import {
   type OpcoesConversa,
 } from "./conversa";
 import { chaveEvidencia, DocumentoAoVivo } from "./DocumentoAoVivo";
+import { ExportacaoAnalise } from "./ExportacaoAnalise";
 import { PromptsProntos } from "./PromptsProntos";
+import { apiRevisaoTauri, type ApiRevisao, type DecisaoRevisao } from "./revisao";
 import { TerminalClaude, type ControleTerminal, type EstadoTerminal } from "./TerminalClaude";
 import { TrechoEvidencia, type CargaTrecho } from "./TrechoEvidencia";
 import type { ApiTerminal, PedidoClaude } from "./terminal";
@@ -46,6 +50,8 @@ interface Props {
   apiConversa?: ApiConversa;
   /** Aviso de alteração na pasta do sistema (#29); para testes. */
   apiAlteracoes?: ApiAlteracoes;
+  /** Revisão, aprovação e exportação (#37); para testes. */
+  apiRevisao?: ApiRevisao;
   criarTela?: () => TelaTerminal;
 }
 
@@ -53,6 +59,8 @@ const AVISO_DESKTOP =
   "A conversa continua no Claude Desktop. O documento ao lado se atualiza sozinho a cada registro.";
 const AVISO_LINK_DESKTOP =
   "Abrimos o Claude Desktop com o pedido: confirme a pasta e envie. O documento ao lado se atualiza sozinho a cada registro.";
+const AVISO_APROFUNDAR =
+  "Aprofundamento registrado. Com a conversa aberta aqui, o pedido vai direto ao agente; noutro cliente, peça para ele aprofundar a análise.";
 const AVISO_TERMINAL =
   "A conversa continua no seu terminal. O documento ao lado se atualiza sozinho a cada registro.";
 
@@ -76,8 +84,11 @@ export function PainelAnalise({
   apiConversa = apiConversaTauri,
   criarTela,
   apiAlteracoes = apiAlteracoesTauri,
+  apiRevisao = apiRevisaoTauri,
 }: Props) {
-  const { vista, erro } = useAnaliseAoVivo(api, sistema, analise);
+  const { vista, erro, recarregar } = useAnaliseAoVivo(api, sistema, analise);
+  const [revisando, setRevisando] = useState(false);
+  const [falhaRevisao, setFalhaRevisao] = useState<string | null>(null);
   const [opcoes, setOpcoes] = useState<OpcoesConversa | null>(null);
   const [opcoesProntas, setOpcoesProntas] = useState(false);
   const [conversa, setConversa] = useState<{ chave: number; pedido: PedidoClaude } | null>(
@@ -214,6 +225,38 @@ export function PainelAnalise({
     } else retomar();
   };
 
+  /** Pedido de aprofundamento: com a sessão viva aqui, o prompt pronto vai ao terminal. */
+  const aprofundar = (numero: number) => {
+    if (!vivo) return setAviso(AVISO_APROFUNDAR);
+    api
+      .promptsProntos(sistema, analise)
+      .then((lista) => {
+        const pronto = lista.find((p) => p.id === "aprofundar");
+        if (pronto) enviar(`${pronto.texto} Comece pela afirmação ${numero}.`);
+        else setAviso(AVISO_APROFUNDAR);
+      })
+      .catch(() => setAviso(AVISO_APROFUNDAR));
+  };
+
+  const revisao: Revisao = {
+    ocupado: revisando,
+    aoDecidir: (d: DecisaoRevisao) => {
+      setRevisando(true);
+      setFalhaRevisao(null);
+      return apiRevisao
+        .revisar(sistema, analise, d)
+        .then(() => {
+          recarregar();
+          if (d.tipo === "afirmacao" && d.estado === "aprofundar") aprofundar(d.numero);
+        })
+        .catch((e: unknown) => {
+          setFalhaRevisao(mensagemDe(e));
+          throw e;
+        })
+        .finally(() => setRevisando(false));
+    },
+  };
+
   const abrirEvidencia = (e: Evidencia) => {
     const chave = chaveEvidencia(e);
     const { inicio, fim } = intervaloDe(e.linhas);
@@ -327,12 +370,35 @@ export function PainelAnalise({
             </p>
           )}
           {!vista && !erro && <p className="suave">Carregando a análise…</p>}
+          {falhaRevisao && (
+            <p className="trecho-erro" role="alert">
+              {falhaRevisao}
+            </p>
+          )}
           {vista && (
             <DocumentoAoVivo
               vista={vista}
               evidenciaAberta={trecho?.chave ?? null}
               aoAbrirEvidencia={abrirEvidencia}
+              revisao={revisao}
             />
+          )}
+          {vista && (
+            <div className="revisao-analise">
+              <AprovacaoAnalise
+                api={apiRevisao}
+                sistema={sistema}
+                analise={analise}
+                versao={vista.analise.versao}
+                aoAprovar={recarregar}
+              />
+              <ExportacaoAnalise
+                api={apiRevisao}
+                sistema={sistema}
+                analise={analise}
+                aprovada={vista.analise.estado === "aprovada"}
+              />
+            </div>
           )}
         </section>
       </div>

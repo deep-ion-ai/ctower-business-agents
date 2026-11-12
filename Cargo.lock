@@ -572,6 +572,7 @@ dependencies = [
  "cba-docs",
  "cba-index",
  "cba-kb",
+ "dunce",
  "serde",
  "serde_json",
  "serde_norway",
