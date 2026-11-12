@@ -8,6 +8,7 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+cba-repos.workspace = true
 dunce = "1"
 globset = "0.4"
 regex = "1"

@@ -74,6 +74,8 @@ pub struct ProjetoConfig {
     pub pastas: Vec<PastaConfig>,
     pub exclusoes: Vec<String>,
     pub inclusoes: Vec<String>,
+    /// Repositório de código e de issues; só o comando de credencial, nunca o token.
+    pub repositorios: cba_repos::Repositorios,
 }
 
 /// O que a tela de configurações mostra ao abrir.
@@ -111,6 +113,7 @@ pub fn configuracoes(
             nome: s.nome,
             exclusoes: s.exclusoes,
             inclusoes: s.inclusoes,
+            repositorios: s.repositorios,
         })
         .collect();
     Ok(Configuracoes {

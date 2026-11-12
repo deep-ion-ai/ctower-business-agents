@@ -36,6 +36,9 @@ pub enum Erro {
     #[error("padrão de exclusão inválido {padrao:?}: {detalhe}")]
     PadraoInvalido { padrao: String, detalhe: String },
 
+    #[error("repositórios do projeto: {0}")]
+    Repositorios(String),
+
     #[error("projeto já cadastrado: {0}")]
     JaCadastrado(String),
 

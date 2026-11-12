@@ -385,6 +385,9 @@ pub struct PedidoProjeto {
     /// Padrões reincluídos.
     #[serde(default)]
     pub inclusoes: Vec<String>,
+    /// Repositório de código e de issues (opcional).
+    #[serde(default)]
+    pub repositorios: cba_repos::Repositorios,
 }
 
 pub(crate) fn limpar(lista: &[String]) -> Vec<String> {
@@ -416,6 +419,7 @@ fn montar_projeto(
     let mut projeto = cba_index::Projeto::novo(&pedido.nome, &pastas).map_err(|e| e.to_string())?;
     projeto.exclusoes = limpar(&pedido.exclusoes);
     projeto.inclusoes = limpar(&pedido.inclusoes);
+    projeto.repositorios = pedido.repositorios.clone();
     projeto.validar().map_err(|e| e.to_string())?;
     let config = Config::ler(dados).map_err(|e| e.to_string())?;
     if let Some(base) = config.base()

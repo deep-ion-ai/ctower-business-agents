@@ -4,6 +4,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use cba_repos::Repositorios;
 use serde::{Deserialize, Serialize};
 
 use crate::Erro;
@@ -38,6 +39,11 @@ pub struct Projeto {
     /// Padrões reincluídos pelo analista, com precedência sobre as exclusões.
     #[serde(default)]
     pub inclusoes: Vec<String>,
+    /// Onde ficam o código (forja) e as issues (rastreador). Opcional: sem eles o
+    /// projeto é só um conjunto de pastas locais. Guarda o comando de credencial,
+    /// nunca o token.
+    #[serde(default, skip_serializing_if = "Repositorios::vazio")]
+    pub repositorios: Repositorios,
 }
 
 impl Projeto {
@@ -82,6 +88,7 @@ impl Projeto {
             pastas: lista,
             exclusoes: Vec::new(),
             inclusoes: Vec::new(),
+            repositorios: Repositorios::default(),
         };
         projeto.validar()?;
         Ok(projeto)
@@ -143,6 +150,7 @@ impl Projeto {
             }
         }
         Exclusoes::novas(&self.exclusoes, &self.inclusoes)?;
+        self.repositorios.validar().map_err(Erro::Repositorios)?;
         Ok(())
     }
 

@@ -444,6 +444,7 @@ dependencies = [
  "cba-index",
  "cba-kb",
  "cba-mcp",
+ "cba-repos",
  "cba-session",
  "cba-tools",
  "dirs 6.0.0",
@@ -520,6 +521,7 @@ dependencies = [
 name = "cba-index"
 version = "0.0.0"
 dependencies = [
+ "cba-repos",
  "dunce",
  "globset",
  "regex",

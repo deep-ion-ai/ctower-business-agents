@@ -41,6 +41,7 @@ mod inicio;
 mod primeiro_uso;
 mod projeto;
 mod prompts;
+mod repositorios;
 mod revisao;
 mod terminal;
 #[cfg(test)]
