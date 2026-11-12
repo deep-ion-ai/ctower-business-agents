@@ -10,20 +10,26 @@
 //! - [`claude`]: o comando do `claude` ([`lancamento`]): confere se o ambiente está
 //!   preparado e se o Claude Code está instalado, e monta os argumentos documentados
 //!   (conversa nova com `--session-id`, `--continue`, `--resume`, prompt inicial).
+//! - [`desktop`]: `claude --desktop --resume <id>` num PTY sem tela, para abrir no
+//!   Claude Desktop uma sessão fechada no terminal ([`lancamento_desktop`]).
 //! - [`sessoes`]: os terminais abertos ([`Sessoes`]), o envio de prompts prontos à
 //!   sessão viva e a última sessão de cada sistema ([`UltimasSessoes`]), para oferecer
 //!   a retomada quando o app é reaberto.
 //!
 //! Botão "Continuar no Claude Desktop": é o prompt `/desktop` enviado por
-//! [`Sessoes::enviar_prompt`] (comando do próprio Claude Code).
+//! [`Sessoes::enviar_prompt`] (comando do próprio Claude Code). Pela documentação, o
+//! Claude Code salva a sessão, abre-a no Desktop e encerra o CLI (veja
+//! [`crate::passagem`]).
 
 pub mod claude;
+pub mod desktop;
 pub mod pty;
 pub mod sessoes;
 
 pub use claude::{
     ErroAbertura, Lancamento, PedidoClaude, RelatorioErro, Retomada, lancamento, pendencias,
 };
+pub use desktop::{ResultadoDesktop, executar_no_pty, lancamento_desktop, montar_desktop};
 pub use pty::{Comando, DecodificadorUtf8, ErroTerminal, Evento, Fim, Tamanho, Terminal};
 pub use sessoes::{PAUSA_ENVIO, Sessoes, UltimaSessao, UltimasSessoes};
 

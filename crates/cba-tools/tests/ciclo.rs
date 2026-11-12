@@ -172,7 +172,7 @@ fn iniciar_analise_cria_a_analise_a_partir_do_fluxo_e_da_entrada() {
         saida.texto
     );
     assert!(
-        saida.texto.contains("fato do que ele supôs"),
+        saida.texto.contains("**Separe fato de suposição.**"),
         "{}",
         saida.texto
     );
@@ -461,11 +461,42 @@ fn concluir_analise_exige_afirmacoes_e_secoes_obrigatorias() {
         }
         outro => panic!("{outro:?}"),
     }
-    for secao in ["demanda_como_entendida", "abrangencia"] {
+    args["secao"] = json!("demanda_como_entendida");
+    c.chamar("afirmar", args.clone());
+    // A abrangência começa pela estimativa, que vai para o campo do documento.
+    args["secao"] = json!("abrangencia");
+    match c.erro("afirmar", args.clone()) {
+        ErroFerramenta::Recusa(m) => {
+            assert!(m.contains("começa pela estimativa"), "{m}");
+            assert!(m.contains("\"Média:\""), "{m}");
+        }
+        outro => panic!("{outro:?}"),
+    }
+    args["texto"] = json!("Pequena: só o parâmetro muda.");
+    args["confianca"] = json!("inferido");
+    c.chamar("afirmar", args.clone());
+    c.chamar("concluir_analise", json!({ "analise": i.id }));
+    let doc =
+        std::fs::read_to_string(c.amb.kb.caminho(&c.analise(&i.id.to_string()).documento)).unwrap();
+    assert!(doc.contains("\nabrangencia: pequena\n"), "{doc}");
+    assert!(doc.contains("Estimativa: **pequena**"), "{doc}");
+
+    // Explicar funcionalidade: objetivo, fluxo principal e regras.
+    let e = c.criar(Fluxo::Explicar, "Parcelamento", "Parcelamento de fatura");
+    let mut args = multa(&e.id.to_string(), "objetivo");
+    c.chamar("afirmar", args.clone());
+    match c.erro("concluir_analise", json!({ "analise": e.id })) {
+        ErroFerramenta::Recusa(m) => {
+            assert!(m.contains("`fluxo_principal` (Fluxo principal)"), "{m}");
+            assert!(m.contains("`regras` (Regras de negócio)"), "{m}");
+        }
+        outro => panic!("{outro:?}"),
+    }
+    for secao in ["fluxo_principal", "regras"] {
         args["secao"] = json!(secao);
         c.chamar("afirmar", args.clone());
     }
-    c.chamar("concluir_analise", json!({ "analise": i.id }));
+    c.chamar("concluir_analise", json!({ "analise": e.id }));
 }
 
 #[test]

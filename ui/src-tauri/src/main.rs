@@ -32,6 +32,7 @@ mod base;
 mod cli;
 #[cfg(windows)]
 mod console;
+mod conversa;
 mod gui;
 mod inicio;
 mod primeiro_uso;
