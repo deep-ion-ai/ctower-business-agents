@@ -24,6 +24,8 @@ interface Props {
   perguntaInicial?: string;
   /** Abre o assistente do primeiro uso quando falta a base ou um sistema. */
   aoPrimeiroUso?: () => void;
+  /** Análise já aberta (criada pelo início ou escolhida numa lista); exige `sistemaInicial`. */
+  aberturaInicial?: { id: string; abertura: Abertura };
 }
 
 const ESTADO: Record<EstadoAnalise, string> = {
@@ -45,11 +47,14 @@ export function TelaAnalise({
   sistemaInicial = "",
   perguntaInicial = "",
   aoPrimeiroUso,
+  aberturaInicial,
 }: Props) {
   const [situacao, setSituacao] = useState<Situacao | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [sistema, setSistema] = useState(sistemaInicial);
-  const [aberta, setAberta] = useState<{ id: string; abertura: Abertura } | null>(null);
+  const [aberta, setAberta] = useState<{ id: string; abertura: Abertura } | null>(
+    aberturaInicial ?? null,
+  );
 
   const recarregar = useCallback(() => {
     api

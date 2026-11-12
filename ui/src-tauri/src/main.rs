@@ -28,14 +28,19 @@
 #![windows_subsystem = "windows"]
 
 mod analise;
+mod base;
 mod cli;
 #[cfg(windows)]
 mod console;
 mod conversa;
 mod gui;
+mod inicio;
 mod primeiro_uso;
 mod prompts;
+mod sistema;
 mod terminal;
+#[cfg(test)]
+mod teste_base;
 mod vigia;
 
 fn main() {
