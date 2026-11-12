@@ -1,6 +1,6 @@
 //! Comandos Tauri da tela da análise (spec, seções 4.2, 6.4 e 10).
 //!
-//! A tela escolhe o sistema, cria a análise de uma pergunta e abre o terminal com o
+//! A tela escolhe o projeto, cria a análise de uma pergunta e abre o terminal com o
 //! pedido que faz o agente chamar `iniciar_analise` com o identificador criado aqui
 //! (a sessão fica ligada à análise pelos hooks desde a primeira chamada). Enquanto o
 //! agente trabalha, a tela relê o estado a cada aviso do diário de eventos
@@ -26,7 +26,7 @@ use cba_session::passagem::ClientesDasSessoes;
 use cba_session::preparo::{Alvo, Preparador, Resultado, Verificacao};
 use cba_session::sessoes::Sessoes;
 use cba_session::terminal::pendencias;
-use cba_tools::evidencias::{ArquivoDoSistema, intervalo};
+use cba_tools::evidencias::{ArquivoDoProjeto, intervalo};
 use serde::Serialize;
 
 /// Linhas mostradas antes e depois do intervalo de uma evidência.
@@ -52,7 +52,7 @@ fn preparador() -> Result<Preparador, String> {
 // ---------------------------------------------------------------------------
 // Preparo do ambiente
 
-/// Situação do ambiente do Claude para o sistema.
+/// Situação do ambiente do Claude para o projeto.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AmbienteClaude {
@@ -62,21 +62,21 @@ pub struct AmbienteClaude {
     pub verificacao: Verificacao,
 }
 
-pub(crate) fn alvo(dados: &DiretorioDados, sistema: &str) -> Result<Alvo, String> {
-    let cadastrado = Cadastro::em(dados.sistemas())
-        .obter(sistema)
+pub(crate) fn alvo(dados: &DiretorioDados, projeto: &str) -> Result<Alvo, String> {
+    let cadastrado = Cadastro::em(dados.projetos())
+        .obter(projeto)
         .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("o sistema \"{sistema}\" não está cadastrado"))?;
-    Alvo::do_sistema(&cadastrado).map_err(|e| e.to_string())
+        .ok_or_else(|| format!("o projeto \"{projeto}\" não está cadastrado"))?;
+    Alvo::do_projeto(&cadastrado).map_err(|e| e.to_string())
 }
 
 pub fn verificar_ambiente(
     dados: &DiretorioDados,
     preparador: &Preparador,
-    sistema: &str,
+    projeto: &str,
 ) -> Result<AmbienteClaude, String> {
     let verificacao = preparador
-        .verificar(&alvo(dados, sistema)?)
+        .verificar(&alvo(dados, projeto)?)
         .map_err(|e| e.to_string())?;
     Ok(AmbienteClaude {
         pronto: verificacao.pronto,
@@ -89,10 +89,10 @@ pub fn verificar_ambiente(
 pub fn planejar_preparo(
     dados: &DiretorioDados,
     preparador: &Preparador,
-    sistema: &str,
+    projeto: &str,
 ) -> Result<Resultado, String> {
     preparador
-        .planejar(&alvo(dados, sistema)?)
+        .planejar(&alvo(dados, projeto)?)
         .map_err(|e| e.to_string())
 }
 
@@ -100,35 +100,35 @@ pub fn planejar_preparo(
 pub fn preparar_ambiente(
     dados: &DiretorioDados,
     preparador: &Preparador,
-    sistema: &str,
+    projeto: &str,
 ) -> Result<Resultado, String> {
     preparador
-        .preparar(&alvo(dados, sistema)?)
+        .preparar(&alvo(dados, projeto)?)
         .map_err(|e| e.to_string())
 }
 
 // ---------------------------------------------------------------------------
 // Análises
 
-pub(crate) fn ambiente(dados: &DiretorioDados, sistema: &str) -> Result<Ambiente, String> {
-    let cadastrado = Cadastro::em(dados.sistemas())
-        .obter(sistema)
+pub(crate) fn ambiente(dados: &DiretorioDados, projeto: &str) -> Result<Ambiente, String> {
+    let cadastrado = Cadastro::em(dados.projetos())
+        .obter(projeto)
         .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("o sistema \"{sistema}\" não está cadastrado"))?;
+        .ok_or_else(|| format!("o projeto \"{projeto}\" não está cadastrado"))?;
     let pasta = cadastrado
         .pastas
         .first()
         .map(|p| p.caminho.clone())
-        .ok_or("o sistema não tem pastas cadastradas")?;
+        .ok_or("o projeto não tem pastas cadastradas")?;
     let notificador = Arc::new(DiarioEventos::em(dados.eventos()));
-    Ambiente::do_processo_com(&pasta, Some(sistema), dados, notificador).map_err(|e| e.to_string())
+    Ambiente::do_processo_com(&pasta, Some(projeto), dados, notificador).map_err(|e| e.to_string())
 }
 
 fn id_da_analise(analise: &str) -> Result<Id, String> {
     Id::analisar(analise.trim()).map_err(|e| e.to_string())
 }
 
-/// Análise na lista do sistema.
+/// Análise na lista do projeto.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AnaliseResumo {
@@ -151,12 +151,12 @@ impl From<&Analise> for AnaliseResumo {
     }
 }
 
-/// Análises do sistema, da mais recente para a mais antiga.
+/// Análises do projeto, da mais recente para a mais antiga.
 pub fn listar_analises(
     dados: &DiretorioDados,
-    sistema: &str,
+    projeto: &str,
 ) -> Result<Vec<AnaliseResumo>, String> {
-    let mut lista: Vec<AnaliseResumo> = ambiente(dados, sistema)?
+    let mut lista: Vec<AnaliseResumo> = ambiente(dados, projeto)?
         .analises
         .listar()
         .map_err(|e| e.to_string())?
@@ -207,23 +207,23 @@ fn titulo_da_entrada(entrada: &str) -> String {
 /// Cria a análise de uma pergunta ao sistema (fluxo "perguntar").
 pub fn criar_analise(
     dados: &DiretorioDados,
-    sistema: &str,
+    projeto: &str,
     entrada: &str,
     titulo: Option<&str>,
 ) -> Result<AnaliseCriada, String> {
-    criar_analise_do_fluxo(dados, sistema, Fluxo::Perguntar, entrada, titulo)
+    criar_analise_do_fluxo(dados, projeto, Fluxo::Perguntar, entrada, titulo)
 }
 
 /// Cria a análise de qualquer fluxo (perguntar, explicar ou impacto), com o pedido
 /// que abre a conversa. Usada pelos botões dos fluxos do início ([`crate::inicio`]).
 pub fn criar_analise_do_fluxo(
     dados: &DiretorioDados,
-    sistema: &str,
+    projeto: &str,
     fluxo: Fluxo,
     entrada: &str,
     titulo: Option<&str>,
 ) -> Result<AnaliseCriada, String> {
-    let ambiente = ambiente(dados, sistema)?;
+    let ambiente = ambiente(dados, projeto)?;
     let titulo = titulo
         .map(str::trim)
         .filter(|t| !t.is_empty())
@@ -282,7 +282,7 @@ pub struct VistaAnalise {
 /// gravada na análise.
 pub(crate) fn sessao_recente(dados: &DiretorioDados, analise: &Analise) -> Option<SessaoVista> {
     let registros = Sessoes::do_diretorio(dados)
-        .da_analise(&analise.sistema, &analise.id)
+        .da_analise(&analise.projeto, &analise.id)
         .unwrap_or_default();
     if let Some(r) = registros.into_iter().next() {
         // Os hooks não sabem o cliente; o app informa pelo que abriu (#28).
@@ -306,10 +306,10 @@ pub(crate) fn sessao_recente(dados: &DiretorioDados, analise: &Analise) -> Optio
 
 pub fn carregar_analise(
     dados: &DiretorioDados,
-    sistema: &str,
+    projeto: &str,
     analise: &str,
 ) -> Result<VistaAnalise, String> {
-    let ambiente = ambiente(dados, sistema)?;
+    let ambiente = ambiente(dados, projeto)?;
     let id = id_da_analise(analise)?;
     let analise = ambiente.analises.carregar(&id).map_err(|e| e.to_string())?;
     Ok(VistaAnalise {
@@ -327,7 +327,7 @@ pub fn carregar_analise(
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Trecho {
-    /// Caminho relativo à raiz do sistema.
+    /// Caminho relativo à raiz do projeto.
     pub arquivo: String,
     /// Intervalo da evidência (destacado).
     pub inicio: u32,
@@ -339,24 +339,24 @@ pub struct Trecho {
     pub total: u32,
 }
 
-/// Lê o intervalo de uma evidência pelo escopo do sistema: recusa o que estiver
+/// Lê o intervalo de uma evidência pelo escopo do projeto: recusa o que estiver
 /// fora das pastas cadastradas, excluído (segredos, binários) ou fora do arquivo,
 /// com as mesmas regras da validação das evidências (#14, #20).
 pub fn trecho_evidencia(
     dados: &DiretorioDados,
-    sistema: &str,
+    projeto: &str,
     arquivo: &str,
     inicio: u32,
     fim: u32,
 ) -> Result<Trecho, String> {
-    let cadastrado = Cadastro::em(dados.sistemas())
-        .obter(sistema)
+    let cadastrado = Cadastro::em(dados.projetos())
+        .obter(projeto)
         .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("o sistema \"{sistema}\" não está cadastrado"))?;
+        .ok_or_else(|| format!("o projeto \"{projeto}\" não está cadastrado"))?;
     let escopo = cadastrado.escopo().map_err(|e| e.to_string())?;
     let recusa = |m: cba_tools::evidencias::Motivo| format!("`{arquivo}`: {m}");
     let linhas = intervalo(inicio, fim).map_err(recusa)?;
-    let aberto = ArquivoDoSistema::abrir(&escopo, arquivo).map_err(recusa)?;
+    let aberto = ArquivoDoProjeto::abrir(&escopo, arquivo).map_err(recusa)?;
     let todas: Vec<&str> = aberto.texto.lines().collect();
     let total = u32::try_from(todas.len()).unwrap_or(u32::MAX);
     if linhas.fim > total {
@@ -384,25 +384,25 @@ pub fn trecho_evidencia(
 // Comandos
 
 #[tauri::command]
-pub async fn verificar_ambiente_sistema(sistema: String) -> Result<AmbienteClaude, String> {
+pub async fn verificar_ambiente_projeto(projeto: String) -> Result<AmbienteClaude, String> {
     let dados = dados()?;
-    bloqueante(move || verificar_ambiente(&dados, &preparador()?, &sistema)).await
+    bloqueante(move || verificar_ambiente(&dados, &preparador()?, &projeto)).await
 }
 
 #[tauri::command]
-pub async fn planejar_preparo_sistema(sistema: String) -> Result<Resultado, String> {
+pub async fn planejar_preparo_projeto(projeto: String) -> Result<Resultado, String> {
     let dados = dados()?;
-    bloqueante(move || planejar_preparo(&dados, &preparador()?, &sistema)).await
+    bloqueante(move || planejar_preparo(&dados, &preparador()?, &projeto)).await
 }
 
 #[tauri::command]
-pub async fn preparar_ambiente_sistema(sistema: String) -> Result<Resultado, String> {
+pub async fn preparar_ambiente_projeto(projeto: String) -> Result<Resultado, String> {
     let dados = dados()?;
     bloqueante(move || {
-        let feito = preparar_ambiente(&dados, &preparador()?, &sistema)?;
+        let feito = preparar_ambiente(&dados, &preparador()?, &projeto)?;
         tracing::info!(
             mudou = feito.houve_mudanca(),
-            "ambiente do sistema preparado"
+            "ambiente do projeto preparado"
         );
         Ok(feito)
     })
@@ -410,39 +410,39 @@ pub async fn preparar_ambiente_sistema(sistema: String) -> Result<Resultado, Str
 }
 
 #[tauri::command]
-pub async fn listar_analises_sistema(sistema: String) -> Result<Vec<AnaliseResumo>, String> {
+pub async fn listar_analises_projeto(projeto: String) -> Result<Vec<AnaliseResumo>, String> {
     let dados = dados()?;
-    bloqueante(move || listar_analises(&dados, &sistema)).await
+    bloqueante(move || listar_analises(&dados, &projeto)).await
 }
 
 #[tauri::command]
 pub async fn criar_analise_pergunta(
-    sistema: String,
+    projeto: String,
     entrada: String,
     titulo: Option<String>,
 ) -> Result<AnaliseCriada, String> {
     let dados = dados()?;
-    bloqueante(move || criar_analise(&dados, &sistema, &entrada, titulo.as_deref())).await
+    bloqueante(move || criar_analise(&dados, &projeto, &entrada, titulo.as_deref())).await
 }
 
 #[tauri::command]
-pub async fn carregar_analise_sistema(
-    sistema: String,
+pub async fn carregar_analise_projeto(
+    projeto: String,
     analise: String,
 ) -> Result<VistaAnalise, String> {
     let dados = dados()?;
-    bloqueante(move || carregar_analise(&dados, &sistema, &analise)).await
+    bloqueante(move || carregar_analise(&dados, &projeto, &analise)).await
 }
 
 #[tauri::command]
-pub async fn trecho_evidencia_sistema(
-    sistema: String,
+pub async fn trecho_evidencia_projeto(
+    projeto: String,
     arquivo: String,
     inicio: u32,
     fim: u32,
 ) -> Result<Trecho, String> {
     let dados = dados()?;
-    bloqueante(move || trecho_evidencia(&dados, &sistema, &arquivo, inicio, fim)).await
+    bloqueante(move || trecho_evidencia(&dados, &projeto, &arquivo, inicio, fim)).await
 }
 
 #[cfg(test)]
@@ -463,7 +463,7 @@ mod tests {
     use crate::primeiro_uso;
     use crate::vigia::{Aviso, INTERVALO, Vigias};
 
-    const SISTEMA: &str = "faturamento-exemplo";
+    const PROJETO: &str = "faturamento-exemplo";
 
     fn fixture() -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -487,9 +487,9 @@ mod tests {
             base.to_str().unwrap(),
         )
         .unwrap();
-        primeiro_uso::cadastrar_sistema(
+        primeiro_uso::cadastrar_projeto(
             &dados,
-            &primeiro_uso::PedidoSistema {
+            &primeiro_uso::PedidoProjeto {
                 nome: "Faturamento Exemplo".into(),
                 pastas: vec![fixture().to_str().unwrap().into()],
                 ..Default::default()
@@ -501,7 +501,7 @@ mod tests {
 
     impl Cenario {
         fn ambiente(&self) -> Ambiente {
-            ambiente(&self.dados, SISTEMA).unwrap()
+            ambiente(&self.dados, PROJETO).unwrap()
         }
 
         fn chamar(&self, ferramenta: &str, args: serde_json::Value) {
@@ -546,7 +546,7 @@ mod tests {
         let c = cenario();
         let criada = criar_analise(
             &c.dados,
-            SISTEMA,
+            PROJETO,
             "Como é calculada a multa por atraso de pagamento?",
             None,
         )
@@ -568,30 +568,30 @@ mod tests {
             !p.contains(['"', '%', '!', '(', ')', '\n', '&', '|', '<', '>', '^']),
             "{p}"
         );
-        let pasta = c.dir.path().join("base").join(SISTEMA).join("analises");
+        let pasta = c.dir.path().join("base").join(PROJETO).join("analises");
         assert!(pasta.join("A-0001.estado.json").is_file());
         assert!(pasta.join("A-0001.md").is_file());
         // O app avisou a tela pelo diário.
-        let eventos = DiarioEventos::em(c.dados.eventos()).ler(SISTEMA).unwrap();
+        let eventos = DiarioEventos::em(c.dados.eventos()).ler(PROJETO).unwrap();
         assert_eq!(eventos.len(), 1);
         assert_eq!(eventos[0].mudanca, Mudanca::Criada);
 
         let segunda =
-            criar_analise(&c.dados, SISTEMA, "Qual o teto de encargos?", Some("Teto")).unwrap();
+            criar_analise(&c.dados, PROJETO, "Qual o teto de encargos?", Some("Teto")).unwrap();
         assert_eq!(segunda.analise.id, "A-0002");
         assert_eq!(segunda.analise.titulo, "Teto");
-        let lista = listar_analises(&c.dados, SISTEMA).unwrap();
+        let lista = listar_analises(&c.dados, PROJETO).unwrap();
         let ids: Vec<_> = lista.iter().map(|a| a.id.as_str()).collect();
         assert_eq!(ids, ["A-0002", "A-0001"]);
 
-        assert!(criar_analise(&c.dados, SISTEMA, "   ", None).is_err());
+        assert!(criar_analise(&c.dados, PROJETO, "   ", None).is_err());
         assert!(criar_analise(&c.dados, "inexistente", "Pergunta?", None).is_err());
     }
 
     #[test]
     fn le_o_estado_com_afirmacoes_evidencias_e_sessao() {
         let c = cenario();
-        criar_analise(&c.dados, SISTEMA, "Como é calculada a multa?", None).unwrap();
+        criar_analise(&c.dados, PROJETO, "Como é calculada a multa?", None).unwrap();
         c.chamar("iniciar_analise", json!({"analise": "A-0001"}));
         c.afirmar("A-0001");
         c.chamar(
@@ -607,7 +607,7 @@ mod tests {
             })
             .unwrap();
 
-        let vista = carregar_analise(&c.dados, SISTEMA, "A-0001").unwrap();
+        let vista = carregar_analise(&c.dados, PROJETO, "A-0001").unwrap();
         assert_eq!(vista.analise.estado, EstadoAnalise::EmAndamento);
         let a = &vista.analise.afirmacoes[0];
         assert_eq!(a.confianca, Confianca::Confirmado);
@@ -638,14 +638,14 @@ mod tests {
         assert_eq!(json["sessao"]["estado"], "aguardando-analista");
         assert!(json["promptRetomada"].is_string());
 
-        assert!(carregar_analise(&c.dados, SISTEMA, "A-0009").is_err());
-        assert!(carregar_analise(&c.dados, SISTEMA, "S-0001").is_err());
+        assert!(carregar_analise(&c.dados, PROJETO, "A-0009").is_err());
+        assert!(carregar_analise(&c.dados, PROJETO, "S-0001").is_err());
     }
 
     #[test]
     fn trecho_da_evidencia_com_as_linhas_certas() {
         let c = cenario();
-        let t = trecho_evidencia(&c.dados, SISTEMA, "db/03_pkg_cobranca.sql", 71, 72).unwrap();
+        let t = trecho_evidencia(&c.dados, PROJETO, "db/03_pkg_cobranca.sql", 71, 72).unwrap();
         assert_eq!(t.arquivo, "db/03_pkg_cobranca.sql");
         assert_eq!((t.inicio, t.fim, t.primeira), (71, 72, 63));
         let texto = std::fs::read_to_string(fixture().join("db/03_pkg_cobranca.sql")).unwrap();
@@ -659,7 +659,7 @@ mod tests {
         assert_eq!(t.total as usize, todas.len());
 
         // No começo do arquivo, o contexto não passa da linha 1.
-        let t = trecho_evidencia(&c.dados, SISTEMA, "db/03_pkg_cobranca.sql", 2, 2).unwrap();
+        let t = trecho_evidencia(&c.dados, PROJETO, "db/03_pkg_cobranca.sql", 2, 2).unwrap();
         assert_eq!(t.primeira, 1);
         assert_eq!(t.linhas[1], todas[1]);
     }
@@ -676,33 +676,33 @@ mod tests {
             "",
         ] {
             assert!(
-                trecho_evidencia(&c.dados, SISTEMA, arquivo, 1, 1).is_err(),
+                trecho_evidencia(&c.dados, PROJETO, arquivo, 1, 1).is_err(),
                 "{arquivo}"
             );
         }
-        let erro = trecho_evidencia(&c.dados, SISTEMA, ".env", 1, 1).unwrap_err();
+        let erro = trecho_evidencia(&c.dados, PROJETO, ".env", 1, 1).unwrap_err();
         assert!(erro.contains("excluído"), "{erro}");
-        let erro = trecho_evidencia(&c.dados, SISTEMA, "db/03_pkg_cobranca.sql", 99_000, 99_001)
+        let erro = trecho_evidencia(&c.dados, PROJETO, "db/03_pkg_cobranca.sql", 99_000, 99_001)
             .unwrap_err();
         assert!(erro.contains("fim do arquivo"), "{erro}");
-        assert!(trecho_evidencia(&c.dados, SISTEMA, "db/03_pkg_cobranca.sql", 5, 4).is_err());
-        assert!(trecho_evidencia(&c.dados, SISTEMA, "db/03_pkg_cobranca.sql", 1, 400).is_err());
+        assert!(trecho_evidencia(&c.dados, PROJETO, "db/03_pkg_cobranca.sql", 5, 4).is_err());
+        assert!(trecho_evidencia(&c.dados, PROJETO, "db/03_pkg_cobranca.sql", 1, 400).is_err());
     }
 
     #[test]
     fn preparo_mostra_o_plano_antes_de_gravar() {
         let c = cenario();
         let p = c.preparador();
-        let antes = verificar_ambiente(&c.dados, &p, SISTEMA).unwrap();
+        let antes = verificar_ambiente(&c.dados, &p, PROJETO).unwrap();
         assert!(!antes.pronto);
         assert!(!antes.pendencias.is_empty());
-        let plano = planejar_preparo(&c.dados, &p, SISTEMA).unwrap();
+        let plano = planejar_preparo(&c.dados, &p, PROJETO).unwrap();
         assert!(!plano.gravado);
         assert!(plano.houve_mudanca());
         assert!(!p.config.estado.exists(), "o plano não pode gravar nada");
-        let feito = preparar_ambiente(&c.dados, &p, SISTEMA).unwrap();
+        let feito = preparar_ambiente(&c.dados, &p, PROJETO).unwrap();
         assert!(feito.gravado);
-        let depois = verificar_ambiente(&c.dados, &p, SISTEMA).unwrap();
+        let depois = verificar_ambiente(&c.dados, &p, PROJETO).unwrap();
         assert!(depois.pronto, "{:?}", depois.pendencias);
         assert!(depois.pendencias.is_empty());
         assert!(verificar_ambiente(&c.dados, &p, "inexistente").is_err());
@@ -713,12 +713,12 @@ mod tests {
     #[test]
     fn afirmacao_registrada_chega_a_tela_em_menos_de_um_segundo() {
         let c = cenario();
-        criar_analise(&c.dados, SISTEMA, "Como é calculada a multa?", None).unwrap();
+        criar_analise(&c.dados, PROJETO, "Como é calculada a multa?", None).unwrap();
         c.chamar("iniciar_analise", json!({"analise": "A-0001"}));
         let vigias = Vigias::em(c.dados.eventos(), INTERVALO);
         let (tx, rx) = mpsc::channel();
         let tx = Mutex::new(tx);
-        let assinatura = vigias.assinar(SISTEMA, move |aviso| {
+        let assinatura = vigias.assinar(PROJETO, move |aviso| {
             let _ = tx.lock().unwrap().send(aviso.clone());
         });
         let mut pior = Duration::ZERO;
@@ -734,7 +734,7 @@ mod tests {
                 ),
                 "{aviso:?}"
             );
-            let vista = carregar_analise(&c.dados, SISTEMA, "A-0001").unwrap();
+            let vista = carregar_analise(&c.dados, PROJETO, "A-0001").unwrap();
             pior = pior.max(antes.elapsed());
             assert_eq!(vista.analise.afirmacoes.len(), i + 1);
         }

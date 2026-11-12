@@ -18,7 +18,7 @@
 
 use std::collections::BTreeMap;
 
-use cba_kb::{Documento, Sistema, TipoDocumento};
+use cba_kb::{Documento, Projeto, TipoDocumento};
 
 use crate::conteudo::{Citacao, Conteudo};
 use crate::link;
@@ -61,16 +61,16 @@ impl Templates {
             .montar(conteudo)
     }
 
-    /// Monta e grava o documento em `conteudo.caminho`, no sistema (atômico,
+    /// Monta e grava o documento em `conteudo.caminho`, no projeto (atômico,
     /// substituindo a versão anterior). Chamado a cada registro novo de uma
     /// análise em andamento. Devolve os avisos da montagem.
     pub fn gravar<F: Montavel>(
         &self,
-        sistema: &Sistema,
+        projeto: &Projeto,
         conteudo: &Conteudo<F>,
     ) -> Result<Vec<Aviso>, ErroMontagem> {
         let montado = self.montar(conteudo)?;
-        sistema.gravar(&conteudo.caminho, &montado.documento)?;
+        projeto.gravar(&conteudo.caminho, &montado.documento)?;
         Ok(montado.avisos)
     }
 }

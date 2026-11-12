@@ -1,7 +1,7 @@
 <!--
 Template da análise de impacto. Este comentário inicial não vai para o documento.
 
-Marcadores de campo: {{id}}, {{titulo}}, {{sistema}}, {{status}}, {{criado}},
+Marcadores de campo: {{id}}, {{titulo}}, {{projeto}}, {{status}}, {{criado}},
 {{analista}}, {{abrangencia_estimada}}, {{versao_do_codigo}}.
 
 Marcadores de seção: {{demanda_como_veio}}, {{demanda_como_entendida}},
@@ -14,7 +14,7 @@ com aviso. Marcador desconhecido também gera aviso e fica no texto como está.
 -->
 # {{id}} · {{titulo}}
 
-Análise de impacto · Sistema `{{sistema}}` · Status: {{status}} · Criada em {{criado}} · Analista: {{analista}} · Código: {{versao_do_codigo}}
+Análise de impacto · Projeto `{{projeto}}` · Status: {{status}} · Criada em {{criado}} · Analista: {{analista}} · Código: {{versao_do_codigo}}
 
 ## Demanda como veio
 

@@ -41,7 +41,7 @@ fn analise_vazia(fluxo: &str, entrada: &str) -> Analise {
     serde_json::from_value(serde_json::json!({
         "formato": 1,
         "id": "A-0001",
-        "sistema": "faturamento-exemplo",
+        "projeto": "faturamento-exemplo",
         "fluxo": fluxo,
         "titulo": "Teste",
         "entrada": entrada,
@@ -98,7 +98,7 @@ fn impacto_bom() -> Analise {
     afirmar(
         &mut a,
         "demanda_como_entendida",
-        "Premissa do solicitante: hoje o sistema não parcela fatura nenhuma. Verificação: não confere. \
+        "Premissa do solicitante: hoje o projeto não parcela fatura nenhuma. Verificação: não confere. \
          O parcelamento já existe para pessoa jurídica e órgão público, em até 6 parcelas.",
         Confianca::Confirmado,
         vec![ev(JAVA, 30, 32, "TipoCliente.PF")],
@@ -329,7 +329,7 @@ fn premissa_exige_veredito_palavras_e_evidencia() {
         );
         avaliar_item(&a, "D-FAT-001").premissa.unwrap().corrigida
     };
-    let certo = "Premissa do solicitante: o sistema não parcela fatura nenhuma. \
+    let certo = "Premissa do solicitante: o projeto não parcela fatura nenhuma. \
                  Verificação: não confere. O parcelamento já existe.";
     assert!(premissa_sem_evidencia(
         certo,
@@ -337,7 +337,7 @@ fn premissa_exige_veredito_palavras_e_evidencia() {
     ));
     assert!(!premissa_sem_evidencia(certo, vec![]));
     assert!(!premissa_sem_evidencia(
-        "Premissa do solicitante: o sistema não parcela fatura nenhuma. Verificação: confere.",
+        "Premissa do solicitante: o projeto não parcela fatura nenhuma. Verificação: confere.",
         vec![ev(JAVA, 30, 32, "TipoCliente.PF")]
     ));
     // Veredito certo, mas sobre outra premissa.
@@ -377,7 +377,7 @@ fn veredito_pelo_marcador_ou_pelo_texto() {
         Some(Veredito::ConfereEmParte)
     );
     assert_eq!(
-        veredito_do_texto("Verificação: confere. O sistema não confere o CPF."),
+        veredito_do_texto("Verificação: confere. O projeto não confere o CPF."),
         Some(Veredito::Confere)
     );
     assert_eq!(
@@ -410,7 +410,7 @@ fn itens_padrao_existem_com_o_fluxo_certo_e_perguntas_esperadas() {
             .is_some()
     );
     assert!(g.item("X-0").is_err());
-    assert!(g.raiz_do_sistema().join("db/01_tabelas.sql").is_file());
+    assert!(g.raiz_do_projeto().join("db/01_tabelas.sql").is_file());
 }
 
 #[test]

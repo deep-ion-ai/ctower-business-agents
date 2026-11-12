@@ -1,18 +1,18 @@
-//! Proteção técnica opcional da pasta do sistema (spec, princípios; #29).
+//! Proteção técnica opcional da pasta do projeto (spec, princípios; #29).
 //!
 //! Desligada por padrão: o app avisa em vez de bloquear ([`crate::alteracoes`]).
 //! Ligada (nas configurações, #39, ou no preparo do ambiente), nega a edição da
-//! pasta do sistema mesmo que o analista aprove:
+//! pasta do projeto mesmo que o analista aprove:
 //!
 //! - **`Edit`, `Write` e `NotebookEdit`:** regras `deny` com o caminho absoluto de
 //!   cada pasta no `~/.claude/settings.json` ([`crate::preparo::protecao`]).
 //! - **`Bash` e `PowerShell`:** o receptor de hooks responde `deny` no `PreToolUse`
-//!   dessas ferramentas nas sessões do sistema ([`protegido`]). O Claude Code não tem
+//!   dessas ferramentas nas sessões do projeto ([`protegido`]). O Claude Code não tem
 //!   regra de Bash por pasta, e uma regra `Bash` pura tiraria a ferramenta de todas
 //!   as sessões do analista. O hook decide antes da pergunta de permissão, então a
 //!   aprovação do analista não chega a ser pedida.
 //!
-//! O registro `<dados>/protecao/<sistema>.json` diz que a proteção está ligada (o
+//! O registro `<dados>/protecao/<projeto>.json` diz que a proteção está ligada (o
 //! hook só confere se ele existe) e guarda as regras que o app acrescentou: desligar
 //! tira só essas, nunca uma regra igual que o analista já tinha.
 
@@ -29,11 +29,11 @@ use crate::preparo::{Erro, Preparador};
 /// Pasta dos registros de proteção no diretório de dados.
 pub const PASTA: &str = "protecao";
 const VERSAO_DO_FORMATO: u32 = 1;
-/// Ferramentas negadas pelo hook nas sessões de um sistema protegido.
+/// Ferramentas negadas pelo hook nas sessões de um projeto protegido.
 pub const FERRAMENTAS_NEGADAS_PELO_HOOK: &[&str] = &["Bash", "PowerShell"];
 
 /// Motivo que o agente recebe quando o hook nega a ferramenta.
-pub const MOTIVO: &str = "A proteção contra edição está ligada para este sistema no ctower: \
+pub const MOTIVO: &str = "A proteção contra edição está ligada para este projeto no ctower: \
 comandos de shell estão desligados nesta pasta. Use as ferramentas do cba e a leitura de \
 arquivos, e registre o que mudaria como sugestão de alteração.";
 
@@ -41,7 +41,7 @@ arquivos, e registre o que mudaria como sugestão de alteração.";
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RegistroProtecao {
     pub formato: u32,
-    pub sistema: String,
+    pub projeto: String,
     /// Regras que o app acrescentou (e que desligar tira).
     pub adicionadas: Vec<String>,
     pub ligada_ms: u64,
@@ -58,12 +58,12 @@ pub struct RegraProtecao {
     pub do_app: bool,
 }
 
-/// Situação da proteção de um sistema, para as configurações.
+/// Situação da proteção de um projeto, para as configurações.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SituacaoProtecao {
-    pub sistema: String,
-    /// Registro presente: o hook nega o Bash nas sessões do sistema.
+    pub projeto: String,
+    /// Registro presente: o hook nega o Bash nas sessões do projeto.
     pub ligada: bool,
     /// Ligada e com todas as regras no `settings.json`.
     pub completa: bool,
@@ -74,9 +74,9 @@ pub struct SituacaoProtecao {
     pub negadas_pelo_hook: Vec<String>,
 }
 
-fn arquivo(dados: &DiretorioDados, sistema: &str) -> Option<PathBuf> {
-    crate::sessoes::id_valido(sistema)
-        .then(|| dados.raiz().join(PASTA).join(format!("{sistema}.json")))
+fn arquivo(dados: &DiretorioDados, projeto: &str) -> Option<PathBuf> {
+    crate::sessoes::id_valido(projeto)
+        .then(|| dados.raiz().join(PASTA).join(format!("{projeto}.json")))
 }
 
 fn erro_io(arquivo: PathBuf, e: io::Error) -> Erro {
@@ -86,30 +86,30 @@ fn erro_io(arquivo: PathBuf, e: io::Error) -> Erro {
     }
 }
 
-/// Se a proteção do sistema está ligada (só confere o arquivo; para o hook).
-pub fn protegido(dados: &DiretorioDados, sistema: &str) -> bool {
-    arquivo(dados, sistema).is_some_and(|a| a.is_file())
+/// Se a proteção do projeto está ligada (só confere o arquivo; para o hook).
+pub fn protegido(dados: &DiretorioDados, projeto: &str) -> bool {
+    arquivo(dados, projeto).is_some_and(|a| a.is_file())
 }
 
 /// Registro da proteção, se ligada.
-pub fn registro(dados: &DiretorioDados, sistema: &str) -> Option<RegistroProtecao> {
-    let bytes = fs::read(arquivo(dados, sistema)?).ok()?;
+pub fn registro(dados: &DiretorioDados, projeto: &str) -> Option<RegistroProtecao> {
+    let bytes = fs::read(arquivo(dados, projeto)?).ok()?;
     serde_json::from_slice(&bytes).ok()
 }
 
-fn pastas(sistema: &cba_index::Sistema) -> Vec<PathBuf> {
-    sistema.pastas.iter().map(|p| p.caminho.clone()).collect()
+fn pastas(projeto: &cba_index::Projeto) -> Vec<PathBuf> {
+    projeto.pastas.iter().map(|p| p.caminho.clone()).collect()
 }
 
 /// Situação da proteção, sem gravar nada.
 pub fn situacao(
     dados: &DiretorioDados,
     preparador: &Preparador,
-    sistema: &cba_index::Sistema,
+    projeto: &cba_index::Projeto,
 ) -> Result<SituacaoProtecao, Erro> {
-    let registro = registro(dados, &sistema.id);
-    let ligada = protegido(dados, &sistema.id);
-    let esperadas = preparador.regras_de_protecao(&pastas(sistema));
+    let registro = registro(dados, &projeto.id);
+    let ligada = protegido(dados, &projeto.id);
+    let esperadas = preparador.regras_de_protecao(&pastas(projeto));
     let presentes = preparador.negacoes_presentes(&esperadas)?;
     let regras: Vec<RegraProtecao> = esperadas
         .into_iter()
@@ -123,7 +123,7 @@ pub fn situacao(
         })
         .collect();
     Ok(SituacaoProtecao {
-        sistema: sistema.id.clone(),
+        projeto: projeto.id.clone(),
         completa: ligada && regras.iter().all(|r| r.presente),
         ligada,
         arquivo: preparador.config.settings.clone(),
@@ -139,13 +139,13 @@ pub fn situacao(
 pub fn ligar(
     dados: &DiretorioDados,
     preparador: &Preparador,
-    sistema: &cba_index::Sistema,
+    projeto: &cba_index::Projeto,
 ) -> Result<SituacaoProtecao, Erro> {
     let destino =
-        arquivo(dados, &sistema.id).ok_or_else(|| Erro::Pasta(PathBuf::from(&sistema.id)))?;
-    let regras = preparador.regras_de_protecao(&pastas(sistema));
+        arquivo(dados, &projeto.id).ok_or_else(|| Erro::Pasta(PathBuf::from(&projeto.id)))?;
+    let regras = preparador.regras_de_protecao(&pastas(projeto));
     let feito = preparador.negar(&regras)?;
-    let mut adicionadas = registro(dados, &sistema.id)
+    let mut adicionadas = registro(dados, &projeto.id)
         .map(|r| r.adicionadas)
         .unwrap_or_default();
     for r in feito.alteradas {
@@ -155,7 +155,7 @@ pub fn ligar(
     }
     let novo = RegistroProtecao {
         formato: VERSAO_DO_FORMATO,
-        sistema: sistema.id.clone(),
+        projeto: projeto.id.clone(),
         adicionadas,
         ligada_ms: tempo::agora_ms(),
     };
@@ -164,21 +164,21 @@ pub fn ligar(
         .map_err(|e| erro_io(destino.clone(), e))?;
     json.push(b'\n');
     cba_kb::arquivo::gravar(&destino, &json).map_err(|e| erro_io(destino.clone(), e))?;
-    tracing::info!(sistema = sistema.id, "proteção contra edição ligada");
-    situacao(dados, preparador, sistema)
+    tracing::info!(projeto = projeto.id, "proteção contra edição ligada");
+    situacao(dados, preparador, projeto)
 }
 
 /// Desliga a proteção: tira do `settings.json` só as regras que o app acrescentou e
-/// apaga o registro. Também serve ao descadastro do sistema.
+/// apaga o registro. Também serve ao descadastro do projeto.
 pub fn desligar(
     dados: &DiretorioDados,
     preparador: &Preparador,
-    sistema: &str,
+    projeto: &str,
 ) -> Result<Vec<String>, Erro> {
-    let Some(destino) = arquivo(dados, sistema) else {
+    let Some(destino) = arquivo(dados, projeto) else {
         return Ok(Vec::new());
     };
-    let Some(reg) = registro(dados, sistema) else {
+    let Some(reg) = registro(dados, projeto) else {
         // Registro ilegível ou ausente: nada é tirado do settings.json.
         match fs::remove_file(&destino) {
             Ok(()) => {}
@@ -193,6 +193,6 @@ pub fn desligar(
         Err(e) if e.kind() == io::ErrorKind::NotFound => {}
         Err(e) => return Err(erro_io(destino, e)),
     }
-    tracing::info!(sistema, "proteção contra edição desligada");
+    tracing::info!(projeto, "proteção contra edição desligada");
     Ok(feito.alteradas)
 }

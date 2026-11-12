@@ -25,7 +25,7 @@ function montar(abertura: Abertura, vista?: VistaAnalise, opcoes?: OpcoesConvers
   const r = render(
     <PainelAnalise
       api={analise.api}
-      sistema="faturamento-exemplo"
+      projeto="faturamento-exemplo"
       analise="A-0001"
       abertura={abertura}
       aoVoltar={aoVoltar}
@@ -49,7 +49,7 @@ describe("PainelAnalise", () => {
       promptInicial: "Inicie a análise A-0001 pelo ctower",
     });
     await waitFor(() => expect(terminal.api.abrir).toHaveBeenCalled());
-    expect(terminal.aberturas[0].sistema).toBe("faturamento-exemplo");
+    expect(terminal.aberturas[0].projeto).toBe("faturamento-exemplo");
     expect(terminal.aberturas[0].pedido).toEqual({
       promptInicial: "Inicie a análise A-0001 pelo ctower",
     });
@@ -72,7 +72,7 @@ describe("PainelAnalise", () => {
     );
     act(() => avisar({ tipo: "mudanca", analise: "A-0001", mudanca: "afirmacao", versao: 2 }));
     expect(await screen.findByText(AFIRMACAO_MULTA.texto)).toBeInTheDocument();
-    expect(screen.getByText("confirmado")).toHaveClass("selo-confirmado");
+    expect(screen.getByText("confirmado")).toHaveAttribute("data-tone", "done");
     expect(api.carregarAnalise).toHaveBeenCalledTimes(2);
 
     // Reinício da vigia: relê, mesmo sem versão nova.
@@ -102,10 +102,10 @@ describe("PainelAnalise", () => {
     const trecho = await screen.findByRole("region", { name: "Trecho da evidência" });
     await waitFor(() => expect(trecho.querySelector('[data-linha="71"]')).not.toBeNull());
     const linha = (n: number) => trecho.querySelector(`[data-linha="${n}"]`);
-    expect(linha(70)).not.toHaveClass("citada");
-    expect(linha(71)).toHaveClass("citada");
-    expect(linha(72)).toHaveClass("citada");
-    expect(linha(73)).not.toHaveClass("citada");
+    expect(linha(70)).not.toHaveAttribute("data-citada");
+    expect(linha(71)).toHaveAttribute("data-citada", "true");
+    expect(linha(72)).toHaveAttribute("data-citada", "true");
+    expect(linha(73)).not.toHaveAttribute("data-citada");
     expect(linha(71)).toHaveAttribute("aria-current", "location");
     expect(within(linha(71) as HTMLElement).getByText("linha 71")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" })).toHaveAttribute(
@@ -122,11 +122,11 @@ describe("PainelAnalise", () => {
       vistaFicticia({}, { afirmacoes: [AFIRMACAO_MULTA] }),
     );
     api.trechoEvidencia.mockRejectedValue(
-      "`db/03_pkg_cobranca.sql`: caminho fora das pastas do sistema",
+      "`db/03_pkg_cobranca.sql`: caminho fora das pastas do projeto",
     );
     fireEvent.click(await screen.findByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "caminho fora das pastas do sistema",
+      "caminho fora das pastas do projeto",
     );
   });
 
@@ -175,7 +175,7 @@ describe("PainelAnalise", () => {
     render(
       <PainelAnalise
         api={analise.api}
-        sistema="faturamento-exemplo"
+        projeto="faturamento-exemplo"
         analise="A-0001"
         abertura={{ tipo: "nova", promptInicial: "Inicie" }}
         aoVoltar={() => undefined}
@@ -286,7 +286,7 @@ describe("PainelAnalise", () => {
     render(
       <PainelAnalise
         api={analise.api}
-        sistema="faturamento-exemplo"
+        projeto="faturamento-exemplo"
         analise="A-0001"
         abertura={{ tipo: "nova", promptInicial: "Inicie" }}
         aoVoltar={() => undefined}

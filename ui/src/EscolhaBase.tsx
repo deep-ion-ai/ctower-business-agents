@@ -14,7 +14,7 @@ const ESTADO: Record<EstadoPasta, string> = {
 /**
  * Passo da pasta da base de conhecimento (e item das configurações). Confere a pasta
  * a cada mudança (sem criar nada) e mostra a recusa: pasta temporária, dados do app ou
- * dentro do repositório de um sistema.
+ * dentro do repositório de um projeto.
  */
 export function EscolhaBase({
   api,
@@ -73,7 +73,7 @@ export function EscolhaBase({
       <p>
         A base de conhecimento é uma pasta comum com os documentos das análises, em Markdown. Pode
         ser uma pasta sincronizada (OneDrive, Google Drive) ou um repositório git seu, mas não a
-        pasta do código do sistema.
+        pasta do código do projeto.
       </p>
       <label>
         Pasta da base (caminho completo){" "}
@@ -85,6 +85,7 @@ export function EscolhaBase({
         />
       </label>{" "}
       <button
+        className="btn"
         type="button"
         onClick={() => {
           api
@@ -103,20 +104,20 @@ export function EscolhaBase({
         </p>
       )}
       {avaliacao && !recusa && avaliacao.estado && (
-        <p className="suave" role="status">
+        <p className="muted" role="status">
           {ESTADO[avaliacao.estado]}
           {avaliacao.git && " Ela está num repositório git."}
         </p>
       )}
       {(recusa ?? falha) && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           {recusa ?? falha}
         </p>
       )}
       <div className="acoes">
         <button
           type="submit"
-          className="primario"
+          className="btn btn-primary"
           disabled={!pasta.trim() || gravando || recusa !== null}
         >
           {rotuloContinuar}

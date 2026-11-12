@@ -1,6 +1,6 @@
-//! Persistência das análises de um sistema, com notificação ao app.
+//! Persistência das análises de um projeto, com notificação ao app.
 //!
-//! Cada análise tem dois arquivos na pasta `analises/` do sistema na base:
+//! Cada análise tem dois arquivos na pasta `analises/` do projeto na base:
 //!
 //! - `A-0001.md`: o documento, com o frontmatter da análise (spec, seção 7.2). O
 //!   corpo é montado a partir do template do tipo (#9); aqui só se cria o documento
@@ -18,7 +18,7 @@
 //! arquivo (`analises/.trava`), e a gravação é atômica (temporário e renomeação).
 //! Assim, duas sessões simultâneas não perdem registros uma da outra e quem lê sem
 //! trava nunca vê um arquivo pela metade. O identificador novo é reservado sem
-//! colisão por [`cba_kb::Sistema::criar_numerado`].
+//! colisão por [`cba_kb::Projeto::criar_numerado`].
 
 use std::fs::{self, File, OpenOptions};
 use std::io;
@@ -40,8 +40,8 @@ const SUFIXO_ESTADO: &str = ".estado.json";
 #[derive(Debug, thiserror::Error)]
 pub enum Erro {
     #[error(
-        "a análise {0} não existe neste sistema; confira o identificador (A-NNNN) \
-         informado pelo analista ou liste as análises do sistema"
+        "a análise {0} não existe neste projeto; confira o identificador (A-NNNN) \
+         informado pelo analista ou liste as análises do projeto"
     )]
     NaoEncontrada(Id),
     #[error("`{0}` não é o identificador de uma análise; use a forma A-NNNN, como A-0001")]
@@ -74,24 +74,24 @@ pub struct NovaAnalise {
     pub base: Option<VersaoCodigo>,
 }
 
-/// Análises de um sistema na base.
+/// Análises de um projeto na base.
 #[derive(Debug, Clone)]
 pub struct Analises {
-    kb: cba_kb::Sistema,
+    kb: cba_kb::Projeto,
     notificador: Arc<dyn Notificador>,
 }
 
 impl Analises {
-    pub fn new(kb: cba_kb::Sistema, notificador: Arc<dyn Notificador>) -> Self {
+    pub fn new(kb: cba_kb::Projeto, notificador: Arc<dyn Notificador>) -> Self {
         Self { kb, notificador }
     }
 
-    /// Sistema na base.
-    pub fn sistema(&self) -> &cba_kb::Sistema {
+    /// Projeto na base.
+    pub fn projeto(&self) -> &cba_kb::Projeto {
         &self.kb
     }
 
-    /// Arquivo de estado de uma análise, relativo à raiz do sistema.
+    /// Arquivo de estado de uma análise, relativo à raiz do projeto.
     pub fn arquivo_de_estado(id: &Id) -> CaminhoRelativo {
         CaminhoRelativo::novo(&format!("{}/{id}{SUFIXO_ESTADO}", layout::ANALISES))
             .expect("pasta e identificador formam um caminho válido")
@@ -114,7 +114,7 @@ impl Analises {
                     tipo: nova.fluxo.tipo_documento(),
                     id: id.clone(),
                     titulo: titulo.clone(),
-                    sistema: self.kb.nome().to_owned(),
+                    projeto: self.kb.nome().to_owned(),
                     demanda: Demanda {
                         origem: "texto".into(),
                         chave: None,
@@ -218,7 +218,7 @@ impl Analises {
         Ok(analise)
     }
 
-    /// Todas as análises do sistema, em ordem de identificador. Estados ilegíveis
+    /// Todas as análises do projeto, em ordem de identificador. Estados ilegíveis
     /// são ignorados (e registrados no log, sem conteúdo).
     pub fn listar(&self) -> Result<Vec<Analise>, Erro> {
         let pasta = CaminhoRelativo::novo(layout::ANALISES).expect("nome fixo válido");
@@ -302,7 +302,7 @@ impl Analises {
     fn notificar(&self, analise: &Analise, mudanca: Mudanca) {
         let evento = Evento {
             quando_ms: tempo::agora_ms(),
-            sistema: analise.sistema.clone(),
+            projeto: analise.projeto.clone(),
             analise: analise.id.to_string(),
             mudanca,
             versao: analise.versao,

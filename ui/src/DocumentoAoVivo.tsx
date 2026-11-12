@@ -59,7 +59,7 @@ export function SeloSessao({ sessao }: { sessao: SessaoVista | null }) {
   }
   return (
     <p
-      className={`selo-sessao sessao-${sessao.estado}`}
+      className="selo-sessao"
       role="status"
       aria-label="Estado da sessão"
       data-estado={sessao.estado}
@@ -99,7 +99,7 @@ export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia, revi
         <h2>
           {analise.id}: {analise.titulo}
         </h2>
-        <p className="suave">
+        <p className="muted">
           Análise {ROTULO_ANALISE[analise.estado]} · versão {analise.versao}
         </p>
         <SeloSessao sessao={vista.sessao} />
@@ -112,7 +112,7 @@ export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia, revi
 
       <section aria-label="Afirmações">
         <h3>Afirmações</h3>
-        {secoes.length === 0 && <p className="suave">Nenhuma afirmação registrada ainda.</p>}
+        {secoes.length === 0 && <p className="muted">Nenhuma afirmação registrada ainda.</p>}
         {secoes.map(([secao, afirmacoes]) => (
           <div key={secao} className="secao">
             <h4>{TITULO_SECAO[secao] ?? secao}</h4>
@@ -120,21 +120,26 @@ export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia, revi
               {afirmacoes.map((a) => (
                 <li
                   key={a.numero}
-                  className={`afirmacao estado-${a.estado}`}
+                  className="afirmacao"
+                  data-estado={a.estado}
+                  data-pendente={(rev && a.estado === "registrada") || undefined}
                   data-testid={`afirmacao-${a.numero}`}
                 >
-                  <span className={`selo selo-${a.confianca}`}>
+                  <span className="badge" data-tone={a.confianca === "confirmado" ? "done" : undefined}>
                     {ROTULO_CONFIANCA[a.confianca]}
                   </span>{" "}
                   <span className="texto">{a.texto}</span>
+                  {rev && a.estado === "registrada" && (
+                    <span className="estado-afirmacao attention-text"> (sem decisão)</span>
+                  )}
                   {ESTADO_AFIRMACAO[a.estado] && (
                     <span className="estado-afirmacao"> ({ESTADO_AFIRMACAO[a.estado]})</span>
                   )}
                   {a.estado === "incorreta" && (
-                    <span className="comentario suave"> {a.comentario}</span>
+                    <span className="comentario muted"> {a.comentario}</span>
                   )}
                   {a.texto_original && (
-                    <span className="suave editada" title={`Texto do agente: ${a.texto_original}`}>
+                    <span className="muted editada" title={`Texto do agente: ${a.texto_original}`}>
                       {" "}
                       (texto editado pelo analista)
                     </span>
@@ -147,7 +152,7 @@ export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia, revi
                           <li key={chave}>
                             <button
                               type="button"
-                              className="evidencia"
+                              className="btn btn-sm evidencia"
                               aria-pressed={evidenciaAberta === chave}
                               title={e.trecho}
                               onClick={() => aoAbrirEvidencia(e)}
@@ -155,7 +160,7 @@ export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia, revi
                               {chave}
                             </button>
                             {e.estado === "a-revalidar" && (
-                              <span className="suave"> a revalidar</span>
+                              <span className="muted"> a revalidar</span>
                             )}
                           </li>
                         );
@@ -173,7 +178,7 @@ export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia, revi
       <section aria-label="Perguntas em aberto">
         <h3>Perguntas</h3>
         {perguntas.length === 0 ? (
-          <p className="suave">Nenhuma pergunta registrada.</p>
+          <p className="muted">Nenhuma pergunta registrada.</p>
         ) : (
           <ol className="perguntas">
             {perguntas.map((p) => (
@@ -190,19 +195,19 @@ export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia, revi
       <section aria-label="Sugestões de alteração">
         <h3>Sugestões de alteração</h3>
         {sugestoes.length === 0 ? (
-          <p className="suave">Nenhuma sugestão registrada.</p>
+          <p className="muted">Nenhuma sugestão registrada.</p>
         ) : (
           <ol className="sugestoes">
             {sugestoes.map((s) => (
               <li key={s.numero}>
                 <strong>{s.titulo || s.arquivo}</strong>
-                {s.id && <span className="suave"> ({s.id})</span>}
-                {s.estado === "aceita" && <span className="suave"> (aceita)</span>}
+                {s.id && <span className="muted"> ({s.id})</span>}
+                {s.estado === "aceita" && <span className="muted"> (aceita)</span>}
                 <p>{s.motivo}</p>
                 {s.evidencia && (
                   <button
                     type="button"
-                    className="evidencia"
+                    className="btn btn-sm evidencia"
                     aria-pressed={evidenciaAberta === chaveEvidencia(s.evidencia)}
                     onClick={() => s.evidencia && aoAbrirEvidencia(s.evidencia)}
                   >
@@ -230,7 +235,7 @@ export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia, revi
             {analise.termos.map((t) => (
               <li key={t.numero} className={`termo estado-${t.estado}`}>
                 <strong>{t.termo}</strong>: {t.definicao}
-                {t.estado !== "proposto" && <span className="suave"> ({t.estado})</span>}
+                {t.estado !== "proposto" && <span className="muted"> ({t.estado})</span>}
                 {rev && t.estado === "proposto" && (
                   <AcoesAceite
                     tipo="termo"
@@ -245,7 +250,7 @@ export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia, revi
         </section>
       )}
 
-      <p className="suave documento-caminho">
+      <p className="muted documento-caminho">
         Documento na base: <code>{vista.documento}</code>
       </p>
     </article>
@@ -254,8 +259,8 @@ export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia, revi
 
 function EstadoDaPergunta({ pergunta }: { pergunta: Pergunta }) {
   if (pergunta.estado === "respondida")
-    return <span className="suave"> Resposta: {pergunta.resposta}</span>;
-  if (pergunta.estado === "descartada") return <span className="suave"> (descartada)</span>;
+    return <span className="muted"> Resposta: {pergunta.resposta}</span>;
+  if (pergunta.estado === "descartada") return <span className="muted"> (descartada)</span>;
   return null;
 }
 

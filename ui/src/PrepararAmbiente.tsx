@@ -7,12 +7,12 @@ import { mensagemDe, type AmbienteClaude, type ApiAmbiente, type PlanoPreparo } 
  */
 export function PrepararAmbiente({
   api,
-  sistema,
+  projeto,
   ambiente,
   aoConcluir,
 }: {
   api: ApiAmbiente;
-  sistema: string;
+  projeto: string;
   ambiente: AmbienteClaude;
   aoConcluir: () => void;
 }) {
@@ -26,7 +26,7 @@ export function PrepararAmbiente({
     setOcupado(true);
     setFalha(null);
     api
-      .planejarPreparo(sistema)
+      .planejarPreparo(projeto)
       .then(setPlano)
       .catch((e: unknown) => setFalha(mensagemDe(e)))
       .finally(() => setOcupado(false));
@@ -36,8 +36,8 @@ export function PrepararAmbiente({
     setOcupado(true);
     setFalha(null);
     api
-      .prepararAmbiente(sistema)
-      .then(() => (proteger && api.mudarProtecao ? api.mudarProtecao(sistema, true) : undefined))
+      .prepararAmbiente(projeto)
+      .then(() => (proteger && api.mudarProtecao ? api.mudarProtecao(projeto, true) : undefined))
       .then(() => aoConcluir())
       .catch((e: unknown) => setFalha(mensagemDe(e)))
       .finally(() => setOcupado(false));
@@ -47,14 +47,14 @@ export function PrepararAmbiente({
 
   return (
     <div className="preparar-ambiente" role="region" aria-label="Preparar o ambiente">
-      <p>O ambiente do Claude ainda não está preparado para este sistema:</p>
+      <p>O ambiente do Claude ainda não está preparado para este projeto:</p>
       <ul>
         {ambiente.pendencias.map((p) => (
           <li key={p}>{p}</li>
         ))}
       </ul>
       {!plano && (
-        <button type="button" onClick={planejar} disabled={ocupado}>
+        <button className="btn" type="button" onClick={planejar} disabled={ocupado}>
           Ver o que será alterado
         </button>
       )}
@@ -62,7 +62,7 @@ export function PrepararAmbiente({
         <>
           <p>
             O app vai registrar o servidor MCP e os hooks na configuração do Claude Code. Nada é
-            criado nas pastas do sistema, e o app faz uma cópia de segurança de cada arquivo antes
+            criado nas pastas do projeto, e o app faz uma cópia de segurança de cada arquivo antes
             de gravar.
           </p>
           <ul className="plano-preparo">
@@ -71,7 +71,7 @@ export function PrepararAmbiente({
                 {a.item.tipo === "hook"
                   ? `Hook ${a.item.evento}`
                   : `Servidor MCP "cba" para a pasta ${a.item.chave}`}{" "}
-                <span className="suave">
+                <span className="muted">
                   ({a.acao === "atualizado" ? "atualizado" : "adicionado"} em {a.arquivo})
                 </span>
               </li>
@@ -79,7 +79,7 @@ export function PrepararAmbiente({
             {proteger && (
               <li>
                 Proteção contra edição: regra <code>deny</code> de <code>Edit</code> para as pastas
-                do sistema <span className="suave">(adicionada nas configurações do usuário)</span>
+                do projeto <span className="muted">(adicionada nas configurações do usuário)</span>
               </li>
             )}
           </ul>
@@ -91,20 +91,20 @@ export function PrepararAmbiente({
                 onChange={(e) => setProteger(e.target.checked)}
               />{" "}
               Também ligar a proteção contra edição (opcional): o Claude fica impedido de editar
-              arquivos e de usar o terminal (Bash) na pasta do sistema, mesmo que você aprove. Sem
+              arquivos e de usar o terminal (Bash) na pasta do projeto, mesmo que você aprove. Sem
               ela, o app só avisa quando a pasta for alterada.
             </label>
           )}
-          <button type="button" onClick={preparar} disabled={ocupado}>
+          <button className="btn" type="button" onClick={preparar} disabled={ocupado}>
             Concordo, preparar o ambiente
           </button>{" "}
-          <button type="button" onClick={() => setPlano(null)} disabled={ocupado}>
+          <button className="btn" type="button" onClick={() => setPlano(null)} disabled={ocupado}>
             Agora não
           </button>
         </>
       )}
       {falha && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           {falha}
         </p>
       )}
@@ -113,16 +113,16 @@ export function PrepararAmbiente({
 }
 
 /**
- * Ambiente do Claude para um sistema: verifica e, se faltar algo, oferece o preparo
+ * Ambiente do Claude para um projeto: verifica e, se faltar algo, oferece o preparo
  * com consentimento. Avisa quem usa quando o ambiente fica pronto.
  */
-export function AmbienteDoSistema({
+export function AmbienteDoProjeto({
   api,
-  sistema,
+  projeto,
   aoMudar,
 }: {
   api: ApiAmbiente;
-  sistema: string;
+  projeto: string;
   aoMudar?: (pronto: boolean) => void;
 }) {
   const [ambiente, setAmbiente] = useState<AmbienteClaude | null>(null);
@@ -131,31 +131,31 @@ export function AmbienteDoSistema({
   const verificar = useCallback(() => {
     setFalha(null);
     api
-      .verificarAmbiente(sistema)
+      .verificarAmbiente(projeto)
       .then((a) => {
         setAmbiente(a);
         aoMudar?.(a.pronto);
       })
       .catch((e: unknown) => setFalha(mensagemDe(e)));
-  }, [api, sistema, aoMudar]);
+  }, [api, projeto, aoMudar]);
 
   useEffect(verificar, [verificar]);
 
   return (
-    <div className="ambiente-sistema">
-      {!ambiente && !falha && <p className="suave">Verificando o ambiente do Claude…</p>}
+    <div className="ambiente-projeto">
+      {!ambiente && !falha && <p className="muted">Verificando o ambiente do Claude…</p>}
       {falha && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           Não foi possível verificar o ambiente do Claude: {falha}
         </p>
       )}
       {ambiente?.pronto && (
-        <p className="confirmacao" role="status">
-          O ambiente do Claude está preparado para este sistema.
+        <p className="ok-text" role="status">
+          O ambiente do Claude está preparado para este projeto.
         </p>
       )}
       {ambiente && !ambiente.pronto && (
-        <PrepararAmbiente api={api} sistema={sistema} ambiente={ambiente} aoConcluir={verificar} />
+        <PrepararAmbiente api={api} projeto={projeto} ambiente={ambiente} aoConcluir={verificar} />
       )}
     </div>
   );

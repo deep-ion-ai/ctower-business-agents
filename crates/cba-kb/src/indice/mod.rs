@@ -4,10 +4,10 @@
 //! diretório de dados do app, não na base, e apagá-lo não perde nada: o próximo
 //! [`Indice::sincronizar`] o reconstrói a partir dos arquivos.
 //!
-//! - **O que entra:** os documentos `.md` de cada sistema da base
-//!   ([`crate::Base::sistemas`] e [`crate::Sistema::documentos`]). O
-//!   `regras-do-sistema.md`, que não tem frontmatter, entra como o tipo à parte
-//!   [`Tipo::RegrasDoSistema`], sem os comentários HTML. Documento ilegível
+//! - **O que entra:** os documentos `.md` de cada projeto da base
+//!   ([`crate::Base::projetos`] e [`crate::Projeto::documentos`]). O
+//!   `regras-do-projeto.md`, que não tem frontmatter, entra como o tipo à parte
+//!   [`Tipo::RegrasDoProjeto`], sem os comentários HTML. Documento ilegível
 //!   (frontmatter inválido, arquivo que não é UTF-8) não interrompe nada: fica em
 //!   [`Indice::problemas`] e, se o frontmatter ao menos for YAML, continua na busca.
 //! - **Atualização incremental:** a cada sincronização, o tamanho e a data de
@@ -89,12 +89,12 @@ pub enum ErroIndice {
 pub type ResultadoIndice<T> = Result<T, ErroIndice>;
 
 /// Tipo de um documento no índice: um [`TipoDocumento`] do frontmatter ou o
-/// `regras-do-sistema.md`, que não tem frontmatter.
+/// `regras-do-projeto.md`, que não tem frontmatter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Tipo {
     Documento(TipoDocumento),
-    /// `<sistema>/regras-do-sistema.md`.
-    RegrasDoSistema,
+    /// `<projeto>/regras-do-projeto.md`.
+    RegrasDoProjeto,
 }
 
 impl Tipo {
@@ -103,7 +103,7 @@ impl Tipo {
         TipoDocumento::TODOS
             .into_iter()
             .map(Tipo::Documento)
-            .chain([Tipo::RegrasDoSistema])
+            .chain([Tipo::RegrasDoProjeto])
     }
 
     /// Tipos das análises (`analises/`): análise de impacto, pergunta e
@@ -114,11 +114,11 @@ impl Tipo {
         Tipo::Documento(TipoDocumento::Funcionalidade),
     ];
 
-    /// Valor guardado no índice: o do campo `tipo` ou `regras-do-sistema`.
+    /// Valor guardado no índice: o do campo `tipo` ou `regras-do-projeto`.
     pub fn como_str(self) -> &'static str {
         match self {
             Tipo::Documento(t) => t.como_str(),
-            Tipo::RegrasDoSistema => "regras-do-sistema",
+            Tipo::RegrasDoProjeto => "regras-do-projeto",
         }
     }
 
@@ -182,10 +182,10 @@ pub struct Ligacao {
 pub struct EvidenciaIndexada {
     /// Documento da regra (relativo à base).
     pub documento: CaminhoRelativo,
-    pub sistema: String,
+    pub projeto: String,
     /// Identificador da regra.
     pub regra: Option<String>,
-    /// Arquivo do sistema analisado, relativo à raiz do sistema.
+    /// Arquivo do sistema analisado, relativo à raiz do projeto.
     pub arquivo: String,
     pub linha_inicial: u32,
     pub linha_final: u32,
@@ -204,7 +204,7 @@ pub struct Indice {
 /// Arquivo da base encontrado na listagem.
 struct Encontrado {
     caminho: String,
-    sistema: String,
+    projeto: String,
     relativo: CaminhoRelativo,
     disco: PathBuf,
     tamanho: i64,
@@ -405,8 +405,8 @@ impl Indice {
                     } else {
                         resumo.novos += 1;
                     }
-                    let sistema = self.base.sistema(&e.sistema)?;
-                    let registro = extracao::extrair(&sistema, &e.relativo, bytes);
+                    let projeto = self.base.projeto(&e.projeto)?;
+                    let registro = extracao::extrair(&projeto, &e.relativo, bytes);
                     esquema::inserir(
                         &tx,
                         &registro,
@@ -481,16 +481,16 @@ impl Indice {
         Ok(saida)
     }
 
-    /// Evidências das regras, de um sistema ou de todos, em ordem de documento.
-    pub fn evidencias(&self, sistema: Option<&str>) -> ResultadoIndice<Vec<EvidenciaIndexada>> {
+    /// Evidências das regras, de um projeto ou de todos, em ordem de documento.
+    pub fn evidencias(&self, projeto: Option<&str>) -> ResultadoIndice<Vec<EvidenciaIndexada>> {
         let mut consulta = self.conexao.prepare(
-            "SELECT d.caminho, d.sistema, d.identificador, e.arquivo, e.linha_inicial, \
+            "SELECT d.caminho, d.projeto, d.identificador, e.arquivo, e.linha_inicial, \
                     e.linha_final, e.hash, e.commit_ \
              FROM evidencia e JOIN documento d ON d.id = e.documento \
-             WHERE ?1 IS NULL OR d.sistema = ?1 \
+             WHERE ?1 IS NULL OR d.projeto = ?1 \
              ORDER BY d.caminho, e.ordem",
         )?;
-        let linhas = consulta.query_map([sistema], |l| {
+        let linhas = consulta.query_map([projeto], |l| {
             Ok((
                 l.get::<_, String>(0)?,
                 l.get::<_, String>(1)?,
@@ -504,12 +504,12 @@ impl Indice {
         })?;
         let mut saida = Vec::new();
         for linha in linhas {
-            let (caminho, sistema, regra, arquivo, linha_inicial, linha_final, hash, commit) =
+            let (caminho, projeto, regra, arquivo, linha_inicial, linha_final, hash, commit) =
                 linha?;
             if let Ok(documento) = CaminhoRelativo::novo(&caminho) {
                 saida.push(EvidenciaIndexada {
                     documento,
-                    sistema,
+                    projeto,
                     regra,
                     arquivo,
                     linha_inicial,
@@ -522,17 +522,17 @@ impl Indice {
         Ok(saida)
     }
 
-    /// Arquivos `.md` de todos os sistemas da base, com tamanho e data.
+    /// Arquivos `.md` de todos os projetos da base, com tamanho e data.
     fn listar_base(&self) -> ResultadoIndice<Vec<Encontrado>> {
         let mut saida = Vec::new();
-        for nome in self.base.sistemas()? {
-            let sistema = match self.base.sistema(&nome) {
+        for nome in self.base.projetos()? {
+            let projeto = match self.base.projeto(&nome) {
                 Ok(s) => s,
                 // Removido entre a listagem e agora.
-                Err(crate::Erro::SistemaInexistente(_)) => continue,
+                Err(crate::Erro::ProjetoInexistente(_)) => continue,
                 Err(e) => return Err(e.into()),
             };
-            let documentos = match sistema.documentos() {
+            let documentos = match projeto.documentos() {
                 Ok(d) => d,
                 Err(crate::Erro::Io { erro, .. }) if erro.kind() == io::ErrorKind::NotFound => {
                     continue;
@@ -540,13 +540,13 @@ impl Indice {
                 Err(e) => return Err(e.into()),
             };
             for relativo in documentos {
-                let disco = sistema.caminho(&relativo);
+                let disco = projeto.caminho(&relativo);
                 let Ok(meta) = fs::metadata(&disco) else {
                     continue;
                 };
                 saida.push(Encontrado {
-                    caminho: sistema.na_base(&relativo).as_str().to_owned(),
-                    sistema: nome.clone(),
+                    caminho: projeto.na_base(&relativo).as_str().to_owned(),
+                    projeto: nome.clone(),
                     relativo,
                     disco,
                     tamanho: i64::try_from(meta.len()).unwrap_or(i64::MAX),

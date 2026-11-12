@@ -16,10 +16,10 @@ import type {
   ApiPrimeiroUso,
   AvaliacaoBase,
   ClientePreferido,
-  PedidoSistema,
-  PreviaSistema,
+  PedidoProjeto,
+  PreviaProjeto,
   ResumoInventario,
-  SistemaCadastrado,
+  ProjetoCadastrado,
   Situacao as SituacaoPrimeiroUso,
 } from "../primeiroUso";
 import type { ApiTerminal, EventoTerminal, PedidoClaude, Tamanho } from "../terminal";
@@ -29,7 +29,7 @@ import type { TelaTerminal } from "../telaXterm";
 export function analiseFicticia(parcial: Partial<Analise> = {}): Analise {
   return {
     id: "A-0001",
-    sistema: "faturamento-exemplo",
+    projeto: "faturamento-exemplo",
     fluxo: "perguntar",
     titulo: "Multa por atraso",
     entrada: "Como é calculada a multa por atraso de pagamento?",
@@ -86,7 +86,7 @@ export function apiAnaliseFalsa(vista: VistaAnalise = vistaFicticia()) {
     situacao: vi.fn((): Promise<Situacao> =>
       Promise.resolve({
         base: "/base",
-        sistemas: [{ id: "faturamento-exemplo", nome: "Faturamento Exemplo" }],
+        projetos: [{ id: "faturamento-exemplo", nome: "Faturamento Exemplo" }],
       }),
     ),
     verificarAmbiente: vi.fn((): Promise<AmbienteClaude> =>
@@ -133,7 +133,7 @@ export function apiAnaliseFalsa(vista: VistaAnalise = vistaFicticia()) {
 }
 
 export interface Abertura {
-  sistema: string;
+  projeto: string;
   pedido: PedidoClaude;
   aoEvento: (e: EventoTerminal) => void;
   resolver: (id: number) => void;
@@ -144,9 +144,9 @@ export function apiTerminalFalsa() {
   const aberturas: Abertura[] = [];
   const api = {
     abrir: vi.fn(
-      (sistema: string, pedido: PedidoClaude, _t: Tamanho, aoEvento: Abertura["aoEvento"]) =>
+      (projeto: string, pedido: PedidoClaude, _t: Tamanho, aoEvento: Abertura["aoEvento"]) =>
         new Promise<number>((resolver) => {
-          aberturas.push({ sistema, pedido, aoEvento, resolver });
+          aberturas.push({ projeto, pedido, aoEvento, resolver });
         }),
     ),
     escrever: vi.fn(() => Promise.resolve()),
@@ -222,7 +222,7 @@ export function situacaoInicial(parcial: Partial<SituacaoPrimeiroUso> = {}): Sit
   return {
     base: null,
     baseSugerida: "/Users/analista/Documents/ctower-business",
-    sistemas: [],
+    projetos: [],
     cliente: null,
     primeiroUsoConcluido: false,
     ...parcial,
@@ -239,7 +239,7 @@ export function apiPrimeiroUsoFalsa() {
       Promise.resolve({ caminho: pasta, estado: "nova", recusa: null, git: false }),
     ),
     configurarBase: vi.fn((pasta: string) => Promise.resolve(pasta)),
-    previaSistema: vi.fn((p: PedidoSistema): Promise<PreviaSistema> =>
+    previaProjeto: vi.fn((p: PedidoProjeto): Promise<PreviaProjeto> =>
       Promise.resolve({
         id: "faturamento-exemplo",
         nome: p.nome,
@@ -255,7 +255,7 @@ export function apiPrimeiroUsoFalsa() {
         inventario: inventarioFicticio(),
       }),
     ),
-    cadastrarSistema: vi.fn((p: PedidoSistema): Promise<SistemaCadastrado> =>
+    cadastrarProjeto: vi.fn((p: PedidoProjeto): Promise<ProjetoCadastrado> =>
       Promise.resolve({
         id: "faturamento-exemplo",
         nome: p.nome,

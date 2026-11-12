@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { TelaInicio } from "./TelaInicio";
-import { SISTEMA, apiConhecimentoFalsa, inicioFicticio } from "./test/conhecimentoFalso";
+import { PROJETO, apiConhecimentoFalsa, inicioFicticio } from "./test/conhecimentoFalso";
 import { clientesProntos } from "./test/falsos";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(), Channel: vi.fn() }));
@@ -14,7 +14,7 @@ function montar(falsa = apiConhecimentoFalsa()) {
 }
 
 describe("TelaInicio", () => {
-  it("mostra os sistemas, as análises em andamento e recentes e os clientes de IA", async () => {
+  it("mostra os projetos, as análises em andamento e recentes e os clientes de IA", async () => {
     montar();
     const andamento = await screen.findByRole("region", { name: "Em andamento" });
     expect(
@@ -25,26 +25,26 @@ describe("TelaInicio", () => {
     expect(within(recentes).getAllByRole("listitem")).toHaveLength(2);
     expect(within(recentes).getByText(/aprovada/)).toBeInTheDocument();
 
-    const sistemas = screen.getByRole("region", { name: "Sistemas" });
-    expect(within(sistemas).getByText(/1 regra\(s\) · 1 termo\(s\)/)).toBeInTheDocument();
-    expect(within(sistemas).getByText("1 a revalidar")).toHaveClass("selo-revalidar");
+    const projetos = screen.getByRole("region", { name: "Projetos" });
+    expect(within(projetos).getByText(/1 regra\(s\) · 1 termo\(s\)/)).toBeInTheDocument();
+    expect(within(projetos).getByText("1 a revalidar")).toHaveAttribute("data-tone", "attention");
 
     const clientes = screen.getByRole("region", { name: "Clientes de IA" });
     expect(await within(clientes).findByText("Instalado, versão 2.1.0")).toBeInTheDocument();
     expect(within(clientes).getByText("Logado")).toBeInTheDocument();
   });
 
-  it("abre a análise da lista e o sistema", async () => {
+  it("abre a análise da lista e o projeto", async () => {
     const { navegar } = montar();
     const recentes = await screen.findByRole("region", { name: "Recentes" });
     fireEvent.click(within(recentes).getByRole("button", { name: "A-0001: Multa por atraso" }));
     expect(navegar).toHaveBeenCalledWith({
       tipo: "analise",
-      sistema: SISTEMA,
+      projeto: PROJETO,
       aberta: { id: "A-0001", abertura: { tipo: "reabrir" } },
     });
     fireEvent.click(screen.getByRole("button", { name: "Faturamento Exemplo" }));
-    expect(navegar).toHaveBeenLastCalledWith({ tipo: "sistema", sistema: SISTEMA });
+    expect(navegar).toHaveBeenLastCalledWith({ tipo: "projeto", projeto: PROJETO });
   });
 
   it("os botões dos fluxos criam a análise e abrem a tela da análise", async () => {
@@ -61,7 +61,7 @@ describe("TelaInicio", () => {
     await waitFor(() =>
       expect(navegar).toHaveBeenCalledWith({
         tipo: "analise",
-        sistema: SISTEMA,
+        projeto: PROJETO,
         aberta: {
           id: "A-0003",
           abertura: { tipo: "nova", promptInicial: "Inicie a análise A-0003 pelo ctower" },
@@ -69,7 +69,7 @@ describe("TelaInicio", () => {
       }),
     );
     expect(api.criarAnalise).toHaveBeenCalledWith(
-      SISTEMA,
+      PROJETO,
       "impacto",
       "Permitir parcelamento em até 3 vezes para pessoa jurídica.",
       undefined,
@@ -90,10 +90,10 @@ describe("TelaInicio", () => {
     expect(screen.getByLabelText("Funcionalidade")).toBeInTheDocument();
   });
 
-  it("sem sistema, leva ao primeiro uso e desliga os fluxos", async () => {
+  it("sem projeto, leva ao primeiro uso e desliga os fluxos", async () => {
     const falsa = apiConhecimentoFalsa();
     falsa.api.inicio.mockResolvedValueOnce(
-      inicioFicticio({ sistemas: [], emAndamento: [], recentes: [] }),
+      inicioFicticio({ projetos: [], emAndamento: [], recentes: [] }),
     );
     const { aoPrimeiroUso } = montar(falsa);
     fireEvent.click(await screen.findByRole("button", { name: "Abrir o primeiro uso" }));

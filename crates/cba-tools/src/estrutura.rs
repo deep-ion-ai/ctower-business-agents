@@ -27,13 +27,13 @@ struct Args {
     pagina: ArgsPagina,
 }
 
-/// `estrutura(arquivo)`: o que há num arquivo do sistema.
+/// `estrutura(arquivo)`: o que há num arquivo do projeto.
 pub fn estrutura() -> Ferramenta {
     Ferramenta::nova(
         "estrutura",
         "Estrutura de um arquivo",
         "Lista as rotinas, procedures, funções, classes, métodos, telas, tabelas e \
-         colunas de um arquivo do sistema, com as linhas de cada um, o pai (pacote, \
+         colunas de um arquivo do projeto, com as linhas de cada um, o pai (pacote, \
          classe) e um detalhe curto (assinatura, tipo da coluna, comentário). Use para \
          saber onde ler num arquivo grande antes de abri-lo. Resposta paginada.",
         com_paginacao(json!({
@@ -42,7 +42,7 @@ pub fn estrutura() -> Ferramenta {
                 "arquivo": {
                     "type": "string",
                     "minLength": 1,
-                    "description": "Caminho do arquivo relativo à raiz do sistema (\"db/03_pkg_cobranca.sql\"), o mesmo das evidências."
+                    "description": "Caminho do arquivo relativo à raiz do projeto (\"db/03_pkg_cobranca.sql\"), o mesmo das evidências."
                 }
             },
             "required": ["arquivo"],
@@ -132,8 +132,8 @@ pub fn estrutura() -> Ferramenta {
     .somente_leitura()
 }
 
-/// Caminho relativo à raiz do sistema, como o mapa guarda. Aceita também o caminho
-/// absoluto de um arquivo dentro das pastas do sistema.
+/// Caminho relativo à raiz do projeto, como o mapa guarda. Aceita também o caminho
+/// absoluto de um arquivo dentro das pastas do projeto.
 pub(crate) fn relativo(ambiente: &Ambiente, arquivo: &str) -> String {
     let bruto = arquivo.trim();
     if Path::new(bruto).is_absolute()
@@ -150,7 +150,7 @@ fn nao_mapeado(ambiente: &Ambiente, mapa: &Mapa, informado: &str, caminho: &str)
     {
         return ErroFerramenta::Recusa(format!(
             "`{informado}` não pode ser consultado: {recusa}. Informe o caminho relativo à \
-             raiz do sistema, como nas evidências"
+             raiz do projeto, como nas evidências"
         ));
     }
     let nome_do_arquivo = caminho.rsplit('/').next().unwrap_or(caminho).to_lowercase();
@@ -165,7 +165,7 @@ fn nao_mapeado(ambiente: &Ambiente, mapa: &Mapa, informado: &str, caminho: &str)
         })
         .take(SUGESTOES)
         .collect();
-    let mut mensagem = format!("o arquivo `{caminho}` não está no mapa do sistema");
+    let mut mensagem = format!("o arquivo `{caminho}` não está no mapa do projeto");
     if parecidos.is_empty() {
         mensagem.push_str(
             ". Ele pode ser novo (o mapa é refeito pelo app) ou não existir; confira o \

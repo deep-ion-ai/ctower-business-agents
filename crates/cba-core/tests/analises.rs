@@ -14,7 +14,7 @@ use cba_core::analises::{Analises, Erro, NovaAnalise};
 use cba_core::config::Config;
 use cba_core::dados::DiretorioDados;
 use cba_core::eventos::{DiarioEventos, Mudanca, SemNotificacao};
-use cba_index::{Cadastro, Sistema};
+use cba_index::{Cadastro, Projeto};
 use cba_kb::frontmatter::{FrontmatterAnalise, Linhas, StatusAnalise};
 use cba_kb::{CaminhoRelativo, Id};
 
@@ -29,8 +29,8 @@ fn fixture() -> PathBuf {
 /// Dados do app com o sistema fictício cadastrado e a base configurada.
 fn preparar(raiz: &Path) -> DiretorioDados {
     let dados = DiretorioDados::em(raiz.join("dados"));
-    let sistema = Sistema::novo("Faturamento Exemplo", [fixture()]).unwrap();
-    Cadastro::em(dados.sistemas()).cadastrar(&sistema).unwrap();
+    let projeto = Projeto::novo("Faturamento Exemplo", [fixture()]).unwrap();
+    Cadastro::em(dados.projetos()).cadastrar(&projeto).unwrap();
     Config {
         base: Some(raiz.join("base")),
     }
@@ -61,15 +61,15 @@ fn afirmacao(texto: &str) -> NovaAfirmacao {
 }
 
 #[test]
-fn ambiente_pela_pasta_do_sistema_e_subpasta() {
+fn ambiente_pela_pasta_do_projeto_e_subpasta() {
     let dir = tempfile::tempdir().unwrap();
     let dados = preparar(dir.path());
     for pasta in [fixture(), fixture().join("db")] {
         let amb = Ambiente::do_diretorio(&pasta, &dados).unwrap();
-        assert_eq!(amb.sistema.id, "faturamento-exemplo");
+        assert_eq!(amb.projeto.id, "faturamento-exemplo");
         assert_eq!(amb.kb.nome(), "faturamento-exemplo");
-        // O sistema foi criado na base, com o sistema.md.
-        let doc = amb.kb.ler_sistema().unwrap();
+        // O projeto foi criado na base, com o projeto.md.
+        let doc = amb.kb.ler_projeto().unwrap();
         assert_eq!(doc.frontmatter.nome, "Faturamento Exemplo");
         // O escopo é o das ferramentas: recusa o que está excluído.
         assert!(amb.escopo.resolver("db/03_pkg_cobranca.sql").is_ok());
@@ -78,27 +78,27 @@ fn ambiente_pela_pasta_do_sistema_e_subpasta() {
 }
 
 #[test]
-fn fora_de_sistema_e_sem_base_dao_erro_claro() {
+fn fora_de_projeto_e_sem_base_dao_erro_claro() {
     let dir = tempfile::tempdir().unwrap();
     let dados = preparar(dir.path());
     let fora = tempfile::tempdir().unwrap();
     let erro = Ambiente::do_diretorio(fora.path(), &dados).unwrap_err();
-    assert!(matches!(erro, ErroAmbiente::ForaDeSistema(_)), "{erro:?}");
+    assert!(matches!(erro, ErroAmbiente::ForaDeProjeto(_)), "{erro:?}");
     let texto = erro.to_string();
     assert!(
-        texto.contains("não está na pasta de um sistema cadastrado"),
+        texto.contains("não está na pasta de um projeto cadastrado"),
         "{texto}"
     );
-    assert!(texto.contains("cadastrar o sistema"), "{texto}");
+    assert!(texto.contains("cadastrar o projeto"), "{texto}");
 
     // Sem nenhum cadastro, o mesmo erro.
     let vazio = DiretorioDados::em(dir.path().join("outros-dados"));
     assert!(matches!(
         Ambiente::do_diretorio(&fixture(), &vazio).unwrap_err(),
-        ErroAmbiente::ForaDeSistema(_)
+        ErroAmbiente::ForaDeProjeto(_)
     ));
 
-    // Sistema cadastrado, mas sem base escolhida.
+    // Projeto cadastrado, mas sem base escolhida.
     Config::default().gravar(&dados).unwrap();
     let erro = Ambiente::do_diretorio(&fixture(), &dados).unwrap_err();
     assert!(matches!(erro, ErroAmbiente::BaseNaoConfigurada), "{erro:?}");

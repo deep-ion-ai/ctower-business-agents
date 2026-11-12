@@ -13,12 +13,12 @@
 //!   edição. A edição muda só o texto: seção, confiança e evidências ficam.
 //! - [`prontidao`] diz se a análise pode ser aprovada e o que falta
 //!   ([`Pendencia`]), e prevê as regras que a aprovação vai criar, com as áreas do
-//!   `sistema.md` para a escolha.
+//!   `projeto.md` para a escolha.
 //! - [`aprovar_revisada`] confere a prontidão e a área e chama a aprovação
 //!   ([`crate::aprovacao::aprovar_analise`]).
 //! - [`exportar_analise`] exporta o documento para Markdown ou Word
 //!   (`cba_docs::gravar_exportacao`), com os trechos citados lidos pelo escopo do
-//!   sistema (as exclusões valem também aqui), fora das pastas do sistema.
+//!   projeto (as exclusões valem também aqui), fora das pastas do projeto.
 //!
 //! # O que é obrigatório antes de aprovar
 //!
@@ -50,7 +50,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::aprovacao::{self, Aprovacao, ErroAprovacao, OpcoesAprovacao, titulo_da_regra};
 use crate::documento;
-use crate::evidencias::ArquivoDoSistema;
+use crate::evidencias::ArquivoDoProjeto;
 
 /// Decisão do analista sobre um item da análise.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -120,7 +120,7 @@ pub enum ErroRevisao {
     #[error("a análise ainda não pode ser aprovada: {}", .0.join("; "))]
     Pendente(Vec<String>),
     #[error(
-        "o sistema tem mais de uma área; escolha a área das regras desta análise \
+        "o projeto tem mais de uma área; escolha a área das regras desta análise \
          (ou a de cada afirmação confirmada)"
     )]
     AreaNaoEscolhida,
@@ -203,7 +203,7 @@ pub struct Prontidao {
     pub pendencias: Vec<Pendencia>,
     /// O que não impede, mas o analista deve saber.
     pub avisos: Vec<String>,
-    /// Áreas do `sistema.md`, para a escolha.
+    /// Áreas do `projeto.md`, para a escolha.
     pub areas: Vec<Area>,
     /// Com mais de uma área declarada, a área precisa ser escolhida.
     pub area_obrigatoria: bool,
@@ -266,7 +266,7 @@ pub fn prontidao(amb: &Ambiente, id: &Id) -> Result<Prontidao, ErroRevisao> {
     let analise = amb.analises.carregar(id)?;
     let areas = amb
         .kb
-        .ler_sistema()
+        .ler_projeto()
         .map(|d| d.frontmatter.areas)
         .unwrap_or_default();
     let pendencias = pendencias(&analise);
@@ -352,7 +352,7 @@ pub fn aprovar_revisada(
     }
     Ok(aprovacao::aprovar_analise(
         &amb.dados,
-        &amb.sistema.id,
+        &amb.projeto.id,
         id,
         opcoes,
     )?)
@@ -361,13 +361,13 @@ pub fn aprovar_revisada(
 // ---------------------------------------------------------------------------
 // Exportação
 
-/// Trechos citados lidos pelo escopo do sistema: fora das pastas ou excluído
+/// Trechos citados lidos pelo escopo do projeto: fora das pastas ou excluído
 /// (segredo, binário) não entra no apêndice.
-struct TrechosDoSistema<'a>(&'a Escopo);
+struct TrechosDoProjeto<'a>(&'a Escopo);
 
-impl FonteDeTrechos for TrechosDoSistema<'_> {
+impl FonteDeTrechos for TrechosDoProjeto<'_> {
     fn trecho(&self, arquivo: &CaminhoRelativo, linhas: Linhas) -> Option<String> {
-        let aberto = ArquivoDoSistema::abrir(self.0, arquivo.as_str()).ok()?;
+        let aberto = ArquivoDoProjeto::abrir(self.0, arquivo.as_str()).ok()?;
         let todas: Vec<&str> = aberto.texto.lines().collect();
         let inicio = linhas.inicio as usize;
         if inicio == 0 || inicio > todas.len() {
@@ -379,7 +379,7 @@ impl FonteDeTrechos for TrechosDoSistema<'_> {
 }
 
 /// Destino com a extensão do formato (acrescentada se faltar), absoluto, numa
-/// pasta que existe e fora das pastas do sistema: o produto não grava no
+/// pasta que existe e fora das pastas do projeto: o produto não grava no
 /// repositório analisado.
 pub fn destino_da_exportacao(
     escopo: &Escopo,
@@ -420,7 +420,7 @@ pub fn destino_da_exportacao(
         .any(|p| pasta.starts_with(&p.caminho))
     {
         return Err(ErroRevisao::Destino(
-            "o destino fica dentro das pastas do sistema analisado; o app não grava no \
+            "o destino fica dentro das pastas do projeto; o app não grava no \
              repositório. Escolha outra pasta"
                 .into(),
         ));
@@ -440,7 +440,7 @@ pub fn exportar_analise(
     let destino = destino_da_exportacao(&amb.escopo, destino, formato)?;
     let texto = std::fs::read_to_string(amb.kb.caminho(&analise.documento))
         .map_err(ErroRevisao::Documento)?;
-    let fonte = TrechosDoSistema(&amb.escopo);
+    let fonte = TrechosDoProjeto(&amb.escopo);
     cba_docs::gravar_exportacao(&destino, &texto, formato, opcoes, Some(&fonte))?;
     Ok(destino)
 }

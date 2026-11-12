@@ -1,7 +1,7 @@
 <!--
 Template da pergunta ao sistema. Este comentário inicial não vai para o documento.
 
-Marcadores de campo: {{id}}, {{titulo}}, {{sistema}}, {{status}}, {{criado}},
+Marcadores de campo: {{id}}, {{titulo}}, {{projeto}}, {{status}}, {{criado}},
 {{analista}}, {{abrangencia_estimada}}, {{versao_do_codigo}}.
 
 Marcadores de seção: {{pergunta}}, {{resposta}}, {{regras_encontradas}},
@@ -9,7 +9,7 @@ Marcadores de seção: {{pergunta}}, {{resposta}}, {{regras_encontradas}},
 -->
 # {{id}} · {{titulo}}
 
-Pergunta ao sistema · Sistema `{{sistema}}` · Status: {{status}} · Criada em {{criado}} · Analista: {{analista}} · Código: {{versao_do_codigo}}
+Pergunta ao sistema · Projeto `{{projeto}}` · Status: {{status}} · Criada em {{criado}} · Analista: {{analista}} · Código: {{versao_do_codigo}}
 
 ## Pergunta
 

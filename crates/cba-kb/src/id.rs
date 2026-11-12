@@ -1,8 +1,8 @@
 //! Identificadores legíveis dos documentos (spec, seção 11): `A-0193` para análises,
 //! `S-0001` para sugestões e `RN-<AREA>-<NNN>` para regras.
 //!
-//! A numeração é sequencial por série e por sistema. A reserva sem colisão está em
-//! [`crate::Sistema::criar_numerado`].
+//! A numeração é sequencial por série e por projeto. A reserva sem colisão está em
+//! [`crate::Projeto::criar_numerado`].
 
 use std::fmt;
 
@@ -49,7 +49,7 @@ impl Serie {
         })
     }
 
-    /// Pasta do sistema onde ficam os documentos da série.
+    /// Pasta do projeto onde ficam os documentos da série.
     pub fn pasta(&self) -> &'static str {
         match self {
             Self::Analise => layout::ANALISES,
@@ -137,7 +137,7 @@ impl Id {
         self.numero
     }
 
-    /// Arquivo do documento, relativo à raiz do sistema (`analises/A-0001.md`).
+    /// Arquivo do documento, relativo à raiz do projeto (`analises/A-0001.md`).
     pub fn arquivo(&self) -> CaminhoRelativo {
         CaminhoRelativo::novo(&format!("{}/{self}.md", self.serie.pasta()))
             .expect("pasta e identificador são caminhos válidos")

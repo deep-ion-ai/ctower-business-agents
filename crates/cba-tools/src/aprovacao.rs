@@ -17,10 +17,10 @@
 //!
 //! A área de cada regra é, na ordem: a do ajuste da afirmação
 //! ([`AjusteDaRegra::area`]), a da aprovação ([`OpcoesAprovacao::area`]), a única
-//! área declarada no `sistema.md` (quando há só uma) e, sem nenhuma delas,
-//! [`AREA_GERAL`]. A área informada é procurada nas áreas do `sistema.md` pelo id
+//! área declarada no `projeto.md` (quando há só uma) e, sem nenhuma delas,
+//! [`AREA_GERAL`]. A área informada é procurada nas áreas do `projeto.md` pelo id
 //! ou pelo nome (sem diferença de acentos e maiúsculas); fora delas, vale o slug do
-//! texto. A sigla do identificador é a da área no `sistema.md` e, se a área não
+//! texto. A sigla do identificador é a da área no `projeto.md` e, se a área não
 //! declarar sigla (ou não estiver declarada), as três primeiras letras ou dígitos
 //! do slug, em maiúsculas (`geral` → `GER`). A numeração é por sigla, como em
 //! [`cba_kb::Serie::regra`].
@@ -74,7 +74,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::documento;
 
-/// Área das regras quando nem o analista nem o `sistema.md` indicam uma.
+/// Área das regras quando nem o analista nem o `projeto.md` indicam uma.
 pub const AREA_GERAL: &str = "geral";
 
 /// Tamanho máximo, em caracteres, do título derivado do texto da afirmação.
@@ -83,7 +83,7 @@ pub const LIMITE_DO_TITULO: usize = 80;
 /// Escolhas do analista na aprovação (a tela de revisão, #37).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OpcoesAprovacao {
-    /// Área das regras desta análise: id ou nome de uma área do `sistema.md`, ou
+    /// Área das regras desta análise: id ou nome de uma área do `projeto.md`, ou
     /// uma área nova (vale o slug).
     #[serde(default)]
     pub area: Option<String>,
@@ -117,7 +117,7 @@ pub enum Acao {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RegraAprovada {
     pub id: Id,
-    /// Arquivo, relativo à raiz do sistema na base (`regras/RN-FAT-001.md`).
+    /// Arquivo, relativo à raiz do projeto na base (`regras/RN-FAT-001.md`).
     pub arquivo: CaminhoRelativo,
     pub area: String,
     /// Afirmações da análise que a regra reúne.
@@ -132,7 +132,7 @@ pub struct TermoAprovado {
     pub termo: String,
     /// Número do termo proposto na análise.
     pub numero: u32,
-    /// Arquivo, relativo à raiz do sistema na base (`glossario/multa.md`).
+    /// Arquivo, relativo à raiz do projeto na base (`glossario/multa.md`).
     pub arquivo: CaminhoRelativo,
     pub acao: Acao,
 }
@@ -190,19 +190,19 @@ fn nome_do_estado(estado: EstadoAnalise) -> &'static str {
     }
 }
 
-/// Aprova a análise `id` do sistema `sistema` (slug) e leva à base as regras e os
+/// Aprova a análise `id` do projeto `projeto` (slug) e leva à base as regras e os
 /// termos, com a base da configuração do app e o aviso ao app pelo diário de
 /// eventos. Depois, sincroniza o índice da base. Veja o módulo.
 pub fn aprovar_analise(
     dados: &DiretorioDados,
-    sistema: &str,
+    projeto: &str,
     id: &Id,
     opcoes: &OpcoesAprovacao,
 ) -> Result<Aprovacao, ErroAprovacao> {
     let config = Config::ler(dados).map_err(ErroAprovacao::Config)?;
     let raiz = config.base().ok_or(ErroAprovacao::BaseNaoConfigurada)?;
     let base = Base::abrir(raiz)?;
-    let kb = base.sistema(sistema)?;
+    let kb = base.projeto(projeto)?;
     let analises = Analises::new(kb, Arc::new(DiarioEventos::em(dados.eventos())));
     let mut aprovacao = aprovar(&base, &analises, id, opcoes)?;
     let sincronizado =
@@ -217,7 +217,7 @@ pub fn aprovar_analise(
     Ok(aprovacao)
 }
 
-/// Como [`aprovar_analise`], com a base e as análises do sistema já abertas, e
+/// Como [`aprovar_analise`], com a base e as análises do projeto já abertas, e
 /// sem sincronizar o índice.
 pub fn aprovar(
     base: &Base,
@@ -225,7 +225,7 @@ pub fn aprovar(
     id: &Id,
     opcoes: &OpcoesAprovacao,
 ) -> Result<Aprovacao, ErroAprovacao> {
-    let kb = analises.sistema();
+    let kb = analises.projeto();
     let atual = analises.carregar(id)?;
     if !matches!(
         atual.estado,
@@ -236,7 +236,7 @@ pub fn aprovar(
             estado: nome_do_estado(atual.estado),
         });
     }
-    let areas = kb.ler_sistema()?.frontmatter.areas;
+    let areas = kb.ler_projeto()?.frontmatter.areas;
     // Confere os ajustes antes de gravar qualquer coisa.
     planejar_regras(&atual, &areas, opcoes)?;
 
@@ -335,7 +335,7 @@ struct RegraPlanejada {
     afirmacoes: Vec<u32>,
 }
 
-/// Área e sigla a partir do texto informado e das áreas do `sistema.md`.
+/// Área e sigla a partir do texto informado e das áreas do `projeto.md`.
 fn resolver_area(areas: &[Area], texto: &str) -> Result<(String, String), ErroAprovacao> {
     let chave = slug(texto);
     if chave.is_empty() {
@@ -475,7 +475,7 @@ fn planejar_regras(
 // Gravação
 
 struct Gravacao<'a> {
-    kb: &'a cba_kb::Sistema,
+    kb: &'a cba_kb::Projeto,
     templates: &'a Templates,
     avisos: Vec<String>,
 }
@@ -516,7 +516,7 @@ impl Gravacao<'_> {
         Ok(Acao::Atualizada)
     }
 
-    /// Regras existentes no sistema. Documentos ilegíveis ficam de fora, com aviso:
+    /// Regras existentes no projeto. Documentos ilegíveis ficam de fora, com aviso:
     /// não são comparados e nunca são sobrescritos (a regra nova ganha outro número).
     fn regras_existentes(
         &mut self,

@@ -1,11 +1,11 @@
 //! Ferramentas de análise e validação de evidências.
 //!
-//! As ferramentas que o agente de IA usa para analisar o sistema e registrar evidências,
+//! As ferramentas que o agente de IA usa para analisar o projeto e registrar evidências,
 //! com a validação de cada evidência citada (spec, seção 6.1).
 //!
 //! - [`Registro`] e [`Ferramenta`]: cada ferramenta declara nome, descrição, schema de
 //!   entrada e o que executar. O registro confere os argumentos contra o schema
-//!   ([`schema`]) e exige o ambiente do sistema antes de executar. O servidor MCP
+//!   ([`schema`]) e exige o ambiente do projeto antes de executar. O servidor MCP
 //!   (`cba-mcp`) só traduz o protocolo para o registro.
 //! - [`registro_padrao`]: as ferramentas que o produto expõe, cada uma no seu
 //!   módulo: [`analises`] (`listar_analises`), [`ciclo`] (`iniciar_analise`,
@@ -13,7 +13,7 @@
 //!   [`sugestao`] (`registrar_sugestao`) e [`termo`] (`propor_termo`).
 //! - Consulta, só de leitura e paginada ([`paginacao`]): [`conhecimento`] (busca no
 //!   índice da base), [`mapa`], [`estrutura`], [`banco`] (`schema`) e
-//!   [`referencias`], a partir do mapa estrutural do sistema ([`fontes`]).
+//!   [`referencias`], a partir do mapa estrutural do projeto ([`fontes`]).
 //! - [`roteiro`] e [`contexto`]: o roteiro do fluxo e o contexto da base que
 //!   `iniciar_analise` e `retomar_analise` devolvem ao agente.
 //! - [`prompts`]: os prompts prontos da tela da análise (aprofundar, resumir,
@@ -29,7 +29,7 @@
 //! - [`revisao`]: a revisão do analista (decisões, edição do texto, prontidão para
 //!   aprovar, aprovação com a escolha da área e exportação).
 //! - [`revalidacao`]: a revalidação das evidências das regras e das análises por
-//!   hash, que o app chama ao abrir o sistema e sob demanda (spec, seção 6.5).
+//!   hash, que o app chama ao abrir o projeto e sob demanda (spec, seção 6.5).
 //!
 //! Papel na arquitetura: seção 5 de `docs/specs/2026-11-11-mvp-standalone.md`.
 

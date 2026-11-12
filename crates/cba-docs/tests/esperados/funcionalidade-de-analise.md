@@ -2,7 +2,7 @@
 tipo: funcionalidade
 id: A-0005
 titulo: Cálculo de encargos por atraso
-sistema: faturamento-exemplo
+projeto: faturamento-exemplo
 demanda:
   origem: texto
   chave: null

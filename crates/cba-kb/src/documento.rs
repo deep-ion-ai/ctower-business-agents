@@ -332,7 +332,7 @@ mod tests {
 tipo: analise-impacto
 id: A-0193
 titulo: Parcelamento da fatura para pessoa jurídica
-sistema: faturamento-exemplo
+projeto: faturamento-exemplo
 demanda: {origem: texto, chave: null}
 status: rascunho            # rascunho | em-revisao | aprovada
 abrangencia: media
@@ -422,7 +422,7 @@ titulo: Multa
 id: A-0001
 extra_da_organizacao: [x, y]
 tipo: pergunta
-sistema: faturamento-exemplo
+projeto: faturamento-exemplo
 status: rascunho
 demanda:
   chave: null
@@ -444,7 +444,7 @@ corpo
                 "id",
                 "extra_da_organizacao",
                 "tipo",
-                "sistema",
+                "projeto",
                 "status",
                 "demanda",
                 "criado",

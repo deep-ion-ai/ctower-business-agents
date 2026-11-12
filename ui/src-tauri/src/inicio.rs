@@ -1,4 +1,4 @@
-//! Comandos Tauri da tela inicial (spec, seção 10): os sistemas cadastrados (com as
+//! Comandos Tauri da tela inicial (spec, seção 10): os projetos cadastrados (com as
 //! contagens de regras, termos e análises), as análises em andamento e as recentes
 //! (com o estado da sessão vindo dos hooks) e a criação de uma análise de qualquer
 //! fluxo pelos botões "perguntar", "explicar" e "impacto".
@@ -13,22 +13,22 @@ use serde::Serialize;
 use crate::analise::{
     AnaliseCriada, AnaliseResumo, SessaoVista, ambiente, criar_analise_do_fluxo, sessao_recente,
 };
-use crate::sistema;
+use crate::projeto;
 
 /// Análises recentes mostradas no início.
 pub const RECENTES: usize = 10;
 
-/// Sistema no início.
+/// Projeto no início.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SistemaInicio {
+pub struct ProjetoInicio {
     pub id: String,
     pub nome: String,
     pub analises: usize,
     pub regras: usize,
     pub a_revalidar: usize,
     pub termos: usize,
-    /// O sistema não pôde ser lido (pasta removida, base fora do lugar).
+    /// O projeto não pôde ser lido (pasta removida, base fora do lugar).
     pub erro: Option<String>,
 }
 
@@ -36,8 +36,8 @@ pub struct SistemaInicio {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AnaliseInicio {
-    pub sistema: String,
-    pub sistema_nome: String,
+    pub projeto: String,
+    pub projeto_nome: String,
     #[serde(flatten)]
     pub analise: AnaliseResumo,
     /// Sessão mais recente ligada à análise (estado vindo dos hooks).
@@ -49,23 +49,23 @@ pub struct AnaliseInicio {
 #[serde(rename_all = "camelCase")]
 pub struct Inicio {
     pub base: Option<std::path::PathBuf>,
-    pub sistemas: Vec<SistemaInicio>,
+    pub projetos: Vec<ProjetoInicio>,
     /// Análises não aprovadas, da mais recente para a mais antiga.
     pub em_andamento: Vec<AnaliseInicio>,
-    /// As [`RECENTES`] análises mais recentes, de todos os sistemas.
+    /// As [`RECENTES`] análises mais recentes, de todos os projetos.
     pub recentes: Vec<AnaliseInicio>,
 }
 
-/// Monta o início. Um sistema ilegível aparece com o erro e não esconde os outros.
+/// Monta o início. Um projeto ilegível aparece com o erro e não esconde os outros.
 pub fn inicio(dados: &DiretorioDados) -> Result<Inicio, String> {
     let config = Config::ler(dados).map_err(|e| format!("configuração do app ilegível: {e}"))?;
-    let cadastrados = Cadastro::em(dados.sistemas())
+    let cadastrados = Cadastro::em(dados.projetos())
         .listar()
         .map_err(|e| e.to_string())?;
-    let mut sistemas = Vec::new();
+    let mut projetos = Vec::new();
     let mut todas = Vec::new();
     for s in cadastrados {
-        let mut item = SistemaInicio {
+        let mut item = ProjetoInicio {
             id: s.id.clone(),
             nome: s.nome.clone(),
             analises: 0,
@@ -78,7 +78,7 @@ pub fn inicio(dados: &DiretorioDados) -> Result<Inicio, String> {
             let lido = (|| {
                 let amb = ambiente(dados, &s.id)?;
                 let analises = amb.analises.listar().map_err(|e| e.to_string())?;
-                let visao = sistema::visao_sistema(dados, &s.id)?;
+                let visao = projeto::visao_projeto(dados, &s.id)?;
                 Ok::<_, String>((analises, visao))
             })();
             match lido {
@@ -93,8 +93,8 @@ pub fn inicio(dados: &DiretorioDados) -> Result<Inicio, String> {
                     item.termos = visao.termos.len();
                     for a in analises {
                         todas.push(AnaliseInicio {
-                            sistema: s.id.clone(),
-                            sistema_nome: s.nome.clone(),
+                            projeto: s.id.clone(),
+                            projeto_nome: s.nome.clone(),
                             sessao: sessao_recente(dados, &a),
                             analise: AnaliseResumo::from(&a),
                         });
@@ -103,7 +103,7 @@ pub fn inicio(dados: &DiretorioDados) -> Result<Inicio, String> {
                 Err(e) => item.erro = Some(e),
             }
         }
-        sistemas.push(item);
+        projetos.push(item);
     }
     // Empate no instante (criadas no mesmo milissegundo): a de número maior antes.
     todas.sort_by_key(|a| std::cmp::Reverse((a.analise.atualizada_ms, a.analise.id.clone())));
@@ -115,7 +115,7 @@ pub fn inicio(dados: &DiretorioDados) -> Result<Inicio, String> {
     todas.truncate(RECENTES);
     Ok(Inicio {
         base: config.base,
-        sistemas,
+        projetos,
         em_andamento,
         recentes: todas,
     })
@@ -145,13 +145,13 @@ pub async fn inicio_app() -> Result<Inicio, String> {
 /// Cria a análise de um fluxo (perguntar, explicar, impacto) pelo início.
 #[tauri::command]
 pub async fn criar_analise_fluxo(
-    sistema: String,
+    projeto: String,
     fluxo: Fluxo,
     entrada: String,
     titulo: Option<String>,
 ) -> Result<AnaliseCriada, String> {
     let dados = dados()?;
-    bloqueante(move || criar_analise_do_fluxo(&dados, &sistema, fluxo, &entrada, titulo.as_deref()))
+    bloqueante(move || criar_analise_do_fluxo(&dados, &projeto, fluxo, &entrada, titulo.as_deref()))
         .await
 }
 

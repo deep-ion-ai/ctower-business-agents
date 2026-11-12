@@ -28,7 +28,7 @@ Usamos [Conventional Commits](https://www.conventionalcommits.org/pt-br/v1.0.0/)
 
 ## Dados nos exemplos
 
-O produto lê o código de sistemas legados, e esses sistemas costumam ter regras de negócio, dados pessoais e segredos. Por isso:
+O produto lê o código de sistemas legados, e esses projetos costumam ter regras de negócio, dados pessoais e segredos. Por isso:
 
 - **Nunca** coloque no repositório código, nomes, regras, dados, logs, capturas de tela ou trechos de documento de um sistema real, seu ou de terceiros, nem anonimizados à mão.
 - Exemplos, testes, prompts, capturas de tela e issues usam o sistema fictício **Faturamento Exemplo**, em `fixtures/faturamento-exemplo` (#5). Se o exemplo de que você precisa não existe nele, proponha a extensão do sistema fictício no mesmo PR.
@@ -42,7 +42,7 @@ PRs com dados de sistema real são fechados, e o histórico é reescrito para re
 
 O script de instalação `install.sh --from-source` (e o equivalente em PowerShell) vai instalar os pré-requisitos na pasta do usuário e compilar o projeto num passo só. Ele é tratado na issue #45 e ainda não está disponível; até lá, siga os passos manuais abaixo.
 
-### Pré-requisitos em todos os sistemas
+### Pré-requisitos em todos os projetos
 
 - **Rust** pelo [rustup](https://rustup.rs/). Não instale uma versão específica à mão: o arquivo `rust-toolchain.toml` na raiz fixa o toolchain, e o `rustup` o baixa sozinho no primeiro `cargo` dentro do repositório.
 - **Node.js LTS** (pelo instalador oficial, `fnm`, `nvm` ou o gerenciador de pacotes do sistema), com `npm`.
@@ -118,6 +118,14 @@ Os dados do app (índice, configuração, logs) ficam no diretório de dados do 
 - Exemplos e testes usam só o sistema fictício.
 
 O CI roda nos runners do GitHub. Em PRs de fork, um mantenedor precisa aprovar a execução dos workflows.
+
+### O que o CI roda
+
+O workflow `ci` roda em todo PR e em push na `develop` e na `main`. Push numa `wip/**` não dispara o CI: cada merge nela já passou pelo CI do PR.
+
+- `rust`, `ui` e `politicas` rodam sempre.
+- Os testes dos instaladores (`instalador-sh` e `instalador-ps1`) rodam em PRs para `develop` ou `main`, em push nessas branches e em execução manual. Em PRs para outras bases, como uma `wip/<slug>`, só rodam se o PR mexer em `packaging/**` ou em `.github/workflows/ci.yml`.
+- O job `ci-ok` sempre roda e reúne o resultado dos outros: falha se algum falhou ou foi cancelado, e conta os pulados como sucesso. **O `ci-ok` é o único check do CI marcado como obrigatório** na `develop` e na `main` (Settings → Branches ou Rules), no lugar da lista de jobs. Um job novo no `ci.yml` precisa entrar no `needs` do `ci-ok`.
 
 ## CLA
 

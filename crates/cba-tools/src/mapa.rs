@@ -1,4 +1,4 @@
-//! `mapa(modulo?)`: visão do sistema ou de uma pasta (módulo), a partir do mapa
+//! `mapa(modulo?)`: visão do projeto ou de uma pasta (módulo), a partir do mapa
 //! estrutural (`cba_index::Mapa::modulo`).
 //!
 //! A resposta traz, da pasta, quantos arquivos há, por linguagem, quantos símbolos
@@ -28,21 +28,21 @@ struct Args {
     pagina: ArgsPagina,
 }
 
-/// `mapa(modulo?)`: o mapa do sistema ou de um módulo.
+/// `mapa(modulo?)`: o mapa do projeto ou de um módulo.
 pub fn mapa() -> Ferramenta {
     Ferramenta::nova(
         "mapa",
-        "Mapa do sistema",
-        "Mostra o mapa estrutural do sistema (sem `modulo`) ou de uma pasta: arquivos \
+        "Mapa do projeto",
+        "Mostra o mapa estrutural do projeto (sem `modulo`) ou de uma pasta: arquivos \
          por linguagem, rotinas, tabelas e classes por tipo, subpastas e arquivos, e as \
-         dependências entre as subpastas. Use para se orientar num sistema que você \
+         dependências entre as subpastas. Use para se orientar num projeto que você \
          ainda não conhece, antes de abrir arquivos. Resposta paginada.",
         com_paginacao(json!({
             "type": "object",
             "properties": {
                 "modulo": {
                     "type": "string",
-                    "description": "Pasta relativa à raiz do sistema (\"db\", \"backend/src\"). Sem o campo: o sistema todo."
+                    "description": "Pasta relativa à raiz do projeto (\"db\", \"backend/src\"). Sem o campo: o projeto todo."
                 }
             },
             "additionalProperties": false
@@ -55,8 +55,8 @@ pub fn mapa() -> Ferramenta {
             let Some(modulo) = mapa.modulo(&caminho) else {
                 let raiz = mapa.modulo("").map(|m| m.subpastas).unwrap_or_default();
                 return Err(ErroFerramenta::Recusa(format!(
-                    "a pasta `{caminho}` não tem arquivo mapeado no sistema. Pastas na raiz: \
-                     {}. Chame `mapa` sem `modulo` para ver o sistema todo",
+                    "a pasta `{caminho}` não tem arquivo mapeado no projeto. Pastas na raiz: \
+                     {}. Chame `mapa` sem `modulo` para ver o projeto todo",
                     if raiz.is_empty() {
                         "nenhuma".to_owned()
                     } else {
@@ -74,7 +74,7 @@ pub fn mapa() -> Ferramenta {
             dependencias.truncate(DEPENDENCIAS);
 
             let titulo = if modulo.caminho.is_empty() {
-                format!("Sistema {}", ambiente.sistema.nome)
+                format!("Projeto {}", ambiente.projeto.nome)
             } else {
                 format!("Módulo `{}`", modulo.caminho)
             };

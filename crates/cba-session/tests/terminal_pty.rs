@@ -292,11 +292,11 @@ impl Ambiente for Isolado {
     }
 }
 
-/// Um sistema cadastrado numa pasta temporária, o preparador com a configuração do
+/// Um projeto cadastrado numa pasta temporária, o preparador com a configuração do
 /// Claude noutra e um `claude` falso numa terceira.
 struct Cenario {
     _tmp: tempfile::TempDir,
-    sistema: cba_index::Sistema,
+    projeto: cba_index::Projeto,
     preparador: Preparador,
     ambiente: Isolado,
     bin: PathBuf,
@@ -310,7 +310,7 @@ fn cenario() -> Cenario {
     for p in [&raiz, &home, &bin] {
         std::fs::create_dir_all(p).unwrap();
     }
-    let sistema = cba_index::Sistema::novo("Faturamento Exemplo", [&raiz]).unwrap();
+    let projeto = cba_index::Projeto::novo("Faturamento Exemplo", [&raiz]).unwrap();
     let exe = tmp
         .path()
         .join(if cfg!(windows) { "cba.exe" } else { "cba" });
@@ -326,7 +326,7 @@ fn cenario() -> Cenario {
     };
     Cenario {
         _tmp: tmp,
-        sistema,
+        projeto,
         preparador,
         ambiente,
         bin,
@@ -348,16 +348,16 @@ fn claude_falso(bin: &Path) -> PathBuf {
 fn recusa_sem_ambiente_preparado_e_sem_claude() {
     let c = cenario();
     let pedido = PedidoClaude::default();
-    match lancamento(&c.sistema, &pedido, &c.preparador, &c.ambiente) {
+    match lancamento(&c.projeto, &pedido, &c.preparador, &c.ambiente) {
         Err(ErroAbertura::AmbienteNaoPreparado { pendencias }) => {
             assert!(!pendencias.is_empty());
         }
         outro => panic!("esperava ambiente não preparado: {outro:?}"),
     }
-    let alvo = cba_session::preparo::Alvo::do_sistema(&c.sistema).unwrap();
+    let alvo = cba_session::preparo::Alvo::do_projeto(&c.projeto).unwrap();
     c.preparador.preparar(&alvo).unwrap();
     // Preparado, mas sem o Claude Code instalado.
-    match lancamento(&c.sistema, &pedido, &c.preparador, &c.ambiente) {
+    match lancamento(&c.projeto, &pedido, &c.preparador, &c.ambiente) {
         Err(ErroAbertura::ClaudeNaoEncontrado { orientacao }) => {
             assert!(orientacao.iter().any(|p: &Passo| p.comando.is_some()));
         }
@@ -366,9 +366,9 @@ fn recusa_sem_ambiente_preparado_e_sem_claude() {
 }
 
 #[test]
-fn claude_falso_na_pasta_do_sistema_com_prompt_inicial_e_prompt_pronto() {
+fn claude_falso_na_pasta_do_projeto_com_prompt_inicial_e_prompt_pronto() {
     let c = cenario();
-    let alvo = cba_session::preparo::Alvo::do_sistema(&c.sistema).unwrap();
+    let alvo = cba_session::preparo::Alvo::do_projeto(&c.projeto).unwrap();
     c.preparador.preparar(&alvo).unwrap();
     let claude = claude_falso(&c.bin);
     let pedido = PedidoClaude {
@@ -376,7 +376,7 @@ fn claude_falso_na_pasta_do_sistema_com_prompt_inicial_e_prompt_pronto() {
         retomada: Retomada::Nova,
         argumentos: Vec::new(),
     };
-    let l = lancamento(&c.sistema, &pedido, &c.preparador, &c.ambiente).unwrap();
+    let l = lancamento(&c.projeto, &pedido, &c.preparador, &c.ambiente).unwrap();
     assert_eq!(l.comando.programa, claude);
     assert_eq!(l.comando.diretorio, alvo.diretorio);
     let id = l.id_sessao.clone().unwrap();

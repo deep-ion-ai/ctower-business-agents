@@ -83,14 +83,14 @@ impl Ambiente for Isolado {
 
 struct Cenario {
     _tmp: tempfile::TempDir,
-    sistema: cba_index::Sistema,
+    projeto: cba_index::Projeto,
     alvo: Alvo,
     preparador: Preparador,
     ambiente: Isolado,
     bin: PathBuf,
 }
 
-/// Sistema cadastrado, ambiente preparado e uma pasta para o `claude` falso.
+/// Projeto cadastrado, ambiente preparado e uma pasta para o `claude` falso.
 fn cenario() -> Cenario {
     let tmp = tempfile::tempdir().unwrap();
     let raiz = tmp.path().join("faturamento");
@@ -99,7 +99,7 @@ fn cenario() -> Cenario {
     for p in [&raiz, &home, &bin] {
         std::fs::create_dir_all(p).unwrap();
     }
-    let sistema = cba_index::Sistema::novo("Faturamento Exemplo", [&raiz]).unwrap();
+    let projeto = cba_index::Projeto::novo("Faturamento Exemplo", [&raiz]).unwrap();
     let exe = tmp
         .path()
         .join(if cfg!(windows) { "cba.exe" } else { "cba" });
@@ -109,7 +109,7 @@ fn cenario() -> Cenario {
         Plataforma::atual(),
     )
     .unwrap();
-    let alvo = Alvo::do_sistema(&sistema).unwrap();
+    let alvo = Alvo::do_projeto(&projeto).unwrap();
     preparador.preparar(&alvo).unwrap();
     let plataforma = match Plataforma::atual() {
         Plataforma::Linux => Plataforma::MacOs,
@@ -117,7 +117,7 @@ fn cenario() -> Cenario {
     };
     Cenario {
         _tmp: tmp,
-        sistema,
+        projeto,
         alvo,
         preparador,
         ambiente: Isolado {
@@ -166,7 +166,7 @@ fn sessao_do_terminal_embutido_continua_no_desktop_e_volta() {
 
     // Terminal embutido: a conversa nova recebe o identificador do app.
     let nova = lancamento(
-        &c.sistema,
+        &c.projeto,
         &PedidoClaude::default(),
         &c.preparador,
         &c.ambiente,
@@ -176,7 +176,7 @@ fn sessao_do_terminal_embutido_continua_no_desktop_e_volta() {
 
     // Desktop: a mesma sessão, pelo identificador, num PTY.
     let l = lancamento_desktop(
-        &c.sistema,
+        &c.projeto,
         &Retomada::Sessao { id: id.into() },
         &c.preparador,
         &c.ambiente,
@@ -202,7 +202,7 @@ fn sessao_do_terminal_embutido_continua_no_desktop_e_volta() {
 
     // De volta ao terminal embutido: `--resume` com o mesmo identificador.
     let volta = lancamento(
-        &c.sistema,
+        &c.projeto,
         &PedidoClaude {
             retomada: Retomada::Sessao { id: id.into() },
             ..Default::default()
@@ -221,7 +221,7 @@ fn desktop_sem_sessao_conhecida_usa_continue() {
     let c = cenario();
     claude_falso(&c.bin, "2.1.285");
     let l =
-        lancamento_desktop(&c.sistema, &Retomada::Continuar, &c.preparador, &c.ambiente).unwrap();
+        lancamento_desktop(&c.projeto, &Retomada::Continuar, &c.preparador, &c.ambiente).unwrap();
     assert_eq!(l.id_sessao, None);
     let r = executar_no_pty(l.comando, LIMITE).unwrap();
     assert!(r.mensagem.contains("args:--desktop --continue"), "{r:?}");
@@ -231,7 +231,7 @@ fn desktop_sem_sessao_conhecida_usa_continue() {
 fn recusa_versao_antiga_e_linux() {
     let mut c = cenario();
     claude_falso(&c.bin, "2.1.284");
-    match lancamento_desktop(&c.sistema, &Retomada::Continuar, &c.preparador, &c.ambiente) {
+    match lancamento_desktop(&c.projeto, &Retomada::Continuar, &c.preparador, &c.ambiente) {
         Err(ErroAbertura::DesktopIndisponivel {
             detalhe,
             orientacao,
@@ -244,7 +244,7 @@ fn recusa_versao_antiga_e_linux() {
     }
     c.ambiente.plataforma = Plataforma::Linux;
     assert!(matches!(
-        lancamento_desktop(&c.sistema, &Retomada::Continuar, &c.preparador, &c.ambiente),
+        lancamento_desktop(&c.projeto, &Retomada::Continuar, &c.preparador, &c.ambiente),
         Err(ErroAbertura::DesktopIndisponivel { .. })
     ));
 }

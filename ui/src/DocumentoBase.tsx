@@ -24,7 +24,7 @@ const ROTULO_CAMPO: Record<string, string> = {
  * Renderizador: `markdown-to-jsx` 7 (MIT, sem dependências). Ele monta elementos
  * React (nada de `innerHTML`), com `disableParsingRawHTML` o HTML do arquivo vira
  * texto e o sanitizador embutido descarta URLs `javascript:`/`data:`. O
- * `react-markdown` faria o mesmo com dezenas de pacotes do ecossistema unified.
+ * `react-markdown` faria o mesmo com dezenas de pacotes do ecosprojeto unified.
  */
 export function DocumentoBase({
   documento,
@@ -33,7 +33,7 @@ export function DocumentoBase({
 }: {
   documento: DocumentoAberto;
   aoAbrirDocumento: (caminho: string) => void;
-  aoAbrirAnalise?: (sistema: string, id: string) => void;
+  aoAbrirAnalise?: (projeto: string, id: string) => void;
 }) {
   const campos = documento.campos.filter((c) => !NO_CABECALHO.has(c.chave));
   const saem = documento.ligacoes.filter((l) => l.sai);
@@ -66,15 +66,16 @@ export function DocumentoBase({
   return (
     <article className="documento-base" aria-label={documento.titulo}>
       <header>
-        <p className="suave">
+        <p className="muted">
           {rotuloTipo(documento.tipo)}
-          {documento.sistema && ` · ${documento.sistema}`} · <code>{documento.caminho}</code>
+          {documento.projeto && ` · ${documento.projeto}`} · <code>{documento.caminho}</code>
         </p>
         <h2>
           {documento.titulo}{" "}
           {documento.status && (
             <span
-              className={`selo ${documento.status === "a-revalidar" ? "selo-revalidar" : "selo-status"}`}
+              className="badge"
+              data-tone={documento.status === "a-revalidar" ? "attention" : undefined}
             >
               {documento.status === "a-revalidar" ? "a revalidar" : documento.status}
             </span>
@@ -82,14 +83,15 @@ export function DocumentoBase({
         </h2>
         {documento.analise && aoAbrirAnalise && (
           <button
+            className="btn"
             type="button"
-            onClick={() => aoAbrirAnalise(documento.analise!.sistema, documento.analise!.id)}
+            onClick={() => aoAbrirAnalise(documento.analise!.projeto, documento.analise!.id)}
           >
             Abrir na tela da análise
           </button>
         )}
         {documento.problema && (
-          <p className="trecho-erro" role="alert">
+          <p className="error-text" role="alert">
             Frontmatter ilegível: {documento.problema}
           </p>
         )}
@@ -147,14 +149,14 @@ function Ligacoes({
       <ul>
         {ligacoes.map((l) => (
           <li key={`${l.campo}:${l.caminho}`}>
-            <span className="suave">{ROTULO_CAMPO[l.campo] ?? l.campo}: </span>
+            <span className="muted">{ROTULO_CAMPO[l.campo] ?? l.campo}: </span>
             {l.existe ? (
               <button type="button" className="link" onClick={() => aoAbrir(l.caminho)}>
                 {l.titulo ?? l.caminho}
               </button>
             ) : (
               <span title="O documento não está na base">
-                {l.caminho} <span className="suave">(não encontrado)</span>
+                {l.caminho} <span className="muted">(não encontrado)</span>
               </span>
             )}
           </li>

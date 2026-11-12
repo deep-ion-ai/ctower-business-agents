@@ -2,7 +2,7 @@
 Template do documento negocial da funcionalidade. Este comentário inicial não vai
 para o documento.
 
-Marcadores de campo: {{titulo}}, {{status}}, {{id}}, {{sistema}}, {{criado}},
+Marcadores de campo: {{titulo}}, {{status}}, {{id}}, {{projeto}}, {{criado}},
 {{analista}}, {{abrangencia_estimada}}, {{versao_do_codigo}}, {{area}}, {{tema}},
 {{origem}}. Os campos que o documento não tem (por exemplo, {{area}} num
 documento gravado em analises/) saem como "—".

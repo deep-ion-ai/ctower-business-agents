@@ -1,7 +1,7 @@
 import { act } from "react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { AvisoAlteracao } from "./AvisoAlteracao";
-import { AmbienteDoSistema } from "./PrepararAmbiente";
+import { AmbienteDoProjeto } from "./PrepararAmbiente";
 import type {
   AmbienteClaude,
   ArquivoAlterado,
@@ -45,7 +45,7 @@ function montar(inicial: Aviso) {
     return Promise.resolve(parar);
   });
   const r = render(
-    <AvisoAlteracao api={api} vigiar={vigiar} sistema="faturamento-exemplo" analise="A-0001" />,
+    <AvisoAlteracao api={api} vigiar={vigiar} projeto="faturamento-exemplo" analise="A-0001" />,
   );
   const avisar = (a: AvisoAnalise) => avisos.forEach((f) => f(a));
   return { api, vigiar, parar, avisar, ...r };
@@ -66,12 +66,12 @@ describe("AvisoAlteracao", () => {
     act(() => avisar({ tipo: "mudanca", analise: "A-0001", mudanca: "alteracao", versao: 0 }));
     const aviso = await screen.findByRole("alert", { name: "Aviso de alteração" });
     expect(within(aviso).getByText("db/03_pkg_cobranca.sql")).toBeInTheDocument();
-    expect(within(aviso).getByText("modificado")).toHaveClass("alteracao-modificado");
+    expect(within(aviso).getByText("modificado")).toHaveAttribute("data-tone", "attention");
   });
 
   it("mostra o diff e desfaz só depois da confirmação", async () => {
     const { api } = montar({ arquivos: [PKG, NOVO], avisos: ["pasta fora do git"] });
-    expect(await screen.findByText("A pasta do sistema foi alterada nesta análise")).toBeVisible();
+    expect(await screen.findByText("A pasta do projeto foi alterada nesta análise")).toBeVisible();
     expect(screen.getByText("pasta fora do git")).toBeInTheDocument();
 
     fireEvent.click(screen.getAllByRole("button", { name: "Ver o diff" })[0]);
@@ -142,7 +142,7 @@ describe("AvisoAlteracao", () => {
 describe("Proteção opcional no preparo do ambiente", () => {
   function apiAmbiente() {
     const situacao: SituacaoProtecao = {
-      sistema: "faturamento-exemplo",
+      projeto: "faturamento-exemplo",
       ligada: true,
       completa: true,
       arquivo: "/home/ana/.claude/settings.json",
@@ -169,7 +169,7 @@ describe("Proteção opcional no preparo do ambiente", () => {
 
   it("vem desligada e só liga com a caixa marcada", async () => {
     const api = apiAmbiente();
-    render(<AmbienteDoSistema api={api} sistema="faturamento-exemplo" />);
+    render(<AmbienteDoProjeto api={api} projeto="faturamento-exemplo" />);
     fireEvent.click(await screen.findByRole("button", { name: "Ver o que será alterado" }));
     const caixa = await screen.findByRole("checkbox");
     expect(caixa).not.toBeChecked();
@@ -179,19 +179,19 @@ describe("Proteção opcional no preparo do ambiente", () => {
     await waitFor(() =>
       expect(api.mudarProtecao).toHaveBeenCalledWith("faturamento-exemplo", true),
     );
-    expect(await screen.findByText(/está preparado para este sistema/)).toBeInTheDocument();
+    expect(await screen.findByText(/está preparado para este projeto/)).toBeInTheDocument();
   });
 
   it("sem marcar, prepara sem a proteção", async () => {
     const api = apiAmbiente();
-    render(<AmbienteDoSistema api={api} sistema="faturamento-exemplo" />);
+    render(<AmbienteDoProjeto api={api} projeto="faturamento-exemplo" />);
     fireEvent.click(await screen.findByRole("button", { name: "Ver o que será alterado" }));
     const concordo = await screen.findByRole("button", { name: "Concordo, preparar o ambiente" });
     await waitFor(() => expect(concordo).toBeEnabled());
     fireEvent.click(concordo);
     await waitFor(() => expect(api.prepararAmbiente).toHaveBeenCalled());
     await act(async () => undefined);
-    expect(await screen.findByText(/está preparado para este sistema/)).toBeInTheDocument();
+    expect(await screen.findByText(/está preparado para este projeto/)).toBeInTheDocument();
     expect(api.prepararAmbiente).toHaveBeenCalled();
     expect(api.mudarProtecao).not.toHaveBeenCalled();
   });

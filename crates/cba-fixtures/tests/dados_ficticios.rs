@@ -52,7 +52,7 @@ const TERMOS_PROIBIDOS: &[&str] = &[
     "protheus",
     "datasul",
     "sankhya",
-    "senior sistemas",
+    "senior projetos",
     "sap",
     "netsuite",
     "dynamics",
@@ -100,7 +100,7 @@ fn normalizar(texto: &str) -> String {
 }
 
 #[test]
-fn fixtures_nao_citam_empresas_nem_sistemas_reais() {
+fn fixtures_nao_citam_empresas_nem_projetos_reais() {
     let termos: Vec<(&str, String)> = TERMOS_PROIBIDOS
         .iter()
         .map(|t| (*t, normalizar(t)))

@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Conteudo<F> {
     pub frontmatter: F,
-    /// Onde o documento fica, relativo à raiz do sistema (`analises/A-0193.md`).
+    /// Onde o documento fica, relativo à raiz do projeto (`analises/A-0193.md`).
     /// Os links para outros documentos da base são calculados a partir dele, para
     /// o documento ter só caminhos relativos.
     pub caminho: CaminhoRelativo,
@@ -125,7 +125,7 @@ impl Confianca {
     }
 }
 
-/// Trecho de código citado: caminho relativo à raiz do sistema e intervalo de
+/// Trecho de código citado: caminho relativo à raiz do projeto e intervalo de
 /// linhas. O hash e o commit, quando conhecidos, aparecem na nota de rodapé.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Citacao {
@@ -180,7 +180,7 @@ pub struct Pergunta {
 pub struct ReferenciaSugestao {
     pub id: Id,
     pub titulo: String,
-    /// Arquivo do sistema que a sugestão altera.
+    /// Arquivo do projeto que a sugestão altera.
     #[serde(default)]
     pub arquivo: Option<CaminhoRelativo>,
 }

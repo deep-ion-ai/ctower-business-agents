@@ -16,7 +16,7 @@ Uso:
   cba hook <evento>   receptor de hooks: JSON do evento na entrada padrão
   cba fundo <tarefa> <sessao>
                       retrato (retratar) ou conferência (conferir) da pasta do
-                      sistema para o aviso de alteração; iniciado pelo hook
+                      projeto para o aviso de alteração; iniciado pelo hook
   cba --version       versão
   cba --help          esta ajuda";
 
@@ -92,12 +92,12 @@ fn iniciar_log(modo: &str) {
 fn mcp() -> i32 {
     iniciar_log("mcp");
     tracing::info!(versao = cba_core::VERSAO, "servidor MCP iniciado");
-    // O sistema é o da pasta em que o cliente iniciou o processo. Se não houver, o
+    // O projeto é o da pasta em que o cliente iniciou o processo. Se não houver, o
     // servidor sobe assim mesmo e cada chamada de ferramenta explica o que fazer.
     let ambiente = ambiente_do_processo();
     match &ambiente {
-        Ok(_) => tracing::info!("sistema identificado"),
-        Err(e) => tracing::warn!(erro = e.tipo(), "sistema não identificado"),
+        Ok(_) => tracing::info!("projeto identificado"),
+        Err(e) => tracing::warn!(erro = e.tipo(), "projeto não identificado"),
     }
     let mut servidor = cba_mcp::Servidor::new(
         cba_mcp::InfoServidor {
@@ -120,14 +120,14 @@ fn mcp() -> i32 {
     }
 }
 
-/// Ambiente do sistema do processo: o de `CBA_SISTEMA` (gravado pelo preparo do
+/// Ambiente do projeto do processo: o de `CBA_PROJETO` (gravado pelo preparo do
 /// ambiente no registro do servidor), ou o que contém o diretório de trabalho,
 /// inclusive numa worktree do git.
 fn ambiente_do_processo() -> Result<Ambiente, ErroAmbiente> {
     let dados = DiretorioDados::padrao().map_err(ErroAmbiente::Config)?;
     let diretorio = std::env::current_dir().map_err(ErroAmbiente::Config)?;
-    let sistema = std::env::var(cba_core::ambiente::VAR_SISTEMA).ok();
-    Ambiente::do_processo(&diretorio, sistema.as_deref(), &dados)
+    let projeto = std::env::var(cba_core::ambiente::VAR_PROJETO).ok();
+    Ambiente::do_processo(&diretorio, projeto.as_deref(), &dados)
 }
 
 fn hook(evento: &str) -> i32 {

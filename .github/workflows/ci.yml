@@ -2,8 +2,9 @@ name: ci
 
 on:
   pull_request:
+  # Sem `wip/**`: cada merge numa wip já passou pelo CI do PR, atualizado com a base.
   push:
-    branches: [develop, main, 'wip/**']
+    branches: [develop, main]
   workflow_dispatch:
 
 permissions:
@@ -15,6 +16,36 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Decide se os jobs dos instaladores rodam. Em PRs para develop ou main, em push
+  # e em execução manual, sempre. Em PRs para outras bases (as wip/**), só quando o
+  # PR mexe em packaging/** ou neste workflow.
+  mudancas:
+    runs-on: ubuntu-latest
+    outputs:
+      instaladores: ${{ steps.filtro.outputs.instaladores }}
+    steps:
+      # Em PR o checkout traz o merge commit de teste; o primeiro pai é a base.
+      - uses: actions/checkout@v7
+        if: github.event_name == 'pull_request' && github.base_ref != 'develop' && github.base_ref != 'main'
+        with:
+          fetch-depth: 2
+      - id: filtro
+        env:
+          EVENTO: ${{ github.event_name }}
+          BASE: ${{ github.base_ref }}
+        run: |
+          if [ "$EVENTO" != pull_request ] || [ "$BASE" = develop ] || [ "$BASE" = main ]; then
+            echo "instaladores=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          alterados=$(git diff --name-only HEAD^1 HEAD)
+          printf '%s\n' "$alterados"
+          if printf '%s\n' "$alterados" | grep -Eq '^(packaging/|\.github/workflows/ci\.yml$)'; then
+            echo "instaladores=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "instaladores=false" >> "$GITHUB_OUTPUT"
+          fi
+
   rust:
     strategy:
       # Um sistema que falha não cancela os outros.
@@ -88,10 +119,15 @@ jobs:
       # Só o cba-app depende do Tauri (spec, seção 5).
       - name: Nenhuma crate além do cba-app depende do Tauri
         run: python3 scripts/check-deps.py
+      # A entidade cadastrada se chama projeto (#95); "sistema" só para o software.
+      - name: Termo "projeto" nos nomes do código
+        run: python3 scripts/check-termos.py
 
   # Scripts de instalação (#45): análise estática e testes com uma release falsa
   # (sem instalar nada; veja packaging/tests).
   instalador-sh:
+    needs: mudancas
+    if: needs.mudancas.outputs.instaladores == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -110,6 +146,8 @@ jobs:
         run: CBA_TEST_SH=dash python3 -m unittest discover -s packaging/tests -p 'test_*.py'
 
   instalador-ps1:
+    needs: mudancas
+    if: needs.mudancas.outputs.instaladores == 'true'
     runs-on: windows-latest
     defaults:
       run:
@@ -127,3 +165,21 @@ jobs:
         run: powershell -NoProfile -ExecutionPolicy Bypass -File packaging/tests/test-install.ps1 -Shell powershell
       - name: Testes com PowerShell 7
         run: pwsh -NoProfile -File packaging/tests/test-install.ps1 -Shell pwsh
+
+  # Check obrigatório da develop e da main. Sempre roda e falha só se algum job
+  # falhou ou foi cancelado; job pulado (os instaladores numa wip) conta como sucesso.
+  ci-ok:
+    if: always()
+    needs: [mudancas, rust, ui, politicas, instalador-sh, instalador-ps1]
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          RESULTADOS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Resultados: $RESULTADOS"
+          for r in $RESULTADOS; do
+            case "$r" in
+              success|skipped) ;;
+              *) echo "::error::Algum job terminou com '$r'."; exit 1 ;;
+            esac
+          done

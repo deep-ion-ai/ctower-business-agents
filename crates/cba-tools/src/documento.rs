@@ -151,7 +151,7 @@ pub fn conteudo(
 /// Remonta e grava o documento da análise a partir do estado, com os templates da
 /// base. Os avisos da montagem (marcador desconhecido num template editado) vão
 /// para o log, sem conteúdo.
-pub fn remontar(base: &Base, kb: &cba_kb::Sistema, analise: &Analise) -> Result<(), String> {
+pub fn remontar(base: &Base, kb: &cba_kb::Projeto, analise: &Analise) -> Result<(), String> {
     let atual: Documento<FrontmatterAnalise> =
         kb.ler(&analise.documento).map_err(|e| e.to_string())?;
     let (templates, mut avisos) = Templates::da_base(base);

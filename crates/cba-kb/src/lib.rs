@@ -5,9 +5,9 @@
 //! ```text
 //! <base>/
 //!   _templates/
-//!   <sistema>/
-//!     sistema.md
-//!     regras-do-sistema.md         # regras do sistema para o agente (#31)
+//!   <projeto>/
+//!     projeto.md
+//!     regras-do-projeto.md         # regras do projeto para o agente (#31)
 //!     glossario/<termo>.md
 //!     regras/RN-<AREA>-<NNN>.md
 //!     areas/<area>/memoria.md
@@ -18,14 +18,14 @@
 //!
 //! O que esta crate oferece:
 //!
-//! - [`Base`] e [`Sistema`]: criação da estrutura, leitura e gravação de documentos
+//! - [`Base`] e [`Projeto`]: criação da estrutura, leitura e gravação de documentos
 //!   por caminho relativo ([`CaminhoRelativo`], que recusa caminhos absolutos e `..`).
 //! - [`Documento`]: Markdown com frontmatter YAML tipado ([`Frontmatter`]). Ler e
 //!   gravar de novo preserva o texto; ao alterar campos, a ordem original e os
 //!   campos desconhecidos são mantidos.
 //! - Gravação atômica ([`arquivo`]): arquivo temporário na mesma pasta e renomeação.
 //! - Identificadores legíveis ([`Id`], [`Serie`]): `A-0001`, `S-0001`, `RN-FAT-001`,
-//!   reservados sem colisão por [`Sistema::criar_numerado`], mesmo com dois
+//!   reservados sem colisão por [`Projeto::criar_numerado`], mesmo com dois
 //!   processos (app e servidor MCP) gravando ao mesmo tempo.
 //!
 //! - Índice SQLite com busca FTS5 ([`indice`]): espelho reconstruível da base, no
@@ -43,7 +43,7 @@ mod id;
 pub mod indice;
 pub mod layout;
 
-pub use base::{Base, PADRAO_REGRAS_DO_SISTEMA, Sistema};
+pub use base::{Base, PADRAO_REGRAS_DO_PROJETO, Projeto};
 pub use caminho::{CaminhoInvalido, CaminhoRelativo, e_slug, slug};
 pub use documento::{Documento, ErroFrontmatter};
 pub use erro::{Erro, Resultado};

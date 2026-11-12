@@ -1,38 +1,38 @@
 import { useCallback, useState } from "react";
 import { mensagemDe } from "./analise";
-import { CadastroSistema, ResumoDoInventario } from "./CadastroSistema";
+import { CadastroProjeto, ResumoDoInventario } from "./CadastroProjeto";
 import { EscolhaBase } from "./EscolhaBase";
 import { EscolhaCliente } from "./EscolhaCliente";
-import { AmbienteDoSistema } from "./PrepararAmbiente";
-import type { ApiPrimeiroUso, SistemaCadastrado, Situacao } from "./primeiroUso";
+import { AmbienteDoProjeto } from "./PrepararAmbiente";
+import type { ApiPrimeiroUso, ProjetoCadastrado, Situacao } from "./primeiroUso";
 
-export type Etapa = "cliente" | "base" | "sistema" | "ambiente" | "pronto";
+export type Etapa = "cliente" | "base" | "projeto" | "ambiente" | "pronto";
 
 const ETAPAS: { id: Etapa; rotulo: string }[] = [
   { id: "cliente", rotulo: "Cliente de IA" },
   { id: "base", rotulo: "Base de conhecimento" },
-  { id: "sistema", rotulo: "Sistema" },
+  { id: "projeto", rotulo: "Projeto" },
   { id: "ambiente", rotulo: "Ambiente do Claude" },
   { id: "pronto", rotulo: "Primeira análise" },
 ];
 
-/** Perguntas que servem a qualquer sistema, para a primeira análise. */
+/** Perguntas que servem a qualquer projeto, para a primeira análise. */
 export const SUGESTOES_PRIMEIRA_ANALISE = [
-  "Quais são as principais regras de negócio deste sistema?",
+  "Quais são as principais regras de negócio deste projeto?",
   "Quais tabelas guardam os dados principais e como elas se relacionam?",
   "Quais validações são feitas antes de gravar um registro novo?",
 ];
 
 /** O que o assistente entrega ao terminar. */
 export interface FimPrimeiroUso {
-  sistema: string;
+  projeto: string;
   /** Pergunta escolhida para a primeira análise (vazia se o analista não quiser). */
   pergunta: string;
 }
 
 /**
  * Assistente do primeiro uso (spec, seção 4.1): cliente de IA, base de conhecimento,
- * cadastro do sistema com o inventário, preparo do ambiente com consentimento e a
+ * cadastro do projeto com o inventário, preparo do ambiente com consentimento e a
  * sugestão da primeira análise. Cada passo é um componente próprio, reaproveitado
  * pelas configurações (#39).
  */
@@ -47,8 +47,8 @@ export function AssistentePrimeiroUso({
 }) {
   const [etapa, setEtapa] = useState<Etapa>("cliente");
   const [base, setBase] = useState<string | null>(situacao.base);
-  const [sistema, setSistema] = useState<{ id: string; nome: string } | null>(null);
-  const [cadastrado, setCadastrado] = useState<SistemaCadastrado | null>(null);
+  const [projeto, setProjeto] = useState<{ id: string; nome: string } | null>(null);
+  const [cadastrado, setCadastrado] = useState<ProjetoCadastrado | null>(null);
   const [ambientePronto, setAmbientePronto] = useState(false);
   const aoMudarAmbiente = useCallback((pronto: boolean) => setAmbientePronto(pronto), []);
 
@@ -80,27 +80,27 @@ export function AssistentePrimeiroUso({
           sugerida={situacao.baseSugerida}
           aoConcluir={(pasta) => {
             setBase(pasta);
-            setEtapa("sistema");
+            setEtapa("projeto");
           }}
         />
       )}
 
-      {etapa === "sistema" && (
+      {etapa === "projeto" && (
         <>
-          {situacao.sistemas.length > 0 && (
-            <SistemaExistente
-              sistemas={situacao.sistemas}
+          {situacao.projetos.length > 0 && (
+            <ProjetoExistente
+              projetos={situacao.projetos}
               aoEscolher={(s) => {
-                setSistema(s);
+                setProjeto(s);
                 setCadastrado(null);
                 setEtapa("ambiente");
               }}
             />
           )}
-          <CadastroSistema
+          <CadastroProjeto
             api={api}
             aoConcluir={(s) => {
-              setSistema({ id: s.id, nome: s.nome });
+              setProjeto({ id: s.id, nome: s.nome });
               setCadastrado(s);
               setEtapa("ambiente");
             }}
@@ -108,7 +108,7 @@ export function AssistentePrimeiroUso({
         </>
       )}
 
-      {etapa === "ambiente" && sistema && (
+      {etapa === "ambiente" && projeto && (
         <section className="passo-assistente" aria-label="Ambiente do Claude">
           <h2>Preparar o ambiente do Claude</h2>
           {cadastrado && (
@@ -121,18 +121,23 @@ export function AssistentePrimeiroUso({
             </details>
           )}
           <p>
-            Para o Claude consultar o sistema e registrar a análise no app, ele precisa conhecer o
+            Para o Claude consultar o projeto e registrar a análise no app, ele precisa conhecer o
             servidor do app (MCP) e avisar o app do andamento da conversa (hooks). O app mostra
             exatamente o que vai mudar na configuração do Claude e só grava com a sua concordância.
           </p>
-          <AmbienteDoSistema api={api} sistema={sistema.id} aoMudar={aoMudarAmbiente} />
+          <AmbienteDoProjeto api={api} projeto={projeto.id} aoMudar={aoMudarAmbiente} />
           <div className="acoes">
-            <button type="button" onClick={() => setEtapa("pronto")} disabled={ambientePronto}>
+            <button
+              className="btn"
+              type="button"
+              onClick={() => setEtapa("pronto")}
+              disabled={ambientePronto}
+            >
               Preparar depois
             </button>
             <button
               type="button"
-              className="primario"
+              className="btn btn-primary"
               onClick={() => setEtapa("pronto")}
               disabled={!ambientePronto}
             >
@@ -142,10 +147,10 @@ export function AssistentePrimeiroUso({
         </section>
       )}
 
-      {etapa === "pronto" && sistema && (
+      {etapa === "pronto" && projeto && (
         <Pronto
           api={api}
-          sistema={sistema}
+          projeto={projeto}
           ambientePronto={ambientePronto}
           aoConcluir={aoConcluir}
         />
@@ -162,42 +167,46 @@ export function AssistentePrimeiroUso({
   );
 }
 
-function SistemaExistente({
-  sistemas,
+function ProjetoExistente({
+  projetos,
   aoEscolher,
 }: {
-  sistemas: { id: string; nome: string }[];
+  projetos: { id: string; nome: string }[];
   aoEscolher: (s: { id: string; nome: string }) => void;
 }) {
-  const [id, setId] = useState(sistemas[0].id);
+  const [id, setId] = useState(projetos[0].id);
   return (
-    <div className="sistema-existente" role="group" aria-label="Sistema já cadastrado">
+    <div className="projeto-existente" role="group" aria-label="Projeto já cadastrado">
       <label>
-        Usar um sistema já cadastrado{" "}
+        Usar um projeto já cadastrado{" "}
         <select value={id} onChange={(e) => setId(e.target.value)}>
-          {sistemas.map((s) => (
+          {projetos.map((s) => (
             <option key={s.id} value={s.id}>
               {s.nome}
             </option>
           ))}
         </select>
       </label>{" "}
-      <button type="button" onClick={() => aoEscolher(sistemas.find((s) => s.id === id)!)}>
+      <button
+        className="btn"
+        type="button"
+        onClick={() => aoEscolher(projetos.find((s) => s.id === id)!)}
+      >
         Usar este
       </button>
-      <p className="suave">Ou cadastre outro:</p>
+      <p className="muted">Ou cadastre outro:</p>
     </div>
   );
 }
 
 function Pronto({
   api,
-  sistema,
+  projeto,
   ambientePronto,
   aoConcluir,
 }: {
   api: Pick<ApiPrimeiroUso, "concluir">;
-  sistema: { id: string; nome: string };
+  projeto: { id: string; nome: string };
   ambientePronto: boolean;
   aoConcluir: (fim: FimPrimeiroUso) => void;
 }) {
@@ -210,7 +219,7 @@ function Pronto({
     setFalha(null);
     api
       .concluir()
-      .then(() => aoConcluir({ sistema: sistema.id, pergunta: comPergunta ? pergunta.trim() : "" }))
+      .then(() => aoConcluir({ projeto: projeto.id, pergunta: comPergunta ? pergunta.trim() : "" }))
       .catch((e: unknown) => {
         setFalha(mensagemDe(e));
         setGravando(false);
@@ -219,9 +228,9 @@ function Pronto({
 
   return (
     <section className="passo-assistente" aria-label="Primeira análise">
-      <h2>Tudo pronto para analisar “{sistema.nome}”</h2>
+      <h2>Tudo pronto para analisar “{projeto.nome}”</h2>
       {!ambientePronto && (
-        <p className="pendencia" role="status">
+        <p className="attention-text" role="status">
           O ambiente do Claude ainda não foi preparado. A tela da análise vai pedir o preparo antes
           da primeira pergunta.
         </p>
@@ -229,7 +238,7 @@ function Pronto({
       <p>Que tal começar com uma pergunta? Escolha uma sugestão ou escreva a sua.</p>
       <div className="sugestoes" role="group" aria-label="Sugestões">
         {SUGESTOES_PRIMEIRA_ANALISE.map((s) => (
-          <button key={s} type="button" onClick={() => setPergunta(s)}>
+          <button className="btn" key={s} type="button" onClick={() => setPergunta(s)}>
             {s}
           </button>
         ))}
@@ -239,17 +248,17 @@ function Pronto({
         <textarea rows={3} value={pergunta} onChange={(e) => setPergunta(e.target.value)} />
       </label>
       {falha && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           {falha}
         </p>
       )}
       <div className="acoes">
-        <button type="button" onClick={() => concluir(false)} disabled={gravando}>
+        <button className="btn" type="button" onClick={() => concluir(false)} disabled={gravando}>
           Ir para o início
         </button>
         <button
           type="button"
-          className="primario"
+          className="btn btn-primary"
           onClick={() => concluir(true)}
           disabled={gravando || !pergunta.trim()}
         >

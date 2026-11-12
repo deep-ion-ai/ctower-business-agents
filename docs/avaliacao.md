@@ -59,7 +59,7 @@ cargo run -p cba-avaliacao -- comparar --estado <pasta>/estado.json --item D-FAT
 Cada execução trabalha numa pasta temporária, sem tocar na configuração do Claude Code de quem roda:
 
 - a fixture é copiada e vira um repositório git novo; dados do app (`CBA_DATA_DIR`) e base de conhecimento também são temporários;
-- o sistema é cadastrado e a análise é criada como o app faz (spec, 4.2), e o pedido é o mesmo do app: `Inicie a análise A-0001 pelo ctower`;
+- o projeto é cadastrado e a análise é criada como o app faz (spec, 4.2), e o pedido é o mesmo do app: `Inicie a análise A-0001 pelo ctower`;
 - o servidor MCP e os hooks são gerados pelo mesmo preparo do app (`cba_session::preparo`), em arquivos temporários, e passados com `--mcp-config <arquivo> --strict-mcp-config --settings <arquivo> --setting-sources local --no-session-persistence`: nenhum MCP, hook ou permissão do usuário entra, e a sessão não fica no histórico;
 - o agente pode usar Read, Grep, Glob e as ferramentas do `cba`; Edit, Write e Bash ficam negados, a não ser com `--permitir-edicao`.
 
@@ -76,9 +76,9 @@ Para cada execução, o estado da análise é comparado com o item do gabarito:
 - **Premissa corrigida** (impacto). No gabarito, `verificacao_da_premissa` dá o veredito esperado e as palavras-chave da suposição. Vale uma afirmação da seção `demanda_como_entendida`, com evidência válida, no formato do roteiro ("Premissa do solicitante: ... Verificação: não confere | confere em parte"), com o veredito esperado e as palavras-chave. Quando o esperado é `confere_em_parte`, `não confere` também vale.
 - **Abrangência** (impacto). A afirmação mais recente da seção `abrangencia` começa pela estimativa esperada.
 - **Arquivos esperados citados.** Arquivos da funcionalidade ou da demanda que aparecem em evidências válidas.
-- **Nenhum arquivo do sistema alterado.** A cópia é comparada byte a byte com a fixture (menos `.git`).
+- **Nenhum arquivo do projeto alterado.** A cópia é comparada byte a byte com a fixture (menos `.git`).
 
-Falha grave: afirmação `confirmado` sem evidência válida, nenhuma afirmação, estado ausente, erro da execução ou arquivo do sistema alterado. As demais medidas são cobertura: não reprovam a execução, mas uma queda entre dois relatórios indica que a mudança piorou a análise.
+Falha grave: afirmação `confirmado` sem evidência válida, nenhuma afirmação, estado ausente, erro da execução ou arquivo do projeto alterado. As demais medidas são cobertura: não reprovam a execução, mas uma queda entre dois relatórios indica que a mudança piorou a análise.
 
 O relatório também lista, como informação, as regras de outros itens que a análise encontrou e as afirmações com evidência válida que não tocam nenhuma evidência do gabarito.
 

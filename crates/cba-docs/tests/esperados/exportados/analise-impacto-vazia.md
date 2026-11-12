@@ -1,6 +1,6 @@
 # A-0009 · Sem registros ainda
 
-Análise de impacto · Sistema `faturamento-exemplo` · Status: rascunho · Criada em 2026-11-11 · Analista: Ana Exemplo · Código: `develop` @ `1a2b3c4d`
+Análise de impacto · Projeto `faturamento-exemplo` · Status: rascunho · Criada em 2026-11-11 · Analista: Ana Exemplo · Código: `develop` @ `1a2b3c4d`
 
 ## Demanda como veio
 

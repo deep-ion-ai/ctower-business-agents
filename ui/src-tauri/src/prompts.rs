@@ -7,18 +7,18 @@
 use cba_core::dados::DiretorioDados;
 use cba_tools::prompts::{self, PromptPronto};
 
-/// Os prompts prontos da análise `analise` (A-NNNN) do sistema cadastrado
-/// `sistema`, com as variáveis preenchidas e o texto da base quando ela tiver um.
+/// Os prompts prontos da análise `analise` (A-NNNN) do projeto cadastrado
+/// `projeto`, com as variáveis preenchidas e o texto da base quando ela tiver um.
 /// Lê arquivos, então roda fora da thread da interface.
 #[tauri::command]
 pub async fn prompts_prontos(
-    sistema: String,
+    projeto: String,
     analise: String,
 ) -> Result<Vec<PromptPronto>, String> {
     let dados = DiretorioDados::padrao()
         .map_err(|e| format!("diretório de dados do app inacessível: {e}"))?;
     tauri::async_runtime::spawn_blocking(move || {
-        prompts::da_analise(&dados, &sistema, &analise).map_err(|e| e.to_string())
+        prompts::da_analise(&dados, &projeto, &analise).map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("falha interna ao montar os prompts prontos: {e}"))?

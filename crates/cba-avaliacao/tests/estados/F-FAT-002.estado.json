@@ -1,7 +1,7 @@
 {
   "formato": 1,
   "id": "A-0001",
-  "sistema": "faturamento-exemplo",
+  "projeto": "faturamento-exemplo",
   "fluxo": "explicar",
   "titulo": "Parcelamento de fatura",
   "entrada": "Parcelamento de fatura",
@@ -107,7 +107,7 @@
     {
       "numero": 5,
       "secao": "fluxo_principal",
-      "texto": "3. O sistema calcula o total a parcelar: valor original da fatura mais os encargos de atraso (já limitados pelo teto) na data do pedido.",
+      "texto": "3. O projeto calcula o total a parcelar: valor original da fatura mais os encargos de atraso (já limitados pelo teto) na data do pedido.",
       "confianca": "confirmado",
       "evidencias": [
         {
@@ -145,7 +145,7 @@
     {
       "numero": 7,
       "secao": "fluxo_principal",
-      "texto": "5. O sistema monta a lista de parcelas numeradas a partir de 1, com vencimentos a cada 30 dias contados da data do pedido (parcela 1 em 30 dias, parcela 2 em 60 dias etc.); a sobra de centavos do arredondamento vai para a primeira parcela. Exemplo: total de R$ 1.000,01 em 3 parcelas = R$ 333,35 + R$ 333,33 + R$ 333,33.",
+      "texto": "5. O projeto monta a lista de parcelas numeradas a partir de 1, com vencimentos a cada 30 dias contados da data do pedido (parcela 1 em 30 dias, parcela 2 em 60 dias etc.); a sobra de centavos do arredondamento vai para a primeira parcela. Exemplo: total de R$ 1.000,01 em 3 parcelas = R$ 333,35 + R$ 333,33 + R$ 333,33.",
       "confianca": "confirmado",
       "evidencias": [
         {

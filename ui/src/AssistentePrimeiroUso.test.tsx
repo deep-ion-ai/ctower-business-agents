@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { AssistentePrimeiroUso } from "./AssistentePrimeiroUso";
-import { CadastroSistema } from "./CadastroSistema";
+import { CadastroProjeto } from "./CadastroProjeto";
 import { EscolhaBase } from "./EscolhaBase";
 import { EscolhaCliente } from "./EscolhaCliente";
 import {
@@ -140,10 +140,10 @@ describe("Primeiro uso: base de conhecimento", () => {
     );
   });
 
-  it("recusa a base dentro do repositório do sistema", async () => {
+  it("recusa a base dentro do repositório do projeto", async () => {
     const api = apiPrimeiroUsoFalsa();
     const recusa =
-      'a base não pode ficar dentro do repositório ou das pastas do sistema "Faturamento Exemplo" (/codigo/faturamento-exemplo)';
+      'a base não pode ficar dentro do repositório ou das pastas do projeto "Faturamento Exemplo" (/codigo/faturamento-exemplo)';
     api.avaliarBase.mockImplementation((pasta: string) =>
       Promise.resolve({
         caminho: pasta,
@@ -161,7 +161,7 @@ describe("Primeiro uso: base de conhecimento", () => {
     expect(api.configurarBase).not.toHaveBeenCalled();
   });
 
-  it("escolhe a pasta pelo seletor do sistema e mostra a recusa da gravação", async () => {
+  it("escolhe a pasta pelo seletor do projeto e mostra a recusa da gravação", async () => {
     const api = apiPrimeiroUsoFalsa();
     api.escolherPasta.mockResolvedValue("/Users/analista/Base");
     api.configurarBase.mockRejectedValue("a base não pode ficar numa pasta temporária (/tmp)");
@@ -178,9 +178,9 @@ describe("Primeiro uso: base de conhecimento", () => {
   });
 });
 
-describe("Primeiro uso: cadastro do sistema", () => {
+describe("Primeiro uso: cadastro do projeto", () => {
   function preencher() {
-    fireEvent.change(screen.getByLabelText("Nome do sistema"), {
+    fireEvent.change(screen.getByLabelText("Nome do projeto"), {
       target: { value: "Faturamento Exemplo" },
     });
     fireEvent.change(screen.getByLabelText(/Pasta principal/), {
@@ -190,8 +190,8 @@ describe("Primeiro uso: cadastro do sistema", () => {
 
   it("mostra o inventário e o que fica fora antes de cadastrar", async () => {
     const api = apiPrimeiroUsoFalsa();
-    render(<CadastroSistema api={api} aoConcluir={vi.fn()} />);
-    const cadastrar = screen.getByRole("button", { name: "Cadastrar o sistema" });
+    render(<CadastroProjeto api={api} aoConcluir={vi.fn()} />);
+    const cadastrar = screen.getByRole("button", { name: "Cadastrar o projeto" });
     expect(cadastrar).toBeDisabled();
     preencher();
     fireEvent.click(screen.getByRole("button", { name: "Ver o que será analisado" }));
@@ -207,7 +207,7 @@ describe("Primeiro uso: cadastro do sistema", () => {
   it("aplica as exclusões e reinclusões ajustadas pelo analista", async () => {
     const api = apiPrimeiroUsoFalsa();
     const aoConcluir = vi.fn();
-    render(<CadastroSistema api={api} aoConcluir={aoConcluir} />);
+    render(<CadastroProjeto api={api} aoConcluir={aoConcluir} />);
     preencher();
     fireEvent.click(screen.getByRole("button", { name: "Ver o que será analisado" }));
     await screen.findByRole("region", { name: "Prévia do inventário" });
@@ -217,10 +217,10 @@ describe("Primeiro uso: cadastro do sistema", () => {
       target: { value: "cobol/\n\n*.log" },
     });
     expect(screen.getByText(/Atualize a prévia antes de cadastrar/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Cadastrar o sistema" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cadastrar o projeto" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Atualizar a prévia" }));
     await waitFor(() =>
-      expect(api.previaSistema).toHaveBeenLastCalledWith(
+      expect(api.previaProjeto).toHaveBeenLastCalledWith(
         expect.objectContaining({ exclusoes: ["cobol/", "*.log"], inclusoes: [] }),
       ),
     );
@@ -228,7 +228,7 @@ describe("Primeiro uso: cadastro do sistema", () => {
     // Reincluir o .env pela lista do que fica fora.
     fireEvent.click(await screen.findByRole("button", { name: "Incluir .env na análise" }));
     await waitFor(() =>
-      expect(api.previaSistema).toHaveBeenLastCalledWith(
+      expect(api.previaProjeto).toHaveBeenLastCalledWith(
         expect.objectContaining({ inclusoes: ["/.env"] }),
       ),
     );
@@ -236,11 +236,11 @@ describe("Primeiro uso: cadastro do sistema", () => {
       within(screen.getByRole("group", { name: "Reincluídos" })).getByText("/.env"),
     ).toBeInTheDocument();
 
-    const cadastrar = screen.getByRole("button", { name: "Cadastrar o sistema" });
+    const cadastrar = screen.getByRole("button", { name: "Cadastrar o projeto" });
     await waitFor(() => expect(cadastrar).toBeEnabled());
     fireEvent.click(cadastrar);
     await waitFor(() =>
-      expect(api.cadastrarSistema).toHaveBeenCalledWith({
+      expect(api.cadastrarProjeto).toHaveBeenCalledWith({
         nome: "Faturamento Exemplo",
         pastas: ["/codigo/faturamento-exemplo"],
         exclusoes: ["cobol/", "*.log"],
@@ -250,9 +250,9 @@ describe("Primeiro uso: cadastro do sistema", () => {
     await waitFor(() => expect(aoConcluir).toHaveBeenCalled());
   });
 
-  it("aceita mais de uma pasta e avisa do sistema já cadastrado", async () => {
+  it("aceita mais de uma pasta e avisa do projeto já cadastrado", async () => {
     const api = apiPrimeiroUsoFalsa();
-    api.previaSistema.mockImplementation((p) =>
+    api.previaProjeto.mockImplementation((p) =>
       Promise.resolve({
         id: "faturamento-exemplo",
         nome: p.nome,
@@ -263,7 +263,7 @@ describe("Primeiro uso: cadastro do sistema", () => {
         inventario: inventarioFicticio(),
       }),
     );
-    render(<CadastroSistema api={api} aoConcluir={vi.fn()} />);
+    render(<CadastroProjeto api={api} aoConcluir={vi.fn()} />);
     preencher();
     fireEvent.click(screen.getByRole("button", { name: "Acrescentar outra pasta" }));
     fireEvent.click(screen.getAllByRole("button", { name: "Escolher pasta…" })[1]);
@@ -272,17 +272,17 @@ describe("Primeiro uso: cadastro do sistema", () => {
     );
     fireEvent.change(screen.getByLabelText(/Pasta 2/), { target: { value: "/codigo/telas" } });
     fireEvent.click(screen.getByRole("button", { name: "Ver o que será analisado" }));
-    expect(await screen.findByText(/Já existe um sistema cadastrado/)).toBeInTheDocument();
-    expect(api.previaSistema).toHaveBeenCalledWith(
+    expect(await screen.findByText(/Já existe um projeto cadastrado/)).toBeInTheDocument();
+    expect(api.previaProjeto).toHaveBeenCalledWith(
       expect.objectContaining({ pastas: ["/codigo/faturamento-exemplo", "/codigo/telas"] }),
     );
-    expect(screen.getByRole("button", { name: "Cadastrar o sistema" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cadastrar o projeto" })).toBeDisabled();
   });
 
   it("mostra a recusa do cadastro", async () => {
     const api = apiPrimeiroUsoFalsa();
-    api.previaSistema.mockRejectedValue("pasta não encontrada: /codigo/faturamento-exemplo");
-    render(<CadastroSistema api={api} aoConcluir={vi.fn()} />);
+    api.previaProjeto.mockRejectedValue("pasta não encontrada: /codigo/faturamento-exemplo");
+    render(<CadastroProjeto api={api} aoConcluir={vi.fn()} />);
     preencher();
     fireEvent.click(screen.getByRole("button", { name: "Ver o que será analisado" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("pasta não encontrada");
@@ -295,8 +295,8 @@ describe("Assistente do primeiro uso", () => {
     await screen.findByRole("form", { name: "Pasta da base de conhecimento" });
     await screen.findByText(/o app vai criá-la/);
     fireEvent.click(screen.getByRole("button", { name: "Usar esta pasta" }));
-    await screen.findByRole("form", { name: "Cadastrar sistema" });
-    fireEvent.change(screen.getByLabelText("Nome do sistema"), {
+    await screen.findByRole("form", { name: "Cadastrar projeto" });
+    fireEvent.change(screen.getByLabelText("Nome do projeto"), {
       target: { value: "Faturamento Exemplo" },
     });
     fireEvent.change(screen.getByLabelText(/Pasta principal/), {
@@ -304,7 +304,7 @@ describe("Assistente do primeiro uso", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Ver o que será analisado" }));
     await screen.findByRole("region", { name: "Prévia do inventário" });
-    fireEvent.click(screen.getByRole("button", { name: "Cadastrar o sistema" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cadastrar o projeto" }));
     await screen.findByRole("region", { name: "Ambiente do Claude" });
     expect(api.configurarBase).toHaveBeenCalledWith("/Users/analista/Documents/ctower-business");
   }
@@ -360,7 +360,7 @@ describe("Assistente do primeiro uso", () => {
     fireEvent.click(pronto.getByRole("button", { name: "Fazer a primeira análise" }));
     await waitFor(() =>
       expect(aoConcluir).toHaveBeenCalledWith({
-        sistema: "faturamento-exemplo",
+        projeto: "faturamento-exemplo",
         pergunta: "Quais tabelas guardam os dados principais e como elas se relacionam?",
       }),
     );
@@ -383,7 +383,7 @@ describe("Assistente do primeiro uso", () => {
     expect(api.prepararAmbiente).not.toHaveBeenCalled();
   });
 
-  it("permite usar um sistema já cadastrado ao refazer o primeiro uso", async () => {
+  it("permite usar um projeto já cadastrado ao refazer o primeiro uso", async () => {
     const api = apiPrimeiroUsoFalsa();
     render(
       <AssistentePrimeiroUso
@@ -391,7 +391,7 @@ describe("Assistente do primeiro uso", () => {
         situacao={situacaoInicial({
           base: "/Users/analista/Base",
           cliente: "terminalEmbutido",
-          sistemas: [{ id: "faturamento-exemplo", nome: "Faturamento Exemplo" }],
+          projetos: [{ id: "faturamento-exemplo", nome: "Faturamento Exemplo" }],
           primeiroUsoConcluido: true,
         })}
         aoConcluir={vi.fn()}
@@ -405,6 +405,6 @@ describe("Assistente do primeiro uso", () => {
     fireEvent.click(screen.getByRole("button", { name: "Usar esta pasta" }));
     fireEvent.click(await screen.findByRole("button", { name: "Usar este" }));
     expect(await screen.findByRole("region", { name: "Ambiente do Claude" })).toBeInTheDocument();
-    expect(api.cadastrarSistema).not.toHaveBeenCalled();
+    expect(api.cadastrarProjeto).not.toHaveBeenCalled();
   });
 });

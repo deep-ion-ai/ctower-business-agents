@@ -39,9 +39,9 @@ mod conversa;
 mod gui;
 mod inicio;
 mod primeiro_uso;
+mod projeto;
 mod prompts;
 mod revisao;
-mod sistema;
 mod terminal;
 #[cfg(test)]
 mod teste_base;

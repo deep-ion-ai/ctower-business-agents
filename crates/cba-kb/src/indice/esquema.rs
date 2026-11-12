@@ -11,8 +11,8 @@ pub(super) const VERSAO: i64 = 1;
 /// Tabelas do índice.
 ///
 /// - `documento`: um arquivo da base. `caminho` é relativo à raiz da base
-///   (`<sistema>/regras/RN-FAT-001.md`). `tipo` é o do frontmatter ou
-///   `regras-do-sistema`; nulo quando o frontmatter não pôde ser lido. `erro` diz
+///   (`<projeto>/regras/RN-FAT-001.md`). `tipo` é o do frontmatter ou
+///   `regras-do-projeto`; nulo quando o frontmatter não pôde ser lido. `erro` diz
 ///   por que o documento não passou na validação do tipo.
 /// - `evidencia`: evidências do frontmatter das regras.
 /// - `ligacao`: campos `origem` e `analise` que apontam para outro documento.
@@ -26,7 +26,7 @@ CREATE TABLE meta (
 CREATE TABLE documento (
     id INTEGER PRIMARY KEY,
     caminho TEXT NOT NULL UNIQUE,
-    sistema TEXT NOT NULL,
+    projeto TEXT NOT NULL,
     tipo TEXT,
     identificador TEXT,
     titulo TEXT NOT NULL,
@@ -39,7 +39,7 @@ CREATE TABLE documento (
     modificado_ns INTEGER NOT NULL,
     verificado_ns INTEGER NOT NULL
 );
-CREATE INDEX documento_sistema_tipo ON documento (sistema, tipo);
+CREATE INDEX documento_projeto_tipo ON documento (projeto, tipo);
 CREATE INDEX documento_identificador ON documento (identificador);
 CREATE TABLE evidencia (
     documento INTEGER NOT NULL REFERENCES documento (id),
@@ -98,12 +98,12 @@ pub(super) fn inserir(
     arquivo: &Arquivo<'_>,
 ) -> rusqlite::Result<()> {
     tx.execute(
-        "INSERT INTO documento (caminho, sistema, tipo, identificador, titulo, area, status, \
+        "INSERT INTO documento (caminho, projeto, tipo, identificador, titulo, area, status, \
              frontmatter, erro, hash, tamanho, modificado_ns, verificado_ns) \
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
         params![
             r.caminho,
-            r.sistema,
+            r.projeto,
             r.tipo.map(|t| t.como_str()),
             r.identificador,
             r.titulo,

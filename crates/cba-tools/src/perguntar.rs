@@ -23,7 +23,7 @@ pub fn perguntar() -> Ferramenta {
         "perguntar",
         "Registrar pergunta",
         "Registra uma pergunta em aberto para o solicitante: o que o código não \
-         responde (valores em tabela, regras fora do código analisável, sistemas \
+         responde (valores em tabela, regras fora do código analisável, projetos \
          vizinhos) ou uma premissa da demanda que precisa ser confirmada. A pergunta \
          entra na seção de perguntas do documento da análise. Uma afirmação com \
          confiança a_confirmar já cria a sua pergunta; não repita.",

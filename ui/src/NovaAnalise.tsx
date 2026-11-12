@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { mensagemDe, type AmbienteClaude, type AnaliseCriada, type Fluxo } from "./analise";
 import { ROTULO_FLUXO, type ApiConhecimento } from "./conhecimento";
 import { PrepararAmbiente } from "./PrepararAmbiente";
-import type { SistemaResumo } from "./terminal";
+import type { ProjetoResumo } from "./terminal";
 
 /** Rótulo e exemplo da entrada de cada fluxo (spec, seções 4.3 a 4.5). */
 const ENTRADA: Record<Fluxo, { rotulo: string; exemplo: string }> = {
@@ -22,23 +22,23 @@ const ENTRADA: Record<Fluxo, { rotulo: string; exemplo: string }> = {
 };
 
 /**
- * Formulário de uma análise nova pelos botões do início: o sistema, a entrada do
+ * Formulário de uma análise nova pelos botões do início: o projeto, a entrada do
  * fluxo e, se faltar, o preparo do ambiente do Claude com consentimento.
  */
 export function NovaAnalise({
   api,
   fluxo,
-  sistemas,
+  projetos,
   aoCriar,
   aoCancelar,
 }: {
   api: ApiConhecimento;
   fluxo: Fluxo;
-  sistemas: SistemaResumo[];
-  aoCriar: (sistema: string, criada: AnaliseCriada) => void;
+  projetos: ProjetoResumo[];
+  aoCriar: (projeto: string, criada: AnaliseCriada) => void;
   aoCancelar: () => void;
 }) {
-  const [sistema, setSistema] = useState(sistemas[0]?.id ?? "");
+  const [projeto, setProjeto] = useState(projetos[0]?.id ?? "");
   const [entrada, setEntrada] = useState("");
   const [titulo, setTitulo] = useState("");
   const [ambiente, setAmbiente] = useState<AmbienteClaude | null>(null);
@@ -46,24 +46,24 @@ export function NovaAnalise({
   const [falha, setFalha] = useState<string | null>(null);
 
   const verificar = useCallback(() => {
-    if (!sistema) return;
+    if (!projeto) return;
     setAmbiente(null);
     api
-      .verificarAmbiente(sistema)
+      .verificarAmbiente(projeto)
       .then(setAmbiente)
       .catch((e: unknown) => setFalha(mensagemDe(e)));
-  }, [api, sistema]);
+  }, [api, projeto]);
 
   useEffect(verificar, [verificar]);
 
   const criar = (ev: FormEvent) => {
     ev.preventDefault();
-    if (!entrada.trim() || !sistema) return;
+    if (!entrada.trim() || !projeto) return;
     setCriando(true);
     setFalha(null);
     api
-      .criarAnalise(sistema, fluxo, entrada.trim(), titulo.trim() || undefined)
-      .then((criada) => aoCriar(sistema, criada))
+      .criarAnalise(projeto, fluxo, entrada.trim(), titulo.trim() || undefined)
+      .then((criada) => aoCriar(projeto, criada))
       .catch((e: unknown) => {
         setFalha(mensagemDe(e));
         setCriando(false);
@@ -77,9 +77,9 @@ export function NovaAnalise({
     <form className="nova-pergunta" onSubmit={criar} aria-label={ROTULO_FLUXO[fluxo]}>
       <h3>{ROTULO_FLUXO[fluxo]}</h3>
       <label>
-        Sistema{" "}
-        <select value={sistema} onChange={(e) => setSistema(e.target.value)}>
-          {sistemas.map((s) => (
+        Projeto{" "}
+        <select value={projeto} onChange={(e) => setProjeto(e.target.value)}>
+          {projetos.map((s) => (
             <option key={s.id} value={s.id}>
               {s.nome}
             </option>
@@ -87,7 +87,7 @@ export function NovaAnalise({
         </select>
       </label>
       {ambiente && !pronto && (
-        <PrepararAmbiente api={api} sistema={sistema} ambiente={ambiente} aoConcluir={verificar} />
+        <PrepararAmbiente api={api} projeto={projeto} ambiente={ambiente} aoConcluir={verificar} />
       )}
       <label>
         {rotulo}
@@ -105,20 +105,20 @@ export function NovaAnalise({
       <div className="acoes">
         <button
           type="submit"
-          className="primario"
+          className="btn btn-primary"
           disabled={!pronto || criando || !entrada.trim()}
         >
           Iniciar a análise
         </button>
-        <button type="button" onClick={aoCancelar}>
+        <button className="btn" type="button" onClick={aoCancelar}>
           Cancelar
         </button>
       </div>
       {ambiente && !pronto && (
-        <p className="suave">Prepare o ambiente do Claude antes de iniciar a análise.</p>
+        <p className="muted">Prepare o ambiente do Claude antes de iniciar a análise.</p>
       )}
       {falha && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           {falha}
         </p>
       )}

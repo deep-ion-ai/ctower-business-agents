@@ -1,8 +1,8 @@
-# Regras do sistema
+# Regras do projeto
 
 <!--
-Regras do sistema para o agente: convenções deste sistema e da sua organização
-que o agente deve seguir em toda sessão aberta na pasta do sistema.
+Regras do projeto para o agente: convenções deste projeto e da sua organização
+que o agente deve seguir em toda sessão aberta na pasta do projeto.
 
 O ctower-business-agents envia este arquivo ao agente no início de cada sessão
 (e na retomada), junto dos limites fixos do produto. Os limites continuam

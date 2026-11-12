@@ -8,6 +8,13 @@ import {
   type PedidoAlteracao,
 } from "./analise";
 
+/** Tom do selo: a modificação pede o olhar do analista (âmbar); o texto diz o tipo. */
+const TOM_TIPO: Record<ArquivoAlterado["tipo"], string> = {
+  criado: "done",
+  modificado: "attention",
+  removido: "error",
+};
+
 const ROTULO_TIPO: Record<ArquivoAlterado["tipo"], string> = {
   criado: "criado",
   modificado: "modificado",
@@ -25,7 +32,7 @@ function pedido(a: ArquivoAlterado): PedidoAlteracao {
 type Confirmacao = { acao: "desfazer" | "manter"; arquivos: ArquivoAlterado[] };
 
 /**
- * Aviso de alteração na pasta do sistema (spec, seção 4.6; #29): os arquivos que as
+ * Aviso de alteração na pasta do projeto (spec, seção 4.6; #29): os arquivos que as
  * sessões desta análise alteraram, com o diff, e as opções de desfazer (com
  * confirmação) e de manter. Relê a cada aviso `alteracao` da vigia sobre a análise.
  * Sem alterações, não mostra nada.
@@ -33,12 +40,12 @@ type Confirmacao = { acao: "desfazer" | "manter"; arquivos: ArquivoAlterado[] };
 export function AvisoAlteracao({
   api,
   vigiar,
-  sistema,
+  projeto,
   analise,
 }: {
   api: ApiAlteracoes;
   vigiar: ApiAnalise["vigiar"];
-  sistema: string;
+  projeto: string;
   analise: string;
 }) {
   const [aviso, setAviso] = useState<Aviso | null>(null);
@@ -50,14 +57,14 @@ export function AvisoAlteracao({
 
   const carregar = useCallback(() => {
     Promise.resolve()
-      .then(() => api.alteracoes(sistema, analise))
+      .then(() => api.alteracoes(projeto, analise))
       .then((a) => {
         if (!ativo.current) return;
         // Sem o comando (ou com resposta vazia), a tela segue sem aviso.
         setAviso(a && Array.isArray(a.arquivos) ? a : null);
       })
       .catch((e: unknown) => ativo.current && setFalha(mensagemDe(e)));
-  }, [api, sistema, analise]);
+  }, [api, projeto, analise]);
 
   useEffect(() => {
     ativo.current = true;
@@ -65,7 +72,7 @@ export function AvisoAlteracao({
     setFalha(null);
     let parar: (() => void) | null = null;
     let desmontado = false;
-    vigiar(sistema, (a) => {
+    vigiar(projeto, (a) => {
       if (a.tipo === "reinicio" || (a.analise === analise && a.mudanca === "alteracao")) {
         carregar();
       }
@@ -83,7 +90,7 @@ export function AvisoAlteracao({
       ativo.current = false;
       parar?.();
     };
-  }, [vigiar, sistema, analise, carregar]);
+  }, [vigiar, projeto, analise, carregar]);
 
   if (!aviso && !falha) return null;
   if (aviso && aviso.arquivos.length === 0 && !falha) return null;
@@ -107,8 +114,8 @@ export function AvisoAlteracao({
     setFalha(null);
     const feito =
       acao === "desfazer"
-        ? api.desfazer(sistema, analise, alvo.map(pedido))
-        : api.manter(sistema, analise, alvo.map(pedido));
+        ? api.desfazer(projeto, analise, alvo.map(pedido))
+        : api.manter(projeto, analise, alvo.map(pedido));
     feito
       .then(() => setConfirmacao(null))
       .catch((e: unknown) => setFalha(mensagemDe(e)))
@@ -125,10 +132,10 @@ export function AvisoAlteracao({
     <section className="aviso-alteracao" role="alert" aria-label="Aviso de alteração">
       {arquivos.length > 0 && (
         <>
-          <h3>A pasta do sistema foi alterada nesta análise</h3>
+          <h3>A pasta do projeto foi alterada nesta análise</h3>
           <p>
             Durante a conversa,{" "}
-            {arquivos.length === 1 ? "um arquivo" : `${arquivos.length} arquivos`} do sistema{" "}
+            {arquivos.length === 1 ? "um arquivo" : `${arquivos.length} arquivos`} do projeto{" "}
             {arquivos.length === 1 ? "foi alterado" : "foram alterados"}. O produto analisa e não
             altera o código; a decisão sobre o repositório é sua. Confira o diff e desfaça o que não
             deveria ter mudado.
@@ -136,15 +143,18 @@ export function AvisoAlteracao({
           <ul className="arquivos-alterados">
             {arquivos.map((a) => (
               <li key={chave(a)}>
-                <span className={`selo alteracao-${a.tipo}`}>{ROTULO_TIPO[a.tipo]}</span>{" "}
+                <span className="badge" data-tone={TOM_TIPO[a.tipo]}>
+                  {ROTULO_TIPO[a.tipo]}
+                </span>{" "}
                 <code>{a.caminho}</code>{" "}
                 {a.diff !== null && (
-                  <button type="button" onClick={() => alternar(a)}>
+                  <button className="btn" type="button" onClick={() => alternar(a)}>
                     {abertos.has(chave(a)) ? "Esconder o diff" : "Ver o diff"}
                   </button>
                 )}{" "}
                 {a.desfazivel && (
                   <button
+                    className="btn"
                     type="button"
                     disabled={ocupado}
                     onClick={() => setConfirmacao({ acao: "desfazer", arquivos: [a] })}
@@ -153,15 +163,16 @@ export function AvisoAlteracao({
                   </button>
                 )}{" "}
                 <button
+                  className="btn"
                   type="button"
                   disabled={ocupado || !a.desfazivel}
                   onClick={() => setConfirmacao({ acao: "manter", arquivos: [a] })}
                 >
                   Manter
                 </button>
-                {a.binario && <span className="suave"> (arquivo binário, sem diff)</span>}
+                {a.binario && <span className="muted"> (arquivo binário, sem diff)</span>}
                 {!a.desfazivel && (
-                  <span className="suave"> (sem conteúdo anterior guardado: confira pelo git)</span>
+                  <span className="muted"> (sem conteúdo anterior guardado: confira pelo git)</span>
                 )}
                 {a.diff !== null && abertos.has(chave(a)) && (
                   <pre className="diff" aria-label={`Diff de ${a.caminho}`}>
@@ -173,6 +184,7 @@ export function AvisoAlteracao({
           </ul>
           {desfaziveis.length > 1 && (
             <button
+              className="btn"
               type="button"
               disabled={ocupado}
               onClick={() => setConfirmacao({ acao: "desfazer", arquivos: desfaziveis })}
@@ -189,21 +201,26 @@ export function AvisoAlteracao({
               ? `Desfazer ${nomes(confirmacao.arquivos)}? O conteúdo volta ao do início da sessão e o que a sessão escreveu se perde.`
               : `Manter ${nomes(confirmacao.arquivos)}? A alteração sai deste aviso e fica no repositório, sob sua responsabilidade.`}
           </p>
-          <button type="button" disabled={ocupado} onClick={executar}>
+          <button className="btn" type="button" disabled={ocupado} onClick={executar}>
             {confirmacao.acao === "desfazer" ? "Sim, desfazer" : "Sim, manter"}
           </button>{" "}
-          <button type="button" disabled={ocupado} onClick={() => setConfirmacao(null)}>
+          <button
+            className="btn"
+            type="button"
+            disabled={ocupado}
+            onClick={() => setConfirmacao(null)}
+          >
             Cancelar
           </button>
         </div>
       )}
       {aviso?.avisos.map((t) => (
-        <p key={t} className="suave">
+        <p key={t} className="muted">
           {t}
         </p>
       ))}
       {falha && (
-        <p className="trecho-erro" role="status">
+        <p className="error-text" role="status">
           {falha}
         </p>
       )}

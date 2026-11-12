@@ -29,7 +29,7 @@ interface Props {
 
 /**
  * Início (spec, seção 10): os botões dos fluxos, as análises em andamento e as
- * recentes, os sistemas cadastrados e o estado dos clientes de IA.
+ * recentes, os projetos cadastrados e o estado dos clientes de IA.
  */
 export function TelaInicio({
   api,
@@ -56,26 +56,26 @@ export function TelaInicio({
   const abrirAnalise = (a: AnaliseInicio) =>
     navegar({
       tipo: "analise",
-      sistema: a.sistema,
+      projeto: a.projeto,
       aberta: { id: a.id, abertura: { tipo: "reabrir" } },
     });
 
-  const semSistema = inicio !== null && (inicio.base === null || inicio.sistemas.length === 0);
+  const semProjeto = inicio !== null && (inicio.base === null || inicio.projetos.length === 0);
 
   return (
-    <section className="tela-inicio" aria-label="Início">
+    <section className="tela-inicio page" aria-label="Início">
       {falha && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           Não foi possível carregar o início: {falha}
         </p>
       )}
-      {semSistema && (
+      {semProjeto && (
         <p>
           {inicio.base === null
             ? "Falta escolher a pasta da base de conhecimento."
-            : "Nenhum sistema cadastrado."}{" "}
+            : "Nenhum projeto cadastrado."}{" "}
           {aoPrimeiroUso && (
-            <button type="button" onClick={aoPrimeiroUso}>
+            <button className="btn" type="button" onClick={aoPrimeiroUso}>
               Abrir o primeiro uso
             </button>
           )}
@@ -89,26 +89,26 @@ export function TelaInicio({
             <button
               key={f}
               type="button"
-              className={fluxo === f ? "primario" : undefined}
+              className="btn"
               aria-pressed={fluxo === f}
-              disabled={!inicio || semSistema}
+              disabled={!inicio || semProjeto}
               onClick={() => setFluxo(fluxo === f ? null : f)}
             >
               {ROTULO_FLUXO[f]}
             </button>
           ))}
         </div>
-        {fluxo && inicio && !semSistema && (
+        {fluxo && inicio && !semProjeto && (
           <NovaAnalise
             key={fluxo}
             api={api}
             fluxo={fluxo}
-            sistemas={inicio.sistemas}
+            projetos={inicio.projetos}
             aoCancelar={() => setFluxo(null)}
-            aoCriar={(sistema, criada) =>
+            aoCriar={(projeto, criada) =>
               navegar({
                 tipo: "analise",
-                sistema,
+                projeto,
                 aberta: {
                   id: criada.analise.id,
                   abertura: { tipo: "nova", promptInicial: criada.promptInicial },
@@ -133,23 +133,29 @@ export function TelaInicio({
             analises={inicio.recentes}
             aoAbrir={abrirAnalise}
           />
-          <section aria-label="Sistemas">
-            <h2>Sistemas</h2>
-            <ul className="lista-sistemas">
-              {inicio.sistemas.map((s) => (
+          <section aria-label="Projetos">
+            <h2>Projetos</h2>
+            <ul className="lista-projetos">
+              {inicio.projetos.map((s) => (
                 <li key={s.id}>
-                  <button type="button" onClick={() => navegar({ tipo: "sistema", sistema: s.id })}>
+                  <button
+                    className="link"
+                    type="button"
+                    onClick={() => navegar({ tipo: "projeto", projeto: s.id })}
+                  >
                     {s.nome}
                   </button>{" "}
                   {s.erro ? (
-                    <span className="trecho-erro">{s.erro}</span>
+                    <span className="error-text">{s.erro}</span>
                   ) : (
-                    <span className="suave">
+                    <span className="muted">
                       {s.analises} análise(s) · {s.regras} regra(s) · {s.termos} termo(s)
                     </span>
                   )}
                   {s.aRevalidar > 0 && (
-                    <span className="selo selo-revalidar">{s.aRevalidar} a revalidar</span>
+                    <span className="badge" data-tone="attention">
+                      {s.aRevalidar} a revalidar
+                    </span>
                   )}
                 </li>
               ))}
@@ -177,16 +183,16 @@ function ListaAnalises({
   return (
     <section aria-label={titulo}>
       <h2>{titulo}</h2>
-      {analises.length === 0 && <p className="suave">{vazio}</p>}
+      {analises.length === 0 && <p className="muted">{vazio}</p>}
       {analises.length > 0 && (
         <ul className="lista-analises">
           {analises.map((a) => (
-            <li key={`${a.sistema}/${a.id}`}>
-              <button type="button" onClick={() => aoAbrir(a)}>
+            <li key={`${a.projeto}/${a.id}`}>
+              <button className="link" type="button" onClick={() => aoAbrir(a)}>
                 {a.id}: {a.titulo}
               </button>{" "}
-              <span className="suave">
-                {a.sistemaNome} · {ROTULO_FLUXO[a.fluxo].toLowerCase()} · {ESTADO[a.estado]}
+              <span className="muted">
+                {a.projetoNome} · {ROTULO_FLUXO[a.fluxo].toLowerCase()} · {ESTADO[a.estado]}
                 {a.sessao && a.sessao.estado !== "encerrada" && ` · ${ROTULO_SESSAO[a.sessao.estado]}`}
               </span>
             </li>

@@ -13,7 +13,7 @@ describe("resolverLink", () => {
     expect(resolverLink(regra, "RN-COB-002.md#evidencias")).toBe(
       "faturamento-exemplo/regras/RN-COB-002.md",
     );
-    expect(resolverLink(regra, "/outro/sistema.md")).toBe("outro/sistema.md");
+    expect(resolverLink(regra, "/outro/projeto.md")).toBe("outro/projeto.md");
     expect(resolverLink(regra, "../glossario/car%C3%AAncia.md")).toBe(
       "faturamento-exemplo/glossario/carência.md",
     );

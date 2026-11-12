@@ -33,7 +33,7 @@ use serde_json::{Value, json};
 use crate::comum;
 use crate::contexto::Contexto;
 use crate::documento::secoes_de_afirmacao;
-use crate::evidencias::{ArquivoDoSistema, hash_das_linhas};
+use crate::evidencias::{ArquivoDoProjeto, hash_das_linhas};
 use crate::prompts::Prompts;
 use crate::registro::{ErroFerramenta, Ferramenta, Saida, ler_argumentos};
 use crate::roteiro::{Roteiros, nome_do_fluxo, secoes_obrigatorias, titulo_da_secao};
@@ -55,7 +55,7 @@ fn titulo_da_entrada(entrada: &str) -> String {
     format!("{}…", corte.trim_end())
 }
 
-/// Branch e commit da primeira pasta do sistema, quando ela está num repositório.
+/// Branch e commit da primeira pasta do projeto, quando ela está num repositório.
 fn versao_do_codigo(ambiente: &Ambiente) -> Option<VersaoCodigo> {
     let git = detectar_git(&ambiente.escopo.pastas().first()?.caminho)?;
     Some(VersaoCodigo {
@@ -630,7 +630,7 @@ fn conferir_evidencias(ambiente: &Ambiente, analise: &Analise) -> HashMap<Chave,
     {
         let arquivo = e.arquivo.to_string();
         let texto = textos.entry(arquivo.clone()).or_insert_with(|| {
-            ArquivoDoSistema::abrir(&ambiente.escopo, &arquivo)
+            ArquivoDoProjeto::abrir(&ambiente.escopo, &arquivo)
                 .ok()
                 .map(|a| a.texto)
         });

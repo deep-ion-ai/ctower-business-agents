@@ -31,7 +31,7 @@ O atendente pede o cancelamento de uma fatura emitida.
 ## Fluxo principal
 
 1. O atendente informa a fatura e o motivo.
-2. O sistema confere as regras.
+2. O projeto confere as regras.
 3. A fatura é cancelada com o responsável registrado.
 
 ## Fluxos alternativos

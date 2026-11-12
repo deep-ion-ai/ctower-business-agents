@@ -2,7 +2,7 @@
 //!
 //! Tudo o que o primeiro uso define pode ser mudado depois. Os passos que já existem
 //! no primeiro uso ([`crate::primeiro_uso`]: cliente preferido, avaliação da base,
-//! prévia e cadastro de sistema) e no preparo do ambiente ([`crate::analise`],
+//! prévia e cadastro de projeto) e no preparo do ambiente ([`crate::analise`],
 //! [`crate::alteracoes`]) são reaproveitados; aqui fica o que só as configurações
 //! fazem:
 //!
@@ -15,15 +15,15 @@
 //!
 //!   Nos dois casos o índice (`cba_kb::indice`) é reconstruído a partir da base
 //!   nova.
-//! - **Ajustar as exclusões** de um sistema cadastrado, com a prévia do inventário.
-//! - **Desfazer o ambiente** de um sistema: desliga a proteção contra edição (tira só
+//! - **Ajustar as exclusões** de um projeto cadastrado, com a prévia do inventário.
+//! - **Desfazer o ambiente** de um projeto: desliga a proteção contra edição (tira só
 //!   as regras que o app acrescentou) e tira o servidor MCP e, se for o último
-//!   sistema, os hooks. A configuração do Claude volta a ser a de antes.
-//! - **Descadastrar** um sistema: desfaz o ambiente como acima e só então apaga o
-//!   cadastro. Os documentos do sistema na base ficam.
+//!   projeto, os hooks. A configuração do Claude volta a ser a de antes.
+//! - **Descadastrar** um projeto: desfaz o ambiente como acima e só então apaga o
+//!   cadastro. Os documentos do projeto na base ficam.
 //! - **Textos editáveis**: templates, roteiros, prompts prontos e as regras de cada
-//!   sistema, com a indicação de quando o arquivo da base sobrepõe o padrão embutido.
-//!   O app não tem editor próprio: abre o arquivo no editor padrão do sistema
+//!   projeto, com a indicação de quando o arquivo da base sobrepõe o padrão embutido.
+//!   O app não tem editor próprio: abre o arquivo no editor padrão do sistema operacional
 //!   operacional, criando antes a cópia do padrão quando ela ainda não existe.
 
 use std::collections::BTreeMap;
@@ -48,14 +48,14 @@ use tauri_plugin_opener::OpenerExt;
 
 use crate::base::VigiaBase;
 use crate::primeiro_uso::{
-    self, AvaliacaoBase, ClientePreferido, EstadoPasta, PreviaSistema, Restricoes,
-    SistemaCadastrado, canonica_aproximada, limpar, pastas_vista, resumo_inventario,
+    self, AvaliacaoBase, ClientePreferido, EstadoPasta, PreviaProjeto, ProjetoCadastrado,
+    Restricoes, canonica_aproximada, limpar, pastas_vista, resumo_inventario,
 };
 
 // ---------------------------------------------------------------------------
 // Visão geral
 
-/// Uma pasta de um sistema cadastrado.
+/// Uma pasta de um projeto cadastrado.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PastaConfig {
@@ -65,10 +65,10 @@ pub struct PastaConfig {
     pub existe: bool,
 }
 
-/// Sistema cadastrado, como as configurações mostram.
+/// Projeto cadastrado, como as configurações mostram.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SistemaConfig {
+pub struct ProjetoConfig {
     pub id: String,
     pub nome: String,
     pub pastas: Vec<PastaConfig>,
@@ -83,7 +83,7 @@ pub struct Configuracoes {
     pub cliente: Option<ClientePreferido>,
     pub base: Option<PathBuf>,
     pub base_sugerida: Option<PathBuf>,
-    pub sistemas: Vec<SistemaConfig>,
+    pub projetos: Vec<ProjetoConfig>,
     /// Arquivos de configuração do Claude Code que o app altera.
     pub config_claude: Option<ConfigClaude>,
 }
@@ -93,11 +93,11 @@ pub fn configuracoes(
     preparador: Option<&Preparador>,
 ) -> Result<Configuracoes, String> {
     let situacao = primeiro_uso::situacao(dados)?;
-    let sistemas = Cadastro::em(dados.sistemas())
+    let projetos = Cadastro::em(dados.projetos())
         .listar()
         .map_err(|e| e.to_string())?
         .into_iter()
-        .map(|s| SistemaConfig {
+        .map(|s| ProjetoConfig {
             pastas: s
                 .pastas
                 .iter()
@@ -117,7 +117,7 @@ pub fn configuracoes(
         cliente: situacao.cliente,
         base: situacao.base,
         base_sugerida: situacao.base_sugerida,
-        sistemas,
+        projetos,
         config_claude: preparador.map(|p| p.config.clone()),
     })
 }
@@ -485,51 +485,51 @@ pub fn trocar_base(
 }
 
 // ---------------------------------------------------------------------------
-// Exclusões de um sistema cadastrado
+// Exclusões de um projeto cadastrado
 
-/// Novas exclusões e reinclusões de um sistema.
+/// Novas exclusões e reinclusões de um projeto.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AjusteExclusoes {
-    pub sistema: String,
+    pub projeto: String,
     #[serde(default)]
     pub exclusoes: Vec<String>,
     #[serde(default)]
     pub inclusoes: Vec<String>,
 }
 
-fn cadastrado(dados: &DiretorioDados, sistema: &str) -> Result<cba_index::Sistema, String> {
-    Cadastro::em(dados.sistemas())
-        .obter(sistema)
+fn cadastrado(dados: &DiretorioDados, projeto: &str) -> Result<cba_index::Projeto, String> {
+    Cadastro::em(dados.projetos())
+        .obter(projeto)
         .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("o sistema \"{sistema}\" não está cadastrado"))
+        .ok_or_else(|| format!("o projeto \"{projeto}\" não está cadastrado"))
 }
 
 fn ajustado(
     dados: &DiretorioDados,
     ajuste: &AjusteExclusoes,
-) -> Result<cba_index::Sistema, String> {
-    let mut sistema = cadastrado(dados, &ajuste.sistema)?;
-    sistema.exclusoes = limpar(&ajuste.exclusoes);
-    sistema.inclusoes = limpar(&ajuste.inclusoes);
-    sistema.validar().map_err(|e| e.to_string())?;
-    Ok(sistema)
+) -> Result<cba_index::Projeto, String> {
+    let mut projeto = cadastrado(dados, &ajuste.projeto)?;
+    projeto.exclusoes = limpar(&ajuste.exclusoes);
+    projeto.inclusoes = limpar(&ajuste.inclusoes);
+    projeto.validar().map_err(|e| e.to_string())?;
+    Ok(projeto)
 }
 
 /// O inventário com as exclusões ajustadas, sem gravar.
 pub fn previa_exclusoes(
     dados: &DiretorioDados,
     ajuste: &AjusteExclusoes,
-) -> Result<PreviaSistema, String> {
-    let sistema = ajustado(dados, ajuste)?;
-    let inventario = cba_index::inventariar(&sistema, None).map_err(|e| e.to_string())?;
-    Ok(PreviaSistema {
+) -> Result<PreviaProjeto, String> {
+    let projeto = ajustado(dados, ajuste)?;
+    let inventario = cba_index::inventariar(&projeto, None).map_err(|e| e.to_string())?;
+    Ok(PreviaProjeto {
         pastas: pastas_vista(&inventario),
         inventario: resumo_inventario(&inventario),
-        id: sistema.id,
-        nome: sistema.nome,
-        exclusoes: sistema.exclusoes,
-        inclusoes: sistema.inclusoes,
+        id: projeto.id,
+        nome: projeto.nome,
+        exclusoes: projeto.exclusoes,
+        inclusoes: projeto.inclusoes,
         ja_cadastrado: false,
     })
 }
@@ -538,18 +538,18 @@ pub fn previa_exclusoes(
 pub fn salvar_exclusoes(
     dados: &DiretorioDados,
     ajuste: &AjusteExclusoes,
-) -> Result<SistemaCadastrado, String> {
-    let sistema = ajustado(dados, ajuste)?;
-    let cadastro = Cadastro::em(dados.sistemas());
-    cadastro.salvar(&sistema).map_err(|e| e.to_string())?;
+) -> Result<ProjetoCadastrado, String> {
+    let projeto = ajustado(dados, ajuste)?;
+    let cadastro = Cadastro::em(dados.projetos());
+    cadastro.salvar(&projeto).map_err(|e| e.to_string())?;
     let inventario = cadastro
-        .inventariar(&sistema.id)
+        .inventariar(&projeto.id)
         .map_err(|e| e.to_string())?;
-    Ok(SistemaCadastrado {
+    Ok(ProjetoCadastrado {
         pastas: pastas_vista(&inventario),
         inventario: resumo_inventario(&inventario),
-        id: sistema.id,
-        nome: sistema.nome,
+        id: projeto.id,
+        nome: projeto.nome,
     })
 }
 
@@ -564,27 +564,27 @@ pub struct AmbienteDesfeito {
     pub protecao_tirada: Vec<String>,
     /// Servidor MCP e hooks tirados.
     pub preparo: Resultado,
-    /// Limitações (pasta do sistema que não existe mais).
+    /// Limitações (pasta do projeto que não existe mais).
     pub avisos: Vec<String>,
 }
 
-/// Alvo do preparo de um sistema. Se a pasta não existe mais, usa o caminho gravado
+/// Alvo do preparo de um projeto. Se a pasta não existe mais, usa o caminho gravado
 /// (a chave fica a da pasta; se ela estava num repositório git, a entrada do
 /// repositório pode sobrar e é avisada).
-fn alvo_do_cadastrado(sistema: &cba_index::Sistema) -> Result<(Alvo, Option<String>), String> {
-    match Alvo::do_sistema(sistema) {
+fn alvo_do_cadastrado(projeto: &cba_index::Projeto) -> Result<(Alvo, Option<String>), String> {
+    match Alvo::do_projeto(projeto) {
         Ok(a) => Ok((a, None)),
         Err(preparo::Erro::Pasta(_)) => {
-            let pasta = sistema
+            let pasta = projeto
                 .pastas
                 .iter()
                 .find(|p| p.prefixo.is_none())
-                .or_else(|| sistema.pastas.first())
-                .ok_or("o sistema não tem pastas cadastradas")?;
+                .or_else(|| projeto.pastas.first())
+                .ok_or("o projeto não tem pastas cadastradas")?;
             let plataforma = cba_session::clientes::Plataforma::atual();
             Ok((
                 Alvo {
-                    sistema: sistema.id.clone(),
+                    projeto: projeto.id.clone(),
                     diretorio: pasta.caminho.clone(),
                     chave: preparo::chave_do_caminho(&pasta.caminho, plataforma),
                     worktree: false,
@@ -604,11 +604,11 @@ fn alvo_do_cadastrado(sistema: &cba_index::Sistema) -> Result<(Alvo, Option<Stri
 fn desfazer_do_cadastrado(
     dados: &DiretorioDados,
     preparador: &Preparador,
-    sistema: &cba_index::Sistema,
+    projeto: &cba_index::Projeto,
 ) -> Result<AmbienteDesfeito, String> {
     let protecao_tirada =
-        protecao::desligar(dados, preparador, &sistema.id).map_err(|e| e.to_string())?;
-    let (alvo, aviso) = alvo_do_cadastrado(sistema)?;
+        protecao::desligar(dados, preparador, &projeto.id).map_err(|e| e.to_string())?;
+    let (alvo, aviso) = alvo_do_cadastrado(projeto)?;
     let preparo = preparador.desfazer(&alvo).map_err(|e| e.to_string())?;
     Ok(AmbienteDesfeito {
         protecao_tirada,
@@ -617,14 +617,14 @@ fn desfazer_do_cadastrado(
     })
 }
 
-/// Desfaz o ambiente do Claude de um sistema: proteção, servidor MCP e (se for o
-/// último sistema) hooks. A confirmação é da tela.
+/// Desfaz o ambiente do Claude de um projeto: proteção, servidor MCP e (se for o
+/// último projeto) hooks. A confirmação é da tela.
 pub fn desfazer_ambiente(
     dados: &DiretorioDados,
     preparador: &Preparador,
-    sistema: &str,
+    projeto: &str,
 ) -> Result<AmbienteDesfeito, String> {
-    desfazer_do_cadastrado(dados, preparador, &cadastrado(dados, sistema)?)
+    desfazer_do_cadastrado(dados, preparador, &cadastrado(dados, projeto)?)
 }
 
 /// Resultado do descadastro.
@@ -632,28 +632,28 @@ pub fn desfazer_ambiente(
 #[serde(rename_all = "camelCase")]
 pub struct Descadastro {
     pub ambiente: AmbienteDesfeito,
-    /// Pasta do sistema na base, que fica (`None` sem base configurada).
+    /// Pasta do projeto na base, que fica (`None` sem base configurada).
     pub documentos: Option<PathBuf>,
 }
 
-/// Descadastra o sistema: desfaz o ambiente (com a proteção) e só então apaga o
+/// Descadastra o projeto: desfaz o ambiente (com a proteção) e só então apaga o
 /// cadastro, o inventário e o mapa. Se desfazer o ambiente falhar, o cadastro fica,
 /// para o analista poder tentar de novo. Os documentos na base ficam.
 pub fn descadastrar(
     dados: &DiretorioDados,
     preparador: &Preparador,
-    sistema: &str,
+    projeto: &str,
 ) -> Result<Descadastro, String> {
-    let cadastrado = cadastrado(dados, sistema)?;
+    let cadastrado = cadastrado(dados, projeto)?;
     let ambiente = desfazer_do_cadastrado(dados, preparador, &cadastrado)?;
-    Cadastro::em(dados.sistemas())
+    Cadastro::em(dados.projetos())
         .remover(&cadastrado.id)
         .map_err(|e| e.to_string())?;
     let documentos = Config::ler(dados)
         .ok()
         .and_then(|c| c.base.map(|b| b.join(&cadastrado.id)))
         .filter(|p| p.is_dir());
-    tracing::info!(sistema, "sistema descadastrado");
+    tracing::info!(projeto, "projeto descadastrado");
     Ok(Descadastro {
         ambiente,
         documentos,
@@ -684,7 +684,7 @@ pub enum GrupoTexto {
     Template,
     Roteiro,
     Prompt,
-    RegrasDoSistema,
+    RegrasDoProjeto,
 }
 
 /// Um texto editável, como a tela mostra.
@@ -721,19 +721,19 @@ fn catalogo(dados: &DiretorioDados) -> Result<Vec<ItemCatalogo>, String> {
             )
         })
         .collect();
-    for s in Cadastro::em(dados.sistemas())
+    for s in Cadastro::em(dados.projetos())
         .listar()
         .map_err(|e| e.to_string())?
     {
         let arquivo =
-            CaminhoRelativo::novo(&format!("{}/{}", s.id, layout::ARQUIVO_REGRAS_DO_SISTEMA))
+            CaminhoRelativo::novo(&format!("{}/{}", s.id, layout::ARQUIVO_REGRAS_DO_PROJETO))
                 .map_err(|e| e.to_string())?;
         lista.push((
-            GrupoTexto::RegrasDoSistema,
+            GrupoTexto::RegrasDoProjeto,
             s.id,
-            format!("Regras do sistema {}", s.nome),
+            format!("Regras do projeto {}", s.nome),
             arquivo,
-            cba_kb::PADRAO_REGRAS_DO_SISTEMA,
+            cba_kb::PADRAO_REGRAS_DO_PROJETO,
         ));
     }
     Ok(lista)
@@ -848,27 +848,27 @@ pub async fn trocar_base_app(
 }
 
 #[tauri::command]
-pub async fn previa_exclusoes_app(ajuste: AjusteExclusoes) -> Result<PreviaSistema, String> {
+pub async fn previa_exclusoes_app(ajuste: AjusteExclusoes) -> Result<PreviaProjeto, String> {
     let dados = dados()?;
     bloqueante(move || previa_exclusoes(&dados, &ajuste)).await
 }
 
 #[tauri::command]
-pub async fn salvar_exclusoes_app(ajuste: AjusteExclusoes) -> Result<SistemaCadastrado, String> {
+pub async fn salvar_exclusoes_app(ajuste: AjusteExclusoes) -> Result<ProjetoCadastrado, String> {
     let dados = dados()?;
     bloqueante(move || salvar_exclusoes(&dados, &ajuste)).await
 }
 
 #[tauri::command]
-pub async fn desfazer_ambiente_sistema(sistema: String) -> Result<AmbienteDesfeito, String> {
+pub async fn desfazer_ambiente_projeto(projeto: String) -> Result<AmbienteDesfeito, String> {
     let dados = dados()?;
-    bloqueante(move || desfazer_ambiente(&dados, &preparador()?, &sistema)).await
+    bloqueante(move || desfazer_ambiente(&dados, &preparador()?, &projeto)).await
 }
 
 #[tauri::command]
-pub async fn descadastrar_sistema_app(sistema: String) -> Result<Descadastro, String> {
+pub async fn descadastrar_projeto_app(projeto: String) -> Result<Descadastro, String> {
     let dados = dados()?;
-    bloqueante(move || descadastrar(&dados, &preparador()?, &sistema)).await
+    bloqueante(move || descadastrar(&dados, &preparador()?, &projeto)).await
 }
 
 #[tauri::command]

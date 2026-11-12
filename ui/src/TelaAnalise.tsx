@@ -18,13 +18,13 @@ interface Props {
   api?: ApiAnalise;
   apiTerminal?: ApiTerminal;
   criarTela?: () => TelaTerminal;
-  /** Sistema escolhido ao abrir (ex.: o recém-cadastrado no primeiro uso). */
-  sistemaInicial?: string;
+  /** Projeto escolhido ao abrir (ex.: o recém-cadastrado no primeiro uso). */
+  projetoInicial?: string;
   /** Pergunta já preenchida (a sugestão do fim do primeiro uso). */
   perguntaInicial?: string;
-  /** Abre o assistente do primeiro uso quando falta a base ou um sistema. */
+  /** Abre o assistente do primeiro uso quando falta a base ou um projeto. */
   aoPrimeiroUso?: () => void;
-  /** Análise já aberta (criada pelo início ou escolhida numa lista); exige `sistemaInicial`. */
+  /** Análise já aberta (criada pelo início ou escolhida numa lista); exige `projetoInicial`. */
   aberturaInicial?: { id: string; abertura: Abertura };
 }
 
@@ -36,7 +36,7 @@ const ESTADO: Record<EstadoAnalise, string> = {
 };
 
 /**
- * Pergunta ao sistema, do início ao documento: escolher o sistema (preparando o
+ * Pergunta ao sistema, do início ao documento: escolher o projeto (preparando o
  * ambiente com consentimento, se faltar), perguntar, acompanhar a análise ao vivo e
  * reabrir as anteriores. A base e o cadastro ficam no primeiro uso.
  */
@@ -44,14 +44,14 @@ export function TelaAnalise({
   api = apiAnaliseTauri,
   apiTerminal,
   criarTela,
-  sistemaInicial = "",
+  projetoInicial = "",
   perguntaInicial = "",
   aoPrimeiroUso,
   aberturaInicial,
 }: Props) {
   const [situacao, setSituacao] = useState<Situacao | null>(null);
   const [erro, setErro] = useState<string | null>(null);
-  const [sistema, setSistema] = useState(sistemaInicial);
+  const [projeto, setProjeto] = useState(projetoInicial);
   const [aberta, setAberta] = useState<{ id: string; abertura: Abertura } | null>(
     aberturaInicial ?? null,
   );
@@ -62,8 +62,8 @@ export function TelaAnalise({
       .then((s) => {
         setSituacao(s);
         setErro(null);
-        setSistema((atual) =>
-          s.sistemas.some((x) => x.id === atual) ? atual : (s.sistemas[0]?.id ?? ""),
+        setProjeto((atual) =>
+          s.projetos.some((x) => x.id === atual) ? atual : (s.projetos[0]?.id ?? ""),
         );
       })
       .catch((e: unknown) => setErro(mensagemDe(e)));
@@ -71,13 +71,13 @@ export function TelaAnalise({
 
   useEffect(recarregar, [recarregar]);
 
-  if (aberta && sistema) {
+  if (aberta && projeto) {
     return (
-      <section className="tela-analise" aria-label="Análise">
+      <section className="tela-analise tela-analise-aberta" aria-label="Análise">
         <PainelAnalise
           key={aberta.id}
           api={api}
-          sistema={sistema}
+          projeto={projeto}
           analise={aberta.id}
           abertura={aberta.abertura}
           aoVoltar={() => setAberta(null)}
@@ -89,43 +89,43 @@ export function TelaAnalise({
   }
 
   return (
-    <section className="tela-analise" aria-label="Pergunta ao sistema">
+    <section className="tela-analise page" aria-label="Pergunta ao sistema">
       <h2>Pergunta ao sistema</h2>
       {erro && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           {erro}
         </p>
       )}
-      {!situacao && !erro && <p className="suave">Carregando…</p>}
-      {situacao && (!situacao.base || situacao.sistemas.length === 0) && (
+      {!situacao && !erro && <p className="muted">Carregando…</p>}
+      {situacao && (!situacao.base || situacao.projetos.length === 0) && (
         <p>
           {!situacao.base
             ? "Falta escolher a pasta da base de conhecimento."
-            : "Nenhum sistema cadastrado."}{" "}
+            : "Nenhum projeto cadastrado."}{" "}
           {aoPrimeiroUso && (
-            <button type="button" onClick={aoPrimeiroUso}>
+            <button className="btn" type="button" onClick={aoPrimeiroUso}>
               Abrir o primeiro uso
             </button>
           )}
         </p>
       )}
-      {situacao?.base && situacao.sistemas.length > 0 && (
+      {situacao?.base && situacao.projetos.length > 0 && (
         <>
           <label>
-            Sistema{" "}
-            <select value={sistema} onChange={(e) => setSistema(e.target.value)}>
-              {situacao.sistemas.map((s) => (
+            Projeto{" "}
+            <select value={projeto} onChange={(e) => setProjeto(e.target.value)}>
+              {situacao.projetos.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.nome}
                 </option>
               ))}
             </select>
           </label>
-          {sistema && (
-            <Sistema
-              key={sistema}
+          {projeto && (
+            <Projeto
+              key={projeto}
               api={api}
-              sistema={sistema}
+              projeto={projeto}
               perguntaInicial={perguntaInicial}
               aoAbrir={(id, abertura) => setAberta({ id, abertura })}
             />
@@ -136,14 +136,14 @@ export function TelaAnalise({
   );
 }
 
-function Sistema({
+function Projeto({
   api,
-  sistema,
+  projeto,
   perguntaInicial,
   aoAbrir,
 }: {
   api: ApiAnalise;
-  sistema: string;
+  projeto: string;
   perguntaInicial: string;
   aoAbrir: (id: string, abertura: Abertura) => void;
 }) {
@@ -158,23 +158,23 @@ function Sistema({
   const verificar = useCallback(() => {
     setFalhaAmbiente(null);
     api
-      .verificarAmbiente(sistema)
+      .verificarAmbiente(projeto)
       .then(setAmbiente)
       .catch((e: unknown) => setFalhaAmbiente(mensagemDe(e)));
-  }, [api, sistema]);
+  }, [api, projeto]);
 
   useEffect(verificar, [verificar]);
 
   useEffect(() => {
     let ativo = true;
     api
-      .listarAnalises(sistema)
+      .listarAnalises(projeto)
       .then((l) => ativo && setAnalises(l))
       .catch((e: unknown) => ativo && setFalha(mensagemDe(e)));
     return () => {
       ativo = false;
     };
-  }, [api, sistema]);
+  }, [api, projeto]);
 
   const perguntar = (ev: FormEvent) => {
     ev.preventDefault();
@@ -182,7 +182,7 @@ function Sistema({
     setCriando(true);
     setFalha(null);
     api
-      .criarAnalise(sistema, entrada.trim(), titulo.trim() || undefined)
+      .criarAnalise(projeto, entrada.trim(), titulo.trim() || undefined)
       .then((criada) =>
         aoAbrir(criada.analise.id, { tipo: "nova", promptInicial: criada.promptInicial }),
       )
@@ -197,12 +197,12 @@ function Sistema({
   return (
     <>
       {falhaAmbiente && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           Não foi possível verificar o ambiente do Claude: {falhaAmbiente}
         </p>
       )}
       {ambiente && !pronto && (
-        <PrepararAmbiente api={api} sistema={sistema} ambiente={ambiente} aoConcluir={verificar} />
+        <PrepararAmbiente api={api} projeto={projeto} ambiente={ambiente} aoConcluir={verificar} />
       )}
 
       <form className="nova-pergunta" onSubmit={perguntar} aria-label="Nova pergunta">
@@ -219,30 +219,34 @@ function Sistema({
           Título (opcional)
           <input value={titulo} onChange={(e) => setTitulo(e.target.value)} />
         </label>
-        <button type="submit" disabled={!pronto || criando || !entrada.trim()}>
+        <button className="btn" type="submit" disabled={!pronto || criando || !entrada.trim()}>
           Perguntar
         </button>
         {!pronto && ambiente && (
-          <span className="suave"> Prepare o ambiente do Claude antes de perguntar.</span>
+          <span className="muted"> Prepare o ambiente do Claude antes de perguntar.</span>
         )}
       </form>
       {falha && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           {falha}
         </p>
       )}
 
-      <section aria-label="Análises do sistema">
+      <section aria-label="Análises do projeto">
         <h3>Análises</h3>
-        {analises?.length === 0 && <p className="suave">Nenhuma análise ainda.</p>}
+        {analises?.length === 0 && <p className="muted">Nenhuma análise ainda.</p>}
         {analises && analises.length > 0 && (
           <ul className="lista-analises">
             {analises.map((a) => (
               <li key={a.id}>
-                <button type="button" onClick={() => aoAbrir(a.id, { tipo: "reabrir" })}>
+                <button
+                  className="link"
+                  type="button"
+                  onClick={() => aoAbrir(a.id, { tipo: "reabrir" })}
+                >
                   {a.id}: {a.titulo}
                 </button>{" "}
-                <span className="suave">{ESTADO[a.estado]}</span>
+                <span className="muted">{ESTADO[a.estado]}</span>
               </li>
             ))}
           </ul>

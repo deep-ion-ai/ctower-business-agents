@@ -60,7 +60,7 @@ pub enum ErroExecucao {
     TempoEsgotado,
 }
 
-/// Acesso ao sistema usado pela detecção. [`AmbienteReal`] usa o sistema de verdade;
+/// Acesso ao sistema operacional usado pela detecção. [`AmbienteReal`] usa o sistema de verdade;
 /// os testes usam uma implementação falsa que registra cada acesso.
 pub trait Ambiente {
     fn plataforma(&self) -> Plataforma;

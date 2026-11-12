@@ -5,8 +5,8 @@ import {
   type ApiPrimeiroUso,
   type AvaliacaoBase,
   type ClientePreferido,
-  type PreviaSistema,
-  type SistemaCadastrado,
+  type PreviaProjeto,
+  type ProjetoCadastrado,
 } from "./primeiroUso";
 
 /**
@@ -21,7 +21,7 @@ export interface PastaConfig {
   existe: boolean;
 }
 
-export interface SistemaConfig {
+export interface ProjetoConfig {
   id: string;
   nome: string;
   pastas: PastaConfig[];
@@ -33,7 +33,7 @@ export interface Configuracoes {
   cliente: ClientePreferido | null;
   base: string | null;
   baseSugerida: string | null;
-  sistemas: SistemaConfig[];
+  projetos: ProjetoConfig[];
   /** Arquivos da configuração do Claude Code que o app altera. */
   configClaude: { estado: string; settings: string } | null;
 }
@@ -63,7 +63,7 @@ export interface TrocaBase {
 }
 
 export interface AjusteExclusoes {
-  sistema: string;
+  projeto: string;
   exclusoes: string[];
   inclusoes: string[];
 }
@@ -76,11 +76,11 @@ export interface AmbienteDesfeito {
 
 export interface Descadastro {
   ambiente: AmbienteDesfeito;
-  /** Pasta do sistema na base, que fica. */
+  /** Pasta do projeto na base, que fica. */
   documentos: string | null;
 }
 
-export type GrupoTexto = "template" | "roteiro" | "prompt" | "regrasDoSistema";
+export type GrupoTexto = "template" | "roteiro" | "prompt" | "regrasDoProjeto";
 export type EstadoTexto = "padrao" | "igualAoPadrao" | "editado" | "ilegivel";
 
 export interface TextoEditavel {
@@ -110,21 +110,21 @@ export interface AmbienteDetalhado extends AmbienteClaude {
 
 export interface ApiConfiguracoes extends ApiPrimeiroUso {
   configuracoes(): Promise<Configuracoes>;
-  verificarAmbiente(sistema: string): Promise<AmbienteDetalhado>;
+  verificarAmbiente(projeto: string): Promise<AmbienteDetalhado>;
   avaliarTroca(destino: string): Promise<AvaliacaoTroca>;
   /** Só depois da confirmação do analista. */
   trocarBase(destino: string, modo: ModoTroca): Promise<TrocaBase>;
-  previaExclusoes(ajuste: AjusteExclusoes): Promise<PreviaSistema>;
-  salvarExclusoes(ajuste: AjusteExclusoes): Promise<SistemaCadastrado>;
-  /** Proteção, servidor MCP e (no último sistema) hooks. Só depois da confirmação. */
-  desfazerAmbiente(sistema: string): Promise<AmbienteDesfeito>;
+  previaExclusoes(ajuste: AjusteExclusoes): Promise<PreviaProjeto>;
+  salvarExclusoes(ajuste: AjusteExclusoes): Promise<ProjetoCadastrado>;
+  /** Proteção, servidor MCP e (no último projeto) hooks. Só depois da confirmação. */
+  desfazerAmbiente(projeto: string): Promise<AmbienteDesfeito>;
   /** Desfaz o ambiente e apaga o cadastro; os documentos ficam. Só depois da confirmação. */
-  descadastrar(sistema: string): Promise<Descadastro>;
+  descadastrar(projeto: string): Promise<Descadastro>;
   textos(): Promise<TextoEditavel[]>;
   /** Abre no editor do sistema operacional; devolve o caminho. */
   abrirTexto(arquivo: string): Promise<string>;
-  situacaoProtecao(sistema: string): Promise<SituacaoProtecao>;
-  mudarProtecao(sistema: string, ligada: boolean): Promise<SituacaoProtecao>;
+  situacaoProtecao(projeto: string): Promise<SituacaoProtecao>;
+  mudarProtecao(projeto: string, ligada: boolean): Promise<SituacaoProtecao>;
 }
 
 export const apiConfiguracoesTauri: ApiConfiguracoes = {
@@ -134,12 +134,12 @@ export const apiConfiguracoesTauri: ApiConfiguracoes = {
   trocarBase: (destino, modo) => invoke("trocar_base_app", { destino, modo }),
   previaExclusoes: (ajuste) => invoke("previa_exclusoes_app", { ajuste }),
   salvarExclusoes: (ajuste) => invoke("salvar_exclusoes_app", { ajuste }),
-  desfazerAmbiente: (sistema) => invoke("desfazer_ambiente_sistema", { sistema }),
-  descadastrar: (sistema) => invoke("descadastrar_sistema_app", { sistema }),
+  desfazerAmbiente: (projeto) => invoke("desfazer_ambiente_projeto", { projeto }),
+  descadastrar: (projeto) => invoke("descadastrar_projeto_app", { projeto }),
   textos: () => invoke("textos_editaveis_app"),
   abrirTexto: (arquivo) => invoke("abrir_texto_editavel", { arquivo }),
-  situacaoProtecao: (sistema) => invoke("situacao_protecao_sistema", { sistema }),
-  mudarProtecao: (sistema, ligada) => invoke("mudar_protecao_sistema", { sistema, ligada }),
+  situacaoProtecao: (projeto) => invoke("situacao_protecao_projeto", { projeto }),
+  mudarProtecao: (projeto, ligada) => invoke("mudar_protecao_projeto", { projeto, ligada }),
   verificarAmbiente: apiAnaliseTauri.verificarAmbiente,
 };
 

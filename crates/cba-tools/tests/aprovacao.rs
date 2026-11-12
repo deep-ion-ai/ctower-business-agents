@@ -13,7 +13,7 @@ use cba_core::config::Config;
 use cba_core::dados::DiretorioDados;
 use cba_core::eventos::Mudanca;
 use cba_kb::frontmatter::{
-    Area, FrontmatterAnalise, FrontmatterRegra, FrontmatterSistema, FrontmatterTermo,
+    Area, FrontmatterAnalise, FrontmatterProjeto, FrontmatterRegra, FrontmatterTermo,
     StatusAnalise, StatusRegra,
 };
 use cba_kb::indice::{Consulta, Indice};
@@ -127,9 +127,9 @@ fn cenario() -> Cenario {
     let dir = tempfile::tempdir().unwrap();
     let raiz = dir.path();
     let dados = DiretorioDados::em(raiz.join("dados"));
-    let sistema = cba_index::Sistema::novo("Faturamento Exemplo", [fixture()]).unwrap();
-    cba_index::Cadastro::em(dados.sistemas())
-        .cadastrar(&sistema)
+    let projeto = cba_index::Projeto::novo("Faturamento Exemplo", [fixture()]).unwrap();
+    cba_index::Cadastro::em(dados.projetos())
+        .cadastrar(&projeto)
         .unwrap();
     cba_kb::Base::criar(raiz.join("base")).unwrap();
     Config {
@@ -146,11 +146,11 @@ fn cenario() -> Cenario {
 }
 
 impl Cenario {
-    /// Declara as áreas no `sistema.md`.
+    /// Declara as áreas no `projeto.md`.
     fn declarar_areas(&self, areas: Vec<Area>) {
-        let mut doc = self.amb.kb.ler_sistema().unwrap();
+        let mut doc = self.amb.kb.ler_projeto().unwrap();
         doc.frontmatter.areas = areas;
-        self.amb.kb.gravar(&layout::sistema(), &doc).unwrap();
+        self.amb.kb.gravar(&layout::projeto(), &doc).unwrap();
     }
 
     fn areas_do_gabarito(&self) {
@@ -574,7 +574,7 @@ fn nova_analise_sobre_o_mesmo_assunto_recebe_as_regras_no_contexto() {
 
 #[test]
 fn area_da_aprovacao_ajustes_e_sem_area() {
-    // Sistema sem áreas declaradas e sem área na aprovação: área geral, RN-GER.
+    // Projeto sem áreas declaradas e sem área na aprovação: área geral, RN-GER.
     let c = cenario();
     let a = analise_da_multa(&c);
     let r = c.aprovar(&a.id, &OpcoesAprovacao::default()).unwrap();
@@ -582,7 +582,7 @@ fn area_da_aprovacao_ajustes_e_sem_area() {
     assert_eq!(ids, ["RN-GER-001", "RN-GER-002"]);
     assert!(r.regras.iter().all(|x| x.area == "geral"));
 
-    // Uma área só no sistema.md: ela vale. Ajuste por afirmação: área e título.
+    // Uma área só no projeto.md: ela vale. Ajuste por afirmação: área e título.
     let c = cenario();
     c.declarar_areas(vec![Area {
         id: "cobranca".into(),
@@ -668,6 +668,6 @@ fn campos_desconhecidos_da_regra_existente_sao_mantidos() {
     let depois = fs::read_to_string(&caminho).unwrap();
     assert!(depois.contains("responsavel: Ana"), "{depois}");
     assert!(depois.contains("status: confirmada"), "{depois}");
-    let sistema: Documento<FrontmatterSistema> = c.amb.kb.ler_sistema().unwrap();
-    assert_eq!(sistema.frontmatter.areas.len(), 3);
+    let projeto: Documento<FrontmatterProjeto> = c.amb.kb.ler_projeto().unwrap();
+    assert_eq!(projeto.frontmatter.areas.len(), 3);
 }

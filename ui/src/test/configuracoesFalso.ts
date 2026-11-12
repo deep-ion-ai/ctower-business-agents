@@ -9,7 +9,7 @@ import type {
   TextoEditavel,
   TrocaBase,
 } from "../configuracoes";
-import type { PreviaSistema } from "../primeiroUso";
+import type { PreviaProjeto } from "../primeiroUso";
 import { apiPrimeiroUsoFalsa, inventarioFicticio } from "./falsos";
 
 export const BASE = "/Users/analista/Documents/ctower-business";
@@ -20,7 +20,7 @@ export function configuracoesFicticias(parcial: Partial<Configuracoes> = {}): Co
     cliente: "claudeDesktop",
     base: BASE,
     baseSugerida: BASE,
-    sistemas: [
+    projetos: [
       {
         id: "faturamento-exemplo",
         nome: "Faturamento Exemplo",
@@ -60,17 +60,17 @@ export const TEXTOS: TextoEditavel[] = [
     estado: "igualAoPadrao",
   },
   {
-    grupo: "regrasDoSistema",
+    grupo: "regrasDoProjeto",
     id: "faturamento-exemplo",
-    rotulo: "Regras do sistema Faturamento Exemplo",
-    arquivo: "faturamento-exemplo/regras-do-sistema.md",
+    rotulo: "Regras do projeto Faturamento Exemplo",
+    arquivo: "faturamento-exemplo/regras-do-projeto.md",
     estado: "igualAoPadrao",
   },
 ];
 
 function protecao(ligada: boolean): SituacaoProtecao {
   return {
-    sistema: "faturamento-exemplo",
+    projeto: "faturamento-exemplo",
     ligada,
     completa: ligada,
     arquivo: "/Users/analista/.claude/settings.json",
@@ -128,9 +128,9 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
         }),
     ),
     previaExclusoes: vi.fn(
-      (a: AjusteExclusoes): Promise<PreviaSistema> =>
+      (a: AjusteExclusoes): Promise<PreviaProjeto> =>
         Promise.resolve({
-          id: a.sistema,
+          id: a.projeto,
           nome: "Faturamento Exemplo",
           pastas: [],
           exclusoes: a.exclusoes,
@@ -141,7 +141,7 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
     ),
     salvarExclusoes: vi.fn((a: AjusteExclusoes) =>
       Promise.resolve({
-        id: a.sistema,
+        id: a.projeto,
         nome: "Faturamento Exemplo",
         pastas: [],
         inventario: inventarioFicticio(),

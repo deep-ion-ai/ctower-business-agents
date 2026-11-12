@@ -3,7 +3,7 @@ import type { ApiAnalise, PromptPronto } from "./analise";
 
 interface Props {
   api: ApiAnalise;
-  sistema: string;
+  projeto: string;
   analise: string;
   /** Se a sessão está viva para receber o prompt. */
   habilitado: boolean;
@@ -15,26 +15,27 @@ interface Props {
  * analista os tivesse digitado. Sem prompts (ou antes do comando existir), não mostra
  * nada.
  */
-export function PromptsProntos({ api, sistema, analise, habilitado, aoEnviar }: Props) {
+export function PromptsProntos({ api, projeto, analise, habilitado, aoEnviar }: Props) {
   const [prompts, setPrompts] = useState<PromptPronto[]>([]);
 
   useEffect(() => {
     let ativo = true;
     setPrompts([]);
     api
-      .promptsProntos(sistema, analise)
+      .promptsProntos(projeto, analise)
       .then((lista) => ativo && setPrompts(lista))
       .catch(() => ativo && setPrompts([]));
     return () => {
       ativo = false;
     };
-  }, [api, sistema, analise]);
+  }, [api, projeto, analise]);
 
   if (prompts.length === 0) return null;
   return (
     <div className="prompts-prontos" role="group" aria-label="Prompts prontos">
       {prompts.map((p) => (
         <button
+          className="btn"
           key={p.id}
           type="button"
           disabled={!habilitado}

@@ -1,6 +1,6 @@
 //! Texto que o `SessionStart` acrescenta ao contexto do agente (spec, seção 8): os
-//! limites fixos do produto, as regras do sistema editadas pelo analista na base e
-//! uma nota sobre a sessão (sistema, análise ligada, retomada).
+//! limites fixos do produto, as regras do projeto editadas pelo analista na base e
+//! uma nota sobre a sessão (projeto, análise ligada, retomada).
 //!
 //! # Tamanho
 //!
@@ -8,12 +8,12 @@
 //! guarda o texto num arquivo e põe no contexto só o caminho e uma prévia de 2.000
 //! caracteres, sem pedir ao agente que leia o arquivo (documentação oficial,
 //! <https://code.claude.com/docs/en/hooks.md>, consultada em 2026-11-11). Por isso
-//! as regras do sistema são cortadas em [`MAX_REGRAS`] caracteres, com aviso, e o
+//! as regras do projeto são cortadas em [`MAX_REGRAS`] caracteres, com aviso, e o
 //! texto inteiro fica abaixo de [`MAX_CONTEXTO`].
 //!
-//! # Regras do sistema
+//! # Regras do projeto
 //!
-//! Vêm do `regras-do-sistema.md` da base ([`cba_kb::layout::ARQUIVO_REGRAS_DO_SISTEMA`]).
+//! Vêm do `regras-do-projeto.md` da base ([`cba_kb::layout::ARQUIVO_REGRAS_DO_PROJETO`]).
 //! Comentários HTML (`<!-- ... -->`) são instruções para o analista e não chegam
 //! ao agente; um arquivo só com comentários e títulos não acrescenta nada.
 
@@ -25,10 +25,10 @@ pub const LIMITES: &str = include_str!("../../prompts/limites.md");
 /// Limite do Claude Code para um `additionalContext`, em caracteres.
 pub const MAX_CONTEXTO: usize = 10_000;
 
-/// Quanto das regras do sistema chega ao agente, em caracteres.
+/// Quanto das regras do projeto chega ao agente, em caracteres.
 pub const MAX_REGRAS: usize = 5_000;
 
-/// Regras do sistema prontas para o agente: sem comentários HTML, com fins de
+/// Regras do projeto prontas para o agente: sem comentários HTML, com fins de
 /// linha normalizados e cortadas em [`MAX_REGRAS`] caracteres. `None` se não
 /// sobrar nada além de títulos.
 pub fn regras_para_o_agente(texto: &str) -> Option<String> {
@@ -47,7 +47,7 @@ pub fn regras_para_o_agente(texto: &str) -> Option<String> {
     while linhas.last().is_some_and(|l| l.is_empty()) {
         linhas.pop();
     }
-    // O título do arquivo (`# Regras do sistema`) já é o da seção do contexto.
+    // O título do arquivo (`# Regras do projeto`) já é o da seção do contexto.
     if linhas.first().is_some_and(|l| l.starts_with("# ")) {
         linhas.remove(0);
         while linhas.first().is_some_and(|l| l.is_empty()) {
@@ -65,9 +65,9 @@ pub fn regras_para_o_agente(texto: &str) -> Option<String> {
         return Some(texto);
     }
     Some(format!(
-        "{}\n\n(As regras do sistema foram cortadas aqui: o arquivo passa de {MAX_REGRAS} \
+        "{}\n\n(As regras do projeto foram cortadas aqui: o arquivo passa de {MAX_REGRAS} \
          caracteres, e o restante não chegou a esta sessão. Vale avisar o analista para \
-         resumir o `regras-do-sistema.md`.)",
+         resumir o `regras-do-projeto.md`.)",
         cortar(&texto, MAX_REGRAS)
     ))
 }
@@ -102,10 +102,10 @@ fn cortar(texto: &str, max: usize) -> &str {
     }
 }
 
-/// Monta o contexto da sessão: limites, regras do sistema (se houver) e a nota da
+/// Monta o contexto da sessão: limites, regras do projeto (se houver) e a nota da
 /// sessão.
 pub fn montar(
-    sistema: &str,
+    projeto: &str,
     regras: Option<&str>,
     analise: Option<&Id>,
     origem: Option<&str>,
@@ -115,10 +115,10 @@ pub fn montar(
     t.push_str("\n\n");
 
     if let Some(regras) = regras {
-        t.push_str("## Regras do sistema\n\n");
+        t.push_str("## Regras do projeto\n\n");
         t.push_str(
-            "Convenções deste sistema e da organização, escritas pelo analista no \
-             arquivo `regras-do-sistema.md` da base de conhecimento. Somam-se aos \
+            "Convenções deste projeto e da organização, escritas pelo analista no \
+             arquivo `regras-do-projeto.md` da base de conhecimento. Somam-se aos \
              limites acima.\n\n",
         );
         t.push_str(regras);
@@ -126,7 +126,7 @@ pub fn montar(
     }
 
     t.push_str("## Esta sessão\n\n");
-    t.push_str(&format!("- Sistema cadastrado: `{sistema}`.\n"));
+    t.push_str(&format!("- Projeto cadastrado: `{projeto}`.\n"));
     match origem {
         Some("resume") => t.push_str("- Sessão retomada: os limites continuam valendo.\n"),
         Some("compact") => t.push_str("- Conversa compactada: os limites continuam valendo.\n"),
@@ -168,7 +168,7 @@ mod tests {
 
     #[test]
     fn padrao_da_base_nao_acrescenta_regras() {
-        assert_eq!(regras_para_o_agente(cba_kb::PADRAO_REGRAS_DO_SISTEMA), None);
+        assert_eq!(regras_para_o_agente(cba_kb::PADRAO_REGRAS_DO_PROJETO), None);
         assert_eq!(regras_para_o_agente(""), None);
         assert_eq!(regras_para_o_agente("# Regras\n\n## Outras\n"), None);
         assert_eq!(regras_para_o_agente("<!-- sem fim\n- regra"), None);
@@ -176,7 +176,7 @@ mod tests {
 
     #[test]
     fn regras_sem_comentarios_e_com_linhas_normalizadas() {
-        let texto = "\u{feff}# Regras do sistema\r\n\r\n<!--\r\ninstrução\r\n-->\r\n\r\n\
+        let texto = "\u{feff}# Regras do projeto\r\n\r\n<!--\r\ninstrução\r\n-->\r\n\r\n\
                      - Valores em centavos. <!-- nota -->\r\n- Use \"contratante\".\r\n\r\n\r\n";
         assert_eq!(
             regras_para_o_agente(texto).unwrap(),
@@ -218,8 +218,8 @@ mod tests {
         let id = Id::analisar("A-0007").unwrap();
         let t = montar("faturamento-exemplo", None, Some(&id), Some("compact"));
         assert!(t.starts_with("# Limites do ctower-business-agents"));
-        assert!(!t.contains("## Regras do sistema"));
-        assert!(t.contains("Sistema cadastrado: `faturamento-exemplo`"));
+        assert!(!t.contains("## Regras do projeto"));
+        assert!(t.contains("Projeto cadastrado: `faturamento-exemplo`"));
         assert!(t.contains("Conversa compactada"));
         assert!(t.contains("`analise: \"A-0007\"`"));
 
@@ -229,7 +229,7 @@ mod tests {
             None,
             Some("startup"),
         );
-        assert!(t.contains("## Regras do sistema"));
+        assert!(t.contains("## Regras do projeto"));
         assert!(t.contains("- Regra."));
         assert!(!t.contains("Sessão retomada"));
         assert!(!t.contains("Análise ligada"));

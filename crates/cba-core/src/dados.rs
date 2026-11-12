@@ -1,4 +1,4 @@
-//! Diretório de dados do app: índice, configuração, cadastro dos sistemas, eventos,
+//! Diretório de dados do app: índice, configuração, cadastro dos projetos, eventos,
 //! sessões e logs.
 //!
 //! Fica no diretório de dados locais do usuário, numa pasta com o identificador do
@@ -6,7 +6,7 @@
 //! pelo analista). Apagar este diretório não perde conhecimento: o índice é
 //! reconstruível a partir da base (spec, seção 11).
 //!
-//! | Sistema | Raiz |
+//! | Projeto | Raiz |
 //! |---|---|
 //! | Windows | `%LOCALAPPDATA%\ai.deep-ion.ctower-business-agents` |
 //! | macOS | `~/Library/Application Support/ai.deep-ion.ctower-business-agents` |
@@ -36,7 +36,7 @@ impl DiretorioDados {
         Self { raiz: raiz.into() }
     }
 
-    /// Diretório padrão do sistema, ou o de `CBA_DATA_DIR` se a variável existir.
+    /// Diretório padrão do sistema operacional, ou o de `CBA_DATA_DIR` se a variável existir.
     pub fn padrao() -> io::Result<Self> {
         if let Some(raiz) = std::env::var_os(VAR_DIRETORIO).filter(|v| !v.is_empty()) {
             return Ok(Self::em(raiz));
@@ -76,9 +76,9 @@ impl DiretorioDados {
         self.raiz.join("logs")
     }
 
-    /// Cadastro dos sistemas (`cba_index::Cadastro`).
-    pub fn sistemas(&self) -> PathBuf {
-        self.raiz.join("sistemas")
+    /// Cadastro dos projetos (`cba_index::Cadastro`).
+    pub fn projetos(&self) -> PathBuf {
+        self.raiz.join("projetos")
     }
 
     /// Diário de mudanças das análises, que o app acompanha ([`crate::eventos`]).
@@ -109,7 +109,7 @@ mod tests {
         );
         assert_eq!(d.config(), raiz.join("config"));
         assert_eq!(d.logs(), raiz.join("logs"));
-        assert_eq!(d.sistemas(), raiz.join("sistemas"));
+        assert_eq!(d.projetos(), raiz.join("projetos"));
         assert_eq!(d.eventos(), raiz.join("eventos"));
         assert_eq!(d.sessoes(), raiz.join("sessoes"));
     }

@@ -44,7 +44,7 @@ pub use template::{Aviso, Origem, Template, Templates, arquivo_do_template};
 pub const NOME: &str = env!("CARGO_PKG_NAME");
 
 /// Link Markdown de um documento da base para outro, com caminho relativo ao
-/// documento de origem (`de`). Os dois caminhos são relativos à raiz do sistema.
+/// documento de origem (`de`). Os dois caminhos são relativos à raiz do projeto.
 pub(crate) fn link(texto: &str, de: &CaminhoRelativo, para: &CaminhoRelativo) -> String {
     let texto = texto.replace('[', "\\[").replace(']', "\\]");
     let destino = caminho_relativo(de, para);
@@ -104,7 +104,7 @@ mod tests {
             "../../../analises/A-0001.md"
         );
         assert_eq!(
-            caminho_relativo(&c("sistema.md"), &c("regras/RN-FAT-001.md")),
+            caminho_relativo(&c("projeto.md"), &c("regras/RN-FAT-001.md")),
             "regras/RN-FAT-001.md"
         );
         assert_eq!(

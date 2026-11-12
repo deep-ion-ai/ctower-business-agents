@@ -24,17 +24,17 @@ Fluxo: {{fluxo}}. Documento na base: `{{documento}}` (montado pelo app a partir 
 
 ## Objetivo
 
-Produzir o documento negocial da funcionalidade a partir do código, em linguagem de negócio, para quem não lê código: para que serve, quem usa e por onde, o caminho normal, os alternativos e as exceções, as regras (cada uma com evidência), os dados lidos e gravados e as integrações. O documento descreve o que o sistema faz hoje, não o que deveria fazer.
+Produzir o documento negocial da funcionalidade a partir do código, em linguagem de negócio, para quem não lê código: para que serve, quem usa e por onde, o caminho normal, os alternativos e as exceções, as regras (cada uma com evidência), os dados lidos e gravados e as integrações. O documento descreve o que o projeto faz hoje, não o que deveria fazer.
 
 ## Como conduzir
 
 1. **Consulte a base primeiro.** O contexto no fim deste roteiro traz regras já confirmadas, termos do glossário e análises anteriores relacionados; para outros conceitos da funcionalidade, use `conhecimento`. Regra confirmada não precisa ser redescoberta: confira se a evidência dela ainda vale e use-a.
 2. **Delimite a funcionalidade.** Se o pedido for amplo ou ambíguo, siga a leitura mais provável, diga em `objetivo` o que ficou dentro e o que ficou fora, e registre a outra leitura como pergunta.
-3. **Ache os pontos de entrada.** Comece pelo mapa do sistema: `mapa` dá a visão das pastas, `estrutura` lista as rotinas, classes e telas de um arquivo com as linhas, `referencias` diz onde uma rotina, tabela ou campo é usado (e, com `sentido: "o_que_usa"`, o que ele usa) e `schema` mostra tabelas, colunas e relacionamentos. Procure as telas, os serviços, os lotes e as rotinas de banco que iniciam a funcionalidade; cada um é um ator ou um gatilho.
+3. **Ache os pontos de entrada.** Comece pelo mapa do projeto: `mapa` dá a visão das pastas, `estrutura` lista as rotinas, classes e telas de um arquivo com as linhas, `referencias` diz onde uma rotina, tabela ou campo é usado (e, com `sentido: "o_que_usa"`, o que ele usa) e `schema` mostra tabelas, colunas e relacionamentos. Procure as telas, os serviços, os lotes e as rotinas de banco que iniciam a funcionalidade; cada um é um ator ou um gatilho.
 4. **Siga o caminho do começo ao fim.** A partir de cada ponto de entrada, leia com as suas ferramentas de leitura e busca o que é chamado em seguida, camada por camada (tela, serviço, banco, lotes), até o dado gravado ou a resposta devolvida. O caminho sem desvios é o fluxo principal; cada `if` que muda o caminho por uma condição do negócio é um fluxo alternativo; cada recusa, erro ou bloqueio é uma exceção. Quando a mesma regra aparece em mais de uma camada (a tela e o serviço, por exemplo), registre uma regra só, com as evidências de cada camada, e aponte se os valores divergem.
 5. **Registre com `afirmar`** (analise: "{{id}}"), uma regra ou fato por chamada, com valores e condições ("Pessoa física não pode parcelar; a tela e o serviço recusam"):
    - confiança honesta: `confirmado` só com evidência direta; `inferido` para dedução a partir das evidências listadas; `a_confirmar` quando o código não basta (vira pergunta);
-   - evidências: arquivo relativo à raiz do sistema, linhas e o trecho copiado do código, exatamente como está. Evidência recusada volta com o motivo e a correção: corrija e chame de novo.
+   - evidências: arquivo relativo à raiz do projeto, linhas e o trecho copiado do código, exatamente como está. Evidência recusada volta com o motivo e a correção: corrija e chame de novo.
 6. **Preencha as seções do documento:**
 {{secoes}}
    No fluxo principal, uma afirmação por passo, na ordem, começando pelo número do passo ("1. O atendente informa a fatura e a quantidade de parcelas na tela de parcelamento."). Valores que vêm de parâmetro ou tabela vão com o nome do parâmetro e o valor atual, quando o código o mostra.

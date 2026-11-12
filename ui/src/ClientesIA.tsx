@@ -40,9 +40,9 @@ export function ClientesIA({ abrirLink = abrirPeloTauri }: { abrirLink?: AbrirLi
   return (
     <section className="clientes" aria-label="Clientes de IA">
       <h2>Clientes de IA</h2>
-      {carga.tipo === "verificando" && <p className="suave">Verificando…</p>}
+      {carga.tipo === "verificando" && <p className="muted">Verificando…</p>}
       {carga.tipo === "erro" && (
-        <p className="suave">Não foi possível verificar os clientes de IA.</p>
+        <p className="muted">Não foi possível verificar os clientes de IA.</p>
       )}
       {carga.tipo === "pronto" && (
         <div className="clientes-lista">
@@ -50,7 +50,12 @@ export function ClientesIA({ abrirLink = abrirPeloTauri }: { abrirLink?: AbrirLi
           <CartaoClaudeDesktop estado={carga.estado} abrirLink={abrirLink} />
         </div>
       )}
-      <button type="button" onClick={verificar} disabled={carga.tipo === "verificando"}>
+      <button
+        className="btn"
+        type="button"
+        onClick={verificar}
+        disabled={carga.tipo === "verificando"}
+      >
         Verificar de novo
       </button>
     </section>
@@ -109,7 +114,7 @@ export function CartaoClaudeDesktop({
     return (
       <article className="cliente" aria-label="Claude Desktop">
         <h3>Claude Desktop</h3>
-        <p>Não disponível neste sistema (só macOS e Windows).</p>
+        <p>Não disponível neste projeto (só macOS e Windows).</p>
       </article>
     );
   }
@@ -171,7 +176,12 @@ function Comando({ texto }: { texto: string }) {
       <pre>
         <code>{texto}</code>
       </pre>
-      <button type="button" onClick={copiar} aria-label={`Copiar o comando ${texto}`}>
+      <button
+        className="btn"
+        type="button"
+        onClick={copiar}
+        aria-label={`Copiar o comando ${texto}`}
+      >
         {copiado ? "Copiado" : "Copiar"}
       </button>
     </div>

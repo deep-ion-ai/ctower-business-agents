@@ -44,9 +44,9 @@ impl Cenario {
         Preparador::novo(self.config.clone(), exe, Plataforma::atual()).unwrap()
     }
 
-    /// Pasta de sistema fora de repositório git.
+    /// Pasta de projeto fora de repositório git.
     fn pasta(&self, nome: &str) -> PathBuf {
-        let p = self.raiz.join("sistemas").join(nome);
+        let p = self.raiz.join("projetos").join(nome);
         fs::create_dir_all(p.join("src")).unwrap();
         fs::write(p.join("src").join("a.sql"), "select 1;\n").unwrap();
         p
@@ -137,7 +137,7 @@ fn prepara_em_configuracao_vazia() {
             "type": "stdio",
             "command": c.exe.to_string_lossy(),
             "args": ["mcp"],
-            "env": { "CBA_SISTEMA": "faturamento-exemplo" }
+            "env": { "CBA_PROJETO": "faturamento-exemplo" }
         })
     );
     let settings = c.settings();
@@ -341,7 +341,7 @@ fn desfazer_sem_preparo_nao_muda_nada() {
 }
 
 #[test]
-fn hooks_ficam_ate_o_ultimo_sistema_sair() {
+fn hooks_ficam_ate_o_ultimo_projeto_sair() {
     let c = Cenario::novo();
     let a = c.alvo("a", &c.pasta("a"));
     let b = c.alvo("b", &c.pasta("b"));
@@ -390,7 +390,7 @@ fn worktree_usa_o_repositorio_principal_como_chave() {
 fn subpasta_de_repositorio_usa_a_raiz_do_repositorio() {
     let c = Cenario::novo();
     let (repo, _) = repo_com_worktree(&c.raiz.join("git"));
-    let sub = repo.join("sistema");
+    let sub = repo.join("projeto");
     fs::create_dir_all(&sub).unwrap();
     let alvo = c.alvo("x", &sub);
     assert!(!alvo.worktree);
@@ -399,7 +399,7 @@ fn subpasta_de_repositorio_usa_a_raiz_do_repositorio() {
 }
 
 #[test]
-fn nenhum_arquivo_e_criado_na_pasta_do_sistema() {
+fn nenhum_arquivo_e_criado_na_pasta_do_projeto() {
     let c = Cenario::novo();
     let pasta = c.pasta("faturamento");
     let antes = arvore(&pasta);
@@ -415,7 +415,7 @@ fn nenhum_arquivo_e_criado_na_pasta_do_sistema() {
     let tudo = arvore(&c.raiz);
     assert!(
         tudo.iter()
-            .all(|p| p.starts_with("home") || p.starts_with("sistemas")),
+            .all(|p| p.starts_with("home") || p.starts_with("projetos")),
         "{tudo:?}"
     );
 }
@@ -558,8 +558,8 @@ fn reconhece_as_nossas_entradas() {
 fn chaves_no_windows() {
     let w = Plataforma::Windows;
     assert_eq!(
-        chave_do_caminho(Path::new(r"C:\Users\ana\sistemas\fat"), w),
-        "C:/Users/ana/sistemas/fat"
+        chave_do_caminho(Path::new(r"C:\Users\ana\projetos\fat"), w),
+        "C:/Users/ana/projetos/fat"
     );
     assert!(mesma_chave(r"C:\Users\Ana\Fat", "c:/users/ana/fat", w));
     assert!(mesma_chave("C:/x/", "C:/x", w));
@@ -633,13 +633,13 @@ fn arquivo_novo_so_para_o_dono() {
 }
 
 #[test]
-fn do_sistema_usa_a_pasta_raiz() {
+fn do_projeto_usa_a_pasta_raiz() {
     let c = Cenario::novo();
     let raiz = c.pasta("fat");
     let extra = c.pasta("telas");
-    let sistema = cba_index::Sistema::novo("Faturamento Exemplo", [&raiz, &extra]).unwrap();
-    let alvo = Alvo::do_sistema(&sistema).unwrap();
-    assert_eq!(alvo.sistema, "faturamento-exemplo");
+    let projeto = cba_index::Projeto::novo("Faturamento Exemplo", [&raiz, &extra]).unwrap();
+    let alvo = Alvo::do_projeto(&projeto).unwrap();
+    assert_eq!(alvo.projeto, "faturamento-exemplo");
     assert_eq!(alvo.diretorio, raiz);
 }
 
@@ -719,10 +719,10 @@ fn regra_de_protecao_absoluta_em_cada_plataforma() {
     use protecao::regra_de_protecao;
     assert_eq!(
         regra_de_protecao(
-            Path::new("/home/ana/sistemas/faturamento"),
+            Path::new("/home/ana/projetos/faturamento"),
             Plataforma::Linux
         ),
-        "Edit(//home/ana/sistemas/faturamento/**)"
+        "Edit(//home/ana/projetos/faturamento/**)"
     );
     assert_eq!(
         regra_de_protecao(Path::new("/Users/ana/faturamento/"), Plataforma::MacOs),
@@ -808,17 +808,17 @@ fn protecao_desligada_tira_so_as_regras_do_app() {
     let dados = cba_core::dados::DiretorioDados::em(c.raiz.join("dados"));
     let pasta_a = c.pasta("faturamento");
     let pasta_b = c.pasta("faturamento-db");
-    let sistema = cba_index::Sistema::novo("Faturamento Exemplo", [&pasta_a, &pasta_b]).unwrap();
+    let projeto = cba_index::Projeto::novo("Faturamento Exemplo", [&pasta_a, &pasta_b]).unwrap();
     // O analista já tinha negado a primeira pasta por conta própria.
     let regras = p.regras_de_protecao(&[pasta_a, pasta_b]);
     p.negar(&regras[..1]).unwrap();
 
-    let s = crate::protecao::situacao(&dados, &p, &sistema).unwrap();
+    let s = crate::protecao::situacao(&dados, &p, &projeto).unwrap();
     assert!(!s.ligada && !s.completa);
     assert_eq!(s.negadas_pelo_hook, ["Bash", "PowerShell"]);
-    assert!(!crate::protecao::protegido(&dados, &sistema.id));
+    assert!(!crate::protecao::protegido(&dados, &projeto.id));
 
-    let s = crate::protecao::ligar(&dados, &p, &sistema).unwrap();
+    let s = crate::protecao::ligar(&dados, &p, &projeto).unwrap();
     assert!(s.ligada && s.completa);
     assert_eq!(s.arquivo, c.config.settings);
     assert_eq!(
@@ -828,23 +828,23 @@ fn protecao_desligada_tira_so_as_regras_do_app() {
             .collect::<Vec<_>>(),
         [(true, false), (true, true)]
     );
-    assert!(crate::protecao::protegido(&dados, &sistema.id));
+    assert!(crate::protecao::protegido(&dados, &projeto.id));
     // Ligar de novo não muda nada nem esquece o que é do app.
-    crate::protecao::ligar(&dados, &p, &sistema).unwrap();
+    crate::protecao::ligar(&dados, &p, &projeto).unwrap();
     assert_eq!(
-        crate::protecao::registro(&dados, &sistema.id)
+        crate::protecao::registro(&dados, &projeto.id)
             .unwrap()
             .adicionadas,
         [regras[1].clone()]
     );
 
-    let tiradas = crate::protecao::desligar(&dados, &p, &sistema.id).unwrap();
+    let tiradas = crate::protecao::desligar(&dados, &p, &projeto.id).unwrap();
     assert_eq!(tiradas, [regras[1].clone()]);
-    assert!(!crate::protecao::protegido(&dados, &sistema.id));
+    assert!(!crate::protecao::protegido(&dados, &projeto.id));
     assert_eq!(p.negacoes_presentes(&regras).unwrap(), [true, false]);
     // Desligar o que já está desligado não faz nada.
     assert!(
-        crate::protecao::desligar(&dados, &p, &sistema.id)
+        crate::protecao::desligar(&dados, &p, &projeto.id)
             .unwrap()
             .is_empty()
     );

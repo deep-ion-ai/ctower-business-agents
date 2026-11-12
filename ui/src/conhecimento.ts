@@ -10,12 +10,12 @@ import {
 } from "./analise";
 
 /**
- * Espelho dos comandos do início, do sistema e da base de conhecimento
- * (`ui/src-tauri/src/{inicio,sistema,base}.rs`, campos em camelCase).
+ * Espelho dos comandos do início, do projeto e da base de conhecimento
+ * (`ui/src-tauri/src/{inicio,projeto,base}.rs`, campos em camelCase).
  */
 export type StatusRegra = "confirmada" | "a-revalidar" | "obsoleta";
 
-export interface SistemaInicio {
+export interface ProjetoInicio {
   id: string;
   nome: string;
   analises: number;
@@ -26,14 +26,14 @@ export interface SistemaInicio {
 }
 
 export interface AnaliseInicio extends AnaliseResumo {
-  sistema: string;
-  sistemaNome: string;
+  projeto: string;
+  projetoNome: string;
   sessao: SessaoVista | null;
 }
 
 export interface Inicio {
   base: string | null;
-  sistemas: SistemaInicio[];
+  projetos: ProjetoInicio[];
   emAndamento: AnaliseInicio[];
   recentes: AnaliseInicio[];
 }
@@ -74,7 +74,7 @@ export interface ProblemaVista {
   erro: string;
 }
 
-export interface VisaoSistema {
+export interface VisaoProjeto {
   id: string;
   nome: string;
   documento: string;
@@ -102,7 +102,7 @@ export interface Contagem {
 }
 
 export interface ModuloVista {
-  /** `""` é a raiz do sistema. */
+  /** `""` é a raiz do projeto. */
   caminho: string;
   arquivos: number;
   falhas: number;
@@ -124,7 +124,7 @@ export type FiltroTipo = "regra" | "termo" | "analise";
 
 export interface Encontrado {
   caminho: string;
-  sistema: string;
+  projeto: string;
   tipo: string | null;
   identificador: string | null;
   titulo: string;
@@ -153,7 +153,7 @@ export interface LigacaoVista {
 
 export interface DocumentoAberto {
   caminho: string;
-  sistema: string | null;
+  projeto: string | null;
   tipo: string | null;
   titulo: string;
   status: string | null;
@@ -162,28 +162,28 @@ export interface DocumentoAberto {
   markdown: string;
   ligacoes: LigacaoVista[];
   /** A análise que o documento representa, para abrir na tela da análise. */
-  analise: { sistema: string; id: string } | null;
+  analise: { projeto: string; id: string } | null;
   problema: string | null;
 }
 
-/** Operações das telas do início, do sistema e da base. A interface usa {@link apiConhecimentoTauri}; os testes, uma falsa. */
+/** Operações das telas do início, do projeto e da base. A interface usa {@link apiConhecimentoTauri}; os testes, uma falsa. */
 export interface ApiConhecimento extends ApiAmbiente {
   situacao(): Promise<Situacao>;
   inicio(): Promise<Inicio>;
   criarAnalise(
-    sistema: string,
+    projeto: string,
     fluxo: Fluxo,
     entrada: string,
     titulo?: string,
   ): Promise<AnaliseCriada>;
-  visaoSistema(sistema: string): Promise<VisaoSistema>;
-  revalidar(sistema: string): Promise<ResumoRevalidacao>;
-  /** `null` se o sistema ainda não foi mapeado. */
-  mapa(sistema: string, modulo?: string): Promise<MapaVista | null>;
-  mapear(sistema: string): Promise<MapaVista>;
+  visaoProjeto(projeto: string): Promise<VisaoProjeto>;
+  revalidar(projeto: string): Promise<ResumoRevalidacao>;
+  /** `null` se o projeto ainda não foi mapeado. */
+  mapa(projeto: string, modulo?: string): Promise<MapaVista | null>;
+  mapear(projeto: string): Promise<MapaVista>;
   buscar(
     texto: string,
-    filtros?: { sistema?: string; tipos?: FiltroTipo[]; deslocamento?: number },
+    filtros?: { projeto?: string; tipos?: FiltroTipo[]; deslocamento?: number },
   ): Promise<Busca>;
   abrirDocumento(caminho: string): Promise<DocumentoAberto>;
   /** Avisa quando a base muda fora do app; devolve a função que para. */
@@ -193,16 +193,16 @@ export interface ApiConhecimento extends ApiAmbiente {
 export const apiConhecimentoTauri: ApiConhecimento = {
   situacao: () => invoke("situacao_app"),
   inicio: () => invoke("inicio_app"),
-  criarAnalise: (sistema, fluxo, entrada, titulo) =>
-    invoke("criar_analise_fluxo", { sistema, fluxo, entrada, titulo: titulo ?? null }),
-  visaoSistema: (sistema) => invoke("visao_sistema_app", { sistema }),
-  revalidar: (sistema) => invoke("revalidar_sistema_app", { sistema }),
-  mapa: (sistema, modulo) => invoke("mapa_sistema_app", { sistema, modulo: modulo ?? null }),
-  mapear: (sistema) => invoke("mapear_sistema_app", { sistema }),
+  criarAnalise: (projeto, fluxo, entrada, titulo) =>
+    invoke("criar_analise_fluxo", { projeto, fluxo, entrada, titulo: titulo ?? null }),
+  visaoProjeto: (projeto) => invoke("visao_projeto_app", { projeto }),
+  revalidar: (projeto) => invoke("revalidar_projeto_app", { projeto }),
+  mapa: (projeto, modulo) => invoke("mapa_projeto_app", { projeto, modulo: modulo ?? null }),
+  mapear: (projeto) => invoke("mapear_projeto_app", { projeto }),
   buscar: (texto, filtros = {}) =>
     invoke("buscar_base", {
       texto,
-      sistema: filtros.sistema ?? null,
+      projeto: filtros.projeto ?? null,
       tipos: filtros.tipos ?? null,
       deslocamento: filtros.deslocamento ?? null,
     }),
@@ -242,8 +242,8 @@ const ROTULO_TIPO: Record<string, string> = {
   "caso-de-uso": "Caso de uso",
   sugestao: "Sugestão",
   "memoria-area": "Memória da área",
-  sistema: "Sistema",
-  "regras-do-sistema": "Regras do sistema",
+  projeto: "Projeto",
+  "regras-do-projeto": "Regras do projeto",
 };
 
 export function rotuloTipo(tipo: string | null): string {

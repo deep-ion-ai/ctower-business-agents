@@ -1,6 +1,6 @@
 # S-0001 · Ler a multa do parâmetro no lote de cobrança
 
-Sugestão de alteração · Sistema `faturamento-exemplo` · Status: proposta · Análise: A-0004 · Arquivo: `cobol/CALCOBR.cbl` · Criada em 2026-11-11
+Sugestão de alteração · Projeto `faturamento-exemplo` · Status: proposta · Análise: A-0004 · Arquivo: `cobol/CALCOBR.cbl` · Criada em 2026-11-11
 
 ## Contexto
 

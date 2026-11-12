@@ -22,8 +22,8 @@ use crate::yaml::{Mapping, Value};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum TipoDocumento {
-    /// `sistema.md`.
-    Sistema,
+    /// `projeto.md`.
+    Projeto,
     /// Análise de impacto de uma demanda.
     AnaliseImpacto,
     /// Pergunta ao sistema.
@@ -44,7 +44,7 @@ pub enum TipoDocumento {
 
 impl TipoDocumento {
     pub const TODOS: [TipoDocumento; 9] = [
-        Self::Sistema,
+        Self::Projeto,
         Self::AnaliseImpacto,
         Self::Pergunta,
         Self::Funcionalidade,
@@ -58,7 +58,7 @@ impl TipoDocumento {
     /// Valor no frontmatter (`analise-impacto`).
     pub fn como_str(self) -> &'static str {
         match self {
-            Self::Sistema => "sistema",
+            Self::Projeto => "projeto",
             Self::AnaliseImpacto => "analise-impacto",
             Self::Pergunta => "pergunta",
             Self::Funcionalidade => "funcionalidade",
@@ -306,7 +306,7 @@ pub struct Demanda {
     pub chave: Option<String>,
 }
 
-/// Versão do código do sistema sobre a qual a análise foi feita.
+/// Versão do código do projeto sobre a qual a análise foi feita.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VersaoCodigo {
     #[serde(default, deserialize_with = "texto_flexivel_opcional")]
@@ -316,7 +316,7 @@ pub struct VersaoCodigo {
 }
 
 /// Evidência gravada numa regra (spec, seção 6.5): caminho relativo à raiz do
-/// sistema, intervalo, hash do trecho e commit.
+/// projeto, intervalo, hash do trecho e commit.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Evidencia {
     pub arquivo: CaminhoRelativo,
@@ -327,7 +327,7 @@ pub struct Evidencia {
     pub commit: Option<String>,
 }
 
-/// Área funcional declarada no `sistema.md`.
+/// Área funcional declarada no `projeto.md`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Area {
     /// Slug da área (`cobranca`), usado nas pastas `areas/` e `funcionalidades/`.
@@ -341,12 +341,12 @@ pub struct Area {
 // ---------------------------------------------------------------------------
 // Frontmatter por tipo
 
-/// `sistema.md`: identificação e áreas do sistema. Visão, estado e próximo passo
+/// `projeto.md`: identificação e áreas do projeto. Visão, estado e próximo passo
 /// ficam no corpo.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct FrontmatterSistema {
+pub struct FrontmatterProjeto {
     pub tipo: TipoDocumento,
-    /// Slug do sistema, igual ao nome da pasta (`faturamento-exemplo`).
+    /// Slug do projeto, igual ao nome da pasta (`faturamento-exemplo`).
     pub id: String,
     pub nome: String,
     #[serde(default)]
@@ -355,8 +355,8 @@ pub struct FrontmatterSistema {
     pub criado: Option<Data>,
 }
 
-impl Frontmatter for FrontmatterSistema {
-    const TIPOS: &'static [TipoDocumento] = &[TipoDocumento::Sistema];
+impl Frontmatter for FrontmatterProjeto {
+    const TIPOS: &'static [TipoDocumento] = &[TipoDocumento::Projeto];
 
     fn validar(&self) -> Result<(), ErroCampo> {
         if !e_slug(&self.id) {
@@ -382,14 +382,14 @@ impl Frontmatter for FrontmatterSistema {
 }
 
 /// Documento de uma análise, em `analises/<id>.md`: análise de impacto, pergunta
-/// ao sistema ou explicação de funcionalidade (documento negocial).
+/// ao projeto ou explicação de funcionalidade (documento negocial).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FrontmatterAnalise {
     pub tipo: TipoDocumento,
     pub id: Id,
     pub titulo: String,
-    /// Slug do sistema.
-    pub sistema: String,
+    /// Slug do projeto.
+    pub projeto: String,
     pub demanda: Demanda,
     pub status: StatusAnalise,
     #[serde(default)]
@@ -424,7 +424,7 @@ pub struct FrontmatterRegra {
     pub status: StatusRegra,
     #[serde(default)]
     pub evidencias: Vec<Evidencia>,
-    /// Documento que originou a regra, relativo à raiz do sistema
+    /// Documento que originou a regra, relativo à raiz do projeto
     /// (`analises/A-0193.md`).
     #[serde(default)]
     pub origem: Option<CaminhoRelativo>,
@@ -462,12 +462,12 @@ pub struct FrontmatterSugestao {
     pub tipo: TipoDocumento,
     pub id: Id,
     pub titulo: String,
-    pub sistema: String,
+    pub projeto: String,
     pub status: StatusSugestao,
     /// Análise em que a sugestão foi registrada.
     #[serde(default)]
     pub analise: Option<Id>,
-    /// Arquivo do sistema que a sugestão altera, relativo à raiz do sistema.
+    /// Arquivo do projeto que a sugestão altera, relativo à raiz do projeto.
     #[serde(default)]
     pub arquivo: Option<CaminhoRelativo>,
     pub criado: Data,
@@ -496,7 +496,7 @@ pub struct FrontmatterFuncionalidade {
     pub area: String,
     pub tema: String,
     pub status: StatusAnalise,
-    /// Análise que originou o documento, relativa à raiz do sistema.
+    /// Análise que originou o documento, relativa à raiz do projeto.
     #[serde(default)]
     pub origem: Option<CaminhoRelativo>,
 }

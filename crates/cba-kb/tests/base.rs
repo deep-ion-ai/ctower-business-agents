@@ -8,13 +8,13 @@ use std::sync::Arc;
 use std::thread;
 
 use cba_kb::frontmatter::{
-    Area, Data, Demanda, Evidencia, FrontmatterAnalise, FrontmatterLivre, FrontmatterRegra,
-    FrontmatterSistema, FrontmatterTermo, Linhas, StatusAnalise, StatusRegra,
+    Area, Data, Demanda, Evidencia, FrontmatterAnalise, FrontmatterLivre, FrontmatterProjeto,
+    FrontmatterRegra, FrontmatterTermo, Linhas, StatusAnalise, StatusRegra,
 };
-use cba_kb::{Base, CaminhoRelativo, Documento, Erro, Serie, Sistema, TipoDocumento, layout};
+use cba_kb::{Base, CaminhoRelativo, Documento, Erro, Projeto, Serie, TipoDocumento, layout};
 use serde::Deserialize;
 
-const SISTEMA: &str = "faturamento-exemplo";
+const PROJETO: &str = "faturamento-exemplo";
 
 /// Pasta da base com espaços e acentos, dentro de um temporário.
 fn pasta_da_base() -> (tempfile::TempDir, PathBuf) {
@@ -27,11 +27,11 @@ fn data() -> Data {
     Data::nova(2026, 11, 11).unwrap()
 }
 
-fn documento_do_sistema() -> Documento<FrontmatterSistema> {
+fn documento_do_projeto() -> Documento<FrontmatterProjeto> {
     Documento::novo(
-        FrontmatterSistema {
-            tipo: TipoDocumento::Sistema,
-            id: SISTEMA.into(),
+        FrontmatterProjeto {
+            tipo: TipoDocumento::Projeto,
+            id: PROJETO.into(),
             nome: "Faturamento Exemplo".into(),
             areas: vec![Area {
                 id: "cobranca".into(),
@@ -44,11 +44,11 @@ fn documento_do_sistema() -> Documento<FrontmatterSistema> {
     )
 }
 
-fn criar_base() -> (tempfile::TempDir, Base, Sistema) {
+fn criar_base() -> (tempfile::TempDir, Base, Projeto) {
     let (dir, raiz) = pasta_da_base();
     let base = Base::criar(&raiz).unwrap();
-    let sistema = base.criar_sistema(&documento_do_sistema()).unwrap();
-    (dir, base, sistema)
+    let projeto = base.criar_projeto(&documento_do_projeto()).unwrap();
+    (dir, base, projeto)
 }
 
 fn analise(id: &cba_kb::Id, titulo: &str) -> Documento<FrontmatterAnalise> {
@@ -57,7 +57,7 @@ fn analise(id: &cba_kb::Id, titulo: &str) -> Documento<FrontmatterAnalise> {
             tipo: TipoDocumento::Pergunta,
             id: id.clone(),
             titulo: titulo.into(),
-            sistema: SISTEMA.into(),
+            projeto: PROJETO.into(),
             demanda: Demanda {
                 origem: "texto".into(),
                 chave: None,
@@ -74,75 +74,75 @@ fn analise(id: &cba_kb::Id, titulo: &str) -> Documento<FrontmatterAnalise> {
 
 #[test]
 fn cria_a_estrutura_da_spec() {
-    let (_dir, base, sistema) = criar_base();
+    let (_dir, base, projeto) = criar_base();
     assert!(base.raiz().join("_templates").is_dir());
-    for pasta in layout::PASTAS_DO_SISTEMA {
-        assert!(sistema.raiz().join(pasta).is_dir(), "{pasta}");
+    for pasta in layout::PASTAS_DO_PROJETO {
+        assert!(projeto.raiz().join(pasta).is_dir(), "{pasta}");
     }
-    assert!(sistema.raiz().join("sistema.md").is_file());
-    assert_eq!(base.sistemas().unwrap(), [SISTEMA]);
+    assert!(projeto.raiz().join("projeto.md").is_file());
+    assert_eq!(base.projetos().unwrap(), [PROJETO]);
 
-    let lido = sistema.ler_sistema().unwrap();
-    assert_eq!(lido.frontmatter, documento_do_sistema().frontmatter);
-    assert_eq!(lido.corpo, documento_do_sistema().corpo);
+    let lido = projeto.ler_projeto().unwrap();
+    assert_eq!(lido.frontmatter, documento_do_projeto().frontmatter);
+    assert_eq!(lido.corpo, documento_do_projeto().corpo);
 
     // Abrir de novo e criar de novo não apagam nada.
     let reaberta = Base::abrir(base.raiz()).unwrap();
-    let mut outro = documento_do_sistema();
+    let mut outro = documento_do_projeto();
     outro.frontmatter.nome = "Outro nome".into();
-    let mesmo = reaberta.criar_sistema(&outro).unwrap();
+    let mesmo = reaberta.criar_projeto(&outro).unwrap();
     assert_eq!(
-        mesmo.ler_sistema().unwrap().frontmatter.nome,
+        mesmo.ler_projeto().unwrap().frontmatter.nome,
         "Faturamento Exemplo"
     );
-    assert_eq!(reaberta.sistema(SISTEMA).unwrap(), sistema);
+    assert_eq!(reaberta.projeto(PROJETO).unwrap(), projeto);
 }
 
 #[test]
-fn regras_do_sistema_criadas_com_o_padrao_sem_sobrescrever() {
-    let (_dir, base, sistema) = criar_base();
-    let arquivo = sistema.raiz().join("regras-do-sistema.md");
+fn regras_do_projeto_criadas_com_o_padrao_sem_sobrescrever() {
+    let (_dir, base, projeto) = criar_base();
+    let arquivo = projeto.raiz().join("regras-do-projeto.md");
     assert_eq!(
         fs::read_to_string(&arquivo).unwrap(),
-        cba_kb::PADRAO_REGRAS_DO_SISTEMA
+        cba_kb::PADRAO_REGRAS_DO_PROJETO
     );
     assert_eq!(
-        sistema.ler_regras_do_sistema().unwrap().as_deref(),
-        Some(cba_kb::PADRAO_REGRAS_DO_SISTEMA)
+        projeto.ler_regras_do_projeto().unwrap().as_deref(),
+        Some(cba_kb::PADRAO_REGRAS_DO_PROJETO)
     );
 
-    // Editado pelo analista: nem garantir nem criar o sistema de novo sobrescrevem.
+    // Editado pelo analista: nem garantir nem criar o projeto de novo sobrescrevem.
     fs::write(&arquivo, "- Valores em centavos.\n").unwrap();
-    assert!(!sistema.garantir_regras_do_sistema().unwrap());
-    base.criar_sistema(&documento_do_sistema()).unwrap();
+    assert!(!projeto.garantir_regras_do_projeto().unwrap());
+    base.criar_projeto(&documento_do_projeto()).unwrap();
     assert_eq!(
-        sistema.ler_regras_do_sistema().unwrap().as_deref(),
+        projeto.ler_regras_do_projeto().unwrap().as_deref(),
         Some("- Valores em centavos.\n")
     );
 
     // Apagado: a leitura diz que não há, e garantir cria de novo.
     fs::remove_file(&arquivo).unwrap();
-    assert_eq!(sistema.ler_regras_do_sistema().unwrap(), None);
-    assert!(sistema.garantir_regras_do_sistema().unwrap());
+    assert_eq!(projeto.ler_regras_do_projeto().unwrap(), None);
+    assert!(projeto.garantir_regras_do_projeto().unwrap());
     assert!(arquivo.is_file());
 }
 
 #[test]
-fn recusa_sistemas_e_bases_invalidos() {
-    let (_dir, base, _sistema) = criar_base();
+fn recusa_projetos_e_bases_invalidos() {
+    let (_dir, base, _projeto) = criar_base();
     assert!(matches!(
-        base.sistema("../fora"),
-        Err(Erro::NomeDeSistema(_))
+        base.projeto("../fora"),
+        Err(Erro::NomeDeProjeto(_))
     ));
     assert!(matches!(
-        base.sistema("inexistente"),
-        Err(Erro::SistemaInexistente(_))
+        base.projeto("inexistente"),
+        Err(Erro::ProjetoInexistente(_))
     ));
-    let mut doc = documento_do_sistema();
+    let mut doc = documento_do_projeto();
     doc.frontmatter.id = "Faturamento Exemplo".into();
     assert!(matches!(
-        base.criar_sistema(&doc),
-        Err(Erro::NomeDeSistema(_))
+        base.criar_projeto(&doc),
+        Err(Erro::NomeDeProjeto(_))
     ));
     assert!(matches!(
         Base::abrir(base.raiz().join("nao-existe")),
@@ -152,17 +152,17 @@ fn recusa_sistemas_e_bases_invalidos() {
 
 #[test]
 fn numera_analises_em_sequencia() {
-    let (_dir, _base, sistema) = criar_base();
+    let (_dir, _base, projeto) = criar_base();
     assert_eq!(
-        sistema.proximo_id(&Serie::Analise).unwrap().to_string(),
+        projeto.proximo_id(&Serie::Analise).unwrap().to_string(),
         "A-0001"
     );
-    let (a1, c1) = sistema
+    let (a1, c1) = projeto
         .criar_numerado(&Serie::Analise, |id| {
             analise(id, "Como é calculada a multa?")
         })
         .unwrap();
-    let (a2, c2) = sistema
+    let (a2, c2) = projeto
         .criar_numerado(&Serie::Analise, |id| analise(id, "Juros de mora"))
         .unwrap();
     assert_eq!(a1.to_string(), "A-0001");
@@ -171,29 +171,29 @@ fn numera_analises_em_sequencia() {
     assert_eq!(c2.as_str(), "analises/A-0002.md");
 
     // Um buraco na numeração não é reaproveitado: segue do maior.
-    fs::remove_file(sistema.caminho(&c1)).unwrap();
-    let (a3, _) = sistema
+    fs::remove_file(projeto.caminho(&c1)).unwrap();
+    let (a3, _) = projeto
         .criar_numerado(&Serie::Analise, |id| analise(id, "Outra"))
         .unwrap();
     assert_eq!(a3.to_string(), "A-0003");
 
-    let lido: Documento<FrontmatterAnalise> = sistema.ler(&c2).unwrap();
+    let lido: Documento<FrontmatterAnalise> = projeto.ler(&c2).unwrap();
     assert_eq!(lido.frontmatter.id, a2);
     assert_eq!(lido.frontmatter.titulo, "Juros de mora");
 }
 
 #[test]
 fn reserva_sem_colisao_entre_threads() {
-    let (_dir, base, _sistema) = criar_base();
+    let (_dir, base, _projeto) = criar_base();
     let base = Arc::new(base);
     let threads: Vec<_> = (0..8)
         .map(|t| {
             let base = Arc::clone(&base);
             thread::spawn(move || {
-                let sistema = base.sistema(SISTEMA).unwrap();
+                let projeto = base.projeto(PROJETO).unwrap();
                 (0..5)
                     .map(|i| {
-                        sistema
+                        projeto
                             .criar_numerado(&Serie::Analise, |id| {
                                 analise(id, &format!("thread {t} análise {i}"))
                             })
@@ -213,9 +213,9 @@ fn reserva_sem_colisao_entre_threads() {
     assert_eq!(unicos.len(), numeros.len(), "colisão: {numeros:?}");
     assert_eq!(unicos, (1..=40).collect());
 
-    let sistema = base.sistema(SISTEMA).unwrap();
-    let docs = sistema.documentos().unwrap();
-    // 40 análises, o sistema.md e o regras-do-sistema.md, sem temporários.
+    let projeto = base.projeto(PROJETO).unwrap();
+    let docs = projeto.documentos().unwrap();
+    // 40 análises, o projeto.md e o regras-do-projeto.md, sem temporários.
     assert_eq!(docs.len(), 42, "{docs:?}");
     assert!(docs.iter().all(|d| !d.nome().starts_with('.')));
 }
@@ -249,7 +249,7 @@ fn gabarito() -> Gabarito {
 
 #[test]
 fn regras_do_gabarito_vao_e_voltam() {
-    let (_dir, _base, sistema) = criar_base();
+    let (_dir, _base, projeto) = criar_base();
     let regras = gabarito().regras;
     assert!(!regras.is_empty());
     for regra in &regras {
@@ -273,16 +273,16 @@ fn regras_do_gabarito_vao_e_voltam() {
             origem: Some(CaminhoRelativo::novo("analises/A-0001.md").unwrap()),
         };
         let documento = Documento::novo(frontmatter, format!("\n{}\n", regra.enunciado));
-        sistema.criar(&id.arquivo(), &documento).unwrap();
+        projeto.criar(&id.arquivo(), &documento).unwrap();
 
-        let lido: Documento<FrontmatterRegra> = sistema.ler(&id.arquivo()).unwrap();
+        let lido: Documento<FrontmatterRegra> = projeto.ler(&id.arquivo()).unwrap();
         assert_eq!(lido.frontmatter, documento.frontmatter);
         assert_eq!(lido.corpo, documento.corpo);
 
         // Ler e gravar de novo preserva o arquivo byte a byte.
-        let antes = fs::read(sistema.caminho(&id.arquivo())).unwrap();
-        sistema.gravar(&id.arquivo(), &lido).unwrap();
-        assert_eq!(fs::read(sistema.caminho(&id.arquivo())).unwrap(), antes);
+        let antes = fs::read(projeto.caminho(&id.arquivo())).unwrap();
+        projeto.gravar(&id.arquivo(), &lido).unwrap();
+        assert_eq!(fs::read(projeto.caminho(&id.arquivo())).unwrap(), antes);
     }
     // A numeração das regras segue a sigla.
     let fat = Serie::regra("FAT").unwrap();
@@ -291,9 +291,9 @@ fn regras_do_gabarito_vao_e_voltam() {
         .filter_map(|r| fat.numero(&r.id))
         .max()
         .unwrap();
-    assert_eq!(sistema.proximo_id(&fat).unwrap().numero(), maior + 1);
+    assert_eq!(projeto.proximo_id(&fat).unwrap().numero(), maior + 1);
     assert_eq!(
-        sistema
+        projeto
             .proximo_id(&Serie::regra("COB").unwrap())
             .unwrap()
             .to_string(),
@@ -303,7 +303,7 @@ fn regras_do_gabarito_vao_e_voltam() {
 
 #[test]
 fn regravar_preserva_comentarios_e_ordem_de_um_arquivo_editado_a_mao() {
-    let (_dir, _base, sistema) = criar_base();
+    let (_dir, _base, projeto) = criar_base();
     let termo = layout::termo("Multa por atraso").unwrap();
     let texto = "\
 ---
@@ -319,15 +319,15 @@ responsavel: Área de Cobrança
 
 Valor cobrado uma única vez quando a fatura é paga depois da carência.
 ";
-    fs::write(sistema.caminho(&termo), texto).unwrap();
+    fs::write(projeto.caminho(&termo), texto).unwrap();
 
-    let mut doc: Documento<FrontmatterTermo> = sistema.ler(&termo).unwrap();
-    sistema.gravar(&termo, &doc).unwrap();
-    assert_eq!(fs::read_to_string(sistema.caminho(&termo)).unwrap(), texto);
+    let mut doc: Documento<FrontmatterTermo> = projeto.ler(&termo).unwrap();
+    projeto.gravar(&termo, &doc).unwrap();
+    assert_eq!(fs::read_to_string(projeto.caminho(&termo)).unwrap(), texto);
 
     doc.frontmatter.sinonimos.push("encargo".into());
-    sistema.gravar(&termo, &doc).unwrap();
-    let livre: Documento<FrontmatterLivre> = sistema.ler(&termo).unwrap();
+    projeto.gravar(&termo, &doc).unwrap();
+    let livre: Documento<FrontmatterLivre> = projeto.ler(&termo).unwrap();
     let chaves: Vec<_> = livre
         .frontmatter
         .0
@@ -343,11 +343,11 @@ Valor cobrado uma única vez quando a fatura é paga depois da carência.
 
 #[test]
 fn frontmatter_invalido_aponta_arquivo_e_campo() {
-    let (_dir, _base, sistema) = criar_base();
-    let (id, caminho) = sistema
+    let (_dir, _base, projeto) = criar_base();
+    let (id, caminho) = projeto
         .criar_numerado(&Serie::Analise, |id| analise(id, "Multa"))
         .unwrap();
-    let disco = sistema.caminho(&caminho);
+    let disco = projeto.caminho(&caminho);
     let texto = fs::read_to_string(&disco).unwrap();
     fs::write(
         &disco,
@@ -355,16 +355,16 @@ fn frontmatter_invalido_aponta_arquivo_e_campo() {
     )
     .unwrap();
 
-    let erro = sistema.ler::<FrontmatterAnalise>(&caminho).unwrap_err();
+    let erro = projeto.ler::<FrontmatterAnalise>(&caminho).unwrap_err();
     let mensagem = erro.to_string();
     assert!(
-        mensagem.starts_with(&format!("{SISTEMA}/analises/{id}.md: ")),
+        mensagem.starts_with(&format!("{PROJETO}/analises/{id}.md: ")),
         "{mensagem}"
     );
     assert!(mensagem.contains("campo `status`"), "{mensagem}");
     match erro {
         Erro::Frontmatter { arquivo, erro } => {
-            assert_eq!(arquivo.as_str(), format!("{SISTEMA}/analises/{id}.md"));
+            assert_eq!(arquivo.as_str(), format!("{PROJETO}/analises/{id}.md"));
             assert_eq!(erro.campo.as_deref(), Some("status"));
         }
         outro => panic!("erro inesperado: {outro:?}"),
@@ -373,7 +373,7 @@ fn frontmatter_invalido_aponta_arquivo_e_campo() {
 
 #[test]
 fn caminhos_absolutos_sao_recusados() {
-    let (_dir, base, _sistema) = criar_base();
+    let (_dir, base, _projeto) = criar_base();
     let absoluto = base.raiz().join("x.md");
     assert!(CaminhoRelativo::de_caminho(&absoluto).is_err());
     assert!(CaminhoRelativo::novo(&absoluto.to_string_lossy()).is_err());
@@ -381,7 +381,7 @@ fn caminhos_absolutos_sao_recusados() {
 
 #[test]
 fn templates_na_raiz_da_base() {
-    let (_dir, base, _sistema) = criar_base();
+    let (_dir, base, _projeto) = criar_base();
     let template = CaminhoRelativo::novo("_templates/analise-impacto.md").unwrap();
     base.gravar_texto(&template, "# {{titulo}}\n").unwrap();
     assert_eq!(base.ler_texto(&template).unwrap(), "# {{titulo}}\n");

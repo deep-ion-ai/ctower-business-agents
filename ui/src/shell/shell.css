@@ -1,0 +1,623 @@
+/*
+ * Shell estilo VS Code (#85): barra de título, barra de atividades, painel
+ * lateral, abas e barra de status. Cores só por token.
+ * Origem: deep-ion-ai/ctower-agents, ui/src/shell/shell.css (commit e458ff6,
+ * Apache-2.0), sem paleta de comandos, painel inferior e lista de abas.
+ */
+.shell {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Barra de título */
+
+.titlebar {
+  flex: 0 0 38px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  background: var(--bg-header);
+  border-bottom: 1px solid var(--border);
+}
+
+.titlebar .brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.brand-logo {
+  color: var(--attention);
+}
+
+.titlebar-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.ibtn {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.ibtn:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.ibtn:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+/* Área de trabalho: barra de atividades, painel lateral e principal. */
+
+.shell-work {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.activitybar {
+  flex: 0 0 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 0;
+  background: var(--bg-header);
+  border-right: 1px solid var(--border);
+  z-index: 3;
+}
+
+.ab-item {
+  position: relative;
+  width: 48px;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.ab-item:hover,
+.ab-item[aria-current="page"] {
+  color: var(--text);
+}
+
+.ab-item[aria-current="page"] {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.ab-item:focus-visible {
+  outline-offset: -2px;
+}
+
+/* Dica do ícone (o `title` viraria descrição acessível repetindo o nome). */
+
+.ab-item[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: calc(100% + 6px);
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 3px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--surface-3);
+  color: var(--text);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.ab-spacer {
+  flex: 1;
+}
+
+/* Painel lateral */
+
+.sidepanel {
+  flex: none;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  background: var(--bg-side);
+  border-right: 1px solid var(--border);
+}
+
+.sidepanel[hidden] {
+  display: none;
+}
+
+.sidepanel-slot {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidepanel-slot:empty {
+  display: none;
+}
+
+.sidepanel-resizer {
+  flex: 0 0 4px;
+  margin-left: -4px;
+  cursor: col-resize;
+  z-index: 2;
+  touch-action: none;
+}
+
+.sidepanel-resizer:hover,
+.sidepanel-resizer:focus-visible {
+  background: var(--accent);
+  outline: none;
+}
+
+.sidepanel-scrim {
+  display: none;
+}
+
+.sp {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Rodapé do painel lateral: preso embaixo quando sobra espaço. */
+
+.sp-foot {
+  margin-top: auto;
+  padding: 0 12px 12px;
+}
+
+.sp-head {
+  flex: 0 0 35px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 0 6px 0 16px;
+}
+
+.sp-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sp-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.sp-body {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 8px;
+}
+
+.sp-group {
+  margin-top: 4px;
+}
+
+.sp-group-head {
+  display: flex;
+  align-items: center;
+  padding-right: 6px;
+}
+
+.sp-group-toggle {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border: 0;
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  text-align: left;
+}
+
+.sp-group-count {
+  margin-left: auto;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.sp-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sp-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding-right: 6px;
+}
+
+.sp-row:hover {
+  background: var(--hover);
+}
+
+.sp-row[data-selected="true"] {
+  background: var(--selected);
+}
+
+.sp-row-main {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px 0 8px;
+  border: 0;
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sp-row[data-selected="true"] .sp-row-main,
+.sp-row:hover .sp-row-main {
+  color: var(--text);
+}
+
+.sp-row-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Linha com segunda linha (`sub`): altura livre, ponto alinhado à primeira. */
+
+.sp-row-2 .sp-row-main {
+  height: auto;
+  min-height: 26px;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  align-items: flex-start;
+}
+
+.sp-row-2 .sp-dot {
+  margin-top: 5px;
+}
+
+.sp-row-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.sp-row-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.sp-row-trailing {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.sp-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+.sp-dot[data-tone="attention"] {
+  background: var(--attention);
+}
+
+.sp-dot[data-tone="running"] {
+  background: var(--running);
+}
+
+.sp-dot[data-tone="done"] {
+  background: var(--done);
+}
+
+.sp-dot[data-tone="error"] {
+  background: var(--error);
+}
+
+/* Principal: banners, abas e editor. */
+
+.shell-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Faixa de abas. */
+
+.etabs-bar {
+  position: relative;
+  flex: 0 0 35px;
+  display: flex;
+  background: var(--bg-side);
+  border-bottom: 1px solid var(--border);
+}
+
+.etabs {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  overflow-x: auto;
+}
+
+.etab {
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding-right: 6px;
+  border-right: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.etab[data-on="true"] {
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: inset 0 1px 0 var(--accent);
+}
+
+.etab-main {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 6px 0 12px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.etab-main:focus-visible {
+  outline-offset: -2px;
+}
+
+.etab-title {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.etab-close {
+  width: 20px;
+  height: 20px;
+  visibility: hidden;
+}
+
+.etab[data-on="true"] .etab-close,
+.etab:hover .etab-close,
+.etab-close:focus-visible {
+  visibility: visible;
+}
+
+/* Só a tela rola; abas e banners ficam fixos. */
+
+.editor {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.editor > * {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* Barra de status */
+
+.statusbar {
+  flex: 0 0 24px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  background: var(--statusbar-bg);
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.sb-item {
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+
+button.sb-item {
+  cursor: pointer;
+}
+
+button.sb-item:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.sb-warn {
+  color: var(--attention);
+}
+
+.sb-spacer {
+  flex: 1;
+}
+
+.sb-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--error);
+}
+
+.sb-dot[data-on="true"] {
+  background: var(--ok);
+}
+
+/* Tela estreita: o painel lateral vira gaveta sobre a área de editor. */
+@media (max-width: 900px) {
+  .sidepanel {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 48px;
+    z-index: 2;
+    max-width: calc(100% - 64px);
+    box-shadow: 4px 0 16px var(--shadow);
+  }
+
+  .sidepanel-resizer {
+    display: none;
+  }
+
+  .sidepanel-scrim {
+    display: block;
+    position: absolute;
+    inset: 0 0 0 48px;
+    z-index: 1;
+    background: var(--scrim);
+    opacity: 0.5;
+  }
+
+  .statusbar .sb-item:not(button) {
+    display: none;
+  }
+}
+
+/* ---- Acréscimos deste app (#85). ---- */
+
+.titlebar .brand-version {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.titlebar-spacer {
+  flex: 1;
+}
+
+/* Alternância de tema: três ícones, o escolhido marcado. */
+.theme-switch {
+  display: inline-flex;
+  gap: 2px;
+  padding: 1px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.theme-switch .ibtn[aria-pressed="true"] {
+  background: var(--selected);
+  color: var(--text);
+}
+
+/* Título de grupo sem recolher (o nome do grupo não repete o da área). */
+.sp-group-title {
+  margin: 0;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px 0 16px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+.sp-empty {
+  margin: 0;
+  padding: 2px 16px 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.sp-row-main svg {
+  flex: none;
+  color: var(--muted);
+}
+
+.etab-main svg {
+  flex: none;
+}
+
+/* A área de editor recebe a tela inteira; cada tela põe seu próprio respiro. */
+.editor > .editor-tela {
+  display: flex;
+  flex-direction: column;
+}
+
+.titlebar .brand-name {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}

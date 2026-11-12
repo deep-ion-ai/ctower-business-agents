@@ -2,13 +2,13 @@
 //!
 //! O assistente da tela passa por: cliente de IA preferido (a detecção é a de
 //! [`cba_session::clientes`]), pasta da base de conhecimento, cadastro do primeiro
-//! sistema (pastas, inventário com o que fica fora e ajuste das exclusões), preparo do
+//! projeto (pastas, inventário com o que fica fora e ajuste das exclusões), preparo do
 //! ambiente com consentimento ([`crate::analise`]) e a ida para a primeira análise.
 //! As mesmas funções servem à tela de configurações (#39), para refazer cada passo.
 //!
 //! Conferências que o núcleo deixou para o app (#7): a base não pode ficar numa pasta
 //! temporária, no diretório de dados do app nem dentro do repositório (ou da pasta) de
-//! um sistema cadastrado; e o sistema não pode conter a base.
+//! um projeto cadastrado; e o projeto não pode conter a base.
 //!
 //! A preferência do cliente e a marca de primeiro uso concluído ficam em
 //! `<dados>/config/preferencias.json`, do app, e não no `app.json` de
@@ -24,7 +24,7 @@ use cba_core::eventos::DiarioEventos;
 use cba_index::{Cadastro, Ignorado, Inventario, detectar_git};
 use serde::{Deserialize, Serialize};
 
-use crate::terminal::SistemaResumo;
+use crate::terminal::ProjetoResumo;
 
 const PREFERENCIAS: &str = "preferencias.json";
 
@@ -85,9 +85,9 @@ pub struct Situacao {
     pub base: Option<PathBuf>,
     /// Sugestão para a base (`Documentos/ctower-business`).
     pub base_sugerida: Option<PathBuf>,
-    pub sistemas: Vec<SistemaResumo>,
+    pub projetos: Vec<ProjetoResumo>,
     pub cliente: Option<ClientePreferido>,
-    /// Se o assistente do primeiro uso já foi concluído. Quem já tinha base e sistema
+    /// Se o assistente do primeiro uso já foi concluído. Quem já tinha base e projeto
     /// antes do assistente (versões anteriores do app) não passa por ele de novo.
     pub primeiro_uso_concluido: bool,
 }
@@ -102,22 +102,22 @@ pub fn base_sugerida() -> Option<PathBuf> {
 pub fn situacao(dados: &DiretorioDados) -> Result<Situacao, String> {
     let config = Config::ler(dados).map_err(|e| format!("configuração do app ilegível: {e}"))?;
     let preferencias = Preferencias::ler(dados)?;
-    let sistemas: Vec<SistemaResumo> = Cadastro::em(dados.sistemas())
+    let projetos: Vec<ProjetoResumo> = Cadastro::em(dados.projetos())
         .listar()
         .map_err(|e| e.to_string())?
         .into_iter()
-        .map(|s| SistemaResumo {
+        .map(|s| ProjetoResumo {
             id: s.id,
             nome: s.nome,
         })
         .collect();
     let concluido = preferencias
         .primeiro_uso_concluido
-        .unwrap_or(config.base.is_some() && !sistemas.is_empty());
+        .unwrap_or(config.base.is_some() && !projetos.is_empty());
     Ok(Situacao {
         base: config.base,
         base_sugerida: base_sugerida(),
-        sistemas,
+        projetos,
         cliente: preferencias.cliente,
         primeiro_uso_concluido: concluido,
     })
@@ -133,14 +133,14 @@ pub fn escolher_cliente(dados: &DiretorioDados, cliente: ClientePreferido) -> Re
     p.gravar(dados)
 }
 
-/// Marca o primeiro uso como concluído. Exige a base e um sistema cadastrado.
+/// Marca o primeiro uso como concluído. Exige a base e um projeto cadastrado.
 pub fn concluir_primeiro_uso(dados: &DiretorioDados) -> Result<(), String> {
     let s = situacao(dados)?;
     if s.base.is_none() {
         return Err("escolha a pasta da base de conhecimento antes de concluir".into());
     }
-    if s.sistemas.is_empty() {
-        return Err("cadastre um sistema antes de concluir".into());
+    if s.projetos.is_empty() {
+        return Err("cadastre um projeto antes de concluir".into());
     }
     let mut p = Preferencias::ler(dados)?;
     p.primeiro_uso_concluido = Some(true);
@@ -150,7 +150,7 @@ pub fn concluir_primeiro_uso(dados: &DiretorioDados) -> Result<(), String> {
 // ---------------------------------------------------------------------------
 // Base de conhecimento
 
-/// Pastas onde a base não pode ficar, além das pastas dos sistemas.
+/// Pastas onde a base não pode ficar, além das pastas dos projetos.
 #[derive(Debug, Clone, Default)]
 pub struct Restricoes {
     /// Pastas temporárias do sistema operacional.
@@ -193,7 +193,7 @@ pub struct AvaliacaoBase {
     pub estado: Option<EstadoPasta>,
     /// Por que a pasta não pode ser usada; `None` se pode.
     pub recusa: Option<String>,
-    /// A pasta está num repositório git (permitido, desde que não seja o de um sistema).
+    /// A pasta está num repositório git (permitido, desde que não seja o de um projeto).
     pub git: bool,
 }
 
@@ -224,51 +224,51 @@ pub(crate) fn canonica_aproximada(caminho: &Path) -> PathBuf {
 }
 
 /// Um repositório git na pasta do usuário (ou acima dela), como o de quem versiona
-/// os próprios arquivos de configuração, não é o repositório do sistema.
+/// os próprios arquivos de configuração, não é o repositório do projeto.
 fn repositorio_do_usuario(raiz: &Path) -> bool {
     dirs::home_dir().is_some_and(|h| canonica_aproximada(&h).starts_with(raiz))
 }
 
-/// Raízes que a base não pode invadir por causa de um sistema: as pastas dele e os
+/// Raízes que a base não pode invadir por causa de um projeto: as pastas dele e os
 /// repositórios git que as contêm (o principal, numa worktree).
-fn raizes_do_sistema(sistema: &cba_index::Sistema) -> Vec<(PathBuf, String)> {
+fn raizes_do_projeto(projeto: &cba_index::Projeto) -> Vec<(PathBuf, String)> {
     let mut raizes = Vec::new();
-    for p in &sistema.pastas {
+    for p in &projeto.pastas {
         let pasta = canonica_aproximada(&p.caminho);
         if let Some(git) = detectar_git(&pasta) {
             for r in [git.raiz, git.raiz_principal] {
                 let r = canonica_aproximada(&r);
                 if !repositorio_do_usuario(&r) {
-                    raizes.push((r, sistema.nome.clone()));
+                    raizes.push((r, projeto.nome.clone()));
                 }
             }
         }
-        raizes.push((pasta, sistema.nome.clone()));
+        raizes.push((pasta, projeto.nome.clone()));
     }
     raizes
 }
 
-/// Recusa da base diante de um sistema (cadastrado ou em cadastro).
-fn conflito_com_sistema(base: &Path, sistema: &cba_index::Sistema) -> Option<String> {
+/// Recusa da base diante de um projeto (cadastrado ou em cadastro).
+fn conflito_com_projeto(base: &Path, projeto: &cba_index::Projeto) -> Option<String> {
     let base = canonica_aproximada(base);
     let repo_da_base = detectar_git(&base)
         .map(|g| canonica_aproximada(&g.raiz_principal))
         .filter(|r| !repositorio_do_usuario(r));
-    for (raiz, nome) in raizes_do_sistema(sistema) {
+    for (raiz, nome) in raizes_do_projeto(projeto) {
         if base.starts_with(&raiz) || repo_da_base.as_ref() == Some(&raiz) {
             return Some(format!(
-                "a base não pode ficar dentro do repositório ou das pastas do sistema \
+                "a base não pode ficar dentro do repositório ou das pastas do projeto \
                  \"{nome}\" ({}): os documentos se misturariam ao código analisado",
                 raiz.display()
             ));
         }
     }
-    for p in &sistema.pastas {
+    for p in &projeto.pastas {
         if canonica_aproximada(&p.caminho).starts_with(&base) {
             return Some(format!(
-                "a pasta do sistema \"{}\" ({}) fica dentro da base; escolha pastas \
+                "a pasta do projeto \"{}\" ({}) fica dentro da base; escolha pastas \
                  separadas",
-                sistema.nome,
+                projeto.nome,
                 p.caminho.display()
             ));
         }
@@ -331,7 +331,7 @@ fn recusa_da_base(
         let t = canonica_aproximada(t);
         if caminho.starts_with(&t) {
             return Some(format!(
-                "a base não pode ficar numa pasta temporária ({}), que o sistema \
+                "a base não pode ficar numa pasta temporária ({}), que o projeto \
                  operacional pode apagar",
                 t.display()
             ));
@@ -343,10 +343,10 @@ fn recusa_da_base(
             "a base não pode ficar no diretório de dados do app, que a desinstalação apaga".into(),
         );
     }
-    let sistemas = Cadastro::em(dados.sistemas()).listar().ok()?;
-    sistemas
+    let projetos = Cadastro::em(dados.projetos()).listar().ok()?;
+    projetos
         .iter()
-        .find_map(|s| conflito_com_sistema(caminho, s))
+        .find_map(|s| conflito_com_projeto(caminho, s))
 }
 
 /// Escolhe a pasta da base: confere, cria (ou completa) e grava em `Config.base`.
@@ -370,12 +370,12 @@ pub fn configurar_base(
 }
 
 // ---------------------------------------------------------------------------
-// Cadastro do sistema
+// Cadastro do projeto
 
 /// O que o analista informa no cadastro.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PedidoSistema {
+pub struct PedidoProjeto {
     pub nome: String,
     /// Caminhos completos; a primeira é a raiz.
     pub pastas: Vec<String>,
@@ -397,11 +397,11 @@ pub(crate) fn limpar(lista: &[String]) -> Vec<String> {
     saida
 }
 
-/// Monta e confere o sistema do pedido, inclusive diante da base configurada.
-fn montar_sistema(
+/// Monta e confere o projeto do pedido, inclusive diante da base configurada.
+fn montar_projeto(
     dados: &DiretorioDados,
-    pedido: &PedidoSistema,
-) -> Result<cba_index::Sistema, String> {
+    pedido: &PedidoProjeto,
+) -> Result<cba_index::Projeto, String> {
     let pastas = limpar(&pedido.pastas);
     if pastas.is_empty() {
         return Err("informe ao menos uma pasta do código".into());
@@ -409,24 +409,24 @@ fn montar_sistema(
     for p in &pastas {
         if !Path::new(p).is_absolute() {
             return Err(format!(
-                "informe o caminho completo da pasta do sistema: {p}"
+                "informe o caminho completo da pasta do projeto: {p}"
             ));
         }
     }
-    let mut sistema = cba_index::Sistema::novo(&pedido.nome, &pastas).map_err(|e| e.to_string())?;
-    sistema.exclusoes = limpar(&pedido.exclusoes);
-    sistema.inclusoes = limpar(&pedido.inclusoes);
-    sistema.validar().map_err(|e| e.to_string())?;
+    let mut projeto = cba_index::Projeto::novo(&pedido.nome, &pastas).map_err(|e| e.to_string())?;
+    projeto.exclusoes = limpar(&pedido.exclusoes);
+    projeto.inclusoes = limpar(&pedido.inclusoes);
+    projeto.validar().map_err(|e| e.to_string())?;
     let config = Config::ler(dados).map_err(|e| e.to_string())?;
     if let Some(base) = config.base()
-        && let Some(r) = conflito_com_sistema(base, &sistema)
+        && let Some(r) = conflito_com_projeto(base, &projeto)
     {
         return Err(r);
     }
-    Ok(sistema)
+    Ok(projeto)
 }
 
-/// Uma pasta do sistema, como a tela mostra.
+/// Uma pasta do projeto, como a tela mostra.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PastaVista {
@@ -541,16 +541,16 @@ pub fn resumo_inventario(inventario: &Inventario) -> ResumoInventario {
     }
 }
 
-/// Prévia do cadastro: o sistema como ficaria e o inventário, sem gravar nada.
+/// Prévia do cadastro: o projeto como ficaria e o inventário, sem gravar nada.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PreviaSistema {
+pub struct PreviaProjeto {
     pub id: String,
     pub nome: String,
     pub pastas: Vec<PastaVista>,
     pub exclusoes: Vec<String>,
     pub inclusoes: Vec<String>,
-    /// Já existe um sistema com o mesmo identificador.
+    /// Já existe um projeto com o mesmo identificador.
     pub ja_cadastrado: bool,
     pub inventario: ResumoInventario,
 }
@@ -568,69 +568,69 @@ pub(crate) fn pastas_vista(inventario: &Inventario) -> Vec<PastaVista> {
         .collect()
 }
 
-pub fn previa_sistema(
+pub fn previa_projeto(
     dados: &DiretorioDados,
-    pedido: &PedidoSistema,
-) -> Result<PreviaSistema, String> {
-    let sistema = montar_sistema(dados, pedido)?;
-    let inventario = cba_index::inventariar(&sistema, None).map_err(|e| e.to_string())?;
-    let ja_cadastrado = Cadastro::em(dados.sistemas())
-        .obter(&sistema.id)
+    pedido: &PedidoProjeto,
+) -> Result<PreviaProjeto, String> {
+    let projeto = montar_projeto(dados, pedido)?;
+    let inventario = cba_index::inventariar(&projeto, None).map_err(|e| e.to_string())?;
+    let ja_cadastrado = Cadastro::em(dados.projetos())
+        .obter(&projeto.id)
         .map_err(|e| e.to_string())?
         .is_some();
-    Ok(PreviaSistema {
+    Ok(PreviaProjeto {
         pastas: pastas_vista(&inventario),
         inventario: resumo_inventario(&inventario),
-        id: sistema.id,
-        nome: sistema.nome,
-        exclusoes: sistema.exclusoes,
-        inclusoes: sistema.inclusoes,
+        id: projeto.id,
+        nome: projeto.nome,
+        exclusoes: projeto.exclusoes,
+        inclusoes: projeto.inclusoes,
         ja_cadastrado,
     })
 }
 
-/// Sistema cadastrado, com o inventário gravado.
+/// Projeto cadastrado, com o inventário gravado.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SistemaCadastrado {
+pub struct ProjetoCadastrado {
     pub id: String,
     pub nome: String,
     pub pastas: Vec<PastaVista>,
     pub inventario: ResumoInventario,
 }
 
-/// Cadastra o sistema, grava o inventário e cria o sistema na base. Se algo falhar
+/// Cadastra o projeto, grava o inventário e cria o projeto na base. Se algo falhar
 /// depois de gravado o cadastro, ele é desfeito.
-pub fn cadastrar_sistema(
+pub fn cadastrar_projeto(
     dados: &DiretorioDados,
-    pedido: &PedidoSistema,
-) -> Result<SistemaCadastrado, String> {
+    pedido: &PedidoProjeto,
+) -> Result<ProjetoCadastrado, String> {
     let config = Config::ler(dados).map_err(|e| e.to_string())?;
     if config.base.is_none() {
-        return Err("escolha a pasta da base de conhecimento antes de cadastrar o sistema".into());
+        return Err("escolha a pasta da base de conhecimento antes de cadastrar o projeto".into());
     }
-    let sistema = montar_sistema(dados, pedido)?;
-    let cadastro = Cadastro::em(dados.sistemas());
-    cadastro.cadastrar(&sistema).map_err(|e| e.to_string())?;
+    let projeto = montar_projeto(dados, pedido)?;
+    let cadastro = Cadastro::em(dados.projetos());
+    cadastro.cadastrar(&projeto).map_err(|e| e.to_string())?;
     let feito = (|| {
         let inventario = cadastro
-            .inventariar(&sistema.id)
+            .inventariar(&projeto.id)
             .map_err(|e| e.to_string())?;
-        let pasta = &sistema.pastas[0].caminho;
+        let pasta = &projeto.pastas[0].caminho;
         let notificador = Arc::new(DiarioEventos::em(dados.eventos()));
-        Ambiente::do_processo_com(pasta, Some(&sistema.id), dados, notificador)
+        Ambiente::do_processo_com(pasta, Some(&projeto.id), dados, notificador)
             .map_err(|e| e.to_string())?;
         Ok::<_, String>(inventario)
     })();
     match feito {
-        Ok(inventario) => Ok(SistemaCadastrado {
+        Ok(inventario) => Ok(ProjetoCadastrado {
             pastas: pastas_vista(&inventario),
             inventario: resumo_inventario(&inventario),
-            id: sistema.id,
-            nome: sistema.nome,
+            id: projeto.id,
+            nome: projeto.nome,
         }),
         Err(e) => {
-            let _ = cadastro.remover(&sistema.id);
+            let _ = cadastro.remover(&projeto.id);
             Err(e)
         }
     }
@@ -676,21 +676,21 @@ pub async fn configurar_base_app(pasta: String) -> Result<PathBuf, String> {
 }
 
 #[tauri::command]
-pub async fn previa_sistema_app(pedido: PedidoSistema) -> Result<PreviaSistema, String> {
+pub async fn previa_projeto_app(pedido: PedidoProjeto) -> Result<PreviaProjeto, String> {
     let dados = dados()?;
-    bloqueante(move || previa_sistema(&dados, &pedido)).await
+    bloqueante(move || previa_projeto(&dados, &pedido)).await
 }
 
 #[tauri::command]
-pub async fn cadastrar_sistema_app(pedido: PedidoSistema) -> Result<SistemaCadastrado, String> {
+pub async fn cadastrar_projeto_app(pedido: PedidoProjeto) -> Result<ProjetoCadastrado, String> {
     let dados = dados()?;
     bloqueante(move || {
-        let feito = cadastrar_sistema(&dados, &pedido)?;
+        let feito = cadastrar_projeto(&dados, &pedido)?;
         tracing::info!(
             pastas = feito.pastas.len(),
             analisados = feito.inventario.analisados,
             ignorados = feito.inventario.ignorados,
-            "sistema cadastrado"
+            "projeto cadastrado"
         );
         Ok(feito)
     })
@@ -716,8 +716,8 @@ mod tests {
             .unwrap()
     }
 
-    fn pedido(pastas: &[&Path]) -> PedidoSistema {
-        PedidoSistema {
+    fn pedido(pastas: &[&Path]) -> PedidoProjeto {
+        PedidoProjeto {
             nome: "Faturamento Exemplo".into(),
             pastas: pastas
                 .iter()
@@ -744,7 +744,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let dados = DiretorioDados::em(dir.path().join("dados"));
         let s = situacao(&dados).unwrap();
-        assert!(s.base.is_none() && s.sistemas.is_empty() && s.cliente.is_none());
+        assert!(s.base.is_none() && s.projetos.is_empty() && s.cliente.is_none());
         assert!(!s.primeiro_uso_concluido);
         escolher_cliente(&dados, ClientePreferido::ClaudeDesktop).unwrap();
         let s = situacao(&dados).unwrap();
@@ -754,12 +754,12 @@ mod tests {
         let json = serde_json::to_value(&s).unwrap();
         assert_eq!(json["cliente"], "claudeDesktop");
         assert_eq!(json["primeiroUsoConcluido"], false);
-        // Sem base e sistema não conclui.
+        // Sem base e projeto não conclui.
         assert!(concluir_primeiro_uso(&dados).is_err());
     }
 
     #[test]
-    fn quem_ja_tinha_base_e_sistema_nao_passa_pelo_assistente() {
+    fn quem_ja_tinha_base_e_projeto_nao_passa_pelo_assistente() {
         let dir = tempfile::tempdir().unwrap();
         let dados = DiretorioDados::em(dir.path().join("dados"));
         configurar_base(
@@ -768,7 +768,7 @@ mod tests {
             dir.path().join("base").to_str().unwrap(),
         )
         .unwrap();
-        cadastrar_sistema(&dados, &pedido(&[&fixture()])).unwrap();
+        cadastrar_projeto(&dados, &pedido(&[&fixture()])).unwrap();
         assert!(situacao(&dados).unwrap().primeiro_uso_concluido);
     }
 
@@ -807,7 +807,7 @@ mod tests {
     fn base_em_pasta_temporaria_ou_nos_dados_do_app_e_recusada() {
         let dir = tempfile::tempdir().unwrap();
         let dados = DiretorioDados::em(dir.path().join("dados"));
-        let temporaria = dir.path().join("tmp-do-sistema");
+        let temporaria = dir.path().join("tmp-do-projeto");
         let r = Restricoes {
             temporarias: vec![temporaria.clone()],
         };
@@ -832,22 +832,22 @@ mod tests {
     }
 
     #[test]
-    fn base_dentro_do_repositorio_do_sistema_e_recusada() {
+    fn base_dentro_do_repositorio_do_projeto_e_recusada() {
         let dir = tempfile::tempdir().unwrap();
         let dados = DiretorioDados::em(dir.path().join("dados"));
         let r = sem_restricoes();
         let repo = dir.path().join("repo-faturamento");
         repositorio(&repo);
-        // Base fora; sistema cadastrado na pasta src/ do repositório.
+        // Base fora; projeto cadastrado na pasta src/ do repositório.
         configurar_base(&dados, &r, dir.path().join("base").to_str().unwrap()).unwrap();
-        cadastrar_sistema(&dados, &pedido(&[&repo.join("src")])).unwrap();
+        cadastrar_projeto(&dados, &pedido(&[&repo.join("src")])).unwrap();
         // Trocar a base para dentro do repositório (fora da pasta cadastrada) é recusado.
         let dentro = repo.join("docs").join("base");
         let a = avaliar_base(&dados, &r, dentro.to_str().unwrap()).unwrap();
         let recusa = a.recusa.expect("recusada");
         assert!(recusa.contains("repositório"), "{recusa}");
         assert!(configurar_base(&dados, &r, dentro.to_str().unwrap()).is_err());
-        // Uma base que contém o sistema também.
+        // Uma base que contém o projeto também.
         assert!(
             avaliar_base(&dados, &r, dir.path().to_str().unwrap())
                 .unwrap()
@@ -857,7 +857,7 @@ mod tests {
     }
 
     #[test]
-    fn cadastro_recusa_sistema_cujo_repositorio_contem_a_base() {
+    fn cadastro_recusa_projeto_cujo_repositorio_contem_a_base() {
         let dir = tempfile::tempdir().unwrap();
         let dados = DiretorioDados::em(dir.path().join("dados"));
         let repo = dir.path().join("repo");
@@ -868,10 +868,10 @@ mod tests {
             repo.join("base").to_str().unwrap(),
         )
         .unwrap();
-        let erro = previa_sistema(&dados, &pedido(&[&repo.join("src")])).unwrap_err();
+        let erro = previa_projeto(&dados, &pedido(&[&repo.join("src")])).unwrap_err();
         assert!(erro.contains("repositório"), "{erro}");
-        assert!(cadastrar_sistema(&dados, &pedido(&[&repo.join("src")])).is_err());
-        assert!(situacao(&dados).unwrap().sistemas.is_empty());
+        assert!(cadastrar_projeto(&dados, &pedido(&[&repo.join("src")])).is_err());
+        assert!(situacao(&dados).unwrap().projetos.is_empty());
     }
 
     #[test]
@@ -884,7 +884,7 @@ mod tests {
             dir.path().join("base").to_str().unwrap(),
         )
         .unwrap();
-        let p = previa_sistema(&dados, &pedido(&[&fixture()])).unwrap();
+        let p = previa_projeto(&dados, &pedido(&[&fixture()])).unwrap();
         assert_eq!(p.id, "faturamento-exemplo");
         assert!(!p.ja_cadastrado);
         let inv = &p.inventario;
@@ -902,12 +902,12 @@ mod tests {
         assert!(env.ajustavel);
         assert!(inv.por_motivo.iter().any(|c| c.chave == "segredo"));
         // Nada foi gravado.
-        assert!(situacao(&dados).unwrap().sistemas.is_empty());
+        assert!(situacao(&dados).unwrap().projetos.is_empty());
 
         // Exclusão acrescentada pelo analista: a pasta cobol sai da análise.
         let mut ajustado = pedido(&[&fixture()]);
         ajustado.exclusoes = vec!["cobol/".into(), " ".into(), "cobol/".into()];
-        let p = previa_sistema(&dados, &ajustado).unwrap();
+        let p = previa_projeto(&dados, &ajustado).unwrap();
         assert_eq!(p.exclusoes, ["cobol/"]);
         let cobol = p
             .inventario
@@ -927,7 +927,7 @@ mod tests {
         // Padrão inválido é recusado com a mensagem do cadastro.
         let mut invalido = pedido(&[&fixture()]);
         invalido.exclusoes = vec!["[".into()];
-        assert!(previa_sistema(&dados, &invalido).is_err());
+        assert!(previa_projeto(&dados, &invalido).is_err());
     }
 
     #[test]
@@ -936,14 +936,14 @@ mod tests {
         let dados = DiretorioDados::em(dir.path().join("dados"));
         let base = dir.path().join("base");
         assert!(
-            cadastrar_sistema(&dados, &pedido(&[&fixture()])).is_err(),
+            cadastrar_projeto(&dados, &pedido(&[&fixture()])).is_err(),
             "sem base"
         );
         configurar_base(&dados, &sem_restricoes(), base.to_str().unwrap()).unwrap();
         let mut p = pedido(&[&fixture()]);
         p.exclusoes = vec!["delphi/".into()];
         p.inclusoes = vec!["/.env".into()];
-        let feito = cadastrar_sistema(&dados, &p).unwrap();
+        let feito = cadastrar_projeto(&dados, &p).unwrap();
         assert_eq!(feito.id, "faturamento-exemplo");
         assert!(
             !feito
@@ -953,7 +953,7 @@ mod tests {
                 .any(|i| i.caminho == ".env"),
             "o .env foi reincluído pelo analista"
         );
-        let cadastro = Cadastro::em(dados.sistemas());
+        let cadastro = Cadastro::em(dados.projetos());
         let gravado = cadastro.obter("faturamento-exemplo").unwrap().unwrap();
         assert_eq!(gravado.exclusoes, ["delphi/"]);
         assert_eq!(gravado.inclusoes, ["/.env"]);
@@ -965,17 +965,17 @@ mod tests {
         );
         assert!(
             base.join("faturamento-exemplo")
-                .join("sistema.md")
+                .join("projeto.md")
                 .is_file()
         );
         // De novo: recusado, e a prévia avisa.
-        assert!(cadastrar_sistema(&dados, &pedido(&[&fixture()])).is_err());
+        assert!(cadastrar_projeto(&dados, &pedido(&[&fixture()])).is_err());
         assert!(
-            previa_sistema(&dados, &pedido(&[&fixture()]))
+            previa_projeto(&dados, &pedido(&[&fixture()]))
                 .unwrap()
                 .ja_cadastrado
         );
-        // Com base e sistema, o primeiro uso pode ser concluído.
+        // Com base e projeto, o primeiro uso pode ser concluído.
         concluir_primeiro_uso(&dados).unwrap();
         assert!(situacao(&dados).unwrap().primeiro_uso_concluido);
     }
@@ -993,17 +993,17 @@ mod tests {
         let telas = dir.path().join("telas");
         fs::create_dir_all(&telas).unwrap();
         fs::write(telas.join("UFrmFatura.pas"), "unit UFrmFatura;\n").unwrap();
-        let feito = cadastrar_sistema(&dados, &pedido(&[&fixture(), &telas])).unwrap();
+        let feito = cadastrar_projeto(&dados, &pedido(&[&fixture(), &telas])).unwrap();
         assert_eq!(feito.pastas.len(), 2);
         assert_eq!(feito.pastas[1].prefixo.as_deref(), Some("telas"));
         let mut sem_pastas = pedido(&[]);
         sem_pastas.nome = "Outro".into();
-        assert!(previa_sistema(&dados, &sem_pastas).is_err());
+        assert!(previa_projeto(&dados, &sem_pastas).is_err());
         let mut relativa = sem_pastas.clone();
         relativa.pastas = vec!["relativa".into()];
-        assert!(previa_sistema(&dados, &relativa).is_err());
+        assert!(previa_projeto(&dados, &relativa).is_err());
         let mut inexistente = sem_pastas;
         inexistente.pastas = vec![dir.path().join("nao-existe").to_str().unwrap().into()];
-        assert!(previa_sistema(&dados, &inexistente).is_err());
+        assert!(previa_projeto(&dados, &inexistente).is_err());
     }
 }

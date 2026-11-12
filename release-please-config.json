@@ -7,6 +7,8 @@
   "packages": {
     ".": {
       "release-type": "simple",
+      "release-as": "0.1.0",
+      "last-release-sha": "80241988f5223767b1308bef1ba446250c12c3b3",
       "changelog-path": "CHANGELOG.md",
       "extra-files": [
         { "type": "toml", "path": "Cargo.toml", "jsonpath": "$.workspace.package.version" },

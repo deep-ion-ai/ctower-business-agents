@@ -1,4 +1,4 @@
-//! `conhecimento`: busca na base de conhecimento do sistema (regras, glossário,
+//! `conhecimento`: busca na base de conhecimento do projeto (regras, glossário,
 //! análises anteriores, memórias das áreas), pelo índice FTS5 (`cba_kb::indice`).
 //!
 //! Primeiro com todas as palavras do termo; se nada tiver todas, com qualquer uma,
@@ -26,7 +26,7 @@ const TIPOS: [&str; 7] = [
     "memoria",
     "caso-de-uso",
     "sugestao",
-    "regras-do-sistema",
+    "regras-do-projeto",
 ];
 
 fn tipos_do_indice(nome: &str) -> Vec<Tipo> {
@@ -38,7 +38,7 @@ fn tipos_do_indice(nome: &str) -> Vec<Tipo> {
         "memoria" => vec![Tipo::Documento(T::MemoriaArea)],
         "caso-de-uso" => vec![Tipo::Documento(T::CasoDeUso)],
         "sugestao" => vec![Tipo::Documento(T::Sugestao)],
-        "regras-do-sistema" => vec![Tipo::RegrasDoSistema],
+        "regras-do-projeto" => vec![Tipo::RegrasDoProjeto],
         _ => Vec::new(),
     }
 }
@@ -52,12 +52,12 @@ struct Args {
     pagina: ArgsPagina,
 }
 
-/// `conhecimento(termo)`: busca na base de conhecimento do sistema.
+/// `conhecimento(termo)`: busca na base de conhecimento do projeto.
 pub fn conhecimento() -> Ferramenta {
     Ferramenta::nova(
         "conhecimento",
         "Consultar a base de conhecimento",
-        "Busca na base de conhecimento do sistema o que já foi apurado: regras de \
+        "Busca na base de conhecimento do projeto o que já foi apurado: regras de \
          negócio (com o status: confirmada, a-revalidar, obsoleta), termos do glossário \
          (onde cada conceito de negócio vive no código), análises anteriores e memórias \
          das áreas. Use ANTES de explorar o código, com os conceitos de negócio da \
@@ -95,7 +95,7 @@ pub fn conhecimento() -> Ferramenta {
             let consulta = |modo| {
                 Consulta::nova(termo)
                     .modo(modo)
-                    .sistema(ambiente.kb.nome())
+                    .projeto(ambiente.kb.nome())
                     .tipos(tipos.iter().copied())
                     .pagina(args.pagina.limite(), args.pagina.inicio())
             };

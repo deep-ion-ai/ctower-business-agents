@@ -146,7 +146,7 @@ function montar(c: ReturnType<typeof cenarioRevisao>, abertura: Abertura = { tip
   render(
     <PainelAnalise
       api={c.analise.api}
-      sistema="faturamento-exemplo"
+      projeto="faturamento-exemplo"
       analise="A-0001"
       abertura={abertura}
       aoVoltar={vi.fn()}
@@ -359,8 +359,8 @@ describe("Revisão, aprovação e exportação", () => {
     fireEvent.click(within(exportacao).getByRole("button", { name: "Exportar…" }));
     await waitFor(() => expect(c.revisao.escolherDestino).toHaveBeenCalledTimes(3));
     expect(c.revisao.exportar).toHaveBeenCalledTimes(2);
-    c.revisao.exportar.mockRejectedValueOnce("o destino fica dentro das pastas do sistema analisado");
+    c.revisao.exportar.mockRejectedValueOnce("o destino fica dentro das pastas do projeto");
     fireEvent.click(within(exportacao).getByRole("button", { name: "Exportar…" }));
-    expect(await within(exportacao).findByRole("alert")).toHaveTextContent("pastas do sistema");
+    expect(await within(exportacao).findByRole("alert")).toHaveTextContent("pastas do projeto");
   });
 });

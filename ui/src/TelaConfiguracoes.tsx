@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { mensagemDe, type SituacaoProtecao } from "./analise";
-import { CadastroSistema, ResumoDoInventario } from "./CadastroSistema";
+import { CadastroProjeto, ResumoDoInventario } from "./CadastroProjeto";
 import {
   ESTADO_DO_TEXTO,
   apiConfiguracoesTauri,
@@ -10,15 +10,16 @@ import {
   type Configuracoes,
   type GrupoTexto,
   type ModoTroca,
-  type SistemaConfig,
+  type ProjetoConfig,
   type TextoEditavel,
   type TrocaBase,
 } from "./configuracoes";
 import { EscolhaBase } from "./EscolhaBase";
 import { EscolhaCliente } from "./EscolhaCliente";
-import { AmbienteDoSistema } from "./PrepararAmbiente";
-import { padraoDoCaminho, tamanhoLegivel, type PreviaSistema } from "./primeiroUso";
+import { AmbienteDoProjeto } from "./PrepararAmbiente";
+import { padraoDoCaminho, tamanhoLegivel, type PreviaProjeto } from "./primeiroUso";
 import "./configuracoes.css";
+import { THEME_PREFS, useTheme } from "./shell/theme";
 
 const CLIENTE = {
   terminalEmbutido: "Claude Code no terminal do app",
@@ -26,20 +27,20 @@ const CLIENTE = {
 } as const;
 
 /**
- * Configurações (spec, seção 10): cliente de IA preferido, pasta da base, sistemas
- * (pastas, exclusões, ambiente do Claude, proteção contra edição, regras do sistema,
+ * Configurações (spec, seção 10): cliente de IA preferido, pasta da base, projetos
+ * (pastas, exclusões, ambiente do Claude, proteção contra edição, regras do projeto,
  * descadastro) e os textos editáveis da base (templates, roteiros e prompts). Monta
  * os passos do primeiro uso ({@link EscolhaCliente}, {@link EscolhaBase},
- * {@link CadastroSistema}, {@link AmbienteDoSistema}) com o que só as configurações
+ * {@link CadastroProjeto}, {@link AmbienteDoProjeto}) com o que só as configurações
  * fazem: mover ou reapontar a base, desfazer o ambiente e descadastrar.
  */
 export function TelaConfiguracoes({
   api = apiConfiguracoesTauri,
-  aoMudarSistemas,
+  aoMudarProjetos,
 }: {
   api?: ApiConfiguracoes;
-  /** Os sistemas ou a base mudaram: as outras telas devem reler. */
-  aoMudarSistemas?: () => void;
+  /** Os projetos ou a base mudaram: as outras telas devem reler. */
+  aoMudarProjetos?: () => void;
 }) {
   const [cfg, setCfg] = useState<Configuracoes | null>(null);
   const [textos, setTextos] = useState<TextoEditavel[]>([]);
@@ -61,35 +62,66 @@ export function TelaConfiguracoes({
 
   const mudou = () => {
     carregar();
-    aoMudarSistemas?.();
+    aoMudarProjetos?.();
   };
 
   if (!cfg) {
     return (
-      <section className="configuracoes" aria-label="Configurações">
+      <section className="configuracoes page" aria-label="Configurações">
         {falha ? (
-          <p className="trecho-erro" role="alert">
+          <p className="error-text" role="alert">
             Não foi possível ler as configurações: {falha}
           </p>
         ) : (
-          <p className="suave">Carregando as configurações…</p>
+          <p className="muted">Carregando as configurações…</p>
         )}
       </section>
     );
   }
 
   return (
-    <section className="configuracoes" aria-label="Configurações">
+    <section className="configuracoes page" aria-label="Configurações">
       <h2>Configurações</h2>
       {falha && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           {falha}
         </p>
       )}
+      <SecaoAparencia />
       <SecaoCliente api={api} cfg={cfg} aoMudar={carregar} />
       <SecaoBase api={api} cfg={cfg} aoMudar={mudou} />
-      <SecaoSistemas api={api} cfg={cfg} textos={textos} aoMudar={mudou} aoAbrirTexto={carregar} />
+      <SecaoProjetos api={api} cfg={cfg} textos={textos} aoMudar={mudou} aoAbrirTexto={carregar} />
       {cfg.base && <SecaoTextos api={api} textos={textos} aoAbrir={carregar} />}
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Aparência (#85): tema claro, escuro ou do projeto, o mesmo da barra de título.
+
+function SecaoAparencia() {
+  const [pref, mudar] = useTheme();
+  return (
+    <section className="secao-config" aria-label="Aparência">
+      <h3>Aparência</h3>
+      <fieldset className="opcoes-troca">
+        <legend className="sr-only">Tema</legend>
+        {THEME_PREFS.map((t) => (
+          <label key={t.pref} className={pref === t.pref ? "opcao escolhida" : "opcao"}>
+            <input
+              type="radio"
+              name="tema"
+              value={t.pref}
+              checked={pref === t.pref}
+              onChange={() => mudar(t.pref)}
+            />
+            <span>{t.rotulo}</span>
+          </label>
+        ))}
+      </fieldset>
+      <p className="muted">
+        “Do sistema” acompanha o tema claro ou escuro do sistema operacional.
+      </p>
     </section>
   );
 }
@@ -112,10 +144,10 @@ function SecaoCliente({
       <h3>Cliente de IA preferido</h3>
       <p>
         {CLIENTE[cfg.cliente ?? "terminalEmbutido"]}
-        {!cfg.cliente && <span className="suave"> (padrão)</span>}
+        {!cfg.cliente && <span className="muted"> (padrão)</span>}
       </p>
       {!trocando ? (
-        <button type="button" onClick={() => setTrocando(true)}>
+        <button className="btn" type="button" onClick={() => setTrocando(true)}>
           Trocar o cliente
         </button>
       ) : (
@@ -170,11 +202,12 @@ function SecaoBase({
     <section className="secao-config" aria-label="Pasta da base">
       <h3>Pasta da base de conhecimento</h3>
       <p>
-        {cfg.base ? <code>{cfg.base}</code> : <span className="suave">Ainda não escolhida.</span>}
+        {cfg.base ? <code>{cfg.base}</code> : <span className="muted">Ainda não escolhida.</span>}
       </p>
       {feito && <ResultadoTroca feito={feito} />}
       {etapa === "ver" && (
         <button
+          className="btn"
           type="button"
           onClick={() => {
             setFeito(null);
@@ -268,11 +301,11 @@ function ConfirmarTroca({
       <p>
         Pasta nova: <code>{destino}</code>
       </p>
-      {!avaliacao && !falha && <p className="suave">Conferindo a pasta…</p>}
+      {!avaliacao && !falha && <p className="muted">Conferindo a pasta…</p>}
       {avaliacao && (
         <>
           {avaliacao.atual && (
-            <p className="suave">
+            <p className="muted">
               A base atual ({avaliacao.atual}) tem {avaliacao.arquivos} arquivos (
               {tamanhoLegivel(avaliacao.bytes)}).
             </p>
@@ -292,11 +325,11 @@ function ConfirmarTroca({
                 }}
               />
               <strong>Mover os documentos para a pasta nova</strong>
-              <span className="suave">
+              <span className="muted">
                 O app copia a base inteira, confere cada arquivo e só então passa a usar a pasta
                 nova e apaga a antiga. Se algo falhar, nada muda.
               </span>
-              {avaliacao.recusaMover && <span className="pendencia">{avaliacao.recusaMover}</span>}
+              {avaliacao.recusaMover && <span className="attention-text">{avaliacao.recusaMover}</span>}
             </label>
             <label className={modo === "reapontar" ? "opcao escolhida" : "opcao"}>
               <input
@@ -311,17 +344,17 @@ function ConfirmarTroca({
                 }}
               />
               <strong>Só passar a usar a pasta nova</strong>
-              <span className="suave">
+              <span className="muted">
                 Os documentos da pasta atual ficam onde estão, intactos, mas deixam de aparecer no
                 app. Útil quando a pasta nova já é uma base (outra máquina, outro clone).
               </span>
               {avaliacao.recusaReapontar && (
-                <span className="pendencia">{avaliacao.recusaReapontar}</span>
+                <span className="attention-text">{avaliacao.recusaReapontar}</span>
               )}
             </label>
           </fieldset>
           {avaliacao.sessoesAbertas > 0 && (
-            <p className="pendencia" role="status">
+            <p className="attention-text" role="status">
               Há {avaliacao.sessoesAbertas} conversa(s) com o Claude que podem estar abertas. Feche
               as conversas antes de trocar a base, para nada ser gravado na pasta antiga.
             </p>
@@ -339,7 +372,7 @@ function ConfirmarTroca({
             </label>
           )}
           {!modo && (
-            <p className="trecho-erro" role="alert">
+            <p className="error-text" role="alert">
               {recusa("reapontar") ?? recusa("mover")}
             </p>
           )}
@@ -352,17 +385,17 @@ function ConfirmarTroca({
         </div>
       )}
       {falha && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           {falha}
         </p>
       )}
       <div className="acoes">
-        <button type="button" onClick={aoCancelar} disabled={ocupado}>
+        <button className="btn" type="button" onClick={aoCancelar} disabled={ocupado}>
           Cancelar
         </button>
         <button
           type="button"
-          className="primario"
+          className="btn btn-primary"
           onClick={trocar}
           disabled={!modo || !confirmado || ocupado}
         >
@@ -375,7 +408,7 @@ function ConfirmarTroca({
 
 function ResultadoTroca({ feito }: { feito: TrocaBase }) {
   return (
-    <div className="confirmacao" role="status">
+    <div className="ok-text" role="status">
       <p>
         {feito.modo === "mover"
           ? `Base movida: ${feito.copiados} arquivos copiados e conferidos${
@@ -385,7 +418,7 @@ function ResultadoTroca({ feito }: { feito: TrocaBase }) {
         {feito.indexados !== null && `Índice reconstruído com ${feito.indexados} documentos.`}
       </p>
       {feito.avisos.map((a) => (
-        <p key={a} className="pendencia">
+        <p key={a} className="attention-text">
           {a}
         </p>
       ))}
@@ -394,9 +427,9 @@ function ResultadoTroca({ feito }: { feito: TrocaBase }) {
 }
 
 // ---------------------------------------------------------------------------
-// Sistemas
+// Projetos
 
-function SecaoSistemas({
+function SecaoProjetos({
   api,
   cfg,
   textos,
@@ -411,21 +444,21 @@ function SecaoSistemas({
 }) {
   const [cadastrando, setCadastrando] = useState(false);
   return (
-    <section className="secao-config" aria-label="Sistemas">
-      <h3>Sistemas</h3>
-      {cfg.sistemas.length === 0 && <p className="suave">Nenhum sistema cadastrado.</p>}
+    <section className="secao-config" aria-label="Projetos">
+      <h3>Projetos</h3>
+      {cfg.projetos.length === 0 && <p className="muted">Nenhum projeto cadastrado.</p>}
       {cfg.configClaude && (
-        <p className="suave">
+        <p className="muted">
           O ambiente do Claude fica em {cfg.configClaude.estado} (servidor MCP) e{" "}
           {cfg.configClaude.settings} (hooks e proteção).
         </p>
       )}
-      {cfg.sistemas.map((s) => (
-        <CartaoSistema
+      {cfg.projetos.map((s) => (
+        <CartaoProjeto
           key={s.id}
           api={api}
-          sistema={s}
-          regras={textos.find((t) => t.grupo === "regrasDoSistema" && t.id === s.id)}
+          projeto={s}
+          regras={textos.find((t) => t.grupo === "regrasDoProjeto" && t.id === s.id)}
           aoMudar={aoMudar}
           aoAbrirTexto={aoAbrirTexto}
         />
@@ -433,7 +466,7 @@ function SecaoSistemas({
       {cfg.base &&
         (cadastrando ? (
           <>
-            <CadastroSistema
+            <CadastroProjeto
               api={api}
               aoConcluir={() => {
                 setCadastrando(false);
@@ -445,23 +478,23 @@ function SecaoSistemas({
             </button>
           </>
         ) : (
-          <button type="button" onClick={() => setCadastrando(true)}>
-            Cadastrar outro sistema
+          <button className="btn" type="button" onClick={() => setCadastrando(true)}>
+            Cadastrar outro projeto
           </button>
         ))}
     </section>
   );
 }
 
-function CartaoSistema({
+function CartaoProjeto({
   api,
-  sistema,
+  projeto,
   regras,
   aoMudar,
   aoAbrirTexto,
 }: {
   api: ApiConfiguracoes;
-  sistema: SistemaConfig;
+  projeto: ProjetoConfig;
   regras?: TextoEditavel;
   aoMudar: () => void;
   aoAbrirTexto: () => void;
@@ -469,40 +502,40 @@ function CartaoSistema({
   // Muda depois de desfazer o ambiente, para a verificação rodar de novo.
   const [vez, setVez] = useState(0);
   return (
-    <article className="cartao-sistema" aria-label={sistema.nome}>
-      <h4>{sistema.nome}</h4>
-      <ul className="suave">
-        {sistema.pastas.map((p) => (
+    <article className="cartao-projeto" aria-label={projeto.nome}>
+      <h4>{projeto.nome}</h4>
+      <ul className="muted">
+        {projeto.pastas.map((p) => (
           <li key={p.caminho}>
             {p.caminho}
             {p.prefixo && ` (aparece como ${p.prefixo}/)`}
-            {!p.existe && <strong className="pendencia"> · a pasta não existe mais</strong>}
+            {!p.existe && <strong className="attention-text"> · a pasta não existe mais</strong>}
           </li>
         ))}
       </ul>
-      <p className="suave">
-        Para mudar as pastas, descadastre o sistema e cadastre de novo (os documentos ficam na
+      <p className="muted">
+        Para mudar as pastas, descadastre o projeto e cadastre de novo (os documentos ficam na
         base).
       </p>
-      <AjusteDeExclusoes api={api} sistema={sistema} aoSalvar={aoMudar} />
-      <div role="group" aria-label={`Ambiente do Claude de ${sistema.nome}`}>
+      <AjusteDeExclusoes api={api} projeto={projeto} aoSalvar={aoMudar} />
+      <div role="group" aria-label={`Ambiente do Claude de ${projeto.nome}`}>
         <h5>Ambiente do Claude</h5>
-        <DetalheDoAmbiente key={`d${vez}`} api={api} sistema={sistema.id} />
-        <AmbienteDoSistema key={vez} api={api} sistema={sistema.id} />
-        <DesfazerAmbiente api={api} sistema={sistema} aoDesfazer={() => setVez((v) => v + 1)} />
+        <DetalheDoAmbiente key={`d${vez}`} api={api} projeto={projeto.id} />
+        <AmbienteDoProjeto key={vez} api={api} projeto={projeto.id} />
+        <DesfazerAmbiente api={api} projeto={projeto} aoDesfazer={() => setVez((v) => v + 1)} />
       </div>
-      <Protecao key={`p${vez}`} api={api} sistema={sistema} />
+      <Protecao key={`p${vez}`} api={api} projeto={projeto} />
       {regras && (
-        <div role="group" aria-label={`Regras do sistema ${sistema.nome}`}>
-          <h5>Regras do sistema</h5>
-          <p className="suave">
-            Instruções que o agente recebe em toda análise deste sistema ({regras.arquivo}):{" "}
+        <div role="group" aria-label={`Regras do projeto ${projeto.nome}`}>
+          <h5>Regras do projeto</h5>
+          <p className="muted">
+            Instruções que o agente recebe em toda análise deste projeto ({regras.arquivo}):{" "}
             {ESTADO_DO_TEXTO[regras.estado]}.
           </p>
           <AbrirTexto api={api} texto={regras} aoAbrir={aoAbrirTexto} />
         </div>
       )}
-      <Descadastrar api={api} sistema={sistema} aoDescadastrar={aoMudar} />
+      <Descadastrar api={api} projeto={projeto} aoDescadastrar={aoMudar} />
     </article>
   );
 }
@@ -516,22 +549,22 @@ function linhas(texto: string): string[] {
 
 function AjusteDeExclusoes({
   api,
-  sistema,
+  projeto,
   aoSalvar,
 }: {
   api: ApiConfiguracoes;
-  sistema: SistemaConfig;
+  projeto: ProjetoConfig;
   aoSalvar: () => void;
 }) {
-  const [exclusoes, setExclusoes] = useState(sistema.exclusoes.join("\n"));
-  const [inclusoes, setInclusoes] = useState<string[]>(sistema.inclusoes);
-  const [previa, setPrevia] = useState<PreviaSistema | null>(null);
+  const [exclusoes, setExclusoes] = useState(projeto.exclusoes.join("\n"));
+  const [inclusoes, setInclusoes] = useState<string[]>(projeto.inclusoes);
+  const [previa, setPrevia] = useState<PreviaProjeto | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [salvo, setSalvo] = useState(false);
   const [falha, setFalha] = useState<string | null>(null);
 
   const ajuste = (inc = inclusoes) => ({
-    sistema: sistema.id,
+    projeto: projeto.id,
     exclusoes: linhas(exclusoes),
     inclusoes: inc,
   });
@@ -591,6 +624,7 @@ function AjusteDeExclusoes({
               <li key={x}>
                 <code>{x}</code>{" "}
                 <button
+                  className="btn"
                   type="button"
                   aria-label={`Tirar a reinclusão de ${x}`}
                   onClick={() => mudarInclusoes(inclusoes.filter((y) => y !== x))}
@@ -613,20 +647,20 @@ function AjusteDeExclusoes({
         />
       )}
       {salvo && (
-        <p className="confirmacao" role="status">
-          Exclusões salvas e sistema inventariado de novo.
+        <p className="ok-text" role="status">
+          Exclusões salvas e projeto inventariado de novo.
         </p>
       )}
       {falha && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           {falha}
         </p>
       )}
       <div className="acoes">
-        <button type="button" onClick={() => verPrevia()} disabled={ocupado}>
+        <button className="btn" type="button" onClick={() => verPrevia()} disabled={ocupado}>
           Ver o que será analisado
         </button>
-        <button type="button" className="primario" onClick={salvar} disabled={ocupado}>
+        <button type="button" className="btn btn-primary" onClick={salvar} disabled={ocupado}>
           Salvar as exclusões
         </button>
       </div>
@@ -641,18 +675,18 @@ const SITUACAO = {
   conflito: "conflito (há um servidor “cba” que não é do app)",
 } as const;
 
-function DetalheDoAmbiente({ api, sistema }: { api: ApiConfiguracoes; sistema: string }) {
+function DetalheDoAmbiente({ api, projeto }: { api: ApiConfiguracoes; projeto: string }) {
   const [ambiente, setAmbiente] = useState<AmbienteDetalhado | null>(null);
   useEffect(() => {
     let ativo = true;
     api
-      .verificarAmbiente(sistema)
+      .verificarAmbiente(projeto)
       .then((a) => ativo && setAmbiente(a))
       .catch(() => ativo && setAmbiente(null));
     return () => {
       ativo = false;
     };
-  }, [api, sistema]);
+  }, [api, projeto]);
   const v = ambiente?.verificacao;
   if (!v) return null;
   const hooksOk = v.hooks.filter((h) => h.situacao === "ok").length;
@@ -669,11 +703,11 @@ function DetalheDoAmbiente({ api, sistema }: { api: ApiConfiguracoes; sistema: s
 
 function DesfazerAmbiente({
   api,
-  sistema,
+  projeto,
   aoDesfazer,
 }: {
   api: ApiConfiguracoes;
-  sistema: SistemaConfig;
+  projeto: ProjetoConfig;
   aoDesfazer: () => void;
 }) {
   const [confirmando, setConfirmando] = useState(false);
@@ -685,7 +719,7 @@ function DesfazerAmbiente({
     setOcupado(true);
     setFalha(null);
     api
-      .desfazerAmbiente(sistema.id)
+      .desfazerAmbiente(projeto.id)
       .then((r) => {
         setConfirmando(false);
         setFeito(r.avisos);
@@ -698,12 +732,12 @@ function DesfazerAmbiente({
   return (
     <div className="desfazer-ambiente">
       {feito && (
-        <div className="confirmacao" role="status">
+        <div className="ok-text" role="status">
           <p>
-            Ambiente desfeito: a configuração do Claude voltou a ser a de antes para este sistema.
+            Ambiente desfeito: a configuração do Claude voltou a ser a de antes para este projeto.
           </p>
           {feito.map((a) => (
-            <p key={a} className="pendencia">
+            <p key={a} className="attention-text">
               {a}
             </p>
           ))}
@@ -711,6 +745,7 @@ function DesfazerAmbiente({
       )}
       {!confirmando ? (
         <button
+          className="btn"
           type="button"
           onClick={() => {
             setFeito(null);
@@ -722,20 +757,25 @@ function DesfazerAmbiente({
       ) : (
         <div className="confirmar-alteracao" role="region" aria-label="Confirmar desfazer o ambiente">
           <p>
-            O app vai tirar da configuração do Claude o servidor MCP deste sistema, a proteção
-            contra edição (se ligada) e, se nenhum outro sistema usar, os hooks. Sem eles, as
+            O app vai tirar da configuração do Claude o servidor MCP deste projeto, a proteção
+            contra edição (se ligada) e, se nenhum outro projeto usar, os hooks. Sem eles, as
             conversas nesta pasta não enxergam o ctower. Você pode preparar de novo depois.
           </p>
-          <button type="button" className="primario" onClick={desfazer} disabled={ocupado}>
+          <button type="button" className="btn btn-primary" onClick={desfazer} disabled={ocupado}>
             Desfazer
           </button>{" "}
-          <button type="button" onClick={() => setConfirmando(false)} disabled={ocupado}>
+          <button
+            className="btn"
+            type="button"
+            onClick={() => setConfirmando(false)}
+            disabled={ocupado}
+          >
             Cancelar
           </button>
         </div>
       )}
       {falha && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           {falha}
         </p>
       )}
@@ -743,7 +783,7 @@ function DesfazerAmbiente({
   );
 }
 
-function Protecao({ api, sistema }: { api: ApiConfiguracoes; sistema: SistemaConfig }) {
+function Protecao({ api, projeto }: { api: ApiConfiguracoes; projeto: ProjetoConfig }) {
   const [situacao, setSituacao] = useState<SituacaoProtecao | null>(null);
   const [confirmando, setConfirmando] = useState(false);
   const [ocupado, setOcupado] = useState(false);
@@ -752,19 +792,19 @@ function Protecao({ api, sistema }: { api: ApiConfiguracoes; sistema: SistemaCon
   useEffect(() => {
     let ativo = true;
     api
-      .situacaoProtecao(sistema.id)
+      .situacaoProtecao(projeto.id)
       .then((s) => ativo && setSituacao(s))
       .catch((e: unknown) => ativo && setFalha(mensagemDe(e)));
     return () => {
       ativo = false;
     };
-  }, [api, sistema.id]);
+  }, [api, projeto.id]);
 
   const mudar = (ligada: boolean) => {
     setOcupado(true);
     setFalha(null);
     api
-      .mudarProtecao(sistema.id, ligada)
+      .mudarProtecao(projeto.id, ligada)
       .then((s) => {
         setSituacao(s);
         setConfirmando(false);
@@ -774,19 +814,19 @@ function Protecao({ api, sistema }: { api: ApiConfiguracoes; sistema: SistemaCon
   };
 
   return (
-    <div role="group" aria-label={`Proteção contra edição de ${sistema.nome}`}>
+    <div role="group" aria-label={`Proteção contra edição de ${projeto.nome}`}>
       <h5>Proteção contra edição</h5>
       {situacao && (
         <p>
           {situacao.ligada
             ? situacao.completa
-              ? "Ligada: o Claude não edita arquivos nem usa o terminal nas pastas do sistema."
+              ? "Ligada: o Claude não edita arquivos nem usa o terminal nas pastas do projeto."
               : "Ligada, mas faltam regras no arquivo de configuração do Claude. Ligue de novo para completar."
-            : "Desligada (padrão): o app só avisa quando a pasta do sistema é alterada."}
+            : "Desligada (padrão): o app só avisa quando a pasta do projeto é alterada."}
         </p>
       )}
       {situacao && !confirmando && (
-        <button type="button" onClick={() => setConfirmando(true)}>
+        <button className="btn" type="button" onClick={() => setConfirmando(true)}>
           {situacao.ligada ? "Desligar a proteção" : "Ligar a proteção"}
         </button>
       )}
@@ -795,14 +835,14 @@ function Protecao({ api, sistema }: { api: ApiConfiguracoes; sistema: SistemaCon
           {situacao.ligada ? (
             <p>
               O app vai tirar de {situacao.arquivo} só as regras que ele mesmo acrescentou, e o
-              terminal (Bash) volta a funcionar nas conversas deste sistema.
+              terminal (Bash) volta a funcionar nas conversas deste projeto.
             </p>
           ) : (
             <>
               <p>
                 O app vai acrescentar em {situacao.arquivo} estas regras, que valem mesmo que você
                 aprove a edição, e negar o terminal ({situacao.negadasPeloHook.join(", ")}) nas
-                conversas deste sistema:
+                conversas deste projeto:
               </p>
               <ul>
                 {situacao.regras.map((r) => (
@@ -815,19 +855,24 @@ function Protecao({ api, sistema }: { api: ApiConfiguracoes; sistema: SistemaCon
           )}
           <button
             type="button"
-            className="primario"
+            className="btn btn-primary"
             onClick={() => mudar(!situacao.ligada)}
             disabled={ocupado}
           >
             {situacao.ligada ? "Concordo, desligar" : "Concordo, ligar"}
           </button>{" "}
-          <button type="button" onClick={() => setConfirmando(false)} disabled={ocupado}>
+          <button
+            className="btn"
+            type="button"
+            onClick={() => setConfirmando(false)}
+            disabled={ocupado}
+          >
             Cancelar
           </button>
         </div>
       )}
       {falha && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           {falha}
         </p>
       )}
@@ -837,11 +882,11 @@ function Protecao({ api, sistema }: { api: ApiConfiguracoes; sistema: SistemaCon
 
 function Descadastrar({
   api,
-  sistema,
+  projeto,
   aoDescadastrar,
 }: {
   api: ApiConfiguracoes;
-  sistema: SistemaConfig;
+  projeto: ProjetoConfig;
   aoDescadastrar: () => void;
 }) {
   const [confirmando, setConfirmando] = useState(false);
@@ -853,7 +898,7 @@ function Descadastrar({
     setOcupado(true);
     setFalha(null);
     api
-      .descadastrar(sistema.id)
+      .descadastrar(projeto.id)
       .then(() => aoDescadastrar())
       .catch((e: unknown) => {
         setFalha(mensagemDe(e));
@@ -865,18 +910,18 @@ function Descadastrar({
     <div className="descadastrar">
       {!confirmando ? (
         <button type="button" className="link perigo" onClick={() => setConfirmando(true)}>
-          Descadastrar o sistema
+          Descadastrar o projeto
         </button>
       ) : (
         <div
           className="confirmar-alteracao"
           role="region"
-          aria-label={`Confirmar o descadastro de ${sistema.nome}`}
+          aria-label={`Confirmar o descadastro de ${projeto.nome}`}
         >
           <p>
-            O app vai desfazer o ambiente do Claude deste sistema (servidor MCP, proteção contra
-            edição e, se for o último sistema, os hooks) e apagar o cadastro, o inventário e o mapa.
-            Os documentos do sistema na base de conhecimento ficam, e as pastas do código não são
+            O app vai desfazer o ambiente do Claude deste projeto (servidor MCP, proteção contra
+            edição e, se for o último projeto, os hooks) e apagar o cadastro, o inventário e o mapa.
+            Os documentos do projeto na base de conhecimento ficam, e as pastas do código não são
             tocadas.
           </p>
           <label>
@@ -885,15 +930,20 @@ function Descadastrar({
               checked={confirmado}
               onChange={(e) => setConfirmado(e.target.checked)}
             />{" "}
-            Confirmo o descadastro de {sistema.nome}
+            Confirmo o descadastro de {projeto.nome}
           </label>
           <div className="acoes">
-            <button type="button" onClick={() => setConfirmando(false)} disabled={ocupado}>
+            <button
+              className="btn"
+              type="button"
+              onClick={() => setConfirmando(false)}
+              disabled={ocupado}
+            >
               Cancelar
             </button>
             <button
               type="button"
-              className="primario"
+              className="btn btn-primary"
               onClick={descadastrar}
               disabled={!confirmado || ocupado}
             >
@@ -903,7 +953,7 @@ function Descadastrar({
         </div>
       )}
       {falha && (
-        <p className="trecho-erro" role="alert">
+        <p className="error-text" role="alert">
           Não foi possível descadastrar: {falha}. O cadastro continua.
         </p>
       )}
@@ -944,14 +994,14 @@ function SecaoTextos({
   return (
     <section className="secao-config" aria-label="Textos editáveis">
       <h3>Templates, roteiros e prompts</h3>
-      <p className="suave">
+      <p className="muted">
         Ficam na base, em <code>_templates/</code>. Um arquivo na base sobrepõe o padrão do app;
         sem ele, vale o padrão. Os textos abrem no editor de texto do seu computador.
       </p>
       {GRUPOS.map((g) => (
         <div key={g.grupo} role="group" aria-label={g.titulo}>
           <h4>{g.titulo}</h4>
-          <p className="suave">{g.descricao}</p>
+          <p className="muted">{g.descricao}</p>
           <table className="textos-editaveis">
             <tbody>
               {textos
@@ -989,6 +1039,7 @@ function AbrirTexto({
   return (
     <>
       <button
+        className="btn"
         type="button"
         aria-label={`Abrir ${texto.rotulo} no editor`}
         onClick={() => {
@@ -1004,9 +1055,9 @@ function AbrirTexto({
       >
         {texto.estado === "padrao" ? "Criar a cópia e abrir" : "Abrir no editor"}
       </button>
-      {aberto && <span className="suave"> Aberto: {aberto}</span>}
+      {aberto && <span className="muted"> Aberto: {aberto}</span>}
       {falha && (
-        <span className="trecho-erro" role="alert">
+        <span className="error-text" role="alert">
           {" "}
           {falha}
         </span>

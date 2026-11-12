@@ -30,9 +30,9 @@ fn cenario() -> Cenario {
     let dir = tempfile::tempdir().unwrap();
     let raiz = dir.path();
     let dados = DiretorioDados::em(raiz.join("dados"));
-    let sistema = cba_index::Sistema::novo("Faturamento Exemplo", [fixture()]).unwrap();
-    cba_index::Cadastro::em(dados.sistemas())
-        .cadastrar(&sistema)
+    let projeto = cba_index::Projeto::novo("Faturamento Exemplo", [fixture()]).unwrap();
+    cba_index::Cadastro::em(dados.projetos())
+        .cadastrar(&projeto)
         .unwrap();
     cba_kb::Base::criar(raiz.join("base")).unwrap();
     Config {
