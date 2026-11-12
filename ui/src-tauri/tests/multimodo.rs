@@ -412,20 +412,33 @@ fn dois_processos_mcp_simultaneos() {
     );
 }
 
-/// Regra do gabarito do sistema fictício, como JSON (enunciado e evidências no
-/// formato dos argumentos de `afirmar`).
-fn regra_do_gabarito(id: &str) -> Value {
+fn gabarito() -> Value {
     let caminho = raiz_do_repositorio().join("fixtures/gabaritos/faturamento-exemplo.yaml");
     let gabarito: serde_norway::Value =
         serde_norway::from_str(&std::fs::read_to_string(caminho).unwrap()).unwrap();
-    let gabarito = serde_json::to_value(gabarito).unwrap();
-    gabarito["regras"]
+    serde_json::to_value(gabarito).unwrap()
+}
+
+/// Item de uma lista do gabarito pelo `id`.
+fn do_gabarito(lista: &str, id: &str) -> Value {
+    gabarito()[lista]
         .as_array()
         .unwrap()
         .iter()
         .find(|r| r["id"] == id)
         .cloned()
-        .unwrap_or_else(|| panic!("{id} no gabarito"))
+        .unwrap_or_else(|| panic!("{id} em {lista} no gabarito"))
+}
+
+/// Regra (ou inconsistência) do gabarito do sistema fictício, como JSON
+/// (enunciado e evidências no formato dos argumentos de `afirmar`).
+fn regra_do_gabarito(id: &str) -> Value {
+    let lista = if id.starts_with("INC-") {
+        "inconsistencias"
+    } else {
+        "regras"
+    };
+    do_gabarito(lista, id)
 }
 
 fn chamada(id: i64, nome: &str, argumentos: Value) -> Value {
@@ -652,11 +665,14 @@ fn mcp_pergunta_ao_sistema_do_inicio_ao_documento_na_base() {
             .join("base/_templates/roteiros/perguntar.md")
             .is_file()
     );
-    assert!(
-        !dir.path()
-            .join("base/_templates/roteiros/impacto.md")
-            .exists()
-    );
+    for fluxo in ["explicar", "impacto"] {
+        assert!(
+            dir.path()
+                .join(format!("base/_templates/roteiros/{fluxo}.md"))
+                .is_file(),
+            "{fluxo}"
+        );
+    }
     assert!(
         dir.path()
             .join("base/_templates/prompts/aprofundar.md")
@@ -705,6 +721,398 @@ fn mcp_pergunta_ao_sistema_do_inicio_ao_documento_na_base() {
     assert!(logs.contains("concluir_analise"), "{logs}");
     assert!(!logs.contains("PERC_MULTA_ATRASO"), "{logs}");
     assert!(!logs.contains("Multa por atraso"), "{logs}");
+}
+
+/// Uma afirmação para `afirmar`: seção, texto, confiança e evidências.
+type Registro<'a> = (&'a str, String, &'a str, Value);
+
+/// Roda um fluxo pelo executável, como o agente faz: `iniciar_analise` com o
+/// fluxo e a entrada, uma afirmação por registro, uma pergunta, uma sugestão e
+/// `concluir_analise`. Devolve o texto do roteiro, a resposta de
+/// `concluir_analise`, o frontmatter e o corpo do documento.
+fn fluxo_de_ponta_a_ponta(
+    raiz: &Path,
+    dados: &Path,
+    fluxo: &str,
+    titulo: &str,
+    entrada: &str,
+    registros: &[Registro<'_>],
+) -> (String, Value, serde_norway::Value, String) {
+    let mut mensagens = inicio_da_conversa();
+    mensagens.push(chamada(
+        3,
+        "iniciar_analise",
+        json!({ "fluxo": fluxo, "entrada": entrada, "titulo": titulo }),
+    ));
+    let mut id = 4;
+    for (secao, texto, confianca, evidencias) in registros {
+        mensagens.push(chamada(
+            id,
+            "afirmar",
+            json!({
+                "analise": "A-0001",
+                "secao": secao,
+                "texto": texto,
+                "confianca": confianca,
+                "evidencias": evidencias
+            }),
+        ));
+        id += 1;
+    }
+    mensagens.push(chamada(
+        id,
+        "perguntar",
+        json!({
+            "analise": "A-0001",
+            "texto": "O limite de parcelas deve valer também para órgão público?"
+        }),
+    ));
+    mensagens.push(chamada(
+        id + 1,
+        "registrar_sugestao",
+        json!({
+            "analise": "A-0001",
+            "arquivo": "frontend/src/telas/parcelamento-form.ts",
+            "titulo": "Tela com o mesmo limite de parcelas do backend",
+            "trecho_atual": "const MAX_PARCELAS = 12;",
+            "trecho_proposto": "const MAX_PARCELAS = 6;",
+            "motivo": "A tela oferece até 12 parcelas, mas o backend recusa acima de 6.",
+            "impacto": "Pedidos de 7 a 12 parcelas deixam de ser oferecidos e recusados depois.",
+            "exemplo": "Pedido de 8 parcelas: hoje passa pela tela e é recusado; depois, a tela não oferece."
+        }),
+    ));
+    mensagens.push(chamada(
+        id + 2,
+        "concluir_analise",
+        json!({"analise": "A-0001"}),
+    ));
+    let respostas = conversar(iniciar_mcp(&fixture(), dados), &mensagens);
+    assert_eq!(respostas.len(), registros.len() + 6, "{respostas:?}");
+    for r in &respostas[2..] {
+        assert_eq!(r["result"]["isError"], false, "{r}");
+    }
+    let roteiro = respostas[2]["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert!(!roteiro.contains("{{"), "{roteiro}");
+    assert!(!roteiro.contains("<!--"), "{roteiro}");
+    let concluir = respostas.last().unwrap()["result"].clone();
+    assert_eq!(concluir["structuredContent"]["estado"], "concluida");
+    assert_eq!(
+        concluir["structuredContent"]["pendencias"],
+        json!([]),
+        "{concluir}"
+    );
+    let documento = concluir["structuredContent"]["documento"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert_eq!(documento, "faturamento-exemplo/analises/A-0001.md");
+    let markdown = std::fs::read_to_string(raiz.join("base").join(&documento)).unwrap();
+    let (frontmatter, corpo) = markdown
+        .strip_prefix("---\n")
+        .and_then(|m| m.split_once("\n---\n"))
+        .expect("frontmatter YAML");
+    assert!(!markdown.contains(&*raiz.to_string_lossy()), "{markdown}");
+    (
+        roteiro,
+        concluir,
+        serde_norway::from_str(frontmatter).unwrap(),
+        corpo.to_owned(),
+    )
+}
+
+/// Confere que o documento tem exatamente as seções do template, na ordem, e que
+/// nenhuma ficou vazia.
+fn todas_as_secoes_preenchidas(corpo: &str, secoes: &[&str]) {
+    let titulos: Vec<&str> = corpo.lines().filter(|l| l.starts_with("## ")).collect();
+    let esperados: Vec<String> = secoes.iter().map(|s| format!("## {s}")).collect();
+    assert_eq!(titulos, esperados, "{corpo}");
+    for secao in secoes {
+        let (_, depois) = corpo.split_once(&format!("## {secao}\n\n")).unwrap();
+        let conteudo = depois.split("\n## ").next().unwrap();
+        assert!(!conteudo.contains("_Nada registrado._"), "{secao}: {corpo}");
+        assert!(!conteudo.contains("_Nenhuma"), "{secao}: {corpo}");
+        assert!(!conteudo.contains("a definir"), "{secao}: {corpo}");
+    }
+}
+
+/// O critério do M2 pelo executável (#32): a análise de impacto de uma demanda do
+/// gabarito, com registro em todas as seções, gera o documento com todas as
+/// seções do template, a premissa do solicitante corrigida em "Demanda como
+/// entendida" e a abrangência estimada no campo do documento.
+#[test]
+fn mcp_analise_de_impacto_do_inicio_ao_documento_na_base() {
+    let dir = tempfile::tempdir().unwrap();
+    let dados = preparar_dados(dir.path());
+    let demanda = do_gabarito("demandas", "D-FAT-001");
+    let entrada = demanda["texto"].as_str().unwrap();
+    let pf = regra_do_gabarito("RN-FAT-007")["evidencias"].clone();
+    let parcelas = regra_do_gabarito("RN-FAT-008")["evidencias"].clone();
+    let tela = regra_do_gabarito("INC-FAT-001")["evidencias"].clone();
+    let registros: Vec<Registro<'_>> = vec![
+        (
+            "demanda_como_entendida",
+            "Premissa do solicitante: hoje o sistema não parcela fatura nenhuma. Verificação: não confere. O parcelamento já existe para pessoa jurídica e órgão público, em até 6 parcelas (parâmetro MAX_PARCELAS); só pessoa física é recusada.".into(),
+            "confirmado",
+            json!([pf[0], parcelas[0], parcelas[2]]),
+        ),
+        (
+            "demanda_como_entendida",
+            "Demanda como entendida: o parcelamento para pessoa jurídica já está atendido; o que resta é decidir se o limite deve cair de 6 para 3.".into(),
+            "inferido",
+            json!([parcelas[0]]),
+        ),
+        (
+            "como_e_hoje",
+            "Pessoa jurídica e órgão público parcelam de 2 a 6 vezes; pessoa física não parcela.".into(),
+            "confirmado",
+            json!([pf[0], parcelas[1]]),
+        ),
+        (
+            "funcionalidades",
+            "O limite de parcelas do serviço de parcelamento vem do parâmetro MAX_PARCELAS.".into(),
+            "confirmado",
+            json!([parcelas[0]]),
+        ),
+        (
+            "dados",
+            "O parâmetro MAX_PARCELAS, hoje 6, é único para todos os tipos de cliente.".into(),
+            "confirmado",
+            json!([parcelas[2]]),
+        ),
+        (
+            "integracoes",
+            "Nenhuma integração lê o limite de parcelas; o parâmetro é lido só pelo backend.".into(),
+            "inferido",
+            json!([parcelas[0]]),
+        ),
+        (
+            "documentos_e_telas",
+            "A tela de parcelamento tem o limite fixo de 12 parcelas, diferente do backend.".into(),
+            "confirmado",
+            tela.clone(),
+        ),
+        (
+            "riscos",
+            "Reduzir MAX_PARCELAS para 3 afeta também órgão público, porque o parâmetro é único.".into(),
+            "inferido",
+            json!([parcelas[0], parcelas[2]]),
+        ),
+        (
+            "abrangencia",
+            "Pequena: a demanda já está atendida; limitar a 3 muda só o parâmetro e, para alinhar, a constante da tela.".into(),
+            "inferido",
+            json!([parcelas[2], tela[0]]),
+        ),
+    ];
+    let (roteiro, concluir, frontmatter, corpo) = fluxo_de_ponta_a_ponta(
+        dir.path(),
+        dados.raiz(),
+        "impacto",
+        "Parcelamento em 3 vezes para PJ",
+        entrada,
+        &registros,
+    );
+
+    // O roteiro de impacto, com as variáveis preenchidas.
+    assert!(
+        roteiro.contains("Fluxo: análise de impacto de uma demanda. Documento na base:"),
+        "{roteiro}"
+    );
+    assert!(
+        roteiro.contains("**Separe fato de suposição.**"),
+        "{roteiro}"
+    );
+    assert!(roteiro.contains("Premissa do solicitante:"), "{roteiro}");
+    for secao in [
+        "`demanda_como_entendida` (Demanda como entendida) (obrigatória)",
+        "`como_e_hoje` (Como é hoje) (obrigatória)",
+        "`abrangencia` (Abrangência) (obrigatória)",
+        "`riscos` (Riscos)",
+    ] {
+        assert!(roteiro.contains(secao), "{secao}: {roteiro}");
+    }
+    let texto = concluir["content"][0]["text"].as_str().unwrap();
+    assert!(
+        texto.contains("a demanda como entendida, a abrangência"),
+        "{texto}"
+    );
+
+    assert_eq!(frontmatter["tipo"].as_str(), Some("analise-impacto"));
+    assert_eq!(frontmatter["abrangencia"].as_str(), Some("pequena"));
+    todas_as_secoes_preenchidas(
+        &corpo,
+        &[
+            "Demanda como veio",
+            "Demanda como entendida",
+            "Como é hoje",
+            "Funcionalidades",
+            "Dados",
+            "Integrações",
+            "Documentos e telas",
+            "Riscos",
+            "Abrangência",
+            "Perguntas para o solicitante",
+            "Sugestões de alteração",
+            "Evidências",
+        ],
+    );
+    assert!(
+        corpo.contains("## Demanda como veio\n\nPermitir parcelamento da fatura em até 3 vezes"),
+        "{corpo}"
+    );
+    // A premissa falsa da demanda, corrigida no lugar dela.
+    let (_, entendida) = corpo.split_once("## Demanda como entendida\n\n").unwrap();
+    let entendida = entendida.split("\n## ").next().unwrap();
+    assert!(
+        entendida.contains("- **[confirmado]** Premissa do solicitante: hoje o sistema não parcela fatura nenhuma. Verificação: não confere."),
+        "{corpo}"
+    );
+    assert!(
+        entendida.contains("Demanda como entendida: o parcelamento"),
+        "{corpo}"
+    );
+    assert!(corpo.contains("Estimativa: **pequena**"), "{corpo}");
+    assert!(
+        corpo.contains("- **[inferido]** Pequena: a demanda já está atendida"),
+        "{corpo}"
+    );
+    assert!(
+        corpo.contains("1. O limite de parcelas deve valer também"),
+        "{corpo}"
+    );
+    assert!(
+        corpo.contains("Tela com o mesmo limite de parcelas do backend"),
+        "{corpo}"
+    );
+    assert!(
+        corpo.contains("`frontend/src/telas/parcelamento-form.ts:19`"),
+        "{corpo}"
+    );
+}
+
+/// O critério do M2 pelo executável (#32): a explicação de uma funcionalidade do
+/// gabarito, com registro em todas as seções, gera o documento negocial com todas
+/// as seções do template.
+#[test]
+fn mcp_explicar_funcionalidade_do_inicio_ao_documento_na_base() {
+    let dir = tempfile::tempdir().unwrap();
+    let dados = preparar_dados(dir.path());
+    let funcionalidade = do_gabarito("funcionalidades", "F-FAT-002");
+    let nome = funcionalidade["nome"].as_str().unwrap();
+    let pf = regra_do_gabarito("RN-FAT-007")["evidencias"].clone();
+    let parcelas = regra_do_gabarito("RN-FAT-008")["evidencias"].clone();
+    let minimo = regra_do_gabarito("RN-FAT-009")["evidencias"].clone();
+    let aberta = regra_do_gabarito("RN-FAT-010")["evidencias"].clone();
+    let composicao = regra_do_gabarito("RN-FAT-011")["evidencias"].clone();
+    let regra = |id: &str| {
+        let r = regra_do_gabarito(id);
+        format!(
+            "{}: {}",
+            r["titulo"].as_str().unwrap(),
+            r["enunciado"].as_str().unwrap()
+        )
+    };
+    let registros: Vec<Registro<'_>> = vec![
+        (
+            "objetivo",
+            format!("{nome}: dividir uma fatura em aberto em parcelas."),
+            "inferido",
+            json!([composicao[0]]),
+        ),
+        (
+            "atores_e_telas",
+            "O atendente pede o parcelamento pela tela de parcelamento; o backend valida e gera as parcelas.".into(),
+            "confirmado",
+            json!([pf[1], pf[0]]),
+        ),
+        (
+            "fluxo_principal",
+            "1. O valor parcelado é o valor original mais os encargos na data do pedido, dividido em parcelas iguais.".into(),
+            "confirmado",
+            json!([composicao[0]]),
+        ),
+        (
+            "fluxos_alternativos",
+            "Órgão público parcela sem valor mínimo de parcela.".into(),
+            "confirmado",
+            json!([minimo[0]]),
+        ),
+        (
+            "excecoes",
+            "Fatura que não está aberta é recusada.".into(),
+            "confirmado",
+            aberta.clone(),
+        ),
+        ("regras", regra("RN-FAT-007"), "confirmado", pf.clone()),
+        ("regras", regra("RN-FAT-008"), "confirmado", parcelas.clone()),
+        (
+            "dados",
+            "Lê os parâmetros MAX_PARCELAS e VALOR_MIN_PARCELA da tabela de parâmetros.".into(),
+            "confirmado",
+            json!([parcelas[2], minimo[1]]),
+        ),
+        (
+            "integracoes",
+            "O cálculo dos encargos é pedido ao serviço de encargos.".into(),
+            "confirmado",
+            json!([composicao[0]]),
+        ),
+    ];
+    let (roteiro, concluir, frontmatter, corpo) = fluxo_de_ponta_a_ponta(
+        dir.path(),
+        dados.raiz(),
+        "explicar",
+        nome,
+        "Como funciona o parcelamento de fatura?",
+        &registros,
+    );
+    assert!(
+        roteiro.contains("Fluxo: explicação de funcionalidade (documento negocial)."),
+        "{roteiro}"
+    );
+    assert!(
+        roteiro.contains("**Siga o caminho do começo ao fim.**"),
+        "{roteiro}"
+    );
+    for secao in [
+        "`objetivo` (Objetivo) (obrigatória)",
+        "`fluxo_principal` (Fluxo principal) (obrigatória)",
+        "`regras` (Regras de negócio) (obrigatória)",
+        "`excecoes` (Exceções)",
+    ] {
+        assert!(roteiro.contains(secao), "{secao}: {roteiro}");
+    }
+    let texto = concluir["content"][0]["text"].as_str().unwrap();
+    assert!(texto.contains("objetivo, regras principais"), "{texto}");
+    assert_eq!(frontmatter["tipo"].as_str(), Some("funcionalidade"));
+    todas_as_secoes_preenchidas(
+        &corpo,
+        &[
+            "Objetivo",
+            "Atores e telas",
+            "Fluxo principal",
+            "Fluxos alternativos",
+            "Exceções",
+            "Regras de negócio",
+            "Dados lidos e gravados",
+            "Integrações",
+            "Perguntas em aberto",
+            "Sugestões de alteração",
+            "Evidências",
+        ],
+    );
+    assert!(corpo.contains("# Parcelamento de fatura"), "{corpo}");
+    assert!(
+        corpo.contains("- **[confirmado]** Parcelamento só para pessoa jurídica e órgão público:"),
+        "{corpo}"
+    );
+    assert!(
+        corpo.contains("Tela com o mesmo limite de parcelas do backend"),
+        "{corpo}"
+    );
 }
 
 /// As ferramentas de consulta pelo executável (#22): sem mapa gravado, a primeira

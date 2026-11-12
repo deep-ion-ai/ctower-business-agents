@@ -22,6 +22,7 @@ use cba_core::eventos::DiarioEventos;
 use cba_index::{Cadastro, detectar_git};
 use cba_kb::Id;
 use cba_kb::frontmatter::VersaoCodigo;
+use cba_session::passagem::ClientesDasSessoes;
 use cba_session::preparo::{Alvo, Preparador, Resultado, Verificacao};
 use cba_session::sessoes::Sessoes;
 use cba_session::terminal::pendencias;
@@ -61,7 +62,7 @@ pub struct AmbienteClaude {
     pub verificacao: Verificacao,
 }
 
-fn alvo(dados: &DiretorioDados, sistema: &str) -> Result<Alvo, String> {
+pub(crate) fn alvo(dados: &DiretorioDados, sistema: &str) -> Result<Alvo, String> {
     let cadastrado = Cadastro::em(dados.sistemas())
         .obter(sistema)
         .map_err(|e| e.to_string())?
@@ -210,6 +211,18 @@ pub fn criar_analise(
     entrada: &str,
     titulo: Option<&str>,
 ) -> Result<AnaliseCriada, String> {
+    criar_analise_do_fluxo(dados, sistema, Fluxo::Perguntar, entrada, titulo)
+}
+
+/// Cria a análise de qualquer fluxo (perguntar, explicar ou impacto), com o pedido
+/// que abre a conversa. Usada pelos botões dos fluxos do início ([`crate::inicio`]).
+pub fn criar_analise_do_fluxo(
+    dados: &DiretorioDados,
+    sistema: &str,
+    fluxo: Fluxo,
+    entrada: &str,
+    titulo: Option<&str>,
+) -> Result<AnaliseCriada, String> {
     let ambiente = ambiente(dados, sistema)?;
     let titulo = titulo
         .map(str::trim)
@@ -228,7 +241,7 @@ pub fn criar_analise(
     let analise = ambiente
         .analises
         .criar(NovaAnalise {
-            fluxo: Fluxo::Perguntar,
+            fluxo,
             titulo,
             entrada: entrada.to_owned(),
             analista: None,
@@ -265,16 +278,19 @@ pub struct VistaAnalise {
 }
 
 /// Sessão mais recente: o registro dos hooks (#25), que guarda o instante da última
-/// mudança, ou, sem ele, a última sessão gravada na análise.
-fn sessao_recente(dados: &DiretorioDados, analise: &Analise) -> Option<SessaoVista> {
+/// mudança, com o cliente informado pelo app (#28), ou, sem ele, a última sessão
+/// gravada na análise.
+pub(crate) fn sessao_recente(dados: &DiretorioDados, analise: &Analise) -> Option<SessaoVista> {
     let registros = Sessoes::do_diretorio(dados)
         .da_analise(&analise.sistema, &analise.id)
         .unwrap_or_default();
     if let Some(r) = registros.into_iter().next() {
+        // Os hooks não sabem o cliente; o app informa pelo que abriu (#28).
+        let cliente = ClientesDasSessoes::no_diretorio(dados.raiz()).cliente_de(&r);
         return Some(SessaoVista {
             id: r.id,
             estado: r.estado,
-            cliente: r.cliente,
+            cliente,
         });
     }
     analise

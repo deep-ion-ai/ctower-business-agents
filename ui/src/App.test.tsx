@@ -35,11 +35,13 @@ describe("App", () => {
     expect(await screen.findByText("Versão 1.2.3")).toBeInTheDocument();
   });
 
-  it("depois do primeiro uso, mostra os clientes de IA e a pergunta ao sistema", async () => {
+  it("depois do primeiro uso, abre o início com os clientes de IA e a navegação", async () => {
     render(<App api={concluido()} />);
-    expect(await screen.findByRole("region", { name: "Clientes de IA" })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Pergunta ao sistema" })).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "Início" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Clientes de IA" })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Primeiro uso" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Análises" }));
+    expect(await screen.findByRole("region", { name: "Pergunta ao sistema" })).toBeInTheDocument();
   });
 
   it("no primeiro uso, abre o assistente e, ao concluir, vai para a análise", async () => {

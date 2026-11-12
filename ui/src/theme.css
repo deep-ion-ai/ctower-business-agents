@@ -576,3 +576,33 @@ button.link {
 .protecao-opcional {
   margin: 0.5rem 0;
 }
+
+/* Clientes da conversa (#28): o preferido primeiro. */
+.clientes-conversa {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.cliente-conversa {
+  border: 1px solid color-mix(in srgb, var(--suave) 30%, transparent);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+}
+
+.cliente-conversa h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+}
+
+.selo-preferido {
+  color: var(--suave);
+  font-size: 0.85rem;
+  font-weight: normal;
+}
+
+.comando-copiar code {
+  overflow-wrap: anywhere;
+  user-select: all;
+}

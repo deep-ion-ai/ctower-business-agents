@@ -11,6 +11,7 @@ import type {
   VistaAnalise,
 } from "../analise";
 import type { EstadoClientes } from "../clientes";
+import type { ApiConversa, OpcoesConversa, ResultadoDesktop } from "../conversa";
 import type {
   ApiPrimeiroUso,
   AvaliacaoBase,
@@ -277,5 +278,48 @@ export function apiPrimeiroUsoFalsa() {
       Promise.resolve({ diretorio: "/codigo", alteracoes: [], gravado: true }),
     ),
   } satisfies ApiPrimeiroUso;
+  return api;
+}
+
+/** Opções da conversa do sistema fictício: os três clientes, sem preferência. */
+export function opcoesFicticias(parcial: Partial<OpcoesConversa> = {}): OpcoesConversa {
+  return {
+    plataforma: "macOs",
+    preferido: null,
+    opcoes: [
+      { cliente: "terminalEmbutido", disponivel: true },
+      { cliente: "claudeDesktop", disponivel: true },
+      { cliente: "terminalDoAnalista", disponivel: true },
+    ],
+    sessao: null,
+    pedido: "Inicie a análise A-0001 pelo ctower",
+    linkDesktop:
+      "claude://code/new?folder=/codigo/faturamento-exemplo&q=Inicie%20a%20an%C3%A1lise%20A-0001%20pelo%20ctower",
+    linkTerminal:
+      "claude-cli://open?cwd=/codigo/faturamento-exemplo&q=Inicie%20a%20an%C3%A1lise%20A-0001%20pelo%20ctower",
+    comandoTerminal: "cd /codigo/faturamento-exemplo && claude 'Inicie a análise A-0001 pelo ctower'",
+    comandoRetomada: null,
+    ...parcial,
+  };
+}
+
+/** API dos clientes da conversa falsa: tudo dá certo, salvo o que o teste mudar. */
+export function apiConversaFalsa(opcoes: OpcoesConversa = opcoesFicticias()) {
+  const api = {
+    opcoes: vi.fn((_s: string, _a: string) => Promise.resolve(opcoes)),
+    abrirPorLink: vi.fn(
+      (_s: string, _a: string, _c: "claudeDesktop" | "terminalDoAnalista") => Promise.resolve(),
+    ),
+    retomarNoDesktop: vi.fn(
+      (_s: string, _a: string): Promise<ResultadoDesktop> =>
+        Promise.resolve({
+          aberto: true,
+          codigo: 0,
+          mensagem: "Opening session sessao-1 in Claude Desktop",
+        }),
+    ),
+    passouAoDesktop: vi.fn((_s: string, _a: string) => Promise.resolve()),
+    copiar: vi.fn((_t: string) => Promise.resolve()),
+  } satisfies ApiConversa;
   return api;
 }

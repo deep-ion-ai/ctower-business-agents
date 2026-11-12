@@ -1,0 +1,247 @@
+/* Navegação, início, sistema e base de conhecimento (#38). As cores e os selos
+   seguem o theme.css. */
+
+.navegacao {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.abas {
+  margin-top: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--suave) 40%, transparent);
+  width: min(100rem, calc(100% - 2rem));
+}
+
+.abas button {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: inherit;
+  font: inherit;
+  padding: 0.4rem 0.75rem;
+  cursor: pointer;
+}
+
+.abas button[aria-current="page"] {
+  border-bottom-color: #3b82f6;
+  font-weight: 600;
+}
+
+.tela-inicio,
+.tela-sistema,
+.tela-base {
+  margin-top: 1.5rem;
+  width: min(100rem, calc(100% - 2rem));
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.tela-inicio > .clientes {
+  width: 100%;
+  margin-top: 1rem;
+}
+
+.tela-inicio h2,
+.tela-sistema h2,
+.tela-base h2 {
+  margin: 0.5rem 0 0.25rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.tela-sistema h3 {
+  margin: 0.75rem 0 0.25rem;
+  font-size: 1rem;
+}
+
+.botoes-fluxo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.lista-sistemas,
+.lista-regras,
+.lista-termos,
+.lista-areas,
+.lista-pastas,
+.lista-arquivos,
+.resultados-base ul {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.selo-status {
+  background: color-mix(in srgb, var(--suave) 20%, transparent);
+}
+
+/* Regra "a revalidar" (spec, seção 6.5): o código citado mudou. */
+.selo-revalidar {
+  background: color-mix(in srgb, #e07a10 35%, transparent);
+  margin-left: 0.4rem;
+}
+
+.regra-a-revalidar {
+  border-left: 3px solid #e07a10;
+  padding-left: 0.5rem;
+  background: color-mix(in srgb, #e07a10 8%, transparent);
+}
+
+.aviso-revalidar {
+  margin: 0;
+  color: color-mix(in srgb, #e07a10 75%, var(--texto));
+  font-weight: 600;
+}
+
+.revalidacao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mapa-sistema,
+.resultados-base,
+.documento-aberto {
+  border: 1px solid color-mix(in srgb, var(--suave) 40%, transparent);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+
+.trilha {
+  margin-bottom: 0.5rem;
+}
+
+.busca-base {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.busca-base input[type="search"] {
+  font: inherit;
+  flex: 1 1 20rem;
+  padding: 0.3rem 0.5rem;
+}
+
+.filtros {
+  border: 0;
+  display: flex;
+  gap: 0.75rem;
+  padding: 0;
+  margin: 0;
+}
+
+.filtros legend {
+  float: left;
+  margin-right: 0.5rem;
+}
+
+.base-colunas {
+  display: grid;
+  grid-template-columns: minmax(18rem, 1fr) minmax(0, 2fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.base-colunas > :only-child {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 900px) {
+  .base-colunas {
+    grid-template-columns: 1fr;
+  }
+}
+
+.resultados-base li[aria-current="true"] {
+  font-weight: 600;
+}
+
+.trecho-busca {
+  margin: 0.15rem 0 0.4rem;
+  color: var(--suave);
+  font-size: 0.9rem;
+}
+
+.trecho-busca mark {
+  background: color-mix(in srgb, #d4a017 40%, transparent);
+  color: inherit;
+}
+
+.documento-base header h2 {
+  margin: 0.25rem 0;
+}
+
+.campos-documento {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.15rem 0.75rem;
+  font-size: 0.9rem;
+}
+
+.campos-documento div {
+  display: contents;
+}
+
+.campos-documento dt {
+  color: var(--suave);
+}
+
+.campos-documento dd {
+  margin: 0;
+}
+
+.ligacoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  font-size: 0.9rem;
+}
+
+.ligacoes h3 {
+  margin: 0.5rem 0 0.25rem;
+  font-size: 0.95rem;
+}
+
+.ligacoes ul {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.markdown {
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.markdown pre {
+  overflow-x: auto;
+  padding: 0.5rem;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--suave) 15%, transparent);
+}
+
+.markdown table {
+  border-collapse: collapse;
+}
+
+.markdown th,
+.markdown td {
+  border: 1px solid color-mix(in srgb, var(--suave) 40%, transparent);
+  padding: 0.2rem 0.5rem;
+}
+
+.link-externo {
+  text-decoration: underline dotted;
+}

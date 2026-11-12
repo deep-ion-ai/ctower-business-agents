@@ -5,7 +5,9 @@ use cba_session::clientes::{self, EstadoClientes};
 
 use std::sync::Arc;
 
-use crate::{alteracoes, analise, primeiro_uso, prompts, terminal, vigia};
+use crate::{
+    alteracoes, analise, base, conversa, inicio, primeiro_uso, prompts, sistema, terminal, vigia,
+};
 
 pub fn rodar() {
     // Sem log o app ainda funciona; o erro não tem para onde ir antes da janela.
@@ -17,12 +19,14 @@ pub fn rodar() {
     let vigias = Arc::new(vigia::Vigias::padrao());
     tauri::Builder::default()
         // Abre os links oficiais da orientação dos clientes no navegador (só os
-        // domínios liberados em capabilities/default.json).
+        // domínios liberados em capabilities/default.json) e, pelo Rust, os links
+        // `claude://` e `claude-cli://` montados em `conversa`.
         .plugin(tauri_plugin_opener::init())
         // Seletor de pastas do primeiro uso (base e pastas do sistema).
         .plugin(tauri_plugin_dialog::init())
         .manage(sessoes.clone())
         .manage(vigias)
+        .manage(Arc::new(base::VigiaBase::default()))
         .invoke_handler(tauri::generate_handler![
             estado_clientes,
             terminal::listar_sistemas,
@@ -46,6 +50,10 @@ pub fn rodar() {
             analise::criar_analise_pergunta,
             analise::carregar_analise_sistema,
             analise::trecho_evidencia_sistema,
+            conversa::opcoes_conversa_analise,
+            conversa::abrir_conversa_por_link,
+            conversa::conversa_passou_ao_desktop,
+            conversa::retomar_conversa_no_desktop,
             vigia::vigiar_analises,
             vigia::parar_vigia,
             prompts::prompts_prontos,
@@ -54,6 +62,16 @@ pub fn rodar() {
             alteracoes::manter_alteracoes_sistema,
             alteracoes::situacao_protecao_sistema,
             alteracoes::mudar_protecao_sistema,
+            inicio::inicio_app,
+            inicio::criar_analise_fluxo,
+            sistema::visao_sistema_app,
+            sistema::revalidar_sistema_app,
+            sistema::mapa_sistema_app,
+            sistema::mapear_sistema_app,
+            base::buscar_base,
+            base::abrir_documento_base,
+            base::vigiar_base,
+            base::parar_vigia_base,
         ])
         .build(tauri::generate_context!())
         .expect("erro ao iniciar o app")
