@@ -132,6 +132,6 @@ pub async fn criar_analise_de_demanda(
     .await
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 #[path = "repositorios_testes.rs"]
 mod tests;

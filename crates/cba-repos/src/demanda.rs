@@ -191,7 +191,7 @@ pub fn buscar_demanda(
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 pub(crate) mod falsas {
     //! CLIs falsas para os testes: scripts de shell numa pasta temporária.
     use std::os::unix::fs::PermissionsExt;
@@ -205,7 +205,7 @@ pub(crate) mod falsas {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     use falsas::script;

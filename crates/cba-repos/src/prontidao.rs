@@ -327,7 +327,7 @@ pub fn conferir(r: &Repositorios, f: &Ferramentas) -> Prontidao {
     Prontidao { integracoes }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     use crate::demanda::falsas::script;

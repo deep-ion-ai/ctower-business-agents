@@ -4,6 +4,7 @@
 //! comando de credencial.
 
 use std::io::{self, Read};
+#[cfg(unix)]
 use std::os::unix::process::CommandExt;
 use std::process::{Command, ExitStatus, Stdio};
 use std::sync::mpsc;
@@ -40,23 +41,35 @@ pub fn run(mut cmd: Command, deadline: Duration) -> Result<Output, RunError> {
     cmd.stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    // SAFETY: `setsid` é async-signal-safe e não aloca; roda no filho entre
-    // o `fork` e o `exec`.
-    unsafe {
-        cmd.pre_exec(|| {
-            if libc::setsid() == -1 {
-                return Err(io::Error::last_os_error());
-            }
-            Ok(())
-        });
+    #[cfg(unix)]
+    {
+        // SAFETY: `setsid` é async-signal-safe e não aloca; roda no filho entre
+        // o `fork` e o `exec`.
+        unsafe {
+            cmd.pre_exec(|| {
+                if libc::setsid() == -1 {
+                    return Err(io::Error::last_os_error());
+                }
+                Ok(())
+            });
+        }
+    }
+    #[cfg(windows)]
+    {
+        // Sem janela de console para o comando.
+        use std::os::windows::process::CommandExt as _;
+        cmd.creation_flags(0x0800_0000);
     }
     let mut child = cmd.spawn().map_err(|e| match e.kind() {
         io::ErrorKind::NotFound | io::ErrorKind::PermissionDenied => RunError::NotFound,
         _ => RunError::Io(e),
     })?;
-    // O pid do líder é o id do grupo (`setsid`).
+    // No Unix, o pid do líder é o id do grupo (`setsid`); no Windows, só o filho
+    // direto é morto.
+    #[cfg(unix)]
     let group = child.id() as libc::pid_t;
     let kill_group = || {
+        #[cfg(unix)]
         // SAFETY: só sinaliza o grupo criado acima.
         unsafe {
             libc::kill(-group, libc::SIGKILL);
@@ -128,12 +141,17 @@ pub fn run(mut cmd: Command, deadline: Duration) -> Result<Output, RunError> {
 
 /// `saída N` ou `sinal N`, para as mensagens de erro.
 pub fn describe_status(s: &ExitStatus) -> String {
-    use std::os::unix::process::ExitStatusExt;
-    match (s.code(), s.signal()) {
-        (Some(c), _) => format!("saída {c}"),
-        (None, Some(sig)) => format!("sinal {sig}"),
-        _ => "saída desconhecida".to_string(),
+    if let Some(c) = s.code() {
+        return format!("saída {c}");
     }
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::ExitStatusExt;
+        if let Some(sig) = s.signal() {
+            return format!("sinal {sig}");
+        }
+    }
+    "saída desconhecida".to_string()
 }
 
 /// Saída de erro do processo citável numa mensagem: sem cores ANSI, sem o
@@ -173,6 +191,7 @@ pub fn cite(text: &str, token: Option<&Secret>) -> String {
 }
 
 #[cfg(test)]
+#[cfg(unix)]
 mod tests {
     use super::*;
 

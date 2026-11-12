@@ -52,8 +52,18 @@ pub fn run_credential(
     if cmd.trim().is_empty() {
         return Err(CredentialError::Missing { what });
     }
-    let mut c = Command::new("/bin/sh");
-    c.arg("-c").arg(cmd);
+    #[cfg(unix)]
+    let c = {
+        let mut c = Command::new("/bin/sh");
+        c.arg("-c").arg(cmd);
+        c
+    };
+    #[cfg(windows)]
+    let c = {
+        let mut c = Command::new("cmd");
+        c.arg("/C").arg(cmd);
+        c
+    };
     let mut out = match run(c, deadline) {
         Ok(o) => o,
         Err(RunError::Timeout(d)) => {
@@ -92,6 +102,7 @@ pub fn run_credential(
 }
 
 #[cfg(test)]
+#[cfg(unix)]
 mod tests {
     use super::*;
     use std::time::Instant;
