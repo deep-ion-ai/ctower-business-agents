@@ -153,6 +153,92 @@ pub(crate) fn copiar(
     Ok(criados)
 }
 
+/// Grupo de um texto editável na base, para a tela de configurações (#39).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Grupo {
+    /// Template de um tipo de documento (`_templates/<tipo>.md`).
+    Template,
+    /// Roteiro de um fluxo (`_templates/roteiros/<fluxo>.md`).
+    Roteiro,
+    /// Prompt pronto (`_templates/prompts/<id>.md`).
+    Prompt,
+}
+
+/// Um texto que o analista pode editar na base, com o padrão embutido no app.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TextoEditavel {
+    pub grupo: Grupo,
+    /// `analise-impacto`, `perguntar`, `aprofundar`.
+    pub id: &'static str,
+    /// Nome para o analista.
+    pub rotulo: &'static str,
+    /// Relativo à raiz da base.
+    pub arquivo: CaminhoRelativo,
+    /// Texto padrão embutido no app.
+    pub padrao: &'static str,
+}
+
+fn rotulo_do_template(tipo: cba_kb::frontmatter::TipoDocumento) -> &'static str {
+    use cba_kb::frontmatter::TipoDocumento as T;
+    match tipo {
+        T::AnaliseImpacto => "Análise de impacto",
+        T::Pergunta => "Pergunta ao sistema",
+        T::Funcionalidade => "Documento negocial da funcionalidade",
+        T::CasoDeUso => "Caso de uso",
+        T::Regra => "Regra de negócio",
+        T::Termo => "Termo do glossário",
+        T::Sugestao => "Sugestão de alteração",
+        T::Sistema => "Sistema",
+        T::MemoriaArea => "Memória da área",
+    }
+}
+
+fn rotulo_do_roteiro(fluxo: cba_core::analise::Fluxo) -> &'static str {
+    use cba_core::analise::Fluxo;
+    match fluxo {
+        Fluxo::Perguntar => "Perguntar ao sistema",
+        Fluxo::Explicar => "Explicar funcionalidade",
+        Fluxo::Impacto => "Analisar impacto",
+    }
+}
+
+/// Todos os textos editáveis na base: os templates dos documentos, os roteiros dos
+/// fluxos e os prompts prontos, nessa ordem. Um arquivo da base com o mesmo caminho
+/// sobrepõe o padrão.
+pub fn textos_editaveis() -> Vec<TextoEditavel> {
+    let mut lista: Vec<TextoEditavel> = cba_docs::MODELOS
+        .iter()
+        .map(|m| TextoEditavel {
+            grupo: Grupo::Template,
+            id: m.tipo.como_str(),
+            rotulo: rotulo_do_template(m.tipo),
+            arquivo: cba_docs::arquivo_do_template(m.tipo),
+            padrao: m.padrao,
+        })
+        .collect();
+    lista.extend(crate::roteiro::FLUXOS.iter().map(|f| {
+        let p = crate::roteiro::padrao(*f);
+        TextoEditavel {
+            grupo: Grupo::Roteiro,
+            id: p.nome,
+            rotulo: rotulo_do_roteiro(*f),
+            arquivo: p.arquivo(),
+            padrao: p.texto,
+        }
+    }));
+    lista.extend(crate::prompts::DEFINICOES.iter().map(|d| {
+        let p = crate::prompts::padrao(d);
+        TextoEditavel {
+            grupo: Grupo::Prompt,
+            id: d.id,
+            rotulo: d.rotulo,
+            arquivo: p.arquivo(),
+            padrao: p.texto,
+        }
+    }));
+    lista
+}
+
 /// Um texto carregado, ainda com as variáveis.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Texto {
@@ -254,6 +340,22 @@ fn sem_comentario_inicial(texto: &str) -> (usize, &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn textos_editaveis_cobrem_templates_roteiros_e_prompts() {
+        let lista = textos_editaveis();
+        let de = |g: Grupo| lista.iter().filter(|t| t.grupo == g).count();
+        assert_eq!(de(Grupo::Template), cba_docs::MODELOS.len());
+        assert_eq!(de(Grupo::Roteiro), 3);
+        assert_eq!(de(Grupo::Prompt), 5);
+        let arquivos: std::collections::BTreeSet<&str> =
+            lista.iter().map(|t| t.arquivo.as_str()).collect();
+        assert_eq!(arquivos.len(), lista.len(), "caminhos distintos");
+        assert!(arquivos.contains("_templates/analise-impacto.md"));
+        assert!(arquivos.contains("_templates/roteiros/perguntar.md"));
+        assert!(arquivos.contains("_templates/prompts/aprofundar.md"));
+        assert!(lista.iter().all(|t| !t.padrao.trim().is_empty()));
+    }
 
     fn texto(t: &str) -> Texto {
         Texto {

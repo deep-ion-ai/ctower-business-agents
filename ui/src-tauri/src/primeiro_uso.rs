@@ -199,7 +199,7 @@ pub struct AvaliacaoBase {
 
 /// Caminho canônico de algo que talvez ainda não exista: a parte que existe é
 /// resolvida (links, `..`), e o resto é acrescentado como está.
-fn canonica_aproximada(caminho: &Path) -> PathBuf {
+pub(crate) fn canonica_aproximada(caminho: &Path) -> PathBuf {
     let mut existente = caminho.to_path_buf();
     let mut resto = Vec::new();
     loop {
@@ -387,7 +387,7 @@ pub struct PedidoSistema {
     pub inclusoes: Vec<String>,
 }
 
-fn limpar(lista: &[String]) -> Vec<String> {
+pub(crate) fn limpar(lista: &[String]) -> Vec<String> {
     let mut saida: Vec<String> = Vec::new();
     for x in lista.iter().map(|x| x.trim()).filter(|x| !x.is_empty()) {
         if !saida.iter().any(|y| y == x) {
@@ -555,7 +555,7 @@ pub struct PreviaSistema {
     pub inventario: ResumoInventario,
 }
 
-fn pastas_vista(inventario: &Inventario) -> Vec<PastaVista> {
+pub(crate) fn pastas_vista(inventario: &Inventario) -> Vec<PastaVista> {
     inventario
         .pastas
         .iter()

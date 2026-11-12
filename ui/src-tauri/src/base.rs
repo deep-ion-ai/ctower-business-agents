@@ -410,6 +410,12 @@ impl VigiaBase {
         }
     }
 
+    /// Para a vigia (espera a rodada em andamento). Os assinantes continuam; a
+    /// próxima [`VigiaBase::garantir`] volta a vigiar a base configurada.
+    pub fn parar(&self) {
+        *self.vigia.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    }
+
     /// Passa a receber os avisos de mudança na base. Devolve o identificador.
     pub fn assinar(&self, f: impl Fn(&Sincronizacao) + Send + Sync + 'static) -> u64 {
         let id = self.proximo.fetch_add(1, Ordering::Relaxed) + 1;
