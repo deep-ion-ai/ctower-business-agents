@@ -1,11 +1,12 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Janela principal: permissões padrão do núcleo do Tauri (inclui a versão do app), o seletor de pastas do sistema operacional e a abertura, no navegador, só dos links oficiais da Anthropic mostrados na orientação dos clientes de IA.",
+  "description": "Janela principal: permissões padrão do núcleo do Tauri (inclui a versão do app), o seletor de pastas e o diálogo de salvar (exportação) do sistema operacional e a abertura, no navegador, só dos links oficiais da Anthropic mostrados na orientação dos clientes de IA.",
   "windows": ["main"],
   "permissions": [
     "core:default",
     "dialog:allow-open",
+    "dialog:allow-save",
     {
       "identifier": "opener:allow-open-url",
       "allow": [{ "url": "https://claude.ai/*" }, { "url": "https://code.claude.com/*" }]

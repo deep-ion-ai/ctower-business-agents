@@ -12,6 +12,7 @@ cba-core.workspace = true
 cba-docs.workspace = true
 cba-index.workspace = true
 cba-kb.workspace = true
+dunce = "1"
 serde.workspace = true
 serde_json.workspace = true
 sha2 = "0.10"

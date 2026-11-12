@@ -8,6 +8,7 @@ import type {
   SessaoVista,
   VistaAnalise,
 } from "./analise";
+import { AcoesAceite, AcoesAfirmacao, AcoesPergunta, type Revisao } from "./AcoesRevisao";
 
 export const ROTULO_CONFIANCA: Record<Confianca, string> = {
   confirmado: "confirmado",
@@ -77,11 +78,15 @@ interface Props {
   /** Evidência aberta ao lado (destacada na lista). */
   evidenciaAberta?: string | null;
   aoAbrirEvidencia: (e: Evidencia) => void;
+  /** Ações de revisão do analista (#37); sem elas, ou com a análise aprovada, só leitura. */
+  revisao?: Revisao;
 }
 
 /** Documento da análise montado ao vivo a partir do estado gravado. */
-export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia }: Props) {
+export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia, revisao }: Props) {
   const { analise } = vista;
+  // Aprovada, a revisão fecha: as regras já foram para a base.
+  const rev = analise.estado === "aprovada" ? undefined : revisao;
   const secoes = agrupar(analise.afirmacoes);
   const perguntas = [...analise.perguntas].sort(
     (a, b) => Number(a.estado !== "aberta") - Number(b.estado !== "aberta") || a.numero - b.numero,
@@ -128,6 +133,12 @@ export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia }: Pr
                   {a.estado === "incorreta" && (
                     <span className="comentario suave"> {a.comentario}</span>
                   )}
+                  {a.texto_original && (
+                    <span className="suave editada" title={`Texto do agente: ${a.texto_original}`}>
+                      {" "}
+                      (texto editado pelo analista)
+                    </span>
+                  )}
                   {a.evidencias.length > 0 && (
                     <ul className="evidencias" aria-label="Evidências">
                       {a.evidencias.map((e) => {
@@ -151,6 +162,7 @@ export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia }: Pr
                       })}
                     </ul>
                   )}
+                  {rev && <AcoesAfirmacao afirmacao={a} revisao={rev} />}
                 </li>
               ))}
             </ol>
@@ -168,6 +180,7 @@ export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia }: Pr
               <li key={p.numero} className={`pergunta estado-${p.estado}`}>
                 {p.texto}
                 <EstadoDaPergunta pergunta={p} />
+                {rev && <AcoesPergunta pergunta={p} revisao={rev} />}
               </li>
             ))}
           </ol>
@@ -184,6 +197,7 @@ export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia }: Pr
               <li key={s.numero}>
                 <strong>{s.titulo || s.arquivo}</strong>
                 {s.id && <span className="suave"> ({s.id})</span>}
+                {s.estado === "aceita" && <span className="suave"> (aceita)</span>}
                 <p>{s.motivo}</p>
                 {s.evidencia && (
                   <button
@@ -195,11 +209,41 @@ export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia }: Pr
                     {chaveEvidencia(s.evidencia)}
                   </button>
                 )}
+                {rev && s.estado === "proposta" && (
+                  <AcoesAceite
+                    tipo="sugestao"
+                    numero={s.numero}
+                    rotulo={`da sugestão ${s.numero}`}
+                    revisao={rev}
+                  />
+                )}
               </li>
             ))}
           </ol>
         )}
       </section>
+
+      {analise.termos.length > 0 && (
+        <section aria-label="Termos propostos para o glossário">
+          <h3>Termos para o glossário</h3>
+          <ol className="termos">
+            {analise.termos.map((t) => (
+              <li key={t.numero} className={`termo estado-${t.estado}`}>
+                <strong>{t.termo}</strong>: {t.definicao}
+                {t.estado !== "proposto" && <span className="suave"> ({t.estado})</span>}
+                {rev && t.estado === "proposto" && (
+                  <AcoesAceite
+                    tipo="termo"
+                    numero={t.numero}
+                    rotulo={`do termo ${t.termo}`}
+                    revisao={rev}
+                  />
+                )}
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
 
       <p className="suave documento-caminho">
         Documento na base: <code>{vista.documento}</code>

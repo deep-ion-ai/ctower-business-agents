@@ -606,3 +606,24 @@ button.link {
   overflow-wrap: anywhere;
   user-select: all;
 }
+
+/* Revisão, aprovação e exportação da análise (#37). */
+.acoes-revisao {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 0.25rem 0;
+}
+
+.form-revisao textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0.25rem 0;
+}
+
+.revisao-analise > section {
+  margin-top: 1rem;
+  border-top: 1px solid color-mix(in srgb, var(--suave) 40%, transparent);
+  padding-top: 0.5rem;
+}

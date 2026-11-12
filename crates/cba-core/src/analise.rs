@@ -173,7 +173,13 @@ pub struct Afirmacao {
     pub numero: u32,
     /// Seção do documento onde a afirmação entra.
     pub secao: String,
+    /// Texto que vai para o documento: o do agente ou, depois de uma edição do
+    /// analista ([`Analise::editar_afirmacao`]), o editado.
     pub texto: String,
+    /// Texto registrado pelo agente, guardado na primeira edição do analista. Só
+    /// existe quando o texto foi editado.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub texto_original: Option<String>,
     pub confianca: Confianca,
     #[serde(default)]
     pub evidencias: Vec<Evidencia>,
@@ -569,6 +575,7 @@ impl Analise {
             numero,
             secao: nova.secao.trim().to_owned(),
             texto: nova.texto.trim().to_owned(),
+            texto_original: None,
             confianca: nova.confianca,
             evidencias: nova.evidencias,
             estado: EstadoAfirmacao::Registrada,
@@ -598,6 +605,35 @@ impl Analise {
             })?;
         a.estado = estado;
         a.antes_de_revalidar = None;
+        Ok(())
+    }
+
+    /// Edição do analista no texto de uma afirmação. Seção, confiança, evidências e
+    /// estado ficam como estão; o texto do agente fica em
+    /// [`Afirmacao::texto_original`] (na primeira edição). Voltar ao texto original
+    /// apaga a marca de edição. Aprovada não aceita edição.
+    pub fn editar_afirmacao(&mut self, numero: u32, texto: &str) -> Result<(), ErroModelo> {
+        exigir("texto", texto)?;
+        if self.estado == EstadoAnalise::Aprovada {
+            return Err(ErroModelo::AnaliseAprovada(self.id.clone()));
+        }
+        let a = self
+            .afirmacoes
+            .iter_mut()
+            .find(|a| a.numero == numero)
+            .ok_or(ErroModelo::ItemDesconhecido {
+                tipo: "afirmação",
+                numero,
+            })?;
+        let texto = texto.trim();
+        if a.texto == texto {
+            return Ok(());
+        }
+        let original = a.texto_original.take().unwrap_or_else(|| a.texto.clone());
+        if original != texto {
+            a.texto_original = Some(original);
+        }
+        a.texto = texto.to_owned();
         Ok(())
     }
 
@@ -944,6 +980,47 @@ mod tests {
                 numero: 9
             })
         );
+    }
+
+    #[test]
+    fn edicao_do_texto_guarda_o_original_e_preserva_as_evidencias() {
+        let mut a = analise();
+        a.registrar_afirmacao(afirmacao(Confianca::Confirmado, vec![evidencia()]), 2)
+            .unwrap();
+        a.marcar_afirmacao(1, EstadoAfirmacao::Confirmada).unwrap();
+        a.editar_afirmacao(1, "  A multa por atraso é de 2% do valor.  ")
+            .unwrap();
+        let x = &a.afirmacoes[0];
+        assert_eq!(x.texto, "A multa por atraso é de 2% do valor.");
+        assert_eq!(x.texto_original.as_deref(), Some("A multa é de 2%."));
+        assert_eq!(x.evidencias, vec![evidencia()]);
+        assert_eq!(x.estado, EstadoAfirmacao::Confirmada);
+        // A segunda edição mantém o texto do agente.
+        a.editar_afirmacao(1, "A multa é de 2 por cento.").unwrap();
+        assert_eq!(
+            a.afirmacoes[0].texto_original.as_deref(),
+            Some("A multa é de 2%.")
+        );
+        // Voltar ao texto do agente apaga a marca.
+        a.editar_afirmacao(1, "A multa é de 2%.").unwrap();
+        assert_eq!(a.afirmacoes[0].texto_original, None);
+        let json = serde_json::to_value(&a.afirmacoes[0]).unwrap();
+        assert!(json.get("texto_original").is_none());
+
+        assert_eq!(
+            a.editar_afirmacao(1, "  "),
+            Err(ErroModelo::CampoVazio("texto"))
+        );
+        assert!(matches!(
+            a.editar_afirmacao(9, "x"),
+            Err(ErroModelo::ItemDesconhecido { numero: 9, .. })
+        ));
+        a.concluir().unwrap();
+        a.aprovar().unwrap();
+        assert!(matches!(
+            a.editar_afirmacao(1, "outro"),
+            Err(ErroModelo::AnaliseAprovada(_))
+        ));
     }
 
     #[test]
