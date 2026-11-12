@@ -1,4 +1,5 @@
-//! Modos de linha de comando: `mcp`, `hook <evento>`, `--version` e `--help`.
+//! Modos de linha de comando: `mcp`, `hook <evento>`, `fundo <tarefa> <sessao>`,
+//! `--version` e `--help`.
 //!
 //! Nada aqui toca o Tauri. Erros de uso saem com código 1, nunca 2: para o Claude Code,
 //! o código 2 de um hook bloqueia a ação (ex.: a ferramenta no `PreToolUse`).
@@ -13,6 +14,9 @@ Uso:
   cba                 abre o app
   cba mcp             servidor MCP em stdio (iniciado pelo cliente de IA)
   cba hook <evento>   receptor de hooks: JSON do evento na entrada padrão
+  cba fundo <tarefa> <sessao>
+                      retrato (retratar) ou conferência (conferir) da pasta do
+                      sistema para o aviso de alteração; iniciado pelo hook
   cba --version       versão
   cba --help          esta ajuda";
 
@@ -22,6 +26,8 @@ pub enum Modo {
     Janela,
     Mcp,
     Hook(String),
+    /// Tarefa do aviso de alteração, fora do caminho do hook.
+    Fundo(cba_session::alteracoes::Tarefa, String),
     Versao,
     Ajuda,
     Uso(String),
@@ -36,6 +42,17 @@ impl Modo {
             [a] if a == "mcp" => Modo::Mcp,
             [a, evento] if a == "hook" && !evento.is_empty() => Modo::Hook(evento.clone()),
             [a, ..] if a == "hook" => Modo::Uso("uso: cba hook <evento>".into()),
+            [a, tarefa, sessao] if a == "fundo" => {
+                match cba_session::alteracoes::Tarefa::do_nome(tarefa) {
+                    Some(t) if cba_session::sessoes::id_valido(sessao) => {
+                        Modo::Fundo(t, sessao.clone())
+                    }
+                    _ => Modo::Uso("uso: cba fundo retratar|conferir <sessao>".into()),
+                }
+            }
+            [a, ..] if a == "fundo" => {
+                Modo::Uso("uso: cba fundo retratar|conferir <sessao>".into())
+            }
             [a] if a == "--version" || a == "-V" => Modo::Versao,
             [a] if a == "--help" || a == "-h" => Modo::Ajuda,
             _ => Modo::Uso(format!("argumentos não reconhecidos: {}", args.join(" "))),
@@ -61,6 +78,7 @@ pub fn rodar(modo: Modo) -> i32 {
         }
         Modo::Mcp => mcp(),
         Modo::Hook(evento) => hook(&evento),
+        Modo::Fundo(tarefa, sessao) => fundo(tarefa, &sessao),
     }
 }
 
@@ -124,6 +142,36 @@ fn hook(evento: &str) -> i32 {
     resposta.codigo
 }
 
+/// Retrato ou conferência do aviso de alteração. Ninguém lê a saída: o resultado vai
+/// para o diretório de dados e o desfecho, sem caminhos nem identificadores, para o
+/// log.
+fn fundo(tarefa: cba_session::alteracoes::Tarefa, sessao: &str) -> i32 {
+    // Sem o diretório de dados (apagado depois do hook), não há o que fazer, e
+    // nada deve ser recriado.
+    let Some(dados) = DiretorioDados::padrao().ok().filter(|d| d.raiz().is_dir()) else {
+        return 1;
+    };
+    iniciar_log("fundo");
+    let inicio = std::time::Instant::now();
+    let resultado = cba_session::alteracoes::executar(&dados, tarefa, sessao);
+    let duracao_ms = inicio.elapsed().as_millis() as u64;
+    match resultado {
+        Ok(()) => {
+            tracing::info!(tarefa = tarefa.nome(), duracao_ms, "aviso de alteração");
+            0
+        }
+        Err(e) => {
+            tracing::warn!(
+                tarefa = tarefa.nome(),
+                duracao_ms,
+                erro = cba_session::alteracoes::tipo_do_erro(&e),
+                "aviso de alteração falhou"
+            );
+            1
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -149,5 +197,12 @@ mod tests {
         assert!(matches!(modo(&["hook", "A", "B"]), Modo::Uso(_)));
         assert!(matches!(modo(&["mcp", "x"]), Modo::Uso(_)));
         assert!(matches!(modo(&["outro"]), Modo::Uso(_)));
+        assert_eq!(
+            modo(&["fundo", "retratar", "abc-123"]),
+            Modo::Fundo(cba_session::alteracoes::Tarefa::Retratar, "abc-123".into())
+        );
+        assert!(matches!(modo(&["fundo", "outra", "abc"]), Modo::Uso(_)));
+        assert!(matches!(modo(&["fundo", "conferir", "../x"]), Modo::Uso(_)));
+        assert!(matches!(modo(&["fundo", "conferir"]), Modo::Uso(_)));
     }
 }

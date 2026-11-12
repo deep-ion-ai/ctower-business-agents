@@ -5,7 +5,7 @@ use cba_session::clientes::{self, EstadoClientes};
 
 use std::sync::Arc;
 
-use crate::{analise, primeiro_uso, prompts, terminal, vigia};
+use crate::{alteracoes, analise, primeiro_uso, prompts, terminal, vigia};
 
 pub fn rodar() {
     // Sem log o app ainda funciona; o erro não tem para onde ir antes da janela.
@@ -49,6 +49,11 @@ pub fn rodar() {
             vigia::vigiar_analises,
             vigia::parar_vigia,
             prompts::prompts_prontos,
+            alteracoes::alteracoes_da_analise_sistema,
+            alteracoes::desfazer_alteracoes_sistema,
+            alteracoes::manter_alteracoes_sistema,
+            alteracoes::situacao_protecao_sistema,
+            alteracoes::mudar_protecao_sistema,
         ])
         .build(tauri::generate_context!())
         .expect("erro ao iniciar o app")

@@ -19,6 +19,8 @@ export function PrepararAmbiente({
   const [plano, setPlano] = useState<PlanoPreparo | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [falha, setFalha] = useState<string | null>(null);
+  // Proteção opcional contra edição (#29): desligada por padrão.
+  const [proteger, setProteger] = useState(false);
 
   const planejar = () => {
     setOcupado(true);
@@ -35,6 +37,7 @@ export function PrepararAmbiente({
     setFalha(null);
     api
       .prepararAmbiente(sistema)
+      .then(() => (proteger && api.mudarProtecao ? api.mudarProtecao(sistema, true) : undefined))
       .then(() => aoConcluir())
       .catch((e: unknown) => setFalha(mensagemDe(e)))
       .finally(() => setOcupado(false));
@@ -73,7 +76,25 @@ export function PrepararAmbiente({
                 </span>
               </li>
             ))}
+            {proteger && (
+              <li>
+                Proteção contra edição: regra <code>deny</code> de <code>Edit</code> para as pastas
+                do sistema <span className="suave">(adicionada nas configurações do usuário)</span>
+              </li>
+            )}
           </ul>
+          {api.mudarProtecao && (
+            <label className="protecao-opcional">
+              <input
+                type="checkbox"
+                checked={proteger}
+                onChange={(e) => setProteger(e.target.checked)}
+              />{" "}
+              Também ligar a proteção contra edição (opcional): o Claude fica impedido de editar
+              arquivos e de usar o terminal (Bash) na pasta do sistema, mesmo que você aprove. Sem
+              ela, o app só avisa quando a pasta for alterada.
+            </label>
+          )}
           <button type="button" onClick={preparar} disabled={ocupado}>
             Concordo, preparar o ambiente
           </button>{" "}

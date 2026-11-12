@@ -42,6 +42,11 @@ pub enum Mudanca {
     Sugestao,
     /// Termo proposto para o glossário.
     Termo,
+    /// Arquivos da pasta do sistema alterados por uma sessão ligada à análise (ou
+    /// alteração desfeita ou mantida pelo analista). Não muda o estado da análise:
+    /// a `versao` do evento é 0, e a tela relê o aviso de alteração
+    /// (`cba_session::alteracoes`), não a análise.
+    Alteracao,
 }
 
 /// Uma linha do diário.

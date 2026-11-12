@@ -710,3 +710,142 @@ fn localiza_a_configuracao() {
         Err(Erro::SemPastaDoUsuario)
     ));
 }
+
+// ---------------------------------------------------------------------------
+// Proteção opcional contra edição (#29)
+
+#[test]
+fn regra_de_protecao_absoluta_em_cada_plataforma() {
+    use protecao::regra_de_protecao;
+    assert_eq!(
+        regra_de_protecao(
+            Path::new("/home/ana/sistemas/faturamento"),
+            Plataforma::Linux
+        ),
+        "Edit(//home/ana/sistemas/faturamento/**)"
+    );
+    assert_eq!(
+        regra_de_protecao(Path::new("/Users/ana/faturamento/"), Plataforma::MacOs),
+        "Edit(//Users/ana/faturamento/**)"
+    );
+    assert_eq!(
+        regra_de_protecao(Path::new(r"C:\Users\ana\faturamento"), Plataforma::Windows),
+        "Edit(//c/Users/ana/faturamento/**)"
+    );
+    // Caracteres de padrão valem literalmente.
+    assert_eq!(
+        regra_de_protecao(Path::new("/srv/fat[2026]*"), Plataforma::Linux),
+        r"Edit(//srv/fat\[2026\]\*/**)"
+    );
+}
+
+#[test]
+fn negar_e_liberar_preservam_o_resto_e_tiram_so_o_pedido() {
+    let c = Cenario::novo();
+    fs::create_dir_all(c.config.settings.parent().unwrap()).unwrap();
+    fs::write(
+        &c.config.settings,
+        r#"{
+  "theme": "dark",
+  "permissions": {
+    "allow": ["Bash(npm test)"],
+    "deny": ["Read(./.env)", "Edit(//ja/era/do/analista/**)"]
+  }
+}"#,
+    )
+    .unwrap();
+    let p = c.preparador();
+    let pasta = c.pasta("faturamento");
+    let mut regras = p.regras_de_protecao(&[pasta.clone(), pasta.clone()]);
+    assert_eq!(regras.len(), 1);
+    regras.push("Edit(//ja/era/do/analista/**)".into());
+
+    assert_eq!(p.negacoes_presentes(&regras).unwrap(), [false, true]);
+    let feito = p.negar(&regras).unwrap();
+    assert_eq!(feito.alteradas, [regras[0].clone()]);
+    assert_eq!(feito.backups.len(), 1);
+    assert_eq!(p.negacoes_presentes(&regras).unwrap(), [true, true]);
+    // Idempotente.
+    assert!(p.negar(&regras).unwrap().alteradas.is_empty());
+
+    let json = Cenario::json(&c.config.settings);
+    assert_eq!(json["theme"], "dark");
+    assert_eq!(json["permissions"]["allow"], json!(["Bash(npm test)"]));
+    assert_eq!(
+        json["permissions"]["deny"],
+        json!(["Read(./.env)", "Edit(//ja/era/do/analista/**)", regras[0]])
+    );
+
+    let feito = p.liberar(&[regras[0].clone()]).unwrap();
+    assert_eq!(feito.alteradas, [regras[0].clone()]);
+    let json = Cenario::json(&c.config.settings);
+    assert_eq!(
+        json["permissions"]["deny"],
+        json!(["Read(./.env)", "Edit(//ja/era/do/analista/**)"])
+    );
+}
+
+#[test]
+fn liberar_tira_listas_que_ficaram_vazias_e_aceita_arquivo_ausente() {
+    let c = Cenario::novo();
+    let p = c.preparador();
+    let regras = p.regras_de_protecao(&[c.pasta("faturamento")]);
+    assert!(p.liberar(&regras).unwrap().alteradas.is_empty());
+    assert_eq!(p.negacoes_presentes(&regras).unwrap(), [false]);
+    p.negar(&regras).unwrap();
+    assert_eq!(
+        Cenario::json(&c.config.settings),
+        json!({"permissions": {"deny": [regras[0]]}})
+    );
+    p.liberar(&regras).unwrap();
+    assert_eq!(Cenario::json(&c.config.settings), json!({}));
+}
+
+#[test]
+fn protecao_desligada_tira_so_as_regras_do_app() {
+    let c = Cenario::novo();
+    let p = c.preparador();
+    let dados = cba_core::dados::DiretorioDados::em(c.raiz.join("dados"));
+    let pasta_a = c.pasta("faturamento");
+    let pasta_b = c.pasta("faturamento-db");
+    let sistema = cba_index::Sistema::novo("Faturamento Exemplo", [&pasta_a, &pasta_b]).unwrap();
+    // O analista já tinha negado a primeira pasta por conta própria.
+    let regras = p.regras_de_protecao(&[pasta_a, pasta_b]);
+    p.negar(&regras[..1]).unwrap();
+
+    let s = crate::protecao::situacao(&dados, &p, &sistema).unwrap();
+    assert!(!s.ligada && !s.completa);
+    assert_eq!(s.negadas_pelo_hook, ["Bash", "PowerShell"]);
+    assert!(!crate::protecao::protegido(&dados, &sistema.id));
+
+    let s = crate::protecao::ligar(&dados, &p, &sistema).unwrap();
+    assert!(s.ligada && s.completa);
+    assert_eq!(s.arquivo, c.config.settings);
+    assert_eq!(
+        s.regras
+            .iter()
+            .map(|r| (r.presente, r.do_app))
+            .collect::<Vec<_>>(),
+        [(true, false), (true, true)]
+    );
+    assert!(crate::protecao::protegido(&dados, &sistema.id));
+    // Ligar de novo não muda nada nem esquece o que é do app.
+    crate::protecao::ligar(&dados, &p, &sistema).unwrap();
+    assert_eq!(
+        crate::protecao::registro(&dados, &sistema.id)
+            .unwrap()
+            .adicionadas,
+        [regras[1].clone()]
+    );
+
+    let tiradas = crate::protecao::desligar(&dados, &p, &sistema.id).unwrap();
+    assert_eq!(tiradas, [regras[1].clone()]);
+    assert!(!crate::protecao::protegido(&dados, &sistema.id));
+    assert_eq!(p.negacoes_presentes(&regras).unwrap(), [true, false]);
+    // Desligar o que já está desligado não faz nada.
+    assert!(
+        crate::protecao::desligar(&dados, &p, &sistema.id)
+            .unwrap()
+            .is_empty()
+    );
+}

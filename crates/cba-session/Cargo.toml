@@ -16,6 +16,9 @@ dunce = "1"
 # PTY multiplataforma (ConPTY no Windows, openpty no macOS e no Linux), do wezterm.
 portable-pty = "0.9"
 serde.workspace = true
+sha2 = "0.10"
+# Diff de linhas do aviso de alteração (#29).
+similar = "2"
 serde_json.workspace = true
 thiserror = "2"
 tracing.workspace = true

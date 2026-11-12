@@ -1024,3 +1024,146 @@ fn hook_fora_de_sistema_nao_grava_e_ambos_os_caminhos_sao_rapidos() {
     assert!(inicio < LIMITE_HOOK, "SessionStart no sistema: {inicio:?}");
     assert!(dados.sessoes().join(format!("{sessao}.json")).is_file());
 }
+
+fn copiar_pasta(de: &Path, para: &Path) {
+    std::fs::create_dir_all(para).unwrap();
+    for e in std::fs::read_dir(de).unwrap() {
+        let e = e.unwrap();
+        let destino = para.join(e.file_name());
+        if e.file_type().unwrap().is_dir() {
+            copiar_pasta(&e.path(), &destino);
+        } else {
+            std::fs::copy(e.path(), destino).unwrap();
+        }
+    }
+}
+
+fn git_em(pasta: &Path, args: &[&str]) {
+    let saida = Command::new("git")
+        .arg("-C")
+        .arg(pasta)
+        .args(args)
+        .env("GIT_AUTHOR_NAME", "Teste")
+        .env("GIT_AUTHOR_EMAIL", "teste@example.com")
+        .env("GIT_COMMITTER_NAME", "Teste")
+        .env("GIT_COMMITTER_EMAIL", "teste@example.com")
+        .output()
+        .unwrap();
+    assert!(saida.status.success(), "git {args:?}: {saida:?}");
+}
+
+fn esperar(mut condicao: impl FnMut() -> bool, o_que: &str) {
+    let inicio = Instant::now();
+    while !condicao() {
+        assert!(
+            inicio.elapsed() < Duration::from_secs(30),
+            "esperando {o_que}"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
+/// Aviso de alteração de ponta a ponta (#29), com o executável de verdade: o
+/// `SessionStart` responde rápido e dispara `cba fundo retratar`; o `Stop` dispara
+/// `cba fundo conferir`, que avisa a análise pelo diário de eventos. A alteração
+/// que já existia antes da sessão não entra no aviso.
+#[test]
+fn hook_dispara_o_retrato_e_a_conferencia_em_processo_separado() {
+    let dir = tempfile::tempdir().unwrap();
+    let raiz = dunce::canonicalize(dir.path()).unwrap();
+    let codigo = raiz.join("faturamento");
+    copiar_pasta(&fixture(), &codigo);
+    git_em(&codigo, &["init", "-q"]);
+    git_em(&codigo, &["config", "core.autocrlf", "false"]);
+    git_em(&codigo, &["add", "-A"]);
+    git_em(&codigo, &["commit", "-q", "-m", "inicial"]);
+    std::fs::write(codigo.join("db/rascunho.sql"), "-- do analista\n").unwrap();
+
+    let dados = cba_core::dados::DiretorioDados::em(raiz.join("dados"));
+    let sistema = cba_index::Sistema::novo("Faturamento Exemplo", [&codigo]).unwrap();
+    cba_index::Cadastro::em(dados.sistemas())
+        .cadastrar(&sistema)
+        .unwrap();
+    cba_kb::Base::criar(raiz.join("base")).unwrap();
+    cba_core::config::Config {
+        base: Some(raiz.join("base")),
+    }
+    .gravar(&dados)
+    .unwrap();
+    let ambiente = cba_core::ambiente::Ambiente::do_diretorio(&codigo, &dados).unwrap();
+    let analise = ambiente
+        .analises
+        .criar(cba_core::analises::NovaAnalise {
+            fluxo: cba_core::analise::Fluxo::Perguntar,
+            titulo: "Multa por atraso".into(),
+            entrada: "Como é calculada a multa?".into(),
+            analista: None,
+            base: None,
+        })
+        .unwrap();
+    let id = analise.id.to_string();
+    let sessao = "5d4c3b2a-1f0e-4d9c-8b7a-6f5e4d3c2b1a";
+    let retrato = dados
+        .raiz()
+        .join("retratos")
+        .join(sessao)
+        .join("retrato.json");
+
+    let inicio = Instant::now();
+    rodar_hook(
+        "SessionStart",
+        &entrada_do_hook("SessionStart", sessao, &codigo, &id),
+        dados.raiz(),
+    );
+    assert!(inicio.elapsed() < LIMITE_HOOK * 5, "{:?}", inicio.elapsed());
+    esperar(|| retrato.is_file(), "o retrato");
+    rodar_hook(
+        "PreToolUse",
+        &entrada_do_hook("PreToolUse", sessao, &codigo, &id),
+        dados.raiz(),
+    );
+
+    // A sessão altera um arquivo.
+    let pkg = codigo.join("db/03_pkg_cobranca.sql");
+    let mut texto_pkg = std::fs::read_to_string(&pkg).unwrap();
+    texto_pkg.push_str("-- alterado na sessão\n");
+    std::fs::write(&pkg, texto_pkg).unwrap();
+    rodar_hook(
+        "Stop",
+        &entrada_do_hook("Stop", sessao, &codigo, &id),
+        dados.raiz(),
+    );
+    let diario = cba_core::eventos::DiarioEventos::em(dados.eventos());
+    esperar(
+        || {
+            diario
+                .ler("faturamento-exemplo")
+                .unwrap()
+                .iter()
+                .any(|e| e.mudanca == cba_core::eventos::Mudanca::Alteracao && e.analise == id)
+        },
+        "o aviso no diário",
+    );
+    let aviso =
+        cba_session::alteracoes::da_analise(&dados, "faturamento-exemplo", &analise.id).unwrap();
+    let nomes: Vec<_> = aviso
+        .arquivos
+        .iter()
+        .map(|d| d.alterado.caminho.as_str())
+        .collect();
+    assert_eq!(nomes, ["db/03_pkg_cobranca.sql"]);
+    assert!(
+        aviso.arquivos[0]
+            .diff
+            .as_deref()
+            .unwrap()
+            .contains("+-- alterado na sessão\n")
+    );
+
+    // O log não traz o identificador da sessão nem caminhos.
+    let logs = logs(dados.raiz());
+    assert!(logs.contains("aviso de alteração"), "{logs}");
+    for proibido in [sessao, "faturamento", "pkg_cobranca"] {
+        assert!(!logs.contains(proibido), "{proibido}: {logs}");
+    }
+}

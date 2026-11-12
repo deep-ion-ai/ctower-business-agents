@@ -13,6 +13,8 @@
 //! | Servidor MCP `cba` (`<executável> mcp`) | `~/.claude.json`, em `projects["<chave>"].mcpServers` | local: só sessões nessa pasta |
 //! | Hooks dos eventos de [`crate::hooks::EVENTOS`] (`"<executável>" hook <evento>`) | `~/.claude/settings.json`, em `hooks` | usuário: todas as sessões |
 //!
+//! | Opcional: proteção contra edição, `Edit(//<pasta>/**)` em `permissions.deny` ([`protecao`]) | `~/.claude/settings.json` | usuário, com caminho absoluto |
+//!
 //! Com `CLAUDE_CONFIG_DIR` definido, os dois arquivos ficam nessa pasta
 //! (`<dir>/.claude.json` e `<dir>/settings.json`).
 //!
@@ -83,6 +85,7 @@
 
 pub mod arquivo;
 mod json;
+pub mod protecao;
 
 #[cfg(test)]
 mod tests;

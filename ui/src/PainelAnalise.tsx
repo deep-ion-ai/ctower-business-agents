@@ -1,5 +1,13 @@
 import { useCallback, useRef, useState } from "react";
-import { intervaloDe, mensagemDe, type ApiAnalise, type Evidencia } from "./analise";
+import {
+  apiAlteracoesTauri,
+  intervaloDe,
+  mensagemDe,
+  type ApiAlteracoes,
+  type ApiAnalise,
+  type Evidencia,
+} from "./analise";
+import { AvisoAlteracao } from "./AvisoAlteracao";
 import { chaveEvidencia, DocumentoAoVivo } from "./DocumentoAoVivo";
 import { PromptsProntos } from "./PromptsProntos";
 import { TerminalClaude, type ControleTerminal, type EstadoTerminal } from "./TerminalClaude";
@@ -23,6 +31,8 @@ interface Props {
   aoVoltar: () => void;
   /** Para testes. */
   apiTerminal?: ApiTerminal;
+  /** Aviso de alteração na pasta do sistema (#29); para testes. */
+  apiAlteracoes?: ApiAlteracoes;
   criarTela?: () => TelaTerminal;
 }
 
@@ -40,6 +50,7 @@ export function PainelAnalise({
   aoVoltar,
   apiTerminal,
   criarTela,
+  apiAlteracoes = apiAlteracoesTauri,
 }: Props) {
   const { vista, erro } = useAnaliseAoVivo(api, sistema, analise);
   const [conversa, setConversa] = useState<{ chave: number; pedido: PedidoClaude } | null>(
@@ -171,6 +182,12 @@ export function PainelAnalise({
           )}
         </section>
         <section className="painel-documento" aria-label="Documento ao vivo">
+          <AvisoAlteracao
+            api={apiAlteracoes}
+            vigiar={api.vigiar}
+            sistema={sistema}
+            analise={analise}
+          />
           {trecho && <TrechoEvidencia carga={trecho} aoFechar={() => setTrecho(null)} />}
           {erro && (
             <p className="trecho-erro" role="alert">
