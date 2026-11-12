@@ -6,7 +6,16 @@ on:
   # Constrói os instaladores da branch escolhida sem publicar nada: ficam como
   # artefatos do run, para testar antes de uma release.
   # Só funciona depois que este workflow existir na branch padrão (develop).
+  #
+  # Com `tag`, constrói os instaladores dessa tag e conclui a release dela, que
+  # deve existir em rascunho. Serve para refazer uma release cujos instaladores
+  # falharam: um re-run usaria o workflow da tag, com a mesma falha.
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag de uma release em rascunho a concluir (ex. v1.0.0); vazio só constrói
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -113,8 +122,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          # Vazio no disparo manual: a ref do próprio run.
-          ref: ${{ needs.release-please.outputs.tag_name }}
+          # Disparo manual sem tag: a ref do próprio run.
+          ref: ${{ needs.release-please.outputs.tag_name || inputs.tag }}
       - name: Toolchain do rust-toolchain.toml
         run: |
           rustup toolchain install
@@ -214,7 +223,7 @@ jobs:
             '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
             | "$CBA" mcp | tee mcp.txt
           grep -q '"protocolVersion":"2025-06-18"' mcp.txt
-          grep -q '"tools":\[\]' mcp.txt
+          grep -q '"name":"iniciar_analise"' mcp.txt
       - uses: actions/upload-artifact@v7
         with:
           name: instalador-${{ matrix.nome }}
@@ -227,14 +236,14 @@ jobs:
   # instruções de instalação às notas e publica a release.
   publicar:
     needs: [release-please, instaladores]
-    if: needs.release-please.outputs.release_created == 'true'
+    if: ${{ !cancelled() && needs.instaladores.result == 'success' && (needs.release-please.outputs.release_created == 'true' || inputs.tag != '') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ needs.release-please.outputs.tag_name }}
+          ref: ${{ needs.release-please.outputs.tag_name || inputs.tag }}
       - uses: actions/download-artifact@v8
         with:
           pattern: instalador-*
@@ -253,8 +262,12 @@ jobs:
       - name: Anexar e publicar
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.release-please.outputs.tag_name }}
+          TAG: ${{ needs.release-please.outputs.tag_name || inputs.tag }}
         run: |
+          if [ "$(gh release view "$TAG" --json isDraft --jq .isDraft)" != true ]; then
+            echo "::error::A release $TAG não existe ou já foi publicada."
+            exit 1
+          fi
           gh release upload "$TAG" dist/* --clobber
           CORPO=$(gh release view "$TAG" --json body --jq .body)
           # Num re-run, as instruções já estão lá.
