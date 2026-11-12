@@ -63,6 +63,8 @@ struct Pergunta {
     pergunta: String,
     resposta_esperada: String,
     regras: Vec<String>,
+    #[serde(default)]
+    perguntas_esperadas: Vec<PerguntaEsperada>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -73,6 +75,8 @@ struct Funcionalidade {
     objetivo: String,
     regras: Vec<String>,
     arquivos: Vec<String>,
+    #[serde(default)]
+    perguntas_esperadas: Vec<PerguntaEsperada>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -82,8 +86,28 @@ struct Demanda {
     texto: String,
     premissa: String,
     abrangencia_esperada: String,
+    #[serde(default)]
+    verificacao_da_premissa: Option<VerificacaoDaPremissa>,
     regras: Vec<String>,
     arquivos_impactados: Vec<String>,
+    #[serde(default)]
+    perguntas_esperadas: Vec<PerguntaEsperada>,
+}
+
+/// Pergunta que o agente deve fazer ao solicitante (avaliação dos fluxos, #33).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PerguntaEsperada {
+    tema: String,
+    palavras_chave: Vec<Vec<String>>,
+}
+
+/// Como o agente deve julgar a suposição do solicitante (avaliação dos fluxos, #33).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VerificacaoDaPremissa {
+    veredito: String,
+    palavras_chave: Vec<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -112,6 +136,31 @@ impl Conferencia {
     }
 
     /// Valida o caminho relativo e devolve o arquivo resolvido, se existir.
+    /// Grupos de palavras-chave: ao menos um grupo, nenhum grupo nem termo vazio.
+    fn palavras_chave(&mut self, onde: &str, grupos: &[Vec<String>]) {
+        if grupos.is_empty() {
+            self.erro(format!("{onde}: palavras_chave sem nenhum grupo"));
+        }
+        for grupo in grupos {
+            if grupo.is_empty()
+                || grupo
+                    .iter()
+                    .any(|t| t.trim().trim_end_matches('*').is_empty())
+            {
+                self.erro(format!(
+                    "{onde}: grupo de palavras_chave vazio ou com termo vazio"
+                ));
+            }
+        }
+    }
+
+    fn perguntas_esperadas(&mut self, onde: &str, perguntas: &[PerguntaEsperada]) {
+        for p in perguntas {
+            self.texto_preenchido(onde, "perguntas_esperadas.tema", &p.tema);
+            self.palavras_chave(&format!("{onde}, pergunta esperada"), &p.palavras_chave);
+        }
+    }
+
     fn arquivo(&mut self, onde: &str, relativo: &str) -> Option<PathBuf> {
         let caminho = Path::new(relativo);
         let so_normais = caminho
@@ -331,6 +380,7 @@ fn conferir(caminho: &Path) -> Vec<String> {
         c.texto_preenchido(&onde, "pergunta", &p.pergunta);
         c.texto_preenchido(&onde, "resposta_esperada", &p.resposta_esperada);
         citar(&mut c, &onde, &p.regras);
+        c.perguntas_esperadas(&onde, &p.perguntas_esperadas);
     }
 
     for f in &gabarito.funcionalidades {
@@ -338,6 +388,7 @@ fn conferir(caminho: &Path) -> Vec<String> {
         c.texto_preenchido(&onde, "nome", &f.nome);
         c.texto_preenchido(&onde, "objetivo", &f.objetivo);
         citar(&mut c, &onde, &f.regras);
+        c.perguntas_esperadas(&onde, &f.perguntas_esperadas);
         if f.arquivos.is_empty() {
             c.erro(format!("{onde}: nenhum arquivo"));
         }
@@ -357,6 +408,19 @@ fn conferir(caminho: &Path) -> Vec<String> {
             ));
         }
         citar(&mut c, &onde, &d.regras);
+        c.perguntas_esperadas(&onde, &d.perguntas_esperadas);
+        if let Some(v) = &d.verificacao_da_premissa {
+            if !["nao_confere", "confere_em_parte"].contains(&v.veredito.as_str()) {
+                c.erro(format!(
+                    "{onde}: veredito `{}` deve ser nao_confere ou confere_em_parte",
+                    v.veredito
+                ));
+            }
+            c.palavras_chave(
+                &format!("{onde}, verificação da premissa"),
+                &v.palavras_chave,
+            );
+        }
         if d.arquivos_impactados.is_empty() {
             c.erro(format!("{onde}: nenhum arquivo impactado"));
         }
