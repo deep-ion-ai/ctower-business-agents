@@ -4,7 +4,9 @@ import type { AbrirLink } from "./ClientesIA";
 import { apiConhecimentoTauri, type ApiConhecimento } from "./conhecimento";
 import type { Abertura } from "./PainelAnalise";
 import { TelaAnalise } from "./TelaAnalise";
+import type { ApiConfiguracoes } from "./configuracoes";
 import { TelaBase } from "./TelaBase";
+import { TelaConfiguracoes } from "./TelaConfiguracoes";
 import { TelaInicio } from "./TelaInicio";
 import { TelaSistema } from "./TelaSistema";
 import type { SistemaResumo } from "./terminal";
@@ -19,7 +21,8 @@ export type Tela =
       sistema?: string;
       pergunta?: string;
       aberta?: { id: string; abertura: Abertura };
-    };
+    }
+  | { tipo: "configuracoes" };
 
 interface Props {
   /** Tela ao abrir (ex.: a análise sugerida no fim do primeiro uso). */
@@ -27,6 +30,8 @@ interface Props {
   api?: ApiConhecimento;
   /** Para testes. */
   apiAnalise?: ApiAnalise;
+  /** Para testes. */
+  apiConfiguracoes?: ApiConfiguracoes;
   abrirLink?: AbrirLink;
   /** Abre o assistente do primeiro uso. */
   aoPrimeiroUso?: () => void;
@@ -37,6 +42,7 @@ const ABAS: { tipo: Tela["tipo"]; rotulo: string }[] = [
   { tipo: "sistema", rotulo: "Sistema" },
   { tipo: "base", rotulo: "Base de conhecimento" },
   { tipo: "analise", rotulo: "Análises" },
+  { tipo: "configuracoes", rotulo: "Configurações" },
 ];
 
 /**
@@ -48,6 +54,7 @@ export function Navegacao({
   inicial = { tipo: "inicio" },
   api = apiConhecimentoTauri,
   apiAnalise,
+  apiConfiguracoes,
   abrirLink,
   aoPrimeiroUso,
 }: Props) {
@@ -56,6 +63,8 @@ export function Navegacao({
   const [vez, setVez] = useState(0);
   const [sistemas, setSistemas] = useState<SistemaResumo[]>([]);
   const [falha, setFalha] = useState<string | null>(null);
+  // Muda quando as configurações mexem nos sistemas ou na base.
+  const [recarga, setRecarga] = useState(0);
 
   const navegar = useCallback((t: Tela) => {
     setTela(t);
@@ -71,7 +80,7 @@ export function Navegacao({
     return () => {
       ativo = false;
     };
-  }, [api, vez]);
+  }, [api, vez, recarga]);
 
   return (
     <div className="navegacao">
@@ -127,6 +136,13 @@ export function Navegacao({
           perguntaInicial={tela.pergunta}
           aberturaInicial={tela.aberta}
           aoPrimeiroUso={aoPrimeiroUso}
+        />
+      )}
+      {tela.tipo === "configuracoes" && (
+        <TelaConfiguracoes
+          key={vez}
+          api={apiConfiguracoes}
+          aoMudarSistemas={() => setRecarga((r) => r + 1)}
         />
       )}
     </div>
