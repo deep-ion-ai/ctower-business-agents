@@ -33,7 +33,8 @@ pub use conteudo::{
     Afirmacao, Citacao, Confianca, Conteudo, Pergunta, ReferenciaSugestao, Texto, bloco_de_codigo,
 };
 pub use exportacao::{
-    CodigoEmPasta, ErroExportacao, FonteDeTrechos, Formato, OpcoesExportacao, exportar,
+    CodigoEmPasta, ErroExportacao, FonteDeTrechos, Formato, LinksDeEvidencia, OpcoesExportacao,
+    exportar, exportar_com_links, exportar_markdown_com_links, gravar_exportacao_com_links,
     exportar_markdown, exportar_word, gravar_exportacao,
 };
 pub use modelo::{MODELOS, Modelo, Montavel, Secao, modelo};

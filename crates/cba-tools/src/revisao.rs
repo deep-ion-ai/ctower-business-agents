@@ -441,8 +441,25 @@ pub fn exportar_analise(
     let texto = std::fs::read_to_string(amb.kb.caminho(&analise.documento))
         .map_err(ErroRevisao::Documento)?;
     let fonte = TrechosDoProjeto(&amb.escopo);
-    cba_docs::gravar_exportacao(&destino, &texto, formato, opcoes, Some(&fonte))?;
+    // Commit da análise: o `base.commit` do frontmatter, para a nota sem commit próprio.
+    let commit = cba_kb::Documento::<cba_kb::frontmatter::FrontmatterAnalise>::analisar(&texto)
+        .ok()
+        .and_then(|d| d.frontmatter.base.and_then(|b| b.commit));
+    let forge = amb.projeto.repositorios.forge.as_ref().map(LinksDoForge);
+    let links = forge
+        .as_ref()
+        .map(|f| (f as &dyn cba_docs::LinksDeEvidencia, commit.as_deref()));
+    cba_docs::gravar_exportacao_com_links(&destino, &texto, formato, opcoes, Some(&fonte), links)?;
     Ok(destino)
+}
+
+/// Links das evidências no forge do projeto (GitHub ou GitLab), no commit da análise.
+struct LinksDoForge<'a>(&'a cba_repos::ForgeConfig);
+
+impl cba_docs::LinksDeEvidencia for LinksDoForge<'_> {
+    fn link(&self, arquivo: &str, linhas: Linhas, commit: Option<&str>) -> Option<String> {
+        cba_repos::link::link_evidencia(self.0, commit?, arquivo, Some((linhas.inicio, linhas.fim)))
+    }
 }
 
 #[cfg(test)]

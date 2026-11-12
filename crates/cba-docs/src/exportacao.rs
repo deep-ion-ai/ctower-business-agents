@@ -129,13 +129,37 @@ pub enum ErroExportacao {
     },
 }
 
+/// Link de uma evidência no forge (arquivo, linhas e commit). Quem exporta
+/// fornece a implementação do forge do projeto; sem ela, a nota fica como texto.
+pub trait LinksDeEvidencia {
+    /// `None` se o forge não tem o dado necessário (repositório ou commit).
+    fn link(&self, arquivo: &str, linhas: Linhas, commit: Option<&str>) -> Option<String>;
+}
+
 /// Documento em Markdown autocontido. `documento` é o texto como está na base.
 pub fn exportar_markdown(
     documento: &str,
     opcoes: &OpcoesExportacao,
     codigo: Option<&dyn FonteDeTrechos>,
 ) -> String {
+    exportar_markdown_com_links(documento, opcoes, codigo, None)
+}
+
+/// Como [`exportar_markdown`], e ainda transforma a citação de cada nota de
+/// rodapé de evidência (`arquivo:linhas`) num link para o forge, no commit da
+/// evidência. `commit_padrao` vale para a nota sem commit próprio (o da análise).
+pub fn exportar_markdown_com_links(
+    documento: &str,
+    opcoes: &OpcoesExportacao,
+    codigo: Option<&dyn FonteDeTrechos>,
+    links: Option<(&dyn LinksDeEvidencia, Option<&str>)>,
+) -> String {
     let mut texto = limpar(sem_frontmatter(documento), opcoes);
+    if opcoes.evidencias
+        && let Some((forge, commit_padrao)) = links
+    {
+        texto = linkar_notas(&texto, forge, commit_padrao);
+    }
     if opcoes.evidencias
         && opcoes.trechos
         && let Some(codigo) = codigo
@@ -143,6 +167,34 @@ pub fn exportar_markdown(
         texto = com_apendice(&texto, codigo);
     }
     texto
+}
+
+/// Troca `[^1]: \`a.sql:1-2\` · commit \`abc\`` por `[^1]: [\`a.sql:1-2\`](url) · …`.
+fn linkar_notas(texto: &str, forge: &dyn LinksDeEvidencia, commit_padrao: Option<&str>) -> String {
+    let mut saida = String::with_capacity(texto.len());
+    for linha in texto.split_inclusive('\n') {
+        saida.push_str(&linkar_linha(linha, forge, commit_padrao).unwrap_or_else(|| linha.to_owned()));
+    }
+    saida
+}
+
+fn linkar_linha(
+    linha: &str,
+    forge: &dyn LinksDeEvidencia,
+    commit_padrao: Option<&str>,
+) -> Option<String> {
+    let resto = linha.strip_prefix("[^")?;
+    let (rotulo, depois) = resto.split_once("]: `")?;
+    let (codigo, cauda) = depois.split_once('`')?;
+    let c = citacao(codigo)?;
+    let commit = cauda
+        .split_once("commit `")
+        .and_then(|(_, r)| r.split_once('`'))
+        .map(|(c, _)| c)
+        .or(commit_padrao)
+        .filter(|c| !c.trim().is_empty());
+    let url = forge.link(c.arquivo.as_str(), c.linhas, commit)?;
+    Some(format!("[^{rotulo}]: [`{codigo}`](<{url}>){cauda}"))
 }
 
 /// Documento em Word (`.docx`), com o mesmo conteúdo de [`exportar_markdown`].
@@ -162,9 +214,22 @@ pub fn exportar(
     opcoes: &OpcoesExportacao,
     codigo: Option<&dyn FonteDeTrechos>,
 ) -> Result<Vec<u8>, ErroExportacao> {
+    exportar_com_links(documento, formato, opcoes, codigo, None)
+}
+
+/// Como [`exportar`], com os links das evidências no forge (ver
+/// [`exportar_markdown_com_links`]).
+pub fn exportar_com_links(
+    documento: &str,
+    formato: Formato,
+    opcoes: &OpcoesExportacao,
+    codigo: Option<&dyn FonteDeTrechos>,
+    links: Option<(&dyn LinksDeEvidencia, Option<&str>)>,
+) -> Result<Vec<u8>, ErroExportacao> {
+    let markdown = exportar_markdown_com_links(documento, opcoes, codigo, links);
     match formato {
-        Formato::Markdown => Ok(exportar_markdown(documento, opcoes, codigo).into_bytes()),
-        Formato::Word => exportar_word(documento, opcoes, codigo),
+        Formato::Markdown => Ok(markdown.into_bytes()),
+        Formato::Word => Ok(crate::word::docx(&markdown)?),
     }
 }
 
@@ -176,7 +241,19 @@ pub fn gravar_exportacao(
     opcoes: &OpcoesExportacao,
     codigo: Option<&dyn FonteDeTrechos>,
 ) -> Result<(), ErroExportacao> {
-    let bytes = exportar(documento, formato, opcoes, codigo)?;
+    gravar_exportacao_com_links(destino, documento, formato, opcoes, codigo, None)
+}
+
+/// Como [`gravar_exportacao`], com os links das evidências no forge.
+pub fn gravar_exportacao_com_links(
+    destino: &Path,
+    documento: &str,
+    formato: Formato,
+    opcoes: &OpcoesExportacao,
+    codigo: Option<&dyn FonteDeTrechos>,
+    links: Option<(&dyn LinksDeEvidencia, Option<&str>)>,
+) -> Result<(), ErroExportacao> {
+    let bytes = exportar_com_links(documento, formato, opcoes, codigo, links)?;
     cba_kb::arquivo::gravar(destino, &bytes).map_err(|erro| ErroExportacao::Gravar {
         caminho: destino.to_owned(),
         erro,
@@ -426,6 +503,45 @@ fn linguagem(arquivo: &str) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct Forja;
+
+    impl LinksDeEvidencia for Forja {
+        fn link(&self, arquivo: &str, linhas: Linhas, commit: Option<&str>) -> Option<String> {
+            Some(format!(
+                "https://forja/blob/{}/{arquivo}#L{}-L{}",
+                commit?, linhas.inicio, linhas.fim
+            ))
+        }
+    }
+
+    #[test]
+    fn notas_de_evidencia_viram_links_no_commit_da_evidencia_ou_da_analise() {
+        let md = "Texto.[^1] E.[^2]\n\n## Evidências\n\n[^1]: `a/b.sql:3-5` · hash `h1` · commit `c1`\n[^2]: `x.pas:7`\n";
+        let forja: (&dyn LinksDeEvidencia, Option<&str>) = (&Forja, Some("da-analise"));
+        let saida = exportar_markdown_com_links(md, &OpcoesExportacao::default(), None, Some(forja));
+        assert!(
+            saida.contains("[^1]: [`a/b.sql:3-5`](<https://forja/blob/c1/a/b.sql#L3-L5>) · hash `h1` · commit `c1`"),
+            "{saida}"
+        );
+        assert!(
+            saida.contains("[^2]: [`x.pas:7`](<https://forja/blob/da-analise/x.pas#L7-L7>)"),
+            "{saida}"
+        );
+        // Sem commit em lugar nenhum, a nota fica como texto.
+        let sem = exportar_markdown_com_links(
+            md,
+            &OpcoesExportacao::default(),
+            None,
+            Some((&Forja, None)),
+        );
+        assert!(sem.contains("[^2]: `x.pas:7`"), "{sem}");
+        // Sem forja, nada muda.
+        assert_eq!(
+            exportar_markdown_com_links(md, &OpcoesExportacao::default(), None, None),
+            exportar_markdown(md, &OpcoesExportacao::default(), None)
+        );
+    }
 
     #[test]
     fn tira_frontmatter() {
