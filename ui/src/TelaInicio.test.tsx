@@ -76,6 +76,20 @@ describe("TelaInicio", () => {
     );
   });
 
+  it("inicia a análise a partir de uma issue do projeto", async () => {
+    const { api } = montar();
+    fireEvent.click(await screen.findByRole("button", { name: "Analisar impacto" }));
+    const iniciar = await screen.findByRole("button", { name: "Iniciar a análise" });
+    expect(iniciar).toBeDisabled();
+    fireEvent.change(screen.getByLabelText(/Issue do projeto/), { target: { value: "PROJ-123" } });
+    await waitFor(() => expect(iniciar).toBeEnabled());
+    fireEvent.click(iniciar);
+    await waitFor(() =>
+      expect(api.criarAnaliseDeDemanda).toHaveBeenCalledWith(PROJETO, "impacto", "PROJ-123"),
+    );
+    expect(api.criarAnalise).not.toHaveBeenCalled();
+  });
+
   it("pede o preparo do ambiente antes de criar a análise", async () => {
     const falsa = apiConhecimentoFalsa();
     falsa.api.verificarAmbiente.mockResolvedValueOnce({

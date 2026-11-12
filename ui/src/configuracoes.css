@@ -78,3 +78,26 @@ button.link.perigo {
 .cartao-projeto > .btn {
   align-self: flex-start;
 }
+
+/* Repositórios do projeto (#86): só tokens do tema. */
+.repositorios-projeto {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+
+.repositorios-projeto legend {
+  padding: 0 6px;
+  color: var(--muted);
+}
+
+.passos-prontidao {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}

@@ -173,7 +173,9 @@ pub fn exportar_markdown_com_links(
 fn linkar_notas(texto: &str, forge: &dyn LinksDeEvidencia, commit_padrao: Option<&str>) -> String {
     let mut saida = String::with_capacity(texto.len());
     for linha in texto.split_inclusive('\n') {
-        saida.push_str(&linkar_linha(linha, forge, commit_padrao).unwrap_or_else(|| linha.to_owned()));
+        saida.push_str(
+            &linkar_linha(linha, forge, commit_padrao).unwrap_or_else(|| linha.to_owned()),
+        );
     }
     saida
 }
@@ -519,7 +521,8 @@ mod tests {
     fn notas_de_evidencia_viram_links_no_commit_da_evidencia_ou_da_analise() {
         let md = "Texto.[^1] E.[^2]\n\n## Evidências\n\n[^1]: `a/b.sql:3-5` · hash `h1` · commit `c1`\n[^2]: `x.pas:7`\n";
         let forja: (&dyn LinksDeEvidencia, Option<&str>) = (&Forja, Some("da-analise"));
-        let saida = exportar_markdown_com_links(md, &OpcoesExportacao::default(), None, Some(forja));
+        let saida =
+            exportar_markdown_com_links(md, &OpcoesExportacao::default(), None, Some(forja));
         assert!(
             saida.contains("[^1]: [`a/b.sql:3-5`](<https://forja/blob/c1/a/b.sql#L3-L5>) · hash `h1` · commit `c1`"),
             "{saida}"

@@ -34,8 +34,8 @@ pub use conteudo::{
 };
 pub use exportacao::{
     CodigoEmPasta, ErroExportacao, FonteDeTrechos, Formato, LinksDeEvidencia, OpcoesExportacao,
-    exportar, exportar_com_links, exportar_markdown_com_links, gravar_exportacao_com_links,
-    exportar_markdown, exportar_word, gravar_exportacao,
+    exportar, exportar_com_links, exportar_markdown, exportar_markdown_com_links, exportar_word,
+    gravar_exportacao, gravar_exportacao_com_links,
 };
 pub use modelo::{MODELOS, Modelo, Montavel, Secao, modelo};
 pub use montagem::{ErroMontagem, Montado};

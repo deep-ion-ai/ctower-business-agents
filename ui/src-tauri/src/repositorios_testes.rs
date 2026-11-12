@@ -171,3 +171,67 @@ echo '{"fields":{"summary":"Multa por atraso","description":"Revisar o cálculo 
             .contains("repositório de issues")
     );
 }
+
+#[test]
+fn exportacao_liga_as_evidencias_ao_forge_no_commit() {
+    use crate::revisao::{PedidoExportacao, exportar};
+    use cba_tools::revisao::{Formato, OpcoesExportacao};
+
+    let c = cenario();
+    let git = |args: &[&str]| {
+        let s = std::process::Command::new("git")
+            .args([
+                "-c",
+                "user.name=t",
+                "-c",
+                "user.email=t@t",
+                "-c",
+                "commit.gpgsign=false",
+            ])
+            .args(args)
+            .current_dir(&c.codigo)
+            .status()
+            .unwrap();
+        assert!(s.success(), "git {args:?}");
+    };
+    git(&["init", "-q"]);
+    git(&["add", "-A"]);
+    git(&["commit", "-q", "-m", "base"]);
+    let commit = String::from_utf8(
+        std::process::Command::new("git")
+            .args(["rev-parse", "HEAD"])
+            .current_dir(&c.codigo)
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .unwrap();
+    let commit = commit.trim().to_string();
+    salvar_repositorios(
+        &c.dados,
+        PROJETO,
+        Repositorios {
+            forge: Some(ForgeConfig::Gitlab(gitlab())),
+            tracker: None,
+        },
+    )
+    .unwrap();
+    c.aprovar_analise_da_multa();
+    let destino = c.dir.path().join("multa");
+    let md = exportar(
+        &c.dados,
+        PROJETO,
+        "A-0001",
+        &PedidoExportacao {
+            destino,
+            formato: Formato::Markdown,
+            opcoes: OpcoesExportacao::default(),
+        },
+    )
+    .unwrap();
+    let texto = fs::read_to_string(md).unwrap();
+    let esperado = format!(
+        "https://gitlab.example.com/grupo/projeto/app/-/blob/{commit}/db/03_pkg_cobranca.sql#L71-72"
+    );
+    assert!(texto.contains(&esperado), "{texto}");
+}

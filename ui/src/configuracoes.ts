@@ -1,5 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
-import { apiAnaliseTauri, type AmbienteClaude, type PlanoPreparo, type SituacaoProtecao } from "./analise";
+import {
+  apiAnaliseTauri,
+  type AmbienteClaude,
+  type PlanoPreparo,
+  type SituacaoProtecao,
+} from "./analise";
 import {
   apiPrimeiroUsoTauri,
   type ApiPrimeiroUso,
@@ -8,6 +13,7 @@ import {
   type PreviaProjeto,
   type ProjetoCadastrado,
 } from "./primeiroUso";
+import { apiRepositoriosTauri, type ApiRepositorios, type Repositorios } from "./repositorios";
 
 /**
  * Espelho dos comandos das configurações (`ui/src-tauri/src/configuracoes.rs`, campos
@@ -27,6 +33,8 @@ export interface ProjetoConfig {
   pastas: PastaConfig[];
   exclusoes: string[];
   inclusoes: string[];
+  /** Repositório de código e de issues; só o comando de credencial, nunca o token. */
+  repositorios: Repositorios;
 }
 
 export interface Configuracoes {
@@ -108,7 +116,7 @@ export interface AmbienteDetalhado extends AmbienteClaude {
   verificacao?: VerificacaoAmbiente;
 }
 
-export interface ApiConfiguracoes extends ApiPrimeiroUso {
+export interface ApiConfiguracoes extends ApiPrimeiroUso, ApiRepositorios {
   configuracoes(): Promise<Configuracoes>;
   verificarAmbiente(projeto: string): Promise<AmbienteDetalhado>;
   avaliarTroca(destino: string): Promise<AvaliacaoTroca>;
@@ -129,6 +137,7 @@ export interface ApiConfiguracoes extends ApiPrimeiroUso {
 
 export const apiConfiguracoesTauri: ApiConfiguracoes = {
   ...apiPrimeiroUsoTauri,
+  ...apiRepositoriosTauri,
   configuracoes: () => invoke("configuracoes_app"),
   avaliarTroca: (destino) => invoke("avaliar_troca_base_app", { destino }),
   trocarBase: (destino, modo) => invoke("trocar_base_app", { destino, modo }),
