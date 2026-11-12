@@ -1,1 +1,54 @@
 # Changelog
+
+## 0.1.0 (2026-11-12)
+
+
+### Features
+
+* **app:** esqueleto do app Tauri, executável multimodo e release para Windows e macOS ([#50](https://github.com/deep-ion-ai/ctower-business-agents/issues/50)) ([7e9c77f](https://github.com/deep-ion-ai/ctower-business-agents/commit/7e9c77f3025e5f316ebd535704511486e99f34ae))
+* **docs:** exportação para Markdown e Word ([#65](https://github.com/deep-ion-ai/ctower-business-agents/issues/65)) ([7966290](https://github.com/deep-ion-ai/ctower-business-agents/commit/796629092f79e113882c651bc5af8a790dcd3089)), closes [#10](https://github.com/deep-ion-ai/ctower-business-agents/issues/10)
+* **docs:** templates por tipo e montagem dos documentos ([#55](https://github.com/deep-ion-ai/ctower-business-agents/issues/55)) ([6ab65b1](https://github.com/deep-ion-ai/ctower-business-agents/commit/6ab65b18efe486e9651ff30ac3cc714e563414d5)), closes [#9](https://github.com/deep-ion-ai/ctower-business-agents/issues/9)
+* fundação do projeto (épico [#1](https://github.com/deep-ion-ai/ctower-business-agents/issues/1)) ([b75c87a](https://github.com/deep-ion-ai/ctower-business-agents/commit/b75c87ab51f78743b50543883e2fd404e16f7d80))
+* **index:** cadastro do sistema, inventário e exclusões ([#53](https://github.com/deep-ion-ai/ctower-business-agents/issues/53)) ([445b9b7](https://github.com/deep-ion-ai/ctower-business-agents/commit/445b9b705bebd66ea6acdc990779b8aa004a9602))
+* **index:** extrator genérico e de SQL/PL-SQL, mapa estrutural ([#68](https://github.com/deep-ion-ai/ctower-business-agents/issues/68)) ([035aa68](https://github.com/deep-ion-ai/ctower-business-agents/commit/035aa681329d25d70d7611ccbbc6530d05cc9b50))
+* **index:** extratores de COBOL, Delphi e Visual Basic 6 ([#72](https://github.com/deep-ion-ai/ctower-business-agents/issues/72)) ([534535f](https://github.com/deep-ion-ai/ctower-business-agents/commit/534535f1ead96149a107a9a5f3c15d36f8f286e3))
+* **index:** extratores de Java, C# e TypeScript ([#73](https://github.com/deep-ion-ai/ctower-business-agents/issues/73)) ([1a1a349](https://github.com/deep-ion-ai/ctower-business-agents/commit/1a1a34936272f19d26ae3ed83e9f856aafe0cc3a))
+* **kb:** análise aprovada alimenta regras e glossário ([#69](https://github.com/deep-ion-ai/ctower-business-agents/issues/69)) ([c51f3b0](https://github.com/deep-ion-ai/ctower-business-agents/commit/c51f3b02b6c3b3ed375ac552c691f7a64256bacb))
+* **kb:** índice SQLite reconstruível com busca FTS5 ([#66](https://github.com/deep-ion-ai/ctower-business-agents/issues/66)) ([3bdbe24](https://github.com/deep-ion-ai/ctower-business-agents/commit/3bdbe248566cd4b6225fe3da064de004822a9c84))
+* **kb:** layout da base e leitura e escrita de Markdown com frontmatter ([#54](https://github.com/deep-ion-ai/ctower-business-agents/issues/54)) ([9b7dcd3](https://github.com/deep-ion-ai/ctower-business-agents/commit/9b7dcd367cef376d8c49a25ea3a62d8c95f517c9))
+* **kb:** revalidação das evidências por hash ([#71](https://github.com/deep-ion-ai/ctower-business-agents/issues/71)) ([fcfa18d](https://github.com/deep-ion-ai/ctower-business-agents/commit/fcfa18d5fc7d63104592831d17bcea628ffc6569)), closes [#12](https://github.com/deep-ion-ai/ctower-business-agents/issues/12)
+* **mcp:** servidor MCP e modelo da análise ([#57](https://github.com/deep-ion-ai/ctower-business-agents/issues/57)) ([83b489a](https://github.com/deep-ion-ai/ctower-business-agents/commit/83b489aea81c2502320ff757ee70de27aeda8017))
+* MVP funcional (M1 e M2 do plano do MVP) ([8e86296](https://github.com/deep-ion-ai/ctower-business-agents/commit/8e86296c90693624a003079c4d9ed8af6eaabc8d))
+* **packaging:** scripts de instalação por curl e PowerShell, com dependências ([#49](https://github.com/deep-ion-ai/ctower-business-agents/issues/49)) ([278b983](https://github.com/deep-ion-ai/ctower-business-agents/commit/278b983cbe8d5626b28862a25b32d3cf931a3ddb))
+* **prompts:** limites e regras do sistema pelo `SessionStart` ([#62](https://github.com/deep-ion-ai/ctower-business-agents/issues/62)) ([aca9bdb](https://github.com/deep-ion-ai/ctower-business-agents/commit/aca9bdb62bdcbc1f683924aa232aca360a8bc376))
+* **prompts:** roteiro de perguntar ao sistema e prompts prontos ([#63](https://github.com/deep-ion-ai/ctower-business-agents/issues/63)) ([4590514](https://github.com/deep-ion-ai/ctower-business-agents/commit/4590514cd058e070a3dfc60d69d5f1ac2c750072))
+* **prompts:** roteiros de explicar funcionalidade e analisar impacto ([#74](https://github.com/deep-ion-ai/ctower-business-agents/issues/74)) ([52f493e](https://github.com/deep-ion-ai/ctower-business-agents/commit/52f493e9b816080159935c3340275c042bb4acf5))
+* **session:** aviso de alteração na pasta do sistema ([#77](https://github.com/deep-ion-ai/ctower-business-agents/issues/77)) ([4ef702a](https://github.com/deep-ion-ai/ctower-business-agents/commit/4ef702a11b810f3a29d4ae677934cb1971d19a4c)), closes [#29](https://github.com/deep-ion-ai/ctower-business-agents/issues/29)
+* **session:** Claude Desktop, terminal do analista e retomada ([#75](https://github.com/deep-ion-ai/ctower-business-agents/issues/75)) ([3866a66](https://github.com/deep-ion-ai/ctower-business-agents/commit/3866a66daf25538dc090435f1526a8e02c660392))
+* **session:** detecção dos clientes instalados e logados ([#52](https://github.com/deep-ion-ai/ctower-business-agents/issues/52)) ([88d2251](https://github.com/deep-ion-ai/ctower-business-agents/commit/88d22510ec3edd48c47bc879d90ba9da4bb30197))
+* **session:** preparo do ambiente (MCP e hooks na configuração do Claude) ([#56](https://github.com/deep-ion-ai/ctower-business-agents/issues/56)) ([e9d3c19](https://github.com/deep-ion-ai/ctower-business-agents/commit/e9d3c19bac804e6f3ebec09fcead3a120049db53))
+* **session:** receptor de hooks e estado das sessões ([#58](https://github.com/deep-ion-ai/ctower-business-agents/issues/58)) ([a6e26f2](https://github.com/deep-ion-ai/ctower-business-agents/commit/a6e26f2e348a1fd9d3e8aa14a5083df00ef3784f))
+* **session:** terminal embutido com o Claude Code ([#60](https://github.com/deep-ion-ai/ctower-business-agents/issues/60)) ([fcbfbeb](https://github.com/deep-ion-ai/ctower-business-agents/commit/fcbfbebaa8de8a94907e7256c397fbbca5f09169))
+* **tools:** `conhecimento`, `mapa`, `estrutura`, `schema` e `referencias` ([#70](https://github.com/deep-ion-ai/ctower-business-agents/issues/70)) ([de37fa9](https://github.com/deep-ion-ai/ctower-business-agents/commit/de37fa9167edf6af2059e04a490b3f5a3764f9a4))
+* **tools:** `iniciar_analise`, `retomar_analise` e `concluir_analise` ([#61](https://github.com/deep-ion-ai/ctower-business-agents/issues/61)) ([07fd894](https://github.com/deep-ion-ai/ctower-business-agents/commit/07fd8946d8d4a89178c8074cc0c737e717b4535c))
+* **tools:** validação de evidências e ferramentas de registro ([#59](https://github.com/deep-ion-ai/ctower-business-agents/issues/59)) ([c48a9e2](https://github.com/deep-ion-ai/ctower-business-agents/commit/c48a9e2342b2209f64a813888e1149e7688303f4))
+* **ui:** configurações ([#79](https://github.com/deep-ion-ai/ctower-business-agents/issues/79)) ([c56e2bb](https://github.com/deep-ion-ai/ctower-business-agents/commit/c56e2bb18b4a17804c95c1acb76f0abdc0814c55))
+* **ui:** início, sistema e base de conhecimento ([#76](https://github.com/deep-ion-ai/ctower-business-agents/issues/76)) ([4b6eb08](https://github.com/deep-ion-ai/ctower-business-agents/commit/4b6eb08361a0d3fe3994d3f5420c2a741da2b4e3))
+* **ui:** layout no estilo do Control Tower (ctower-agents) ([a71b58d](https://github.com/deep-ion-ai/ctower-business-agents/commit/a71b58d8da80969ff095dc95cc9f8b3fecaf7020))
+* **ui:** layout no estilo do Control Tower (ctower-agents) ([31fa362](https://github.com/deep-ion-ai/ctower-business-agents/commit/31fa362140b1c4cfb17439b5488d450ca3b562a3)), closes [#85](https://github.com/deep-ion-ai/ctower-business-agents/issues/85)
+* **ui:** primeiro uso ([#67](https://github.com/deep-ion-ai/ctower-business-agents/issues/67)) ([e4b183f](https://github.com/deep-ion-ai/ctower-business-agents/commit/e4b183f59f0c7d0d632e31fb7d662f4f5f0f897a)), closes [#35](https://github.com/deep-ion-ai/ctower-business-agents/issues/35)
+* **ui:** revisão, aprovação e exportação da análise ([#78](https://github.com/deep-ion-ai/ctower-business-agents/issues/78)) ([80fc485](https://github.com/deep-ion-ai/ctower-business-agents/commit/80fc485e6d8714b1292a2042429c6ca688ce7c03)), closes [#37](https://github.com/deep-ion-ai/ctower-business-agents/issues/37)
+* **ui:** tela da análise com terminal e documento ao vivo ([#64](https://github.com/deep-ion-ai/ctower-business-agents/issues/64)) ([05d116a](https://github.com/deep-ion-ai/ctower-business-agents/commit/05d116afa4e8c67df319c7782bddbd6bbab1ea62))
+
+
+### Bug Fixes
+
+* **release:** teste de fumaça do MCP com as ferramentas do MVP e conclusão de release em rascunho por disparo manual ([c409f79](https://github.com/deep-ion-ai/ctower-business-agents/commit/c409f798c9497801ab849a7d67057c3e85aabac2))
+* **release:** teste de fumaça do MCP e conclusão de release em rascunho ([e75f2fa](https://github.com/deep-ion-ai/ctower-business-agents/commit/e75f2fab0d3884d17e11b7f836eca17335a02973))
+
+
+### Code Refactoring
+
+* troca o termo "sistema" por "projeto" ([#95](https://github.com/deep-ion-ai/ctower-business-agents/issues/95)) ([ecf7896](https://github.com/deep-ion-ai/ctower-business-agents/commit/ecf7896804ca29101fb647672ea2bbf02ea5371a))
+
+## Changelog
