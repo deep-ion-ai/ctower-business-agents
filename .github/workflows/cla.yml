@@ -48,7 +48,8 @@ jobs:
           # A branch precisa existir e não pode ser protegida.
           branch: cla-signatures
           path-to-signatures: signatures/v1/cla.json
-          allowlist: dependabot[bot],github-actions[bot],release-please[bot],*[bot]
+          # Mantenedor (angelojrp) dispensado; demais contribuidores assinam.
+          allowlist: angelojrp,dependabot[bot],github-actions[bot],release-please[bot],*[bot]
           custom-pr-sign-comment: Li o CLA e concordo com os seus termos
           custom-notsigned-prcomment: >-
             Obrigado pela contribuição! Antes do merge, cada autor dos commits deste PR precisa

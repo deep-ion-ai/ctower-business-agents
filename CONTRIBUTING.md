@@ -113,6 +113,7 @@ Os dados do app (índice, configuração, logs) ficam no diretório de dados do 
 
 - `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings` e `cargo test --workspace` passam.
 - Mudanças de comportamento atualizam a spec ou o documento correspondente em `docs/`.
+- Mudanças em roteiros, limites, descrições das ferramentas MCP, fixture ou gabarito passam pela [avaliação dos fluxos contra o gabarito](docs/avaliacao.md) antes e depois da mudança (`cargo run -p cba-avaliacao -- rodar`, com o Claude Code logado; usa a sua assinatura e não roda no CI). Ponha o resumo do relatório e o custo no PR.
 - O título do PR segue os Conventional Commits.
 - Exemplos e testes usam só o sistema fictício.
 
@@ -136,4 +137,4 @@ Como assinar:
 
 Todos os autores dos commits do PR precisam assinar, e o e-mail dos commits precisa estar ligado à sua conta do GitHub. As assinaturas ficam registradas na branch `cla-signatures` deste repositório.
 
-> **Pendência antes de exigir o CLA:** a assinatura de código gratuita da SignPath Foundation (#41) exige licença aprovada pela OSI sem licenciamento duplo. Antes de ativar a verificação, o mantenedor precisa confirmar com a SignPath se este desenho (núcleo Apache-2.0 aqui, edição comercial em repositório separado, CLA que permite relicenciar) é aceito. Até lá, o texto do CLA pode mudar.
+> O texto do CLA ainda pode mudar até passar por revisão jurídica.

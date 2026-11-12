@@ -1,0 +1,71 @@
+/* Tela de configurações (#39). As cores vêm dos tokens de theme.css. */
+
+.configuracoes {
+  text-align: left;
+  max-width: 60rem;
+  margin: 0 auto;
+}
+
+.secao-config {
+  margin: 1.25rem 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--suave) 35%, transparent);
+  border-radius: 8px;
+}
+
+.secao-config h3 {
+  margin-top: 0;
+}
+
+.cartao-sistema {
+  margin: 0.75rem 0;
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid color-mix(in srgb, var(--suave) 50%, transparent);
+}
+
+.cartao-sistema h5 {
+  margin: 0.75rem 0 0.25rem;
+}
+
+.opcoes-troca {
+  display: grid;
+  gap: 0.5rem;
+  border: none;
+  padding: 0;
+}
+
+.opcoes-troca .opcao span {
+  display: block;
+}
+
+.detalhe-ambiente {
+  margin: 0.25rem 0;
+}
+
+.textos-editaveis {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.textos-editaveis td {
+  padding: 0.25rem 0.5rem 0.25rem 0;
+  vertical-align: top;
+}
+
+.estado-texto.editado {
+  font-weight: 600;
+}
+
+.estado-texto.ilegivel {
+  color: #c33;
+}
+
+.link.perigo {
+  color: #c33;
+}
+
+@media (max-width: 40rem) {
+  .textos-editaveis td {
+    display: block;
+  }
+}

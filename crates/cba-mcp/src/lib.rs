@@ -9,20 +9,40 @@
 //!
 //! Implementação própria e mínima do transporte stdio do MCP: uma mensagem JSON-RPC 2.0
 //! por linha na entrada padrão, uma resposta por linha na saída padrão. Responde a
-//! `initialize`, `ping` e `tools/list` (ainda sem ferramentas, que chegam com #19),
-//! aceita as notificações (como `notifications/initialized`) sem responder e devolve
-//! `-32601` para métodos desconhecidos.
+//! `initialize`, `ping`, `tools/list` e `tools/call`, aceita as notificações (como
+//! `notifications/initialized`) sem responder e devolve `-32601` para métodos
+//! desconhecidos.
+//!
+//! As ferramentas vêm de um [`Registro`] (`cba-tools`): este módulo só traduz o
+//! protocolo. Em `tools/call`:
+//!
+//! - ferramenta inexistente ou chamada sem `name` é erro de protocolo (`-32602`), com a
+//!   lista das ferramentas disponíveis;
+//! - argumentos fora do schema, recusa da ferramenta (evidência que não confere,
+//!   análise inexistente) e processo fora de um sistema cadastrado são **resultado de
+//!   erro** (`isError: true`) com a mensagem em texto, que o agente lê e usa para
+//!   corrigir a chamada.
+//!
+//! O sistema é identificado uma vez, no início do processo, pelo diretório de trabalho
+//! ([`cba_core::ambiente::Ambiente`]). Fora de um sistema cadastrado o servidor sobe
+//! do mesmo jeito (o cliente conecta e lista as ferramentas), e cada chamada responde
+//! com o erro explicando o que fazer.
 //!
 //! Por que não o SDK oficial (`rmcp`): ele exige um runtime assíncrono (tokio) e traz
-//! macros e geração de schema que ainda não usamos; para o ciclo de vida e a listagem,
-//! um laço síncrono de poucas linhas basta e mantém o processo leve. A troca continua
-//! aberta quando as ferramentas chegarem (#19): a interface pública aqui é pequena.
+//! macros e geração de schema que não usamos. O servidor atende um cliente por processo,
+//! uma requisição por vez, e as ferramentas fazem E/S de arquivo síncrona; o laço
+//! síncrono basta e mantém o processo leve (o cliente inicia um por sessão). O registro
+//! de ferramentas fica em `cba-tools`, independente do protocolo, para o laço próprio
+//! da fase 2 (spec, seção 6.6) usar as mesmas ferramentas.
 //!
-//! O log registra só o método e a duração, nunca os parâmetros (spec, seção 9).
+//! O log registra só o método, a ferramenta, o tipo de erro e a duração, nunca os
+//! argumentos nem o resultado (spec, seção 9).
 
 use std::io::{self, BufRead, Write};
 use std::time::Instant;
 
+use cba_core::ambiente::{Ambiente, ErroAmbiente};
+use cba_tools::{ErroChamada, Registro};
 use serde_json::{Value, json};
 
 /// Nome da crate, para diagnóstico.
@@ -37,6 +57,7 @@ pub mod erro {
     pub const JSON_INVALIDO: i64 = -32700;
     pub const REQUISICAO_INVALIDA: i64 = -32600;
     pub const METODO_NAO_ENCONTRADO: i64 = -32601;
+    pub const PARAMETROS_INVALIDOS: i64 = -32602;
 }
 
 /// Identificação do servidor na resposta do `initialize` (`serverInfo`).
@@ -51,11 +72,23 @@ pub struct InfoServidor {
 #[derive(Debug)]
 pub struct Servidor {
     info: InfoServidor,
+    registro: Registro,
+    ambiente: Result<Ambiente, ErroAmbiente>,
 }
 
 impl Servidor {
-    pub fn new(info: InfoServidor) -> Self {
-        Self { info }
+    /// Servidor com as ferramentas de `registro`, trabalhando no sistema de
+    /// `ambiente` (ou respondendo às chamadas com o erro, se ele não pôde ser montado).
+    pub fn new(
+        info: InfoServidor,
+        registro: Registro,
+        ambiente: Result<Ambiente, ErroAmbiente>,
+    ) -> Self {
+        Self {
+            info,
+            registro,
+            ambiente,
+        }
     }
 
     /// Trata uma linha recebida. Devolve a resposta, ou `None` para notificações e
@@ -108,7 +141,8 @@ impl Servidor {
         let resultado = match metodo {
             "initialize" => Ok(self.initialize(objeto.get("params"))),
             "ping" => Ok(json!({})),
-            "tools/list" => Ok(json!({ "tools": [] })),
+            "tools/list" => Ok(self.tools_list()),
+            "tools/call" => self.tools_call(objeto.get("params")),
             _ => Err((
                 erro::METODO_NAO_ENCONTRADO,
                 format!("método desconhecido: {metodo}"),
@@ -123,6 +157,87 @@ impl Servidor {
             Err((codigo, texto)) => {
                 tracing::warn!(metodo, codigo, "requisição MCP recusada");
                 Some(resposta_erro(id, codigo, &texto))
+            }
+        }
+    }
+
+    fn tools_list(&self) -> Value {
+        let tools: Vec<Value> = self
+            .registro
+            .ferramentas()
+            .iter()
+            .map(|f| {
+                json!({
+                    "name": f.nome(),
+                    "title": f.titulo(),
+                    "description": f.descricao(),
+                    "inputSchema": f.schema(),
+                    "annotations": {
+                        "title": f.titulo(),
+                        "readOnlyHint": f.e_somente_leitura(),
+                        "destructiveHint": false,
+                        "openWorldHint": false,
+                    },
+                })
+            })
+            .collect();
+        json!({ "tools": tools })
+    }
+
+    fn tools_call(&self, params: Option<&Value>) -> Result<Value, (i64, String)> {
+        let nome = params
+            .and_then(|p| p.get("name"))
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                (
+                    erro::PARAMETROS_INVALIDOS,
+                    "tools/call exige o parâmetro `name`".to_owned(),
+                )
+            })?;
+        let argumentos = params.and_then(|p| p.get("arguments")).cloned();
+        let inicio = Instant::now();
+        let resultado = self
+            .registro
+            .chamar(nome, self.ambiente.as_ref(), argumentos);
+        let duracao_us = inicio.elapsed().as_micros() as u64;
+        match resultado {
+            Ok(saida) => {
+                tracing::info!(ferramenta = nome, duracao_us, "ferramenta executada");
+                let mut r = json!({
+                    "content": [{ "type": "text", "text": saida.texto }],
+                    "isError": false,
+                });
+                if let Some(dados) = saida.dados.filter(Value::is_object) {
+                    r["structuredContent"] = dados;
+                }
+                Ok(r)
+            }
+            Err(ErroChamada::Desconhecida(_)) => {
+                let nomes: Vec<&str> = self
+                    .registro
+                    .ferramentas()
+                    .iter()
+                    .map(|f| f.nome())
+                    .collect();
+                Err((
+                    erro::PARAMETROS_INVALIDOS,
+                    format!(
+                        "ferramenta desconhecida: {nome}; disponíveis: {}",
+                        nomes.join(", ")
+                    ),
+                ))
+            }
+            Err(ErroChamada::Ferramenta(e)) => {
+                tracing::warn!(
+                    ferramenta = nome,
+                    erro = e.tipo(),
+                    duracao_us,
+                    "ferramenta recusou"
+                );
+                Ok(json!({
+                    "content": [{ "type": "text", "text": e.to_string() }],
+                    "isError": true,
+                }))
             }
         }
     }
@@ -175,12 +290,50 @@ pub fn servir(
 mod tests {
     use super::*;
 
-    fn servidor() -> Servidor {
-        Servidor::new(InfoServidor {
+    fn info() -> InfoServidor {
+        InfoServidor {
             nome: "cba".into(),
             titulo: "Teste".into(),
             versao: "1.2.3".into(),
-        })
+        }
+    }
+
+    /// Servidor sem ferramentas e fora de um sistema.
+    fn servidor() -> Servidor {
+        Servidor::new(
+            info(),
+            Registro::new(),
+            Err(ErroAmbiente::BaseNaoConfigurada),
+        )
+    }
+
+    fn fixture() -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/faturamento-exemplo")
+    }
+
+    /// Ambiente do sistema fictício, com dados e base em `raiz`.
+    fn ambiente(raiz: &std::path::Path) -> Ambiente {
+        use cba_core::config::Config;
+        use cba_core::dados::DiretorioDados;
+        let dados = DiretorioDados::em(raiz.join("dados"));
+        let sistema = cba_index::Sistema::novo("Faturamento Exemplo", [fixture()]).unwrap();
+        cba_index::Cadastro::em(dados.sistemas())
+            .cadastrar(&sistema)
+            .unwrap();
+        cba_kb::Base::criar(raiz.join("base")).unwrap();
+        Config {
+            base: Some(raiz.join("base")),
+        }
+        .gravar(&dados)
+        .unwrap();
+        Ambiente::do_diretorio(&fixture(), &dados).unwrap()
+    }
+
+    fn chamar(s: &mut Servidor, params: Value) -> Value {
+        pedir(
+            s,
+            json!({ "jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": params }),
+        )
     }
 
     fn pedir(s: &mut Servidor, mensagem: Value) -> Value {
@@ -239,6 +392,76 @@ mod tests {
             json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/list" }),
         );
         assert_eq!(r["result"]["tools"], json!([]));
+    }
+
+    #[test]
+    fn tools_list_traz_nome_schema_e_anotacoes() {
+        let s = Servidor::new(
+            info(),
+            cba_tools::registro_padrao(),
+            Err(ErroAmbiente::BaseNaoConfigurada),
+        );
+        let r = s.tools_list();
+        let f = &r["tools"][0];
+        assert_eq!(f["name"], "listar_analises");
+        assert_eq!(f["inputSchema"]["type"], "object");
+        assert_eq!(f["annotations"]["readOnlyHint"], true);
+        assert!(f["description"].as_str().unwrap().contains("A-NNNN"));
+    }
+
+    #[test]
+    fn tools_call_com_ambiente() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut s = Servidor::new(
+            info(),
+            cba_tools::registro_padrao(),
+            Ok(ambiente(dir.path())),
+        );
+        let r = chamar(&mut s, json!({ "name": "listar_analises" }));
+        assert_eq!(r["result"]["isError"], false);
+        assert_eq!(
+            r["result"]["structuredContent"]["sistema"]["id"],
+            "faturamento-exemplo"
+        );
+        let texto = r["result"]["content"][0]["text"].as_str().unwrap();
+        assert!(texto.contains("faturamento-exemplo"), "{texto}");
+
+        // Argumento fora do schema: resultado de erro, para o agente corrigir.
+        let r = chamar(
+            &mut s,
+            json!({ "name": "listar_analises", "arguments": { "estado": "x" } }),
+        );
+        assert_eq!(r["result"]["isError"], true);
+        let texto = r["result"]["content"][0]["text"].as_str().unwrap();
+        assert!(texto.contains("`estado`"), "{texto}");
+    }
+
+    #[test]
+    fn tools_call_fora_de_sistema_e_erro_claro() {
+        let mut s = Servidor::new(
+            info(),
+            cba_tools::registro_padrao(),
+            Err(ErroAmbiente::ForaDeSistema("/tmp/qualquer".into())),
+        );
+        let r = chamar(&mut s, json!({ "name": "listar_analises" }));
+        assert_eq!(r["result"]["isError"], true);
+        let texto = r["result"]["content"][0]["text"].as_str().unwrap();
+        assert!(texto.contains("sistema cadastrado"), "{texto}");
+    }
+
+    #[test]
+    fn tools_call_sem_nome_ou_desconhecida_e_erro_de_protocolo() {
+        let mut s = Servidor::new(
+            info(),
+            cba_tools::registro_padrao(),
+            Err(ErroAmbiente::BaseNaoConfigurada),
+        );
+        let r = chamar(&mut s, json!({}));
+        assert_eq!(r["error"]["code"], erro::PARAMETROS_INVALIDOS);
+        let r = chamar(&mut s, json!({ "name": "nao_existe" }));
+        assert_eq!(r["error"]["code"], erro::PARAMETROS_INVALIDOS);
+        let msg = r["error"]["message"].as_str().unwrap();
+        assert!(msg.contains("listar_analises"), "{msg}");
     }
 
     #[test]

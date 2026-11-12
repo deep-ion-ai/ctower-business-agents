@@ -1,0 +1,382 @@
+{
+  "formato": 1,
+  "id": "A-0001",
+  "sistema": "faturamento-exemplo",
+  "fluxo": "explicar",
+  "titulo": "Parcelamento de fatura",
+  "entrada": "Parcelamento de fatura",
+  "estado": "concluida",
+  "documento": "analises/A-0001.md",
+  "versao": 23,
+  "criada_ms": 1794443646116,
+  "atualizada_ms": 1794443702935,
+  "sessoes": [
+    {
+      "id": "64892b36-489e-43fc-a20f-e37a3e6bfe38",
+      "cliente": "desconhecido",
+      "estado": "encerrada",
+      "inicio_ms": 1794443649949,
+      "fim_ms": 1794443702935
+    }
+  ],
+  "afirmacoes": [
+    {
+      "numero": 1,
+      "secao": "objetivo",
+      "texto": "O parcelamento permite dividir uma fatura em aberto de pessoa jurídica ou órgão público em 2 ou mais parcelas mensais, incluindo na dívida os encargos de atraso calculados na data do pedido. Dentro do documento: validação na tela do portal e cálculo no serviço do backend. Fora: a gravação das parcelas e a mudança de situação da fatura para PARCELADA (o serviço só calcula e devolve a lista; não foi lido nenhum trecho que grave).",
+      "confianca": "confirmado",
+      "evidencias": [
+        {
+          "arquivo": "backend/src/main/java/exemplo/faturamento/ParcelamentoService.java",
+          "linhas": "9-11",
+          "trecho": "Parcelamento de uma fatura em aberto.",
+          "hash": "52951fb307c4e7cf7438a7daac0faa7629cf7919c67468bf06bd308d2283ccf7",
+          "commit": "f439d82308b6816a4f47c8bbadd84ea053cd7e42",
+          "estado": "valida"
+        }
+      ],
+      "estado": "registrada",
+      "sessao": null,
+      "registrada_ms": 1794443665218
+    },
+    {
+      "numero": 2,
+      "secao": "atores_e_telas",
+      "texto": "O cliente usa a tela de parcelamento do portal do cliente, que valida o pedido e envia a quantidade de parcelas ao backend pelo endereço /api/faturas/{id}/parcelamento; o cálculo é feito pelo serviço de parcelamento.",
+      "confianca": "confirmado",
+      "evidencias": [
+        {
+          "arquivo": "frontend/src/telas/parcelamento-form.ts",
+          "linhas": "1-2",
+          "trecho": "// Tela de parcelamento de fatura (portal do cliente).",
+          "hash": "2169fb8d3e8b24922f5807f37a1edb4a4722ec5eed5b8a225c28cc17045dc380",
+          "commit": "f439d82308b6816a4f47c8bbadd84ea053cd7e42",
+          "estado": "valida"
+        },
+        {
+          "arquivo": "frontend/src/telas/parcelamento-form.ts",
+          "linhas": "69-73",
+          "trecho": "fetch(`/api/faturas/${pedido.idFatura}/parcelamento`, {",
+          "hash": "edb5794b3124f361b70de87b541accd10b3d7eb87186726c4e955d877e52f32b",
+          "commit": "f439d82308b6816a4f47c8bbadd84ea053cd7e42",
+          "estado": "valida"
+        }
+      ],
+      "estado": "registrada",
+      "sessao": null,
+      "registrada_ms": 1794443667215
+    },
+    {
+      "numero": 3,
+      "secao": "fluxo_principal",
+      "texto": "1. O cliente informa a quantidade de parcelas na tela; a tela valida (tipo de cliente, quantidade e valor mínimo) e, se estiver tudo certo, envia o pedido ao backend.",
+      "confianca": "confirmado",
+      "evidencias": [
+        {
+          "arquivo": "frontend/src/telas/parcelamento-form.ts",
+          "linhas": "63-67",
+          "trecho": "const erros = validarParcelamento(pedido);",
+          "hash": "2a90338254010a98ac1f2c4b345ea04dc23f6ec0e013439de8378fe9477f2517",
+          "commit": "f439d82308b6816a4f47c8bbadd84ea053cd7e42",
+          "estado": "valida"
+        }
+      ],
+      "estado": "registrada",
+      "sessao": null,
+      "registrada_ms": 1794443668581
+    },
+    {
+      "numero": 4,
+      "secao": "fluxo_principal",
+      "texto": "2. O backend confere se a fatura está ABERTA, se o cliente pode parcelar e se a quantidade está dentro do limite.",
+      "confianca": "confirmado",
+      "evidencias": [
+        {
+          "arquivo": "backend/src/main/java/exemplo/faturamento/ParcelamentoService.java",
+          "linhas": "26-38",
+          "trecho": "if (!fatura.isAberta()) {",
+          "hash": "d68cf8acca69dec10c5ee83d71169baab0a63954bb7e94ab8bde0ad86d688d92",
+          "commit": "f439d82308b6816a4f47c8bbadd84ea053cd7e42",
+          "estado": "valida"
+        }
+      ],
+      "estado": "registrada",
+      "sessao": null,
+      "registrada_ms": 1794443669947
+    },
+    {
+      "numero": 5,
+      "secao": "fluxo_principal",
+      "texto": "3. O sistema calcula o total a parcelar: valor original da fatura mais os encargos de atraso (já limitados pelo teto) na data do pedido.",
+      "confianca": "confirmado",
+      "evidencias": [
+        {
+          "arquivo": "backend/src/main/java/exemplo/faturamento/ParcelamentoService.java",
+          "linhas": "40-42",
+          "trecho": "BigDecimal totalParcelado = fatura.valorOriginal().add(encargos.totalComTeto());",
+          "hash": "9747c2fbbe280a9888ad8fb7ea83f57d7adab87ab828dd63b26129011af79149",
+          "commit": "f439d82308b6816a4f47c8bbadd84ea053cd7e42",
+          "estado": "valida"
+        }
+      ],
+      "estado": "registrada",
+      "sessao": null,
+      "registrada_ms": 1794443671316
+    },
+    {
+      "numero": 6,
+      "secao": "fluxo_principal",
+      "texto": "4. O total é dividido pela quantidade de parcelas, arredondando para baixo em centavos; exceto órgão público, a parcela não pode ficar abaixo do valor mínimo.",
+      "confianca": "confirmado",
+      "evidencias": [
+        {
+          "arquivo": "backend/src/main/java/exemplo/faturamento/ParcelamentoService.java",
+          "linhas": "44-45",
+          "trecho": ".divide(BigDecimal.valueOf(quantidade), 2, RoundingMode.DOWN);",
+          "hash": "748fd915176acf2784fe5ea2cbae52a73d7080247cc365f5deb9f38e18dcb538",
+          "commit": "f439d82308b6816a4f47c8bbadd84ea053cd7e42",
+          "estado": "valida"
+        }
+      ],
+      "estado": "registrada",
+      "sessao": null,
+      "registrada_ms": 1794443672848
+    },
+    {
+      "numero": 7,
+      "secao": "fluxo_principal",
+      "texto": "5. O sistema monta a lista de parcelas numeradas a partir de 1, com vencimentos a cada 30 dias contados da data do pedido (parcela 1 em 30 dias, parcela 2 em 60 dias etc.); a sobra de centavos do arredondamento vai para a primeira parcela. Exemplo: total de R$ 1.000,01 em 3 parcelas = R$ 333,35 + R$ 333,33 + R$ 333,33.",
+      "confianca": "confirmado",
+      "evidencias": [
+        {
+          "arquivo": "backend/src/main/java/exemplo/faturamento/ParcelamentoService.java",
+          "linhas": "55-63",
+          "trecho": "LocalDate vencimento = dataPedido.plusDays((long) DIAS_ENTRE_PARCELAS * i);",
+          "hash": "34fafb3c15d5e32183b13423c535e6277cca6db9c7db4c4949e603ed47a1c64b",
+          "commit": "f439d82308b6816a4f47c8bbadd84ea053cd7e42",
+          "estado": "valida"
+        }
+      ],
+      "estado": "registrada",
+      "sessao": null,
+      "registrada_ms": 1794443674849
+    },
+    {
+      "numero": 8,
+      "secao": "regras",
+      "texto": "Pessoa física não pode parcelar: só pessoa jurídica (PJ) e órgão público (PUB). Tela e serviço recusam; a regra é a mesma nas duas camadas.",
+      "confianca": "confirmado",
+      "evidencias": [
+        {
+          "arquivo": "backend/src/main/java/exemplo/faturamento/ParcelamentoService.java",
+          "linhas": "30-32",
+          "trecho": "if (fatura.tipoCliente() == TipoCliente.PF) {",
+          "hash": "5471ad8ec53ab36f72963637ffd72601f6a09da3aa7f02b44e090e44507b765f",
+          "commit": "f439d82308b6816a4f47c8bbadd84ea053cd7e42",
+          "estado": "valida"
+        },
+        {
+          "arquivo": "frontend/src/telas/parcelamento-form.ts",
+          "linhas": "25-25",
+          "trecho": "if (pedido.tipoCliente === 'PF') {",
+          "hash": "e4597e7d57e797c7835a6d4f7b004c332acdcf885070881304aae2c14ca5bce0",
+          "commit": "f439d82308b6816a4f47c8bbadd84ea053cd7e42",
+          "estado": "valida"
+        }
+      ],
+      "estado": "registrada",
+      "sessao": null,
+      "registrada_ms": 1794443678048
+    },
+    {
+      "numero": 9,
+      "secao": "regras",
+      "texto": "Somente fatura com situação ABERTA pode ser parcelada (as demais situações possíveis são PAGA, PARCELADA e CANCELADA). Esta checagem existe só no backend; a tela não a faz.",
+      "confianca": "confirmado",
+      "evidencias": [
+        {
+          "arquivo": "backend/src/main/java/exemplo/faturamento/ParcelamentoService.java",
+          "linhas": "26-28",
+          "trecho": "throw new RegraNegocioException(\"Somente fatura ABERTA pode ser parcelada\");",
+          "hash": "a3ae1ec46f9cf88b38b737d647db21b8e278652f92e2e34ae695cb0aaed793f9",
+          "commit": "f439d82308b6816a4f47c8bbadd84ea053cd7e42",
+          "estado": "valida"
+        },
+        {
+          "arquivo": "db/01_tabelas.sql",
+          "linhas": "36-36",
+          "trecho": "CHECK (STATUS IN ('ABERTA', 'PAGA', 'PARCELADA', 'CANCELADA'))",
+          "hash": "5d591f16260bb4d31247ee5f52eda7e7427f539746a015f96a9d4076888ef237",
+          "commit": "f439d82308b6816a4f47c8bbadd84ea053cd7e42",
+          "estado": "valida"
+        }
+      ],
+      "estado": "registrada",
+      "sessao": null,
+      "registrada_ms": 1794443679953
+    },
+    {
+      "numero": 10,
+      "secao": "regras",
+      "texto": "A quantidade mínima é 2 parcelas (fixa no código, nas duas camadas). O máximo no backend vem do parâmetro MAX_PARCELAS, cuja carga inicial é 6; a tela tem o máximo fixo em 12. DIVERGÊNCIA: a tela oferece de 2 a 12 parcelas, mas o backend recusa acima do parâmetro (6 na carga inicial), então um pedido de 7 a 12 parcelas passa na tela e é recusado pelo backend.",
+      "confianca": "confirmado",
+      "evidencias": [
+        {
+          "arquivo": "backend/src/main/java/exemplo/faturamento/ParcelamentoService.java",
+          "linhas": "34-35",
+          "trecho": "int maxParcelas = parametros.inteiro(ParametroRepository.MAX_PARCELAS);",
+          "hash": "fa18e85ef2f44a579bda23e233bfd75bd31bf3a4fb899855088f5b7b26eef5f3",
+          "commit": "f439d82308b6816a4f47c8bbadd84ea053cd7e42",
+          "estado": "valida"
+        },
+        {
+          "arquivo": "frontend/src/telas/parcelamento-form.ts",
+          "linhas": "18-19",
+          "trecho": "const MAX_PARCELAS = 12;",
+          "hash": "a2b74e0bd1e5124136be20dbfbedc00f4cfd6d2d2348f31f888f7862e16df1e5",
+          "commit": "f439d82308b6816a4f47c8bbadd84ea053cd7e42",
+          "estado": "valida"
+        },
+        {
+          "arquivo": "db/02_parametros.sql",
+          "linhas": "16-16",
+          "trecho": "VALUES ('MAX_PARCELAS', 6.0000, 'Quantidade maxima de parcelas no parcelamento de fatura');",
+          "hash": "a403aad83ca1db364bb391eb74f246491354606520df04cde91eed5f46a97c25",
+          "commit": "f439d82308b6816a4f47c8bbadd84ea053cd7e42",
+          "estado": "valida"
+        }
+      ],
+      "estado": "registrada",
+      "sessao": null,
+      "registrada_ms": 1794443682883
+    },
+    {
+      "numero": 11,
+      "secao": "regras",
+      "texto": "Cada parcela deve ter no mínimo o valor do parâmetro VALOR_MIN_PARCELA (carga inicial R$ 50,00), exceto órgão público, que não tem mínimo. DIVERGÊNCIA: a tela usa R$ 50,00 fixo no código e divide só o valor da fatura, sem os encargos; o backend divide o valor original mais encargos e usa o parâmetro. Se o parâmetro mudar, ou se houver encargos, tela e backend podem discordar (ex.: fatura de R$ 90,00 em 2 parcelas: a tela vê R$ 45,00 e recusa; com encargos de R$ 10,00 o backend veria R$ 50,00 e aceitaria).",
+      "confianca": "confirmado",
+      "evidencias": [
+        {
+          "arquivo": "backend/src/main/java/exemplo/faturamento/ParcelamentoService.java",
+          "linhas": "47-53",
+          "trecho": "if (fatura.tipoCliente() != TipoCliente.PUB) {",
+          "hash": "e8f740a420725c31f3e9bf0c1ad7b518f53f380142880556385ab0cf0ac20c6f",
+          "commit": "f439d82308b6816a4f47c8bbadd84ea053cd7e42",
+          "estado": "valida"
+        },
+        {
+          "arquivo": "frontend/src/telas/parcelamento-form.ts",
+          "linhas": "44-45",
+          "trecho": "const valorParcela = pedido.valorFatura / pedido.quantidadeParcelas;",
+          "hash": "bd3ea6763bdccbb62b903f1f72ac7e120ac12f5c58e1ca38d58f6ae725280994",
+          "commit": "f439d82308b6816a4f47c8bbadd84ea053cd7e42",
+          "estado": "valida"
+        },
+        {
+          "arquivo": "db/02_parametros.sql",
+          "linhas": "19-19",
+          "trecho": "VALUES ('VALOR_MIN_PARCELA', 50.0000, 'Valor minimo de cada parcela, em reais');",
+          "hash": "67249cd96a8cf57ab05470f28c3e6cb1853f7439095414a908f62b768ac211f1",
+          "commit": "f439d82308b6816a4f47c8bbadd84ea053cd7e42",
+          "estado": "valida"
+        }
+      ],
+      "estado": "registrada",
+      "sessao": null,
+      "registrada_ms": 1794443686317
+    },
+    {
+      "numero": 12,
+      "secao": "excecoes",
+      "texto": "O backend recusa com estas mensagens: \"Somente fatura ABERTA pode ser parcelada\"; \"Parcelamento disponível apenas para pessoa jurídica e órgão público\"; \"Quantidade de parcelas deve estar entre 2 e <máximo>\"; \"Valor da parcela abaixo do mínimo de <mínimo>\". A tela recusa antes com textos próprios (ex.: \"Escolha entre 2 e 12 parcelas.\").",
+      "confianca": "confirmado",
+      "evidencias": [
+        {
+          "arquivo": "backend/src/main/java/exemplo/faturamento/ParcelamentoService.java",
+          "linhas": "51-51",
+          "trecho": "throw new RegraNegocioException(\"Valor da parcela abaixo do mínimo de \" + minimo);",
+          "hash": "92f7f837ff646e899f5661f82ecaa543e41bdc82773f0c68a96ca40e7fa3ff21",
+          "commit": "f439d82308b6816a4f47c8bbadd84ea053cd7e42",
+          "estado": "valida"
+        },
+        {
+          "arquivo": "frontend/src/telas/parcelamento-form.ts",
+          "linhas": "40-40",
+          "trecho": "mensagem: `Escolha entre ${MIN_PARCELAS} e ${MAX_PARCELAS} parcelas.`,",
+          "hash": "136b7f9ac901aa16655ed81f0265b5f87c141275028adc75d48bc2ef6596f91b",
+          "commit": "f439d82308b6816a4f47c8bbadd84ea053cd7e42",
+          "estado": "valida"
+        }
+      ],
+      "estado": "registrada",
+      "sessao": null,
+      "registrada_ms": 1794443688650
+    },
+    {
+      "numero": 13,
+      "secao": "dados",
+      "texto": "O serviço lê os parâmetros MAX_PARCELAS e VALOR_MIN_PARCELA e os dados da fatura (valor original, situação, tipo do cliente). A tabela PARCELA guarda ID_FATURA, NR_PARCELA e VL_PARCELA, com chave pela fatura e número da parcela.",
+      "confianca": "confirmado",
+      "evidencias": [
+        {
+          "arquivo": "db/01_tabelas.sql",
+          "linhas": "39-45",
+          "trecho": "CREATE TABLE PARCELA (",
+          "hash": "4757678181f022aad7ea6cdca4b4017ff1d5cb72fcde64d2b02b593c60173682",
+          "commit": "f439d82308b6816a4f47c8bbadd84ea053cd7e42",
+          "estado": "valida"
+        }
+      ],
+      "estado": "registrada",
+      "sessao": null,
+      "registrada_ms": 1794443690249
+    },
+    {
+      "numero": 14,
+      "secao": "integracoes",
+      "texto": "O parcelamento depende do serviço de encargos (multa, juros e teto) para calcular o valor a parcelar; a tela chama o backend por requisição POST.",
+      "confianca": "confirmado",
+      "evidencias": [
+        {
+          "arquivo": "backend/src/main/java/exemplo/faturamento/ParcelamentoService.java",
+          "linhas": "41-41",
+          "trecho": "EncargosService.Encargos encargos = encargosService.calcular(fatura, dataPedido);",
+          "hash": "ff5bd1f9bc4580f61b1b563713da5dbca7bf9049743e0c3de43171d22f7196d0",
+          "commit": "f439d82308b6816a4f47c8bbadd84ea053cd7e42",
+          "estado": "valida"
+        }
+      ],
+      "estado": "registrada",
+      "sessao": null,
+      "registrada_ms": 1794443691685
+    }
+  ],
+  "perguntas": [
+    {
+      "numero": 1,
+      "texto": "Qual é o valor atual de MAX_PARCELAS e VALOR_MIN_PARCELA em produção? O código só mostra a carga inicial (6 e R$ 50,00), e a tela tem 12 e R$ 50,00 fixos.",
+      "afirmacao": null,
+      "estado": "aberta",
+      "sessao": null,
+      "registrada_ms": 1794443692419
+    },
+    {
+      "numero": 2,
+      "texto": "Quem grava as parcelas na tabela PARCELA e muda a fatura para PARCELADA? O serviço analisado só calcula a lista; não encontrei esse passo no código lido (pode estar na tela Delphi, no COBOL ou em outra rotina ainda não analisada).",
+      "afirmacao": null,
+      "estado": "aberta",
+      "sessao": null,
+      "registrada_ms": 1794443693447
+    },
+    {
+      "numero": 3,
+      "texto": "Está correto que a tela mostre até 12 parcelas e valide o mínimo sem os encargos, enquanto o backend usa o parâmetro e inclui os encargos? Essa diferença é intencional?",
+      "afirmacao": null,
+      "estado": "aberta",
+      "sessao": null,
+      "registrada_ms": 1794443694218
+    }
+  ],
+  "sugestoes": [],
+  "termos": []
+}

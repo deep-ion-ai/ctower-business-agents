@@ -6,6 +6,7 @@
 //! | (nenhum) | abre a janela do app (Tauri) |
 //! | `mcp` | servidor MCP em stdio ([`cba_mcp`]) |
 //! | `hook <evento>` | lê o JSON do hook na entrada padrão e responde ([`cba_session::hooks`]) |
+//! | `fundo <tarefa> <sessao>` | retrato ou conferência do aviso de alteração, disparado pelo hook ([`cba_session::alteracoes`]) |
 //! | `--version` | imprime `cba <versão>` |
 //!
 //! Os modos de linha de comando não inicializam o Tauri nem a webview: o cliente de IA
@@ -27,10 +28,24 @@
 
 #![windows_subsystem = "windows"]
 
+mod alteracoes;
+mod analise;
+mod base;
 mod cli;
+mod configuracoes;
 #[cfg(windows)]
 mod console;
+mod conversa;
 mod gui;
+mod inicio;
+mod primeiro_uso;
+mod prompts;
+mod revisao;
+mod sistema;
+mod terminal;
+#[cfg(test)]
+mod teste_base;
+mod vigia;
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();

@@ -49,7 +49,10 @@ deve encontrar:
 - `perguntas`, `funcionalidades` e `demandas`: exemplos dos três fluxos da
   spec (perguntar ao sistema, explicar funcionalidade, analisar impacto),
   com as regras e os arquivos esperados;
-- `exclusoes`: arquivos que as ferramentas devem ignorar.
+- `exclusoes`: arquivos que as ferramentas devem ignorar;
+- `perguntas_esperadas` e `verificacao_da_premissa`: o que a avaliação dos
+  fluxos ([`docs/avaliacao.md`](../docs/avaliacao.md)) espera das perguntas
+  para o solicitante e da correção da premissa da demanda.
 
 ## Testes
 

@@ -1,0 +1,330 @@
+{
+  "formato": 1,
+  "id": "A-0001",
+  "sistema": "faturamento-exemplo",
+  "fluxo": "impacto",
+  "titulo": "Permitir parcelamento da fatura em até 3 vezes para clientes pessoa jurídica",
+  "entrada": "Permitir parcelamento da fatura em até 3 vezes para clientes pessoa jurídica. Acho que hoje o sistema não parcela fatura nenhuma.",
+  "estado": "concluida",
+  "documento": "analises/A-0001.md",
+  "versao": 18,
+  "criada_ms": 1794443703761,
+  "atualizada_ms": 1794443763030,
+  "sessoes": [
+    {
+      "id": "809afe9d-b4e4-4649-87fa-ca24a8791cb2",
+      "cliente": "desconhecido",
+      "estado": "encerrada",
+      "inicio_ms": 1794443707866,
+      "fim_ms": 1794443763030
+    }
+  ],
+  "afirmacoes": [
+    {
+      "numero": 1,
+      "secao": "demanda_como_entendida",
+      "texto": "Premissa do solicitante: \"hoje o sistema não parcela fatura nenhuma\". Verificação: não confere. O parcelamento já existe: uma fatura ABERTA de pessoa jurídica (e órgão público) pode ser parcelada de 2 até o máximo definido no parâmetro MAX_PARCELAS, cuja carga inicial é 6.",
+      "confianca": "confirmado",
+      "evidencias": [
+        {
+          "arquivo": "backend/src/main/java/exemplo/faturamento/ParcelamentoService.java",
+          "linhas": "34-35",
+          "trecho": "int maxParcelas = parametros.inteiro(ParametroRepository.MAX_PARCELAS);\n        if (quantidade < MIN_PARCELAS || quantidade > maxParcelas) {",
+          "hash": "fa18e85ef2f44a579bda23e233bfd75bd31bf3a4fb899855088f5b7b26eef5f3",
+          "commit": "08f9be0289d4460636bbaf6024e4e6fc6e7a95c3",
+          "estado": "valida"
+        },
+        {
+          "arquivo": "db/02_parametros.sql",
+          "linhas": "15-16",
+          "trecho": "INSERT INTO PARAMETRO (CHAVE, VALOR, DESCRICAO)\nVALUES ('MAX_PARCELAS', 6.0000, 'Quantidade maxima de parcelas no parcelamento de fatura');",
+          "hash": "3042931ebff60dddd002657ed01feb84d1b8fd4fa29ff117cd428de445831057",
+          "commit": "08f9be0289d4460636bbaf6024e4e6fc6e7a95c3",
+          "estado": "valida"
+        }
+      ],
+      "estado": "registrada",
+      "sessao": null,
+      "registrada_ms": 1794443722726
+    },
+    {
+      "numero": 2,
+      "secao": "demanda_como_entendida",
+      "texto": "Premissa implícita: \"permitir\" parcelar para pessoa jurídica pressupõe que hoje não é permitido. Verificação: não confere. Só pessoa física é barrada; pessoa jurídica (PJ) e órgão público (PUB) já podem parcelar, tanto no serviço quanto na tela.",
+      "confianca": "confirmado",
+      "evidencias": [
+        {
+          "arquivo": "backend/src/main/java/exemplo/faturamento/ParcelamentoService.java",
+          "linhas": "30-32",
+          "trecho": "if (fatura.tipoCliente() == TipoCliente.PF) {\n            throw new RegraNegocioException(\"Parcelamento disponível apenas para pessoa jurídica e órgão público\");\n        }",
+          "hash": "5471ad8ec53ab36f72963637ffd72601f6a09da3aa7f02b44e090e44507b765f",
+          "commit": "08f9be0289d4460636bbaf6024e4e6fc6e7a95c3",
+          "estado": "valida"
+        },
+        {
+          "arquivo": "frontend/src/telas/parcelamento-form.ts",
+          "linhas": "25-26",
+          "trecho": "if (pedido.tipoCliente === 'PF') {\n    erros.push({",
+          "hash": "5ffde75febe790af46dd1a4196afccfd05d9a1251b201d7cce3ac8702690de32",
+          "commit": "08f9be0289d4460636bbaf6024e4e6fc6e7a95c3",
+          "estado": "valida"
+        }
+      ],
+      "estado": "registrada",
+      "sessao": null,
+      "registrada_ms": 1794443725060
+    },
+    {
+      "numero": 3,
+      "secao": "demanda_como_entendida",
+      "texto": "Demanda como entendida: o parcelamento para pessoa jurídica já existe (hoje até 6 vezes no servidor, até 12 na tela). A demanda se reduz a limitar o máximo a 3 parcelas para PJ. Como o limite é único para todos os tipos de cliente, reduzir o parâmetro para 3 também limitaria órgãos públicos; limitar só PJ exige regra por tipo de cliente. A tela precisa ser alinhada ao servidor, pois hoje oferece até 12 e ignora o parâmetro.",
+      "confianca": "inferido",
+      "evidencias": [
+        {
+          "arquivo": "backend/src/main/java/exemplo/faturamento/ParcelamentoService.java",
+          "linhas": "34-35",
+          "trecho": "int maxParcelas = parametros.inteiro(ParametroRepository.MAX_PARCELAS);\n        if (quantidade < MIN_PARCELAS || quantidade > maxParcelas) {",
+          "hash": "fa18e85ef2f44a579bda23e233bfd75bd31bf3a4fb899855088f5b7b26eef5f3",
+          "commit": "08f9be0289d4460636bbaf6024e4e6fc6e7a95c3",
+          "estado": "valida"
+        },
+        {
+          "arquivo": "frontend/src/telas/parcelamento-form.ts",
+          "linhas": "19-19",
+          "trecho": "const MAX_PARCELAS = 12;",
+          "hash": "9b6ae5c38b8f0d74344eb73ba9e2c75dcf372cabb1400ea0289881c05b5aebf5",
+          "commit": "08f9be0289d4460636bbaf6024e4e6fc6e7a95c3",
+          "estado": "valida"
+        }
+      ],
+      "estado": "registrada",
+      "sessao": null,
+      "registrada_ms": 1794443728062
+    },
+    {
+      "numero": 4,
+      "secao": "como_e_hoje",
+      "texto": "No servidor, o máximo de parcelas vem do parâmetro MAX_PARCELAS (carga inicial: 6), igual para PJ e órgão público; o mínimo é fixo em 2. Ex.: pedido de 8 parcelas é recusado com a mensagem \"entre 2 e 6\".",
+      "confianca": "confirmado",
+      "evidencias": [
+        {
+          "arquivo": "backend/src/main/java/exemplo/faturamento/ParcelamentoService.java",
+          "linhas": "14-14",
+          "trecho": "private static final int MIN_PARCELAS = 2;",
+          "hash": "4858375ec00aa96bade555be0bb9b783ab2c8d7bc38cc3f541da5d02d136c90e",
+          "commit": "08f9be0289d4460636bbaf6024e4e6fc6e7a95c3",
+          "estado": "valida"
+        },
+        {
+          "arquivo": "backend/src/main/java/exemplo/faturamento/ParcelamentoService.java",
+          "linhas": "34-38",
+          "trecho": "int maxParcelas = parametros.inteiro(ParametroRepository.MAX_PARCELAS);\n        if (quantidade < MIN_PARCELAS || quantidade > maxParcelas) {\n            throw new RegraNegocioException(\n                    \"Quantidade de parcelas deve estar entre \" + MIN_PARCELAS + \" e \" + maxParcelas);\n        }",
+          "hash": "07d6e539f6a446f70e4de0d99b31d0ad1337d412b99f3f892672d11d8ee4c534",
+          "commit": "08f9be0289d4460636bbaf6024e4e6fc6e7a95c3",
+          "estado": "valida"
+        }
+      ],
+      "estado": "registrada",
+      "sessao": null,
+      "registrada_ms": 1794443730559
+    },
+    {
+      "numero": 5,
+      "secao": "como_e_hoje",
+      "texto": "Outras regras do parcelamento hoje: só fatura ABERTA; valor parcelado = valor original + encargos (com teto) na data do pedido; parcela mínima de R$ 50,00 (exceto órgão público); vencimentos a cada 30 dias; centavos de arredondamento vão para a 1ª parcela. Ex.: R$ 1.000,00 em 3 vezes = 333,33 + 333,33 + 333,33 com 0,01 de resíduo na 1ª (333,34), sem encargos.",
+      "confianca": "confirmado",
+      "evidencias": [
+        {
+          "arquivo": "backend/src/main/java/exemplo/faturamento/ParcelamentoService.java",
+          "linhas": "26-28",
+          "trecho": "if (!fatura.isAberta()) {\n            throw new RegraNegocioException(\"Somente fatura ABERTA pode ser parcelada\");\n        }",
+          "hash": "a3ae1ec46f9cf88b38b737d647db21b8e278652f92e2e34ae695cb0aaed793f9",
+          "commit": "08f9be0289d4460636bbaf6024e4e6fc6e7a95c3",
+          "estado": "valida"
+        },
+        {
+          "arquivo": "backend/src/main/java/exemplo/faturamento/ParcelamentoService.java",
+          "linhas": "40-42",
+          "trecho": "// Valor parcelado = valor original + encargos na data do pedido\n        EncargosService.Encargos encargos = encargosService.calcular(fatura, dataPedido);\n        BigDecimal totalParcelado = fatura.valorOriginal().add(encargos.totalComTeto());",
+          "hash": "9747c2fbbe280a9888ad8fb7ea83f57d7adab87ab828dd63b26129011af79149",
+          "commit": "08f9be0289d4460636bbaf6024e4e6fc6e7a95c3",
+          "estado": "valida"
+        },
+        {
+          "arquivo": "backend/src/main/java/exemplo/faturamento/ParcelamentoService.java",
+          "linhas": "47-53",
+          "trecho": "// Órgão público não tem valor mínimo de parcela\n        if (fatura.tipoCliente() != TipoCliente.PUB) {\n            BigDecimal minimo = parametros.valor(ParametroRepository.VALOR_MIN_PARCELA);",
+          "hash": "e8f740a420725c31f3e9bf0c1ad7b518f53f380142880556385ab0cf0ac20c6f",
+          "commit": "08f9be0289d4460636bbaf6024e4e6fc6e7a95c3",
+          "estado": "valida"
+        },
+        {
+          "arquivo": "backend/src/main/java/exemplo/faturamento/ParcelamentoService.java",
+          "linhas": "15-15",
+          "trecho": "private static final int DIAS_ENTRE_PARCELAS = 30;",
+          "hash": "c0e84518b14eeaac39241411b857350574a73a59610078740e10c5393d3bfc57",
+          "commit": "08f9be0289d4460636bbaf6024e4e6fc6e7a95c3",
+          "estado": "valida"
+        }
+      ],
+      "estado": "registrada",
+      "sessao": null,
+      "registrada_ms": 1794443734498
+    },
+    {
+      "numero": 6,
+      "secao": "como_e_hoje",
+      "texto": "A tela do portal do cliente repete as regras com valores fixos no código, sem ler o parâmetro: máximo de 12 parcelas e mínimo de R$ 50,00 por parcela. Hoje a tela oferece de 2 a 12 opções, mas o servidor recusa acima de 6: a regra está divergente entre camadas.",
+      "confianca": "confirmado",
+      "evidencias": [
+        {
+          "arquivo": "frontend/src/telas/parcelamento-form.ts",
+          "linhas": "18-20",
+          "trecho": "const MIN_PARCELAS = 2;\nconst MAX_PARCELAS = 12;\nconst VALOR_MINIMO_PARCELA = 50.0;",
+          "hash": "660ae37cd45058f04b590c4306d85441efa0f77d3f9d2f6ce34b09077e7f2e40",
+          "commit": "08f9be0289d4460636bbaf6024e4e6fc6e7a95c3",
+          "estado": "valida"
+        },
+        {
+          "arquivo": "frontend/src/telas/parcelamento-form.ts",
+          "linhas": "55-61",
+          "trecho": "export function opcoesDeParcelas(): number[] {\n  const opcoes: number[] = [];\n  for (let n = MIN_PARCELAS; n <= MAX_PARCELAS; n++) {\n    opcoes.push(n);\n  }\n  return opcoes;\n}",
+          "hash": "3e5614bf5975acc8693d2506013b6f65d63cfa09a1fa0a7371651d7512c1721d",
+          "commit": "08f9be0289d4460636bbaf6024e4e6fc6e7a95c3",
+          "estado": "valida"
+        }
+      ],
+      "estado": "registrada",
+      "sessao": null,
+      "registrada_ms": 1794443742339
+    },
+    {
+      "numero": 7,
+      "secao": "funcionalidades",
+      "texto": "O que muda: (1) servidor, em ParcelamentoService.parcelar, o limite de parcelas passa a depender do tipo de cliente (3 para PJ) ou o parâmetro MAX_PARCELAS cai para 3 (afetando também órgão público); (2) tela, parcelamento-form.ts, deixa de usar 12 fixo e passa a refletir o limite do servidor. São 2 lugares de código mais o parâmetro; no código analisado não há outro ponto que use a quantidade máxima.",
+      "confianca": "inferido",
+      "evidencias": [
+        {
+          "arquivo": "backend/src/main/java/exemplo/faturamento/ParcelamentoService.java",
+          "linhas": "34-35",
+          "trecho": "int maxParcelas = parametros.inteiro(ParametroRepository.MAX_PARCELAS);\n        if (quantidade < MIN_PARCELAS || quantidade > maxParcelas) {",
+          "hash": "fa18e85ef2f44a579bda23e233bfd75bd31bf3a4fb899855088f5b7b26eef5f3",
+          "commit": "08f9be0289d4460636bbaf6024e4e6fc6e7a95c3",
+          "estado": "valida"
+        },
+        {
+          "arquivo": "frontend/src/telas/parcelamento-form.ts",
+          "linhas": "19-19",
+          "trecho": "const MAX_PARCELAS = 12;",
+          "hash": "9b6ae5c38b8f0d74344eb73ba9e2c75dcf372cabb1400ea0289881c05b5aebf5",
+          "commit": "08f9be0289d4460636bbaf6024e4e6fc6e7a95c3",
+          "estado": "valida"
+        }
+      ],
+      "estado": "registrada",
+      "sessao": null,
+      "registrada_ms": 1794443745172
+    },
+    {
+      "numero": 8,
+      "secao": "dados",
+      "texto": "Dados: o limite está na tabela de parâmetros (MAX_PARCELAS = 6 na carga inicial; valor em produção não é visível pelo código). A tabela PARCELA não guarda o limite, só cada parcela (fatura, número, valor), então parcelamentos já gravados com 4 a 6 parcelas não precisam de migração.",
+      "confianca": "confirmado",
+      "evidencias": [
+        {
+          "arquivo": "db/02_parametros.sql",
+          "linhas": "15-16",
+          "trecho": "INSERT INTO PARAMETRO (CHAVE, VALOR, DESCRICAO)\nVALUES ('MAX_PARCELAS', 6.0000, 'Quantidade maxima de parcelas no parcelamento de fatura');",
+          "hash": "3042931ebff60dddd002657ed01feb84d1b8fd4fa29ff117cd428de445831057",
+          "commit": "08f9be0289d4460636bbaf6024e4e6fc6e7a95c3",
+          "estado": "valida"
+        },
+        {
+          "arquivo": "db/01_tabelas.sql",
+          "linhas": "39-43",
+          "trecho": "CREATE TABLE PARCELA (",
+          "hash": "66cfb3bdc9bf16343ceca42e4b2c68bd60d317c67c7ec4b477be78e6c8ccf231",
+          "commit": "08f9be0289d4460636bbaf6024e4e6fc6e7a95c3",
+          "estado": "valida"
+        }
+      ],
+      "estado": "registrada",
+      "sessao": null,
+      "registrada_ms": 1794443747571
+    },
+    {
+      "numero": 9,
+      "secao": "riscos",
+      "texto": "Riscos: (a) o parâmetro MAX_PARCELAS é único; baixá-lo para 3 também restringe órgão público, que a demanda não cita; (b) a regra está repetida na tela (12 fixo) e no servidor (parâmetro) e já diverge, então só mudar o servidor deixaria a tela oferecendo opções recusadas; (c) parcelamentos já feitos em 4 a 6 vezes continuam válidos, mas um novo pedido igual passaria a ser recusado.",
+      "confianca": "inferido",
+      "evidencias": [
+        {
+          "arquivo": "frontend/src/telas/parcelamento-form.ts",
+          "linhas": "19-19",
+          "trecho": "const MAX_PARCELAS = 12;",
+          "hash": "9b6ae5c38b8f0d74344eb73ba9e2c75dcf372cabb1400ea0289881c05b5aebf5",
+          "commit": "08f9be0289d4460636bbaf6024e4e6fc6e7a95c3",
+          "estado": "valida"
+        },
+        {
+          "arquivo": "backend/src/main/java/exemplo/faturamento/ParcelamentoService.java",
+          "linhas": "34-34",
+          "trecho": "int maxParcelas = parametros.inteiro(ParametroRepository.MAX_PARCELAS);",
+          "hash": "4c82094c000feb58406c71178c9f14bdac30c7b07bcfb44614764e9c58808c28",
+          "commit": "08f9be0289d4460636bbaf6024e4e6fc6e7a95c3",
+          "estado": "valida"
+        }
+      ],
+      "estado": "registrada",
+      "sessao": null,
+      "registrada_ms": 1794443750173
+    },
+    {
+      "numero": 10,
+      "secao": "abrangencia",
+      "texto": "Pequena: 2 lugares de código (regra no serviço de parcelamento e constante da tela) mais o parâmetro MAX_PARCELAS, sem alterar estrutura de dados nem migrar o que já está gravado. Nos módulos COBOL e Delphi não localizei menção a parcelamento; a lista pode estar incompleta se usarem outros nomes.",
+      "confianca": "inferido",
+      "evidencias": [
+        {
+          "arquivo": "backend/src/main/java/exemplo/faturamento/ParcelamentoService.java",
+          "linhas": "34-35",
+          "trecho": "int maxParcelas = parametros.inteiro(ParametroRepository.MAX_PARCELAS);\n        if (quantidade < MIN_PARCELAS || quantidade > maxParcelas) {",
+          "hash": "fa18e85ef2f44a579bda23e233bfd75bd31bf3a4fb899855088f5b7b26eef5f3",
+          "commit": "08f9be0289d4460636bbaf6024e4e6fc6e7a95c3",
+          "estado": "valida"
+        },
+        {
+          "arquivo": "frontend/src/telas/parcelamento-form.ts",
+          "linhas": "19-19",
+          "trecho": "const MAX_PARCELAS = 12;",
+          "hash": "9b6ae5c38b8f0d74344eb73ba9e2c75dcf372cabb1400ea0289881c05b5aebf5",
+          "commit": "08f9be0289d4460636bbaf6024e4e6fc6e7a95c3",
+          "estado": "valida"
+        }
+      ],
+      "estado": "registrada",
+      "sessao": null,
+      "registrada_ms": 1794443752641
+    }
+  ],
+  "perguntas": [
+    {
+      "numero": 1,
+      "texto": "O limite de 3 parcelas vale só para pessoa jurídica ou também para órgão público? Hoje os dois compartilham o mesmo limite.",
+      "afirmacao": null,
+      "estado": "aberta",
+      "sessao": null,
+      "registrada_ms": 1794443753306
+    },
+    {
+      "numero": 2,
+      "texto": "Qual é o valor de MAX_PARCELAS em produção? A carga inicial do código diz 6, mas o valor real fica na tabela e pode ter sido alterado. Além disso, a tela permite escolher até 12 parcelas: isso é conhecido e aceito pelo negócio?",
+      "afirmacao": null,
+      "estado": "aberta",
+      "sessao": null,
+      "registrada_ms": 1794443754206
+    }
+  ],
+  "sugestoes": [],
+  "termos": []
+}

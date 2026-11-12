@@ -96,7 +96,7 @@ Os exemplos usam um sistema fictício de faturamento ("Faturamento Exemplo").
 
 1. O analista instala o app e o abre.
 2. O analista escolhe como prefere conversar com a IA. O app apresenta o Claude Code no terminal embutido como recomendado ("tudo numa janela só") e o Claude Desktop como opção para quem não quer usar terminal ("conversa no Desktop, documento aqui"). O app verifica se o cliente escolhido está instalado e logado; se não estiver, mostra o passo a passo oficial (página de download do Desktop ou comando de instalação do Claude Code) e pede que o analista faça login com a própria conta, pelo fluxo do próprio cliente.
-3. O analista escolhe a pasta da **base de conhecimento** (padrão sugerido: `Documentos/ctower-business`). Pode ser uma pasta sincronizada ou um repositório git próprio.
+3. O analista escolhe a pasta da **base de conhecimento** (padrão sugerido: `Documentos/ctower-business`). Pode ser uma pasta sincronizada ou um repositório git próprio. O app recusa pasta temporária, o diretório de dados do app e pasta dentro do repositório (ou das pastas) de um sistema cadastrado; no cadastro, recusa também o sistema cujo repositório contém a base.
 4. O analista cadastra o sistema: nome e uma ou mais pastas. O app mostra o que vai analisar (contagem de arquivos por tipo) e o que vai ignorar (binários, dependências, arquivos com segredos), e permite ajustar.
 5. O app prepara o ambiente do sistema, com consentimento (seção 6.2): registra o servidor MCP e os hooks. Nenhum arquivo é criado dentro do repositório do sistema.
 6. O mapeamento estrutural roda com barra de progresso (sem IA, sem custo).
@@ -184,8 +184,9 @@ Operam só dentro das pastas cadastradas do sistema, respeitam a lista de exclus
 
 | Ferramenta | O que faz |
 |---|---|
-| `iniciar_analise` | Devolve o roteiro do fluxo, a entrada e o contexto da base (regras, termos e memória da área relacionados). |
+| `iniciar_analise` | Devolve o roteiro do fluxo, a entrada e o contexto da base (regras, termos e memória da área relacionados). Recebe a análise criada pelo app (`analise`) ou, quando o analista pede direto no chat, cria uma a partir de `fluxo` e `entrada`. |
 | `retomar_analise` | Devolve o estado de uma análise: entrada, afirmações, evidências, perguntas, sugestões. |
+| `listar_analises` | Lista as análises do sistema (identificador, título, fluxo, estado, documento), para achar a que o analista citou pelo assunto. |
 | `conhecimento` | Busca na base: regras confirmadas, glossário, análises anteriores. |
 | `mapa` | Retorna o mapa do sistema ou de um módulo. |
 | `estrutura` | Lista rotinas, procedures, classes e telas de um arquivo. |
@@ -195,16 +196,20 @@ Operam só dentro das pastas cadastradas do sistema, respeitam a lista de exclus
 | `perguntar` | Registra uma pergunta em aberto para o solicitante. |
 | `registrar_sugestao` | Registra uma sugestão de alteração: arquivo, trecho atual, trecho proposto, motivo, impacto. |
 | `propor_termo` | Propõe uma entrada para o glossário (termo de negócio, sinônimos, onde vive no código). |
-| `concluir_analise` | Fecha a rodada: o app monta o documento e devolve o caminho, que o agente cita na resposta. |
+| `concluir_analise` | Fecha a rodada: confere as pendências (sem afirmações ou seção obrigatória do fluxo vazia recusam; evidência que não confere mais com o código e afirmação inferida sem evidência voltam como pendência para o analista), o app monta o documento e devolve o caminho, que o agente cita na resposta, com as perguntas em aberto. |
+
+As ferramentas de consulta (`conhecimento`, `mapa`, `estrutura`, `schema` e `referencias`) só leem e respondem em páginas, para não gastar o limite do plano: até 20 itens por página (o agente pode pedir até 50) e até 6.000 caracteres de itens no texto, com o total e o cursor da próxima página. `conhecimento` busca no índice da base (7.5), sincronizado a cada chamada; as demais leem o último mapa estrutural do sistema e, se ele ainda não existe, o geram na hora e avisam o agente. O contexto da base que `iniciar_analise` devolve sai da mesma busca.
 
 Os fluxos guiados são ferramentas (`iniciar_analise`), e não prompts MCP, porque o suporte a prompts de servidores locais no Claude Desktop não está confirmado.
+
+O servidor identifica o sistema pela variável `CBA_SISTEMA`, que o preparo do ambiente grava no registro do servidor (6.2), ou, sem ela, pelo diretório de trabalho do processo (a pasta em que o cliente o iniciou): é o sistema cadastrado que tem uma pasta contendo esse diretório. Numa worktree do git, vale o caminho correspondente no repositório principal, e as ferramentas leem e conferem as evidências nos arquivos da worktree, que são os que o agente vê. Fora de um sistema cadastrado, o servidor conecta e lista as ferramentas, e cada chamada responde com um erro que diz ao agente o que pedir ao analista. Argumentos fora do schema e recusas (evidência que não confere, análise inexistente) voltam como resultado de erro da ferramenta, com o motivo, para o agente corrigir a chamada.
 
 ### 6.2 Preparo do ambiente
 
 Feito pelo app no cadastro do sistema, com consentimento, sem criar arquivos no repositório do sistema:
 
 - **Servidor MCP:** registrado na configuração do usuário do Claude Code com escopo local da pasta do sistema. A aba de código do Claude Desktop e o Claude Code de linha de comando leem a mesma configuração. Atenção: numa worktree do git, o escopo local é gravado na entrada do repositório principal, não da worktree. O app deve registrar pelo caminho que o Claude Code usa como chave e remover o registro quando o sistema for descadastrado.
-- **Hooks:** `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `Notification`, `Stop` e `SessionEnd`, apontando para o executável do app. Também são compartilhados entre o Desktop e o CLI.
+- **Hooks:** `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `Notification`, `Stop` e `SessionEnd`, apontando para o executável do app. Também são compartilhados entre o Desktop e o CLI. Ficam no escopo do usuário e disparam em todas as sessões; o receptor ignora, sem gravar nada, as que não estão na pasta de um sistema cadastrado (pelo `cwd` do evento ou pelo `CLAUDE_PROJECT_DIR`; uma worktree conta como o repositório principal). Nas demais, grava o estado da sessão em `<dados>/sessoes/<session_id>.json` (sistema, análise, estado, pasta para a retomada) e, quando a sessão já está ligada a uma análise, também no estado da análise. A ligação acontece no `PreToolUse` da primeira ferramenta do `cba` chamada com o argumento `analise` (normalmente `iniciar_analise` ou `retomar_analise`).
 - **Edição da configuração do usuário:** a gravação preserva o que já existe e é desfeita no descadastro. O app nunca lê nem grava credenciais.
 
 ### 6.3 Cliente: Claude Desktop
@@ -232,12 +237,21 @@ Diferenças em relação ao Desktop:
 - **Mais plataformas:** funciona onde o Claude Code roda, inclusive Linux e WSL.
 - **Passagem para o Desktop:** o botão "Continuar no Claude Desktop" envia `/desktop`, que move a sessão para a aba de código do Desktop com o mesmo histórico (macOS e Windows x64).
 
+Como o terminal embutido inicia e conversa com o `claude` (`cba_session::terminal`), só com opções documentadas da linha de comando:
+
+- O terminal só abre com o ambiente preparado (servidor MCP e hooks, seção 6.2) e com o Claude Code instalado; senão, mostra o que falta e o passo a passo oficial.
+- Conversa nova com `--session-id <uuid>` gerado pelo app, que guarda a última sessão de cada sistema e, ao reabrir, oferece retomá-la com `--resume <id>` (ou `--continue`, se o identificador não for conhecido). O pedido inicial vai como prompt posicional.
+- A pasta do `claude` vai na frente do `PATH` do processo, porque o app aberto pelo Finder ou pelo menu Iniciar tem `PATH` mínimo.
+- Prompts prontos (e o `/desktop`) são digitados na sessão viva: o texto, uma pausa curta e o Enter. Quebras de linha vão como `Ctrl+J`, a nova linha documentada do Claude Code.
+- Com o Claude Code instalado pelo npm no Windows (`claude.cmd`), o prompt inicial não pode ter caracteres que o `cmd.exe` interpretaria (aspas, `%`, `!`, quebras de linha e, numa palavra solta, `& | < > ^ ( )`); o instalador nativo não tem essa limitação.
+
 ### 6.5 Evidências
 
 - O conteúdo de uma análise é composto de **afirmações** registradas pela ferramenta `afirmar`, não de texto livre. Cada afirmação tem: seção do documento, texto, nível de confiança e evidências.
-- Uma **evidência** é `(arquivo, linha inicial, linha final, trecho citado)`, com o caminho relativo à raiz do sistema. O servidor valida no registro: o arquivo existe dentro das pastas do sistema, o intervalo é válido e o trecho confere com o conteúdo atual. Guarda o hash do trecho e o commit. Evidência inválida é recusada com o motivo, para o agente corrigir.
+- Uma **evidência** é `(arquivo, linha inicial, linha final, trecho citado)`, com o caminho relativo à raiz do sistema. O servidor valida no registro: o arquivo existe dentro das pastas do sistema (também depois de seguir links simbólicos) e fora das exclusões, é texto, o intervalo é válido (até 300 linhas) e existe no arquivo, e o trecho aparece dentro do intervalo. A conferência ignora os espaços nas pontas de cada linha, os espaços repetidos e as linhas em branco, e mais nada. Guarda o hash do intervalo (SHA-256 das linhas normalizadas do mesmo jeito, para mudança de indentação ou de fim de linha não marcar a evidência como a revalidar) e o commit. Evidência inválida é recusada com o motivo e, quando possível, com a correção (as linhas em que o trecho aparece ou o conteúdo atual do intervalo), para o agente corrigir. Se uma das evidências de uma afirmação for recusada, nada é registrado.
 - **Níveis de confiança:** `confirmado` (evidência direta), `inferido` (dedução a partir de evidências listadas) e `a_confirmar` (sem evidência suficiente; vira pergunta).
 - Se o arquivo mudar, o hash denuncia e a evidência, e as regras que dependem dela, aparecem como **a revalidar**.
+- A revalidação roda ao abrir o sistema e sob demanda (`cba_tools::revalidacao`): confere as evidências das regras (menos as obsoletas) e das análises, marca a evidência e a afirmação como a revalidar e a regra como `a-revalidar`, desfaz a marca quando o hash volta a conferir (a afirmação volta ao estado anterior; a regra, a `confirmada`) e devolve um relatório do que mudou, com o commit gravado na evidência e o atual. Arquivos sem mudança desde o inventário não são lidos (cache dos hashes no diretório de dados).
 
 ### 6.6 Laço próprio (fase 2)
 
@@ -253,19 +267,24 @@ Para clientes que não são o Claude Desktop nem o Claude Code, o app terá um l
 ```
 <base>/
   _templates/                        # templates dos documentos (editáveis)
+    roteiros/<fluxo>.md              # roteiro de cada fluxo (editável, seção 8)
+    prompts/<id>.md                  # prompts prontos (editáveis, seção 8)
   <sistema>/
     sistema.md                       # visão, áreas, estado, próximo passo
+    regras-do-sistema.md             # regras do sistema para o agente (seção 8)
     glossario/<termo>.md             # negócio → código
     regras/RN-<AREA>-<NNN>.md        # uma regra por arquivo
     areas/<area>/memoria.md          # memória de uma área funcional
     funcionalidades/<area>/<tema>/   # documento negocial, casos de uso, rastreabilidade
     analises/<id>.md                 # análises de impacto, perguntas, explicações
+    analises/<id>.estado.json        # estado da análise: sessões, afirmações, evidências, perguntas, sugestões
     sugestoes/<id>.md                # sugestões de alteração
 ```
 
 - **Fora do repositório do sistema** e fora de qualquer pasta temporária. A pasta é do analista e sobrevive à reinstalação do app.
 - **Caminhos relativos** em todos os documentos, nunca absolutos, para a base continuar válida em outra máquina ou sistema operacional.
 - **Gravação contínua:** o documento de uma análise é atualizado a cada registro, não só no fim. Uma sessão interrompida não perde o que já foi apurado.
+- **Estado da análise:** os registros (sessões, afirmações com evidências, perguntas, sugestões) ficam em `analises/<id>.estado.json`, gravado a cada mudança sob uma trava de arquivo, porque o app, o servidor MCP de cada sessão e o receptor de hooks gravam na mesma análise. O documento Markdown é montado a partir dele. Cada mudança é anotada no diário de eventos do app (no diretório de dados, só com identificadores), que o app acompanha para atualizar os painéis ao vivo: uma vigia por sistema consulta o tamanho do arquivo a cada 100 ms, lê só as linhas novas e relê a análise citada (menos de 1 s do registro à tela). Como o estado completo está na base, o diário não guarda histórico: depois de ler tudo, a vigia o esvazia quando passa de 1 MiB, sob a mesma trava de quem acrescenta linhas.
 
 ### 7.2 Frontmatter
 
@@ -311,20 +330,25 @@ O agente registra dados estruturados pelas ferramentas MCP, e o app monta cada d
 | Tipo | Seções fixas |
 |---|---|
 | Análise de impacto | demanda como veio · demanda como entendida · como é hoje · funcionalidades · dados · integrações · documentos e telas · riscos · abrangência · perguntas para o solicitante · sugestões · evidências |
-| Pergunta ao sistema | pergunta · resposta · regras encontradas · exemplo · perguntas em aberto · evidências |
-| Documento negocial da funcionalidade | objetivo · atores e telas · fluxo principal · fluxos alternativos · exceções · regras · dados · integrações · perguntas · evidências |
+| Pergunta ao sistema | pergunta · resposta · regras encontradas · exemplo · perguntas em aberto · sugestões · evidências |
+| Documento negocial da funcionalidade | objetivo · atores e telas · fluxo principal · fluxos alternativos · exceções · regras · dados · integrações · perguntas · sugestões · evidências |
 | Caso de uso | identificação · objetivo · gatilho · pré-condições · fluxo principal · alternativos · exceções · regras · evidências |
 | Regra de negócio | identificador estável · enunciado · área · evidências com hash · origem |
 | Termo do glossário | termo · sinônimos · definição de negócio · onde vive no código (entidades, tabelas, telas, serviços, documentos) |
 | Sugestão de alteração | contexto · trecho atual · trecho proposto · motivo · impacto · exemplo |
 
 - **Templates editáveis:** ficam em `<base>/_templates/` como Markdown com marcadores. O app traz um conjunto padrão; cada organização pode ajustar ao seu (por exemplo, um padrão de documento negocial já adotado).
-- **Evidências no documento:** cada afirmação traz o selo de confiança e uma nota de rodapé com `arquivo:linhas`. No app, a nota abre o trecho.
+  - Um arquivo por tipo, com o nome do campo `tipo` (`_templates/analise-impacto.md`). Sem o arquivo, vale o padrão embutido; o app copia o padrão para a base sem sobrescrever o que foi editado.
+  - Marcadores `{{nome}}`: de campo (preenchidos pelo frontmatter, como `{{id}}` e `{{titulo}}`) e de seção (`{{como_e_hoje}}`, `{{perguntas}}`, `{{sugestoes}}`, `{{evidencias}}`). Um comentário HTML no início do template é instrução para quem edita e não vai para o documento.
+  - Marcador desconhecido gera aviso e fica no texto. Seção com registros cujo marcador foi removido vai para o fim do documento, com aviso, para nada registrado se perder.
+- **Evidências no documento:** cada afirmação traz o selo de confiança e uma nota de rodapé com `arquivo:linhas`. No app, a nota abre o trecho. As notas são numeradas na ordem em que aparecem; o mesmo trecho citado de novo usa a mesma nota, e a seção de evidências lista as definições.
 - **O chat não é o documento.** No chat, o agente dá um resumo e o link do documento (devolvido por `concluir_analise`). O documento completo se lê no app ou em qualquer editor de Markdown.
 
 ### 7.4 Como a base cresce
 
 - **Análise aprovada alimenta a base:** as afirmações confirmadas pelo analista viram regras (com identificador estável) e os termos propostos viram entradas do glossário.
+- **Revisão antes da aprovação (#37):** na tela da análise, o analista confirma, marca como incorreta (com comentário) ou pede aprofundamento de cada afirmação (com a conversa aberta no terminal embutido, o prompt pronto de aprofundar vai ao agente), responde ou descarta perguntas, aceita ou recusa sugestões e termos, e edita o texto das afirmações. A edição fica no estado da análise (o texto do agente é guardado em `texto_original`), preserva seção, confiança e evidências, e o documento é remontado a partir do estado; editar o `.md` à mão não adianta, porque a próxima montagem o refaz. A aprovação exige a análise concluída e uma decisão em cada afirmação (confirmada ou incorreta; sem decisão, em aprofundamento ou a revalidar impede) e em cada termo proposto; perguntas em aberto e sugestões sem decisão não impedem. Com mais de uma área no `sistema.md`, a área das regras é escolhida na aprovação (geral ou por afirmação). Afirmação incorreta fica registrada na análise, sai do documento e não vira regra. Depois de aprovada, a revisão fica fechada.
+- **Exportação:** Markdown ou Word, com o diálogo de salvar do sistema, a qualquer momento (antes da aprovação, o documento sai como rascunho). Os trechos citados do apêndice são lidos pelo escopo do sistema (as exclusões valem), e o destino não pode ficar dentro das pastas do sistema analisado.
 - **Glossário negócio → código** é a peça que mais acelera as análises seguintes: o maior custo de uma análise é localizar no código os conceitos da demanda.
 - **Revalidação:** ao reabrir o sistema, o app confere os hashes das evidências contra o código atual e marca como "a revalidar" o que mudou.
 
@@ -340,9 +364,13 @@ Modelo em camadas, como no ctower-agents:
 | Camada | Conteúdo | Como chega ao agente |
 |---|---|---|
 | Limites fixos | papel (apoia analista, não desenvolve), sugestão em vez de alteração, evidência obrigatória e honesta, consultar a base antes, declarar o que está fora do código, segredos, linguagem de negócio | hook `SessionStart`, em toda sessão, inclusive na retomada e em qualquer cliente |
-| Regras do sistema | convenções do sistema e da organização, editáveis e versionadas na base | junto dos limites, no `SessionStart` |
+| Regras do sistema | convenções do sistema e da organização, editáveis e versionadas na base, em `<sistema>/regras-do-sistema.md` (criado com um padrão só de comentários, que não chega ao agente) | junto dos limites, no `SessionStart` |
 | Roteiro do fluxo | um template por fluxo, com variáveis (identificador, entrada, contexto da base) | resposta de `iniciar_analise` |
 | Prompts prontos | aprofundar, resumir para o solicitante, gerar critérios de aceite, conferir evidências, retomar | botões no app, que abrem o cliente com o pedido preenchido |
+
+Roteiros e prompts prontos são editáveis na base, como os templates (7.3): `_templates/roteiros/<fluxo>.md` (`perguntar`, `explicar`, `impacto`) e `_templates/prompts/<id>.md`. Sem o arquivo, vale o padrão embutido; o app copia o padrão para a base sem sobrescrever o que foi editado (dos roteiros, só os já revisados). Variáveis são `{{nome}}`: no roteiro, `{{id}}`, `{{titulo}}`, `{{fluxo}}`, `{{documento}}`, `{{entrada}}`, `{{secoes}}`, `{{secoes_obrigatorias}}` e `{{contexto}}`; nos prompts, `{{id}}`, `{{titulo}}`, `{{fluxo}}` e `{{documento}}`. Variável desconhecida gera aviso e fica no texto; variável essencial ausente (no roteiro, entrada, seções e contexto; nos prompts, o identificador) vai para o fim, com aviso; arquivo ilegível gera aviso e usa o padrão. O prompt pronto vai ao cliente numa linha só.
+
+O texto dos limites fica em `crates/cba-session/prompts/limites.md`, embutido no executável. O `SessionStart` responde em `hookSpecificOutput.additionalContext` com os limites, as regras do sistema (sem comentários HTML, cortadas em 5.000 caracteres) e uma nota da sessão (sistema e análise ligada), em toda origem (`startup`, `resume`, `compact`, `clear`), abaixo do limite de 10.000 caracteres do Claude Code. Fora dos sistemas cadastrados, nada é acrescentado.
 
 Pontos validados na prova de conceito (seção 13):
 
@@ -353,8 +381,11 @@ Pontos validados na prova de conceito (seção 13):
 ## 9. Provedores, credenciais e privacidade
 
 - **Claude Desktop e Claude Code:** o analista instala e faz login pelos fluxos oficiais da Anthropic. O app não oferece login do Claude, não lê, não guarda e não intermedeia credenciais ou tokens, e não embute, instala ou modifica nenhum binário. Isso segue a página de questões legais e de conformidade do Claude Code, que proíbe terceiros de oferecer o login do Claude.ai ou intermediar credenciais, mas não impede o usuário de usar os aplicativos oficiais com a própria assinatura. Antes de distribuir, pedir confirmação por escrito à Anthropic de que o desenho das seções 6.2 a 6.4 está dentro das regras.
+- **Detecção dos clientes (primeiro uso e tela inicial):** o app procura o `claude` no `PATH` e nos locais padrão de instalação e o Claude Desktop pela existência do aplicativo, consultando só metadados dos caminhos. O login do Claude Code é verificado apenas pelo comando oficial `claude auth status --json`, do qual o app usa só `loggedIn`, `authMethod` e `apiProvider` (e-mail e organização são descartados). O login do Claude Desktop não é verificado, porque não há comando de status documentado; a tela pede ao analista que confira no próprio Desktop.
 - **ChatGPT (fase 2):** "Sign in with ChatGPT" está em preview e liberado para apps open-source e locais; app pago ou hospedado depende de aprovação da OpenAI. Afeta a EE, não o MVP.
 - **Repositório do sistema:** o app recomenda token somente leitura e avisa quando a pasta do sistema foi alterada. A responsabilidade pelo que vai para o repositório é do analista.
+  - **Aviso de alteração:** no primeiro evento de cada sessão (normalmente o `SessionStart`), o app tira um retrato das pastas do sistema, uma vez por sessão: o commit atual e o conteúdo dos arquivos que já estavam diferentes dele (num repositório git, pelo `git` instalado com o app), ou tamanho e data de cada arquivo fora do git. A cada `Stop` e `SessionEnd`, confere as pastas contra o retrato e avisa a análise ligada, com o diff e as opções de desfazer (com confirmação) e de manter. O que já estava alterado antes da sessão não é atribuído a ela. Retrato e conferência rodam num processo separado (`cba fundo`), disparado pelo hook, que segue rápido; o `PreToolUse` de uma ferramenta que escreve espera o retrato ficar pronto (até 5 s). O retrato fica no diretório de dados (`<dados>/retratos/<sessão>/`), nunca no repositório. Fora do git, o aviso lista os arquivos, sem diff nem desfazer.
+  - **Proteção opcional (desligada por padrão):** regras `deny` com o caminho absoluto de cada pasta (`Edit(//<pasta>/**)`, que cobre `Edit`, `Write` e `NotebookEdit`) no `~/.claude/settings.json` do usuário, que valem em todos os modos de permissão, mesmo com o analista aprovando; e o `Bash` (e o `PowerShell`) negado pelo hook `PreToolUse` nas sessões do sistema, porque o Claude Code não tem regra de Bash por pasta. Desligar tira só as regras que o app acrescentou.
 - **Exclusões padrão:** dependências de terceiros, binários, arquivos com padrão de segredo. As ferramentas MCP respeitam as exclusões; as ferramentas próprias do cliente de IA não, e os limites orientam o agente a evitá-las.
 - **Dados do sistema analisado** ficam na máquina do analista: na base de conhecimento e nos históricos do próprio cliente de IA. O app não envia nada a serviços próprios.
 - **Sem telemetria** no MVP.
@@ -363,9 +394,12 @@ Pontos validados na prova de conceito (seção 13):
 
 - **Início:** sistemas cadastrados, análises recentes e em andamento (com estado vindo dos hooks), botões dos fluxos, estado dos clientes de IA (instalado, logado).
 - **Sistema:** mapa, glossário, regras (com as que estão "a revalidar"), áreas.
-- **Análise:** documento sendo montado ao vivo, afirmações com selo de confiança, evidência selecionada com o trecho destacado, perguntas, sugestões, aviso de alteração no repositório. Terminal embutido com o Claude Code, quando esse for o cliente escolhido. Botões: abrir no cliente escolhido (Desktop, terminal embutido, comando para o terminal do analista), retomar, continuar no Desktop, confirmar, marcar incorreta, aprovar, exportar.
+- **Análise:** criada pelo app a partir da pergunta (o terminal abre com o pedido de `iniciar_analise` com o identificador, para a sessão ficar ligada à análise desde a primeira chamada); documento sendo montado ao vivo, afirmações com selo de confiança, evidência selecionada com o trecho destacado, perguntas, sugestões, aviso de alteração no repositório. Terminal embutido com o Claude Code, quando esse for o cliente escolhido. Botões: abrir no cliente escolhido (Desktop, terminal embutido, comando para o terminal do analista), retomar, continuar no Desktop, confirmar, marcar incorreta, aprovar, exportar.
 - **Base de conhecimento:** busca em regras, termos e análises.
 - **Configurações:** cliente de IA preferido (padrão: Claude Code no terminal embutido), pasta da base, sistemas e exclusões, templates, regras do sistema, ambiente do Claude (registro do MCP e dos hooks), proteção opcional contra edição.
+  - **Trocar a pasta da base**, com confirmação, de dois jeitos: *mover* (só para pasta nova ou vazia: o app copia a base, confere cada arquivo byte a byte, só então passa a usar a pasta nova e por último apaga a antiga; se a pasta antiga mudou durante a cópia, ela fica) ou *reapontar* (passa a usar a outra pasta, que pode já ser uma base; os documentos da antiga ficam onde estão). Valem as recusas do primeiro uso, e a pasta nova não pode conter a atual nem ficar dentro dela. Nos dois casos o índice é reconstruído.
+  - **Sistemas:** as exclusões e reinclusões se ajustam com a prévia do inventário; as pastas não (para mudá-las, descadastrar e cadastrar de novo). **Descadastrar** desliga a proteção (tira só as regras do app), desfaz o preparo (servidor MCP; hooks se for o último sistema) e só então apaga o cadastro, o inventário e o mapa; os documentos na base ficam. **Desfazer o ambiente** faz o mesmo sem descadastrar, e a configuração do Claude volta a ser a de antes.
+  - **Templates, roteiros, prompts e regras do sistema** aparecem com a situação de cada um (padrão do app, cópia do padrão ou editado na base, sobrepondo o padrão) e abrem no editor de texto padrão do sistema operacional; sem o arquivo na base, o app cria a cópia do padrão antes de abrir.
 
 Toda a interface em português no MVP, com textos preparados para tradução.
 
@@ -384,6 +418,13 @@ SQLite local, reconstruível a partir da base, identificadores UUID v7 internos 
 | `pergunta`, `sugestao` | registros da análise |
 | `regra`, `termo` | espelho indexado dos documentos da base |
 | `evento` | registro de mudanças (quem, quando, o quê, por qual cliente) |
+
+Implementação da base (#8, `cba_kb::indice`):
+
+- **Arquivo:** `<dados>/indice/base.sqlite`, no diretório de dados do app (nunca na base), em modo WAL, aberto pelo app e pelos processos `mcp` e `hook`. Esquema com versão em `PRAGMA user_version`; versão diferente, outra pasta de base ou arquivo corrompido fazem o índice ser recriado e reconstruído, sem migração.
+- **Tabelas:** `documento` (caminho relativo à base, sistema, tipo, identificador, título, área, status, frontmatter em JSON, erro de validação, hash SHA-256, tamanho e data do arquivo), `evidencia` (das regras), `ligacao` (campos `origem` e `analise`) e `busca` (FTS5 com título, chaves e corpo, `unicode61 remove_diacritics 2`). `regra`, `termo` e `analise` são linhas de `documento` do tipo correspondente; o identificador interno é o `rowid` (descartável, como o índice). O `regras-do-sistema.md`, sem frontmatter, entra como o tipo `regras-do-sistema`, sem os comentários HTML; documento ilegível não interrompe a sincronização e aparece numa lista de problemas.
+- **Atualização:** incremental por tamanho e data, confirmada pelo hash. O app mantém uma vigia por consulta (`Vigia`, a cada 2 s) para refletir edições externas; quem não a mantém (o servidor MCP) sincroniza antes de buscar, o que custa pouco quando nada mudou.
+- **Fora do índice por enquanto:** `sistema` (o cadastro, com pastas e exclusões, não está na base e por isso não pode viver num índice descartável: continua em JSON no diretório de dados, `cba-index`), `arquivo`/`simbolo`/`referencia` (mapeamento, #15), `sessao`, `afirmacao`, `pergunta`, `sugestao` da análise e `evento` (estão em `analises/<id>.estado.json`, em `<dados>/sessoes` e no diário de eventos; o texto das análises entra na busca pelo documento Markdown montado).
 
 ## 12. Distribuição e licença
 

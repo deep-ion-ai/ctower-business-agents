@@ -8,7 +8,13 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+cba-index.workspace = true
+cba-kb.workspace = true
 dirs.workspace = true
+dunce = "1"
+serde.workspace = true
+serde_json.workspace = true
+thiserror = "2"
 tracing.workspace = true
 tracing-appender.workspace = true
 tracing-subscriber.workspace = true

@@ -1,4 +1,5 @@
-//! Diretório de dados do app: índice, configuração e logs.
+//! Diretório de dados do app: índice, configuração, cadastro dos sistemas, eventos,
+//! sessões e logs.
 //!
 //! Fica no diretório de dados locais do usuário, numa pasta com o identificador do
 //! app, separado da pasta da base de conhecimento (os Markdown, numa pasta escolhida
@@ -53,9 +54,16 @@ impl DiretorioDados {
         &self.raiz
     }
 
-    /// Índice SQLite (reconstruível a partir da base de conhecimento).
+    /// Pasta do índice SQLite (reconstruível a partir da base de conhecimento).
     pub fn indice(&self) -> PathBuf {
         self.raiz.join("indice")
+    }
+
+    /// Arquivo do índice da base de conhecimento ([`cba_kb::indice::Indice`]),
+    /// dentro de [`DiretorioDados::indice`]. Os arquivos `-wal` e `-shm` do SQLite
+    /// ficam ao lado.
+    pub fn arquivo_do_indice(&self) -> PathBuf {
+        self.indice().join(cba_kb::indice::ARQUIVO)
     }
 
     /// Configuração do app.
@@ -66,6 +74,22 @@ impl DiretorioDados {
     /// Logs dos processos do app ([`crate::log`]).
     pub fn logs(&self) -> PathBuf {
         self.raiz.join("logs")
+    }
+
+    /// Cadastro dos sistemas (`cba_index::Cadastro`).
+    pub fn sistemas(&self) -> PathBuf {
+        self.raiz.join("sistemas")
+    }
+
+    /// Diário de mudanças das análises, que o app acompanha ([`crate::eventos`]).
+    pub fn eventos(&self) -> PathBuf {
+        self.raiz.join("eventos")
+    }
+
+    /// Estado das sessões dos clientes de IA, gravado pelo receptor de hooks
+    /// (`cba_session::sessoes`).
+    pub fn sessoes(&self) -> PathBuf {
+        self.raiz.join("sessoes")
     }
 }
 
@@ -79,8 +103,15 @@ mod tests {
         let d = DiretorioDados::em(raiz);
         assert_eq!(d.raiz(), raiz);
         assert_eq!(d.indice(), raiz.join("indice"));
+        assert_eq!(
+            d.arquivo_do_indice(),
+            raiz.join("indice").join("base.sqlite")
+        );
         assert_eq!(d.config(), raiz.join("config"));
         assert_eq!(d.logs(), raiz.join("logs"));
+        assert_eq!(d.sistemas(), raiz.join("sistemas"));
+        assert_eq!(d.eventos(), raiz.join("eventos"));
+        assert_eq!(d.sessoes(), raiz.join("sessoes"));
     }
 
     #[test]

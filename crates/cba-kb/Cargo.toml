@@ -8,3 +8,17 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+# Índice (#8): SQLite embutido, com FTS5. `bundled` compila o SQLite junto, para
+# ter a mesma versão (e o FTS5) em Windows, macOS e Linux, sem depender do sistema.
+rusqlite = { version = "0.42", features = ["bundled"] }
+serde.workspace = true
+serde_json.workspace = true
+serde_norway.workspace = true
+# Caminho do campo (`demanda.origem`) nos erros de frontmatter.
+serde_path_to_error = "0.1"
+# Hash do arquivo, para a atualização incremental do índice.
+sha2 = "0.10"
+# Arquivo temporário na mesma pasta e renomeação atômica (inclusive sem sobrescrever).
+tempfile = "3"
+thiserror = "2"
+tracing.workspace = true
