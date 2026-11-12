@@ -3,10 +3,6 @@
 ## 0.1.0 (2026-11-12)
 
 
-### ⚠ BREAKING CHANGES
-
-* sem migração. A variável do servidor MCP passa de CBA_SISTEMA para CBA_PROJETO, e bases, cadastros e ambientes criados antes desta versão precisam ser recriados (a v1.0.0 foi retirada).
-
 ### Features
 
 * **app:** esqueleto do app Tauri, executável multimodo e release para Windows e macOS ([#50](https://github.com/deep-ion-ai/ctower-business-agents/issues/50)) ([7e9c77f](https://github.com/deep-ion-ai/ctower-business-agents/commit/7e9c77f3025e5f316ebd535704511486e99f34ae))
