@@ -31,6 +31,7 @@ mod analise;
 mod cli;
 #[cfg(windows)]
 mod console;
+mod conversa;
 mod gui;
 mod primeiro_uso;
 mod prompts;

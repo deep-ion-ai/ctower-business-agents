@@ -100,6 +100,14 @@ pub enum ErroAbertura {
         orientacao: Vec<Passo>,
     },
 
+    /// `claude --desktop` indisponível (plataforma ou versão do Claude Code).
+    #[error("{detalhe}")]
+    DesktopIndisponivel {
+        detalhe: String,
+        /// Passo a passo oficial, quando há o que fazer.
+        orientacao: Vec<Passo>,
+    },
+
     #[error("pedido inválido: {mensagem}")]
     PedidoInvalido { mensagem: String },
 
@@ -328,7 +336,8 @@ pub fn limpar_prompt(prompt: &str) -> Option<String> {
     }
 }
 
-fn id_valido(id: &str) -> bool {
+/// Identificador de sessão aceito na linha de comando: letras, dígitos, `-` e `_`.
+pub fn id_valido(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= 128
         && id

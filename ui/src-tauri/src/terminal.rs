@@ -8,9 +8,12 @@
 
 use std::sync::Arc;
 
+use cba_core::analise::Cliente;
 use cba_core::dados::DiretorioDados;
+use cba_core::tempo::agora_ms;
 use cba_index::Cadastro;
 use cba_session::clientes::AmbienteReal;
+use cba_session::passagem::ClientesDasSessoes;
 use cba_session::preparo::Preparador;
 use cba_session::terminal::{
     self, ErroAbertura, Evento, PedidoClaude, RelatorioErro, Sessoes, Tamanho, UltimaSessao,
@@ -100,6 +103,15 @@ pub async fn abrir_terminal_claude(
                 let _ = canal.send(evento);
             })
             .map_err(|e| falha(e.to_string()))?;
+        if let Some(id) = &lancamento.id_sessao
+            && let Err(e) = ClientesDasSessoes::no_diretorio(dados.raiz()).marcar_sessao(
+                id,
+                Cliente::ClaudeCode,
+                agora_ms(),
+            )
+        {
+            tracing::warn!(erro = %e, "não foi possível marcar o cliente da sessão");
+        }
         if let Err(e) =
             UltimasSessoes::no_diretorio(dados.raiz()).registrar(&sistema, lancamento.id_sessao)
         {
