@@ -32,16 +32,16 @@ Fluxo: {{fluxo}}. Documento na base: `{{documento}}` (montado pelo app a partir 
 
 ## Objetivo
 
-Responder à pergunta a partir do código do sistema, em linguagem de negócio, para quem não lê código. O resultado é um documento com a resposta direta, as regras que a sustentam (cada uma com evidência), um exemplo com números e as perguntas que o código não responde.
+Responder à pergunta a partir do código do projeto, em linguagem de negócio, para quem não lê código. O resultado é um documento com a resposta direta, as regras que a sustentam (cada uma com evidência), um exemplo com números e as perguntas que o código não responde.
 
 ## Como conduzir
 
 1. **Consulte a base primeiro.** O contexto no fim deste roteiro traz regras já confirmadas, termos do glossário e análises anteriores relacionados; para outros conceitos da pergunta, use `conhecimento`. Regra confirmada não precisa ser redescoberta: confira se a evidência dela ainda vale e use-a. Os termos do glossário dizem onde cada conceito de negócio vive no código.
 2. **Entenda o que foi perguntado.** Identifique os conceitos de negócio da pergunta (por exemplo "multa", "atraso", "fatura") e o que o analista quer saber: um valor, uma condição, uma sequência de passos, quem decide. Se a pergunta for ambígua, siga a leitura mais provável e registre a outra como pergunta em aberto.
-3. **Localize no código o que decide o comportamento.** Comece pelo mapa do sistema: `referencias` diz onde uma rotina, tabela ou campo é usado (e, com `sentido: "o_que_usa"`, o que ele usa), `estrutura` lista as rotinas de um arquivo com as linhas, `schema` mostra tabelas, colunas e relacionamentos e `mapa` dá a visão das pastas. Depois use as suas ferramentas de leitura e busca nas pastas do sistema: procure os termos de negócio e seus sinônimos em nomes de rotinas, tabelas, colunas, parâmetros e telas. Leia o trecho que calcula ou decide, não só o que o chama. Siga os valores até a origem (constante, parâmetro em tabela, configuração).
+3. **Localize no código o que decide o comportamento.** Comece pelo mapa do projeto: `referencias` diz onde uma rotina, tabela ou campo é usado (e, com `sentido: "o_que_usa"`, o que ele usa), `estrutura` lista as rotinas de um arquivo com as linhas, `schema` mostra tabelas, colunas e relacionamentos e `mapa` dá a visão das pastas. Depois use as suas ferramentas de leitura e busca nas pastas do projeto: procure os termos de negócio e seus sinônimos em nomes de rotinas, tabelas, colunas, parâmetros e telas. Leia o trecho que calcula ou decide, não só o que o chama. Siga os valores até a origem (constante, parâmetro em tabela, configuração).
 4. **Registre cada regra com `afirmar`** (analise: "{{id}}"), uma regra ou fato por chamada, com valores e condições ("Passada a carência de 5 dias, a multa é de 2% sobre o valor original"):
    - confiança honesta: `confirmado` só com evidência direta; `inferido` para dedução a partir das evidências listadas; `a_confirmar` quando o código não basta (vira pergunta);
-   - evidências: arquivo relativo à raiz do sistema, linhas e o trecho copiado do código, exatamente como está. Evidência recusada volta com o motivo e a correção: corrija e chame de novo.
+   - evidências: arquivo relativo à raiz do projeto, linhas e o trecho copiado do código, exatamente como está. Evidência recusada volta com o motivo e a correção: corrija e chame de novo.
 5. **Preencha as seções do documento:**
 {{secoes}}
 6. **Monte o exemplo com números.** Escolha valores plausíveis (uma fatura de R$ 1.000,00 paga com 10 dias de atraso, por exemplo), aplique as regras registradas passo a passo, com os arredondamentos do código, e registre em `exemplo` com confiança `inferido`, citando as evidências das regras usadas. O exemplo é o que o solicitante usa para conferir a resposta.

@@ -4,7 +4,7 @@ import type { ApiRevisao, AprovacaoFeita, Area, OpcoesAprovacao, Prontidao } fro
 
 interface Props {
   api: ApiRevisao;
-  sistema: string;
+  projeto: string;
   analise: string;
   /** Versão da análise: a prontidão é relida a cada mudança. */
   versao: number;
@@ -49,11 +49,11 @@ function SeletorArea({
 
 /**
  * Aprovação da análise (#37, spec 7.4): mostra o que falta revisar, pede a área das
- * regras (obrigatória quando o sistema declara mais de uma) e, ao aprovar, leva à
+ * regras (obrigatória quando o projeto declara mais de uma) e, ao aprovar, leva à
  * base as afirmações confirmadas (regras) e os termos aceitos (glossário). As
  * incorretas ficam registradas na análise e não viram regra.
  */
-export function AprovacaoAnalise({ api, sistema, analise, versao, aoAprovar }: Props) {
+export function AprovacaoAnalise({ api, projeto, analise, versao, aoAprovar }: Props) {
   const [prontidao, setProntidao] = useState<Prontidao | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [area, setArea] = useState("");
@@ -65,7 +65,7 @@ export function AprovacaoAnalise({ api, sistema, analise, versao, aoAprovar }: P
     let ativo = true;
     // Sem o comando (ou com resposta inesperada), a aprovação não aparece.
     Promise.resolve()
-      .then(() => api.prontidao(sistema, analise))
+      .then(() => api.prontidao(projeto, analise))
       .then((p) => {
         if (!ativo || !p || !Array.isArray(p.areas)) return;
         setProntidao(p);
@@ -76,7 +76,7 @@ export function AprovacaoAnalise({ api, sistema, analise, versao, aoAprovar }: P
     return () => {
       ativo = false;
     };
-  }, [api, sistema, analise, versao]);
+  }, [api, projeto, analise, versao]);
 
   if (!prontidao) return erro ? <p className="error-text">{erro}</p> : null;
 
@@ -101,7 +101,7 @@ export function AprovacaoAnalise({ api, sistema, analise, versao, aoAprovar }: P
     setOcupado(true);
     setErro(null);
     api
-      .aprovar(sistema, analise, opcoes)
+      .aprovar(projeto, analise, opcoes)
       .then((f) => {
         setFeita(f);
         aoAprovar?.(f);
@@ -173,7 +173,7 @@ export function AprovacaoAnalise({ api, sistema, analise, versao, aoAprovar }: P
             </ol>
           )}
           {faltaArea && prontidao.podeAprovar && (
-            <p className="muted">O sistema tem mais de uma área: escolha a das regras.</p>
+            <p className="muted">O projeto tem mais de uma área: escolha a das regras.</p>
           )}
           <button
             className="btn"

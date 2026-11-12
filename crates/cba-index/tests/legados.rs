@@ -5,7 +5,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use cba_index::{
-    Linhas, Mapa, Registro, Sistema, TipoReferencia, TipoSimbolo, inventariar, mapear,
+    Linhas, Mapa, Projeto, Registro, TipoReferencia, TipoSimbolo, inventariar, mapear,
 };
 
 fn fixtures() -> PathBuf {
@@ -13,9 +13,9 @@ fn fixtures() -> PathBuf {
 }
 
 fn mapa_de(raiz: &Path) -> Mapa {
-    let sistema = Sistema::novo("Legado", [raiz]).unwrap();
-    let inv = inventariar(&sistema, None).unwrap();
-    mapear(&inv, &sistema.escopo().unwrap(), None, &Registro::padrao())
+    let projeto = Projeto::novo("Legado", [raiz]).unwrap();
+    let inv = inventariar(&projeto, None).unwrap();
+    mapear(&inv, &projeto.escopo().unwrap(), None, &Registro::padrao())
 }
 
 /// Único símbolo com o nome, fora das declarações.

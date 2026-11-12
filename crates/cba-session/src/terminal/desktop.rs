@@ -49,13 +49,13 @@ pub struct ResultadoDesktop {
     pub mensagem: String,
 }
 
-/// Confere o ambiente e monta o `claude --desktop` para o sistema. `Retomada::Nova`
+/// Confere o ambiente e monta o `claude --desktop` para o projeto. `Retomada::Nova`
 /// abre o Desktop na pasta, sem sessão.
 ///
 /// Recusa no Linux, sem o ambiente preparado, sem o Claude Code instalado ou com uma
 /// versão anterior a [`VERSAO_MINIMA`] (quando a versão é conhecida).
 pub fn lancamento_desktop(
-    sistema: &cba_index::Sistema,
+    projeto: &cba_index::Projeto,
     retomada: &Retomada,
     preparador: &Preparador,
     ambiente: &dyn Ambiente,
@@ -68,7 +68,7 @@ pub fn lancamento_desktop(
         });
     }
     // O mesmo pedido do terminal embutido, sem prompt, confere o ambiente e o `claude`.
-    let base = super::claude::lancamento(sistema, &PedidoClaude::default(), preparador, ambiente)?;
+    let base = super::claude::lancamento(projeto, &PedidoClaude::default(), preparador, ambiente)?;
     let claude = base.comando.programa.clone();
     let versao = ambiente
         .executar(&claude, &["--version"], clientes::LIMITE_VERSAO)
@@ -86,7 +86,7 @@ pub fn lancamento_desktop(
             orientacao: orientacao::claude_code_verificar(plataforma),
         });
     }
-    let alvo = Alvo::do_sistema(sistema).map_err(|e| ErroAbertura::Falha {
+    let alvo = Alvo::do_projeto(projeto).map_err(|e| ErroAbertura::Falha {
         mensagem: e.to_string(),
     })?;
     montar_desktop(
@@ -255,7 +255,7 @@ mod tests {
         let args = |r: &Retomada| -> Vec<String> {
             montar_desktop(
                 Path::new("/home/a/.local/bin/claude"),
-                Path::new("/sistemas/fat"),
+                Path::new("/projetos/fat"),
                 r,
                 Plataforma::MacOs,
                 None,
@@ -281,14 +281,14 @@ mod tests {
         );
         let l = montar_desktop(
             Path::new("/home/a/.local/bin/claude"),
-            Path::new("/sistemas/fat"),
+            Path::new("/projetos/fat"),
             &Retomada::Sessao { id: "abc".into() },
             Plataforma::MacOs,
             Some(OsStr::new("/usr/bin")),
         )
         .unwrap();
         assert_eq!(l.id_sessao.as_deref(), Some("abc"));
-        assert_eq!(l.comando.diretorio, Path::new("/sistemas/fat"));
+        assert_eq!(l.comando.diretorio, Path::new("/projetos/fat"));
         assert!(
             l.comando
                 .env

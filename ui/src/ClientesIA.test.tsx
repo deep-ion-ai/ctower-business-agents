@@ -124,7 +124,7 @@ describe("ClientesIA", () => {
     );
     render(<ClientesIA />);
     expect(
-      (await cartao("Claude Desktop")).getByText(/Não disponível neste sistema/),
+      (await cartao("Claude Desktop")).getByText(/Não disponível neste projeto/),
     ).toBeInTheDocument();
   });
 

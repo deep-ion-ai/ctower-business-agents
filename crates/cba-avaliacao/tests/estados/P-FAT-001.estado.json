@@ -1,7 +1,7 @@
 {
   "formato": 1,
   "id": "A-0001",
-  "sistema": "faturamento-exemplo",
+  "projeto": "faturamento-exemplo",
   "fluxo": "perguntar",
   "titulo": "Como é calculada a multa por atraso de pagamento?",
   "entrada": "Como é calculada a multa por atraso de pagamento?",
@@ -96,7 +96,7 @@
     {
       "numero": 4,
       "secao": "regras_encontradas",
-      "texto": "Órgão público (tipo PUB) não paga multa por atraso, apenas juros; o sistema zera a multa calculada para esse tipo de cliente.",
+      "texto": "Órgão público (tipo PUB) não paga multa por atraso, apenas juros; o projeto zera a multa calculada para esse tipo de cliente.",
       "confianca": "confirmado",
       "evidencias": [
         {
@@ -205,7 +205,7 @@
     },
     {
       "numero": 2,
-      "texto": "O lote mensal de cobrança em COBOL ainda está em uso? Ele não aplica a isenção de multa de órgão público nem o teto de encargos. Isso é intencional ou o negócio espera o mesmo resultado do cálculo do sistema Java?",
+      "texto": "O lote mensal de cobrança em COBOL ainda está em uso? Ele não aplica a isenção de multa de órgão público nem o teto de encargos. Isso é intencional ou o negócio espera o mesmo resultado do cálculo do projeto Java?",
       "afirmacao": null,
       "estado": "aberta",
       "sessao": null,

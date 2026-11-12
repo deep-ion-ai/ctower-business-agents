@@ -28,7 +28,7 @@ export type EventoTerminal = { tipo: "saida"; texto: string } | { tipo: "encerra
 
 /** Por que o terminal não abriu. */
 export type ErroAbertura = { mensagem: string } & (
-  | { motivo: "sistemaNaoCadastrado"; sistema: string }
+  | { motivo: "projetoNaoCadastrado"; projeto: string }
   | { motivo: "ambienteNaoPreparado"; pendencias: string[] }
   | { motivo: "claudeNaoEncontrado"; orientacao: Passo[] }
   | { motivo: "pedidoInvalido" }
@@ -41,7 +41,7 @@ export interface UltimaSessao {
   abertaEm: number;
 }
 
-export interface SistemaResumo {
+export interface ProjetoResumo {
   id: string;
   nome: string;
 }
@@ -51,9 +51,9 @@ export const PROMPT_DESKTOP = "/desktop";
 
 /** Operações do terminal embutido. A interface usa {@link apiTauri}; os testes, uma falsa. */
 export interface ApiTerminal {
-  /** Abre o `claude` na pasta do sistema; devolve o identificador do terminal. */
+  /** Abre o `claude` na pasta do projeto; devolve o identificador do terminal. */
   abrir(
-    sistema: string,
+    projeto: string,
     pedido: PedidoClaude,
     tamanho: Tamanho,
     aoEvento: (e: EventoTerminal) => void,
@@ -66,10 +66,10 @@ export interface ApiTerminal {
 }
 
 export const apiTauri: ApiTerminal = {
-  abrir(sistema, pedido, tamanho, aoEvento) {
+  abrir(projeto, pedido, tamanho, aoEvento) {
     const canal = new Channel<EventoTerminal>();
     canal.onmessage = aoEvento;
-    return invoke<number>("abrir_terminal_claude", { sistema, pedido, tamanho, canal });
+    return invoke<number>("abrir_terminal_claude", { projeto, pedido, tamanho, canal });
   },
   escrever: (id, dados) => invoke("escrever_terminal", { id, dados }),
   redimensionar: (id, tamanho) => invoke("redimensionar_terminal", { id, tamanho }),
@@ -77,12 +77,12 @@ export const apiTauri: ApiTerminal = {
   encerrar: (id) => invoke("encerrar_terminal", { id }),
 };
 
-export function listarSistemas(): Promise<SistemaResumo[]> {
-  return invoke<SistemaResumo[]>("listar_sistemas");
+export function listarProjetos(): Promise<ProjetoResumo[]> {
+  return invoke<ProjetoResumo[]>("listar_projetos");
 }
 
-export function ultimaSessao(sistema: string): Promise<UltimaSessao | null> {
-  return invoke<UltimaSessao | null>("ultima_sessao_terminal", { sistema });
+export function ultimaSessao(projeto: string): Promise<UltimaSessao | null> {
+  return invoke<UltimaSessao | null>("ultima_sessao_terminal", { projeto });
 }
 
 /** Erro de abertura vindo do Rust, ou um genérico para qualquer outra falha. */

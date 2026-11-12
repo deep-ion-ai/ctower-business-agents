@@ -1,10 +1,10 @@
 //! Chamadas ao `git` de linha de comando para o retrato e a conferência.
 //!
 //! O `git` é instalado junto com o app (`packaging/install`) e é o que o analista
-//! usa para clonar o sistema. Cada chamada:
+//! usa para clonar o projeto. Cada chamada:
 //!
 //! - roda com `GIT_OPTIONAL_LOCKS=0`, para o `git status` não regravar o índice
-//!   do repositório do analista (nada é escrito na pasta do sistema);
+//!   do repositório do analista (nada é escrito na pasta do projeto);
 //! - usa caminhos literais (`GIT_LITERAL_PATHSPECS=1`), sem curingas;
 //! - no Windows, não abre janela de console (`CREATE_NO_WINDOW`).
 

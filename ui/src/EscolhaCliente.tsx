@@ -24,7 +24,7 @@ export function pendenciaDoCliente(
   }
   const { instalacao } = estado.claudeDesktop;
   if (instalacao.estado === "naoSuportado") {
-    return "O Claude Desktop não está disponível neste sistema. Escolha o terminal embutido.";
+    return "O Claude Desktop não está disponível neste projeto. Escolha o terminal embutido.";
   }
   if (instalacao.estado !== "encontrado") {
     return "Instale o Claude Desktop pela página oficial e clique em “Verificar de novo”.";
@@ -101,7 +101,7 @@ export function EscolhaCliente({
           <strong>Claude Desktop</strong>
           <span className="muted">
             {desktopIndisponivel
-              ? "Não disponível neste sistema (só macOS e Windows)."
+              ? "Não disponível neste projeto (só macOS e Windows)."
               : "Para quem não quer usar terminal: a conversa no Desktop, o documento aqui."}
           </span>
         </label>

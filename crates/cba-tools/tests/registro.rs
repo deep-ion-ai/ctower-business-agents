@@ -16,9 +16,9 @@ fn fixture() -> PathBuf {
 
 fn ambiente(raiz: &Path) -> Ambiente {
     let dados = DiretorioDados::em(raiz.join("dados"));
-    let sistema = cba_index::Sistema::novo("Faturamento Exemplo", [fixture()]).unwrap();
-    cba_index::Cadastro::em(dados.sistemas())
-        .cadastrar(&sistema)
+    let projeto = cba_index::Projeto::novo("Faturamento Exemplo", [fixture()]).unwrap();
+    cba_index::Cadastro::em(dados.projetos())
+        .cadastrar(&projeto)
         .unwrap();
     cba_kb::Base::criar(raiz.join("base")).unwrap();
     Config {
@@ -47,7 +47,7 @@ fn listar_analises_com_filtro() {
 
     let saida = r.chamar("listar_analises", Ok(&amb), None).unwrap();
     let dados = saida.dados.unwrap();
-    assert_eq!(dados["sistema"]["id"], "faturamento-exemplo");
+    assert_eq!(dados["projeto"]["id"], "faturamento-exemplo");
     assert_eq!(dados["analises"][0]["id"], a.id.to_string());
     assert_eq!(dados["analises"][0]["fluxo"], "perguntar");
     assert_eq!(dados["analises"][0]["estado"], "criada");
@@ -84,13 +84,13 @@ fn erros_que_o_agente_corrige() {
         "{erro:?}"
     );
 
-    // Fora de um sistema cadastrado: a mensagem do ambiente chega ao agente.
-    let fora = ErroAmbiente::ForaDeSistema(dir.path().to_path_buf());
+    // Fora de um projeto cadastrado: a mensagem do ambiente chega ao agente.
+    let fora = ErroAmbiente::ForaDeProjeto(dir.path().to_path_buf());
     let erro = r.chamar("listar_analises", Err(&fora), None).unwrap_err();
-    let ErroChamada::Ferramenta(ErroFerramenta::SemSistema(m)) = erro else {
+    let ErroChamada::Ferramenta(ErroFerramenta::SemProjeto(m)) = erro else {
         panic!("{erro:?}");
     };
-    assert!(m.contains("sistema cadastrado"), "{m}");
+    assert!(m.contains("projeto cadastrado"), "{m}");
 }
 
 #[test]

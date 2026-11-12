@@ -4,10 +4,10 @@
 //! A montagem dos links e dos comandos e a escolha do cliente ficam em
 //! [`cba_session::passagem`]; o `claude --desktop --resume` em
 //! [`cba_session::terminal::desktop`]. Aqui se junta o que a tela da análise precisa
-//! (cliente preferido, sessão da análise, pasta do sistema) e se abrem os links.
+//! (cliente preferido, sessão da análise, pasta do projeto) e se abrem os links.
 //!
 //! Os links `claude://` e `claude-cli://` são montados e abertos aqui, pelo plugin
-//! opener do lado do Rust, a partir do sistema e da análise: a interface nunca passa
+//! opener do lado do Rust, a partir do projeto e da análise: a interface nunca passa
 //! uma URL, e as permissões da janela (`capabilities/default.json`) continuam
 //! liberando só os links oficiais em `https://`.
 
@@ -83,13 +83,13 @@ fn pedido(analise: &cba_core::analise::Analise, tem_sessao: bool) -> String {
 
 pub fn opcoes_conversa(
     dados: &DiretorioDados,
-    sistema: &str,
+    projeto: &str,
     analise: &str,
     desktop: Desktop,
     plataforma: Plataforma,
 ) -> Result<OpcoesConversa, String> {
-    let vista = analise::carregar_analise(dados, sistema, analise)?;
-    let alvo = analise::alvo(dados, sistema)?;
+    let vista = analise::carregar_analise(dados, projeto, analise)?;
+    let alvo = analise::alvo(dados, projeto)?;
     let preferido = preferido(dados);
     let sessao = vista.sessao.map(|s| s.id);
     let pedido = pedido(&vista.analise, sessao.is_some());
@@ -134,12 +134,12 @@ pub fn opcoes_conversa(
 /// análise. Marca a análise com o cliente, para a sessão que nascer dele.
 pub fn link_da_conversa(
     dados: &DiretorioDados,
-    sistema: &str,
+    projeto: &str,
     analise: &str,
     cliente: ClienteConversa,
     plataforma: Plataforma,
 ) -> Result<String, String> {
-    let opcoes = opcoes_conversa(dados, sistema, analise, Desktop::Instalado, plataforma)?;
+    let opcoes = opcoes_conversa(dados, projeto, analise, Desktop::Instalado, plataforma)?;
     let link = match cliente {
         ClienteConversa::ClaudeDesktop => opcoes.link_desktop,
         ClienteConversa::TerminalDoAnalista => opcoes.link_terminal,
@@ -153,7 +153,7 @@ pub fn link_da_conversa(
             .unwrap_or_else(|| "link indisponível".into())
     })?;
     if let Err(e) = ClientesDasSessoes::no_diretorio(dados.raiz()).marcar_analise(
-        sistema,
+        projeto,
         analise,
         cliente.cliente(),
         agora_ms(),
@@ -167,15 +167,15 @@ pub fn link_da_conversa(
 /// exemplo). Sem sessão ligada, marca a análise.
 pub fn marcar_cliente(
     dados: &DiretorioDados,
-    sistema: &str,
+    projeto: &str,
     analise: &str,
     cliente: Cliente,
 ) -> Result<(), String> {
-    let vista = analise::carregar_analise(dados, sistema, analise)?;
+    let vista = analise::carregar_analise(dados, projeto, analise)?;
     let marcas = ClientesDasSessoes::no_diretorio(dados.raiz());
     match vista.sessao {
         Some(s) => marcas.marcar_sessao(&s.id, cliente, agora_ms()),
-        None => marcas.marcar_analise(sistema, analise, cliente, agora_ms()),
+        None => marcas.marcar_analise(projeto, analise, cliente, agora_ms()),
     }
     .map_err(|e| format!("não foi possível marcar o cliente da sessão: {e}"))
 }
@@ -183,10 +183,10 @@ pub fn marcar_cliente(
 /// Sessão mais recente da análise, pelo registro dos hooks.
 fn sessao_da_analise(
     dados: &DiretorioDados,
-    sistema: &str,
+    projeto: &str,
     analise: &str,
 ) -> Result<Option<String>, String> {
-    Ok(analise::carregar_analise(dados, sistema, analise)?
+    Ok(analise::carregar_analise(dados, projeto, analise)?
         .sessao
         .map(|s| s.id))
 }
@@ -208,14 +208,14 @@ async fn bloqueante<T: Send + 'static>(
 
 #[tauri::command]
 pub async fn opcoes_conversa_analise(
-    sistema: String,
+    projeto: String,
     analise: String,
 ) -> Result<OpcoesConversa, String> {
     let dados = dados()?;
     bloqueante(move || {
         opcoes_conversa(
             &dados,
-            &sistema,
+            &projeto,
             &analise,
             desktop_real(),
             Plataforma::atual(),
@@ -228,13 +228,13 @@ pub async fn opcoes_conversa_analise(
 #[tauri::command]
 pub async fn abrir_conversa_por_link(
     app: tauri::AppHandle,
-    sistema: String,
+    projeto: String,
     analise: String,
     cliente: ClienteConversa,
 ) -> Result<(), String> {
     let dados = dados()?;
     let link = bloqueante(move || {
-        link_da_conversa(&dados, &sistema, &analise, cliente, Plataforma::atual())
+        link_da_conversa(&dados, &projeto, &analise, cliente, Plataforma::atual())
     })
     .await?;
     tracing::info!(?cliente, "abrindo a conversa por link");
@@ -245,31 +245,31 @@ pub async fn abrir_conversa_por_link(
 
 /// Depois do `/desktop` no terminal embutido: a sessão passou ao Desktop.
 #[tauri::command]
-pub async fn conversa_passou_ao_desktop(sistema: String, analise: String) -> Result<(), String> {
+pub async fn conversa_passou_ao_desktop(projeto: String, analise: String) -> Result<(), String> {
     let dados = dados()?;
-    bloqueante(move || marcar_cliente(&dados, &sistema, &analise, Cliente::ClaudeDesktop)).await
+    bloqueante(move || marcar_cliente(&dados, &projeto, &analise, Cliente::ClaudeDesktop)).await
 }
 
 /// Abre no Desktop a sessão da análise (`claude --desktop --resume <id>`, num PTY), ou
 /// a mais recente da pasta (`--continue`) se nenhuma estiver ligada à análise.
 #[tauri::command]
 pub async fn retomar_conversa_no_desktop(
-    sistema: String,
+    projeto: String,
     analise: String,
 ) -> Result<ResultadoDesktop, RelatorioErro> {
     let falha = |mensagem: String| ErroAbertura::Falha { mensagem }.relatorio();
     let dados = dados().map_err(falha)?;
     tauri::async_runtime::spawn_blocking(move || {
-        let cadastrado = cba_index::Cadastro::em(dados.sistemas())
-            .obter(&sistema)
+        let cadastrado = cba_index::Cadastro::em(dados.projetos())
+            .obter(&projeto)
             .map_err(|e| falha(e.to_string()))?
             .ok_or_else(|| {
-                ErroAbertura::SistemaNaoCadastrado {
-                    sistema: sistema.clone(),
+                ErroAbertura::ProjetoNaoCadastrado {
+                    projeto: projeto.clone(),
                 }
                 .relatorio()
             })?;
-        let retomada = match sessao_da_analise(&dados, &sistema, &analise).map_err(falha)? {
+        let retomada = match sessao_da_analise(&dados, &projeto, &analise).map_err(falha)? {
             Some(id) => Retomada::Sessao { id },
             None => Retomada::Continuar,
         };
@@ -288,7 +288,7 @@ pub async fn retomar_conversa_no_desktop(
             let marcado = match id {
                 Some(id) => marcas.marcar_sessao(&id, Cliente::ClaudeDesktop, agora_ms()),
                 None => {
-                    marcas.marcar_analise(&sistema, &analise, Cliente::ClaudeDesktop, agora_ms())
+                    marcas.marcar_analise(&projeto, &analise, Cliente::ClaudeDesktop, agora_ms())
                 }
             };
             if let Err(e) = marcado {

@@ -3,7 +3,7 @@ import boot from "../../public/theme-boot.js?raw";
 import { applyTheme, readThemePref, THEME_KEY, useTheme } from "./theme";
 
 /** Simula o `prefers-color-scheme` do sistema. */
-function sistemaEscuro(escuro: boolean) {
+function soEscuro(escuro: boolean) {
   const ouvintes: (() => void)[] = [];
   const mq = {
     get matches() {
@@ -30,13 +30,13 @@ afterEach(() => {
 describe("tema", () => {
   it("sem preferência gravada, segue o sistema", () => {
     expect(readThemePref()).toBe("system");
-    sistemaEscuro(false);
+    soEscuro(false);
     expect(applyTheme("system")).toBe("light");
     expect(document.documentElement.dataset.theme).toBe("light");
   });
 
   it("grava a escolha e aplica no <html>", () => {
-    sistemaEscuro(true);
+    soEscuro(true);
     const { result } = renderHook(() => useTheme());
     act(() => result.current[1]("light"));
     expect(document.documentElement.dataset.theme).toBe("light");
@@ -45,16 +45,16 @@ describe("tema", () => {
   });
 
   it("em \"do sistema\", acompanha a troca do sistema", () => {
-    const sistema = sistemaEscuro(true);
+    const so = soEscuro(true);
     const { result } = renderHook(() => useTheme());
     act(() => result.current[1]("system"));
     expect(document.documentElement.dataset.theme).toBe("dark");
-    act(() => sistema.mudar(false));
+    act(() => so.mudar(false));
     expect(document.documentElement.dataset.theme).toBe("light");
   });
 
   it("o theme-boot.js aplica a preferência gravada antes do primeiro quadro", () => {
-    sistemaEscuro(true);
+    soEscuro(true);
     localStorage.setItem(THEME_KEY, "light");
     new Function(boot)();
     expect(document.documentElement.dataset.theme).toBe("light");

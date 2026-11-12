@@ -75,13 +75,13 @@ fn hook_session_start_responde_rapido_e_nao_loga_o_conteudo() {
     let entrada = json!({
         "session_id": "sessao-secreta-123",
         "transcript_path": "/tmp/transcricao.jsonl",
-        "cwd": "/tmp/sistema-ficticio",
+        "cwd": "/tmp/projeto-ficticio",
         "hook_event_name": "SessionStart",
         "source": "startup"
     })
     .to_string();
 
-    // A primeira execução aquece o cache de disco do sistema; as seguintes são medidas.
+    // A primeira execução aquece o cache de disco do projeto; as seguintes são medidas.
     let saida = rodar(&["hook", "SessionStart"], entrada.as_bytes(), dados.path());
     assert_eq!(saida.status.code(), Some(0), "{saida:?}");
     assert_eq!(texto(&saida.stdout).trim(), "{}");
@@ -108,7 +108,7 @@ fn hook_session_start_responde_rapido_e_nao_loga_o_conteudo() {
         .collect();
     assert!(logs.contains("SessionStart"), "{logs}");
     assert!(!logs.contains("sessao-secreta-123"), "{logs}");
-    assert!(!logs.contains("sistema-ficticio"), "{logs}");
+    assert!(!logs.contains("projeto-ficticio"), "{logs}");
 }
 
 #[test]
@@ -124,12 +124,12 @@ fn fixture() -> PathBuf {
 }
 
 /// Diretório de dados com o sistema fictício cadastrado e a base em `raiz/base`
-/// (sem o sistema dentro: o servidor cria na primeira vez).
+/// (sem o projeto dentro: o servidor cria na primeira vez).
 fn preparar_dados(raiz: &Path) -> cba_core::dados::DiretorioDados {
     let dados = cba_core::dados::DiretorioDados::em(raiz.join("dados"));
-    let sistema = cba_index::Sistema::novo("Faturamento Exemplo", [fixture()]).unwrap();
-    cba_index::Cadastro::em(dados.sistemas())
-        .cadastrar(&sistema)
+    let projeto = cba_index::Projeto::novo("Faturamento Exemplo", [fixture()]).unwrap();
+    cba_index::Cadastro::em(dados.projetos())
+        .cadastrar(&projeto)
         .unwrap();
     cba_kb::Base::criar(raiz.join("base")).unwrap();
     cba_core::config::Config {
@@ -142,20 +142,20 @@ fn preparar_dados(raiz: &Path) -> cba_core::dados::DiretorioDados {
 
 /// Inicia o `cba mcp` em `pasta`, como o cliente de IA faz.
 fn iniciar_mcp(pasta: &Path, dados: &Path) -> std::process::Child {
-    iniciar_mcp_do_sistema(pasta, dados, None)
+    iniciar_mcp_do_projeto(pasta, dados, None)
 }
 
-/// Inicia o `cba mcp` em `pasta`, com `CBA_SISTEMA` quando informado (como o
+/// Inicia o `cba mcp` em `pasta`, com `CBA_PROJETO` quando informado (como o
 /// preparo do ambiente registra o servidor).
-fn iniciar_mcp_do_sistema(
+fn iniciar_mcp_do_projeto(
     pasta: &Path,
     dados: &Path,
-    sistema: Option<&str>,
+    projeto: Option<&str>,
 ) -> std::process::Child {
     let mut comando = Command::new(CBA);
-    comando.env_remove("CBA_SISTEMA");
-    if let Some(s) = sistema {
-        comando.env("CBA_SISTEMA", s);
+    comando.env_remove("CBA_PROJETO");
+    if let Some(s) = projeto {
+        comando.env("CBA_PROJETO", s);
     }
     comando
         .arg("mcp")
@@ -204,10 +204,10 @@ fn logs(dados: &Path) -> String {
         .collect()
 }
 
-/// De ponta a ponta, como o Claude Code: o processo começa na pasta do sistema,
+/// De ponta a ponta, como o Claude Code: o processo começa na pasta do projeto,
 /// inicializa, lista as ferramentas e chama uma.
 #[test]
-fn mcp_de_ponta_a_ponta_na_pasta_do_sistema() {
+fn mcp_de_ponta_a_ponta_na_pasta_do_projeto() {
     let dir = tempfile::tempdir().unwrap();
     let dados = preparar_dados(dir.path());
     // Uma análise criada pelo app antes da sessão.
@@ -257,7 +257,7 @@ fn mcp_de_ponta_a_ponta_na_pasta_do_sistema() {
     let resultado = &respostas[2]["result"];
     assert_eq!(resultado["isError"], false, "{resultado}");
     assert_eq!(
-        resultado["structuredContent"]["sistema"]["id"],
+        resultado["structuredContent"]["projeto"]["id"],
         "faturamento-exemplo"
     );
     assert_eq!(
@@ -275,10 +275,10 @@ fn mcp_de_ponta_a_ponta_na_pasta_do_sistema() {
     assert!(!logs.contains("faturamento"), "{logs}");
 }
 
-/// Processo iniciado fora de uma pasta de sistema cadastrado: conecta e lista as
+/// Processo iniciado fora de uma pasta de projeto cadastrado: conecta e lista as
 /// ferramentas, e a chamada responde com um erro que diz o que fazer.
 #[test]
-fn mcp_fora_de_sistema_responde_erro_claro() {
+fn mcp_fora_de_projeto_responde_erro_claro() {
     let dir = tempfile::tempdir().unwrap();
     let dados = preparar_dados(dir.path());
     let fora = tempfile::tempdir().unwrap();
@@ -301,16 +301,16 @@ fn mcp_fora_de_sistema_responde_erro_claro() {
     assert_eq!(resultado["isError"], true, "{resultado}");
     let mensagem = resultado["content"][0]["text"].as_str().unwrap();
     assert!(
-        mensagem.contains("não está na pasta de um sistema cadastrado"),
+        mensagem.contains("não está na pasta de um projeto cadastrado"),
         "{mensagem}"
     );
 }
 
-/// Sessão fora da pasta do sistema, com o `CBA_SISTEMA` que o preparo grava (como
-/// numa worktree ou no Desktop): o sistema vem da variável, a evidência válida é
+/// Sessão fora da pasta do projeto, com o `CBA_PROJETO` que o preparo grava (como
+/// numa worktree ou no Desktop): o projeto vem da variável, a evidência válida é
 /// registrada e a que não confere volta como erro da ferramenta, com o motivo.
 #[test]
-fn mcp_com_cba_sistema_registra_afirmacao_e_recusa_evidencia() {
+fn mcp_com_cba_projeto_registra_afirmacao_e_recusa_evidencia() {
     let dir = tempfile::tempdir().unwrap();
     let dados = preparar_dados(dir.path());
     let ambiente = cba_core::ambiente::Ambiente::do_diretorio(&fixture(), &dados).unwrap();
@@ -345,7 +345,7 @@ fn mcp_com_cba_sistema_registra_afirmacao_e_recusa_evidencia() {
     mensagens.push(afirmar(4, "'PERC_MULTA_ATRASO', 9.9999"));
     let fora = tempfile::tempdir().unwrap();
     let respostas = conversar(
-        iniciar_mcp_do_sistema(fora.path(), dados.raiz(), Some("faturamento-exemplo")),
+        iniciar_mcp_do_projeto(fora.path(), dados.raiz(), Some("faturamento-exemplo")),
         &mensagens,
     );
     assert_eq!(respostas.len(), 4, "{respostas:?}");
@@ -378,8 +378,8 @@ fn mcp_com_cba_sistema_registra_afirmacao_e_recusa_evidencia() {
     assert!(!logs.contains("PERC_MULTA_ATRASO"), "{logs}");
 }
 
-/// Duas sessões ao mesmo tempo, com a base ainda sem o sistema: as duas criam o
-/// sistema na base sem se atrapalhar e respondem normalmente.
+/// Duas sessões ao mesmo tempo, com a base ainda sem o projeto: as duas criam o
+/// projeto na base sem se atrapalhar e respondem normalmente.
 #[test]
 fn dois_processos_mcp_simultaneos() {
     let dir = tempfile::tempdir().unwrap();
@@ -400,14 +400,14 @@ fn dois_processos_mcp_simultaneos() {
     for r in [ra, rb] {
         assert_eq!(r[2]["result"]["isError"], false, "{r:?}");
         assert_eq!(
-            r[2]["result"]["structuredContent"]["sistema"]["id"],
+            r[2]["result"]["structuredContent"]["projeto"]["id"],
             "faturamento-exemplo"
         );
     }
     let base = cba_kb::Base::abrir(dir.path().join("base")).unwrap();
-    let sistema = base.sistema("faturamento-exemplo").unwrap();
+    let projeto = base.projeto("faturamento-exemplo").unwrap();
     assert_eq!(
-        sistema.ler_sistema().unwrap().frontmatter.nome,
+        projeto.ler_projeto().unwrap().frontmatter.nome,
         "Faturamento Exemplo"
     );
 }
@@ -452,7 +452,7 @@ fn chamada(id: i64, nome: &str, argumentos: Value) -> Value {
 /// com a evidência do gabarito validada; uma sessão nova retoma a análise com
 /// todo o estado.
 #[test]
-fn mcp_pergunta_ao_sistema_do_inicio_ao_documento_na_base() {
+fn mcp_pergunta_ao_projeto_do_inicio_ao_documento_na_base() {
     let dir = tempfile::tempdir().unwrap();
     let dados = preparar_dados(dir.path());
     let regra = regra_do_gabarito("RN-FAT-001");
@@ -586,7 +586,7 @@ fn mcp_pergunta_ao_sistema_do_inicio_ao_documento_na_base() {
     assert_eq!(frontmatter["tipo"].as_str(), Some("pergunta"));
     assert_eq!(frontmatter["id"].as_str(), Some("A-0001"));
     assert_eq!(frontmatter["titulo"].as_str(), Some("Multa por atraso"));
-    assert_eq!(frontmatter["sistema"].as_str(), Some("faturamento-exemplo"));
+    assert_eq!(frontmatter["projeto"].as_str(), Some("faturamento-exemplo"));
     assert_eq!(frontmatter["status"].as_str(), Some("em-revisao"));
     let secoes: Vec<&str> = corpo.lines().filter(|l| l.starts_with("## ")).collect();
     assert_eq!(
@@ -854,7 +854,7 @@ fn mcp_analise_de_impacto_do_inicio_ao_documento_na_base() {
     let registros: Vec<Registro<'_>> = vec![
         (
             "demanda_como_entendida",
-            "Premissa do solicitante: hoje o sistema não parcela fatura nenhuma. Verificação: não confere. O parcelamento já existe para pessoa jurídica e órgão público, em até 6 parcelas (parâmetro MAX_PARCELAS); só pessoa física é recusada.".into(),
+            "Premissa do solicitante: hoje o projeto não parcela fatura nenhuma. Verificação: não confere. O parcelamento já existe para pessoa jurídica e órgão público, em até 6 parcelas (parâmetro MAX_PARCELAS); só pessoa física é recusada.".into(),
             "confirmado",
             json!([pf[0], parcelas[0], parcelas[2]]),
         ),
@@ -967,7 +967,7 @@ fn mcp_analise_de_impacto_do_inicio_ao_documento_na_base() {
     let (_, entendida) = corpo.split_once("## Demanda como entendida\n\n").unwrap();
     let entendida = entendida.split("\n## ").next().unwrap();
     assert!(
-        entendida.contains("- **[confirmado]** Premissa do solicitante: hoje o sistema não parcela fatura nenhuma. Verificação: não confere."),
+        entendida.contains("- **[confirmado]** Premissa do solicitante: hoje o projeto não parcela fatura nenhuma. Verificação: não confere."),
         "{corpo}"
     );
     assert!(
@@ -1124,7 +1124,7 @@ fn mcp_ferramentas_de_consulta_de_ponta_a_ponta() {
     let dir = tempfile::tempdir().unwrap();
     let dados = preparar_dados(dir.path());
     let ambiente = cba_core::ambiente::Ambiente::do_diretorio(&fixture(), &dados).unwrap();
-    let mapa = dados.sistemas().join("faturamento-exemplo/mapa.json");
+    let mapa = dados.projetos().join("faturamento-exemplo/mapa.json");
     assert!(!mapa.exists());
 
     let mut mensagens = inicio_da_conversa();
@@ -1304,11 +1304,11 @@ fn estado_da_sessao(dados: &Path, sessao: &str) -> Value {
     ler_json(&dados.join("sessoes").join(format!("{sessao}.json")))
 }
 
-/// Uma sessão inteira na pasta do sistema: cada evento muda o estado da sessão e da
+/// Uma sessão inteira na pasta do projeto: cada evento muda o estado da sessão e da
 /// análise ligada. O executável responde com código 0: no `SessionStart`, com os
 /// limites em `additionalContext` (#31); nos demais, `{}`.
 #[test]
-fn hook_acompanha_a_sessao_na_pasta_do_sistema() {
+fn hook_acompanha_a_sessao_na_pasta_do_projeto() {
     let dir = tempfile::tempdir().unwrap();
     let dados = preparar_dados(dir.path());
     let ambiente = cba_core::ambiente::Ambiente::do_diretorio(&fixture(), &dados).unwrap();
@@ -1356,7 +1356,7 @@ fn hook_acompanha_a_sessao_na_pasta_do_sistema() {
         }
         let estado = estado_da_sessao(dados.raiz(), sessao);
         assert_eq!(estado["estado"], na_sessao, "{evento}: {estado}");
-        assert_eq!(estado["sistema"], "faturamento-exemplo");
+        assert_eq!(estado["projeto"], "faturamento-exemplo");
         let a = ambiente.analises.carregar(&analise.id).unwrap();
         let s = a.sessoes.iter().find(|s| s.id == sessao);
         assert_eq!(
@@ -1377,10 +1377,10 @@ fn hook_acompanha_a_sessao_na_pasta_do_sistema() {
     }
 }
 
-/// Com o sistema cadastrado, uma sessão em outra pasta não deixa rastro e o hook
-/// segue rápido, assim como o evento mais frequente de uma sessão do sistema.
+/// Com o projeto cadastrado, uma sessão em outra pasta não deixa rastro e o hook
+/// segue rápido, assim como o evento mais frequente de uma sessão do projeto.
 #[test]
-fn hook_fora_de_sistema_nao_grava_e_ambos_os_caminhos_sao_rapidos() {
+fn hook_fora_de_projeto_nao_grava_e_ambos_os_caminhos_sao_rapidos() {
     let dir = tempfile::tempdir().unwrap();
     let dados = preparar_dados(dir.path());
     let fora = tempfile::tempdir().unwrap();
@@ -1408,28 +1408,28 @@ fn hook_fora_de_sistema_nao_grava_e_ambos_os_caminhos_sao_rapidos() {
         tempos.sort();
         tempos[tempos.len() / 2]
     };
-    let fora_do_sistema = mediana(&entrada_do_hook(
+    let fora_do_projeto = mediana(&entrada_do_hook(
         "PreToolUse",
         sessao,
         fora.path(),
         "A-0001",
     ));
     assert!(
-        fora_do_sistema < LIMITE_HOOK,
-        "fora do sistema: {fora_do_sistema:?}"
+        fora_do_projeto < LIMITE_HOOK,
+        "fora do projeto: {fora_do_projeto:?}"
     );
 
-    let mut no_sistema = entrada_do_hook("PreToolUse", sessao, &fixture(), "A-0001");
-    no_sistema["tool_name"] = "Read".into();
-    no_sistema["tool_input"] = json!({"file_path": "db/01_tabelas.sql"});
-    let no_sistema = mediana(&no_sistema);
-    assert!(no_sistema < LIMITE_HOOK, "no sistema: {no_sistema:?}");
+    let mut no_projeto = entrada_do_hook("PreToolUse", sessao, &fixture(), "A-0001");
+    no_projeto["tool_name"] = "Read".into();
+    no_projeto["tool_input"] = json!({"file_path": "db/01_tabelas.sql"});
+    let no_projeto = mediana(&no_projeto);
+    assert!(no_projeto < LIMITE_HOOK, "no projeto: {no_projeto:?}");
 
-    // O SessionStart no sistema lê a base e as regras do sistema (#31).
+    // O SessionStart no projeto lê a base e as regras do projeto (#31).
     let mut inicio = entrada_do_hook("SessionStart", sessao, &fixture(), "A-0001");
     inicio["source"] = "resume".into();
     let inicio = mediana(&inicio);
-    assert!(inicio < LIMITE_HOOK, "SessionStart no sistema: {inicio:?}");
+    assert!(inicio < LIMITE_HOOK, "SessionStart no projeto: {inicio:?}");
     assert!(dados.sessoes().join(format!("{sessao}.json")).is_file());
 }
 
@@ -1488,9 +1488,9 @@ fn hook_dispara_o_retrato_e_a_conferencia_em_processo_separado() {
     std::fs::write(codigo.join("db/rascunho.sql"), "-- do analista\n").unwrap();
 
     let dados = cba_core::dados::DiretorioDados::em(raiz.join("dados"));
-    let sistema = cba_index::Sistema::novo("Faturamento Exemplo", [&codigo]).unwrap();
-    cba_index::Cadastro::em(dados.sistemas())
-        .cadastrar(&sistema)
+    let projeto = cba_index::Projeto::novo("Faturamento Exemplo", [&codigo]).unwrap();
+    cba_index::Cadastro::em(dados.projetos())
+        .cadastrar(&projeto)
         .unwrap();
     cba_kb::Base::criar(raiz.join("base")).unwrap();
     cba_core::config::Config {

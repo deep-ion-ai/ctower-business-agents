@@ -4,7 +4,7 @@
 //! Dois usos:
 //!
 //! - **Comparação** ([`comparacao`]): lê o estado de uma análise
-//!   (`<base>/<sistema>/analises/A-NNNN.estado.json`) e mede, contra o gabarito, as
+//!   (`<base>/<projeto>/analises/A-NNNN.estado.json`) e mede, contra o gabarito, as
 //!   regras encontradas, as evidências válidas, as afirmações `confirmado` sem
 //!   evidência válida, as perguntas esperadas, a premissa corrigida e a abrangência.
 //!   É determinística e testada no CI comum, com estados de exemplo.

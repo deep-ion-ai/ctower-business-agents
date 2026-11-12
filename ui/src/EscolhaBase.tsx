@@ -14,7 +14,7 @@ const ESTADO: Record<EstadoPasta, string> = {
 /**
  * Passo da pasta da base de conhecimento (e item das configurações). Confere a pasta
  * a cada mudança (sem criar nada) e mostra a recusa: pasta temporária, dados do app ou
- * dentro do repositório de um sistema.
+ * dentro do repositório de um projeto.
  */
 export function EscolhaBase({
   api,
@@ -73,7 +73,7 @@ export function EscolhaBase({
       <p>
         A base de conhecimento é uma pasta comum com os documentos das análises, em Markdown. Pode
         ser uma pasta sincronizada (OneDrive, Google Drive) ou um repositório git seu, mas não a
-        pasta do código do sistema.
+        pasta do código do projeto.
       </p>
       <label>
         Pasta da base (caminho completo){" "}

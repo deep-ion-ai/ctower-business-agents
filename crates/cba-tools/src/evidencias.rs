@@ -1,12 +1,12 @@
 //! Validação das evidências citadas pelo agente (spec, seção 6.5).
 //!
 //! Sem evidência, não é fato. Uma evidência é `(arquivo, linha inicial, linha final,
-//! trecho citado)`, com o caminho relativo à raiz do sistema. No registro, o servidor
+//! trecho citado)`, com o caminho relativo à raiz do projeto. No registro, o servidor
 //! confere, nesta ordem:
 //!
 //! 1. o intervalo: linha inicial a partir de 1, final não menor que a inicial e no
 //!    máximo [`LIMITE_DE_LINHAS`] linhas;
-//! 2. o caminho, pelo [`Escopo`] do sistema: relativo, dentro das pastas do sistema
+//! 2. o caminho, pelo [`Escopo`] do projeto: relativo, dentro das pastas do projeto
 //!    (também depois de seguir links simbólicos), fora das exclusões e existente;
 //! 3. o arquivo: texto (sem byte nulo), até [`LIMITE_DO_ARQUIVO`], em UTF-8 ou,
 //!    se não for UTF-8 válido, Windows-1252 (comum em sistemas legados);
@@ -64,7 +64,7 @@ pub fn schema_da_evidencia() -> Value {
             "arquivo": {
                 "type": "string",
                 "minLength": 1,
-                "description": "Caminho relativo à raiz do sistema, com / (ex.: db/03_pkg_cobranca.sql)."
+                "description": "Caminho relativo à raiz do projeto, com / (ex.: db/03_pkg_cobranca.sql)."
             },
             "linha_inicial": {
                 "type": "integer",
@@ -92,7 +92,7 @@ pub fn schema_da_evidencia() -> Value {
 /// como corrigir.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Motivo {
-    /// O escopo do sistema recusou o caminho.
+    /// O escopo do projeto recusou o caminho.
     Caminho(RecusaDoEscopo),
     /// Linha final menor que a inicial (ou linha zero).
     IntervaloInvalido,
@@ -145,12 +145,12 @@ impl fmt::Display for Motivo {
             Self::Caminho(r) => match r {
                 RecusaDoEscopo::CaminhoInvalido(_) => write!(
                     f,
-                    "caminho inválido; use o caminho relativo à raiz do sistema, com / \
+                    "caminho inválido; use o caminho relativo à raiz do projeto, com / \
                      (como db/03_pkg_cobranca.sql), sem `..` nem caminho absoluto"
                 ),
-                RecusaDoEscopo::ForaDoSistema => write!(
+                RecusaDoEscopo::ForaDoProjeto => write!(
                     f,
-                    "o arquivo fica fora das pastas do sistema; cite só arquivos do \
+                    "o arquivo fica fora das pastas do projeto; cite só arquivos do \
                      sistema analisado, com o caminho relativo à raiz dele"
                 ),
                 RecusaDoEscopo::Excluido(e) => write!(
@@ -161,7 +161,7 @@ impl fmt::Display for Motivo {
                 ),
                 RecusaDoEscopo::NaoEncontrado => write!(
                     f,
-                    "arquivo não encontrado; confira o caminho, relativo à raiz do sistema"
+                    "arquivo não encontrado; confira o caminho, relativo à raiz do projeto"
                 ),
                 RecusaDoEscopo::NaoEhArquivo => {
                     write!(f, "o caminho não é um arquivo; cite um arquivo")
@@ -259,18 +259,18 @@ impl fmt::Display for EvidenciaRecusada {
 
 impl std::error::Error for EvidenciaRecusada {}
 
-/// Arquivo do sistema aberto para conferência.
+/// Arquivo do projeto aberto para conferência.
 #[derive(Debug, Clone)]
-pub struct ArquivoDoSistema {
-    /// Caminho relativo à raiz do sistema, como está no disco.
+pub struct ArquivoDoProjeto {
+    /// Caminho relativo à raiz do projeto, como está no disco.
     pub relativo: CaminhoRelativo,
     pub texto: String,
     /// Commit da pasta do arquivo, se ela estiver num repositório git.
     pub commit: Option<String>,
 }
 
-impl ArquivoDoSistema {
-    /// Abre um arquivo do sistema pelo escopo, com as mesmas regras das evidências.
+impl ArquivoDoProjeto {
+    /// Abre um arquivo do projeto pelo escopo, com as mesmas regras das evidências.
     pub fn abrir(escopo: &Escopo, arquivo: &str) -> Result<Self, Motivo> {
         let absoluto = escopo.resolver(arquivo).map_err(Motivo::Caminho)?;
         let texto = ler_texto(&absoluto)?;
@@ -365,7 +365,7 @@ pub fn intervalo(inicial: u32, final_: u32) -> Result<Linhas, Motivo> {
     Ok(linhas)
 }
 
-/// Valida uma evidência citada contra o código atual do sistema.
+/// Valida uma evidência citada contra o código atual do projeto.
 pub fn validar(escopo: &Escopo, citada: &EvidenciaCitada) -> Result<Evidencia, EvidenciaRecusada> {
     let recusa = |motivo| EvidenciaRecusada {
         arquivo: citada.arquivo.clone(),
@@ -376,7 +376,7 @@ pub fn validar(escopo: &Escopo, citada: &EvidenciaCitada) -> Result<Evidencia, E
         return Err(recusa(Motivo::TrechoVazio));
     }
     let linhas = intervalo(citada.linha_inicial, citada.linha_final).map_err(recusa)?;
-    let arquivo = ArquivoDoSistema::abrir(escopo, &citada.arquivo).map_err(recusa)?;
+    let arquivo = ArquivoDoProjeto::abrir(escopo, &citada.arquivo).map_err(recusa)?;
     arquivo.conferir(linhas, &citada.trecho).map_err(recusa)
 }
 
@@ -414,7 +414,7 @@ pub fn validar_todas(
     ))
 }
 
-/// Lê um arquivo de texto do sistema: recusa binário (byte nulo) e arquivo acima de
+/// Lê um arquivo de texto do projeto: recusa binário (byte nulo) e arquivo acima de
 /// [`LIMITE_DO_ARQUIVO`]; decodifica UTF-8 (sem BOM) ou, se não for UTF-8 válido,
 /// Windows-1252.
 pub fn ler_texto(caminho: &Path) -> Result<String, Motivo> {

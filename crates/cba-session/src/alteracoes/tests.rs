@@ -1,4 +1,4 @@
-//! Testes do aviso de alteração com um repositório git temporário com o sistema
+//! Testes do aviso de alteração com um repositório git temporário com o projeto
 //! fictício (`fixtures/faturamento-exemplo`).
 
 use std::process::Command;
@@ -266,7 +266,7 @@ fn manter_tira_do_aviso_ate_mudar_de_novo() {
 }
 
 #[test]
-fn so_as_pastas_do_sistema_dentro_do_repositorio() {
+fn so_as_pastas_do_projeto_dentro_do_repositorio() {
     let c = Cenario::com_git();
     retratar(
         &c.retratos,

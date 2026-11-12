@@ -1,8 +1,8 @@
 //! Notificação ao app a cada mudança numa análise, para os painéis ao vivo.
 //!
 //! O servidor MCP e o receptor de hooks são processos separados do app (spec, seção
-//! 5). Cada mudança gravada vira uma linha JSON acrescentada ao diário do sistema,
-//! em `<dados>/eventos/<sistema>.jsonl`; o app acompanha o arquivo e relê a análise
+//! 5). Cada mudança gravada vira uma linha JSON acrescentada ao diário do projeto,
+//! em `<dados>/eventos/<projeto>.jsonl`; o app acompanha o arquivo e relê a análise
 //! citada. O diário guarda só identificadores (qual análise, que tipo de mudança,
 //! versão, processo), nunca conteúdo do sistema analisado.
 //!
@@ -42,7 +42,7 @@ pub enum Mudanca {
     Sugestao,
     /// Termo proposto para o glossário.
     Termo,
-    /// Arquivos da pasta do sistema alterados por uma sessão ligada à análise (ou
+    /// Arquivos da pasta do projeto alterados por uma sessão ligada à análise (ou
     /// alteração desfeita ou mantida pelo analista). Não muda o estado da análise:
     /// a `versao` do evento é 0, e a tela relê o aviso de alteração
     /// (`cba_session::alteracoes`), não a análise.
@@ -53,8 +53,8 @@ pub enum Mudanca {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Evento {
     pub quando_ms: u64,
-    /// Slug do sistema.
-    pub sistema: String,
+    /// Slug do projeto.
+    pub projeto: String,
     /// Identificador da análise (`A-0001`).
     pub analise: String,
     pub mudanca: Mudanca,
@@ -79,7 +79,7 @@ impl Notificador for SemNotificacao {
     }
 }
 
-/// Diário de eventos em arquivos JSONL, um por sistema.
+/// Diário de eventos em arquivos JSONL, um por projeto.
 #[derive(Debug, Clone)]
 pub struct DiarioEventos {
     pasta: PathBuf,
@@ -93,21 +93,21 @@ impl DiarioEventos {
         }
     }
 
-    /// Arquivo do diário de um sistema.
-    pub fn arquivo(&self, sistema: &str) -> PathBuf {
-        self.pasta.join(format!("{sistema}.jsonl"))
+    /// Arquivo do diário de um projeto.
+    pub fn arquivo(&self, projeto: &str) -> PathBuf {
+        self.pasta.join(format!("{projeto}.jsonl"))
     }
 
-    /// Eventos já gravados de um sistema, na ordem. Linhas ilegíveis (uma gravação
+    /// Eventos já gravados de um projeto, na ordem. Linhas ilegíveis (uma gravação
     /// interrompida) são ignoradas.
-    pub fn ler(&self, sistema: &str) -> io::Result<Vec<Evento>> {
-        ler(&self.arquivo(sistema))
+    pub fn ler(&self, projeto: &str) -> io::Result<Vec<Evento>> {
+        ler(&self.arquivo(projeto))
     }
 
     /// Leitor das linhas que forem acrescentadas daqui em diante ao diário de um
-    /// sistema (o que já está no arquivo é ignorado: o estado atual está na base).
-    pub fn leitor(&self, sistema: &str) -> LeitorDiario {
-        let arquivo = self.arquivo(sistema);
+    /// projeto (o que já está no arquivo é ignorado: o estado atual está na base).
+    pub fn leitor(&self, projeto: &str) -> LeitorDiario {
+        let arquivo = self.arquivo(projeto);
         let posicao = fs::metadata(&arquivo).map(|m| m.len()).unwrap_or(0);
         LeitorDiario {
             arquivo,
@@ -131,7 +131,7 @@ pub struct Leitura {
     pub reiniciado: bool,
 }
 
-/// Acompanha o diário de um sistema, lendo só o que foi acrescentado.
+/// Acompanha o diário de um projeto, lendo só o que foi acrescentado.
 #[derive(Debug, Clone)]
 pub struct LeitorDiario {
     arquivo: PathBuf,
@@ -235,7 +235,7 @@ impl Notificador for DiarioEventos {
             .create(true)
             .append(true)
             .read(true)
-            .open(self.arquivo(&evento.sistema))?;
+            .open(self.arquivo(&evento.projeto))?;
         // A trava exclusiva garante uma linha inteira por vez, mesmo com vários
         // processos gravando; é liberada quando o arquivo é fechado.
         arquivo.lock()?;
@@ -251,7 +251,7 @@ mod tests {
     fn evento(n: u64) -> Evento {
         Evento {
             quando_ms: n,
-            sistema: "faturamento-exemplo".into(),
+            projeto: "faturamento-exemplo".into(),
             analise: "A-0001".into(),
             mudanca: Mudanca::Afirmacao,
             versao: n,

@@ -1,10 +1,10 @@
 {
   "formato": 1,
   "id": "A-0001",
-  "sistema": "faturamento-exemplo",
+  "projeto": "faturamento-exemplo",
   "fluxo": "impacto",
   "titulo": "Permitir parcelamento da fatura em até 3 vezes para clientes pessoa jurídica",
-  "entrada": "Permitir parcelamento da fatura em até 3 vezes para clientes pessoa jurídica. Acho que hoje o sistema não parcela fatura nenhuma.",
+  "entrada": "Permitir parcelamento da fatura em até 3 vezes para clientes pessoa jurídica. Acho que hoje o projeto não parcela fatura nenhuma.",
   "estado": "concluida",
   "documento": "analises/A-0001.md",
   "versao": 18,
@@ -23,7 +23,7 @@
     {
       "numero": 1,
       "secao": "demanda_como_entendida",
-      "texto": "Premissa do solicitante: \"hoje o sistema não parcela fatura nenhuma\". Verificação: não confere. O parcelamento já existe: uma fatura ABERTA de pessoa jurídica (e órgão público) pode ser parcelada de 2 até o máximo definido no parâmetro MAX_PARCELAS, cuja carga inicial é 6.",
+      "texto": "Premissa do solicitante: \"hoje o projeto não parcela fatura nenhuma\". Verificação: não confere. O parcelamento já existe: uma fatura ABERTA de pessoa jurídica (e órgão público) pode ser parcelada de 2 até o máximo definido no parâmetro MAX_PARCELAS, cuja carga inicial é 6.",
       "confianca": "confirmado",
       "evidencias": [
         {

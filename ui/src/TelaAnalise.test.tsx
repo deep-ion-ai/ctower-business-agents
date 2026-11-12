@@ -12,22 +12,22 @@ function montar(analise = apiAnaliseFalsa()) {
 }
 
 describe("TelaAnalise", () => {
-  it("sem base ou sem sistema, leva ao primeiro uso", async () => {
+  it("sem base ou sem projeto, leva ao primeiro uso", async () => {
     const analise = apiAnaliseFalsa();
-    analise.api.situacao.mockResolvedValueOnce({ base: "/base", sistemas: [] });
+    analise.api.situacao.mockResolvedValueOnce({ base: "/base", projetos: [] });
     const aoPrimeiroUso = vi.fn();
     render(<TelaAnalise api={analise.api} aoPrimeiroUso={aoPrimeiroUso} />);
-    expect(await screen.findByText(/Nenhum sistema cadastrado/)).toBeInTheDocument();
+    expect(await screen.findByText(/Nenhum projeto cadastrado/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Abrir o primeiro uso" }));
     expect(aoPrimeiroUso).toHaveBeenCalled();
     expect(screen.queryByRole("form", { name: "Nova pergunta" })).not.toBeInTheDocument();
   });
 
-  it("abre com o sistema e a pergunta sugeridos pelo primeiro uso", async () => {
+  it("abre com o projeto e a pergunta sugeridos pelo primeiro uso", async () => {
     const analise = apiAnaliseFalsa();
     analise.api.situacao.mockResolvedValueOnce({
       base: "/base",
-      sistemas: [
+      projetos: [
         { id: "estoque-exemplo", nome: "Estoque Exemplo" },
         { id: "faturamento-exemplo", nome: "Faturamento Exemplo" },
       ],
@@ -35,12 +35,12 @@ describe("TelaAnalise", () => {
     render(
       <TelaAnalise
         api={analise.api}
-        sistemaInicial="faturamento-exemplo"
-        perguntaInicial="Quais são as principais regras de negócio deste sistema?"
+        projetoInicial="faturamento-exemplo"
+        perguntaInicial="Quais são as principais regras de negócio deste projeto?"
       />,
     );
     expect(await screen.findByLabelText("Pergunta")).toHaveValue(
-      "Quais são as principais regras de negócio deste sistema?",
+      "Quais são as principais regras de negócio deste projeto?",
     );
     expect(screen.getByRole("combobox")).toHaveValue("faturamento-exemplo");
   });
@@ -128,7 +128,7 @@ describe("TelaAnalise", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("não está acessível");
   });
 
-  it("lista e reabre as análises do sistema", async () => {
+  it("lista e reabre as análises do projeto", async () => {
     const analise = apiAnaliseFalsa();
     analise.api.listarAnalises.mockResolvedValue([
       {

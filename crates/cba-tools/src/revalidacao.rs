@@ -1,8 +1,8 @@
 //! Revalidação das evidências por hash (spec, seção 6.5, e critério de aceite 8).
 //!
 //! Uma base que envelhece em silêncio vira mentira com cara de fato. Ao abrir um
-//! sistema, e sob demanda, o app chama [`revalidar_sistema`] (ou [`revalidar`]),
-//! que confere cada evidência das regras e das análises do sistema contra o código
+//! projeto, e sob demanda, o app chama [`revalidar_projeto`] (ou [`revalidar`]),
+//! que confere cada evidência das regras e das análises do projeto contra o código
 //! atual:
 //!
 //! - o hash é o do intervalo citado ([`hash_das_linhas`]: SHA-256 das linhas
@@ -24,7 +24,7 @@
 //! # Desempenho
 //!
 //! As evidências são agrupadas por arquivo, e cada arquivo é lido no máximo uma vez.
-//! Com o [`Inventario`] do sistema, nem isso: o [`Cache`] guarda, por arquivo, o
+//! Com o [`Inventario`] do projeto, nem isso: o [`Cache`] guarda, por arquivo, o
 //! SHA-256 do conteúdo e os hashes dos intervalos já calculados. Se o arquivo no
 //! disco tem o tamanho e a data de modificação do inventário, e o SHA-256 do
 //! inventário é o do cache, os hashes do cache valem e o arquivo não é lido. Um
@@ -56,8 +56,8 @@ use sha2::{Digest, Sha256};
 
 use crate::evidencias::{LIMITE_DO_ARQUIVO, Motivo, decodificar, hash_das_linhas};
 
-/// Nome do arquivo do cache, na pasta do sistema no cadastro
-/// (`<dados>/sistemas/<id>/`), ao lado do inventário.
+/// Nome do arquivo do cache, na pasta do projeto no cadastro
+/// (`<dados>/projetos/<id>/`), ao lado do inventário.
 pub const ARQUIVO_DO_CACHE: &str = "revalidacao.json";
 
 /// Versão do formato do cache. Outra versão é descartada.
@@ -75,7 +75,7 @@ pub enum Erro {
     Cadastro(#[from] cba_index::Erro),
 }
 
-/// Hashes já calculados, por arquivo do sistema. Fica no diretório de dados do app,
+/// Hashes já calculados, por arquivo do projeto. Fica no diretório de dados do app,
 /// não na base: perdê-lo só faz a próxima revalidação ler os arquivos.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Cache {
@@ -128,7 +128,7 @@ pub enum Origem {
     /// Evidência de uma regra (`regras/RN-COB-001.md`).
     Regra {
         id: String,
-        /// Documento da regra, relativo à raiz do sistema na base.
+        /// Documento da regra, relativo à raiz do projeto na base.
         documento: CaminhoRelativo,
     },
     /// Evidência de uma afirmação de uma análise.
@@ -143,7 +143,7 @@ pub enum Origem {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct EvidenciaNoRelatorio {
     pub origem: Origem,
-    /// Caminho relativo à raiz do sistema.
+    /// Caminho relativo à raiz do projeto.
     pub arquivo: CaminhoRelativo,
     pub linhas: Linhas,
     /// Por que não confere (para as desatualizadas).
@@ -181,7 +181,7 @@ pub struct MudancaDeAnalise {
 /// Documento que não pôde ser revalidado.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Problema {
-    /// Documento, relativo à raiz do sistema na base.
+    /// Documento, relativo à raiz do projeto na base.
     pub documento: CaminhoRelativo,
     pub erro: String,
 }
@@ -189,11 +189,11 @@ pub struct Problema {
 /// Resultado de uma revalidação: o que mudou e o que continua desatualizado.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 pub struct Relatorio {
-    /// Slug do sistema.
-    pub sistema: String,
+    /// Slug do projeto.
+    pub projeto: String,
     /// Evidências conferidas (regras não obsoletas e análises).
     pub evidencias: usize,
-    /// Arquivos do sistema lidos.
+    /// Arquivos do projeto lidos.
     pub arquivos_lidos: usize,
     /// Arquivos não lidos, com os hashes do cache (inventário sem mudança).
     pub arquivos_reaproveitados: usize,
@@ -219,17 +219,17 @@ impl Relatorio {
     }
 }
 
-/// Caminho do cache do sistema no diretório de dados.
-pub fn caminho_do_cache(dados: &DiretorioDados, sistema: &str) -> PathBuf {
-    dados.sistemas().join(sistema).join(ARQUIVO_DO_CACHE)
+/// Caminho do cache do projeto no diretório de dados.
+pub fn caminho_do_cache(dados: &DiretorioDados, projeto: &str) -> PathBuf {
+    dados.projetos().join(projeto).join(ARQUIVO_DO_CACHE)
 }
 
-/// Revalida o sistema do ambiente com o último inventário gravado e o cache do
-/// diretório de dados, e grava o cache. É o que o app chama ao abrir o sistema e
+/// Revalida o projeto do ambiente com o último inventário gravado e o cache do
+/// diretório de dados, e grava o cache. É o que o app chama ao abrir o projeto e
 /// sob demanda. Sem inventário, lê todos os arquivos citados.
-pub fn revalidar_sistema(ambiente: &Ambiente, dados: &DiretorioDados) -> Result<Relatorio, Erro> {
-    let id = &ambiente.sistema.id;
-    let inventario = Cadastro::em(dados.sistemas()).inventario(id)?;
+pub fn revalidar_projeto(ambiente: &Ambiente, dados: &DiretorioDados) -> Result<Relatorio, Erro> {
+    let id = &ambiente.projeto.id;
+    let inventario = Cadastro::em(dados.projetos()).inventario(id)?;
     let caminho = caminho_do_cache(dados, id);
     let mut cache = Cache::ler(&caminho);
     let relatorio = revalidar(ambiente, inventario.as_ref(), &mut cache)?;
@@ -240,7 +240,7 @@ pub fn revalidar_sistema(ambiente: &Ambiente, dados: &DiretorioDados) -> Result<
     Ok(relatorio)
 }
 
-/// Revalida as evidências das regras e das análises do sistema do ambiente.
+/// Revalida as evidências das regras e das análises do projeto do ambiente.
 pub fn revalidar(
     ambiente: &Ambiente,
     inventario: Option<&Inventario>,
@@ -248,7 +248,7 @@ pub fn revalidar(
 ) -> Result<Relatorio, Erro> {
     let inicio = Instant::now();
     let mut relatorio = Relatorio {
-        sistema: ambiente.kb.nome().to_owned(),
+        projeto: ambiente.kb.nome().to_owned(),
         ..Relatorio::default()
     };
 
@@ -489,10 +489,10 @@ fn evidencias_da_analise(a: &Analise) -> impl Iterator<Item = (Origem, &Evidenci
     afirmacoes.chain(termos).chain(sugestoes)
 }
 
-/// Regras do sistema (`regras/*.md`), menos as obsoletas. As ilegíveis vão para os
+/// Regras do projeto (`regras/*.md`), menos as obsoletas. As ilegíveis vão para os
 /// problemas.
 fn ler_regras(
-    kb: &cba_kb::Sistema,
+    kb: &cba_kb::Projeto,
     problemas: &mut Vec<Problema>,
 ) -> Result<Vec<(CaminhoRelativo, Documento<FrontmatterRegra>)>, Erro> {
     let pasta = CaminhoRelativo::novo(layout::REGRAS).expect("nome fixo válido");
@@ -533,7 +533,7 @@ fn ler_regras(
 
 /// Troca o `status` da regra, se ele ainda for `antes`. Devolve se gravou.
 fn gravar_status(
-    kb: &cba_kb::Sistema,
+    kb: &cba_kb::Projeto,
     documento: &CaminhoRelativo,
     antes: StatusRegra,
     depois: StatusRegra,

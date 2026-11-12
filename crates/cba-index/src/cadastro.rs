@@ -1,9 +1,9 @@
-//! Persistência do cadastro dos sistemas e do último inventário de cada um.
+//! Persistência do cadastro dos projetos e do último inventário de cada um.
 //!
-//! Por ora em JSON, um diretório por sistema:
+//! Por ora em JSON, um diretório por projeto:
 //!
 //! ```text
-//! <raiz>/<id>/sistema.json
+//! <raiz>/<id>/projeto.json
 //! <raiz>/<id>/inventario.json
 //! <raiz>/<id>/mapa.json
 //! ```
@@ -14,8 +14,8 @@
 //! próximo mapeamento ler todos os arquivos de novo.
 //!
 //! A raiz fica no diretório de dados do app (`cba_core::dados`), por exemplo
-//! `<dados>/sistemas`. Quando o índice SQLite existir (#8), o cadastro pode migrar
-//! para lá sem mudar a API de [`Sistema`] e [`Inventario`]. Toda gravação é atômica
+//! `<dados>/projetos`. Quando o índice SQLite existir (#8), o cadastro pode migrar
+//! para lá sem mudar a API de [`Projeto`] e [`Inventario`]. Toda gravação é atômica
 //! (arquivo temporário e renomeação), para uma queda não corromper o cadastro.
 
 use std::fs;
@@ -29,13 +29,13 @@ use crate::Erro;
 use crate::extrator::Registro;
 use crate::inventario::{Inventario, inventariar};
 use crate::mapa::{Mapa, mapear};
-use crate::sistema::Sistema;
+use crate::projeto::Projeto;
 
-const SISTEMA: &str = "sistema.json";
+const PROJETO: &str = "projeto.json";
 const INVENTARIO: &str = "inventario.json";
 const MAPA: &str = "mapa.json";
 
-/// Cadastro dos sistemas numa pasta.
+/// Cadastro dos projetos numa pasta.
 #[derive(Debug, Clone)]
 pub struct Cadastro {
     raiz: PathBuf,
@@ -51,50 +51,50 @@ impl Cadastro {
         &self.raiz
     }
 
-    /// Sistemas cadastrados, ordenados pelo nome.
-    pub fn listar(&self) -> Result<Vec<Sistema>, Erro> {
+    /// Projetos cadastrados, ordenados pelo nome.
+    pub fn listar(&self) -> Result<Vec<Projeto>, Erro> {
         let entradas = match fs::read_dir(&self.raiz) {
             Ok(e) => e,
             Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
             Err(e) => return Err(Erro::io(&self.raiz, e)),
         };
-        let mut sistemas = Vec::new();
+        let mut projetos = Vec::new();
         for e in entradas {
             let e = e.map_err(|x| Erro::io(&self.raiz, x))?;
-            let arq = e.path().join(SISTEMA);
+            let arq = e.path().join(PROJETO);
             if arq.is_file() {
-                sistemas.push(ler::<Sistema>(&arq)?);
+                projetos.push(ler::<Projeto>(&arq)?);
             }
         }
-        sistemas.sort_by_key(|a| a.nome.to_lowercase());
-        Ok(sistemas)
+        projetos.sort_by_key(|a| a.nome.to_lowercase());
+        Ok(projetos)
     }
 
-    pub fn obter(&self, id: &str) -> Result<Option<Sistema>, Erro> {
-        let arq = self.dir(id)?.join(SISTEMA);
+    pub fn obter(&self, id: &str) -> Result<Option<Projeto>, Erro> {
+        let arq = self.dir(id)?.join(PROJETO);
         if !arq.is_file() {
             return Ok(None);
         }
         ler(&arq).map(Some)
     }
 
-    /// Cadastra um sistema novo. Falha se o identificador já existe.
-    pub fn cadastrar(&self, sistema: &Sistema) -> Result<(), Erro> {
-        if self.obter(&sistema.id)?.is_some() {
-            return Err(Erro::JaCadastrado(sistema.id.clone()));
+    /// Cadastra um projeto novo. Falha se o identificador já existe.
+    pub fn cadastrar(&self, projeto: &Projeto) -> Result<(), Erro> {
+        if self.obter(&projeto.id)?.is_some() {
+            return Err(Erro::JaCadastrado(projeto.id.clone()));
         }
-        self.salvar(sistema)
+        self.salvar(projeto)
     }
 
-    /// Grava o sistema (novo ou alterado), depois de validar.
-    pub fn salvar(&self, sistema: &Sistema) -> Result<(), Erro> {
-        sistema.validar()?;
-        gravar(&self.dir(&sistema.id)?.join(SISTEMA), sistema)
+    /// Grava o projeto (novo ou alterado), depois de validar.
+    pub fn salvar(&self, projeto: &Projeto) -> Result<(), Erro> {
+        projeto.validar()?;
+        gravar(&self.dir(&projeto.id)?.join(PROJETO), projeto)
     }
 
-    /// Remove o sistema, o inventário e o mapa dele. Devolve se existia.
+    /// Remove o projeto, o inventário e o mapa dele. Devolve se existia.
     ///
-    /// Não toca nas pastas do sistema nem na base de conhecimento.
+    /// Não toca nas pastas do projeto nem na base de conhecimento.
     pub fn remover(&self, id: &str) -> Result<bool, Erro> {
         let dir = self.dir(id)?;
         match fs::remove_dir_all(&dir) {
@@ -104,7 +104,7 @@ impl Cadastro {
         }
     }
 
-    /// Último inventário gravado do sistema.
+    /// Último inventário gravado do projeto.
     pub fn inventario(&self, id: &str) -> Result<Option<Inventario>, Erro> {
         let arq = self.dir(id)?.join(INVENTARIO);
         if !arq.is_file() {
@@ -113,20 +113,20 @@ impl Cadastro {
         ler(&arq).map(Some)
     }
 
-    /// Inventaria o sistema aproveitando o inventário anterior e grava o novo.
+    /// Inventaria o projeto aproveitando o inventário anterior e grava o novo.
     pub fn inventariar(&self, id: &str) -> Result<Inventario, Erro> {
-        let sistema = self
+        let projeto = self
             .obter(id)?
             .ok_or_else(|| Erro::NaoCadastrado(id.to_string()))?;
         // Inventário anterior ilegível (formato antigo, arquivo corrompido) só faz
         // perder o cache.
         let anterior = self.inventario(id).ok().flatten();
-        let novo = inventariar(&sistema, anterior.as_ref())?;
+        let novo = inventariar(&projeto, anterior.as_ref())?;
         gravar(&self.dir(id)?.join(INVENTARIO), &novo)?;
         Ok(novo)
     }
 
-    /// Último mapa gravado do sistema.
+    /// Último mapa gravado do projeto.
     pub fn mapa(&self, id: &str) -> Result<Option<Mapa>, Erro> {
         let arq = self.dir(id)?.join(MAPA);
         if !arq.is_file() {
@@ -135,7 +135,7 @@ impl Cadastro {
         ler(&arq).map(Some)
     }
 
-    /// Inventaria e mapeia o sistema com todos os extratores, aproveitando o
+    /// Inventaria e mapeia o projeto com todos os extratores, aproveitando o
     /// inventário e o mapa anteriores, e grava os dois.
     pub fn mapear(&self, id: &str) -> Result<Mapa, Erro> {
         self.mapear_com(id, &Registro::padrao())
@@ -144,12 +144,12 @@ impl Cadastro {
     /// Como [`Cadastro::mapear`], com outro conjunto de extratores.
     pub fn mapear_com(&self, id: &str, registro: &Registro) -> Result<Mapa, Erro> {
         let inventario = self.inventariar(id)?;
-        let sistema = self
+        let projeto = self
             .obter(id)?
             .ok_or_else(|| Erro::NaoCadastrado(id.to_string()))?;
         // Mapa anterior ilegível só faz perder o cache.
         let anterior = self.mapa(id).ok().flatten();
-        let mapa = mapear(&inventario, &sistema.escopo()?, anterior.as_ref(), registro);
+        let mapa = mapear(&inventario, &projeto.escopo()?, anterior.as_ref(), registro);
         gravar_json(&self.dir(id)?.join(MAPA), &mapa, false)?;
         Ok(mapa)
     }

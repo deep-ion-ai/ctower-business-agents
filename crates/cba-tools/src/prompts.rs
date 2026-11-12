@@ -14,7 +14,7 @@
 //!
 //! - [`prontos`]: os prompts de uma análise, a partir da base;
 //! - [`da_analise`]: o mesmo, a partir do diretório de dados do app, do
-//!   identificador do sistema e da análise (o comando `prompts_prontos` da
+//!   identificador do projeto e da análise (o comando `prompts_prontos` da
 //!   janela).
 
 use std::sync::Arc;
@@ -194,7 +194,7 @@ fn numa_linha(texto: &str) -> String {
 /// Os prompts prontos da análise, com os textos da base. Os avisos (prompt da base
 /// ilegível, variável desconhecida) vão para o log, sem o conteúdo; o prompt sai
 /// mesmo assim.
-pub fn prontos(base: &Base, kb: &cba_kb::Sistema, analise: &Analise) -> Vec<PromptPronto> {
+pub fn prontos(base: &Base, kb: &cba_kb::Projeto, analise: &Analise) -> Vec<PromptPronto> {
     let (prompts, mut avisos) = Prompts::da_base(base);
     let documento = kb.na_base(&analise.documento).to_string();
     let (prontos, mut a) = prompts.para(analise, &documento);
@@ -209,15 +209,15 @@ pub fn prontos(base: &Base, kb: &cba_kb::Sistema, analise: &Analise) -> Vec<Prom
 /// para a tela do analista.
 #[derive(Debug, thiserror::Error)]
 pub enum ErroPrompts {
-    #[error("o sistema `{0}` não está cadastrado")]
-    SistemaDesconhecido(String),
+    #[error("o projeto `{0}` não está cadastrado")]
+    ProjetoDesconhecido(String),
     #[error("`{0}` não é o identificador de uma análise (A-NNNN)")]
     IdInvalido(String),
     #[error("a pasta da base de conhecimento ainda não foi escolhida; conclua o primeiro uso")]
     BaseNaoConfigurada,
     #[error("não foi possível ler a configuração do app: {0}")]
     Config(std::io::Error),
-    #[error("não foi possível ler o cadastro dos sistemas: {0}")]
+    #[error("não foi possível ler o cadastro dos projetos: {0}")]
     Cadastro(cba_index::Erro),
     #[error("a base de conhecimento não está acessível: {0}")]
     Base(cba_kb::Erro),
@@ -225,25 +225,25 @@ pub enum ErroPrompts {
     Analise(cba_core::analises::Erro),
 }
 
-/// Os prompts prontos da análise `analise` do sistema cadastrado `sistema`, com os
+/// Os prompts prontos da análise `analise` do projeto cadastrado `projeto`, com os
 /// dados do app em `dados`. Só lê: nada é criado na base.
 pub fn da_analise(
     dados: &DiretorioDados,
-    sistema: &str,
+    projeto: &str,
     analise: &str,
 ) -> Result<Vec<PromptPronto>, ErroPrompts> {
     let id = Id::analisar(analise.trim())
         .ok()
         .filter(|id| id.serie() == &Serie::Analise)
         .ok_or_else(|| ErroPrompts::IdInvalido(analise.to_owned()))?;
-    let cadastrado = Cadastro::em(dados.sistemas())
-        .obter(sistema)
+    let cadastrado = Cadastro::em(dados.projetos())
+        .obter(projeto)
         .map_err(ErroPrompts::Cadastro)?
-        .ok_or_else(|| ErroPrompts::SistemaDesconhecido(sistema.to_owned()))?;
+        .ok_or_else(|| ErroPrompts::ProjetoDesconhecido(projeto.to_owned()))?;
     let config = Config::ler(dados).map_err(ErroPrompts::Config)?;
     let raiz = config.base().ok_or(ErroPrompts::BaseNaoConfigurada)?;
     let base = Base::abrir(raiz).map_err(ErroPrompts::Base)?;
-    let kb = base.sistema(&cadastrado.id).map_err(ErroPrompts::Base)?;
+    let kb = base.projeto(&cadastrado.id).map_err(ErroPrompts::Base)?;
     let analise = Analises::new(kb.clone(), Arc::new(SemNotificacao))
         .carregar(&id)
         .map_err(ErroPrompts::Analise)?;

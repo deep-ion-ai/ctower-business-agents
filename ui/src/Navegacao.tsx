@@ -24,17 +24,17 @@ import type { ApiConfiguracoes } from "./configuracoes";
 import { TelaBase } from "./TelaBase";
 import { TelaConfiguracoes } from "./TelaConfiguracoes";
 import { TelaInicio } from "./TelaInicio";
-import { TelaSistema } from "./TelaSistema";
-import type { SistemaResumo } from "./terminal";
+import { TelaProjeto } from "./TelaProjeto";
+import type { ProjetoResumo } from "./terminal";
 
 /** Tela visível e o que ela abre. */
 export type Tela =
   | { tipo: "inicio" }
-  | { tipo: "sistema"; sistema?: string }
+  | { tipo: "projeto"; projeto?: string }
   | { tipo: "base"; documento?: string }
   | {
       tipo: "analise";
-      sistema?: string;
+      projeto?: string;
       pergunta?: string;
       aberta?: { id: string; abertura: Abertura };
     }
@@ -61,7 +61,7 @@ interface Props {
 
 const AREAS: { tipo: Tela["tipo"]; rotulo: string; icone: IconName }[] = [
   { tipo: "inicio", rotulo: "Início", icone: "home" },
-  { tipo: "sistema", rotulo: "Sistema", icone: "project" },
+  { tipo: "projeto", rotulo: "Projeto", icone: "project" },
   { tipo: "base", rotulo: "Base de conhecimento", icone: "book" },
   { tipo: "analise", rotulo: "Análises", icone: "analysis" },
   { tipo: "configuracoes", rotulo: "Configurações", icone: "settings" },
@@ -84,15 +84,15 @@ interface Aba {
   vez: number;
 }
 
-/** Uma aba por tela e por objeto aberto (sistema, documento ou análise). */
+/** Uma aba por tela e por objeto aberto (projeto, documento ou análise). */
 export function chaveDaTela(t: Tela): string {
   switch (t.tipo) {
-    case "sistema":
-      return t.sistema ? `sistema:${t.sistema}` : "sistema";
+    case "projeto":
+      return t.projeto ? `projeto:${t.projeto}` : "projeto";
     case "base":
       return t.documento ? `doc:${t.documento}` : "base";
     case "analise":
-      return t.aberta ? `analise:${t.sistema ?? ""}:${t.aberta.id}` : "analise";
+      return t.aberta ? `analise:${t.projeto ?? ""}:${t.aberta.id}` : "analise";
     default:
       return t.tipo;
   }
@@ -129,10 +129,10 @@ function tomDaAnalise(a: AnaliseInicio): string | undefined {
 
 /**
  * Navegação depois do primeiro uso (spec, seção 10), no shell do Control Tower
- * (#85): barra de título, barra de atividades com as áreas (início, sistema, base,
- * análises e configurações), painel lateral com os sistemas, as análises e os
+ * (#85): barra de título, barra de atividades com as áreas (início, projeto, base,
+ * análises e configurações), painel lateral com os projetos, as análises e os
  * documentos abertos, área de editor com abas e barra de status. Cada tela pede às
- * outras o que abrir (um sistema, um documento, uma análise) por `navegar`, que
+ * outras o que abrir (um projeto, um documento, uma análise) por `navegar`, que
  * abre ou foca a aba do objeto. Abaixo de 900 px o painel lateral vira gaveta.
  */
 export function Navegacao({
@@ -151,13 +151,13 @@ export function Navegacao({
     { chave: chaveDaTela(inicial), tela: inicial, vez: 0 },
   ]);
   const [ativa, setAtiva] = useState<string>(() => chaveDaTela(inicial));
-  const [sistemas, setSistemas] = useState<SistemaResumo[]>([]);
+  const [projetos, setProjetos] = useState<ProjetoResumo[]>([]);
   const [inicio, setInicio] = useState<Inicio | null>(null);
   const [documentos, setDocumentos] = useState<string[]>(
     inicial.tipo === "base" && inicial.documento ? [inicial.documento] : [],
   );
   const [falha, setFalha] = useState<string | null>(null);
-  // Muda a cada navegação e quando as configurações mexem nos sistemas ou na base.
+  // Muda a cada navegação e quando as configurações mexem nos projetos ou na base.
   const [recarga, setRecarga] = useState(0);
   const [ladoAberto, setLadoAberto] = useState(() => !telaEstreita());
   const [largura, setLargura] = useState(larguraGravada);
@@ -192,7 +192,7 @@ export function Navegacao({
       .situacao()
       .then((s) => {
         if (!ativo) return;
-        setSistemas(s.sistemas);
+        setProjetos(s.projetos);
         setFalha(null);
       })
       .catch((e: unknown) => ativo && setFalha(mensagemDe(e)));
@@ -239,13 +239,13 @@ export function Navegacao({
     }
   };
 
-  const nomeSistema = (id: string) =>
-    sistemas.find((s) => s.id === id)?.nome ??
-    inicio?.sistemas.find((s) => s.id === id)?.nome ??
+  const nomeProjeto = (id: string) =>
+    projetos.find((s) => s.id === id)?.nome ??
+    inicio?.projetos.find((s) => s.id === id)?.nome ??
     id;
 
   const tituloDaAba = (t: Tela): string => {
-    if (t.tipo === "sistema" && t.sistema) return nomeSistema(t.sistema);
+    if (t.tipo === "projeto" && t.projeto) return nomeProjeto(t.projeto);
     if (t.tipo === "base" && t.documento) return nomeDoArquivo(t.documento);
     if (t.tipo === "analise" && t.aberta) return t.aberta.id;
     return ROTULO_AREA[t.tipo];
@@ -255,11 +255,11 @@ export function Navegacao({
     ? [
         ...inicio.emAndamento,
         ...inicio.recentes.filter(
-          (r) => !inicio.emAndamento.some((e) => e.id === r.id && e.sistema === r.sistema),
+          (r) => !inicio.emAndamento.some((e) => e.id === r.id && e.projeto === r.projeto),
         ),
       ]
     : [];
-  const aRevalidar = inicio?.sistemas.reduce((n, s) => n + s.aRevalidar, 0) ?? 0;
+  const aRevalidar = inicio?.projetos.reduce((n, s) => n + s.aRevalidar, 0) ?? 0;
   const aguardando = analises.filter((a) => a.sessao?.estado === "aguardando-analista").length;
 
   return (
@@ -311,8 +311,8 @@ export function Navegacao({
               <h2 className="sp-title">Explorador</h2>
             </div>
             <div className="sp-body">
-              <GrupoLateral titulo="Sistemas" quantos={inicio?.sistemas.length ?? sistemas.length}>
-                {(inicio?.sistemas ?? sistemas.map((s) => ({ ...s, aRevalidar: 0, erro: null }))).map(
+              <GrupoLateral titulo="Projetos" quantos={inicio?.projetos.length ?? projetos.length}>
+                {(inicio?.projetos ?? projetos.map((s) => ({ ...s, aRevalidar: 0, erro: null }))).map(
                   (s) => (
                     <LinhaLateral
                       key={s.id}
@@ -326,8 +326,8 @@ export function Navegacao({
                             : undefined
                       }
                       tom={s.erro ? "error" : s.aRevalidar > 0 ? "attention" : undefined}
-                      selecionada={ativa === `sistema:${s.id}`}
-                      onClick={() => navegar({ tipo: "sistema", sistema: s.id })}
+                      selecionada={ativa === `projeto:${s.id}`}
+                      onClick={() => navegar({ tipo: "projeto", projeto: s.id })}
                     />
                   ),
                 )}
@@ -335,20 +335,20 @@ export function Navegacao({
               <GrupoLateral titulo="Análises" quantos={analises.length}>
                 {analises.map((a) => (
                   <LinhaLateral
-                    key={`${a.sistema}/${a.id}`}
+                    key={`${a.projeto}/${a.id}`}
                     ponto
                     rotulo={`${a.id}: ${a.titulo}`}
                     sub={
                       a.sessao && a.sessao.estado !== "encerrada"
-                        ? `${a.sistemaNome} · ${ROTULO_SESSAO[a.sessao.estado]}`
-                        : a.sistemaNome
+                        ? `${a.projetoNome} · ${ROTULO_SESSAO[a.sessao.estado]}`
+                        : a.projetoNome
                     }
                     tom={tomDaAnalise(a)}
-                    selecionada={ativa === `analise:${a.sistema}:${a.id}`}
+                    selecionada={ativa === `analise:${a.projeto}:${a.id}`}
                     onClick={() =>
                       navegar({
                         tipo: "analise",
-                        sistema: a.sistema,
+                        projeto: a.projeto,
                         aberta: { id: a.id, abertura: { tipo: "reabrir" } },
                       })
                     }
@@ -442,12 +442,12 @@ export function Navegacao({
                   aoPrimeiroUso={aoPrimeiroUso}
                 />
               )}
-              {aba?.tela.tipo === "sistema" && (
-                <TelaSistema
+              {aba?.tela.tipo === "projeto" && (
+                <TelaProjeto
                   key={aba.vez}
                   api={api}
-                  sistemas={sistemas}
-                  sistemaInicial={aba.tela.sistema}
+                  projetos={projetos}
+                  projetoInicial={aba.tela.projeto}
                   navegar={navegar}
                 />
               )}
@@ -455,7 +455,7 @@ export function Navegacao({
                 <TelaBase
                   key={aba.vez}
                   api={api}
-                  sistemas={sistemas}
+                  projetos={projetos}
                   documentoInicial={aba.tela.documento}
                   navegar={navegar}
                   aoAbrirDocumento={lembrarDocumento}
@@ -465,7 +465,7 @@ export function Navegacao({
                 <TelaAnalise
                   key={aba.vez}
                   api={apiAnalise}
-                  sistemaInicial={aba.tela.sistema}
+                  projetoInicial={aba.tela.projeto}
                   perguntaInicial={aba.tela.pergunta}
                   aberturaInicial={aba.tela.aberta}
                   aoPrimeiroUso={aoPrimeiroUso}
@@ -475,7 +475,7 @@ export function Navegacao({
                 <TelaConfiguracoes
                   key={aba.vez}
                   api={apiConfiguracoes}
-                  aoMudarSistemas={() => setRecarga((r) => r + 1)}
+                  aoMudarProjetos={() => setRecarga((r) => r + 1)}
                 />
               )}
             </div>
@@ -488,7 +488,7 @@ export function Navegacao({
           {inicio?.base ? `Base: ${inicio.base}` : "Base não escolhida"}
         </span>
         <span className="sb-item">
-          {sistemas.length === 1 ? "1 sistema" : `${sistemas.length} sistemas`}
+          {projetos.length === 1 ? "1 projeto" : `${projetos.length} projetos`}
         </span>
         <span className="sb-spacer" />
         {aguardando > 0 && (
@@ -502,8 +502,8 @@ export function Navegacao({
             type="button"
             className="sb-item sb-warn"
             onClick={() => {
-              const s = inicio?.sistemas.find((x) => x.aRevalidar > 0);
-              if (s) navegar({ tipo: "sistema", sistema: s.id });
+              const s = inicio?.projetos.find((x) => x.aRevalidar > 0);
+              if (s) navegar({ tipo: "projeto", projeto: s.id });
             }}
           >
             <Icon name="warning" size={12} />

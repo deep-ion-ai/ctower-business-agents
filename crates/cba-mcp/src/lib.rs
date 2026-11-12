@@ -19,12 +19,12 @@
 //! - ferramenta inexistente ou chamada sem `name` é erro de protocolo (`-32602`), com a
 //!   lista das ferramentas disponíveis;
 //! - argumentos fora do schema, recusa da ferramenta (evidência que não confere,
-//!   análise inexistente) e processo fora de um sistema cadastrado são **resultado de
+//!   análise inexistente) e processo fora de um projeto cadastrado são **resultado de
 //!   erro** (`isError: true`) com a mensagem em texto, que o agente lê e usa para
 //!   corrigir a chamada.
 //!
-//! O sistema é identificado uma vez, no início do processo, pelo diretório de trabalho
-//! ([`cba_core::ambiente::Ambiente`]). Fora de um sistema cadastrado o servidor sobe
+//! O projeto é identificado uma vez, no início do processo, pelo diretório de trabalho
+//! ([`cba_core::ambiente::Ambiente`]). Fora de um projeto cadastrado o servidor sobe
 //! do mesmo jeito (o cliente conecta e lista as ferramentas), e cada chamada responde
 //! com o erro explicando o que fazer.
 //!
@@ -77,7 +77,7 @@ pub struct Servidor {
 }
 
 impl Servidor {
-    /// Servidor com as ferramentas de `registro`, trabalhando no sistema de
+    /// Servidor com as ferramentas de `registro`, trabalhando no projeto de
     /// `ambiente` (ou respondendo às chamadas com o erro, se ele não pôde ser montado).
     pub fn new(
         info: InfoServidor,
@@ -298,7 +298,7 @@ mod tests {
         }
     }
 
-    /// Servidor sem ferramentas e fora de um sistema.
+    /// Servidor sem ferramentas e fora de um projeto.
     fn servidor() -> Servidor {
         Servidor::new(
             info(),
@@ -316,9 +316,9 @@ mod tests {
         use cba_core::config::Config;
         use cba_core::dados::DiretorioDados;
         let dados = DiretorioDados::em(raiz.join("dados"));
-        let sistema = cba_index::Sistema::novo("Faturamento Exemplo", [fixture()]).unwrap();
-        cba_index::Cadastro::em(dados.sistemas())
-            .cadastrar(&sistema)
+        let projeto = cba_index::Projeto::novo("Faturamento Exemplo", [fixture()]).unwrap();
+        cba_index::Cadastro::em(dados.projetos())
+            .cadastrar(&projeto)
             .unwrap();
         cba_kb::Base::criar(raiz.join("base")).unwrap();
         Config {
@@ -420,7 +420,7 @@ mod tests {
         let r = chamar(&mut s, json!({ "name": "listar_analises" }));
         assert_eq!(r["result"]["isError"], false);
         assert_eq!(
-            r["result"]["structuredContent"]["sistema"]["id"],
+            r["result"]["structuredContent"]["projeto"]["id"],
             "faturamento-exemplo"
         );
         let texto = r["result"]["content"][0]["text"].as_str().unwrap();
@@ -437,16 +437,16 @@ mod tests {
     }
 
     #[test]
-    fn tools_call_fora_de_sistema_e_erro_claro() {
+    fn tools_call_fora_de_projeto_e_erro_claro() {
         let mut s = Servidor::new(
             info(),
             cba_tools::registro_padrao(),
-            Err(ErroAmbiente::ForaDeSistema("/tmp/qualquer".into())),
+            Err(ErroAmbiente::ForaDeProjeto("/tmp/qualquer".into())),
         );
         let r = chamar(&mut s, json!({ "name": "listar_analises" }));
         assert_eq!(r["result"]["isError"], true);
         let texto = r["result"]["content"][0]["text"].as_str().unwrap();
-        assert!(texto.contains("sistema cadastrado"), "{texto}");
+        assert!(texto.contains("projeto cadastrado"), "{texto}");
     }
 
     #[test]

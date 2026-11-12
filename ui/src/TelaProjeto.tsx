@@ -5,10 +5,10 @@ import {
   type ApiConhecimento,
   type MapaVista,
   type ResumoRevalidacao,
-  type VisaoSistema,
+  type VisaoProjeto,
 } from "./conhecimento";
 import type { Tela } from "./Navegacao";
-import type { SistemaResumo } from "./terminal";
+import type { ProjetoResumo } from "./terminal";
 
 type Revalidacao =
   | { tipo: "conferindo" }
@@ -16,31 +16,31 @@ type Revalidacao =
   | { tipo: "falha"; mensagem: string };
 
 /**
- * Sistema (spec, seção 10): áreas, regras (as "a revalidar" primeiro e destacadas),
+ * Projeto (spec, seção 10): áreas, regras (as "a revalidar" primeiro e destacadas),
  * glossário e mapa. Ao abrir, confere as evidências contra o código atual (spec,
  * seção 6.5) e relê a lista se algo mudou; o analista pode conferir de novo.
  */
-export function TelaSistema({
+export function TelaProjeto({
   api,
-  sistemas,
-  sistemaInicial,
+  projetos,
+  projetoInicial,
   navegar,
 }: {
   api: ApiConhecimento;
-  sistemas: SistemaResumo[];
-  sistemaInicial?: string;
+  projetos: ProjetoResumo[];
+  projetoInicial?: string;
   navegar: (t: Tela) => void;
 }) {
-  const [escolhido, setEscolhido] = useState(sistemaInicial ?? "");
-  const sistema = escolhido || sistemas[0]?.id || "";
+  const [escolhido, setEscolhido] = useState(projetoInicial ?? "");
+  const projeto = escolhido || projetos[0]?.id || "";
 
   return (
-    <section className="tela-sistema page" aria-label="Sistema">
-      {sistemas.length > 1 && (
+    <section className="tela-projeto page" aria-label="Projeto">
+      {projetos.length > 1 && (
         <label>
-          Sistema{" "}
-          <select value={sistema} onChange={(e) => setEscolhido(e.target.value)}>
-            {sistemas.map((s) => (
+          Projeto{" "}
+          <select value={projeto} onChange={(e) => setEscolhido(e.target.value)}>
+            {projetos.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.nome}
               </option>
@@ -48,48 +48,48 @@ export function TelaSistema({
           </select>
         </label>
       )}
-      {sistemas.length === 0 && !sistemaInicial && (
-        <p className="muted">Nenhum sistema cadastrado.</p>
+      {projetos.length === 0 && !projetoInicial && (
+        <p className="muted">Nenhum projeto cadastrado.</p>
       )}
-      {sistema && <Sistema key={sistema} api={api} sistema={sistema} navegar={navegar} />}
+      {projeto && <Projeto key={projeto} api={api} projeto={projeto} navegar={navegar} />}
     </section>
   );
 }
 
-function Sistema({
+function Projeto({
   api,
-  sistema,
+  projeto,
   navegar,
 }: {
   api: ApiConhecimento;
-  sistema: string;
+  projeto: string;
   navegar: (t: Tela) => void;
 }) {
-  const [visao, setVisao] = useState<VisaoSistema | null>(null);
+  const [visao, setVisao] = useState<VisaoProjeto | null>(null);
   const [falha, setFalha] = useState<string | null>(null);
   const [revalidacao, setRevalidacao] = useState<Revalidacao>({ tipo: "conferindo" });
   const [area, setArea] = useState<string | null>(null);
 
   const carregar = useCallback(() => {
     api
-      .visaoSistema(sistema)
+      .visaoProjeto(projeto)
       .then((v) => {
         setVisao(v);
         setFalha(null);
       })
       .catch((e: unknown) => setFalha(mensagemDe(e)));
-  }, [api, sistema]);
+  }, [api, projeto]);
 
   const revalidar = useCallback(() => {
     setRevalidacao({ tipo: "conferindo" });
     api
-      .revalidar(sistema)
+      .revalidar(projeto)
       .then((resumo) => {
         setRevalidacao({ tipo: "feita", resumo });
         if (resumo.mudou) carregar();
       })
       .catch((e: unknown) => setRevalidacao({ tipo: "falha", mensagem: mensagemDe(e) }));
-  }, [api, sistema, carregar]);
+  }, [api, projeto, carregar]);
 
   // Ao abrir: a lista na hora e a revalidação em seguida.
   useEffect(() => {
@@ -116,7 +116,7 @@ function Sistema({
   if (falha) {
     return (
       <p className="error-text" role="alert">
-        Não foi possível ler o sistema: {falha}
+        Não foi possível ler o projeto: {falha}
       </p>
     );
   }
@@ -131,7 +131,7 @@ function Sistema({
       <h2>
         {visao.nome}{" "}
         <button type="button" className="link" onClick={() => abrir(visao.documento)}>
-          abrir o sistema.md
+          abrir o projeto.md
         </button>
       </h2>
 
@@ -180,7 +180,7 @@ function Sistema({
               </button>{" "}
               <span className="muted">
                 {a.regras} regra(s) · {a.termos} termo(s)
-                {!a.declarada && " · fora do sistema.md"}
+                {!a.declarada && " · fora do projeto.md"}
               </span>
               {a.aRevalidar > 0 && (
                 <span className="badge" data-tone="attention">
@@ -273,7 +273,7 @@ function Sistema({
         </section>
       )}
 
-      <MapaSistema api={api} sistema={sistema} />
+      <MapaProjeto api={api} projeto={projeto} />
     </>
   );
 }
@@ -292,7 +292,7 @@ function TextoRevalidacao({ resumo }: { resumo: ResumoRevalidacao }) {
 }
 
 /** Mapa estrutural por pasta (sem IA, sem custo), com as subpastas navegáveis. */
-function MapaSistema({ api, sistema }: { api: ApiConhecimento; sistema: string }) {
+function MapaProjeto({ api, projeto }: { api: ApiConhecimento; projeto: string }) {
   const [pasta, setPasta] = useState("");
   const [mapa, setMapa] = useState<MapaVista | null | undefined>(undefined);
   const [mapeando, setMapeando] = useState(false);
@@ -301,7 +301,7 @@ function MapaSistema({ api, sistema }: { api: ApiConhecimento; sistema: string }
   useEffect(() => {
     let ativo = true;
     api
-      .mapa(sistema, pasta)
+      .mapa(projeto, pasta)
       .then((m) => {
         if (!ativo) return;
         setMapa(m);
@@ -311,13 +311,13 @@ function MapaSistema({ api, sistema }: { api: ApiConhecimento; sistema: string }
     return () => {
       ativo = false;
     };
-  }, [api, sistema, pasta]);
+  }, [api, projeto, pasta]);
 
   const mapear = () => {
     setMapeando(true);
     setFalha(null);
     api
-      .mapear(sistema)
+      .mapear(projeto)
       .then((m) => {
         setPasta("");
         setMapa(m);
@@ -329,7 +329,7 @@ function MapaSistema({ api, sistema }: { api: ApiConhecimento; sistema: string }
   const trilha = pasta ? pasta.split("/") : [];
 
   return (
-    <section aria-label="Mapa do sistema" className="mapa-sistema">
+    <section aria-label="Mapa do projeto" className="mapa-projeto">
       <h3>Mapa</h3>
       {falha && (
         <p className="error-text" role="alert">
@@ -338,7 +338,7 @@ function MapaSistema({ api, sistema }: { api: ApiConhecimento; sistema: string }
       )}
       {mapa === undefined && !falha && <p className="muted">Carregando…</p>}
       {mapa === null && (
-        <p className="muted">O mapa do sistema ainda não foi gerado.</p>
+        <p className="muted">O mapa do projeto ainda não foi gerado.</p>
       )}
       {mapa && (
         <>

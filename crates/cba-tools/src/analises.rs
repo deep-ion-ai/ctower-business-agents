@@ -1,4 +1,4 @@
-//! Ferramentas sobre as análises do sistema.
+//! Ferramentas sobre as análises do projeto.
 
 use cba_core::analise::{EstadoAnalise, EstadoPergunta};
 use serde::Deserialize;
@@ -12,13 +12,13 @@ struct ArgsListar {
     estado: Option<EstadoAnalise>,
 }
 
-/// `listar_analises`: as análises do sistema, para o agente achar o identificador
+/// `listar_analises`: as análises do projeto, para o agente achar o identificador
 /// quando o analista cita uma análise pelo assunto.
 pub fn listar_analises() -> Ferramenta {
     Ferramenta::nova(
         "listar_analises",
         "Listar análises",
-        "Lista as análises do sistema desta sessão: identificador (A-NNNN), título, \
+        "Lista as análises do projeto desta sessão: identificador (A-NNNN), título, \
          fluxo, estado, documento e quantos registros cada uma tem. Use para achar o \
          identificador de uma análise que o analista citou pelo assunto.",
         json!({
@@ -57,7 +57,7 @@ pub fn listar_analises() -> Ferramenta {
                 })
                 .collect();
             Ok(Saida::json(json!({
-                "sistema": { "id": ambiente.sistema.id, "nome": ambiente.sistema.nome },
+                "projeto": { "id": ambiente.projeto.id, "nome": ambiente.projeto.nome },
                 "analises": analises,
             })))
         },

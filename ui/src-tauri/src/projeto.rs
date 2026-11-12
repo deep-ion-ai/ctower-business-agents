@@ -1,15 +1,15 @@
-//! Comandos Tauri da tela do sistema (spec, seções 6.5, 7 e 10): áreas, regras (com
+//! Comandos Tauri da tela do projeto (spec, seções 6.5, 7 e 10): áreas, regras (com
 //! as "a revalidar" destacadas), glossário e mapa estrutural, mais a revalidação das
-//! evidências ao abrir o sistema e sob demanda.
+//! evidências ao abrir o projeto e sob demanda.
 //!
 //! As regras e os termos são lidos dos arquivos da base (`regras/`, `glossario/`), a
-//! fonte da verdade, e não do índice: a lista do sistema tem de refletir na hora a
+//! fonte da verdade, e não do índice: a lista do projeto tem de refletir na hora a
 //! marca `a-revalidar` gravada pela revalidação. Documento ilegível não esconde os
 //! outros; vai para `problemas`.
 //!
 //! A revalidação usa o último inventário gravado (`cba_tools::revalidacao`), sem
 //! inventariar de novo: arquivo com tamanho ou data diferentes do inventário é lido,
-//! então um inventário velho não engana a conferência, e inventariar o sistema todo a
+//! então um inventário velho não engana a conferência, e inventariar o projeto todo a
 //! cada abertura custaria mais do que a própria revalidação.
 
 use std::collections::BTreeMap;
@@ -25,9 +25,9 @@ use crate::analise::ambiente;
 use crate::primeiro_uso::Contagem;
 
 // ---------------------------------------------------------------------------
-// Visão do sistema
+// Visão do projeto
 
-/// Regra de negócio na lista do sistema.
+/// Regra de negócio na lista do projeto.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RegraVista {
@@ -56,7 +56,7 @@ pub struct TermoVista {
     pub origem: Option<String>,
 }
 
-/// Área funcional: as declaradas no `sistema.md` e as que só aparecem nas regras ou
+/// Área funcional: as declaradas no `projeto.md` e as que só aparecem nas regras ou
 /// nos termos.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -64,7 +64,7 @@ pub struct AreaVista {
     pub id: String,
     pub nome: String,
     pub sigla: Option<String>,
-    /// Declarada no `sistema.md`.
+    /// Declarada no `projeto.md`.
     pub declarada: bool,
     pub regras: usize,
     pub a_revalidar: usize,
@@ -81,13 +81,13 @@ pub struct ProblemaVista {
     pub erro: String,
 }
 
-/// O que a tela do sistema mostra, menos o mapa.
+/// O que a tela do projeto mostra, menos o mapa.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct VisaoSistema {
+pub struct VisaoProjeto {
     pub id: String,
     pub nome: String,
-    /// Documento `sistema.md`, relativo à raiz da base.
+    /// Documento `projeto.md`, relativo à raiz da base.
     pub documento: String,
     /// As "a revalidar" primeiro; depois por identificador.
     pub regras: Vec<RegraVista>,
@@ -96,7 +96,7 @@ pub struct VisaoSistema {
     pub problemas: Vec<ProblemaVista>,
 }
 
-impl VisaoSistema {
+impl VisaoProjeto {
     pub fn a_revalidar(&self) -> usize {
         self.regras
             .iter()
@@ -109,9 +109,9 @@ fn na_pasta(rel: &CaminhoRelativo, pasta: &str) -> bool {
     rel.partes().next() == Some(pasta) && rel.as_str().ends_with(".md")
 }
 
-/// Áreas, regras e glossário do sistema, lidos dos arquivos da base.
-pub fn visao_sistema(dados: &DiretorioDados, sistema: &str) -> Result<VisaoSistema, String> {
-    let amb = ambiente(dados, sistema)?;
+/// Áreas, regras e glossário do projeto, lidos dos arquivos da base.
+pub fn visao_projeto(dados: &DiretorioDados, projeto: &str) -> Result<VisaoProjeto, String> {
+    let amb = ambiente(dados, projeto)?;
     let kb = &amb.kb;
     let documentos = kb.documentos().map_err(|e| e.to_string())?;
     let mut problemas = Vec::new();
@@ -157,14 +157,14 @@ pub fn visao_sistema(dados: &DiretorioDados, sistema: &str) -> Result<VisaoSiste
     });
     termos.sort_by_key(|t| t.termo.to_lowercase());
 
-    let (nome, declaradas) = match kb.ler_sistema() {
+    let (nome, declaradas) = match kb.ler_projeto() {
         Ok(d) => (d.frontmatter.nome, d.frontmatter.areas),
         Err(e) => {
             problemas.push(ProblemaVista {
-                caminho: kb.na_base(&layout::sistema()).as_str().to_owned(),
+                caminho: kb.na_base(&layout::projeto()).as_str().to_owned(),
                 erro: e.to_string(),
             });
-            (amb.sistema.nome.clone(), Vec::new())
+            (amb.projeto.nome.clone(), Vec::new())
         }
     };
     let mut areas: BTreeMap<String, AreaVista> = BTreeMap::new();
@@ -212,13 +212,13 @@ pub fn visao_sistema(dados: &DiretorioDados, sistema: &str) -> Result<VisaoSiste
         }
     }
     let mut areas: Vec<AreaVista> = areas.into_values().collect();
-    // As declaradas na ordem do `sistema.md` não importam aqui: por nome.
+    // As declaradas na ordem do `projeto.md` não importam aqui: por nome.
     areas.sort_by_key(|a| a.nome.to_lowercase());
 
-    Ok(VisaoSistema {
-        id: amb.sistema.id.clone(),
+    Ok(VisaoProjeto {
+        id: amb.projeto.id.clone(),
         nome,
-        documento: kb.na_base(&layout::sistema()).as_str().to_owned(),
+        documento: kb.na_base(&layout::projeto()).as_str().to_owned(),
         regras,
         termos,
         areas,
@@ -284,11 +284,11 @@ impl From<&Relatorio> for ResumoRevalidacao {
     }
 }
 
-/// Confere as evidências das regras e das análises do sistema contra o código atual
+/// Confere as evidências das regras e das análises do projeto contra o código atual
 /// e marca (ou desmarca) o que está "a revalidar".
-pub fn revalidar(dados: &DiretorioDados, sistema: &str) -> Result<ResumoRevalidacao, String> {
-    let amb = ambiente(dados, sistema)?;
-    let relatorio = revalidacao::revalidar_sistema(&amb, dados).map_err(|e| e.to_string())?;
+pub fn revalidar(dados: &DiretorioDados, projeto: &str) -> Result<ResumoRevalidacao, String> {
+    let amb = ambiente(dados, projeto)?;
+    let relatorio = revalidacao::revalidar_projeto(&amb, dados).map_err(|e| e.to_string())?;
     Ok(ResumoRevalidacao::from(&relatorio))
 }
 
@@ -299,7 +299,7 @@ pub fn revalidar(dados: &DiretorioDados, sistema: &str) -> Result<ResumoRevalida
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModuloVista {
-    /// `""` é a raiz do sistema.
+    /// `""` é a raiz do projeto.
     pub caminho: String,
     pub arquivos: usize,
     pub falhas: usize,
@@ -326,7 +326,7 @@ pub struct DependenciaVista {
     pub referencias: usize,
 }
 
-/// Mapa do sistema numa pasta.
+/// Mapa do projeto numa pasta.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MapaVista {
@@ -393,15 +393,15 @@ fn modulo_vista(mapa: &cba_index::Mapa, m: Modulo) -> ModuloVista {
     }
 }
 
-/// O mapa gravado do sistema, na pasta `modulo` (`""` é a raiz). `None` se o
-/// sistema ainda não foi mapeado; pasta sem arquivo mapeado é recusada.
-pub fn mapa_sistema(
+/// O mapa gravado do projeto, na pasta `modulo` (`""` é a raiz). `None` se o
+/// projeto ainda não foi mapeado; pasta sem arquivo mapeado é recusada.
+pub fn mapa_projeto(
     dados: &DiretorioDados,
-    sistema: &str,
+    projeto: &str,
     modulo: &str,
 ) -> Result<Option<MapaVista>, String> {
-    let Some(mapa) = Cadastro::em(dados.sistemas())
-        .mapa(sistema)
+    let Some(mapa) = Cadastro::em(dados.projetos())
+        .mapa(projeto)
         .map_err(|e| e.to_string())?
     else {
         return Ok(None);
@@ -409,17 +409,17 @@ pub fn mapa_sistema(
     let modulo = modulo.trim().trim_matches('/');
     let m = mapa
         .modulo(modulo)
-        .ok_or_else(|| format!("a pasta `{modulo}` não tem arquivo mapeado no sistema"))?;
+        .ok_or_else(|| format!("a pasta `{modulo}` não tem arquivo mapeado no projeto"))?;
     Ok(Some(MapaVista {
         gerado_em: mapa.gerado_em,
         modulo: modulo_vista(&mapa, m),
     }))
 }
 
-/// Inventaria e mapeia o sistema (sem IA, sem custo) e devolve a raiz do mapa.
-pub fn mapear_sistema(dados: &DiretorioDados, sistema: &str) -> Result<MapaVista, String> {
-    let mapa = Cadastro::em(dados.sistemas())
-        .mapear(sistema)
+/// Inventaria e mapeia o projeto (sem IA, sem custo) e devolve a raiz do mapa.
+pub fn mapear_projeto(dados: &DiretorioDados, projeto: &str) -> Result<MapaVista, String> {
+    let mapa = Cadastro::em(dados.projetos())
+        .mapear(projeto)
         .map_err(|e| e.to_string())?;
     let m = mapa.modulo("").unwrap_or_default();
     Ok(MapaVista {
@@ -444,22 +444,22 @@ async fn bloqueante<T: Send + 'static>(
 }
 
 #[tauri::command]
-pub async fn visao_sistema_app(sistema: String) -> Result<VisaoSistema, String> {
+pub async fn visao_projeto_app(projeto: String) -> Result<VisaoProjeto, String> {
     let dados = dados()?;
-    bloqueante(move || visao_sistema(&dados, &sistema)).await
+    bloqueante(move || visao_projeto(&dados, &projeto)).await
 }
 
 #[tauri::command]
-pub async fn revalidar_sistema_app(sistema: String) -> Result<ResumoRevalidacao, String> {
+pub async fn revalidar_projeto_app(projeto: String) -> Result<ResumoRevalidacao, String> {
     let dados = dados()?;
     bloqueante(move || {
-        let r = revalidar(&dados, &sistema)?;
+        let r = revalidar(&dados, &projeto)?;
         tracing::info!(
             evidencias = r.evidencias,
             desatualizadas = r.desatualizadas,
             regras = r.regras.len(),
             duracao_ms = r.duracao_ms,
-            "sistema revalidado"
+            "projeto revalidado"
         );
         Ok(r)
     })
@@ -467,20 +467,20 @@ pub async fn revalidar_sistema_app(sistema: String) -> Result<ResumoRevalidacao,
 }
 
 #[tauri::command]
-pub async fn mapa_sistema_app(
-    sistema: String,
+pub async fn mapa_projeto_app(
+    projeto: String,
     modulo: Option<String>,
 ) -> Result<Option<MapaVista>, String> {
     let dados = dados()?;
-    bloqueante(move || mapa_sistema(&dados, &sistema, modulo.as_deref().unwrap_or_default())).await
+    bloqueante(move || mapa_projeto(&dados, &projeto, modulo.as_deref().unwrap_or_default())).await
 }
 
 #[tauri::command]
-pub async fn mapear_sistema_app(sistema: String) -> Result<MapaVista, String> {
+pub async fn mapear_projeto_app(projeto: String) -> Result<MapaVista, String> {
     let dados = dados()?;
-    bloqueante(move || mapear_sistema(&dados, &sistema)).await
+    bloqueante(move || mapear_projeto(&dados, &projeto)).await
 }
 
 #[cfg(test)]
-#[path = "sistema_testes.rs"]
+#[path = "projeto_testes.rs"]
 mod tests;

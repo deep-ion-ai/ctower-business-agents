@@ -73,12 +73,12 @@ impl Formato {
 
 /// De onde ler os trechos de código citados, para o apêndice.
 pub trait FonteDeTrechos {
-    /// Linhas `linhas` de `arquivo` (relativo à raiz do sistema), sem a quebra
+    /// Linhas `linhas` de `arquivo` (relativo à raiz do projeto), sem a quebra
     /// de linha final. `None` quando o arquivo ou as linhas não existem.
     fn trecho(&self, arquivo: &CaminhoRelativo, linhas: Linhas) -> Option<String>;
 }
 
-/// Código do sistema numa pasta local (o clone do repositório).
+/// Código do projeto numa pasta local (o clone do repositório).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CodigoEmPasta {
     raiz: PathBuf,

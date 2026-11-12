@@ -1,4 +1,4 @@
-//! Comandos Tauri do aviso de alteração na pasta do sistema e da proteção opcional
+//! Comandos Tauri do aviso de alteração na pasta do projeto e da proteção opcional
 //! contra edição (#29).
 //!
 //! O aviso fica na tela da análise: os arquivos que as sessões ligadas a ela
@@ -35,11 +35,11 @@ fn id_da_analise(analise: &str) -> Result<Id, String> {
     Id::analisar(analise.trim()).map_err(|e| e.to_string())
 }
 
-fn sistema_cadastrado(dados: &DiretorioDados, sistema: &str) -> Result<cba_index::Sistema, String> {
-    Cadastro::em(dados.sistemas())
-        .obter(sistema)
+fn projeto_cadastrado(dados: &DiretorioDados, projeto: &str) -> Result<cba_index::Projeto, String> {
+    Cadastro::em(dados.projetos())
+        .obter(projeto)
         .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("o sistema \"{sistema}\" não está cadastrado"))
+        .ok_or_else(|| format!("o projeto \"{projeto}\" não está cadastrado"))
 }
 
 // ---------------------------------------------------------------------------
@@ -48,16 +48,16 @@ fn sistema_cadastrado(dados: &DiretorioDados, sistema: &str) -> Result<cba_index
 /// Arquivos alterados pelas sessões da análise, com o diff.
 pub fn alteracoes_da_analise(
     dados: &DiretorioDados,
-    sistema: &str,
+    projeto: &str,
     analise: &str,
 ) -> Result<AvisoAlteracao, String> {
-    alteracoes::da_analise(dados, sistema, &id_da_analise(analise)?).map_err(|e| e.to_string())
+    alteracoes::da_analise(dados, projeto, &id_da_analise(analise)?).map_err(|e| e.to_string())
 }
 
 /// Desfaz (ou mantém) os arquivos pedidos. A confirmação é da tela.
 pub fn resolver_alteracoes(
     dados: &DiretorioDados,
-    sistema: &str,
+    projeto: &str,
     analise: &str,
     pedidos: &[Pedido],
     desfazer: bool,
@@ -65,37 +65,37 @@ pub fn resolver_alteracoes(
     if pedidos.is_empty() {
         return Ok(Vec::new());
     }
-    alteracoes::resolver_na_analise(dados, sistema, &id_da_analise(analise)?, pedidos, desfazer)
+    alteracoes::resolver_na_analise(dados, projeto, &id_da_analise(analise)?, pedidos, desfazer)
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn alteracoes_da_analise_sistema(
-    sistema: String,
+pub async fn alteracoes_da_analise_projeto(
+    projeto: String,
     analise: String,
 ) -> Result<AvisoAlteracao, String> {
     let dados = dados()?;
-    bloqueante(move || alteracoes_da_analise(&dados, &sistema, &analise)).await
+    bloqueante(move || alteracoes_da_analise(&dados, &projeto, &analise)).await
 }
 
 #[tauri::command]
-pub async fn desfazer_alteracoes_sistema(
-    sistema: String,
+pub async fn desfazer_alteracoes_projeto(
+    projeto: String,
     analise: String,
     pedidos: Vec<Pedido>,
 ) -> Result<Vec<String>, String> {
     let dados = dados()?;
-    bloqueante(move || resolver_alteracoes(&dados, &sistema, &analise, &pedidos, true)).await
+    bloqueante(move || resolver_alteracoes(&dados, &projeto, &analise, &pedidos, true)).await
 }
 
 #[tauri::command]
-pub async fn manter_alteracoes_sistema(
-    sistema: String,
+pub async fn manter_alteracoes_projeto(
+    projeto: String,
     analise: String,
     pedidos: Vec<Pedido>,
 ) -> Result<Vec<String>, String> {
     let dados = dados()?;
-    bloqueante(move || resolver_alteracoes(&dados, &sistema, &analise, &pedidos, false)).await
+    bloqueante(move || resolver_alteracoes(&dados, &projeto, &analise, &pedidos, false)).await
 }
 
 // ---------------------------------------------------------------------------
@@ -104,9 +104,9 @@ pub async fn manter_alteracoes_sistema(
 pub fn situacao_protecao(
     dados: &DiretorioDados,
     preparador: &Preparador,
-    sistema: &str,
+    projeto: &str,
 ) -> Result<SituacaoProtecao, String> {
-    protecao::situacao(dados, preparador, &sistema_cadastrado(dados, sistema)?)
+    protecao::situacao(dados, preparador, &projeto_cadastrado(dados, projeto)?)
         .map_err(|e| e.to_string())
 }
 
@@ -114,34 +114,34 @@ pub fn situacao_protecao(
 pub fn mudar_protecao(
     dados: &DiretorioDados,
     preparador: &Preparador,
-    sistema: &str,
+    projeto: &str,
     ligada: bool,
 ) -> Result<SituacaoProtecao, String> {
-    let cadastrado = sistema_cadastrado(dados, sistema)?;
+    let cadastrado = projeto_cadastrado(dados, projeto)?;
     if ligada {
         protecao::ligar(dados, preparador, &cadastrado).map_err(|e| e.to_string())
     } else {
-        protecao::desligar(dados, preparador, sistema).map_err(|e| e.to_string())?;
+        protecao::desligar(dados, preparador, projeto).map_err(|e| e.to_string())?;
         protecao::situacao(dados, preparador, &cadastrado).map_err(|e| e.to_string())
     }
 }
 
 /// Situação da proteção (para a tela de configurações, #39).
 #[tauri::command]
-pub async fn situacao_protecao_sistema(sistema: String) -> Result<SituacaoProtecao, String> {
+pub async fn situacao_protecao_projeto(projeto: String) -> Result<SituacaoProtecao, String> {
     let dados = dados()?;
-    bloqueante(move || situacao_protecao(&dados, &preparador()?, &sistema)).await
+    bloqueante(move || situacao_protecao(&dados, &preparador()?, &projeto)).await
 }
 
 /// Liga (`ligada: true`) ou desliga a proteção. Só chamado com o consentimento do
 /// analista na tela.
 #[tauri::command]
-pub async fn mudar_protecao_sistema(
-    sistema: String,
+pub async fn mudar_protecao_projeto(
+    projeto: String,
     ligada: bool,
 ) -> Result<SituacaoProtecao, String> {
     let dados = dados()?;
-    bloqueante(move || mudar_protecao(&dados, &preparador()?, &sistema, ligada)).await
+    bloqueante(move || mudar_protecao(&dados, &preparador()?, &projeto, ligada)).await
 }
 
 #[cfg(test)]
@@ -164,12 +164,12 @@ mod tests {
     }
 
     #[test]
-    fn protecao_liga_e_desliga_pelo_sistema_cadastrado() {
+    fn protecao_liga_e_desliga_pelo_projeto_cadastrado() {
         let dir = tempfile::tempdir().unwrap();
         let raiz = dunce::canonicalize(dir.path()).unwrap();
         let dados = DiretorioDados::em(raiz.join("dados"));
-        let sistema = cba_index::Sistema::novo("Faturamento Exemplo", [fixture()]).unwrap();
-        Cadastro::em(dados.sistemas()).cadastrar(&sistema).unwrap();
+        let projeto = cba_index::Projeto::novo("Faturamento Exemplo", [fixture()]).unwrap();
+        Cadastro::em(dados.projetos()).cadastrar(&projeto).unwrap();
         let home = raiz.join("home");
         let config = ConfigClaude::da_pasta_do_usuario(&home);
         fs::create_dir_all(config.settings.parent().unwrap()).unwrap();
@@ -177,15 +177,15 @@ mod tests {
         let exe = raiz.join(if cfg!(windows) { "cba.exe" } else { "cba" });
         let preparador = Preparador::novo(config.clone(), exe, Plataforma::atual()).unwrap();
 
-        let s = situacao_protecao(&dados, &preparador, &sistema.id).unwrap();
+        let s = situacao_protecao(&dados, &preparador, &projeto.id).unwrap();
         assert!(!s.ligada);
-        let s = mudar_protecao(&dados, &preparador, &sistema.id, true).unwrap();
+        let s = mudar_protecao(&dados, &preparador, &projeto.id, true).unwrap();
         assert!(s.ligada && s.completa);
         let json: serde_json::Value =
             serde_json::from_slice(&fs::read(&config.settings).unwrap()).unwrap();
         assert_eq!(json["theme"], "dark");
         assert_eq!(json["permissions"]["deny"].as_array().unwrap().len(), 1);
-        let s = mudar_protecao(&dados, &preparador, &sistema.id, false).unwrap();
+        let s = mudar_protecao(&dados, &preparador, &projeto.id, false).unwrap();
         assert!(!s.ligada);
         let json: serde_json::Value =
             serde_json::from_slice(&fs::read(&config.settings).unwrap()).unwrap();

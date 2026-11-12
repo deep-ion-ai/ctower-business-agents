@@ -42,7 +42,7 @@ pub fn afirmar() -> Ferramenta {
         "Registrar afirmação",
         "Registra uma afirmação na análise, com a seção do documento, o texto, a \
          confiança e as evidências do código. Cada evidência é conferida na hora: o \
-         arquivo precisa estar nas pastas do sistema e fora das exclusões, o intervalo \
+         arquivo precisa estar nas pastas do projeto e fora das exclusões, o intervalo \
          precisa existir e o trecho citado precisa aparecer nessas linhas. Evidência que \
          não confere é recusada com o motivo e a correção; corrija e chame de novo. \
          Confiança: `confirmado` (evidência direta; exige ao menos uma evidência), \

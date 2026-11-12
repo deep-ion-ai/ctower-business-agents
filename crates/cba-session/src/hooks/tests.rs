@@ -9,7 +9,7 @@ use super::*;
 
 const SESSAO: &str = "3f2b8c1e-9a7d-4e2f-b1c3-0d4e5f6a7b8c";
 
-/// Diretório de dados com um sistema cadastrado (a pasta `codigo`), a base
+/// Diretório de dados com um projeto cadastrado (a pasta `codigo`), a base
 /// configurada e uma análise criada pelo app.
 struct Cenario {
     _dir: tempfile::TempDir,
@@ -29,9 +29,9 @@ impl Cenario {
         fs::create_dir_all(codigo.join("db")).unwrap();
         fs::create_dir_all(&fora).unwrap();
         let dados = DiretorioDados::em(raiz.join("dados"));
-        let sistema = cba_index::Sistema::novo("Faturamento Exemplo", [&codigo]).unwrap();
-        cba_index::Cadastro::em(dados.sistemas())
-            .cadastrar(&sistema)
+        let projeto = cba_index::Projeto::novo("Faturamento Exemplo", [&codigo]).unwrap();
+        cba_index::Cadastro::em(dados.projetos())
+            .cadastrar(&projeto)
             .unwrap();
         let ambiente = {
             Base::criar(raiz.join("base")).unwrap();
@@ -66,7 +66,7 @@ impl Cenario {
     fn contexto(&self) -> Contexto {
         Contexto {
             dados: Some(self.dados.clone()),
-            diretorio_projeto: None,
+            diretorio_claude: None,
             fundo: Fundo::Desligado,
         }
     }
@@ -119,16 +119,16 @@ fn resposta_padrao_e_contexto_do_session_start() {
         r.saida["hookSpecificOutput"]["additionalContext"],
         "limites"
     );
-    // Sessão de sistema cadastrado: sempre os limites, mesmo sem base nem regras.
+    // Sessão de projeto cadastrado: sempre os limites, mesmo sem base nem regras.
     let inicio = InicioDeSessao {
-        sistema: "x".into(),
+        projeto: "x".into(),
         analise: None,
         origem: None,
         regras: None,
     };
     let texto = contexto_inicial(&inicio).unwrap();
     assert!(texto.starts_with(limites::LIMITES.trim_end()));
-    assert!(!texto.contains("## Regras do sistema"));
+    assert!(!texto.contains("## Regras do projeto"));
 }
 
 /// O `additionalContext` de uma resposta do `SessionStart`.
@@ -148,25 +148,25 @@ fn session_start_injeta_limites_e_regras_em_toda_origem() {
     let c = Cenario::novo();
     let kb = Base::abrir(c.codigo.parent().unwrap().join("base"))
         .unwrap()
-        .sistema("faturamento-exemplo")
+        .projeto("faturamento-exemplo")
         .unwrap();
-    let arquivo = kb.raiz().join("regras-do-sistema.md");
+    let arquivo = kb.raiz().join("regras-do-projeto.md");
 
-    // O sistema na base ganhou o arquivo padrão, só com comentários: nada de regras.
+    // O projeto na base ganhou o arquivo padrão, só com comentários: nada de regras.
     assert_eq!(
         fs::read_to_string(&arquivo).unwrap(),
-        cba_kb::PADRAO_REGRAS_DO_SISTEMA
+        cba_kb::PADRAO_REGRAS_DO_PROJETO
     );
     let r = c.enviar("SessionStart", json!({"source": "startup"}), &c.codigo);
     let texto = contexto_de(&r);
     assert!(texto.starts_with("# Limites do ctower-business-agents"));
-    assert!(!texto.contains("## Regras do sistema"));
+    assert!(!texto.contains("## Regras do projeto"));
     assert!(!texto.contains("Como usar"), "comentário do padrão vazou");
 
     // Regras editadas pelo analista chegam, sem os comentários.
     fs::write(
         &arquivo,
-        "# Regras do sistema\n\n<!-- instruções -->\n\n\
+        "# Regras do projeto\n\n<!-- instruções -->\n\n\
          - Valores monetários estão em centavos nas tabelas.\n",
     )
     .unwrap();
@@ -176,7 +176,7 @@ fn session_start_injeta_limites_e_regras_em_toda_origem() {
         let texto = contexto_de(&r);
         assert!(texto.contains("não desenvolve"), "{origem}");
         assert!(texto.contains("registrar_sugestao"), "{origem}");
-        assert!(texto.contains("## Regras do sistema"), "{origem}");
+        assert!(texto.contains("## Regras do projeto"), "{origem}");
         assert!(
             texto.contains("- Valores monetários estão em centavos nas tabelas."),
             "{origem}"
@@ -216,12 +216,12 @@ fn session_start_injeta_limites_e_regras_em_toda_origem() {
     let r = c.enviar("SessionStart", json!({"source": "compact"}), &c.codigo);
     let texto = contexto_de(&r);
     assert!(texto.contains("registrar_sugestao"));
-    assert!(!texto.contains("## Regras do sistema"));
+    assert!(!texto.contains("## Regras do projeto"));
     assert!(texto.contains("Conversa compactada"));
 }
 
 #[test]
-fn session_start_fora_de_sistema_nao_acrescenta_nada() {
+fn session_start_fora_de_projeto_nao_acrescenta_nada() {
     let c = Cenario::novo();
     for origem in ["startup", "resume", "compact"] {
         assert_eq!(
@@ -249,7 +249,7 @@ fn entradas_ruins_nao_bloqueiam() {
 }
 
 #[test]
-fn sessao_fora_de_sistema_nao_grava_nada() {
+fn sessao_fora_de_projeto_nao_grava_nada() {
     let c = Cenario::novo();
     for evento in EVENTOS {
         let r = c.enviar(evento, json!({"source": "startup"}), &c.fora);
@@ -301,7 +301,7 @@ fn ciclo_completo_de_uma_sessao_ligada_a_analise() {
     assert_eq!(r.codigo, 0);
     assert!(contexto_de(&r).contains("registrar_sugestao"));
     let reg = c.registro().unwrap();
-    assert_eq!(reg.sistema, "faturamento-exemplo");
+    assert_eq!(reg.projeto, "faturamento-exemplo");
     assert_eq!(reg.estado, EstadoSessao::Ativa);
     assert_eq!(reg.analise, None);
     assert_eq!(reg.origem.as_deref(), Some("startup"));
@@ -475,19 +475,19 @@ fn analise_aprovada_ou_inexistente_nao_impede_o_registro() {
 fn claude_project_dir_identifica_quando_o_cwd_saiu_da_pasta() {
     let c = Cenario::novo();
     let ctx = Contexto {
-        diretorio_projeto: Some(c.codigo.clone()),
+        diretorio_claude: Some(c.codigo.clone()),
         ..c.contexto()
     };
     c.enviar_com("SessionStart", json!({}), &c.fora, &ctx);
     let reg = c.registro().unwrap();
-    assert_eq!(reg.sistema, "faturamento-exemplo");
+    assert_eq!(reg.projeto, "faturamento-exemplo");
     assert_eq!(reg.diretorio.as_deref(), Some(c.codigo.as_path()));
 }
 
 #[test]
-fn worktree_do_git_conta_como_o_sistema() {
+fn worktree_do_git_conta_como_o_projeto() {
     let c = Cenario::novo();
-    // Repositório principal na pasta do sistema e uma worktree fora dela.
+    // Repositório principal na pasta do projeto e uma worktree fora dela.
     let git = c.codigo.join(".git");
     fs::create_dir_all(git.join("worktrees/wt")).unwrap();
     fs::write(git.join("HEAD"), "ref: refs/heads/main\n").unwrap();
@@ -501,17 +501,17 @@ fn worktree_do_git_conta_como_o_sistema() {
     )
     .unwrap();
 
-    let sistemas = cba_index::Cadastro::em(c.dados.sistemas())
+    let projetos = cba_index::Cadastro::em(c.dados.projetos())
         .listar()
         .unwrap();
     assert_eq!(
-        sistema_da_pasta(&wt.join("db"), &sistemas).as_deref(),
+        projeto_da_pasta(&wt.join("db"), &projetos).as_deref(),
         Some("faturamento-exemplo")
     );
-    assert_eq!(sistema_da_pasta(&c.fora, &sistemas), None);
+    assert_eq!(projeto_da_pasta(&c.fora, &projetos), None);
 
     c.enviar("SessionStart", json!({}), &wt.join("db"));
-    assert_eq!(c.registro().unwrap().sistema, "faturamento-exemplo");
+    assert_eq!(c.registro().unwrap().projeto, "faturamento-exemplo");
 }
 
 #[test]
@@ -519,15 +519,15 @@ fn pasta_mais_especifica_vence() {
     let dir = tempfile::tempdir().unwrap();
     let raiz = dunce::canonicalize(dir.path()).unwrap();
     fs::create_dir_all(raiz.join("a/b/c")).unwrap();
-    let externo = cba_index::Sistema::novo("Externo", [raiz.join("a")]).unwrap();
-    let interno = cba_index::Sistema::novo("Interno", [raiz.join("a/b")]).unwrap();
-    let sistemas = [externo, interno];
+    let externo = cba_index::Projeto::novo("Externo", [raiz.join("a")]).unwrap();
+    let interno = cba_index::Projeto::novo("Interno", [raiz.join("a/b")]).unwrap();
+    let projetos = [externo, interno];
     assert_eq!(
-        sistema_da_pasta(&raiz.join("a/b/c"), &sistemas).as_deref(),
+        projeto_da_pasta(&raiz.join("a/b/c"), &projetos).as_deref(),
         Some("interno")
     );
     assert_eq!(
-        sistema_da_pasta(&raiz.join("a"), &sistemas).as_deref(),
+        projeto_da_pasta(&raiz.join("a"), &projetos).as_deref(),
         Some("externo")
     );
 }
@@ -723,11 +723,11 @@ fn sem_fundo_nada_e_retratado() {
     assert!(!c.dados.raiz().join(alteracoes::PASTA).exists());
 }
 
-/// Com a proteção ligada, o Bash e o PowerShell são negados nas sessões do sistema
+/// Com a proteção ligada, o Bash e o PowerShell são negados nas sessões do projeto
 /// (antes da pergunta ao analista); as demais ferramentas e as sessões de outras
 /// pastas seguem.
 #[test]
-fn protecao_nega_bash_nas_sessoes_do_sistema() {
+fn protecao_nega_bash_nas_sessoes_do_projeto() {
     let c = Cenario::novo();
     let bash = json!({"tool_name": "Bash", "tool_input": {"command": "echo x > db/a.sql"}});
     c.enviar("SessionStart", json!({}), &c.codigo);
@@ -745,11 +745,11 @@ fn protecao_nega_bash_nas_sessoes_do_sistema() {
         crate::clientes::Plataforma::atual(),
     )
     .unwrap();
-    let sistema = cba_index::Cadastro::em(c.dados.sistemas())
+    let projeto = cba_index::Cadastro::em(c.dados.projetos())
         .obter("faturamento-exemplo")
         .unwrap()
         .unwrap();
-    protecao::ligar(&c.dados, &preparador, &sistema).unwrap();
+    protecao::ligar(&c.dados, &preparador, &projeto).unwrap();
 
     let r = c.enviar("PreToolUse", bash.clone(), &c.codigo);
     assert_eq!(r.codigo, 0);
@@ -766,7 +766,7 @@ fn protecao_nega_bash_nas_sessoes_do_sistema() {
         Resposta::seguir()
     );
 
-    // Outra sessão, fora do sistema: segue.
+    // Outra sessão, fora do projeto: segue.
     let mut fora = json!({
         "session_id": "outra-sessao",
         "cwd": c.fora,

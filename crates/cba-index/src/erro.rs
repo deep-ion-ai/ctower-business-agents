@@ -3,16 +3,16 @@
 use std::io;
 use std::path::PathBuf;
 
-/// Erro do cadastro, do escopo ou do inventário de um sistema.
+/// Erro do cadastro, do escopo ou do inventário de um projeto.
 #[derive(Debug, thiserror::Error)]
 pub enum Erro {
-    #[error("o nome do sistema está vazio")]
+    #[error("o nome do projeto está vazio")]
     NomeVazio,
 
-    #[error("identificador de sistema inválido: {0:?} (use letras minúsculas, dígitos e hífens)")]
+    #[error("identificador de projeto inválido: {0:?} (use letras minúsculas, dígitos e hífens)")]
     IdInvalido(String),
 
-    #[error("o sistema precisa de ao menos uma pasta")]
+    #[error("o projeto precisa de ao menos uma pasta")]
     SemPastas,
 
     #[error("pasta não encontrada: {0}")]
@@ -27,7 +27,7 @@ pub enum Erro {
     #[error("prefixo de pasta inválido ou repetido: {0:?}")]
     PrefixoInvalido(String),
 
-    #[error("só uma pasta do sistema pode ficar sem prefixo")]
+    #[error("só uma pasta do projeto pode ficar sem prefixo")]
     VariasPastasSemPrefixo,
 
     #[error("o prefixo {prefixo:?} coincide com um item da pasta raiz {raiz}")]
@@ -36,10 +36,10 @@ pub enum Erro {
     #[error("padrão de exclusão inválido {padrao:?}: {detalhe}")]
     PadraoInvalido { padrao: String, detalhe: String },
 
-    #[error("sistema já cadastrado: {0}")]
+    #[error("projeto já cadastrado: {0}")]
     JaCadastrado(String),
 
-    #[error("sistema não cadastrado: {0}")]
+    #[error("projeto não cadastrado: {0}")]
     NaoCadastrado(String),
 
     #[error("erro ao acessar {caminho}: {fonte}")]

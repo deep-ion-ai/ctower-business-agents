@@ -44,10 +44,10 @@ pub mod vb6;
 /// Arquivo entregue ao extrator.
 #[derive(Debug, Clone, Copy)]
 pub struct Fonte<'a> {
-    /// Caminho relativo à raiz do sistema, com `/`.
+    /// Caminho relativo à raiz do projeto, com `/`.
     pub caminho: &'a str,
     pub linguagem: Linguagem,
-    /// Conteúdo. Bytes que não são UTF-8 válido chegam como `U+FFFD` (os sistemas
+    /// Conteúdo. Bytes que não são UTF-8 válido chegam como `U+FFFD` (os projetos
     /// legados costumam usar Latin-1; os nomes de símbolos são ASCII).
     pub texto: &'a str,
 }
@@ -56,7 +56,7 @@ pub struct Fonte<'a> {
 ///
 /// Recebe um arquivo e devolve os símbolos que ele define e as referências que
 /// faz. Não precisa resolver as referências: o mapa liga cada uma aos símbolos de
-/// todo o sistema pelo nome. Pode falhar (com uma mensagem) ou até entrar em
+/// todo o projeto pelo nome. Pode falhar (com uma mensagem) ou até entrar em
 /// pânico: o mapeamento registra a falha no arquivo e segue para o próximo.
 pub trait Extrator: Send + Sync {
     /// Nome estável, gravado no mapa (`"sql"`, `"java"`).

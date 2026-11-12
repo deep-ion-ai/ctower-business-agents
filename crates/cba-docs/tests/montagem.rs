@@ -14,14 +14,14 @@ use cba_docs::{
 };
 use cba_kb::frontmatter::{
     Abrangencia, Area, Data, Demanda, Evidencia, FrontmatterAnalise, FrontmatterFuncionalidade,
-    FrontmatterLivre, FrontmatterRegra, FrontmatterSistema, FrontmatterSugestao, FrontmatterTermo,
+    FrontmatterLivre, FrontmatterProjeto, FrontmatterRegra, FrontmatterSugestao, FrontmatterTermo,
     Linhas, StatusAnalise, StatusRegra, StatusSugestao, VersaoCodigo,
 };
 use cba_kb::yaml::Value;
 use cba_kb::{Base, CaminhoRelativo, Documento, Id, Serie, TipoDocumento, layout};
 use serde::Deserialize;
 
-const SISTEMA: &str = "faturamento-exemplo";
+const PROJETO: &str = "faturamento-exemplo";
 
 // ---------------------------------------------------------------------------
 // Gabarito do sistema fictício
@@ -152,7 +152,7 @@ fn analise(tipo: TipoDocumento, numero: u32, titulo: &str) -> FrontmatterAnalise
         tipo,
         id: Serie::Analise.id(numero),
         titulo: titulo.into(),
-        sistema: SISTEMA.into(),
+        projeto: PROJETO.into(),
         demanda: Demanda {
             origem: "texto".into(),
             chave: None,
@@ -428,7 +428,7 @@ fn conteudo_caso_de_uso(g: &Gabarito) -> Conteudo<FrontmatterFuncionalidade> {
     );
     conteudo.textos.push(Texto::novo(
         "fluxo_principal",
-        "1. O atendente informa a fatura e o motivo.\n2. O sistema confere as regras.\n\
+        "1. O atendente informa a fatura e o motivo.\n2. O projeto confere as regras.\n\
          3. A fatura é cancelada com o responsável registrado.",
     ));
     conteudo.afirmacoes.push(
@@ -513,7 +513,7 @@ fn conteudo_sugestao() -> Conteudo<FrontmatterSugestao> {
         tipo: TipoDocumento::Sugestao,
         id: id.clone(),
         titulo: "Ler a multa do parâmetro no lote de cobrança".into(),
-        sistema: SISTEMA.into(),
+        projeto: PROJETO.into(),
         status: StatusSugestao::Proposta,
         analise: Some(Serie::Analise.id(4)),
         arquivo: Some(c("cobol/CALCOBR.cbl")),
@@ -650,14 +650,14 @@ fn documento_vazio_tem_todas_as_secoes() {
 // ---------------------------------------------------------------------------
 // Templates da base, avisos e erros
 
-fn base_com_sistema() -> (tempfile::TempDir, Base, cba_kb::Sistema) {
+fn base_com_projeto() -> (tempfile::TempDir, Base, cba_kb::Projeto) {
     let dir = tempfile::tempdir().unwrap();
     let base = Base::criar(dir.path().join("Base de Conhecimento – Análises")).unwrap();
-    let sistema = base
-        .criar_sistema(&Documento::novo(
-            FrontmatterSistema {
-                tipo: TipoDocumento::Sistema,
-                id: SISTEMA.into(),
+    let projeto = base
+        .criar_projeto(&Documento::novo(
+            FrontmatterProjeto {
+                tipo: TipoDocumento::Projeto,
+                id: PROJETO.into(),
                 nome: "Faturamento Exemplo".into(),
                 areas: vec![Area {
                     id: "cobranca".into(),
@@ -669,12 +669,12 @@ fn base_com_sistema() -> (tempfile::TempDir, Base, cba_kb::Sistema) {
             "\n# Faturamento Exemplo\n",
         ))
         .unwrap();
-    (dir, base, sistema)
+    (dir, base, projeto)
 }
 
 #[test]
 fn template_editado_na_base_substitui_o_padrao() {
-    let (_dir, base, _) = base_com_sistema();
+    let (_dir, base, _) = base_com_projeto();
     let criados = Templates::copiar_padrao(&base).unwrap();
     assert_eq!(criados.len(), 7);
     assert!(criados.contains(&c("_templates/regra.md")));
@@ -709,7 +709,7 @@ fn template_editado_na_base_substitui_o_padrao() {
 
 #[test]
 fn sem_template_na_base_usa_o_padrao() {
-    let (_dir, base, _) = base_com_sistema();
+    let (_dir, base, _) = base_com_projeto();
     let (templates, avisos) = Templates::da_base(&base);
     assert!(avisos.is_empty());
     assert_eq!(templates, Templates::padrao());
@@ -717,7 +717,7 @@ fn sem_template_na_base_usa_o_padrao() {
 
 #[test]
 fn marcador_desconhecido_no_template_da_base_gera_aviso() {
-    let (_dir, base, _) = base_com_sistema();
+    let (_dir, base, _) = base_com_projeto();
     base.gravar_texto(
         &arquivo_do_template(TipoDocumento::Termo),
         "# {{termo}}\n\n{{definicao}}\n\nResponsável: {{responsavel}}\n\n{{evidencias}}\n",
@@ -759,7 +759,7 @@ fn marcador_desconhecido_no_template_da_base_gera_aviso() {
 
 #[test]
 fn template_ilegivel_usa_o_padrao_com_aviso() {
-    let (_dir, base, _) = base_com_sistema();
+    let (_dir, base, _) = base_com_projeto();
     fs::create_dir_all(base.templates()).unwrap();
     fs::write(base.templates().join("pergunta.md"), [0xff, 0xfe, 0x00]).unwrap();
     let (templates, avisos) = Templates::da_base(&base);
@@ -833,22 +833,22 @@ fn frontmatter_invalido_nao_monta() {
 
 #[test]
 fn gravacao_continua_remonta_a_cada_registro() {
-    let (_dir, _base, sistema) = base_com_sistema();
+    let (_dir, _base, projeto) = base_com_projeto();
     let templates = Templates::padrao();
     let g = gabarito();
     let mut conteudo = conteudo_pergunta(&g);
     conteudo.afirmacoes.clear();
 
-    templates.gravar(&sistema, &conteudo).unwrap();
-    let antes: Documento<FrontmatterAnalise> = sistema.ler(&conteudo.caminho).unwrap();
+    templates.gravar(&projeto, &conteudo).unwrap();
+    let antes: Documento<FrontmatterAnalise> = projeto.ler(&conteudo.caminho).unwrap();
     assert!(!antes.corpo.contains("[^1]"));
 
     conteudo.afirmacoes.push(
         g.regra("RN-FAT-001")
             .afirmacao("regras_encontradas", Confianca::Confirmado),
     );
-    templates.gravar(&sistema, &conteudo).unwrap();
-    let depois: Documento<FrontmatterAnalise> = sistema.ler(&conteudo.caminho).unwrap();
+    templates.gravar(&projeto, &conteudo).unwrap();
+    let depois: Documento<FrontmatterAnalise> = projeto.ler(&conteudo.caminho).unwrap();
     assert_eq!(depois.frontmatter, conteudo.frontmatter);
     assert!(
         depois

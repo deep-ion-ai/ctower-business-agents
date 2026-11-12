@@ -57,7 +57,7 @@ const EVIDENCIAS_SECAO: Secao = s(EVIDENCIAS, "Evidências");
 const CAMPOS_ANALISE: &[&str] = &[
     "id",
     "titulo",
-    "sistema",
+    "projeto",
     "status",
     "criado",
     "analista",
@@ -72,7 +72,7 @@ const CAMPOS_FUNCIONALIDADE: &[&str] = &["titulo", "area", "tema", "status", "or
 const CAMPOS_FUNCIONALIDADE_OU_ANALISE: &[&str] = &[
     "id",
     "titulo",
-    "sistema",
+    "projeto",
     "status",
     "criado",
     "analista",
@@ -180,13 +180,13 @@ pub const MODELOS: [Modelo; 7] = [
             EVIDENCIAS_SECAO,
         ],
         campos: &[
-            "id", "titulo", "sistema", "status", "analise", "arquivo", "criado",
+            "id", "titulo", "projeto", "status", "analise", "arquivo", "criado",
         ],
         padrao: include_str!("../templates/sugestao.md"),
     },
 ];
 
-/// Modelo do tipo, se o tipo tiver template (`sistema` e `memoria-area` não têm).
+/// Modelo do tipo, se o tipo tiver template (`projeto` e `memoria-area` não têm).
 pub fn modelo(tipo: TipoDocumento) -> Option<&'static Modelo> {
     MODELOS.iter().find(|m| m.tipo == tipo)
 }
@@ -209,7 +209,7 @@ pub trait Montavel: Frontmatter + Clone {
     fn tipo(&self) -> TipoDocumento;
 
     /// Valores dos marcadores de campo, já em Markdown. `caminho` é onde o
-    /// documento fica, relativo à raiz do sistema, para os links relativos.
+    /// documento fica, relativo à raiz do projeto, para os links relativos.
     fn campos(&self, caminho: &CaminhoRelativo) -> Vec<(&'static str, String)>;
 }
 
@@ -255,7 +255,7 @@ impl Montavel for FrontmatterAnalise {
         vec![
             ("id", self.id.to_string()),
             ("titulo", self.titulo.clone()),
-            ("sistema", self.sistema.clone()),
+            ("projeto", self.projeto.clone()),
             ("status", status_analise(self.status).into()),
             ("criado", self.criado.to_string()),
             (
@@ -352,7 +352,7 @@ impl Montavel for FrontmatterSugestao {
         vec![
             ("id", self.id.to_string()),
             ("titulo", self.titulo.clone()),
-            ("sistema", self.sistema.clone()),
+            ("projeto", self.projeto.clone()),
             ("status", status.into()),
             ("analise", analise),
             ("arquivo", arquivo),
@@ -378,7 +378,7 @@ mod tests {
         ] {
             assert_eq!(modelo(tipo).unwrap().tipo, tipo);
         }
-        assert!(modelo(TipoDocumento::Sistema).is_none());
+        assert!(modelo(TipoDocumento::Projeto).is_none());
         assert!(modelo(TipoDocumento::MemoriaArea).is_none());
     }
 

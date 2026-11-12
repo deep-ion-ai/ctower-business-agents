@@ -1,17 +1,17 @@
 //! Nomes de pastas e arquivos da base (spec, seção 7.1) e os caminhos padrão de
-//! cada tipo de documento, relativos à raiz do sistema.
+//! cada tipo de documento, relativos à raiz do projeto.
 
 use crate::caminho::{CaminhoInvalido, CaminhoRelativo, slug};
 
 /// Templates dos documentos, na raiz da base.
 pub const TEMPLATES: &str = "_templates";
-/// Documento do sistema, na raiz do sistema.
-pub const ARQUIVO_SISTEMA: &str = "sistema.md";
-/// Regras do sistema para o agente (convenções do sistema e da organização), na
-/// raiz do sistema. Editáveis pelo analista e versionadas com a base; o hook
+/// Documento do projeto, na raiz do projeto.
+pub const ARQUIVO_PROJETO: &str = "projeto.md";
+/// Regras do projeto para o agente (convenções do projeto e da organização), na
+/// raiz do projeto. Editáveis pelo analista e versionadas com a base; o hook
 /// `SessionStart` as soma aos limites fixos (spec, seção 8). Não confundir com
 /// `regras/`, onde ficam as regras de negócio (`RN-<AREA>-<NNN>.md`).
-pub const ARQUIVO_REGRAS_DO_SISTEMA: &str = "regras-do-sistema.md";
+pub const ARQUIVO_REGRAS_DO_PROJETO: &str = "regras-do-projeto.md";
 /// Memória de uma área, em `areas/<area>/`.
 pub const ARQUIVO_MEMORIA: &str = "memoria.md";
 
@@ -22,8 +22,8 @@ pub const FUNCIONALIDADES: &str = "funcionalidades";
 pub const ANALISES: &str = "analises";
 pub const SUGESTOES: &str = "sugestoes";
 
-/// Pastas criadas em todo sistema.
-pub const PASTAS_DO_SISTEMA: [&str; 6] = [
+/// Pastas criadas em todo projeto.
+pub const PASTAS_DO_PROJETO: [&str; 6] = [
     GLOSSARIO,
     REGRAS,
     AREAS,
@@ -50,14 +50,14 @@ fn exigir_slug(texto: &str) -> Result<String, CaminhoInvalido> {
     Ok(s)
 }
 
-/// `sistema.md`.
-pub fn sistema() -> CaminhoRelativo {
-    CaminhoRelativo::novo(ARQUIVO_SISTEMA).expect("nome fixo válido")
+/// `projeto.md`.
+pub fn projeto() -> CaminhoRelativo {
+    CaminhoRelativo::novo(ARQUIVO_PROJETO).expect("nome fixo válido")
 }
 
-/// `regras-do-sistema.md`.
-pub fn regras_do_sistema() -> CaminhoRelativo {
-    CaminhoRelativo::novo(ARQUIVO_REGRAS_DO_SISTEMA).expect("nome fixo válido")
+/// `regras-do-projeto.md`.
+pub fn regras_do_projeto() -> CaminhoRelativo {
+    CaminhoRelativo::novo(ARQUIVO_REGRAS_DO_PROJETO).expect("nome fixo válido")
 }
 
 /// `glossario/<slug do termo>.md`.
@@ -86,8 +86,8 @@ mod tests {
 
     #[test]
     fn caminhos_padrao() {
-        assert_eq!(sistema().as_str(), "sistema.md");
-        assert_eq!(regras_do_sistema().as_str(), "regras-do-sistema.md");
+        assert_eq!(projeto().as_str(), "projeto.md");
+        assert_eq!(regras_do_projeto().as_str(), "regras-do-projeto.md");
         assert_eq!(
             termo("Nota Fiscal").unwrap().as_str(),
             "glossario/nota-fiscal.md"

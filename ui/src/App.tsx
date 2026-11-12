@@ -11,8 +11,8 @@ export const PRODUTO = "Ctower Business Agents";
 /**
  * Raiz do app, no shell do Control Tower (#85): nome do produto e versão na barra de
  * título. No primeiro uso, o assistente
- * (cliente de IA, base, sistema e ambiente); depois, a navegação entre o início, o
- * sistema, a base de conhecimento e as análises ({@link Navegacao}). Ao concluir o
+ * (cliente de IA, base, projeto e ambiente); depois, a navegação entre o início, o
+ * projeto, a base de conhecimento e as análises ({@link Navegacao}). Ao concluir o
  * assistente, abre a análise com a pergunta sugerida.
  */
 export function App({ api = apiPrimeiroUsoTauri }: { api?: ApiPrimeiroUso }) {
@@ -73,9 +73,9 @@ export function App({ api = apiPrimeiroUsoTauri }: { api?: ApiPrimeiroUso }) {
   if (falha || (situacao && !assistente)) {
     return (
       <Navegacao
-        key={inicio?.sistema ?? ""}
+        key={inicio?.projeto ?? ""}
         inicial={
-          inicio ? { tipo: "analise", sistema: inicio.sistema, pergunta: inicio.pergunta } : undefined
+          inicio ? { tipo: "analise", projeto: inicio.projeto, pergunta: inicio.pergunta } : undefined
         }
         abrirLink={api.abrirLink}
         aoPrimeiroUso={reabrir}

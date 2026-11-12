@@ -1,12 +1,12 @@
 //! Extratores de Java, C# e TypeScript no mapa: ligações entre tela, endpoint,
-//! entidade e tabela, com sistemas sintéticos e com a fixture "Faturamento
+//! entidade e tabela, com projetos sintéticos e com a fixture "Faturamento
 //! Exemplo".
 
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use cba_index::{Mapa, Registro, Sistema, TipoReferencia, TipoSimbolo, inventariar, mapear};
+use cba_index::{Mapa, Projeto, Registro, TipoReferencia, TipoSimbolo, inventariar, mapear};
 
 fn escrever(raiz: &Path, caminho: &str, conteudo: &str) {
     let alvo = raiz.join(caminho);
@@ -15,20 +15,20 @@ fn escrever(raiz: &Path, caminho: &str, conteudo: &str) {
 }
 
 fn mapa_de(raiz: &Path) -> Mapa {
-    let sistema = Sistema::novo("Sintetico", [raiz]).unwrap();
-    let inv = inventariar(&sistema, None).unwrap();
-    mapear(&inv, &sistema.escopo().unwrap(), None, &Registro::padrao())
+    let projeto = Projeto::novo("Sintetico", [raiz]).unwrap();
+    let inv = inventariar(&projeto, None).unwrap();
+    mapear(&inv, &projeto.escopo().unwrap(), None, &Registro::padrao())
 }
 
 const DDL: &str =
     "CREATE TABLE FATURA (\n  ID_FATURA NUMBER PRIMARY KEY,\n  STATUS VARCHAR2(10)\n);\n";
 
-/// Tela → endpoint → serviço/entidade → tabela, num sistema Spring + TypeScript
+/// Tela → endpoint → serviço/entidade → tabela, num projeto Spring + TypeScript
 /// e noutro ASP.NET + Angular.
 #[test]
 fn tela_endpoint_entidade_e_tabela_ligados() {
     let tmp = tempfile::tempdir().unwrap();
-    let raiz = tmp.path().join("sistema");
+    let raiz = tmp.path().join("projeto");
     escrever(&raiz, "db/tabelas.sql", DDL);
     escrever(
         &raiz,
@@ -291,15 +291,15 @@ fn projeto_java_grande() {
             raiz
         }
     };
-    let sistema = Sistema::novo("Grande", [&raiz]).unwrap();
-    let inv = inventariar(&sistema, None).unwrap();
+    let projeto = Projeto::novo("Grande", [&raiz]).unwrap();
+    let inv = inventariar(&projeto, None).unwrap();
     let java = inv
         .arquivos
         .iter()
         .filter(|a| a.caminho.ends_with(".java"))
         .count();
     let t = Instant::now();
-    let mapa = mapear(&inv, &sistema.escopo().unwrap(), None, &Registro::padrao());
+    let mapa = mapear(&inv, &projeto.escopo().unwrap(), None, &Registro::padrao());
     let tempo = t.elapsed();
     let simbolos = mapa.simbolos().count();
     eprintln!(

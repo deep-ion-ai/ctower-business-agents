@@ -2,7 +2,7 @@
 tipo: pergunta
 id: A-0001
 titulo: Cálculo da multa por atraso
-sistema: faturamento-exemplo
+projeto: faturamento-exemplo
 demanda:
   origem: texto
   chave: null
@@ -17,7 +17,7 @@ analista: Ana Exemplo
 
 # A-0001 · Cálculo da multa por atraso
 
-Pergunta ao sistema · Sistema `faturamento-exemplo` · Status: rascunho · Criada em 2026-11-11 · Analista: Ana Exemplo · Código: `develop` @ `1a2b3c4d`
+Pergunta ao sistema · Projeto `faturamento-exemplo` · Status: rascunho · Criada em 2026-11-11 · Analista: Ana Exemplo · Código: `develop` @ `1a2b3c4d`
 
 ## Pergunta
 

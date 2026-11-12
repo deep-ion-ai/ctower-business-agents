@@ -31,7 +31,7 @@
   font-weight: 600;
 }
 
-.cartao-sistema {
+.cartao-projeto {
   padding: 10px 14px;
   border: 1px solid var(--border);
   border-left: 3px solid var(--border-strong);
@@ -75,6 +75,6 @@ button.link.perigo {
 /* Na coluna da seção, o botão fica do tamanho do texto. */
 .secao-config > .btn,
 .secao-config > p > .btn,
-.cartao-sistema > .btn {
+.cartao-projeto > .btn {
   align-self: flex-start;
 }

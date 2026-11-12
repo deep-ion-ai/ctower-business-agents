@@ -14,7 +14,7 @@
 //!   lê apenas os campos `loggedIn`, `authMethod` e `apiProvider` da resposta e descarta
 //!   o resto (e-mail, organização), que não é guardado nem vai para o log. Nenhum
 //!   arquivo de credencial ou de configuração do Claude é aberto, e o app não consulta o
-//!   chaveiro do sistema. Versões antigas sem esse comando resultam em
+//!   chaveiro do sistema operacional. Versões antigas sem esse comando resultam em
 //!   [`LoginClaudeCode::Indeterminado`], com a orientação de atualizar.
 //! - **Claude Desktop instalado:** existência do aplicativo nos locais de instalação
 //!   (macOS: `Claude.app` em `/Applications` ou `~/Applications`; Windows: instalação
@@ -24,7 +24,7 @@
 //!   documentado, e descobrir o login exigiria ler os dados do aplicativo. A tela pede ao
 //!   analista que confira no próprio Desktop.
 //!
-//! Tudo o que toca o sistema passa por [`Ambiente`], o que permite testar sem o Claude
+//! Tudo o que toca o projeto passa por [`Ambiente`], o que permite testar sem o Claude
 //! instalado e garantir por teste que nenhum arquivo é aberto.
 
 mod ambiente;

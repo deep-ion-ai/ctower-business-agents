@@ -1,9 +1,9 @@
-//! Mapa estrutural do sistema: símbolos de cada arquivo, referências entre eles e
+//! Mapa estrutural do projeto: símbolos de cada arquivo, referências entre eles e
 //! agrupamento por pasta (módulos).
 //!
 //! O mapa guarda, por arquivo, o que o extrator achou (símbolos e referências pelo
 //! nome, sem resolver). Ao carregar, monta um índice em memória que liga cada
-//! referência aos símbolos de todo o sistema. Assim o que se grava depende só do
+//! referência aos símbolos de todo o projeto. Assim o que se grava depende só do
 //! arquivo e do extrator, e o mapeamento é incremental: arquivo com o mesmo hash,
 //! extraído pelo mesmo extrator na mesma versão, não é lido de novo.
 //!
@@ -36,7 +36,7 @@ use crate::extrator::{
 };
 use crate::inventario::{ArquivoInventariado, Inventario};
 use crate::linguagem::Linguagem;
-use crate::sistema::Escopo;
+use crate::projeto::Escopo;
 
 /// Versão do formato gravado. Mapa de outro formato é refeito do zero.
 pub const FORMATO_MAPA: u32 = 1;
@@ -47,7 +47,7 @@ pub const LIMITE_EXTRACAO: u64 = 16 * 1024 * 1024;
 /// Extração de um arquivo, como fica gravada.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ArquivoMapeado {
-    /// Caminho relativo à raiz do sistema, com `/`.
+    /// Caminho relativo à raiz do projeto, com `/`.
     pub caminho: String,
     pub linguagem: Linguagem,
     /// Hash do inventário quando foi extraído.
@@ -102,10 +102,10 @@ pub struct Uso<'a> {
     pub alvos: Vec<SimboloId>,
 }
 
-/// Uma pasta do sistema vista como módulo.
+/// Uma pasta do projeto vista como módulo.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 pub struct Modulo {
-    /// Caminho relativo da pasta (`""` é a raiz do sistema).
+    /// Caminho relativo da pasta (`""` é a raiz do projeto).
     pub caminho: String,
     /// Arquivos na pasta e nas subpastas.
     pub arquivos: usize,
@@ -129,12 +129,12 @@ pub struct Dependencia {
     pub referencias: usize,
 }
 
-/// Mapa estrutural de um sistema.
+/// Mapa estrutural de um projeto.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(from = "MapaGravado")]
 pub struct Mapa {
     pub formato: u32,
-    pub sistema: String,
+    pub projeto: String,
     /// Segundos desde 1970 (UTC).
     pub gerado_em: u64,
     pub estatisticas: EstatisticasMapa,
@@ -146,7 +146,7 @@ pub struct Mapa {
 #[derive(Deserialize)]
 struct MapaGravado {
     formato: u32,
-    sistema: String,
+    projeto: String,
     gerado_em: u64,
     #[serde(default)]
     estatisticas: EstatisticasMapa,
@@ -157,7 +157,7 @@ impl From<MapaGravado> for Mapa {
     fn from(g: MapaGravado) -> Self {
         Mapa::novo(
             g.formato,
-            g.sistema,
+            g.projeto,
             g.gerado_em,
             g.estatisticas,
             g.arquivos,
@@ -168,7 +168,7 @@ impl From<MapaGravado> for Mapa {
 impl PartialEq for Mapa {
     fn eq(&self, outro: &Self) -> bool {
         self.formato == outro.formato
-            && self.sistema == outro.sistema
+            && self.projeto == outro.projeto
             && self.gerado_em == outro.gerado_em
             && self.estatisticas == outro.estatisticas
             && self.arquivos == outro.arquivos
@@ -197,14 +197,14 @@ struct Indice {
 impl Mapa {
     fn novo(
         formato: u32,
-        sistema: String,
+        projeto: String,
         gerado_em: u64,
         estatisticas: EstatisticasMapa,
         arquivos: Vec<ArquivoMapeado>,
     ) -> Self {
         let mut m = Mapa {
             formato,
-            sistema,
+            projeto,
             gerado_em,
             estatisticas,
             arquivos,
@@ -506,7 +506,7 @@ impl Mapa {
         v
     }
 
-    /// Visão de uma pasta (`""` para o sistema todo). `None` se não houver
+    /// Visão de uma pasta (`""` para o projeto todo). `None` se não houver
     /// arquivo mapeado nela.
     pub fn modulo(&self, caminho: &str) -> Option<Modulo> {
         let caminho = caminho.trim().trim_matches('/');
@@ -581,7 +581,7 @@ impl Mapa {
     }
 }
 
-/// Mapeia o sistema a partir do inventário. Com o mapa anterior, não lê de novo os
+/// Mapeia o projeto a partir do inventário. Com o mapa anterior, não lê de novo os
 /// arquivos com o mesmo hash, a mesma linguagem e o mesmo extrator (na mesma
 /// versão). Falha de leitura ou de extração num arquivo fica registrada nele e não
 /// interrompe o resto.
@@ -649,7 +649,7 @@ pub fn mapear(
     est.duracao_ms = inicio.elapsed().as_millis().try_into().unwrap_or(u64::MAX);
     Mapa::novo(
         FORMATO_MAPA,
-        inventario.sistema.clone(),
+        inventario.projeto.clone(),
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map(|d| d.as_secs())

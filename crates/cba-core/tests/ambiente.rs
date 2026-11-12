@@ -1,4 +1,4 @@
-//! Identificação do sistema pelo `CBA_SISTEMA` e por worktrees do git.
+//! Identificação do projeto pelo `CBA_PROJETO` e por worktrees do git.
 
 use std::fs;
 use std::path::Path;
@@ -6,7 +6,7 @@ use std::path::Path;
 use cba_core::ambiente::{Ambiente, ErroAmbiente};
 use cba_core::config::Config;
 use cba_core::dados::DiretorioDados;
-use cba_index::{Cadastro, Sistema};
+use cba_index::{Cadastro, Projeto};
 
 const C1: &str = "1111111111111111111111111111111111111111";
 const C2: &str = "2222222222222222222222222222222222222222";
@@ -16,11 +16,11 @@ fn escrever(caminho: &Path, texto: &str) {
     fs::write(caminho, texto).unwrap();
 }
 
-/// Dados do app com o sistema de pasta `pasta` cadastrado e a base configurada.
+/// Dados do app com o projeto de pasta `pasta` cadastrado e a base configurada.
 fn preparar(raiz: &Path, pasta: &Path) -> DiretorioDados {
     let dados = DiretorioDados::em(raiz.join("dados"));
-    let sistema = Sistema::novo("Faturamento Exemplo", [pasta]).unwrap();
-    Cadastro::em(dados.sistemas()).cadastrar(&sistema).unwrap();
+    let projeto = Projeto::novo("Faturamento Exemplo", [pasta]).unwrap();
+    Cadastro::em(dados.projetos()).cadastrar(&projeto).unwrap();
     Config {
         base: Some(raiz.join("base")),
     }
@@ -30,74 +30,74 @@ fn preparar(raiz: &Path, pasta: &Path) -> DiretorioDados {
     dados
 }
 
-/// Repositório `principal` com a pasta `sistema/`, e uma worktree em `wt` com a
+/// Repositório `principal` com a pasta `projeto/`, e uma worktree em `wt` com a
 /// mesma pasta em outra versão. Os `.git` são escritos à mão, como o git faz.
 fn repositorio_com_worktree(principal: &Path, wt: &Path) {
     escrever(&principal.join(".git/HEAD"), "ref: refs/heads/main\n");
     escrever(&principal.join(".git/refs/heads/main"), C1);
     escrever(&principal.join(".git/refs/heads/outra"), C2);
     escrever(
-        &principal.join("sistema/regra.sql"),
+        &principal.join("projeto/regra.sql"),
         "-- versao principal\n",
     );
     let gd = principal.join(".git/worktrees/wt");
     escrever(&gd.join("HEAD"), "ref: refs/heads/outra\n");
     escrever(&gd.join("commondir"), "../..\n");
     escrever(&wt.join(".git"), &format!("gitdir: {}\n", gd.display()));
-    escrever(&wt.join("sistema/regra.sql"), "-- versao da worktree\n");
+    escrever(&wt.join("projeto/regra.sql"), "-- versao da worktree\n");
 }
 
 #[test]
-fn cba_sistema_identifica_o_sistema_em_qualquer_diretorio() {
+fn cba_projeto_identifica_o_projeto_em_qualquer_diretorio() {
     let dir = tempfile::tempdir().unwrap();
     let codigo = dir.path().join("codigo");
     escrever(&codigo.join("a.sql"), "select 1;\n");
     let dados = preparar(dir.path(), &codigo);
     let fora = tempfile::tempdir().unwrap();
 
-    // Sem a variável, fora das pastas do sistema: fora de sistema.
+    // Sem a variável, fora das pastas do projeto: fora de projeto.
     assert!(matches!(
         Ambiente::do_processo(fora.path(), None, &dados).unwrap_err(),
-        ErroAmbiente::ForaDeSistema(_)
+        ErroAmbiente::ForaDeProjeto(_)
     ));
     // Variável vazia conta como ausente.
     assert!(matches!(
         Ambiente::do_processo(fora.path(), Some(" "), &dados).unwrap_err(),
-        ErroAmbiente::ForaDeSistema(_)
+        ErroAmbiente::ForaDeProjeto(_)
     ));
-    // Com a variável, o sistema vem dela.
+    // Com a variável, o projeto vem dela.
     let amb = Ambiente::do_processo(fora.path(), Some("faturamento-exemplo"), &dados).unwrap();
-    assert_eq!(amb.sistema.id, "faturamento-exemplo");
+    assert_eq!(amb.projeto.id, "faturamento-exemplo");
     assert!(amb.escopo.resolver("a.sql").is_ok());
 
-    // Sistema descadastrado: erro que diz o que fazer.
-    let erro = Ambiente::do_processo(&codigo, Some("outro-sistema"), &dados).unwrap_err();
+    // Projeto descadastrado: erro que diz o que fazer.
+    let erro = Ambiente::do_processo(&codigo, Some("outro-projeto"), &dados).unwrap_err();
     assert!(
-        matches!(&erro, ErroAmbiente::SistemaDesconhecido(id) if id == "outro-sistema"),
+        matches!(&erro, ErroAmbiente::ProjetoDesconhecido(id) if id == "outro-projeto"),
         "{erro:?}"
     );
-    assert_eq!(erro.tipo(), "sistema_desconhecido");
-    assert!(erro.to_string().contains("CBA_SISTEMA"));
+    assert_eq!(erro.tipo(), "projeto_desconhecido");
+    assert!(erro.to_string().contains("CBA_PROJETO"));
 }
 
 #[test]
-fn worktree_fora_da_pasta_cadastrada_usa_o_sistema_do_repositorio_principal() {
+fn worktree_fora_da_pasta_cadastrada_usa_o_projeto_do_repositorio_principal() {
     let dir = tempfile::tempdir().unwrap();
     let principal = dir.path().join("principal");
     let wt = dir.path().join("wt");
     repositorio_com_worktree(&principal, &wt);
-    let dados = preparar(dir.path(), &principal.join("sistema"));
+    let dados = preparar(dir.path(), &principal.join("projeto"));
 
-    for (diretorio, sistema) in [
-        (wt.join("sistema"), None),
+    for (diretorio, projeto) in [
+        (wt.join("projeto"), None),
         (wt.clone(), Some("faturamento-exemplo")),
-        (wt.join("sistema"), Some("faturamento-exemplo")),
+        (wt.join("projeto"), Some("faturamento-exemplo")),
     ] {
-        let amb = Ambiente::do_processo(&diretorio, sistema, &dados).unwrap();
-        assert_eq!(amb.sistema.id, "faturamento-exemplo");
+        let amb = Ambiente::do_processo(&diretorio, projeto, &dados).unwrap();
+        assert_eq!(amb.projeto.id, "faturamento-exemplo");
         // O cadastro continua apontando para o repositório principal...
         assert!(
-            amb.sistema.pastas[0]
+            amb.projeto.pastas[0]
                 .caminho
                 .starts_with(dunce::canonicalize(&principal).unwrap())
         );
@@ -110,15 +110,15 @@ fn worktree_fora_da_pasta_cadastrada_usa_o_sistema_do_repositorio_principal() {
         );
     }
 
-    // A raiz da worktree está fora da pasta do sistema (`sistema/`): sem a
-    // variável, continua fora de sistema.
+    // A raiz da worktree está fora da pasta do projeto (`projeto/`): sem a
+    // variável, continua fora de projeto.
     assert!(matches!(
         Ambiente::do_processo(&wt, None, &dados).unwrap_err(),
-        ErroAmbiente::ForaDeSistema(_)
+        ErroAmbiente::ForaDeProjeto(_)
     ));
 
     // No repositório principal, nada muda.
-    let amb = Ambiente::do_processo(&principal.join("sistema"), None, &dados).unwrap();
+    let amb = Ambiente::do_processo(&principal.join("projeto"), None, &dados).unwrap();
     let arquivo = amb.escopo.resolver("regra.sql").unwrap();
     assert_eq!(
         fs::read_to_string(arquivo).unwrap(),
@@ -136,8 +136,8 @@ fn worktree_dentro_da_pasta_cadastrada_le_a_worktree() {
     repositorio_com_worktree(&principal, &wt);
     let dados = preparar(dir.path(), &principal);
 
-    let amb = Ambiente::do_processo(&wt.join("sistema"), None, &dados).unwrap();
-    let arquivo = amb.escopo.resolver("sistema/regra.sql").unwrap();
+    let amb = Ambiente::do_processo(&wt.join("projeto"), None, &dados).unwrap();
+    let arquivo = amb.escopo.resolver("projeto/regra.sql").unwrap();
     assert_eq!(
         fs::read_to_string(&arquivo).unwrap(),
         "-- versao da worktree\n"

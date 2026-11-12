@@ -63,7 +63,7 @@ pub fn referencias() -> Ferramenta {
         "referencias",
         "Referências de um identificador",
         "Mostra onde uma rotina, procedure, função, tabela, coluna, classe ou tela é \
-         usada no sistema: arquivo, linha, tipo de uso (chamada, leitura, escrita, \
+         usada no projeto: arquivo, linha, tipo de uso (chamada, leitura, escrita, \
          chave estrangeira, menção numa string...) e a rotina de onde parte; e onde o \
          identificador é definido. Com `sentido: \"o_que_usa\"`, mostra o que ele chama \
          e lê. Use para achar quem calcula ou grava um valor antes de explorar o código \

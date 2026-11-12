@@ -1,4 +1,4 @@
-//! Leitura do gabarito (`fixtures/gabaritos/<sistema>.yaml`).
+//! Leitura do gabarito (`fixtures/gabaritos/<projeto>.yaml`).
 //!
 //! O formato é descrito no próprio arquivo e conferido pela crate `cba-fixtures`.
 //! Aqui a leitura é tolerante (campos desconhecidos são ignorados): quem garante a
@@ -13,8 +13,8 @@ use serde::{Deserialize, Serialize};
 /// Gabarito de um sistema fictício.
 #[derive(Debug, Clone, Deserialize)]
 pub struct Gabarito {
-    pub sistema: String,
-    /// Pasta do sistema, relativa ao gabarito (resolvida em [`Gabarito::raiz_do_sistema`]).
+    pub projeto: String,
+    /// Pasta do projeto, relativa ao gabarito (resolvida em [`Gabarito::raiz_do_projeto`]).
     pub raiz: String,
     pub regras: Vec<Regra>,
     #[serde(default)]
@@ -46,7 +46,7 @@ impl Regra {
     }
 }
 
-/// Evidência esperada: arquivo relativo à raiz do sistema e intervalo inclusivo.
+/// Evidência esperada: arquivo relativo à raiz do projeto e intervalo inclusivo.
 #[derive(Debug, Clone, Deserialize)]
 pub struct EvidenciaEsperada {
     pub arquivo: String,
@@ -167,7 +167,7 @@ impl Gabarito {
     }
 
     /// Pasta do sistema analisado.
-    pub fn raiz_do_sistema(&self) -> PathBuf {
+    pub fn raiz_do_projeto(&self) -> PathBuf {
         self.raiz
             .split('/')
             .fold(self.pasta.clone(), |acc, parte| acc.join(parte))

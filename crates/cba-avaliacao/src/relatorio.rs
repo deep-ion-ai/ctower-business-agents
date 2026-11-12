@@ -66,7 +66,7 @@ pub struct Execucao {
     pub repeticao: u32,
     /// Comparação com o gabarito; `None` quando não há estado da análise.
     pub avaliacao: Option<Avaliacao>,
-    /// Arquivos do sistema criados, removidos ou alterados na cópia.
+    /// Arquivos do projeto criados, removidos ou alterados na cópia.
     pub arquivos_alterados: Vec<Diferenca>,
     pub claude: Option<SaidaClaude>,
     /// Erro da execução (tempo esgotado, estado ausente…).
@@ -87,7 +87,7 @@ impl Execucao {
         }
         if !self.arquivos_alterados.is_empty() {
             f.push(format!(
-                "{} arquivo(s) do sistema alterado(s)",
+                "{} arquivo(s) do projeto alterado(s)",
                 self.arquivos_alterados.len()
             ));
         }
@@ -354,7 +354,7 @@ impl Relatorio {
         );
         let _ = writeln!(
             s,
-            "- **Falha grave:** afirmação `confirmado` sem evidência válida, nenhuma afirmação, estado ausente ou arquivo do sistema alterado."
+            "- **Falha grave:** afirmação `confirmado` sem evidência válida, nenhuma afirmação, estado ausente ou arquivo do projeto alterado."
         );
         let _ = writeln!(s, "\nDetalhes em `docs/avaliacao.md`.");
         s
@@ -390,7 +390,7 @@ impl Relatorio {
         );
         let _ = writeln!(
             s,
-            "- Arquivos do sistema alterados: {}",
+            "- Arquivos do projeto alterados: {}",
             if e.arquivos_alterados.is_empty() {
                 "nenhum".to_owned()
             } else {

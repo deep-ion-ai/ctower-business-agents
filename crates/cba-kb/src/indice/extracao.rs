@@ -5,12 +5,12 @@
 //! A validação do tipo (o frontmatter tipado de cada tipo) só decide se o
 //! documento entra em [`super::Indice::problemas`].
 
-use crate::base::Sistema;
+use crate::base::Projeto;
 use crate::caminho::CaminhoRelativo;
 use crate::documento::Documento;
 use crate::frontmatter::{
     self, Frontmatter, FrontmatterAnalise, FrontmatterFuncionalidade, FrontmatterLivre,
-    FrontmatterMemoria, FrontmatterRegra, FrontmatterSistema, FrontmatterSugestao,
+    FrontmatterMemoria, FrontmatterProjeto, FrontmatterRegra, FrontmatterSugestao,
     FrontmatterTermo, TipoDocumento,
 };
 use crate::id::Id;
@@ -24,7 +24,7 @@ use super::Tipo;
 pub(super) struct Registro {
     /// Relativo à raiz da base.
     pub caminho: String,
-    pub sistema: String,
+    pub projeto: String,
     pub tipo: Option<Tipo>,
     pub identificador: Option<String>,
     pub titulo: String,
@@ -45,10 +45,10 @@ pub(super) struct Registro {
 }
 
 /// Monta o registro de um documento a partir dos bytes do arquivo.
-pub(super) fn extrair(sistema: &Sistema, relativo: &CaminhoRelativo, bytes: Vec<u8>) -> Registro {
+pub(super) fn extrair(projeto: &Projeto, relativo: &CaminhoRelativo, bytes: Vec<u8>) -> Registro {
     let mut r = Registro {
-        caminho: sistema.na_base(relativo).as_str().to_owned(),
-        sistema: sistema.nome().to_owned(),
+        caminho: projeto.na_base(relativo).as_str().to_owned(),
+        projeto: projeto.nome().to_owned(),
         frontmatter: "{}".into(),
         ..Default::default()
     };
@@ -61,10 +61,10 @@ pub(super) fn extrair(sistema: &Sistema, relativo: &CaminhoRelativo, bytes: Vec<
         }
     };
 
-    if relativo.as_str() == layout::ARQUIVO_REGRAS_DO_SISTEMA {
-        r.tipo = Some(Tipo::RegrasDoSistema);
+    if relativo.as_str() == layout::ARQUIVO_REGRAS_DO_PROJETO {
+        r.tipo = Some(Tipo::RegrasDoProjeto);
         r.corpo = sem_comentarios_html(&texto);
-        r.titulo = primeiro_titulo(&r.corpo).unwrap_or_else(|| "Regras do sistema".into());
+        r.titulo = primeiro_titulo(&r.corpo).unwrap_or_else(|| "Regras do projeto".into());
         r.buscavel = true;
         return r;
     }
@@ -102,11 +102,11 @@ pub(super) fn extrair(sistema: &Sistema, relativo: &CaminhoRelativo, bytes: Vec<
         texto_do_campo(mapa, "origem").and_then(|o| CaminhoRelativo::novo(&o).ok())
     {
         r.ligacoes
-            .push((sistema.na_base(&origem).as_str().to_owned(), "origem"));
+            .push((projeto.na_base(&origem).as_str().to_owned(), "origem"));
     }
     if let Some(analise) = texto_do_campo(mapa, "analise").and_then(|a| Id::analisar(&a).ok()) {
         r.ligacoes.push((
-            sistema.na_base(&analise.arquivo()).as_str().to_owned(),
+            projeto.na_base(&analise.arquivo()).as_str().to_owned(),
             "analise",
         ));
     }
@@ -132,7 +132,7 @@ fn validar(tipo: TipoDocumento, relativo: &CaminhoRelativo, texto: &str) -> Resu
             .map_err(|e| e.to_string())
     }
     match tipo {
-        TipoDocumento::Sistema => com::<FrontmatterSistema>(texto),
+        TipoDocumento::Projeto => com::<FrontmatterProjeto>(texto),
         TipoDocumento::AnaliseImpacto | TipoDocumento::Pergunta => com::<FrontmatterAnalise>(texto),
         // Explicação de funcionalidade: análise em `analises/`, documento negocial
         // em `funcionalidades/`.
@@ -217,8 +217,8 @@ mod tests {
     #[test]
     fn titulo_do_corpo() {
         assert_eq!(
-            primeiro_titulo("\ntexto\n## Regras do sistema\n").as_deref(),
-            Some("Regras do sistema")
+            primeiro_titulo("\ntexto\n## Regras do projeto\n").as_deref(),
+            Some("Regras do projeto")
         );
         assert_eq!(primeiro_titulo("#\n"), None);
     }

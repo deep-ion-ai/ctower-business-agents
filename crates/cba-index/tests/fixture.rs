@@ -6,7 +6,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use cba_index::{Cadastro, Erro, Linguagem, Motivo, Recusa, Sistema, inventariar};
+use cba_index::{Cadastro, Erro, Linguagem, Motivo, Projeto, Recusa, inventariar};
 use serde_norway::Value;
 
 fn fixtures() -> PathBuf {
@@ -112,10 +112,10 @@ fn fixture_com_ruido() -> (tempfile::TempDir, PathBuf) {
 #[test]
 fn inventario_da_fixture_ignora_segredos_e_dependencias() {
     let (_tmp, raiz) = fixture_com_ruido();
-    let sistema = Sistema::novo("Faturamento Exemplo", [&raiz]).unwrap();
-    assert_eq!(sistema.id, gabarito()["sistema"].as_str().unwrap());
+    let projeto = Projeto::novo("Faturamento Exemplo", [&raiz]).unwrap();
+    assert_eq!(projeto.id, gabarito()["projeto"].as_str().unwrap());
 
-    let inv = inventariar(&sistema, None).unwrap();
+    let inv = inventariar(&projeto, None).unwrap();
     let analisados: BTreeSet<_> = inv.arquivos.iter().map(|a| a.caminho.as_str()).collect();
 
     // Exclusões do gabarito.
@@ -225,8 +225,8 @@ fn inventario_da_fixture_ignora_segredos_e_dependencias() {
 #[test]
 fn escopo_aceita_evidencias_do_gabarito_e_recusa_exclusoes() {
     let raiz = fixtures().join("faturamento-exemplo");
-    let sistema = Sistema::novo("Faturamento Exemplo", [&raiz]).unwrap();
-    let escopo = sistema.escopo().unwrap();
+    let projeto = Projeto::novo("Faturamento Exemplo", [&raiz]).unwrap();
+    let escopo = projeto.escopo().unwrap();
     for a in arquivos_citados() {
         let p = escopo.resolver(&a).unwrap_or_else(|e| panic!("{a}: {e}"));
         assert!(p.is_file());
@@ -243,8 +243,8 @@ fn escopo_aceita_evidencias_do_gabarito_e_recusa_exclusoes() {
 #[test]
 fn reinventariar_sem_mudancas_nao_reprocessa() {
     let (_tmp, raiz) = fixture_com_ruido();
-    let sistema = Sistema::novo("Faturamento Exemplo", [&raiz]).unwrap();
-    let primeiro = inventariar(&sistema, None).unwrap();
+    let projeto = Projeto::novo("Faturamento Exemplo", [&raiz]).unwrap();
+    let primeiro = inventariar(&projeto, None).unwrap();
     assert_eq!(primeiro.estatisticas.reaproveitados, 0);
     // Arquivos analisados mais o binário detectado pelo conteúdo.
     assert_eq!(
@@ -252,7 +252,7 @@ fn reinventariar_sem_mudancas_nao_reprocessa() {
         primeiro.arquivos.len() + 1
     );
 
-    let segundo = inventariar(&sistema, Some(&primeiro)).unwrap();
+    let segundo = inventariar(&projeto, Some(&primeiro)).unwrap();
     assert_eq!(segundo.estatisticas.processados, 0);
     assert_eq!(
         segundo.estatisticas.reaproveitados,
@@ -267,7 +267,7 @@ fn reinventariar_sem_mudancas_nao_reprocessa() {
     conteudo.extend_from_slice(b"\n-- alterado\n");
     fs::write(&alvo, conteudo).unwrap();
     escrever(&raiz.join("db/04_novo.sql"), b"select 1 from dual;");
-    let terceiro = inventariar(&sistema, Some(&segundo)).unwrap();
+    let terceiro = inventariar(&projeto, Some(&segundo)).unwrap();
     assert_eq!(terceiro.estatisticas.processados, 2);
     assert_ne!(
         terceiro.arquivo("db/02_parametros.sql").unwrap().hash,
@@ -279,31 +279,31 @@ fn reinventariar_sem_mudancas_nao_reprocessa() {
 #[test]
 fn cadastro_grava_le_e_remove() {
     let (tmp, raiz) = fixture_com_ruido();
-    let cadastro = Cadastro::em(tmp.path().join("dados/sistemas"));
+    let cadastro = Cadastro::em(tmp.path().join("dados/projetos"));
     assert!(cadastro.listar().unwrap().is_empty());
 
-    let mut sistema = Sistema::novo("Faturamento Exemplo", [&raiz]).unwrap();
-    sistema.exclusoes.push("cobol/".into());
-    sistema.inclusoes.push("backend/vendor".into());
-    cadastro.cadastrar(&sistema).unwrap();
+    let mut projeto = Projeto::novo("Faturamento Exemplo", [&raiz]).unwrap();
+    projeto.exclusoes.push("cobol/".into());
+    projeto.inclusoes.push("backend/vendor".into());
+    cadastro.cadastrar(&projeto).unwrap();
     assert!(matches!(
-        cadastro.cadastrar(&sistema),
+        cadastro.cadastrar(&projeto),
         Err(Erro::JaCadastrado(_))
     ));
     assert_eq!(
-        cadastro.obter(&sistema.id).unwrap().as_ref(),
-        Some(&sistema)
+        cadastro.obter(&projeto.id).unwrap().as_ref(),
+        Some(&projeto)
     );
-    assert_eq!(cadastro.listar().unwrap(), vec![sistema.clone()]);
+    assert_eq!(cadastro.listar().unwrap(), vec![projeto.clone()]);
 
-    let inv = cadastro.inventariar(&sistema.id).unwrap();
+    let inv = cadastro.inventariar(&projeto.id).unwrap();
     assert_eq!(inv.ignorado("cobol").unwrap().motivo, Motivo::Usuario);
     assert!(inv.arquivo("backend/vendor/x.php").is_some());
     assert_eq!(
-        cadastro.inventario(&sistema.id).unwrap().as_ref(),
+        cadastro.inventario(&projeto.id).unwrap().as_ref(),
         Some(&inv)
     );
-    let de_novo = cadastro.inventariar(&sistema.id).unwrap();
+    let de_novo = cadastro.inventariar(&projeto.id).unwrap();
     assert_eq!(de_novo.estatisticas.processados, 0);
 
     // Identificadores fora do formato não viram caminho.
@@ -313,10 +313,10 @@ fn cadastro_grava_le_e_remove() {
         Err(Erro::NaoCadastrado(_))
     ));
 
-    assert!(cadastro.remover(&sistema.id).unwrap());
-    assert!(!cadastro.remover(&sistema.id).unwrap());
+    assert!(cadastro.remover(&projeto.id).unwrap());
+    assert!(!cadastro.remover(&projeto.id).unwrap());
     assert!(cadastro.listar().unwrap().is_empty());
-    // As pastas do sistema ficam intactas.
+    // As pastas do projeto ficam intactas.
     assert!(raiz.join("db/01_tabelas.sql").is_file());
 }
 
@@ -328,15 +328,15 @@ fn varias_pastas_usam_prefixo() {
     escrever(&codigo.join("src/A.java"), b"class A {}");
     escrever(&scripts.join("01.sql"), b"create table t (id number);");
     escrever(&scripts.join("node_modules/x.js"), b"");
-    let sistema = Sistema::novo("Dois", [&codigo, &scripts]).unwrap();
-    let inv = inventariar(&sistema, None).unwrap();
+    let projeto = Projeto::novo("Dois", [&codigo, &scripts]).unwrap();
+    let inv = inventariar(&projeto, None).unwrap();
     let caminhos: Vec<_> = inv.arquivos.iter().map(|a| a.caminho.as_str()).collect();
     assert_eq!(caminhos, ["scripts-banco/01.sql", "src/A.java"]);
     assert_eq!(
         inv.ignorado("scripts-banco/node_modules").unwrap().motivo,
         Motivo::Dependencia
     );
-    let escopo = sistema.escopo().unwrap();
+    let escopo = projeto.escopo().unwrap();
     assert!(escopo.resolver("scripts-banco/01.sql").is_ok());
     assert_eq!(escopo.resolver("01.sql"), Err(Recusa::NaoEncontrado));
 }
@@ -359,13 +359,13 @@ fn cem_mil_arquivos_em_menos_de_um_minuto() {
             fs::write(dir.join(format!("a{f}.sql")), conteudo).unwrap();
         }
     }
-    let sistema = Sistema::novo("Grande", [&raiz]).unwrap();
+    let projeto = Projeto::novo("Grande", [&raiz]).unwrap();
     let t = Instant::now();
-    let inv = inventariar(&sistema, None).unwrap();
+    let inv = inventariar(&projeto, None).unwrap();
     let primeiro = t.elapsed();
     assert_eq!(inv.arquivos.len(), 100_000);
     let t = Instant::now();
-    let inv2 = inventariar(&sistema, Some(&inv)).unwrap();
+    let inv2 = inventariar(&projeto, Some(&inv)).unwrap();
     let segundo = t.elapsed();
     assert_eq!(inv2.estatisticas.processados, 0);
     eprintln!("100 mil arquivos: {primeiro:?} (primeiro), {segundo:?} (sem mudanças)");

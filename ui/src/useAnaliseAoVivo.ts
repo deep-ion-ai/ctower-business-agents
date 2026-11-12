@@ -12,7 +12,7 @@ export interface AnaliseAoVivo {
  * cada reinício da vigia). Releituras pedidas enquanto outra está em curso viram uma
  * só, feita logo depois, para a tela nunca ficar com uma versão anterior à do aviso.
  */
-export function useAnaliseAoVivo(api: ApiAnalise, sistema: string, analise: string): AnaliseAoVivo {
+export function useAnaliseAoVivo(api: ApiAnalise, projeto: string, analise: string): AnaliseAoVivo {
   const [vista, setVista] = useState<VistaAnalise | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const versao = useRef(-1);
@@ -27,7 +27,7 @@ export function useAnaliseAoVivo(api: ApiAnalise, sistema: string, analise: stri
     }
     carregando.current = true;
     api
-      .carregarAnalise(sistema, analise)
+      .carregarAnalise(projeto, analise)
       .then((v) => {
         if (!ativo.current) return;
         // Uma resposta mais velha que a já mostrada (corrida entre releituras) é ignorada.
@@ -45,7 +45,7 @@ export function useAnaliseAoVivo(api: ApiAnalise, sistema: string, analise: stri
           carregar();
         }
       });
-  }, [api, sistema, analise]);
+  }, [api, projeto, analise]);
 
   useEffect(() => {
     ativo.current = true;
@@ -56,7 +56,7 @@ export function useAnaliseAoVivo(api: ApiAnalise, sistema: string, analise: stri
     let desmontado = false;
     // Assina antes de ler, para nenhuma mudança cair entre a leitura e a assinatura.
     api
-      .vigiar(sistema, (aviso) => {
+      .vigiar(projeto, (aviso) => {
         if (aviso.tipo === "reinicio") carregar();
         else if (aviso.analise === analise && aviso.versao > versao.current) carregar();
       })
@@ -73,7 +73,7 @@ export function useAnaliseAoVivo(api: ApiAnalise, sistema: string, analise: stri
       ativo.current = false;
       parar?.();
     };
-  }, [api, sistema, analise, carregar]);
+  }, [api, projeto, analise, carregar]);
 
   return { vista, erro, recarregar: carregar };
 }

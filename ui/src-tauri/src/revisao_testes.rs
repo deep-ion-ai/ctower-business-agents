@@ -13,7 +13,7 @@ use serde_json::json;
 
 use super::*;
 use crate::analise;
-use crate::teste_base::{Cenario, PKG, SISTEMA, cenario};
+use crate::teste_base::{Cenario, PKG, PROJETO, cenario};
 
 const MULTA: &str = "Passada a carência, a multa é de 2% sobre o valor original.";
 const ERRADA: &str = "A multa incide também sobre os juros de mora.";
@@ -25,7 +25,7 @@ const EDITADA: &str =
 fn analise_concluida(c: &Cenario) -> String {
     let criada = analise::criar_analise(
         &c.dados,
-        SISTEMA,
+        PROJETO,
         "Como é calculada a multa por atraso de pagamento?",
         Some("Multa por atraso"),
     )
@@ -67,10 +67,10 @@ fn analise_concluida(c: &Cenario) -> String {
     id
 }
 
-/// As três áreas do gabarito no `sistema.md`.
+/// As três áreas do gabarito no `projeto.md`.
 fn declarar_areas(c: &Cenario) {
     let kb = c.ambiente().kb;
-    let mut doc = kb.ler_sistema().unwrap();
+    let mut doc = kb.ler_projeto().unwrap();
     let area = |id: &str, nome: &str, sigla: &str| Area {
         id: id.into(),
         nome: nome.into(),
@@ -81,12 +81,12 @@ fn declarar_areas(c: &Cenario) {
         area("parcelamento", "Parcelamento", "PAR"),
         area("cancelamento", "Cancelamento", "CAN"),
     ];
-    kb.gravar(&layout::sistema(), &doc).unwrap();
+    kb.gravar(&layout::projeto(), &doc).unwrap();
 }
 
 fn decidir(c: &Cenario, id: &str, decisao: serde_json::Value) -> VistaAnalise {
     let decisao: Decisao = serde_json::from_value(decisao).unwrap();
-    revisar(&c.dados, SISTEMA, id, decisao).unwrap()
+    revisar(&c.dados, PROJETO, id, decisao).unwrap()
 }
 
 fn documento(vista: &VistaAnalise) -> String {
@@ -102,7 +102,7 @@ fn revisao_e_aprovacao_de_ponta_a_ponta() {
     let id = analise_concluida(&c);
 
     // Antes da revisão: nada decidido, e a área é obrigatória (três áreas).
-    let p = prontidao(&c.dados, SISTEMA, &id).unwrap();
+    let p = prontidao(&c.dados, PROJETO, &id).unwrap();
     assert_eq!(p.estado, EstadoAnalise::Concluida);
     assert!(!p.pode_aprovar);
     let pendentes: Vec<_> = p.pendencias.iter().map(|p| (p.tipo, p.numero)).collect();
@@ -117,7 +117,7 @@ fn revisao_e_aprovacao_de_ponta_a_ponta() {
     assert!(p.area_obrigatoria);
     assert_eq!(p.areas.len(), 3);
     assert_eq!(p.avisos.len(), 1, "{:?}", p.avisos);
-    let erro = aprovar(&c.dados, SISTEMA, &id, &OpcoesAprovacao::default()).unwrap_err();
+    let erro = aprovar(&c.dados, PROJETO, &id, &OpcoesAprovacao::default()).unwrap_err();
     assert!(erro.contains("ainda não pode ser aprovada"), "{erro}");
     assert!(erro.contains("afirmação 1"), "{erro}");
 
@@ -149,7 +149,7 @@ fn revisao_e_aprovacao_de_ponta_a_ponta() {
         json!({"tipo": "afirmacao", "numero": 2, "estado": "aprofundar"}),
     );
     assert_eq!(v.analise.afirmacoes[1].estado, EstadoAfirmacao::Aprofundar);
-    let p = prontidao(&c.dados, SISTEMA, &id).unwrap();
+    let p = prontidao(&c.dados, PROJETO, &id).unwrap();
     assert!(
         p.pendencias
             .iter()
@@ -160,7 +160,7 @@ fn revisao_e_aprovacao_de_ponta_a_ponta() {
         json!({"tipo": "afirmacao", "numero": 2, "estado": "incorreta", "comentario": " "}),
     )
     .unwrap();
-    assert!(revisar(&c.dados, SISTEMA, &id, vazio).is_err());
+    assert!(revisar(&c.dados, PROJETO, &id, vazio).is_err());
     let v = decidir(
         &c,
         &id,
@@ -190,9 +190,9 @@ fn revisao_e_aprovacao_de_ponta_a_ponta() {
     let invalida: Decisao =
         serde_json::from_value(json!({"tipo": "afirmacao", "numero": 1, "estado": "a-revalidar"}))
             .unwrap();
-    assert!(revisar(&c.dados, SISTEMA, &id, invalida).is_err());
+    assert!(revisar(&c.dados, PROJETO, &id, invalida).is_err());
 
-    let p = prontidao(&c.dados, SISTEMA, &id).unwrap();
+    let p = prontidao(&c.dados, PROJETO, &id).unwrap();
     assert!(p.pode_aprovar, "{:?}", p.pendencias);
     assert_eq!(p.regras.len(), 1);
     assert_eq!(p.regras[0].afirmacao, 1);
@@ -200,7 +200,7 @@ fn revisao_e_aprovacao_de_ponta_a_ponta() {
     assert_eq!(p.termos_aceitos, ["Carência"]);
 
     // Sem área, com três áreas declaradas, a aprovação pede a escolha.
-    let erro = aprovar(&c.dados, SISTEMA, &id, &OpcoesAprovacao::default()).unwrap_err();
+    let erro = aprovar(&c.dados, PROJETO, &id, &OpcoesAprovacao::default()).unwrap_err();
     assert!(erro.contains("escolha a área"), "{erro}");
 
     // Área por afirmação no lugar da geral, e o título trocado pelo analista.
@@ -221,7 +221,7 @@ fn revisao_e_aprovacao_de_ponta_a_ponta() {
     }))
     .unwrap();
     assert_eq!(da_tela, opcoes);
-    let feita = aprovar(&c.dados, SISTEMA, &id, &da_tela).unwrap();
+    let feita = aprovar(&c.dados, PROJETO, &id, &da_tela).unwrap();
     assert!(!feita.ja_aprovada);
     assert_eq!(feita.regras.len(), 1, "a incorreta não vira regra");
     let regra = &feita.regras[0];
@@ -245,7 +245,7 @@ fn revisao_e_aprovacao_de_ponta_a_ponta() {
     assert!(!regras.iter().any(|r| r.contains(ERRADA)));
 
     // A incorreta fica registrada no estado, com o comentário.
-    let vista = analise::carregar_analise(&c.dados, SISTEMA, &id).unwrap();
+    let vista = analise::carregar_analise(&c.dados, PROJETO, &id).unwrap();
     assert_eq!(vista.analise.estado, EstadoAnalise::Aprovada);
     assert_eq!(
         vista.analise.afirmacoes[1].estado,
@@ -260,15 +260,15 @@ fn revisao_e_aprovacao_de_ponta_a_ponta() {
     let depois: Decisao =
         serde_json::from_value(json!({"tipo": "afirmacao", "numero": 2, "estado": "confirmada"}))
             .unwrap();
-    let erro = revisar(&c.dados, SISTEMA, &id, depois).unwrap_err();
+    let erro = revisar(&c.dados, PROJETO, &id, depois).unwrap_err();
     assert!(erro.contains("aprovada"), "{erro}");
-    let de_novo = aprovar(&c.dados, SISTEMA, &id, &OpcoesAprovacao::default()).unwrap();
+    let de_novo = aprovar(&c.dados, PROJETO, &id, &OpcoesAprovacao::default()).unwrap();
     assert!(de_novo.ja_aprovada);
     assert_eq!(de_novo.regras.len(), 1);
 }
 
 #[test]
-fn exporta_markdown_e_word_fora_das_pastas_do_sistema() {
+fn exporta_markdown_e_word_fora_das_pastas_do_projeto() {
     let c = cenario();
     let id = analise_concluida(&c);
     decidir(
@@ -287,7 +287,7 @@ fn exporta_markdown_e_word_fora_das_pastas_do_sistema() {
     // Sem a extensão, o app acrescenta a do formato.
     let md = exportar(
         &c.dados,
-        SISTEMA,
+        PROJETO,
         &id,
         &pedido(pasta.join("multa"), Formato::Markdown),
     )
@@ -306,7 +306,7 @@ fn exporta_markdown_e_word_fora_das_pastas_do_sistema() {
 
     let docx = exportar(
         &c.dados,
-        SISTEMA,
+        PROJETO,
         &id,
         &pedido(pasta.join("multa.DOCX"), Formato::Word),
     )
@@ -317,7 +317,7 @@ fn exporta_markdown_e_word_fora_das_pastas_do_sistema() {
     // Sem evidências nem perguntas, quando o analista desliga.
     let enxuto = exportar(
         &c.dados,
-        SISTEMA,
+        PROJETO,
         &id,
         &PedidoExportacao {
             destino: pasta.join("enxuto.md"),
@@ -337,17 +337,17 @@ fn exporta_markdown_e_word_fora_das_pastas_do_sistema() {
     // Dentro do repositório analisado, numa pasta que não existe ou relativo: recusa.
     let dentro = exportar(
         &c.dados,
-        SISTEMA,
+        PROJETO,
         &id,
         &pedido(c.codigo.join("db").join("multa.md"), Formato::Markdown),
     )
     .unwrap_err();
-    assert!(dentro.contains("pastas do sistema"), "{dentro}");
+    assert!(dentro.contains("pastas do projeto"), "{dentro}");
     assert!(!c.codigo.join("db").join("multa.md").exists());
     assert!(
         exportar(
             &c.dados,
-            SISTEMA,
+            PROJETO,
             &id,
             &pedido(pasta.join("nao-existe").join("x.md"), Formato::Markdown),
         )
@@ -356,7 +356,7 @@ fn exporta_markdown_e_word_fora_das_pastas_do_sistema() {
     assert!(
         exportar(
             &c.dados,
-            SISTEMA,
+            PROJETO,
             &id,
             &pedido("relativo.md".into(), Formato::Markdown),
         )

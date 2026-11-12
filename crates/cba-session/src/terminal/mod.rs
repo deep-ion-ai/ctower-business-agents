@@ -1,7 +1,7 @@
 //! Terminal embutido com o Claude Code (spec, seção 6.4).
 //!
 //! O app roda o `claude` do analista, sem modificação e em modo interativo, num PTY na
-//! pasta do sistema, e a interface mostra o terminal (xterm.js). Este módulo não
+//! pasta do projeto, e a interface mostra o terminal (xterm.js). Este módulo não
 //! depende do Tauri: o app só liga os eventos ao canal da janela.
 //!
 //! - [`pty`]: um processo num PTY ([`Terminal`]): entrada, saída em texto,
@@ -13,7 +13,7 @@
 //! - [`desktop`]: `claude --desktop --resume <id>` num PTY sem tela, para abrir no
 //!   Claude Desktop uma sessão fechada no terminal ([`lancamento_desktop`]).
 //! - [`sessoes`]: os terminais abertos ([`Sessoes`]), o envio de prompts prontos à
-//!   sessão viva e a última sessão de cada sistema ([`UltimasSessoes`]), para oferecer
+//!   sessão viva e a última sessão de cada projeto ([`UltimasSessoes`]), para oferecer
 //!   a retomada quando o app é reaberto.
 //!
 //! Botão "Continuar no Claude Desktop": é o prompt `/desktop` enviado por

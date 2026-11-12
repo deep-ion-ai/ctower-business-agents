@@ -2,7 +2,7 @@
 tipo: analise-impacto
 id: A-0002
 titulo: Parcelamento da fatura para pessoa jurídica
-sistema: faturamento-exemplo
+projeto: faturamento-exemplo
 demanda:
   origem: texto
   chave: null
@@ -17,11 +17,11 @@ analista: Ana Exemplo
 
 # A-0002 · Parcelamento da fatura para pessoa jurídica
 
-Análise de impacto · Sistema `faturamento-exemplo` · Status: rascunho · Criada em 2026-11-11 · Analista: Ana Exemplo · Código: `develop` @ `1a2b3c4d`
+Análise de impacto · Projeto `faturamento-exemplo` · Status: rascunho · Criada em 2026-11-11 · Analista: Ana Exemplo · Código: `develop` @ `1a2b3c4d`
 
 ## Demanda como veio
 
-Permitir parcelamento da fatura em até 3 vezes para clientes pessoa jurídica. Acho que hoje o sistema não parcela fatura nenhuma.
+Permitir parcelamento da fatura em até 3 vezes para clientes pessoa jurídica. Acho que hoje o projeto não parcela fatura nenhuma.
 
 ## Demanda como entendida
 

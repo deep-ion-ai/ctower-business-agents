@@ -188,7 +188,7 @@ fn rotulo_do_template(tipo: cba_kb::frontmatter::TipoDocumento) -> &'static str 
         T::Regra => "Regra de negócio",
         T::Termo => "Termo do glossário",
         T::Sugestao => "Sugestão de alteração",
-        T::Sistema => "Sistema",
+        T::Projeto => "Projeto",
         T::MemoriaArea => "Memória da área",
     }
 }

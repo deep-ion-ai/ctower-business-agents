@@ -2,13 +2,13 @@
 //!
 //! Spec, seção 9: dependências de terceiros, binários e arquivos com padrão de
 //! segredo ficam fora por padrão; as ferramentas MCP respeitam a lista. O analista
-//! ajusta pelo cadastro do sistema: acrescenta exclusões próprias e pode reincluir
+//! ajusta pelo cadastro do projeto: acrescenta exclusões próprias e pode reincluir
 //! o que uma regra padrão tirou.
 //!
 //! ## Padrões
 //!
 //! Os padrões seguem o estilo do `.gitignore`, aplicados ao caminho relativo à raiz
-//! do sistema (com `/`), sem diferenciar maiúsculas de minúsculas:
+//! do projeto (com `/`), sem diferenciar maiúsculas de minúsculas:
 //!
 //! - sem `/` (`node_modules`, `*.pem`): casa com o nome em qualquer profundidade;
 //! - com `/` no meio ou no início (`docs/antigos`, `/build`): casa com o caminho a
@@ -43,7 +43,7 @@ pub enum Motivo {
     SaidaBuild,
     /// Binário, pela extensão ou pelo conteúdo.
     Binario,
-    /// Link simbólico: não é seguido, para não sair das pastas do sistema.
+    /// Link simbólico: não é seguido, para não sair das pastas do projeto.
     LinkSimbolico,
     /// Não foi possível ler (permissão, nome não UTF-8).
     Ilegivel,
@@ -122,7 +122,7 @@ pub const REGRAS_PADRAO: &[(&str, Motivo)] = &[
     (".m2/", Motivo::Dependencia),
     (".nuget/", Motivo::Dependencia),
     ("Pods/", Motivo::Dependencia),
-    // Saídas de build e cópias de IDE. `bin/` fica de fora de propósito: em sistemas
+    // Saídas de build e cópias de IDE. `bin/` fica de fora de propósito: em projetos
     // legados costuma ter scripts; os binários dentro dela caem pela extensão ou pelo
     // conteúdo.
     ("target/", Motivo::SaidaBuild),
@@ -212,7 +212,7 @@ struct Regra {
     so_pasta: bool,
 }
 
-/// Conjunto compilado de exclusões de um sistema: regras padrão, exclusões do
+/// Conjunto compilado de exclusões de um projeto: regras padrão, exclusões do
 /// analista e reinclusões.
 #[derive(Debug, Clone)]
 pub struct Exclusoes {
@@ -252,7 +252,7 @@ impl Exclusoes {
 
     /// Avalia um único item (arquivo ou pasta), sem olhar as pastas acima dele.
     ///
-    /// `relativo` é o caminho relativo à raiz do sistema, com `/`.
+    /// `relativo` é o caminho relativo à raiz do projeto, com `/`.
     pub fn avaliar(&self, relativo: &str, pasta: bool) -> Option<Exclusao> {
         let relativo = relativo.trim_matches('/');
         if relativo.is_empty() {

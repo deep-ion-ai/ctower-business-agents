@@ -25,7 +25,7 @@ describe("api da tela da análise", () => {
       [],
     );
     expect(mockInvoke).toHaveBeenCalledWith("prompts_prontos", {
-      sistema: "faturamento-exemplo",
+      projeto: "faturamento-exemplo",
       analise: "A-0001",
     });
   });
@@ -48,7 +48,7 @@ describe("api da tela da análise", () => {
     const parar = await apiAnaliseTauri.vigiar("faturamento-exemplo", (a) => recebidos.push(a));
     expect(Channel).toHaveBeenCalled();
     expect(mockInvoke).toHaveBeenCalledWith("vigiar_analises", {
-      sistema: "faturamento-exemplo",
+      projeto: "faturamento-exemplo",
       canal: canais[0],
     });
     canais[0].onmessage({ tipo: "mudanca", analise: "A-0001", mudanca: "afirmacao", versao: 2 });

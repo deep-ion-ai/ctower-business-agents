@@ -13,9 +13,9 @@ fixtures/
     faturamento-exemplo.yaml      # as respostas esperadas
 ```
 
-A pasta do sistema e o gabarito ficam separados de propósito. Uma
-ferramenta, ou um agente, que receba `faturamento-exemplo/` como sistema
-cadastrado não enxerga as respostas. Não coloque dentro da pasta do sistema
+A pasta do projeto e o gabarito ficam separados de propósito. Uma
+ferramenta, ou um agente, que receba `faturamento-exemplo/` como projeto
+cadastrado não enxerga as respostas. Não coloque dentro da pasta do projeto
 nenhum arquivo que explique as regras.
 
 ## Faturamento Exemplo
@@ -29,7 +29,7 @@ ter:
   form Delphi da retaguarda (`delphi/`);
 - regras de negócio espalhadas entre as camadas, com exceções e parâmetros
   lidos de tabela;
-- divergências entre camadas, como acontece em sistemas que evoluíram aos
+- divergências entre camadas, como acontece em projetos que evoluíram aos
   poucos;
 - um `.env` falso, com valores que não funcionam em lugar algum, para testar
   a exclusão de arquivos com segredos.
@@ -43,7 +43,7 @@ porque o gabarito cita arquivos, linhas e trechos.
 deve encontrar:
 
 - `regras`: cada regra com id, enunciado e evidências (arquivo relativo à
-  raiz do sistema, linha inicial, linha final e um trecho que aparece no
+  raiz do projeto, linha inicial, linha final e um trecho que aparece no
   intervalo);
 - `inconsistencias`: divergências entre camadas que o analista deve apontar;
 - `perguntas`, `funcionalidades` e `demandas`: exemplos dos três fluxos da

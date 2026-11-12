@@ -3,7 +3,7 @@
 //!
 //! A lógica fica em [`cba_tools::revisao`] (decisões, edição do texto, prontidão,
 //! aprovação com a escolha da área e exportação); aqui só se monta o ambiente do
-//! sistema e se leva o trabalho para fora da thread da interface. A tela relê a
+//! projeto e se leva o trabalho para fora da thread da interface. A tela relê a
 //! análise pelo aviso do diário de eventos, como em qualquer registro, mas cada
 //! decisão também devolve a vista atualizada, para a resposta ser imediata.
 
@@ -36,21 +36,21 @@ fn id(analise: &str) -> Result<Id, String> {
 /// Aplica a decisão do analista e devolve a análise como a tela mostra.
 pub fn revisar(
     dados: &DiretorioDados,
-    sistema: &str,
+    projeto: &str,
     analise: &str,
     decisao: Decisao,
 ) -> Result<VistaAnalise, String> {
-    let amb = ambiente(dados, sistema)?;
+    let amb = ambiente(dados, projeto)?;
     revisao::revisar(&amb, &id(analise)?, decisao).map_err(|e| e.to_string())?;
-    carregar_analise(dados, sistema, analise)
+    carregar_analise(dados, projeto, analise)
 }
 
 pub fn prontidao(
     dados: &DiretorioDados,
-    sistema: &str,
+    projeto: &str,
     analise: &str,
 ) -> Result<Prontidao, String> {
-    let amb = ambiente(dados, sistema)?;
+    let amb = ambiente(dados, projeto)?;
     revisao::prontidao(&amb, &id(analise)?).map_err(|e| e.to_string())
 }
 
@@ -59,7 +59,7 @@ pub fn prontidao(
 #[serde(rename_all = "camelCase")]
 pub struct RegraVista {
     pub id: String,
-    /// Relativo à raiz do sistema na base (`regras/RN-FAT-001.md`).
+    /// Relativo à raiz do projeto na base (`regras/RN-FAT-001.md`).
     pub arquivo: String,
     pub area: String,
     pub afirmacoes: Vec<u32>,
@@ -87,11 +87,11 @@ pub struct AprovacaoVista {
 
 pub fn aprovar(
     dados: &DiretorioDados,
-    sistema: &str,
+    projeto: &str,
     analise: &str,
     opcoes: &OpcoesAprovacao,
 ) -> Result<AprovacaoVista, String> {
-    let amb = ambiente(dados, sistema)?;
+    let amb = ambiente(dados, projeto)?;
     let feita =
         revisao::aprovar_revisada(&amb, &id(analise)?, opcoes).map_err(|e| e.to_string())?;
     tracing::info!(
@@ -139,11 +139,11 @@ pub struct PedidoExportacao {
 /// Exporta o documento e devolve o caminho gravado.
 pub fn exportar(
     dados: &DiretorioDados,
-    sistema: &str,
+    projeto: &str,
     analise: &str,
     pedido: &PedidoExportacao,
 ) -> Result<PathBuf, String> {
-    let amb = ambiente(dados, sistema)?;
+    let amb = ambiente(dados, projeto)?;
     revisao::exportar_analise(
         &amb,
         &id(analise)?,
@@ -158,43 +158,43 @@ pub fn exportar(
 // Comandos
 
 #[tauri::command]
-pub async fn revisar_analise_sistema(
-    sistema: String,
+pub async fn revisar_analise_projeto(
+    projeto: String,
     analise: String,
     decisao: Decisao,
 ) -> Result<VistaAnalise, String> {
     let dados = dados()?;
-    bloqueante(move || revisar(&dados, &sistema, &analise, decisao)).await
+    bloqueante(move || revisar(&dados, &projeto, &analise, decisao)).await
 }
 
 #[tauri::command]
-pub async fn prontidao_aprovacao_sistema(
-    sistema: String,
+pub async fn prontidao_aprovacao_projeto(
+    projeto: String,
     analise: String,
 ) -> Result<Prontidao, String> {
     let dados = dados()?;
-    bloqueante(move || prontidao(&dados, &sistema, &analise)).await
+    bloqueante(move || prontidao(&dados, &projeto, &analise)).await
 }
 
 #[tauri::command]
-pub async fn aprovar_analise_sistema(
-    sistema: String,
+pub async fn aprovar_analise_projeto(
+    projeto: String,
     analise: String,
     opcoes: OpcoesAprovacao,
 ) -> Result<AprovacaoVista, String> {
     let dados = dados()?;
-    bloqueante(move || aprovar(&dados, &sistema, &analise, &opcoes)).await
+    bloqueante(move || aprovar(&dados, &projeto, &analise, &opcoes)).await
 }
 
 #[tauri::command]
-pub async fn exportar_analise_sistema(
-    sistema: String,
+pub async fn exportar_analise_projeto(
+    projeto: String,
     analise: String,
     pedido: PedidoExportacao,
 ) -> Result<String, String> {
     let dados = dados()?;
     bloqueante(move || {
-        exportar(&dados, &sistema, &analise, &pedido).map(|p| p.display().to_string())
+        exportar(&dados, &projeto, &analise, &pedido).map(|p| p.display().to_string())
     })
     .await
 }

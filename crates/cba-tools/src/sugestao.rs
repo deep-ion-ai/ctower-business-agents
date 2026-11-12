@@ -18,7 +18,7 @@ use serde_json::json;
 
 use crate::comum;
 use crate::documento::citacao;
-use crate::evidencias::{self, ArquivoDoSistema, EvidenciaRecusada, Motivo};
+use crate::evidencias::{self, ArquivoDoProjeto, EvidenciaRecusada, Motivo};
 use crate::registro::{ErroFerramenta, Ferramenta, ler_argumentos};
 
 #[derive(Debug, Deserialize)]
@@ -60,7 +60,7 @@ pub fn registrar_sugestao() -> Ferramenta {
                 "arquivo": {
                     "type": "string",
                     "minLength": 1,
-                    "description": "Arquivo que mudaria, relativo à raiz do sistema."
+                    "description": "Arquivo que mudaria, relativo à raiz do projeto."
                 },
                 "titulo": {
                     "type": "string",
@@ -89,7 +89,7 @@ pub fn registrar_sugestao() -> Ferramenta {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 4000,
-                    "description": "O que muda para o negócio e para o sistema (dados já gravados, integrações, relatórios)."
+                    "description": "O que muda para o negócio e para o projeto (dados já gravados, integrações, relatórios)."
                 },
                 "exemplo": {
                     "type": "string",
@@ -125,7 +125,7 @@ pub fn registrar_sugestao() -> Ferramenta {
                     }
                 ))
             };
-            let arquivo = ArquivoDoSistema::abrir(&ambiente.escopo, &args.arquivo)
+            let arquivo = ArquivoDoProjeto::abrir(&ambiente.escopo, &args.arquivo)
                 .map_err(|m| recusa(m, None))?;
             let evidencia = if args.trecho_atual.trim().is_empty() {
                 None
@@ -224,7 +224,7 @@ fn frontmatter(
         tipo: TipoDocumento::Sugestao,
         id: id.clone(),
         titulo: nova.titulo.trim().to_owned(),
-        sistema: ambiente.kb.nome().to_owned(),
+        projeto: ambiente.kb.nome().to_owned(),
         status: StatusSugestao::Proposta,
         analise: Some(analise.clone()),
         arquivo: Some(nova.arquivo.clone()),

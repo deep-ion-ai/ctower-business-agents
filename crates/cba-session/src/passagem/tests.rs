@@ -41,14 +41,14 @@ fn parametros(link: &str) -> Vec<(String, String)> {
 #[test]
 fn link_do_desktop_com_pasta_e_pedido() {
     let link = link_desktop(
-        Path::new("/Users/ana/sistemas/faturamento exemplo"),
+        Path::new("/Users/ana/projetos/faturamento exemplo"),
         Some(PEDIDO),
         Plataforma::MacOs,
     )
     .unwrap();
     assert_eq!(
         link,
-        "claude://code/new?folder=/Users/ana/sistemas/faturamento%20exemplo\
+        "claude://code/new?folder=/Users/ana/projetos/faturamento%20exemplo\
          &q=Inicie%20a%20an%C3%A1lise%20A-0193%20pelo%20ctower%3A%20chame%20a%20ferramenta\
          %20iniciar_analise%20do%20cba%20com%20analise%20A-0193%20e%20siga%20o%20roteiro\
          %20devolvido."
@@ -58,7 +58,7 @@ fn link_do_desktop_com_pasta_e_pedido() {
         [
             (
                 "folder".into(),
-                "/Users/ana/sistemas/faturamento exemplo".into()
+                "/Users/ana/projetos/faturamento exemplo".into()
             ),
             ("q".into(), PEDIDO.into())
         ]
@@ -68,14 +68,14 @@ fn link_do_desktop_com_pasta_e_pedido() {
 #[test]
 fn link_do_desktop_no_windows_codifica_a_pasta() {
     let link = link_desktop(
-        Path::new(r"C:\Users\Ana\Sistemas\Faturamento & Cia"),
+        Path::new(r"C:\Users\Ana\Projetos\Faturamento & Cia"),
         Some("Retome a análise A-0001"),
         Plataforma::Windows,
     )
     .unwrap();
     assert_eq!(
         link,
-        "claude://code/new?folder=C%3A%5CUsers%5CAna%5CSistemas%5CFaturamento%20%26%20Cia\
+        "claude://code/new?folder=C%3A%5CUsers%5CAna%5CProjetos%5CFaturamento%20%26%20Cia\
          &q=Retome%20a%20an%C3%A1lise%20A-0001"
     );
 }
@@ -198,12 +198,12 @@ fn comando_para_copiar_no_macos_e_no_linux() {
     );
     assert_eq!(
         comando_terminal(
-            Path::new("/home/ana/meus sistemas/fat"),
+            Path::new("/home/ana/meus projetos/fat"),
             AcaoTerminal::Pedido("o cliente d'água\nsegunda linha"),
             Plataforma::Linux
         )
         .unwrap(),
-        r"cd '/home/ana/meus sistemas/fat' && claude 'o cliente d'\''água segunda linha'"
+        r"cd '/home/ana/meus projetos/fat' && claude 'o cliente d'\''água segunda linha'"
     );
     assert_eq!(
         comando_terminal(

@@ -4,7 +4,7 @@
 //! ([`super::java::chaves`]: comentários, strings, template literals, regex,
 //! blocos por chaves e fim de instrução sem `;`). Reconhece:
 //!
-//! - `import` (os nomes importados de módulos do próprio sistema; de bibliotecas,
+//! - `import` (os nomes importados de módulos do próprio projeto; de bibliotecas,
 //!   só o módulo);
 //! - classes, interfaces, enums, `type`, `namespace`/`module`;
 //! - funções (`function` e `const f = () => ...`), métodos, construtores,

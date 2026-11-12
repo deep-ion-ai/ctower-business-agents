@@ -6,8 +6,8 @@ use cba_session::clientes::{self, EstadoClientes};
 use std::sync::Arc;
 
 use crate::{
-    alteracoes, analise, base, configuracoes, conversa, inicio, primeiro_uso, prompts, revisao,
-    sistema, terminal, vigia,
+    alteracoes, analise, base, configuracoes, conversa, inicio, primeiro_uso, projeto, prompts,
+    revisao, terminal, vigia,
 };
 
 pub fn rodar() {
@@ -23,7 +23,7 @@ pub fn rodar() {
         // domínios liberados em capabilities/default.json) e, pelo Rust, os links
         // `claude://` e `claude-cli://` montados em `conversa`.
         .plugin(tauri_plugin_opener::init())
-        // Seletor de pastas do primeiro uso (base e pastas do sistema) e diálogo de
+        // Seletor de pastas do primeiro uso (base e pastas do projeto) e diálogo de
         // salvar da exportação.
         .plugin(tauri_plugin_dialog::init())
         .manage(sessoes.clone())
@@ -31,7 +31,7 @@ pub fn rodar() {
         .manage(Arc::new(base::VigiaBase::default()))
         .invoke_handler(tauri::generate_handler![
             estado_clientes,
-            terminal::listar_sistemas,
+            terminal::listar_projetos,
             terminal::abrir_terminal_claude,
             terminal::escrever_terminal,
             terminal::redimensionar_terminal,
@@ -42,16 +42,16 @@ pub fn rodar() {
             primeiro_uso::escolher_cliente_app,
             primeiro_uso::avaliar_base_app,
             primeiro_uso::configurar_base_app,
-            primeiro_uso::previa_sistema_app,
-            primeiro_uso::cadastrar_sistema_app,
+            primeiro_uso::previa_projeto_app,
+            primeiro_uso::cadastrar_projeto_app,
             primeiro_uso::concluir_primeiro_uso_app,
-            analise::verificar_ambiente_sistema,
-            analise::planejar_preparo_sistema,
-            analise::preparar_ambiente_sistema,
-            analise::listar_analises_sistema,
+            analise::verificar_ambiente_projeto,
+            analise::planejar_preparo_projeto,
+            analise::preparar_ambiente_projeto,
+            analise::listar_analises_projeto,
             analise::criar_analise_pergunta,
-            analise::carregar_analise_sistema,
-            analise::trecho_evidencia_sistema,
+            analise::carregar_analise_projeto,
+            analise::trecho_evidencia_projeto,
             conversa::opcoes_conversa_analise,
             conversa::abrir_conversa_por_link,
             conversa::conversa_passou_ao_desktop,
@@ -59,17 +59,17 @@ pub fn rodar() {
             vigia::vigiar_analises,
             vigia::parar_vigia,
             prompts::prompts_prontos,
-            alteracoes::alteracoes_da_analise_sistema,
-            alteracoes::desfazer_alteracoes_sistema,
-            alteracoes::manter_alteracoes_sistema,
-            alteracoes::situacao_protecao_sistema,
-            alteracoes::mudar_protecao_sistema,
+            alteracoes::alteracoes_da_analise_projeto,
+            alteracoes::desfazer_alteracoes_projeto,
+            alteracoes::manter_alteracoes_projeto,
+            alteracoes::situacao_protecao_projeto,
+            alteracoes::mudar_protecao_projeto,
             inicio::inicio_app,
             inicio::criar_analise_fluxo,
-            sistema::visao_sistema_app,
-            sistema::revalidar_sistema_app,
-            sistema::mapa_sistema_app,
-            sistema::mapear_sistema_app,
+            projeto::visao_projeto_app,
+            projeto::revalidar_projeto_app,
+            projeto::mapa_projeto_app,
+            projeto::mapear_projeto_app,
             base::buscar_base,
             base::abrir_documento_base,
             base::vigiar_base,
@@ -79,14 +79,14 @@ pub fn rodar() {
             configuracoes::trocar_base_app,
             configuracoes::previa_exclusoes_app,
             configuracoes::salvar_exclusoes_app,
-            configuracoes::desfazer_ambiente_sistema,
-            configuracoes::descadastrar_sistema_app,
+            configuracoes::desfazer_ambiente_projeto,
+            configuracoes::descadastrar_projeto_app,
             configuracoes::textos_editaveis_app,
             configuracoes::abrir_texto_editavel,
-            revisao::revisar_analise_sistema,
-            revisao::prontidao_aprovacao_sistema,
-            revisao::aprovar_analise_sistema,
-            revisao::exportar_analise_sistema,
+            revisao::revisar_analise_projeto,
+            revisao::prontidao_aprovacao_projeto,
+            revisao::aprovar_analise_projeto,
+            revisao::exportar_analise_projeto,
         ])
         .build(tauri::generate_context!())
         .expect("erro ao iniciar o app")

@@ -149,7 +149,7 @@ pub fn opcoes(preferido: Option<ClienteConversa>, desktop: Desktop) -> Vec<Opcao
 /// Por que um link ou comando não pôde ser montado.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ErroPassagem {
-    #[error("pasta do sistema inválida para o link: {0}")]
+    #[error("pasta do projeto inválida para o link: {0}")]
     PastaInvalida(String),
     #[error("o pedido passa de {MAX_PEDIDO} caracteres, o limite dos links do Claude")]
     PedidoLongo,
@@ -174,7 +174,7 @@ pub fn link_desktop(
     Ok(link)
 }
 
-/// `claude-cli://open?cwd=<pasta>&q=<pedido>`: o Claude Code registrado no sistema
+/// `claude-cli://open?cwd=<pasta>&q=<pedido>`: o Claude Code registrado no projeto
 /// abre um terminal novo na pasta com o pedido preenchido, que o analista revisa e
 /// envia com Enter. O registro do link acontece na primeira mensagem enviada numa
 /// sessão interativa do `claude` naquela máquina.

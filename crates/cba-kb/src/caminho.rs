@@ -1,4 +1,4 @@
-//! Caminhos relativos à raiz da base ou do sistema.
+//! Caminhos relativos à raiz da base ou do projeto.
 //!
 //! Todo caminho guardado num documento é relativo e usa `/` como separador, para a
 //! base continuar válida em outra máquina ou sistema operacional (spec, seção 7.1).
@@ -254,7 +254,7 @@ mod tests {
         assert_eq!(
             c.em(raiz),
             raiz.join("regras").join("RN-FAT-001.md"),
-            "usa o separador do sistema"
+            "usa o separador do sistema operacional"
         );
     }
 

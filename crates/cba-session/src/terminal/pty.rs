@@ -235,7 +235,7 @@ impl Terminal {
         Ok(Self { interno, pid })
     }
 
-    /// Identificador do processo, se o sistema informou.
+    /// Identificador do processo, se o sistema operacional informou.
     pub fn pid(&self) -> Option<u32> {
         self.pid
     }

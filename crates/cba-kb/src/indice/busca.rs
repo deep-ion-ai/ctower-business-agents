@@ -37,8 +37,8 @@ pub enum Modo {
 pub struct Consulta {
     pub texto: String,
     pub modo: Modo,
-    /// Só deste sistema (slug). `None`: todos.
-    pub sistema: Option<String>,
+    /// Só deste projeto (slug). `None`: todos.
+    pub projeto: Option<String>,
     /// Só destes tipos. Vazio: todos.
     pub tipos: Vec<Tipo>,
     /// Resultados por página.
@@ -48,12 +48,12 @@ pub struct Consulta {
 }
 
 impl Consulta {
-    /// Consulta com todas as palavras, em todos os sistemas e tipos, 20 por página.
+    /// Consulta com todas as palavras, em todos os projetos e tipos, 20 por página.
     pub fn nova(texto: impl Into<String>) -> Self {
         Self {
             texto: texto.into(),
             modo: Modo::Todas,
-            sistema: None,
+            projeto: None,
             tipos: Vec::new(),
             limite: 20,
             deslocamento: 0,
@@ -65,8 +65,8 @@ impl Consulta {
         self
     }
 
-    pub fn sistema(mut self, sistema: impl Into<String>) -> Self {
-        self.sistema = Some(sistema.into());
+    pub fn projeto(mut self, projeto: impl Into<String>) -> Self {
+        self.projeto = Some(projeto.into());
         self
     }
 
@@ -87,7 +87,7 @@ impl Consulta {
 pub struct Resultado {
     /// Caminho relativo à raiz da base (`faturamento-exemplo/regras/RN-FAT-003.md`).
     pub caminho: CaminhoRelativo,
-    pub sistema: String,
+    pub projeto: String,
     /// `None` se o frontmatter não tem um `tipo` conhecido.
     pub tipo: Option<Tipo>,
     /// `id` do frontmatter (`RN-FAT-003`, `A-0001`) ou, num termo, o termo.
@@ -155,10 +155,10 @@ impl Indice {
                 total: 0,
             });
         };
-        let mut filtro = String::from("busca MATCH ?1 AND (?2 IS NULL OR d.sistema = ?2)");
+        let mut filtro = String::from("busca MATCH ?1 AND (?2 IS NULL OR d.projeto = ?2)");
         let mut parametros: Vec<Sql> = vec![
             Sql::Text(expressao),
-            consulta.sistema.clone().map_or(Sql::Null, Sql::Text),
+            consulta.projeto.clone().map_or(Sql::Null, Sql::Text),
         ];
         if !consulta.tipos.is_empty() {
             let marcas: Vec<String> = consulta
@@ -188,7 +188,7 @@ impl Indice {
             i64::try_from(consulta.deslocamento).unwrap_or(i64::MAX),
         ));
         let sql = format!(
-            "SELECT d.caminho, d.sistema, d.tipo, d.identificador, d.titulo, d.area, d.status, \
+            "SELECT d.caminho, d.projeto, d.tipo, d.identificador, d.titulo, d.area, d.status, \
                     snippet(busca, -1, '**', '**', '…', 16), \
                     bm25(busca, 10.0, 5.0, 1.0) AS r \
              FROM busca JOIN documento d ON d.id = busca.rowid \
@@ -214,13 +214,13 @@ impl Indice {
         })?;
         let mut resultados = Vec::new();
         for linha in linhas {
-            let (caminho, sistema, tipo, identificador, titulo, area, status, trecho, r) = linha?;
+            let (caminho, projeto, tipo, identificador, titulo, area, status, trecho, r) = linha?;
             let Ok(caminho) = CaminhoRelativo::novo(&caminho) else {
                 continue;
             };
             resultados.push(Resultado {
                 caminho,
-                sistema,
+                projeto,
                 tipo: tipo.as_deref().and_then(Tipo::de_str),
                 identificador,
                 titulo,
