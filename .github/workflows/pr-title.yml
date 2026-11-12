@@ -1,0 +1,34 @@
+name: pr-title
+
+# O título do PR vira a mensagem do commit no squash e alimenta o release-please,
+# então precisa seguir os commits convencionais (docs/versionamento.md).
+# pull_request_target: roda com o workflow da branch base e só lê o título, sem
+# checkout do código do PR.
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  titulo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            chore
+            refactor
+            perf
+            test
+            build
+            ci
+            style
+            revert
+          requireScope: false

@@ -1,0 +1,6 @@
+# Fixtures com finais de linha estáveis em qualquer sistema operacional:
+# os gabaritos citam linhas e trechos desses arquivos.
+fixtures/** text eol=lf
+
+# Textos esperados da montagem dos documentos (comparados byte a byte).
+crates/cba-docs/tests/esperados/** text eol=lf

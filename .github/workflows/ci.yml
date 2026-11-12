@@ -1,0 +1,129 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [develop, main, 'wip/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Um push novo no mesmo PR ou branch cancela a execução anterior.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    strategy:
+      # Um sistema que falha não cancela os outros.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-15, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      # Instala a versão fixada no rust-toolchain.toml, com rustfmt e clippy.
+      - name: Toolchain do rust-toolchain.toml
+        run: |
+          rustup toolchain install
+          rustc --version
+      - uses: Swatinem/rust-cache@v2
+      # Bibliotecas de sistema que o Tauri 2 usa no Linux (webview e ícones).
+      - name: Dependências do Tauri (Linux)
+        if: runner.os == 'Linux'
+        timeout-minutes: 15
+        run: |
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
+      # O cba-app embute ui/dist no binário (generate_context! exige a pasta), então a
+      # UI é construída antes do clippy e dos testes.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Construir a UI
+        working-directory: ui
+        run: |
+          npm ci
+          npm run build
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked
+
+  # Frontend do app: tipos, testes de componentes e build do Vite.
+  ui:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  # Regras do repositório que não dependem do sistema operacional.
+  politicas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Toolchain do rust-toolchain.toml
+        run: rustup toolchain install
+      - name: Testes dos scripts
+        run: python3 -m unittest discover -s scripts -p 'test_*.py'
+      # Mesma versão em todos os arquivos de versão (lista nos extra-files do
+      # release-please-config.json) e no Cargo.lock.
+      - name: Versões
+        run: python3 scripts/check-versions.py
+      # Só o cba-app depende do Tauri (spec, seção 5).
+      - name: Nenhuma crate além do cba-app depende do Tauri
+        run: python3 scripts/check-deps.py
+
+  # Scripts de instalação (#45): análise estática e testes com uma release falsa
+  # (sem instalar nada; veja packaging/tests).
+  instalador-sh:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: shellcheck
+        if: runner.os == 'Linux'
+        run: shellcheck -s sh packaging/install/install.sh
+      - run: sh -n packaging/install/install.sh
+      - name: Testes com sh
+        run: python3 -m unittest discover -v -s packaging/tests -p 'test_*.py'
+      - name: Testes com dash
+        if: runner.os == 'Linux'
+        run: CBA_TEST_SH=dash python3 -m unittest discover -s packaging/tests -p 'test_*.py'
+
+  instalador-ps1:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+      - name: PSScriptAnalyzer
+        run: |
+          if (-not (Get-Module -ListAvailable PSScriptAnalyzer)) { Install-Module PSScriptAnalyzer -Force -Scope CurrentUser }
+          $r = 'packaging/install/install.ps1', 'packaging/tests/test-install.ps1' |
+            ForEach-Object { Invoke-ScriptAnalyzer -Path $_ -Severity Warning, Error -ExcludeRule PSAvoidUsingWriteHost }
+          $r | Format-Table -AutoSize -Wrap RuleName, Line, Message
+          if ($r) { exit 1 }
+      - name: Testes com PowerShell 5.1
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File packaging/tests/test-install.ps1 -Shell powershell
+      - name: Testes com PowerShell 7
+        run: pwsh -NoProfile -File packaging/tests/test-install.ps1 -Shell pwsh

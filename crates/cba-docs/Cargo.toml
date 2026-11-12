@@ -1,0 +1,20 @@
+[package]
+name = "cba-docs"
+description = "Documentos das análises"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+cba-kb.workspace = true
+pulldown-cmark = { version = "0.13", default-features = false }
+serde.workspace = true
+thiserror = "2"
+zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+
+[dev-dependencies]
+quick-xml = "0.42"
+serde_norway.workspace = true
+tempfile = "3"

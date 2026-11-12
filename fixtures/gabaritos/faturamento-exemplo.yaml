@@ -1,0 +1,524 @@
+# Gabarito do sistema fictício "Faturamento Exemplo".
+#
+# Este arquivo NÃO faz parte do sistema analisado: ele fica fora da pasta
+# fixtures/faturamento-exemplo/ de propósito, para que nenhuma ferramenta
+# que cadastre aquela pasta como sistema leia as respostas.
+#
+# Convenções:
+# - `raiz` é a pasta do sistema, relativa a este arquivo.
+# - `arquivo` é sempre relativo à raiz do sistema, com `/` como separador.
+# - `linha_inicial` e `linha_final` são inclusivas, contadas a partir de 1.
+# - `trecho` é um texto curto que precisa aparecer dentro do intervalo
+#   (o mesmo papel do "trecho citado" de uma evidência, spec seção 6.5).
+# - Regras citadas por perguntas, funcionalidades e demandas usam os ids
+#   de `regras` ou de `inconsistencias`.
+# - Ao editar a fixture, atualize as linhas aqui; o teste da crate
+#   cba-fixtures confere tudo.
+# - `perguntas_esperadas` (perguntas, funcionalidades e demandas) lista o que o
+#   código não responde e o agente deve perguntar ao solicitante. Cada uma tem
+#   um `tema` (para quem lê o relatório) e `palavras_chave`: uma lista de
+#   grupos; uma pergunta registrada atende quando cada grupo tem ao menos um
+#   termo no texto. A comparação ignora maiúsculas e acentos; o termo casa
+#   com a palavra inteira, ou com o começo dela quando termina em `*`.
+# - `verificacao_da_premissa` (demandas) diz como o agente deve julgar a
+#   suposição do solicitante, na seção "Demanda como entendida": `veredito`
+#   (`nao_confere` ou `confere_em_parte`) e `palavras_chave`, no mesmo formato.
+# - A avaliação dos fluxos (crate cba-avaliacao, docs/avaliacao.md) usa este
+#   arquivo como referência.
+
+sistema: faturamento-exemplo
+raiz: ../faturamento-exemplo
+
+regras:
+  - id: RN-FAT-001
+    titulo: Multa por atraso vem de parâmetro
+    area: cobranca
+    enunciado: >-
+      Passada a carência, a fatura em atraso recebe multa única de
+      PERC_MULTA_ATRASO por cento (hoje 2%) sobre o valor original,
+      lida da tabela PARAMETRO e arredondada em 2 casas.
+    evidencias:
+      - arquivo: db/03_pkg_cobranca.sql
+        linha_inicial: 71
+        linha_final: 72
+        trecho: "FN_PARAMETRO('PERC_MULTA_ATRASO') / 100, 2)"
+      - arquivo: db/02_parametros.sql
+        linha_inicial: 6
+        linha_final: 7
+        trecho: "'PERC_MULTA_ATRASO', 2.0000"
+
+  - id: RN-FAT-002
+    titulo: Juros de mora desde o primeiro dia de atraso
+    area: cobranca
+    enunciado: >-
+      Passada a carência, os juros de mora são simples, de PERC_JUROS_DIA
+      por cento ao dia (hoje 0,033%) sobre o valor original, e contam desde
+      o primeiro dia após o vencimento, não só a partir do fim da carência.
+    evidencias:
+      - arquivo: db/03_pkg_cobranca.sql
+        linha_inicial: 94
+        linha_final: 96
+        trecho: "FN_PARAMETRO('PERC_JUROS_DIA') / 100 * V_DIAS"
+      - arquivo: db/03_pkg_cobranca.sql
+        linha_inicial: 47
+        linha_final: 47
+        trecho: "RETURN TRUNC(P_DT_REFERENCIA) - TRUNC(P_DT_VENCIMENTO)"
+      - arquivo: db/02_parametros.sql
+        linha_inicial: 9
+        linha_final: 10
+        trecho: "'PERC_JUROS_DIA', 0.0330"
+
+  - id: RN-FAT-003
+    titulo: Carência de 3 dias sem encargos
+    area: cobranca
+    enunciado: >-
+      Atraso de até DIAS_CARENCIA dias corridos (hoje 3) não gera multa nem
+      juros. A partir do quarto dia, multa e juros são cobrados.
+    evidencias:
+      - arquivo: db/03_pkg_cobranca.sql
+        linha_inicial: 66
+        linha_final: 69
+        trecho: "IF V_DIAS <= FN_PARAMETRO('DIAS_CARENCIA') THEN"
+      - arquivo: db/03_pkg_cobranca.sql
+        linha_inicial: 90
+        linha_final: 92
+        trecho: "IF V_DIAS <= FN_PARAMETRO('DIAS_CARENCIA') THEN"
+      - arquivo: db/02_parametros.sql
+        linha_inicial: 12
+        linha_final: 13
+        trecho: "'DIAS_CARENCIA', 3.0000"
+
+  - id: RN-FAT-004
+    titulo: Cliente com isenção cadastrada não paga encargos
+    area: cobranca
+    enunciado: >-
+      Cliente com CLIENTE.ISENTO_ENCARGOS = 'S' não paga multa nem juros,
+      seja qual for o tipo de cliente.
+    evidencias:
+      - arquivo: db/03_pkg_cobranca.sql
+        linha_inicial: 59
+        linha_final: 62
+        trecho: "IF V_CLIENTE.ISENTO_ENCARGOS = 'S' THEN"
+      - arquivo: db/03_pkg_cobranca.sql
+        linha_inicial: 84
+        linha_final: 86
+        trecho: "IF V_CLIENTE.ISENTO_ENCARGOS = 'S' THEN"
+      - arquivo: db/01_tabelas.sql
+        linha_inicial: 13
+        linha_final: 14
+        trecho: "ISENTO_ENCARGOS"
+      - arquivo: cobol/CALCOBR.cbl
+        linha_inicial: 69
+        linha_final: 69
+        trecho: "IF FAT-ISENTO NOT = 'S'"
+
+  - id: RN-FAT-005
+    titulo: Órgão público não paga multa
+    area: cobranca
+    enunciado: >-
+      Cliente do tipo órgão público (PUB) não paga multa por atraso; paga
+      apenas os juros de mora. A exceção é aplicada no backend.
+    evidencias:
+      - arquivo: backend/src/main/java/exemplo/faturamento/EncargosService.java
+        linha_inicial: 31
+        linha_final: 34
+        trecho: "if (fatura.tipoCliente() == TipoCliente.PUB) {"
+
+  - id: RN-FAT-006
+    titulo: Teto de encargos por tipo de cliente
+    area: cobranca
+    enunciado: >-
+      A soma de multa e juros é limitada a um percentual do valor original:
+      10% para pessoa física, 20% para pessoa jurídica e 5% para órgão
+      público.
+    evidencias:
+      - arquivo: backend/src/main/java/exemplo/faturamento/TetoEncargosRegra.java
+        linha_inicial: 17
+        linha_final: 22
+        trecho: "return new BigDecimal(\"20.00\");"
+      - arquivo: backend/src/main/java/exemplo/faturamento/TetoEncargosRegra.java
+        linha_inicial: 28
+        linha_final: 32
+        trecho: "return encargos.min(teto);"
+      - arquivo: backend/src/main/java/exemplo/faturamento/EncargosService.java
+        linha_inicial: 36
+        linha_final: 37
+        trecho: "TetoEncargosRegra.limitar("
+
+  - id: RN-FAT-007
+    titulo: Parcelamento só para pessoa jurídica e órgão público
+    area: parcelamento
+    enunciado: >-
+      Pessoa física não pode parcelar fatura. Pessoa jurídica e órgão
+      público podem.
+    evidencias:
+      - arquivo: backend/src/main/java/exemplo/faturamento/ParcelamentoService.java
+        linha_inicial: 30
+        linha_final: 32
+        trecho: "if (fatura.tipoCliente() == TipoCliente.PF) {"
+      - arquivo: frontend/src/telas/parcelamento-form.ts
+        linha_inicial: 25
+        linha_final: 30
+        trecho: "if (pedido.tipoCliente === 'PF') {"
+
+  - id: RN-FAT-008
+    titulo: Quantidade de parcelas entre 2 e MAX_PARCELAS
+    area: parcelamento
+    enunciado: >-
+      O parcelamento aceita de 2 até MAX_PARCELAS parcelas (hoje 6), valor
+      lido da tabela PARAMETRO pelo backend.
+    evidencias:
+      - arquivo: backend/src/main/java/exemplo/faturamento/ParcelamentoService.java
+        linha_inicial: 34
+        linha_final: 35
+        trecho: "parametros.inteiro(ParametroRepository.MAX_PARCELAS)"
+      - arquivo: backend/src/main/java/exemplo/faturamento/ParcelamentoService.java
+        linha_inicial: 14
+        linha_final: 14
+        trecho: "MIN_PARCELAS = 2"
+      - arquivo: db/02_parametros.sql
+        linha_inicial: 15
+        linha_final: 16
+        trecho: "'MAX_PARCELAS', 6.0000"
+
+  - id: RN-FAT-009
+    titulo: Valor mínimo da parcela, exceto órgão público
+    area: parcelamento
+    enunciado: >-
+      Cada parcela deve valer ao menos VALOR_MIN_PARCELA (hoje R$ 50,00).
+      Órgão público não tem valor mínimo de parcela.
+    evidencias:
+      - arquivo: backend/src/main/java/exemplo/faturamento/ParcelamentoService.java
+        linha_inicial: 47
+        linha_final: 53
+        trecho: "if (fatura.tipoCliente() != TipoCliente.PUB) {"
+      - arquivo: db/02_parametros.sql
+        linha_inicial: 18
+        linha_final: 19
+        trecho: "'VALOR_MIN_PARCELA', 50.0000"
+      - arquivo: frontend/src/telas/parcelamento-form.ts
+        linha_inicial: 45
+        linha_final: 45
+        trecho: "pedido.tipoCliente !== 'PUB' && valorParcela < VALOR_MINIMO_PARCELA"
+
+  - id: RN-FAT-010
+    titulo: Só fatura aberta pode ser parcelada
+    area: parcelamento
+    enunciado: >-
+      O parcelamento só é aceito para fatura com status ABERTA.
+    evidencias:
+      - arquivo: backend/src/main/java/exemplo/faturamento/ParcelamentoService.java
+        linha_inicial: 26
+        linha_final: 28
+        trecho: "Somente fatura ABERTA pode ser parcelada"
+
+  - id: RN-FAT-011
+    titulo: Composição e vencimentos das parcelas
+    area: parcelamento
+    enunciado: >-
+      O valor parcelado é o valor original mais os encargos (já com teto) na
+      data do pedido. As parcelas são iguais, arredondadas para baixo em
+      centavos; a diferença vai para a primeira parcela. Os vencimentos são
+      a cada 30 dias a partir da data do pedido.
+    evidencias:
+      - arquivo: backend/src/main/java/exemplo/faturamento/ParcelamentoService.java
+        linha_inicial: 40
+        linha_final: 42
+        trecho: "fatura.valorOriginal().add(encargos.totalComTeto())"
+      - arquivo: backend/src/main/java/exemplo/faturamento/ParcelamentoService.java
+        linha_inicial: 55
+        linha_final: 61
+        trecho: "(i == 1) ? valorParcela.add(residuo) : valorParcela"
+      - arquivo: backend/src/main/java/exemplo/faturamento/ParcelamentoService.java
+        linha_inicial: 15
+        linha_final: 15
+        trecho: "DIAS_ENTRE_PARCELAS = 30"
+
+  - id: RN-FAT-012
+    titulo: Cancelamento só de fatura aberta e sem pagamento
+    area: cancelamento
+    enunciado: >-
+      Só fatura com status ABERTA e sem nenhum valor pago pode ser
+      cancelada. Fatura com pagamento parcial não pode ser cancelada.
+    evidencias:
+      - arquivo: db/03_pkg_cobranca.sql
+        linha_inicial: 111
+        linha_final: 113
+        trecho: "IF V_STATUS <> 'ABERTA' THEN"
+      - arquivo: db/03_pkg_cobranca.sql
+        linha_inicial: 115
+        linha_final: 117
+        trecho: "IF V_VL_PAGO > 0 THEN"
+
+  - id: RN-FAT-013
+    titulo: Motivo do cancelamento com ao menos 10 caracteres
+    area: cancelamento
+    enunciado: >-
+      O cancelamento exige motivo com ao menos 10 caracteres (desprezando
+      espaços nas pontas). O motivo, a data e o usuário ficam gravados na
+      fatura e no log.
+    evidencias:
+      - arquivo: db/03_pkg_cobranca.sql
+        linha_inicial: 119
+        linha_final: 121
+        trecho: "LENGTH(TRIM(P_MOTIVO)) < 10"
+      - arquivo: db/03_pkg_cobranca.sql
+        linha_inicial: 123
+        linha_final: 131
+        trecho: "'CANCELAMENTO'"
+      - arquivo: delphi/UFrmCancelamento.pas
+        linha_inicial: 63
+        linha_final: 67
+        trecho: "Length(Trim(memMotivo.Text)) < TAM_MINIMO_MOTIVO"
+
+  - id: RN-FAT-014
+    titulo: Cancelamento após 30 dias da emissão exige supervisor
+    area: cancelamento
+    enunciado: >-
+      Fatura emitida há mais de 30 dias só pode ser cancelada por usuário
+      com perfil SUPERVISOR. A regra existe apenas na tela de retaguarda;
+      o banco não a verifica.
+    evidencias:
+      - arquivo: delphi/UFrmCancelamento.pas
+        linha_inicial: 69
+        linha_final: 75
+        trecho: "(DiasDesdeEmissao(AIdFatura) > DIAS_LIMITE_SEM_SUPERVISOR)"
+      - arquivo: delphi/UFrmCancelamento.pas
+        linha_inicial: 41
+        linha_final: 42
+        trecho: "DIAS_LIMITE_SEM_SUPERVISOR = 30;"
+
+  - id: RN-FAT-015
+    titulo: Lote de cobrança ignora valor atualizado abaixo de R$ 10,00
+    area: cobranca
+    enunciado: >-
+      O lote mensal de cobrança só gera cobrança para fatura cujo valor
+      atualizado (original + multa + juros) seja de pelo menos R$ 10,00;
+      as demais são contadas como ignoradas.
+    evidencias:
+      - arquivo: cobol/CALCOBR.cbl
+        linha_inicial: 77
+        linha_final: 82
+        trecho: "IF WS-TOTAL < WS-VALOR-MIN-COBRANCA"
+      - arquivo: cobol/CALCOBR.cbl
+        linha_inicial: 41
+        linha_final: 41
+        trecho: "WS-VALOR-MIN-COBRANCA   PIC 9(05)V99   VALUE 10.00."
+
+# Divergências deliberadas entre camadas, que um analista deve apontar.
+inconsistencias:
+  - id: INC-FAT-001
+    titulo: Tela oferece até 12 parcelas; backend aceita até 6
+    enunciado: >-
+      A tela de parcelamento valida e oferece de 2 a 12 parcelas (constante
+      fixa no código), enquanto o backend aceita no máximo MAX_PARCELAS
+      (hoje 6). Pedidos de 7 a 12 parcelas passam pela tela e são recusados
+      pelo backend.
+    regras: [RN-FAT-008]
+    evidencias:
+      - arquivo: frontend/src/telas/parcelamento-form.ts
+        linha_inicial: 19
+        linha_final: 19
+        trecho: "const MAX_PARCELAS = 12;"
+      - arquivo: backend/src/main/java/exemplo/faturamento/ParcelamentoService.java
+        linha_inicial: 34
+        linha_final: 35
+        trecho: "quantidade > maxParcelas"
+
+  - id: INC-FAT-002
+    titulo: Lote COBOL usa valores fixos e não aplica exceções do backend
+    enunciado: >-
+      O lote de cobrança tem multa (2%), juros (0,033% ao dia) e carência
+      (3 dias) fixos no programa, sem ler a tabela PARAMETRO, e não aplica
+      a isenção de multa do órgão público nem o teto por tipo de cliente.
+      Hoje os percentuais coincidem com os parâmetros, mas divergem assim
+      que um parâmetro mudar; e o valor cobrado no lote pode ser maior que
+      o calculado pelo backend para PUB e para atrasos longos.
+    regras: [RN-FAT-001, RN-FAT-002, RN-FAT-003, RN-FAT-005, RN-FAT-006]
+    evidencias:
+      - arquivo: cobol/CALCOBR.cbl
+        linha_inicial: 38
+        linha_final: 40
+        trecho: "WS-PERC-MULTA           PIC 9V9999     VALUE 2.0000."
+      - arquivo: cobol/CALCOBR.cbl
+        linha_inicial: 69
+        linha_final: 77
+        trecho: "COMPUTE WS-TOTAL = FAT-VL-ORIGINAL + WS-MULTA + WS-JUROS"
+      - arquivo: backend/src/main/java/exemplo/faturamento/EncargosService.java
+        linha_inicial: 31
+        linha_final: 37
+        trecho: "TetoEncargosRegra.limitar("
+
+  - id: INC-FAT-003
+    titulo: Tela calcula a parcela mínima sobre o valor original
+    enunciado: >-
+      A tela confere o valor mínimo da parcela dividindo só o valor da
+      fatura, enquanto o backend divide o valor original mais os encargos.
+      Uma fatura em atraso pode ser recusada pela tela e aceita pelo
+      backend.
+    regras: [RN-FAT-009, RN-FAT-011]
+    evidencias:
+      - arquivo: frontend/src/telas/parcelamento-form.ts
+        linha_inicial: 44
+        linha_final: 44
+        trecho: "pedido.valorFatura / pedido.quantidadeParcelas"
+      - arquivo: backend/src/main/java/exemplo/faturamento/ParcelamentoService.java
+        linha_inicial: 42
+        linha_final: 45
+        trecho: "totalParcelado"
+
+# Fluxo "perguntar ao sistema" (spec 4.3).
+perguntas:
+  - id: P-FAT-001
+    pergunta: Como é calculada a multa por atraso de pagamento?
+    resposta_esperada: >-
+      Multa única de 2% (parâmetro PERC_MULTA_ATRASO) sobre o valor
+      original, só depois de 3 dias de carência. Cliente com isenção
+      cadastrada não paga; órgão público não paga multa, só juros. Multa e
+      juros somados respeitam o teto por tipo de cliente (PF 10%, PJ 20%,
+      PUB 5%). Exemplo: fatura de R$ 1.000,00 de pessoa jurídica paga com
+      10 dias de atraso tem multa de R$ 20,00 e juros de R$ 3,30
+      (0,033% x 10 dias), total de R$ 23,30, abaixo do teto de R$ 200,00.
+      Ponto em aberto: o lote de cobrança calcula a multa com valor fixo.
+    regras: [RN-FAT-001, RN-FAT-002, RN-FAT-003, RN-FAT-004, RN-FAT-005, RN-FAT-006, INC-FAT-002]
+    perguntas_esperadas:
+      - tema: O lote de cobrança deveria seguir o cálculo do sistema (parâmetros, exceção do órgão público, teto)?
+        palavras_chave: [[lote, lotes, cobol, calcobr*, batch], [fix*, parametr*, diverg*, "2%", "2 %", hardcode*, teto*, pub, "orgao publico", exce*, isenc*, intencional]]
+
+  - id: P-FAT-002
+    pergunta: Um cliente pessoa física pode parcelar uma fatura?
+    resposta_esperada: >-
+      Não. O parcelamento é recusado para pessoa física tanto na tela quanto
+      no backend; só pessoa jurídica e órgão público podem parcelar.
+    regras: [RN-FAT-007]
+
+  - id: P-FAT-003
+    pergunta: Quem paga a fatura dois dias depois do vencimento paga juros?
+    resposta_esperada: >-
+      Não. Até 3 dias de atraso (parâmetro DIAS_CARENCIA) não há multa nem
+      juros. A partir do quarto dia, os juros são contados desde o primeiro
+      dia de atraso.
+    regras: [RN-FAT-002, RN-FAT-003]
+
+# Fluxo "explicar funcionalidade" (spec 4.4).
+funcionalidades:
+  - id: F-FAT-001
+    nome: Cálculo de encargos por atraso
+    objetivo: Calcular multa e juros de uma fatura vencida numa data de referência.
+    regras: [RN-FAT-001, RN-FAT-002, RN-FAT-003, RN-FAT-004, RN-FAT-005, RN-FAT-006]
+    arquivos:
+      - db/03_pkg_cobranca.sql
+      - db/02_parametros.sql
+      - backend/src/main/java/exemplo/faturamento/EncargosService.java
+      - backend/src/main/java/exemplo/faturamento/TetoEncargosRegra.java
+
+  - id: F-FAT-002
+    nome: Parcelamento de fatura
+    objetivo: Dividir uma fatura em aberto em parcelas mensais.
+    regras: [RN-FAT-007, RN-FAT-008, RN-FAT-009, RN-FAT-010, RN-FAT-011, INC-FAT-001, INC-FAT-003]
+    arquivos:
+      - backend/src/main/java/exemplo/faturamento/ParcelamentoService.java
+      - backend/src/main/java/exemplo/faturamento/ParametroRepository.java
+      - frontend/src/telas/parcelamento-form.ts
+      - db/01_tabelas.sql
+      - db/02_parametros.sql
+    perguntas_esperadas:
+      - tema: A tela oferece até 12 parcelas e o backend aceita até 6; qual é o limite certo?
+        palavras_chave: [["12", doze], ["6", seis, backend, limit*, maxim*, max_parcelas]]
+      - tema: A tela confere a parcela mínima sem os encargos; qual valor deve valer?
+        palavras_chave: [[minim*, max*, "50", valor_min_parcela], [encargo*, juros, multa, "valor original", "valor da fatura", atualizad*, atras*]]
+
+  - id: F-FAT-003
+    nome: Cancelamento de fatura
+    objetivo: Cancelar uma fatura emitida, registrando motivo e responsável.
+    regras: [RN-FAT-012, RN-FAT-013, RN-FAT-014]
+    perguntas_esperadas:
+      - tema: A exigência de supervisor só existe na tela; o cancelamento por outro caminho deveria verificá-la?
+        palavras_chave: [[supervisor*], [banco, procedure, pkg*, outr*, canal, canais, caminho*, so, apenas, somente, integrac*, servic*, api]]
+    arquivos:
+      - db/03_pkg_cobranca.sql
+      - delphi/UFrmCancelamento.pas
+      - delphi/UFrmCancelamento.dfm
+
+  - id: F-FAT-004
+    nome: Lote mensal de cobrança
+    objetivo: Gerar o arquivo de cobrança das faturas vencidas.
+    regras: [RN-FAT-004, RN-FAT-015, INC-FAT-002]
+    perguntas_esperadas:
+      - tema: O lote deveria ler multa, juros e carência dos parâmetros e aplicar as exceções do backend?
+        palavras_chave: [[fix*, parametr*, diverg*, hardcode*, pub, "orgao publico", teto*], [multa, juros, carencia, percent*, encargo*, exce*, isenc*]]
+    arquivos:
+      - cobol/CALCOBR.cbl
+
+# Fluxo "analisar impacto de uma demanda" (spec 4.5).
+demandas:
+  - id: D-FAT-001
+    texto: >-
+      Permitir parcelamento da fatura em até 3 vezes para clientes pessoa
+      jurídica. Acho que hoje o sistema não parcela fatura nenhuma.
+    premissa: >-
+      A suposição está errada: o parcelamento já existe para pessoa jurídica
+      (e órgão público), em até 6 vezes. A demanda já está atendida; se o
+      objetivo for limitar a 3, mudar MAX_PARCELAS afeta também órgão
+      público, e a tela continua oferecendo até 12 (INC-FAT-001).
+    abrangencia_esperada: pequena
+    regras: [RN-FAT-007, RN-FAT-008, INC-FAT-001]
+    verificacao_da_premissa:
+      veredito: nao_confere
+      palavras_chave: [[parcel*], [nenhum*, nenhuma, existe*, "ja", permit*, aceit*]]
+    perguntas_esperadas:
+      - tema: O limite de 3 parcelas vale também para órgão público, que usa o mesmo parâmetro?
+        palavras_chave: [[pub, "orgao publico", "orgaos publicos", publico*, "todos os tipos"], [parcel*, limit*, max_parcelas, "3", tres]]
+      - tema: A tela oferece até 12 parcelas; deve ser alinhada ao novo limite?
+        palavras_chave: [[tela, frontend, formulario, interface], ["12", doze, alinh*, diverg*, limit*]]
+    arquivos_impactados:
+      - backend/src/main/java/exemplo/faturamento/ParcelamentoService.java
+      - frontend/src/telas/parcelamento-form.ts
+      - db/02_parametros.sql
+
+  - id: D-FAT-002
+    texto: >-
+      Reduzir a multa por atraso de 2% para 1%. Salvo engano, basta alterar
+      o parâmetro.
+    premissa: >-
+      Parcialmente correta: alterar PERC_MULTA_ATRASO resolve o cálculo do
+      banco e do backend, mas o lote de cobrança COBOL usa 2% fixo e
+      continuaria cobrando a multa antiga.
+    abrangencia_esperada: media
+    regras: [RN-FAT-001, INC-FAT-002]
+    verificacao_da_premissa:
+      veredito: confere_em_parte
+      palavras_chave: [[parametr*, basta], [lote, cobol, calcobr*, fix*, hardcode*]]
+    perguntas_esperadas:
+      - tema: O lote de cobrança, que usa 2% fixo, deve ser alterado junto?
+        palavras_chave: [[lote, cobol, calcobr*, batch], [fix*, "2%", "2 %", alter*, parametr*, ajust*, mud*]]
+    arquivos_impactados:
+      - db/02_parametros.sql
+      - cobol/CALCOBR.cbl
+
+  - id: D-FAT-003
+    texto: >-
+      Permitir que pessoa física parcele faturas em até 3 vezes, com parcela
+      mínima de R$ 100,00.
+    premissa: >-
+      Hoje pessoa física é bloqueada na tela e no backend. O limite de
+      parcelas e o valor mínimo vêm de parâmetros únicos, sem distinção por
+      tipo de cliente; será preciso parametrizar por tipo.
+    abrangencia_esperada: media
+    regras: [RN-FAT-007, RN-FAT-008, RN-FAT-009]
+    perguntas_esperadas:
+      - tema: A parcela mínima de R$ 100,00 vale só para pessoa física?
+        palavras_chave: [["100", "100,00", minim*], [pf, "pessoa fisica", "pessoas fisicas", "50", demais, pj, "pessoa juridica", substitu*, "outros tipos"]]
+      - tema: O limite de 3 parcelas vale só para pessoa física?
+        palavras_chave: [["3", tres, limit*, maxim*, max_parcelas], [pf, "pessoa fisica", "pessoas fisicas", pj, "pessoa juridica", demais, "outros tipos"]]
+    arquivos_impactados:
+      - backend/src/main/java/exemplo/faturamento/ParcelamentoService.java
+      - backend/src/main/java/exemplo/faturamento/ParametroRepository.java
+      - frontend/src/telas/parcelamento-form.ts
+      - db/01_tabelas.sql
+      - db/02_parametros.sql
+
+# Arquivos que as ferramentas devem excluir da análise (spec 4.1, passo 4).
+exclusoes:
+  - arquivo: .env
+    motivo: segredo

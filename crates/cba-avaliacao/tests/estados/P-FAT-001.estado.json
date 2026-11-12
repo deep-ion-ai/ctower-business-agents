@@ -1,0 +1,217 @@
+{
+  "formato": 1,
+  "id": "A-0001",
+  "sistema": "faturamento-exemplo",
+  "fluxo": "perguntar",
+  "titulo": "Como é calculada a multa por atraso de pagamento?",
+  "entrada": "Como é calculada a multa por atraso de pagamento?",
+  "estado": "concluida",
+  "documento": "analises/A-0001.md",
+  "versao": 15,
+  "criada_ms": 1794443605514,
+  "atualizada_ms": 1794443645236,
+  "sessoes": [
+    {
+      "id": "23d095aa-1dd7-4eac-be9d-a126dc2c83fa",
+      "cliente": "desconhecido",
+      "estado": "encerrada",
+      "inicio_ms": 1794443609871,
+      "fim_ms": 1794443645236
+    }
+  ],
+  "afirmacoes": [
+    {
+      "numero": 1,
+      "secao": "resposta",
+      "texto": "A multa por atraso é única: 2% do valor original da fatura, cobrada só quando o atraso passa de 3 dias de carência. Ela não cresce com os dias. Clientes isentos e órgãos públicos não pagam multa, e multa + juros têm um teto por tipo de cliente.",
+      "confianca": "confirmado",
+      "evidencias": [
+        {
+          "arquivo": "db/03_pkg_cobranca.sql",
+          "linhas": "71-72",
+          "trecho": "-- Multa unica, aplicada sobre o valor original da fatura\n        RETURN ROUND(V_FATURA.VL_ORIGINAL * FN_PARAMETRO('PERC_MULTA_ATRASO') / 100, 2);",
+          "hash": "8e1e904f6d0fa29b94f4124e2730c84e9c61c2de043d7ca1884ad3a8b3b8d22f",
+          "commit": "0ddc5f5f3f1eb57b6982949ef75d552490527e1e",
+          "estado": "valida"
+        },
+        {
+          "arquivo": "db/02_parametros.sql",
+          "linhas": "6-13",
+          "trecho": "VALUES ('PERC_MULTA_ATRASO', 2.0000, 'Percentual de multa por atraso sobre o valor original');",
+          "hash": "6ba65fbfc62f219984d124decdd1d4bc954af3811accd4d41140c8c53d709b37",
+          "commit": "0ddc5f5f3f1eb57b6982949ef75d552490527e1e",
+          "estado": "valida"
+        }
+      ],
+      "estado": "registrada",
+      "sessao": null,
+      "registrada_ms": 1794443622451
+    },
+    {
+      "numero": 2,
+      "secao": "regras_encontradas",
+      "texto": "Carência: enquanto o atraso for de até 3 dias corridos após o vencimento (valor do parâmetro DIAS_CARENCIA na carga inicial), não há multa. A multa só existe a partir do 4º dia de atraso.",
+      "confianca": "confirmado",
+      "evidencias": [
+        {
+          "arquivo": "db/03_pkg_cobranca.sql",
+          "linhas": "66-69",
+          "trecho": "IF V_DIAS <= FN_PARAMETRO('DIAS_CARENCIA') THEN\n            RETURN 0;\n        END IF;",
+          "hash": "28179e7ab128eedc3d39f4569c8619e396980a756135113456193a86797c3d58",
+          "commit": "0ddc5f5f3f1eb57b6982949ef75d552490527e1e",
+          "estado": "valida"
+        },
+        {
+          "arquivo": "db/02_parametros.sql",
+          "linhas": "12-13",
+          "trecho": "VALUES ('DIAS_CARENCIA', 3.0000, 'Dias corridos apos o vencimento sem cobranca de encargos');",
+          "hash": "d176fa3adddf541e8e0cede81f7602c9861686d6e7f006280a87dd398f7f57fa",
+          "commit": "0ddc5f5f3f1eb57b6982949ef75d552490527e1e",
+          "estado": "valida"
+        }
+      ],
+      "estado": "registrada",
+      "sessao": null,
+      "registrada_ms": 1794443624481
+    },
+    {
+      "numero": 3,
+      "secao": "regras_encontradas",
+      "texto": "Cliente com isenção de encargos cadastrada não paga multa nem juros.",
+      "confianca": "confirmado",
+      "evidencias": [
+        {
+          "arquivo": "db/03_pkg_cobranca.sql",
+          "linhas": "59-62",
+          "trecho": "IF V_CLIENTE.ISENTO_ENCARGOS = 'S' THEN\n            RETURN 0;\n        END IF;",
+          "hash": "240da848aac3fed2ff0869d2ce1cfd78987e5b227b13734f6469e26fb5920aae",
+          "commit": "0ddc5f5f3f1eb57b6982949ef75d552490527e1e",
+          "estado": "valida"
+        }
+      ],
+      "estado": "registrada",
+      "sessao": null,
+      "registrada_ms": 1794443625714
+    },
+    {
+      "numero": 4,
+      "secao": "regras_encontradas",
+      "texto": "Órgão público (tipo PUB) não paga multa por atraso, apenas juros; o sistema zera a multa calculada para esse tipo de cliente.",
+      "confianca": "confirmado",
+      "evidencias": [
+        {
+          "arquivo": "backend/src/main/java/exemplo/faturamento/EncargosService.java",
+          "linhas": "31-34",
+          "trecho": "// Órgão público não paga multa por atraso, apenas juros\n        if (fatura.tipoCliente() == TipoCliente.PUB) {\n            multa = BigDecimal.ZERO;\n        }",
+          "hash": "645ddc1691ecc8b9ce77dd89ba85e93b8b06ceb600e46c2c4c749abcabec1488",
+          "commit": "0ddc5f5f3f1eb57b6982949ef75d552490527e1e",
+          "estado": "valida"
+        }
+      ],
+      "estado": "registrada",
+      "sessao": null,
+      "registrada_ms": 1794443627249
+    },
+    {
+      "numero": 5,
+      "secao": "regras_encontradas",
+      "texto": "Multa + juros somados são limitados a um teto sobre o valor original: 10% para pessoa física, 20% para pessoa jurídica e 5% para órgão público. Os percentuais estão fixos no código (não vêm de tabela). O teto é aplicado sobre o total de encargos, não só sobre a multa.",
+      "confianca": "confirmado",
+      "evidencias": [
+        {
+          "arquivo": "backend/src/main/java/exemplo/faturamento/TetoEncargosRegra.java",
+          "linhas": "16-22",
+          "trecho": "switch (tipo) {\n            case PF:\n                return new BigDecimal(\"10.00\");\n            case PJ:\n                return new BigDecimal(\"20.00\");\n            case PUB:\n                return new BigDecimal(\"5.00\");",
+          "hash": "7977611f4b148e9004381dde18351da074873a189568d3a07a3e9d91b6ebe15c",
+          "commit": "0ddc5f5f3f1eb57b6982949ef75d552490527e1e",
+          "estado": "valida"
+        },
+        {
+          "arquivo": "backend/src/main/java/exemplo/faturamento/EncargosService.java",
+          "linhas": "36-37",
+          "trecho": "BigDecimal total = TetoEncargosRegra.limitar(\n                multa.add(juros), fatura.valorOriginal(), fatura.tipoCliente());",
+          "hash": "1de409ae6cd95890ae261daeb657737b83cfb5a7cbe72dd47511441df04ed8da",
+          "commit": "0ddc5f5f3f1eb57b6982949ef75d552490527e1e",
+          "estado": "valida"
+        }
+      ],
+      "estado": "registrada",
+      "sessao": null,
+      "registrada_ms": 1794443629751
+    },
+    {
+      "numero": 6,
+      "secao": "regras_encontradas",
+      "texto": "O lote mensal de cobrança em COBOL (CALCOBR) calcula a multa com a mesma base (2% do valor original após 3 dias de carência, sem isento), mas não aplica a exceção de órgão público nem o teto por tipo de cliente. Resultado possível: o lote pode cobrar multa de órgão público e encargos acima do teto.",
+      "confianca": "inferido",
+      "evidencias": [
+        {
+          "arquivo": "cobol/CALCOBR.cbl",
+          "linhas": "69-77",
+          "trecho": "IF FAT-ISENTO NOT = 'S'\n              AND FAT-DIAS-ATRASO > WS-DIAS-CARENCIA\n               COMPUTE WS-MULTA ROUNDED =\n                   FAT-VL-ORIGINAL * WS-PERC-MULTA / 100\n               COMPUTE WS-JUROS ROUNDED =\n                   FAT-VL-ORIGINAL * WS-PERC-JUROS-DIA / 100\n                   * FAT-DIAS-ATRASO\n           END-IF\n           COMPUTE WS-TOTAL = FAT-VL-ORIGINAL + WS-MULTA + WS-JUROS",
+          "hash": "e83674d97e0657faa4650cd76641afd42e8b13dc46d10a75ffe585208760d451",
+          "commit": "0ddc5f5f3f1eb57b6982949ef75d552490527e1e",
+          "estado": "valida"
+        },
+        {
+          "arquivo": "cobol/CALCOBR.cbl",
+          "linhas": "38-40",
+          "trecho": "77  WS-PERC-MULTA           PIC 9V9999     VALUE 2.0000.\n       77  WS-PERC-JUROS-DIA       PIC 9V9999     VALUE 0.0330.\n       77  WS-DIAS-CARENCIA        PIC 9(03)      VALUE 3.",
+          "hash": "621f7b968e2dc1504636b53e6aa6a78307c2102bfc51a1ef718a3a3d2cc32c3d",
+          "commit": "0ddc5f5f3f1eb57b6982949ef75d552490527e1e",
+          "estado": "valida"
+        }
+      ],
+      "estado": "registrada",
+      "sessao": null,
+      "registrada_ms": 1794443633192
+    },
+    {
+      "numero": 7,
+      "secao": "exemplo",
+      "texto": "Fatura de R$ 1.000,00 de pessoa jurídica paga com 10 dias de atraso: passou dos 3 dias de carência, então multa = 1.000 × 2% = R$ 20,00. Juros (para completar o quadro) = 1.000 × 0,033% × 10 = R$ 3,30. Encargos = R$ 23,30, abaixo do teto de 20% (R$ 200,00), então total a pagar = R$ 1.023,30. Com 3 dias de atraso: multa R$ 0,00. Se o cliente fosse órgão público: multa R$ 0,00 e só os R$ 3,30 de juros.",
+      "confianca": "inferido",
+      "evidencias": [
+        {
+          "arquivo": "db/03_pkg_cobranca.sql",
+          "linhas": "96-96",
+          "trecho": "RETURN ROUND(V_FATURA.VL_ORIGINAL * FN_PARAMETRO('PERC_JUROS_DIA') / 100 * V_DIAS, 2);",
+          "hash": "8d99c6d557a64326e90bd3ee5a915cc7052b8458531e388d556d16642d223f00",
+          "commit": "0ddc5f5f3f1eb57b6982949ef75d552490527e1e",
+          "estado": "valida"
+        },
+        {
+          "arquivo": "db/03_pkg_cobranca.sql",
+          "linhas": "72-72",
+          "trecho": "RETURN ROUND(V_FATURA.VL_ORIGINAL * FN_PARAMETRO('PERC_MULTA_ATRASO') / 100, 2);",
+          "hash": "c0d7cfd6a74d7b1f1d10e1e112145bbd180b464d49f0a30e580c5a903bcad5f9",
+          "commit": "0ddc5f5f3f1eb57b6982949ef75d552490527e1e",
+          "estado": "valida"
+        }
+      ],
+      "estado": "registrada",
+      "sessao": null,
+      "registrada_ms": 1794443636350
+    }
+  ],
+  "perguntas": [
+    {
+      "numero": 1,
+      "texto": "Os percentuais de multa (2%), juros (0,033% ao dia) e a carência (3 dias) vêm de uma tabela de parâmetros que pode ter sido alterada em produção. Quais são os valores vigentes hoje? O código só mostra a carga inicial.",
+      "afirmacao": null,
+      "estado": "aberta",
+      "sessao": null,
+      "registrada_ms": 1794443637349
+    },
+    {
+      "numero": 2,
+      "texto": "O lote mensal de cobrança em COBOL ainda está em uso? Ele não aplica a isenção de multa de órgão público nem o teto de encargos. Isso é intencional ou o negócio espera o mesmo resultado do cálculo do sistema Java?",
+      "afirmacao": null,
+      "estado": "aberta",
+      "sessao": null,
+      "registrada_ms": 1794443638354
+    }
+  ],
+  "sugestoes": [],
+  "termos": []
+}
