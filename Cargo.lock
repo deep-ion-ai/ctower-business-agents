@@ -438,7 +438,7 @@ dependencies = [
 
 [[package]]
 name = "cba-app"
-version = "1.0.0"
+version = "0.0.0"
 dependencies = [
  "cba-core",
  "cba-index",
@@ -463,7 +463,7 @@ dependencies = [
 
 [[package]]
 name = "cba-avaliacao"
-version = "1.0.0"
+version = "0.0.0"
 dependencies = [
  "cba-core",
  "cba-index",
@@ -479,7 +479,7 @@ dependencies = [
 
 [[package]]
 name = "cba-core"
-version = "1.0.0"
+version = "0.0.0"
 dependencies = [
  "cba-index",
  "cba-kb",
@@ -496,7 +496,7 @@ dependencies = [
 
 [[package]]
 name = "cba-docs"
-version = "1.0.0"
+version = "0.0.0"
 dependencies = [
  "cba-kb",
  "pulldown-cmark",
@@ -510,7 +510,7 @@ dependencies = [
 
 [[package]]
 name = "cba-fixtures"
-version = "1.0.0"
+version = "0.0.0"
 dependencies = [
  "serde",
  "serde_norway",
@@ -518,7 +518,7 @@ dependencies = [
 
 [[package]]
 name = "cba-index"
-version = "1.0.0"
+version = "0.0.0"
 dependencies = [
  "dunce",
  "globset",
@@ -534,7 +534,7 @@ dependencies = [
 
 [[package]]
 name = "cba-kb"
-version = "1.0.0"
+version = "0.0.0"
 dependencies = [
  "rusqlite",
  "serde",
@@ -549,7 +549,7 @@ dependencies = [
 
 [[package]]
 name = "cba-mcp"
-version = "1.0.0"
+version = "0.0.0"
 dependencies = [
  "cba-core",
  "cba-index",
@@ -562,7 +562,7 @@ dependencies = [
 
 [[package]]
 name = "cba-session"
-version = "1.0.0"
+version = "0.0.0"
 dependencies = [
  "cba-core",
  "cba-index",
@@ -582,7 +582,7 @@ dependencies = [
 
 [[package]]
 name = "cba-tools"
-version = "1.0.0"
+version = "0.0.0"
 dependencies = [
  "cba-core",
  "cba-docs",
