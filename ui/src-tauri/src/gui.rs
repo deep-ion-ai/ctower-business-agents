@@ -5,7 +5,9 @@ use cba_session::clientes::{self, EstadoClientes};
 
 use std::sync::Arc;
 
-use crate::{analise, base, conversa, inicio, primeiro_uso, prompts, sistema, terminal, vigia};
+use crate::{
+    alteracoes, analise, base, conversa, inicio, primeiro_uso, prompts, sistema, terminal, vigia,
+};
 
 pub fn rodar() {
     // Sem log o app ainda funciona; o erro não tem para onde ir antes da janela.
@@ -55,6 +57,11 @@ pub fn rodar() {
             vigia::vigiar_analises,
             vigia::parar_vigia,
             prompts::prompts_prontos,
+            alteracoes::alteracoes_da_analise_sistema,
+            alteracoes::desfazer_alteracoes_sistema,
+            alteracoes::manter_alteracoes_sistema,
+            alteracoes::situacao_protecao_sistema,
+            alteracoes::mudar_protecao_sistema,
             inicio::inicio_app,
             inicio::criar_analise_fluxo,
             sistema::visao_sistema_app,

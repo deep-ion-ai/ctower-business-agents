@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { intervaloDe, mensagemDe, type ApiAnalise, type Evidencia } from "./analise";
+import {
+  apiAlteracoesTauri,
+  intervaloDe,
+  mensagemDe,
+  type ApiAlteracoes,
+  type ApiAnalise,
+  type Evidencia,
+} from "./analise";
+import { AvisoAlteracao } from "./AvisoAlteracao";
 import { ClientesConversa, type Modo } from "./ClientesConversa";
 import {
   apiConversaTauri,
@@ -36,6 +44,8 @@ interface Props {
   /** Para testes. */
   apiTerminal?: ApiTerminal;
   apiConversa?: ApiConversa;
+  /** Aviso de alteração na pasta do sistema (#29); para testes. */
+  apiAlteracoes?: ApiAlteracoes;
   criarTela?: () => TelaTerminal;
 }
 
@@ -65,6 +75,7 @@ export function PainelAnalise({
   apiTerminal,
   apiConversa = apiConversaTauri,
   criarTela,
+  apiAlteracoes = apiAlteracoesTauri,
 }: Props) {
   const { vista, erro } = useAnaliseAoVivo(api, sistema, analise);
   const [opcoes, setOpcoes] = useState<OpcoesConversa | null>(null);
@@ -303,6 +314,12 @@ export function PainelAnalise({
           )}
         </section>
         <section className="painel-documento" aria-label="Documento ao vivo">
+          <AvisoAlteracao
+            api={apiAlteracoes}
+            vigiar={api.vigiar}
+            sistema={sistema}
+            analise={analise}
+          />
           {trecho && <TrechoEvidencia carga={trecho} aoFechar={() => setTrecho(null)} />}
           {erro && (
             <p className="trecho-erro" role="alert">

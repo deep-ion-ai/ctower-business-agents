@@ -7,9 +7,11 @@
 //!
 //! # Regras
 //!
-//! - **Nunca bloqueia.** A resposta é sempre código 0 com um JSON válido (`{}`, ou o
-//!   contexto do `SessionStart`). Entrada inválida, evento desconhecido, base
-//!   inacessível ou falha ao gravar só vão para o log.
+//! - **Nunca bloqueia**, exceto pela proteção opcional. A resposta é sempre código 0
+//!   com um JSON válido (`{}`, ou o contexto do `SessionStart`). Entrada inválida,
+//!   evento desconhecido, base inacessível ou falha ao gravar só vão para o log. Com
+//!   a proteção contra edição ligada para o sistema ([`crate::protecao`]), o
+//!   `PreToolUse` de `Bash` e `PowerShell` responde `deny`.
 //! - **Rápido** (meta: menos de 200 ms). Os hooks ficam no escopo de usuário (#24) e
 //!   disparam em todas as sessões do analista; fora das pastas dos sistemas
 //!   cadastrados, o receptor só lê o cadastro e sai, sem gravar nada. Dentro, só
@@ -46,6 +48,16 @@
 //! `session_id` guardado para a retomada (#28). Daí em diante, cada mudança de
 //! estado vai também para a análise, que notifica o app pelo diário de eventos.
 //!
+//! # Aviso de alteração (#29)
+//!
+//! Numa sessão de sistema, o primeiro evento (normalmente o `SessionStart`) pede o
+//! retrato das pastas do sistema, e cada `Stop` e `SessionEnd` pede a conferência
+//! ([`crate::alteracoes`]). Os dois rodam num processo separado
+//! (`cba fundo <tarefa> <sessao>`, [`Fundo`]): o hook só dispara e responde. O
+//! `PreToolUse` de uma ferramenta que escreve espera o retrato pedido ficar pronto
+//! (até [`crate::alteracoes::ESPERA_DO_RETRATO`]), para a primeira escrita da sessão
+//! não ser atribuída a antes dela.
+//!
 //! Fontes (documentação oficial, <https://code.claude.com/docs/en/hooks.md>,
 //! consultada em 2026-11-11): campos comuns (`session_id`, `cwd`, `hook_event_name`),
 //! `source` do `SessionStart`, `notification_type` do `Notification`, `reason` do
@@ -67,7 +79,9 @@ use cba_core::tempo;
 use cba_kb::{Base, Id, Serie};
 use serde_json::{Value, json};
 
+use crate::alteracoes::{self, Retratos, Tarefa};
 use crate::preparo::NOME_SERVIDOR;
+use crate::protecao;
 use crate::sessoes::{Alteracao, RegistroSessao, Sessoes, id_valido};
 
 /// Eventos que o app registra na configuração do cliente (spec, seção 6.2).
@@ -110,6 +124,22 @@ impl Resposta {
         }
     }
 
+    /// Nega a ferramenta do `PreToolUse` (`permissionDecision: "deny"`), com o
+    /// motivo que o agente recebe. O Claude Code decide isso antes de perguntar ao
+    /// analista.
+    pub fn negar(motivo: &str) -> Self {
+        Self {
+            saida: json!({
+                "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "permissionDecision": "deny",
+                    "permissionDecisionReason": motivo,
+                }
+            }),
+            codigo: 0,
+        }
+    }
+
     /// Segue normalmente e acrescenta `texto` ao contexto do agente
     /// (`hookSpecificOutput.additionalContext`; vale para `SessionStart` e
     /// `UserPromptSubmit`).
@@ -126,6 +156,18 @@ impl Resposta {
     }
 }
 
+/// Como o receptor faz o retrato e a conferência do aviso de alteração.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum Fundo {
+    /// Não faz (testes do receptor que não tratam do aviso).
+    #[default]
+    Desligado,
+    /// Dispara `<executável> fundo <tarefa> <sessao>` e não espera (o normal).
+    Processo(PathBuf),
+    /// Faz no próprio processo, antes de responder (testes).
+    Imediato,
+}
+
 /// O que o receptor precisa do processo: o diretório de dados e a pasta do projeto.
 #[derive(Debug, Clone, Default)]
 pub struct Contexto {
@@ -133,6 +175,8 @@ pub struct Contexto {
     pub dados: Option<DiretorioDados>,
     /// `CLAUDE_PROJECT_DIR`, quando definido.
     pub diretorio_projeto: Option<PathBuf>,
+    /// Retrato e conferência do aviso de alteração.
+    pub fundo: Fundo,
 }
 
 impl Contexto {
@@ -144,6 +188,9 @@ impl Contexto {
             diretorio_projeto: std::env::var_os(VAR_PROJETO)
                 .filter(|v| !v.is_empty())
                 .map(PathBuf::from),
+            fundo: std::env::current_exe()
+                .map(Fundo::Processo)
+                .unwrap_or_default(),
         }
     }
 }
@@ -193,10 +240,12 @@ pub enum Desfecho {
     SemSessao,
     /// Sessão fora das pastas dos sistemas cadastrados: nada gravado.
     ForaDeSistema,
-    /// Sessão de um sistema; `gravou` diz se o registro mudou.
+    /// Sessão de um sistema; `gravou` diz se o registro mudou e `negar`, se a
+    /// ferramenta do `PreToolUse` foi negada pela proteção.
     Sessao {
         inicio: Option<InicioDeSessao>,
         gravou: bool,
+        negar: bool,
     },
     /// Falha ao ler ou gravar; a sessão segue assim mesmo.
     Falha(&'static str),
@@ -211,6 +260,7 @@ impl Desfecho {
             Self::SemDados => "sem_dados",
             Self::SemSessao => "sem_sessao",
             Self::ForaDeSistema => "fora_de_sistema",
+            Self::Sessao { negar: true, .. } => "negado_pela_protecao",
             Self::Sessao { gravou: true, .. } => "registrado",
             Self::Sessao { gravou: false, .. } => "sem_mudanca",
             Self::Falha(motivo) => motivo,
@@ -239,6 +289,7 @@ pub fn tratar(evento: &str, mut entrada: impl Read, contexto: &Contexto) -> Resp
             Some(texto) => Resposta::com_contexto(evento, &texto),
             None => Resposta::seguir(),
         },
+        Desfecho::Sessao { negar: true, .. } => Resposta::negar(protecao::MOTIVO),
         _ => Resposta::seguir(),
     };
 
@@ -278,6 +329,17 @@ fn destino(evento: &str, dados: &Value) -> Option<EstadoSessao> {
         _ => None,
     }
 }
+
+/// Ferramentas que escrevem arquivos (diretamente ou por comando): o `PreToolUse`
+/// delas espera o retrato do início da sessão.
+const FERRAMENTAS_QUE_ESCREVEM: &[&str] = &[
+    "Edit",
+    "Write",
+    "MultiEdit",
+    "NotebookEdit",
+    "Bash",
+    "PowerShell",
+];
 
 /// Análise citada por uma ferramenta do servidor `cba` no `PreToolUse`.
 fn analise_da_ferramenta(dados: &Value) -> Option<Id> {
@@ -373,11 +435,79 @@ fn receber(evento: &str, dados: &Value, contexto: &Contexto) -> Desfecho {
                 origem: atual.and_then(|r| r.origem.clone()),
                 regras: regras_do_sistema(dados_app, &sistema),
             });
+            let negar = evento == "PreToolUse"
+                && texto_de(dados, "tool_name")
+                    .is_some_and(|t| protecao::FERRAMENTAS_NEGADAS_PELO_HOOK.contains(&t))
+                && protecao::protegido(dados_app, &sistema);
+            if !negar {
+                acompanhar_alteracoes(evento, dados, id, dados_app, &contexto.fundo);
+            }
             Desfecho::Sessao {
                 inicio,
                 gravou: alteracao.mudou(),
+                negar,
             }
         }
+    }
+}
+
+/// Retrato e conferência do aviso de alteração (veja o início do módulo). Falhas
+/// só vão para o log.
+fn acompanhar_alteracoes(
+    evento: &str,
+    dados: &Value,
+    id: &str,
+    dados_app: &DiretorioDados,
+    fundo: &Fundo,
+) {
+    if *fundo == Fundo::Desligado {
+        return;
+    }
+    let retratos = Retratos::do_diretorio(dados_app);
+    let mut tarefa = None;
+    if !retratos.reservado(id) {
+        match retratos.reservar(id) {
+            Ok(true) => tarefa = Some(Tarefa::Retratar),
+            Ok(false) => {}
+            Err(_) => tracing::warn!("retrato da sessão não reservado"),
+        }
+    }
+    match evento {
+        "Stop" | "SessionEnd" if tarefa.is_none() => tarefa = Some(Tarefa::Conferir),
+        "PreToolUse"
+            if texto_de(dados, "tool_name")
+                .is_some_and(|t| FERRAMENTAS_QUE_ESCREVEM.contains(&t)) =>
+        {
+            // Depois de disparar o retrato (se for o caso), espera por ele.
+            if let Some(t) = tarefa.take() {
+                rodar_tarefa(t, id, dados_app, fundo);
+            }
+            if !retratos.aguardar(id, alteracoes::ESPERA_DO_RETRATO) {
+                tracing::warn!("retrato da sessão não ficou pronto a tempo");
+            }
+        }
+        _ => {}
+    }
+    if let Some(t) = tarefa {
+        rodar_tarefa(t, id, dados_app, fundo);
+    }
+}
+
+fn rodar_tarefa(tarefa: Tarefa, id: &str, dados_app: &DiretorioDados, fundo: &Fundo) {
+    let resultado = match fundo {
+        Fundo::Desligado => return,
+        Fundo::Processo(exe) => {
+            alteracoes::disparar(exe, tarefa, id).map_err(|e| format!("{:?}", e.kind()))
+        }
+        Fundo::Imediato => alteracoes::executar(dados_app, tarefa, id)
+            .map_err(|e| alteracoes::tipo_do_erro(&e).to_owned()),
+    };
+    if let Err(erro) = resultado {
+        tracing::warn!(
+            tarefa = tarefa.nome(),
+            erro,
+            "tarefa do aviso de alteração falhou"
+        );
     }
 }
 

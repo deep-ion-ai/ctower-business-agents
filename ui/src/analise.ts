@@ -155,6 +155,49 @@ export interface PlanoPreparo {
   gravado: boolean;
 }
 
+/** Arquivo da pasta do sistema alterado durante uma sessão (`cba_session::alteracoes::Detalhe`). */
+export interface ArquivoAlterado {
+  sessao: string;
+  /** Raiz do repositório (ou a pasta, fora do git). */
+  pasta: string;
+  /** Caminho relativo a `pasta`, com `/`. */
+  caminho: string;
+  tipo: "criado" | "modificado" | "removido";
+  /** SHA-256 do conteúdo atual, conferido ao desfazer. */
+  hashAtual: string | null;
+  /** Há conteúdo de base para o diff e o desfazer (pasta no git). */
+  desfazivel: boolean;
+  /** Diff unificado (antes → agora). */
+  diff: string | null;
+  binario: boolean;
+}
+
+/** Aviso de alteração de uma análise (`alteracoes_da_analise_sistema`). */
+export interface AvisoAlteracao {
+  arquivos: ArquivoAlterado[];
+  /** Limitações da conferência (git ausente, pasta fora do git). */
+  avisos: string[];
+}
+
+/** Arquivo a desfazer ou manter. */
+export interface PedidoAlteracao {
+  sessao: string;
+  pasta: string;
+  caminho: string;
+  hashAtual: string | null;
+}
+
+/** Situação da proteção opcional contra edição (`cba_session::protecao::SituacaoProtecao`). */
+export interface SituacaoProtecao {
+  sistema: string;
+  ligada: boolean;
+  completa: boolean;
+  /** `~/.claude/settings.json`. */
+  arquivo: string;
+  regras: { regra: string; presente: boolean; doApp: boolean }[];
+  negadasPeloHook: string[];
+}
+
 /** Aviso da vigia do diário de eventos. */
 export type AvisoAnalise =
   { tipo: "mudanca"; analise: string; mudanca: string; versao: number } | { tipo: "reinicio" };
@@ -193,7 +236,28 @@ export interface ApiAmbiente {
   planejarPreparo(sistema: string): Promise<PlanoPreparo>;
   /** Prepara; só depois do consentimento do analista. */
   prepararAmbiente(sistema: string): Promise<PlanoPreparo>;
+  /** Proteção opcional contra edição (#29); a tela de configurações (#39) também usa. */
+  situacaoProtecao?(sistema: string): Promise<SituacaoProtecao>;
+  /** Liga ou desliga a proteção; só depois do consentimento do analista. */
+  mudarProtecao?(sistema: string, ligada: boolean): Promise<SituacaoProtecao>;
 }
+
+/** Aviso de alteração na pasta do sistema (#29). */
+export interface ApiAlteracoes {
+  alteracoes(sistema: string, analise: string): Promise<AvisoAlteracao>;
+  /** Volta os arquivos ao início da sessão; só depois da confirmação na tela. */
+  desfazer(sistema: string, analise: string, pedidos: PedidoAlteracao[]): Promise<string[]>;
+  /** O analista mantém as alterações: elas saem do aviso. */
+  manter(sistema: string, analise: string, pedidos: PedidoAlteracao[]): Promise<string[]>;
+}
+
+export const apiAlteracoesTauri: ApiAlteracoes = {
+  alteracoes: (sistema, analise) => invoke("alteracoes_da_analise_sistema", { sistema, analise }),
+  desfazer: (sistema, analise, pedidos) =>
+    invoke("desfazer_alteracoes_sistema", { sistema, analise, pedidos }),
+  manter: (sistema, analise, pedidos) =>
+    invoke("manter_alteracoes_sistema", { sistema, analise, pedidos }),
+};
 
 /** Operações da tela da análise. A interface usa {@link apiAnaliseTauri}; os testes, uma falsa. */
 export interface ApiAnalise extends ApiAmbiente {
@@ -214,6 +278,8 @@ export const apiAnaliseTauri: ApiAnalise = {
   verificarAmbiente: (sistema) => invoke("verificar_ambiente_sistema", { sistema }),
   planejarPreparo: (sistema) => invoke("planejar_preparo_sistema", { sistema }),
   prepararAmbiente: (sistema) => invoke("preparar_ambiente_sistema", { sistema }),
+  situacaoProtecao: (sistema) => invoke("situacao_protecao_sistema", { sistema }),
+  mudarProtecao: (sistema, ligada) => invoke("mudar_protecao_sistema", { sistema, ligada }),
   listarAnalises: (sistema) => invoke("listar_analises_sistema", { sistema }),
   criarAnalise: (sistema, entrada, titulo) =>
     invoke("criar_analise_pergunta", { sistema, entrada, titulo: titulo ?? null }),
