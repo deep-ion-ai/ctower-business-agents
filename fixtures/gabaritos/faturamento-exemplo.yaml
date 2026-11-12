@@ -14,6 +14,17 @@
 #   de `regras` ou de `inconsistencias`.
 # - Ao editar a fixture, atualize as linhas aqui; o teste da crate
 #   cba-fixtures confere tudo.
+# - `perguntas_esperadas` (perguntas, funcionalidades e demandas) lista o que o
+#   código não responde e o agente deve perguntar ao solicitante. Cada uma tem
+#   um `tema` (para quem lê o relatório) e `palavras_chave`: uma lista de
+#   grupos; uma pergunta registrada atende quando cada grupo tem ao menos um
+#   termo no texto. A comparação ignora maiúsculas e acentos; o termo casa
+#   com a palavra inteira, ou com o começo dela quando termina em `*`.
+# - `verificacao_da_premissa` (demandas) diz como o agente deve julgar a
+#   suposição do solicitante, na seção "Demanda como entendida": `veredito`
+#   (`nao_confere` ou `confere_em_parte`) e `palavras_chave`, no mesmo formato.
+# - A avaliação dos fluxos (crate cba-avaliacao, docs/avaliacao.md) usa este
+#   arquivo como referência.
 
 sistema: faturamento-exemplo
 raiz: ../faturamento-exemplo
@@ -370,6 +381,9 @@ perguntas:
       (0,033% x 10 dias), total de R$ 23,30, abaixo do teto de R$ 200,00.
       Ponto em aberto: o lote de cobrança calcula a multa com valor fixo.
     regras: [RN-FAT-001, RN-FAT-002, RN-FAT-003, RN-FAT-004, RN-FAT-005, RN-FAT-006, INC-FAT-002]
+    perguntas_esperadas:
+      - tema: O lote de cobrança deveria seguir o cálculo do sistema (parâmetros, exceção do órgão público, teto)?
+        palavras_chave: [[lote, lotes, cobol, calcobr*, batch], [fix*, parametr*, diverg*, "2%", "2 %", hardcode*, teto*, pub, "orgao publico", exce*, isenc*, intencional]]
 
   - id: P-FAT-002
     pergunta: Um cliente pessoa física pode parcelar uma fatura?
@@ -408,11 +422,19 @@ funcionalidades:
       - frontend/src/telas/parcelamento-form.ts
       - db/01_tabelas.sql
       - db/02_parametros.sql
+    perguntas_esperadas:
+      - tema: A tela oferece até 12 parcelas e o backend aceita até 6; qual é o limite certo?
+        palavras_chave: [["12", doze], ["6", seis, backend, limit*, maxim*, max_parcelas]]
+      - tema: A tela confere a parcela mínima sem os encargos; qual valor deve valer?
+        palavras_chave: [[minim*, max*, "50", valor_min_parcela], [encargo*, juros, multa, "valor original", "valor da fatura", atualizad*, atras*]]
 
   - id: F-FAT-003
     nome: Cancelamento de fatura
     objetivo: Cancelar uma fatura emitida, registrando motivo e responsável.
     regras: [RN-FAT-012, RN-FAT-013, RN-FAT-014]
+    perguntas_esperadas:
+      - tema: A exigência de supervisor só existe na tela; o cancelamento por outro caminho deveria verificá-la?
+        palavras_chave: [[supervisor*], [banco, procedure, pkg*, outr*, canal, canais, caminho*, so, apenas, somente, integrac*, servic*, api]]
     arquivos:
       - db/03_pkg_cobranca.sql
       - delphi/UFrmCancelamento.pas
@@ -422,6 +444,9 @@ funcionalidades:
     nome: Lote mensal de cobrança
     objetivo: Gerar o arquivo de cobrança das faturas vencidas.
     regras: [RN-FAT-004, RN-FAT-015, INC-FAT-002]
+    perguntas_esperadas:
+      - tema: O lote deveria ler multa, juros e carência dos parâmetros e aplicar as exceções do backend?
+        palavras_chave: [[fix*, parametr*, diverg*, hardcode*, pub, "orgao publico", teto*], [multa, juros, carencia, percent*, encargo*, exce*, isenc*]]
     arquivos:
       - cobol/CALCOBR.cbl
 
@@ -438,6 +463,14 @@ demandas:
       público, e a tela continua oferecendo até 12 (INC-FAT-001).
     abrangencia_esperada: pequena
     regras: [RN-FAT-007, RN-FAT-008, INC-FAT-001]
+    verificacao_da_premissa:
+      veredito: nao_confere
+      palavras_chave: [[parcel*], [nenhum*, nenhuma, existe*, "ja", permit*, aceit*]]
+    perguntas_esperadas:
+      - tema: O limite de 3 parcelas vale também para órgão público, que usa o mesmo parâmetro?
+        palavras_chave: [[pub, "orgao publico", "orgaos publicos", publico*, "todos os tipos"], [parcel*, limit*, max_parcelas, "3", tres]]
+      - tema: A tela oferece até 12 parcelas; deve ser alinhada ao novo limite?
+        palavras_chave: [[tela, frontend, formulario, interface], ["12", doze, alinh*, diverg*, limit*]]
     arquivos_impactados:
       - backend/src/main/java/exemplo/faturamento/ParcelamentoService.java
       - frontend/src/telas/parcelamento-form.ts
@@ -453,6 +486,12 @@ demandas:
       continuaria cobrando a multa antiga.
     abrangencia_esperada: media
     regras: [RN-FAT-001, INC-FAT-002]
+    verificacao_da_premissa:
+      veredito: confere_em_parte
+      palavras_chave: [[parametr*, basta], [lote, cobol, calcobr*, fix*, hardcode*]]
+    perguntas_esperadas:
+      - tema: O lote de cobrança, que usa 2% fixo, deve ser alterado junto?
+        palavras_chave: [[lote, cobol, calcobr*, batch], [fix*, "2%", "2 %", alter*, parametr*, ajust*, mud*]]
     arquivos_impactados:
       - db/02_parametros.sql
       - cobol/CALCOBR.cbl
@@ -467,6 +506,11 @@ demandas:
       tipo de cliente; será preciso parametrizar por tipo.
     abrangencia_esperada: media
     regras: [RN-FAT-007, RN-FAT-008, RN-FAT-009]
+    perguntas_esperadas:
+      - tema: A parcela mínima de R$ 100,00 vale só para pessoa física?
+        palavras_chave: [["100", "100,00", minim*], [pf, "pessoa fisica", "pessoas fisicas", "50", demais, pj, "pessoa juridica", substitu*, "outros tipos"]]
+      - tema: O limite de 3 parcelas vale só para pessoa física?
+        palavras_chave: [["3", tres, limit*, maxim*, max_parcelas], [pf, "pessoa fisica", "pessoas fisicas", pj, "pessoa juridica", demais, "outros tipos"]]
     arquivos_impactados:
       - backend/src/main/java/exemplo/faturamento/ParcelamentoService.java
       - backend/src/main/java/exemplo/faturamento/ParametroRepository.java

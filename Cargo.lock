@@ -462,6 +462,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "cba-avaliacao"
+version = "0.0.0"
+dependencies = [
+ "cba-core",
+ "cba-index",
+ "cba-kb",
+ "cba-session",
+ "cba-tools",
+ "dunce",
+ "serde",
+ "serde_json",
+ "serde_norway",
+ "tempfile",
+]
+
+[[package]]
 name = "cba-core"
 version = "0.0.0"
 dependencies = [
