@@ -62,9 +62,10 @@ pub fn nome_do_arquivo(fluxo: Fluxo) -> &'static str {
 }
 
 /// Se o roteiro padrão do fluxo já foi revisado. Só os revisados são copiados
-/// para a base. Os de explicar e de impacto são revisados no M2 (#32).
+/// para a base. Os três foram revisados (#32): perguntar no M1, explicar e impacto
+/// no M2. Um fluxo novo entra aqui só depois de ter o roteiro revisado.
 pub fn revisado(fluxo: Fluxo) -> bool {
-    matches!(fluxo, Fluxo::Perguntar)
+    matches!(fluxo, Fluxo::Perguntar | Fluxo::Explicar | Fluxo::Impacto)
 }
 
 fn padrao(fluxo: Fluxo) -> Padrao {
@@ -105,27 +106,47 @@ fn dica_da_secao(fluxo: Fluxo, marcador: &str) -> &'static str {
             "um exemplo com números que aplica as regras (inferido, citando as evidências das regras usadas)"
         }
         (Fluxo::Impacto, "demanda_como_entendida") => {
-            "o que a demanda pede de fato; separe o que o solicitante afirmou como fato do que ele supôs e corrija a premissa quando o código mostrar outra coisa"
+            "uma afirmação por premissa do solicitante (\"Premissa do solicitante: ... Verificação: confere | não confere | confere em parte. ...\"), verificada no código, e uma afirmação final com a demanda como entendida, já com as correções"
         }
-        (Fluxo::Impacto, "como_e_hoje") => "como o sistema trata o assunto hoje",
-        (Fluxo::Impacto, "funcionalidades") => "o que muda em cada funcionalidade",
+        (Fluxo::Impacto, "como_e_hoje") => {
+            "como o sistema trata o assunto hoje: as regras atuais, com valores e condições"
+        }
+        (Fluxo::Impacto, "funcionalidades") => {
+            "o que muda em cada funcionalidade ou regra, com o lugar no código; itens repetidos agrupados, com a contagem"
+        }
         (Fluxo::Impacto, "dados") => {
-            "tabelas e campos afetados, inclusive dados já gravados no formato atual"
+            "tabelas, colunas e parâmetros afetados, inclusive dados já gravados no formato atual"
         }
-        (Fluxo::Impacto, "integracoes") => "integrações que recebem ou enviam o que muda",
-        (Fluxo::Impacto, "documentos_e_telas") => "relatórios, documentos e telas afetados",
+        (Fluxo::Impacto, "integracoes") => {
+            "lotes, arquivos e serviços que recebem ou enviam o que muda"
+        }
+        (Fluxo::Impacto, "documentos_e_telas") => {
+            "relatórios, documentos emitidos e telas afetados; itens repetidos agrupados, com a contagem"
+        }
         (Fluxo::Impacto, "riscos") => {
-            "riscos, como dados antigos, integrações no formato atual e relatórios que agrupam pelos dados alterados"
+            "riscos, como dados antigos, integrações no formato atual, relatórios que agrupam pelos dados alterados, regras repetidas em outra camada e outros públicos afetados pela mesma mudança"
         }
-        (Fluxo::Impacto, "abrangencia") => "pequena, média ou grande, com a justificativa",
-        (Fluxo::Explicar, "objetivo") => "para que a funcionalidade serve, para o negócio",
-        (Fluxo::Explicar, "atores_e_telas") => "quem usa e por quais telas",
-        (Fluxo::Explicar, "fluxo_principal") => "os passos do caminho normal",
-        (Fluxo::Explicar, "fluxos_alternativos") => "caminhos alternativos",
-        (Fluxo::Explicar, "excecoes") => "erros e situações de exceção",
-        (Fluxo::Explicar, "regras") => "uma regra de negócio por afirmação",
-        (Fluxo::Explicar, "dados") => "dados lidos e gravados",
-        (Fluxo::Explicar, "integracoes") => "sistemas e serviços chamados ou que chamam",
+        (Fluxo::Impacto, "abrangencia") => {
+            "uma afirmação inferida que começa pela estimativa (\"Pequena:\", \"Média:\" ou \"Grande:\"), seguida da justificativa com a contagem de lugares afetados"
+        }
+        (Fluxo::Explicar, "objetivo") => {
+            "para que a funcionalidade serve, para o negócio, e o que ficou dentro e fora do documento"
+        }
+        (Fluxo::Explicar, "atores_e_telas") => {
+            "quem usa e por onde: telas, serviços, lotes e rotinas que iniciam a funcionalidade"
+        }
+        (Fluxo::Explicar, "fluxo_principal") => {
+            "um passo do caminho normal por afirmação, na ordem, começando pelo número do passo"
+        }
+        (Fluxo::Explicar, "fluxos_alternativos") => {
+            "caminhos que mudam por uma condição do negócio, com a condição"
+        }
+        (Fluxo::Explicar, "excecoes") => "recusas, erros e bloqueios, com a condição e a mensagem",
+        (Fluxo::Explicar, "regras") => {
+            "uma regra de negócio por afirmação, com valores e de onde vêm; a mesma regra em mais de uma camada vai numa afirmação só, com as evidências de cada uma e as divergências"
+        }
+        (Fluxo::Explicar, "dados") => "tabelas e campos lidos e gravados, e em que passo",
+        (Fluxo::Explicar, "integracoes") => "sistemas, lotes e serviços chamados ou que chamam",
         _ => "",
     }
 }
@@ -136,7 +157,7 @@ pub fn secoes_obrigatorias(fluxo: Fluxo) -> &'static [&'static str] {
     match fluxo {
         Fluxo::Perguntar => &["resposta"],
         Fluxo::Impacto => &["demanda_como_entendida", "como_e_hoje", "abrangencia"],
-        Fluxo::Explicar => &["objetivo", "fluxo_principal"],
+        Fluxo::Explicar => &["objetivo", "fluxo_principal", "regras"],
     }
 }
 
@@ -367,14 +388,97 @@ mod tests {
     }
 
     #[test]
-    fn so_o_roteiro_revisado_e_copiado_e_o_da_base_sobrepoe() {
+    fn roteiro_de_impacto_verifica_premissas_agrupa_e_estima() {
+        let (r, avisos) = Roteiros::padrao().montar(
+            &analise(Fluxo::Impacto),
+            "faturamento-exemplo/analises/A-0003.md",
+            "Nada.\n",
+        );
+        assert!(avisos.is_empty());
+        assert!(
+            r.contains("Fluxo: análise de impacto de uma demanda. Documento na base:"),
+            "{r}"
+        );
+        assert!(
+            r.contains("## Demanda, como o solicitante escreveu\n\n> Como é calculada"),
+            "{r}"
+        );
+        // Fato e suposição separados e cada afirmação verificada no código.
+        assert!(r.contains("**Separe fato de suposição.**"), "{r}");
+        assert!(
+            r.contains("**Verifique cada afirmação no código, uma por uma.**"),
+            "{r}"
+        );
+        assert!(r.contains("\"basta alterar o parâmetro\""), "{r}");
+        // O lugar da premissa corrigida no documento.
+        assert!(
+            r.contains("\"Premissa do solicitante: <o que ele afirmou ou supôs>. Verificação: <confere | não confere | confere em parte>."),
+            "{r}"
+        );
+        assert!(r.contains("\"Demanda como entendida: "), "{r}");
+        assert!(r.contains("**Agrupe o que se repete.**"), "{r}");
+        assert!(r.contains("**começa pela estimativa**"), "{r}");
+        for nivel in ["pequena:", "média:", "grande:"] {
+            assert!(r.contains(&format!("   - {nivel} ")), "{nivel}: {r}");
+        }
+        for secao in ["demanda_como_entendida", "como_e_hoje", "abrangencia"] {
+            assert!(
+                r.contains(&format!(
+                    "`{secao}` ({}) (obrigatória)",
+                    titulo_da_secao(Fluxo::Impacto, secao)
+                )),
+                "{secao}: {r}"
+            );
+        }
+        assert!(r.contains("a premissa corrigida"), "{r}");
+        assert!(r.ends_with("## Contexto da base\n\nNada.\n"), "{r}");
+    }
+
+    #[test]
+    fn roteiro_de_explicar_segue_o_caminho_e_unifica_regras_entre_camadas() {
+        let (r, avisos) = Roteiros::padrao().montar(
+            &analise(Fluxo::Explicar),
+            "faturamento-exemplo/analises/A-0003.md",
+            "Nada.\n",
+        );
+        assert!(avisos.is_empty());
+        assert!(
+            r.contains("Fluxo: explicação de funcionalidade (documento negocial). Documento"),
+            "{r}"
+        );
+        assert!(
+            r.contains("## Funcionalidade pedida pelo analista\n\n> Como é calculada"),
+            "{r}"
+        );
+        assert!(r.contains("**Ache os pontos de entrada.**"), "{r}");
+        assert!(r.contains("**Siga o caminho do começo ao fim.**"), "{r}");
+        assert!(r.contains("aponte se os valores divergem"), "{r}");
+        assert!(r.contains("**Agrupe o que se repete.**"), "{r}");
+        assert!(
+            r.contains("seções obrigatórias (`objetivo`, `fluxo_principal`, `regras`)"),
+            "{r}"
+        );
+        assert!(r.ends_with("## Contexto da base\n\nNada.\n"), "{r}");
+    }
+
+    #[test]
+    fn roteiros_revisados_sao_copiados_e_o_da_base_sobrepoe() {
         let dir = tempfile::tempdir().unwrap();
         let base = Base::criar(dir.path()).unwrap();
         let criados = Roteiros::copiar_padrao(&base).unwrap();
+        assert!(FLUXOS.into_iter().all(revisado));
         assert_eq!(
             criados,
-            vec![CaminhoRelativo::novo("_templates/roteiros/perguntar.md").unwrap()]
+            ["perguntar", "explicar", "impacto"]
+                .map(|f| CaminhoRelativo::novo(&format!("_templates/roteiros/{f}.md")).unwrap())
         );
+        // A cópia é o padrão embutido, byte a byte.
+        for fluxo in FLUXOS {
+            assert_eq!(
+                base.ler_texto(&arquivo_do_roteiro(fluxo)).unwrap(),
+                padrao(fluxo).texto
+            );
+        }
         // Não sobrescreve o que o analista editou.
         let editado = "<!-- meu -->\nRoteiro da casa para {{id}} ({{fluxo}}).\n{{inventada}}\n";
         base.gravar_texto(&arquivo_do_roteiro(Fluxo::Perguntar), editado)
@@ -387,7 +491,15 @@ mod tests {
             roteiros.origem(Fluxo::Perguntar),
             &editavel::Origem::Base(arquivo_do_roteiro(Fluxo::Perguntar))
         );
-        assert_eq!(roteiros.origem(Fluxo::Impacto), &editavel::Origem::Padrao);
+        // A cópia não editada dá o mesmo roteiro do padrão.
+        assert_eq!(
+            roteiros.origem(Fluxo::Impacto),
+            &editavel::Origem::Base(arquivo_do_roteiro(Fluxo::Impacto))
+        );
+        assert_eq!(
+            roteiros.montar(&analise(Fluxo::Impacto), "doc.md", "Nada.\n"),
+            Roteiros::padrao().montar(&analise(Fluxo::Impacto), "doc.md", "Nada.\n")
+        );
         let (r, avisos) = roteiros.montar(&analise(Fluxo::Perguntar), "doc.md", "Nada.\n");
         assert!(
             r.starts_with("Roteiro da casa para A-0003 (pergunta ao sistema).\n{{inventada}}\n"),

@@ -190,13 +190,13 @@ fn referencias_da_funcao_de_multa_devolve_os_chamadores() {
             "backend/src/main/java/exemplo/faturamento/EncargosService.java".to_owned(),
             28,
             "mencao".to_owned(),
-            "EncargosService".to_owned()
+            "exemplo.faturamento.EncargosService.calcular".to_owned()
         )],
         "{dados}"
     );
     assert!(
         texto.contains(
-            "- backend/src/main/java/exemplo/faturamento/EncargosService.java:28 — mencao, em EncargosService"
+            "- backend/src/main/java/exemplo/faturamento/EncargosService.java:28 — mencao, em exemplo.faturamento.EncargosService.calcular"
         ),
         "{texto}"
     );
