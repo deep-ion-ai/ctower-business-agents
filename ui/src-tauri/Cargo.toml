@@ -21,6 +21,7 @@ cba-core.workspace = true
 cba-index.workspace = true
 cba-kb.workspace = true
 cba-mcp.workspace = true
+cba-repos.workspace = true
 cba-session.workspace = true
 cba-tools.workspace = true
 dirs.workspace = true

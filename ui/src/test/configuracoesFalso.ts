@@ -10,6 +10,7 @@ import type {
   TrocaBase,
 } from "../configuracoes";
 import type { PreviaProjeto } from "../primeiroUso";
+import type { Prontidao, Repositorios } from "../repositorios";
 import { apiPrimeiroUsoFalsa, inventarioFicticio } from "./falsos";
 
 export const BASE = "/Users/analista/Documents/ctower-business";
@@ -27,6 +28,7 @@ export function configuracoesFicticias(parcial: Partial<Configuracoes> = {}): Co
         pastas: [{ caminho: CODIGO, prefixo: null, existe: true }],
         exclusoes: ["docs/antigos/"],
         inclusoes: [],
+        repositorios: { forge: null, tracker: null },
       },
     ],
     configClaude: {
@@ -85,6 +87,11 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
   const api = {
     ...base,
     configuracoes: vi.fn((): Promise<Configuracoes> => Promise.resolve(cfg)),
+    salvarRepositorios: vi.fn(
+      (_projeto: string, repositorios: Repositorios): Promise<Repositorios> =>
+        Promise.resolve(repositorios),
+    ),
+    prontidaoRepositorios: vi.fn((): Promise<Prontidao> => Promise.resolve({ integracoes: [] })),
     verificarAmbiente: vi.fn(
       (): Promise<AmbienteDetalhado> =>
         Promise.resolve({

@@ -16,8 +16,7 @@ const ENTRADA: Record<Fluxo, { rotulo: string; exemplo: string }> = {
   },
   impacto: {
     rotulo: "Texto da demanda",
-    exemplo:
-      "Ex.: Permitir parcelamento da fatura em até 3 vezes para clientes pessoa jurídica.",
+    exemplo: "Ex.: Permitir parcelamento da fatura em até 3 vezes para clientes pessoa jurídica.",
   },
 };
 
@@ -41,6 +40,7 @@ export function NovaAnalise({
   const [projeto, setProjeto] = useState(projetos[0]?.id ?? "");
   const [entrada, setEntrada] = useState("");
   const [titulo, setTitulo] = useState("");
+  const [issue, setIssue] = useState("");
   const [ambiente, setAmbiente] = useState<AmbienteClaude | null>(null);
   const [criando, setCriando] = useState(false);
   const [falha, setFalha] = useState<string | null>(null);
@@ -58,11 +58,16 @@ export function NovaAnalise({
 
   const criar = (ev: FormEvent) => {
     ev.preventDefault();
-    if (!entrada.trim() || !projeto) return;
+    if (!projeto) return;
+    // Com a issue informada, o título e a descrição dela são a entrada.
+    const deIssue = issue.trim() !== "";
+    if (!deIssue && !entrada.trim()) return;
     setCriando(true);
     setFalha(null);
-    api
-      .criarAnalise(projeto, fluxo, entrada.trim(), titulo.trim() || undefined)
+    (deIssue
+      ? api.criarAnaliseDeDemanda(projeto, fluxo, issue.trim())
+      : api.criarAnalise(projeto, fluxo, entrada.trim(), titulo.trim() || undefined)
+    )
       .then((criada) => aoCriar(projeto, criada))
       .catch((e: unknown) => {
         setFalha(mensagemDe(e));
@@ -90,6 +95,21 @@ export function NovaAnalise({
         <PrepararAmbiente api={api} projeto={projeto} ambiente={ambiente} aoConcluir={verificar} />
       )}
       <label>
+        Issue do projeto (opcional)
+        <input
+          value={issue}
+          onChange={(e) => setIssue(e.target.value)}
+          placeholder="Ex.: PROJ-123 ou 45"
+          spellCheck={false}
+        />
+      </label>
+      {issue.trim() !== "" && (
+        <p className="muted">
+          O app busca o título e a descrição da issue no repositório de demandas do projeto e guarda
+          o link dela na análise.
+        </p>
+      )}
+      <label>
         {rotulo}
         <textarea
           value={entrada}
@@ -106,7 +126,7 @@ export function NovaAnalise({
         <button
           type="submit"
           className="btn btn-primary"
-          disabled={!pronto || criando || !entrada.trim()}
+          disabled={!pronto || criando || (!entrada.trim() && !issue.trim())}
         >
           Iniciar a análise
         </button>

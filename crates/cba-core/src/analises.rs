@@ -100,6 +100,16 @@ impl Analises {
     /// Cria a análise: reserva o próximo `A-NNNN`, grava o documento em rascunho e o
     /// estado inicial.
     pub fn criar(&self, nova: NovaAnalise) -> Result<Analise, Erro> {
+        self.criar_com_demanda(nova, None)
+    }
+
+    /// Como [`Analises::criar`], com a origem da demanda no frontmatter
+    /// (`demanda.origem` e `demanda.chave`). Sem ela, a demanda é o texto colado.
+    pub fn criar_com_demanda(
+        &self,
+        nova: NovaAnalise,
+        demanda: Option<Demanda>,
+    ) -> Result<Analise, Erro> {
         if nova.titulo.trim().is_empty() {
             return Err(ErroModelo::CampoVazio("titulo").into());
         }
@@ -115,10 +125,10 @@ impl Analises {
                     id: id.clone(),
                     titulo: titulo.clone(),
                     projeto: self.kb.nome().to_owned(),
-                    demanda: Demanda {
+                    demanda: demanda.clone().unwrap_or_else(|| Demanda {
                         origem: "texto".into(),
                         chave: None,
-                    },
+                    }),
                     status: cba_kb::frontmatter::StatusAnalise::Rascunho,
                     abrangencia: None,
                     base: nova.base.clone(),

@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { mensagemDe } from "./analise";
+import { FormRepositorios } from "./FormRepositorios";
+import { SEM_REPOSITORIOS, validarRepositorios, type Repositorios } from "./repositorios";
 import {
   padraoDoCaminho,
   tamanhoLegivel,
@@ -19,8 +21,9 @@ function linhas(texto: string): string[] {
     .filter(Boolean);
 }
 
+/** Os repositórios não mudam o inventário: a prévia vale mesmo se eles mudarem. */
 function chaveDoPedido(p: PedidoProjeto): string {
-  return JSON.stringify(p);
+  return JSON.stringify({ ...p, repositorios: undefined });
 }
 
 /**
@@ -40,7 +43,11 @@ export function CadastroProjeto({
   const [pastas, setPastas] = useState<string[]>([""]);
   const [exclusoes, setExclusoes] = useState("");
   const [inclusoes, setInclusoes] = useState<string[]>([]);
-  const [previa, setPrevia] = useState<{ chave: string; dados: PreviaProjeto } | null>(null);
+  const [repositorios, setRepositorios] = useState<Repositorios>(SEM_REPOSITORIOS);
+  const [previa, setPrevia] = useState<{
+    chave: string;
+    dados: PreviaProjeto;
+  } | null>(null);
   const [ocupado, setOcupado] = useState<"previa" | "cadastro" | null>(null);
   const [falha, setFalha] = useState<string | null>(null);
 
@@ -49,11 +56,17 @@ export function CadastroProjeto({
     pastas: pastas.map((p) => p.trim()).filter(Boolean),
     exclusoes: linhas(exclusoes),
     inclusoes,
+    repositorios,
   };
   const completo = pedido.nome !== "" && pedido.pastas.length > 0;
   const atualizada = previa !== null && previa.chave === chaveDoPedido(pedido);
 
   const verPrevia = (p: PedidoProjeto = pedido) => {
+    const invalido = validarRepositorios(p.repositorios ?? SEM_REPOSITORIOS);
+    if (invalido) {
+      setFalha(invalido);
+      return;
+    }
     setOcupado("previa");
     setFalha(null);
     api
@@ -151,6 +164,7 @@ export function CadastroProjeto({
           Acrescentar outra pasta
         </button>
       </fieldset>
+      <FormRepositorios valor={repositorios} aoMudar={setRepositorios} />
 
       <details className="ajuste-exclusoes">
         <summary>Ajustar o que fica fora</summary>
