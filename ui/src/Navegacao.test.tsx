@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { Navegacao } from "./Navegacao";
 import { REGRA, SISTEMA, apiConhecimentoFalsa } from "./test/conhecimentoFalso";
+import { apiConfiguracoesFalsa } from "./test/configuracoesFalso";
 import { apiAnaliseFalsa, clientesProntos } from "./test/falsos";
 
 vi.mock("@tauri-apps/api/core", () => ({
@@ -35,6 +36,29 @@ describe("Navegacao", () => {
 
     fireEvent.click(within(abas).getByRole("button", { name: "Análises" }));
     expect(await screen.findByRole("region", { name: "Pergunta ao sistema" })).toBeInTheDocument();
+  });
+
+  it("abre as configurações e relê os sistemas quando elas mudam", async () => {
+    const conhecimento = apiConhecimentoFalsa();
+    const configuracoes = apiConfiguracoesFalsa();
+    render(
+      <Navegacao
+        api={conhecimento.api}
+        apiAnalise={apiAnaliseFalsa().api}
+        apiConfiguracoes={configuracoes}
+      />,
+    );
+    await screen.findByRole("region", { name: "Início" });
+    const abas = screen.getByRole("navigation", { name: "Telas" });
+    fireEvent.click(within(abas).getByRole("button", { name: "Configurações" }));
+    expect(await screen.findByRole("region", { name: "Configurações" })).toBeInTheDocument();
+    const lidas = conhecimento.api.situacao.mock.calls.length;
+    fireEvent.click(await screen.findByRole("button", { name: "Descadastrar o sistema" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Confirmo o descadastro/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Descadastrar" }));
+    await waitFor(() =>
+      expect(conhecimento.api.situacao.mock.calls.length).toBeGreaterThan(lidas),
+    );
   });
 
   it("do sistema para o documento na base", async () => {
