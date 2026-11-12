@@ -26,6 +26,8 @@
 //!   registro.
 //! - [`aprovacao`]: a aprovação da análise pelo analista, que leva à base as
 //!   afirmações confirmadas (regras) e os termos aceitos (glossário).
+//! - [`revisao`]: a revisão do analista (decisões, edição do texto, prontidão para
+//!   aprovar, aprovação com a escolha da área e exportação).
 //! - [`revalidacao`]: a revalidação das evidências das regras e das análises por
 //!   hash, que o app chama ao abrir o sistema e sob demanda (spec, seção 6.5).
 //!
@@ -51,6 +53,7 @@ pub mod prompts;
 pub mod referencias;
 mod registro;
 pub mod revalidacao;
+pub mod revisao;
 pub mod roteiro;
 pub mod schema;
 pub mod sugestao;
