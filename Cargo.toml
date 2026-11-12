@@ -20,6 +20,7 @@ cba-docs = { path = "crates/cba-docs" }
 cba-tools = { path = "crates/cba-tools" }
 cba-mcp = { path = "crates/cba-mcp" }
 cba-index = { path = "crates/cba-index" }
+cba-repos = { path = "crates/cba-repos" }
 cba-session = { path = "crates/cba-session" }
 
 # Dependências de terceiros usadas por mais de uma crate.
