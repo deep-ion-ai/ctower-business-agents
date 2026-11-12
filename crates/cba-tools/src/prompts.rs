@@ -52,9 +52,9 @@ pub struct PromptPronto {
 }
 
 /// Definição de um prompt pronto.
-struct Definicao {
-    id: &'static str,
-    rotulo: &'static str,
+pub(crate) struct Definicao {
+    pub(crate) id: &'static str,
+    pub(crate) rotulo: &'static str,
     descricao: &'static str,
     texto: &'static str,
     /// Pede ao agente que registre na análise; fica de fora numa análise aprovada,
@@ -62,7 +62,7 @@ struct Definicao {
     registra: bool,
 }
 
-const DEFINICOES: [Definicao; 5] = [
+pub(crate) const DEFINICOES: [Definicao; 5] = [
     Definicao {
         id: "aprofundar",
         rotulo: "Aprofundar",
@@ -100,7 +100,7 @@ const DEFINICOES: [Definicao; 5] = [
     },
 ];
 
-fn padrao(d: &Definicao) -> Padrao {
+pub(crate) fn padrao(d: &Definicao) -> Padrao {
     Padrao {
         pasta: PASTA,
         nome: d.id,

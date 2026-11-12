@@ -68,7 +68,7 @@ pub fn revisado(fluxo: Fluxo) -> bool {
     matches!(fluxo, Fluxo::Perguntar | Fluxo::Explicar | Fluxo::Impacto)
 }
 
-fn padrao(fluxo: Fluxo) -> Padrao {
+pub(crate) fn padrao(fluxo: Fluxo) -> Padrao {
     let texto = match fluxo {
         Fluxo::Perguntar => include_str!("../textos/roteiros/perguntar.md"),
         Fluxo::Explicar => include_str!("../textos/roteiros/explicar.md"),
