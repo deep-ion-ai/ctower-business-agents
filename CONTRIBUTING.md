@@ -119,6 +119,14 @@ Os dados do app (índice, configuração, logs) ficam no diretório de dados do 
 
 O CI roda nos runners do GitHub. Em PRs de fork, um mantenedor precisa aprovar a execução dos workflows.
 
+### O que o CI roda
+
+O workflow `ci` roda em todo PR e em push na `develop` e na `main`. Push numa `wip/**` não dispara o CI: cada merge nela já passou pelo CI do PR.
+
+- `rust`, `ui` e `politicas` rodam sempre.
+- Os testes dos instaladores (`instalador-sh` e `instalador-ps1`) rodam em PRs para `develop` ou `main`, em push nessas branches e em execução manual. Em PRs para outras bases, como uma `wip/<slug>`, só rodam se o PR mexer em `packaging/**` ou em `.github/workflows/ci.yml`.
+- O job `ci-ok` sempre roda e reúne o resultado dos outros: falha se algum falhou ou foi cancelado, e conta os pulados como sucesso. **O `ci-ok` é o único check do CI marcado como obrigatório** na `develop` e na `main` (Settings → Branches ou Rules), no lugar da lista de jobs. Um job novo no `ci.yml` precisa entrar no `needs` do `ci-ok`.
+
 ## CLA
 
 O projeto é licenciado sob a [Apache-2.0](LICENSE). Para manter aberta a possibilidade de uma edição comercial em repositório separado, toda contribuição externa exige o aceite do [CLA individual](docs/cla/CLA.md), baseado no Apache ICLA. Com ele, você mantém os direitos sobre a sua contribuição e concede ao mantenedor uma licença de direitos autorais e de patentes, inclusive para distribuí-la sob outros termos. A sua contribuição continua disponível aqui sob a Apache-2.0.
