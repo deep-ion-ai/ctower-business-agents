@@ -1,0 +1,16 @@
+[package]
+name = "cba-reunioes"
+description = "Reuniões: leitura do transcript do Teams em falas e guarda temporária do transcript"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+quick-xml.workspace = true
+serde.workspace = true
+zip.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
