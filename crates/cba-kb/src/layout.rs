@@ -31,6 +31,11 @@ pub const ARQUIVO_DEMANDA: &str = "demanda.md";
 pub const PESSOAS: &str = "pessoas";
 /// Catálogo de papéis das pessoas, editável, em `_templates/`.
 pub const ARQUIVO_PAPEIS: &str = "papeis.yaml";
+/// Atas das reuniões, dentro da pasta da demanda (`reunioes/R-NNNN.md`, com o
+/// estado em `reunioes/R-NNNN.estado.json`).
+pub const REUNIOES: &str = "reunioes";
+/// Sufixo do arquivo de estado de uma ata (`R-NNNN.estado.json`).
+pub const SUFIXO_ESTADO_ATA: &str = ".estado.json";
 
 /// Pastas criadas em todo projeto.
 pub const PASTAS_DO_PROJETO: [&str; 6] = [

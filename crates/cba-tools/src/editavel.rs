@@ -192,6 +192,7 @@ fn rotulo_do_template(tipo: cba_kb::frontmatter::TipoDocumento) -> &'static str 
         T::MemoriaArea => "Memória da área",
         T::Demanda => "Demanda",
         T::Pessoa => "Pessoa",
+        T::Ata => "Ata de reunião",
     }
 }
 

@@ -17,6 +17,8 @@
 //!     sugestoes/<id>.md
 //!     demandas/D-NNNN-<slug>/demanda.md
 //!     pessoas/<slug>.md            # catálogo de pessoas: nome, apelidos e papéis
+//!     demandas/D-NNNN-<slug>/reunioes/R-NNNN.md            # ata
+//!     demandas/D-NNNN-<slug>/reunioes/R-NNNN.estado.json   # estado da ata
 //! ```
 //!
 //! O que esta crate oferece:
@@ -52,6 +54,7 @@ pub mod indice;
 pub mod layout;
 mod papeis;
 mod pessoas;
+mod reunioes;
 
 pub use base::{Base, PADRAO_REGRAS_DO_PROJETO, Projeto};
 pub use caminho::{CaminhoInvalido, CaminhoRelativo, e_slug, slug};
@@ -59,12 +62,13 @@ pub use demandas::{DemandaLida, NovaDemanda};
 pub use documento::{Documento, ErroFrontmatter};
 pub use erro::{Erro, Resultado};
 pub use frontmatter::{ErroCampo, Frontmatter, TipoDocumento};
-pub use id::{Id, IdDemanda, IdInvalido, Serie};
+pub use id::{Id, IdDemanda, IdInvalido, IdReuniao, Serie};
 pub use papeis::{AvisoPapeis, OrigemPapeis, PADRAO_PAPEIS, Papeis, Papel};
 pub use pessoas::{
     Casamento, CatalogoDePessoas, NovaPessoa, PapelSugerido, Participante, PessoaLida,
     normalizar_nome, normalizar_texto, sem_dominio,
 };
+pub use reunioes::ArquivosDaReuniao;
 
 /// Tipos YAML do frontmatter livre ([`frontmatter::FrontmatterLivre`]).
 pub mod yaml {
