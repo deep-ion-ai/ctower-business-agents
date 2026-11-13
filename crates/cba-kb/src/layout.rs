@@ -21,6 +21,11 @@ pub const AREAS: &str = "areas";
 pub const FUNCIONALIDADES: &str = "funcionalidades";
 pub const ANALISES: &str = "analises";
 pub const SUGESTOES: &str = "sugestoes";
+/// Demandas, uma pasta por demanda (`demandas/D-NNNN-<slug>/`). Criada na
+/// primeira demanda, não em todo projeto.
+pub const DEMANDAS: &str = "demandas";
+/// Documento da demanda, dentro da pasta dela.
+pub const ARQUIVO_DEMANDA: &str = "demanda.md";
 
 /// Pastas criadas em todo projeto.
 pub const PASTAS_DO_PROJETO: [&str; 6] = [

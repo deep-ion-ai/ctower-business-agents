@@ -15,7 +15,7 @@ use serde::de::{DeserializeOwned, Error as _};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::caminho::{CaminhoRelativo, e_slug};
-use crate::id::{Id, Serie};
+use crate::id::{Id, IdDemanda, Serie};
 use crate::yaml::{Mapping, Value};
 
 /// Tipo de documento, no campo `tipo` do frontmatter.
@@ -40,10 +40,12 @@ pub enum TipoDocumento {
     Sugestao,
     /// Memória de uma área funcional.
     MemoriaArea,
+    /// Demanda, em `demandas/D-NNNN-<slug>/demanda.md`.
+    Demanda,
 }
 
 impl TipoDocumento {
-    pub const TODOS: [TipoDocumento; 9] = [
+    pub const TODOS: [TipoDocumento; 10] = [
         Self::Projeto,
         Self::AnaliseImpacto,
         Self::Pergunta,
@@ -53,6 +55,7 @@ impl TipoDocumento {
         Self::Termo,
         Self::Sugestao,
         Self::MemoriaArea,
+        Self::Demanda,
     ];
 
     /// Valor no frontmatter (`analise-impacto`).
@@ -67,6 +70,7 @@ impl TipoDocumento {
             Self::Termo => "termo",
             Self::Sugestao => "sugestao",
             Self::MemoriaArea => "memoria-area",
+            Self::Demanda => "demanda",
         }
     }
 
@@ -296,9 +300,21 @@ pub enum StatusSugestao {
     Recusada,
 }
 
-/// De onde veio a demanda de uma análise.
+/// Estado de uma demanda.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum StatusDemanda {
+    Aberta,
+    Encerrada,
+}
+
+/// De onde veio a demanda de uma análise e a qual demanda da base ela pertence.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Demanda {
+    /// Demanda da base (`demandas/D-NNNN-<slug>/`) a que a análise está ligada.
+    /// Opcional: as análises podem existir sem demanda.
+    #[serde(default)]
+    pub id: Option<IdDemanda>,
     /// `texto` para demanda colada pelo analista; no futuro, o rastreador de origem.
     pub origem: String,
     /// Chave no rastreador de origem, quando houver.
@@ -518,6 +534,45 @@ pub struct FrontmatterMemoria {
 
 impl Frontmatter for FrontmatterMemoria {
     const TIPOS: &'static [TipoDocumento] = &[TipoDocumento::MemoriaArea];
+}
+
+/// Demanda, em `demandas/D-NNNN-<slug>/demanda.md`: a unidade de trabalho do
+/// analista, que reúne as atas e as análises de um mesmo pedido do cliente. A
+/// descrição e o próximo passo ficam no corpo.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FrontmatterDemanda {
+    pub tipo: TipoDocumento,
+    pub id: IdDemanda,
+    pub titulo: String,
+    /// Slug do projeto.
+    pub projeto: String,
+    pub status: StatusDemanda,
+    /// Chave no rastreador (`PROJ-123`, `#12`), quando houver.
+    #[serde(default, deserialize_with = "texto_flexivel_opcional")]
+    pub chave: Option<String>,
+    /// Endereço da demanda no rastreador (URL da issue), quando houver.
+    #[serde(default, deserialize_with = "texto_flexivel_opcional")]
+    pub origem: Option<String>,
+    pub criado: Data,
+    #[serde(default)]
+    pub encerrado: Option<Data>,
+}
+
+impl Frontmatter for FrontmatterDemanda {
+    const TIPOS: &'static [TipoDocumento] = &[TipoDocumento::Demanda];
+
+    fn validar(&self) -> Result<(), ErroCampo> {
+        if !e_slug(&self.projeto) {
+            return Err(ErroCampo::novo(
+                "projeto",
+                format!("`{}` não é um slug (a-z, 0-9 e -)", self.projeto),
+            ));
+        }
+        if self.titulo.trim().is_empty() {
+            return Err(ErroCampo::novo("titulo", "a demanda precisa de um título"));
+        }
+        Ok(())
+    }
 }
 
 /// Frontmatter sem tipo fixo: o mapa YAML na ordem do arquivo. Serve para ler

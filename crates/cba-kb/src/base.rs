@@ -349,7 +349,7 @@ impl Projeto {
         Ok(maior)
     }
 
-    fn erro_io(&self, relativo: &CaminhoRelativo, erro: io::Error) -> Erro {
+    pub(crate) fn erro_io(&self, relativo: &CaminhoRelativo, erro: io::Error) -> Erro {
         Erro::Io {
             arquivo: self.na_base(relativo),
             erro,

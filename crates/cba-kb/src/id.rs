@@ -177,6 +177,87 @@ impl<'de> Deserialize<'de> for Id {
     }
 }
 
+/// Identificador de uma demanda, `D-NNNN`, sequencial por projeto.
+///
+/// Fica fora de [`Serie`] porque a demanda é uma pasta
+/// (`demandas/D-NNNN-<slug>/demanda.md`), não um arquivo `<pasta>/<id>.md`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct IdDemanda(u32);
+
+impl IdDemanda {
+    /// Prefixo do identificador e do nome da pasta.
+    pub const PREFIXO: &'static str = "D-";
+
+    /// Identificador de número `numero` (a partir de 1).
+    pub fn novo(numero: u32) -> Self {
+        Self(numero.max(1))
+    }
+
+    pub fn numero(self) -> u32 {
+        self.0
+    }
+
+    /// Lê um identificador na forma canônica (`D-0007`, `D-12345`).
+    pub fn analisar(texto: &str) -> Result<Self, IdInvalido> {
+        let erro = |motivo| IdInvalido {
+            valor: texto.to_owned(),
+            motivo,
+        };
+        let numero = texto
+            .strip_prefix(Self::PREFIXO)
+            .ok_or_else(|| erro("esperado D-NNNN"))?;
+        if numero.is_empty() || !numero.bytes().all(|b| b.is_ascii_digit()) {
+            return Err(erro("o número tem só dígitos"));
+        }
+        let n: u32 = numero.parse().map_err(|_| erro("número grande demais"))?;
+        if n == 0 {
+            return Err(erro("a numeração começa em 1"));
+        }
+        let id = Self(n);
+        if id.to_string() != texto {
+            return Err(erro("fora da forma canônica (dígitos a mais ou a menos)"));
+        }
+        Ok(id)
+    }
+
+    /// Identificador de uma pasta de demanda: `D-NNNN` ou `D-NNNN-<slug>`.
+    pub fn de_pasta(nome: &str) -> Option<Self> {
+        let resto = nome.strip_prefix(Self::PREFIXO)?;
+        let fim = resto.find('-').unwrap_or(resto.len());
+        let id = Self::analisar(&nome[..Self::PREFIXO.len() + fim]).ok()?;
+        let slug = &resto[fim..];
+        (slug.is_empty() || slug.strip_prefix('-').is_some_and(crate::caminho::e_slug))
+            .then_some(id)
+    }
+}
+
+impl fmt::Display for IdDemanda {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}{:04}", Self::PREFIXO, self.0)
+    }
+}
+
+impl std::str::FromStr for IdDemanda {
+    type Err = IdInvalido;
+
+    fn from_str(texto: &str) -> Result<Self, Self::Err> {
+        Self::analisar(texto)
+    }
+}
+
+impl Serialize for IdDemanda {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.collect_str(self)
+    }
+}
+
+impl<'de> Deserialize<'de> for IdDemanda {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let texto = String::deserialize(d)?;
+        Self::analisar(&texto).map_err(serde::de::Error::custom)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -230,5 +311,30 @@ mod tests {
         assert_eq!(fat.numero("RN-COB-012"), None);
         assert_eq!(Serie::Analise.numero("A-0042"), Some(42));
         assert_eq!(Serie::Analise.numero("S-0042"), None);
+    }
+
+    #[test]
+    fn id_de_demanda() {
+        assert_eq!(IdDemanda::novo(7).to_string(), "D-0007");
+        assert_eq!(IdDemanda::novo(12345).to_string(), "D-12345");
+        assert_eq!(IdDemanda::analisar("D-0007").unwrap().numero(), 7);
+        for ruim in ["D-7", "D-00007", "D-0000", "A-0001", "D-", "D-00a1"] {
+            assert!(IdDemanda::analisar(ruim).is_err(), "{ruim:?}");
+        }
+        assert_eq!(IdDemanda::de_pasta("D-0003"), Some(IdDemanda::novo(3)));
+        assert_eq!(
+            IdDemanda::de_pasta("D-0003-nota-fiscal-de-servico"),
+            Some(IdDemanda::novo(3))
+        );
+        for ruim in [
+            "D-3-x",
+            "D-0003-",
+            "D-0003-Nota",
+            "D-0003x",
+            "analises",
+            ".D-0003",
+        ] {
+            assert_eq!(IdDemanda::de_pasta(ruim), None, "{ruim:?}");
+        }
     }
 }

@@ -59,6 +59,7 @@ fn analise(id: &cba_kb::Id, titulo: &str) -> Documento<FrontmatterAnalise> {
             titulo: titulo.into(),
             projeto: PROJETO.into(),
             demanda: Demanda {
+                id: None,
                 origem: "texto".into(),
                 chave: None,
             },

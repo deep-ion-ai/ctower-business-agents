@@ -31,7 +31,7 @@
 //! Entidades da spec (seção 11) cobertas aqui: `documento` (com tipo, identificador,
 //! título, área, status, frontmatter em JSON e hash), `regra`, `termo` e `analise`
 //! como linhas de `documento` do tipo correspondente, as evidências das regras e as
-//! ligações entre documentos (`origem`, `analise`).
+//! ligações entre documentos (`origem`, `analise`, `demanda`).
 
 mod busca;
 mod esquema;
@@ -52,6 +52,7 @@ use sha2::{Digest, Sha256};
 use crate::base::Base;
 use crate::caminho::CaminhoRelativo;
 use crate::frontmatter::TipoDocumento;
+use crate::id::IdDemanda;
 
 pub use busca::{Consulta, Modo, Pagina, Resultado};
 pub use vigia::Vigia;
@@ -163,18 +164,30 @@ pub struct Problema {
 }
 
 /// Ligação entre dois documentos, pelos campos `origem` (documento que originou
-/// uma regra, um termo ou uma funcionalidade) e `analise` (análise de uma
-/// sugestão) do frontmatter.
+/// uma regra, um termo ou uma funcionalidade), `analise` (análise de uma
+/// sugestão) e `demanda.id` (demanda de uma análise; o campo fica `demanda`) do
+/// frontmatter.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Ligacao {
     /// Documento que cita (relativo à base).
     pub de: CaminhoRelativo,
     /// Documento citado (relativo à base).
     pub para: CaminhoRelativo,
-    /// Campo do frontmatter: `origem` ou `analise`.
+    /// Campo do frontmatter: `origem`, `analise` ou `demanda`.
     pub campo: String,
     /// Se o documento citado está no índice.
     pub existe: bool,
+}
+
+/// Documento ligado a uma demanda pelo campo `demanda.id`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DocumentoDaDemanda {
+    /// Caminho relativo à base.
+    pub caminho: CaminhoRelativo,
+    pub tipo: Option<Tipo>,
+    pub identificador: Option<String>,
+    pub titulo: String,
+    pub status: Option<String>,
 }
 
 /// Evidência de uma regra, como está no frontmatter.
@@ -475,6 +488,51 @@ impl Indice {
                     para,
                     campo,
                     existe,
+                });
+            }
+        }
+        Ok(saida)
+    }
+
+    /// Documentos do projeto ligados à demanda pelo campo `demanda.id` (as
+    /// análises), em ordem de identificador. Casa pelo número da pasta, então
+    /// vale com ou sem o slug no nome dela.
+    pub fn documentos_da_demanda(
+        &self,
+        projeto: &str,
+        demanda: IdDemanda,
+    ) -> ResultadoIndice<Vec<DocumentoDaDemanda>> {
+        let prefixo = format!("{projeto}/{}/{demanda}", crate::layout::DEMANDAS);
+        let mut consulta = self.conexao.prepare(
+            "SELECT DISTINCT d.caminho, d.tipo, d.identificador, d.titulo, d.status \
+             FROM ligacao l JOIN documento d ON d.id = l.documento \
+             WHERE l.campo = 'demanda' AND d.projeto = ?1 \
+               AND (l.para = ?2 || '/' || ?3 \
+                    OR substr(l.para, 1, length(?2) + 1) = ?2 || '-') \
+             ORDER BY d.identificador, d.caminho",
+        )?;
+        let linhas = consulta.query_map(
+            params![projeto, prefixo, crate::layout::ARQUIVO_DEMANDA],
+            |l| {
+                Ok((
+                    l.get::<_, String>(0)?,
+                    l.get::<_, Option<String>>(1)?,
+                    l.get::<_, Option<String>>(2)?,
+                    l.get::<_, String>(3)?,
+                    l.get::<_, Option<String>>(4)?,
+                ))
+            },
+        )?;
+        let mut saida = Vec::new();
+        for linha in linhas {
+            let (caminho, tipo, identificador, titulo, status) = linha?;
+            if let Ok(caminho) = CaminhoRelativo::novo(&caminho) {
+                saida.push(DocumentoDaDemanda {
+                    caminho,
+                    tipo: tipo.as_deref().and_then(Tipo::de_str),
+                    identificador,
+                    titulo,
+                    status,
                 });
             }
         }
