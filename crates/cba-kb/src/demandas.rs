@@ -64,7 +64,7 @@ impl DemandaLida {
     }
 }
 
-fn pasta_das_demandas() -> CaminhoRelativo {
+pub(crate) fn pasta_das_demandas() -> CaminhoRelativo {
     CaminhoRelativo::novo(layout::DEMANDAS).expect("nome fixo válido")
 }
 
@@ -102,7 +102,7 @@ fn texto_opcional(texto: &Option<String>) -> Option<String> {
 impl Projeto {
     /// Nomes das pastas em `demandas/` com o identificador de cada uma, em ordem
     /// de nome. Sem a pasta `demandas/`, lista vazia.
-    fn pastas_de_demanda(&self) -> Resultado<Vec<(IdDemanda, String)>> {
+    pub(crate) fn pastas_de_demanda(&self) -> Resultado<Vec<(IdDemanda, String)>> {
         let relativo = pasta_das_demandas();
         let entradas = match fs::read_dir(self.caminho(&relativo)) {
             Ok(e) => e,

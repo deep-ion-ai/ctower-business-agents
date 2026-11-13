@@ -9,9 +9,9 @@ use crate::base::Projeto;
 use crate::caminho::CaminhoRelativo;
 use crate::documento::Documento;
 use crate::frontmatter::{
-    self, Frontmatter, FrontmatterAnalise, FrontmatterDemanda, FrontmatterFuncionalidade,
-    FrontmatterLivre, FrontmatterMemoria, FrontmatterPessoa, FrontmatterProjeto, FrontmatterRegra,
-    FrontmatterSugestao, FrontmatterTermo, TipoDocumento,
+    self, Frontmatter, FrontmatterAnalise, FrontmatterAta, FrontmatterDemanda,
+    FrontmatterFuncionalidade, FrontmatterLivre, FrontmatterMemoria, FrontmatterPessoa,
+    FrontmatterProjeto, FrontmatterRegra, FrontmatterSugestao, FrontmatterTermo, TipoDocumento,
 };
 use crate::id::{Id, IdDemanda};
 use crate::layout;
@@ -110,10 +110,13 @@ pub(super) fn extrair(projeto: &Projeto, relativo: &CaminhoRelativo, bytes: Vec<
             "analise",
         ));
     }
+    // Na análise, `demanda: {id: D-NNNN, ...}`; na ata, `demanda: D-NNNN`.
     if let Some(id) = mapa
         .get("demanda")
-        .and_then(Value::as_mapping)
-        .and_then(|d| texto_do_campo(d, "id"))
+        .and_then(|d| match d {
+            Value::Mapping(m) => texto_do_campo(m, "id"),
+            outro => texto_de(outro),
+        })
         .and_then(|id| IdDemanda::analisar(&id).ok())
     {
         let arquivo = projeto.arquivo_da_demanda(id);
@@ -158,6 +161,7 @@ fn validar(tipo: TipoDocumento, relativo: &CaminhoRelativo, texto: &str) -> Resu
         TipoDocumento::MemoriaArea => com::<FrontmatterMemoria>(texto),
         TipoDocumento::Demanda => com::<FrontmatterDemanda>(texto),
         TipoDocumento::Pessoa => com::<FrontmatterPessoa>(texto),
+        TipoDocumento::Ata => com::<FrontmatterAta>(texto),
     }
 }
 

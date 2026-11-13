@@ -18,8 +18,13 @@
 //!
 //! Seções e campos de cada tipo: [`MODELOS`].
 //!
+//! A ata de reunião segue o mesmo caminho a partir de um estado próprio
+//! ([`EstadoAta`], em `R-NNNN.estado.json`), convertido num [`Conteudo`] e
+//! montado pelo template `ata` ([`Templates::gravar_ata`]).
+//!
 //! Papel na arquitetura: seção 5 de `docs/specs/2026-11-11-mvp-standalone.md`.
 
+mod ata;
 mod conteudo;
 mod exportacao;
 mod modelo;
@@ -29,6 +34,10 @@ mod word;
 
 use cba_kb::CaminhoRelativo;
 
+pub use ata::{
+    CitacaoFala, ErroAta, EstadoAta, IdItemAta, ItemAta, NovoItem, Participante, StatusCitacao,
+    TipoItem,
+};
 pub use conteudo::{
     Afirmacao, Citacao, Confianca, Conteudo, Pergunta, ReferenciaSugestao, Texto, bloco_de_codigo,
 };

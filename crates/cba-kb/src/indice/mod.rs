@@ -165,8 +165,8 @@ pub struct Problema {
 
 /// Ligação entre dois documentos, pelos campos `origem` (documento que originou
 /// uma regra, um termo ou uma funcionalidade), `analise` (análise de uma
-/// sugestão) e `demanda.id` (demanda de uma análise; o campo fica `demanda`) do
-/// frontmatter.
+/// sugestão) e `demanda.id` (demanda de uma análise) ou `demanda` (demanda de uma
+/// ata) do frontmatter; nos dois últimos casos o campo fica `demanda`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Ligacao {
     /// Documento que cita (relativo à base).
@@ -495,8 +495,8 @@ impl Indice {
     }
 
     /// Documentos do projeto ligados à demanda pelo campo `demanda.id` (as
-    /// análises), em ordem de identificador. Casa pelo número da pasta, então
-    /// vale com ou sem o slug no nome dela.
+    /// análises) ou `demanda` (as atas), em ordem de identificador. Casa pelo
+    /// número da pasta, então vale com ou sem o slug no nome dela.
     pub fn documentos_da_demanda(
         &self,
         projeto: &str,
