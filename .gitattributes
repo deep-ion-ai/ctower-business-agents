@@ -4,3 +4,6 @@ fixtures/** text eol=lf
 
 # Textos esperados da montagem dos documentos (comparados byte a byte).
 crates/cba-docs/tests/esperados/** text eol=lf
+
+# Binários das fixtures (o .docx das reuniões): sem conversão de final de linha.
+fixtures/**/*.docx binary
