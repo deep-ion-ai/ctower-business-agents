@@ -584,6 +584,7 @@ fn ler_devolve_o_padrao_sem_copia_e_o_da_base_com_copia() {
     );
     assert!(!base.join(ROTEIRO).exists(), "ler não cria arquivo");
 
+    fs::create_dir_all(base.join(ROTEIRO).parent().unwrap()).unwrap();
     fs::write(base.join(ROTEIRO), "# Meu\n{{entrada}}\n").unwrap();
     let l = ler_texto(&c.dados, ROTEIRO).unwrap();
     assert_eq!(l.estado, EstadoTexto::Editado);
@@ -679,6 +680,7 @@ fn restaurar_remove_a_copia_e_regras_voltam_ao_padrao() {
             .estado
     };
 
+    fs::create_dir_all(base.join(ROTEIRO).parent().unwrap()).unwrap();
     fs::write(base.join(ROTEIRO), "editado\n").unwrap();
     assert_eq!(estado(ROTEIRO), EstadoTexto::Editado);
     let l = restaurar_texto(&c.dados, ROTEIRO).unwrap();
