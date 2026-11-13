@@ -547,7 +547,7 @@ describe("PainelAnalise", () => {
     const cartoes = within(menu)
       .getAllByRole("region")
       .map((r) => r.getAttribute("data-cliente"));
-    expect(cartoes.at(-1)).toBe("claudeDesktop");
+    expect(cartoes[cartoes.length - 1]).toBe("claudeDesktop");
     fireEvent.click(meuTerminal);
     expect(await screen.findByText("o Claude Desktop não existe para Linux")).toBeVisible();
   });
