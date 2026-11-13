@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.2.0](https://github.com/deep-ion-ai/ctower-business-agents/compare/v0.1.0...v0.2.0) (2026-11-13)
+
+
+### Features
+
+* **app:** repositórios no cadastro do projeto, prontidão e análise a partir de issue ([#86](https://github.com/deep-ion-ai/ctower-business-agents/issues/86)) ([5e712d6](https://github.com/deep-ion-ai/ctower-business-agents/commit/5e712d6980d3909a1571179e372bd2ba3570d4c8))
+* **config:** comandos para ler, validar, salvar e restaurar textos editáveis ([91e3115](https://github.com/deep-ion-ai/ctower-business-agents/commit/91e31157fa221cc3862a692812e3b191e31f2b77))
+* **docs:** links das evidências no forge, no commit, na exportação ([#86](https://github.com/deep-ion-ai/ctower-business-agents/issues/86)) ([f5d786a](https://github.com/deep-ion-ai/ctower-business-agents/commit/f5d786a3cb1a696ae207edf41e458fcd3635134b))
+* **index:** repositório de código e de issues por projeto (GitHub, GitLab e Jira) ([ecf1fc0](https://github.com/deep-ion-ai/ctower-business-agents/commit/ecf1fc01225ab0c822fc61a0b2a2b5d9e1ddd6da))
+* **repos:** crate cba-repos com forja, rastreador, credencial, prontidão e busca de issue ([#86](https://github.com/deep-ion-ai/ctower-business-agents/issues/86)) ([d1a07dc](https://github.com/deep-ion-ai/ctower-business-agents/commit/d1a07dcbeeeeeb959e89affccf8c3b488ad0a8ee))
+* **ui:** editor de templates, roteiros e prompts no app ([#106](https://github.com/deep-ion-ai/ctower-business-agents/issues/106)) ([#111](https://github.com/deep-ion-ai/ctower-business-agents/issues/111)) ([14493f4](https://github.com/deep-ion-ai/ctower-business-agents/commit/14493f470d0eb7a8dd82c1f96784bd7ead19deb1))
+* **ui:** repositórios no cadastro e nas configurações, prontidão e análise a partir de issue ([#86](https://github.com/deep-ion-ai/ctower-business-agents/issues/86)) ([0e8e043](https://github.com/deep-ion-ai/ctower-business-agents/commit/0e8e0434dca07637a3df4ddef6dbaebdcf63a552))
+
+
+### Bug Fixes
+
+* **repos:** Cargo.lock na versão do workspace e processo portável para Windows ([#86](https://github.com/deep-ion-ai/ctower-business-agents/issues/86)) ([df2c89b](https://github.com/deep-ion-ai/ctower-business-agents/commit/df2c89b69ef5a20b2455d692b75c6dc31b6d73b0))
+
 ## 0.1.0 (2026-11-12)
 
 
