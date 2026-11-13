@@ -239,6 +239,147 @@ pub fn textos_editaveis() -> Vec<TextoEditavel> {
     lista
 }
 
+/// Variável ou marcador que um texto editável aceita, com a descrição para a tela.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Variavel {
+    pub nome: String,
+    pub descricao: String,
+}
+
+/// Problema encontrado ao validar o texto de um editor, sem impedir o uso: o mesmo
+/// aviso que o agente receberia ao carregar o texto.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Problema {
+    /// Linha no texto (a partir de 1), quando o problema tem uma.
+    pub linha: Option<usize>,
+    /// A variável ou o marcador a que o problema se refere.
+    pub variavel: String,
+    /// Se o texto não usa a variável (em vez de usar uma que não existe).
+    pub ausente: bool,
+    pub mensagem: String,
+}
+
+fn variavel(nome: &str, descricao: &str) -> Variavel {
+    Variavel {
+        nome: nome.to_owned(),
+        descricao: descricao.to_owned(),
+    }
+}
+
+fn descricao_da_variavel(nome: &str) -> &'static str {
+    match nome {
+        "id" => "Identificador da análise (A-NNNN).",
+        "titulo" => "Título da análise.",
+        "fluxo" => "Nome do fluxo da análise (pergunta, explicação ou impacto).",
+        "documento" => "Caminho do documento da análise, relativo à base.",
+        "entrada" => "A entrada do analista (pergunta, funcionalidade ou demanda).",
+        "secoes" => "Lista das seções do documento, com o que vai em cada uma.",
+        "secoes_obrigatorias" => "Seções que a análise precisa preencher para ser aprovada.",
+        "contexto" => "Contexto da base de conhecimento para o fluxo.",
+        _ => "",
+    }
+}
+
+fn modelo_do_template(id: &str) -> Option<&'static cba_docs::Modelo> {
+    cba_docs::MODELOS.iter().find(|m| m.tipo.como_str() == id)
+}
+
+/// Variáveis ou marcadores que o texto aceita. Vazio para um id desconhecido.
+pub fn variaveis(grupo: Grupo, id: &str) -> Vec<Variavel> {
+    let nomes: &[&str] = match grupo {
+        Grupo::Roteiro => &crate::roteiro::VARIAVEIS[..],
+        Grupo::Prompt => &crate::prompts::VARIAVEIS[..],
+        Grupo::Template => {
+            return modelo_do_template(id)
+                .map(|m| {
+                    m.secoes
+                        .iter()
+                        .map(|s| variavel(s.marcador, &format!("Seção \"{}\".", s.titulo)))
+                        .chain(
+                            m.campos
+                                .iter()
+                                .map(|c| variavel(c, "Campo do cabeçalho do documento.")),
+                        )
+                        .collect()
+                })
+                .unwrap_or_default();
+        }
+    };
+    nomes
+        .iter()
+        .map(|n| variavel(n, descricao_da_variavel(n)))
+        .collect()
+}
+
+/// Valida o texto de um editor, sem gravar, com as mesmas regras de quando o agente
+/// o carrega: variável desconhecida e variável essencial ausente (roteiros e
+/// prompts), marcador desconhecido (templates). `arquivo` é o caminho do texto na
+/// base, para as mensagens.
+pub fn validar(grupo: Grupo, id: &str, arquivo: &CaminhoRelativo, texto: &str) -> Vec<Problema> {
+    let (nomes, essenciais): (&[&str], &[&str]) = match grupo {
+        Grupo::Roteiro => (
+            &crate::roteiro::VARIAVEIS[..],
+            &crate::roteiro::ESSENCIAIS[..],
+        ),
+        Grupo::Prompt => (
+            &crate::prompts::VARIAVEIS[..],
+            &crate::prompts::ESSENCIAIS[..],
+        ),
+        Grupo::Template => {
+            let Some(tipo) = modelo_do_template(id).map(|m| m.tipo) else {
+                return Vec::new();
+            };
+            let origem = cba_docs::Origem::Base(arquivo.clone());
+            let Some((_, avisos)) = cba_docs::Template::analisar(tipo, texto, origem) else {
+                return Vec::new();
+            };
+            return avisos
+                .into_iter()
+                .filter_map(|a| match &a {
+                    cba_docs::Aviso::MarcadorDesconhecido {
+                        marcador, linha, ..
+                    } => Some(Problema {
+                        linha: Some(*linha),
+                        variavel: marcador.clone(),
+                        ausente: false,
+                        mensagem: a.to_string(),
+                    }),
+                    _ => None,
+                })
+                .collect();
+        }
+    };
+    let texto = Texto {
+        texto: texto.to_owned(),
+        origem: Origem::Base(arquivo.clone()),
+    };
+    let (_, avisos) = texto.preencher(
+        |n| nomes.contains(&n).then(String::new),
+        essenciais,
+        |_, _| String::new(),
+    );
+    avisos
+        .into_iter()
+        .filter_map(|a| match &a {
+            Aviso::VariavelDesconhecida {
+                variavel, linha, ..
+            } => Some(Problema {
+                linha: Some(*linha),
+                variavel: variavel.clone(),
+                ausente: false,
+                mensagem: a.to_string(),
+            }),
+            Aviso::VariavelAusente { variavel, .. } => Some(Problema {
+                linha: None,
+                variavel: variavel.clone(),
+                ausente: true,
+                mensagem: a.to_string(),
+            }),
+            Aviso::Ilegivel { .. } => None,
+        })
+        .collect()
+}
+
 /// Um texto carregado, ainda com as variáveis.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Texto {
