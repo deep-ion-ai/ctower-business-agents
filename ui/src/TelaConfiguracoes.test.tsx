@@ -297,7 +297,8 @@ describe("TelaConfiguracoes", () => {
       expect(screen.queryByRole("region", { name: "Textos editáveis" })).not.toBeInTheDocument();
 
       const previa = within(screen.getByRole("region", { name: "Prévia" }));
-      expect(previa.getByRole("heading", { level: 1 })).toHaveTextContent("{{id}} · Perguntar");
+      // A prévia usa useDeferredValue: pode chegar um render depois.
+      expect(await previa.findByRole("heading", { level: 1 })).toHaveTextContent("{{id}} · Perguntar");
       expect(previa.getAllByText("{{corpo}}")[0]).toHaveClass("chip-variavel");
       const nota = within(screen.getByLabelText("Instrução para quem edita"));
       expect(nota.getByText(/Instrução: use/)).toBeInTheDocument();
