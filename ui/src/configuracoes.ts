@@ -100,6 +100,46 @@ export interface TextoEditavel {
   estado: EstadoTexto;
 }
 
+/** Variável ou marcador que um texto aceita (`VariavelTexto`). */
+export interface VariavelTexto {
+  nome: string;
+  descricao: string;
+}
+
+/** Aviso da validação de um texto (`AvisoTexto`); `linha` conta a partir de 1. */
+export interface AvisoTexto {
+  linha: number | null;
+  variavel: string;
+  /** O texto não usa a variável (em vez de usar uma que não existe). */
+  ausente: boolean;
+  mensagem: string;
+}
+
+/** O texto de um editor: o atual, o padrão e o que ele aceita (`LeituraTexto`). */
+export interface LeituraTexto {
+  grupo: GrupoTexto;
+  id: string;
+  rotulo: string;
+  arquivo: string;
+  /** O da base, ou o padrão se não há cópia (ou ela é ilegível). */
+  texto: string;
+  padrao: string;
+  estado: EstadoTexto;
+  variaveis: VariavelTexto[];
+  /** Hash do conteúdo do arquivo, ou `ausente`; vai de volta em `salvarTexto`. */
+  versao: string;
+}
+
+/** Resultado de gravar um texto (`SalvoTexto`). */
+export interface SalvoTexto {
+  estado: EstadoTexto;
+  versao: string;
+  avisos: AvisoTexto[];
+}
+
+/** Prefixo do erro de `salvarTexto` quando o arquivo mudou fora do app. */
+export const CONFLITO = "conflito:";
+
 type Situacao = "ok" | "ausente" | "desatualizado" | "conflito";
 
 /** Detalhe da verificação do ambiente (`cba_session::preparo::Verificacao`). */
@@ -131,6 +171,13 @@ export interface ApiConfiguracoes extends ApiPrimeiroUso, ApiRepositorios {
   textos(): Promise<TextoEditavel[]>;
   /** Abre no editor do sistema operacional; devolve o caminho. */
   abrirTexto(arquivo: string): Promise<string>;
+  lerTexto(arquivo: string): Promise<LeituraTexto>;
+  /** Os avisos que o agente receberia, sem gravar. */
+  validarTexto(arquivo: string, texto: string): Promise<AvisoTexto[]>;
+  /** Recusa com erro iniciado por {@link CONFLITO} se o arquivo mudou desde a leitura. */
+  salvarTexto(arquivo: string, texto: string, versaoLida: string): Promise<SalvoTexto>;
+  /** Remove a cópia da base (nas regras do projeto, regrava o padrão). */
+  restaurarTexto(arquivo: string): Promise<LeituraTexto>;
   situacaoProtecao(projeto: string): Promise<SituacaoProtecao>;
   mudarProtecao(projeto: string, ligada: boolean): Promise<SituacaoProtecao>;
 }
@@ -147,6 +194,11 @@ export const apiConfiguracoesTauri: ApiConfiguracoes = {
   descadastrar: (projeto) => invoke("descadastrar_projeto_app", { projeto }),
   textos: () => invoke("textos_editaveis_app"),
   abrirTexto: (arquivo) => invoke("abrir_texto_editavel", { arquivo }),
+  lerTexto: (arquivo) => invoke("ler_texto_editavel", { arquivo }),
+  validarTexto: (arquivo, texto) => invoke("validar_texto_editavel", { arquivo, texto }),
+  salvarTexto: (arquivo, texto, versaoLida) =>
+    invoke("salvar_texto_editavel", { arquivo, texto, versaoLida }),
+  restaurarTexto: (arquivo) => invoke("restaurar_texto_padrao", { arquivo }),
   situacaoProtecao: (projeto) => invoke("situacao_protecao_projeto", { projeto }),
   mudarProtecao: (projeto, ligada) => invoke("mudar_protecao_projeto", { projeto, ligada }),
   verificarAmbiente: apiAnaliseTauri.verificarAmbiente,

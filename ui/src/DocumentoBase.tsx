@@ -6,6 +6,7 @@ import {
   type DocumentoAberto,
   type LigacaoVista,
 } from "./conhecimento";
+import { OPCOES_MARKDOWN_BASE } from "./markdownOpcoes";
 
 /** Campos do frontmatter que já aparecem no cabeçalho. */
 const NO_CABECALHO = new Set(["tipo", "titulo", "termo", "status"]);
@@ -122,8 +123,7 @@ export function DocumentoBase({
       <div className="markdown">
         <Markdown
           options={{
-            disableParsingRawHTML: true,
-            forceBlock: true,
+            ...OPCOES_MARKDOWN_BASE,
             overrides: { a: { component: Link } },
           }}
         >
