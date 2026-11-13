@@ -444,6 +444,7 @@ dependencies = [
  "cba-index",
  "cba-kb",
  "cba-mcp",
+ "cba-repos",
  "cba-session",
  "cba-tools",
  "dirs 6.0.0",
@@ -451,6 +452,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_norway",
+ "sha2",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
@@ -520,6 +522,7 @@ dependencies = [
 name = "cba-index"
 version = "0.1.0"
 dependencies = [
+ "cba-repos",
  "dunce",
  "globset",
  "regex",
@@ -561,6 +564,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "cba-repos"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "zeroize",
+]
+
+[[package]]
 name = "cba-session"
 version = "0.1.0"
 dependencies = [
@@ -588,6 +603,7 @@ dependencies = [
  "cba-docs",
  "cba-index",
  "cba-kb",
+ "cba-repos",
  "dunce",
  "serde",
  "serde_json",

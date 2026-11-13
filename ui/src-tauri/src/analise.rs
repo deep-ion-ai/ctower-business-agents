@@ -223,6 +223,18 @@ pub fn criar_analise_do_fluxo(
     entrada: &str,
     titulo: Option<&str>,
 ) -> Result<AnaliseCriada, String> {
+    criar_analise_com_demanda(dados, projeto, fluxo, entrada, titulo, None)
+}
+
+/// Como [`criar_analise_do_fluxo`], com a origem da demanda (a issue do rastreador).
+pub fn criar_analise_com_demanda(
+    dados: &DiretorioDados,
+    projeto: &str,
+    fluxo: Fluxo,
+    entrada: &str,
+    titulo: Option<&str>,
+    demanda: Option<cba_kb::frontmatter::Demanda>,
+) -> Result<AnaliseCriada, String> {
     let ambiente = ambiente(dados, projeto)?;
     let titulo = titulo
         .map(str::trim)
@@ -240,13 +252,16 @@ pub fn criar_analise_do_fluxo(
         });
     let analise = ambiente
         .analises
-        .criar(NovaAnalise {
-            fluxo,
-            titulo,
-            entrada: entrada.to_owned(),
-            analista: None,
-            base,
-        })
+        .criar_com_demanda(
+            NovaAnalise {
+                fluxo,
+                titulo,
+                entrada: entrada.to_owned(),
+                analista: None,
+                base,
+            },
+            demanda,
+        )
         .map_err(|e| e.to_string())?;
     Ok(AnaliseCriada {
         prompt_inicial: prompt_de_inicio(&analise.id),

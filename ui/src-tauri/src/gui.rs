@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use crate::{
     alteracoes, analise, base, configuracoes, conversa, inicio, primeiro_uso, projeto, prompts,
-    revisao, terminal, vigia,
+    repositorios, revisao, terminal, vigia,
 };
 
 pub fn rodar() {
@@ -74,6 +74,9 @@ pub fn rodar() {
             base::abrir_documento_base,
             base::vigiar_base,
             base::parar_vigia_base,
+            repositorios::salvar_repositorios_app,
+            repositorios::prontidao_repositorios_app,
+            repositorios::criar_analise_de_demanda,
             configuracoes::configuracoes_app,
             configuracoes::avaliar_troca_base_app,
             configuracoes::trocar_base_app,
@@ -83,6 +86,10 @@ pub fn rodar() {
             configuracoes::descadastrar_projeto_app,
             configuracoes::textos_editaveis_app,
             configuracoes::abrir_texto_editavel,
+            configuracoes::ler_texto_editavel,
+            configuracoes::validar_texto_editavel,
+            configuracoes::salvar_texto_editavel,
+            configuracoes::restaurar_texto_padrao,
             revisao::revisar_analise_projeto,
             revisao::prontidao_aprovacao_projeto,
             revisao::aprovar_analise_projeto,

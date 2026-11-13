@@ -1,15 +1,21 @@
 import type { SituacaoProtecao } from "../analise";
-import type {
-  AjusteExclusoes,
-  AmbienteDetalhado,
-  ApiConfiguracoes,
-  AvaliacaoTroca,
-  Configuracoes,
-  ModoTroca,
-  TextoEditavel,
-  TrocaBase,
+import {
+  CONFLITO,
+  type AjusteExclusoes,
+  type AmbienteDetalhado,
+  type ApiConfiguracoes,
+  type AvaliacaoTroca,
+  type AvisoTexto,
+  type Configuracoes,
+  type EstadoTexto,
+  type LeituraTexto,
+  type ModoTroca,
+  type SalvoTexto,
+  type TextoEditavel,
+  type TrocaBase,
 } from "../configuracoes";
 import type { PreviaProjeto } from "../primeiroUso";
+import type { Prontidao, Repositorios } from "../repositorios";
 import { apiPrimeiroUsoFalsa, inventarioFicticio } from "./falsos";
 
 export const BASE = "/Users/analista/Documents/ctower-business";
@@ -27,6 +33,7 @@ export function configuracoesFicticias(parcial: Partial<Configuracoes> = {}): Co
         pastas: [{ caminho: CODIGO, prefixo: null, existe: true }],
         exclusoes: ["docs/antigos/"],
         inclusoes: [],
+        repositorios: { forge: null, tracker: null },
       },
     ],
     configClaude: {
@@ -68,6 +75,36 @@ export const TEXTOS: TextoEditavel[] = [
   },
 ];
 
+/** Texto padrão de cada arquivo do catálogo falso. */
+export function padraoFalso(t: TextoEditavel): string {
+  return `<!--\nInstrução: use {{id}} e {{titulo}}.\n-->\n# {{id}} · ${t.rotulo}\n\n## Corpo\n\n{{corpo}}\n`;
+}
+
+const VARIAVEIS_FALSAS = [
+  { nome: "id", descricao: "Identificador." },
+  { nome: "titulo", descricao: "Título." },
+  { nome: "corpo", descricao: "Corpo do documento." },
+];
+
+/** Os avisos que o app daria: marcador que o texto não aceita (só fora das regras). */
+function avisosFalsos(t: TextoEditavel, texto: string): AvisoTexto[] {
+  if (t.grupo === "regrasDoProjeto") return [];
+  const avisos: AvisoTexto[] = [];
+  texto.split("\n").forEach((linha, i) => {
+    for (const m of linha.matchAll(/\{\{([a-z0-9_]+)\}\}/g)) {
+      if (!VARIAVEIS_FALSAS.some((v) => v.nome === m[1])) {
+        avisos.push({
+          linha: i + 1,
+          variavel: m[1],
+          ausente: false,
+          mensagem: `marcador desconhecido {{${m[1]}}}`,
+        });
+      }
+    }
+  });
+  return avisos;
+}
+
 function protecao(ligada: boolean): SituacaoProtecao {
   return {
     projeto: "faturamento-exemplo",
@@ -82,9 +119,56 @@ function protecao(ligada: boolean): SituacaoProtecao {
 /** API das configurações falsa: tudo dá certo, salvo o que o teste mudar. */
 export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticias()) {
   const base = apiPrimeiroUsoFalsa();
+  // Os arquivos da base: `texto` nulo é "sem cópia" (vale o padrão do app).
+  let contador = 0;
+  const arquivos = new Map(
+    TEXTOS.map((t) => [
+      t.arquivo,
+      {
+        texto:
+          t.estado === "padrao"
+            ? null
+            : t.estado === "editado"
+              ? `${padraoFalso(t)}\nAcréscimo do analista.\n`
+              : padraoFalso(t),
+        versao: `v${++contador}`,
+      },
+    ]),
+  );
+  const catalogo = (arquivo: string) => {
+    const t = TEXTOS.find((x) => x.arquivo === arquivo);
+    if (!t) throw new Error(`${arquivo} não é um texto editável da base`);
+    return t;
+  };
+  const estadoDe = (t: TextoEditavel): EstadoTexto => {
+    const a = arquivos.get(t.arquivo)!;
+    if (a.texto === null) return "padrao";
+    return a.texto === padraoFalso(t) ? "igualAoPadrao" : "editado";
+  };
+  const versaoDe = (arquivo: string) =>
+    arquivos.get(arquivo)!.texto === null ? "ausente" : arquivos.get(arquivo)!.versao;
+  const leitura = (arquivo: string): LeituraTexto => {
+    const t = catalogo(arquivo);
+    return {
+      grupo: t.grupo,
+      id: t.id,
+      rotulo: t.rotulo,
+      arquivo,
+      texto: arquivos.get(arquivo)!.texto ?? padraoFalso(t),
+      padrao: padraoFalso(t),
+      estado: estadoDe(t),
+      variaveis: t.grupo === "regrasDoProjeto" ? [] : VARIAVEIS_FALSAS,
+      versao: versaoDe(arquivo),
+    };
+  };
   const api = {
     ...base,
     configuracoes: vi.fn((): Promise<Configuracoes> => Promise.resolve(cfg)),
+    salvarRepositorios: vi.fn(
+      (_projeto: string, repositorios: Repositorios): Promise<Repositorios> =>
+        Promise.resolve(repositorios),
+    ),
+    prontidaoRepositorios: vi.fn((): Promise<Prontidao> => Promise.resolve({ integracoes: [] })),
     verificarAmbiente: vi.fn(
       (): Promise<AmbienteDetalhado> =>
         Promise.resolve({
@@ -164,10 +248,50 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
         documentos: `${BASE}/faturamento-exemplo`,
       }),
     ),
-    textos: vi.fn((): Promise<TextoEditavel[]> => Promise.resolve(TEXTOS)),
-    abrirTexto: vi.fn((arquivo: string) => Promise.resolve(`${BASE}/${arquivo}`)),
+    textos: vi.fn(
+      (): Promise<TextoEditavel[]> =>
+        Promise.resolve(TEXTOS.map((t) => ({ ...t, estado: estadoDe(t) }))),
+    ),
+    abrirTexto: vi.fn((arquivo: string) => {
+      const t = catalogo(arquivo);
+      const a = arquivos.get(arquivo)!;
+      // Como o app: abrir um texto sem cópia cria a cópia do padrão.
+      if (a.texto === null) arquivos.set(arquivo, { texto: padraoFalso(t), versao: `v${++contador}` });
+      return Promise.resolve(`${BASE}/${arquivo}`);
+    }),
+    lerTexto: vi.fn((arquivo: string): Promise<LeituraTexto> => Promise.resolve(leitura(arquivo))),
+    validarTexto: vi.fn(
+      (arquivo: string, texto: string): Promise<AvisoTexto[]> =>
+        Promise.resolve(avisosFalsos(catalogo(arquivo), texto)),
+    ),
+    salvarTexto: vi.fn((arquivo: string, texto: string, versaoLida: string): Promise<SalvoTexto> => {
+      const t = catalogo(arquivo);
+      if (versaoDe(arquivo) !== versaoLida) {
+        return Promise.reject(
+          `${CONFLITO} ${arquivo} mudou desde que foi aberto (editado fora do app?); recarregue para ver a versão atual`,
+        );
+      }
+      arquivos.set(arquivo, { texto, versao: `v${++contador}` });
+      return Promise.resolve({
+        estado: estadoDe(t),
+        versao: versaoDe(arquivo),
+        avisos: avisosFalsos(t, texto),
+      });
+    }),
+    restaurarTexto: vi.fn((arquivo: string): Promise<LeituraTexto> => {
+      const t = catalogo(arquivo);
+      arquivos.set(arquivo, {
+        texto: t.grupo === "regrasDoProjeto" ? padraoFalso(t) : null,
+        versao: `v${++contador}`,
+      });
+      return Promise.resolve(leitura(arquivo));
+    }),
     situacaoProtecao: vi.fn((_s: string) => Promise.resolve(protecao(false))),
     mudarProtecao: vi.fn((_s: string, ligada: boolean) => Promise.resolve(protecao(ligada))),
   } satisfies ApiConfiguracoes;
-  return api;
+  /** Simula outro programa gravando o arquivo (muda a versão: o próximo salvar conflita). */
+  const editarFora = (arquivo: string, texto: string) => {
+    arquivos.set(arquivo, { texto, versao: `v${++contador}` });
+  };
+  return Object.assign(api, { editarFora, textoNaBase: (arquivo: string) => arquivos.get(arquivo)!.texto });
 }

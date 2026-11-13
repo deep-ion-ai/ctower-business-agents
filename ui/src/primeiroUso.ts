@@ -3,6 +3,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { apiAnaliseTauri, type ApiAmbiente } from "./analise";
 import { estadoClientes, type EstadoClientes } from "./clientes";
+import type { Repositorios } from "./repositorios";
 import type { ProjetoResumo } from "./terminal";
 
 /**
@@ -38,6 +39,8 @@ export interface PedidoProjeto {
   pastas: string[];
   exclusoes: string[];
   inclusoes: string[];
+  /** Repositório de código e de issues (opcional). */
+  repositorios?: Repositorios;
 }
 
 export interface PastaVista {

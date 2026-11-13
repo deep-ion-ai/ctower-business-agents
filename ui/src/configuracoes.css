@@ -78,3 +78,337 @@ button.link.perigo {
 .cartao-projeto > .btn {
   align-self: flex-start;
 }
+
+/* Repositórios do projeto (#86): só tokens do tema. */
+.repositorios-projeto {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+
+.repositorios-projeto legend {
+  padding: 0 6px;
+  color: var(--muted);
+}
+
+.passos-prontidao {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.configuracoes[hidden] {
+  display: none;
+}
+
+/* Editor de textos (#104): ocupa a área de editor inteira, sobre as configurações. */
+.editor-texto {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+  overflow: hidden;
+}
+
+.editor-texto-topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.editor-texto-titulo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 14rem;
+}
+
+.editor-texto-titulo h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.editor-texto-titulo code {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.editor-texto-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.indicador-pendente {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.indicador-pendente[data-pendente="true"] {
+  color: var(--attention);
+  font-weight: 600;
+}
+
+.editor-texto-abas {
+  display: none;
+  gap: 4px;
+}
+
+.editor-texto-abas button {
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.editor-texto-abas button[aria-selected="true"] {
+  background: var(--selected);
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.editor-texto-corpo {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 12px;
+}
+
+.editor-texto-col {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.editor-texto-col[data-coluna="previa"] {
+  overflow: auto;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.editor-texto-campo {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  box-sizing: border-box;
+  resize: none;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.5;
+  tab-size: 2;
+}
+
+.editor-texto-campo:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.editor-texto-lateral {
+  width: 18rem;
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.editor-texto-lateral h4 {
+  margin: 10px 0 4px;
+  font-size: 13px;
+}
+
+.editor-texto-lateral ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chip-variavel {
+  display: inline-block;
+  padding: 0 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface-3);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 0.9em;
+}
+
+button.chip-variavel {
+  cursor: pointer;
+}
+
+button.chip-variavel:hover {
+  background: var(--hover);
+}
+
+.chip-variavel[data-desconhecido="true"] {
+  border-color: var(--attention-border);
+  background: var(--attention-bg);
+  color: var(--attention);
+}
+
+.nota-previa {
+  margin: 4px 0 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--attention-border);
+  border-left: 3px solid var(--attention);
+  border-radius: 6px;
+  background: var(--attention-card);
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.nota-previa p {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+}
+
+.dialogo-fundo {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: color-mix(in srgb, var(--scrim) 60%, transparent);
+}
+
+.dialogo {
+  max-width: 32rem;
+  padding: 16px 20px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px var(--shadow);
+}
+
+.dialogo h3 {
+  margin: 0 0 8px;
+}
+
+.dialogo-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* Barra de formatação e ajuda (#105). */
+.barra-formatacao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding-bottom: 6px;
+}
+
+.btn-formato {
+  min-width: 2rem;
+  font-family: var(--mono);
+}
+
+.barra-formatacao-ajuda {
+  margin-left: auto;
+}
+
+.dialogo-ajuda {
+  width: min(52rem, 100%);
+  max-width: none;
+  max-height: 100%;
+  overflow: auto;
+  box-sizing: border-box;
+}
+
+.dialogo-ajuda:focus {
+  outline: none;
+}
+
+.dialogo-ajuda-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dialogo-ajuda h4 {
+  margin: 12px 0 4px;
+}
+
+.dialogo-ajuda h5 {
+  margin: 10px 0 2px;
+}
+
+.ajuda-tabela {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ajuda-tabela th,
+.ajuda-tabela td {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.ajuda-fonte {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.ajuda-exemplo > :first-child {
+  margin-top: 0;
+}
+
+.ajuda-exemplo > :last-child {
+  margin-bottom: 0;
+}
+
+/* Janela estreita: abas Editar / Prévia, uma coluna de cada vez; o painel desce. */
+@media (max-width: 56rem) {
+  .editor-texto-abas {
+    display: flex;
+  }
+
+  .editor-texto-corpo {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .editor-texto-corpo[data-aba="editar"] > [data-coluna="previa"],
+  .editor-texto-corpo[data-aba="previa"] > [data-coluna="editar"] {
+    display: none;
+  }
+
+  .editor-texto-lateral {
+    width: auto;
+    max-height: 12rem;
+  }
+}

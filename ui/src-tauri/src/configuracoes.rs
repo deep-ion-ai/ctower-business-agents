@@ -41,8 +41,9 @@ use cba_kb::{Base, CaminhoRelativo, layout};
 use cba_session::preparo::{self, Alvo, ConfigClaude, Preparador, Resultado};
 use cba_session::protecao;
 use cba_session::sessoes::Sessoes;
-use cba_tools::editavel::{Grupo, textos_editaveis};
+use cba_tools::editavel::{Grupo, textos_editaveis, validar, variaveis};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use tauri::State;
 use tauri_plugin_opener::OpenerExt;
 
@@ -74,6 +75,8 @@ pub struct ProjetoConfig {
     pub pastas: Vec<PastaConfig>,
     pub exclusoes: Vec<String>,
     pub inclusoes: Vec<String>,
+    /// Repositório de código e de issues; só o comando de credencial, nunca o token.
+    pub repositorios: cba_repos::Repositorios,
 }
 
 /// O que a tela de configurações mostra ao abrir.
@@ -111,6 +114,7 @@ pub fn configuracoes(
             nome: s.nome,
             exclusoes: s.exclusoes,
             inclusoes: s.inclusoes,
+            repositorios: s.repositorios,
         })
         .collect();
     Ok(Configuracoes {
@@ -796,6 +800,191 @@ pub fn preparar_texto(dados: &DiretorioDados, arquivo: &str) -> Result<PathBuf, 
     Ok(caminho)
 }
 
+/// Prefixo do erro de `salvar_texto_editavel` quando o arquivo mudou desde a
+/// leitura; a tela reconhece o conflito por ele.
+pub const CONFLITO: &str = "conflito:";
+
+/// Variável ou marcador aceito por um texto, com a descrição para a tela.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VariavelTexto {
+    pub nome: String,
+    pub descricao: String,
+}
+
+/// Aviso de validação de um texto, com a linha quando há uma.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AvisoTexto {
+    pub linha: Option<usize>,
+    pub variavel: String,
+    /// O texto não usa a variável (em vez de usar uma que não existe).
+    pub ausente: bool,
+    pub mensagem: String,
+}
+
+/// O texto de um editor: o atual, o padrão e o que ele aceita.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LeituraTexto {
+    pub grupo: GrupoTexto,
+    pub id: String,
+    pub rotulo: String,
+    pub arquivo: String,
+    /// O da base, ou o padrão se não há cópia (ou ela é ilegível).
+    pub texto: String,
+    pub padrao: String,
+    pub estado: EstadoTexto,
+    pub variaveis: Vec<VariavelTexto>,
+    /// Marca da versão do arquivo (hash do conteúdo), para `salvar_texto_editavel`.
+    pub versao: String,
+}
+
+/// Resultado de gravar um texto.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SalvoTexto {
+    pub estado: EstadoTexto,
+    pub versao: String,
+    pub avisos: Vec<AvisoTexto>,
+}
+
+fn catalogado(dados: &DiretorioDados, arquivo: &str) -> Result<ItemCatalogo, String> {
+    catalogo(dados)?
+        .into_iter()
+        .find(|(_, _, _, a, _)| a.as_str() == arquivo)
+        .ok_or_else(|| format!("{arquivo} não é um texto editável da base"))
+}
+
+/// Marca da versão de um arquivo: hash do conteúdo, ou `ausente` se não existe.
+fn versao_do_arquivo(caminho: &Path) -> Result<String, String> {
+    match fs::read(caminho) {
+        Ok(bytes) => Ok(Sha256::digest(bytes)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect()),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok("ausente".into()),
+        Err(e) => Err(format!("não foi possível ler {}: {e}", caminho.display())),
+    }
+}
+
+fn validar_item(item: &ItemCatalogo, texto: &str) -> Vec<AvisoTexto> {
+    let (grupo, id, _, arquivo, _) = item;
+    let grupo = match grupo {
+        GrupoTexto::Template => Grupo::Template,
+        GrupoTexto::Roteiro => Grupo::Roteiro,
+        GrupoTexto::Prompt => Grupo::Prompt,
+        // As regras do projeto são texto livre, sem variáveis.
+        GrupoTexto::RegrasDoProjeto => return Vec::new(),
+    };
+    validar(grupo, id, arquivo, texto)
+        .into_iter()
+        .map(|p| AvisoTexto {
+            linha: p.linha,
+            variavel: p.variavel,
+            ausente: p.ausente,
+            mensagem: p.mensagem,
+        })
+        .collect()
+}
+
+fn ler_item(base: &Path, item: ItemCatalogo) -> Result<LeituraTexto, String> {
+    let (grupo, id, rotulo, relativo, padrao) = item;
+    let caminho = relativo.em(base);
+    let estado = estado_do_texto(&caminho, padrao);
+    let texto = match estado {
+        EstadoTexto::Padrao | EstadoTexto::Ilegivel => padrao.to_owned(),
+        _ => fs::read_to_string(&caminho)
+            .map_err(|e| format!("não foi possível ler {}: {e}", caminho.display()))?,
+    };
+    let variaveis = match grupo {
+        GrupoTexto::Template => variaveis(Grupo::Template, &id),
+        GrupoTexto::Roteiro => variaveis(Grupo::Roteiro, &id),
+        GrupoTexto::Prompt => variaveis(Grupo::Prompt, &id),
+        GrupoTexto::RegrasDoProjeto => Vec::new(),
+    }
+    .into_iter()
+    .map(|v| VariavelTexto {
+        nome: v.nome,
+        descricao: v.descricao,
+    })
+    .collect();
+    Ok(LeituraTexto {
+        grupo,
+        id,
+        rotulo,
+        arquivo: relativo.as_str().to_owned(),
+        texto,
+        padrao: padrao.to_owned(),
+        estado,
+        variaveis,
+        versao: versao_do_arquivo(&caminho)?,
+    })
+}
+
+/// O texto editável para o editor embutido. Só os textos do catálogo.
+pub fn ler_texto(dados: &DiretorioDados, arquivo: &str) -> Result<LeituraTexto, String> {
+    let base = base_configurada(dados)?;
+    ler_item(&base, catalogado(dados, arquivo)?)
+}
+
+/// Os avisos que o agente receberia com este texto, sem gravar nada.
+pub fn validar_texto(
+    dados: &DiretorioDados,
+    arquivo: &str,
+    texto: &str,
+) -> Result<Vec<AvisoTexto>, String> {
+    Ok(validar_item(&catalogado(dados, arquivo)?, texto))
+}
+
+/// Grava o texto na base, de forma atômica. Recusa com [`CONFLITO`] se o arquivo
+/// mudou desde a leitura (`versao_lida`, de [`LeituraTexto::versao`]).
+pub fn salvar_texto(
+    dados: &DiretorioDados,
+    arquivo: &str,
+    texto: &str,
+    versao_lida: &str,
+) -> Result<SalvoTexto, String> {
+    let base = base_configurada(dados)?;
+    let item = catalogado(dados, arquivo)?;
+    let caminho = item.3.em(&base);
+    if versao_do_arquivo(&caminho)? != versao_lida {
+        return Err(format!(
+            "{CONFLITO} {arquivo} mudou desde que foi aberto (editado fora do app?); \
+             recarregue para ver a versão atual"
+        ));
+    }
+    if let Some(pai) = caminho.parent() {
+        fs::create_dir_all(pai)
+            .map_err(|e| format!("não foi possível criar {}: {e}", pai.display()))?;
+    }
+    cba_kb::arquivo::gravar(&caminho, texto.as_bytes())
+        .map_err(|e| format!("não foi possível gravar {arquivo}: {e}"))?;
+    Ok(SalvoTexto {
+        estado: estado_do_texto(&caminho, item.4),
+        versao: versao_do_arquivo(&caminho)?,
+        avisos: validar_item(&item, texto),
+    })
+}
+
+/// Volta ao texto padrão: remove a cópia da base (vale o padrão do app, inclusive o
+/// de versões futuras). As regras do projeto precisam existir, então o padrão é
+/// gravado por cima.
+pub fn restaurar_texto(dados: &DiretorioDados, arquivo: &str) -> Result<LeituraTexto, String> {
+    let base = base_configurada(dados)?;
+    let item = catalogado(dados, arquivo)?;
+    let caminho = item.3.em(&base);
+    if item.0 == GrupoTexto::RegrasDoProjeto {
+        cba_kb::arquivo::gravar(&caminho, item.4.as_bytes())
+            .map_err(|e| format!("não foi possível gravar {arquivo}: {e}"))?;
+    } else if let Err(e) = fs::remove_file(&caminho)
+        && e.kind() != io::ErrorKind::NotFound
+    {
+        return Err(format!("não foi possível remover {arquivo}: {e}"));
+    }
+    ler_item(&base, item)
+}
+
 // ---------------------------------------------------------------------------
 // Comandos
 
@@ -890,6 +1079,37 @@ pub async fn abrir_texto_editavel(
         .open_path(caminho.to_string_lossy(), None::<&str>)
         .map_err(|e| format!("não foi possível abrir {}: {e}", caminho.display()))?;
     Ok(caminho)
+}
+
+#[tauri::command]
+pub async fn ler_texto_editavel(arquivo: String) -> Result<LeituraTexto, String> {
+    let dados = dados()?;
+    bloqueante(move || ler_texto(&dados, &arquivo)).await
+}
+
+#[tauri::command]
+pub async fn validar_texto_editavel(
+    arquivo: String,
+    texto: String,
+) -> Result<Vec<AvisoTexto>, String> {
+    let dados = dados()?;
+    bloqueante(move || validar_texto(&dados, &arquivo, &texto)).await
+}
+
+#[tauri::command]
+pub async fn salvar_texto_editavel(
+    arquivo: String,
+    texto: String,
+    versao_lida: String,
+) -> Result<SalvoTexto, String> {
+    let dados = dados()?;
+    bloqueante(move || salvar_texto(&dados, &arquivo, &texto, &versao_lida)).await
+}
+
+#[tauri::command]
+pub async fn restaurar_texto_padrao(arquivo: String) -> Result<LeituraTexto, String> {
+    let dados = dados()?;
+    bloqueante(move || restaurar_texto(&dados, &arquivo)).await
 }
 
 #[cfg(test)]

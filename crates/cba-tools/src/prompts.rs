@@ -37,6 +37,10 @@ pub const PASTA: &str = "prompts";
 /// Variáveis que um prompt pronto pode usar.
 pub const VARIAVEIS: [&str; 4] = ["id", "titulo", "fluxo", "documento"];
 
+/// Variável sem a qual o pedido perde o sentido: se o prompt da base não a usa, o
+/// valor vai para o fim, com aviso.
+pub(crate) const ESSENCIAIS: [&str; 1] = ["id"];
+
 /// Um prompt pronto, como a tela da análise mostra e envia.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -173,7 +177,8 @@ impl Prompts {
             if aprovada && d.registra {
                 continue;
             }
-            let (texto, mut a) = texto.preencher(valor, &["id"], |_, v| format!(" (análise {v})"));
+            let (texto, mut a) =
+                texto.preencher(valor, &ESSENCIAIS, |_, v| format!(" (análise {v})"));
             avisos.append(&mut a);
             prontos.push(PromptPronto {
                 id: d.id.to_owned(),

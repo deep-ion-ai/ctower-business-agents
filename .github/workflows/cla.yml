@@ -62,4 +62,6 @@ jobs:
           custom-allsigned-prcomment: Todos os autores dos commits deste PR aceitaram o CLA. Obrigado!
           create-file-commit-message: "chore(cla): cria o arquivo de assinaturas do CLA"
           signed-commit-message: "chore(cla): $contributorName assinou o CLA em $owner/$repo#$pullRequestNo"
-          lock-pullrequest-aftermerge: true
+          # Não tranca o PR depois do merge: o release-please comenta no PR de release
+          # logo após o merge, e com a conversa trancada a release falha no meio (#99).
+          lock-pullrequest-aftermerge: false

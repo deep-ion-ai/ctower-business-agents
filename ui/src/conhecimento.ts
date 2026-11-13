@@ -88,7 +88,12 @@ export interface VisaoProjeto {
 export interface ResumoRevalidacao {
   evidencias: number;
   desatualizadas: number;
-  regras: { id: string; titulo: string; antes: StatusRegra; depois: StatusRegra }[];
+  regras: {
+    id: string;
+    titulo: string;
+    antes: StatusRegra;
+    depois: StatusRegra;
+  }[];
   analises: string[];
   problemas: ProblemaVista[];
   mudou: boolean;
@@ -176,6 +181,11 @@ export interface ApiConhecimento extends ApiAmbiente {
     entrada: string,
     titulo?: string,
   ): Promise<AnaliseCriada>;
+  /**
+   * Cria a análise a partir de uma issue do rastreador do projeto (`PROJ-123`, `#12`):
+   * título e descrição viram a entrada e o link vai em `demanda.origem`.
+   */
+  criarAnaliseDeDemanda(projeto: string, fluxo: Fluxo, referencia: string): Promise<AnaliseCriada>;
   visaoProjeto(projeto: string): Promise<VisaoProjeto>;
   revalidar(projeto: string): Promise<ResumoRevalidacao>;
   /** `null` se o projeto ainda não foi mapeado. */
@@ -194,7 +204,14 @@ export const apiConhecimentoTauri: ApiConhecimento = {
   situacao: () => invoke("situacao_app"),
   inicio: () => invoke("inicio_app"),
   criarAnalise: (projeto, fluxo, entrada, titulo) =>
-    invoke("criar_analise_fluxo", { projeto, fluxo, entrada, titulo: titulo ?? null }),
+    invoke("criar_analise_fluxo", {
+      projeto,
+      fluxo,
+      entrada,
+      titulo: titulo ?? null,
+    }),
+  criarAnaliseDeDemanda: (projeto, fluxo, referencia) =>
+    invoke("criar_analise_de_demanda", { projeto, fluxo, referencia }),
   visaoProjeto: (projeto) => invoke("visao_projeto_app", { projeto }),
   revalidar: (projeto) => invoke("revalidar_projeto_app", { projeto }),
   mapa: (projeto, modulo) => invoke("mapa_projeto_app", { projeto, modulo: modulo ?? null }),

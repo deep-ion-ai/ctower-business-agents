@@ -245,6 +245,7 @@ describe("Primeiro uso: cadastro do projeto", () => {
         pastas: ["/codigo/faturamento-exemplo"],
         exclusoes: ["cobol/", "*.log"],
         inclusoes: ["/.env"],
+        repositorios: { forge: null, tracker: null },
       }),
     );
     await waitFor(() => expect(aoConcluir).toHaveBeenCalled());
