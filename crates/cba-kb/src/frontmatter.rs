@@ -42,10 +42,12 @@ pub enum TipoDocumento {
     MemoriaArea,
     /// Demanda, em `demandas/D-NNNN-<slug>/demanda.md`.
     Demanda,
+    /// Pessoa do catálogo de partes interessadas, em `pessoas/<slug>.md`.
+    Pessoa,
 }
 
 impl TipoDocumento {
-    pub const TODOS: [TipoDocumento; 10] = [
+    pub const TODOS: [TipoDocumento; 11] = [
         Self::Projeto,
         Self::AnaliseImpacto,
         Self::Pergunta,
@@ -56,6 +58,7 @@ impl TipoDocumento {
         Self::Sugestao,
         Self::MemoriaArea,
         Self::Demanda,
+        Self::Pessoa,
     ];
 
     /// Valor no frontmatter (`analise-impacto`).
@@ -71,6 +74,7 @@ impl TipoDocumento {
             Self::Sugestao => "sugestao",
             Self::MemoriaArea => "memoria-area",
             Self::Demanda => "demanda",
+            Self::Pessoa => "pessoa",
         }
     }
 
@@ -570,6 +574,148 @@ impl Frontmatter for FrontmatterDemanda {
         }
         if self.titulo.trim().is_empty() {
             return Err(ErroCampo::novo("titulo", "a demanda precisa de um título"));
+        }
+        Ok(())
+    }
+}
+
+/// Tamanho máximo, em caracteres, do nome e de cada apelido de uma pessoa.
+pub const MAXIMO_DO_NOME: usize = 80;
+/// Número máximo de palavras do nome e de cada apelido de uma pessoa.
+pub const MAXIMO_DE_PALAVRAS_DO_NOME: usize = 8;
+/// Tamanho máximo, em caracteres, de um papel.
+pub const MAXIMO_DO_PAPEL: usize = 40;
+/// Número máximo de palavras de um papel.
+pub const MAXIMO_DE_PALAVRAS_DO_PAPEL: usize = 5;
+/// Tamanho máximo, em caracteres, da referência a uma reunião.
+pub const MAXIMO_DA_REUNIAO: usize = 64;
+
+/// Confere um texto curto de uma linha: nome, apelido ou papel. Os limites de
+/// tamanho e de palavras e a recusa de pontuação de frase impedem que uma fala da
+/// reunião entre no catálogo de pessoas por engano.
+pub(crate) fn conferir_texto_curto(
+    campo: &str,
+    texto: &str,
+    maximo: usize,
+    palavras: usize,
+) -> Result<(), ErroCampo> {
+    let erro = |mensagem: String| Err(ErroCampo::novo(campo, mensagem));
+    if !texto.chars().any(char::is_alphanumeric) {
+        return erro("precisa ter letras ou dígitos".into());
+    }
+    if texto.trim() != texto {
+        return erro("sem espaços no início nem no fim".into());
+    }
+    if texto.chars().any(char::is_control) {
+        return erro("precisa ter uma linha só".into());
+    }
+    if let Some(c) = texto
+        .chars()
+        .find(|c| matches!(c, '?' | '!' | ';' | ':' | '"' | '@'))
+    {
+        return erro(format!("não aceita `{c}`: guarde só o nome ou o papel"));
+    }
+    if texto.chars().count() > maximo {
+        return erro(format!("tem mais de {maximo} caracteres"));
+    }
+    if texto.split_whitespace().count() > palavras {
+        return erro(format!("tem mais de {palavras} palavras"));
+    }
+    Ok(())
+}
+
+/// Confere a referência a uma reunião: um identificador (`D-0001/R-0002`), não um
+/// texto livre.
+pub(crate) fn conferir_reuniao(campo: &str, reuniao: &str) -> Result<(), ErroCampo> {
+    let valida = !reuniao.is_empty()
+        && reuniao.len() <= MAXIMO_DA_REUNIAO
+        && reuniao.bytes().any(|b| b.is_ascii_alphanumeric())
+        && reuniao
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'/'));
+    if valida {
+        Ok(())
+    } else {
+        Err(ErroCampo::novo(
+            campo,
+            format!(
+                "`{reuniao}` não é uma referência de reunião: use até {MAXIMO_DA_REUNIAO} \
+                 caracteres A-Z, a-z, 0-9, `-`, `_`, `.` ou `/` (por exemplo, D-0001/R-0002)"
+            ),
+        ))
+    }
+}
+
+/// Papel de uma pessoa confirmado pelo analista numa reunião.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PapelConfirmado {
+    /// Referência da reunião (`D-0001/R-0002`).
+    #[serde(deserialize_with = "texto_flexivel")]
+    pub reuniao: String,
+    pub papel: String,
+    pub confirmado_em: Data,
+}
+
+/// Pessoa do catálogo de partes interessadas do projeto, em `pessoas/<slug>.md`.
+/// Guarda só o nome, os apelidos e os papéis; nunca as falas das reuniões.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FrontmatterPessoa {
+    pub tipo: TipoDocumento,
+    pub nome: String,
+    /// Variações do nome que aparecem nos transcripts ("Silva, Maria", "Maria S.",
+    /// "maria.silva"), sem o domínio do e-mail.
+    #[serde(default)]
+    pub apelidos: Vec<String>,
+    /// Papel atual: o confirmado mais recente do histórico ou, sem histórico, o
+    /// informado ao registrar a pessoa.
+    #[serde(default)]
+    pub papel: Option<String>,
+    /// Papéis confirmados, um por reunião.
+    #[serde(default)]
+    pub historico: Vec<PapelConfirmado>,
+}
+
+impl FrontmatterPessoa {
+    /// O papel confirmado mais recente: a maior data de confirmação e, no mesmo
+    /// dia, o último registrado.
+    pub fn ultimo_confirmado(&self) -> Option<&PapelConfirmado> {
+        self.historico
+            .iter()
+            .enumerate()
+            .max_by_key(|(i, p)| (p.confirmado_em, *i))
+            .map(|(_, p)| p)
+    }
+}
+
+impl Frontmatter for FrontmatterPessoa {
+    const TIPOS: &'static [TipoDocumento] = &[TipoDocumento::Pessoa];
+
+    fn validar(&self) -> Result<(), ErroCampo> {
+        conferir_texto_curto(
+            "nome",
+            &self.nome,
+            MAXIMO_DO_NOME,
+            MAXIMO_DE_PALAVRAS_DO_NOME,
+        )?;
+        for (i, apelido) in self.apelidos.iter().enumerate() {
+            conferir_texto_curto(
+                &format!("apelidos[{i}]"),
+                apelido,
+                MAXIMO_DO_NOME,
+                MAXIMO_DE_PALAVRAS_DO_NOME,
+            )?;
+        }
+        if let Some(papel) = &self.papel {
+            conferir_texto_curto("papel", papel, MAXIMO_DO_PAPEL, MAXIMO_DE_PALAVRAS_DO_PAPEL)?;
+        }
+        for (i, p) in self.historico.iter().enumerate() {
+            conferir_reuniao(&format!("historico[{i}].reuniao"), &p.reuniao)?;
+            conferir_texto_curto(
+                &format!("historico[{i}].papel"),
+                &p.papel,
+                MAXIMO_DO_PAPEL,
+                MAXIMO_DE_PALAVRAS_DO_PAPEL,
+            )?;
         }
         Ok(())
     }
