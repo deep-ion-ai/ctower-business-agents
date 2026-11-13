@@ -40,7 +40,7 @@ pub const VARIAVEIS: [&str; 8] = [
 
 /// Variáveis sem as quais o agente não conduz a análise: se o roteiro da base não
 /// as usa, o valor vai para o fim, com aviso.
-const ESSENCIAIS: [&str; 3] = ["entrada", "secoes", "contexto"];
+pub(crate) const ESSENCIAIS: [&str; 3] = ["entrada", "secoes", "contexto"];
 
 /// Nome do fluxo para o agente e para o analista.
 pub fn nome_do_fluxo(fluxo: Fluxo) -> &'static str {

@@ -536,3 +536,168 @@ fn configuracoes_reunem_cliente_base_e_projetos() {
     assert_eq!(json["projetos"][0]["id"], PROJETO);
     assert!(json["configClaude"].is_null());
 }
+
+// ---------------------------------------------------------------------------
+// Editor embutido dos textos
+
+const ROTEIRO: &str = "_templates/roteiros/perguntar.md";
+const TEMPLATE: &str = "_templates/regra.md";
+
+#[test]
+fn comandos_dos_textos_recusam_arquivo_fora_do_catalogo() {
+    let c = cenario();
+    for fora in [
+        "../fora.md",
+        "faturamento-exemplo/projeto.md",
+        "_templates/inexistente.md",
+        "/etc/passwd",
+    ] {
+        assert!(ler_texto(&c.dados, fora).is_err(), "{fora}");
+        assert!(validar_texto(&c.dados, fora, "x").is_err(), "{fora}");
+        assert!(
+            salvar_texto(&c.dados, fora, "x", "ausente").is_err(),
+            "{fora}"
+        );
+        assert!(restaurar_texto(&c.dados, fora).is_err(), "{fora}");
+    }
+    assert!(
+        !base_atual(&c.dados)
+            .join("_templates/inexistente.md")
+            .exists()
+    );
+}
+
+#[test]
+fn ler_devolve_o_padrao_sem_copia_e_o_da_base_com_copia() {
+    let c = cenario();
+    let base = base_atual(&c.dados);
+    let _ = fs::remove_file(base.join(ROTEIRO));
+
+    let l = ler_texto(&c.dados, ROTEIRO).unwrap();
+    assert_eq!(l.estado, EstadoTexto::Padrao);
+    assert_eq!(l.texto, l.padrao);
+    assert_eq!(l.versao, "ausente");
+    assert!(
+        l.variaveis
+            .iter()
+            .any(|v| v.nome == "entrada" && !v.descricao.is_empty())
+    );
+    assert!(!base.join(ROTEIRO).exists(), "ler não cria arquivo");
+
+    fs::create_dir_all(base.join(ROTEIRO).parent().unwrap()).unwrap();
+    fs::write(base.join(ROTEIRO), "# Meu\n{{entrada}}\n").unwrap();
+    let l = ler_texto(&c.dados, ROTEIRO).unwrap();
+    assert_eq!(l.estado, EstadoTexto::Editado);
+    assert_eq!(l.texto, "# Meu\n{{entrada}}\n");
+    assert_ne!(l.versao, "ausente");
+
+    let t = ler_texto(&c.dados, TEMPLATE).unwrap();
+    assert!(t.variaveis.iter().any(|v| v.nome == "titulo"));
+    let json = serde_json::to_value(&l).unwrap();
+    assert!(json["versao"].is_string() && json["variaveis"].is_array());
+}
+
+#[test]
+fn validar_da_os_avisos_que_o_agente_receberia_sem_gravar() {
+    let c = cenario();
+    let base = base_atual(&c.dados);
+    let _ = fs::remove_file(base.join(ROTEIRO));
+
+    let avisos = validar_texto(&c.dados, ROTEIRO, "Linha 1\n{{inventada}}\n").unwrap();
+    assert!(
+        avisos
+            .iter()
+            .any(|a| a.variavel == "inventada" && a.linha == Some(2) && !a.ausente)
+    );
+    for essencial in ["entrada", "secoes", "contexto"] {
+        assert!(
+            avisos.iter().any(|a| a.variavel == essencial && a.ausente),
+            "{essencial}"
+        );
+    }
+
+    let ok = validar_texto(&c.dados, ROTEIRO, "{{entrada}} {{secoes}} {{contexto}}").unwrap();
+    assert!(ok.is_empty(), "{ok:?}");
+
+    let t = validar_texto(&c.dados, TEMPLATE, "# {{titulo}}\n{{marcador_falso}}\n").unwrap();
+    assert_eq!(t.len(), 1);
+    assert_eq!(
+        (t[0].variavel.as_str(), t[0].linha),
+        ("marcador_falso", Some(2))
+    );
+
+    let regras = format!("{PROJETO}/regras-do-projeto.md");
+    assert!(
+        validar_texto(&c.dados, &regras, "{{qualquer}}")
+            .unwrap()
+            .is_empty()
+    );
+    assert!(!base.join(ROTEIRO).exists(), "validar não grava");
+}
+
+#[test]
+fn salvar_grava_e_recusa_versao_desatualizada() {
+    let c = cenario();
+    let base = base_atual(&c.dados);
+    let _ = fs::remove_file(base.join(ROTEIRO));
+
+    let lido = ler_texto(&c.dados, ROTEIRO).unwrap();
+    let salvo = salvar_texto(&c.dados, ROTEIRO, "# Meu\n{{x}}\n", &lido.versao).unwrap();
+    assert_eq!(salvo.estado, EstadoTexto::Editado);
+    assert_eq!(salvo.avisos.iter().filter(|a| a.variavel == "x").count(), 1);
+    assert_eq!(
+        fs::read_to_string(base.join(ROTEIRO)).unwrap(),
+        "# Meu\n{{x}}\n"
+    );
+    assert_eq!(salvo.versao, ler_texto(&c.dados, ROTEIRO).unwrap().versao);
+
+    // Editado fora do app depois da leitura: conflito, nada gravado.
+    fs::write(base.join(ROTEIRO), "de fora\n").unwrap();
+    let e = salvar_texto(&c.dados, ROTEIRO, "do app\n", &salvo.versao).unwrap_err();
+    assert!(e.starts_with(CONFLITO), "{e}");
+    assert_eq!(fs::read_to_string(base.join(ROTEIRO)).unwrap(), "de fora\n");
+
+    // Versão `ausente` não vale se o arquivo apareceu.
+    assert!(
+        salvar_texto(&c.dados, ROTEIRO, "x", "ausente")
+            .unwrap_err()
+            .starts_with(CONFLITO)
+    );
+    let atual = ler_texto(&c.dados, ROTEIRO).unwrap().versao;
+    salvar_texto(&c.dados, ROTEIRO, "do app\n", &atual).unwrap();
+}
+
+#[test]
+fn restaurar_remove_a_copia_e_regras_voltam_ao_padrao() {
+    let c = cenario();
+    let base = base_atual(&c.dados);
+    let estado = |a: &str| {
+        textos(&c.dados)
+            .unwrap()
+            .into_iter()
+            .find(|t| t.arquivo == a)
+            .unwrap()
+            .estado
+    };
+
+    fs::create_dir_all(base.join(ROTEIRO).parent().unwrap()).unwrap();
+    fs::write(base.join(ROTEIRO), "editado\n").unwrap();
+    assert_eq!(estado(ROTEIRO), EstadoTexto::Editado);
+    let l = restaurar_texto(&c.dados, ROTEIRO).unwrap();
+    assert!(!base.join(ROTEIRO).exists());
+    assert_eq!(
+        (l.estado, l.versao.as_str()),
+        (EstadoTexto::Padrao, "ausente")
+    );
+    assert_eq!(estado(ROTEIRO), EstadoTexto::Padrao);
+    // Sem cópia, restaurar de novo não falha.
+    restaurar_texto(&c.dados, ROTEIRO).unwrap();
+
+    let regras = format!("{PROJETO}/regras-do-projeto.md");
+    fs::write(base.join(&regras), "# Minhas regras\n").unwrap();
+    assert_eq!(estado(&regras), EstadoTexto::Editado);
+    let l = restaurar_texto(&c.dados, &regras).unwrap();
+    assert!(base.join(&regras).is_file(), "as regras precisam existir");
+    assert_eq!(l.estado, EstadoTexto::IgualAoPadrao);
+    assert_eq!(estado(&regras), EstadoTexto::IgualAoPadrao);
+}
