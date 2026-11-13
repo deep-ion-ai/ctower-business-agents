@@ -5,6 +5,7 @@
 //! ```text
 //! <base>/
 //!   _templates/
+//!     papeis.yaml                  # papéis das pessoas, editável
 //!   <projeto>/
 //!     projeto.md
 //!     regras-do-projeto.md         # regras do projeto para o agente (#31)
@@ -15,6 +16,7 @@
 //!     analises/<id>.md
 //!     sugestoes/<id>.md
 //!     demandas/D-NNNN-<slug>/demanda.md
+//!     pessoas/<slug>.md            # catálogo de pessoas: nome, apelidos e papéis
 //! ```
 //!
 //! O que esta crate oferece:
@@ -28,6 +30,10 @@
 //! - Identificadores legíveis ([`Id`], [`Serie`]): `A-0001`, `S-0001`, `RN-FAT-001`,
 //!   reservados sem colisão por [`Projeto::criar_numerado`], mesmo com dois
 //!   processos (app e servidor MCP) gravando ao mesmo tempo.
+//!
+//! - Catálogo de pessoas por projeto ([`PessoaLida`], [`CatalogoDePessoas`],
+//!   [`normalizar_nome`]), com os papéis sugeridos de `_templates/papeis.yaml`
+//!   ([`Papeis`]). Nunca guarda falas.
 //!
 //! - Índice SQLite com busca FTS5 ([`indice`]): espelho reconstruível da base, no
 //!   diretório de dados do app.
@@ -44,6 +50,8 @@ pub mod frontmatter;
 mod id;
 pub mod indice;
 pub mod layout;
+mod papeis;
+mod pessoas;
 
 pub use base::{Base, PADRAO_REGRAS_DO_PROJETO, Projeto};
 pub use caminho::{CaminhoInvalido, CaminhoRelativo, e_slug, slug};
@@ -52,6 +60,11 @@ pub use documento::{Documento, ErroFrontmatter};
 pub use erro::{Erro, Resultado};
 pub use frontmatter::{ErroCampo, Frontmatter, TipoDocumento};
 pub use id::{Id, IdDemanda, IdInvalido, Serie};
+pub use papeis::{AvisoPapeis, OrigemPapeis, PADRAO_PAPEIS, Papeis, Papel};
+pub use pessoas::{
+    Casamento, CatalogoDePessoas, NovaPessoa, PapelSugerido, Participante, PessoaLida,
+    normalizar_nome, normalizar_texto, sem_dominio,
+};
 
 /// Tipos YAML do frontmatter livre ([`frontmatter::FrontmatterLivre`]).
 pub mod yaml {
