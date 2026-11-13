@@ -15,6 +15,7 @@ import {
   type ApiConhecimento,
   type Inicio,
 } from "./conhecimento";
+import { DialogoConfirmacao } from "./DialogoConfirmacao";
 import { ROTULO_SESSAO } from "./DocumentoAoVivo";
 import type { Abertura } from "./PainelAnalise";
 import { Icon, type IconName } from "./shell/icons";
@@ -171,7 +172,19 @@ export function Navegacao({
     setDocumentos((ds) => (ds[0] === doc ? ds : [doc, ...ds.filter((d) => d !== doc)].slice(0, 20)));
   }, []);
 
-  const navegar = useCallback((t: Tela) => {
+  // Alterações sem salvar no editor de textos (das configurações): sair da aba, ou
+  // fechá-la, pede confirmação. `saida` guarda a ação à espera da resposta.
+  const pendenteRef = useRef(false);
+  const [saida, setSaida] = useState<(() => void) | null>(null);
+  const aoPendencia = useCallback((p: boolean) => {
+    pendenteRef.current = p;
+  }, []);
+  const sairDaAba = useCallback((acao: () => void) => {
+    if (pendenteRef.current) setSaida(() => acao);
+    else acao();
+  }, []);
+
+  const navegarAgora = useCallback((t: Tela) => {
     const chave = chaveDaTela(t);
     const vez = ++contador.current;
     setAbas((atuais) =>
@@ -185,6 +198,8 @@ export function Navegacao({
     // Na gaveta, escolher um item fecha o painel.
     if (telaEstreita()) setLadoAberto(false);
   }, [lembrarDocumento]);
+
+  const navegar = useCallback((t: Tela) => sairDaAba(() => navegarAgora(t)), [sairDaAba, navegarAgora]);
 
   useEffect(() => {
     let ativo = true;
@@ -216,13 +231,27 @@ export function Navegacao({
       return;
     }
     const existente = [...abas].reverse().find((a) => a.tela.tipo === tipo);
-    if (existente) {
-      setAtiva(existente.chave);
+    if (existente) ativar(existente.chave);
+    else navegar({ tipo } as Tela);
+  };
+
+  const ativar = (chave: string) => {
+    if (chave === ativa) return;
+    sairDaAba(() => {
+      setAtiva(chave);
       if (telaEstreita()) setLadoAberto(false);
-    } else navegar({ tipo } as Tela);
+    });
   };
 
   const fechar = (chave: string) => {
+    if (chave === ativa && pendenteRef.current) {
+      sairDaAba(() => fecharAgora(chave));
+      return;
+    }
+    fecharAgora(chave);
+  };
+
+  const fecharAgora = (chave: string) => {
     const i = abas.findIndex((a) => a.chave === chave);
     const resto = abas.filter((a) => a.chave !== chave);
     setAbas(resto);
@@ -370,7 +399,11 @@ export function Navegacao({
             </div>
             {refazerPrimeiroUso && (
               <div className="sp-foot">
-                <button type="button" className="link" onClick={refazerPrimeiroUso}>
+                <button
+                  type="button"
+                  className="link"
+                  onClick={() => sairDaAba(refazerPrimeiroUso)}
+                >
                   Refazer o primeiro uso
                 </button>
               </div>
@@ -405,7 +438,7 @@ export function Navegacao({
                       aria-selected={a.chave === ativa}
                       aria-controls="area-editor"
                       title={titulo}
-                      onClick={() => setAtiva(a.chave)}
+                      onClick={() => ativar(a.chave)}
                     >
                       <Icon name={ICONE_AREA[a.tela.tipo]} size={14} />
                       <span className="etab-title">{titulo}</span>
@@ -476,12 +509,49 @@ export function Navegacao({
                   key={aba.vez}
                   api={apiConfiguracoes}
                   aoMudarProjetos={() => setRecarga((r) => r + 1)}
+                  aoPendencia={aoPendencia}
                 />
               )}
             </div>
           </div>
         </div>
       </div>
+
+      {saida && (
+        <DialogoConfirmacao
+          titulo="Alterações não salvas"
+          aoCancelar={() => setSaida(null)}
+          acoes={
+            <>
+              <button
+                type="button"
+                className="btn btn-primary"
+                autoFocus
+                onClick={() => setSaida(null)}
+              >
+                Continuar editando
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  const acao = saida;
+                  pendenteRef.current = false;
+                  setSaida(null);
+                  acao();
+                }}
+              >
+                Descartar e sair
+              </button>
+            </>
+          }
+        >
+          <p>
+            O editor de textos das configurações tem alterações que não foram salvas. Sair agora as
+            descarta.
+          </p>
+        </DialogoConfirmacao>
+      )}
 
       <footer className="statusbar" aria-label="Barra de status">
         <span className="sb-item mono" title={inicio?.base ?? undefined}>

@@ -14,6 +14,7 @@ import {
   type TextoEditavel,
   type TrocaBase,
 } from "./configuracoes";
+import { EditorTexto } from "./EditorTexto";
 import { EscolhaBase } from "./EscolhaBase";
 import { EscolhaCliente } from "./EscolhaCliente";
 import { FormRepositorios } from "./FormRepositorios";
@@ -40,12 +41,17 @@ const CLIENTE = {
 export function TelaConfiguracoes({
   api = apiConfiguracoesTauri,
   aoMudarProjetos,
+  aoPendencia,
 }: {
   api?: ApiConfiguracoes;
   /** Os projetos ou a base mudaram: as outras telas devem reler. */
   aoMudarProjetos?: () => void;
+  /** O editor de textos tem (ou deixou de ter) alterações sem salvar. */
+  aoPendencia?: (pendente: boolean) => void;
 }) {
   const [cfg, setCfg] = useState<Configuracoes | null>(null);
+  /** Texto aberto no editor embutido (caminho relativo à base). */
+  const [editando, setEditando] = useState<string | null>(null);
   const [textos, setTextos] = useState<TextoEditavel[]>([]);
   const [falha, setFalha] = useState<string | null>(null);
 
@@ -83,19 +89,45 @@ export function TelaConfiguracoes({
   }
 
   return (
-    <section className="configuracoes page" aria-label="Configurações">
-      <h2>Configurações</h2>
-      {falha && (
-        <p className="error-text" role="alert">
-          {falha}
-        </p>
+    <>
+      {/* Escondida (não desmontada) enquanto o editor está aberto: ao voltar, tudo
+          continua onde estava. */}
+      <section className="configuracoes page" aria-label="Configurações" hidden={editando !== null}>
+        <h2>Configurações</h2>
+        {falha && (
+          <p className="error-text" role="alert">
+            {falha}
+          </p>
+        )}
+        <SecaoAparencia />
+        <SecaoCliente api={api} cfg={cfg} aoMudar={carregar} />
+        <SecaoBase api={api} cfg={cfg} aoMudar={mudou} />
+        <SecaoProjetos
+          api={api}
+          cfg={cfg}
+          textos={textos}
+          aoMudar={mudou}
+          aoAbrirTexto={carregar}
+          aoEditar={setEditando}
+        />
+        {cfg.base && (
+          <SecaoTextos api={api} textos={textos} aoAbrir={carregar} aoEditar={setEditando} />
+        )}
+      </section>
+      {editando !== null && (
+        <EditorTexto
+          key={editando}
+          api={api}
+          arquivo={editando}
+          aoSair={() => {
+            setEditando(null);
+            carregar();
+          }}
+          aoAlterado={carregar}
+          aoPendencia={aoPendencia}
+        />
       )}
-      <SecaoAparencia />
-      <SecaoCliente api={api} cfg={cfg} aoMudar={carregar} />
-      <SecaoBase api={api} cfg={cfg} aoMudar={mudou} />
-      <SecaoProjetos api={api} cfg={cfg} textos={textos} aoMudar={mudou} aoAbrirTexto={carregar} />
-      {cfg.base && <SecaoTextos api={api} textos={textos} aoAbrir={carregar} />}
-    </section>
+    </>
   );
 }
 
@@ -438,12 +470,14 @@ function SecaoProjetos({
   textos,
   aoMudar,
   aoAbrirTexto,
+  aoEditar,
 }: {
   api: ApiConfiguracoes;
   cfg: Configuracoes;
   textos: TextoEditavel[];
   aoMudar: () => void;
   aoAbrirTexto: () => void;
+  aoEditar: (arquivo: string) => void;
 }) {
   const [cadastrando, setCadastrando] = useState(false);
   return (
@@ -464,6 +498,7 @@ function SecaoProjetos({
           regras={textos.find((t) => t.grupo === "regrasDoProjeto" && t.id === s.id)}
           aoMudar={aoMudar}
           aoAbrirTexto={aoAbrirTexto}
+          aoEditar={aoEditar}
         />
       ))}
       {cfg.base &&
@@ -495,12 +530,14 @@ function CartaoProjeto({
   regras,
   aoMudar,
   aoAbrirTexto,
+  aoEditar,
 }: {
   api: ApiConfiguracoes;
   projeto: ProjetoConfig;
   regras?: TextoEditavel;
   aoMudar: () => void;
   aoAbrirTexto: () => void;
+  aoEditar: (arquivo: string) => void;
 }) {
   // Muda depois de desfazer o ambiente, para a verificação rodar de novo.
   const [vez, setVez] = useState(0);
@@ -536,7 +573,7 @@ function CartaoProjeto({
             Instruções que o agente recebe em toda análise deste projeto ({regras.arquivo}):{" "}
             {ESTADO_DO_TEXTO[regras.estado]}.
           </p>
-          <AbrirTexto api={api} texto={regras} aoAbrir={aoAbrirTexto} />
+          <AbrirTexto api={api} texto={regras} aoAbrir={aoAbrirTexto} aoEditar={aoEditar} />
         </div>
       )}
       <Descadastrar api={api} projeto={projeto} aoDescadastrar={aoMudar} />
@@ -1059,17 +1096,20 @@ function SecaoTextos({
   api,
   textos,
   aoAbrir,
+  aoEditar,
 }: {
   api: ApiConfiguracoes;
   textos: TextoEditavel[];
   aoAbrir: () => void;
+  aoEditar: (arquivo: string) => void;
 }) {
   return (
     <section className="secao-config" aria-label="Textos editáveis">
       <h3>Templates, roteiros e prompts</h3>
       <p className="muted">
         Ficam na base, em <code>_templates/</code>. Um arquivo na base sobrepõe o padrão do app; sem
-        ele, vale o padrão. Os textos abrem no editor de texto do seu computador.
+        ele, vale o padrão. Edite aqui, com a prévia ao lado, ou abra no editor de texto do seu
+        computador.
       </p>
       {GRUPOS.map((g) => (
         <div key={g.grupo} role="group" aria-label={g.titulo}>
@@ -1088,7 +1128,7 @@ function SecaoTextos({
                       </span>
                     </td>
                     <td>
-                      <AbrirTexto api={api} texto={t} aoAbrir={aoAbrir} />
+                      <AbrirTexto api={api} texto={t} aoAbrir={aoAbrir} aoEditar={aoEditar} />
                     </td>
                   </tr>
                 ))}
@@ -1104,19 +1144,29 @@ function AbrirTexto({
   api,
   texto,
   aoAbrir,
+  aoEditar,
 }: {
   api: ApiConfiguracoes;
   texto: TextoEditavel;
   aoAbrir: () => void;
+  aoEditar: (arquivo: string) => void;
 }) {
   const [aberto, setAberto] = useState<string | null>(null);
   const [falha, setFalha] = useState<string | null>(null);
   return (
     <>
       <button
+        className="btn btn-primary"
+        type="button"
+        aria-label={`Editar ${texto.rotulo}`}
+        onClick={() => aoEditar(texto.arquivo)}
+      >
+        Editar
+      </button>{" "}
+      <button
         className="btn"
         type="button"
-        aria-label={`Abrir ${texto.rotulo} no editor`}
+        aria-label={`Abrir ${texto.rotulo} no editor do computador`}
         onClick={() => {
           setFalha(null);
           api
@@ -1128,7 +1178,7 @@ function AbrirTexto({
             .catch((e: unknown) => setFalha(mensagemDe(e)));
         }}
       >
-        {texto.estado === "padrao" ? "Criar a cópia e abrir" : "Abrir no editor"}
+        {texto.estado === "padrao" ? "Criar a cópia e abrir no computador" : "Abrir no editor do computador"}
       </button>
       {aberto && <span className="muted"> Aberto: {aberto}</span>}
       {falha && (
