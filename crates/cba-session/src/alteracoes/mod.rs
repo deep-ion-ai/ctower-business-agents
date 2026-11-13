@@ -5,6 +5,10 @@
 //! app confere as pastas do projeto contra o retrato tirado no início da sessão e,
 //! se algo mudou, avisa na análise, com o diff e a opção de desfazer.
 //!
+//! As pastas de código-fonte (num repositório git cujo remoto é o repositório de
+//! código cadastrado no projeto) não entram no retrato: o aviso cobre só as demais
+//! pastas do projeto ([`pastas_da_sessao`]; #130).
+//!
 //! # Retrato e conferência
 //!
 //! O retrato é tirado uma vez por sessão, no primeiro `SessionStart` (ou no primeiro
@@ -60,6 +64,7 @@ use cba_core::dados::DiretorioDados;
 use cba_core::eventos::{DiarioEventos, Evento, Mudanca, Notificador};
 use cba_core::tempo;
 use cba_kb::Id;
+use cba_repos::ForgeConfig;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -913,7 +918,9 @@ pub fn manter(retratos: &Retratos, sessao: &str, pedidos: &[Pedido]) -> Result<V
 // Ligação com as sessões, as análises e o diário de eventos
 
 /// Pastas a retratar numa sessão: as do projeto cadastrado e, se a sessão foi
-/// aberta numa worktree fora delas, a worktree.
+/// aberta numa worktree fora delas, a worktree. As pastas de código-fonte (num
+/// repositório git cujo remoto é o repositório de código cadastrado no projeto)
+/// ficam de fora: o aviso cobre só as demais pastas do projeto (#130).
 pub fn pastas_da_sessao(
     dados: &DiretorioDados,
     registro: &RegistroSessao,
@@ -932,7 +939,80 @@ pub fn pastas_da_sessao(
     {
         pastas.push(g.raiz);
     }
-    Ok(pastas)
+    Ok(sem_codigo_fonte(
+        pastas,
+        projeto.repositorios.forge.as_ref(),
+    ))
+}
+
+/// Tira de `pastas` as que estão num repositório git com algum remoto apontando
+/// para `forja` (o repositório de código cadastrado). Sem forja, devolve todas.
+/// Uma pasta cujo remoto não se consegue ler (git ausente) continua na lista.
+pub fn sem_codigo_fonte(pastas: Vec<PathBuf>, forja: Option<&ForgeConfig>) -> Vec<PathBuf> {
+    let Some(forja) = forja else {
+        return pastas;
+    };
+    let mut vistos: BTreeMap<PathBuf, bool> = BTreeMap::new();
+    pastas
+        .into_iter()
+        .filter(|pasta| {
+            let raiz = dunce::canonicalize(pasta)
+                .ok()
+                .and_then(|p| cba_index::detectar_git(&p))
+                .map(|g| g.raiz);
+            let Some(raiz) = raiz else {
+                return true;
+            };
+            let codigo = *vistos.entry(raiz.clone()).or_insert_with(|| {
+                git::remotos(&raiz)
+                    .unwrap_or_default()
+                    .iter()
+                    .any(|url| aponta_para(url, forja))
+            });
+            !codigo
+        })
+        .collect()
+}
+
+/// Host (sem usuário nem porta) e caminho (sem `.git` nem barras nas pontas) de
+/// uma URL de remoto do git: `https://host/a/b.git`, `ssh://git@host:22/a/b`,
+/// `git@host:a/b.git`. Em minúsculas, para comparar.
+fn host_e_caminho(url: &str) -> Option<(String, String)> {
+    let url = url.trim();
+    let (autoridade, caminho) = if let Some((_, resto)) = url.split_once("://") {
+        resto.split_once('/')?
+    } else {
+        // Forma scp do ssh: [usuário@]host:caminho.
+        let (antes, depois) = url.split_once(':')?;
+        if antes.contains('/') {
+            return None;
+        }
+        (antes, depois)
+    };
+    let host = autoridade.rsplit_once('@').map_or(autoridade, |(_, h)| h);
+    let host = host.split_once(':').map_or(host, |(h, _)| h);
+    let caminho = caminho.trim_matches('/');
+    let caminho = caminho.strip_suffix(".git").unwrap_or(caminho);
+    if host.is_empty() || caminho.is_empty() {
+        return None;
+    }
+    Some((host.to_ascii_lowercase(), caminho.to_ascii_lowercase()))
+}
+
+/// Se a URL do remoto aponta para o repositório de código cadastrado.
+pub fn aponta_para(url: &str, forja: &ForgeConfig) -> bool {
+    let Some((host, caminho)) = host_e_caminho(url) else {
+        return false;
+    };
+    let mesmo = |h: &str, c: &str| {
+        let h = h.trim().to_ascii_lowercase();
+        let c = c.trim().trim_matches('/').to_ascii_lowercase();
+        !c.is_empty() && host == h && caminho == c
+    };
+    match forja {
+        ForgeConfig::Github(g) => mesmo("github.com", &g.repo) || mesmo("ssh.github.com", &g.repo),
+        ForgeConfig::Gitlab(g) => mesmo(&g.host, &g.path),
+    }
 }
 
 /// Tarefa feita fora do caminho do hook.

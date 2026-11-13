@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type {
   Afirmacao,
   Confianca,
@@ -23,7 +24,7 @@ export const ROTULO_SESSAO: Record<EstadoSessao, string> = {
   encerrada: "Sessão encerrada",
 };
 
-const ROTULO_ANALISE: Record<EstadoAnalise, string> = {
+export const ROTULO_ANALISE: Record<EstadoAnalise, string> = {
   criada: "criada",
   "em-andamento": "em andamento",
   concluida: "concluída, aguardando revisão",
@@ -73,17 +74,33 @@ export function chaveEvidencia(e: Evidencia): string {
   return `${e.arquivo}:${e.linhas}`;
 }
 
+/** Onde uma evidência foi escolhida: o trecho abre logo abaixo dela (#130). */
+export type OrigemEvidencia = `afirmacao-${number}` | `sugestao-${number}`;
+
 interface Props {
   vista: VistaAnalise;
-  /** Evidência aberta ao lado (destacada na lista). */
+  /** Evidência aberta (destacada na lista). */
   evidenciaAberta?: string | null;
-  aoAbrirEvidencia: (e: Evidencia) => void;
+  aoAbrirEvidencia: (e: Evidencia, origem: OrigemEvidencia) => void;
+  /** Trecho da evidência aberta, mostrado abaixo do item em `origemTrecho`. */
+  trecho?: ReactNode;
+  origemTrecho?: OrigemEvidencia | null;
   /** Ações de revisão do analista (#37); sem elas, ou com a análise aprovada, só leitura. */
   revisao?: Revisao;
+  /** Sem o cabeçalho (id, título, estado e sessão), quando a barra da tela já os mostra. */
+  semCabecalho?: boolean;
 }
 
 /** Documento da análise montado ao vivo a partir do estado gravado. */
-export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia, revisao }: Props) {
+export function DocumentoAoVivo({
+  vista,
+  evidenciaAberta,
+  aoAbrirEvidencia,
+  trecho,
+  origemTrecho,
+  revisao,
+  semCabecalho = false,
+}: Props) {
   const { analise } = vista;
   // Aprovada, a revisão fecha: as regras já foram para a base.
   const rev = analise.estado === "aprovada" ? undefined : revisao;
@@ -95,15 +112,17 @@ export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia, revi
 
   return (
     <article className="documento-ao-vivo" aria-label="Documento da análise">
-      <header>
-        <h2>
-          {analise.id}: {analise.titulo}
-        </h2>
-        <p className="muted">
-          Análise {ROTULO_ANALISE[analise.estado]} · versão {analise.versao}
-        </p>
-        <SeloSessao sessao={vista.sessao} />
-      </header>
+      {!semCabecalho && (
+        <header>
+          <h2>
+            {analise.id}: {analise.titulo}
+          </h2>
+          <p className="muted">
+            Análise {ROTULO_ANALISE[analise.estado]} · versão {analise.versao}
+          </p>
+          <SeloSessao sessao={vista.sessao} />
+        </header>
+      )}
 
       <section aria-label="Pergunta">
         <h3>Pergunta</h3>
@@ -155,7 +174,7 @@ export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia, revi
                               className="btn btn-sm evidencia"
                               aria-pressed={evidenciaAberta === chave}
                               title={e.trecho}
-                              onClick={() => aoAbrirEvidencia(e)}
+                              onClick={() => aoAbrirEvidencia(e, `afirmacao-${a.numero}`)}
                             >
                               {chave}
                             </button>
@@ -167,6 +186,7 @@ export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia, revi
                       })}
                     </ul>
                   )}
+                  {origemTrecho === `afirmacao-${a.numero}` && trecho}
                   {rev && <AcoesAfirmacao afirmacao={a} revisao={rev} />}
                 </li>
               ))}
@@ -209,11 +229,14 @@ export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia, revi
                     type="button"
                     className="btn btn-sm evidencia"
                     aria-pressed={evidenciaAberta === chaveEvidencia(s.evidencia)}
-                    onClick={() => s.evidencia && aoAbrirEvidencia(s.evidencia)}
+                    onClick={() =>
+                      s.evidencia && aoAbrirEvidencia(s.evidencia, `sugestao-${s.numero}`)
+                    }
                   >
                     {chaveEvidencia(s.evidencia)}
                   </button>
                 )}
+                {origemTrecho === `sugestao-${s.numero}` && trecho}
                 {rev && s.estado === "proposta" && (
                   <AcoesAceite
                     tipo="sugestao"

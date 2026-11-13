@@ -159,6 +159,12 @@ function montar(c: ReturnType<typeof cenarioRevisao>, abertura: Abertura = { tip
   return terminal;
 }
 
+/** Abre um painel da barra (Aprovar, Exportar) e devolve a região de dentro. */
+async function abrirPainel(botao: string, regiao: string) {
+  fireEvent.click(await screen.findByRole("button", { name: botao }));
+  return screen.findByRole("region", { name: regiao });
+}
+
 const afirmacao = (n: number) => screen.getByRole("group", { name: `Revisão da afirmação ${n}` });
 
 describe("Revisão, aprovação e exportação", () => {
@@ -168,7 +174,7 @@ describe("Revisão, aprovação e exportação", () => {
     await screen.findByText(AFIRMACAO_MULTA.texto);
 
     // Antes da revisão, a aprovação mostra o que falta e fica bloqueada.
-    const aprovacao = await screen.findByRole("region", { name: "Aprovação" });
+    const aprovacao = await abrirPainel("Aprovar", "Aprovação");
     const pendencias = await within(aprovacao).findByRole("list", { name: "Pendências" });
     expect(within(pendencias).getAllByRole("listitem")).toHaveLength(3);
     expect(within(aprovacao).getByRole("button", { name: "Aprovar análise" })).toBeDisabled();
@@ -241,7 +247,11 @@ describe("Revisão, aprovação e exportação", () => {
     expect(within(resultado).getByText("Carência: criada")).toBeInTheDocument();
 
     // Aprovada: o documento fica só de leitura, e a incorreta segue registrada.
-    await screen.findByText(/Análise aprovada ·/);
+    // O estado da análise fica na barra do topo.
+    expect(await within(screen.getByRole("banner")).findByText("aprovada")).toHaveAttribute(
+      "data-tone",
+      "done",
+    );
     expect(screen.queryByRole("group", { name: "Revisão da afirmação 1" })).not.toBeInTheDocument();
     expect(c.estado().afirmacoes[1]).toMatchObject({
       estado: "incorreta",
@@ -293,6 +303,7 @@ describe("Revisão, aprovação e exportação", () => {
     await waitFor(() => expect(terminal.aberturas.length).toBe(1));
     await act(async () => terminal.aberturas[0].resolver(5));
     await screen.findByText(AFIRMACAO_MULTA.texto);
+    fireEvent.click(await screen.findByRole("button", { name: "Prompts prontos" }));
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Aprofundar a análise" })).toBeEnabled(),
     );
@@ -319,7 +330,7 @@ describe("Revisão, aprovação e exportação", () => {
     const c = cenarioRevisao([AREAS[0]]);
     montar(c);
     await screen.findByText(AFIRMACAO_MULTA.texto);
-    const aprovacao = await screen.findByRole("region", { name: "Aprovação" });
+    const aprovacao = await abrirPainel("Aprovar", "Aprovação");
     await waitFor(() =>
       expect(within(aprovacao).getByLabelText("Área das regras")).toHaveValue("cobranca"),
     );
@@ -328,7 +339,7 @@ describe("Revisão, aprovação e exportação", () => {
   it("exporta para Word e Markdown com o diálogo de salvar", async () => {
     const c = cenarioRevisao();
     montar(c);
-    const exportacao = await screen.findByRole("region", { name: "Exportação" });
+    const exportacao = await abrirPainel("Exportar", "Exportação");
     expect(within(exportacao).getByText(/sai como rascunho/)).toBeInTheDocument();
     fireEvent.click(within(exportacao).getByRole("button", { name: "Exportar…" }));
     await waitFor(() =>
