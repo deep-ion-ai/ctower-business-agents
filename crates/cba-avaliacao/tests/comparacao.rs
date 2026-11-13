@@ -77,6 +77,7 @@ fn perguntar(a: &mut Analise, texto: &str) {
         texto: texto.into(),
         afirmacao: None,
         estado: EstadoPergunta::Aberta,
+        resposta_enviada: false,
         sessao: None,
         registrada_ms: 0,
     });

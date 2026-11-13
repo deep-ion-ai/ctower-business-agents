@@ -19,7 +19,10 @@ vi.mock("./telaXterm", () => ({ criarTelaXterm: vi.fn() }));
 function montar(abertura: Abertura, vista?: VistaAnalise, opcoes?: OpcoesConversa) {
   const analise = apiAnaliseFalsa(vista);
   const terminal = apiTerminalFalsa();
-  const conversa = apiConversaFalsa(opcoes);
+  // Como o Rust: a sessão da análise vem nas opções (conversa gravada, retomável).
+  const conversa = apiConversaFalsa(
+    opcoes ?? (vista?.sessao ? opcoesFicticias({ sessao: vista.sessao.id }) : undefined),
+  );
   const tela = telaFalsa();
   const aoVoltar = vi.fn();
   const r = render(
@@ -99,7 +102,8 @@ describe("PainelAnalise", () => {
       { tipo: "reabrir" },
       vistaFicticia({}, { afirmacoes: [AFIRMACAO_MULTA] }),
     );
-    fireEvent.click(await screen.findByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Ver .*evidência.* no código$/ }));
+    fireEvent.click(screen.getByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
     expect(api.trechoEvidencia).toHaveBeenCalledWith(
       "faturamento-exemplo",
       "db/03_pkg_cobranca.sql",
@@ -155,7 +159,8 @@ describe("PainelAnalise", () => {
 
   it("abre o trecho da evidência logo abaixo da afirmação", async () => {
     montar({ tipo: "reabrir" }, vistaFicticia({}, { afirmacoes: [AFIRMACAO_MULTA] }));
-    fireEvent.click(await screen.findByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Ver .*evidência.* no código$/ }));
+    fireEvent.click(screen.getByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
     const afirmacao = screen.getByTestId(`afirmacao-${AFIRMACAO_MULTA.numero}`);
     expect(
       await within(afirmacao).findByRole("region", { name: "Trecho da evidência" }),
@@ -163,6 +168,24 @@ describe("PainelAnalise", () => {
     // Clicar de novo na mesma evidência fecha o trecho.
     fireEvent.click(screen.getByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
     expect(screen.queryByRole("region", { name: "Trecho da evidência" })).not.toBeInTheDocument();
+  });
+
+  it("deixa as evidências recolhidas atrás do ícone de código", async () => {
+    montar({ tipo: "reabrir" }, vistaFicticia({}, { afirmacoes: [AFIRMACAO_MULTA] }));
+    const ver = await screen.findByRole("button", { name: /^Ver .*evidência.* no código$/ });
+    expect(ver).toHaveAttribute("aria-expanded", "false");
+    expect(
+      screen.queryByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(ver);
+    fireEvent.click(screen.getByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
+    expect(await screen.findByRole("region", { name: "Trecho da evidência" })).toBeInTheDocument();
+    // Ocultar o código fecha também o trecho aberto.
+    fireEvent.click(screen.getByRole("button", { name: /^Ocultar .* no código$/ }));
+    expect(screen.queryByRole("region", { name: "Trecho da evidência" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }),
+    ).not.toBeInTheDocument();
   });
 
   it("mostra a recusa de um trecho fora do escopo", async () => {
@@ -173,7 +196,8 @@ describe("PainelAnalise", () => {
     api.trechoEvidencia.mockRejectedValue(
       "`db/03_pkg_cobranca.sql`: caminho fora das pastas do projeto",
     );
-    fireEvent.click(await screen.findByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Ver .*evidência.* no código$/ }));
+    fireEvent.click(screen.getByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "caminho fora das pastas do projeto",
     );
@@ -298,6 +322,41 @@ describe("PainelAnalise", () => {
     expect(terminal.aberturas[0].pedido).toEqual({ retomada: { modo: "sessao", id: "sessao-9" } });
   });
 
+  it("depois do fim da sessão, continuar reabre a sessão desta análise, não a última da pasta", async () => {
+    const { terminal } = montar(
+      { tipo: "reabrir" },
+      vistaFicticia({ sessao: { id: "sessao-9", estado: "encerrada", cliente: "claude-code" } }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Escolher onde continuar" }));
+    fireEvent.click(within(abrirMenu()).getByRole("button", { name: "Retomar a conversa" }));
+    await waitFor(() => expect(terminal.aberturas).toHaveLength(1));
+    await act(async () => terminal.aberturas[0].resolver(1));
+    // O `--resume` falhou (por exemplo, sessão sem transcrição) e o processo saiu.
+    act(() => terminal.aberturas[0].aoEvento({ tipo: "encerrado", fim: { codigo: 1 } }));
+    const term = await screen.findByRole("region", { name: "Terminal do Claude Code" });
+    fireEvent.click(await within(term).findByRole("button", { name: "Continuar a conversa" }));
+    await waitFor(() => expect(terminal.aberturas).toHaveLength(2));
+    expect(terminal.aberturas[1].pedido).toEqual({ retomada: { modo: "sessao", id: "sessao-9" } });
+  });
+
+  it("sessão sem conversa gravada não é oferecida para retomar", async () => {
+    const { terminal } = montar(
+      { tipo: "reabrir" },
+      vistaFicticia({ sessao: { id: "f435", estado: "encerrada", cliente: "claude-code" } }),
+      opcoesFicticias({ sessao: null, pedido: "Retome a análise A-0001 pelo ctower" }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Escolher onde continuar" }));
+    const menu = abrirMenu();
+    expect(within(menu).queryByRole("button", { name: "Retomar a conversa" })).not.toBeInTheDocument();
+    fireEvent.click(
+      await within(menu).findByRole("button", { name: "Nova conversa sobre esta análise" }),
+    );
+    await waitFor(() => expect(terminal.aberturas).toHaveLength(1));
+    expect(terminal.aberturas[0].pedido).toEqual({
+      promptInicial: "Retome a análise A-0001 pelo ctower",
+    });
+  });
+
   it("reabre uma análise sem sessão com o pedido de retomar_analise", async () => {
     const { terminal } = montar({ tipo: "reabrir" });
     await screen.findByText("Nenhuma afirmação registrada ainda.");
@@ -349,10 +408,14 @@ describe("PainelAnalise", () => {
       ["terminalDoAnalista", null],
     ]);
     expect(within(menu).getByText("preferido")).toBeInTheDocument();
-    // Voltar à conversa aqui, sem sessão ligada ainda: a mais recente da pasta.
+    // Voltar à conversa aqui, sem sessão ligada ainda: conversa nova com o pedido da
+    // análise, nunca a mais recente da pasta (pode ser de outra análise).
     fireEvent.click(within(menu).getByRole("button", { name: "Voltar à conversa aqui" }));
     await waitFor(() => expect(terminal.aberturas).toHaveLength(1));
-    expect(terminal.aberturas[0].pedido).toEqual({ retomada: { modo: "continuar" } });
+    expect(terminal.aberturas[0].pedido).toEqual({
+      retomada: { modo: "nova" },
+      promptInicial: "Inicie a análise A-0001 pelo ctower",
+    });
   });
 
   it("sem as opções (comando ausente), a análise nova usa o terminal embutido", async () => {

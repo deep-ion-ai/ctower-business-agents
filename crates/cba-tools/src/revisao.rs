@@ -75,15 +75,19 @@ pub enum Decisao {
     Sugestao { numero: u32, estado: StatusSugestao },
     /// Aceitar ou recusar um termo proposto.
     Termo { numero: u32, estado: EstadoTermo },
+    /// Nova definição de um termo proposto ou aceito.
+    EditarTermo { numero: u32, definicao: String },
+    /// As respostas destas perguntas foram enviadas ao agente.
+    RespostasEnviadas { numeros: Vec<u32> },
 }
 
 impl Decisao {
     fn mudanca(&self) -> Mudanca {
         match self {
             Self::Afirmacao { .. } | Self::EditarAfirmacao { .. } => Mudanca::Afirmacao,
-            Self::Pergunta { .. } => Mudanca::Pergunta,
+            Self::Pergunta { .. } | Self::RespostasEnviadas { .. } => Mudanca::Pergunta,
             Self::Sugestao { .. } => Mudanca::Sugestao,
-            Self::Termo { .. } => Mudanca::Termo,
+            Self::Termo { .. } | Self::EditarTermo { .. } => Mudanca::Termo,
         }
     }
 
@@ -97,6 +101,8 @@ impl Decisao {
             Self::Pergunta { numero, estado } => a.decidir_pergunta(numero, estado),
             Self::Sugestao { numero, estado } => a.decidir_sugestao(numero, estado),
             Self::Termo { numero, estado } => a.decidir_termo(numero, estado),
+            Self::EditarTermo { numero, definicao } => a.editar_termo(numero, &definicao),
+            Self::RespostasEnviadas { numeros } => a.marcar_respostas_enviadas(&numeros),
         }
     }
 }
@@ -237,7 +243,7 @@ pub fn pendencias(analise: &Analise) -> Vec<Pendencia> {
     for a in &analise.afirmacoes {
         let motivo = match a.estado {
             EstadoAfirmacao::Registrada => "sem decisão: confirme ou marque como incorreta",
-            EstadoAfirmacao::Aprofundar => {
+            EstadoAfirmacao::Aprofundar { .. } => {
                 "aprofundamento pedido: espere o agente ou decida assim mesmo"
             }
             EstadoAfirmacao::ARevalidar => "a revalidar: o código mudou desde o registro",
@@ -522,7 +528,8 @@ mod tests {
         );
         a.concluir().unwrap();
         a.marcar_afirmacao(1, EstadoAfirmacao::Confirmada).unwrap();
-        a.marcar_afirmacao(2, EstadoAfirmacao::Aprofundar).unwrap();
+        a.marcar_afirmacao(2, EstadoAfirmacao::Aprofundar { pedido: None })
+            .unwrap();
         a.decidir_termo(1, EstadoTermo::Recusado).unwrap();
         let p = pendencias(&a);
         assert_eq!(p.len(), 1);
@@ -558,10 +565,25 @@ mod tests {
         .unwrap();
         assert!(matches!(d, Decisao::Pergunta { numero: 1, .. }));
         let d: Decisao = serde_json::from_value(serde_json::json!({
+            "tipo": "respostas-enviadas", "numeros": [1, 3]
+        }))
+        .unwrap();
+        assert_eq!(
+            d,
+            Decisao::RespostasEnviadas {
+                numeros: vec![1, 3]
+            }
+        );
+        let d: Decisao = serde_json::from_value(serde_json::json!({
             "tipo": "editar-afirmacao", "numero": 1, "texto": "Novo."
         }))
         .unwrap();
         assert!(matches!(d, Decisao::EditarAfirmacao { numero: 1, .. }));
+        let d: Decisao = serde_json::from_value(serde_json::json!({
+            "tipo": "editar-termo", "numero": 2, "definicao": "Nova."
+        }))
+        .unwrap();
+        assert!(matches!(d, Decisao::EditarTermo { numero: 2, .. }));
         for (tipo, estado) in [("sugestao", "aceita"), ("termo", "recusado")] {
             let d: Result<Decisao, _> = serde_json::from_value(
                 serde_json::json!({ "tipo": tipo, "numero": 1, "estado": estado }),

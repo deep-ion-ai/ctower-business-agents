@@ -729,7 +729,6 @@
   flex: 1;
   min-height: 0;
   display: flex;
-  flex-wrap: wrap;
   align-items: stretch;
   overflow: auto;
 }
@@ -744,37 +743,78 @@
 }
 
 .painel-documento {
-  flex: 999 1 640px;
+  flex: 1 1 0;
   max-height: 100%;
   overflow-y: auto;
   box-sizing: border-box;
   padding: 20px 28px 32px;
-  border-right: 1px solid var(--border);
   background: var(--surface);
 }
 
 .painel-conversa {
-  flex: 1 1 420px;
-  max-width: 520px;
+  /* Largura do divisor arrastável (#130). */
+  flex: 0 0 var(--largura-conversa, 460px);
   max-height: 100%;
   box-sizing: border-box;
   background: var(--bg-side);
 }
 
 /* Empilhadas (a conversa ocupa a linha toda), cada uma com altura própria. */
+/* Divisor entre o documento e a conversa: a linha fina e uma área de pega maior. */
+.divisor-colunas {
+  position: relative;
+  flex: 0 0 1px;
+  background: var(--border);
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.divisor-colunas::before {
+  content: "";
+  position: absolute;
+  inset: 0 -4px;
+  z-index: 1;
+}
+
+.divisor-colunas:hover,
+.divisor-colunas[data-arrastando],
+.divisor-colunas:focus-visible {
+  background: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* Arrastando: sem selecionar texto nem o terminal roubar o ponteiro. */
+.painel-colunas:has(.divisor-colunas[data-arrastando]) {
+  user-select: none;
+  cursor: col-resize;
+}
+
+.painel-colunas:has(.divisor-colunas[data-arrastando]) .painel-conversa {
+  pointer-events: none;
+}
+
 @media (max-width: 1100px) {
+  .painel-colunas {
+    flex-direction: column;
+  }
+
+  .divisor-colunas {
+    display: none;
+  }
+
   .painel-documento,
   .painel-conversa {
     max-height: none;
   }
 
   .painel-documento {
-    border-right: 0;
+    flex: none;
     border-bottom: 1px solid var(--border);
   }
 
   .painel-conversa {
-    max-width: none;
+    flex: none;
     min-height: 28rem;
   }
 }
@@ -1105,3 +1145,187 @@
 }
 
 
+
+/* Ações da revisão: ícones compactos, com a dica no title (#130). */
+.acoes-revisao {
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.btn-acao {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 6px;
+  color: var(--muted);
+}
+
+.btn-acao[data-tom="ok"]:hover:not(:disabled) {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+
+.btn-acao[data-tom="erro"]:hover:not(:disabled) {
+  color: var(--error);
+  border-color: var(--error);
+}
+
+.btn-acao:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Código no texto das afirmações (#130). */
+.afirmacao .texto code,
+.codigo-afirmacao {
+  font-family: var(--mono);
+  font-size: 0.86em;
+  background: var(--hover);
+  border-radius: 4px;
+}
+
+.afirmacao .texto code {
+  padding: 1px 4px;
+  overflow-wrap: anywhere;
+}
+
+.ver-codigo {
+  margin: 0 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.9em;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.codigo-afirmacao {
+  display: block;
+  margin: 6px 0;
+  padding: 8px 10px;
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Rodapé da afirmação: o ícone do código e as ações da revisão numa linha (#130). */
+.rodape-afirmacao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.rodape-afirmacao .acoes-revisao {
+  margin-top: 0;
+}
+
+.rodape-afirmacao .acoes-revisao:has(.form-revisao) {
+  flex-basis: 100%;
+  order: 1;
+}
+
+.acoes-revisao .form-revisao {
+  flex: 1 1 100%;
+}
+
+.btn-codigo {
+  gap: 3px;
+}
+
+.btn-codigo[aria-expanded="true"] {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.contador-codigo {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Texto da afirmação em Markdown (#130): o primeiro parágrafo segue o selo na
+   mesma linha; listas e parágrafos seguintes vêm abaixo. */
+.afirmacao .texto > p {
+  margin: 6px 0 0;
+}
+
+.afirmacao .texto > p:first-child {
+  display: inline;
+  margin: 0;
+}
+
+.afirmacao .texto ul,
+.afirmacao .texto ol {
+  margin: 6px 0 0;
+  padding-left: 22px;
+}
+
+.afirmacao .texto li {
+  margin: 2px 0;
+}
+
+.afirmacao .texto blockquote {
+  margin: 6px 0 0;
+}
+
+.afirmacao .texto table {
+  margin-top: 6px;
+  border-collapse: collapse;
+  font-size: 0.92em;
+}
+
+.afirmacao .texto th,
+.afirmacao .texto td {
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
+.destaque-afirmacao {
+  display: block;
+  margin: 6px 0 0;
+}
+
+.afirmacao .texto > .destaque-afirmacao:first-child {
+  display: inline;
+  margin: 0;
+}
+
+/* Pedido de aprofundamento (#130). */
+.dialogo-aprofundar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: min(28rem, 80vw);
+}
+
+.dialogo-aprofundar blockquote {
+  max-height: 8rem;
+  margin: 0 0 6px;
+  padding-left: 8px;
+  overflow: auto;
+  border-left: 2px solid var(--border-strong);
+}
+
+.dialogo-aprofundar textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+/* Envio das respostas ao agente (#130). */
+.enviar-respostas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.enviar-respostas .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}

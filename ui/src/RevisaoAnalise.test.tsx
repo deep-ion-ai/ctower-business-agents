@@ -33,7 +33,7 @@ const AREAS = [
 ];
 
 /** Análise concluída do sistema fictício, com a revisão aplicada como o Rust faria. */
-function cenarioRevisao(areas = AREAS) {
+function cenarioRevisao(areas = AREAS, maisPerguntas: Analise["perguntas"] = []) {
   let estado: Analise = vistaFicticia(
     {},
     {
@@ -46,6 +46,7 @@ function cenarioRevisao(areas = AREAS) {
           estado: "aberta",
           registrada_ms: 4,
         },
+        ...maisPerguntas,
       ],
       termos: [
         {
@@ -63,13 +64,27 @@ function cenarioRevisao(areas = AREAS) {
     const a = structuredClone(estado);
     if (d.tipo === "afirmacao") {
       const x = a.afirmacoes.find((y) => y.numero === d.numero)!;
-      Object.assign(x, d.estado === "incorreta" ? { estado: d.estado, comentario: d.comentario } : { estado: d.estado });
+      delete (x as { pedido?: string }).pedido;
+      Object.assign(
+        x,
+        d.estado === "incorreta"
+          ? { estado: d.estado, comentario: d.comentario }
+          : d.estado === "aprofundar" && d.pedido
+            ? { estado: d.estado, pedido: d.pedido }
+            : { estado: d.estado },
+      );
     } else if (d.tipo === "editar-afirmacao") {
       const x = a.afirmacoes.find((y) => y.numero === d.numero)!;
       x.texto_original = x.texto_original ?? x.texto;
       x.texto = d.texto;
+    } else if (d.tipo === "editar-termo") {
+      const t = a.termos.find((y) => y.numero === d.numero)!;
+      t.definicao_original = t.definicao_original ?? t.definicao;
+      t.definicao = d.definicao;
     } else if (d.tipo === "termo") {
       a.termos.find((t) => t.numero === d.numero)!.estado = d.estado;
+    } else if (d.tipo === "respostas-enviadas") {
+      for (const p of a.perguntas) if (d.numeros.includes(p.numero)) p.resposta_enviada = true;
     } else if (d.tipo === "pergunta") {
       Object.assign(a.perguntas.find((p) => p.numero === d.numero)!, d);
     }
@@ -277,7 +292,40 @@ describe("Revisão, aprovação e exportação", () => {
     );
     expect(await screen.findByText("Depois da carência, a multa é de 2%.")).toBeInTheDocument();
     expect(screen.getByText(/texto editado pelo analista/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" })).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: /^Ver .*evidência.* no código$/ }).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("edita a definição do termo proposto para o glossário", async () => {
+    const c = cenarioRevisao();
+    montar(c);
+    const grupo = await screen.findByRole("group", { name: "Revisão do termo Carência" });
+    fireEvent.click(within(grupo).getByRole("button", { name: "Editar definição" }));
+    const campo = screen.getByLabelText('Definição de "Carência" para o glossário');
+    expect(campo).toHaveValue("Dias sem multa depois do vencimento.");
+    fireEvent.change(campo, {
+      target: { value: "Prazo, em dias corridos após o vencimento, em que não se cobra multa." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar definição" }));
+    await waitFor(() =>
+      expect(c.revisao.revisar).toHaveBeenCalledWith("faturamento-exemplo", "A-0001", {
+        tipo: "editar-termo",
+        numero: 1,
+        definicao: "Prazo, em dias corridos após o vencimento, em que não se cobra multa.",
+      }),
+    );
+    expect(
+      await screen.findByText(/Prazo, em dias corridos após o vencimento/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/definição editada pelo analista/)).toBeInTheDocument();
+    // Depois de editar, o termo continua esperando aceite ou recusa.
+    expect(
+      within(screen.getByRole("group", { name: "Revisão do termo Carência" })).getByRole(
+        "button",
+        { name: "Aceitar" },
+      ),
+    ).toBeInTheDocument();
   });
 
   it("mostra a recusa da revisão", async () => {
@@ -289,16 +337,27 @@ describe("Revisão, aprovação e exportação", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("já foi aprovada");
   });
 
-  it("pedir aprofundamento envia o prompt pronto à sessão viva", async () => {
+  /** Clica em Aprofundar, detalha o pedido na modal e confirma. */
+  async function pedirAprofundamento(numero: number, pedido: string, rotulo = "Aprofundar") {
+    fireEvent.click(within(afirmacao(numero)).getByRole("button", { name: rotulo }));
+    const dialogo = await screen.findByRole("dialog", { name: `Aprofundar a afirmação ${numero}` });
+    const campo = within(dialogo).getByLabelText(/O que você quer que o agente aprofunde/);
+    expect(campo).toHaveFocus();
+    fireEvent.change(campo, { target: { value: pedido } });
+    fireEvent.click(within(dialogo).getByRole("button", { name: "Pedir aprofundamento" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  }
+
+  const PRONTO_APROFUNDAR = {
+    id: "aprofundar",
+    rotulo: "Aprofundar a análise",
+    descricao: "",
+    texto: "Aprofunde a análise A-0001 pelo ctower.",
+  };
+
+  it("pedir aprofundamento abre a modal e envia o detalhe à sessão viva", async () => {
     const c = cenarioRevisao();
-    c.analise.api.promptsProntos.mockResolvedValue([
-      {
-        id: "aprofundar",
-        rotulo: "Aprofundar a análise",
-        descricao: "",
-        texto: "Aprofunde a análise A-0001 pelo ctower.",
-      },
-    ]);
+    c.analise.api.promptsProntos.mockResolvedValue([PRONTO_APROFUNDAR]);
     const terminal = montar(c, { tipo: "nova", promptInicial: "Inicie" });
     await waitFor(() => expect(terminal.aberturas.length).toBe(1));
     await act(async () => terminal.aberturas[0].resolver(5));
@@ -307,23 +366,120 @@ describe("Revisão, aprovação e exportação", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Aprofundar a análise" })).toBeEnabled(),
     );
-    fireEvent.click(within(afirmacao(2)).getByRole("button", { name: "Aprofundar" }));
+    await pedirAprofundamento(2, "Quais perfis\npodem consultar?");
     await waitFor(() =>
       expect(terminal.api.enviarPrompt).toHaveBeenCalledWith(
         5,
-        "Aprofunde a análise A-0001 pelo ctower. Comece pela afirmação 2.",
+        "Aprofunde a análise A-0001 pelo ctower. Comece pela afirmação 2; o analista quer: Quais perfis podem consultar?",
       ),
     );
-    expect(c.estado().afirmacoes[1].estado).toBe("aprofundar");
+    expect(c.estado().afirmacoes[1]).toMatchObject({
+      estado: "aprofundar",
+      pedido: "Quais perfis\npodem consultar?",
+    });
+  });
+
+  it("cancelar a modal não registra o aprofundamento", async () => {
+    const c = cenarioRevisao();
+    montar(c);
+    await screen.findByText(AFIRMACAO_MULTA.texto);
+    fireEvent.click(within(afirmacao(2)).getByRole("button", { name: "Aprofundar" }));
+    const dialogo = await screen.findByRole("dialog");
+    fireEvent.keyDown(dialogo, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(c.revisao.revisar).not.toHaveBeenCalled();
   });
 
   it("sem a conversa aberta, o aprofundamento fica registrado com o aviso", async () => {
     const c = cenarioRevisao();
     montar(c);
     await screen.findByText(AFIRMACAO_MULTA.texto);
-    fireEvent.click(within(afirmacao(2)).getByRole("button", { name: "Aprofundar" }));
+    await pedirAprofundamento(2, "");
     expect(await screen.findByText(/Aprofundamento registrado/)).toBeInTheDocument();
     expect(await screen.findByText("(aprofundamento pedido)")).toBeInTheDocument();
+    expect(c.estado().afirmacoes[1]).not.toHaveProperty("pedido");
+  });
+
+  it("aprofundamento já registrado pode ser pedido de novo, com o pedido anterior na modal", async () => {
+    const c = cenarioRevisao();
+    c.analise.api.promptsProntos.mockResolvedValue([PRONTO_APROFUNDAR]);
+    const terminal = montar(c, { tipo: "nova", promptInicial: "Inicie" });
+    await screen.findByText(AFIRMACAO_MULTA.texto);
+    await pedirAprofundamento(2, "Quais perfis?");
+    expect(await screen.findByText("Quais perfis?")).toBeInTheDocument();
+    await waitFor(() => expect(terminal.aberturas.length).toBe(1));
+    await act(async () => terminal.aberturas[0].resolver(5));
+    const deNovo = within(afirmacao(2)).getByRole("button", {
+      name: "Pedir o aprofundamento de novo",
+    });
+    await waitFor(() => expect(deNovo).toBeEnabled());
+    fireEvent.click(deNovo);
+    const dialogo = await screen.findByRole("dialog");
+    expect(within(dialogo).getByLabelText(/O que você quer/)).toHaveValue("Quais perfis?");
+    fireEvent.click(within(dialogo).getByRole("button", { name: "Pedir aprofundamento" }));
+    await waitFor(() =>
+      expect(terminal.api.enviarPrompt).toHaveBeenCalledWith(
+        5,
+        "Aprofunde a análise A-0001 pelo ctower. Comece pela afirmação 2; o analista quer: Quais perfis?",
+      ),
+    );
+  });
+
+  it("envia ao agente as respostas dadas, sem exigir todas as perguntas respondidas", async () => {
+    const c = cenarioRevisao(AREAS, [
+      { numero: 2, texto: "Vale para órgão público?", estado: "aberta", registrada_ms: 5 },
+      { numero: 3, texto: "E aos sábados?", estado: "aberta", registrada_ms: 6 },
+    ]);
+    const terminal = montar(c, { tipo: "nova", promptInicial: "Inicie" });
+    const perguntas = await screen.findByRole("region", { name: "Perguntas em aberto" });
+    expect(within(perguntas).queryByRole("button", { name: /^Enviar/ })).not.toBeInTheDocument();
+
+    const responder = async (numero: number, resposta: string) => {
+      const item = within(perguntas).getByText(c.estado().perguntas[numero - 1].texto).closest("li")!;
+      fireEvent.click(within(item).getByRole("button", { name: "Responder" }));
+      fireEvent.change(within(item).getByLabelText("Resposta"), { target: { value: resposta } });
+      fireEvent.click(within(item).getByRole("button", { name: "Salvar resposta" }));
+      await waitFor(() =>
+        expect(c.estado().perguntas[numero - 1].estado).toBe("respondida"),
+      );
+    };
+    await responder(1, "Sim, com\nas mesmas regras.");
+    await responder(3, "Não.");
+
+    // Sem a conversa aberta, o botão explica por que não envia.
+    const enviar = await within(perguntas).findByRole("button", { name: /Enviar 2 respostas/ });
+    expect(enviar).toBeDisabled();
+    expect(within(perguntas).getByText(/Abra a conversa aqui/)).toBeInTheDocument();
+
+    await waitFor(() => expect(terminal.aberturas.length).toBe(1));
+    await act(async () => terminal.aberturas[0].resolver(5));
+    await waitFor(() => expect(enviar).toBeEnabled());
+    fireEvent.click(enviar);
+    await waitFor(() =>
+      expect(terminal.api.enviarPrompt).toHaveBeenCalledWith(
+        5,
+        expect.stringContaining(
+          'Pergunta 1 ("A carência vale para pessoa jurídica?"): Sim, com as mesmas regras. | ' +
+            'Pergunta 3 ("E aos sábados?"): Não.',
+        ),
+      ),
+    );
+    await waitFor(() =>
+      expect(c.revisao.revisar).toHaveBeenLastCalledWith("faturamento-exemplo", "A-0001", {
+        tipo: "respostas-enviadas",
+        numeros: [1, 3],
+      }),
+    );
+    // Enviadas, ficam marcadas e o botão some; a pergunta 2 segue aberta.
+    expect(await within(perguntas).findAllByText(/\(enviada ao agente\)/)).toHaveLength(2);
+    expect(within(perguntas).queryByRole("button", { name: /^Enviar/ })).not.toBeInTheDocument();
+    expect(c.estado().perguntas[1].estado).toBe("aberta");
+
+    // Uma resposta nova depois do envio volta a oferecer o botão, só com ela.
+    await responder(2, "Sim.");
+    expect(
+      await within(perguntas).findByRole("button", { name: "Enviar resposta" }),
+    ).toBeEnabled();
   });
 
   it("com uma área só, ela já vem escolhida", async () => {

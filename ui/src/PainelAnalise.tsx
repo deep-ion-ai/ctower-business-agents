@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   apiAlteracoesTauri,
   intervaloDe,
@@ -6,12 +6,14 @@ import {
   type ApiAlteracoes,
   type ApiAnalise,
   type Evidencia,
+  type Pergunta,
 } from "./analise";
 import type { Revisao } from "./AcoesRevisao";
 import { AprovacaoAnalise } from "./AprovacaoAnalise";
 import { AvisoAlteracao } from "./AvisoAlteracao";
 import { BotaoPainel } from "./BotaoPainel";
 import { ClientesConversa, type Modo } from "./ClientesConversa";
+import { DivisorColunas, useLarguraConversa } from "./DivisorColunas";
 import {
   apiConversaTauri,
   comoOpcoes,
@@ -110,6 +112,8 @@ export function PainelAnalise({
 }: Props) {
   const { vista, erro, recarregar } = useAnaliseAoVivo(api, projeto, analise);
   const [revisando, setRevisando] = useState(false);
+  const colunas = useRef<HTMLDivElement>(null);
+  const [larguraConversa, mudarLarguraConversa] = useLarguraConversa();
   const [falhaRevisao, setFalhaRevisao] = useState<string | null>(null);
   const [opcoes, setOpcoes] = useState<OpcoesConversa | null>(null);
   const [opcoesProntas, setOpcoesProntas] = useState(false);
@@ -127,7 +131,9 @@ export function PainelAnalise({
   const controle = useRef<ControleTerminal>(null);
   const comecou = useRef(false);
   const vivo = estadoTerminal?.fase === "aberto";
-  const sessao = vista?.sessao?.id ?? opcoes?.sessao ?? null;
+  // As opções trazem a sessão só se a conversa dela foi gravada (dá para retomar);
+  // sem as opções (comando ausente), vale a sessão vista pelos hooks.
+  const sessao = opcoes ? opcoes.sessao : (vista?.sessao?.id ?? null);
   const onde: ClienteConversa | null = fora
     ? fora.cliente
     : conversa
@@ -157,9 +163,22 @@ export function PainelAnalise({
     setConversa((c) => ({ chave: (c?.chave ?? 0) + 1, pedido }));
   }, []);
 
+  /**
+   * Retomada desta análise: a sessão dela pelo identificador ou, sem sessão conhecida,
+   * uma conversa nova com o pedido de retomada. Nunca `--continue`, que abre a última
+   * conversa da pasta, de qualquer análise (#130).
+   */
+  const pedidoRetomada = useCallback(
+    (): PedidoClaude =>
+      sessao
+        ? { retomada: { modo: "sessao", id: sessao } }
+        : { retomada: { modo: "nova" }, promptInicial: opcoes?.pedido || undefined },
+    [sessao, opcoes?.pedido],
+  );
+
   const retomar = useCallback(() => {
-    conversar({ retomada: sessao ? { modo: "sessao", id: sessao } : { modo: "continuar" } });
-  }, [conversar, sessao]);
+    conversar(pedidoRetomada());
+  }, [conversar, pedidoRetomada]);
 
   const falhar = (e: unknown) => setFalhaEnvio(mensagemDe(e));
 
@@ -262,20 +281,56 @@ export function PainelAnalise({
   };
 
   /** Pedido de aprofundamento: com a sessão viva aqui, o prompt pronto vai ao terminal. */
-  const aprofundar = (numero: number) => {
+  const aprofundar = (numero: number, pedido?: string) => {
     if (!vivo) return setAviso(AVISO_APROFUNDAR);
     api
       .promptsProntos(projeto, analise)
       .then((lista) => {
         const pronto = lista.find((p) => p.id === "aprofundar");
-        if (pronto) enviar(`${pronto.texto} Comece pela afirmação ${numero}.`);
+        // O terminal envia a cada quebra de linha: o pedido vai numa linha só.
+        const detalhe = pedido?.replace(/\s+/g, " ").trim();
+        if (pronto)
+          enviar(
+            `${pronto.texto} Comece pela afirmação ${numero}` +
+              (detalhe ? `; o analista quer: ${detalhe}` : "."),
+          );
         else setAviso(AVISO_APROFUNDAR);
       })
       .catch(() => setAviso(AVISO_APROFUNDAR));
   };
 
+  /**
+   * Envia ao agente as respostas ainda não enviadas, numa mensagem só, e as marca
+   * como enviadas.
+   */
+  const enviarRespostas = (perguntas: Pergunta[]) => {
+    const linha = (t: string) => t.replace(/\s+/g, " ").trim();
+    const respostas = perguntas
+      .map((p) =>
+        p.estado === "respondida"
+          ? `Pergunta ${p.numero} ("${linha(p.texto)}"): ${linha(p.resposta)}`
+          : "",
+      )
+      .filter(Boolean)
+      .join(" | ");
+    const texto =
+      `Respondi perguntas da análise ${analise}. ${respostas}. ` +
+      "Use estas respostas para atualizar a análise pelo ctower: registre com `afirmar` o " +
+      "que elas confirmam ou corrigem e, se surgir uma dúvida nova, use `perguntar`.";
+    setFalhaEnvio(null);
+    const numeros = perguntas.map((p) => p.numero);
+    controle.current
+      ?.enviarPrompt(texto)
+      .then(
+        // A recusa da marcação aparece como falha da revisão.
+        () => revisao.aoDecidir({ tipo: "respostas-enviadas", numeros }).catch(() => undefined),
+        falhar,
+      );
+  };
+
   const revisao: Revisao = {
     ocupado: revisando,
+    respostas: { disponivel: vivo, aoEnviar: enviarRespostas },
     aoDecidir: (d: DecisaoRevisao) => {
       setRevisando(true);
       setFalhaRevisao(null);
@@ -283,7 +338,7 @@ export function PainelAnalise({
         .revisar(projeto, analise, d)
         .then(() => {
           recarregar();
-          if (d.tipo === "afirmacao" && d.estado === "aprofundar") aprofundar(d.numero);
+          if (d.tipo === "afirmacao" && d.estado === "aprofundar") aprofundar(d.numero, d.pedido);
         })
         .catch((e: unknown) => {
           setFalhaRevisao(mensagemDe(e));
@@ -428,7 +483,11 @@ export function PainelAnalise({
           )}
         </div>
       </header>
-      <div className="painel-colunas">
+      <div
+        className="painel-colunas"
+        ref={colunas}
+        style={{ "--largura-conversa": `${larguraConversa}px` } as CSSProperties}
+      >
         <section className="painel-documento" aria-label="Documento ao vivo">
           {erro && (
             <p className="error-text" role="alert">
@@ -453,6 +512,11 @@ export function PainelAnalise({
             />
           )}
         </section>
+        <DivisorColunas
+          colunas={colunas}
+          largura={larguraConversa}
+          aoMudar={mudarLarguraConversa}
+        />
         <section className="painel-conversa" aria-label="Conversa">
           <div className="conversa-cabecalho">
             <span className="ponto-conversa" data-onde={onde ?? "nenhum"} aria-hidden="true" />
@@ -503,6 +567,7 @@ export function PainelAnalise({
                 ref={controle}
                 projeto={projeto}
                 pedido={conversa.pedido}
+                continuacao={pedidoRetomada}
                 aoMudarEstado={setEstadoTerminal}
                 api={apiTerminal}
                 criarTela={criarTela}
