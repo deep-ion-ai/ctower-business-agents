@@ -80,6 +80,7 @@ pub fn criar_analise_de_issue(
         &entrada,
         Some(&d.titulo),
         Some(Demanda {
+            id: None,
             origem: d.url,
             chave: Some(d.chave),
         }),

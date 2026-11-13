@@ -4,6 +4,7 @@ id: A-0002
 titulo: Parcelamento da fatura para pessoa jurídica
 projeto: faturamento-exemplo
 demanda:
+  id: null
   origem: texto
   chave: null
 status: rascunho

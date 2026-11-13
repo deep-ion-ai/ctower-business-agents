@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use crate::caminho::{CaminhoInvalido, CaminhoRelativo};
 use crate::documento::ErroFrontmatter;
-use crate::id::IdInvalido;
+use crate::id::{IdDemanda, IdInvalido};
 
 pub type Resultado<T> = Result<T, Erro>;
 
@@ -52,6 +52,9 @@ pub enum Erro {
     /// O `id` do `projeto.md` difere do nome da pasta.
     #[error("o id do projeto (`{id}`) precisa ser igual ao nome da pasta (`{pasta}`)")]
     IdDoProjeto { id: String, pasta: String },
+    /// A demanda não tem pasta no projeto.
+    #[error("demanda {id} não encontrada no projeto `{projeto}`")]
+    DemandaInexistente { projeto: String, id: IdDemanda },
     #[error(transparent)]
     Caminho(#[from] CaminhoInvalido),
     #[error(transparent)]

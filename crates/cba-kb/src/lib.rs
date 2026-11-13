@@ -14,6 +14,7 @@
 //!     funcionalidades/<area>/<tema>/
 //!     analises/<id>.md
 //!     sugestoes/<id>.md
+//!     demandas/D-NNNN-<slug>/demanda.md
 //! ```
 //!
 //! O que esta crate oferece:
@@ -36,6 +37,7 @@
 pub mod arquivo;
 mod base;
 mod caminho;
+mod demandas;
 mod documento;
 mod erro;
 pub mod frontmatter;
@@ -45,10 +47,11 @@ pub mod layout;
 
 pub use base::{Base, PADRAO_REGRAS_DO_PROJETO, Projeto};
 pub use caminho::{CaminhoInvalido, CaminhoRelativo, e_slug, slug};
+pub use demandas::{DemandaLida, NovaDemanda};
 pub use documento::{Documento, ErroFrontmatter};
 pub use erro::{Erro, Resultado};
 pub use frontmatter::{ErroCampo, Frontmatter, TipoDocumento};
-pub use id::{Id, IdInvalido, Serie};
+pub use id::{Id, IdDemanda, IdInvalido, Serie};
 
 /// Tipos YAML do frontmatter livre ([`frontmatter::FrontmatterLivre`]).
 pub mod yaml {

@@ -9,11 +9,11 @@ use crate::base::Projeto;
 use crate::caminho::CaminhoRelativo;
 use crate::documento::Documento;
 use crate::frontmatter::{
-    self, Frontmatter, FrontmatterAnalise, FrontmatterFuncionalidade, FrontmatterLivre,
-    FrontmatterMemoria, FrontmatterProjeto, FrontmatterRegra, FrontmatterSugestao,
-    FrontmatterTermo, TipoDocumento,
+    self, Frontmatter, FrontmatterAnalise, FrontmatterDemanda, FrontmatterFuncionalidade,
+    FrontmatterLivre, FrontmatterMemoria, FrontmatterProjeto, FrontmatterRegra,
+    FrontmatterSugestao, FrontmatterTermo, TipoDocumento,
 };
-use crate::id::Id;
+use crate::id::{Id, IdDemanda};
 use crate::layout;
 use crate::yaml::{Mapping, Value};
 
@@ -110,6 +110,16 @@ pub(super) fn extrair(projeto: &Projeto, relativo: &CaminhoRelativo, bytes: Vec<
             "analise",
         ));
     }
+    if let Some(id) = mapa
+        .get("demanda")
+        .and_then(Value::as_mapping)
+        .and_then(|d| texto_do_campo(d, "id"))
+        .and_then(|id| IdDemanda::analisar(&id).ok())
+    {
+        let arquivo = projeto.arquivo_da_demanda(id);
+        r.ligacoes
+            .push((projeto.na_base(&arquivo).as_str().to_owned(), "demanda"));
+    }
     if let Some(valor) = mapa.get("evidencias") {
         r.evidencias = serde_norway::from_value(valor.clone()).unwrap_or_default();
     }
@@ -146,6 +156,7 @@ fn validar(tipo: TipoDocumento, relativo: &CaminhoRelativo, texto: &str) -> Resu
         TipoDocumento::Termo => com::<FrontmatterTermo>(texto),
         TipoDocumento::Sugestao => com::<FrontmatterSugestao>(texto),
         TipoDocumento::MemoriaArea => com::<FrontmatterMemoria>(texto),
+        TipoDocumento::Demanda => com::<FrontmatterDemanda>(texto),
     }
 }
 

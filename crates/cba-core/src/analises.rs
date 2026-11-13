@@ -126,6 +126,7 @@ impl Analises {
                     titulo: titulo.clone(),
                     projeto: self.kb.nome().to_owned(),
                     demanda: demanda.clone().unwrap_or_else(|| Demanda {
+                        id: None,
                         origem: "texto".into(),
                         chave: None,
                     }),

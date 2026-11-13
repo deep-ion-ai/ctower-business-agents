@@ -158,6 +158,7 @@ fn montar_base() -> (tempfile::TempDir, Base, Projeto, PathBuf) {
                     titulo: "Como são calculados multa e juros de atraso?".into(),
                     projeto: PROJETO.into(),
                     demanda: Demanda {
+                        id: None,
                         origem: "texto".into(),
                         chave: None,
                     },

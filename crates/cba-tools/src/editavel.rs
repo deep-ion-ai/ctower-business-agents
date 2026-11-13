@@ -190,6 +190,7 @@ fn rotulo_do_template(tipo: cba_kb::frontmatter::TipoDocumento) -> &'static str 
         T::Sugestao => "Sugestão de alteração",
         T::Projeto => "Projeto",
         T::MemoriaArea => "Memória da área",
+        T::Demanda => "Demanda",
     }
 }
 

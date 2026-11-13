@@ -154,6 +154,7 @@ fn analise(tipo: TipoDocumento, numero: u32, titulo: &str) -> FrontmatterAnalise
         titulo: titulo.into(),
         projeto: PROJETO.into(),
         demanda: Demanda {
+            id: None,
             origem: "texto".into(),
             chave: None,
         },
