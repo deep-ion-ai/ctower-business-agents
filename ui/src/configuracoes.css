@@ -318,6 +318,79 @@ button.chip-variavel:hover {
   margin-top: 12px;
 }
 
+/* Barra de formatação e ajuda (#105). */
+.barra-formatacao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding-bottom: 6px;
+}
+
+.btn-formato {
+  min-width: 2rem;
+  font-family: var(--mono);
+}
+
+.barra-formatacao-ajuda {
+  margin-left: auto;
+}
+
+.dialogo-ajuda {
+  width: min(52rem, 100%);
+  max-width: none;
+  max-height: 100%;
+  overflow: auto;
+  box-sizing: border-box;
+}
+
+.dialogo-ajuda:focus {
+  outline: none;
+}
+
+.dialogo-ajuda-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dialogo-ajuda h4 {
+  margin: 12px 0 4px;
+}
+
+.dialogo-ajuda h5 {
+  margin: 10px 0 2px;
+}
+
+.ajuda-tabela {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ajuda-tabela th,
+.ajuda-tabela td {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.ajuda-fonte {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.ajuda-exemplo > :first-child {
+  margin-top: 0;
+}
+
+.ajuda-exemplo > :last-child {
+  margin-bottom: 0;
+}
+
 /* Janela estreita: abas Editar / Prévia, uma coluna de cada vez; o painel desce. */
 @media (max-width: 56rem) {
   .editor-texto-abas {

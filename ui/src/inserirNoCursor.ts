@@ -1,3 +1,5 @@
+import { formatar, type Formato } from "./formatacao";
+
 /**
  * Insere `texto` na posição do cursor do `textarea` (ou no lugar da seleção) e deixa o
  * cursor depois dele. Usa `document.execCommand("insertText")`, que entra na pilha de
@@ -33,4 +35,28 @@ export function irParaLinha(campo: HTMLTextAreaElement, linha: number): void {
   if (Number.isFinite(altura)) {
     campo.scrollTop = Math.max(0, (alvo - 1) * altura - campo.clientHeight / 3);
   }
+}
+
+/**
+ * Troca o trecho `[inicio, fim)` por `texto` (selecionando-o antes, para que a troca
+ * entre no desfazer como uma só inserção) e deixa `[selInicio, selFim)` selecionado.
+ */
+export function substituirTrecho(
+  campo: HTMLTextAreaElement,
+  inicio: number,
+  fim: number,
+  texto: string,
+  selInicio: number,
+  selFim: number,
+): void {
+  campo.focus();
+  campo.setSelectionRange(inicio, fim);
+  inserirNoCursor(campo, texto);
+  campo.setSelectionRange(selInicio, selFim);
+}
+
+/** Aplica um formato da barra à seleção do campo (ou insere o modelo sem seleção). */
+export function aplicarFormatoNoCampo(campo: HTMLTextAreaElement, formato: Formato): void {
+  const e = formatar(formato, campo.value, campo.selectionStart, campo.selectionEnd);
+  substituirTrecho(campo, e.inicio, e.fim, e.texto, e.selInicio, e.selFim);
 }

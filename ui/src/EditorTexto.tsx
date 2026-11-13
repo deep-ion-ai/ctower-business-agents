@@ -9,8 +9,11 @@ import {
   type EstadoTexto,
   type LeituraTexto,
 } from "./configuracoes";
+import { AjudaMarkdown } from "./AjudaMarkdown";
+import { BarraFormatacao } from "./BarraFormatacao";
 import { DialogoConfirmacao } from "./DialogoConfirmacao";
-import { inserirNoCursor, irParaLinha } from "./inserirNoCursor";
+import { formatoDoAtalho, type Formato } from "./formatacao";
+import { aplicarFormatoNoCampo, inserirNoCursor, irParaLinha } from "./inserirNoCursor";
 import { PreviaMarkdown } from "./PreviaMarkdown";
 
 /** Espera depois da última tecla antes de pedir a validação. */
@@ -54,7 +57,9 @@ export function EditorTexto({
   const [dialogo, setDialogo] = useState<Dialogo | null>(null);
   const [aba, setAba] = useState<"editar" | "previa">("editar");
   const [painel, setPainel] = useState(true);
+  const [ajuda, setAjuda] = useState(false);
   const campo = useRef<HTMLTextAreaElement>(null);
+  const botaoAjuda = useRef<HTMLButtonElement>(null);
   // A prévia de um roteiro de centenas de linhas não segura a digitação.
   const textoDaPrevia = useDeferredValue(texto);
   const pendente = leitura !== null && texto !== salvo;
@@ -220,7 +225,11 @@ export function EditorTexto({
     if (campo.current) inserirNoCursor(campo.current, `{{${nome}}}`);
   };
 
-  const linhaDoAviso = (linha: number) => {
+  const formatar = (formato: Formato) => {
+    if (campo.current) aplicarFormatoNoCampo(campo.current, formato);
+  };
+
+  const linhaDoAviso =(linha: number) => {
     setAba("editar");
     if (campo.current) irParaLinha(campo.current, linha);
   };
@@ -228,7 +237,7 @@ export function EditorTexto({
   // Ctrl+S (Cmd+S no macOS) salva, onde estiver o foco.
   const aoSalvar = useRef<() => void>(() => undefined);
   aoSalvar.current = () => {
-    if (pendente && !ocupado && dialogo === null) void gravar();
+    if (pendente && !ocupado && dialogo === null && !ajuda) void gravar();
   };
   useEffect(() => {
     const tecla = (e: KeyboardEvent) => {
@@ -397,12 +406,23 @@ export function EditorTexto({
 
       <div className="editor-texto-corpo" data-aba={aba}>
         <div className="editor-texto-col" data-coluna="editar">
+          <BarraFormatacao
+            aoFormatar={formatar}
+            aoAjuda={() => setAjuda(true)}
+            botaoAjuda={botaoAjuda}
+          />
           <textarea
             ref={campo}
             className="editor-texto-campo"
             aria-label="Texto"
             spellCheck={false}
             value={texto}
+            onKeyDown={(e) => {
+              const f = formatoDoAtalho(e);
+              if (!f) return;
+              e.preventDefault();
+              formatar(f);
+            }}
             onChange={(e) => {
               setTexto(e.target.value);
               setRecado(null);
@@ -466,6 +486,7 @@ export function EditorTexto({
         )}
       </div>
 
+      {ajuda && <AjudaMarkdown aoFechar={() => setAjuda(false)} retorno={botaoAjuda} />}
       {dialogo === "voltar" && (
         <DialogoConfirmacao
           titulo="Alterações não salvas"
