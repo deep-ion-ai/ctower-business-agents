@@ -63,3 +63,21 @@ fn historias_a_partir_de_uma_analise_aprovada() {
     let erro = criar(Some("A-0042")).unwrap_err();
     assert!(erro.contains("A-0042"), "{erro}");
 }
+
+#[test]
+fn cenarios_a_partir_de_uma_analise_ou_do_pedido() {
+    let c = cenario();
+    c.aprovar_analise_da_multa();
+    let criar = |origem: Option<&str>, entrada: Option<&str>| {
+        crate::analise::criar_analise_de_cenarios(&c.dados, PROJETO, origem, None, entrada, None)
+    };
+    let criada = criar(Some("A-0001"), None).unwrap();
+    assert_eq!(criada.analise.fluxo, Fluxo::Cenarios);
+    assert!(criada.analise.titulo.starts_with("Cenários · "));
+    assert!(criada.prompt_inicial.contains(&criada.analise.id));
+    // Só o pedido, com as regras, também vale; sem nada, recusa.
+    let criada = criar(None, Some("Cenários do RN-FAT-001")).unwrap();
+    assert_eq!(criada.analise.titulo, "Cenários do RN-FAT-001");
+    let erro = criar(None, None).unwrap_err();
+    assert!(erro.contains("entrada"), "{erro}");
+}

@@ -34,6 +34,65 @@ struct Gabarito {
     revisoes: Vec<Revisao>,
     #[serde(default)]
     historias: Vec<Historias>,
+    #[serde(default)]
+    cenarios: Vec<Cenarios>,
+}
+
+/// Cenários de teste esperados a partir das regras (fluxo "Cenários de teste",
+/// #117).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Cenarios {
+    id: String,
+    titulo: String,
+    pedido: String,
+    regras: Vec<String>,
+    #[serde(default)]
+    limites: Vec<LimiteEsperado>,
+    #[serde(default)]
+    tabelas: Vec<TabelaEsperada>,
+    #[serde(default)]
+    negativos: Vec<NegativoEsperado>,
+    #[serde(default)]
+    a_confirmar: Vec<PerguntaEsperada>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LimiteEsperado {
+    id: String,
+    regra: String,
+    grandeza: String,
+    valor: f64,
+    valores_testados: Vec<f64>,
+    evidencia: Evidencia,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TabelaEsperada {
+    id: String,
+    regra: String,
+    descricao: String,
+    condicoes: usize,
+    palavras_chave: Vec<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NegativoEsperado {
+    id: String,
+    regra: String,
+    descricao: String,
+    palavras_chave: Vec<Vec<String>>,
+}
+
+/// Números de um trecho de código (`10`, `10.00`, `2.0000`).
+fn numeros_do_trecho(trecho: &str) -> Vec<f64> {
+    trecho
+        .split(|c: char| !(c.is_ascii_digit() || c == '.'))
+        .filter_map(|t| t.trim_matches('.').parse::<f64>().ok())
+        .collect()
 }
 
 /// Histórias esperadas a partir da análise de impacto de uma demanda (fluxo
@@ -416,6 +475,14 @@ fn conferir(caminho: &Path) -> Vec<String> {
                 .flat_map(|r| r.itens.iter().map(|i| &i.id)),
         )
         .chain(gabarito.historias.iter().map(|h| &h.id))
+        .chain(gabarito.cenarios.iter().map(|c| &c.id))
+        .chain(gabarito.cenarios.iter().flat_map(|c| {
+            c.limites
+                .iter()
+                .map(|l| &l.id)
+                .chain(c.tabelas.iter().map(|t| &t.id))
+                .chain(c.negativos.iter().map(|n| &n.id))
+        }))
         .chain(
             gabarito
                 .historias
@@ -669,6 +736,91 @@ fn conferir(caminho: &Path) -> Vec<String> {
             c.palavras_chave(&onde, &e.palavras_chave);
         }
         c.perguntas_esperadas(&onde, &h.a_confirmar);
+    }
+
+    for cen in &gabarito.cenarios {
+        let onde = format!("cenários {}", cen.id);
+        c.texto_preenchido(&onde, "titulo", &cen.titulo);
+        c.texto_preenchido(&onde, "pedido", &cen.pedido);
+        if cen.regras.is_empty() {
+            c.erro(format!("{onde}: nenhuma regra"));
+        }
+        for id in &cen.regras {
+            match gabarito.regras.iter().find(|r| &r.id == id) {
+                None => c.erro(format!("{onde}: regra `{id}` não existe")),
+                Some(r) => {
+                    citadas_nos_fluxos.insert(r.id.as_str());
+                }
+            }
+            if !cen.pedido.contains(id.as_str()) {
+                c.erro(format!("{onde}: o pedido não cita a regra {id}"));
+            }
+        }
+        let da_lista = |c: &mut Conferencia, onde: &str, regra: &str| {
+            if !cen.regras.iter().any(|r| r == regra) {
+                c.erro(format!("{onde}: regra `{regra}` fora das regras do item"));
+            }
+        };
+        if cen.limites.is_empty() {
+            c.erro(format!("{onde}: nenhum limite esperado"));
+        }
+        for l in &cen.limites {
+            let onde = format!("{onde}, {}", l.id);
+            da_lista(&mut c, &onde, &l.regra);
+            c.texto_preenchido(&onde, "grandeza", &l.grandeza);
+            c.evidencia(&onde, &l.evidencia);
+            // O limite é o do código: o valor aparece no trecho citado.
+            if !numeros_do_trecho(&l.evidencia.trecho)
+                .iter()
+                .any(|n| (n - l.valor).abs() < 1e-9)
+            {
+                c.erro(format!(
+                    "{onde}: o valor {} não aparece no trecho `{}`",
+                    l.valor, l.evidencia.trecho
+                ));
+            }
+            // E está numa evidência da regra.
+            if let Some(r) = gabarito.regras.iter().find(|r| r.id == l.regra)
+                && !r.evidencias.iter().any(|e| {
+                    e.arquivo == l.evidencia.arquivo
+                        && e.linha_inicial <= l.evidencia.linha_final
+                        && l.evidencia.linha_inicial <= e.linha_final
+                })
+            {
+                c.erro(format!(
+                    "{onde}: a evidência do limite não toca as evidências da regra {}",
+                    l.regra
+                ));
+            }
+            if !l
+                .valores_testados
+                .iter()
+                .any(|v| (v - l.valor).abs() < 1e-9)
+                || l.valores_testados.len() < 2
+            {
+                c.erro(format!(
+                    "{onde}: valores_testados precisam do limite e do vizinho do outro lado"
+                ));
+            }
+        }
+        for t in &cen.tabelas {
+            let onde = format!("{onde}, {}", t.id);
+            da_lista(&mut c, &onde, &t.regra);
+            c.texto_preenchido(&onde, "descricao", &t.descricao);
+            if t.condicoes < 2 {
+                c.erro(format!(
+                    "{onde}: tabela de decisão com menos de 2 condições"
+                ));
+            }
+            c.palavras_chave(&onde, &t.palavras_chave);
+        }
+        for n in &cen.negativos {
+            let onde = format!("{onde}, {}", n.id);
+            da_lista(&mut c, &onde, &n.regra);
+            c.texto_preenchido(&onde, "descricao", &n.descricao);
+            c.palavras_chave(&onde, &n.palavras_chave);
+        }
+        c.perguntas_esperadas(&onde, &cen.a_confirmar);
     }
 
     // Toda regra é exercitada por ao menos um fluxo.

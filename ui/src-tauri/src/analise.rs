@@ -306,6 +306,40 @@ pub fn criar_analise_de_historias(
     })
 }
 
+/// Cria a análise de cenários de teste (#117) a partir da análise de origem (do
+/// código ou de histórias), de uma demanda aberta ou só do pedido com as regras.
+/// A conferência é a de `iniciar_analise`
+/// ([`cba_tools::ciclo::criar_analise_de_cenarios`]).
+pub fn criar_analise_de_cenarios(
+    dados: &DiretorioDados,
+    projeto: &str,
+    origem: Option<&str>,
+    demanda: Option<&str>,
+    entrada: Option<&str>,
+    titulo: Option<&str>,
+) -> Result<AnaliseCriada, String> {
+    let ambiente = ambiente(dados, projeto)?;
+    fn preenchido(t: Option<&str>) -> Option<&str> {
+        t.map(str::trim).filter(|t| !t.is_empty())
+    }
+    let origem = preenchido(origem).map(id_da_analise).transpose()?;
+    let demanda = preenchido(demanda)
+        .map(|d| cba_kb::IdDemanda::analisar(d).map_err(|e| e.to_string()))
+        .transpose()?;
+    let analise = cba_tools::ciclo::criar_analise_de_cenarios(
+        &ambiente,
+        origem,
+        demanda,
+        preenchido(entrada).map(str::to_owned),
+        preenchido(titulo).map(str::to_owned),
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(AnaliseCriada {
+        prompt_inicial: prompt_de_inicio(&analise.id),
+        analise: AnaliseResumo::from(&analise),
+    })
+}
+
 /// Sessão do cliente de IA mostrada na tela.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]

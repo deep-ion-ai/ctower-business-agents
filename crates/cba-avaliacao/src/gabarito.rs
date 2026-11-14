@@ -38,6 +38,9 @@ pub struct Gabarito {
     /// `historias`, #115).
     #[serde(default)]
     pub historias: Vec<Historias>,
+    /// Cenários de teste esperados a partir de regras (fluxo `cenarios`, #117).
+    #[serde(default)]
+    pub cenarios: Vec<Cenarios>,
     /// Pasta do gabarito, para resolver `raiz`. Preenchida por [`Gabarito::carregar`].
     #[serde(skip)]
     pub pasta: PathBuf,
@@ -63,7 +66,7 @@ impl Regra {
 }
 
 /// Evidência esperada: arquivo relativo à raiz do projeto e intervalo inclusivo.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EvidenciaEsperada {
     pub arquivo: String,
     pub linha_inicial: u32,
@@ -213,6 +216,69 @@ pub struct HistoriaEsperada {
     pub palavras_chave: Vec<Vec<String>>,
 }
 
+/// Cenários de teste esperados a partir das regras pedidas (fluxo `cenarios`,
+/// #117).
+#[derive(Debug, Clone, Deserialize)]
+pub struct Cenarios {
+    pub id: String,
+    pub titulo: String,
+    /// O pedido do analista, com as regras a cobrir.
+    pub pedido: String,
+    #[serde(flatten)]
+    pub esperado: CenariosEsperados,
+}
+
+/// O que os cenários devem ter.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CenariosEsperados {
+    /// Regras a cobrir: o preparo as grava na base, com as evidências do gabarito.
+    pub regras: Vec<String>,
+    #[serde(default)]
+    pub limites: Vec<LimiteEsperado>,
+    #[serde(default)]
+    pub tabelas: Vec<TabelaEsperada>,
+    #[serde(default)]
+    pub negativos: Vec<NegativoEsperado>,
+    /// Temas que devem ficar "a confirmar" (cenário com pergunta), com
+    /// palavras-chave no título, nos passos, no valor e no limite.
+    #[serde(default)]
+    pub a_confirmar: Vec<PerguntaEsperada>,
+}
+
+/// Limite que o agente deve ler do código.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LimiteEsperado {
+    pub id: String,
+    pub regra: String,
+    pub grandeza: String,
+    /// O limite como está no código.
+    pub valor: f64,
+    /// O limite e o vizinho do outro lado da comparação.
+    pub valores_testados: Vec<f64>,
+    pub evidencia: EvidenciaEsperada,
+}
+
+/// Tabela de decisão esperada.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TabelaEsperada {
+    pub id: String,
+    pub regra: String,
+    pub descricao: String,
+    /// Número mínimo de condições.
+    pub condicoes: usize,
+    /// Palavras-chave no texto das condições.
+    pub palavras_chave: Vec<Vec<String>>,
+}
+
+/// Cenário negativo esperado.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NegativoEsperado {
+    pub id: String,
+    pub regra: String,
+    pub descricao: String,
+    pub palavras_chave: Vec<Vec<String>>,
+}
+
 /// Reunião fictícia: o transcript e a ata esperada.
 #[derive(Debug, Clone, Deserialize)]
 pub struct Reuniao {
@@ -300,6 +366,9 @@ pub struct Item {
     /// Histórias esperadas e a demanda de origem, só no fluxo historias.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub historias: Option<HistoriasEsperadas>,
+    /// Cenários esperados, só no fluxo cenarios.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cenarios: Option<CenariosEsperados>,
 }
 
 /// Erro ao ler o gabarito ou ao achar um item.
@@ -388,6 +457,7 @@ impl Gabarito {
                 abrangencia: None,
                 revisao: None,
                 historias: None,
+                cenarios: None,
             });
         }
         if let Some(f) = self.funcionalidades.iter().find(|f| f.id == id) {
@@ -403,6 +473,7 @@ impl Gabarito {
                 abrangencia: None,
                 revisao: None,
                 historias: None,
+                cenarios: None,
             });
         }
         if let Some(d) = self.demandas.iter().find(|d| d.id == id) {
@@ -418,6 +489,7 @@ impl Gabarito {
                 abrangencia: Some(d.abrangencia_esperada.clone()),
                 revisao: None,
                 historias: None,
+                cenarios: None,
             });
         }
         if let Some(r) = self.revisoes.iter().find(|r| r.id == id) {
@@ -434,6 +506,7 @@ impl Gabarito {
                 abrangencia: None,
                 revisao: Some(r.esperado.clone()),
                 historias: None,
+                cenarios: None,
             });
         }
         if let Some(h) = self.historias.iter().find(|h| h.id == id) {
@@ -450,11 +523,28 @@ impl Gabarito {
                 abrangencia: demanda.map(|d| d.abrangencia_esperada.clone()),
                 revisao: None,
                 historias: Some(h.esperado.clone()),
+                cenarios: None,
+            });
+        }
+        if let Some(c) = self.cenarios.iter().find(|c| c.id == id) {
+            return Ok(Item {
+                id: c.id.clone(),
+                fluxo: Fluxo::Cenarios,
+                titulo: c.titulo.clone(),
+                entrada: c.pedido.clone(),
+                regras: c.esperado.regras.clone(),
+                arquivos: Vec::new(),
+                perguntas_esperadas: Vec::new(),
+                verificacao_da_premissa: None,
+                abrangencia: None,
+                revisao: None,
+                historias: None,
+                cenarios: Some(c.esperado.clone()),
             });
         }
         Err(Erro(format!(
             "o item `{id}` não existe no gabarito (use o id de uma pergunta, funcionalidade, \
-             demanda, revisão ou histórias)"
+             demanda, revisão, histórias ou cenários)"
         )))
     }
 }

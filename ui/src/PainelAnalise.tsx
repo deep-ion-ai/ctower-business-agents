@@ -470,6 +470,8 @@ export function PainelAnalise({
                       ? "Aprovar o parecer"
                     : vista.analise.fluxo === "historias"
                       ? "Aprovar as histórias"
+                    : vista.analise.fluxo === "cenarios"
+                      ? "Aprovar os cenários"
                       : "Aprovar a análise"
                 }
                 classePainel="painel-revisao"
@@ -506,6 +508,7 @@ export function PainelAnalise({
                   projeto={projeto}
                   analise={analise}
                   aprovada={vista.analise.estado === "aprovada"}
+                  csv={vista.analise.fluxo === "cenarios"}
                 />
               </BotaoPainel>
             </>

@@ -21,13 +21,14 @@ use crate::documento::secoes_de_afirmacao;
 use crate::editavel::{self, Aviso, Padrao, Texto};
 
 /// Os fluxos, na ordem em que aparecem para o analista.
-pub const FLUXOS: [Fluxo; 6] = [
+pub const FLUXOS: [Fluxo; 7] = [
     Fluxo::Perguntar,
     Fluxo::Explicar,
     Fluxo::Impacto,
     Fluxo::Reuniao,
     Fluxo::Revisar,
     Fluxo::Historias,
+    Fluxo::Cenarios,
 ];
 
 /// Pasta dos roteiros dentro de `_templates/`.
@@ -58,6 +59,7 @@ pub fn nome_do_fluxo(fluxo: Fluxo) -> &'static str {
         Fluxo::Reuniao => "análise de reunião",
         Fluxo::Revisar => "revisão de qualidade de um requisito ou história",
         Fluxo::Historias => "histórias de usuário com critérios de aceite",
+        Fluxo::Cenarios => "cenários de teste derivados das regras",
     }
 }
 
@@ -71,6 +73,7 @@ pub fn nome_do_arquivo(fluxo: Fluxo) -> &'static str {
         Fluxo::Reuniao => "reuniao",
         Fluxo::Revisar => "revisar",
         Fluxo::Historias => "historias",
+        Fluxo::Cenarios => "cenarios",
     }
 }
 
@@ -78,7 +81,8 @@ pub fn nome_do_arquivo(fluxo: Fluxo) -> &'static str {
 /// para a base. Os três primeiros foram revisados (#32): perguntar no M1, explicar
 /// e impacto no M2; o de reunião, na #140. O de revisão (#116) é provisório até
 /// ser avaliado com o modelo real (`cba-avaliacao rodar --fluxos revisar`), e o
-/// de histórias (#115) também (`--fluxos historias`). Um fluxo novo entra aqui só
+/// de histórias (#115) também (`--fluxos historias`), e o de cenários (#117)
+/// (`--fluxos cenarios`). Um fluxo novo entra aqui só
 /// depois de ter o roteiro revisado.
 pub fn revisado(fluxo: Fluxo) -> bool {
     matches!(
@@ -95,6 +99,7 @@ pub(crate) fn padrao(fluxo: Fluxo) -> Padrao {
         Fluxo::Reuniao => include_str!("../textos/roteiros/reuniao.md"),
         Fluxo::Revisar => include_str!("../textos/roteiros/revisar.md"),
         Fluxo::Historias => include_str!("../textos/roteiros/historias.md"),
+        Fluxo::Cenarios => include_str!("../textos/roteiros/cenarios.md"),
     };
     Padrao {
         pasta: PASTA,
@@ -192,6 +197,8 @@ pub fn secoes_obrigatorias(fluxo: Fluxo) -> &'static [&'static str] {
         Fluxo::Revisar => &[],
         // As histórias têm ferramenta própria; `concluir_analise` confere as histórias.
         Fluxo::Historias => &[],
+        // Os cenários têm ferramentas próprias; `concluir_analise` confere os cenários.
+        Fluxo::Cenarios => &[],
     }
 }
 
@@ -249,7 +256,7 @@ fn titulo_ao_fim(variavel: &str) -> &'static str {
 /// Os roteiros dos fluxos.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Roteiros {
-    por_fluxo: [Texto; 6],
+    por_fluxo: [Texto; 7],
 }
 
 fn indice(fluxo: Fluxo) -> usize {
@@ -260,6 +267,7 @@ fn indice(fluxo: Fluxo) -> usize {
         Fluxo::Reuniao => 3,
         Fluxo::Revisar => 4,
         Fluxo::Historias => 5,
+        Fluxo::Cenarios => 6,
     }
 }
 
@@ -621,7 +629,7 @@ mod tests {
                 .into_iter()
                 .filter(|f| !revisado(*f))
                 .collect::<Vec<_>>(),
-            [Fluxo::Revisar, Fluxo::Historias]
+            [Fluxo::Revisar, Fluxo::Historias, Fluxo::Cenarios]
         );
         assert!(base.ler_texto(&arquivo_do_roteiro(Fluxo::Revisar)).is_err());
         assert!(

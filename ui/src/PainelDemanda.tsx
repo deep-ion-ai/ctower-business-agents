@@ -17,7 +17,15 @@ import { NovaReuniao } from "./NovaReuniao";
 import { BotoesProximoPasso } from "./ProximoPasso";
 import { apiReuniaoTauri, type ApiReuniao } from "./reunioes";
 
-const FLUXOS: Fluxo[] = ["perguntar", "explicar", "impacto", "reuniao", "revisar", "historias"];
+const FLUXOS: Fluxo[] = [
+  "perguntar",
+  "explicar",
+  "impacto",
+  "reuniao",
+  "revisar",
+  "historias",
+  "cenarios",
+];
 
 const ESTADO_ANALISE: Record<EstadoAnalise, string> = {
   criada: "criada",
@@ -177,8 +185,10 @@ export function PainelDemanda({
                 aoCriar={abrirCriada}
               />
             )}
-            {fluxo === "historias" && (
+            {(fluxo === "historias" || fluxo === "cenarios") && (
               <NovaHistorias
+                key={fluxo}
+                fluxo={fluxo}
                 api={api}
                 projetos={[{ id: projeto, nome: projeto }]}
                 demandaFixa={d.id}
@@ -186,7 +196,10 @@ export function PainelDemanda({
                 aoCriar={abrirCriada}
               />
             )}
-            {fluxo && fluxo !== "reuniao" && fluxo !== "historias" && (
+            {fluxo &&
+          fluxo !== "reuniao" &&
+          fluxo !== "historias" &&
+          fluxo !== "cenarios" && (
               <NovaAnalise
                 key={fluxo}
                 api={api}

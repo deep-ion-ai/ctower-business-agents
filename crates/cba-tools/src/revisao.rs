@@ -18,7 +18,9 @@
 //!   ([`crate::aprovacao::aprovar_analise`]).
 //! - [`exportar_analise`] exporta o documento para Markdown ou Word
 //!   (`cba_docs::gravar_exportacao`), com os trechos citados lidos pelo escopo do
-//!   projeto (as exclusões valem também aqui), fora das pastas do projeto.
+//!   projeto (as exclusões valem também aqui), fora das pastas do projeto; os
+//!   cenários de teste também em CSV, uma linha por cenário
+//!   ([`crate::cenarios::csv`]).
 //!
 //! # O que é obrigatório antes de aprovar
 //!
@@ -42,21 +44,45 @@ use cba_core::analise::{
     Analise, ErroModelo, EstadoAfirmacao, EstadoAnalise, EstadoPergunta, EstadoTermo, Fluxo,
 };
 use cba_core::analises;
+use cba_core::cenarios::TextoCenario;
 use cba_core::eventos::Mudanca;
 use cba_core::historias::{DecisaoHistoria, Gherkin, Narrativa, SituacaoHistoria};
 use cba_core::parecer::EstadoAchado;
 use cba_core::requisito::SituacaoItem;
 use cba_docs::FonteDeTrechos;
-/// Formato e opções da exportação, para quem chama sem depender de `cba-docs`.
-pub use cba_docs::{Formato, OpcoesExportacao};
+/// Opções da exportação, para quem chama sem depender de `cba-docs`.
+pub use cba_docs::OpcoesExportacao;
 use cba_index::Escopo;
 use cba_kb::frontmatter::{Area, Linhas, StatusSugestao};
-use cba_kb::{CaminhoRelativo, Id, IdHistoria};
+use cba_kb::{CaminhoRelativo, Id, IdCenario, IdHistoria};
 use serde::{Deserialize, Serialize};
 
 use crate::aprovacao::{self, Aprovacao, ErroAprovacao, OpcoesAprovacao, titulo_da_regra};
 use crate::documento;
 use crate::evidencias::ArquivoDoProjeto;
+
+/// Formato da exportação: o documento em Markdown ou Word ou, só nos cenários de
+/// teste, a lista de cenários em CSV.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Formato {
+    Markdown,
+    Word,
+    /// Uma linha por cenário de teste (fluxo `cenarios`), para importar em
+    /// ferramentas de teste.
+    Csv,
+}
+
+impl Formato {
+    /// Extensão do arquivo exportado, sem o ponto.
+    pub fn extensao(self) -> &'static str {
+        match self {
+            Self::Markdown => "md",
+            Self::Word => "docx",
+            Self::Csv => "csv",
+        }
+    }
+}
 
 /// Decisão do analista sobre um item da análise.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -118,6 +144,20 @@ pub enum Decisao {
         #[serde(flatten)]
         passos: Gherkin,
     },
+    /// Aceitar, descartar ou, com `pendente`, desfazer a decisão sobre um cenário
+    /// de teste (fluxo `cenarios`).
+    Cenario {
+        cenario: IdCenario,
+        situacao: SituacaoItem,
+    },
+    /// Novo título e novos passos de um cenário; técnica, limite e origens ficam.
+    EditarCenario {
+        cenario: IdCenario,
+        #[serde(flatten)]
+        texto: TextoCenario,
+    },
+    /// Aceitar, descartar ou desfazer a decisão sobre uma tabela de decisão.
+    Tabela { numero: u32, situacao: SituacaoItem },
 }
 
 impl Decisao {
@@ -132,6 +172,9 @@ impl Decisao {
             | Self::EditarHistoria { .. }
             | Self::Criterio { .. }
             | Self::EditarCriterio { .. } => Mudanca::Historia,
+            Self::Cenario { .. } | Self::EditarCenario { .. } | Self::Tabela { .. } => {
+                Mudanca::Cenario
+            }
         }
     }
 
@@ -163,6 +206,9 @@ impl Decisao {
                 numero,
                 passos,
             } => a.editar_criterio(historia, numero, passos),
+            Self::Cenario { cenario, situacao } => a.decidir_cenario(cenario, situacao),
+            Self::EditarCenario { cenario, texto } => a.editar_cenario(cenario, texto),
+            Self::Tabela { numero, situacao } => a.decidir_tabela(numero, situacao),
         }
     }
 }
@@ -199,6 +245,11 @@ pub enum ErroRevisao {
     Aprovacao(#[from] ErroAprovacao),
     #[error("{0}")]
     Destino(String),
+    #[error(
+        "a exportação em CSV é a lista de cenários de teste; a análise {0} não é do fluxo \
+         `cenarios`. Exporte em Markdown ou Word"
+    )]
+    CsvSemCenarios(Id),
     #[error(transparent)]
     Exportacao(#[from] cba_docs::ErroExportacao),
     #[error("documento da análise ilegível: {0}")]
@@ -314,6 +365,8 @@ pub fn pendencias(analise: &Analise) -> Vec<Pendencia> {
         }
     } else if analise.fluxo == Fluxo::Historias {
         lista.extend(pendencias_das_historias(analise));
+    } else if analise.fluxo == Fluxo::Cenarios {
+        lista.extend(pendencias_dos_cenarios(analise));
     } else if analise.afirmacoes.is_empty() {
         lista.push(Pendencia {
             tipo: "analise",
@@ -402,6 +455,49 @@ pub fn pendencias_das_historias(analise: &Analise) -> Vec<Pendencia> {
     lista
 }
 
+/// Pendências dos cenários (fluxo `cenarios`): ao menos um cenário; cada tabela de
+/// decisão e cada cenário com uma decisão do analista (aceito ou descartado) e,
+/// nas tabelas aceitas, cada coluna possível com um cenário vigente.
+pub fn pendencias_dos_cenarios(analise: &Analise) -> Vec<Pendencia> {
+    let mut lista = Vec::new();
+    if analise.cenarios_no_documento().next().is_none() {
+        lista.push(Pendencia {
+            tipo: "analise",
+            numero: None,
+            motivo: "não há cenários de teste registrados".into(),
+        });
+    }
+    for t in &analise.tabelas {
+        if t.situacao == SituacaoItem::Pendente {
+            lista.push(Pendencia {
+                tipo: "tabela",
+                numero: Some(t.numero),
+                motivo: format!("{}: sem decisão: aceite ou descarte", t.rotulo()),
+            });
+        }
+    }
+    for c in &analise.cenarios {
+        if c.situacao == SituacaoItem::Pendente {
+            lista.push(Pendencia {
+                tipo: "cenario",
+                numero: Some(c.id.numero()),
+                motivo: format!("{}: sem decisão: aceite ou descarte", c.id),
+            });
+        }
+    }
+    for coluna in crate::cenarios::colunas_sem_cenario(analise) {
+        lista.push(Pendencia {
+            tipo: "tabela",
+            numero: None,
+            motivo: format!(
+                "{coluna}: coluna sem cenário (o cenário dela foi descartado); peça ao agente \
+                 outro cenário ou descarte a tabela"
+            ),
+        });
+    }
+    lista
+}
+
 /// Prontidão da análise para a aprovação.
 pub fn prontidao(amb: &Ambiente, id: &Id) -> Result<Prontidao, ErroRevisao> {
     let analise = amb.analises.carregar(id)?;
@@ -441,6 +537,16 @@ pub fn prontidao(amb: &Ambiente, id: &Id) -> Result<Prontidao, ErroRevisao> {
         avisos.push(format!(
             "{a_confirmar} critério(s) de aceite a confirmar (dependem de pergunta em aberto) \
              vão no documento marcados como tal"
+        ));
+    }
+    let cenarios_a_confirmar = analise
+        .cenarios_no_documento()
+        .filter(|c| c.a_confirmar())
+        .count();
+    if cenarios_a_confirmar > 0 {
+        avisos.push(format!(
+            "{cenarios_a_confirmar} cenário(s) de teste a confirmar (dependem de pergunta em \
+             aberto, como um limite em tabela de parâmetros) vão no documento marcados como tal"
         ));
     }
     let regras: Vec<RegraPrevista> = analise
@@ -592,7 +698,24 @@ pub fn exportar_analise(
     opcoes: &OpcoesExportacao,
 ) -> Result<PathBuf, ErroRevisao> {
     let analise = amb.analises.carregar(id)?;
+    if formato == Formato::Csv && analise.fluxo != Fluxo::Cenarios {
+        return Err(ErroRevisao::CsvSemCenarios(analise.id));
+    }
     let destino = destino_da_exportacao(&amb.escopo, destino, formato)?;
+    if formato == Formato::Csv {
+        let csv = crate::cenarios::csv(&analise);
+        cba_kb::arquivo::gravar(&destino, csv.as_bytes()).map_err(|erro| {
+            ErroRevisao::Exportacao(cba_docs::ErroExportacao::Gravar {
+                caminho: destino.clone(),
+                erro,
+            })
+        })?;
+        return Ok(destino);
+    }
+    let formato = match formato {
+        Formato::Word => cba_docs::Formato::Word,
+        _ => cba_docs::Formato::Markdown,
+    };
     let texto = std::fs::read_to_string(amb.kb.caminho(&analise.documento))
         .map_err(ErroRevisao::Documento)?;
     let fonte = TrechosDoProjeto(&amb.escopo);

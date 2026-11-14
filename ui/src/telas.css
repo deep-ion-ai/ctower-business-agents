@@ -1583,3 +1583,49 @@
   gap: 6px;
   margin: 8px 0;
 }
+
+/* Cenários de teste (#117). */
+.cenarios-ao-vivo .tabela-decisao {
+  margin: 12px 0;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.cenarios-ao-vivo .tabela-decisao.situacao-descartado {
+  opacity: 0.6;
+}
+.cenarios-ao-vivo .tabela-rolagem {
+  overflow-x: auto;
+}
+.cenarios-ao-vivo table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 8px 0;
+}
+.cenarios-ao-vivo th,
+.cenarios-ao-vivo td {
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+.cenarios-ao-vivo td {
+  text-align: center;
+}
+.cenarios-ao-vivo .valores-limite td {
+  text-align: left;
+}
+.cenarios-ao-vivo .evidencia-condicao {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+}
+.cenarios-ao-vivo .limite {
+  font-family: var(--mono);
+  color: var(--attention);
+}
+.cenarios-ao-vivo .criterio.situacao-descartado .gherkin {
+  text-decoration: line-through;
+  color: var(--muted);
+}

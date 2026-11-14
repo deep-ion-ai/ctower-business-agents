@@ -616,6 +616,10 @@ fn criterios_das_analises(s: &mut String) {
     );
     let _ = writeln!(
         s,
+        "- **Cenários de teste** (`cenarios`): limite esperado lido por um cenário da regra cujo limite tem o mesmo valor, não vem de configuração e cita evidência que toca a esperada (limite de outro valor é listado como divergente); cada valor testado esperado (o limite e o vizinho) presente num cenário da regra; tabela de decisão esperada atendida por uma tabela com as condições mínimas, ligada à regra e com as palavras-chave nas condições; cenário negativo esperado atendido por um cenário da regra com as palavras-chave; tema a confirmar marcado num cenário com pergunta. Falha grave: nenhum cenário, ou cenário sem origem."
+    );
+    let _ = writeln!(
+        s,
         "- **Histórias e critérios** (`historias`): história esperada atendida por uma história com as palavras-chave no título e na narrativa; regra esperada citada por um critério, pelo id ou por uma afirmação cuja evidência toca a regra; critério com valor concreto (um número); tema a confirmar marcado num critério com pergunta; quebra proposta quando a abrangência pede. Falha grave: nenhuma história, ou critério sem origem."
     );
 }
@@ -746,7 +750,68 @@ fn analise_md(s: &mut String, e: &Execucao) {
     if let Some(h) = &a.historias {
         historias_md(s, h);
     }
+    if let Some(c) = &a.cenarios {
+        cenarios_md(s, c);
+    }
     let _ = writeln!(s, "- Concluída: {}\n", sim_nao(a.concluida));
+}
+
+fn cenarios_md(s: &mut String, c: &crate::cenarios::CenariosAvaliados) {
+    let _ = writeln!(
+        s,
+        "- Cenários: {}; tabelas de decisão: {}",
+        c.cenarios, c.tabelas
+    );
+    if !c.cenarios_sem_origem.is_empty() {
+        let _ = writeln!(
+            s,
+            "- Cenários sem origem: {}",
+            c.cenarios_sem_origem.join(", ")
+        );
+    }
+    let _ = writeln!(
+        s,
+        "- Limites lidos do código: {} de {}",
+        c.limites_lidos(),
+        c.limites.len()
+    );
+    for l in &c.limites {
+        let valores: Vec<String> = l
+            .valores
+            .iter()
+            .map(|(v, ct)| format!("{v} ({})", ct.as_deref().unwrap_or("não testado")))
+            .collect();
+        let _ = writeln!(
+            s,
+            "  - {} ({}, limite {}): {}; valores testados: {}",
+            l.id,
+            l.regra,
+            l.valor,
+            l.lido_por.as_deref().unwrap_or("não lido"),
+            valores.join(", ")
+        );
+        if !l.divergentes.is_empty() {
+            let _ = writeln!(s, "    - Divergentes: {}", l.divergentes.join("; "));
+        }
+    }
+    let itens = |s: &mut String, nome: &str, lista: &[crate::cenarios::ItemAvaliado]| {
+        if lista.is_empty() {
+            return;
+        }
+        let feitos = lista.iter().filter(|i| i.atendido_por.is_some()).count();
+        let _ = writeln!(s, "- {nome}: {feitos} de {}", lista.len());
+        for i in lista {
+            let _ = writeln!(
+                s,
+                "  - {}: {}",
+                i.id,
+                i.atendido_por.as_deref().unwrap_or("não encontrado")
+            );
+        }
+    };
+    itens(s, "Tabelas de decisão esperadas", &c.tabelas_esperadas);
+    itens(s, "Negativos esperados", &c.negativos);
+    itens(s, "A confirmar", &c.a_confirmar);
 }
 
 fn historias_md(s: &mut String, h: &crate::historias::HistoriasAvaliadas) {

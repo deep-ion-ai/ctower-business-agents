@@ -14,7 +14,15 @@ import { NovaHistorias } from "./NovaHistorias";
 import { NovaReuniao } from "./NovaReuniao";
 import type { ApiReuniao } from "./reunioes";
 
-const FLUXOS: Fluxo[] = ["perguntar", "explicar", "impacto", "reuniao", "revisar", "historias"];
+const FLUXOS: Fluxo[] = [
+  "perguntar",
+  "explicar",
+  "impacto",
+  "reuniao",
+  "revisar",
+  "historias",
+  "cenarios",
+];
 
 const ESTADO: Record<AnaliseInicio["estado"], string> = {
   criada: "criada",
@@ -123,15 +131,20 @@ export function TelaInicio({
             aoCriar={abrirCriada}
           />
         )}
-        {fluxo === "historias" && inicio && !semProjeto && (
+        {(fluxo === "historias" || fluxo === "cenarios") && inicio && !semProjeto && (
           <NovaHistorias
+            key={fluxo}
+            fluxo={fluxo}
             api={api}
             projetos={inicio.projetos}
             aoCancelar={() => setFluxo(null)}
             aoCriar={abrirCriada}
           />
         )}
-        {fluxo && fluxo !== "reuniao" && fluxo !== "historias" && inicio && !semProjeto && (
+        {fluxo &&
+          fluxo !== "reuniao" &&
+          fluxo !== "historias" &&
+          fluxo !== "cenarios" && inicio && !semProjeto && (
           <NovaAnalise
             key={fluxo}
             api={api}

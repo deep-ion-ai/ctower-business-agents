@@ -6,7 +6,14 @@ import type { ProjetoResumo } from "./terminal";
  * `A-NNNN.estado.json` (campos em snake_case), e dos comandos da tela da análise
  * (`ui/src-tauri/src/analise.rs` e `vigia.rs`, campos em camelCase).
  */
-export type Fluxo = "perguntar" | "explicar" | "impacto" | "reuniao" | "revisar" | "historias";
+export type Fluxo =
+  | "perguntar"
+  | "explicar"
+  | "impacto"
+  | "reuniao"
+  | "revisar"
+  | "historias"
+  | "cenarios";
 export type EstadoAnalise = "criada" | "em-andamento" | "concluida" | "aprovada";
 export type EstadoSessao = "ativa" | "aguardando-analista" | "concluida" | "encerrada";
 export type Cliente = "claude-code" | "claude-desktop" | "desconhecido";
@@ -106,6 +113,10 @@ export interface Analise {
   origem?: string | null;
   /** Histórias de usuário (fluxo `historias`, #115). */
   historias?: Historia[];
+  /** Tabelas de decisão (fluxo `cenarios`, #117). */
+  tabelas?: TabelaDecisao[];
+  /** Cenários de teste (fluxo `cenarios`, #117). */
+  cenarios?: Cenario[];
   /** Parecer de revisão (fluxo `revisar`, `cba_core::parecer::Parecer`). */
   parecer?: Parecer | null;
 }
@@ -193,6 +204,66 @@ export interface Historia extends Narrativa {
   /** O analista pediu a quebra em fatias (texto vazio: sem detalhe). */
   quebra_pedida?: string | null;
   registrada_ms: number;
+}
+
+/** Técnica de um cenário de teste (`cba_core::cenarios::Tecnica`). */
+export type Tecnica =
+  | "tabela_de_decisao"
+  | "particao_de_equivalencia"
+  | "valor_limite"
+  | "negativo"
+  | "excecao";
+
+/** Evidência registrada (`cba_core::analise::Evidencia`), como o estado a guarda. */
+export interface EvidenciaRegistrada {
+  arquivo: string;
+  linhas: string;
+  trecho?: string;
+}
+
+/** Tabela de decisão (`cba_core::cenarios::TabelaDecisao`), `TD-<numero>`. */
+export interface TabelaDecisao {
+  numero: number;
+  titulo: string;
+  condicoes: { texto: string; evidencias?: EvidenciaRegistrada[] }[];
+  acoes: string[];
+  colunas: {
+    numero: number;
+    /** Um valor por condição: S, N ou - (indiferente). */
+    valores: ("S" | "N" | "-")[];
+    acoes?: number[];
+    impossivel?: string | null;
+  }[];
+  fundamentos: Fundamento[];
+  situacao: SituacaoItem;
+  registrada_ms: number;
+}
+
+/** Limite lido do código (`cba_core::cenarios::Limite`). */
+export interface LimiteCenario {
+  grandeza: string;
+  valor: string;
+  evidencias: EvidenciaRegistrada[];
+  /** Parâmetro de configuração de onde o valor vem: o cenário fica "a confirmar". */
+  configuracao?: string | null;
+}
+
+/** Cenário de teste (`cba_core::cenarios::Cenario`), `CT-NNNN`. */
+export interface Cenario extends Gherkin {
+  id: string;
+  tecnica: Tecnica;
+  titulo: string;
+  original?: (Gherkin & { titulo: string }) | null;
+  valor?: string | null;
+  limite?: LimiteCenario | null;
+  /** Coluna da tabela de decisão que o cenário exercita. */
+  coluna?: { tabela: number; coluna: number } | null;
+  /** História que o cenário verifica (`HU-0001`). */
+  historia?: string | null;
+  fundamentos: Fundamento[];
+  pergunta?: string | null;
+  situacao: SituacaoItem;
+  registrado_ms: number;
 }
 
 export interface SessaoVista {

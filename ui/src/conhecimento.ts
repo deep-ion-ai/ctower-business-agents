@@ -205,6 +205,11 @@ export interface ApiConhecimento extends ApiAmbiente {
    * uma demanda (`D-0001`); sem demanda, ela herda a da origem.
    */
   criarAnaliseDeHistorias(projeto: string, pedido: PedidoHistorias): Promise<AnaliseCriada>;
+  /**
+   * Cria a análise de cenários de teste (#117) a partir da análise de origem (do código
+   * ou de histórias), de uma demanda ou só do pedido com as regras.
+   */
+  criarAnaliseDeCenarios(projeto: string, pedido: PedidoHistorias): Promise<AnaliseCriada>;
   visaoProjeto(projeto: string): Promise<VisaoProjeto>;
   revalidar(projeto: string): Promise<ResumoRevalidacao>;
   /** `null` se o projeto ainda não foi mapeado. */
@@ -241,6 +246,14 @@ export const apiConhecimentoTauri: ApiConhecimento = {
   listarAnalises: apiAnaliseTauri.listarAnalises,
   criarAnaliseDeHistorias: (projeto, pedido) =>
     invoke("criar_analise_de_historias_app", {
+      projeto,
+      origem: pedido.origem ?? null,
+      demanda: pedido.demanda ?? null,
+      entrada: pedido.entrada ?? null,
+      titulo: pedido.titulo ?? null,
+    }),
+  criarAnaliseDeCenarios: (projeto, pedido) =>
+    invoke("criar_analise_de_cenarios_app", {
       projeto,
       origem: pedido.origem ?? null,
       demanda: pedido.demanda ?? null,
@@ -291,6 +304,7 @@ export const ROTULO_FLUXO: Record<Fluxo, string> = {
   reuniao: "Analisar reunião",
   revisar: "Revisar requisito",
   historias: "Histórias e critérios",
+  cenarios: "Cenários de teste",
 };
 
 export const ROTULO_STATUS_REGRA: Record<StatusRegra, string> = {
@@ -314,6 +328,7 @@ const ROTULO_TIPO: Record<string, string> = {
   "analise-reuniao": "Análise de reunião",
   "parecer-revisao": "Parecer de revisão",
   historias: "Histórias e critérios de aceite",
+  "cenarios-teste": "Cenários de teste",
   projeto: "Projeto",
   "regras-do-projeto": "Regras do projeto",
 };

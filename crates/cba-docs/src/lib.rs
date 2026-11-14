@@ -46,7 +46,10 @@ pub use exportacao::{
     exportar, exportar_com_links, exportar_markdown, exportar_markdown_com_links, exportar_word,
     gravar_exportacao, gravar_exportacao_com_links,
 };
-pub use modelo::{HISTORIAS, MODELOS, Modelo, Montavel, RASTREABILIDADE, Secao, modelo};
+pub use modelo::{
+    CENARIOS, HISTORIAS, MODELOS, Modelo, Montavel, RASTREABILIDADE, Secao, TABELAS_DECISAO,
+    VALORES_LIMITE, modelo,
+};
 pub use montagem::{ErroMontagem, Montado};
 pub use template::{Aviso, Origem, Template, Templates, arquivo_do_template};
 

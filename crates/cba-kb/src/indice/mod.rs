@@ -108,14 +108,15 @@ impl Tipo {
     }
 
     /// Tipos das análises (`analises/`): análise de impacto, pergunta,
-    /// funcionalidade, análise de reunião, parecer de revisão e histórias.
-    pub const ANALISES: [Tipo; 6] = [
+    /// funcionalidade, análise de reunião, parecer de revisão, histórias e cenários de teste.
+    pub const ANALISES: [Tipo; 7] = [
         Tipo::Documento(TipoDocumento::AnaliseImpacto),
         Tipo::Documento(TipoDocumento::Pergunta),
         Tipo::Documento(TipoDocumento::Funcionalidade),
         Tipo::Documento(TipoDocumento::AnaliseReuniao),
         Tipo::Documento(TipoDocumento::ParecerRevisao),
         Tipo::Documento(TipoDocumento::Historias),
+        Tipo::Documento(TipoDocumento::CenariosTeste),
     ];
 
     /// Valor guardado no índice: o do campo `tipo` ou `regras-do-projeto`.

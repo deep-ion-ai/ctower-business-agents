@@ -401,6 +401,18 @@ export function apiConhecimentoFalsa() {
         promptInicial: "Inicie a análise A-0005 pelo ctower",
       }),
     ),
+    criarAnaliseDeCenarios: vi.fn(() =>
+      Promise.resolve({
+        analise: {
+          id: "A-0006",
+          titulo: "Cenários · Parcelamento para pessoa física",
+          fluxo: "cenarios" as const,
+          estado: "criada" as const,
+          atualizadaMs: 7,
+        },
+        promptInicial: "Inicie a análise A-0006 pelo ctower",
+      }),
+    ),
     visaoProjeto: vi.fn((): Promise<VisaoProjeto> => Promise.resolve(visaoFicticia())),
     revalidar: vi.fn((): Promise<ResumoRevalidacao> => Promise.resolve(revalidacao)),
     mapa: vi.fn(

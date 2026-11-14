@@ -23,9 +23,10 @@
 //! partir de 1, único dentro da análise e nunca reaproveitado.
 
 use cba_kb::frontmatter::{Linhas, StatusAnalise, StatusSugestao, TipoDocumento};
-use cba_kb::{CaminhoRelativo, Id, IdHistoria, IdReuniao};
+use cba_kb::{CaminhoRelativo, Id, IdCenario, IdHistoria, IdReuniao};
 use serde::{Deserialize, Serialize};
 
+use crate::cenarios::{Cenario, TabelaDecisao};
 use crate::historias::Historia;
 use crate::parecer::{
     Achado, AvaliacaoInvest, EstadoAchado, NovoAchado, Parecer, Veredito, VereditoRegistrado,
@@ -55,6 +56,11 @@ pub enum Fluxo {
     /// origem ou de uma demanda (#115). As histórias ficam em
     /// [`Analise::historias`] ([`crate::historias`]).
     Historias,
+    /// Cenários de teste derivados das regras, a partir de uma análise de origem
+    /// (do código ou de histórias), de uma demanda ou só das regras citadas (#117).
+    /// As tabelas de decisão e os cenários ficam em [`Analise::tabelas`] e
+    /// [`Analise::cenarios`] ([`crate::cenarios`]).
+    Cenarios,
 }
 
 impl Fluxo {
@@ -67,6 +73,7 @@ impl Fluxo {
             Self::Reuniao => TipoDocumento::AnaliseReuniao,
             Self::Revisar => TipoDocumento::ParecerRevisao,
             Self::Historias => TipoDocumento::Historias,
+            Self::Cenarios => TipoDocumento::CenariosTeste,
         }
     }
 }
@@ -412,6 +419,12 @@ pub struct Analise {
     /// Histórias de usuário (fluxo `historias`, [`crate::historias`]).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub historias: Vec<Historia>,
+    /// Tabelas de decisão (fluxo `cenarios`, [`crate::cenarios`]).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tabelas: Vec<TabelaDecisao>,
+    /// Cenários de teste (fluxo `cenarios`, [`crate::cenarios`]).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cenarios: Vec<Cenario>,
 }
 
 /// Operação recusada pelo modelo. As mensagens se dirigem a quem chamou (o agente
@@ -484,6 +497,44 @@ pub enum ErroModelo {
          uma história nova, se preciso"
     )]
     HistoriaFechada(IdHistoria),
+    #[error(
+        "a análise {0} não é do fluxo `cenarios`; tabelas de decisão e cenários de teste \
+         são registrados numa análise de cenários (iniciar_analise com fluxo `cenarios`)"
+    )]
+    ForaDoFluxoDeCenarios(Id),
+    #[error(
+        "todo {0} precisa de ao menos uma origem: cite a regra (`regras`, \
+         RN-<SIGLA>-NNN) ou a afirmação (`afirmacoes`, o número na análise de origem ou \
+         A-NNNN/n) de que ele foi derivado"
+    )]
+    ItemSemFundamento(&'static str),
+    #[error("o cenário {0} não existe nesta análise; confira o identificador (CT-NNNN)")]
+    CenarioDesconhecido(IdCenario),
+    #[error("o cenário {0} já foi registrado nesta análise")]
+    CenarioRepetido(IdCenario),
+    #[error("tabela de decisão recusada: {0}")]
+    TabelaInvalida(String),
+    #[error(
+        "o cenário de {0} precisa do `limite`: a grandeza, o valor como está no código e \
+         a evidência do trecho que o define"
+    )]
+    CenarioSemLimite(&'static str),
+    #[error(
+        "o limite vem de configuração (`{0}`), fora do código: o cenário fica \
+         \"a confirmar\" e precisa de `pergunta` (registre-a com `perguntar` e cite-a)"
+    )]
+    LimiteDeConfiguracaoSemPergunta(String),
+    #[error(
+        "o valor do limite `{valor}` não aparece no trecho citado ({trechos}); cite o \
+         trecho do código que define o limite ou, se o valor vem de tabela de parâmetros \
+         ou de configuração, informe `configuracao` e a `pergunta`"
+    )]
+    LimiteForaDaEvidencia { valor: String, trechos: String },
+    #[error(
+        "o cenário de tabela de decisão aponta uma coluna (`tabela`: TD-n/Rn) da tabela \
+         registrada; {0}"
+    )]
+    ColunaInvalida(String),
 }
 
 fn exigir(campo: &'static str, valor: &str) -> Result<(), ErroModelo> {
@@ -530,6 +581,8 @@ impl Analise {
             parecer: None,
             origem: None,
             historias: Vec::new(),
+            tabelas: Vec::new(),
+            cenarios: Vec::new(),
         }
     }
 
