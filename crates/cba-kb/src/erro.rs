@@ -55,32 +55,6 @@ pub enum Erro {
     /// A demanda não tem pasta no projeto.
     #[error("demanda {id} não encontrada no projeto `{projeto}`")]
     DemandaInexistente { projeto: String, id: IdDemanda },
-    /// A pessoa não está no catálogo do projeto.
-    #[error("pessoa `{pessoa}` não encontrada no catálogo do projeto `{projeto}`")]
-    PessoaInexistente { projeto: String, pessoa: String },
-    /// O nome ou um apelido da pessoa nova casa com uma pessoa do catálogo.
-    #[error("`{nome}` já está no catálogo do projeto `{projeto}`, como `{pessoa}`")]
-    PessoaJaCadastrada {
-        projeto: String,
-        /// Slug da pessoa que já está no catálogo.
-        pessoa: String,
-        nome: String,
-    },
-    /// O apelido casa com outra pessoa do catálogo: são a mesma pessoa (junte as
-    /// duas) ou o apelido é ambíguo.
-    #[error(
-        "o apelido `{apelido}` já é de `{outra}` no projeto `{projeto}`; se for a mesma \
-         pessoa, junte as duas"
-    )]
-    ApelidoDeOutraPessoa {
-        projeto: String,
-        apelido: String,
-        /// Slug da pessoa que já tem o apelido.
-        outra: String,
-    },
-    /// Pedido para juntar uma pessoa com ela mesma.
-    #[error("não dá para juntar `{0}` com ela mesma")]
-    JuntarMesmaPessoa(String),
     #[error(transparent)]
     Caminho(#[from] CaminhoInvalido),
     #[error(transparent)]

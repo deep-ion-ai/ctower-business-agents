@@ -260,7 +260,6 @@ const ROTULO_TIPO: Record<string, string> = {
   sugestao: "Sugestão",
   "memoria-area": "Memória da área",
   demanda: "Demanda",
-  pessoa: "Pessoa",
   projeto: "Projeto",
   "regras-do-projeto": "Regras do projeto",
 };

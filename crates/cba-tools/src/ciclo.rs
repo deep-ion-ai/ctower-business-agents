@@ -217,24 +217,22 @@ fn iniciar(ambiente: &Ambiente, id: &Id, criada: bool) -> Result<Saida, ErroFerr
     }
     // Roteiros revisados e prompts prontos: a cópia editável na base, como os
     // templates. Falhar aqui não impede a análise: vale o padrão embutido.
-    // O catálogo de papéis das pessoas (`_templates/papeis.yaml`) vai junto.
     let copiados = Roteiros::copiar_padrao(&ambiente.base).and_then(|mut r| {
-        Prompts::copiar_padrao(&ambiente.base).and_then(|p| {
+        Prompts::copiar_padrao(&ambiente.base).map(|p| {
             r.extend(p);
-            r.extend(cba_kb::Papeis::copiar_padrao(&ambiente.base)?);
-            Ok(r)
+            r
         })
     });
     match copiados {
         Ok(criados) if !criados.is_empty() => {
             tracing::info!(
                 arquivos = criados.len(),
-                "roteiros, prompts e papéis padrão copiados para a base"
+                "roteiros e prompts padrão copiados para a base"
             );
         }
         Ok(_) => {}
         Err(e) => avisos.push(format!(
-            "os roteiros, prompts e papéis padrão não foram copiados para a base ({e}); vale o \
+            "os roteiros e prompts padrão não foram copiados para a base ({e}); vale o \
              padrão embutido"
         )),
     }

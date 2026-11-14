@@ -191,7 +191,6 @@ fn rotulo_do_template(tipo: cba_kb::frontmatter::TipoDocumento) -> &'static str 
         T::Projeto => "Projeto",
         T::MemoriaArea => "Memória da área",
         T::Demanda => "Demanda",
-        T::Pessoa => "Pessoa",
     }
 }
 
