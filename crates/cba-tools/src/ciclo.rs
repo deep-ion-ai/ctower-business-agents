@@ -224,16 +224,17 @@ pub fn criar_analise_de_historias(
             ));
         }
     };
-    let entrada = entrada
-        .filter(|e| !e.trim().is_empty())
-        .unwrap_or_else(|| match (&lida, &demanda) {
-            (Some(o), _) => pedido_de_historias(o),
-            (None, Some(d)) => format!(
-                "Histórias de usuário com critérios de aceite da demanda {} ({}).",
-                d.id, d.documento.frontmatter.titulo
-            ),
-            (None, None) => "Histórias de usuário com critérios de aceite.".into(),
-        });
+    let entrada =
+        entrada
+            .filter(|e| !e.trim().is_empty())
+            .unwrap_or_else(|| match (&lida, &demanda) {
+                (Some(o), _) => pedido_de_historias(o),
+                (None, Some(d)) => format!(
+                    "Histórias de usuário com critérios de aceite da demanda {} ({}).",
+                    d.id, d.documento.frontmatter.titulo
+                ),
+                (None, None) => "Histórias de usuário com critérios de aceite.".into(),
+            });
     let titulo = match titulo {
         Some(t) if !t.trim().is_empty() => t,
         _ => titulo_da_entrada(&match (&lida, &demanda) {
