@@ -84,6 +84,8 @@ export interface ItemDaAta {
   texto: string;
   responsavel: string | null;
   prazo: string | null;
+  /** Itens da mesma ata a que este se refere (`N-3`). */
+  referencias: string[];
 }
 
 export interface PainelDemanda {

@@ -21,6 +21,15 @@
 //! confirmar, o catálogo muda (pessoa registrada, apelidos, papel confirmado na
 //! reunião `D-NNNN/R-NNNN`, pessoas juntadas) e a ata recebe os papéis.
 //!
+//! # Aprovação da ata (#142)
+//!
+//! Na mesma tela de revisão das análises: a prontidão e a aprovação ficam em
+//! [`cba_tools::aprovacao_ata`] (o segundo aviso, a confirmação explícita, o
+//! descarte do transcript antes de marcar a ata como aprovada, e a repetição
+//! idempotente). Depois da aprovação, cada próximo passo (`PP-n`) vira botões que
+//! abrem análises já ligadas à demanda, com a ata como contexto
+//! ([`analisar_proximo_passo`]).
+//!
 //! # Privacidade
 //!
 //! Nenhuma fala sai daqui: a prévia só traz os nomes dos falantes, contagens e os
@@ -35,7 +44,9 @@ use cba_core::config::Config;
 use cba_core::dados::DiretorioDados;
 use cba_core::eventos::{DiarioEventos, Evento, Mudanca, Notificador};
 use cba_core::tempo;
-use cba_docs::{CitacaoFala, ErroAta, EstadoAta, ItemAta, Participante, Templates, TipoItem};
+use cba_docs::{
+    CitacaoFala, ErroAta, EstadoAta, IdItemAta, ItemAta, Participante, Templates, TipoItem,
+};
 use cba_kb::frontmatter::{Data, Demanda, StatusAta};
 use cba_kb::{
     Casamento, CatalogoDePessoas, DemandaLida, Id, IdDemanda, IdReuniao, NovaDemanda, NovaPessoa,
@@ -45,7 +56,8 @@ use cba_reunioes::{Formato, Guarda, MotivoDescarte, Transcript};
 use serde::{Deserialize, Serialize};
 
 use crate::analise::{AnaliseCriada, ambiente, criar_analise_com_demanda, titulo_da_entrada};
-use crate::demandas::TranscriptGuardado;
+use crate::demandas::{TranscriptGuardado, criar_analise_ligada};
+use cba_tools::aprovacao_ata::{self, AtaAprovada, ProntidaoAta};
 
 /// Tamanho máximo do arquivo do transcript anexado.
 pub const TAMANHO_MAXIMO_DO_ARQUIVO: u64 = 20 * 1024 * 1024;
@@ -850,6 +862,191 @@ fn notificar_ata(dados: &DiretorioDados, projeto: &str, reuniao: IdReuniao) {
 }
 
 // ---------------------------------------------------------------------------
+// Aprovação da ata
+
+fn id_da_analise(analise: &str) -> Result<Id, String> {
+    Id::analisar(analise.trim()).map_err(|e| e.to_string())
+}
+
+/// Se a ata da análise `analise` (fluxo `reuniao`) pode ser aprovada.
+pub fn prontidao_ata(
+    dados: &DiretorioDados,
+    projeto: &str,
+    analise: &str,
+) -> Result<ProntidaoAta, String> {
+    let amb = ambiente(dados, projeto)?;
+    aprovacao_ata::prontidao_ata(&amb, &id_da_analise(analise)?).map_err(|e| e.to_string())
+}
+
+/// Aprova a ata e apaga o transcript. Sem `confirmacao` (o segundo aviso aceito),
+/// recusa sem mudar nada: a ata continua em rascunho e o transcript, guardado.
+pub fn aprovar_ata(
+    dados: &DiretorioDados,
+    projeto: &str,
+    analise: &str,
+    confirmacao: bool,
+) -> Result<AtaAprovada, String> {
+    if !confirmacao {
+        return Err(aprovacao_ata::ErroAprovacaoAta::SemConfirmacao.to_string());
+    }
+    let amb = ambiente(dados, projeto)?;
+    aprovacao_ata::aprovar_ata(&amb, &id_da_analise(analise)?, true, tempo::hoje())
+        .map_err(|e| e.to_string())
+}
+
+// ---------------------------------------------------------------------------
+// Próximos passos
+
+/// O que fazer com um próximo passo da ata aprovada.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(tag = "tipo", rename_all = "camelCase")]
+pub enum AcaoProximoPasso {
+    /// Análise de impacto da necessidade (`N-3`) a que o próximo passo se refere
+    /// ou, sem ela, do próprio próximo passo.
+    Impacto {
+        #[serde(default)]
+        necessidade: Option<String>,
+    },
+    /// Pergunta ao sistema, escrita (ou ajustada) pelo analista.
+    Perguntar { pergunta: String },
+}
+
+fn id_do_item(texto: &str) -> Result<IdItemAta, String> {
+    IdItemAta::analisar(texto.trim()).ok_or_else(|| format!("item da ata inválido: `{texto}`"))
+}
+
+/// Linha de um item da ata para o contexto da análise.
+fn linha_do_item(i: &ItemAta) -> String {
+    let tipo = match i.tipo {
+        TipoItem::Decisao => "decisão",
+        TipoItem::Necessidade => "necessidade",
+        TipoItem::Regra => "regra citada",
+        TipoItem::Pendencia => "pendência",
+        TipoItem::Duvida => "dúvida",
+        TipoItem::ProximoPasso => "próximo passo",
+    };
+    let mut linha = format!("- {} ({tipo}): {}", i.id, i.texto.trim());
+    if let Some(r) = &i.responsavel {
+        linha.push_str(&format!(" Responsável: {r}."));
+    }
+    if let Some(p) = &i.prazo {
+        linha.push_str(&format!(" Prazo: {p}."));
+    }
+    linha
+}
+
+/// Entrada da análise aberta por um próximo passo: o pedido e, como contexto, a
+/// ata aprovada (o caminho na base), o próximo passo e os itens a que ele se
+/// refere. Sem falas: só o texto dos itens, que o analista aprovou.
+fn entrada_do_proximo_passo(
+    pedido: &str,
+    estado: &EstadoAta,
+    passo: &ItemAta,
+    ata: &str,
+) -> String {
+    let mut itens = vec![linha_do_item(passo)];
+    itens.extend(
+        passo
+            .referencias
+            .iter()
+            .filter_map(|r| estado.item(*r))
+            .map(linha_do_item),
+    );
+    format!(
+        "{pedido}\n\nContexto: próximo passo {} da ata aprovada da reunião {} ({}) da \
+         demanda {}. Ata: `{ata}`.\n{}",
+        passo.id,
+        estado.id,
+        estado.data,
+        estado.demanda,
+        itens.join("\n")
+    )
+}
+
+/// Abre a análise de um próximo passo (`PP-n`) da ata aprovada da reunião: de
+/// impacto (da necessidade a que ele se refere, ou do próprio passo) ou uma
+/// pergunta ao sistema. A análise nasce ligada à demanda da reunião (`demanda.id`),
+/// com a ata como contexto na entrada; o `iniciar_analise` traz ainda as atas da
+/// demanda no contexto. A demanda precisa estar aberta.
+pub fn analisar_proximo_passo(
+    dados: &DiretorioDados,
+    projeto: &str,
+    reuniao: &str,
+    item: &str,
+    acao: &AcaoProximoPasso,
+) -> Result<AnaliseCriada, String> {
+    let amb = ambiente(dados, projeto)?;
+    let kb = &amb.kb;
+    let r = id_da_reuniao(reuniao)?;
+    let (estado, arquivos) = EstadoAta::ler(kb, r).map_err(|e| e.to_string())?;
+    if estado.status != StatusAta::Aprovada {
+        return Err(format!(
+            "aprove a ata da reunião {r} antes de abrir análises dos próximos passos"
+        ));
+    }
+    let id = id_do_item(item)?;
+    let passo = estado
+        .item(id)
+        .filter(|i| i.tipo == TipoItem::ProximoPasso)
+        .ok_or_else(|| format!("a ata da reunião {r} não tem o próximo passo {id}"))?;
+    let ata = kb.na_base(&arquivos.ata).as_str().to_owned();
+    let (fluxo, pedido, titulo) = match acao {
+        AcaoProximoPasso::Impacto { necessidade } => {
+            match necessidade
+                .as_deref()
+                .map(str::trim)
+                .filter(|n| !n.is_empty())
+            {
+                Some(n) => {
+                    let n = id_do_item(n)?;
+                    let necessidade = estado
+                        .item(n)
+                        .filter(|i| i.tipo == TipoItem::Necessidade)
+                        .ok_or_else(|| format!("a ata da reunião {r} não tem a necessidade {n}"))?;
+                    (
+                        Fluxo::Impacto,
+                        format!(
+                            "Analisar o impacto da necessidade {n}: {}",
+                            necessidade.texto.trim()
+                        ),
+                        format!("Impacto da necessidade {n} ({r}) · {}", necessidade.texto),
+                    )
+                }
+                None => (
+                    Fluxo::Impacto,
+                    format!("Analisar o impacto de {id}: {}", passo.texto.trim()),
+                    format!("Impacto de {id} ({r}) · {}", passo.texto),
+                ),
+            }
+        }
+        AcaoProximoPasso::Perguntar { pergunta } => {
+            let pergunta = pergunta.trim();
+            if pergunta.is_empty() {
+                return Err("escreva a pergunta ao sistema".into());
+            }
+            (Fluxo::Perguntar, pergunta.to_owned(), pergunta.to_owned())
+        }
+    };
+    let entrada = entrada_do_proximo_passo(&pedido, &estado, passo, &ata);
+    let criada = criar_analise_ligada(
+        dados,
+        projeto,
+        &estado.demanda.to_string(),
+        fluxo,
+        &entrada,
+        Some(&titulo_da_entrada(&titulo)),
+    )?;
+    tracing::info!(
+        projeto,
+        reuniao = %r,
+        item = %id,
+        analise = criada.analise.id,
+        "análise aberta pelo próximo passo"
+    );
+    Ok(criada)
+}
+
+// ---------------------------------------------------------------------------
 // Comandos
 
 fn dados() -> Result<DiretorioDados, String> {
@@ -894,6 +1091,33 @@ pub async fn confirmar_participantes_app(
 ) -> Result<AtaVista, String> {
     let dados = dados()?;
     bloqueante(move || confirmar_participantes(&dados, &projeto, &reuniao, &confirmacoes)).await
+}
+
+#[tauri::command]
+pub async fn prontidao_ata_app(projeto: String, analise: String) -> Result<ProntidaoAta, String> {
+    let dados = dados()?;
+    bloqueante(move || prontidao_ata(&dados, &projeto, &analise)).await
+}
+
+#[tauri::command]
+pub async fn aprovar_ata_app(
+    projeto: String,
+    analise: String,
+    confirmacao: bool,
+) -> Result<AtaAprovada, String> {
+    let dados = dados()?;
+    bloqueante(move || aprovar_ata(&dados, &projeto, &analise, confirmacao)).await
+}
+
+#[tauri::command]
+pub async fn analisar_proximo_passo_app(
+    projeto: String,
+    reuniao: String,
+    item: String,
+    acao: AcaoProximoPasso,
+) -> Result<AnaliseCriada, String> {
+    let dados = dados()?;
+    bloqueante(move || analisar_proximo_passo(&dados, &projeto, &reuniao, &item, &acao)).await
 }
 
 #[cfg(test)]

@@ -83,6 +83,7 @@ export function TelaAnalise({
           aoVoltar={() => setAberta(null)}
           apiTerminal={apiTerminal}
           criarTela={criarTela}
+          aoAbrirAnalise={(id, abertura) => setAberta({ id, abertura })}
         />
       </section>
     );
