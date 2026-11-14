@@ -12,7 +12,9 @@
 //!   `retomar_analise` e `concluir_analise`), [`afirmar`], [`perguntar`],
 //!   [`sugestao`] (`registrar_sugestao`), [`termo`] (`propor_termo`) e
 //!   [`reuniao`] (`ler_transcript`, `propor_papel`, `registrar_item_ata`,
-//!   `registrar_resumo_ata` e `sugerir_demanda`, do fluxo "Analisar reunião").
+//!   `registrar_resumo_ata` e `sugerir_demanda`, do fluxo "Analisar reunião") e
+//!   [`parecer`] (`verificar_termos_vagos`, `registrar_achado`, `registrar_invest`
+//!   e `registrar_veredito`, do fluxo "Revisar requisito").
 //! - Consulta, só de leitura e paginada ([`paginacao`]): [`conhecimento`] (busca no
 //!   índice da base), [`mapa`], [`estrutura`], [`banco`] (`schema`) e
 //!   [`referencias`], a partir do mapa estrutural do projeto ([`fontes`]).
@@ -53,6 +55,7 @@ pub mod evidencias;
 mod fontes;
 pub mod mapa;
 mod paginacao;
+pub mod parecer;
 pub mod perguntar;
 pub mod prompts;
 pub mod referencias;
@@ -93,6 +96,10 @@ pub fn registro_padrao() -> Registro {
         .registrar(reuniao::registrar_item_ata())
         .registrar(reuniao::registrar_resumo_ata())
         .registrar(reuniao::sugerir_demanda())
+        .registrar(parecer::verificar_termos_vagos())
+        .registrar(parecer::registrar_achado())
+        .registrar(parecer::registrar_invest())
+        .registrar(parecer::registrar_veredito())
         .registrar(ciclo::concluir_analise());
     registro
 }
@@ -127,6 +134,10 @@ mod tests {
             "registrar_item_ata",
             "registrar_resumo_ata",
             "sugerir_demanda",
+            "verificar_termos_vagos",
+            "registrar_achado",
+            "registrar_invest",
+            "registrar_veredito",
             "concluir_analise",
         ] {
             assert!(r.obter(nome).is_some(), "{nome}");
@@ -138,6 +149,9 @@ mod tests {
         assert!(!r.obter("propor_papel").unwrap().e_somente_leitura());
         assert!(!r.obter("registrar_item_ata").unwrap().e_somente_leitura());
         assert!(!r.obter("registrar_resumo_ata").unwrap().e_somente_leitura());
+        assert!(!r.obter("registrar_achado").unwrap().e_somente_leitura());
+        assert!(!r.obter("registrar_invest").unwrap().e_somente_leitura());
+        assert!(!r.obter("registrar_veredito").unwrap().e_somente_leitura());
         for consulta in [
             "retomar_analise",
             "conhecimento",
@@ -147,6 +161,7 @@ mod tests {
             "schema",
             "ler_transcript",
             "sugerir_demanda",
+            "verificar_termos_vagos",
         ] {
             assert!(r.obter(consulta).unwrap().e_somente_leitura(), "{consulta}");
         }

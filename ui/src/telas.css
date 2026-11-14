@@ -1422,3 +1422,88 @@
 .itens-ata > li {
   margin-bottom: 6px;
 }
+
+/* Parecer de revisão de requisito (#116) */
+.parecer-ao-vivo .requisito-revisado {
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+.parecer-ao-vivo mark {
+  background: none;
+  color: inherit;
+  text-decoration-line: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+.parecer-ao-vivo .marca-ambiguidade {
+  text-decoration-color: var(--attention);
+}
+
+.parecer-ao-vivo .marca-contradicao {
+  text-decoration-color: var(--error);
+}
+
+.parecer-ao-vivo .legenda-marcas {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+}
+
+.parecer-ao-vivo .contagem-achados {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.parecer-ao-vivo ol.achados {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.parecer-ao-vivo .achado {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 10px 14px;
+}
+
+.parecer-ao-vivo .achado[data-caracteristica="correcao"] {
+  border-color: var(--error-border);
+}
+
+.parecer-ao-vivo .achado-cabecalho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.parecer-ao-vivo .achado-cabecalho .btn {
+  margin-left: auto;
+}
+
+.parecer-ao-vivo .achado-trecho {
+  font-style: italic;
+}
+
+.parecer-ao-vivo .tabela-invest {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.parecer-ao-vivo .tabela-invest th,
+.parecer-ao-vivo .tabela-invest td {
+  border: 1px solid var(--border);
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.parecer-ao-vivo .tabela-invest tr[data-resultado="nao_atende"] td:nth-child(2) {
+  color: var(--error-soft);
+}

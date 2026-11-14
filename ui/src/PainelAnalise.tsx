@@ -31,6 +31,7 @@ import {
   type OrigemEvidencia,
 } from "./DocumentoAoVivo";
 import { ExportacaoAnalise } from "./ExportacaoAnalise";
+import { ParecerAoVivo } from "./ParecerAoVivo";
 import { PromptsProntos } from "./PromptsProntos";
 import { apiRevisaoTauri, type ApiRevisao, type DecisaoRevisao } from "./revisao";
 import { AtaAoVivo } from "./AtaAoVivo";
@@ -462,7 +463,13 @@ export function PainelAnalise({
                 aoAlternar={alternar("aprovar")}
                 aoFechar={fecharMenu}
                 rotulo="Aprovar"
-                rotuloPainel={vista.analise.fluxo === "reuniao" ? "Aprovar a ata" : "Aprovar a análise"}
+                rotuloPainel={
+                  vista.analise.fluxo === "reuniao"
+                    ? "Aprovar a ata"
+                    : vista.analise.fluxo === "revisar"
+                      ? "Aprovar o parecer"
+                      : "Aprovar a análise"
+                }
                 classePainel="painel-revisao"
               >
                 {vista.analise.fluxo === "reuniao" ? (
@@ -531,6 +538,13 @@ export function PainelAnalise({
                 ((c) =>
                   aoAbrirAnalise(c.analise.id, { tipo: "nova", promptInicial: c.promptInicial }))
               }
+            />
+          )}
+          {vista?.analise.fluxo === "revisar" && (
+            <ParecerAoVivo
+              analise={vista.analise}
+              ocupado={revisando}
+              aoDecidir={revisao.aoDecidir}
             />
           )}
           {vista && (

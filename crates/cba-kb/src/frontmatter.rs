@@ -49,10 +49,14 @@ pub enum TipoDocumento {
     /// Análise de uma reunião (fluxo `reuniao`), em `analises/`: aponta para a
     /// ata, que tem os itens, e guarda as ligações com o código.
     AnaliseReuniao,
+    /// Parecer de revisão de um requisito ou história (fluxo `revisar`), em
+    /// `analises/`: veredito, achados por característica da ISO/IEC/IEEE 29148 e
+    /// perguntas para o autor.
+    ParecerRevisao,
 }
 
 impl TipoDocumento {
-    pub const TODOS: [TipoDocumento; 13] = [
+    pub const TODOS: [TipoDocumento; 14] = [
         Self::Projeto,
         Self::AnaliseImpacto,
         Self::Pergunta,
@@ -66,6 +70,7 @@ impl TipoDocumento {
         Self::Pessoa,
         Self::Ata,
         Self::AnaliseReuniao,
+        Self::ParecerRevisao,
     ];
 
     /// Valor no frontmatter (`analise-impacto`).
@@ -84,6 +89,7 @@ impl TipoDocumento {
             Self::Pessoa => "pessoa",
             Self::Ata => "ata",
             Self::AnaliseReuniao => "analise-reuniao",
+            Self::ParecerRevisao => "parecer-revisao",
         }
     }
 
@@ -501,6 +507,7 @@ impl Frontmatter for FrontmatterAnalise {
         TipoDocumento::Pergunta,
         TipoDocumento::Funcionalidade,
         TipoDocumento::AnaliseReuniao,
+        TipoDocumento::ParecerRevisao,
     ];
 
     fn validar(&self) -> Result<(), ErroCampo> {

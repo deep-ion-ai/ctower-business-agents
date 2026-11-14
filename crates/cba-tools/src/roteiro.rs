@@ -21,11 +21,12 @@ use crate::documento::secoes_de_afirmacao;
 use crate::editavel::{self, Aviso, Padrao, Texto};
 
 /// Os fluxos, na ordem em que aparecem para o analista.
-pub const FLUXOS: [Fluxo; 4] = [
+pub const FLUXOS: [Fluxo; 5] = [
     Fluxo::Perguntar,
     Fluxo::Explicar,
     Fluxo::Impacto,
     Fluxo::Reuniao,
+    Fluxo::Revisar,
 ];
 
 /// Pasta dos roteiros dentro de `_templates/`.
@@ -54,6 +55,7 @@ pub fn nome_do_fluxo(fluxo: Fluxo) -> &'static str {
         Fluxo::Explicar => "explicação de funcionalidade (documento negocial)",
         Fluxo::Impacto => "análise de impacto de uma demanda",
         Fluxo::Reuniao => "análise de reunião",
+        Fluxo::Revisar => "revisão de qualidade de um requisito ou história",
     }
 }
 
@@ -65,13 +67,15 @@ pub fn nome_do_arquivo(fluxo: Fluxo) -> &'static str {
         Fluxo::Explicar => "explicar",
         Fluxo::Impacto => "impacto",
         Fluxo::Reuniao => "reuniao",
+        Fluxo::Revisar => "revisar",
     }
 }
 
 /// Se o roteiro padrão do fluxo já foi revisado. Só os revisados são copiados
 /// para a base. Os três primeiros foram revisados (#32): perguntar no M1, explicar
-/// e impacto no M2; o de reunião, na #140. Um fluxo novo entra aqui só depois de
-/// ter o roteiro revisado.
+/// e impacto no M2; o de reunião, na #140. O de revisão (#116) é provisório até
+/// ser avaliado com o modelo real (`cba-avaliacao rodar --fluxos revisar`). Um
+/// fluxo novo entra aqui só depois de ter o roteiro revisado.
 pub fn revisado(fluxo: Fluxo) -> bool {
     matches!(
         fluxo,
@@ -85,6 +89,7 @@ pub(crate) fn padrao(fluxo: Fluxo) -> Padrao {
         Fluxo::Explicar => include_str!("../textos/roteiros/explicar.md"),
         Fluxo::Impacto => include_str!("../textos/roteiros/impacto.md"),
         Fluxo::Reuniao => include_str!("../textos/roteiros/reuniao.md"),
+        Fluxo::Revisar => include_str!("../textos/roteiros/revisar.md"),
     };
     Padrao {
         pasta: PASTA,
@@ -162,6 +167,9 @@ fn dica_da_secao(fluxo: Fluxo, marcador: &str) -> &'static str {
         (Fluxo::Reuniao, "ligacao_com_o_codigo") => {
             "o que o código já faz, ou com que regra conflita, sobre uma necessidade ou regra citada na reunião (cite o item da ata, como N-3, e a evidência)"
         }
+        (Fluxo::Revisar, "contexto_no_codigo") => {
+            "como o sistema trata hoje o assunto do texto revisado: as regras e exceções que sustentam os achados, uma por afirmação, com evidência"
+        }
         _ => "",
     }
 }
@@ -175,6 +183,8 @@ pub fn secoes_obrigatorias(fluxo: Fluxo) -> &'static [&'static str] {
         Fluxo::Explicar => &["objetivo", "fluxo_principal", "regras"],
         // Os itens da reunião ficam na ata; `concluir_analise` confere a ata.
         Fluxo::Reuniao => &[],
+        // O conteúdo da revisão está no parecer; `concluir_analise` exige o veredito.
+        Fluxo::Revisar => &[],
     }
 }
 
@@ -229,7 +239,7 @@ fn titulo_ao_fim(variavel: &str) -> &'static str {
 /// Os roteiros dos fluxos.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Roteiros {
-    por_fluxo: [Texto; 4],
+    por_fluxo: [Texto; 5],
 }
 
 fn indice(fluxo: Fluxo) -> usize {
@@ -238,6 +248,7 @@ fn indice(fluxo: Fluxo) -> usize {
         Fluxo::Explicar => 1,
         Fluxo::Impacto => 2,
         Fluxo::Reuniao => 3,
+        Fluxo::Revisar => 4,
     }
 }
 
@@ -592,8 +603,16 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let base = Base::criar(dir.path()).unwrap();
         let criados = Roteiros::copiar_padrao(&base).unwrap();
-        // Todos os roteiros já foram revisados; o de reunião, na #140.
-        assert!(FLUXOS.into_iter().all(revisado));
+        // O de reunião foi revisado na #140; o de revisão (#116) é provisório e
+        // não vai para a base.
+        assert!(
+            FLUXOS
+                .into_iter()
+                .filter(|f| *f != Fluxo::Revisar)
+                .all(revisado)
+        );
+        assert!(!revisado(Fluxo::Revisar));
+        assert!(base.ler_texto(&arquivo_do_roteiro(Fluxo::Revisar)).is_err());
         assert_eq!(
             criados,
             ["perguntar", "explicar", "impacto", "reuniao"]

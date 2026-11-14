@@ -1,6 +1,6 @@
 # Avaliação dos fluxos contra o gabarito
 
-Roteiros, limites e modelos mudam com o tempo. A avaliação mostra se um ajuste piorou a análise (spec, critério de aceite 2): roda os fluxos com o Claude Code real no sistema fictício **Faturamento Exemplo** e compara o que o agente registrou com o gabarito `fixtures/gabaritos/faturamento-exemplo.yaml`. Além dos três fluxos de análise (perguntar, explicar, impacto), avalia o fluxo **Analisar reunião** (`reuniao`) com os transcripts fictícios de `fixtures/reunioes/` e mede o custo de uma reunião longa, de cerca de 2 h ([seção própria](#fluxo-reuniao)).
+Roteiros, limites e modelos mudam com o tempo. A avaliação mostra se um ajuste piorou a análise (spec, critério de aceite 2): roda os fluxos com o Claude Code real no sistema fictício **Faturamento Exemplo** e compara o que o agente registrou com o gabarito `fixtures/gabaritos/faturamento-exemplo.yaml`. Além dos três fluxos de análise (perguntar, explicar, impacto), avalia o fluxo **Analisar reunião** (`reuniao`) com os transcripts fictícios de `fixtures/reunioes/` e mede o custo de uma reunião longa, de cerca de 2 h ([seção própria](#fluxo-reuniao)), e o fluxo **Revisar requisito** (`revisar`) com uma história fictícia com problemas plantados ([seção própria](#fluxo-revisar)).
 
 Ela fica na crate `crates/cba-avaliacao` e tem duas partes:
 
@@ -38,9 +38,9 @@ Opções principais:
 |---|---|---|
 | `--modelo` | `sonnet` | modelo do `claude` |
 | `--orcamento` | `1.5` | `--max-budget-usd` de **cada** execução, em US$ |
-| `--fluxos` | `perguntar,explicar,impacto` | fluxos a rodar; também `reuniao` e `reuniao-longa` |
+| `--fluxos` | `perguntar,explicar,impacto` | fluxos a rodar; também `revisar`, `reuniao` e `reuniao-longa` |
 | `--repeticoes` | `1` | execuções de cada fluxo (o modelo varia de uma para outra; use 3 ou mais para comparar versões) |
-| `--pergunta`, `--funcionalidade`, `--demanda` | `P-FAT-001`, `F-FAT-002`, `D-FAT-001` | item do gabarito de cada fluxo |
+| `--pergunta`, `--funcionalidade`, `--demanda`, `--revisao` | `P-FAT-001`, `F-FAT-002`, `D-FAT-001`, `REV-FAT-001` | item do gabarito de cada fluxo |
 | `--reuniao` | `REU-FAT-001` | reunião do gabarito dos fluxos `reuniao` e `reuniao-longa` |
 | `--orcamento-longa` | `3` | `--max-budget-usd` da reunião longa, em US$ |
 | `--longa-minutos`, `--longa-palavras` | `120`, `25000` | tamanho da reunião longa sintética |
@@ -116,9 +116,30 @@ Falha grave (reunião): estado da ata ausente, nenhum item na ata, item sem cita
 
 Nenhum texto de fala vai para o relatório: ele mostra só identificadores, contagens, os papéis, as descrições do gabarito e os motivos das recusas de citação (que não trazem texto de fala). Os trechos curtos das citações ficam no `ata.estado.json` e no `ata.md` da pasta de cada execução, como na ata do app. O teste `relatorio_da_reuniao_sem_texto_de_fala` confere que nenhuma fala nem trecho citado aparece no relatório.
 
+## Fluxo revisar
+
+O fluxo **Revisar requisito** (`revisar`, #116) confere um requisito ou uma história contra a base e o código e monta o parecer de revisão (roteiro `crates/cba-tools/textos/roteiros/revisar.md`, ferramentas `verificar_termos_vagos`, `registrar_achado`, `registrar_invest` e `registrar_veredito`). O gabarito tem, em `revisoes`, textos fictícios com problemas plantados e o parecer esperado. `REV-FAT-001` é uma história de cancelamento de fatura que contradiz a regra RN-FAT-012 (permite cancelar fatura com pagamento parcial), omite o motivo mínimo (RN-FAT-013) e o supervisor depois de 30 dias (RN-FAT-014) e usa termos vagos da lista de referência ("rápido", "adequada", "e/ou", "etc.").
+
+```sh
+cargo run -p cba-avaliacao -- rodar --fluxos revisar --orcamento 1.5
+```
+
+A execução é a mesma dos três primeiros fluxos: a análise é criada com o texto do gabarito como entrada, e o pedido é `Inicie a análise A-0001 pelo ctower`. Na base temporária não há regras confirmadas, então a contradição precisa ser achada no código.
+
+### Critérios
+
+- **Achado esperado.** Um achado ativo (não descartado) atende quando é da característica esperada (ou de uma das `tambem_em`), tem um termo de cada grupo de palavras-chave no trecho, no problema ou na reescrita e, se o esperado cita regras, tem evidência válida que toca uma evidência esperada de uma delas (o mesmo critério das regras encontradas) ou cita a regra pelo id. A contradição plantada é o achado esperado de correção.
+- **Termo vago apontado.** Cada termo de `termos_vagos` tem um achado de ambiguidade ou de verificabilidade cujo trecho contém o termo, pela mesma lista de referência das ferramentas (`cba_core::qualidade`).
+- **Veredito.** O registrado é o esperado.
+- **Perguntas esperadas**, como nos outros fluxos (perguntas para o autor).
+
+Falha grave (revisão): achado de correção sem evidência válida, nenhum achado quando o veredito esperado não é `pronta`, estado ausente, erro da execução ou arquivo do projeto alterado. Achados, termos e veredito são cobertura. Para comparar um estado gravado: `cargo run -p cba-avaliacao -- comparar --estado <pasta>/estado.json --item REV-FAT-001`.
+
+O roteiro de revisão é provisório até a primeira execução com o modelo real: por isso ainda não é copiado para a base nem aparece no editor de textos (veja `roteiro::revisado`).
+
 ## Ao mudar o gabarito ou a fixture
 
-- O teste da crate `cba-fixtures` confere o gabarito, inclusive o formato de `perguntas_esperadas` e `verificacao_da_premissa` e, nas reuniões, que o transcript existe, que os participantes são os falantes dele e que as falas citadas pelos itens existem.
+- O teste da crate `cba-fixtures` confere o gabarito, inclusive o formato de `perguntas_esperadas` e `verificacao_da_premissa`, nas revisões, que os termos vagos esperados são exatamente os que a lista de referência acha no texto e que as regras dos achados existem, e, nas reuniões, que o transcript existe, que os participantes são os falantes dele e que as falas citadas pelos itens existem.
 - Os testes de `crates/cba-avaliacao/tests/ata.rs` montam uma ata boa e uma ruim a partir do gabarito e do transcript; uma mudança no transcript ou nos itens esperados aparece ali.
 - Os testes da crate `cba-avaliacao` usam estados de exemplo montados no teste e estados gravados por execuções reais (`crates/cba-avaliacao/tests/estados/<item>.estado.json`). Se uma mudança na fixture deslocar linhas, as evidências desses estados deixam de conferir: rode a avaliação de novo e troque os estados gravados.
 

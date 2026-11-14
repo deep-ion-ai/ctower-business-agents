@@ -43,6 +43,7 @@ use cba_core::analise::{
 };
 use cba_core::analises;
 use cba_core::eventos::Mudanca;
+use cba_core::parecer::EstadoAchado;
 use cba_docs::FonteDeTrechos;
 /// Formato e opções da exportação, para quem chama sem depender de `cba-docs`.
 pub use cba_docs::{Formato, OpcoesExportacao};
@@ -82,6 +83,13 @@ pub enum Decisao {
     EditarTermo { numero: u32, definicao: String },
     /// As respostas destas perguntas foram enviadas ao agente.
     RespostasEnviadas { numeros: Vec<u32> },
+    /// Descartar um achado do parecer de revisão (fluxo `revisar`), com o motivo,
+    /// ou, com `registrado`, desfazer o descarte.
+    Achado {
+        numero: u32,
+        #[serde(flatten)]
+        estado: EstadoAchado,
+    },
 }
 
 impl Decisao {
@@ -91,6 +99,7 @@ impl Decisao {
             Self::Pergunta { .. } | Self::RespostasEnviadas { .. } => Mudanca::Pergunta,
             Self::Sugestao { .. } => Mudanca::Sugestao,
             Self::Termo { .. } | Self::EditarTermo { .. } => Mudanca::Termo,
+            Self::Achado { .. } => Mudanca::Parecer,
         }
     }
 
@@ -106,6 +115,7 @@ impl Decisao {
             Self::Termo { numero, estado } => a.decidir_termo(numero, estado),
             Self::EditarTermo { numero, definicao } => a.editar_termo(numero, &definicao),
             Self::RespostasEnviadas { numeros } => a.marcar_respostas_enviadas(&numeros),
+            Self::Achado { numero, estado } => a.decidir_achado(numero, estado),
         }
     }
 }
@@ -241,7 +251,21 @@ pub fn pendencias(analise: &Analise) -> Vec<Pendencia> {
     if analise.estado == EstadoAnalise::Aprovada {
         return lista;
     }
-    if analise.afirmacoes.is_empty() {
+    // O parecer de revisão vale pelo veredito; as afirmações são opcionais.
+    if analise.fluxo == Fluxo::Revisar {
+        if analise
+            .parecer
+            .as_ref()
+            .and_then(|p| p.veredito.as_ref())
+            .is_none()
+        {
+            lista.push(Pendencia {
+                tipo: "analise",
+                numero: None,
+                motivo: "o parecer ainda não tem veredito".into(),
+            });
+        }
+    } else if analise.afirmacoes.is_empty() {
         lista.push(Pendencia {
             tipo: "analise",
             numero: None,
@@ -575,6 +599,19 @@ mod tests {
         }))
         .unwrap();
         assert!(matches!(d, Decisao::Pergunta { numero: 1, .. }));
+        let d: Decisao = serde_json::from_value(serde_json::json!({
+            "tipo": "achado", "numero": 2, "estado": "descartado", "motivo": "É do glossário."
+        }))
+        .unwrap();
+        assert_eq!(
+            d,
+            Decisao::Achado {
+                numero: 2,
+                estado: EstadoAchado::Descartado {
+                    motivo: Some("É do glossário.".into())
+                }
+            }
+        );
         let d: Decisao = serde_json::from_value(serde_json::json!({
             "tipo": "respostas-enviadas", "numeros": [1, 3]
         }))

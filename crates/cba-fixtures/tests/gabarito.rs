@@ -30,7 +30,47 @@ struct Gabarito {
     exclusoes: Vec<Exclusao>,
     #[serde(default)]
     reunioes: Vec<Reuniao>,
+    #[serde(default)]
+    revisoes: Vec<Revisao>,
 }
+
+/// Requisito ou história fictícios com problemas plantados e o parecer esperado
+/// (fluxo "Revisar requisito", #116).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Revisao {
+    id: String,
+    titulo: String,
+    texto: String,
+    veredito: String,
+    #[serde(default)]
+    termos_vagos: Vec<String>,
+    achados: Vec<AchadoEsperado>,
+    #[serde(default)]
+    perguntas_esperadas: Vec<PerguntaEsperada>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AchadoEsperado {
+    id: String,
+    caracteristica: String,
+    #[serde(default)]
+    tambem_em: Vec<String>,
+    descricao: String,
+    #[serde(default)]
+    regras: Vec<String>,
+    palavras_chave: Vec<Vec<String>>,
+}
+
+const CARACTERISTICAS: [&str; 6] = [
+    "ambiguidade",
+    "verificabilidade",
+    "completude",
+    "consistencia",
+    "correcao",
+    "singularidade",
+];
 
 /// Ata esperada de um transcript de `fixtures/reunioes/` (avaliação, #137).
 #[derive(Debug, Deserialize)]
@@ -346,6 +386,13 @@ fn conferir(caminho: &Path) -> Vec<String> {
                 .reunioes
                 .iter()
                 .flat_map(|r| r.itens.iter().map(|i| &i.id)),
+        )
+        .chain(gabarito.revisoes.iter().map(|r| &r.id))
+        .chain(
+            gabarito
+                .revisoes
+                .iter()
+                .flat_map(|r| r.achados.iter().map(|a| &a.id)),
         );
     let mut contagem: HashMap<&str, usize> = HashMap::new();
     for id in ids {
@@ -491,6 +538,65 @@ fn conferir(caminho: &Path) -> Vec<String> {
 
     for r in &gabarito.reunioes {
         conferir_reuniao(&mut c, pasta_gabarito, &raiz_canonica, r);
+    }
+
+    for r in &gabarito.revisoes {
+        let onde = format!("revisão {}", r.id);
+        c.texto_preenchido(&onde, "titulo", &r.titulo);
+        c.texto_preenchido(&onde, "texto", &r.texto);
+        if !["pronta", "pronta_com_ressalvas", "precisa_de_retrabalho"]
+            .contains(&r.veredito.as_str())
+        {
+            c.erro(format!(
+                "{onde}: veredito `{}` deve ser pronta, pronta_com_ressalvas ou precisa_de_retrabalho",
+                r.veredito
+            ));
+        }
+        // Os termos vagos esperados são os que a lista de referência acha no texto.
+        let achados_no_texto: Vec<&str> = cba_core::qualidade::termos_vagos(&r.texto)
+            .into_iter()
+            .map(|o| o.termo)
+            .collect();
+        for termo in &r.termos_vagos {
+            if !achados_no_texto.contains(&termo.as_str()) {
+                c.erro(format!(
+                    "{onde}: termo vago `{termo}` não está na lista de referência ou no texto"
+                ));
+            }
+        }
+        for termo in &achados_no_texto {
+            if !r.termos_vagos.iter().any(|t| t == termo) {
+                c.erro(format!(
+                    "{onde}: o texto tem o termo vago `{termo}`, que falta em termos_vagos"
+                ));
+            }
+        }
+        if r.achados.is_empty() {
+            c.erro(format!("{onde}: nenhum achado esperado"));
+        }
+        for a in &r.achados {
+            let onde = format!("{onde}, achado {}", a.id);
+            c.texto_preenchido(&onde, "descricao", &a.descricao);
+            for car in std::iter::once(&a.caracteristica).chain(&a.tambem_em) {
+                if !CARACTERISTICAS.contains(&car.as_str()) {
+                    c.erro(format!("{onde}: característica `{car}` desconhecida"));
+                }
+            }
+            if a.caracteristica == "correcao" && a.regras.is_empty() {
+                c.erro(format!(
+                    "{onde}: a correção esperada cita a regra contrariada"
+                ));
+            }
+            for id in &a.regras {
+                if let Some(valida) = regras_validas.get(id.as_str()) {
+                    citadas_nos_fluxos.insert(*valida);
+                } else {
+                    c.erro(format!("{onde}: regra `{id}` não existe"));
+                }
+            }
+            c.palavras_chave(&onde, &a.palavras_chave);
+        }
+        c.perguntas_esperadas(&onde, &r.perguntas_esperadas);
     }
 
     // Toda regra é exercitada por ao menos um fluxo.

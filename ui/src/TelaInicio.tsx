@@ -13,7 +13,7 @@ import { NovaAnalise } from "./NovaAnalise";
 import { NovaReuniao } from "./NovaReuniao";
 import type { ApiReuniao } from "./reunioes";
 
-const FLUXOS: Fluxo[] = ["perguntar", "explicar", "impacto", "reuniao"];
+const FLUXOS: Fluxo[] = ["perguntar", "explicar", "impacto", "reuniao", "revisar"];
 
 const ESTADO: Record<AnaliseInicio["estado"], string> = {
   criada: "criada",
