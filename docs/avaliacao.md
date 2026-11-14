@@ -1,6 +1,6 @@
 # Avaliação dos fluxos contra o gabarito
 
-Roteiros, limites e modelos mudam com o tempo. A avaliação mostra se um ajuste piorou a análise (spec, critério de aceite 2): roda os fluxos com o Claude Code real no sistema fictício **Faturamento Exemplo** e compara o que o agente registrou com o gabarito `fixtures/gabaritos/faturamento-exemplo.yaml`. Além dos três fluxos de análise (perguntar, explicar, impacto), avalia o fluxo **Analisar reunião** (`reuniao`) com os transcripts fictícios de `fixtures/reunioes/` e mede o custo de uma reunião longa, de cerca de 2 h ([seção própria](#fluxo-reuniao)), o fluxo **Revisar requisito** (`revisar`) com uma história fictícia com problemas plantados ([seção própria](#fluxo-revisar)) e o fluxo **Histórias e critérios** (`historias`) a partir da análise de impacto de uma demanda ([seção própria](#fluxo-historias)).
+Roteiros, limites e modelos mudam com o tempo. A avaliação mostra se um ajuste piorou a análise (spec, critério de aceite 2): roda os fluxos com o Claude Code real no sistema fictício **Faturamento Exemplo** e compara o que o agente registrou com o gabarito `fixtures/gabaritos/faturamento-exemplo.yaml`. Além dos três fluxos de análise (perguntar, explicar, impacto), avalia o fluxo **Analisar reunião** (`reuniao`) com os transcripts fictícios de `fixtures/reunioes/` e mede o custo de uma reunião longa, de cerca de 2 h ([seção própria](#fluxo-reuniao)), o fluxo **Revisar requisito** (`revisar`) com uma história fictícia com problemas plantados ([seção própria](#fluxo-revisar)) o fluxo **Histórias e critérios** (`historias`) a partir da análise de impacto de uma demanda ([seção própria](#fluxo-historias)) e o fluxo **Cenários de teste** (`cenarios`) a partir das regras ([seção própria](#fluxo-cenarios)).
 
 Ela fica na crate `crates/cba-avaliacao` e tem duas partes:
 
@@ -38,9 +38,9 @@ Opções principais:
 |---|---|---|
 | `--modelo` | `sonnet` | modelo do `claude` |
 | `--orcamento` | `1.5` | `--max-budget-usd` de **cada** execução, em US$ |
-| `--fluxos` | `perguntar,explicar,impacto` | fluxos a rodar; também `revisar`, `historias`, `reuniao` e `reuniao-longa` |
+| `--fluxos` | `perguntar,explicar,impacto` | fluxos a rodar; também `revisar`, `historias`, `cenarios`, `reuniao` e `reuniao-longa` |
 | `--repeticoes` | `1` | execuções de cada fluxo (o modelo varia de uma para outra; use 3 ou mais para comparar versões) |
-| `--pergunta`, `--funcionalidade`, `--demanda`, `--revisao`, `--historias` | `P-FAT-001`, `F-FAT-002`, `D-FAT-001`, `REV-FAT-001`, `HIS-FAT-001` | item do gabarito de cada fluxo |
+| `--pergunta`, `--funcionalidade`, `--demanda`, `--revisao`, `--historias`, `--cenarios` | `P-FAT-001`, `F-FAT-002`, `D-FAT-001`, `REV-FAT-001`, `HIS-FAT-001`, `CEN-FAT-001` | item do gabarito de cada fluxo |
 | `--reuniao` | `REU-FAT-001` | reunião do gabarito dos fluxos `reuniao` e `reuniao-longa` |
 | `--orcamento-longa` | `3` | `--max-budget-usd` da reunião longa, em US$ |
 | `--longa-minutos`, `--longa-palavras` | `120`, `25000` | tamanho da reunião longa sintética |
@@ -160,6 +160,31 @@ Antes do `claude`, o preparo cria a análise de origem como o analista a teria d
 Falha grave (histórias): nenhuma história, critério sem origem (a ferramenta já recusa; pegaria uma regressão), estado ausente, erro da execução ou arquivo do projeto alterado. Os demais são cobertura. Para comparar um estado gravado: `cargo run -p cba-avaliacao -- comparar --estado <pasta>/estado.json --item HIS-FAT-001`.
 
 O roteiro de histórias também é provisório até a primeira execução com o modelo real.
+
+## Fluxo cenarios
+
+O fluxo **Cenários de teste** (`cenarios`, #117) deriva das regras os cenários de teste: tabela de decisão para regra com duas ou mais condições (`registrar_tabela_decisao`, completa e sem sobreposição, com as combinações impossíveis justificadas), partição de equivalência e valores-limite com o limite lido do código e a evidência, cenários negativos e de exceção (`registrar_cenario`, roteiro `crates/cba-tools/textos/roteiros/cenarios.md`). O valor do limite precisa aparecer no trecho citado; o limite que vem de tabela de parâmetros fica "a confirmar", com a pergunta. O gabarito tem, em `cenarios`, `CEN-FAT-001` (cancelamento: 10 caracteres no PL/SQL, 30 dias no Delphi, tabela de decisão de RN-FAT-014 e os negativos de RN-FAT-012) e `CEN-FAT-002` (mínimo de 2 parcelas no backend; o máximo, de `MAX_PARCELAS`, a confirmar).
+
+```sh
+cargo run -p cba-avaliacao -- rodar --fluxos cenarios --orcamento 1.5
+cargo run -p cba-avaliacao -- rodar --fluxos cenarios --cenarios CEN-FAT-002 --orcamento 1.5
+```
+
+### Preparo
+
+Antes do `claude`, o preparo grava na base as regras do item (`regras/RN-FAT-012.md`...), com as evidências do gabarito conferidas como no `afirmar`, e cria a análise de cenários com o pedido do gabarito, sem análise de origem (`cba_tools::ciclo::criar_analise_de_cenarios`, a mesma da tela de nova análise).
+
+### Critérios
+
+- **Limite lido do código.** Cada limite esperado é atendido por um cenário da regra cujo limite tem o mesmo valor, não vem de configuração e cita uma evidência que toca a evidência esperada. Limite de outro valor na mesma regra é listado como divergente.
+- **Valores testados.** Cada valor de `valores_testados` (o limite e o vizinho do outro lado da comparação) aparece no valor ou nos passos de um cenário da regra.
+- **Tabela de decisão.** Cada tabela esperada é atendida por uma tabela com ao menos as condições esperadas, ligada à regra (pelo id ou por evidência) e com as palavras-chave nas condições.
+- **Negativos.** Cada negativo esperado é atendido por um cenário da regra com as palavras-chave.
+- **A confirmar.** Cada tema de `a_confirmar` tem um cenário com pergunta e as palavras-chave.
+
+Falha grave (cenários): nenhum cenário, cenário sem origem (a ferramenta já recusa; pegaria uma regressão), estado ausente, erro da execução ou arquivo do projeto alterado. Os demais são cobertura. Para comparar um estado gravado: `cargo run -p cba-avaliacao -- comparar --estado <pasta>/estado.json --item CEN-FAT-001`.
+
+O roteiro de cenários também é provisório até a primeira execução com o modelo real. O teste da crate `cba-fixtures` confere que o valor de cada limite esperado aparece no trecho citado da fixture e que a evidência toca a da regra.
 
 ## Ao mudar o gabarito ou a fixture
 
