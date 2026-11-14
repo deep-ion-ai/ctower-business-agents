@@ -514,7 +514,6 @@ dependencies = [
 name = "cba-fixtures"
 version = "0.2.0"
 dependencies = [
- "cba-reunioes",
  "serde",
  "serde_norway",
 ]
@@ -574,16 +573,6 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "zeroize",
-]
-
-[[package]]
-name = "cba-reunioes"
-version = "0.2.0"
-dependencies = [
- "quick-xml",
- "serde",
- "serde_json",
- "zip",
 ]
 
 [[package]]

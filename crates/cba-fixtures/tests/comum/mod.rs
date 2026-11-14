@@ -30,19 +30,3 @@ pub fn arquivos_recursivos(pasta: &Path) -> Vec<PathBuf> {
     arquivos.sort();
     arquivos
 }
-
-/// Texto de um arquivo da fixture. O `.docx` (transcripts de reunião) é lido
-/// pelo texto dos parágrafos, um por linha; os demais arquivos precisam ser
-/// texto UTF-8.
-#[allow(dead_code)] // cada arquivo de teste usa uma parte de `comum`
-pub fn texto_do_arquivo(arquivo: &Path) -> String {
-    if arquivo.extension().is_some_and(|e| e == "docx") {
-        let bytes = fs::read(arquivo)
-            .unwrap_or_else(|e| panic!("não foi possível ler {}: {e}", arquivo.display()));
-        return cba_reunioes::paragrafos_docx(&bytes)
-            .unwrap_or_else(|e| panic!("{} não é um .docx legível: {e}", arquivo.display()))
-            .join("\n");
-    }
-    fs::read_to_string(arquivo)
-        .unwrap_or_else(|e| panic!("{} não é texto UTF-8: {e}", arquivo.display()))
-}

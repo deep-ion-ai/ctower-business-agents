@@ -15,7 +15,5 @@ test = false
 doctest = false
 
 [dev-dependencies]
-# Texto do .docx das reuniões, para as verificações de dados fictícios.
-cba-reunioes.workspace = true
 serde = { version = "1", features = ["derive"] }
 serde_norway.workspace = true
