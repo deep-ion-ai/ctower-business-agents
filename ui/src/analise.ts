@@ -26,7 +26,7 @@ export type EstadoAfirmacao =
   | { estado: "registrada" }
   | { estado: "confirmada" }
   | { estado: "incorreta"; comentario: string }
-  | { estado: "aprofundar" }
+  | { estado: "aprofundar"; pedido?: string }
   | { estado: "a-revalidar" };
 
 export type Afirmacao = {
@@ -45,6 +45,8 @@ export type Pergunta = {
   numero: number;
   texto: string;
   afirmacao?: number | null;
+  /** A resposta já foi enviada ao agente ("Enviar respostas"). */
+  resposta_enviada?: boolean;
   registrada_ms: number;
 } & ({ estado: "aberta" } | { estado: "respondida"; resposta: string } | { estado: "descartada" });
 
@@ -67,6 +69,8 @@ export interface TermoProposto {
   numero: number;
   termo: string;
   definicao: string;
+  /** Definição do agente, quando o analista a editou. */
+  definicao_original?: string;
   sinonimos?: string[];
   onde_vive?: string[];
   estado: "proposto" | "aceito" | "recusado";

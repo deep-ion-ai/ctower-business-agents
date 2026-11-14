@@ -87,6 +87,19 @@ const PATHS = {
       <path d="M8 20h8M12 16v4" />
     </>
   ),
+  /** Revisão do documento (#130). */
+  check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
+  flag: <path d="M5 21V4M5 4h11l-2 4 2 4H5" />,
+  deepen: (
+    <>
+      <circle cx="11" cy="11" r="7" />
+      <path d="M20 20l-4-4M11 8v6M8 11h6" />
+    </>
+  ),
+  pencil: <path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4" />,
+  undo: <path d="M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3" />,
+  reply: <path d="M10 8L4 13l6 5M4 13h11a5 5 0 0 1 5 5v1" />,
+  trash: <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />,
 } as const;
 
 export type IconName = keyof typeof PATHS;

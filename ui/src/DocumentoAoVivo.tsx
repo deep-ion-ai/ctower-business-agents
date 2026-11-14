@@ -1,3 +1,4 @@
+import { useState, type ReactNode } from "react";
 import type {
   Afirmacao,
   Confianca,
@@ -8,7 +9,16 @@ import type {
   SessaoVista,
   VistaAnalise,
 } from "./analise";
-import { AcoesAceite, AcoesAfirmacao, AcoesPergunta, type Revisao } from "./AcoesRevisao";
+import {
+  AcoesAceite,
+  AcoesAfirmacao,
+  AcoesPergunta,
+  EnviarRespostas,
+  AcoesTermo,
+  type Revisao,
+} from "./AcoesRevisao";
+import { TextoAfirmacao } from "./TextoAfirmacao";
+import { Icon } from "./shell/icons";
 
 export const ROTULO_CONFIANCA: Record<Confianca, string> = {
   confirmado: "confirmado",
@@ -23,7 +33,7 @@ export const ROTULO_SESSAO: Record<EstadoSessao, string> = {
   encerrada: "Sessão encerrada",
 };
 
-const ROTULO_ANALISE: Record<EstadoAnalise, string> = {
+export const ROTULO_ANALISE: Record<EstadoAnalise, string> = {
   criada: "criada",
   "em-andamento": "em andamento",
   concluida: "concluída, aguardando revisão",
@@ -73,17 +83,61 @@ export function chaveEvidencia(e: Evidencia): string {
   return `${e.arquivo}:${e.linhas}`;
 }
 
+/** Onde uma evidência foi escolhida: o trecho abre logo abaixo dela (#130). */
+export type OrigemEvidencia = `afirmacao-${number}` | `sugestao-${number}`;
+
 interface Props {
   vista: VistaAnalise;
-  /** Evidência aberta ao lado (destacada na lista). */
+  /** Evidência aberta (destacada na lista). */
   evidenciaAberta?: string | null;
-  aoAbrirEvidencia: (e: Evidencia) => void;
+  aoAbrirEvidencia: (e: Evidencia, origem: OrigemEvidencia) => void;
+  /** Trecho da evidência aberta, mostrado abaixo do item em `origemTrecho`. */
+  trecho?: ReactNode;
+  origemTrecho?: OrigemEvidencia | null;
   /** Ações de revisão do analista (#37); sem elas, ou com a análise aprovada, só leitura. */
   revisao?: Revisao;
+  /** Sem o cabeçalho (id, título, estado e sessão), quando a barra da tela já os mostra. */
+  semCabecalho?: boolean;
+}
+
+/** Ícone que mostra ou esconde as evidências no código de uma afirmação ou sugestão. */
+function BotaoCodigo({
+  quantidade,
+  aberto,
+  aoAlternar,
+}: {
+  quantidade: number;
+  aberto: boolean;
+  aoAlternar: () => void;
+}) {
+  const rotulo = `${aberto ? "Ocultar" : "Ver"} ${
+    quantidade === 1 ? "a evidência" : `as ${quantidade} evidências`
+  } no código`;
+  return (
+    <button
+      type="button"
+      className="btn-icone btn-acao btn-codigo"
+      aria-label={rotulo}
+      title={rotulo}
+      aria-expanded={aberto}
+      onClick={aoAlternar}
+    >
+      <Icon name="code" />
+      <span className="contador-codigo">{quantidade}</span>
+    </button>
+  );
 }
 
 /** Documento da análise montado ao vivo a partir do estado gravado. */
-export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia, revisao }: Props) {
+export function DocumentoAoVivo({
+  vista,
+  evidenciaAberta,
+  aoAbrirEvidencia,
+  trecho,
+  origemTrecho,
+  revisao,
+  semCabecalho = false,
+}: Props) {
   const { analise } = vista;
   // Aprovada, a revisão fecha: as regras já foram para a base.
   const rev = analise.estado === "aprovada" ? undefined : revisao;
@@ -92,18 +146,45 @@ export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia, revi
     (a, b) => Number(a.estado !== "aberta") - Number(b.estado !== "aberta") || a.numero - b.numero,
   );
   const sugestoes = analise.sugestoes.filter((s) => s.estado !== "recusada");
+  // As evidências ficam recolhidas: o analista abre o código só quando quer (#130).
+  const [comCodigo, setComCodigo] = useState<ReadonlySet<OrigemEvidencia>>(new Set());
+  const codigoVisivel = (o: OrigemEvidencia) => comCodigo.has(o) || origemTrecho === o;
+  const alternarCodigo = (o: OrigemEvidencia) => {
+    setComCodigo((atual) => {
+      const novo = new Set(atual);
+      if (codigoVisivel(o)) novo.delete(o);
+      else novo.add(o);
+      return novo;
+    });
+    // Fechar o código fecha também o trecho aberto dali.
+    if (codigoVisivel(o) && origemTrecho === o && evidenciaAberta) {
+      const ev = evidenciaDaOrigem(o);
+      if (ev) aoAbrirEvidencia(ev, o);
+    }
+  };
+  const evidenciaDaOrigem = (o: OrigemEvidencia): Evidencia | undefined => {
+    const [tipo, n] = o.split("-");
+    const numero = Number(n);
+    if (tipo === "afirmacao")
+      return analise.afirmacoes
+        .find((a) => a.numero === numero)
+        ?.evidencias.find((e) => chaveEvidencia(e) === evidenciaAberta);
+    return analise.sugestoes.find((s) => s.numero === numero)?.evidencia ?? undefined;
+  };
 
   return (
     <article className="documento-ao-vivo" aria-label="Documento da análise">
-      <header>
-        <h2>
-          {analise.id}: {analise.titulo}
-        </h2>
-        <p className="muted">
-          Análise {ROTULO_ANALISE[analise.estado]} · versão {analise.versao}
-        </p>
-        <SeloSessao sessao={vista.sessao} />
-      </header>
+      {!semCabecalho && (
+        <header>
+          <h2>
+            {analise.id}: {analise.titulo}
+          </h2>
+          <p className="muted">
+            Análise {ROTULO_ANALISE[analise.estado]} · versão {analise.versao}
+          </p>
+          <SeloSessao sessao={vista.sessao} />
+        </header>
+      )}
 
       <section aria-label="Pergunta">
         <h3>Pergunta</h3>
@@ -128,7 +209,7 @@ export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia, revi
                   <span className="badge" data-tone={a.confianca === "confirmado" ? "done" : undefined}>
                     {ROTULO_CONFIANCA[a.confianca]}
                   </span>{" "}
-                  <span className="texto">{a.texto}</span>
+                  <TextoAfirmacao texto={a.texto} />
                   {rev && a.estado === "registrada" && (
                     <span className="estado-afirmacao attention-text"> (sem decisão)</span>
                   )}
@@ -138,13 +219,28 @@ export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia, revi
                   {a.estado === "incorreta" && (
                     <span className="comentario muted"> {a.comentario}</span>
                   )}
+                  {a.estado === "aprofundar" && a.pedido && (
+                    <span className="comentario muted"> {a.pedido}</span>
+                  )}
                   {a.texto_original && (
                     <span className="muted editada" title={`Texto do agente: ${a.texto_original}`}>
                       {" "}
                       (texto editado pelo analista)
                     </span>
                   )}
-                  {a.evidencias.length > 0 && (
+                  {(a.evidencias.length > 0 || rev) && (
+                    <div className="rodape-afirmacao">
+                      {a.evidencias.length > 0 && (
+                        <BotaoCodigo
+                          quantidade={a.evidencias.length}
+                          aberto={codigoVisivel(`afirmacao-${a.numero}`)}
+                          aoAlternar={() => alternarCodigo(`afirmacao-${a.numero}`)}
+                        />
+                      )}
+                      {rev && <AcoesAfirmacao afirmacao={a} revisao={rev} />}
+                    </div>
+                  )}
+                  {a.evidencias.length > 0 && codigoVisivel(`afirmacao-${a.numero}`) && (
                     <ul className="evidencias" aria-label="Evidências">
                       {a.evidencias.map((e) => {
                         const chave = chaveEvidencia(e);
@@ -155,7 +251,7 @@ export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia, revi
                               className="btn btn-sm evidencia"
                               aria-pressed={evidenciaAberta === chave}
                               title={e.trecho}
-                              onClick={() => aoAbrirEvidencia(e)}
+                              onClick={() => aoAbrirEvidencia(e, `afirmacao-${a.numero}`)}
                             >
                               {chave}
                             </button>
@@ -167,7 +263,7 @@ export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia, revi
                       })}
                     </ul>
                   )}
-                  {rev && <AcoesAfirmacao afirmacao={a} revisao={rev} />}
+                  {origemTrecho === `afirmacao-${a.numero}` && trecho}
                 </li>
               ))}
             </ol>
@@ -190,6 +286,7 @@ export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia, revi
             ))}
           </ol>
         )}
+        {rev && <EnviarRespostas perguntas={perguntas} revisao={rev} />}
       </section>
 
       <section aria-label="Sugestões de alteração">
@@ -205,15 +302,25 @@ export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia, revi
                 {s.estado === "aceita" && <span className="muted"> (aceita)</span>}
                 <p>{s.motivo}</p>
                 {s.evidencia && (
+                  <BotaoCodigo
+                    quantidade={1}
+                    aberto={codigoVisivel(`sugestao-${s.numero}`)}
+                    aoAlternar={() => alternarCodigo(`sugestao-${s.numero}`)}
+                  />
+                )}
+                {s.evidencia && codigoVisivel(`sugestao-${s.numero}`) && (
                   <button
                     type="button"
                     className="btn btn-sm evidencia"
                     aria-pressed={evidenciaAberta === chaveEvidencia(s.evidencia)}
-                    onClick={() => s.evidencia && aoAbrirEvidencia(s.evidencia)}
+                    onClick={() =>
+                      s.evidencia && aoAbrirEvidencia(s.evidencia, `sugestao-${s.numero}`)
+                    }
                   >
                     {chaveEvidencia(s.evidencia)}
                   </button>
                 )}
+                {origemTrecho === `sugestao-${s.numero}` && trecho}
                 {rev && s.estado === "proposta" && (
                   <AcoesAceite
                     tipo="sugestao"
@@ -236,14 +343,16 @@ export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia, revi
               <li key={t.numero} className={`termo estado-${t.estado}`}>
                 <strong>{t.termo}</strong>: {t.definicao}
                 {t.estado !== "proposto" && <span className="muted"> ({t.estado})</span>}
-                {rev && t.estado === "proposto" && (
-                  <AcoesAceite
-                    tipo="termo"
-                    numero={t.numero}
-                    rotulo={`do termo ${t.termo}`}
-                    revisao={rev}
-                  />
+                {t.definicao_original && (
+                  <span
+                    className="muted editada"
+                    title={`Definição do agente: ${t.definicao_original}`}
+                  >
+                    {" "}
+                    (definição editada pelo analista)
+                  </span>
                 )}
+                {rev && <AcoesTermo termo={t} revisao={rev} />}
               </li>
             ))}
           </ol>
@@ -259,7 +368,13 @@ export function DocumentoAoVivo({ vista, evidenciaAberta, aoAbrirEvidencia, revi
 
 function EstadoDaPergunta({ pergunta }: { pergunta: Pergunta }) {
   if (pergunta.estado === "respondida")
-    return <span className="muted"> Resposta: {pergunta.resposta}</span>;
+    return (
+      <span className="muted">
+        {" "}
+        Resposta: {pergunta.resposta}
+        {pergunta.resposta_enviada && " (enviada ao agente)"}
+      </span>
+    );
   if (pergunta.estado === "descartada") return <span className="muted"> (descartada)</span>;
   return null;
 }
