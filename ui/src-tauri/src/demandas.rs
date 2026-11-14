@@ -6,8 +6,7 @@
 //! `demanda.id` do frontmatter e as sessões do Claude ligadas a essas análises; e,
 //! das atas **aprovadas**, as pendências, as dúvidas em aberto e os próximos passos,
 //! cada um com o id do item e a reunião de origem. O rascunho ainda pode mudar, por
-//! isso os itens dele não entram nessas seções. Os próximos passos viram botões que
-//! abrem análises ligadas à demanda ([`crate::reunioes::analisar_proximo_passo`]).
+//! isso os itens dele não entram nessas seções.
 //!
 //! As análises são achadas pelo frontmatter dos documentos, e não pelo índice da
 //! base, para o painel refletir na hora uma análise recém-criada.
@@ -197,9 +196,6 @@ pub struct ItemDaAta {
     pub texto: String,
     pub responsavel: Option<String>,
     pub prazo: Option<String>,
-    /// Itens da mesma ata a que este se refere (`N-3`): no próximo passo, viram os
-    /// botões de análise de impacto da necessidade.
-    pub referencias: Vec<String>,
 }
 
 /// Documento da demanda que não pôde ser lido.
@@ -232,7 +228,6 @@ fn item_da_ata(estado: &EstadoAta, item: &ItemAta) -> ItemDaAta {
         texto: item.texto.clone(),
         responsavel: item.responsavel.clone(),
         prazo: item.prazo.clone(),
-        referencias: item.referencias.iter().map(ToString::to_string).collect(),
     }
 }
 
