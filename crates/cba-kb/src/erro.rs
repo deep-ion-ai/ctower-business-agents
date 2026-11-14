@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use crate::caminho::{CaminhoInvalido, CaminhoRelativo};
 use crate::documento::ErroFrontmatter;
-use crate::id::{IdDemanda, IdInvalido, IdReuniao};
+use crate::id::{IdDemanda, IdInvalido};
 
 pub type Resultado<T> = Result<T, Erro>;
 
@@ -81,9 +81,6 @@ pub enum Erro {
     /// Pedido para juntar uma pessoa com ela mesma.
     #[error("não dá para juntar `{0}` com ela mesma")]
     JuntarMesmaPessoa(String),
-    /// A reunião não tem estado em nenhuma demanda do projeto.
-    #[error("reunião {id} não encontrada no projeto `{projeto}`")]
-    ReuniaoInexistente { projeto: String, id: IdReuniao },
     #[error(transparent)]
     Caminho(#[from] CaminhoInvalido),
     #[error(transparent)]

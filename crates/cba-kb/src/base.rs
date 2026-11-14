@@ -349,17 +349,6 @@ impl Projeto {
         Ok(maior)
     }
 
-    /// Lê um arquivo de texto do projeto (UTF-8), sem frontmatter.
-    pub fn ler_texto(&self, relativo: &CaminhoRelativo) -> Resultado<String> {
-        ler_texto(&self.caminho(relativo), &self.na_base(relativo))
-    }
-
-    /// Grava um arquivo de texto do projeto (atômico, substituindo o anterior).
-    pub fn gravar_texto(&self, relativo: &CaminhoRelativo, texto: &str) -> Resultado<()> {
-        arquivo::gravar(&self.caminho(relativo), texto.as_bytes())
-            .map_err(|erro| self.erro_io(relativo, erro))
-    }
-
     pub(crate) fn erro_io(&self, relativo: &CaminhoRelativo, erro: io::Error) -> Erro {
         Erro::Io {
             arquivo: self.na_base(relativo),
