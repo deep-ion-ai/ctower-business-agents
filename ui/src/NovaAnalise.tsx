@@ -21,6 +21,11 @@ const ENTRADA: Record<Fluxo, { rotulo: string; exemplo: string }> = {
   },
   // A reunião tem formulário próprio (NovaReuniao), com o transcript.
   reuniao: { rotulo: "Transcript", exemplo: "" },
+  revisar: {
+    rotulo: "Requisito ou história a revisar",
+    exemplo:
+      "Cole o texto como o autor escreveu, com os critérios de aceite, ou informe a issue acima.",
+  },
 };
 
 /**
@@ -128,7 +133,7 @@ export function NovaAnalise({
       )}
       {!demandaFixa && (
         <label>
-          Issue do projeto (opcional)
+          {fluxo === "revisar" ? "Chave no rastreador (opcional)" : "Issue do projeto (opcional)"}
           <input
             value={issue}
             onChange={(e) => setIssue(e.target.value)}

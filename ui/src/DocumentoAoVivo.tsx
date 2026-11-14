@@ -48,6 +48,7 @@ const SECOES_CONHECIDAS: [string, string][] = [
   ["resposta", "Resposta"],
   ["regras_encontradas", "Regras encontradas"],
   ["exemplo", "Exemplo"],
+  ["contexto_no_codigo", "O que a base e o código dizem"],
 ];
 const TITULO_SECAO = Object.fromEntries(SECOES_CONHECIDAS) as Record<string, string>;
 const ORDEM_SECAO = new Map(SECOES_CONHECIDAS.map(([s], i) => [s, i]));
@@ -186,10 +187,13 @@ export function DocumentoAoVivo({
         </header>
       )}
 
-      <section aria-label="Pergunta">
-        <h3>Pergunta</h3>
-        <blockquote>{analise.entrada}</blockquote>
-      </section>
+      {/* Na revisão, o texto revisado já aparece no parecer, com as marcas. */}
+      {analise.fluxo !== "revisar" && (
+        <section aria-label="Pergunta">
+          <h3>Pergunta</h3>
+          <blockquote>{analise.entrada}</blockquote>
+        </section>
+      )}
 
       <section aria-label="Afirmações">
         <h3>Afirmações</h3>

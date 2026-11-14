@@ -6,7 +6,7 @@ import type { ProjetoResumo } from "./terminal";
  * `A-NNNN.estado.json` (campos em snake_case), e dos comandos da tela da análise
  * (`ui/src-tauri/src/analise.rs` e `vigia.rs`, campos em camelCase).
  */
-export type Fluxo = "perguntar" | "explicar" | "impacto" | "reuniao";
+export type Fluxo = "perguntar" | "explicar" | "impacto" | "reuniao" | "revisar";
 export type EstadoAnalise = "criada" | "em-andamento" | "concluida" | "aprovada";
 export type EstadoSessao = "ativa" | "aguardando-analista" | "concluida" | "encerrada";
 export type Cliente = "claude-code" | "claude-desktop" | "desconhecido";
@@ -102,6 +102,45 @@ export interface Analise {
   termos: TermoProposto[];
   /** Reunião analisada (fluxo `reuniao`), `R-0001`. */
   reuniao?: string | null;
+  /** Parecer de revisão (fluxo `revisar`, `cba_core::parecer::Parecer`). */
+  parecer?: Parecer | null;
+}
+
+/** Característica da ISO/IEC/IEEE 29148 violada (`cba_core::qualidade`). */
+export type Caracteristica =
+  | "ambiguidade"
+  | "verificabilidade"
+  | "completude"
+  | "consistencia"
+  | "correcao"
+  | "singularidade";
+export type Severidade = "alta" | "media" | "baixa";
+export type Veredito = "pronta" | "pronta_com_ressalvas" | "precisa_de_retrabalho";
+
+export type Achado = {
+  numero: number;
+  caracteristica: Caracteristica;
+  severidade: Severidade;
+  /** Trecho do texto revisado; vazio só na completude. */
+  trecho: string;
+  problema: string;
+  reescrita?: string | null;
+  /** Regras da base (`RN-FAT-012`). */
+  regras?: string[];
+  evidencias: Evidencia[];
+  registrada_ms: number;
+} & ({ estado: "registrado" } | { estado: "descartado"; motivo?: string | null });
+
+export interface AvaliacaoInvest {
+  criterio: "independente" | "negociavel" | "valiosa" | "estimavel" | "pequena" | "testavel";
+  resultado: "atende" | "atende_em_parte" | "nao_atende";
+  justificativa: string;
+}
+
+export interface Parecer {
+  achados: Achado[];
+  invest?: AvaliacaoInvest[];
+  veredito?: { veredito: Veredito; justificativa: string; registrada_ms: number } | null;
 }
 
 export interface SessaoVista {

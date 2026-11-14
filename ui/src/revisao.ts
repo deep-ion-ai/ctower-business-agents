@@ -20,7 +20,10 @@ export type DecisaoRevisao =
   | { tipo: "pergunta"; numero: number; estado: "descartada" }
   | { tipo: "sugestao"; numero: number; estado: "aceita" | "recusada" }
   | { tipo: "termo"; numero: number; estado: "aceito" | "recusado" }
-  | { tipo: "editar-termo"; numero: number; definicao: string };
+  | { tipo: "editar-termo"; numero: number; definicao: string }
+  /** Achado do parecer de revisão: descartar, com o motivo, ou desfazer o descarte. */
+  | { tipo: "achado"; numero: number; estado: "descartado"; motivo?: string }
+  | { tipo: "achado"; numero: number; estado: "registrado" };
 
 export interface Area {
   id: string;

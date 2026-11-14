@@ -16,7 +16,7 @@ import { NovaReuniao } from "./NovaReuniao";
 import { BotoesProximoPasso } from "./ProximoPasso";
 import { apiReuniaoTauri, type ApiReuniao } from "./reunioes";
 
-const FLUXOS: Fluxo[] = ["perguntar", "explicar", "impacto", "reuniao"];
+const FLUXOS: Fluxo[] = ["perguntar", "explicar", "impacto", "reuniao", "revisar"];
 
 const ESTADO_ANALISE: Record<EstadoAnalise, string> = {
   criada: "criada",
