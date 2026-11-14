@@ -142,17 +142,29 @@ pub async fn inicio_app() -> Result<Inicio, String> {
     bloqueante(move || inicio(&dados)).await
 }
 
-/// Cria a análise de um fluxo (perguntar, explicar, impacto) pelo início.
+/// Cria a análise de um fluxo (perguntar, explicar, impacto) pelo início ou pelo
+/// painel da demanda. Com `demanda` (`D-0001`), a análise fica ligada a ela.
 #[tauri::command]
 pub async fn criar_analise_fluxo(
     projeto: String,
     fluxo: Fluxo,
     entrada: String,
     titulo: Option<String>,
+    demanda: Option<String>,
 ) -> Result<AnaliseCriada, String> {
     let dados = dados()?;
-    bloqueante(move || criar_analise_do_fluxo(&dados, &projeto, fluxo, &entrada, titulo.as_deref()))
-        .await
+    bloqueante(move || match demanda.as_deref().map(str::trim) {
+        Some(d) if !d.is_empty() => crate::demandas::criar_analise_ligada(
+            &dados,
+            &projeto,
+            d,
+            fluxo,
+            &entrada,
+            titulo.as_deref(),
+        ),
+        _ => criar_analise_do_fluxo(&dados, &projeto, fluxo, &entrada, titulo.as_deref()),
+    })
+    .await
 }
 
 #[cfg(test)]

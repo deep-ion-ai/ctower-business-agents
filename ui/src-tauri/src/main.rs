@@ -36,6 +36,7 @@ mod configuracoes;
 #[cfg(windows)]
 mod console;
 mod conversa;
+mod demandas;
 mod gui;
 mod inicio;
 mod primeiro_uso;

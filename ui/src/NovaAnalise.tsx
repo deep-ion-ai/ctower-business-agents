@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { mensagemDe, type AmbienteClaude, type AnaliseCriada, type Fluxo } from "./analise";
 import { ROTULO_FLUXO, type ApiConhecimento } from "./conhecimento";
+import type { DemandaVista } from "./demandas";
 import { PrepararAmbiente } from "./PrepararAmbiente";
 import type { ProjetoResumo } from "./terminal";
 
@@ -22,18 +23,23 @@ const ENTRADA: Record<Fluxo, { rotulo: string; exemplo: string }> = {
 
 /**
  * Formulário de uma análise nova pelos botões do início: o projeto, a entrada do
- * fluxo e, se faltar, o preparo do ambiente do Claude com consentimento.
+ * fluxo, a demanda aberta a que ligar (opcional) e, se faltar, o preparo do
+ * ambiente do Claude com consentimento. Pelo painel da demanda, `demandaFixa` liga
+ * a análise àquela demanda, sem escolha de projeto, issue nem demanda.
  */
 export function NovaAnalise({
   api,
   fluxo,
   projetos,
+  demandaFixa,
   aoCriar,
   aoCancelar,
 }: {
   api: ApiConhecimento;
   fluxo: Fluxo;
   projetos: ProjetoResumo[];
+  /** Demanda (`D-0001`) do primeiro projeto de `projetos`. */
+  demandaFixa?: string;
   aoCriar: (projeto: string, criada: AnaliseCriada) => void;
   aoCancelar: () => void;
 }) {
@@ -41,9 +47,27 @@ export function NovaAnalise({
   const [entrada, setEntrada] = useState("");
   const [titulo, setTitulo] = useState("");
   const [issue, setIssue] = useState("");
+  const [abertas, setAbertas] = useState<DemandaVista[]>([]);
+  const [demanda, setDemanda] = useState(demandaFixa ?? "");
   const [ambiente, setAmbiente] = useState<AmbienteClaude | null>(null);
   const [criando, setCriando] = useState(false);
   const [falha, setFalha] = useState<string | null>(null);
+
+  // Demandas abertas do projeto, para ligar a análise (opcional).
+  useEffect(() => {
+    if (demandaFixa || !projeto) return;
+    let ativo = true;
+    setDemanda("");
+    setAbertas([]);
+    api
+      .listarDemandas(projeto)
+      .then((l) => ativo && setAbertas(l.filter((d) => d.status === "aberta")))
+      // Sem a lista, a análise só não pode ser ligada a uma demanda.
+      .catch(() => undefined);
+    return () => {
+      ativo = false;
+    };
+  }, [api, projeto, demandaFixa]);
 
   const verificar = useCallback(() => {
     if (!projeto) return;
@@ -60,13 +84,15 @@ export function NovaAnalise({
     ev.preventDefault();
     if (!projeto) return;
     // Com a issue informada, o título e a descrição dela são a entrada.
-    const deIssue = issue.trim() !== "";
+    const deIssue = !demandaFixa && issue.trim() !== "";
     if (!deIssue && !entrada.trim()) return;
     setCriando(true);
     setFalha(null);
     (deIssue
       ? api.criarAnaliseDeDemanda(projeto, fluxo, issue.trim())
-      : api.criarAnalise(projeto, fluxo, entrada.trim(), titulo.trim() || undefined)
+      : demanda
+        ? api.criarAnalise(projeto, fluxo, entrada.trim(), titulo.trim() || undefined, demanda)
+        : api.criarAnalise(projeto, fluxo, entrada.trim(), titulo.trim() || undefined)
     )
       .then((criada) => aoCriar(projeto, criada))
       .catch((e: unknown) => {
@@ -81,33 +107,52 @@ export function NovaAnalise({
   return (
     <form className="nova-pergunta" onSubmit={criar} aria-label={ROTULO_FLUXO[fluxo]}>
       <h3>{ROTULO_FLUXO[fluxo]}</h3>
-      <label>
-        Projeto{" "}
-        <select value={projeto} onChange={(e) => setProjeto(e.target.value)}>
-          {projetos.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.nome}
-            </option>
-          ))}
-        </select>
-      </label>
+      {demandaFixa ? (
+        <p className="muted">A análise fica ligada à demanda {demandaFixa}.</p>
+      ) : (
+        <label>
+          Projeto{" "}
+          <select value={projeto} onChange={(e) => setProjeto(e.target.value)}>
+            {projetos.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.nome}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       {ambiente && !pronto && (
         <PrepararAmbiente api={api} projeto={projeto} ambiente={ambiente} aoConcluir={verificar} />
       )}
-      <label>
-        Issue do projeto (opcional)
-        <input
-          value={issue}
-          onChange={(e) => setIssue(e.target.value)}
-          placeholder="Ex.: PROJ-123 ou 45"
-          spellCheck={false}
-        />
-      </label>
-      {issue.trim() !== "" && (
+      {!demandaFixa && (
+        <label>
+          Issue do projeto (opcional)
+          <input
+            value={issue}
+            onChange={(e) => setIssue(e.target.value)}
+            placeholder="Ex.: PROJ-123 ou 45"
+            spellCheck={false}
+          />
+        </label>
+      )}
+      {!demandaFixa && issue.trim() !== "" && (
         <p className="muted">
           O app busca o título e a descrição da issue no repositório de demandas do projeto e guarda
           o link dela na análise.
         </p>
+      )}
+      {!demandaFixa && issue.trim() === "" && abertas.length > 0 && (
+        <label>
+          Demanda (opcional)
+          <select value={demanda} onChange={(e) => setDemanda(e.target.value)}>
+            <option value="">Sem demanda</option>
+            {abertas.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.id}: {d.titulo}
+              </option>
+            ))}
+          </select>
+        </label>
       )}
       <label>
         {rotulo}
@@ -126,7 +171,7 @@ export function NovaAnalise({
         <button
           type="submit"
           className="btn btn-primary"
-          disabled={!pronto || criando || (!entrada.trim() && !issue.trim())}
+          disabled={!pronto || criando || (!entrada.trim() && !(issue.trim() && !demandaFixa))}
         >
           Iniciar a análise
         </button>
