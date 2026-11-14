@@ -25,9 +25,11 @@ pub mod analises;
 pub mod config;
 pub mod dados;
 pub mod eventos;
+pub mod historias;
 pub mod log;
 pub mod parecer;
 pub mod qualidade;
+pub mod requisito;
 pub mod tempo;
 
 /// Nome da crate, para diagnóstico.

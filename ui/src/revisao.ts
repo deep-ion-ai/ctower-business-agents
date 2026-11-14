@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
-import type { VistaAnalise } from "./analise";
+import type { Gherkin, Narrativa, SituacaoItem, VistaAnalise } from "./analise";
 
 /**
  * Revisão, aprovação e exportação da análise (#37): espelho de
@@ -23,7 +23,13 @@ export type DecisaoRevisao =
   | { tipo: "editar-termo"; numero: number; definicao: string }
   /** Achado do parecer de revisão: descartar, com o motivo, ou desfazer o descarte. */
   | { tipo: "achado"; numero: number; estado: "descartado"; motivo?: string }
-  | { tipo: "achado"; numero: number; estado: "registrado" };
+  | { tipo: "achado"; numero: number; estado: "registrado" }
+  /** Histórias (#115): aceitar, descartar, desfazer ou pedir a quebra em fatias. */
+  | { tipo: "historia"; historia: string; decisao: "aceitar" | "descartar" | "desfazer" }
+  | { tipo: "historia"; historia: string; decisao: "quebrar"; pedido?: string }
+  | ({ tipo: "editar-historia"; historia: string } & Narrativa)
+  | { tipo: "criterio"; historia: string; numero: number; situacao: SituacaoItem }
+  | ({ tipo: "editar-criterio"; historia: string; numero: number } & Gherkin);
 
 export interface Area {
   id: string;
@@ -32,7 +38,7 @@ export interface Area {
 }
 
 export interface Pendencia {
-  tipo: "analise" | "afirmacao" | "termo";
+  tipo: "analise" | "afirmacao" | "termo" | "historia" | "criterio";
   numero: number | null;
   motivo: string;
 }

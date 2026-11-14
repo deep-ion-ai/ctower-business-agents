@@ -26,6 +26,8 @@ const ENTRADA: Record<Fluxo, { rotulo: string; exemplo: string }> = {
     exemplo:
       "Cole o texto como o autor escreveu, com os critérios de aceite, ou informe a issue acima.",
   },
+  // As histórias têm formulário próprio (NovaHistorias), com a análise de origem.
+  historias: { rotulo: "Pedido", exemplo: "" },
 };
 
 /**

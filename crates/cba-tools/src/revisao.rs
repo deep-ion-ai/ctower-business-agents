@@ -43,13 +43,15 @@ use cba_core::analise::{
 };
 use cba_core::analises;
 use cba_core::eventos::Mudanca;
+use cba_core::historias::{DecisaoHistoria, Gherkin, Narrativa, SituacaoHistoria};
 use cba_core::parecer::EstadoAchado;
+use cba_core::requisito::SituacaoItem;
 use cba_docs::FonteDeTrechos;
 /// Formato e opções da exportação, para quem chama sem depender de `cba-docs`.
 pub use cba_docs::{Formato, OpcoesExportacao};
 use cba_index::Escopo;
 use cba_kb::frontmatter::{Area, Linhas, StatusSugestao};
-use cba_kb::{CaminhoRelativo, Id};
+use cba_kb::{CaminhoRelativo, Id, IdHistoria};
 use serde::{Deserialize, Serialize};
 
 use crate::aprovacao::{self, Aprovacao, ErroAprovacao, OpcoesAprovacao, titulo_da_regra};
@@ -90,6 +92,32 @@ pub enum Decisao {
         #[serde(flatten)]
         estado: EstadoAchado,
     },
+    /// Aceitar, descartar, pedir a quebra em fatias ou desfazer a decisão sobre
+    /// uma história (fluxo `historias`).
+    Historia {
+        historia: IdHistoria,
+        #[serde(flatten)]
+        decisao: DecisaoHistoria,
+    },
+    /// Nova narrativa de uma história, com os critérios preservados.
+    EditarHistoria {
+        historia: IdHistoria,
+        #[serde(flatten)]
+        narrativa: Narrativa,
+    },
+    /// Aceitar, descartar ou, com `pendente`, desfazer a decisão sobre um critério.
+    Criterio {
+        historia: IdHistoria,
+        numero: u32,
+        situacao: SituacaoItem,
+    },
+    /// Novos passos de um critério, com as origens preservadas.
+    EditarCriterio {
+        historia: IdHistoria,
+        numero: u32,
+        #[serde(flatten)]
+        passos: Gherkin,
+    },
 }
 
 impl Decisao {
@@ -100,6 +128,10 @@ impl Decisao {
             Self::Sugestao { .. } => Mudanca::Sugestao,
             Self::Termo { .. } | Self::EditarTermo { .. } => Mudanca::Termo,
             Self::Achado { .. } => Mudanca::Parecer,
+            Self::Historia { .. }
+            | Self::EditarHistoria { .. }
+            | Self::Criterio { .. }
+            | Self::EditarCriterio { .. } => Mudanca::Historia,
         }
     }
 
@@ -116,6 +148,21 @@ impl Decisao {
             Self::EditarTermo { numero, definicao } => a.editar_termo(numero, &definicao),
             Self::RespostasEnviadas { numeros } => a.marcar_respostas_enviadas(&numeros),
             Self::Achado { numero, estado } => a.decidir_achado(numero, estado),
+            Self::Historia { historia, decisao } => a.decidir_historia(historia, decisao),
+            Self::EditarHistoria {
+                historia,
+                narrativa,
+            } => a.editar_historia(historia, narrativa),
+            Self::Criterio {
+                historia,
+                numero,
+                situacao,
+            } => a.decidir_criterio(historia, numero, situacao),
+            Self::EditarCriterio {
+                historia,
+                numero,
+                passos,
+            } => a.editar_criterio(historia, numero, passos),
         }
     }
 }
@@ -265,6 +312,8 @@ pub fn pendencias(analise: &Analise) -> Vec<Pendencia> {
                 motivo: "o parecer ainda não tem veredito".into(),
             });
         }
+    } else if analise.fluxo == Fluxo::Historias {
+        lista.extend(pendencias_das_historias(analise));
     } else if analise.afirmacoes.is_empty() {
         lista.push(Pendencia {
             tipo: "analise",
@@ -299,6 +348,60 @@ pub fn pendencias(analise: &Analise) -> Vec<Pendencia> {
     lista
 }
 
+/// Pendências das histórias (fluxo `historias`): cada história precisa de uma
+/// decisão (aceita, descartada ou quebrada em fatias); a aceita precisa de ao menos
+/// um critério aceito e de uma decisão em cada critério registrado depois de
+/// aceita. O pedido de quebra ainda não atendido também impede.
+pub fn pendencias_das_historias(analise: &Analise) -> Vec<Pendencia> {
+    let mut lista = Vec::new();
+    if analise.historias_no_documento().next().is_none() {
+        lista.push(Pendencia {
+            tipo: "analise",
+            numero: None,
+            motivo: "não há histórias registradas".into(),
+        });
+    }
+    for h in analise.historias_no_documento() {
+        let pendencia = |motivo: String| Pendencia {
+            tipo: "historia",
+            numero: Some(h.id.numero()),
+            motivo: format!("{}: {motivo}", h.id),
+        };
+        match (h.situacao, &h.quebra_pedida) {
+            (SituacaoHistoria::Pendente, Some(_)) => lista.push(pendencia(
+                "quebra pedida: espere o agente registrar as fatias ou decida assim mesmo".into(),
+            )),
+            (SituacaoHistoria::Pendente, None) => lista.push(pendencia(
+                "sem decisão: aceite, descarte ou peça a quebra em fatias".into(),
+            )),
+            (SituacaoHistoria::Aceita, _) => {
+                if !h
+                    .criterios
+                    .iter()
+                    .any(|c| c.situacao == SituacaoItem::Aceito)
+                {
+                    lista.push(pendencia(
+                        "aceita sem nenhum critério de aceite aceito".into(),
+                    ));
+                }
+                for c in h
+                    .criterios
+                    .iter()
+                    .filter(|c| c.situacao == SituacaoItem::Pendente)
+                {
+                    lista.push(Pendencia {
+                        tipo: "criterio",
+                        numero: Some(h.id.numero()),
+                        motivo: format!("{} {}: sem decisão: aceite ou descarte", h.id, c.rotulo()),
+                    });
+                }
+            }
+            (SituacaoHistoria::Descartada | SituacaoHistoria::Quebrada, _) => {}
+        }
+    }
+    lista
+}
+
 /// Prontidão da análise para a aprovação.
 pub fn prontidao(amb: &Ambiente, id: &Id) -> Result<Prontidao, ErroRevisao> {
     let analise = amb.analises.carregar(id)?;
@@ -327,6 +430,17 @@ pub fn prontidao(amb: &Ambiente, id: &Id) -> Result<Prontidao, ErroRevisao> {
     if propostas > 0 {
         avisos.push(format!(
             "{propostas} sugestão(ões) de alteração sem decisão vão no documento"
+        ));
+    }
+    let a_confirmar = analise
+        .historias_no_documento()
+        .flat_map(|h| h.criterios_validos())
+        .filter(|c| c.a_confirmar())
+        .count();
+    if a_confirmar > 0 {
+        avisos.push(format!(
+            "{a_confirmar} critério(s) de aceite a confirmar (dependem de pergunta em aberto) \
+             vão no documento marcados como tal"
         ));
     }
     let regras: Vec<RegraPrevista> = analise

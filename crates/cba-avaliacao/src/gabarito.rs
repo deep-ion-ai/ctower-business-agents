@@ -34,6 +34,10 @@ pub struct Gabarito {
     /// Requisitos e histórias com problemas plantados (fluxo `revisar`, #116).
     #[serde(default)]
     pub revisoes: Vec<Revisao>,
+    /// Histórias com critérios de aceite esperadas a partir de uma demanda (fluxo
+    /// `historias`, #115).
+    #[serde(default)]
+    pub historias: Vec<Historias>,
     /// Pasta do gabarito, para resolver `raiz`. Preenchida por [`Gabarito::carregar`].
     #[serde(skip)]
     pub pasta: PathBuf,
@@ -44,6 +48,9 @@ pub struct Gabarito {
 pub struct Regra {
     pub id: String,
     pub titulo: String,
+    /// Enunciado da regra (para preparar a análise de origem das histórias).
+    #[serde(default)]
+    pub enunciado: String,
     pub evidencias: Vec<EvidenciaEsperada>,
 }
 
@@ -61,6 +68,9 @@ pub struct EvidenciaEsperada {
     pub arquivo: String,
     pub linha_inicial: u32,
     pub linha_final: u32,
+    /// Texto curto que aparece no intervalo (para citar a evidência no preparo).
+    #[serde(default)]
+    pub trecho: String,
 }
 
 /// Pergunta que o agente deve registrar para o solicitante.
@@ -160,6 +170,49 @@ pub struct AchadoEsperado {
     pub palavras_chave: Vec<Vec<String>>,
 }
 
+/// Histórias esperadas a partir da análise de impacto de uma demanda (fluxo
+/// `historias`, #115).
+#[derive(Debug, Clone, Deserialize)]
+pub struct Historias {
+    pub id: String,
+    pub titulo: String,
+    /// O que o analista pede nas histórias (opcional).
+    #[serde(default)]
+    pub pedido: Option<String>,
+    #[serde(flatten)]
+    pub esperado: HistoriasEsperadas,
+}
+
+/// O que as histórias devem ter.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HistoriasEsperadas {
+    /// Demanda do gabarito (`D-FAT-003`) cuja análise de impacto é a origem: o
+    /// preparo cria a análise de origem com uma afirmação confirmada por regra
+    /// da demanda (o enunciado e as evidências do gabarito) e uma pergunta em
+    /// aberto por pergunta esperada, e grava as regras na base.
+    pub demanda: String,
+    /// Regras que os critérios devem citar (pela regra ou pela afirmação com a
+    /// evidência da regra).
+    pub regras: Vec<String>,
+    /// Se a abrangência pede a quebra em fatias (uma proposta de quebra, uma
+    /// fatia ou mais de uma história valem).
+    #[serde(default)]
+    pub quebra: bool,
+    pub historias_esperadas: Vec<HistoriaEsperada>,
+    /// Temas que devem ficar "a confirmar" (critério com pergunta), com
+    /// palavras-chave conferidas no texto do critério.
+    #[serde(default)]
+    pub a_confirmar: Vec<PerguntaEsperada>,
+}
+
+/// História esperada, pelas palavras-chave do título e da narrativa.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HistoriaEsperada {
+    pub id: String,
+    pub descricao: String,
+    pub palavras_chave: Vec<Vec<String>>,
+}
+
 /// Reunião fictícia: o transcript e a ata esperada.
 #[derive(Debug, Clone, Deserialize)]
 pub struct Reuniao {
@@ -244,6 +297,9 @@ pub struct Item {
     /// Parecer esperado, só no fluxo revisar.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub revisao: Option<RevisaoEsperada>,
+    /// Histórias esperadas e a demanda de origem, só no fluxo historias.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub historias: Option<HistoriasEsperadas>,
 }
 
 /// Erro ao ler o gabarito ou ao achar um item.
@@ -331,6 +387,7 @@ impl Gabarito {
                 verificacao_da_premissa: None,
                 abrangencia: None,
                 revisao: None,
+                historias: None,
             });
         }
         if let Some(f) = self.funcionalidades.iter().find(|f| f.id == id) {
@@ -345,6 +402,7 @@ impl Gabarito {
                 verificacao_da_premissa: None,
                 abrangencia: None,
                 revisao: None,
+                historias: None,
             });
         }
         if let Some(d) = self.demandas.iter().find(|d| d.id == id) {
@@ -359,6 +417,7 @@ impl Gabarito {
                 verificacao_da_premissa: d.verificacao_da_premissa.clone(),
                 abrangencia: Some(d.abrangencia_esperada.clone()),
                 revisao: None,
+                historias: None,
             });
         }
         if let Some(r) = self.revisoes.iter().find(|r| r.id == id) {
@@ -374,10 +433,28 @@ impl Gabarito {
                 verificacao_da_premissa: None,
                 abrangencia: None,
                 revisao: Some(r.esperado.clone()),
+                historias: None,
+            });
+        }
+        if let Some(h) = self.historias.iter().find(|h| h.id == id) {
+            let demanda = self.demandas.iter().find(|d| d.id == h.esperado.demanda);
+            return Ok(Item {
+                id: h.id.clone(),
+                fluxo: Fluxo::Historias,
+                titulo: h.titulo.clone(),
+                entrada: h.pedido.clone().unwrap_or_default(),
+                regras: h.esperado.regras.clone(),
+                arquivos: Vec::new(),
+                perguntas_esperadas: Vec::new(),
+                verificacao_da_premissa: None,
+                abrangencia: demanda.map(|d| d.abrangencia_esperada.clone()),
+                revisao: None,
+                historias: Some(h.esperado.clone()),
             });
         }
         Err(Erro(format!(
-            "o item `{id}` não existe no gabarito (use o id de uma pergunta, funcionalidade, demanda ou revisão)"
+            "o item `{id}` não existe no gabarito (use o id de uma pergunta, funcionalidade, \
+             demanda, revisão ou histórias)"
         )))
     }
 }

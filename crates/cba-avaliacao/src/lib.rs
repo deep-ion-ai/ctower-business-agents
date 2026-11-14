@@ -26,6 +26,7 @@ pub mod ata;
 pub mod comparacao;
 pub mod execucao;
 pub mod gabarito;
+pub mod historias;
 pub mod longa;
 pub mod parecer;
 pub mod pastas;

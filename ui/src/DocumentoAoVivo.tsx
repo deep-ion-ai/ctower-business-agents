@@ -17,6 +17,7 @@ import {
   AcoesTermo,
   type Revisao,
 } from "./AcoesRevisao";
+import { HistoriasAoVivo } from "./HistoriasAoVivo";
 import { TextoAfirmacao } from "./TextoAfirmacao";
 import { Icon } from "./shell/icons";
 
@@ -140,6 +141,7 @@ export function DocumentoAoVivo({
   semCabecalho = false,
 }: Props) {
   const { analise } = vista;
+  const deHistorias = analise.fluxo === "historias";
   // Aprovada, a revisão fecha: as regras já foram para a base.
   const rev = analise.estado === "aprovada" ? undefined : revisao;
   const secoes = agrupar(analise.afirmacoes);
@@ -189,12 +191,15 @@ export function DocumentoAoVivo({
 
       {/* Na revisão, o texto revisado já aparece no parecer, com as marcas. */}
       {analise.fluxo !== "revisar" && (
-        <section aria-label="Pergunta">
-          <h3>Pergunta</h3>
+        <section aria-label={deHistorias ? "Pedido" : "Pergunta"}>
+          <h3>{deHistorias ? "Pedido" : "Pergunta"}</h3>
           <blockquote>{analise.entrada}</blockquote>
         </section>
       )}
 
+      {deHistorias ? (
+        <HistoriasAoVivo historias={analise.historias ?? []} origem={analise.origem} revisao={rev} />
+      ) : (
       <section aria-label="Afirmações">
         <h3>Afirmações</h3>
         {secoes.length === 0 && <p className="muted">Nenhuma afirmação registrada ainda.</p>}
@@ -274,6 +279,7 @@ export function DocumentoAoVivo({
           </div>
         ))}
       </section>
+      )}
 
       <section aria-label="Perguntas em aberto">
         <h3>Perguntas</h3>
@@ -293,6 +299,7 @@ export function DocumentoAoVivo({
         {rev && <EnviarRespostas perguntas={perguntas} revisao={rev} />}
       </section>
 
+      {!deHistorias && (
       <section aria-label="Sugestões de alteração">
         <h3>Sugestões de alteração</h3>
         {sugestoes.length === 0 ? (
@@ -338,6 +345,7 @@ export function DocumentoAoVivo({
           </ol>
         )}
       </section>
+      )}
 
       {analise.termos.length > 0 && (
         <section aria-label="Termos propostos para o glossário">

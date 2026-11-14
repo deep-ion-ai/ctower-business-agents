@@ -53,10 +53,14 @@ pub enum TipoDocumento {
     /// `analises/`: veredito, achados por característica da ISO/IEC/IEEE 29148 e
     /// perguntas para o autor.
     ParecerRevisao,
+    /// Histórias de usuário com critérios de aceite (fluxo `historias`, #115), em
+    /// `analises/`: um documento por conjunto, ligado à análise de origem; cada
+    /// história tem identificador estável (`HU-NNNN`).
+    Historias,
 }
 
 impl TipoDocumento {
-    pub const TODOS: [TipoDocumento; 14] = [
+    pub const TODOS: [TipoDocumento; 15] = [
         Self::Projeto,
         Self::AnaliseImpacto,
         Self::Pergunta,
@@ -71,6 +75,7 @@ impl TipoDocumento {
         Self::Ata,
         Self::AnaliseReuniao,
         Self::ParecerRevisao,
+        Self::Historias,
     ];
 
     /// Valor no frontmatter (`analise-impacto`).
@@ -90,6 +95,7 @@ impl TipoDocumento {
             Self::Ata => "ata",
             Self::AnaliseReuniao => "analise-reuniao",
             Self::ParecerRevisao => "parecer-revisao",
+            Self::Historias => "historias",
         }
     }
 
@@ -499,6 +505,12 @@ pub struct FrontmatterAnalise {
     pub criado: Data,
     #[serde(default)]
     pub analista: Option<String>,
+    /// Análise de que esta foi derivada (`A-0193`): nas histórias (#115), a análise
+    /// de impacto de onde vêm as afirmações e as regras citadas pelos critérios.
+    /// Só é gravado quando existe, para os documentos das outras análises não
+    /// mudarem.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origem: Option<Id>,
 }
 
 impl Frontmatter for FrontmatterAnalise {
@@ -508,10 +520,22 @@ impl Frontmatter for FrontmatterAnalise {
         TipoDocumento::Funcionalidade,
         TipoDocumento::AnaliseReuniao,
         TipoDocumento::ParecerRevisao,
+        TipoDocumento::Historias,
     ];
 
     fn validar(&self) -> Result<(), ErroCampo> {
-        exigir_serie(&self.id, &Serie::Analise, "análise (A-NNNN)")
+        exigir_serie(&self.id, &Serie::Analise, "análise (A-NNNN)")?;
+        match &self.origem {
+            Some(o) if o.serie() != &Serie::Analise => Err(ErroCampo::novo(
+                "origem",
+                format!("`{o}` não é um identificador de análise (A-NNNN)"),
+            )),
+            Some(o) if *o == self.id => Err(ErroCampo::novo(
+                "origem",
+                "a análise não pode ser a origem dela mesma",
+            )),
+            _ => Ok(()),
+        }
     }
 }
 

@@ -67,7 +67,7 @@ Ambiente típico: notebook (Windows ou macOS), assinatura pessoal de IA, acesso 
 
 - **Laço de agente próprio** no app, com as mesmas ferramentas: ChatGPT Plus/Pro pelo programa "Sign in with ChatGPT" da OpenAI e, para uso corporativo, chave de API da Anthropic, Amazon Bedrock ou Google Vertex AI.
 - Integração com Jira e GitLab/GitHub para ler a demanda pela chave e publicar o documento como comentário ou anexo.
-- Fluxos **revisar história** e **gerar critérios de aceite e cenários de teste**.
+- Fluxos **revisar história** e **gerar critérios de aceite e cenários de teste** (histórias com critérios de aceite: fluxo `historias`, #115, com documento próprio do tipo `historias`, identificador estável `HU-NNNN` por história e cada critério ligado às afirmações e às regras `RN-…`).
 - **Importação de bases existentes** em Markdown (catálogos de regras, casos de uso, memórias de engenharia reversa), com revalidação das evidências contra o código atual.
 - Conexão a um banco de dados para extrair o schema, além de arquivos DDL.
 - Busca semântica (embeddings) sobre a base de conhecimento, só se a busca textual se mostrar insuficiente (seção 7.5).
@@ -366,7 +366,7 @@ Modelo em camadas, como no ctower-agents:
 | Limites fixos | papel (apoia analista, não desenvolve), sugestão em vez de alteração, evidência obrigatória e honesta, consultar a base antes, declarar o que está fora do código, segredos, linguagem de negócio | hook `SessionStart`, em toda sessão, inclusive na retomada e em qualquer cliente |
 | Regras do projeto | convenções do projeto e da organização, editáveis e versionadas na base, em `<projeto>/regras-do-projeto.md` (criado com um padrão só de comentários, que não chega ao agente) | junto dos limites, no `SessionStart` |
 | Roteiro do fluxo | um template por fluxo, com variáveis (identificador, entrada, contexto da base) | resposta de `iniciar_analise` |
-| Prompts prontos | aprofundar, resumir para o solicitante, gerar critérios de aceite, conferir evidências, retomar; na análise de reunião, resumir para o cliente (sem referências internas) e listar dúvidas para enviar, no lugar do resumo para o solicitante e dos critérios de aceite | botões no app, que abrem o cliente com o pedido preenchido |
+| Prompts prontos | aprofundar, resumir para o solicitante, gerar histórias e critérios (abre o fluxo `historias` a partir da análise), conferir evidências, retomar; na análise de reunião, resumir para o cliente (sem referências internas) e listar dúvidas para enviar, no lugar do resumo para o solicitante e dos critérios de aceite | botões no app, que abrem o cliente com o pedido preenchido |
 
 Roteiros e prompts prontos são editáveis na base, como os templates (7.3): `_templates/roteiros/<fluxo>.md` (`perguntar`, `explicar`, `impacto`, `reuniao`) e `_templates/prompts/<id>.md`. Sem o arquivo, vale o padrão embutido; o app copia o padrão para a base sem sobrescrever o que foi editado (dos roteiros, só os já revisados). Variáveis são `{{nome}}`: no roteiro, `{{id}}`, `{{titulo}}`, `{{fluxo}}`, `{{documento}}`, `{{entrada}}`, `{{secoes}}`, `{{secoes_obrigatorias}}` e `{{contexto}}`; nos prompts, `{{id}}`, `{{titulo}}`, `{{fluxo}}` e `{{documento}}`. Variável desconhecida gera aviso e fica no texto; variável essencial ausente (no roteiro, entrada, seções e contexto; nos prompts, o identificador) vai para o fim, com aviso; arquivo ilegível gera aviso e usa o padrão. O prompt pronto vai ao cliente numa linha só.
 

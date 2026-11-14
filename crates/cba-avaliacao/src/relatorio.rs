@@ -614,6 +614,10 @@ fn criterios_das_analises(s: &mut String) {
         s,
         "- **Revisão de requisito** (`revisar`): achado esperado atendido por um achado da característica esperada, com as palavras-chave e, se o esperado cita regras, com evidência válida que toca a regra; termo vago apontado por um achado de ambiguidade ou verificabilidade cujo trecho o contém; veredito igual ao esperado. Falha grave: achado de correção sem evidência válida, ou nenhum achado quando o esperado não é `pronta`."
     );
+    let _ = writeln!(
+        s,
+        "- **Histórias e critérios** (`historias`): história esperada atendida por uma história com as palavras-chave no título e na narrativa; regra esperada citada por um critério, pelo id ou por uma afirmação cuja evidência toca a regra; critério com valor concreto (um número); tema a confirmar marcado num critério com pergunta; quebra proposta quando a abrangência pede. Falha grave: nenhuma história, ou critério sem origem."
+    );
 }
 
 fn analise_md(s: &mut String, e: &Execucao) {
@@ -739,7 +743,79 @@ fn analise_md(s: &mut String, e: &Execucao) {
     if let Some(p) = &a.parecer {
         parecer_md(s, p);
     }
+    if let Some(h) = &a.historias {
+        historias_md(s, h);
+    }
     let _ = writeln!(s, "- Concluída: {}\n", sim_nao(a.concluida));
+}
+
+fn historias_md(s: &mut String, h: &crate::historias::HistoriasAvaliadas) {
+    let _ = writeln!(
+        s,
+        "- Histórias: {}; critérios: {} ({} com valor concreto)",
+        h.historias, h.criterios, h.criterios_com_valor
+    );
+    if !h.criterios_sem_origem.is_empty() {
+        let _ = writeln!(
+            s,
+            "- Critérios sem origem: {}",
+            h.criterios_sem_origem.join(", ")
+        );
+    }
+    if !h.historias_sem_criterio.is_empty() {
+        let _ = writeln!(
+            s,
+            "- Histórias sem critério: {}",
+            h.historias_sem_criterio.join(", ")
+        );
+    }
+    let _ = writeln!(
+        s,
+        "- Histórias esperadas: {} de {}",
+        h.historias_atendidas(),
+        h.esperadas.len()
+    );
+    for e in &h.esperadas {
+        let _ = writeln!(
+            s,
+            "  - {}: {}",
+            e.id,
+            e.atendida_por.as_deref().unwrap_or("não encontrada")
+        );
+    }
+    let _ = writeln!(
+        s,
+        "- Regras citadas pelos critérios: {} de {}",
+        h.regras_citadas(),
+        h.regras.len()
+    );
+    for r in &h.regras {
+        let _ = writeln!(
+            s,
+            "  - {}: {}",
+            r.id,
+            r.citada_por.as_deref().unwrap_or("não citada")
+        );
+    }
+    if !h.a_confirmar.is_empty() {
+        let _ = writeln!(
+            s,
+            "- A confirmar: {} de {} tema(s) marcados",
+            h.temas_marcados(),
+            h.a_confirmar.len()
+        );
+    }
+    if h.quebra_esperada {
+        let _ = writeln!(
+            s,
+            "- Quebra em fatias: {}",
+            if h.quebra_proposta {
+                "proposta"
+            } else {
+                "não proposta"
+            }
+        );
+    }
 }
 
 fn parecer_md(s: &mut String, p: &crate::parecer::ParecerAvaliado) {

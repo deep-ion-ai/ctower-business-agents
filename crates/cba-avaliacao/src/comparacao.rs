@@ -37,6 +37,7 @@ use cba_tools::evidencias::{EvidenciaCitada, validar};
 use serde::Serialize;
 
 use crate::gabarito::{Gabarito, Item, Regra, Veredito};
+use crate::historias::{HistoriasAvaliadas, avaliar_historias};
 use crate::parecer::{ParecerAvaliado, avaliar_parecer};
 use crate::texto;
 
@@ -78,6 +79,9 @@ pub struct Avaliacao {
     /// Parecer de revisão (fluxo `revisar`, [`crate::parecer`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parecer: Option<ParecerAvaliado>,
+    /// Histórias com critérios de aceite (fluxo `historias`, [`crate::historias`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub historias: Option<HistoriasAvaliadas>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -137,10 +141,14 @@ impl Avaliacao {
     pub fn falhas(&self) -> Vec<String> {
         let mut f = Vec::new();
         // No parecer de revisão, o conteúdo são os achados; as afirmações são opcionais.
-        match &self.parecer {
-            Some(p) => f.extend(p.falhas()),
-            None if self.afirmacoes == 0 => f.push("nenhuma afirmação registrada".to_owned()),
-            None => {}
+        match (&self.parecer, &self.historias) {
+            (Some(p), _) => f.extend(p.falhas()),
+            // Nas histórias, o conteúdo são as histórias e os critérios.
+            (_, Some(h)) => f.extend(h.falhas()),
+            (None, None) if self.afirmacoes == 0 => {
+                f.push("nenhuma afirmação registrada".to_owned())
+            }
+            _ => {}
         }
         if !self.confirmado_sem_evidencia_valida.is_empty() {
             f.push(format!(
@@ -477,6 +485,10 @@ pub fn avaliar(analise: &Analise, item: &Item, gabarito: &Gabarito, escopo: &Esc
             .revisao
             .as_ref()
             .map(|r| avaliar_parecer(analise, r, gabarito, escopo)),
+        historias: item
+            .historias
+            .as_ref()
+            .map(|h| avaliar_historias(analise, h, gabarito)),
     }
 }
 
@@ -494,6 +506,7 @@ pub fn nome_do_fluxo(fluxo: cba_core::analise::Fluxo) -> &'static str {
         Fluxo::Impacto => "impacto",
         Fluxo::Reuniao => "reuniao",
         Fluxo::Revisar => "revisar",
+        Fluxo::Historias => "historias",
     }
 }
 

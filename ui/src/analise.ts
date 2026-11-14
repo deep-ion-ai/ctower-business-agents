@@ -6,7 +6,7 @@ import type { ProjetoResumo } from "./terminal";
  * `A-NNNN.estado.json` (campos em snake_case), e dos comandos da tela da análise
  * (`ui/src-tauri/src/analise.rs` e `vigia.rs`, campos em camelCase).
  */
-export type Fluxo = "perguntar" | "explicar" | "impacto" | "reuniao" | "revisar";
+export type Fluxo = "perguntar" | "explicar" | "impacto" | "reuniao" | "revisar" | "historias";
 export type EstadoAnalise = "criada" | "em-andamento" | "concluida" | "aprovada";
 export type EstadoSessao = "ativa" | "aguardando-analista" | "concluida" | "encerrada";
 export type Cliente = "claude-code" | "claude-desktop" | "desconhecido";
@@ -102,6 +102,10 @@ export interface Analise {
   termos: TermoProposto[];
   /** Reunião analisada (fluxo `reuniao`), `R-0001`. */
   reuniao?: string | null;
+  /** Análise de origem (fluxo `historias`), `A-0001`. */
+  origem?: string | null;
+  /** Histórias de usuário (fluxo `historias`, #115). */
+  historias?: Historia[];
   /** Parecer de revisão (fluxo `revisar`, `cba_core::parecer::Parecer`). */
   parecer?: Parecer | null;
 }
@@ -141,6 +145,54 @@ export interface Parecer {
   achados: Achado[];
   invest?: AvaliacaoInvest[];
   veredito?: { veredito: Veredito; justificativa: string; registrada_ms: number } | null;
+}
+
+/** O que sustenta um critério (`cba_core::requisito::Fundamento`). */
+export type Fundamento =
+  | { tipo: "afirmacao"; ref: string; texto: string; evidencias?: unknown[] }
+  | { tipo: "regra"; id: string; titulo: string; evidencias?: unknown[] };
+
+export type SituacaoItem = "pendente" | "aceito" | "descartado";
+export type SituacaoHistoria = "pendente" | "aceita" | "descartada" | "quebrada";
+export type LetraInvest =
+  "independente" | "negociavel" | "valiosa" | "estimavel" | "pequena" | "testavel";
+
+export interface Gherkin {
+  dado: string;
+  quando: string;
+  entao: string;
+}
+
+export interface Narrativa {
+  titulo: string;
+  como: string;
+  quero: string;
+  para: string;
+}
+
+/** Critério de aceite (`cba_core::historias::Criterio`), `CA-<numero>`. */
+export interface Criterio extends Gherkin {
+  numero: number;
+  original?: Gherkin | null;
+  fundamentos: Fundamento[];
+  /** Pergunta de que depende (`A-0001/2`): o critério fica "a confirmar". */
+  pergunta?: string | null;
+  situacao: SituacaoItem;
+  registrado_ms: number;
+}
+
+/** História de usuário (`cba_core::historias::Historia`), `HU-NNNN`. */
+export interface Historia extends Narrativa {
+  id: string;
+  original?: Narrativa | null;
+  criterios: Criterio[];
+  invest?: { criterio: LetraInvest; motivo: string }[];
+  quebra?: string | null;
+  fatia_de?: string | null;
+  situacao: SituacaoHistoria;
+  /** O analista pediu a quebra em fatias (texto vazio: sem detalhe). */
+  quebra_pedida?: string | null;
+  registrada_ms: number;
 }
 
 export interface SessaoVista {

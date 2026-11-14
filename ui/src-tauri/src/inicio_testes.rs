@@ -44,3 +44,22 @@ fn projetos_e_analises_em_andamento_e_recentes() {
     assert_eq!(json["recentes"][0]["id"], "A-0003");
     assert!(json["recentes"][0]["sessao"].is_null());
 }
+
+#[test]
+fn historias_a_partir_de_uma_analise_aprovada() {
+    let c = cenario();
+    c.aprovar_analise_da_multa();
+    let criar = |origem: Option<&str>| {
+        crate::analise::criar_analise_de_historias(&c.dados, PROJETO, origem, None, None, None)
+    };
+    let criada = criar(Some("A-0001")).unwrap();
+    assert_eq!(criada.analise.fluxo, Fluxo::Historias);
+    assert_eq!(criada.analise.id, "A-0002");
+    assert!(criada.analise.titulo.starts_with("Histórias · "));
+    assert!(criada.prompt_inicial.contains("A-0002"));
+    // Sem origem nem demanda, ou com origem que não existe: recusa.
+    let erro = criar(None).unwrap_err();
+    assert!(erro.contains("origem"), "{erro}");
+    let erro = criar(Some("A-0042")).unwrap_err();
+    assert!(erro.contains("A-0042"), "{erro}");
+}

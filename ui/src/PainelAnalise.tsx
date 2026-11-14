@@ -468,6 +468,8 @@ export function PainelAnalise({
                     ? "Aprovar a ata"
                     : vista.analise.fluxo === "revisar"
                       ? "Aprovar o parecer"
+                    : vista.analise.fluxo === "historias"
+                      ? "Aprovar as histórias"
                       : "Aprovar a análise"
                 }
                 classePainel="painel-revisao"
