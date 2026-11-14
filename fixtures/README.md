@@ -64,8 +64,8 @@ uma regra citada (fatura com pagamento parcial não pode ser cancelada,
 RN-FAT-012), pendências com responsável e prazo (Carlos até o dia 20, Ana
 até o dia 18, Maria até o dia 25), dúvidas (os 30 dias contam da emissão ou
 do vencimento; órgão público precisa de aprovação extra) e próximos passos
-(análise de impacto; nova conversa no dia 27). A ata esperada está no
-gabarito, como `REU-FAT-001` (#137).
+(análise de impacto; nova conversa no dia 27). Vai virar gabarito da
+avaliação na #137.
 
 **Reunião 2** (cerca de 2 min): fechamento do escopo. Participantes em comum
 com a reunião 1, para testar o histórico de papéis: "Maria Silva" (a mesma
@@ -102,10 +102,6 @@ deve encontrar:
 - `perguntas_esperadas` e `verificacao_da_premissa`: o que a avaliação dos
   fluxos ([`docs/avaliacao.md`](../docs/avaliacao.md)) espera das perguntas
   para o solicitante e da correção da premissa da demanda.
-- `reunioes`: a ata esperada de cada transcript de `reunioes/` (`REU-FAT-001`
-  e `REU-FAT-002`), com o papel de cada participante e os itens esperados por
-  seção, para a avaliação do fluxo "Analisar reunião". Os transcripts ficam
-  fora da pasta do projeto, como o gabarito.
 
 ## Testes
 

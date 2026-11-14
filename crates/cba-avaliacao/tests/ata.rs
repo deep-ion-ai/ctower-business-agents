@@ -1,6 +1,5 @@
 //! Comparação de atas de exemplo com a reunião do gabarito (fluxo `reuniao`, #137),
-//! sem chamar o Claude: uma ata boa, que atende ao gabarito, e uma ruim, montadas
-//! aqui, e a ata gravada por uma execução real (`tests/atas/REU-FAT-001.estado.json`).
+//! sem chamar o Claude: uma ata boa, que atende ao gabarito, e uma ruim.
 
 use cba_avaliacao::ata::{AvaliacaoAta, Transcripts, avaliar_ata};
 use cba_avaliacao::execucao::falas_da_reuniao;
@@ -390,30 +389,4 @@ fn relatorio_da_reuniao_sem_texto_de_fala() {
     }
     let trecho = citar(&f, &f, "4:06").trecho;
     assert!(!md.contains(&trecho) && !json.contains(&trecho));
-}
-
-/// Ata gravada pela execução real da avaliação (docs/avaliacao/), com as citações
-/// conferidas de novo contra o transcript da fixture.
-#[test]
-fn ata_gravada_por_execucao_real() {
-    let g = gabarito();
-    let r = g.reuniao("REU-FAT-001").unwrap();
-    let f = falas(&g, r);
-    let caminho = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/atas/REU-FAT-001.estado.json");
-    let estado: EstadoAta =
-        serde_json::from_str(&std::fs::read_to_string(caminho).unwrap()).unwrap();
-    let a = avaliar_ata(
-        &estado,
-        r,
-        Some(Transcripts {
-            original: &f,
-            lido: &f,
-        }),
-    );
-    assert!(a.falhas().is_empty(), "{:?}", a.falhas());
-    assert_eq!(a.itens_atendidos, 16);
-    assert_eq!((a.papeis_acertados, a.papeis_esperados), (3, 4));
-    assert!(a.citacoes.recusadas.is_empty());
-    assert_eq!(a.citacoes.reconferidas, Some(a.citacoes.total));
 }

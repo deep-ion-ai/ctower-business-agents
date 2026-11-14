@@ -276,12 +276,7 @@ fn resumir(execucoes: &[&Execucao]) -> Resumo {
         item: primeira.item.clone(),
         execucoes: execucoes.len(),
         avaliadas: avaliacoes.len(),
-        // No fluxo `reuniao`, a análise da reunião concluída (`concluir_analise`).
-        concluidas: avaliacoes.iter().filter(|a| a.concluida).count()
-            + execucoes
-                .iter()
-                .filter(|e| e.ata.as_ref().is_some_and(|a| a.concluida == Some(true)))
-                .count(),
+        concluidas: avaliacoes.iter().filter(|a| a.concluida).count(),
         regras_esperadas: avaliacoes.first().map_or(0, |a| a.regras_esperadas),
         regras_media: media(&cobertura),
         regras_min: cobertura
