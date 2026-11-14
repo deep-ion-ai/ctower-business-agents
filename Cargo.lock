@@ -624,6 +624,7 @@ dependencies = [
  "cba-index",
  "cba-kb",
  "cba-repos",
+ "cba-reunioes",
  "dunce",
  "serde",
  "serde_json",

@@ -10,7 +10,9 @@
 //! - [`registro_padrao`]: as ferramentas que o produto expõe, cada uma no seu
 //!   módulo: [`analises`] (`listar_analises`), [`ciclo`] (`iniciar_analise`,
 //!   `retomar_analise` e `concluir_analise`), [`afirmar`], [`perguntar`],
-//!   [`sugestao`] (`registrar_sugestao`) e [`termo`] (`propor_termo`).
+//!   [`sugestao`] (`registrar_sugestao`), [`termo`] (`propor_termo`) e
+//!   [`reuniao`] (`ler_transcript`, `propor_papel`, `registrar_item_ata` e
+//!   `sugerir_demanda`, do fluxo "Analisar reunião").
 //! - Consulta, só de leitura e paginada ([`paginacao`]): [`conhecimento`] (busca no
 //!   índice da base), [`mapa`], [`estrutura`], [`banco`] (`schema`) e
 //!   [`referencias`], a partir do mapa estrutural do projeto ([`fontes`]).
@@ -52,6 +54,7 @@ pub mod perguntar;
 pub mod prompts;
 pub mod referencias;
 mod registro;
+pub mod reuniao;
 pub mod revalidacao;
 pub mod revisao;
 pub mod roteiro;
@@ -82,6 +85,10 @@ pub fn registro_padrao() -> Registro {
         .registrar(perguntar::perguntar())
         .registrar(sugestao::registrar_sugestao())
         .registrar(termo::propor_termo())
+        .registrar(reuniao::ler_transcript())
+        .registrar(reuniao::propor_papel())
+        .registrar(reuniao::registrar_item_ata())
+        .registrar(reuniao::sugerir_demanda())
         .registrar(ciclo::concluir_analise());
     registro
 }
@@ -111,6 +118,10 @@ mod tests {
             "perguntar",
             "registrar_sugestao",
             "propor_termo",
+            "ler_transcript",
+            "propor_papel",
+            "registrar_item_ata",
+            "sugerir_demanda",
             "concluir_analise",
         ] {
             assert!(r.obter(nome).is_some(), "{nome}");
@@ -119,6 +130,8 @@ mod tests {
         assert!(!r.obter("afirmar").unwrap().e_somente_leitura());
         assert!(!r.obter("iniciar_analise").unwrap().e_somente_leitura());
         assert!(!r.obter("concluir_analise").unwrap().e_somente_leitura());
+        assert!(!r.obter("propor_papel").unwrap().e_somente_leitura());
+        assert!(!r.obter("registrar_item_ata").unwrap().e_somente_leitura());
         for consulta in [
             "retomar_analise",
             "conhecimento",
@@ -126,6 +139,8 @@ mod tests {
             "mapa",
             "estrutura",
             "schema",
+            "ler_transcript",
+            "sugerir_demanda",
         ] {
             assert!(r.obter(consulta).unwrap().e_somente_leitura(), "{consulta}");
         }

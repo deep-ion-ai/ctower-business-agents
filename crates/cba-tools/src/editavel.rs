@@ -193,6 +193,7 @@ fn rotulo_do_template(tipo: cba_kb::frontmatter::TipoDocumento) -> &'static str 
         T::Demanda => "Demanda",
         T::Pessoa => "Pessoa",
         T::Ata => "Ata de reunião",
+        T::AnaliseReuniao => "Análise de reunião",
     }
 }
 
@@ -202,6 +203,7 @@ fn rotulo_do_roteiro(fluxo: cba_core::analise::Fluxo) -> &'static str {
         Fluxo::Perguntar => "Perguntar ao sistema",
         Fluxo::Explicar => "Explicar funcionalidade",
         Fluxo::Impacto => "Analisar impacto",
+        Fluxo::Reuniao => "Analisar reunião",
     }
 }
 
@@ -219,16 +221,23 @@ pub fn textos_editaveis() -> Vec<TextoEditavel> {
             padrao: m.padrao,
         })
         .collect();
-    lista.extend(crate::roteiro::FLUXOS.iter().map(|f| {
-        let p = crate::roteiro::padrao(*f);
-        TextoEditavel {
-            grupo: Grupo::Roteiro,
-            id: p.nome,
-            rotulo: rotulo_do_roteiro(*f),
-            arquivo: p.arquivo(),
-            padrao: p.texto,
-        }
-    }));
+    // Só os roteiros revisados: a cópia de um provisório na base esconderia a
+    // versão revisada que vier depois (veja `roteiro::revisado`).
+    lista.extend(
+        crate::roteiro::FLUXOS
+            .iter()
+            .filter(|f| crate::roteiro::revisado(**f))
+            .map(|f| {
+                let p = crate::roteiro::padrao(*f);
+                TextoEditavel {
+                    grupo: Grupo::Roteiro,
+                    id: p.nome,
+                    rotulo: rotulo_do_roteiro(*f),
+                    arquivo: p.arquivo(),
+                    padrao: p.texto,
+                }
+            }),
+    );
     lista.extend(crate::prompts::DEFINICOES.iter().map(|d| {
         let p = crate::prompts::padrao(d);
         TextoEditavel {
