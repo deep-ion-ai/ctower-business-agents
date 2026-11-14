@@ -328,17 +328,32 @@ pub fn executar(
 
     let preparado = (|| {
         let p = preparar_projeto(&raiz, &projeto)?;
-        let analise = p
-            .ambiente
-            .analises
-            .criar(NovaAnalise {
-                fluxo: item.fluxo,
-                titulo: item.titulo.clone(),
-                entrada: item.entrada.clone(),
-                analista: None,
-                base: None,
-            })
-            .map_err(erro("criação da análise"))?;
+        let analise = match &item.historias {
+            // Histórias: a análise de origem preparada e a de histórias ligada a ela,
+            // como o app cria pela nova análise.
+            Some(esperado) => {
+                let origem = crate::historias::preparar_origem(&p.ambiente, gabarito, esperado)?;
+                cba_tools::ciclo::criar_analise_de_historias(
+                    &p.ambiente,
+                    Some(origem),
+                    None,
+                    Some(item.entrada.clone()).filter(|e| !e.trim().is_empty()),
+                    Some(item.titulo.clone()),
+                )
+                .map_err(erro("criação da análise de histórias"))?
+            }
+            None => p
+                .ambiente
+                .analises
+                .criar(NovaAnalise {
+                    fluxo: item.fluxo,
+                    titulo: item.titulo.clone(),
+                    entrada: item.entrada.clone(),
+                    analista: None,
+                    base: None,
+                })
+                .map_err(erro("criação da análise"))?,
+        };
         let (mcp, settings) = preparar_claude(&raiz, &p, &opcoes.cba)?;
         Ok::<_, String>((
             Preparado {

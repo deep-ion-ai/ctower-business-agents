@@ -42,6 +42,15 @@
 #   de `palavras_chave` no trecho, no problema ou na reescrita e, se o esperado
 #   cita `regras`, tem evidência válida que toca uma evidência esperada de uma
 #   delas (ou cita a regra pelo id).
+# - `historias` (fluxo "Histórias e critérios", #115) traz as histórias
+#   esperadas a partir da análise de impacto de uma `demanda`: as `regras` que
+#   os critérios devem citar (pelo id ou por uma afirmação cuja evidência toca
+#   a regra), se a abrangência pede a `quebra` em fatias, as
+#   `historias_esperadas` (palavras-chave no título e na narrativa "Como /
+#   quero / para") e os temas que devem ficar `a_confirmar` (critério com
+#   pergunta; palavras-chave no Dado / Quando / Então). O preparo da avaliação
+#   cria a análise de origem com uma afirmação confirmada por regra da demanda
+#   e uma pergunta em aberto por pergunta esperada dela.
 # - A avaliação dos fluxos (crate cba-avaliacao, docs/avaliacao.md) usa este
 #   arquivo como referência.
 
@@ -739,3 +748,23 @@ revisoes:
     perguntas_esperadas:
       - tema: A história muda a regra que proíbe cancelar fatura com pagamento parcial, ou o texto está errado?
         palavras_chave: [[pagamento parcial, pago*, pagamento*], [regra, muda*, mudanca, alter*, err*, intenc*, proposit*, correto, confirm*, pretend*, deve*]]
+
+# Histórias com critérios de aceite a partir da análise de impacto de uma
+# demanda (fluxo "Histórias e critérios", #115).
+historias:
+  - id: HIS-FAT-001
+    titulo: Histórias do parcelamento para pessoa física
+    demanda: D-FAT-003
+    regras: [RN-FAT-007, RN-FAT-008, RN-FAT-009]
+    # Abrangência média: tela, backend e parâmetros por tipo de cliente.
+    quebra: true
+    historias_esperadas:
+      - id: HIS-FAT-001-H1
+        descricao: Pessoa física passa a poder parcelar a fatura (hoje bloqueada na tela e no backend).
+        palavras_chave: [[pessoa fisica, pessoas fisicas, pf], [parcel*]]
+      - id: HIS-FAT-001-H2
+        descricao: Limite de 3 parcelas e parcela mínima de R$ 100,00 para pessoa física, sem mudar os demais tipos.
+        palavras_chave: [["3", tres, limite*, minim*, "100", "100,00", parametr*]]
+    a_confirmar:
+      - tema: A parcela mínima de R$ 100,00 vale só para pessoa física?
+        palavras_chave: [["100", "100,00", minim*]]

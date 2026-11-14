@@ -32,6 +32,34 @@ struct Gabarito {
     reunioes: Vec<Reuniao>,
     #[serde(default)]
     revisoes: Vec<Revisao>,
+    #[serde(default)]
+    historias: Vec<Historias>,
+}
+
+/// Histórias esperadas a partir da análise de impacto de uma demanda (fluxo
+/// "Histórias e critérios", #115).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Historias {
+    id: String,
+    titulo: String,
+    #[serde(default)]
+    pedido: Option<String>,
+    demanda: String,
+    regras: Vec<String>,
+    #[serde(default)]
+    quebra: bool,
+    historias_esperadas: Vec<HistoriaEsperada>,
+    #[serde(default)]
+    a_confirmar: Vec<PerguntaEsperada>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct HistoriaEsperada {
+    id: String,
+    descricao: String,
+    palavras_chave: Vec<Vec<String>>,
 }
 
 /// Requisito ou história fictícios com problemas plantados e o parecer esperado
@@ -387,6 +415,13 @@ fn conferir(caminho: &Path) -> Vec<String> {
                 .iter()
                 .flat_map(|r| r.itens.iter().map(|i| &i.id)),
         )
+        .chain(gabarito.historias.iter().map(|h| &h.id))
+        .chain(
+            gabarito
+                .historias
+                .iter()
+                .flat_map(|h| h.historias_esperadas.iter().map(|e| &e.id)),
+        )
         .chain(gabarito.revisoes.iter().map(|r| &r.id))
         .chain(
             gabarito
@@ -597,6 +632,43 @@ fn conferir(caminho: &Path) -> Vec<String> {
             c.palavras_chave(&onde, &a.palavras_chave);
         }
         c.perguntas_esperadas(&onde, &r.perguntas_esperadas);
+    }
+
+    for h in &gabarito.historias {
+        let onde = format!("histórias {}", h.id);
+        c.texto_preenchido(&onde, "titulo", &h.titulo);
+        if let Some(p) = &h.pedido {
+            c.texto_preenchido(&onde, "pedido", p);
+        }
+        // A origem é a análise de impacto da demanda, preparada com as regras dela:
+        // as regras esperadas nos critérios são regras (RN-…) dessa demanda.
+        match gabarito.demandas.iter().find(|d| d.id == h.demanda) {
+            None => c.erro(format!("{onde}: demanda `{}` não existe", h.demanda)),
+            Some(d) => {
+                for id in &h.regras {
+                    if !id.starts_with("RN-") || !d.regras.contains(id) {
+                        c.erro(format!(
+                            "{onde}: regra `{id}` não é uma regra (RN-…) da demanda {}",
+                            d.id
+                        ));
+                    }
+                }
+                if h.quebra && d.abrangencia_esperada == "pequena" {
+                    c.erro(format!(
+                        "{onde}: quebra esperada numa demanda de abrangência pequena"
+                    ));
+                }
+            }
+        }
+        if h.historias_esperadas.is_empty() {
+            c.erro(format!("{onde}: nenhuma história esperada"));
+        }
+        for e in &h.historias_esperadas {
+            let onde = format!("{onde}, {}", e.id);
+            c.texto_preenchido(&onde, "descricao", &e.descricao);
+            c.palavras_chave(&onde, &e.palavras_chave);
+        }
+        c.perguntas_esperadas(&onde, &h.a_confirmar);
     }
 
     // Toda regra é exercitada por ao menos um fluxo.
