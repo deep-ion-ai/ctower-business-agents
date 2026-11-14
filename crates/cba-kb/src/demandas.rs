@@ -194,7 +194,7 @@ impl Projeto {
             let trava = demandas.juntar(&id.to_string())?;
             match fs::create_dir(self.caminho(&trava)) {
                 Ok(()) => {}
-                Err(e) if crate::arquivo::trava_ocupada(&e) => continue,
+                Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
                 Err(erro) => return Err(self.erro_io(&trava, erro)),
             }
             let nome_da_trava = id.to_string();
