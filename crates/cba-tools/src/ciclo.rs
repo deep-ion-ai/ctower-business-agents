@@ -6,14 +6,19 @@
 //!   partir de `fluxo` e `entrada`, quando o analista pediu direto no chat. Copia
 //!   os templates padrão para a base, se faltarem, põe a análise em andamento,
 //!   monta o documento em rascunho e devolve o roteiro do fluxo com o contexto da
-//!   base.
+//!   base. Aceita `demanda` (D-NNNN, opcional), gravada em `demanda.id` no
+//!   frontmatter do documento, e, no fluxo `reuniao`, a reunião (R-NNNN), gravada
+//!   no estado; o contexto devolvido traz então a demanda, as atas anteriores, as
+//!   pendências e as pessoas do projeto ([`crate::contexto::contexto_da_demanda`]).
 //! - `retomar_analise` só lê: devolve a entrada, as afirmações com as evidências,
 //!   as perguntas, as sugestões e os termos, com o roteiro e o próximo passo, para
 //!   uma sessão nova continuar de onde a outra parou.
 //! - `concluir_analise` confere as pendências (nenhuma afirmação, seção obrigatória
-//!   vazia, evidência que não confere mais com o código), muda o estado para
+//!   vazia, evidência que não confere mais com o código; no fluxo `reuniao`, ata
+//!   sem itens), muda o estado para
 //!   concluída, remonta o documento e devolve o caminho que o agente cita no chat.
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Write as _;
 
@@ -23,10 +28,10 @@ use cba_core::analise::{
 };
 use cba_core::analises::NovaAnalise;
 use cba_core::eventos::Mudanca;
-use cba_docs::Templates;
+use cba_docs::{EstadoAta, Templates};
 use cba_index::detectar_git;
-use cba_kb::Id;
-use cba_kb::frontmatter::VersaoCodigo;
+use cba_kb::frontmatter::{Demanda, FrontmatterAnalise, VersaoCodigo};
+use cba_kb::{DemandaLida, Documento, Id, IdDemanda, IdReuniao};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -36,6 +41,7 @@ use crate::documento::secoes_de_afirmacao;
 use crate::evidencias::{ArquivoDoProjeto, hash_das_linhas};
 use crate::prompts::Prompts;
 use crate::registro::{ErroFerramenta, Ferramenta, Saida, ler_argumentos};
+use crate::reuniao;
 use crate::roteiro::{Roteiros, nome_do_fluxo, secoes_obrigatorias, titulo_da_secao};
 
 /// Tamanho máximo do título derivado da entrada, em caracteres.
@@ -115,6 +121,52 @@ struct ArgsIniciar {
     entrada: Option<String>,
     #[serde(default)]
     titulo: Option<String>,
+    #[serde(default)]
+    demanda: Option<String>,
+    #[serde(default)]
+    reuniao: Option<String>,
+}
+
+/// Ligações pedidas em `iniciar_analise`: a demanda (gravada em `demanda.id` no
+/// frontmatter do documento) e, no fluxo `reuniao`, a reunião (no estado).
+#[derive(Debug, Clone, Copy, Default)]
+struct Ligacao {
+    demanda: Option<IdDemanda>,
+    reuniao: Option<IdReuniao>,
+}
+
+/// `demanda` do frontmatter a partir da demanda da base: o identificador, a
+/// origem (padrão `texto`) e a chave no rastreador.
+fn demanda_do_frontmatter(lida: &DemandaLida) -> Demanda {
+    let f = &lida.documento.frontmatter;
+    Demanda {
+        id: Some(lida.id),
+        origem: f.origem.clone().unwrap_or_else(|| "texto".into()),
+        chave: f.chave.clone(),
+    }
+}
+
+/// Demanda da base, ou a recusa dizendo que não existe.
+fn ler_demanda(ambiente: &Ambiente, id: IdDemanda) -> Result<DemandaLida, ErroFerramenta> {
+    ambiente.kb.demanda(id).map_err(|e| match e {
+        cba_kb::Erro::DemandaInexistente { .. } => ErroFerramenta::Recusa(format!(
+            "a demanda {id} não existe neste projeto; confira o identificador (D-NNNN) ou \
+             use `sugerir_demanda` para achar uma demanda aberta parecida"
+        )),
+        outro => ErroFerramenta::Interno(outro.to_string()),
+    })
+}
+
+/// Demanda aberta, para ligar uma análise a ela.
+fn demanda_aberta(ambiente: &Ambiente, id: IdDemanda) -> Result<DemandaLida, ErroFerramenta> {
+    let lida = ler_demanda(ambiente, id)?;
+    if !lida.aberta() {
+        return Err(ErroFerramenta::Recusa(format!(
+            "a demanda {id} está encerrada e não recebe análises novas; peça ao analista \
+             para reabri-la ou escolha outra"
+        )));
+    }
+    Ok(lida)
 }
 
 /// `iniciar_analise`: o roteiro do fluxo, a entrada e o contexto da base.
@@ -123,38 +175,59 @@ pub fn iniciar_analise() -> Ferramenta {
         "iniciar_analise",
         "Iniciar análise",
         "Inicia o trabalho numa análise e devolve o roteiro do fluxo, a entrada do \
-         analista e o contexto da base (regras, termos e análises relacionados). Chame \
-         antes de tudo. Quando o analista pedir \"Inicie a análise A-NNNN\", passe só \
-         `analise`. Quando ele fizer o pedido direto no chat, sem identificador, passe \
-         `fluxo` e `entrada` (e, se quiser, `titulo`) para criar a análise; use o \
-         identificador devolvido em todas as chamadas seguintes. Siga o roteiro \
-         devolvido.",
+         analista e o contexto da base (regras, termos e análises relacionados e, se a \
+         análise for de uma demanda, as atas anteriores, as pendências e as pessoas do \
+         projeto). Chame antes de tudo. Quando o analista pedir \"Inicie a análise \
+         A-NNNN\", passe só `analise`. Quando ele fizer o pedido direto no chat, sem \
+         identificador, passe `fluxo` e `entrada` (e, se quiser, `titulo`) para criar a \
+         análise; use o identificador devolvido em todas as chamadas seguintes. Para \
+         analisar uma reunião, passe `fluxo: \"reuniao\"` e `reuniao` (R-NNNN). \
+         `demanda` (D-NNNN, opcional) liga a análise a uma demanda do projeto. Siga o \
+         roteiro devolvido.",
         json!({
             "type": "object",
             "properties": {
                 "analise": comum::schema_da_analise(),
                 "fluxo": {
                     "type": "string",
-                    "enum": ["perguntar", "explicar", "impacto"],
-                    "description": "Só para criar: perguntar (pergunta ao sistema), explicar (explicar funcionalidade, documento negocial) ou impacto (análise de impacto de uma demanda)."
+                    "enum": ["perguntar", "explicar", "impacto", "reuniao"],
+                    "description": "Só para criar: perguntar (pergunta ao sistema), explicar (explicar funcionalidade, documento negocial), impacto (análise de impacto de uma demanda) ou reuniao (montar a ata de uma reunião a partir do transcript; exige `reuniao`)."
                 },
                 "entrada": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 20000,
-                    "description": "Só para criar: a pergunta, a funcionalidade ou o texto da demanda, como o analista escreveu."
+                    "description": "Só para criar: a pergunta, a funcionalidade ou o texto da demanda, como o analista escreveu. No fluxo reuniao é opcional."
                 },
                 "titulo": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 200,
                     "description": "Só para criar: título curto da análise. Sem ele, vale a primeira linha da entrada."
-                }
+                },
+                "demanda": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Opcional: a demanda do projeto (D-NNNN) a que a análise pertence. Grava a ligação na análise."
+                },
+                "reuniao": reuniao::schema_da_reuniao()
             },
             "additionalProperties": false
         }),
         |ambiente, args| {
             let args: ArgsIniciar = ler_argumentos(args)?;
+            let mut ligacao = Ligacao {
+                demanda: args
+                    .demanda
+                    .as_deref()
+                    .map(reuniao::id_da_demanda)
+                    .transpose()?,
+                reuniao: args
+                    .reuniao
+                    .as_deref()
+                    .map(reuniao::id_da_reuniao)
+                    .transpose()?,
+            };
             let (id, criada) = match (args.analise, args.fluxo, args.entrada) {
                 (Some(analise), None, None) if args.titulo.is_none() => {
                     (comum::id_da_analise(&analise)?, false)
@@ -166,39 +239,181 @@ pub fn iniciar_analise() -> Ferramenta {
                             .into(),
                     ));
                 }
+                (None, Some(Fluxo::Reuniao), entrada) => {
+                    let Some(r) = ligacao.reuniao else {
+                        return Err(ErroFerramenta::Argumentos(
+                            "no fluxo `reuniao`, informe `reuniao`: o identificador da reunião \
+                             (R-NNNN) que o analista criou no app"
+                                .into(),
+                        ));
+                    };
+                    let arquivos = reuniao::arquivos_da_reuniao(ambiente, r)?;
+                    if let Some(d) = ligacao.demanda
+                        && d != arquivos.demanda
+                    {
+                        return Err(ErroFerramenta::Recusa(format!(
+                            "a reunião {r} é da demanda {}, não de {d}; tire `demanda` ou \
+                             corrija-a",
+                            arquivos.demanda
+                        )));
+                    }
+                    let lida = ler_demanda(ambiente, arquivos.demanda)?;
+                    let titulo_da_demanda = lida.documento.frontmatter.titulo.clone();
+                    let entrada = entrada.filter(|e| !e.trim().is_empty()).unwrap_or_else(|| {
+                        format!(
+                            "Reunião {r} da demanda {} ({titulo_da_demanda}). Ata: `{}`.",
+                            arquivos.demanda,
+                            ambiente.kb.na_base(&arquivos.ata)
+                        )
+                    });
+                    let titulo = match args.titulo {
+                        Some(t) if !t.trim().is_empty() => t,
+                        _ => titulo_da_entrada(&format!("Reunião {r} · {titulo_da_demanda}")),
+                    };
+                    let analise = ambiente.analises.criar_com_demanda(
+                        NovaAnalise {
+                            fluxo: Fluxo::Reuniao,
+                            titulo,
+                            entrada,
+                            analista: None,
+                            base: versao_do_codigo(ambiente),
+                        },
+                        Some(demanda_do_frontmatter(&lida)),
+                    )?;
+                    ligacao.demanda = None;
+                    (analise.id, true)
+                }
                 (None, Some(fluxo), Some(entrada)) => {
+                    if ligacao.reuniao.is_some() {
+                        return Err(ErroFerramenta::Argumentos(
+                            "`reuniao` só vale no fluxo `reuniao`".into(),
+                        ));
+                    }
+                    let demanda = ligacao
+                        .demanda
+                        .map(|d| demanda_aberta(ambiente, d))
+                        .transpose()?;
                     let titulo = match args.titulo {
                         Some(t) if !t.trim().is_empty() => t,
                         _ => titulo_da_entrada(&entrada),
                     };
-                    let analise = ambiente.analises.criar(NovaAnalise {
-                        fluxo,
-                        titulo,
-                        entrada,
-                        analista: None,
-                        base: versao_do_codigo(ambiente),
-                    })?;
+                    let analise = ambiente.analises.criar_com_demanda(
+                        NovaAnalise {
+                            fluxo,
+                            titulo,
+                            entrada,
+                            analista: None,
+                            base: versao_do_codigo(ambiente),
+                        },
+                        demanda.as_ref().map(demanda_do_frontmatter),
+                    )?;
+                    ligacao.demanda = None;
                     (analise.id, true)
                 }
                 (None, ..) => {
                     return Err(ErroFerramenta::Argumentos(
                         "informe `analise` (o A-NNNN do pedido do analista) ou, para criar \
-                         uma análise nova, `fluxo` e `entrada`"
+                         uma análise nova, `fluxo` e `entrada` (no fluxo reuniao, `fluxo` e \
+                         `reuniao`)"
                             .into(),
                     ));
                 }
             };
-            iniciar(ambiente, &id, criada)
+            iniciar(ambiente, &id, criada, ligacao)
         },
     )
 }
 
-fn iniciar(ambiente: &Ambiente, id: &Id, criada: bool) -> Result<Saida, ErroFerramenta> {
+/// Confere as ligações pedidas para uma análise e devolve a demanda a gravar no
+/// frontmatter (só quando a análise ainda não está ligada a ela) e a reunião a
+/// gravar no estado (só quando ainda não está gravada).
+fn conferir_ligacao(
+    ambiente: &Ambiente,
+    atual: &Analise,
+    ligacao: Ligacao,
+) -> Result<(Option<Demanda>, Option<IdReuniao>), ErroFerramenta> {
+    let id = &atual.id;
+    let mut demanda = ligacao.demanda;
+    let mut reuniao = None;
+    if let Some(r) = ligacao.reuniao.or(atual.reuniao) {
+        if atual.fluxo != Fluxo::Reuniao {
+            return Err(ErroFerramenta::Argumentos(format!(
+                "`reuniao` só vale no fluxo `reuniao`, e a análise {id} é de {}",
+                nome_do_fluxo(atual.fluxo)
+            )));
+        }
+        if let Some(outra) = atual.reuniao
+            && outra != r
+        {
+            return Err(ErroFerramenta::Recusa(format!(
+                "a análise {id} é da reunião {outra}, não de {r}; para analisar outra \
+                 reunião, crie uma análise nova"
+            )));
+        }
+        let arquivos = reuniao::arquivos_da_reuniao(ambiente, r)?;
+        if let Some(d) = demanda
+            && d != arquivos.demanda
+        {
+            return Err(ErroFerramenta::Recusa(format!(
+                "a reunião {r} é da demanda {}, não de {d}",
+                arquivos.demanda
+            )));
+        }
+        demanda = Some(arquivos.demanda);
+        if atual.reuniao.is_none() {
+            reuniao = Some(r);
+        }
+    }
+    let Some(d) = demanda else {
+        return Ok((None, reuniao));
+    };
+    let doc: Documento<FrontmatterAnalise> = ambiente
+        .kb
+        .ler(&atual.documento)
+        .map_err(|e| ErroFerramenta::Interno(e.to_string()))?;
+    match doc.frontmatter.demanda.id {
+        Some(ja) if ja == d => Ok((None, reuniao)),
+        Some(ja) => Err(ErroFerramenta::Recusa(format!(
+            "a análise {id} já está ligada à demanda {ja}, não a {d}; para mudar a \
+             ligação, peça ao analista"
+        ))),
+        None => {
+            let lida = demanda_aberta(ambiente, d)?;
+            Ok((Some(demanda_do_frontmatter(&lida)), reuniao))
+        }
+    }
+}
+
+/// Grava a demanda no frontmatter do documento da análise, antes de o documento
+/// ser remontado (a montagem mantém o frontmatter).
+fn gravar_demanda(
+    kb: &cba_kb::Projeto,
+    analise: &Analise,
+    demanda: Demanda,
+) -> Result<(), cba_kb::Erro> {
+    let mut doc: Documento<FrontmatterAnalise> = kb.ler(&analise.documento)?;
+    doc.frontmatter.demanda = demanda;
+    kb.gravar(&analise.documento, &doc)
+}
+
+fn iniciar(
+    ambiente: &Ambiente,
+    id: &Id,
+    criada: bool,
+    ligacao: Ligacao,
+) -> Result<Saida, ErroFerramenta> {
     let atual = ambiente.analises.carregar(id)?;
     if atual.estado == EstadoAnalise::Aprovada {
         return Err(ErroFerramenta::Recusa(format!(
             "a análise {id} já foi aprovada pelo analista e não aceita registros novos. \
              Para continuar o assunto, peça ao analista para criar uma análise nova"
+        )));
+    }
+    let (demanda, reuniao) = conferir_ligacao(ambiente, &atual, ligacao)?;
+    if atual.fluxo == Fluxo::Reuniao && atual.reuniao.is_none() && reuniao.is_none() {
+        return Err(ErroFerramenta::Argumentos(format!(
+            "a análise {id} é de reunião e ainda não está ligada a uma; passe também \
+             `reuniao` (R-NNNN)"
         )));
     }
     let mut avisos = Vec::new();
@@ -238,7 +453,32 @@ fn iniciar(ambiente: &Ambiente, id: &Id, criada: bool) -> Result<Saida, ErroFerr
              padrão embutido"
         )),
     }
-    let registrado = comum::alterar(ambiente, id, Mudanca::Estado, |a, _| a.iniciar())?;
+    let falha_da_demanda = RefCell::new(None);
+    let registrado = comum::alterar_com(
+        ambiente,
+        id,
+        Mudanca::Estado,
+        |a, _| {
+            a.iniciar()?;
+            if reuniao.is_some() {
+                a.reuniao = reuniao;
+            }
+            Ok(())
+        },
+        |a| {
+            if let Some(d) = demanda
+                && let Err(e) = gravar_demanda(&ambiente.kb, a, d)
+            {
+                *falha_da_demanda.borrow_mut() = Some(e.to_string());
+            }
+        },
+    )?;
+    if let Some(e) = falha_da_demanda.into_inner() {
+        return Err(ErroFerramenta::Interno(format!(
+            "a análise {id} foi iniciada, mas a ligação com a demanda não foi gravada \
+             ({e}); chame `iniciar_analise` de novo"
+        )));
+    }
     avisos.extend(registrado.aviso.clone());
     let analise = &registrado.analise;
     let contexto = Contexto::da_analise(ambiente, analise);
@@ -282,6 +522,7 @@ fn iniciar(ambiente: &Ambiente, id: &Id, criada: bool) -> Result<Saida, ErroFerr
         "secoes": secoes_de_afirmacao(analise.fluxo),
         "secoes_obrigatorias": secoes_obrigatorias(analise.fluxo),
         "registros": contagem(analise),
+        "reuniao": analise.reuniao,
         "contexto": contexto.json(),
         "roteiro": roteiro,
     });
@@ -566,6 +807,7 @@ fn retomar(ambiente: &Ambiente, analise: &Analise) -> Saida {
             "entrada": analise.entrada,
             "documento": documento,
             "sessoes": analise.sessoes.len(),
+            "reuniao": analise.reuniao,
             "afirmacoes": afirmacoes,
             "perguntas": perguntas,
             "sugestoes": sugestoes,
@@ -645,6 +887,26 @@ fn conferir_evidencias(ambiente: &Ambiente, analise: &Analise) -> HashMap<Chave,
     resultado
 }
 
+/// No fluxo `reuniao`, o conteúdo está na ata: ela precisa ter ao menos um item.
+fn conferir_ata(ambiente: &Ambiente, analise: &Analise) -> Result<(), ErroFerramenta> {
+    let id = &analise.id;
+    let Some(r) = analise.reuniao else {
+        return Err(ErroFerramenta::Recusa(format!(
+            "a análise {id} é de reunião e não está ligada a uma; chame `iniciar_analise` \
+             com `reuniao` (R-NNNN)"
+        )));
+    };
+    let (ata, _) = EstadoAta::ler(&ambiente.kb, r)?;
+    if ata.itens.is_empty() {
+        return Err(ErroFerramenta::Recusa(format!(
+            "a ata da reunião {r} ainda não tem itens. Registre as decisões, necessidades, \
+             regras, pendências, dúvidas e próximos passos com `registrar_item_ata` e chame \
+             `concluir_analise` de novo"
+        )));
+    }
+    Ok(())
+}
+
 fn concluir(ambiente: &Ambiente, id: &Id) -> Result<Saida, ErroFerramenta> {
     let atual = ambiente.analises.carregar(id)?;
     let fluxo = atual.fluxo;
@@ -653,7 +915,9 @@ fn concluir(ambiente: &Ambiente, id: &Id) -> Result<Saida, ErroFerramenta> {
             "a análise {id} já foi aprovada pelo analista; não há o que concluir"
         )));
     }
-    if afirmacoes_validas(&atual).next().is_none() {
+    if fluxo == Fluxo::Reuniao {
+        conferir_ata(ambiente, &atual)?;
+    } else if afirmacoes_validas(&atual).next().is_none() {
         return Err(ErroFerramenta::Recusa(format!(
             "a análise {id} ainda não tem afirmações. Registre o que apurou com `afirmar` \
              (seções: {}) e chame `concluir_analise` de novo",
@@ -734,6 +998,8 @@ fn concluir(ambiente: &Ambiente, id: &Id) -> Result<Saida, ErroFerramenta> {
             Fluxo::Explicar => "objetivo, regras principais e as perguntas em aberto",
             Fluxo::Impacto =>
                 "a demanda como entendida, a abrangência, os principais riscos e as perguntas para o solicitante",
+            Fluxo::Reuniao =>
+                "o objetivo da reunião, as decisões, as pendências com responsável e prazo e as dúvidas em aberto",
         }
     );
     if !abertas.is_empty() {

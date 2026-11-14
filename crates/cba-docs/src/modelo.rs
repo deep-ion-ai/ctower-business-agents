@@ -88,7 +88,7 @@ const CAMPOS_FUNCIONALIDADE_OU_ANALISE: &[&str] = &[
 ];
 
 /// Tipos que têm template, na ordem da spec (seção 7.3).
-pub const MODELOS: [Modelo; 8] = [
+pub const MODELOS: [Modelo; 9] = [
     Modelo {
         tipo: TipoDocumento::AnaliseImpacto,
         secoes: &[
@@ -206,6 +206,18 @@ pub const MODELOS: [Modelo; 8] = [
         ],
         campos: &["id", "projeto", "demanda", "data", "duracao", "status"],
         padrao: include_str!("../templates/ata.md"),
+    },
+    Modelo {
+        tipo: TipoDocumento::AnaliseReuniao,
+        secoes: &[
+            s("reuniao", "Reunião"),
+            s("ligacao_com_o_codigo", "Ligação com o código"),
+            s(PERGUNTAS, "Perguntas em aberto"),
+            SUGESTOES_SECAO,
+            EVIDENCIAS_SECAO,
+        ],
+        campos: CAMPOS_ANALISE,
+        padrao: include_str!("../templates/analise-reuniao.md"),
     },
 ];
 
@@ -442,6 +454,7 @@ mod tests {
             TipoDocumento::Termo,
             TipoDocumento::Sugestao,
             TipoDocumento::Ata,
+            TipoDocumento::AnaliseReuniao,
         ] {
             assert_eq!(modelo(tipo).unwrap().tipo, tipo);
         }

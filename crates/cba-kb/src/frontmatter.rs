@@ -46,10 +46,13 @@ pub enum TipoDocumento {
     Pessoa,
     /// Ata de reunião, em `demandas/D-NNNN-<slug>/reunioes/R-NNNN.md`.
     Ata,
+    /// Análise de uma reunião (fluxo `reuniao`), em `analises/`: aponta para a
+    /// ata, que tem os itens, e guarda as ligações com o código.
+    AnaliseReuniao,
 }
 
 impl TipoDocumento {
-    pub const TODOS: [TipoDocumento; 12] = [
+    pub const TODOS: [TipoDocumento; 13] = [
         Self::Projeto,
         Self::AnaliseImpacto,
         Self::Pergunta,
@@ -62,6 +65,7 @@ impl TipoDocumento {
         Self::Demanda,
         Self::Pessoa,
         Self::Ata,
+        Self::AnaliseReuniao,
     ];
 
     /// Valor no frontmatter (`analise-impacto`).
@@ -79,6 +83,7 @@ impl TipoDocumento {
             Self::Demanda => "demanda",
             Self::Pessoa => "pessoa",
             Self::Ata => "ata",
+            Self::AnaliseReuniao => "analise-reuniao",
         }
     }
 
@@ -495,6 +500,7 @@ impl Frontmatter for FrontmatterAnalise {
         TipoDocumento::AnaliseImpacto,
         TipoDocumento::Pergunta,
         TipoDocumento::Funcionalidade,
+        TipoDocumento::AnaliseReuniao,
     ];
 
     fn validar(&self) -> Result<(), ErroCampo> {
@@ -662,7 +668,7 @@ pub const MAXIMO_DA_REUNIAO: usize = 64;
 /// Confere um texto curto de uma linha: nome, apelido ou papel. Os limites de
 /// tamanho e de palavras e a recusa de pontuação de frase impedem que uma fala da
 /// reunião entre no catálogo de pessoas por engano.
-pub(crate) fn conferir_texto_curto(
+pub fn conferir_texto_curto(
     campo: &str,
     texto: &str,
     maximo: usize,
