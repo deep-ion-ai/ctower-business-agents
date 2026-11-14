@@ -418,6 +418,13 @@ fn termos_vagos_veredito_invest_e_conclusao() {
         Veredito::PrecisaDeRetrabalho
     );
 
+    // Aprovado, o parecer não aceita registros novos.
+    cba_tools::revisao::aprovar_revisada(&c.amb, &a.id, &Default::default()).unwrap();
+    assert_eq!(c.analise(&a.id).estado, EstadoAnalise::Aprovada);
+    assert!(c.documento(&a.id).corpo.contains("Status: aprovada"));
+    let m = c.recusa("registrar_achado", correcao(&a.id));
+    assert!(m.contains("aprovada"), "{m}");
+
     // O diário registra a mudança do parecer, sem conteúdo.
     let eventos =
         std::fs::read_to_string(c.dados.eventos().join("faturamento-exemplo.jsonl")).unwrap();
