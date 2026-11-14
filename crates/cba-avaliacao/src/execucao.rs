@@ -4,20 +4,27 @@
 //!
 //! 1. copia a fixture para uma pasta temporária e cria nela um repositório git (como
 //!    o projeto de um analista);
-//! 2. cria dados do app e base de conhecimento temporários, cadastra o projeto e cria
-//!    a análise, como o app faz (spec, seção 4.2);
+//! 2. cria dados do app e base de conhecimento temporários e cadastra o projeto. Nos
+//!    fluxos perguntar, explicar e impacto, cria a análise, como o app faz (spec,
+//!    seção 4.2). No fluxo `reuniao`, cria a demanda e a reunião na base e guarda o
+//!    transcript no diretório de dados temporário ([`cba_reunioes::Guarda`]), como o
+//!    app faz ao receber o transcript;
 //! 3. gera o registro do servidor MCP e os hooks com o mesmo preparo do app
 //!    ([`cba_session::preparo`]), mas em arquivos temporários, e os passa ao `claude`
 //!    por `--mcp-config --strict-mcp-config` e `--settings`, com
 //!    `--setting-sources local` (nenhuma configuração do usuário, do projeto ou MCP
 //!    dele entra) e `--no-session-persistence`;
-//! 4. roda `claude -p "Inicie a análise A-0001 pelo ctower"` na cópia, com
-//!    `CBA_DATA_DIR` apontando para os dados temporários;
-//! 5. lê o estado da análise e compara com o gabarito, e compara a cópia com a
-//!    fixture.
+//! 4. roda `claude -p "Inicie a análise A-0001 pelo ctower"` (no fluxo `reuniao`,
+//!    "Analise a reunião R-0001 da demanda D-0001 pelo ctower", e o agente cria a
+//!    análise com `iniciar_analise`) na cópia, com `CBA_DATA_DIR` apontando para os
+//!    dados temporários;
+//! 5. lê o estado da análise (ou da ata) e compara com o gabarito, e compara a cópia
+//!    com a fixture.
 //!
 //! A sessão usa o login do Claude Code de quem roda (assinatura ou chave), sem ler nem
-//! gravar credenciais.
+//! gravar credenciais. O transcript fica só na pasta temporária, apagada no fim
+//! (a não ser com `--manter`); para a saída vão o estado e a ata, que só têm os
+//! trechos curtos das citações.
 
 use std::fs;
 use std::io::Read;
@@ -25,15 +32,21 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-use cba_core::analise::Analise;
+use cba_core::ambiente::Ambiente;
+use cba_core::analise::{Analise, EstadoAnalise, Fluxo};
 use cba_core::analises::NovaAnalise;
 use cba_core::config::Config;
 use cba_core::dados::DiretorioDados;
+use cba_docs::EstadoAta;
+use cba_kb::{IdReuniao, NovaDemanda};
+use cba_reunioes::{Guarda, Transcript};
 use cba_session::clientes::Plataforma;
 use cba_session::preparo::{Alvo, ConfigClaude, Preparador};
 
+use crate::ata::{Transcripts, avaliar_ata};
 use crate::comparacao::{avaliar, nome_do_fluxo};
-use crate::gabarito::{Gabarito, Item};
+use crate::gabarito::{Gabarito, Item, Reuniao};
+use crate::longa::{self, OpcoesLonga, TamanhoTranscript};
 use crate::pastas;
 use crate::relatorio::{Execucao, SaidaClaude};
 
@@ -87,17 +100,15 @@ fn git(pasta: &Path, args: &[&str]) -> Result<(), String> {
     Ok(())
 }
 
-/// Ambiente preparado de uma execução.
-struct Preparado {
+/// Projeto copiado e cadastrado, com dados e base temporários.
+struct Projeto {
     codigo: PathBuf,
     dados: DiretorioDados,
-    analise: String,
-    arquivo_de_estado: PathBuf,
-    mcp: PathBuf,
-    settings: PathBuf,
+    cadastro: cba_index::Projeto,
+    ambiente: Ambiente,
 }
 
-fn preparar(raiz: &Path, projeto: &Path, item: &Item, cba: &Path) -> Result<Preparado, String> {
+fn preparar_projeto(raiz: &Path, projeto: &Path) -> Result<Projeto, String> {
     let codigo = raiz.join("faturamento");
     pastas::copiar(projeto, &codigo).map_err(erro("cópia da fixture"))?;
     git(&codigo, &["init", "-q"])?;
@@ -119,26 +130,18 @@ fn preparar(raiz: &Path, projeto: &Path, item: &Item, cba: &Path) -> Result<Prep
     .gravar(&dados)
     .map_err(erro("configuração do app"))?;
 
-    let ambiente = cba_core::ambiente::Ambiente::do_diretorio(&codigo, &dados)
-        .map_err(erro("ambiente do projeto"))?;
-    let analise = ambiente
-        .analises
-        .criar(NovaAnalise {
-            fluxo: item.fluxo,
-            titulo: item.titulo.clone(),
-            entrada: item.entrada.clone(),
-            analista: None,
-            base: None,
-        })
-        .map_err(erro("criação da análise"))?;
-    let id = analise.id.to_string();
-    let arquivo_de_estado = ambiente
-        .kb
-        .caminho(&cba_core::analises::Analises::arquivo_de_estado(
-            &analise.id,
-        ));
+    let ambiente = Ambiente::do_diretorio(&codigo, &dados).map_err(erro("ambiente do projeto"))?;
+    Ok(Projeto {
+        codigo,
+        dados,
+        cadastro,
+        ambiente,
+    })
+}
 
-    // O mesmo preparo do app, em arquivos temporários.
+/// O mesmo preparo do app, em arquivos temporários: devolve o `mcp.json` e o
+/// `settings.json`.
+fn preparar_claude(raiz: &Path, p: &Projeto, cba: &Path) -> Result<(PathBuf, PathBuf), String> {
     let claude = raiz.join("claude");
     fs::create_dir_all(&claude).map_err(erro("pasta da configuração"))?;
     let config = ConfigClaude {
@@ -147,7 +150,7 @@ fn preparar(raiz: &Path, projeto: &Path, item: &Item, cba: &Path) -> Result<Prep
     };
     let preparador = Preparador::novo(config.clone(), cba.to_path_buf(), Plataforma::atual())
         .map_err(erro("preparo do ambiente"))?;
-    let alvo = Alvo::da_pasta(&cadastro.id, &codigo).map_err(erro("preparo do ambiente"))?;
+    let alvo = Alvo::da_pasta(&p.cadastro.id, &p.codigo).map_err(erro("preparo do ambiente"))?;
     let feito = preparador
         .preparar(&alvo)
         .map_err(erro("preparo do ambiente"))?;
@@ -169,15 +172,16 @@ fn preparar(raiz: &Path, projeto: &Path, item: &Item, cba: &Path) -> Result<Prep
             .expect("JSON serializável"),
     )
     .map_err(erro("gravação do mcp.json"))?;
+    Ok((mcp, config.settings))
+}
 
-    Ok(Preparado {
-        codigo,
-        dados,
-        analise: id,
-        arquivo_de_estado,
-        mcp,
-        settings: config.settings,
-    })
+/// Ambiente preparado de uma execução.
+struct Preparado {
+    projeto: Projeto,
+    /// Pedido ao `claude`.
+    pedido: String,
+    mcp: PathBuf,
+    settings: PathBuf,
 }
 
 /// Versão do `claude` instalado.
@@ -198,7 +202,7 @@ fn rodar_claude(p: &Preparado, o: &Opcoes, pasta_saida: &Path) -> Result<String,
     let mut comando = Command::new(&o.claude);
     comando
         .arg("-p")
-        .arg(format!("Inicie a análise {} pelo ctower", p.analise))
+        .arg(&p.pedido)
         .args(["--model", &o.modelo])
         .args(["--max-budget-usd", &format!("{}", o.orcamento_usd)])
         .args(["--output-format", "json"])
@@ -214,8 +218,8 @@ fn rodar_claude(p: &Preparado, o: &Opcoes, pasta_saida: &Path) -> Result<String,
         comando.args(["--disallowedTools", FERRAMENTAS_DE_EDICAO]);
     }
     comando
-        .current_dir(&p.codigo)
-        .env("CBA_DATA_DIR", p.dados.raiz())
+        .current_dir(&p.projeto.codigo)
+        .env("CBA_DATA_DIR", p.projeto.dados.raiz())
         // Uma sessão do Claude Code em volta não deve influir na execução.
         .env_remove("CLAUDECODE")
         .env_remove("CLAUDE_CODE_ENTRYPOINT")
@@ -268,6 +272,27 @@ fn rodar_claude(p: &Preparado, o: &Opcoes, pasta_saida: &Path) -> Result<String,
     }
 }
 
+/// Pasta temporária da execução e a raiz canônica dela.
+fn temporaria() -> Result<(tempfile::TempDir, PathBuf), String> {
+    let t = tempfile::Builder::new()
+        .prefix("cba-avaliacao-")
+        .tempdir()
+        .map_err(erro("pasta temporária"))?;
+    let raiz = dunce::canonicalize(t.path()).unwrap_or_else(|_| t.path().to_path_buf());
+    Ok((t, raiz))
+}
+
+/// Guarda a pasta temporária, se pedido, e anota onde ela ficou.
+fn manter_se_pedido(temporaria: tempfile::TempDir, opcoes: &Opcoes, pasta_saida: &Path) {
+    if opcoes.manter {
+        let mantida = temporaria.keep();
+        let _ = fs::write(
+            pasta_saida.join("pasta-temporaria.txt"),
+            mantida.display().to_string(),
+        );
+    }
+}
+
 /// Roda um item uma vez e compara com o gabarito. Os registros (saída do `claude`,
 /// estado e documento da análise) ficam em `pasta_saida`.
 pub fn executar(
@@ -282,6 +307,8 @@ pub fn executar(
         item: item.id.clone(),
         repeticao,
         avaliacao: None,
+        ata: None,
+        transcript: None,
         arquivos_alterados: Vec::new(),
         claude: None,
         erro: None,
@@ -290,35 +317,62 @@ pub fn executar(
         execucao.erro = Some(format!("pasta de saída: {e}"));
         return execucao;
     }
-    let temporaria = match tempfile::Builder::new().prefix("cba-avaliacao-").tempdir() {
+    let (temporaria, raiz) = match temporaria() {
         Ok(t) => t,
         Err(e) => {
-            execucao.erro = Some(format!("pasta temporária: {e}"));
+            execucao.erro = Some(e);
             return execucao;
         }
     };
-    let raiz =
-        dunce::canonicalize(temporaria.path()).unwrap_or_else(|_| temporaria.path().to_path_buf());
     let projeto = gabarito.raiz_do_projeto();
 
-    let preparado = match preparar(&raiz, &projeto, item, &opcoes.cba) {
+    let preparado = (|| {
+        let p = preparar_projeto(&raiz, &projeto)?;
+        let analise = p
+            .ambiente
+            .analises
+            .criar(NovaAnalise {
+                fluxo: item.fluxo,
+                titulo: item.titulo.clone(),
+                entrada: item.entrada.clone(),
+                analista: None,
+                base: None,
+            })
+            .map_err(erro("criação da análise"))?;
+        let (mcp, settings) = preparar_claude(&raiz, &p, &opcoes.cba)?;
+        Ok::<_, String>((
+            Preparado {
+                projeto: p,
+                pedido: format!("Inicie a análise {} pelo ctower", analise.id),
+                mcp,
+                settings,
+            },
+            analise.id,
+        ))
+    })();
+    let (preparado, id) = match preparado {
         Ok(p) => p,
         Err(e) => {
             execucao.erro = Some(e);
             return execucao;
         }
     };
+    let arquivo_de_estado = preparado
+        .projeto
+        .ambiente
+        .kb
+        .caminho(&cba_core::analises::Analises::arquivo_de_estado(&id));
     match rodar_claude(&preparado, opcoes, pasta_saida) {
         Ok(saida) => execucao.claude = Some(SaidaClaude::do_json(&saida)),
         Err(e) => execucao.erro = Some(e),
     }
 
-    match pastas::diferencas(&projeto, &preparado.codigo) {
+    match pastas::diferencas(&projeto, &preparado.projeto.codigo) {
         Ok(d) => execucao.arquivos_alterados = d,
         Err(e) => execucao.erro = Some(format!("comparação da cópia: {e}")),
     }
 
-    match fs::read(&preparado.arquivo_de_estado) {
+    match fs::read(&arquivo_de_estado) {
         Ok(bytes) => {
             let _ = fs::write(pasta_saida.join("estado.json"), &bytes);
             match serde_json::from_slice::<Analise>(&bytes) {
@@ -335,21 +389,184 @@ pub fn executar(
             }
         }
         Err(e) => {
-            execucao.erro.get_or_insert(format!(
-                "estado da análise {} não encontrado: {e}",
-                preparado.analise
-            ));
+            execucao
+                .erro
+                .get_or_insert(format!("estado da análise {id} não encontrado: {e}"));
         }
     }
 
-    if opcoes.manter {
-        let mantida = temporaria.keep();
-        let _ = fs::write(
-            pasta_saida.join("pasta-temporaria.txt"),
-            mantida.display().to_string(),
-        );
-    }
+    manter_se_pedido(temporaria, opcoes, pasta_saida);
     execucao
+}
+
+/// Falas do transcript da reunião do gabarito, lidas pelo mesmo parser do app.
+pub fn falas_da_reuniao(gabarito: &Gabarito, reuniao: &Reuniao) -> Result<Transcript, String> {
+    let caminho = gabarito.transcript(reuniao);
+    let bytes = fs::read(&caminho).map_err(|e| format!("{}: {e}", caminho.display()))?;
+    let nome = caminho
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned());
+    let transcript = cba_reunioes::analisar(&bytes, nome.as_deref());
+    if transcript.falas.is_empty() {
+        return Err(format!("{}: nenhuma fala no transcript", caminho.display()));
+    }
+    Ok(transcript)
+}
+
+/// Roda o fluxo `reuniao` uma vez numa reunião do gabarito e compara a ata. Com
+/// `longa`, o agente analisa a reunião longa sintética gerada a partir dela
+/// ([`crate::longa`]). Os registros (saída do `claude`, estado e texto da ata, que
+/// só têm os trechos curtos das citações) ficam em `pasta_saida`; o transcript fica
+/// só na pasta temporária.
+pub fn executar_reuniao(
+    gabarito: &Gabarito,
+    reuniao: &Reuniao,
+    longa: Option<OpcoesLonga>,
+    repeticao: u32,
+    opcoes: &Opcoes,
+    pasta_saida: &Path,
+) -> Execucao {
+    let mut execucao = Execucao {
+        fluxo: if longa.is_some() {
+            "reuniao-longa"
+        } else {
+            "reuniao"
+        }
+        .to_owned(),
+        item: reuniao.id.clone(),
+        repeticao,
+        avaliacao: None,
+        ata: None,
+        transcript: None,
+        arquivos_alterados: Vec::new(),
+        claude: None,
+        erro: None,
+    };
+    if let Err(e) = fs::create_dir_all(pasta_saida) {
+        execucao.erro = Some(format!("pasta de saída: {e}"));
+        return execucao;
+    }
+    let original = match falas_da_reuniao(gabarito, reuniao) {
+        Ok(t) => t,
+        Err(e) => {
+            execucao.erro = Some(e);
+            return execucao;
+        }
+    };
+    let transcript = match longa {
+        Some(o) => Transcript {
+            formato: original.formato,
+            falas: longa::gerar(&original.falas, o),
+            avisos: Vec::new(),
+        },
+        None => original.clone(),
+    };
+    execucao.transcript = Some(TamanhoTranscript::de(&transcript.falas));
+    let (temporaria, raiz) = match temporaria() {
+        Ok(t) => t,
+        Err(e) => {
+            execucao.erro = Some(e);
+            return execucao;
+        }
+    };
+    let projeto = gabarito.raiz_do_projeto();
+
+    let preparado = (|| {
+        let p = preparar_projeto(&raiz, &projeto)?;
+        let agora = cba_core::tempo::agora_ms();
+        let hoje = cba_core::tempo::data_utc(agora);
+        let demanda = p
+            .ambiente
+            .kb
+            .criar_demanda(
+                &NovaDemanda {
+                    titulo: reuniao.demanda.clone(),
+                    ..Default::default()
+                },
+                hoje,
+            )
+            .map_err(erro("criação da demanda"))?
+            .id;
+        let (ata, _) =
+            EstadoAta::criar(&p.ambiente.kb, demanda, hoje).map_err(erro("criação da reunião"))?;
+        Guarda::nova(&p.dados)
+            .guardar(p.ambiente.kb.nome(), ata.id, &transcript, agora)
+            .map_err(erro("guarda do transcript"))?;
+        let (mcp, settings) = preparar_claude(&raiz, &p, &opcoes.cba)?;
+        Ok::<_, String>((
+            Preparado {
+                projeto: p,
+                pedido: format!(
+                    "Analise a reunião {} da demanda {demanda} pelo ctower: chame \
+                     iniciar_analise com fluxo reuniao, reuniao {} e demanda {demanda}, e \
+                     siga o roteiro devolvido.",
+                    ata.id, ata.id
+                ),
+                mcp,
+                settings,
+            },
+            ata.id,
+        ))
+    })();
+    let (preparado, id) = match preparado {
+        Ok(p) => p,
+        Err(e) => {
+            execucao.erro = Some(e);
+            return execucao;
+        }
+    };
+    match rodar_claude(&preparado, opcoes, pasta_saida) {
+        Ok(saida) => execucao.claude = Some(SaidaClaude::do_json(&saida)),
+        Err(e) => execucao.erro = Some(e),
+    }
+
+    match pastas::diferencas(&projeto, &preparado.projeto.codigo) {
+        Ok(d) => execucao.arquivos_alterados = d,
+        Err(e) => execucao.erro = Some(format!("comparação da cópia: {e}")),
+    }
+
+    let amb = &preparado.projeto.ambiente;
+    match EstadoAta::ler(&amb.kb, id) {
+        Ok((estado, arquivos)) => {
+            let _ = fs::write(pasta_saida.join("ata.estado.json"), estado.para_json());
+            let _ = fs::copy(amb.kb.caminho(&arquivos.ata), pasta_saida.join("ata.md"));
+            let mut a = avaliar_ata(
+                &estado,
+                reuniao,
+                Some(Transcripts {
+                    original: &original.falas,
+                    lido: &transcript.falas,
+                }),
+            );
+            if let Some(analise) = analise_da_reuniao(amb, id) {
+                a.analise = Some(analise.id.to_string());
+                a.concluida = Some(matches!(
+                    analise.estado,
+                    EstadoAnalise::Concluida | EstadoAnalise::Aprovada
+                ));
+            }
+            execucao.ata = Some(a);
+        }
+        Err(e) => {
+            execucao
+                .erro
+                .get_or_insert(format!("estado da ata {id} ilegível ou ausente: {e}"));
+        }
+    }
+
+    manter_se_pedido(temporaria, opcoes, pasta_saida);
+    execucao
+}
+
+/// Análise do fluxo `reuniao` ligada à reunião, se o agente a criou.
+fn analise_da_reuniao(ambiente: &Ambiente, id: IdReuniao) -> Option<Analise> {
+    ambiente
+        .analises
+        .listar()
+        .ok()?
+        .into_iter()
+        .filter(|a| a.fluxo == Fluxo::Reuniao)
+        .find(|a| a.reuniao == Some(id))
 }
 
 /// Copia o documento da análise para a saída, se existir.
