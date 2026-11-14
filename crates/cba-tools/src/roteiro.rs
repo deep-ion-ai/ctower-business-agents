@@ -20,13 +20,8 @@ use cba_kb::{Base, CaminhoRelativo};
 use crate::documento::secoes_de_afirmacao;
 use crate::editavel::{self, Aviso, Padrao, Texto};
 
-/// Os fluxos, na ordem em que aparecem para o analista.
-pub const FLUXOS: [Fluxo; 4] = [
-    Fluxo::Perguntar,
-    Fluxo::Explicar,
-    Fluxo::Impacto,
-    Fluxo::Reuniao,
-];
+/// Os três fluxos, na ordem em que aparecem para o analista.
+pub const FLUXOS: [Fluxo; 3] = [Fluxo::Perguntar, Fluxo::Explicar, Fluxo::Impacto];
 
 /// Pasta dos roteiros dentro de `_templates/`.
 pub const PASTA: &str = "roteiros";
@@ -53,7 +48,6 @@ pub fn nome_do_fluxo(fluxo: Fluxo) -> &'static str {
         Fluxo::Perguntar => "pergunta ao sistema",
         Fluxo::Explicar => "explicação de funcionalidade (documento negocial)",
         Fluxo::Impacto => "análise de impacto de uma demanda",
-        Fluxo::Reuniao => "análise de reunião",
     }
 }
 
@@ -64,14 +58,12 @@ pub fn nome_do_arquivo(fluxo: Fluxo) -> &'static str {
         Fluxo::Perguntar => "perguntar",
         Fluxo::Explicar => "explicar",
         Fluxo::Impacto => "impacto",
-        Fluxo::Reuniao => "reuniao",
     }
 }
 
 /// Se o roteiro padrão do fluxo já foi revisado. Só os revisados são copiados
-/// para a base. Os três primeiros foram revisados (#32): perguntar no M1, explicar
-/// e impacto no M2. O de reunião é provisório até a #140. Um fluxo novo entra aqui
-/// só depois de ter o roteiro revisado.
+/// para a base. Os três foram revisados (#32): perguntar no M1, explicar e impacto
+/// no M2. Um fluxo novo entra aqui só depois de ter o roteiro revisado.
 pub fn revisado(fluxo: Fluxo) -> bool {
     matches!(fluxo, Fluxo::Perguntar | Fluxo::Explicar | Fluxo::Impacto)
 }
@@ -81,7 +73,6 @@ pub(crate) fn padrao(fluxo: Fluxo) -> Padrao {
         Fluxo::Perguntar => include_str!("../textos/roteiros/perguntar.md"),
         Fluxo::Explicar => include_str!("../textos/roteiros/explicar.md"),
         Fluxo::Impacto => include_str!("../textos/roteiros/impacto.md"),
-        Fluxo::Reuniao => include_str!("../textos/roteiros/reuniao.md"),
     };
     Padrao {
         pasta: PASTA,
@@ -156,9 +147,6 @@ fn dica_da_secao(fluxo: Fluxo, marcador: &str) -> &'static str {
         }
         (Fluxo::Explicar, "dados") => "tabelas e campos lidos e gravados, e em que passo",
         (Fluxo::Explicar, "integracoes") => "projetos, lotes e serviços chamados ou que chamam",
-        (Fluxo::Reuniao, "ligacao_com_o_codigo") => {
-            "o que o código já faz, ou com que regra conflita, sobre uma necessidade ou regra citada na reunião (cite o item da ata, como N-3, e a evidência)"
-        }
         _ => "",
     }
 }
@@ -170,8 +158,6 @@ pub fn secoes_obrigatorias(fluxo: Fluxo) -> &'static [&'static str] {
         Fluxo::Perguntar => &["resposta"],
         Fluxo::Impacto => &["demanda_como_entendida", "como_e_hoje", "abrangencia"],
         Fluxo::Explicar => &["objetivo", "fluxo_principal", "regras"],
-        // Os itens da reunião ficam na ata; `concluir_analise` confere a ata.
-        Fluxo::Reuniao => &[],
     }
 }
 
@@ -223,10 +209,10 @@ fn titulo_ao_fim(variavel: &str) -> &'static str {
     }
 }
 
-/// Os roteiros dos fluxos.
+/// Os roteiros dos três fluxos.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Roteiros {
-    por_fluxo: [Texto; 4],
+    por_fluxo: [Texto; 3],
 }
 
 fn indice(fluxo: Fluxo) -> usize {
@@ -234,7 +220,6 @@ fn indice(fluxo: Fluxo) -> usize {
         Fluxo::Perguntar => 0,
         Fluxo::Explicar => 1,
         Fluxo::Impacto => 2,
-        Fluxo::Reuniao => 3,
     }
 }
 
@@ -292,9 +277,6 @@ impl Roteiros {
                 "documento" => documento.to_owned(),
                 "entrada" => citacao(&analise.entrada),
                 "secoes" => lista_de_secoes(fluxo),
-                "secoes_obrigatorias" if secoes_obrigatorias(fluxo).is_empty() => {
-                    "nenhuma".to_owned()
-                }
                 "secoes_obrigatorias" => secoes_obrigatorias(fluxo)
                     .iter()
                     .map(|s| format!("`{s}`"))
@@ -484,16 +466,14 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let base = Base::criar(dir.path()).unwrap();
         let criados = Roteiros::copiar_padrao(&base).unwrap();
-        // O roteiro de reunião é provisório (#140): não vai para a base.
-        assert!(!revisado(Fluxo::Reuniao));
-        assert!(base.ler_texto(&arquivo_do_roteiro(Fluxo::Reuniao)).is_err());
+        assert!(FLUXOS.into_iter().all(revisado));
         assert_eq!(
             criados,
             ["perguntar", "explicar", "impacto"]
                 .map(|f| CaminhoRelativo::novo(&format!("_templates/roteiros/{f}.md")).unwrap())
         );
         // A cópia é o padrão embutido, byte a byte.
-        for fluxo in FLUXOS.into_iter().filter(|f| revisado(*f)) {
+        for fluxo in FLUXOS {
             assert_eq!(
                 base.ler_texto(&arquivo_do_roteiro(fluxo)).unwrap(),
                 padrao(fluxo).texto

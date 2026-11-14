@@ -216,48 +216,12 @@ impl CitacaoFala {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Participante {
     pub nome: String,
-    /// Papel nesta reunião (PO, gerente, usuário-chave ou texto livre),
-    /// confirmado pelo analista.
+    /// Papel nesta reunião (PO, gerente, usuário-chave ou texto livre).
     #[serde(default)]
     pub papel: Option<String>,
     /// Slug da pessoa no catálogo do projeto (`pessoas/<slug>.md`).
     #[serde(default)]
     pub pessoa: Option<String>,
-    /// Papel proposto pelo agente (`propor_papel`), à espera da confirmação do
-    /// analista na tela de participantes.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub proposta: Option<PropostaDePapel>,
-}
-
-impl Participante {
-    /// Participante só com o nome, sem papel nem pessoa do catálogo.
-    pub fn novo(nome: impl Into<String>) -> Self {
-        Self {
-            nome: nome.into(),
-            papel: None,
-            pessoa: None,
-            proposta: None,
-        }
-    }
-}
-
-/// Papel de um participante proposto pelo agente, com as falas que o sustentam.
-///
-/// Fica só no estado da ata: o catálogo de pessoas muda quando o analista
-/// confirma o papel na tela de participantes, e nunca recebe as falas.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PropostaDePapel {
-    pub papel: String,
-    /// Por que o agente propõe o papel, em uma frase.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub justificativa: Option<String>,
-    /// Papel que o catálogo sugeria no momento da proposta (sem IA), para o
-    /// analista comparar.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub sugerido_pelo_catalogo: Option<String>,
-    /// Falas que sustentam a proposta, conferidas contra o transcript.
-    #[serde(default)]
-    pub citacoes: Vec<CitacaoFala>,
 }
 
 /// Item registrado na ata.
@@ -346,12 +310,6 @@ pub enum ErroAta {
         arquivo: CaminhoRelativo,
         #[source]
         erro: serde_json::Error,
-    },
-    #[error("{arquivo}: {erro}")]
-    Trava {
-        arquivo: CaminhoRelativo,
-        #[source]
-        erro: std::io::Error,
     },
     #[error(transparent)]
     Montagem(#[from] ErroMontagem),
@@ -471,17 +429,7 @@ impl EstadoAta {
     /// transcript. As que não conferem continuam assim. Devolve quantas mudaram.
     pub fn marcar_conferidas_em(&mut self, data: Data) -> usize {
         let mut mudadas = 0;
-        let das_propostas = self
-            .participantes
-            .iter_mut()
-            .filter_map(|p| p.proposta.as_mut())
-            .flat_map(|p| p.citacoes.iter_mut());
-        for c in self
-            .itens
-            .iter_mut()
-            .flat_map(|i| i.citacoes.iter_mut())
-            .chain(das_propostas)
-        {
+        for c in self.itens.iter_mut().flat_map(|i| i.citacoes.iter_mut()) {
             if c.status == StatusCitacao::Conferida {
                 c.status = StatusCitacao::ConferidaEm(data);
                 mudadas += 1;
@@ -646,49 +594,6 @@ impl Templates {
         let arquivos = estado.gravar(projeto)?;
         Ok(self.gravar(projeto, &estado.conteudo(arquivos.ata))?)
     }
-
-    /// Altera a ata sob a trava da pasta `reunioes/` da demanda: lê o estado
-    /// atual, aplica `alterar` e grava o estado e a ata
-    /// ([`Templates::gravar_ata`]). Se `alterar` recusar, nada é gravado. O
-    /// servidor MCP (um processo por sessão) e o app gravam na mesma ata; a
-    /// trava impede que um perca o registro do outro.
-    ///
-    /// Devolve o resultado de `alterar`, o estado gravado e os avisos da
-    /// montagem.
-    pub fn alterar_ata<T, E: From<ErroAta>>(
-        &self,
-        projeto: &Projeto,
-        id: IdReuniao,
-        alterar: impl FnOnce(&mut EstadoAta) -> Result<T, E>,
-    ) -> Result<(T, EstadoAta, Vec<Aviso>), E> {
-        let arquivos = projeto.reuniao(id).map_err(ErroAta::from)?;
-        let _trava = travar(projeto, &arquivos.pasta)?;
-        let (mut estado, _) = EstadoAta::ler(projeto, id)?;
-        let resultado = alterar(&mut estado)?;
-        let avisos = self.gravar_ata(projeto, &estado)?;
-        Ok((resultado, estado, avisos))
-    }
-}
-
-/// Arquivo da trava das alterações da ata, na pasta `reunioes/` da demanda.
-const TRAVA: &str = ".trava";
-
-/// Trava exclusiva de arquivo, liberada quando o arquivo devolvido é fechado.
-fn travar(projeto: &Projeto, pasta: &CaminhoRelativo) -> Result<std::fs::File, ErroAta> {
-    let relativo = pasta.juntar(TRAVA).map_err(cba_kb::Erro::from)?;
-    let caminho = projeto.caminho(&relativo);
-    let erro = |erro| ErroAta::Trava {
-        arquivo: projeto.na_base(&relativo),
-        erro,
-    };
-    let arquivo = std::fs::OpenOptions::new()
-        .create(true)
-        .truncate(false)
-        .write(true)
-        .open(&caminho)
-        .map_err(erro)?;
-    arquivo.lock().map_err(erro)?;
-    Ok(arquivo)
 }
 
 /// Texto numa linha só, para caber num item de lista.
@@ -709,14 +614,7 @@ fn participante(p: &Participante, ata: &CaminhoRelativo) -> String {
         .map(em_uma_linha)
         .filter(|p| !p.is_empty())
         .unwrap_or_else(|| "papel a definir".into());
-    // A proposta do agente aparece até o analista confirmar o papel.
-    let proposta = match (&p.papel, &p.proposta) {
-        (None, Some(proposta)) => {
-            format!(" (proposto pelo agente: {})", em_uma_linha(&proposta.papel))
-        }
-        _ => String::new(),
-    };
-    format!("- {nome} · {papel}{proposta}")
+    format!("- {nome} · {papel}")
 }
 
 /// `- **D-1** Texto — _Maria Silva, 00:12:34_`, com os dados da pendência e as

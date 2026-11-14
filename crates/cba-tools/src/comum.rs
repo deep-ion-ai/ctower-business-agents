@@ -59,22 +59,8 @@ pub(crate) fn alterar<T>(
     mudanca: Mudanca,
     alterar: impl FnOnce(&mut Analise, u64) -> Result<T, ErroModelo>,
 ) -> Result<Registrado<T>, ErroFerramenta> {
-    alterar_com(ambiente, id, mudanca, alterar, |_| ())
-}
-
-/// Como [`alterar`], com `antes` executado sob a trava, depois de gravar o estado
-/// e antes de remontar o documento (para mudar o frontmatter, que a montagem
-/// mantém).
-pub(crate) fn alterar_com<T>(
-    ambiente: &Ambiente,
-    id: &Id,
-    mudanca: Mudanca,
-    alterar: impl FnOnce(&mut Analise, u64) -> Result<T, ErroModelo>,
-    antes: impl FnOnce(&Analise),
-) -> Result<Registrado<T>, ErroFerramenta> {
     let aviso = RefCell::new(None);
     let (resultado, analise) = ambiente.analises.alterar_e(id, mudanca, alterar, |a| {
-        antes(a);
         if let Err(e) = documento::remontar(&ambiente.base, &ambiente.kb, a) {
             tracing::warn!("documento da análise não remontado");
             *aviso.borrow_mut() = Some(format!(

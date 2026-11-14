@@ -146,9 +146,7 @@ fn validar(tipo: TipoDocumento, relativo: &CaminhoRelativo, texto: &str) -> Resu
     }
     match tipo {
         TipoDocumento::Projeto => com::<FrontmatterProjeto>(texto),
-        TipoDocumento::AnaliseImpacto | TipoDocumento::Pergunta | TipoDocumento::AnaliseReuniao => {
-            com::<FrontmatterAnalise>(texto)
-        }
+        TipoDocumento::AnaliseImpacto | TipoDocumento::Pergunta => com::<FrontmatterAnalise>(texto),
         // Explicação de funcionalidade: análise em `analises/`, documento negocial
         // em `funcionalidades/`.
         TipoDocumento::Funcionalidade if relativo.partes().next() == Some(layout::ANALISES) => {

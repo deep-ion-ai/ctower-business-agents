@@ -107,13 +107,12 @@ impl Tipo {
             .chain([Tipo::RegrasDoProjeto])
     }
 
-    /// Tipos das análises (`analises/`): análise de impacto, pergunta,
-    /// funcionalidade e análise de reunião.
-    pub const ANALISES: [Tipo; 4] = [
+    /// Tipos das análises (`analises/`): análise de impacto, pergunta e
+    /// funcionalidade.
+    pub const ANALISES: [Tipo; 3] = [
         Tipo::Documento(TipoDocumento::AnaliseImpacto),
         Tipo::Documento(TipoDocumento::Pergunta),
         Tipo::Documento(TipoDocumento::Funcionalidade),
-        Tipo::Documento(TipoDocumento::AnaliseReuniao),
     ];
 
     /// Valor guardado no índice: o do campo `tipo` ou `regras-do-projeto`.

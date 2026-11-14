@@ -35,8 +35,8 @@ mod word;
 use cba_kb::CaminhoRelativo;
 
 pub use ata::{
-    CitacaoFala, ErroAta, EstadoAta, IdItemAta, ItemAta, NovoItem, Participante, PropostaDePapel,
-    StatusCitacao, TipoItem,
+    CitacaoFala, ErroAta, EstadoAta, IdItemAta, ItemAta, NovoItem, Participante, StatusCitacao,
+    TipoItem,
 };
 pub use conteudo::{
     Afirmacao, Citacao, Confianca, Conteudo, Pergunta, ReferenciaSugestao, Texto, bloco_de_codigo,

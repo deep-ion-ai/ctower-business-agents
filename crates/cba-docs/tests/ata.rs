@@ -42,19 +42,16 @@ fn registrar_itens(e: &mut EstadoAta) {
             nome: "Maria Exemplo".into(),
             papel: Some("PO".into()),
             pessoa: Some("maria-exemplo".into()),
-            proposta: None,
         },
         Participante {
             nome: "João Fictício".into(),
             papel: Some("usuário-chave".into()),
             pessoa: None,
-            proposta: None,
         },
         Participante {
             nome: "Ana Exemplo".into(),
             papel: None,
             pessoa: None,
-            proposta: None,
         },
     ]);
     e.definir_objetivo("Entender o pedido de parcelamento da fatura para pessoa jurídica.");
