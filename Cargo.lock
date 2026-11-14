@@ -470,8 +470,10 @@ name = "cba-avaliacao"
 version = "0.2.0"
 dependencies = [
  "cba-core",
+ "cba-docs",
  "cba-index",
  "cba-kb",
+ "cba-reunioes",
  "cba-session",
  "cba-tools",
  "dunce",
