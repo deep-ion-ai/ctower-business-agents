@@ -446,7 +446,6 @@ dependencies = [
  "cba-kb",
  "cba-mcp",
  "cba-repos",
- "cba-reunioes",
  "cba-session",
  "cba-tools",
  "dirs 6.0.0",
@@ -583,15 +582,9 @@ dependencies = [
 name = "cba-reunioes"
 version = "0.2.0"
 dependencies = [
- "cba-core",
- "cba-docs",
- "cba-kb",
  "quick-xml",
  "serde",
  "serde_json",
- "tempfile",
- "thiserror 2.0.21",
- "tracing",
  "zip",
 ]
 

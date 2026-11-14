@@ -12,21 +12,10 @@ use crate::{
 
 pub fn rodar() {
     // Sem log o app ainda funciona; o erro não tem para onde ir antes da janela.
-    let dados = DiretorioDados::padrao().ok();
-    if let Some(dados) = &dados {
+    if let Ok(dados) = DiretorioDados::padrao() {
         let _ = cba_core::log::iniciar(&dados.logs(), "app");
     }
     tracing::info!(versao = cba_core::VERSAO, "app iniciado");
-    if let Some(dados) = dados {
-        // Retenção dos transcripts das reuniões (#136): apaga os de prazo vencido,
-        // fora da thread da interface. O aviso dos que vencem fica para as telas
-        // da demanda e da reunião.
-        let _ = std::thread::Builder::new()
-            .name("cba-retencao-transcripts".into())
-            .spawn(move || {
-                cba_reunioes::aplicar_retencao_no_inicio(&dados);
-            });
-    }
     let sessoes = terminal::Estado::default();
     let vigias = Arc::new(vigia::Vigias::padrao());
     tauri::Builder::default()

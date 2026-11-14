@@ -47,10 +47,6 @@ pub enum Mudanca {
     /// a `versao` do evento é 0, e a tela relê o aviso de alteração
     /// (`cba_session::alteracoes`), não a análise.
     Alteracao,
-    /// Transcript de uma reunião guardado ou apagado (descarte ou retenção). O
-    /// campo `analise` do evento traz o identificador da reunião (`R-0001`), e a
-    /// `versao` é 0: a tela relê a situação da guarda (`cba_reunioes::guarda`).
-    Transcript,
 }
 
 /// Uma linha do diário.
@@ -59,8 +55,7 @@ pub struct Evento {
     pub quando_ms: u64,
     /// Slug do projeto.
     pub projeto: String,
-    /// Identificador da análise (`A-0001`), ou da reunião (`R-0001`) na mudança
-    /// [`Mudanca::Transcript`].
+    /// Identificador da análise (`A-0001`).
     pub analise: String,
     pub mudanca: Mudanca,
     /// Versão da análise depois da mudança.

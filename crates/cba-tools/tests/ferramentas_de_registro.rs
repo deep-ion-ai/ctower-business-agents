@@ -38,7 +38,6 @@ fn cenario() -> Cenario {
     cba_kb::Base::criar(raiz.join("base")).unwrap();
     Config {
         base: Some(raiz.join("base")),
-        ..Default::default()
     }
     .gravar(&dados)
     .unwrap();

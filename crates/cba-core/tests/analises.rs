@@ -33,7 +33,6 @@ fn preparar(raiz: &Path) -> DiretorioDados {
     Cadastro::em(dados.projetos()).cadastrar(&projeto).unwrap();
     Config {
         base: Some(raiz.join("base")),
-        ..Default::default()
     }
     .gravar(&dados)
     .unwrap();
