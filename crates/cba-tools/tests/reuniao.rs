@@ -1,6 +1,6 @@
-//! Ferramentas do fluxo "Analisar reunião" (#139): `ler_transcript`,
-//! `propor_papel`, `registrar_item_ata`, `sugerir_demanda` e `iniciar_analise`
-//! com demanda e reunião, com a reunião fictícia de `fixtures/reunioes/`.
+//! Ferramentas do fluxo "Analisar reunião" (#139, #140): `ler_transcript`,
+//! `propor_papel`, `registrar_item_ata`, `registrar_resumo_ata`, `sugerir_demanda`,
+//! `iniciar_analise` com demanda e reunião e `retomar_analise` com a ata, com a reunião fictícia de `fixtures/reunioes/`.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -501,6 +501,82 @@ fn registrar_item_ata_aceita_evidencia_de_codigo_conferida() {
 }
 
 #[test]
+fn registrar_resumo_ata_grava_objetivo_e_resumo_e_monta_a_ata() {
+    let c = cenario();
+    let d = c.chamar(
+        "registrar_resumo_ata",
+        json!({
+            "reuniao": "R-0001",
+            "objetivo": "Combinar como a trava do supervisor vale em todos os canais.",
+            "resumo": "  A equipe revisou os canais de cancelamento.  "
+        }),
+    );
+    assert_eq!(d["objetivo"], true);
+    assert_eq!(d["resumo"], true);
+    let ata = c.ata();
+    assert_eq!(
+        ata.objetivo.as_deref(),
+        Some("Combinar como a trava do supervisor vale em todos os canais.")
+    );
+    assert_eq!(
+        ata.resumo.as_deref(),
+        Some("A equipe revisou os canais de cancelamento.")
+    );
+    let texto = c.texto_da_ata();
+    assert!(
+        texto.contains("Combinar como a trava do supervisor vale em todos os canais."),
+        "{texto}"
+    );
+    assert!(
+        texto.contains("A equipe revisou os canais de cancelamento."),
+        "{texto}"
+    );
+
+    // Só o resumo: o objetivo fica como estava.
+    let s = c
+        .saida(
+            "registrar_resumo_ata",
+            json!({ "reuniao": "R-0001", "resumo": "Resumo revisto." }),
+        )
+        .unwrap();
+    assert!(
+        s.texto
+            .contains("Registrado na ata da reunião R-0001: resumo."),
+        "{}",
+        s.texto
+    );
+    let ata = c.ata();
+    assert_eq!(ata.resumo.as_deref(), Some("Resumo revisto."));
+    assert!(ata.objetivo.is_some());
+
+    // Sem nenhum dos dois, ou com texto longo demais, é recusado.
+    let e = c.erro("registrar_resumo_ata", json!({ "reuniao": "R-0001" }));
+    assert!(matches!(e, ErroFerramenta::Argumentos(_)), "{e}");
+    let e = c.erro(
+        "registrar_resumo_ata",
+        json!({ "reuniao": "R-0001", "objetivo": "   " }),
+    );
+    assert!(matches!(e, ErroFerramenta::Argumentos(_)), "{e}");
+    let e = c.erro(
+        "registrar_resumo_ata",
+        json!({ "reuniao": "R-0001", "objetivo": "x".repeat(501) }),
+    );
+    assert!(e.to_string().contains("500 caracteres"), "{e}");
+    let e = c.erro(
+        "registrar_resumo_ata",
+        json!({ "reuniao": "R-0009", "resumo": "x" }),
+    );
+    assert!(e.to_string().contains("R-0009 não existe"), "{e}");
+
+    // A ata ao vivo é avisada.
+    assert!(
+        c.eventos()
+            .iter()
+            .any(|e| e["mudanca"] == "ata" && e["analise"] == "R-0001")
+    );
+}
+
+#[test]
 fn ata_aprovada_nao_aceita_registros() {
     let c = cenario();
     let mut ata = c.ata();
@@ -512,6 +588,11 @@ fn ata_aprovada_nao_aceita_registros() {
             "reuniao": "R-0001", "tipo": "decisao", "texto": "x",
             "citacoes": [citacao_da_necessidade()]
         }),
+    );
+    assert!(e.to_string().contains("já foi aprovada"), "{e}");
+    let e = c.erro(
+        "registrar_resumo_ata",
+        json!({ "reuniao": "R-0001", "resumo": "x" }),
     );
     assert!(e.to_string().contains("já foi aprovada"), "{e}");
 }
@@ -863,8 +944,21 @@ fn iniciar_analise_no_fluxo_reuniao_traz_atas_anteriores_pendencias_e_pessoas() 
     // A reunião analisada não entra entre as anteriores.
     assert_eq!(ctx["total_de_atas_anteriores"], 1);
 
-    // O roteiro (provisório) e o contexto chegam no texto.
+    // O roteiro de reunião e o contexto chegam no texto; a cópia editável do
+    // roteiro vai para a base, como a dos outros fluxos.
     assert!(s.texto.contains("ler_transcript"), "{}", s.texto);
+    assert!(
+        s.texto
+            .contains("**Citações curtas e literais; nunca invente.**"),
+        "{}",
+        s.texto
+    );
+    assert!(
+        c.amb
+            .base
+            .caminho(&cba_tools::roteiro::arquivo_do_roteiro(Fluxo::Reuniao))
+            .is_file()
+    );
     assert!(
         s.texto.contains("Manter a trava de 30 dias."),
         "{}",
@@ -888,6 +982,38 @@ fn iniciar_analise_no_fluxo_reuniao_traz_atas_anteriores_pendencias_e_pessoas() 
     );
     let d = c.chamar("concluir_analise", json!({ "analise": id }));
     assert_eq!(d["estado"], "concluida");
+
+    // retomar_analise traz a ata: objetivo, resumo e itens, sem as falas.
+    c.chamar(
+        "registrar_resumo_ata",
+        json!({ "reuniao": "R-0001", "objetivo": "Combinar a trava do supervisor." }),
+    );
+    let r = c
+        .saida("retomar_analise", json!({ "analise": id }))
+        .unwrap();
+    assert!(
+        r.texto.contains("## Ata da reunião R-0001 (demanda D-0001"),
+        "{}",
+        r.texto
+    );
+    assert!(
+        r.texto.contains("Combinar a trava do supervisor."),
+        "{}",
+        r.texto
+    );
+    assert!(
+        r.texto
+            .contains("- N-1 Trava em todos os canais. [1 fala(s)]"),
+        "{}",
+        r.texto
+    );
+    assert!(!r.texto.contains("tela Delphi"), "{}", r.texto);
+    let ata = &r.dados.unwrap()["ata"];
+    assert_eq!(ata["objetivo"], "Combinar a trava do supervisor.");
+    assert_eq!(ata["resumo"], Value::Null);
+    assert_eq!(ata["itens"][0]["id"], "N-1");
+    assert_eq!(ata["itens"][0]["tipo"], "necessidade");
+    assert_eq!(ata["itens"][0]["citacoes"], 1);
 
     // Retomar a análise de novo, sem `reuniao`, mantém a ligação.
     c.chamar("iniciar_analise", json!({ "analise": id }));

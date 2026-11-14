@@ -1,5 +1,10 @@
 //! Prompts prontos da tela da análise (spec, seção 8): aprofundar, resumir para o
-//! solicitante, gerar critérios de aceite, conferir evidências e retomar.
+//! solicitante, gerar critérios de aceite, conferir evidências e retomar; na
+//! análise de reunião (#140), resumir para o cliente e listar dúvidas para enviar.
+//!
+//! Cada prompt vale para alguns fluxos ([`Fluxos`]): os de resumo para o
+//! solicitante e de critérios de aceite são das análises do código; os de resumo
+//! para o cliente e de dúvidas, da análise de reunião.
 //!
 //! Cada um é um pedido curto com variáveis da análise (`{{id}}`, `{{titulo}}`,
 //! `{{fluxo}}`, `{{documento}}`), que o app envia ao cliente de IA como se o
@@ -19,7 +24,7 @@
 
 use std::sync::Arc;
 
-use cba_core::analise::{Analise, EstadoAnalise};
+use cba_core::analise::{Analise, EstadoAnalise, Fluxo};
 use cba_core::analises::Analises;
 use cba_core::config::Config;
 use cba_core::dados::DiretorioDados;
@@ -55,6 +60,27 @@ pub struct PromptPronto {
     pub texto: String,
 }
 
+/// Fluxos em que um prompt pronto aparece.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Fluxos {
+    /// Todos.
+    Todos,
+    /// As análises do código: perguntar, explicar e impacto.
+    DoCodigo,
+    /// Só a análise de reunião.
+    Reuniao,
+}
+
+impl Fluxos {
+    fn inclui(self, fluxo: Fluxo) -> bool {
+        match self {
+            Self::Todos => true,
+            Self::DoCodigo => fluxo != Fluxo::Reuniao,
+            Self::Reuniao => fluxo == Fluxo::Reuniao,
+        }
+    }
+}
+
 /// Definição de um prompt pronto.
 pub(crate) struct Definicao {
     pub(crate) id: &'static str,
@@ -64,15 +90,18 @@ pub(crate) struct Definicao {
     /// Pede ao agente que registre na análise; fica de fora numa análise aprovada,
     /// que não aceita registros.
     registra: bool,
+    /// Fluxos em que o prompt aparece.
+    fluxos: Fluxos,
 }
 
-pub(crate) const DEFINICOES: [Definicao; 5] = [
+pub(crate) const DEFINICOES: [Definicao; 7] = [
     Definicao {
         id: "aprofundar",
         rotulo: "Aprofundar",
         descricao: "Pede ao agente que busque evidência para o que você marcou para aprofundar e para o que ainda é inferido ou a confirmar.",
         texto: include_str!("../textos/prompts/aprofundar.md"),
         registra: true,
+        fluxos: Fluxos::Todos,
     },
     Definicao {
         id: "resumir",
@@ -80,6 +109,23 @@ pub(crate) const DEFINICOES: [Definicao; 5] = [
         descricao: "Pede um resumo curto, em linguagem de negócio, pronto para enviar ao solicitante.",
         texto: include_str!("../textos/prompts/resumir.md"),
         registra: false,
+        fluxos: Fluxos::DoCodigo,
+    },
+    Definicao {
+        id: "resumir-para-o-cliente",
+        rotulo: "Resumir para o cliente",
+        descricao: "Pede um resumo da reunião pronto para enviar ao cliente, sem referências internas (citações, identificadores, evidências de código): a ata não vai ao cliente.",
+        texto: include_str!("../textos/prompts/resumir-para-o-cliente.md"),
+        registra: false,
+        fluxos: Fluxos::Reuniao,
+    },
+    Definicao {
+        id: "listar-duvidas",
+        rotulo: "Listar dúvidas para enviar",
+        descricao: "Pede a lista das dúvidas em aberto da reunião, uma pergunta por item, pronta para enviar ao cliente.",
+        texto: include_str!("../textos/prompts/listar-duvidas.md"),
+        registra: false,
+        fluxos: Fluxos::Reuniao,
     },
     Definicao {
         id: "criterios-de-aceite",
@@ -87,6 +133,7 @@ pub(crate) const DEFINICOES: [Definicao; 5] = [
         descricao: "Pede critérios de aceite (Dado / Quando / Então) com exemplos com números, a partir do que foi registrado.",
         texto: include_str!("../textos/prompts/criterios-de-aceite.md"),
         registra: false,
+        fluxos: Fluxos::DoCodigo,
     },
     Definicao {
         id: "conferir-evidencias",
@@ -94,6 +141,7 @@ pub(crate) const DEFINICOES: [Definicao; 5] = [
         descricao: "Pede ao agente que releia no código atual cada trecho citado e diga o que confere e o que não se sustenta.",
         texto: include_str!("../textos/prompts/conferir-evidencias.md"),
         registra: true,
+        fluxos: Fluxos::Todos,
     },
     Definicao {
         id: "retomar",
@@ -101,6 +149,7 @@ pub(crate) const DEFINICOES: [Definicao; 5] = [
         descricao: "Continua a análise numa conversa nova, a partir de tudo o que já foi registrado.",
         texto: include_str!("../textos/prompts/retomar.md"),
         registra: false,
+        fluxos: Fluxos::Todos,
     },
 ];
 
@@ -157,9 +206,10 @@ impl Prompts {
         editavel::copiar(base, DEFINICOES.iter().map(padrao))
     }
 
-    /// Os prompts da análise, com as variáveis preenchidas. `documento` é o
-    /// caminho do documento relativo à base. Numa análise aprovada, só os que não
-    /// registram nada (resumir, critérios de aceite, retomar).
+    /// Os prompts da análise, com as variáveis preenchidas: só os do fluxo dela.
+    /// `documento` é o caminho do documento relativo à base. Numa análise
+    /// aprovada, só os que não registram nada (os resumos, os critérios de aceite,
+    /// as dúvidas e retomar).
     pub fn para(&self, analise: &Analise, documento: &str) -> (Vec<PromptPronto>, Vec<Aviso>) {
         let valor = |nome: &str| -> Option<String> {
             Some(match nome {
@@ -174,7 +224,7 @@ impl Prompts {
         let mut avisos = Vec::new();
         let mut prontos = Vec::new();
         for (d, texto) in DEFINICOES.iter().zip(&self.textos) {
-            if aprovada && d.registra {
+            if !d.fluxos.inclui(analise.fluxo) || (aprovada && d.registra) {
                 continue;
             }
             let (texto, mut a) =
@@ -311,6 +361,120 @@ mod tests {
         let (prontos, _) = Prompts::padrao().para(&a, "x.md");
         let ids: Vec<&str> = prontos.iter().map(|p| p.id.as_str()).collect();
         assert_eq!(ids, ["resumir", "criterios-de-aceite", "retomar"]);
+
+        let mut r = reuniao();
+        r.estado = EstadoAnalise::Aprovada;
+        let (prontos, _) = Prompts::padrao().para(&r, "x.md");
+        let ids: Vec<&str> = prontos.iter().map(|p| p.id.as_str()).collect();
+        assert_eq!(ids, ["resumir-para-o-cliente", "listar-duvidas", "retomar"]);
+    }
+
+    fn reuniao() -> Analise {
+        Analise::nova(
+            Serie::Analise.id(8),
+            "faturamento-exemplo",
+            Fluxo::Reuniao,
+            "Reunião R-0001 · Trava de cancelamento de fatura",
+            "Reunião R-0001 da demanda D-0001.",
+            1,
+        )
+    }
+
+    #[test]
+    fn cada_fluxo_tem_os_seus_prompts() {
+        let ids = |a: &Analise| -> Vec<String> {
+            let (prontos, avisos) = Prompts::padrao().para(a, "x.md");
+            assert!(avisos.is_empty(), "{avisos:?}");
+            prontos.into_iter().map(|p| p.id).collect()
+        };
+        for fluxo in [Fluxo::Perguntar, Fluxo::Explicar, Fluxo::Impacto] {
+            let mut a = analise();
+            a.fluxo = fluxo;
+            assert_eq!(
+                ids(&a),
+                [
+                    "aprofundar",
+                    "resumir",
+                    "criterios-de-aceite",
+                    "conferir-evidencias",
+                    "retomar"
+                ],
+                "{fluxo:?}"
+            );
+        }
+        // Na reunião, os resumos e os critérios das análises do código dão lugar
+        // ao resumo para o cliente e à lista de dúvidas.
+        assert_eq!(
+            ids(&reuniao()),
+            [
+                "aprofundar",
+                "resumir-para-o-cliente",
+                "listar-duvidas",
+                "conferir-evidencias",
+                "retomar"
+            ]
+        );
+    }
+
+    /// O texto do prompt, sem o comentário inicial, numa linha só.
+    fn pedido(id: &str) -> String {
+        let (prontos, _) = Prompts::padrao().para(&reuniao(), "x.md");
+        prontos
+            .into_iter()
+            .find(|p| p.id == id)
+            .unwrap_or_else(|| panic!("{id}"))
+            .texto
+    }
+
+    #[test]
+    fn resumo_para_o_cliente_omite_as_referencias_internas() {
+        let t = pedido("resumir-para-o-cliente");
+        assert!(
+            t.starts_with("Escreva um resumo da reunião da análise A-0008 para enviar ao cliente."),
+            "{t}"
+        );
+        assert!(t.contains("`retomar_analise`"), "{t}");
+        assert!(t.contains("A ata é interna e não vai ao cliente"), "{t}");
+        // Pede explicitamente para omitir citações, identificadores e evidências.
+        assert!(
+            t.contains("não leva nenhuma referência interna: omita"),
+            "{t}"
+        );
+        for omitir in [
+            "as citações e os trechos de falas",
+            "os identificadores (dos itens da ata, como D-1, N-3 ou PP-2, das reuniões, das demandas",
+            "as evidências de código",
+            "os nomes de arquivos, rotinas e tabelas",
+            "os papéis internos dos participantes",
+        ] {
+            assert!(t.contains(omitir), "{omitir}: {t}");
+        }
+        assert!(t.contains("releia o texto e tire o que restar"), "{t}");
+        assert!(t.contains("Não registre nada"), "{t}");
+    }
+
+    #[test]
+    fn duvidas_para_enviar_viram_lista_sem_referencias_internas() {
+        let t = pedido("listar-duvidas");
+        assert!(
+            t.starts_with("Liste as dúvidas em aberto da reunião da análise A-0008"),
+            "{t}"
+        );
+        assert!(t.contains("`retomar_analise`"), "{t}");
+        assert!(t.contains("as dúvidas em aberto da ata"), "{t}");
+        assert!(
+            t.contains("pendências ainda sem responsável ou sem prazo"),
+            "{t}"
+        );
+        assert!(t.contains("lista numerada, uma pergunta por item"), "{t}");
+        for omitir in [
+            "as citações e os trechos de falas",
+            "os identificadores",
+            "as evidências de código",
+        ] {
+            assert!(t.contains(omitir), "{omitir}: {t}");
+        }
+        assert!(t.contains("Não registre nada"), "{t}");
     }
 
     #[test]
