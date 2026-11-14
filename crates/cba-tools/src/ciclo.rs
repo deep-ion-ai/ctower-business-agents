@@ -39,6 +39,7 @@ use crate::comum;
 use crate::contexto::Contexto;
 use crate::documento::secoes_de_afirmacao;
 use crate::evidencias::{ArquivoDoProjeto, hash_das_linhas};
+use crate::parecer;
 use crate::prompts::Prompts;
 use crate::registro::{ErroFerramenta, Ferramenta, Saida, ler_argumentos};
 use crate::reuniao;
@@ -93,6 +94,7 @@ fn perguntas_abertas(analise: &Analise) -> impl Iterator<Item = &cba_core::anali
 fn contagem(analise: &Analise) -> Value {
     json!({
         "afirmacoes": afirmacoes_validas(analise).count(),
+        "achados": analise.parecer.as_ref().map_or(0, |p| p.ativos().count()),
         "perguntas_abertas": perguntas_abertas(analise).count(),
         "sugestoes": analise.sugestoes.len(),
         "termos": analise.termos.len(),
@@ -190,14 +192,14 @@ pub fn iniciar_analise() -> Ferramenta {
                 "analise": comum::schema_da_analise(),
                 "fluxo": {
                     "type": "string",
-                    "enum": ["perguntar", "explicar", "impacto", "reuniao"],
-                    "description": "Só para criar: perguntar (pergunta ao sistema), explicar (explicar funcionalidade, documento negocial), impacto (análise de impacto de uma demanda) ou reuniao (montar a ata de uma reunião a partir do transcript; exige `reuniao`)."
+                    "enum": ["perguntar", "explicar", "impacto", "reuniao", "revisar"],
+                    "description": "Só para criar: perguntar (pergunta ao sistema), explicar (explicar funcionalidade, documento negocial), impacto (análise de impacto de uma demanda), reuniao (montar a ata de uma reunião a partir do transcript; exige `reuniao`) ou revisar (revisar a qualidade de um requisito ou história contra a base e o código; a entrada é o texto revisado)."
                 },
                 "entrada": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 20000,
-                    "description": "Só para criar: a pergunta, a funcionalidade ou o texto da demanda, como o analista escreveu. No fluxo reuniao é opcional."
+                    "description": "Só para criar: a pergunta, a funcionalidade, o texto da demanda ou o requisito ou história a revisar, como o analista escreveu. No fluxo reuniao é opcional."
                 },
                 "titulo": {
                     "type": "string",
@@ -638,6 +640,11 @@ fn retomar(ambiente: &Ambiente, analise: &Analise) -> Saida {
     if let Some((texto, _)) = &ata {
         t.push_str(texto);
     }
+    // No fluxo `revisar`, o conteúdo está no parecer.
+    let parecer = (fluxo == Fluxo::Revisar).then(|| parecer::para_retomar(analise));
+    if let Some((texto, _)) = &parecer {
+        t.push_str(texto);
+    }
     let _ = writeln!(t, "## Afirmações");
     let _ = writeln!(t);
     if analise.afirmacoes.is_empty() {
@@ -827,6 +834,7 @@ fn retomar(ambiente: &Ambiente, analise: &Analise) -> Saida {
             "sessoes": analise.sessoes.len(),
             "reuniao": analise.reuniao,
             "ata": ata.map(|(_, dados)| dados),
+            "parecer": parecer.map(|(_, dados)| dados),
             "afirmacoes": afirmacoes,
             "perguntas": perguntas,
             "sugestoes": sugestoes,
@@ -887,8 +895,14 @@ fn chave(e: &cba_core::analise::Evidencia) -> Chave {
 fn conferir_evidencias(ambiente: &Ambiente, analise: &Analise) -> HashMap<Chave, bool> {
     let mut textos: HashMap<String, Option<String>> = HashMap::new();
     let mut resultado = HashMap::new();
+    let dos_achados = analise
+        .parecer
+        .iter()
+        .flat_map(|p| p.ativos())
+        .flat_map(|a| &a.evidencias);
     for e in afirmacoes_validas(analise)
         .flat_map(|a| &a.evidencias)
+        .chain(dos_achados)
         .filter(|e| e.estado == EstadoEvidencia::Valida)
     {
         let arquivo = e.arquivo.to_string();
@@ -934,8 +948,12 @@ fn concluir(ambiente: &Ambiente, id: &Id) -> Result<Saida, ErroFerramenta> {
             "a análise {id} já foi aprovada pelo analista; não há o que concluir"
         )));
     }
+    let mut pendencias = Vec::new();
     if fluxo == Fluxo::Reuniao {
         conferir_ata(ambiente, &atual)?;
+    } else if fluxo == Fluxo::Revisar {
+        // O conteúdo da revisão está no parecer: o veredito é obrigatório.
+        pendencias.extend(parecer::conferir_para_concluir(&atual)?);
     } else if afirmacoes_validas(&atual).next().is_none() {
         return Err(ErroFerramenta::Recusa(format!(
             "a análise {id} ainda não tem afirmações. Registre o que apurou com `afirmar` \
@@ -974,7 +992,6 @@ fn concluir(ambiente: &Ambiente, id: &Id) -> Result<Saida, ErroFerramenta> {
     let documento = documento(ambiente, analise);
     let arquivo = ambiente.kb.caminho(&analise.documento);
 
-    let mut pendencias = Vec::new();
     for a in afirmacoes_validas(analise) {
         if a.estado == EstadoAfirmacao::ARevalidar {
             pendencias.push(format!(
@@ -1022,6 +1039,8 @@ fn concluir(ambiente: &Ambiente, id: &Id) -> Result<Saida, ErroFerramenta> {
                 "a demanda como entendida, a abrangência, os principais riscos e as perguntas para o solicitante",
             Fluxo::Reuniao =>
                 "o objetivo da reunião, as decisões, as pendências com responsável e prazo e as dúvidas em aberto",
+            Fluxo::Revisar =>
+                "o veredito, as contradições com a base ou o código, os principais achados e as perguntas para o autor",
         }
     );
     if !abertas.is_empty() {

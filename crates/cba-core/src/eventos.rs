@@ -55,6 +55,9 @@ pub enum Mudanca {
     /// `analise` do evento traz o identificador da reunião (`R-0001`), e a
     /// `versao` é 0: a tela relê o estado da ata (`R-NNNN.estado.json`).
     Ata,
+    /// Parecer de revisão alterado (achado, INVEST ou veredito registrado,
+    /// achado descartado pelo analista).
+    Parecer,
 }
 
 /// Uma linha do diário.

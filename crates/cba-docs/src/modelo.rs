@@ -50,6 +50,8 @@ pub(crate) const EVIDENCIAS: &str = "evidencias";
 /// Seções da ata com texto próprio quando vazias.
 pub(crate) const PARTICIPANTES: &str = "participantes";
 pub(crate) const REFERENCIAS_FALAS: &str = "referencias_falas";
+/// Seções do parecer de revisão com texto próprio quando vazias.
+pub(crate) const ACHADOS: &str = "achados";
 
 const fn s(marcador: &'static str, titulo: &'static str) -> Secao {
     Secao { marcador, titulo }
@@ -88,7 +90,7 @@ const CAMPOS_FUNCIONALIDADE_OU_ANALISE: &[&str] = &[
 ];
 
 /// Tipos que têm template, na ordem da spec (seção 7.3).
-pub const MODELOS: [Modelo; 9] = [
+pub const MODELOS: [Modelo; 10] = [
     Modelo {
         tipo: TipoDocumento::AnaliseImpacto,
         secoes: &[
@@ -219,6 +221,21 @@ pub const MODELOS: [Modelo; 9] = [
         campos: CAMPOS_ANALISE,
         padrao: include_str!("../templates/analise-reuniao.md"),
     },
+    Modelo {
+        tipo: TipoDocumento::ParecerRevisao,
+        secoes: &[
+            s("requisito", "Requisito revisado"),
+            s("veredito", "Veredito"),
+            s(ACHADOS, "Achados"),
+            s("invest", "Verificação INVEST"),
+            s("contexto_no_codigo", "O que a base e o código dizem"),
+            s(PERGUNTAS, "Perguntas para o autor"),
+            SUGESTOES_SECAO,
+            EVIDENCIAS_SECAO,
+        ],
+        campos: CAMPOS_ANALISE,
+        padrao: include_str!("../templates/parecer-revisao.md"),
+    },
 ];
 
 /// Modelo do tipo, se o tipo tiver template (`projeto` e `memoria-area` não têm).
@@ -236,6 +253,11 @@ pub(crate) fn texto_vazio(marcador: &str) -> &'static str {
         "identificacao" => "",
         PARTICIPANTES => "_Nenhum participante registrado._",
         REFERENCIAS_FALAS => "_Nenhuma fala citada._",
+        ACHADOS => "_Nenhum achado registrado._",
+        "veredito" => "_Veredito ainda não registrado._",
+        "invest" => {
+            "_Não avaliada: o texto não é uma história, ou a verificação ainda não foi registrada._"
+        }
         _ => "_Nada registrado._",
     }
 }
@@ -455,6 +477,7 @@ mod tests {
             TipoDocumento::Sugestao,
             TipoDocumento::Ata,
             TipoDocumento::AnaliseReuniao,
+            TipoDocumento::ParecerRevisao,
         ] {
             assert_eq!(modelo(tipo).unwrap().tipo, tipo);
         }
