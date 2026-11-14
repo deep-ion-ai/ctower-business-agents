@@ -8,7 +8,6 @@ import {
   type SessaoVista,
   type Situacao,
 } from "./analise";
-import type { DemandaVista, NovaDemanda, PainelDemanda } from "./demandas";
 
 /**
  * Espelho dos comandos do início, do projeto e da base de conhecimento
@@ -176,13 +175,11 @@ export interface DocumentoAberto {
 export interface ApiConhecimento extends ApiAmbiente {
   situacao(): Promise<Situacao>;
   inicio(): Promise<Inicio>;
-  /** Com `demanda` (`D-0001`), a análise fica ligada a ela (`demanda.id`). */
   criarAnalise(
     projeto: string,
     fluxo: Fluxo,
     entrada: string,
     titulo?: string,
-    demanda?: string,
   ): Promise<AnaliseCriada>;
   /**
    * Cria a análise a partir de uma issue do rastreador do projeto (`PROJ-123`, `#12`):
@@ -201,24 +198,17 @@ export interface ApiConhecimento extends ApiAmbiente {
   abrirDocumento(caminho: string): Promise<DocumentoAberto>;
   /** Avisa quando a base muda fora do app; devolve a função que para. */
   vigiarBase(aoMudar: () => void): Promise<() => void>;
-  /** Demandas do projeto, as abertas primeiro. */
-  listarDemandas(projeto: string): Promise<DemandaVista[]>;
-  criarDemanda(projeto: string, nova: NovaDemanda): Promise<DemandaVista>;
-  encerrarDemanda(projeto: string, demanda: string): Promise<DemandaVista>;
-  reabrirDemanda(projeto: string, demanda: string): Promise<DemandaVista>;
-  painelDemanda(projeto: string, demanda: string): Promise<PainelDemanda>;
 }
 
 export const apiConhecimentoTauri: ApiConhecimento = {
   situacao: () => invoke("situacao_app"),
   inicio: () => invoke("inicio_app"),
-  criarAnalise: (projeto, fluxo, entrada, titulo, demanda) =>
+  criarAnalise: (projeto, fluxo, entrada, titulo) =>
     invoke("criar_analise_fluxo", {
       projeto,
       fluxo,
       entrada,
       titulo: titulo ?? null,
-      demanda: demanda ?? null,
     }),
   criarAnaliseDeDemanda: (projeto, fluxo, referencia) =>
     invoke("criar_analise_de_demanda", { projeto, fluxo, referencia }),
@@ -243,17 +233,6 @@ export const apiConhecimentoTauri: ApiConhecimento = {
       invoke("parar_vigia_base", { id }).catch(() => undefined);
     };
   },
-  listarDemandas: (projeto) => invoke("listar_demandas_app", { projeto }),
-  criarDemanda: (projeto, nova) =>
-    invoke("criar_demanda_app", {
-      projeto,
-      titulo: nova.titulo,
-      descricao: nova.descricao ?? null,
-      chave: nova.chave ?? null,
-    }),
-  encerrarDemanda: (projeto, demanda) => invoke("encerrar_demanda_app", { projeto, demanda }),
-  reabrirDemanda: (projeto, demanda) => invoke("reabrir_demanda_app", { projeto, demanda }),
-  painelDemanda: (projeto, demanda) => invoke("painel_demanda_app", { projeto, demanda }),
   verificarAmbiente: apiAnaliseTauri.verificarAmbiente,
   planejarPreparo: apiAnaliseTauri.planejarPreparo,
   prepararAmbiente: apiAnaliseTauri.prepararAmbiente,

@@ -441,7 +441,6 @@ name = "cba-app"
 version = "0.2.0"
 dependencies = [
  "cba-core",
- "cba-docs",
  "cba-index",
  "cba-kb",
  "cba-mcp",

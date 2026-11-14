@@ -18,7 +18,6 @@ import {
 import { DialogoConfirmacao } from "./DialogoConfirmacao";
 import { ROTULO_SESSAO } from "./DocumentoAoVivo";
 import type { Abertura } from "./PainelAnalise";
-import { PainelDemanda } from "./PainelDemanda";
 import { Icon, type IconName } from "./shell/icons";
 import { Titlebar } from "./shell/Titlebar";
 import { TelaAnalise } from "./TelaAnalise";
@@ -40,8 +39,7 @@ export type Tela =
       pergunta?: string;
       aberta?: { id: string; abertura: Abertura };
     }
-  | { tipo: "configuracoes" }
-  | { tipo: "demanda"; projeto: string; demanda: string };
+  | { tipo: "configuracoes" };
 
 interface Props {
   /** Tela ao abrir (ex.: a análise sugerida no fim do primeiro uso). */
@@ -70,15 +68,14 @@ const AREAS: { tipo: Tela["tipo"]; rotulo: string; icone: IconName }[] = [
   { tipo: "configuracoes", rotulo: "Configurações", icone: "settings" },
 ];
 
-// A demanda não tem área própria na barra de atividades: abre pela tela do projeto.
-const ROTULO_AREA = {
-  ...Object.fromEntries(AREAS.map((a) => [a.tipo, a.rotulo])),
-  demanda: "Demanda",
-} as Record<Tela["tipo"], string>;
-const ICONE_AREA = {
-  ...Object.fromEntries(AREAS.map((a) => [a.tipo, a.icone])),
-  demanda: "file",
-} as Record<Tela["tipo"], IconName>;
+const ROTULO_AREA = Object.fromEntries(AREAS.map((a) => [a.tipo, a.rotulo])) as Record<
+  Tela["tipo"],
+  string
+>;
+const ICONE_AREA = Object.fromEntries(AREAS.map((a) => [a.tipo, a.icone])) as Record<
+  Tela["tipo"],
+  IconName
+>;
 
 /** Aba aberta na área de editor: a tela que ela mostra e o contador de remontagem. */
 interface Aba {
@@ -97,8 +94,6 @@ export function chaveDaTela(t: Tela): string {
       return t.documento ? `doc:${t.documento}` : "base";
     case "analise":
       return t.aberta ? `analise:${t.projeto ?? ""}:${t.aberta.id}` : "analise";
-    case "demanda":
-      return `demanda:${t.projeto}:${t.demanda}`;
     default:
       return t.tipo;
   }
@@ -282,7 +277,6 @@ export function Navegacao({
     if (t.tipo === "projeto" && t.projeto) return nomeProjeto(t.projeto);
     if (t.tipo === "base" && t.documento) return nomeDoArquivo(t.documento);
     if (t.tipo === "analise" && t.aberta) return t.aberta.id;
-    if (t.tipo === "demanda") return t.demanda;
     return ROTULO_AREA[t.tipo];
   };
 
@@ -508,15 +502,6 @@ export function Navegacao({
                   perguntaInicial={aba.tela.pergunta}
                   aberturaInicial={aba.tela.aberta}
                   aoPrimeiroUso={aoPrimeiroUso}
-                />
-              )}
-              {aba?.tela.tipo === "demanda" && (
-                <PainelDemanda
-                  key={aba.vez}
-                  api={api}
-                  projeto={aba.tela.projeto}
-                  demanda={aba.tela.demanda}
-                  navegar={navegar}
                 />
               )}
               {aba?.tela.tipo === "configuracoes" && (
