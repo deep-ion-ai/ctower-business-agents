@@ -23,7 +23,7 @@
 //! partir de 1, único dentro da análise e nunca reaproveitado.
 
 use cba_kb::frontmatter::{Linhas, StatusAnalise, StatusSugestao, TipoDocumento};
-use cba_kb::{CaminhoRelativo, Id};
+use cba_kb::{CaminhoRelativo, Id, IdReuniao};
 use serde::{Deserialize, Serialize};
 
 /// Versão do formato do arquivo de estado. Sobe quando um campo muda de sentido;
@@ -40,6 +40,9 @@ pub enum Fluxo {
     Explicar,
     /// Análise de impacto de uma demanda.
     Impacto,
+    /// Análise de uma reunião a partir do transcript: o agente monta a ata
+    /// (épico #93).
+    Reuniao,
 }
 
 impl Fluxo {
@@ -49,6 +52,7 @@ impl Fluxo {
             Self::Perguntar => TipoDocumento::Pergunta,
             Self::Explicar => TipoDocumento::Funcionalidade,
             Self::Impacto => TipoDocumento::AnaliseImpacto,
+            Self::Reuniao => TipoDocumento::AnaliseReuniao,
         }
     }
 }
@@ -367,6 +371,10 @@ pub struct Analise {
     pub sugestoes: Vec<Sugestao>,
     #[serde(default)]
     pub termos: Vec<TermoProposto>,
+    /// Reunião analisada (fluxo `reuniao`): a ata em
+    /// `demandas/D-NNNN-<slug>/reunioes/R-NNNN.md`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reuniao: Option<IdReuniao>,
 }
 
 /// Operação recusada pelo modelo. As mensagens se dirigem a quem chamou (o agente
@@ -447,6 +455,7 @@ impl Analise {
             perguntas: Vec::new(),
             sugestoes: Vec::new(),
             termos: Vec::new(),
+            reuniao: None,
         }
     }
 
