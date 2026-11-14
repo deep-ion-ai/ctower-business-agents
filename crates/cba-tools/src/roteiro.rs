@@ -70,10 +70,13 @@ pub fn nome_do_arquivo(fluxo: Fluxo) -> &'static str {
 
 /// Se o roteiro padrão do fluxo já foi revisado. Só os revisados são copiados
 /// para a base. Os três primeiros foram revisados (#32): perguntar no M1, explicar
-/// e impacto no M2. O de reunião é provisório até a #140. Um fluxo novo entra aqui
-/// só depois de ter o roteiro revisado.
+/// e impacto no M2; o de reunião, na #140. Um fluxo novo entra aqui só depois de
+/// ter o roteiro revisado.
 pub fn revisado(fluxo: Fluxo) -> bool {
-    matches!(fluxo, Fluxo::Perguntar | Fluxo::Explicar | Fluxo::Impacto)
+    matches!(
+        fluxo,
+        Fluxo::Perguntar | Fluxo::Explicar | Fluxo::Impacto | Fluxo::Reuniao
+    )
 }
 
 pub(crate) fn padrao(fluxo: Fluxo) -> Padrao {
@@ -480,16 +483,120 @@ mod tests {
     }
 
     #[test]
+    fn roteiro_de_reuniao_le_tudo_cita_as_falas_e_cobre_as_secoes_da_ata() {
+        let (r, avisos) = Roteiros::padrao().montar(
+            &analise(Fluxo::Reuniao),
+            "faturamento-exemplo/analises/A-0003.md",
+            "Nada.\n",
+        );
+        assert!(avisos.is_empty(), "{avisos:?}");
+        assert!(
+            r.contains("Fluxo: análise de reunião. Documento da análise na base:"),
+            "{r}"
+        );
+        assert!(
+            r.contains("## Reunião\n\n> Como é calculada a multa?"),
+            "{r}"
+        );
+        // Todas as ferramentas do fluxo.
+        for ferramenta in [
+            "ler_transcript",
+            "propor_papel",
+            "registrar_item_ata",
+            "registrar_resumo_ata",
+            "sugerir_demanda",
+            "afirmar",
+            "perguntar",
+            "conhecimento",
+            "referencias",
+            "registrar_sugestao",
+            "concluir_analise",
+        ] {
+            assert!(r.contains(&format!("`{ferramenta}`")), "{ferramenta}: {r}");
+        }
+        // Os parâmetros que o roteiro manda usar existem nas ferramentas.
+        let registro = crate::registro_padrao();
+        let schema = |nome: &str| {
+            registro
+                .obter(nome)
+                .unwrap_or_else(|| panic!("{nome}"))
+                .schema()
+                .to_string()
+        };
+        for (ferramenta, parametro) in [
+            ("ler_transcript", "cursor"),
+            ("ler_transcript", "falante"),
+            ("ler_transcript", "desde"),
+            ("ler_transcript", "ate"),
+            ("registrar_item_ata", "citacoes"),
+            ("registrar_item_ata", "indice"),
+            ("registrar_item_ata", "trecho"),
+            ("registrar_item_ata", "responsavel"),
+            ("registrar_item_ata", "prazo"),
+            ("registrar_item_ata", "referencias"),
+            ("registrar_resumo_ata", "objetivo"),
+            ("registrar_resumo_ata", "resumo"),
+        ] {
+            assert!(r.contains(&format!("`{parametro}`")), "{parametro}: {r}");
+            assert!(
+                schema(ferramenta).contains(&format!("\"{parametro}\"")),
+                "{ferramenta} sem {parametro}"
+            );
+        }
+        assert!(r.contains("`proximo_cursor`"), "{r}");
+        // Todas as seções da ata: os tipos de item, com o título da seção.
+        let ata = cba_docs::modelo(cba_kb::TipoDocumento::Ata).unwrap();
+        for tipo in cba_docs::TipoItem::TODOS {
+            let titulo = ata.secao(tipo.secao()).unwrap().titulo;
+            assert!(
+                r.contains(&format!("   - `{}` ({titulo})", tipo.como_str())),
+                "{tipo}: {r}"
+            );
+        }
+        for secao in ["objetivo", "resumo"] {
+            assert!(r.contains(secao), "{secao}: {r}");
+        }
+        // Lê até o fim, cita curto e literal, não inventa.
+        assert!(
+            r.contains("**Leia o transcript inteiro com `ler_transcript`**"),
+            "{r}"
+        );
+        assert!(r.contains("até não haver próxima página"), "{r}");
+        assert!(
+            r.contains("**Citações curtas e literais; nunca invente.**"),
+            "{r}"
+        );
+        assert!(r.contains("palavra por palavra"), "{r}");
+        assert!(r.contains("O que ficou ambíguo vira `duvida`"), "{r}");
+        // A ligação com o código é opcional e sem análise de impacto.
+        assert!(r.contains("**Ligação com o código (opcional).**"), "{r}");
+        assert!(r.contains("**Não faça a análise de impacto aqui**"), "{r}");
+        assert!(r.contains("`ligacao_com_o_codigo`"), "{r}");
+        // O contexto da demanda e a privacidade.
+        assert!(r.contains("atas anteriores"), "{r}");
+        assert!(r.contains("**Privacidade.**"), "{r}");
+        assert!(r.contains("não copie falas para o chat"), "{r}");
+        assert!(r.contains("não vai ao cliente"), "{r}");
+        assert!(
+            r.contains("Seções obrigatórias do documento da análise: nenhuma."),
+            "{r}"
+        );
+        assert!(
+            r.ends_with("## Contexto da demanda e da base\n\nNada.\n"),
+            "{r}"
+        );
+    }
+
+    #[test]
     fn roteiros_revisados_sao_copiados_e_o_da_base_sobrepoe() {
         let dir = tempfile::tempdir().unwrap();
         let base = Base::criar(dir.path()).unwrap();
         let criados = Roteiros::copiar_padrao(&base).unwrap();
-        // O roteiro de reunião é provisório (#140): não vai para a base.
-        assert!(!revisado(Fluxo::Reuniao));
-        assert!(base.ler_texto(&arquivo_do_roteiro(Fluxo::Reuniao)).is_err());
+        // Todos os roteiros já foram revisados; o de reunião, na #140.
+        assert!(FLUXOS.into_iter().all(revisado));
         assert_eq!(
             criados,
-            ["perguntar", "explicar", "impacto"]
+            ["perguntar", "explicar", "impacto", "reuniao"]
                 .map(|f| CaminhoRelativo::novo(&format!("_templates/roteiros/{f}.md")).unwrap())
         );
         // A cópia é o padrão embutido, byte a byte.

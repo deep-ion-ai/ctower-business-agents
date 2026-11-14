@@ -630,6 +630,14 @@ fn retomar(ambiente: &Ambiente, analise: &Analise) -> Saida {
     let _ = writeln!(t);
     let _ = writeln!(t, "Próximo passo: {}", proximo_passo(analise));
     let _ = writeln!(t);
+    // No fluxo `reuniao`, o conteúdo está na ata: vai antes das afirmações.
+    let ata = analise
+        .reuniao
+        .filter(|_| fluxo == Fluxo::Reuniao)
+        .and_then(|r| reuniao::ata_para_retomar(ambiente, r));
+    if let Some((texto, _)) = &ata {
+        t.push_str(texto);
+    }
     let _ = writeln!(t, "## Afirmações");
     let _ = writeln!(t);
     if analise.afirmacoes.is_empty() {
@@ -808,6 +816,7 @@ fn retomar(ambiente: &Ambiente, analise: &Analise) -> Saida {
             "documento": documento,
             "sessoes": analise.sessoes.len(),
             "reuniao": analise.reuniao,
+            "ata": ata.map(|(_, dados)| dados),
             "afirmacoes": afirmacoes,
             "perguntas": perguntas,
             "sugestoes": sugestoes,
