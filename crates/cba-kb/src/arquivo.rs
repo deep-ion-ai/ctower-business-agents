@@ -92,6 +92,15 @@ pub fn criar(destino: &Path, conteudo: &[u8]) -> io::Result<()> {
     Ok(())
 }
 
+/// A pasta de trava de uma reserva (`create_dir`) já está tomada. No Windows,
+/// criar uma pasta que outro processo está apagando falha com acesso negado em
+/// vez de "já existe"; para a reserva, as duas querem dizer "tente o próximo
+/// número" (o laço de reserva tem tentativas limitadas).
+pub(crate) fn trava_ocupada(erro: &std::io::Error) -> bool {
+    erro.kind() == std::io::ErrorKind::AlreadyExists
+        || (cfg!(windows) && erro.kind() == std::io::ErrorKind::PermissionDenied)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
