@@ -583,7 +583,7 @@ fn rotulo_do_estado(e: &EstadoAfirmacao) -> &'static str {
         EstadoAfirmacao::Registrada => "registrada",
         EstadoAfirmacao::Confirmada => "confirmada pelo analista",
         EstadoAfirmacao::Incorreta { .. } => "incorreta, segundo o analista",
-        EstadoAfirmacao::Aprofundar => "o analista pediu para aprofundar",
+        EstadoAfirmacao::Aprofundar { .. } => "o analista pediu para aprofundar",
         EstadoAfirmacao::ARevalidar => "a revalidar: o código citado mudou",
     }
 }
@@ -663,8 +663,16 @@ fn retomar(ambiente: &Ambiente, analise: &Analise) -> Saida {
                 rotulo_do_estado(&a.estado),
                 a.texto
             );
-            if let EstadoAfirmacao::Incorreta { comentario } = &a.estado {
-                let _ = writeln!(t, "   Comentário do analista: {comentario}");
+            match &a.estado {
+                EstadoAfirmacao::Incorreta { comentario } => {
+                    let _ = writeln!(t, "   Comentário do analista: {comentario}");
+                }
+                EstadoAfirmacao::Aprofundar {
+                    pedido: Some(pedido),
+                } => {
+                    let _ = writeln!(t, "   O que o analista quer aprofundar: {pedido}");
+                }
+                _ => {}
             }
             for e in &a.evidencias {
                 let marca = if e.estado == EstadoEvidencia::ARevalidar {
@@ -761,8 +769,10 @@ fn retomar(ambiente: &Ambiente, analise: &Analise) -> Saida {
             });
             // `estado` vem como objeto ({"estado": "incorreta", "comentario": ...}).
             if let Some(estado) = v["estado"].get("estado").cloned() {
-                if let Some(c) = v["estado"].get("comentario").cloned() {
-                    v["comentario"] = c;
+                for campo in ["comentario", "pedido"] {
+                    if let Some(c) = v["estado"].get(campo).cloned() {
+                        v[campo] = c;
+                    }
                 }
                 v["estado"] = estado;
             }
@@ -978,11 +988,14 @@ fn concluir(ambiente: &Ambiente, id: &Id) -> Result<Saida, ErroFerramenta> {
                 a.numero
             ));
         }
-        if a.estado == EstadoAfirmacao::Aprofundar {
-            pendencias.push(format!(
-                "afirmação {}: o analista pediu para aprofundar",
-                a.numero
-            ));
+        if let EstadoAfirmacao::Aprofundar { pedido } = &a.estado {
+            pendencias.push(match pedido {
+                Some(p) => format!(
+                    "afirmação {}: o analista pediu para aprofundar: {p}",
+                    a.numero
+                ),
+                None => format!("afirmação {}: o analista pediu para aprofundar", a.numero),
+            });
         }
     }
     let abertas: Vec<&str> = perguntas_abertas(analise)

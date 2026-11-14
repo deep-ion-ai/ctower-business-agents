@@ -19,7 +19,10 @@ vi.mock("./telaXterm", () => ({ criarTelaXterm: vi.fn() }));
 function montar(abertura: Abertura, vista?: VistaAnalise, opcoes?: OpcoesConversa) {
   const analise = apiAnaliseFalsa(vista);
   const terminal = apiTerminalFalsa();
-  const conversa = apiConversaFalsa(opcoes);
+  // Como o Rust: a sessão da análise vem nas opções (conversa gravada, retomável).
+  const conversa = apiConversaFalsa(
+    opcoes ?? (vista?.sessao ? opcoesFicticias({ sessao: vista.sessao.id }) : undefined),
+  );
   const tela = telaFalsa();
   const aoVoltar = vi.fn();
   const r = render(
@@ -35,6 +38,13 @@ function montar(abertura: Abertura, vista?: VistaAnalise, opcoes?: OpcoesConvers
     />,
   );
   return { ...analise, terminal, conversa, aoVoltar, ...r };
+}
+
+/** Abre o menu "continuar a conversa" da barra e devolve o painel. */
+function abrirMenu() {
+  const botao = screen.getByRole("button", { name: "Continuar a conversa" });
+  if (botao.getAttribute("aria-expanded") !== "true") fireEvent.click(botao);
+  return screen.getByRole("region", { name: "Onde continuar a conversa" });
 }
 
 async function terminalAberto(t: ReturnType<typeof apiTerminalFalsa>, id = 1) {
@@ -92,7 +102,8 @@ describe("PainelAnalise", () => {
       { tipo: "reabrir" },
       vistaFicticia({}, { afirmacoes: [AFIRMACAO_MULTA] }),
     );
-    fireEvent.click(await screen.findByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Ver .*evidência.* no código$/ }));
+    fireEvent.click(screen.getByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
     expect(api.trechoEvidencia).toHaveBeenCalledWith(
       "faturamento-exemplo",
       "db/03_pkg_cobranca.sql",
@@ -116,6 +127,67 @@ describe("PainelAnalise", () => {
     expect(screen.queryByRole("region", { name: "Trecho da evidência" })).not.toBeInTheDocument();
   });
 
+  it("documento à esquerda, conversa à direita; barra com id, título, estado e ações", async () => {
+    montar({ tipo: "reabrir" });
+    await screen.findByText("Nenhuma afirmação registrada ainda.");
+    const documento = screen.getByRole("region", { name: "Documento ao vivo" });
+    const conversa = screen.getByRole("region", { name: "Conversa" });
+    // O documento vem antes na ordem (à esquerda; primeiro quando as colunas empilham).
+    expect(
+      documento.compareDocumentPosition(conversa) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    const barra = screen.getByRole("banner");
+    expect(within(barra).getByRole("heading", { name: "A-0001: Multa por atraso" })).toBeVisible();
+    // Sem o título repetido no documento.
+    expect(within(documento).queryByRole("heading", { level: 2 })).not.toBeInTheDocument();
+    for (const nome of ["Continuar a conversa", "Aprovar", "Exportar"]) {
+      expect(within(barra).getByRole("button", { name: nome })).toHaveAttribute(
+        "aria-expanded",
+        "false",
+      );
+    }
+    // Um painel por vez; Esc fecha.
+    fireEvent.click(within(barra).getByRole("button", { name: "Exportar" }));
+    expect(screen.getByRole("region", { name: "Exportar o documento" })).toBeVisible();
+    fireEvent.click(within(barra).getByRole("button", { name: "Aprovar" }));
+    expect(screen.queryByRole("region", { name: "Exportar o documento" })).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Aprovar a análise" })).toBeVisible();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("region", { name: "Aprovar a análise" })).not.toBeInTheDocument();
+    expect(within(barra).getByRole("button", { name: "Aprovar" })).toHaveFocus();
+  });
+
+  it("abre o trecho da evidência logo abaixo da afirmação", async () => {
+    montar({ tipo: "reabrir" }, vistaFicticia({}, { afirmacoes: [AFIRMACAO_MULTA] }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Ver .*evidência.* no código$/ }));
+    fireEvent.click(screen.getByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
+    const afirmacao = screen.getByTestId(`afirmacao-${AFIRMACAO_MULTA.numero}`);
+    expect(
+      await within(afirmacao).findByRole("region", { name: "Trecho da evidência" }),
+    ).toBeInTheDocument();
+    // Clicar de novo na mesma evidência fecha o trecho.
+    fireEvent.click(screen.getByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
+    expect(screen.queryByRole("region", { name: "Trecho da evidência" })).not.toBeInTheDocument();
+  });
+
+  it("deixa as evidências recolhidas atrás do ícone de código", async () => {
+    montar({ tipo: "reabrir" }, vistaFicticia({}, { afirmacoes: [AFIRMACAO_MULTA] }));
+    const ver = await screen.findByRole("button", { name: /^Ver .*evidência.* no código$/ });
+    expect(ver).toHaveAttribute("aria-expanded", "false");
+    expect(
+      screen.queryByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(ver);
+    fireEvent.click(screen.getByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
+    expect(await screen.findByRole("region", { name: "Trecho da evidência" })).toBeInTheDocument();
+    // Ocultar o código fecha também o trecho aberto.
+    fireEvent.click(screen.getByRole("button", { name: /^Ocultar .* no código$/ }));
+    expect(screen.queryByRole("region", { name: "Trecho da evidência" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("mostra a recusa de um trecho fora do escopo", async () => {
     const { api } = montar(
       { tipo: "reabrir" },
@@ -124,7 +196,8 @@ describe("PainelAnalise", () => {
     api.trechoEvidencia.mockRejectedValue(
       "`db/03_pkg_cobranca.sql`: caminho fora das pastas do projeto",
     );
-    fireEvent.click(await screen.findByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Ver .*evidência.* no código$/ }));
+    fireEvent.click(screen.getByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "caminho fora das pastas do projeto",
     );
@@ -184,11 +257,14 @@ describe("PainelAnalise", () => {
         criarTela={telaFalsa}
       />,
     );
+    fireEvent.click(await screen.findByRole("button", { name: "Prompts prontos" }));
     const botao = await screen.findByRole("button", { name: "Resumir para o solicitante" });
     expect(botao).toBeDisabled();
     await terminalAberto(terminal, 7);
     await waitFor(() => expect(botao).toBeEnabled());
     fireEvent.click(botao);
+    // O menu fecha ao enviar.
+    expect(screen.queryByRole("group", { name: "Prompts prontos" })).not.toBeInTheDocument();
     await waitFor(() =>
       expect(terminal.api.enviarPrompt).toHaveBeenCalledWith(7, "Resuma para o solicitante."),
     );
@@ -200,13 +276,21 @@ describe("PainelAnalise", () => {
       vistaFicticia({ sessao: { id: "sessao-1", estado: "ativa", cliente: "claude-code" } }),
     );
     await terminalAberto(terminal, 3);
-    const continuar = screen.getByRole("button", { name: "Continuar no Claude Desktop" });
+    const continuar = await within(abrirMenu()).findByRole("button", {
+      name: "Continuar no Claude Desktop",
+    });
     await waitFor(() => expect(continuar).toBeEnabled());
     fireEvent.click(continuar);
     await waitFor(() => expect(terminal.api.enviarPrompt).toHaveBeenCalledWith(3, "/desktop"));
     expect(await screen.findByText(/A conversa continua no Claude Desktop/)).toBeVisible();
     expect(conversa.passouAoDesktop).toHaveBeenCalledWith("faturamento-exemplo", "A-0001");
+    // O terminal continua montado, escondido; a coluna mostra só o aviso e o voltar.
+    expect(screen.getByTestId("terminal-tela")).toBeInTheDocument();
     expect(screen.getByTestId("terminal-tela")).not.toBeVisible();
+    expect(terminal.api.encerrar).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("region", { name: "Onde continuar a conversa" }),
+    ).not.toBeInTheDocument();
     // O documento continua na tela.
     expect(screen.getByRole("article", { name: "Documento da análise" })).toBeVisible();
 
@@ -226,15 +310,61 @@ describe("PainelAnalise", () => {
       vistaFicticia({ sessao: { id: "sessao-9", estado: "encerrada", cliente: "claude-code" } }),
     );
     expect(terminal.api.abrir).not.toHaveBeenCalled();
-    fireEvent.click(await screen.findByRole("button", { name: "Retomar a conversa" }));
+    // Sem o bloco "Como continuar": a coluna só aponta para o menu da barra.
+    fireEvent.click(await screen.findByRole("button", { name: "Escolher onde continuar" }));
+    expect(screen.queryByText("Como continuar esta análise?")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continuar a conversa" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    fireEvent.click(within(abrirMenu()).getByRole("button", { name: "Retomar a conversa" }));
     await waitFor(() => expect(terminal.aberturas).toHaveLength(1));
     expect(terminal.aberturas[0].pedido).toEqual({ retomada: { modo: "sessao", id: "sessao-9" } });
   });
 
+  it("depois do fim da sessão, continuar reabre a sessão desta análise, não a última da pasta", async () => {
+    const { terminal } = montar(
+      { tipo: "reabrir" },
+      vistaFicticia({ sessao: { id: "sessao-9", estado: "encerrada", cliente: "claude-code" } }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Escolher onde continuar" }));
+    fireEvent.click(within(abrirMenu()).getByRole("button", { name: "Retomar a conversa" }));
+    await waitFor(() => expect(terminal.aberturas).toHaveLength(1));
+    await act(async () => terminal.aberturas[0].resolver(1));
+    // O `--resume` falhou (por exemplo, sessão sem transcrição) e o processo saiu.
+    act(() => terminal.aberturas[0].aoEvento({ tipo: "encerrado", fim: { codigo: 1 } }));
+    const term = await screen.findByRole("region", { name: "Terminal do Claude Code" });
+    fireEvent.click(await within(term).findByRole("button", { name: "Continuar a conversa" }));
+    await waitFor(() => expect(terminal.aberturas).toHaveLength(2));
+    expect(terminal.aberturas[1].pedido).toEqual({ retomada: { modo: "sessao", id: "sessao-9" } });
+  });
+
+  it("sessão sem conversa gravada não é oferecida para retomar", async () => {
+    const { terminal } = montar(
+      { tipo: "reabrir" },
+      vistaFicticia({ sessao: { id: "f435", estado: "encerrada", cliente: "claude-code" } }),
+      opcoesFicticias({ sessao: null, pedido: "Retome a análise A-0001 pelo ctower" }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Escolher onde continuar" }));
+    const menu = abrirMenu();
+    expect(within(menu).queryByRole("button", { name: "Retomar a conversa" })).not.toBeInTheDocument();
+    fireEvent.click(
+      await within(menu).findByRole("button", { name: "Nova conversa sobre esta análise" }),
+    );
+    await waitFor(() => expect(terminal.aberturas).toHaveLength(1));
+    expect(terminal.aberturas[0].pedido).toEqual({
+      promptInicial: "Retome a análise A-0001 pelo ctower",
+    });
+  });
+
   it("reabre uma análise sem sessão com o pedido de retomar_analise", async () => {
     const { terminal } = montar({ tipo: "reabrir" });
-    expect(screen.queryByRole("button", { name: "Retomar a conversa" })).not.toBeInTheDocument();
-    const nova = await screen.findByRole("button", { name: "Nova conversa sobre esta análise" });
+    await screen.findByText("Nenhuma afirmação registrada ainda.");
+    const menu = abrirMenu();
+    expect(within(menu).queryByRole("button", { name: "Retomar a conversa" })).not.toBeInTheDocument();
+    const nova = await within(menu).findByRole("button", {
+      name: "Nova conversa sobre esta análise",
+    });
     await waitFor(() => expect(nova).toBeEnabled());
     fireEvent.click(nova);
     await waitFor(() => expect(terminal.aberturas).toHaveLength(1));
@@ -266,16 +396,26 @@ describe("PainelAnalise", () => {
     expect(conversa.abrirPorLink).toHaveBeenCalledTimes(1);
     expect(await screen.findByText(/confirme a pasta e envie/)).toBeVisible();
     expect(terminal.api.abrir).not.toHaveBeenCalled();
-    // O preferido aparece primeiro, marcado; o terminal embutido fica no botão de voltar.
-    const cartoes = within(screen.getByRole("group", { name: "Clientes da conversa" }))
+    // O preferido aparece primeiro, marcado como preferido e como onde a conversa está.
+    const menu = abrirMenu();
+    expect(menu).toHaveTextContent("A conversa está no Claude Desktop.");
+    const cartoes = within(within(menu).getByRole("group", { name: "Clientes da conversa" }))
       .getAllByRole("region")
-      .map((r) => r.getAttribute("data-cliente"));
-    expect(cartoes).toEqual(["claudeDesktop", "terminalDoAnalista"]);
-    expect(screen.getByText("preferido")).toBeInTheDocument();
-    // Voltar à conversa aqui, sem sessão ligada ainda: a mais recente da pasta.
-    fireEvent.click(screen.getByRole("button", { name: "Voltar à conversa aqui" }));
+      .map((r) => [r.getAttribute("data-cliente"), r.getAttribute("data-agora")]);
+    expect(cartoes).toEqual([
+      ["claudeDesktop", "true"],
+      ["terminalEmbutido", null],
+      ["terminalDoAnalista", null],
+    ]);
+    expect(within(menu).getByText("preferido")).toBeInTheDocument();
+    // Voltar à conversa aqui, sem sessão ligada ainda: conversa nova com o pedido da
+    // análise, nunca a mais recente da pasta (pode ser de outra análise).
+    fireEvent.click(within(menu).getByRole("button", { name: "Voltar à conversa aqui" }));
     await waitFor(() => expect(terminal.aberturas).toHaveLength(1));
-    expect(terminal.aberturas[0].pedido).toEqual({ retomada: { modo: "continuar" } });
+    expect(terminal.aberturas[0].pedido).toEqual({
+      retomada: { modo: "nova" },
+      promptInicial: "Inicie a análise A-0001 pelo ctower",
+    });
   });
 
   it("sem as opções (comando ausente), a análise nova usa o terminal embutido", async () => {
@@ -297,10 +437,11 @@ describe("PainelAnalise", () => {
     );
     await waitFor(() => expect(terminal.aberturas).toHaveLength(1));
     expect(terminal.aberturas[0].pedido).toEqual({ promptInicial: "Inicie" });
-    // Sem as opções, o botão do Desktop não aparece.
-    expect(
-      screen.queryByRole("button", { name: "Continuar no Claude Desktop" }),
-    ).not.toBeInTheDocument();
+    // Sem as opções, o menu tem só o terminal embutido.
+    const cartoes = within(abrirMenu())
+      .getAllByRole("region")
+      .map((r) => r.getAttribute("data-cliente"));
+    expect(cartoes).toEqual(["terminalEmbutido"]);
   });
 
   it("retoma no Desktop a sessão iniciada no terminal embutido e volta", async () => {
@@ -309,7 +450,10 @@ describe("PainelAnalise", () => {
       vistaFicticia({ sessao: { id: "sessao-1", estado: "encerrada", cliente: "claude-code" } }),
       opcoesFicticias({ sessao: "sessao-1" }),
     );
-    fireEvent.click(await screen.findByRole("button", { name: "Retomar no Claude Desktop" }));
+    await screen.findByText("Nenhuma afirmação registrada ainda.");
+    fireEvent.click(
+      await within(abrirMenu()).findByRole("button", { name: "Retomar no Claude Desktop" }),
+    );
     await waitFor(() =>
       expect(conversa.retomarNoDesktop).toHaveBeenCalledWith("faturamento-exemplo", "A-0001"),
     );
@@ -336,11 +480,16 @@ describe("PainelAnalise", () => {
       codigo: 1,
       mensagem: "Session is open in another terminal",
     });
-    fireEvent.click(await screen.findByRole("button", { name: "Retomar no Claude Desktop" }));
+    await screen.findByText("Nenhuma afirmação registrada ainda.");
+    fireEvent.click(
+      await within(abrirMenu()).findByRole("button", { name: "Retomar no Claude Desktop" }),
+    );
     const alerta = await screen.findByRole("alert");
     expect(alerta).toHaveTextContent("Session is open in another terminal");
     expect(alerta).toHaveTextContent("conversa nova no Desktop");
-    fireEvent.click(screen.getByRole("button", { name: "Nova conversa no Claude Desktop" }));
+    fireEvent.click(
+      within(abrirMenu()).getByRole("button", { name: "Nova conversa no Claude Desktop" }),
+    );
     await waitFor(() =>
       expect(conversa.abrirPorLink).toHaveBeenCalledWith(
         "faturamento-exemplo",
@@ -362,7 +511,10 @@ describe("PainelAnalise", () => {
       orientacao: [],
       mensagem: "o Claude Code 2.1.200 não abre sessões no Desktop",
     });
-    fireEvent.click(await screen.findByRole("button", { name: "Retomar no Claude Desktop" }));
+    await screen.findByText("Nenhuma afirmação registrada ainda.");
+    fireEvent.click(
+      await within(abrirMenu()).findByRole("button", { name: "Retomar no Claude Desktop" }),
+    );
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "o Claude Code 2.1.200 não abre sessões no Desktop",
     );
@@ -377,7 +529,8 @@ describe("PainelAnalise", () => {
         comandoRetomada: "cd /codigo/faturamento-exemplo && claude --resume sessao-1",
       }),
     );
-    const cartao = await screen.findByRole("region", { name: "No meu terminal" });
+    await screen.findByText("Nenhuma afirmação registrada ainda.");
+    const cartao = await within(abrirMenu()).findByRole("region", { name: "No meu terminal" });
     expect(
       within(cartao).getByText("cd /codigo/faturamento-exemplo && claude --resume sessao-1"),
     ).toBeInTheDocument();
@@ -417,11 +570,14 @@ describe("PainelAnalise", () => {
       }),
     );
     await terminalAberto(terminal, 4);
-    fireEvent.click(screen.getByRole("button", { name: "Continuar no meu terminal" }));
+    fireEvent.click(
+      await within(abrirMenu()).findByRole("button", { name: "Continuar no meu terminal" }),
+    );
     await waitFor(() => expect(terminal.api.encerrar).toHaveBeenCalledWith(4));
     expect(await screen.findByText(/A conversa continua no seu terminal/)).toBeVisible();
+    // O menu continua aberto, com o comando para copiar.
     expect(
-      screen.getByText("cd /codigo/faturamento-exemplo && claude --resume sessao-1"),
+      within(abrirMenu()).getByText("cd /codigo/faturamento-exemplo && claude --resume sessao-1"),
     ).toBeVisible();
   });
 
@@ -443,11 +599,19 @@ describe("PainelAnalise", () => {
       }),
     );
     await terminalAberto(terminal);
-    expect(screen.getByRole("button", { name: "Continuar no meu terminal" })).toBeEnabled();
+    const menu = abrirMenu();
+    const meuTerminal = await within(menu).findByRole("button", {
+      name: "Continuar no meu terminal",
+    });
+    expect(meuTerminal).toBeEnabled();
     expect(
-      screen.queryByRole("button", { name: "Continuar no Claude Desktop" }),
+      within(menu).queryByRole("button", { name: "Continuar no Claude Desktop" }),
     ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Continuar no meu terminal" }));
+    const cartoes = within(menu)
+      .getAllByRole("region")
+      .map((r) => r.getAttribute("data-cliente"));
+    expect(cartoes[cartoes.length - 1]).toBe("claudeDesktop");
+    fireEvent.click(meuTerminal);
     expect(await screen.findByText("o Claude Desktop não existe para Linux")).toBeVisible();
   });
 });

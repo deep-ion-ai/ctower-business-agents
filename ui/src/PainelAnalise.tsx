@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   apiAlteracoesTauri,
   intervaloDe,
@@ -6,21 +6,30 @@ import {
   type ApiAlteracoes,
   type ApiAnalise,
   type Evidencia,
+  type Pergunta,
 } from "./analise";
 import type { Revisao } from "./AcoesRevisao";
 import { AprovacaoAnalise } from "./AprovacaoAnalise";
 import { AprovacaoAta } from "./AprovacaoAta";
 import { AvisoAlteracao } from "./AvisoAlteracao";
+import { BotaoPainel } from "./BotaoPainel";
 import { ClientesConversa, type Modo } from "./ClientesConversa";
+import { DivisorColunas, useLarguraConversa } from "./DivisorColunas";
 import {
   apiConversaTauri,
   comoOpcoes,
-  desktopDisponivel,
   principal,
   type ApiConversa,
+  type ClienteConversa,
   type OpcoesConversa,
 } from "./conversa";
-import { chaveEvidencia, DocumentoAoVivo } from "./DocumentoAoVivo";
+import {
+  chaveEvidencia,
+  DocumentoAoVivo,
+  ROTULO_ANALISE,
+  SeloSessao,
+  type OrigemEvidencia,
+} from "./DocumentoAoVivo";
 import { ExportacaoAnalise } from "./ExportacaoAnalise";
 import { PromptsProntos } from "./PromptsProntos";
 import { apiRevisaoTauri, type ApiRevisao, type DecisaoRevisao } from "./revisao";
@@ -41,6 +50,15 @@ export type Abertura =
 
 /** Onde a conversa está, quando não está no terminal embutido. */
 type Fora = { cliente: "claudeDesktop" | "terminalDoAnalista"; aviso: string };
+
+/** Painel aberto na barra (um por vez). */
+type Menu = "alteracao" | "continuar" | "aprovar" | "exportar";
+
+const ONDE_TEXTO: Record<ClienteConversa, string> = {
+  terminalEmbutido: "aqui, no terminal do app",
+  claudeDesktop: "no Claude Desktop",
+  terminalDoAnalista: "no seu terminal",
+};
 
 interface Props {
   api: ApiAnalise;
@@ -72,14 +90,20 @@ const AVISO_TERMINAL =
   "A conversa continua no seu terminal. O documento ao lado se atualiza sozinho a cada registro.";
 
 /**
- * Tela da análise: a conversa de um lado e, do outro, o documento montado ao vivo,
- * com o trecho da evidência escolhida (spec, seções 4.2, 4.7, 6.3, 6.4 e 10).
+ * Tela da análise (spec, seções 4.2, 4.7, 6.3, 6.4 e 10; #130): o documento montado
+ * ao vivo à esquerda, com a maior largura e o trecho da evidência logo abaixo da
+ * afirmação, e a conversa à direita. Em telas estreitas, o documento vem primeiro.
+ *
+ * A barra do topo traz o id, o título e o estado da análise e, à direita, o aviso de
+ * alteração (ícone com contador), o menu "continuar a conversa" e os painéis de
+ * aprovação e exportação.
  *
  * A conversa acontece num de três clientes, o preferido do primeiro uso primeiro: o
  * terminal embutido, o Claude Desktop (link com o pedido, `/desktop` com a sessão viva
  * ou `claude --desktop --resume`) e o terminal do analista (comando para copiar ou
- * link `claude-cli://`). Fora do terminal embutido, fica o documento, com o botão
- * para voltar à conversa aqui.
+ * link `claude-cli://`). Fora do terminal embutido, a coluna da conversa mostra só o
+ * aviso curto e o botão para voltar à conversa aqui; o terminal fica montado,
+ * escondido.
  */
 export function PainelAnalise({
   api,
@@ -97,6 +121,8 @@ export function PainelAnalise({
 }: Props) {
   const { vista, erro, recarregar } = useAnaliseAoVivo(api, projeto, analise);
   const [revisando, setRevisando] = useState(false);
+  const colunas = useRef<HTMLDivElement>(null);
+  const [larguraConversa, mudarLarguraConversa] = useLarguraConversa();
   const [falhaRevisao, setFalhaRevisao] = useState<string | null>(null);
   const [opcoes, setOpcoes] = useState<OpcoesConversa | null>(null);
   const [opcoesProntas, setOpcoesProntas] = useState(false);
@@ -106,13 +132,25 @@ export function PainelAnalise({
   const [fora, setFora] = useState<Fora | null>(null);
   const [estadoTerminal, setEstadoTerminal] = useState<EstadoTerminal | null>(null);
   const [trecho, setTrecho] = useState<CargaTrecho | null>(null);
+  const [origemTrecho, setOrigemTrecho] = useState<OrigemEvidencia | null>(null);
+  const [menu, setMenu] = useState<Menu | null>(null);
   const [falhaEnvio, setFalhaEnvio] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const controle = useRef<ControleTerminal>(null);
   const comecou = useRef(false);
   const vivo = estadoTerminal?.fase === "aberto";
-  const sessao = vista?.sessao?.id ?? opcoes?.sessao ?? null;
+  // As opções trazem a sessão só se a conversa dela foi gravada (dá para retomar);
+  // sem as opções (comando ausente), vale a sessão vista pelos hooks.
+  const sessao = opcoes ? opcoes.sessao : (vista?.sessao?.id ?? null);
+  const onde: ClienteConversa | null = fora
+    ? fora.cliente
+    : conversa
+      ? "terminalEmbutido"
+      : null;
+
+  const fecharMenu = useCallback(() => setMenu(null), []);
+  const alternar = (m: Menu) => () => setMenu((atual) => (atual === m ? null : m));
 
   // As opções dependem da sessão ligada: relidas quando ela muda.
   useEffect(() => {
@@ -134,9 +172,22 @@ export function PainelAnalise({
     setConversa((c) => ({ chave: (c?.chave ?? 0) + 1, pedido }));
   }, []);
 
+  /**
+   * Retomada desta análise: a sessão dela pelo identificador ou, sem sessão conhecida,
+   * uma conversa nova com o pedido de retomada. Nunca `--continue`, que abre a última
+   * conversa da pasta, de qualquer análise (#130).
+   */
+  const pedidoRetomada = useCallback(
+    (): PedidoClaude =>
+      sessao
+        ? { retomada: { modo: "sessao", id: sessao } }
+        : { retomada: { modo: "nova" }, promptInicial: opcoes?.pedido || undefined },
+    [sessao, opcoes?.pedido],
+  );
+
   const retomar = useCallback(() => {
-    conversar({ retomada: sessao ? { modo: "sessao", id: sessao } : { modo: "continuar" } });
-  }, [conversar, sessao]);
+    conversar(pedidoRetomada());
+  }, [conversar, pedidoRetomada]);
 
   const falhar = (e: unknown) => setFalhaEnvio(mensagemDe(e));
 
@@ -180,6 +231,7 @@ export function PainelAnalise({
   };
 
   const noDesktop = (modo: Modo) => {
+    setMenu(null);
     setFalhaEnvio(null);
     setAviso(null);
     if (modo === "nova") return abrirPorLink("claudeDesktop");
@@ -203,6 +255,7 @@ export function PainelAnalise({
   };
 
   const linkTerminal = () => {
+    setMenu(null);
     // Duas cópias do Claude na mesma conversa gravam uma por cima da outra.
     if (vivo) controle.current?.encerrar().catch(() => undefined);
     abrirPorLink("terminalDoAnalista");
@@ -223,11 +276,13 @@ export function PainelAnalise({
   };
 
   const aqui = (modo: Modo) => {
+    setMenu(null);
     if (modo === "retomar") retomar();
     else if (vista) conversar({ promptInicial: vista.promptRetomada });
   };
 
   const voltarAConversa = () => {
+    setMenu(null);
     if (vivo) {
       setFora(null);
       setAviso(null);
@@ -235,20 +290,56 @@ export function PainelAnalise({
   };
 
   /** Pedido de aprofundamento: com a sessão viva aqui, o prompt pronto vai ao terminal. */
-  const aprofundar = (numero: number) => {
+  const aprofundar = (numero: number, pedido?: string) => {
     if (!vivo) return setAviso(AVISO_APROFUNDAR);
     api
       .promptsProntos(projeto, analise)
       .then((lista) => {
         const pronto = lista.find((p) => p.id === "aprofundar");
-        if (pronto) enviar(`${pronto.texto} Comece pela afirmação ${numero}.`);
+        // O terminal envia a cada quebra de linha: o pedido vai numa linha só.
+        const detalhe = pedido?.replace(/\s+/g, " ").trim();
+        if (pronto)
+          enviar(
+            `${pronto.texto} Comece pela afirmação ${numero}` +
+              (detalhe ? `; o analista quer: ${detalhe}` : "."),
+          );
         else setAviso(AVISO_APROFUNDAR);
       })
       .catch(() => setAviso(AVISO_APROFUNDAR));
   };
 
+  /**
+   * Envia ao agente as respostas ainda não enviadas, numa mensagem só, e as marca
+   * como enviadas.
+   */
+  const enviarRespostas = (perguntas: Pergunta[]) => {
+    const linha = (t: string) => t.replace(/\s+/g, " ").trim();
+    const respostas = perguntas
+      .map((p) =>
+        p.estado === "respondida"
+          ? `Pergunta ${p.numero} ("${linha(p.texto)}"): ${linha(p.resposta)}`
+          : "",
+      )
+      .filter(Boolean)
+      .join(" | ");
+    const texto =
+      `Respondi perguntas da análise ${analise}. ${respostas}. ` +
+      "Use estas respostas para atualizar a análise pelo ctower: registre com `afirmar` o " +
+      "que elas confirmam ou corrigem e, se surgir uma dúvida nova, use `perguntar`.";
+    setFalhaEnvio(null);
+    const numeros = perguntas.map((p) => p.numero);
+    controle.current
+      ?.enviarPrompt(texto)
+      .then(
+        // A recusa da marcação aparece como falha da revisão.
+        () => revisao.aoDecidir({ tipo: "respostas-enviadas", numeros }).catch(() => undefined),
+        falhar,
+      );
+  };
+
   const revisao: Revisao = {
     ocupado: revisando,
+    respostas: { disponivel: vivo, aoEnviar: enviarRespostas },
     aoDecidir: (d: DecisaoRevisao) => {
       setRevisando(true);
       setFalhaRevisao(null);
@@ -256,7 +347,7 @@ export function PainelAnalise({
         .revisar(projeto, analise, d)
         .then(() => {
           recarregar();
-          if (d.tipo === "afirmacao" && d.estado === "aprofundar") aprofundar(d.numero);
+          if (d.tipo === "afirmacao" && d.estado === "aprofundar") aprofundar(d.numero, d.pedido);
         })
         .catch((e: unknown) => {
           setFalhaRevisao(mensagemDe(e));
@@ -266,8 +357,16 @@ export function PainelAnalise({
     },
   };
 
-  const abrirEvidencia = (e: Evidencia) => {
+  const fecharTrecho = () => {
+    setTrecho(null);
+    setOrigemTrecho(null);
+  };
+
+  const abrirEvidencia = (e: Evidencia, origem: OrigemEvidencia) => {
     const chave = chaveEvidencia(e);
+    // A mesma evidência no mesmo lugar: fecha o trecho.
+    if (trecho?.chave === chave && origemTrecho === origem) return fecharTrecho();
+    setOrigemTrecho(origem);
     const { inicio, fim } = intervaloDe(e.linhas);
     setTrecho({ tipo: "carregando", chave });
     api
@@ -284,100 +383,132 @@ export function PainelAnalise({
       );
   };
 
-  const clientes = (semAqui: boolean) => (
-    <ClientesConversa
-      opcoes={opcoes}
-      temSessao={sessao !== null}
-      semAqui={semAqui}
-      ocupado={ocupado}
-      podeNova={!!vista}
-      aoAqui={aqui}
-      aoDesktop={noDesktop}
-      aoLinkTerminal={linkTerminal}
-      aoCopiar={copiar}
-    />
-  );
-
   return (
     <div className="painel-analise">
-      <div className="painel-barra">
+      <header className="painel-barra">
         <button className="btn" type="button" onClick={aoVoltar}>
           ← Análises
         </button>
-        <strong>{analise}</strong>
-      </div>
-      <div className="painel-colunas">
-        <section className="painel-conversa" aria-label="Conversa">
-          {falhaEnvio && (
-            <p className="error-text" role="alert">
-              {falhaEnvio}
-            </p>
-          )}
-          {aviso && (
-            <p className="muted" role="status">
-              {aviso}
-            </p>
-          )}
-          {fora && (
-            <div className="aviso-desktop" role="status">
-              <p>{fora.aviso}</p>
-              <button className="btn" type="button" onClick={voltarAConversa}>
-                Voltar à conversa aqui
-              </button>
-              {clientes(true)}
+        <div className="painel-identidade">
+          <div className="painel-titulo-linha">
+            <h2
+              className="painel-titulo"
+              aria-label={vista ? `${analise}: ${vista.analise.titulo}` : analise}
+            >
+              <span className="painel-id">{analise}</span>
+              {vista && <span>{vista.analise.titulo}</span>}
+            </h2>
+            {vista && (
+              <span
+                className="badge"
+                data-tone={vista.analise.estado === "aprovada" ? "done" : undefined}
+              >
+                {ROTULO_ANALISE[vista.analise.estado]}
+              </span>
+            )}
+          </div>
+          {vista && (
+            <div className="painel-subtitulo muted">
+              <span>versão {vista.analise.versao}</span>
+              <SeloSessao sessao={vista.sessao} />
             </div>
           )}
-          {!conversa && !fora && (abertura.tipo === "reabrir" || opcoesProntas) && (
-            <div className="iniciar-conversa">
-              <p>Como continuar esta análise?</p>
-              {clientes(false)}
-            </div>
-          )}
-          {conversa && (
-            // Escondido (e não desmontado) fora daqui: desmontar encerraria o processo.
-            <div hidden={fora !== null} className="painel-terminal">
-              <div className="terminal-controles">
-                <PromptsProntos
-                  api={api}
-                  projeto={projeto}
-                  analise={analise}
-                  habilitado={vivo}
-                  aoEnviar={enviar}
-                />
-                {desktopDisponivel(opcoes) && (
-                  <button
-                    className="btn"
-                    type="button"
-                    disabled={!vivo}
-                    onClick={continuarNoDesktop}
-                  >
-                    Continuar no Claude Desktop
-                  </button>
-                )}{" "}
-                <button className="btn" type="button" onClick={noMeuTerminal}>
-                  Continuar no meu terminal
-                </button>
-              </div>
-              <TerminalClaude
-                key={conversa.chave}
-                ref={controle}
-                projeto={projeto}
-                pedido={conversa.pedido}
-                aoMudarEstado={setEstadoTerminal}
-                api={apiTerminal}
-                criarTela={criarTela}
-              />
-            </div>
-          )}
-        </section>
-        <section className="painel-documento" aria-label="Documento ao vivo">
+        </div>
+        <div className="painel-acoes">
           <AvisoAlteracao
             api={apiAlteracoes}
             vigiar={api.vigiar}
             projeto={projeto}
             analise={analise}
+            aberto={menu === "alteracao"}
+            aoAlternar={alternar("alteracao")}
+            aoFechar={fecharMenu}
           />
-          {trecho && <TrechoEvidencia carga={trecho} aoFechar={() => setTrecho(null)} />}
+          <BotaoPainel
+            aberto={menu === "continuar"}
+            aoAlternar={alternar("continuar")}
+            aoFechar={fecharMenu}
+            rotulo="Continuar a conversa"
+            classeBotao="btn-icone btn-continuar"
+            conteudo={<IconeConversa />}
+            rotuloPainel="Onde continuar a conversa"
+            classePainel="menu-continuar"
+          >
+            <p className="muted">
+              {onde
+                ? `A conversa está ${ONDE_TEXTO[onde]}.`
+                : "Nenhuma conversa aberta. Escolha onde continuar esta análise."}
+            </p>
+            <ClientesConversa
+              opcoes={opcoes}
+              temSessao={sessao !== null}
+              onde={onde}
+              vivo={vivo}
+              ocupado={ocupado}
+              podeNova={!!vista}
+              aoAqui={aqui}
+              aoVoltarAqui={voltarAConversa}
+              aoDesktop={noDesktop}
+              aoMeuTerminal={noMeuTerminal}
+              aoLinkTerminal={linkTerminal}
+              aoCopiar={copiar}
+            />
+          </BotaoPainel>
+          {vista && (
+            <>
+              <span className="separador" aria-hidden="true" />
+              <BotaoPainel
+                aberto={menu === "aprovar"}
+                aoAlternar={alternar("aprovar")}
+                aoFechar={fecharMenu}
+                rotulo="Aprovar"
+                rotuloPainel={vista.analise.fluxo === "reuniao" ? "Aprovar a ata" : "Aprovar a análise"}
+                classePainel="painel-revisao"
+              >
+                {vista.analise.fluxo === "reuniao" ? (
+                  // A análise de uma reunião é aprovada com a ata, que apaga o transcript.
+                  <AprovacaoAta
+                    api={apiReuniao}
+                    projeto={projeto}
+                    analise={analise}
+                    versao={vista.analise.versao}
+                    aoAprovar={recarregar}
+                  />
+                ) : (
+                  <AprovacaoAnalise
+                    api={apiRevisao}
+                    projeto={projeto}
+                    analise={analise}
+                    versao={vista.analise.versao}
+                    aoAprovar={recarregar}
+                  />
+                )}
+              </BotaoPainel>
+              <BotaoPainel
+                aberto={menu === "exportar"}
+                aoAlternar={alternar("exportar")}
+                aoFechar={fecharMenu}
+                rotulo="Exportar"
+                rotuloPainel="Exportar o documento"
+                classePainel="painel-revisao"
+              >
+                <ExportacaoAnalise
+                  api={apiRevisao}
+                  projeto={projeto}
+                  analise={analise}
+                  aprovada={vista.analise.estado === "aprovada"}
+                />
+              </BotaoPainel>
+            </>
+          )}
+        </div>
+      </header>
+      <div
+        className="painel-colunas"
+        ref={colunas}
+        style={{ "--largura-conversa": `${larguraConversa}px` } as CSSProperties}
+      >
+        <section className="painel-documento" aria-label="Documento ao vivo">
           {erro && (
             <p className="error-text" role="alert">
               {erro}
@@ -405,41 +536,113 @@ export function PainelAnalise({
           {vista && (
             <DocumentoAoVivo
               vista={vista}
+              semCabecalho
               evidenciaAberta={trecho?.chave ?? null}
               aoAbrirEvidencia={abrirEvidencia}
+              origemTrecho={origemTrecho}
+              trecho={trecho && <TrechoEvidencia carga={trecho} aoFechar={fecharTrecho} />}
               revisao={revisao}
             />
           )}
-          {vista && (
-            <div className="revisao-analise">
-              {vista.analise.fluxo === "reuniao" ? (
-                // A análise de uma reunião é aprovada com a ata, que apaga o transcript.
-                <AprovacaoAta
-                  api={apiReuniao}
-                  projeto={projeto}
-                  analise={analise}
-                  versao={vista.analise.versao}
-                  aoAprovar={recarregar}
-                />
-              ) : (
-                <AprovacaoAnalise
-                  api={apiRevisao}
-                  projeto={projeto}
-                  analise={analise}
-                  versao={vista.analise.versao}
-                  aoAprovar={recarregar}
-                />
-              )}
-              <ExportacaoAnalise
-                api={apiRevisao}
+        </section>
+        <DivisorColunas
+          colunas={colunas}
+          largura={larguraConversa}
+          aoMudar={mudarLarguraConversa}
+        />
+        <section className="painel-conversa" aria-label="Conversa">
+          <div className="conversa-cabecalho">
+            <span className="ponto-conversa" data-onde={onde ?? "nenhum"} aria-hidden="true" />
+            <span className="conversa-onde">
+              Conversa · {onde ? ONDE_TEXTO[onde] : "nenhuma aberta"}
+            </span>
+            {conversa && !fora && (
+              <PromptsProntos
+                api={api}
                 projeto={projeto}
                 analise={analise}
-                aprovada={vista.analise.estado === "aprovada"}
+                habilitado={vivo}
+                aoEnviar={enviar}
+              />
+            )}
+          </div>
+          {falhaEnvio && (
+            <p className="error-text" role="alert">
+              {falhaEnvio}
+            </p>
+          )}
+          {aviso && (
+            <p className="muted" role="status">
+              {aviso}
+            </p>
+          )}
+          {fora && (
+            <div className="aviso-desktop" role="status">
+              <p>{fora.aviso}</p>
+              <button className="btn" type="button" onClick={voltarAConversa}>
+                Voltar à conversa aqui
+              </button>
+            </div>
+          )}
+          {!conversa && !fora && (abertura.tipo === "reabrir" || opcoesProntas) && (
+            <div className="sem-conversa">
+              <p className="muted">Nenhuma conversa aberta nesta análise.</p>
+              <button className="btn" type="button" onClick={() => setMenu("continuar")}>
+                Escolher onde continuar
+              </button>
+            </div>
+          )}
+          {conversa && (
+            // Escondido (e não desmontado) fora daqui: desmontar encerraria o processo.
+            <div hidden={fora !== null} className="painel-terminal">
+              <TerminalClaude
+                key={conversa.chave}
+                ref={controle}
+                projeto={projeto}
+                pedido={conversa.pedido}
+                continuacao={pedidoRetomada}
+                aoMudarEstado={setEstadoTerminal}
+                api={apiTerminal}
+                criarTela={criarTela}
               />
             </div>
           )}
         </section>
       </div>
     </div>
+  );
+}
+
+function IconeConversa() {
+  return (
+    <>
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" />
+        <path d="M10 9l3 3-3 3" />
+      </svg>
+      <svg
+        width="12"
+        height="12"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M6 9l6 6 6-6" />
+      </svg>
+    </>
   );
 }

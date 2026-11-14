@@ -152,6 +152,10 @@ describe("PainelAnalise de uma reunião", () => {
         criarTela={() => telaFalsa()}
       />,
     );
+    // A aprovação fica no menu "Aprovar" da barra do painel.
+    const barra = await screen.findByRole("banner");
+    fireEvent.click(await within(barra).findByRole("button", { name: "Aprovar" }));
+    expect(screen.getByRole("region", { name: "Aprovar a ata" })).toBeVisible();
     expect(await screen.findByRole("region", { name: "Aprovação da ata" })).toBeVisible();
     expect(reuniao.prontidaoAta).toHaveBeenCalledWith(PROJETO, "A-0001");
     expect(revisao.prontidao).not.toHaveBeenCalled();

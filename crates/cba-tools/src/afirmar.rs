@@ -64,7 +64,7 @@ pub fn afirmar() -> Ferramenta {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 10000,
-                    "description": "A afirmação, em linguagem de negócio, com números quando houver (\"A multa por atraso é de 2% sobre o valor original\")."
+                    "description": "A afirmação, em linguagem de negócio, com números quando houver (\"A multa por atraso é de 2% sobre o valor original\"). Aceita Markdown simples: quando enumerar itens (perfis, grupos, passos), use uma lista com um item por linha em vez de uma enumeração longa entre parênteses; use **negrito** só para o que o leitor precisa notar. Não cole código, JSON nem trechos minificados no texto: o código fica nas evidências."
                 },
                 "confianca": {
                     "type": "string",

@@ -566,48 +566,336 @@
 }
 
 .painel-barra {
+  position: relative;
   flex: none;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  padding: 6px 12px;
+  gap: 8px 12px;
+  padding: 8px 16px;
   border-bottom: 1px solid var(--border);
-  background: var(--bg-side);
+  background: var(--bg-header);
 }
 
-/* Terminal à esquerda, documento ao vivo à direita, cada um com a própria rolagem. */
+.painel-identidade {
+  flex: 1 1 320px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.painel-titulo-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.painel-titulo {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--text);
+}
+
+.painel-id {
+  font-family: var(--mono);
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.painel-subtitulo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  font-size: 12px;
+}
+
+.painel-subtitulo .selo-sessao {
+  margin: 0;
+}
+
+.painel-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.painel-acoes .separador {
+  width: 1px;
+  height: 28px;
+  margin: 0 4px;
+  background: var(--border);
+}
+
+/* Botão da barra com painel flutuante (#130). O painel se ancora na barra (e não no
+   botão), à direita, para caber na tela mesmo quando a barra quebra em linhas. */
+.botao-painel {
+  display: contents;
+}
+
+.btn-icone {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: var(--touch);
+  height: var(--touch);
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--btn-bg);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.btn-icone:hover {
+  background: var(--hover);
+}
+
+.btn-icone[aria-expanded="true"] {
+  border-color: var(--accent);
+}
+
+.btn-icone:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.btn-alteracao {
+  border-color: var(--attention-border);
+  background: var(--attention-bg);
+  color: var(--attention);
+}
+
+.btn-alteracao:hover {
+  background: var(--attention-bg);
+  filter: brightness(1.1);
+}
+
+.btn-alteracao .contador {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: var(--attention);
+  color: var(--on-attention);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+}
+
+.painel-flutuante {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 16px;
+  z-index: 20;
+  width: min(460px, calc(100vw - 32px));
+  max-height: min(70vh, 640px);
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 12px 32px var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.painel-flutuante > p {
+  margin: 0;
+}
+
+.menu-continuar {
+  width: min(400px, calc(100vw - 32px));
+}
+
+.painel-prompts {
+  width: min(320px, calc(100vw - 32px));
+}
+
+.painel-prompts .prompts-prontos {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.painel-revisao > section {
+  padding: 0;
+  border: 0;
+}
+
+.nota-alteracao {
+  margin: 0;
+  font-size: 12px;
+}
+
+/* Documento ao vivo à esquerda, com a maior largura; conversa à direita, mais
+   estreita. Em telas estreitas, as colunas empilham: o documento primeiro. */
 .painel-colunas {
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  display: flex;
+  align-items: stretch;
+  overflow: auto;
 }
 
-@media (max-width: 1100px) {
-  .painel-colunas {
-    grid-template-columns: minmax(0, 1fr);
-    grid-auto-rows: minmax(28rem, auto);
-    overflow: auto;
-  }
-}
-
-.painel-conversa,
-.painel-documento {
+.painel-documento,
+.painel-conversa {
   min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 12px;
-}
-
-.painel-conversa {
-  border-right: 1px solid var(--border);
 }
 
 .painel-documento {
+  flex: 1 1 0;
+  max-height: 100%;
   overflow-y: auto;
+  box-sizing: border-box;
+  padding: 20px 28px 32px;
   background: var(--surface);
+}
+
+.painel-conversa {
+  /* Largura do divisor arrastável (#130). */
+  flex: 0 0 var(--largura-conversa, 460px);
+  max-height: 100%;
+  box-sizing: border-box;
+  background: var(--bg-side);
+}
+
+/* Empilhadas (a conversa ocupa a linha toda), cada uma com altura própria. */
+/* Divisor entre o documento e a conversa: a linha fina e uma área de pega maior. */
+.divisor-colunas {
+  position: relative;
+  flex: 0 0 1px;
+  background: var(--border);
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.divisor-colunas::before {
+  content: "";
+  position: absolute;
+  inset: 0 -4px;
+  z-index: 1;
+}
+
+.divisor-colunas:hover,
+.divisor-colunas[data-arrastando],
+.divisor-colunas:focus-visible {
+  background: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* Arrastando: sem selecionar texto nem o terminal roubar o ponteiro. */
+.painel-colunas:has(.divisor-colunas[data-arrastando]) {
+  user-select: none;
+  cursor: col-resize;
+}
+
+.painel-colunas:has(.divisor-colunas[data-arrastando]) .painel-conversa {
+  pointer-events: none;
+}
+
+@media (max-width: 1100px) {
+  .painel-colunas {
+    flex-direction: column;
+  }
+
+  .divisor-colunas {
+    display: none;
+  }
+
+  .painel-documento,
+  .painel-conversa {
+    max-height: none;
+  }
+
+  .painel-documento {
+    flex: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .painel-conversa {
+    flex: none;
+    min-height: 28rem;
+  }
+}
+
+.conversa-cabecalho {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.conversa-onde {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.ponto-conversa {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+.ponto-conversa[data-onde="terminalEmbutido"] {
+  background: var(--ok);
+}
+
+.ponto-conversa[data-onde="claudeDesktop"],
+.ponto-conversa[data-onde="terminalDoAnalista"] {
+  background: var(--running);
+}
+
+.painel-conversa > :not(.conversa-cabecalho) {
+  margin: 0 12px;
+}
+
+.painel-conversa > .painel-terminal {
+  margin: 8px 12px 12px;
+}
+
+.sem-conversa {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.sem-conversa p {
+  margin: 0;
 }
 
 .painel-terminal,
@@ -639,8 +927,7 @@
 
 .terminal-situacao,
 .preparar-ambiente,
-.aviso-desktop,
-.iniciar-conversa {
+.aviso-desktop {
   padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -654,10 +941,6 @@
 .terminal-erro {
   border-color: var(--error-border);
   background: var(--error-bg);
-}
-
-.prompts-prontos {
-  display: contents;
 }
 
 /* Documento ao vivo */
@@ -886,15 +1169,190 @@
   margin: 4px 0;
 }
 
-.revisao-analise {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+
+
+/* Ações da revisão: ícones compactos, com a dica no title (#130). */
+.acoes-revisao {
+  gap: 4px;
+  margin-top: 6px;
 }
 
-.revisao-analise > section {
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
+.btn-acao {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 6px;
+  color: var(--muted);
+}
+
+.btn-acao[data-tom="ok"]:hover:not(:disabled) {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+
+.btn-acao[data-tom="erro"]:hover:not(:disabled) {
+  color: var(--error);
+  border-color: var(--error);
+}
+
+.btn-acao:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Código no texto das afirmações (#130). */
+.afirmacao .texto code,
+.codigo-afirmacao {
+  font-family: var(--mono);
+  font-size: 0.86em;
+  background: var(--hover);
+  border-radius: 4px;
+}
+
+.afirmacao .texto code {
+  padding: 1px 4px;
+  overflow-wrap: anywhere;
+}
+
+.ver-codigo {
+  margin: 0 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.9em;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.codigo-afirmacao {
+  display: block;
+  margin: 6px 0;
+  padding: 8px 10px;
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Rodapé da afirmação: o ícone do código e as ações da revisão numa linha (#130). */
+.rodape-afirmacao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.rodape-afirmacao .acoes-revisao {
+  margin-top: 0;
+}
+
+.rodape-afirmacao .acoes-revisao:has(.form-revisao) {
+  flex-basis: 100%;
+  order: 1;
+}
+
+.acoes-revisao .form-revisao {
+  flex: 1 1 100%;
+}
+
+.btn-codigo {
+  gap: 3px;
+}
+
+.btn-codigo[aria-expanded="true"] {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.contador-codigo {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Texto da afirmação em Markdown (#130): o primeiro parágrafo segue o selo na
+   mesma linha; listas e parágrafos seguintes vêm abaixo. */
+.afirmacao .texto > p {
+  margin: 6px 0 0;
+}
+
+.afirmacao .texto > p:first-child {
+  display: inline;
+  margin: 0;
+}
+
+.afirmacao .texto ul,
+.afirmacao .texto ol {
+  margin: 6px 0 0;
+  padding-left: 22px;
+}
+
+.afirmacao .texto li {
+  margin: 2px 0;
+}
+
+.afirmacao .texto blockquote {
+  margin: 6px 0 0;
+}
+
+.afirmacao .texto table {
+  margin-top: 6px;
+  border-collapse: collapse;
+  font-size: 0.92em;
+}
+
+.afirmacao .texto th,
+.afirmacao .texto td {
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
+.destaque-afirmacao {
+  display: block;
+  margin: 6px 0 0;
+}
+
+.afirmacao .texto > .destaque-afirmacao:first-child {
+  display: inline;
+  margin: 0;
+}
+
+/* Pedido de aprofundamento (#130). */
+.dialogo-aprofundar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: min(28rem, 80vw);
+}
+
+.dialogo-aprofundar blockquote {
+  max-height: 8rem;
+  margin: 0 0 6px;
+  padding-left: 8px;
+  overflow: auto;
+  border-left: 2px solid var(--border-strong);
+}
+
+.dialogo-aprofundar textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+/* Envio das respostas ao agente (#130). */
+.enviar-respostas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.enviar-respostas .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 /* Nova reunião e ata ao vivo (#141) */
