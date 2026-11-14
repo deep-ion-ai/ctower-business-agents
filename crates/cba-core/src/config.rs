@@ -1,7 +1,8 @@
 //! Configuração do app, compartilhada pelos modos do executável.
 //!
-//! Fica em `<dados>/config/app.json`. Por enquanto guarda só a pasta da base de
-//! conhecimento, escolhida pelo analista no primeiro uso (spec, seção 4.1, passo 3).
+//! Fica em `<dados>/config/app.json`. Guarda a pasta da base de conhecimento,
+//! escolhida pelo analista no primeiro uso (spec, seção 4.1, passo 3), e o prazo de
+//! retenção dos transcripts das reuniões (#136).
 //! Campos desconhecidos são ignorados na leitura, para uma versão mais nova do app
 //! poder acrescentar campos sem quebrar a mais antiga.
 
@@ -15,12 +16,20 @@ use crate::dados::DiretorioDados;
 
 const ARQUIVO: &str = "app.json";
 
+/// Prazo padrão, em dias, para apagar o transcript de uma reunião cuja ata não foi
+/// aprovada (decisão do épico #93).
+pub const PRAZO_RETENCAO_TRANSCRIPT: u32 = 30;
+
 /// Configuração do app.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Config {
     /// Pasta da base de conhecimento (caminho absoluto, desta máquina).
     #[serde(default)]
     pub base: Option<PathBuf>,
+    /// Dias que o transcript de uma reunião com a ata não aprovada fica guardado
+    /// antes de ser apagado. Ausente: [`PRAZO_RETENCAO_TRANSCRIPT`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retencao_transcript_dias: Option<u32>,
 }
 
 impl Config {
@@ -49,6 +58,13 @@ impl Config {
     pub fn base(&self) -> Option<&Path> {
         self.base.as_deref()
     }
+
+    /// Prazo de retenção dos transcripts, em dias (pelo menos 1).
+    pub fn prazo_retencao_transcript(&self) -> u32 {
+        self.retencao_transcript_dias
+            .unwrap_or(PRAZO_RETENCAO_TRANSCRIPT)
+            .max(1)
+    }
 }
 
 #[cfg(test)]
@@ -62,6 +78,7 @@ mod tests {
         assert_eq!(Config::ler(&dados).unwrap(), Config::default());
         let c = Config {
             base: Some(dir.path().join("base")),
+            retencao_transcript_dias: Some(15),
         };
         c.gravar(&dados).unwrap();
         assert_eq!(Config::ler(&dados).unwrap(), c);
@@ -78,6 +95,18 @@ mod tests {
         )
         .unwrap();
         assert_eq!(Config::ler(&dados).unwrap().base(), Some(Path::new("x")));
+    }
+
+    #[test]
+    fn prazo_de_retencao_padrao_e_configurado() {
+        assert_eq!(Config::default().prazo_retencao_transcript(), 30);
+        let c: Config = serde_json::from_str(r#"{"retencao_transcript_dias": 10}"#).unwrap();
+        assert_eq!(c.prazo_retencao_transcript(), 10);
+        let zero: Config = serde_json::from_str(r#"{"retencao_transcript_dias": 0}"#).unwrap();
+        assert_eq!(zero.prazo_retencao_transcript(), 1);
+        // Sem prazo configurado, o arquivo continua como antes.
+        let json = serde_json::to_string(&Config::default()).unwrap();
+        assert_eq!(json, r#"{"base":null}"#);
     }
 
     #[test]
