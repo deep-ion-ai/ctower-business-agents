@@ -1476,7 +1476,6 @@
   border-color: var(--error-border);
 }
 
-.parecer-ao-vivo .achado-cabecalho {
 /* Histórias e critérios de aceite (#115). */
 .historias-ao-vivo .historia {
   margin: 12px 0;
@@ -1489,6 +1488,7 @@
 .historias-ao-vivo .historia.situacao-quebrada {
   opacity: 0.6;
 }
+.parecer-ao-vivo .achado-cabecalho,
 .historia-cabecalho,
 .criterio-cabecalho {
   display: flex;
