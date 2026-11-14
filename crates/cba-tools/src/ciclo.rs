@@ -8,8 +8,9 @@
 //!   monta o documento em rascunho e devolve o roteiro do fluxo com o contexto da
 //!   base.
 //! - `retomar_analise` só lê: devolve a entrada, as afirmações com as evidências,
-//!   as perguntas, as sugestões e os termos, com o roteiro e o próximo passo, para
-//!   uma sessão nova continuar de onde a outra parou.
+//!   as perguntas, as sugestões e os termos, a memória de trabalho do agente
+//!   (`memorizar`, #143), o roteiro e o próximo passo, para uma sessão nova
+//!   continuar de onde a outra parou sem depender da conversa gravada.
 //! - `concluir_analise` confere as pendências (nenhuma afirmação, seção obrigatória
 //!   vazia, evidência que não confere mais com o código), muda o estado para
 //!   concluída, remonta o documento e devolve o caminho que o agente cita no chat.
@@ -23,6 +24,7 @@ use cba_core::analise::{
 };
 use cba_core::analises::NovaAnalise;
 use cba_core::eventos::Mudanca;
+use cba_core::memoria::Memoria;
 use cba_docs::Templates;
 use cba_index::detectar_git;
 use cba_kb::Id;
@@ -90,6 +92,21 @@ fn contagem(analise: &Analise) -> Value {
         "perguntas_abertas": perguntas_abertas(analise).count(),
         "sugestoes": analise.sugestoes.len(),
         "termos": analise.termos.len(),
+    })
+}
+
+/// Orientação da memória para quando o roteiro (uma cópia editável da base mais
+/// antiga que a `memorizar`) não fala dela.
+fn lembrete_da_memoria(roteiro: &str, id: &Id) -> Option<String> {
+    (!roteiro.contains("`memorizar`")).then(|| {
+        format!(
+            "\n## Memória da análise\n\nMantenha a memória da análise com `memorizar` \
+             (analise: \"{id}\"): o que foi investigado e descartado, as hipóteses em \
+             aberto, onde está o código, o que o analista orientou, o que ficou pendente \
+             e onde você parou. Atualize depois de uma descoberta relevante, quando o \
+             analista der uma orientação e antes de concluir: é o que uma conversa nova \
+             recebe em `retomar_analise` para continuar.\n"
+        )
     })
 }
 
@@ -265,6 +282,9 @@ fn iniciar(ambiente: &Ambiente, id: &Id, criada: bool) -> Result<Saida, ErroFerr
         );
     }
     texto.push_str(&roteiro);
+    if let Some(lembrete) = lembrete_da_memoria(&roteiro, id) {
+        texto.push_str(&lembrete);
+    }
     for aviso in &avisos {
         let _ = write!(texto, "\nAviso: {aviso}\n");
     }
@@ -313,7 +333,9 @@ pub fn retomar_analise() -> Ferramenta {
         "Retomar análise",
         "Devolve o estado de uma análise já iniciada (\"Retome a análise A-NNNN\"): \
          entrada, afirmações com as evidências, perguntas, sugestões e termos \
-         registrados até aqui, o que o analista já marcou, o roteiro do fluxo e o \
+         registrados até aqui, o que o analista já marcou, a memória da análise (o \
+         contexto gravado com `memorizar`: onde parou, o que foi investigado e \
+         descartado, onde está o código, o que foi combinado), o roteiro do fluxo e o \
          próximo passo. Use numa sessão nova para continuar de onde a outra parou, sem \
          registrar de novo o que já existe.",
         schema_so_da_analise(),
@@ -321,7 +343,8 @@ pub fn retomar_analise() -> Ferramenta {
             let args: ArgsAnalise = ler_argumentos(args)?;
             let id = comum::id_da_analise(&args.analise)?;
             let analise = ambiente.analises.carregar(&id)?;
-            Ok(retomar(ambiente, &analise))
+            let memoria = ambiente.analises.memoria(&id)?;
+            Ok(retomar(ambiente, &analise, &memoria))
         },
     )
     .somente_leitura()
@@ -353,9 +376,10 @@ fn proximo_passo(analise: &Analise) -> String {
              analise: \"{id}\"."
         ),
         EstadoAnalise::EmAndamento => format!(
-            "Continue de onde a sessão anterior parou: complete as seções que faltam, \
-             trate o que o analista marcou e não registre de novo o que já está aqui. Ao \
-             terminar, chame `concluir_analise` (analise: \"{id}\")."
+            "Continue de onde a sessão anterior parou, a partir da memória da análise \
+             (abaixo): complete as seções que faltam, trate o que o analista marcou e não \
+             registre de novo o que já está aqui. Ao terminar, atualize a memória com \
+             `memorizar` (`onde_parou`) e chame `concluir_analise` (analise: \"{id}\")."
         ),
         EstadoAnalise::Concluida => format!(
             "A rodada foi concluída e o documento está em revisão pelo analista. Se ele \
@@ -369,7 +393,43 @@ fn proximo_passo(analise: &Analise) -> String {
     }
 }
 
-fn retomar(ambiente: &Ambiente, analise: &Analise) -> Saida {
+/// A memória da análise no texto da retomada.
+fn escrever_memoria(t: &mut String, analise: &Analise, memoria: &Memoria) {
+    let _ = writeln!(t, "## Memória da análise");
+    let _ = writeln!(t);
+    if memoria.vazia() {
+        if analise.estado != EstadoAnalise::Aprovada {
+            let _ = writeln!(
+                t,
+                "Nenhuma memória gravada. Grave com `memorizar` (analise: \"{}\") o \
+                 contexto que uma conversa nova precisaria: onde parou, o que foi \
+                 investigado ou descartado, onde está o código e o que foi combinado com \
+                 o analista.",
+                analise.id
+            );
+            let _ = writeln!(t);
+        }
+        return;
+    }
+    let _ = writeln!(
+        t,
+        "Contexto que as conversas anteriores gravaram com `memorizar`. Parta daqui e \
+         mantenha-a atualizada."
+    );
+    let _ = writeln!(t);
+    if !memoria.preambulo().is_empty() {
+        let _ = writeln!(t, "{}", memoria.preambulo());
+        let _ = writeln!(t);
+    }
+    for (secao, texto) in memoria.secoes() {
+        let _ = writeln!(t, "### {} (`{}`)", secao.titulo(), secao.como_str());
+        let _ = writeln!(t);
+        let _ = writeln!(t, "{texto}");
+        let _ = writeln!(t);
+    }
+}
+
+fn retomar(ambiente: &Ambiente, analise: &Analise, memoria: &Memoria) -> Saida {
     let fluxo = analise.fluxo;
     let documento = documento(ambiente, analise);
     let mut t = String::new();
@@ -484,6 +544,7 @@ fn retomar(ambiente: &Ambiente, analise: &Analise) -> Saida {
         }
         let _ = writeln!(t);
     }
+    escrever_memoria(&mut t, analise, memoria);
     let mut avisos = Vec::new();
     let roteiro = (analise.estado != EstadoAnalise::Aprovada).then(|| {
         let contexto = Contexto::da_analise(ambiente, analise);
@@ -494,6 +555,9 @@ fn retomar(ambiente: &Ambiente, analise: &Analise) -> Saida {
     });
     if let Some(r) = &roteiro {
         t.push_str(r);
+        if let Some(lembrete) = lembrete_da_memoria(r, &analise.id) {
+            t.push_str(&lembrete);
+        }
     }
     for aviso in &avisos {
         let _ = write!(t, "\nAviso: {aviso}\n");
@@ -578,6 +642,15 @@ fn retomar(ambiente: &Ambiente, analise: &Analise) -> Saida {
             "perguntas": perguntas,
             "sugestoes": sugestoes,
             "termos": termos,
+            "memoria": {
+                "arquivo": ambiente.kb.na_base(&cba_core::analises::Analises::arquivo_de_memoria(&analise.id)),
+                "vazia": memoria.vazia(),
+                "preambulo": memoria.preambulo(),
+                "secoes": memoria
+                    .secoes()
+                    .map(|(s, texto)| json!({ "secao": s, "titulo": s.titulo(), "texto": texto }))
+                    .collect::<Vec<_>>(),
+            },
             "secoes_obrigatorias_pendentes": secoes_obrigatorias(fluxo)
                 .iter()
                 .filter(|s| !afirmacoes_validas(analise).any(|a| a.secao == **s))

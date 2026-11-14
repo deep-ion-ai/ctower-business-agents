@@ -214,6 +214,14 @@ fn reserva_sem_colisao_entre_threads() {
     assert_eq!(unicos, (1..=40).collect());
 
     let projeto = base.projeto(PROJETO).unwrap();
+    // A memória de uma análise não é documento da base.
+    std::fs::write(
+        projeto.caminho(&cba_kb::layout::memoria_da_analise(
+            &cba_kb::Id::analisar("A-0001").unwrap(),
+        )),
+        "# Memória\n",
+    )
+    .unwrap();
     let docs = projeto.documentos().unwrap();
     // 40 análises, o projeto.md e o regras-do-projeto.md, sem temporários.
     assert_eq!(docs.len(), 42, "{docs:?}");

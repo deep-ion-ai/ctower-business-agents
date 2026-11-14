@@ -108,7 +108,7 @@ impl From<cba_core::analises::Erro> for ErroFerramenta {
     fn from(erro: cba_core::analises::Erro) -> Self {
         use cba_core::analises::Erro;
         match erro {
-            Erro::NaoEncontrada(_) | Erro::NaoEAnalise(_) | Erro::Modelo(_) => {
+            Erro::NaoEncontrada(_) | Erro::NaoEAnalise(_) | Erro::Modelo(_) | Erro::Memoria(_) => {
                 Self::Recusa(erro.to_string())
             }
             Erro::EstadoIlegivel { .. } | Erro::Io { .. } | Erro::Base(_) => {

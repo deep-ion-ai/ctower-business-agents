@@ -14,6 +14,10 @@ pub const ARQUIVO_PROJETO: &str = "projeto.md";
 pub const ARQUIVO_REGRAS_DO_PROJETO: &str = "regras-do-projeto.md";
 /// Memória de uma área, em `areas/<area>/`.
 pub const ARQUIVO_MEMORIA: &str = "memoria.md";
+/// Sufixo da memória de uma análise (`analises/A-0001.memoria.md`): texto de
+/// trabalho do agente, ao lado do documento. Não é documento da base: fica fora
+/// de [`crate::Projeto::documentos`] e, por isso, do índice e da busca.
+pub const SUFIXO_MEMORIA_DA_ANALISE: &str = ".memoria.md";
 
 pub const GLOSSARIO: &str = "glossario";
 pub const REGRAS: &str = "regras";
@@ -70,6 +74,17 @@ pub fn memoria(area: &str) -> Result<CaminhoRelativo, CaminhoInvalido> {
     caminho(format!("{AREAS}/{}/{ARQUIVO_MEMORIA}", exigir_slug(area)?))
 }
 
+/// `analises/<id>.memoria.md`, a memória de trabalho de uma análise.
+pub fn memoria_da_analise(id: &crate::Id) -> CaminhoRelativo {
+    caminho(format!("{ANALISES}/{id}{SUFIXO_MEMORIA_DA_ANALISE}"))
+        .expect("pasta e identificador formam um caminho válido")
+}
+
+/// Se o nome é o de uma memória de análise (não é documento da base).
+pub fn e_memoria_da_analise(nome: &str) -> bool {
+    nome.ends_with(SUFIXO_MEMORIA_DA_ANALISE)
+}
+
 /// `funcionalidades/<slug da área>/<slug do tema>/`, pasta dos documentos de uma
 /// funcionalidade.
 pub fn funcionalidade(area: &str, tema: &str) -> Result<CaminhoRelativo, CaminhoInvalido> {
@@ -103,5 +118,13 @@ mod tests {
             "funcionalidades/cobranca/cancelamento-de-fatura"
         );
         assert!(termo("??").is_err());
+        let id = crate::Id::analisar("A-0007").unwrap();
+        assert_eq!(
+            memoria_da_analise(&id).as_str(),
+            "analises/A-0007.memoria.md"
+        );
+        assert!(e_memoria_da_analise("A-0007.memoria.md"));
+        assert!(!e_memoria_da_analise("A-0007.md"));
+        assert!(!e_memoria_da_analise("memoria.md"));
     }
 }

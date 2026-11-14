@@ -651,6 +651,11 @@ fn roteiro_da_base_sobrepoe_o_padrao_em_iniciar_e_retomar() {
             .starts_with("# Roteiro da casa para A-0001")
     );
     assert_eq!(dados["avisos"].as_array().unwrap().len(), 1);
+    // O roteiro da casa não fala da memória: o lembrete vai no fim.
+    assert!(
+        texto.contains("## Memória da análise\n\nMantenha a memória da análise com `memorizar` (analise: \"A-0001\")"),
+        "{texto}"
+    );
 
     // retomar_analise usa o mesmo roteiro.
     let r = c
@@ -663,6 +668,12 @@ fn roteiro_da_base_sobrepoe_o_padrao_em_iniciar_e_retomar() {
     );
     assert!(
         r.texto.contains("variável desconhecida `{{responsavel}}`"),
+        "{}",
+        r.texto
+    );
+    assert!(
+        r.texto
+            .contains("Mantenha a memória da análise com `memorizar`"),
         "{}",
         r.texto
     );
@@ -709,4 +720,340 @@ fn prompts_prontos_da_analise_com_o_texto_da_base() {
         .unwrap_err()
         .to_string();
     assert!(erro.contains("A-NNNN"), "{erro}");
+}
+
+fn memorizar(analise: &str, secao: &str, texto: &str, modo: &str) -> Value {
+    json!({ "analise": analise, "secao": secao, "texto": texto, "modo": modo })
+}
+
+fn arquivo_da_memoria(c: &Cenario, id: &str) -> PathBuf {
+    c.amb
+        .analises
+        .projeto()
+        .caminho(&cba_core::analises::Analises::arquivo_de_memoria(
+            &Id::analisar(id).unwrap(),
+        ))
+}
+
+#[test]
+fn memorizar_grava_na_base_e_retomar_devolve_a_memoria() {
+    let c = cenario();
+    c.criar(
+        Fluxo::Perguntar,
+        "Multa por atraso",
+        "Como é calculada a multa?",
+    );
+    let inicio = c
+        .saida("iniciar_analise", json!({ "analise": "A-0001" }))
+        .unwrap();
+    // O roteiro padrão orienta a manter a memória (sem o lembrete extra).
+    assert!(
+        inicio
+            .texto
+            .contains("**Mantenha a memória da análise** com `memorizar`")
+    );
+    assert!(
+        !inicio.texto.contains("## Memória da análise"),
+        "{}",
+        inicio.texto
+    );
+    c.chamar("afirmar", multa("A-0001", "resposta"));
+
+    // Sem memória, a retomada orienta a gravar.
+    let r = c
+        .saida("retomar_analise", json!({ "analise": "A-0001" }))
+        .unwrap();
+    assert!(r.texto.contains("Nenhuma memória gravada."), "{}", r.texto);
+    assert_eq!(r.dados.unwrap()["memoria"]["vazia"], true);
+
+    let versao = c.analise("A-0001").versao;
+    let r = c.chamar(
+        "memorizar",
+        memorizar(
+            "A-0001",
+            "codigo",
+            "Telas no repositório vizinho ../bnmp-frontend (fora do projeto).",
+            "acrescentar",
+        ),
+    );
+    assert_eq!(r["analise"], "A-0001");
+    assert_eq!(r["secao"], "codigo");
+    assert_eq!(
+        r["memoria"],
+        "faturamento-exemplo/analises/A-0001.memoria.md"
+    );
+    assert_eq!(r["limite"], 24_000);
+    assert!(r.get("aviso").is_none());
+    // `modo` é opcional: acrescentar.
+    c.chamar(
+        "memorizar",
+        json!({ "analise": "A-0001", "secao": "investigado", "texto": "PKG_COBRANCA calcula a multa (2%)." }),
+    );
+    c.chamar(
+        "memorizar",
+        memorizar(
+            "A-0001",
+            "investigado",
+            "Lote noturno só lê a multa.",
+            "acrescentar",
+        ),
+    );
+    c.chamar(
+        "memorizar",
+        memorizar(
+            "A-0001",
+            "descartado",
+            "Trigger de fatura: não toca na multa.",
+            "acrescentar",
+        ),
+    );
+    c.chamar(
+        "memorizar",
+        memorizar(
+            "A-0001",
+            "combinados",
+            "O analista quer o exemplo em reais.",
+            "acrescentar",
+        ),
+    );
+    c.chamar(
+        "memorizar",
+        memorizar(
+            "A-0001",
+            "onde_parou",
+            "Lendo o lote noturno.",
+            "substituir",
+        ),
+    );
+    c.chamar(
+        "memorizar",
+        memorizar(
+            "A-0001",
+            "onde_parou",
+            "Falta montar o exemplo com números.",
+            "substituir",
+        ),
+    );
+    // A memória não muda a análise.
+    assert_eq!(c.analise("A-0001").versao, versao);
+
+    let md = std::fs::read_to_string(arquivo_da_memoria(&c, "A-0001")).unwrap();
+    assert_eq!(
+        md,
+        "# Memória da análise A-0001: Multa por atraso\n\n\
+         ## Onde parou\n\nFalta montar o exemplo com números.\n\n\
+         ## Investigado\n\n- PKG_COBRANCA calcula a multa (2%).\n- Lote noturno só lê a multa.\n\n\
+         ## Descartado\n\n- Trigger de fatura: não toca na multa.\n\n\
+         ## Onde está o código\n\n- Telas no repositório vizinho ../bnmp-frontend (fora do projeto).\n\n\
+         ## Combinados com o analista\n\n- O analista quer o exemplo em reais.\n"
+    );
+    // Não é documento da base: fica fora do índice e da busca.
+    assert!(
+        c.amb
+            .analises
+            .projeto()
+            .documentos()
+            .unwrap()
+            .iter()
+            .all(|d| !d.as_str().contains("memoria"))
+    );
+
+    // Conversa nova: a retomada traz a memória antes do roteiro.
+    let r = c
+        .saida("retomar_analise", json!({ "analise": "A-0001" }))
+        .unwrap();
+    let t = &r.texto;
+    let memoria = t.find("## Memória da análise").expect(t);
+    let roteiro = t.find("# Roteiro da análise A-0001").expect(t);
+    assert!(memoria < roteiro, "{t}");
+    assert!(
+        t.contains("### Onde parou (`onde_parou`)\n\nFalta montar o exemplo com números.\n"),
+        "{t}"
+    );
+    assert!(t.contains("../bnmp-frontend"), "{t}");
+    assert!(t.contains("- Trigger de fatura: não toca na multa."), "{t}");
+    assert!(t.contains("a partir da memória da análise"), "{t}");
+    assert!(!t.contains("Nenhuma memória gravada."), "{t}");
+    let dados = r.dados.unwrap();
+    assert_eq!(dados["memoria"]["vazia"], false);
+    assert_eq!(
+        dados["memoria"]["arquivo"],
+        "faturamento-exemplo/analises/A-0001.memoria.md"
+    );
+    let secoes: Vec<&str> = dados["memoria"]["secoes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| s["secao"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        secoes,
+        [
+            "onde_parou",
+            "investigado",
+            "descartado",
+            "codigo",
+            "combinados"
+        ]
+    );
+    assert_eq!(
+        dados["memoria"]["secoes"][0]["texto"],
+        "Falta montar o exemplo com números."
+    );
+}
+
+#[test]
+fn memorizar_preserva_o_que_o_analista_escreveu_a_mao() {
+    let c = cenario();
+    c.criar(Fluxo::Explicar, "Parcelamento", "Explique o parcelamento.");
+    c.chamar(
+        "memorizar",
+        memorizar(
+            "A-0001",
+            "pendencias",
+            "Confirmar o limite de parcelas.",
+            "acrescentar",
+        ),
+    );
+    let arquivo = arquivo_da_memoria(&c, "A-0001");
+    let mut md = std::fs::read_to_string(&arquivo).unwrap();
+    md.push_str("\n## Combinados com o analista\n\nNão olhar o módulo legado.\n");
+    md = md.replacen(
+        "\n## Pendências",
+        "\nNota solta do analista.\n\n## Pendências",
+        1,
+    );
+    std::fs::write(&arquivo, md).unwrap();
+
+    c.chamar(
+        "memorizar",
+        memorizar(
+            "A-0001",
+            "combinados",
+            "Usar a versão da branch develop.",
+            "acrescentar",
+        ),
+    );
+    let md = std::fs::read_to_string(&arquivo).unwrap();
+    assert!(md.contains("Nota solta do analista."), "{md}");
+    assert!(md.contains("- Confirmar o limite de parcelas."), "{md}");
+    assert!(
+        md.contains("Não olhar o módulo legado.\n- Usar a versão da branch develop."),
+        "{md}"
+    );
+    let r = c
+        .saida("retomar_analise", json!({ "analise": "A-0001" }))
+        .unwrap();
+    assert!(r.texto.contains("Nota solta do analista."), "{}", r.texto);
+    assert!(
+        r.texto.contains("Não olhar o módulo legado."),
+        "{}",
+        r.texto
+    );
+}
+
+#[test]
+fn memorizar_recusa_texto_vazio_secao_desconhecida_memoria_cheia_e_analise_aprovada() {
+    let c = cenario();
+    let a = c.criar(Fluxo::Perguntar, "Multa", "Como é a multa?");
+
+    match c.erro(
+        "memorizar",
+        memorizar("A-0099", "contexto", "x", "acrescentar"),
+    ) {
+        ErroFerramenta::Recusa(m) => assert!(m.contains("A-0099 não existe"), "{m}"),
+        outro => panic!("{outro:?}"),
+    }
+    assert!(!arquivo_da_memoria(&c, "A-0099").exists());
+    match c.erro(
+        "memorizar",
+        memorizar("A-0001", "contexto", "  ", "acrescentar"),
+    ) {
+        ErroFerramenta::Recusa(m) => assert!(m.contains("não pode ficar vazio"), "{m}"),
+        outro => panic!("{outro:?}"),
+    }
+    match c.erro(
+        "memorizar",
+        memorizar("A-0001", "diario", "x", "acrescentar"),
+    ) {
+        ErroFerramenta::Argumentos(m) => assert!(m.contains("secao"), "{m}"),
+        outro => panic!("{outro:?}"),
+    }
+    match c.erro("memorizar", memorizar("A-0001", "contexto", "x", "apagar")) {
+        ErroFerramenta::Argumentos(m) => assert!(m.contains("modo"), "{m}"),
+        outro => panic!("{outro:?}"),
+    }
+
+    // Cheia: avisa perto do limite, recusa passar dele e aceita resumir.
+    let bloco = "x".repeat(7_000);
+    for _ in 0..2 {
+        let r = c.chamar(
+            "memorizar",
+            memorizar("A-0001", "investigado", &bloco, "acrescentar"),
+        );
+        assert!(r.get("aviso").is_none(), "{r}");
+    }
+    let r = c.chamar(
+        "memorizar",
+        memorizar("A-0001", "contexto", &bloco, "acrescentar"),
+    );
+    assert!(r["tamanho"].as_u64().unwrap() >= 19_200, "{r}");
+    assert!(r["aviso"].as_str().unwrap().contains("resuma"), "{r}");
+    let antes = std::fs::read_to_string(arquivo_da_memoria(&c, "A-0001")).unwrap();
+    match c.erro(
+        "memorizar",
+        memorizar("A-0001", "pendencias", &bloco, "acrescentar"),
+    ) {
+        ErroFerramenta::Recusa(m) => {
+            assert!(m.contains("24000"), "{m}");
+            assert!(
+                m.contains("`investigado`") || m.contains("(investigado)"),
+                "{m}"
+            );
+            assert!(m.contains("substituir"), "{m}");
+        }
+        outro => panic!("{outro:?}"),
+    }
+    assert_eq!(
+        std::fs::read_to_string(arquivo_da_memoria(&c, "A-0001")).unwrap(),
+        antes
+    );
+    c.chamar(
+        "memorizar",
+        memorizar(
+            "A-0001",
+            "investigado",
+            "Resumo: o pacote de cobrança calcula a multa.",
+            "substituir",
+        ),
+    );
+    c.chamar(
+        "memorizar",
+        memorizar("A-0001", "pendencias", &bloco, "acrescentar"),
+    );
+
+    // Aprovada: a memória fica guardada, mas não aceita gravação.
+    c.chamar("iniciar_analise", json!({ "analise": a.id }));
+    c.chamar("afirmar", multa("A-0001", "resposta"));
+    c.chamar("concluir_analise", json!({ "analise": a.id }));
+    c.amb
+        .analises
+        .alterar(&a.id, Mudanca::Estado, |a, _| a.aprovar())
+        .unwrap();
+    match c.erro(
+        "memorizar",
+        memorizar("A-0001", "contexto", "x", "acrescentar"),
+    ) {
+        ErroFerramenta::Recusa(m) => assert!(m.contains("já foi aprovada"), "{m}"),
+        outro => panic!("{outro:?}"),
+    }
+    let r = c
+        .saida("retomar_analise", json!({ "analise": a.id }))
+        .unwrap();
+    assert!(
+        r.texto.contains("Resumo: o pacote de cobrança"),
+        "{}",
+        r.texto
+    );
+    assert!(!r.texto.contains("Nenhuma memória"), "{}", r.texto);
 }

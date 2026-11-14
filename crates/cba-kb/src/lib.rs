@@ -13,6 +13,7 @@
 //!     areas/<area>/memoria.md
 //!     funcionalidades/<area>/<tema>/
 //!     analises/<id>.md
+//!     analises/<id>.memoria.md      # memória de trabalho do agente (fora do índice)
 //!     sugestoes/<id>.md
 //! ```
 //!

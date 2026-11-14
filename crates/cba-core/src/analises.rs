@@ -10,6 +10,8 @@
 //!   cada mudança (gravação contínua, spec seção 7.1). Fica na base, e não no
 //!   diretório de dados, para a base continuar sendo o que basta guardar: o índice
 //!   SQLite (#8) é reconstruído a partir dela.
+//! - `A-0001.memoria.md`: a memória de trabalho do agente ([`Memoria`], #143), que
+//!   a retomada devolve. Só existe depois da primeira gravação.
 //!
 //! # Concorrência
 //!
@@ -29,6 +31,7 @@ use cba_kb::{CaminhoRelativo, Documento, Id, Serie, layout};
 
 use crate::analise::{Analise, ErroModelo, Fluxo};
 use crate::eventos::{Evento, Mudanca, Notificador};
+use crate::memoria::{ErroMemoria, Memoria};
 use crate::tempo;
 
 /// Arquivo de trava das alterações, na pasta `analises/`.
@@ -48,6 +51,8 @@ pub enum Erro {
     NaoEAnalise(Id),
     #[error(transparent)]
     Modelo(#[from] ErroModelo),
+    #[error(transparent)]
+    Memoria(#[from] ErroMemoria),
     #[error("{arquivo}: estado da análise ilegível: {mensagem}")]
     EstadoIlegivel {
         arquivo: CaminhoRelativo,
@@ -228,6 +233,57 @@ impl Analises {
         Ok(analise)
     }
 
+    /// Arquivo da memória de uma análise, relativo à raiz do projeto.
+    pub fn arquivo_de_memoria(id: &Id) -> CaminhoRelativo {
+        layout::memoria_da_analise(id)
+    }
+
+    /// A memória de uma análise; vazia se ainda não foi gravada. A análise precisa
+    /// existir.
+    pub fn memoria(&self, id: &Id) -> Result<Memoria, Erro> {
+        self.carregar(id)?;
+        self.ler_memoria(id)
+    }
+
+    /// Altera a memória sob a trava das análises: lê a atual, aplica `alterar`
+    /// (que recebe também a análise, para conferir o estado) e grava. Se `alterar`
+    /// recusar, nada é gravado. A análise não muda (nem a versão) e o app não é
+    /// notificado: a memória é texto de trabalho do agente.
+    pub fn alterar_memoria<T>(
+        &self,
+        id: &Id,
+        alterar: impl FnOnce(&Analise, &mut Memoria) -> Result<T, Erro>,
+    ) -> Result<(T, Memoria, Analise), Erro> {
+        let _trava = self.travar()?;
+        let analise = self.carregar(id)?;
+        let mut memoria = self.ler_memoria(id)?;
+        let resultado = alterar(&analise, &mut memoria)?;
+        let relativo = Self::arquivo_de_memoria(id);
+        let texto = memoria.markdown(&format!(
+            "Memória da análise {}: {}",
+            analise.id, analise.titulo
+        ));
+        cba_kb::arquivo::gravar(&self.kb.caminho(&relativo), texto.as_bytes()).map_err(|erro| {
+            Erro::Io {
+                arquivo: self.kb.na_base(&relativo),
+                erro,
+            }
+        })?;
+        Ok((resultado, memoria, analise))
+    }
+
+    fn ler_memoria(&self, id: &Id) -> Result<Memoria, Erro> {
+        let relativo = Self::arquivo_de_memoria(id);
+        match fs::read(self.kb.caminho(&relativo)) {
+            Ok(bytes) => Ok(Memoria::analisar(&String::from_utf8_lossy(&bytes))),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(Memoria::default()),
+            Err(erro) => Err(Erro::Io {
+                arquivo: self.kb.na_base(&relativo),
+                erro,
+            }),
+        }
+    }
+
     /// Todas as análises do projeto, em ordem de identificador. Estados ilegíveis
     /// são ignorados (e registrados no log, sem conteúdo).
     pub fn listar(&self) -> Result<Vec<Analise>, Erro> {
@@ -330,6 +386,7 @@ pub fn tipo_do_erro(erro: &Erro) -> &'static str {
         Erro::NaoEncontrada(_) => "nao_encontrada",
         Erro::NaoEAnalise(_) => "nao_e_analise",
         Erro::Modelo(_) => "modelo",
+        Erro::Memoria(_) => "memoria",
         Erro::EstadoIlegivel { .. } => "estado_ilegivel",
         Erro::Io { .. } => "io",
         Erro::Base(_) => "base",

@@ -145,7 +145,7 @@ Quando o analista pede "corrige", "muda" ou "implementa", o agente não altera o
 ### 4.7 Retomar uma análise
 
 - **Mesma conversa:** o app reabre a sessão pelo identificador capturado nos hooks, no cliente escolhido: `claude --resume <id>` no terminal ou `claude --desktop --resume <id>` no Claude Desktop (este exige o Claude Code de linha de comando instalado e a sessão fechada no outro cliente). As sessões do CLI e do Desktop ficam no mesmo histórico local, então uma conversa iniciada num cliente pode continuar no outro.
-- **Conversa nova (caminho garantido):** o app abre uma sessão nova com o pedido "Retome a análise A-0193". O agente chama `retomar_analise` e recebe a entrada, as afirmações, as evidências, as perguntas e as sugestões registradas até ali.
+- **Conversa nova (caminho garantido):** o app abre uma sessão nova com o pedido "Retome a análise A-0193". O agente chama `retomar_analise` e recebe a entrada, as afirmações, as evidências, as perguntas e as sugestões registradas até ali, mais a **memória da análise** (#143). A conversa gravada pelo Claude Code expira (`cleanupPeriodDays`, 30 dias por padrão), pode nem existir (sessão aberta com `CLAUDE_CODE_SKIP_PROMPT_HISTORY`) e fica na máquina do analista; a memória fica na base e guarda o contexto que o estado estruturado não tem: onde a conversa parou, o que foi investigado e descartado, as hipóteses em aberto, onde está o código (inclusive em repositórios fora do projeto), os combinados com o analista e as pendências. O agente a mantém com `memorizar`, nos marcos que o roteiro indica (descoberta relevante, orientação do analista, antes de concluir).
 
 ## 5. Arquitetura
 
@@ -185,7 +185,7 @@ Operam só dentro das pastas cadastradas do projeto, respeitam a lista de exclus
 | Ferramenta | O que faz |
 |---|---|
 | `iniciar_analise` | Devolve o roteiro do fluxo, a entrada e o contexto da base (regras, termos e memória da área relacionados). Recebe a análise criada pelo app (`analise`) ou, quando o analista pede direto no chat, cria uma a partir de `fluxo` e `entrada`. |
-| `retomar_analise` | Devolve o estado de uma análise: entrada, afirmações, evidências, perguntas, sugestões. |
+| `retomar_analise` | Devolve o estado de uma análise: entrada, afirmações, evidências, perguntas, sugestões e a memória da análise. |
 | `listar_analises` | Lista as análises do projeto (identificador, título, fluxo, estado, documento), para achar a que o analista citou pelo assunto. |
 | `conhecimento` | Busca na base: regras confirmadas, glossário, análises anteriores. |
 | `mapa` | Retorna o mapa do projeto ou de um módulo. |
@@ -196,6 +196,7 @@ Operam só dentro das pastas cadastradas do projeto, respeitam a lista de exclus
 | `perguntar` | Registra uma pergunta em aberto para o solicitante. |
 | `registrar_sugestao` | Registra uma sugestão de alteração: arquivo, trecho atual, trecho proposto, motivo, impacto. |
 | `propor_termo` | Propõe uma entrada para o glossário (termo de negócio, sinônimos, onde vive no código). |
+| `memorizar` | Grava numa seção da memória da análise (`onde_parou`, `contexto`, `investigado`, `descartado`, `hipoteses`, `codigo`, `combinados`, `pendencias`), acrescentando um item ou substituindo a seção (o caminho para resumir). Limite de 24.000 caracteres na memória inteira: passar dele é recusado com a orientação de resumir. Análise aprovada recusa. |
 | `concluir_analise` | Fecha a rodada: confere as pendências (sem afirmações ou seção obrigatória do fluxo vazia recusam; evidência que não confere mais com o código e afirmação inferida sem evidência voltam como pendência para o analista), o app monta o documento e devolve o caminho, que o agente cita na resposta, com as perguntas em aberto. |
 
 As ferramentas de consulta (`conhecimento`, `mapa`, `estrutura`, `schema` e `referencias`) só leem e respondem em páginas, para não gastar o limite do plano: até 20 itens por página (o agente pode pedir até 50) e até 6.000 caracteres de itens no texto, com o total e o cursor da próxima página. `conhecimento` busca no índice da base (7.5), sincronizado a cada chamada; as demais leem o último mapa estrutural do projeto e, se ele ainda não existe, o geram na hora e avisam o agente. O contexto da base que `iniciar_analise` devolve sai da mesma busca.
@@ -278,13 +279,14 @@ Para clientes que não são o Claude Desktop nem o Claude Code, o app terá um l
     funcionalidades/<area>/<tema>/   # documento negocial, casos de uso, rastreabilidade
     analises/<id>.md                 # análises de impacto, perguntas, explicações
     analises/<id>.estado.json        # estado da análise: sessões, afirmações, evidências, perguntas, sugestões
+    analises/<id>.memoria.md         # memória de trabalho do agente (fora do índice), devolvida na retomada
     sugestoes/<id>.md                # sugestões de alteração
 ```
 
 - **Fora do repositório do projeto** e fora de qualquer pasta temporária. A pasta é do analista e sobrevive à reinstalação do app.
 - **Caminhos relativos** em todos os documentos, nunca absolutos, para a base continuar válida em outra máquina ou sistema operacional.
 - **Gravação contínua:** o documento de uma análise é atualizado a cada registro, não só no fim. Uma sessão interrompida não perde o que já foi apurado.
-- **Estado da análise:** os registros (sessões, afirmações com evidências, perguntas, sugestões) ficam em `analises/<id>.estado.json`, gravado a cada mudança sob uma trava de arquivo, porque o app, o servidor MCP de cada sessão e o receptor de hooks gravam na mesma análise. O documento Markdown é montado a partir dele. Cada mudança é anotada no diário de eventos do app (no diretório de dados, só com identificadores), que o app acompanha para atualizar os painéis ao vivo: uma vigia por projeto consulta o tamanho do arquivo a cada 100 ms, lê só as linhas novas e relê a análise citada (menos de 1 s do registro à tela). Como o estado completo está na base, o diário não guarda histórico: depois de ler tudo, a vigia o esvazia quando passa de 1 MiB, sob a mesma trava de quem acrescenta linhas.
+- **Estado da análise:** os registros (sessões, afirmações com evidências, perguntas, sugestões) ficam em `analises/<id>.estado.json`, gravado a cada mudança sob uma trava de arquivo, porque o app, o servidor MCP de cada sessão e o receptor de hooks gravam na mesma análise. O documento Markdown é montado a partir dele. A memória da análise (`analises/<id>.memoria.md`) é Markdown com seções fixas, gravada sob a mesma trava; é texto de trabalho do agente, e não documento da base: fica fora do índice e da busca, não muda a versão da análise e, na aprovação, continua guardada com a análise sem virar regra nem termo. Cada mudança é anotada no diário de eventos do app (no diretório de dados, só com identificadores), que o app acompanha para atualizar os painéis ao vivo: uma vigia por projeto consulta o tamanho do arquivo a cada 100 ms, lê só as linhas novas e relê a análise citada (menos de 1 s do registro à tela). Como o estado completo está na base, o diário não guarda histórico: depois de ler tudo, a vigia o esvazia quando passa de 1 MiB, sob a mesma trava de quem acrescenta linhas.
 
 ### 7.2 Frontmatter
 

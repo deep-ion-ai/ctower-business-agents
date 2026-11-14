@@ -10,7 +10,8 @@
 //! - [`registro_padrao`]: as ferramentas que o produto expõe, cada uma no seu
 //!   módulo: [`analises`] (`listar_analises`), [`ciclo`] (`iniciar_analise`,
 //!   `retomar_analise` e `concluir_analise`), [`afirmar`], [`perguntar`],
-//!   [`sugestao`] (`registrar_sugestao`) e [`termo`] (`propor_termo`).
+//!   [`sugestao`] (`registrar_sugestao`), [`termo`] (`propor_termo`) e
+//!   [`memoria`] (`memorizar`, a memória de trabalho que a retomada devolve).
 //! - Consulta, só de leitura e paginada ([`paginacao`]): [`conhecimento`] (busca no
 //!   índice da base), [`mapa`], [`estrutura`], [`banco`] (`schema`) e
 //!   [`referencias`], a partir do mapa estrutural do projeto ([`fontes`]).
@@ -47,6 +48,7 @@ pub mod estrutura;
 pub mod evidencias;
 mod fontes;
 pub mod mapa;
+pub mod memoria;
 mod paginacao;
 pub mod perguntar;
 pub mod prompts;
@@ -82,6 +84,7 @@ pub fn registro_padrao() -> Registro {
         .registrar(perguntar::perguntar())
         .registrar(sugestao::registrar_sugestao())
         .registrar(termo::propor_termo())
+        .registrar(memoria::memorizar())
         .registrar(ciclo::concluir_analise());
     registro
 }
@@ -111,12 +114,14 @@ mod tests {
             "perguntar",
             "registrar_sugestao",
             "propor_termo",
+            "memorizar",
             "concluir_analise",
         ] {
             assert!(r.obter(nome).is_some(), "{nome}");
         }
         // As de registro alteram a análise.
         assert!(!r.obter("afirmar").unwrap().e_somente_leitura());
+        assert!(!r.obter("memorizar").unwrap().e_somente_leitura());
         assert!(!r.obter("iniciar_analise").unwrap().e_somente_leitura());
         assert!(!r.obter("concluir_analise").unwrap().e_somente_leitura());
         for consulta in [

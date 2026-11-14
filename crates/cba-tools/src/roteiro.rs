@@ -380,6 +380,7 @@ mod tests {
             "perguntar",
             "propor_termo",
             "registrar_sugestao",
+            "memorizar",
             "concluir_analise",
         ] {
             assert!(r.contains(&format!("`{ferramenta}`")), "{ferramenta}: {r}");

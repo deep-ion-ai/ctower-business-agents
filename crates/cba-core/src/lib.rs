@@ -9,6 +9,8 @@
 //!   sugestão) e as transições de estado.
 //! - [`analises`]: persistência na base, com trava entre processos e notificação ao
 //!   app ([`eventos`]).
+//! - [`memoria`]: a memória de trabalho do agente em cada análise, que a retomada
+//!   devolve (#143).
 //! - [`ambiente`]: identificação do projeto pelo diretório de trabalho do processo.
 //! - [`config`], [`dados`] e [`log`]: configuração, diretório de dados e log.
 //!
@@ -22,6 +24,7 @@ pub mod config;
 pub mod dados;
 pub mod eventos;
 pub mod log;
+pub mod memoria;
 pub mod tempo;
 
 /// Nome da crate, para diagnóstico.
