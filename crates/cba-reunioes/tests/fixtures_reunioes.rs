@@ -15,7 +15,7 @@ use std::fs;
 use std::io::{Cursor, Write};
 use std::path::PathBuf;
 
-use cba_reunioes::{Fala, Formato, analisar, paragrafos_docx};
+use cba_reunioes::{Fala, Formato, analisar};
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipWriter};
 
@@ -122,9 +122,8 @@ fn reuniao_2_tem_participantes_em_comum_com_nome_variado() {
 /// título, data e duração, a linha de sistema do início da transcrição e,
 /// para cada fala, um parágrafo `Nome<tab>M:SS` seguido do parágrafo da fala.
 ///
-/// Reprodutível: entradas sem compressão, com data e permissões fixas. O teste
-/// compara o texto dos parágrafos, não os bytes, porque o cabeçalho do zip
-/// pode variar com o sistema operacional de quem gera.
+/// Reprodutível: entradas sem compressão e com data fixa, para os bytes
+/// serem os mesmos em qualquer máquina.
 fn docx_da_reuniao_1(txt: &str) -> Vec<u8> {
     let mut paragrafos: Vec<Vec<String>> = vec![
         vec!["Cancelamento de fatura - alinhamento-20261110_100000-Gravação da reunião".into()],
@@ -179,8 +178,7 @@ fn docx_da_reuniao_1(txt: &str) -> Vec<u8> {
     let mut zip = ZipWriter::new(Cursor::new(Vec::new()));
     let opcoes = SimpleFileOptions::default()
         .compression_method(CompressionMethod::Stored)
-        .last_modified_time(zip::DateTime::default())
-        .unix_permissions(0o644);
+        .last_modified_time(zip::DateTime::default());
     for (nome, conteudo) in [
         ("[Content_Types].xml", tipos),
         ("_rels/.rels", rels),
@@ -209,12 +207,8 @@ fn docx_da_reuniao_1_esta_em_dia_com_o_txt() {
         return;
     }
     let atual = fs::read(&caminho).unwrap_or_default();
-    let em_dia = matches!(
-        (paragrafos_docx(&atual), paragrafos_docx(&gerado)),
-        (Ok(a), Ok(g)) if a == g
-    );
     assert!(
-        em_dia,
+        atual == gerado,
         "{} não corresponde ao .txt; regere com \
          CBA_ATUALIZAR_ESPERADOS=1 cargo test -p cba-reunioes --test fixtures_reunioes",
         caminho.display()
