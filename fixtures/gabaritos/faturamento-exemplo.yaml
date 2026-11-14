@@ -552,89 +552,89 @@ reunioes:
     itens:
       - id: REU-FAT-001-D1
         tipo: decisao
-        descricao: A trava dos 30 dias (supervisor) vai para o banco, na procedure de cancelamento.
+        descricao: Decidido levar a checagem dos 30 dias com supervisor para a procedure do banco.
         palavras_chave: [[trava, supervisor, "30 dias", checagem], [banco, procedure]]
         falas: ["2:56"]
       - id: REU-FAT-001-D2
         tipo: decisao
         tambem_em: [regra]
-        descricao: O mínimo de 10 caracteres no motivo do cancelamento continua como está.
+        descricao: Fica mantida a exigência de motivo com no mínimo 10 caracteres.
         palavras_chave: [["10", dez], [motivo]]
         falas: ["3:06"]
       - id: REU-FAT-001-D3
         tipo: decisao
-        descricao: O relatório mensal fica em outra demanda, depois da trava.
+        descricao: O relatório de cancelamentos vira uma demanda separada, feita depois da trava.
         palavras_chave: [[relatorio], [separad*, outra demanda, duas demandas, demanda propria, demanda separada, depois]]
         falas: ["5:10"]
       - id: REU-FAT-001-N1
         tipo: necessidade
-        descricao: A checagem do supervisor (fatura com mais de 30 dias) precisa valer fora da tela Delphi.
+        descricao: Exigir o supervisor para faturas antigas em todos os canais, não só na tela Delphi.
         palavras_chave: [[supervisor, trava, "30 dias"], [delphi, fora da tela, "todas as", "todos os", qualquer, canal*, banco, lote, backend, nenhuma tela]]
         falas: ["1:43"]
       - id: REU-FAT-001-N2
         tipo: necessidade
-        descricao: Relatório mensal dos cancelamentos por usuário, para a auditoria.
+        descricao: Relatório por mês dos cancelamentos de cada usuário, para acompanhamento da auditoria.
         palavras_chave: [[relatorio], [mensal, mes]]
         falas: ["1:56"]
       - id: REU-FAT-001-N3
         tipo: necessidade
-        descricao: O relatório mostra motivo, data, usuário e valor da fatura.
+        descricao: "Campos do relatório: motivo, data, usuário e valor da fatura."
         palavras_chave: [[relatorio, campos, colunas], [motivo], [valor]]
         falas: ["2:18", "2:23"]
       - id: REU-FAT-001-R1
         tipo: regra
-        descricao: Fatura com pagamento parcial não pode ser cancelada, nem pelo supervisor (RN-FAT-012).
+        descricao: Nenhum perfil cancela fatura que já recebeu pagamento parcial (RN-FAT-012).
         palavras_chave: [[pagamento parcial, parcialmente paga, valor pago, pago parcial*], [cancel*]]
         falas: ["1:11"]
       - id: REU-FAT-001-R2
         tipo: regra
-        descricao: Fatura emitida há mais de 30 dias só pode ser cancelada por usuário com perfil SUPERVISOR (RN-FAT-014).
+        descricao: Cancelar fatura com mais de 30 dias desde a emissão exige perfil SUPERVISOR (RN-FAT-014).
         palavras_chave: [["30 dias", trinta dias], [supervisor]]
         falas: ["0:54", "1:11"]
       - id: REU-FAT-001-P1
         tipo: pendencia
-        descricao: Carlos levanta os pontos que cancelam fatura hoje (banco, backend e lote), até sexta, dia 20.
-        palavras_chave: [[levant*, mapea*, identific*, list*, pontos, inventari*], [cancel*]]
+        descricao: Carlos levanta onde o cancelamento acontece hoje (banco, backend e lote); prazo sexta, dia 20.
+        palavras_chave: [[levant*, mapea*, mapei*, identific*, list*, pontos, inventari*], [cancel*]]
         responsavel: [[carlos]]
         prazo: [["20", sexta*]]
         falas: ["4:06"]
       - id: REU-FAT-001-P2
         tipo: pendencia
-        descricao: Ana escreve a demanda com os critérios de aceite, até quarta, dia 18, e manda para a Maria revisar.
+        descricao: Ana redige a demanda, com critérios de aceite, para revisão da Maria; prazo quarta, dia 18.
         palavras_chave: [[demanda, criterio*]]
         responsavel: [[ana]]
         prazo: [["18", quarta*]]
         falas: ["4:20"]
       - id: REU-FAT-001-P3
         tipo: pendencia
-        descricao: Maria confirma com a auditoria de quando contam os 30 dias, até o dia 25.
+        descricao: Maria consulta a auditoria sobre o marco dos 30 dias; prazo dia 25.
         palavras_chave: [[auditoria], [confirm*, consult*, verific*, respost*, alinh*, valid*]]
         responsavel: [[maria, silva]]
         prazo: [["25"]]
         falas: ["3:37"]
       - id: REU-FAT-001-DV1
         tipo: duvida
-        descricao: Os 30 dias contam da data de emissão ou da data de vencimento?
+        descricao: O prazo de 30 dias conta a partir da emissão ou do vencimento?
         palavras_chave: [[emissao], [vencimento]]
         falas: ["3:15", "3:26"]
       - id: REU-FAT-001-DV2
         tipo: duvida
-        descricao: Fatura de órgão público precisa de aprovação a mais para cancelar?
+        descricao: Cancelar fatura de órgão público exige alguma aprovação adicional?
         palavras_chave: [[orgao publico, orgaos publicos]]
         falas: ["3:46", "3:58"]
       - id: REU-FAT-001-DV3
         tipo: duvida
-        descricao: De onde vem o perfil do usuário quando o cancelamento vem do lote?
+        descricao: Qual perfil de usuário vale quando o cancelamento chega pelo lote?
         palavras_chave: [[perfil, usuario], [lote]]
         falas: ["2:44"]
       - id: REU-FAT-001-PP1
         tipo: proximo_passo
-        descricao: Pedir a análise de impacto da mudança no cancelamento.
+        descricao: Abrir a análise de impacto sobre a trava.
         palavras_chave: [[impacto]]
         falas: ["4:33", "4:44"]
       - id: REU-FAT-001-PP2
         tipo: proximo_passo
-        descricao: Nova conversa no dia 27 para fechar o escopo.
+        descricao: Nova reunião em 27 para concluir o escopo.
         palavras_chave: [["27", nova conversa, nova reuniao]]
         falas: ["4:44"]
 
@@ -656,18 +656,18 @@ reunioes:
       - id: REU-FAT-002-D1
         tipo: decisao
         tambem_em: [regra]
-        descricao: Fatura de órgão público não tem aprovação extra; vale a mesma regra dos outros clientes.
+        descricao: "Sem aprovação adicional para órgão público: segue a regra comum a todos os clientes."
         palavras_chave: [[orgao publico, orgaos publicos], [extra, mesma regra, sem aprovacao, nao tem, nao precisa, nenhuma aprovacao, demais clientes, outros clientes]]
         falas: ["1:26"]
       - id: REU-FAT-002-R1
         tipo: regra
         tambem_em: [decisao]
-        descricao: Os 30 dias contam da data de emissão (confirmado pela auditoria).
+        descricao: O marco dos 30 dias é a emissão da fatura, segundo a auditoria.
         palavras_chave: [[emissao], ["30 dias", trinta dias, prazo]]
         falas: ["0:13"]
       - id: REU-FAT-002-P1
         tipo: pendencia
-        descricao: João prepara no ambiente de testes uma fatura emitida há 31 dias e outra com pagamento parcial, até segunda.
+        descricao: João monta no ambiente de testes duas faturas (31 dias e pagamento parcial) até segunda.
         palavras_chave: [[fatura*], [teste*, homologa*]]
         responsavel: [[joao]]
         prazo: [[segunda*]]
@@ -675,12 +675,12 @@ reunioes:
       - id: REU-FAT-002-P2
         tipo: pendencia
         tambem_em: [necessidade, proximo_passo, decisao]
-        descricao: Beatriz cuida dos cenários de aceite (prazo não dito).
+        descricao: Beatriz prepara os cenários de aceite (sem prazo dito).
         palavras_chave: [[cenario*, teste*], [aceite]]
         responsavel: [[beatriz]]
         falas: ["0:25"]
       - id: REU-FAT-002-PP1
         tipo: proximo_passo
-        descricao: Seguir para a análise de impacto.
+        descricao: Começar a análise de impacto da trava.
         palavras_chave: [[impacto]]
         falas: ["1:47"]
