@@ -896,3 +896,71 @@
   padding-top: 12px;
   border-top: 1px solid var(--border);
 }
+
+/* Nova reunião e ata ao vivo (#141) */
+.nova-reuniao textarea {
+  width: 100%;
+  font-family: var(--font-mono, monospace);
+}
+
+.nova-reuniao .aceite {
+  flex-direction: row;
+  align-items: center;
+  font-weight: 600;
+}
+
+.aviso-privacidade {
+  border-left: 3px solid var(--attention);
+  padding: 4px 12px;
+}
+
+.aviso-privacidade h4,
+.previa-transcript h4 {
+  margin: 4px 0;
+}
+
+.previa-transcript .falantes,
+.avisos-transcript,
+.citacoes-fala {
+  margin: 4px 0;
+  padding-left: 20px;
+}
+
+.avisos-transcript li,
+.citacoes-fala [data-tone="attention"] {
+  color: var(--attention);
+}
+
+.lista-participantes {
+  list-style: none;
+  padding: 0;
+}
+
+.lista-participantes > li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.lista-participantes > li:last-child {
+  border-bottom: 0;
+}
+
+.lista-participantes p {
+  margin: 4px 0;
+}
+
+.confirmacao-participante {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.confirmacao-participante label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.itens-ata > li {
+  margin-bottom: 6px;
+}

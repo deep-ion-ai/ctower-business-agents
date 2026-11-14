@@ -39,7 +39,7 @@ describe("PainelDemanda", () => {
     expect(within(itens[0]).getByText("ata rascunho")).toBeInTheDocument();
     expect(within(itens[3]).getByText("ata aprovada")).toBeInTheDocument();
     expect(within(itens[2]).getByText(/Aguardando você/)).toBeInTheDocument();
-    // Sem a guarda do transcript (#136), nenhum aviso.
+    // Sem transcript guardado, nenhum aviso.
     expect(screen.queryByText(/Transcript guardado/)).toBeNull();
 
     fireEvent.click(within(itens[1]).getByRole("button", { name: /Análise A-0003/ }));

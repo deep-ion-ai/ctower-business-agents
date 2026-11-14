@@ -43,6 +43,7 @@ mod primeiro_uso;
 mod projeto;
 mod prompts;
 mod repositorios;
+mod reunioes;
 mod revisao;
 mod terminal;
 #[cfg(test)]

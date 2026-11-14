@@ -6,7 +6,7 @@ import type { ProjetoResumo } from "./terminal";
  * `A-NNNN.estado.json` (campos em snake_case), e dos comandos da tela da análise
  * (`ui/src-tauri/src/analise.rs` e `vigia.rs`, campos em camelCase).
  */
-export type Fluxo = "perguntar" | "explicar" | "impacto";
+export type Fluxo = "perguntar" | "explicar" | "impacto" | "reuniao";
 export type EstadoAnalise = "criada" | "em-andamento" | "concluida" | "aprovada";
 export type EstadoSessao = "ativa" | "aguardando-analista" | "concluida" | "encerrada";
 export type Cliente = "claude-code" | "claude-desktop" | "desconhecido";
@@ -96,6 +96,8 @@ export interface Analise {
   perguntas: Pergunta[];
   sugestoes: Sugestao[];
   termos: TermoProposto[];
+  /** Reunião analisada (fluxo `reuniao`), `R-0001`. */
+  reuniao?: string | null;
 }
 
 export interface SessaoVista {

@@ -12,16 +12,19 @@
 //! base, para o painel refletir na hora uma análise recém-criada.
 
 use cba_core::analise::{Analise, Cliente, EstadoAnalise, EstadoSessao, Fluxo};
+use cba_core::config::Config;
 use cba_core::dados::DiretorioDados;
 use cba_core::tempo;
 use cba_docs::{EstadoAta, ItemAta, TipoItem};
 use cba_kb::frontmatter::{Demanda, FrontmatterAnalise, StatusAta, StatusDemanda};
 use cba_kb::{DemandaLida, IdDemanda, NovaDemanda};
+use cba_reunioes::Guarda;
 use cba_session::passagem::ClientesDasSessoes;
 use cba_session::sessoes::Sessoes;
 use serde::Serialize;
 
 use crate::analise::{AnaliseCriada, ambiente, criar_analise_com_demanda};
+use crate::reunioes::transcript_guardado;
 
 // ---------------------------------------------------------------------------
 // Lista
@@ -129,8 +132,8 @@ pub struct ReuniaoVista {
     pub itens: usize,
     /// A ata (`R-NNNN.md`), relativa à raiz da base; `None` se ainda não foi montada.
     pub documento: Option<String>,
-    /// Transcript guardado sem a ata aprovada. Sempre `None` por enquanto: a guarda
-    /// do transcript (#136, em `crates/cba-reunioes`) vai preenchê-lo.
+    /// Transcript guardado no diretório de dados do app, com a ata ainda não
+    /// aprovada (`cba_reunioes::Guarda::situacao`).
     pub transcript_guardado: Option<TranscriptGuardado>,
 }
 
@@ -264,6 +267,11 @@ pub fn painel_demanda(
     let mut pendencias = Vec::new();
     let mut duvidas = Vec::new();
     let mut proximos_passos = Vec::new();
+    let guarda = Guarda::nova(dados);
+    let hoje = tempo::hoje();
+    let prazo = Config::ler(dados)
+        .unwrap_or_default()
+        .prazo_retencao_transcript();
 
     for arquivos in kb.reunioes_da_demanda(id).map_err(|e| e.to_string())? {
         let estado = match EstadoAta::ler(kb, arquivos.id) {
@@ -300,9 +308,14 @@ pub fn painel_demanda(
                 documento: kb
                     .existe(&arquivos.ata)
                     .then(|| kb.na_base(&arquivos.ata).as_str().to_owned()),
-                // A guarda do transcript (#136, desenvolvida em paralelo em
-                // `crates/cba-reunioes`) vai preencher este aviso.
-                transcript_guardado: None,
+                transcript_guardado: transcript_guardado(
+                    &guarda,
+                    kb.nome(),
+                    estado.id,
+                    estado.status,
+                    hoje,
+                    prazo,
+                ),
             }),
         });
     }
@@ -373,6 +386,11 @@ pub fn painel_demanda(
 // ---------------------------------------------------------------------------
 // Análise ligada à demanda
 
+/// Recusa do fluxo `reuniao` pelos caminhos das outras análises: a reunião nasce
+/// da tela de nova reunião, com o transcript e o aviso de privacidade.
+pub const FLUXO_REUNIAO: &str =
+    "a análise de reunião começa pela nova reunião, com o transcript e o aviso de privacidade";
+
 /// Cria a análise de um fluxo ligada à demanda (`demanda.id` no frontmatter, com a
 /// chave e a origem da demanda). A demanda precisa estar aberta.
 pub fn criar_analise_ligada(
@@ -383,6 +401,9 @@ pub fn criar_analise_ligada(
     entrada: &str,
     titulo: Option<&str>,
 ) -> Result<AnaliseCriada, String> {
+    if fluxo == Fluxo::Reuniao {
+        return Err(FLUXO_REUNIAO.into());
+    }
     let id = id_da_demanda(demanda)?;
     let lida = ambiente(dados, projeto)?
         .kb
