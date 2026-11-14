@@ -326,6 +326,15 @@ id_sequencial!(
     "esperado HU-NNNN"
 );
 
+id_sequencial!(
+    /// Identificador estável de um cenário de teste, `CT-NNNN`, sequencial por
+    /// projeto e nunca reaproveitado (#117). O cenário vive no estado da análise do
+    /// fluxo `cenarios` e no documento dela, ligado à regra e à evidência do limite.
+    IdCenario,
+    "CT-",
+    "esperado CT-NNNN"
+);
+
 /// Número de um identificador `<prefixo>NNNN` (4 dígitos no mínimo), na forma
 /// canônica.
 fn numero_com_prefixo(
@@ -502,6 +511,17 @@ mod tests {
         let lido: IdHistoria = serde_norway::from_str("HU-0003").unwrap();
         assert_eq!(lido, IdHistoria::novo(3));
         assert!(serde_norway::from_str::<IdHistoria>("HU-3").is_err());
+    }
+
+    #[test]
+    fn id_de_cenario() {
+        assert_eq!(IdCenario::novo(12).to_string(), "CT-0012");
+        assert_eq!(IdCenario::analisar("CT-0042").unwrap().numero(), 42);
+        for ruim in ["CT-1", "ct-0001", "HU-0001", "CT-0000"] {
+            assert!(IdCenario::analisar(ruim).is_err(), "{ruim:?}");
+        }
+        let lido: IdCenario = serde_norway::from_str("CT-0003").unwrap();
+        assert_eq!(lido, IdCenario::novo(3));
     }
 
     #[test]

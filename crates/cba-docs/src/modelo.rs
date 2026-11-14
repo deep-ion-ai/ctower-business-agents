@@ -55,6 +55,10 @@ pub(crate) const ACHADOS: &str = "achados";
 /// Seções das histórias (#115), montadas a partir do estado da análise.
 pub const HISTORIAS: &str = "historias";
 pub const RASTREABILIDADE: &str = "rastreabilidade";
+/// Seções dos cenários de teste (#117), montadas a partir do estado da análise.
+pub const TABELAS_DECISAO: &str = "tabelas_decisao";
+pub const VALORES_LIMITE: &str = "valores_limite";
+pub const CENARIOS: &str = "cenarios";
 
 const fn s(marcador: &'static str, titulo: &'static str) -> Secao {
     Secao { marcador, titulo }
@@ -93,7 +97,7 @@ const CAMPOS_FUNCIONALIDADE_OU_ANALISE: &[&str] = &[
 ];
 
 /// Tipos que têm template, na ordem da spec (seção 7.3).
-pub const MODELOS: [Modelo; 11] = [
+pub const MODELOS: [Modelo; 12] = [
     Modelo {
         tipo: TipoDocumento::AnaliseImpacto,
         secoes: &[
@@ -260,6 +264,29 @@ pub const MODELOS: [Modelo; 11] = [
         ],
         padrao: include_str!("../templates/historias.md"),
     },
+    Modelo {
+        tipo: TipoDocumento::CenariosTeste,
+        secoes: &[
+            s("pedido", "Pedido"),
+            s(TABELAS_DECISAO, "Tabelas de decisão"),
+            s(VALORES_LIMITE, "Valores-limite e partições"),
+            s(CENARIOS, "Cenários de teste"),
+            s(RASTREABILIDADE, "Rastreabilidade"),
+            s(PERGUNTAS, "Perguntas em aberto"),
+            EVIDENCIAS_SECAO,
+        ],
+        campos: &[
+            "id",
+            "titulo",
+            "projeto",
+            "status",
+            "criado",
+            "analista",
+            "versao_do_codigo",
+            "origem",
+        ],
+        padrao: include_str!("../templates/cenarios-teste.md"),
+    },
 ];
 
 /// Modelo do tipo, se o tipo tiver template (`projeto` e `memoria-area` não têm).
@@ -283,7 +310,10 @@ pub(crate) fn texto_vazio(marcador: &str) -> &'static str {
             "_Não avaliada: o texto não é uma história, ou a verificação ainda não foi registrada._"
         }
         HISTORIAS => "_Nenhuma história registrada._",
-        RASTREABILIDADE => "_Nenhum critério de aceite registrado._",
+        RASTREABILIDADE => "_Nenhum item registrado._",
+        TABELAS_DECISAO => "_Nenhuma tabela de decisão registrada._",
+        VALORES_LIMITE => "_Nenhum cenário de valor-limite ou de partição registrado._",
+        CENARIOS => "_Nenhum cenário de teste registrado._",
         _ => "_Nada registrado._",
     }
 }
@@ -354,7 +384,10 @@ impl Montavel for FrontmatterAnalise {
         ];
         // A origem só nas histórias: o documento negocial de uma análise usa o
         // mesmo marcador para outra coisa e o mostra como ausente.
-        if self.tipo == TipoDocumento::Historias {
+        if matches!(
+            self.tipo,
+            TipoDocumento::Historias | TipoDocumento::CenariosTeste
+        ) {
             let origem = match &self.origem {
                 Some(o) => link(&o.to_string(), caminho, &o.arquivo()),
                 None => NAO_INFORMADA.into(),

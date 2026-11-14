@@ -57,10 +57,14 @@ pub enum TipoDocumento {
     /// `analises/`: um documento por conjunto, ligado à análise de origem; cada
     /// história tem identificador estável (`HU-NNNN`).
     Historias,
+    /// Cenários de teste derivados das regras (fluxo `cenarios`, #117), em
+    /// `analises/`: tabelas de decisão, partição de equivalência e valores-limite,
+    /// cada cenário com identificador estável (`CT-NNNN`).
+    CenariosTeste,
 }
 
 impl TipoDocumento {
-    pub const TODOS: [TipoDocumento; 15] = [
+    pub const TODOS: [TipoDocumento; 16] = [
         Self::Projeto,
         Self::AnaliseImpacto,
         Self::Pergunta,
@@ -76,6 +80,7 @@ impl TipoDocumento {
         Self::AnaliseReuniao,
         Self::ParecerRevisao,
         Self::Historias,
+        Self::CenariosTeste,
     ];
 
     /// Valor no frontmatter (`analise-impacto`).
@@ -96,6 +101,7 @@ impl TipoDocumento {
             Self::AnaliseReuniao => "analise-reuniao",
             Self::ParecerRevisao => "parecer-revisao",
             Self::Historias => "historias",
+            Self::CenariosTeste => "cenarios-teste",
         }
     }
 
@@ -521,6 +527,7 @@ impl Frontmatter for FrontmatterAnalise {
         TipoDocumento::AnaliseReuniao,
         TipoDocumento::ParecerRevisao,
         TipoDocumento::Historias,
+        TipoDocumento::CenariosTeste,
     ];
 
     fn validar(&self) -> Result<(), ErroCampo> {

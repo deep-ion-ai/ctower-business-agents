@@ -73,7 +73,7 @@ pub struct Gherkin {
 }
 
 impl Gherkin {
-    fn conferir(&self) -> Result<Self, ErroModelo> {
+    pub(crate) fn conferir(&self) -> Result<Self, ErroModelo> {
         exigir("dado", &self.dado)?;
         exigir("quando", &self.quando)?;
         exigir("entao", &self.entao)?;

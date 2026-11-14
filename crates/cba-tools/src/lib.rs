@@ -16,7 +16,9 @@
 //!   [`parecer`] (`verificar_termos_vagos`, `registrar_achado`, `registrar_invest`
 //!   e `registrar_veredito`, do fluxo "Revisar requisito") e
 //!   [`historias`] (`registrar_historia` e `registrar_criterio`, do fluxo
-//!   "Histórias e critérios", com as referências conferidas por [`fundamentos`]).
+//!   "Histórias e critérios", com as referências conferidas por [`fundamentos`]) e
+//!   [`cenarios`] (`registrar_tabela_decisao` e `registrar_cenario`, do fluxo
+//!   "Cenários de teste").
 //! - Consulta, só de leitura e paginada ([`paginacao`]): [`conhecimento`] (busca no
 //!   índice da base), [`mapa`], [`estrutura`], [`banco`] (`schema`) e
 //!   [`referencias`], a partir do mapa estrutural do projeto ([`fontes`]).
@@ -46,6 +48,7 @@ pub mod analises;
 pub mod aprovacao;
 pub mod aprovacao_ata;
 pub mod banco;
+pub mod cenarios;
 pub mod ciclo;
 mod comum;
 pub mod conhecimento;
@@ -106,6 +109,8 @@ pub fn registro_padrao() -> Registro {
         .registrar(parecer::registrar_veredito())
         .registrar(historias::registrar_historia())
         .registrar(historias::registrar_criterio())
+        .registrar(cenarios::registrar_tabela_decisao())
+        .registrar(cenarios::registrar_cenario())
         .registrar(ciclo::concluir_analise());
     registro
 }
@@ -146,6 +151,8 @@ mod tests {
             "registrar_veredito",
             "registrar_historia",
             "registrar_criterio",
+            "registrar_tabela_decisao",
+            "registrar_cenario",
             "concluir_analise",
         ] {
             assert!(r.obter(nome).is_some(), "{nome}");
@@ -154,6 +161,12 @@ mod tests {
         assert!(!r.obter("afirmar").unwrap().e_somente_leitura());
         assert!(!r.obter("registrar_historia").unwrap().e_somente_leitura());
         assert!(!r.obter("registrar_criterio").unwrap().e_somente_leitura());
+        assert!(!r.obter("registrar_cenario").unwrap().e_somente_leitura());
+        assert!(
+            !r.obter("registrar_tabela_decisao")
+                .unwrap()
+                .e_somente_leitura()
+        );
         assert!(!r.obter("iniciar_analise").unwrap().e_somente_leitura());
         assert!(!r.obter("concluir_analise").unwrap().e_somente_leitura());
         assert!(!r.obter("propor_papel").unwrap().e_somente_leitura());

@@ -22,6 +22,7 @@
 pub mod ambiente;
 pub mod analise;
 pub mod analises;
+pub mod cenarios;
 pub mod config;
 pub mod dados;
 pub mod eventos;
