@@ -23,9 +23,10 @@
 //! partir de 1, único dentro da análise e nunca reaproveitado.
 
 use cba_kb::frontmatter::{Linhas, StatusAnalise, StatusSugestao, TipoDocumento};
-use cba_kb::{CaminhoRelativo, Id, IdReuniao};
+use cba_kb::{CaminhoRelativo, Id, IdHistoria, IdReuniao};
 use serde::{Deserialize, Serialize};
 
+use crate::historias::Historia;
 use crate::parecer::{
     Achado, AvaliacaoInvest, EstadoAchado, NovoAchado, Parecer, Veredito, VereditoRegistrado,
 };
@@ -50,6 +51,10 @@ pub enum Fluxo {
     /// Revisão de qualidade de um requisito ou história contra a base e o código:
     /// o agente monta o parecer de revisão (#116).
     Revisar,
+    /// Histórias de usuário com critérios de aceite, a partir de uma análise de
+    /// origem ou de uma demanda (#115). As histórias ficam em
+    /// [`Analise::historias`] ([`crate::historias`]).
+    Historias,
 }
 
 impl Fluxo {
@@ -61,6 +66,7 @@ impl Fluxo {
             Self::Impacto => TipoDocumento::AnaliseImpacto,
             Self::Reuniao => TipoDocumento::AnaliseReuniao,
             Self::Revisar => TipoDocumento::ParecerRevisao,
+            Self::Historias => TipoDocumento::Historias,
         }
     }
 }
@@ -399,6 +405,13 @@ pub struct Analise {
     /// veredito ([`crate::parecer`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parecer: Option<Parecer>,
+    /// Análise de origem (fluxo `historias`): de onde vêm as afirmações e as
+    /// perguntas citadas pelos critérios (`A-0193/4`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origem: Option<Id>,
+    /// Histórias de usuário (fluxo `historias`, [`crate::historias`]).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub historias: Vec<Historia>,
 }
 
 /// Operação recusada pelo modelo. As mensagens se dirigem a quem chamou (o agente
@@ -451,6 +464,26 @@ pub enum ErroModelo {
     AchadoSemEvidencia(&'static str),
     #[error("o critério INVEST `{0}` aparece mais de uma vez")]
     CriterioRepetido(&'static str),
+    #[error(
+        "a análise {0} não é do fluxo `historias`; histórias e critérios de aceite são \
+         registrados numa análise de histórias (iniciar_analise com fluxo `historias`)"
+    )]
+    ForaDoFluxoDeHistorias(Id),
+    #[error(
+        "todo critério de aceite precisa de ao menos uma origem: cite a afirmação \
+         (`afirmacoes`, o número na análise de origem ou A-NNNN/n) ou a regra \
+         (`regras`, RN-<SIGLA>-NNN) que o sustenta"
+    )]
+    CriterioSemFundamento,
+    #[error("a história {0} não existe nesta análise; confira o identificador (HU-NNNN)")]
+    HistoriaDesconhecida(IdHistoria),
+    #[error("a história {0} já foi registrada nesta análise")]
+    HistoriaRepetida(IdHistoria),
+    #[error(
+        "a história {0} foi descartada ou quebrada em fatias e não muda mais; registre \
+         uma história nova, se preciso"
+    )]
+    HistoriaFechada(IdHistoria),
 }
 
 fn exigir(campo: &'static str, valor: &str) -> Result<(), ErroModelo> {
@@ -495,11 +528,13 @@ impl Analise {
             termos: Vec::new(),
             reuniao: None,
             parecer: None,
+            origem: None,
+            historias: Vec::new(),
         }
     }
 
     /// Registros movem a análise para em andamento; aprovada não aceita mais nada.
-    fn aceitar_registro(&mut self) -> Result<(), ErroModelo> {
+    pub(crate) fn aceitar_registro(&mut self) -> Result<(), ErroModelo> {
         match self.estado {
             EstadoAnalise::Aprovada => Err(ErroModelo::AnaliseAprovada(self.id.clone())),
             _ => {

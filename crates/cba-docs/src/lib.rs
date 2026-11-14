@@ -46,7 +46,7 @@ pub use exportacao::{
     exportar, exportar_com_links, exportar_markdown, exportar_markdown_com_links, exportar_word,
     gravar_exportacao, gravar_exportacao_com_links,
 };
-pub use modelo::{MODELOS, Modelo, Montavel, Secao, modelo};
+pub use modelo::{HISTORIAS, MODELOS, Modelo, Montavel, RASTREABILIDADE, Secao, modelo};
 pub use montagem::{ErroMontagem, Montado};
 pub use template::{Aviso, Origem, Template, Templates, arquivo_do_template};
 
@@ -55,7 +55,7 @@ pub const NOME: &str = env!("CARGO_PKG_NAME");
 
 /// Link Markdown de um documento da base para outro, com caminho relativo ao
 /// documento de origem (`de`). Os dois caminhos são relativos à raiz do projeto.
-pub(crate) fn link(texto: &str, de: &CaminhoRelativo, para: &CaminhoRelativo) -> String {
+pub fn link(texto: &str, de: &CaminhoRelativo, para: &CaminhoRelativo) -> String {
     let texto = texto.replace('[', "\\[").replace(']', "\\]");
     let destino = caminho_relativo(de, para);
     if destino.contains([' ', '(', ')', '<', '>']) {

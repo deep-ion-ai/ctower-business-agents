@@ -62,7 +62,7 @@ pub use demandas::{DemandaLida, NovaDemanda};
 pub use documento::{Documento, ErroFrontmatter};
 pub use erro::{Erro, Resultado};
 pub use frontmatter::{ErroCampo, Frontmatter, TipoDocumento};
-pub use id::{Id, IdDemanda, IdInvalido, IdReuniao, Serie};
+pub use id::{Id, IdDemanda, IdHistoria, IdInvalido, IdReuniao, Serie};
 pub use papeis::{AvisoPapeis, OrigemPapeis, PADRAO_PAPEIS, Papeis, Papel};
 pub use pessoas::{
     Casamento, CatalogoDePessoas, NovaPessoa, PapelSugerido, Participante, PessoaLida,

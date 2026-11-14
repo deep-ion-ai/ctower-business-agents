@@ -195,6 +195,7 @@ fn rotulo_do_template(tipo: cba_kb::frontmatter::TipoDocumento) -> &'static str 
         T::Ata => "Ata de reunião",
         T::AnaliseReuniao => "Análise de reunião",
         T::ParecerRevisao => "Parecer de revisão",
+        T::Historias => "Histórias e critérios de aceite",
     }
 }
 
@@ -206,6 +207,7 @@ fn rotulo_do_roteiro(fluxo: cba_core::analise::Fluxo) -> &'static str {
         Fluxo::Impacto => "Analisar impacto",
         Fluxo::Reuniao => "Analisar reunião",
         Fluxo::Revisar => "Revisar requisito",
+        Fluxo::Historias => "Histórias e critérios",
     }
 }
 

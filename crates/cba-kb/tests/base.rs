@@ -68,6 +68,7 @@ fn analise(id: &cba_kb::Id, titulo: &str) -> Documento<FrontmatterAnalise> {
             base: None,
             criado: data(),
             analista: Some("Ana Exemplo".into()),
+            origem: None,
         },
         format!("\n# {titulo}\n"),
     )

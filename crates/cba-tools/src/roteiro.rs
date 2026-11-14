@@ -21,12 +21,13 @@ use crate::documento::secoes_de_afirmacao;
 use crate::editavel::{self, Aviso, Padrao, Texto};
 
 /// Os fluxos, na ordem em que aparecem para o analista.
-pub const FLUXOS: [Fluxo; 5] = [
+pub const FLUXOS: [Fluxo; 6] = [
     Fluxo::Perguntar,
     Fluxo::Explicar,
     Fluxo::Impacto,
     Fluxo::Reuniao,
     Fluxo::Revisar,
+    Fluxo::Historias,
 ];
 
 /// Pasta dos roteiros dentro de `_templates/`.
@@ -56,6 +57,7 @@ pub fn nome_do_fluxo(fluxo: Fluxo) -> &'static str {
         Fluxo::Impacto => "análise de impacto de uma demanda",
         Fluxo::Reuniao => "análise de reunião",
         Fluxo::Revisar => "revisão de qualidade de um requisito ou história",
+        Fluxo::Historias => "histórias de usuário com critérios de aceite",
     }
 }
 
@@ -68,14 +70,16 @@ pub fn nome_do_arquivo(fluxo: Fluxo) -> &'static str {
         Fluxo::Impacto => "impacto",
         Fluxo::Reuniao => "reuniao",
         Fluxo::Revisar => "revisar",
+        Fluxo::Historias => "historias",
     }
 }
 
 /// Se o roteiro padrão do fluxo já foi revisado. Só os revisados são copiados
 /// para a base. Os três primeiros foram revisados (#32): perguntar no M1, explicar
 /// e impacto no M2; o de reunião, na #140. O de revisão (#116) é provisório até
-/// ser avaliado com o modelo real (`cba-avaliacao rodar --fluxos revisar`). Um
-/// fluxo novo entra aqui só depois de ter o roteiro revisado.
+/// ser avaliado com o modelo real (`cba-avaliacao rodar --fluxos revisar`), e o
+/// de histórias (#115) também (`--fluxos historias`). Um fluxo novo entra aqui só
+/// depois de ter o roteiro revisado.
 pub fn revisado(fluxo: Fluxo) -> bool {
     matches!(
         fluxo,
@@ -90,6 +94,7 @@ pub(crate) fn padrao(fluxo: Fluxo) -> Padrao {
         Fluxo::Impacto => include_str!("../textos/roteiros/impacto.md"),
         Fluxo::Reuniao => include_str!("../textos/roteiros/reuniao.md"),
         Fluxo::Revisar => include_str!("../textos/roteiros/revisar.md"),
+        Fluxo::Historias => include_str!("../textos/roteiros/historias.md"),
     };
     Padrao {
         pasta: PASTA,
@@ -185,6 +190,8 @@ pub fn secoes_obrigatorias(fluxo: Fluxo) -> &'static [&'static str] {
         Fluxo::Reuniao => &[],
         // O conteúdo da revisão está no parecer; `concluir_analise` exige o veredito.
         Fluxo::Revisar => &[],
+        // As histórias têm ferramenta própria; `concluir_analise` confere as histórias.
+        Fluxo::Historias => &[],
     }
 }
 
@@ -192,6 +199,9 @@ pub fn secoes_obrigatorias(fluxo: Fluxo) -> &'static [&'static str] {
 /// caber como sublista de um item numerado.
 fn lista_de_secoes(fluxo: Fluxo) -> String {
     let mut t = String::new();
+    if secoes_de_afirmacao(fluxo).is_empty() {
+        return "   - nenhuma: este documento não recebe afirmações; registre com as ferramentas do fluxo".to_owned();
+    }
     for (i, secao) in secoes_de_afirmacao(fluxo).into_iter().enumerate() {
         if i > 0 {
             t.push('\n');
@@ -239,7 +249,7 @@ fn titulo_ao_fim(variavel: &str) -> &'static str {
 /// Os roteiros dos fluxos.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Roteiros {
-    por_fluxo: [Texto; 5],
+    por_fluxo: [Texto; 6],
 }
 
 fn indice(fluxo: Fluxo) -> usize {
@@ -249,6 +259,7 @@ fn indice(fluxo: Fluxo) -> usize {
         Fluxo::Impacto => 2,
         Fluxo::Reuniao => 3,
         Fluxo::Revisar => 4,
+        Fluxo::Historias => 5,
     }
 }
 
@@ -603,16 +614,20 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let base = Base::criar(dir.path()).unwrap();
         let criados = Roteiros::copiar_padrao(&base).unwrap();
-        // O de reunião foi revisado na #140; o de revisão (#116) é provisório e
-        // não vai para a base.
-        assert!(
+        // O de reunião foi revisado na #140; os de revisão (#116) e de histórias
+        // (#115) são provisórios e não vão para a base.
+        assert_eq!(
             FLUXOS
                 .into_iter()
-                .filter(|f| *f != Fluxo::Revisar)
-                .all(revisado)
+                .filter(|f| !revisado(*f))
+                .collect::<Vec<_>>(),
+            [Fluxo::Revisar, Fluxo::Historias]
         );
-        assert!(!revisado(Fluxo::Revisar));
         assert!(base.ler_texto(&arquivo_do_roteiro(Fluxo::Revisar)).is_err());
+        assert!(
+            base.ler_texto(&arquivo_do_roteiro(Fluxo::Historias))
+                .is_err()
+        );
         assert_eq!(
             criados,
             ["perguntar", "explicar", "impacto", "reuniao"]

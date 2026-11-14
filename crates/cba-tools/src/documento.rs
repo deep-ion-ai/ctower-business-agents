@@ -31,23 +31,26 @@ use cba_kb::{Base, Documento};
 const ESPECIAIS: [&str; 3] = ["perguntas", "sugestoes", "evidencias"];
 
 /// Seções montadas a partir de registros próprios do fluxo, que também não
-/// recebem afirmações (o parecer de revisão tem ferramentas próprias).
+/// recebem afirmações (o parecer de revisão e as histórias têm ferramentas
+/// próprias).
 fn secoes_estruturadas(fluxo: Fluxo) -> &'static [&'static str] {
     match fluxo {
         Fluxo::Revisar => crate::parecer::SECOES,
+        Fluxo::Historias => &[cba_docs::HISTORIAS, cba_docs::RASTREABILIDADE],
         _ => &[],
     }
 }
 
 /// Seção do documento em que entra a entrada do analista: a pergunta, a demanda
-/// como veio ou a reunião analisada. O documento negocial não tem: o título já
-/// diz a funcionalidade.
+/// como veio, a reunião analisada ou o pedido de histórias. O documento negocial
+/// não tem: o título já diz a funcionalidade.
 pub fn secao_da_entrada(fluxo: Fluxo) -> Option<&'static str> {
     match fluxo {
         Fluxo::Perguntar => Some("pergunta"),
         Fluxo::Impacto => Some("demanda_como_veio"),
         Fluxo::Reuniao => Some("reuniao"),
         Fluxo::Revisar => Some("requisito"),
+        Fluxo::Historias => Some("pedido"),
         Fluxo::Explicar => None,
     }
 }
@@ -119,6 +122,9 @@ pub fn conteudo(
 ) -> Conteudo<FrontmatterAnalise> {
     frontmatter.status = analise.estado.status_documento();
     frontmatter.titulo.clone_from(&analise.titulo);
+    if analise.origem.is_some() {
+        frontmatter.origem.clone_from(&analise.origem);
+    }
     if analise.fluxo == Fluxo::Impacto {
         frontmatter.abrangencia = analise
             .afirmacoes
@@ -142,6 +148,11 @@ pub fn conteudo(
     }
     if analise.fluxo == Fluxo::Revisar {
         conteudo.textos.extend(crate::parecer::textos(analise));
+    }
+    if analise.fluxo == Fluxo::Historias {
+        conteudo
+            .textos
+            .extend(crate::historias::textos(analise, &analise.documento));
     }
     conteudo.afirmacoes = analise
         .afirmacoes

@@ -494,6 +494,7 @@ pub fn nome_do_fluxo(fluxo: cba_core::analise::Fluxo) -> &'static str {
         Fluxo::Impacto => "impacto",
         Fluxo::Reuniao => "reuniao",
         Fluxo::Revisar => "revisar",
+        Fluxo::Historias => "historias",
     }
 }
 

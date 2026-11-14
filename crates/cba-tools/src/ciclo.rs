@@ -98,7 +98,16 @@ fn contagem(analise: &Analise) -> Value {
         "perguntas_abertas": perguntas_abertas(analise).count(),
         "sugestoes": analise.sugestoes.len(),
         "termos": analise.termos.len(),
+        "historias": analise.historias_no_documento().count(),
     })
+}
+
+/// Pedido padrão de uma análise de histórias a partir da análise de origem.
+fn pedido_de_historias(origem: &Analise) -> String {
+    format!(
+        "Histórias de usuário com critérios de aceite a partir da análise {} ({}).",
+        origem.id, origem.titulo
+    )
 }
 
 /// Saída com o texto para o agente e os dados estruturados (que repetem o
@@ -127,6 +136,8 @@ struct ArgsIniciar {
     demanda: Option<String>,
     #[serde(default)]
     reuniao: Option<String>,
+    #[serde(default)]
+    origem: Option<String>,
 }
 
 /// Ligações pedidas em `iniciar_analise`: a demanda (gravada em `demanda.id` no
@@ -183,7 +194,9 @@ pub fn iniciar_analise() -> Ferramenta {
          A-NNNN\", passe só `analise`. Quando ele fizer o pedido direto no chat, sem \
          identificador, passe `fluxo` e `entrada` (e, se quiser, `titulo`) para criar a \
          análise; use o identificador devolvido em todas as chamadas seguintes. Para \
-         analisar uma reunião, passe `fluxo: \"reuniao\"` e `reuniao` (R-NNNN). \
+         analisar uma reunião, passe `fluxo: \"reuniao\"` e `reuniao` (R-NNNN). Para \
+         gerar histórias com critérios de aceite, passe `fluxo: \"historias\"` e \
+         `origem` (a análise A-NNNN de onde vêm as afirmações) ou `demanda`. \
          `demanda` (D-NNNN, opcional) liga a análise a uma demanda do projeto. Siga o \
          roteiro devolvido.",
         json!({
@@ -192,14 +205,19 @@ pub fn iniciar_analise() -> Ferramenta {
                 "analise": comum::schema_da_analise(),
                 "fluxo": {
                     "type": "string",
-                    "enum": ["perguntar", "explicar", "impacto", "reuniao", "revisar"],
-                    "description": "Só para criar: perguntar (pergunta ao sistema), explicar (explicar funcionalidade, documento negocial), impacto (análise de impacto de uma demanda), reuniao (montar a ata de uma reunião a partir do transcript; exige `reuniao`) ou revisar (revisar a qualidade de um requisito ou história contra a base e o código; a entrada é o texto revisado)."
+                    "enum": ["perguntar", "explicar", "impacto", "reuniao", "revisar", "historias"],
+                    "description": "Só para criar: perguntar (pergunta ao sistema), explicar (explicar funcionalidade, documento negocial), impacto (análise de impacto de uma demanda), reuniao (montar a ata de uma reunião a partir do transcript; exige `reuniao`), revisar (revisar a qualidade de um requisito ou história contra a base e o código; a entrada é o texto revisado) ou historias (histórias com critérios de aceite; exige `origem` ou `demanda`)."
                 },
                 "entrada": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 20000,
-                    "description": "Só para criar: a pergunta, a funcionalidade, o texto da demanda ou o requisito ou história a revisar, como o analista escreveu. No fluxo reuniao é opcional."
+                    "description": "Só para criar: a pergunta, a funcionalidade, o texto da demanda ou o requisito ou história a revisar, como o analista escreveu. Nos fluxos reuniao e historias é opcional."
+                },
+                "origem": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Só para criar, no fluxo historias: a análise de origem (A-NNNN), normalmente a análise de impacto, de preferência aprovada. A análise nova herda a demanda dela."
                 },
                 "titulo": {
                     "type": "string",
@@ -230,6 +248,11 @@ pub fn iniciar_analise() -> Ferramenta {
                     .map(reuniao::id_da_reuniao)
                     .transpose()?,
             };
+            if args.origem.is_some() && args.fluxo != Some(Fluxo::Historias) {
+                return Err(ErroFerramenta::Argumentos(
+                    "`origem` só vale para criar uma análise do fluxo `historias`".into(),
+                ));
+            }
             let (id, criada) = match (args.analise, args.fluxo, args.entrada) {
                 (Some(analise), None, None) if args.titulo.is_none() => {
                     (comum::id_da_analise(&analise)?, false)
@@ -281,6 +304,81 @@ pub fn iniciar_analise() -> Ferramenta {
                             base: versao_do_codigo(ambiente),
                         },
                         Some(demanda_do_frontmatter(&lida)),
+                    )?;
+                    ligacao.demanda = None;
+                    (analise.id, true)
+                }
+                (None, Some(Fluxo::Historias), entrada) => {
+                    if ligacao.reuniao.is_some() {
+                        return Err(ErroFerramenta::Argumentos(
+                            "`reuniao` só vale no fluxo `reuniao`".into(),
+                        ));
+                    }
+                    let origem = args
+                        .origem
+                        .as_deref()
+                        .map(comum::id_da_analise)
+                        .transpose()?;
+                    let lida = origem
+                        .as_ref()
+                        .map(|o| ambiente.analises.carregar(o))
+                        .transpose()?;
+                    if let Some(o) = &lida
+                        && o.fluxo == Fluxo::Historias
+                    {
+                        return Err(ErroFerramenta::Recusa(format!(
+                            "a análise {} já é de histórias; a origem é a análise do código \
+                             de onde vêm as afirmações (impacto, explicação ou pergunta)",
+                            o.id
+                        )));
+                    }
+                    // A demanda pedida ou, sem ela, a da análise de origem.
+                    let demanda = match (ligacao.demanda, &lida) {
+                        (Some(d), _) => Some(demanda_aberta(ambiente, d)?),
+                        (None, Some(o)) => ambiente
+                            .kb
+                            .ler::<FrontmatterAnalise>(&o.documento)
+                            .ok()
+                            .and_then(|d| d.frontmatter.demanda.id)
+                            .and_then(|d| ler_demanda(ambiente, d).ok()),
+                        (None, None) => {
+                            return Err(ErroFerramenta::Argumentos(
+                                "no fluxo `historias`, informe `origem` (a análise A-NNNN de \
+                                 onde vêm as afirmações) ou `demanda` (D-NNNN)"
+                                    .into(),
+                            ));
+                        }
+                    };
+                    let entrada = entrada.filter(|e| !e.trim().is_empty()).unwrap_or_else(
+                        || match (&lida, &demanda) {
+                            (Some(o), _) => pedido_de_historias(o),
+                            (None, Some(d)) => format!(
+                                "Histórias de usuário com critérios de aceite da demanda {} ({}).",
+                                d.id, d.documento.frontmatter.titulo
+                            ),
+                            (None, None) => "Histórias de usuário com critérios de aceite.".into(),
+                        },
+                    );
+                    let titulo = match args.titulo {
+                        Some(t) if !t.trim().is_empty() => t,
+                        _ => titulo_da_entrada(&match (&lida, &demanda) {
+                            (Some(o), _) => format!("Histórias · {}", o.titulo),
+                            (None, Some(d)) => {
+                                format!("Histórias · {}", d.documento.frontmatter.titulo)
+                            }
+                            (None, None) => entrada.clone(),
+                        }),
+                    };
+                    let analise = ambiente.analises.criar_derivada(
+                        NovaAnalise {
+                            fluxo: Fluxo::Historias,
+                            titulo,
+                            entrada,
+                            analista: None,
+                            base: versao_do_codigo(ambiente),
+                        },
+                        demanda.as_ref().map(demanda_do_frontmatter),
+                        origem,
                     )?;
                     ligacao.demanda = None;
                     (analise.id, true)
@@ -419,6 +517,15 @@ fn iniciar(
         )));
     }
     let mut avisos = Vec::new();
+    if let Some(o) = &atual.origem
+        && let Ok(origem) = ambiente.analises.carregar(o)
+        && origem.estado != EstadoAnalise::Aprovada
+    {
+        avisos.push(format!(
+            "a análise de origem {o} ainda não foi aprovada pelo analista: prefira as \
+             afirmações que ele já confirmou e trate as demais como a confirmar"
+        ));
+    }
     match Templates::copiar_padrao(&ambiente.base) {
         Ok(criados) if !criados.is_empty() => {
             tracing::info!(
@@ -497,15 +604,17 @@ fn iniciar(
              informe o identificador ao analista.\n"
         );
     }
-    let registros = afirmacoes_validas(analise).count() + analise.perguntas.len();
+    let registros =
+        afirmacoes_validas(analise).count() + analise.perguntas.len() + analise.historias.len();
     if registros > 0 {
         let _ = writeln!(
             texto,
-            "Esta análise já tem registros ({} afirmações, {} perguntas abertas). Chame \
-             `retomar_analise` para vê-los antes de continuar e não registre de novo o que \
-             já está lá.\n",
+            "Esta análise já tem registros ({} afirmações, {} perguntas abertas, {} \
+             histórias). Chame `retomar_analise` para vê-los antes de continuar e não \
+             registre de novo o que já está lá.\n",
             afirmacoes_validas(analise).count(),
-            perguntas_abertas(analise).count()
+            perguntas_abertas(analise).count(),
+            analise.historias_no_documento().count()
         );
     }
     texto.push_str(&roteiro);
@@ -525,6 +634,7 @@ fn iniciar(
         "secoes_obrigatorias": secoes_obrigatorias(analise.fluxo),
         "registros": contagem(analise),
         "reuniao": analise.reuniao,
+        "origem": analise.origem,
         "contexto": contexto.json(),
         "roteiro": roteiro,
     });
@@ -643,6 +753,29 @@ fn retomar(ambiente: &Ambiente, analise: &Analise) -> Saida {
     // No fluxo `revisar`, o conteúdo está no parecer.
     let parecer = (fluxo == Fluxo::Revisar).then(|| parecer::para_retomar(analise));
     if let Some((texto, _)) = &parecer {
+        t.push_str(texto);
+    }
+    // No fluxo `historias`, a origem e as histórias vêm antes.
+    let historias = (fluxo == Fluxo::Historias).then(|| crate::historias::para_retomar(analise));
+    if fluxo == Fluxo::Historias {
+        match &analise.origem {
+            Some(o) => {
+                let _ = writeln!(
+                    t,
+                    "Análise de origem: {o} (leia com `retomar_analise`, analise: \"{o}\"; \
+                     cite as afirmações pelo número dela).\n"
+                );
+            }
+            None => {
+                let _ = writeln!(
+                    t,
+                    "Sem análise de origem: cite as afirmações como A-NNNN/n e as regras \
+                     como RN-<SIGLA>-NNN.\n"
+                );
+            }
+        }
+    }
+    if let Some((texto, _)) = &historias {
         t.push_str(texto);
     }
     let _ = writeln!(t, "## Afirmações");
@@ -835,6 +968,8 @@ fn retomar(ambiente: &Ambiente, analise: &Analise) -> Saida {
             "reuniao": analise.reuniao,
             "ata": ata.map(|(_, dados)| dados),
             "parecer": parecer.map(|(_, dados)| dados),
+            "origem": analise.origem,
+            "historias": historias.map(|(_, dados)| dados),
             "afirmacoes": afirmacoes,
             "perguntas": perguntas,
             "sugestoes": sugestoes,
@@ -940,6 +1075,32 @@ fn conferir_ata(ambiente: &Ambiente, analise: &Analise) -> Result<(), ErroFerram
     Ok(())
 }
 
+/// No fluxo `historias`, o conteúdo são as histórias: ao menos uma, e cada uma com
+/// ao menos um critério de aceite.
+fn conferir_historias(analise: &Analise) -> Result<(), ErroFerramenta> {
+    let id = &analise.id;
+    if analise.historias_no_documento().next().is_none() {
+        return Err(ErroFerramenta::Recusa(format!(
+            "a análise {id} ainda não tem histórias. Registre cada história com \
+             `registrar_historia` (com os critérios de aceite) e chame `concluir_analise` de \
+             novo"
+        )));
+    }
+    let sem: Vec<String> = analise
+        .historias_no_documento()
+        .filter(|h| h.criterios_validos().next().is_none())
+        .map(|h| h.id.to_string())
+        .collect();
+    if !sem.is_empty() {
+        return Err(ErroFerramenta::Recusa(format!(
+            "história(s) sem critério de aceite: {}. Registre ao menos um critério em cada \
+             uma com `registrar_criterio` e chame `concluir_analise` de novo",
+            sem.join(", ")
+        )));
+    }
+    Ok(())
+}
+
 fn concluir(ambiente: &Ambiente, id: &Id) -> Result<Saida, ErroFerramenta> {
     let atual = ambiente.analises.carregar(id)?;
     let fluxo = atual.fluxo;
@@ -954,6 +1115,8 @@ fn concluir(ambiente: &Ambiente, id: &Id) -> Result<Saida, ErroFerramenta> {
     } else if fluxo == Fluxo::Revisar {
         // O conteúdo da revisão está no parecer: o veredito é obrigatório.
         pendencias.extend(parecer::conferir_para_concluir(&atual)?);
+    } else if fluxo == Fluxo::Historias {
+        conferir_historias(&atual)?;
     } else if afirmacoes_validas(&atual).next().is_none() {
         return Err(ErroFerramenta::Recusa(format!(
             "a análise {id} ainda não tem afirmações. Registre o que apurou com `afirmar` \
@@ -992,6 +1155,23 @@ fn concluir(ambiente: &Ambiente, id: &Id) -> Result<Saida, ErroFerramenta> {
     let documento = documento(ambiente, analise);
     let arquivo = ambiente.kb.caminho(&analise.documento);
 
+    for h in analise.historias_no_documento() {
+        if let Some(p) = &h.quebra_pedida {
+            pendencias.push(if p.is_empty() {
+                format!("{}: o analista pediu a quebra em fatias", h.id)
+            } else {
+                format!("{}: o analista pediu a quebra em fatias: {p}", h.id)
+            });
+        }
+        for alerta in h.alertas_invest() {
+            pendencias.push(format!(
+                "{}: não atende ao INVEST ({}): {}",
+                h.id,
+                alerta.nome(),
+                alerta.motivo
+            ));
+        }
+    }
     for a in afirmacoes_validas(analise) {
         if a.estado == EstadoAfirmacao::ARevalidar {
             pendencias.push(format!(
@@ -1041,6 +1221,8 @@ fn concluir(ambiente: &Ambiente, id: &Id) -> Result<Saida, ErroFerramenta> {
                 "o objetivo da reunião, as decisões, as pendências com responsável e prazo e as dúvidas em aberto",
             Fluxo::Revisar =>
                 "o veredito, as contradições com a base ou o código, os principais achados e as perguntas para o autor",
+            Fluxo::Historias =>
+                "as histórias (HU-NNNN e título) com o número de critérios, os critérios a confirmar, os alertas INVEST e as quebras propostas",
         }
     );
     if !abertas.is_empty() {

@@ -12,16 +12,18 @@
 //!   `retomar_analise` e `concluir_analise`), [`afirmar`], [`perguntar`],
 //!   [`sugestao`] (`registrar_sugestao`), [`termo`] (`propor_termo`) e
 //!   [`reuniao`] (`ler_transcript`, `propor_papel`, `registrar_item_ata`,
-//!   `registrar_resumo_ata` e `sugerir_demanda`, do fluxo "Analisar reunião") e
+//!   `registrar_resumo_ata` e `sugerir_demanda`, do fluxo "Analisar reunião"),
 //!   [`parecer`] (`verificar_termos_vagos`, `registrar_achado`, `registrar_invest`
-//!   e `registrar_veredito`, do fluxo "Revisar requisito").
+//!   e `registrar_veredito`, do fluxo "Revisar requisito") e
+//!   [`historias`] (`registrar_historia` e `registrar_criterio`, do fluxo
+//!   "Histórias e critérios", com as referências conferidas por [`fundamentos`]).
 //! - Consulta, só de leitura e paginada ([`paginacao`]): [`conhecimento`] (busca no
 //!   índice da base), [`mapa`], [`estrutura`], [`banco`] (`schema`) e
 //!   [`referencias`], a partir do mapa estrutural do projeto ([`fontes`]).
 //! - [`roteiro`] e [`contexto`]: o roteiro do fluxo e o contexto da base que
 //!   `iniciar_analise` e `retomar_analise` devolvem ao agente.
 //! - [`prompts`]: os prompts prontos da tela da análise (aprofundar, resumir,
-//!   critérios de aceite, conferir evidências, retomar).
+//!   gerar histórias, conferir evidências, retomar).
 //! - [`editavel`]: roteiros e prompts editáveis na base (`_templates/roteiros/` e
 //!   `_templates/prompts/`), com o padrão embutido.
 //! - [`evidencias`]: a validação de cada evidência citada contra o código atual
@@ -53,6 +55,8 @@ pub mod editavel;
 pub mod estrutura;
 pub mod evidencias;
 mod fontes;
+pub mod fundamentos;
+pub mod historias;
 pub mod mapa;
 mod paginacao;
 pub mod parecer;
@@ -100,6 +104,8 @@ pub fn registro_padrao() -> Registro {
         .registrar(parecer::registrar_achado())
         .registrar(parecer::registrar_invest())
         .registrar(parecer::registrar_veredito())
+        .registrar(historias::registrar_historia())
+        .registrar(historias::registrar_criterio())
         .registrar(ciclo::concluir_analise());
     registro
 }
@@ -138,12 +144,16 @@ mod tests {
             "registrar_achado",
             "registrar_invest",
             "registrar_veredito",
+            "registrar_historia",
+            "registrar_criterio",
             "concluir_analise",
         ] {
             assert!(r.obter(nome).is_some(), "{nome}");
         }
         // As de registro alteram a análise.
         assert!(!r.obter("afirmar").unwrap().e_somente_leitura());
+        assert!(!r.obter("registrar_historia").unwrap().e_somente_leitura());
+        assert!(!r.obter("registrar_criterio").unwrap().e_somente_leitura());
         assert!(!r.obter("iniciar_analise").unwrap().e_somente_leitura());
         assert!(!r.obter("concluir_analise").unwrap().e_somente_leitura());
         assert!(!r.obter("propor_papel").unwrap().e_somente_leitura());

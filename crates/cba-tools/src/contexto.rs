@@ -44,6 +44,49 @@ pub struct Contexto {
     pub aviso: Option<String>,
     /// A demanda da análise, com as atas anteriores, as pendências e as pessoas.
     pub demanda: Option<Value>,
+    /// A análise de origem (fluxo `historias`): identificador, título, estado e
+    /// contagens, para o agente chamar `retomar_analise` com ela.
+    pub origem: Option<Value>,
+}
+
+/// Resumo da análise de origem para o contexto.
+fn resumo_da_origem(ambiente: &Ambiente, id: &Id) -> Value {
+    match ambiente.analises.carregar(id) {
+        Ok(o) => json!({
+            "id": o.id,
+            "titulo": o.titulo,
+            "fluxo": o.fluxo,
+            "estado": o.estado,
+            "afirmacoes": o.afirmacoes.len(),
+            "afirmacoes_confirmadas": o.afirmacoes.iter()
+                .filter(|a| a.estado == cba_core::analise::EstadoAfirmacao::Confirmada)
+                .count(),
+            "perguntas_abertas": o.perguntas.iter()
+                .filter(|p| p.estado == cba_core::analise::EstadoPergunta::Aberta)
+                .count(),
+            "documento": ambiente.kb.na_base(&o.documento),
+        }),
+        Err(e) => json!({ "id": id, "aviso": e.to_string() }),
+    }
+}
+
+fn markdown_da_origem(o: &Value) -> String {
+    let id = o["id"].as_str().unwrap_or_default();
+    if let Some(aviso) = o["aviso"].as_str() {
+        return format!("### Análise de origem\n\n{id}: não foi possível ler ({aviso}).\n\n");
+    }
+    format!(
+        "### Análise de origem\n\n{id} · {} ({}, estado {}): {} afirmações ({} confirmadas pelo \
+         analista) e {} perguntas em aberto. Documento: `{}`. Chame `retomar_analise` com \
+         analise: \"{id}\" para ler as afirmações, as evidências e as perguntas.\n\n",
+        o["titulo"].as_str().unwrap_or_default(),
+        o["fluxo"].as_str().unwrap_or_default(),
+        o["estado"].as_str().unwrap_or_default(),
+        o["afirmacoes"],
+        o["afirmacoes_confirmadas"],
+        o["perguntas_abertas"],
+        o["documento"].as_str().unwrap_or_default(),
+    )
 }
 
 /// Busca de um tipo de documento no índice, só do projeto da análise.
@@ -84,6 +127,10 @@ impl Contexto {
                 .ok()
                 .and_then(|d| d.frontmatter.demanda.id)
                 .map(|d| contexto_da_demanda(ambiente, d, analise.reuniao)),
+            origem: analise
+                .origem
+                .as_ref()
+                .map(|o| resumo_da_origem(ambiente, o)),
             ..Contexto::default()
         };
         let documentos = kb.documentos().unwrap_or_default();
@@ -226,16 +273,26 @@ impl Contexto {
         if let Some(d) = &self.demanda {
             v["demanda"] = d.clone();
         }
+        if let Some(o) = &self.origem {
+            v["origem"] = o.clone();
+        }
         v
     }
 
     /// O contexto em Markdown, para o roteiro. Caminhos relativos à base.
     pub fn markdown(&self) -> String {
         let mut t = self
-            .demanda
+            .origem
             .as_ref()
-            .map(markdown_da_demanda)
+            .map(markdown_da_origem)
             .unwrap_or_default();
+        t.push_str(
+            &self
+                .demanda
+                .as_ref()
+                .map(markdown_da_demanda)
+                .unwrap_or_default(),
+        );
         t.push_str(&self.markdown_da_base());
         t
     }

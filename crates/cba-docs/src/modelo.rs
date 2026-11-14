@@ -52,6 +52,9 @@ pub(crate) const PARTICIPANTES: &str = "participantes";
 pub(crate) const REFERENCIAS_FALAS: &str = "referencias_falas";
 /// Seções do parecer de revisão com texto próprio quando vazias.
 pub(crate) const ACHADOS: &str = "achados";
+/// Seções das histórias (#115), montadas a partir do estado da análise.
+pub const HISTORIAS: &str = "historias";
+pub const RASTREABILIDADE: &str = "rastreabilidade";
 
 const fn s(marcador: &'static str, titulo: &'static str) -> Secao {
     Secao { marcador, titulo }
@@ -90,7 +93,7 @@ const CAMPOS_FUNCIONALIDADE_OU_ANALISE: &[&str] = &[
 ];
 
 /// Tipos que têm template, na ordem da spec (seção 7.3).
-pub const MODELOS: [Modelo; 10] = [
+pub const MODELOS: [Modelo; 11] = [
     Modelo {
         tipo: TipoDocumento::AnaliseImpacto,
         secoes: &[
@@ -236,6 +239,27 @@ pub const MODELOS: [Modelo; 10] = [
         campos: CAMPOS_ANALISE,
         padrao: include_str!("../templates/parecer-revisao.md"),
     },
+    Modelo {
+        tipo: TipoDocumento::Historias,
+        secoes: &[
+            s("pedido", "Pedido"),
+            s(HISTORIAS, "Histórias"),
+            s(RASTREABILIDADE, "Rastreabilidade"),
+            s(PERGUNTAS, "Perguntas em aberto"),
+            EVIDENCIAS_SECAO,
+        ],
+        campos: &[
+            "id",
+            "titulo",
+            "projeto",
+            "status",
+            "criado",
+            "analista",
+            "versao_do_codigo",
+            "origem",
+        ],
+        padrao: include_str!("../templates/historias.md"),
+    },
 ];
 
 /// Modelo do tipo, se o tipo tiver template (`projeto` e `memoria-area` não têm).
@@ -258,6 +282,8 @@ pub(crate) fn texto_vazio(marcador: &str) -> &'static str {
         "invest" => {
             "_Não avaliada: o texto não é uma história, ou a verificação ainda não foi registrada._"
         }
+        HISTORIAS => "_Nenhuma história registrada._",
+        RASTREABILIDADE => "_Nenhum critério de aceite registrado._",
         _ => "_Nada registrado._",
     }
 }
@@ -295,7 +321,7 @@ impl Montavel for FrontmatterAnalise {
         self.tipo
     }
 
-    fn campos(&self, _caminho: &CaminhoRelativo) -> Vec<(&'static str, String)> {
+    fn campos(&self, caminho: &CaminhoRelativo) -> Vec<(&'static str, String)> {
         let abrangencia = match self.abrangencia {
             Some(Abrangencia::Pequena) => "pequena",
             Some(Abrangencia::Media) => "média",
@@ -311,7 +337,7 @@ impl Montavel for FrontmatterAnalise {
             },
             None => NAO_INFORMADA.into(),
         };
-        vec![
+        let mut campos = vec![
             ("id", self.id.to_string()),
             ("titulo", self.titulo.clone()),
             ("projeto", self.projeto.clone()),
@@ -325,7 +351,17 @@ impl Montavel for FrontmatterAnalise {
             ),
             ("abrangencia_estimada", abrangencia.into()),
             ("versao_do_codigo", versao),
-        ]
+        ];
+        // A origem só nas histórias: o documento negocial de uma análise usa o
+        // mesmo marcador para outra coisa e o mostra como ausente.
+        if self.tipo == TipoDocumento::Historias {
+            let origem = match &self.origem {
+                Some(o) => link(&o.to_string(), caminho, &o.arquivo()),
+                None => NAO_INFORMADA.into(),
+            };
+            campos.push(("origem", origem));
+        }
+        campos
     }
 }
 
