@@ -92,7 +92,7 @@ pub(super) fn ler<'a>(linhas: &[&'a str]) -> Lido {
                 fim: None,
                 linhas: Vec::new(),
             });
-        } else if linha_de_controle(linha) {
+        } else if linha_de_sistema(linha) {
             // Descartada.
         } else if let Some(a) = aberta.as_mut() {
             a.linhas.push(linha);
@@ -153,7 +153,7 @@ fn horario_curto(texto: &str) -> Option<(Horario, bool)> {
 }
 
 /// Linha de sistema do Teams sobre a transcrição (não é fala).
-fn linha_de_controle(linha: &str) -> bool {
+fn linha_de_sistema(linha: &str) -> bool {
     let minuscula = linha.trim_end_matches('.').to_lowercase();
     [
         "started transcription",
@@ -261,7 +261,7 @@ mod testes {
     }
 
     #[test]
-    fn linhas_de_controle_sao_descartadas() {
+    fn linhas_de_sistema_sao_descartadas() {
         let t = analisar_texto(
             "Ana Souza iniciou a transcrição\nAna  0:03\nOi\nAna Souza started transcription.\nAna Souza parou a transcrição\n",
         );
