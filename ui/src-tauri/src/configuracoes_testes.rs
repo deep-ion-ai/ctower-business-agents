@@ -478,7 +478,7 @@ fn textos_mostram_quando_a_base_sobrepoe_o_padrao() {
     let de = |g: GrupoTexto| lista.iter().filter(|t| t.grupo == g).count();
     assert!(de(GrupoTexto::Template) > 0);
     assert_eq!(de(GrupoTexto::Roteiro), 4);
-    assert_eq!(de(GrupoTexto::Prompt), 7);
+    assert_eq!(de(GrupoTexto::Prompt), 8);
     assert_eq!(de(GrupoTexto::RegrasDoProjeto), 1);
     let json = serde_json::to_value(&lista).unwrap();
     assert!(json[0]["grupo"].is_string() && json[0]["estado"].is_string());

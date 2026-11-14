@@ -4,8 +4,56 @@ import { ROTULO_FLUXO, type ApiConhecimento } from "./conhecimento";
 import { PrepararAmbiente } from "./PrepararAmbiente";
 import type { ProjetoResumo } from "./terminal";
 
-/** Fluxos cujas análises podem ser a origem das histórias: as análises do código. */
-const ORIGENS = new Set(["perguntar", "explicar", "impacto"]);
+/** Fluxos derivados de uma análise de origem: histórias (#115) e cenários (#117). */
+export type FluxoDerivado = "historias" | "cenarios";
+
+/**
+ * Fluxos cujas análises podem ser a origem: as análises do código e, nos cenários,
+ * também a de histórias (os cenários se ligam às histórias).
+ */
+const ORIGENS: Record<FluxoDerivado, Set<string>> = {
+  historias: new Set(["perguntar", "explicar", "impacto"]),
+  cenarios: new Set(["perguntar", "explicar", "impacto", "historias"]),
+};
+
+const TEXTOS: Record<
+  FluxoDerivado,
+  {
+    explicacao: string;
+    ligadas: string;
+    semOrigem: string;
+    vazio: string;
+    pedido: string;
+    exemplo: string;
+    botao: string;
+    preparar: string;
+  }
+> = {
+  historias: {
+    explicacao:
+      'O agente lê a análise de origem e registra histórias "Como / quero / para" com critérios de aceite (Dado / Quando / Então). Cada critério fica ligado às afirmações e às regras que o sustentam; o que depende de pergunta em aberto fica "a confirmar".',
+    ligadas: "As histórias ficam ligadas à demanda",
+    semOrigem: "Só a demanda, sem análise de origem",
+    vazio:
+      "Nenhuma análise do código neste projeto ainda. Faça antes a análise de impacto da demanda: as histórias partem dela.",
+    pedido: "O que você quer nas histórias (opcional)",
+    exemplo: "Ex.: Só o parcelamento na tela; o relatório de recebíveis fica para depois.",
+    botao: "Gerar as histórias",
+    preparar: "Prepare o ambiente do Claude antes de gerar as histórias.",
+  },
+  cenarios: {
+    explicacao:
+      'O agente lê as regras no código e registra os cenários de teste: tabela de decisão para regra com várias condições, partição de equivalência e valores-limite com os valores lidos do código, e os casos negativos. Cada cenário (CT-…) fica ligado à regra e à evidência do limite; o limite que vem de tabela de parâmetros fica "a confirmar". Exporta em CSV, uma linha por cenário.',
+    ligadas: "Os cenários ficam ligados à demanda",
+    semOrigem: "Sem análise de origem: só as regras do pedido",
+    vazio:
+      "Nenhuma análise neste projeto ainda: diga no pedido as regras a cobrir (RN-…).",
+    pedido: "Regras ou o que você quer nos cenários",
+    exemplo: "Ex.: Cenários do cancelamento: RN-FAT-013 e RN-FAT-014.",
+    botao: "Gerar os cenários",
+    preparar: "Prepare o ambiente do Claude antes de gerar os cenários.",
+  },
+};
 
 const ESTADO: Record<AnaliseResumo["estado"], string> = {
   criada: "criada",
@@ -15,11 +63,11 @@ const ESTADO: Record<AnaliseResumo["estado"], string> = {
 };
 
 /**
- * Formulário do fluxo "Histórias e critérios" (#115): o analista escolhe a análise
- * de origem (de preferência aprovada) e, se quiser, diz o que quer nas histórias. O
- * agente lê a origem e registra as histórias com os critérios ligados às afirmações
- * e às regras. Pelo painel da demanda (`demandaFixa`), a origem é opcional: as
- * histórias podem partir só da demanda.
+ * Formulário dos fluxos derivados de uma análise: "Histórias e critérios" (#115) e
+ * "Cenários de teste" (#117). O analista escolhe a análise de origem (de
+ * preferência aprovada) e, se quiser, diz o que quer. Pelo painel da demanda
+ * (`demandaFixa`), a origem é opcional: o fluxo pode partir só da demanda. Nos
+ * cenários, a origem também é opcional fora da demanda, com as regras no pedido.
  */
 export function NovaHistorias({
   api,
@@ -27,9 +75,12 @@ export function NovaHistorias({
   demandaFixa,
   aoCriar,
   aoCancelar,
+  fluxo = "historias",
 }: {
   api: ApiConhecimento;
   projetos: ProjetoResumo[];
+  /** Histórias (padrão) ou cenários de teste. */
+  fluxo?: FluxoDerivado;
   /** Demanda (`D-0001`) do primeiro projeto de `projetos`. */
   demandaFixa?: string;
   aoCriar: (projeto: string, criada: AnaliseCriada) => void;
@@ -54,7 +105,7 @@ export function NovaHistorias({
       .then((lista) => {
         if (!ativo) return;
         const candidatas = lista
-          .filter((a) => ORIGENS.has(a.fluxo))
+          .filter((a) => ORIGENS[fluxo].has(a.fluxo))
           .sort(
             (a, b) =>
               Number(b.estado === "aprovada") - Number(a.estado === "aprovada") ||
@@ -67,7 +118,7 @@ export function NovaHistorias({
     return () => {
       ativo = false;
     };
-  }, [api, projeto]);
+  }, [api, projeto, fluxo]);
 
   const verificar = useCallback(() => {
     if (!projeto) return;
@@ -81,19 +132,27 @@ export function NovaHistorias({
   useEffect(verificar, [verificar]);
 
   const escolhida = analises?.find((a) => a.id === origem);
-  const podeCriar = !!projeto && (origem !== "" || !!demandaFixa);
+  const textos = TEXTOS[fluxo];
+  // Nos cenários, sem origem nem demanda, o pedido diz as regras.
+  const semOrigemPermitida = !!demandaFixa || fluxo === "cenarios";
+  const podeCriar =
+    !!projeto &&
+    (origem !== "" || !!demandaFixa || (fluxo === "cenarios" && entrada.trim() !== ""));
 
   const criar = (ev: FormEvent) => {
     ev.preventDefault();
     if (!podeCriar) return;
     setCriando(true);
     setFalha(null);
-    api
-      .criarAnaliseDeHistorias(projeto, {
-        origem: origem || undefined,
-        demanda: demandaFixa,
-        entrada: entrada.trim() || undefined,
-      })
+    const pedido = {
+      origem: origem || undefined,
+      demanda: demandaFixa,
+      entrada: entrada.trim() || undefined,
+    };
+    (fluxo === "cenarios"
+      ? api.criarAnaliseDeCenarios(projeto, pedido)
+      : api.criarAnaliseDeHistorias(projeto, pedido)
+    )
       .then((criada) => aoCriar(projeto, criada))
       .catch((e: unknown) => {
         setFalha(mensagemDe(e));
@@ -104,15 +163,13 @@ export function NovaHistorias({
   const pronto = ambiente?.pronto === true;
 
   return (
-    <form className="nova-pergunta" onSubmit={criar} aria-label={ROTULO_FLUXO.historias}>
-      <h3>{ROTULO_FLUXO.historias}</h3>
-      <p className="muted">
-        O agente lê a análise de origem e registra histórias "Como / quero / para" com critérios de
-        aceite (Dado / Quando / Então). Cada critério fica ligado às afirmações e às regras que o
-        sustentam; o que depende de pergunta em aberto fica "a confirmar".
-      </p>
+    <form className="nova-pergunta" onSubmit={criar} aria-label={ROTULO_FLUXO[fluxo]}>
+      <h3>{ROTULO_FLUXO[fluxo]}</h3>
+      <p className="muted">{textos.explicacao}</p>
       {demandaFixa ? (
-        <p className="muted">As histórias ficam ligadas à demanda {demandaFixa}.</p>
+        <p className="muted">
+          {textos.ligadas} {demandaFixa}.
+        </p>
       ) : (
         <label>
           Projeto{" "}
@@ -135,7 +192,9 @@ export function NovaHistorias({
           onChange={(e) => setOrigem(e.target.value)}
           disabled={analises === null}
         >
-          {demandaFixa && <option value="">Só a demanda, sem análise de origem</option>}
+          {semOrigemPermitida && (
+            <option value="">{demandaFixa ? TEXTOS.historias.semOrigem : textos.semOrigem}</option>
+          )}
           {analises?.map((a) => (
             <option key={a.id} value={a.id}>
               {a.id}: {a.titulo} ({ESTADO[a.estado]})
@@ -143,12 +202,7 @@ export function NovaHistorias({
           ))}
         </select>
       </label>
-      {analises?.length === 0 && !demandaFixa && (
-        <p className="muted">
-          Nenhuma análise do código neste projeto ainda. Faça antes a análise de impacto da demanda:
-          as histórias partem dela.
-        </p>
-      )}
+      {analises?.length === 0 && !demandaFixa && <p className="muted">{textos.vazio}</p>}
       {escolhida && escolhida.estado !== "aprovada" && (
         <p className="muted" role="note">
           A análise {escolhida.id} ainda não foi aprovada: o agente prefere as afirmações que você
@@ -156,12 +210,12 @@ export function NovaHistorias({
         </p>
       )}
       <label>
-        O que você quer nas histórias (opcional)
+        {textos.pedido}
         <textarea
           value={entrada}
           onChange={(e) => setEntrada(e.target.value)}
           rows={3}
-          placeholder="Ex.: Só o parcelamento na tela; o relatório de recebíveis fica para depois."
+          placeholder={textos.exemplo}
         />
       </label>
       <div className="acoes">
@@ -170,14 +224,14 @@ export function NovaHistorias({
           className="btn btn-primary"
           disabled={!pronto || criando || !podeCriar}
         >
-          Gerar as histórias
+          {textos.botao}
         </button>
         <button className="btn" type="button" onClick={aoCancelar}>
           Cancelar
         </button>
       </div>
       {ambiente && !pronto && (
-        <p className="muted">Prepare o ambiente do Claude antes de gerar as histórias.</p>
+        <p className="muted">{textos.preparar}</p>
       )}
       {falha && (
         <p className="error-text" role="alert">

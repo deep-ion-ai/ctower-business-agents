@@ -191,6 +191,30 @@ pub async fn criar_analise_de_historias_app(
     .await
 }
 
+/// Cria a análise de cenários de teste (#117) a partir de uma análise de origem,
+/// de uma demanda ou só do pedido.
+#[tauri::command]
+pub async fn criar_analise_de_cenarios_app(
+    projeto: String,
+    origem: Option<String>,
+    demanda: Option<String>,
+    entrada: Option<String>,
+    titulo: Option<String>,
+) -> Result<AnaliseCriada, String> {
+    let dados = dados()?;
+    bloqueante(move || {
+        crate::analise::criar_analise_de_cenarios(
+            &dados,
+            &projeto,
+            origem.as_deref(),
+            demanda.as_deref(),
+            entrada.as_deref(),
+            titulo.as_deref(),
+        )
+    })
+    .await
+}
+
 #[cfg(test)]
 #[path = "inicio_testes.rs"]
 mod tests;

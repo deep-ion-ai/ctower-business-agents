@@ -29,7 +29,11 @@ export type DecisaoRevisao =
   | { tipo: "historia"; historia: string; decisao: "quebrar"; pedido?: string }
   | ({ tipo: "editar-historia"; historia: string } & Narrativa)
   | { tipo: "criterio"; historia: string; numero: number; situacao: SituacaoItem }
-  | ({ tipo: "editar-criterio"; historia: string; numero: number } & Gherkin);
+  | ({ tipo: "editar-criterio"; historia: string; numero: number } & Gherkin)
+  /** Cenários de teste (#117): aceitar, descartar ou desfazer; editar título e passos. */
+  | { tipo: "cenario"; cenario: string; situacao: SituacaoItem }
+  | ({ tipo: "editar-cenario"; cenario: string; titulo: string } & Gherkin)
+  | { tipo: "tabela"; numero: number; situacao: SituacaoItem };
 
 export interface Area {
   id: string;
@@ -38,7 +42,7 @@ export interface Area {
 }
 
 export interface Pendencia {
-  tipo: "analise" | "afirmacao" | "termo" | "historia" | "criterio";
+  tipo: "analise" | "afirmacao" | "termo" | "historia" | "criterio" | "tabela" | "cenario";
   numero: number | null;
   motivo: string;
 }
@@ -79,7 +83,8 @@ export interface AprovacaoFeita {
   avisos: string[];
 }
 
-export type FormatoExportacao = "markdown" | "word";
+/** Formato da exportação; `csv` (uma linha por cenário) só nos cenários de teste (#117). */
+export type FormatoExportacao = "markdown" | "word" | "csv";
 
 export interface OpcoesExportacao {
   /** Notas de rodapé e seção de evidências. */
@@ -96,7 +101,17 @@ export interface PedidoExportacao {
   opcoes: OpcoesExportacao;
 }
 
-export const EXTENSAO: Record<FormatoExportacao, string> = { markdown: "md", word: "docx" };
+export const EXTENSAO: Record<FormatoExportacao, string> = {
+  markdown: "md",
+  word: "docx",
+  csv: "csv",
+};
+
+const FILTRO: Record<FormatoExportacao, { name: string; extensions: string[] }> = {
+  markdown: { name: "Markdown", extensions: ["md"] },
+  word: { name: "Documento do Word", extensions: ["docx"] },
+  csv: { name: "CSV (planilha, ferramentas de teste)", extensions: ["csv"] },
+};
 
 /** Operações da revisão. A interface usa {@link apiRevisaoTauri}; os testes, uma falsa. */
 export interface ApiRevisao {
@@ -119,11 +134,7 @@ export const apiRevisaoTauri: ApiRevisao = {
     save({
       title: "Exportar a análise",
       defaultPath: `${nome}.${EXTENSAO[formato]}`,
-      filters: [
-        formato === "word"
-          ? { name: "Documento do Word", extensions: ["docx"] }
-          : { name: "Markdown", extensions: ["md"] },
-      ],
+      filters: [FILTRO[formato]],
     }),
   exportar: (projeto, analise, pedido) =>
     invoke("exportar_analise_projeto", { projeto, analise, pedido }),

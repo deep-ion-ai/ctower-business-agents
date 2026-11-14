@@ -17,6 +17,7 @@ import {
   AcoesTermo,
   type Revisao,
 } from "./AcoesRevisao";
+import { CenariosAoVivo } from "./CenariosAoVivo";
 import { HistoriasAoVivo } from "./HistoriasAoVivo";
 import { TextoAfirmacao } from "./TextoAfirmacao";
 import { Icon } from "./shell/icons";
@@ -141,7 +142,9 @@ export function DocumentoAoVivo({
   semCabecalho = false,
 }: Props) {
   const { analise } = vista;
-  const deHistorias = analise.fluxo === "historias";
+  const deCenarios = analise.fluxo === "cenarios";
+  // Histórias e cenários têm registros próprios, no lugar das afirmações.
+  const deHistorias = analise.fluxo === "historias" || deCenarios;
   // Aprovada, a revisão fecha: as regras já foram para a base.
   const rev = analise.estado === "aprovada" ? undefined : revisao;
   const secoes = agrupar(analise.afirmacoes);
@@ -197,7 +200,14 @@ export function DocumentoAoVivo({
         </section>
       )}
 
-      {deHistorias ? (
+      {deCenarios ? (
+        <CenariosAoVivo
+          tabelas={analise.tabelas ?? []}
+          cenarios={analise.cenarios ?? []}
+          origem={analise.origem}
+          revisao={rev}
+        />
+      ) : deHistorias ? (
         <HistoriasAoVivo historias={analise.historias ?? []} origem={analise.origem} revisao={rev} />
       ) : (
       <section aria-label="Afirmações">
