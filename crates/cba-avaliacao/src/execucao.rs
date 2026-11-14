@@ -328,17 +328,46 @@ pub fn executar(
 
     let preparado = (|| {
         let p = preparar_projeto(&raiz, &projeto)?;
-        let analise = p
-            .ambiente
-            .analises
-            .criar(NovaAnalise {
-                fluxo: item.fluxo,
-                titulo: item.titulo.clone(),
-                entrada: item.entrada.clone(),
-                analista: None,
-                base: None,
-            })
-            .map_err(erro("criação da análise"))?;
+        let analise = match &item.historias {
+            // Cenários: as regras pedidas gravadas na base e a análise de cenários
+            // criada a partir do pedido, como pela nova análise do app.
+            None if item.cenarios.is_some() => {
+                let esperado = item.cenarios.as_ref().expect("conferido acima");
+                crate::cenarios::preparar_regras(&p.ambiente, gabarito, &esperado.regras)?;
+                cba_tools::ciclo::criar_analise_de_cenarios(
+                    &p.ambiente,
+                    None,
+                    None,
+                    Some(item.entrada.clone()),
+                    Some(item.titulo.clone()),
+                )
+                .map_err(erro("criação da análise de cenários"))?
+            }
+            // Histórias: a análise de origem preparada e a de histórias ligada a ela,
+            // como o app cria pela nova análise.
+            Some(esperado) => {
+                let origem = crate::historias::preparar_origem(&p.ambiente, gabarito, esperado)?;
+                cba_tools::ciclo::criar_analise_de_historias(
+                    &p.ambiente,
+                    Some(origem),
+                    None,
+                    Some(item.entrada.clone()).filter(|e| !e.trim().is_empty()),
+                    Some(item.titulo.clone()),
+                )
+                .map_err(erro("criação da análise de histórias"))?
+            }
+            None => p
+                .ambiente
+                .analises
+                .criar(NovaAnalise {
+                    fluxo: item.fluxo,
+                    titulo: item.titulo.clone(),
+                    entrada: item.entrada.clone(),
+                    analista: None,
+                    base: None,
+                })
+                .map_err(erro("criação da análise"))?,
+        };
         let (mcp, settings) = preparar_claude(&raiz, &p, &opcoes.cba)?;
         Ok::<_, String>((
             Preparado {

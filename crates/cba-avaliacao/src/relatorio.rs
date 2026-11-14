@@ -610,6 +610,18 @@ fn criterios_das_analises(s: &mut String) {
         s,
         "- **Falha grave:** afirmação `confirmado` sem evidência válida, nenhuma afirmação, estado ausente ou arquivo do projeto alterado."
     );
+    let _ = writeln!(
+        s,
+        "- **Revisão de requisito** (`revisar`): achado esperado atendido por um achado da característica esperada, com as palavras-chave e, se o esperado cita regras, com evidência válida que toca a regra; termo vago apontado por um achado de ambiguidade ou verificabilidade cujo trecho o contém; veredito igual ao esperado. Falha grave: achado de correção sem evidência válida, ou nenhum achado quando o esperado não é `pronta`."
+    );
+    let _ = writeln!(
+        s,
+        "- **Cenários de teste** (`cenarios`): limite esperado lido por um cenário da regra cujo limite tem o mesmo valor, não vem de configuração e cita evidência que toca a esperada (limite de outro valor é listado como divergente); cada valor testado esperado (o limite e o vizinho) presente num cenário da regra; tabela de decisão esperada atendida por uma tabela com as condições mínimas, ligada à regra e com as palavras-chave nas condições; cenário negativo esperado atendido por um cenário da regra com as palavras-chave; tema a confirmar marcado num cenário com pergunta. Falha grave: nenhum cenário, ou cenário sem origem."
+    );
+    let _ = writeln!(
+        s,
+        "- **Histórias e critérios** (`historias`): história esperada atendida por uma história com as palavras-chave no título e na narrativa; regra esperada citada por um critério, pelo id ou por uma afirmação cuja evidência toca a regra; critério com valor concreto (um número); tema a confirmar marcado num critério com pergunta; quebra proposta quando a abrangência pede. Falha grave: nenhuma história, ou critério sem origem."
+    );
 }
 
 fn analise_md(s: &mut String, e: &Execucao) {
@@ -732,7 +744,206 @@ fn analise_md(s: &mut String, e: &Execucao) {
             if ab.confere { "confere" } else { "diverge" }
         );
     }
+    if let Some(p) = &a.parecer {
+        parecer_md(s, p);
+    }
+    if let Some(h) = &a.historias {
+        historias_md(s, h);
+    }
+    if let Some(c) = &a.cenarios {
+        cenarios_md(s, c);
+    }
     let _ = writeln!(s, "- Concluída: {}\n", sim_nao(a.concluida));
+}
+
+fn cenarios_md(s: &mut String, c: &crate::cenarios::CenariosAvaliados) {
+    let _ = writeln!(
+        s,
+        "- Cenários: {}; tabelas de decisão: {}",
+        c.cenarios, c.tabelas
+    );
+    if !c.cenarios_sem_origem.is_empty() {
+        let _ = writeln!(
+            s,
+            "- Cenários sem origem: {}",
+            c.cenarios_sem_origem.join(", ")
+        );
+    }
+    let _ = writeln!(
+        s,
+        "- Limites lidos do código: {} de {}",
+        c.limites_lidos(),
+        c.limites.len()
+    );
+    for l in &c.limites {
+        let valores: Vec<String> = l
+            .valores
+            .iter()
+            .map(|(v, ct)| format!("{v} ({})", ct.as_deref().unwrap_or("não testado")))
+            .collect();
+        let _ = writeln!(
+            s,
+            "  - {} ({}, limite {}): {}; valores testados: {}",
+            l.id,
+            l.regra,
+            l.valor,
+            l.lido_por.as_deref().unwrap_or("não lido"),
+            valores.join(", ")
+        );
+        if !l.divergentes.is_empty() {
+            let _ = writeln!(s, "    - Divergentes: {}", l.divergentes.join("; "));
+        }
+    }
+    let itens = |s: &mut String, nome: &str, lista: &[crate::cenarios::ItemAvaliado]| {
+        if lista.is_empty() {
+            return;
+        }
+        let feitos = lista.iter().filter(|i| i.atendido_por.is_some()).count();
+        let _ = writeln!(s, "- {nome}: {feitos} de {}", lista.len());
+        for i in lista {
+            let _ = writeln!(
+                s,
+                "  - {}: {}",
+                i.id,
+                i.atendido_por.as_deref().unwrap_or("não encontrado")
+            );
+        }
+    };
+    itens(s, "Tabelas de decisão esperadas", &c.tabelas_esperadas);
+    itens(s, "Negativos esperados", &c.negativos);
+    itens(s, "A confirmar", &c.a_confirmar);
+}
+
+fn historias_md(s: &mut String, h: &crate::historias::HistoriasAvaliadas) {
+    let _ = writeln!(
+        s,
+        "- Histórias: {}; critérios: {} ({} com valor concreto)",
+        h.historias, h.criterios, h.criterios_com_valor
+    );
+    if !h.criterios_sem_origem.is_empty() {
+        let _ = writeln!(
+            s,
+            "- Critérios sem origem: {}",
+            h.criterios_sem_origem.join(", ")
+        );
+    }
+    if !h.historias_sem_criterio.is_empty() {
+        let _ = writeln!(
+            s,
+            "- Histórias sem critério: {}",
+            h.historias_sem_criterio.join(", ")
+        );
+    }
+    let _ = writeln!(
+        s,
+        "- Histórias esperadas: {} de {}",
+        h.historias_atendidas(),
+        h.esperadas.len()
+    );
+    for e in &h.esperadas {
+        let _ = writeln!(
+            s,
+            "  - {}: {}",
+            e.id,
+            e.atendida_por.as_deref().unwrap_or("não encontrada")
+        );
+    }
+    let _ = writeln!(
+        s,
+        "- Regras citadas pelos critérios: {} de {}",
+        h.regras_citadas(),
+        h.regras.len()
+    );
+    for r in &h.regras {
+        let _ = writeln!(
+            s,
+            "  - {}: {}",
+            r.id,
+            r.citada_por.as_deref().unwrap_or("não citada")
+        );
+    }
+    if !h.a_confirmar.is_empty() {
+        let _ = writeln!(
+            s,
+            "- A confirmar: {} de {} tema(s) marcados",
+            h.temas_marcados(),
+            h.a_confirmar.len()
+        );
+    }
+    if h.quebra_esperada {
+        let _ = writeln!(
+            s,
+            "- Quebra em fatias: {}",
+            if h.quebra_proposta {
+                "proposta"
+            } else {
+                "não proposta"
+            }
+        );
+    }
+}
+
+fn parecer_md(s: &mut String, p: &crate::parecer::ParecerAvaliado) {
+    let nome = |v: cba_core::parecer::Veredito| v.rotulo().to_lowercase();
+    let _ = writeln!(
+        s,
+        "- Veredito: esperado {}, registrado {} ({})",
+        nome(p.veredito_esperado),
+        p.veredito_registrado.map_or("nenhum".to_owned(), nome),
+        if p.veredito_confere() {
+            "confere"
+        } else {
+            "diverge"
+        }
+    );
+    let _ = writeln!(
+        s,
+        "- Achados: {} registrado(s); evidências válidas {} de {}",
+        p.achados_registrados,
+        p.evidencias - p.evidencias_invalidas.len(),
+        p.evidencias
+    );
+    for inv in &p.evidencias_invalidas {
+        let _ = writeln!(
+            s,
+            "  - inválida: achado {}, `{}` {}: {}",
+            inv.afirmacao, inv.arquivo, inv.linhas, inv.motivo
+        );
+    }
+    let _ = writeln!(
+        s,
+        "- Achados esperados: {} de {}",
+        p.achados_atendidos(),
+        p.achados.len()
+    );
+    for a in &p.achados {
+        let _ = writeln!(
+            s,
+            "  - {}: {}",
+            a.id,
+            a.atendido_por
+                .map_or("não encontrado".to_owned(), |n| format!("achado {n}"))
+        );
+    }
+    if !p.termos_vagos.is_empty() {
+        let faltam: Vec<&str> = p
+            .termos_vagos
+            .iter()
+            .filter(|t| t.apontado_por.is_none())
+            .map(|t| t.termo.as_str())
+            .collect();
+        let _ = writeln!(
+            s,
+            "- Termos vagos apontados: {} de {}{}",
+            p.termos_apontados(),
+            p.termos_vagos.len(),
+            if faltam.is_empty() {
+                String::new()
+            } else {
+                format!(" (faltam: {})", faltam.join(", "))
+            }
+        );
+    }
 }
 
 fn tabela_de_atas(s: &mut String, resumo: &[&Resumo]) {

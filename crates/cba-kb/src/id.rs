@@ -3,6 +3,12 @@
 //!
 //! A numeração é sequencial por série e por projeto. A reserva sem colisão está em
 //! [`crate::Projeto::criar_numerado`].
+//!
+//! Itens de requisito com identificador estável que não são arquivos próprios
+//! (`HU-0001` para histórias de usuário) são declarados com `id_sequencial!`: o
+//! mesmo formato (prefixo e 4 dígitos no mínimo), a leitura só na forma canônica e
+//! a serialização como texto. A numeração deles é de quem os guarda (o estado das
+//! análises, em `cba-core`).
 
 use std::fmt;
 
@@ -240,6 +246,95 @@ impl<'de> Deserialize<'de> for IdDemanda {
     }
 }
 
+/// Declara um identificador sequencial `<prefixo>NNNN` (4 dígitos no mínimo, a
+/// partir de 1): o tipo, `novo`, `numero`, `analisar` (só a forma canônica),
+/// `Display`, `FromStr` e a serialização como texto.
+///
+/// Serve aos itens de requisito com identificador estável que vivem dentro de um
+/// documento, como as histórias (`HU-0001`). Outro item do mesmo tipo (os cenários
+/// de teste, `CT-0001`) se declara com uma chamada:
+///
+/// ```ignore
+/// id_sequencial!(
+///     /// Cenário de teste, `CT-NNNN`.
+///     IdCenario,
+///     "CT-",
+///     "esperado CT-NNNN"
+/// );
+/// ```
+macro_rules! id_sequencial {
+    ($(#[$doc:meta])* $nome:ident, $prefixo:literal, $formato:literal) => {
+        $(#[$doc])*
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+        pub struct $nome(u32);
+
+        impl $nome {
+            /// Prefixo do identificador.
+            pub const PREFIXO: &'static str = $prefixo;
+
+            /// Identificador de número `numero` (a partir de 1).
+            pub fn novo(numero: u32) -> Self {
+                Self(numero.max(1))
+            }
+
+            pub fn numero(self) -> u32 {
+                self.0
+            }
+
+            /// Lê um identificador na forma canônica.
+            pub fn analisar(texto: &str) -> Result<Self, IdInvalido> {
+                numero_com_prefixo(texto, Self::PREFIXO, $formato).map(Self)
+            }
+        }
+
+        impl fmt::Display for $nome {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "{}{:04}", Self::PREFIXO, self.0)
+            }
+        }
+
+        impl std::str::FromStr for $nome {
+            type Err = IdInvalido;
+
+            fn from_str(texto: &str) -> Result<Self, Self::Err> {
+                Self::analisar(texto)
+            }
+        }
+
+        impl Serialize for $nome {
+            fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+                s.collect_str(self)
+            }
+        }
+
+        impl<'de> Deserialize<'de> for $nome {
+            fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+                let texto = String::deserialize(d)?;
+                Self::analisar(&texto).map_err(serde::de::Error::custom)
+            }
+        }
+    };
+}
+
+id_sequencial!(
+    /// Identificador estável de uma história de usuário, `HU-NNNN`, sequencial por
+    /// projeto e nunca reaproveitado (#115). A história vive no estado da análise
+    /// do fluxo `historias` e no documento dela; o identificador é a base da
+    /// rastreabilidade (demanda → análise → história → regra, #121).
+    IdHistoria,
+    "HU-",
+    "esperado HU-NNNN"
+);
+
+id_sequencial!(
+    /// Identificador estável de um cenário de teste, `CT-NNNN`, sequencial por
+    /// projeto e nunca reaproveitado (#117). O cenário vive no estado da análise do
+    /// fluxo `cenarios` e no documento dela, ligado à regra e à evidência do limite.
+    IdCenario,
+    "CT-",
+    "esperado CT-NNNN"
+);
+
 /// Número de um identificador `<prefixo>NNNN` (4 dígitos no mínimo), na forma
 /// canônica.
 fn numero_com_prefixo(
@@ -398,6 +493,35 @@ mod tests {
         ] {
             assert_eq!(IdDemanda::de_pasta(ruim), None, "{ruim:?}");
         }
+    }
+
+    #[test]
+    fn id_de_historia() {
+        assert_eq!(IdHistoria::novo(7).to_string(), "HU-0007");
+        assert_eq!(IdHistoria::novo(0).to_string(), "HU-0001");
+        assert_eq!(IdHistoria::novo(12345).to_string(), "HU-12345");
+        assert_eq!(IdHistoria::analisar("HU-0042").unwrap().numero(), 42);
+        for ruim in [
+            "HU-1", "HU-00001", "HU-0000", "hu-0001", "HU-", "CT-0001", "A-0001",
+        ] {
+            assert!(IdHistoria::analisar(ruim).is_err(), "{ruim:?}");
+        }
+        let yaml = serde_norway::to_string(&IdHistoria::novo(3)).unwrap();
+        assert_eq!(yaml.trim(), "HU-0003");
+        let lido: IdHistoria = serde_norway::from_str("HU-0003").unwrap();
+        assert_eq!(lido, IdHistoria::novo(3));
+        assert!(serde_norway::from_str::<IdHistoria>("HU-3").is_err());
+    }
+
+    #[test]
+    fn id_de_cenario() {
+        assert_eq!(IdCenario::novo(12).to_string(), "CT-0012");
+        assert_eq!(IdCenario::analisar("CT-0042").unwrap().numero(), 42);
+        for ruim in ["CT-1", "ct-0001", "HU-0001", "CT-0000"] {
+            assert!(IdCenario::analisar(ruim).is_err(), "{ruim:?}");
+        }
+        let lido: IdCenario = serde_norway::from_str("CT-0003").unwrap();
+        assert_eq!(lido, IdCenario::novo(3));
     }
 
     #[test]

@@ -173,6 +173,78 @@ echo '{"fields":{"summary":"Multa por atraso","description":"Revisar o cálculo 
 }
 
 #[test]
+fn revisao_de_requisito_pela_chave_no_github_no_gitlab_e_no_jira() {
+    let c = cenario();
+    let historia = "Como atendente, quero cancelar fatura com pagamento parcial.";
+    let f = Ferramentas {
+        gh: script(
+            c.dir.path(),
+            "gh",
+            &format!(
+                r#"echo '{{"title":"Cancelar fatura","body":"{historia}","url":"https://github.com/o/r/issues/7"}}'"#
+            ),
+        ),
+        glab: script(
+            c.dir.path(),
+            "glab",
+            &format!(
+                r#"[ "$GITLAB_TOKEN" = "tok-gitlab" ] || exit 1
+echo '{{"title":"Cancelar fatura","description":"{historia}","web_url":"https://gitlab.example.com/grupo/projeto/app/-/issues/8"}}'"#
+            ),
+        ),
+        jira: script(
+            c.dir.path(),
+            "jira",
+            &format!(
+                r#"[ "$JIRA_API_TOKEN" = "tok-secreto" ] || exit 1
+echo '{{"fields":{{"summary":"Cancelar fatura","description":"{historia}"}}}}'"#
+            ),
+        ),
+    };
+    for (tracker, referencia, fonte) in [
+        (
+            TrackerConfig::Github(GithubConfig { repo: "o/r".into() }),
+            "7",
+            "Fonte: [#7](https://github.com/o/r/issues/7)",
+        ),
+        (
+            TrackerConfig::Gitlab(gitlab()),
+            "#8",
+            "Fonte: [#8](https://gitlab.example.com/grupo/projeto/app/-/issues/8)",
+        ),
+        (
+            TrackerConfig::Jira(jira()),
+            "proj-482",
+            "Fonte: [PROJ-482](https://jira.example.com/browse/PROJ-482)",
+        ),
+    ] {
+        let mut p = cadastrado(&c.dados, PROJETO).unwrap();
+        p.repositorios = Repositorios::default();
+        Cadastro::em(c.dados.projetos()).salvar(&p).unwrap();
+        let r = Repositorios {
+            forge: None,
+            tracker: Some(tracker),
+        };
+        salvar_repositorios(&c.dados, PROJETO, r).unwrap();
+        let criada =
+            criar_analise_de_issue(&c.dados, PROJETO, Fluxo::Revisar, referencia, &f).unwrap();
+        assert_eq!(criada.analise.fluxo, Fluxo::Revisar);
+        assert_eq!(criada.analise.titulo, "Cancelar fatura");
+        let vista = carregar_analise(&c.dados, PROJETO, &criada.analise.id).unwrap();
+        assert!(vista.analise.entrada.contains(historia));
+        let doc = fs::read_to_string(&vista.documento).unwrap();
+        assert!(doc.contains("tipo: parecer-revisao"), "{doc}");
+        // A chave e o link vão para o frontmatter; o parecer mostra a fonte.
+        let fm: cba_kb::Documento<cba_kb::frontmatter::FrontmatterAnalise> =
+            cba_kb::Documento::analisar(&doc).unwrap();
+        assert_eq!(
+            cba_tools::parecer::fonte(&fm.frontmatter.demanda).as_deref(),
+            Some(fonte)
+        );
+    }
+}
+
+#[test]
 fn exportacao_liga_as_evidencias_ao_forge_no_commit() {
     use crate::revisao::{PedidoExportacao, exportar};
     use cba_tools::revisao::{Formato, OpcoesExportacao};

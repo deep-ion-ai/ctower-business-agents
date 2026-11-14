@@ -172,6 +172,15 @@ export interface DocumentoAberto {
   problema: string | null;
 }
 
+/** Pedido de uma análise de histórias: a origem, a demanda, ou as duas. */
+export interface PedidoHistorias {
+  origem?: string;
+  demanda?: string;
+  /** O que o analista quer nas histórias (opcional). */
+  entrada?: string;
+  titulo?: string;
+}
+
 /** Operações das telas do início, do projeto e da base. A interface usa {@link apiConhecimentoTauri}; os testes, uma falsa. */
 export interface ApiConhecimento extends ApiAmbiente {
   situacao(): Promise<Situacao>;
@@ -189,6 +198,18 @@ export interface ApiConhecimento extends ApiAmbiente {
    * título e descrição viram a entrada e o link vai em `demanda.origem`.
    */
   criarAnaliseDeDemanda(projeto: string, fluxo: Fluxo, referencia: string): Promise<AnaliseCriada>;
+  /** Análises do projeto, da mais recente para a mais antiga (a origem das histórias). */
+  listarAnalises(projeto: string): Promise<AnaliseResumo[]>;
+  /**
+   * Cria a análise de histórias (#115) a partir da análise de origem (`A-0001`) ou de
+   * uma demanda (`D-0001`); sem demanda, ela herda a da origem.
+   */
+  criarAnaliseDeHistorias(projeto: string, pedido: PedidoHistorias): Promise<AnaliseCriada>;
+  /**
+   * Cria a análise de cenários de teste (#117) a partir da análise de origem (do código
+   * ou de histórias), de uma demanda ou só do pedido com as regras.
+   */
+  criarAnaliseDeCenarios(projeto: string, pedido: PedidoHistorias): Promise<AnaliseCriada>;
   visaoProjeto(projeto: string): Promise<VisaoProjeto>;
   revalidar(projeto: string): Promise<ResumoRevalidacao>;
   /** `null` se o projeto ainda não foi mapeado. */
@@ -222,6 +243,23 @@ export const apiConhecimentoTauri: ApiConhecimento = {
     }),
   criarAnaliseDeDemanda: (projeto, fluxo, referencia) =>
     invoke("criar_analise_de_demanda", { projeto, fluxo, referencia }),
+  listarAnalises: apiAnaliseTauri.listarAnalises,
+  criarAnaliseDeHistorias: (projeto, pedido) =>
+    invoke("criar_analise_de_historias_app", {
+      projeto,
+      origem: pedido.origem ?? null,
+      demanda: pedido.demanda ?? null,
+      entrada: pedido.entrada ?? null,
+      titulo: pedido.titulo ?? null,
+    }),
+  criarAnaliseDeCenarios: (projeto, pedido) =>
+    invoke("criar_analise_de_cenarios_app", {
+      projeto,
+      origem: pedido.origem ?? null,
+      demanda: pedido.demanda ?? null,
+      entrada: pedido.entrada ?? null,
+      titulo: pedido.titulo ?? null,
+    }),
   visaoProjeto: (projeto) => invoke("visao_projeto_app", { projeto }),
   revalidar: (projeto) => invoke("revalidar_projeto_app", { projeto }),
   mapa: (projeto, modulo) => invoke("mapa_projeto_app", { projeto, modulo: modulo ?? null }),
@@ -264,6 +302,9 @@ export const ROTULO_FLUXO: Record<Fluxo, string> = {
   explicar: "Explicar funcionalidade",
   impacto: "Analisar impacto",
   reuniao: "Analisar reunião",
+  revisar: "Revisar requisito",
+  historias: "Histórias e critérios",
+  cenarios: "Cenários de teste",
 };
 
 export const ROTULO_STATUS_REGRA: Record<StatusRegra, string> = {
@@ -285,6 +326,9 @@ const ROTULO_TIPO: Record<string, string> = {
   pessoa: "Pessoa",
   ata: "Ata de reunião",
   "analise-reuniao": "Análise de reunião",
+  "parecer-revisao": "Parecer de revisão",
+  historias: "Histórias e critérios de aceite",
+  "cenarios-teste": "Cenários de teste",
   projeto: "Projeto",
   "regras-do-projeto": "Regras do projeto",
 };

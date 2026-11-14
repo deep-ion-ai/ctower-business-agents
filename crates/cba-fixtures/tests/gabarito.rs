@@ -30,7 +30,134 @@ struct Gabarito {
     exclusoes: Vec<Exclusao>,
     #[serde(default)]
     reunioes: Vec<Reuniao>,
+    #[serde(default)]
+    revisoes: Vec<Revisao>,
+    #[serde(default)]
+    historias: Vec<Historias>,
+    #[serde(default)]
+    cenarios: Vec<Cenarios>,
 }
+
+/// Cenários de teste esperados a partir das regras (fluxo "Cenários de teste",
+/// #117).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Cenarios {
+    id: String,
+    titulo: String,
+    pedido: String,
+    regras: Vec<String>,
+    #[serde(default)]
+    limites: Vec<LimiteEsperado>,
+    #[serde(default)]
+    tabelas: Vec<TabelaEsperada>,
+    #[serde(default)]
+    negativos: Vec<NegativoEsperado>,
+    #[serde(default)]
+    a_confirmar: Vec<PerguntaEsperada>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LimiteEsperado {
+    id: String,
+    regra: String,
+    grandeza: String,
+    valor: f64,
+    valores_testados: Vec<f64>,
+    evidencia: Evidencia,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TabelaEsperada {
+    id: String,
+    regra: String,
+    descricao: String,
+    condicoes: usize,
+    palavras_chave: Vec<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NegativoEsperado {
+    id: String,
+    regra: String,
+    descricao: String,
+    palavras_chave: Vec<Vec<String>>,
+}
+
+/// Números de um trecho de código (`10`, `10.00`, `2.0000`).
+fn numeros_do_trecho(trecho: &str) -> Vec<f64> {
+    trecho
+        .split(|c: char| !(c.is_ascii_digit() || c == '.'))
+        .filter_map(|t| t.trim_matches('.').parse::<f64>().ok())
+        .collect()
+}
+
+/// Histórias esperadas a partir da análise de impacto de uma demanda (fluxo
+/// "Histórias e critérios", #115).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Historias {
+    id: String,
+    titulo: String,
+    #[serde(default)]
+    pedido: Option<String>,
+    demanda: String,
+    regras: Vec<String>,
+    #[serde(default)]
+    quebra: bool,
+    historias_esperadas: Vec<HistoriaEsperada>,
+    #[serde(default)]
+    a_confirmar: Vec<PerguntaEsperada>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct HistoriaEsperada {
+    id: String,
+    descricao: String,
+    palavras_chave: Vec<Vec<String>>,
+}
+
+/// Requisito ou história fictícios com problemas plantados e o parecer esperado
+/// (fluxo "Revisar requisito", #116).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Revisao {
+    id: String,
+    titulo: String,
+    texto: String,
+    veredito: String,
+    #[serde(default)]
+    termos_vagos: Vec<String>,
+    achados: Vec<AchadoEsperado>,
+    #[serde(default)]
+    perguntas_esperadas: Vec<PerguntaEsperada>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AchadoEsperado {
+    id: String,
+    caracteristica: String,
+    #[serde(default)]
+    tambem_em: Vec<String>,
+    descricao: String,
+    #[serde(default)]
+    regras: Vec<String>,
+    palavras_chave: Vec<Vec<String>>,
+}
+
+const CARACTERISTICAS: [&str; 6] = [
+    "ambiguidade",
+    "verificabilidade",
+    "completude",
+    "consistencia",
+    "correcao",
+    "singularidade",
+];
 
 /// Ata esperada de um transcript de `fixtures/reunioes/` (avaliação, #137).
 #[derive(Debug, Deserialize)]
@@ -346,6 +473,28 @@ fn conferir(caminho: &Path) -> Vec<String> {
                 .reunioes
                 .iter()
                 .flat_map(|r| r.itens.iter().map(|i| &i.id)),
+        )
+        .chain(gabarito.historias.iter().map(|h| &h.id))
+        .chain(gabarito.cenarios.iter().map(|c| &c.id))
+        .chain(gabarito.cenarios.iter().flat_map(|c| {
+            c.limites
+                .iter()
+                .map(|l| &l.id)
+                .chain(c.tabelas.iter().map(|t| &t.id))
+                .chain(c.negativos.iter().map(|n| &n.id))
+        }))
+        .chain(
+            gabarito
+                .historias
+                .iter()
+                .flat_map(|h| h.historias_esperadas.iter().map(|e| &e.id)),
+        )
+        .chain(gabarito.revisoes.iter().map(|r| &r.id))
+        .chain(
+            gabarito
+                .revisoes
+                .iter()
+                .flat_map(|r| r.achados.iter().map(|a| &a.id)),
         );
     let mut contagem: HashMap<&str, usize> = HashMap::new();
     for id in ids {
@@ -491,6 +640,187 @@ fn conferir(caminho: &Path) -> Vec<String> {
 
     for r in &gabarito.reunioes {
         conferir_reuniao(&mut c, pasta_gabarito, &raiz_canonica, r);
+    }
+
+    for r in &gabarito.revisoes {
+        let onde = format!("revisão {}", r.id);
+        c.texto_preenchido(&onde, "titulo", &r.titulo);
+        c.texto_preenchido(&onde, "texto", &r.texto);
+        if !["pronta", "pronta_com_ressalvas", "precisa_de_retrabalho"]
+            .contains(&r.veredito.as_str())
+        {
+            c.erro(format!(
+                "{onde}: veredito `{}` deve ser pronta, pronta_com_ressalvas ou precisa_de_retrabalho",
+                r.veredito
+            ));
+        }
+        // Os termos vagos esperados são os que a lista de referência acha no texto.
+        let achados_no_texto: Vec<&str> = cba_core::qualidade::termos_vagos(&r.texto)
+            .into_iter()
+            .map(|o| o.termo)
+            .collect();
+        for termo in &r.termos_vagos {
+            if !achados_no_texto.contains(&termo.as_str()) {
+                c.erro(format!(
+                    "{onde}: termo vago `{termo}` não está na lista de referência ou no texto"
+                ));
+            }
+        }
+        for termo in &achados_no_texto {
+            if !r.termos_vagos.iter().any(|t| t == termo) {
+                c.erro(format!(
+                    "{onde}: o texto tem o termo vago `{termo}`, que falta em termos_vagos"
+                ));
+            }
+        }
+        if r.achados.is_empty() {
+            c.erro(format!("{onde}: nenhum achado esperado"));
+        }
+        for a in &r.achados {
+            let onde = format!("{onde}, achado {}", a.id);
+            c.texto_preenchido(&onde, "descricao", &a.descricao);
+            for car in std::iter::once(&a.caracteristica).chain(&a.tambem_em) {
+                if !CARACTERISTICAS.contains(&car.as_str()) {
+                    c.erro(format!("{onde}: característica `{car}` desconhecida"));
+                }
+            }
+            if a.caracteristica == "correcao" && a.regras.is_empty() {
+                c.erro(format!(
+                    "{onde}: a correção esperada cita a regra contrariada"
+                ));
+            }
+            for id in &a.regras {
+                if let Some(valida) = regras_validas.get(id.as_str()) {
+                    citadas_nos_fluxos.insert(*valida);
+                } else {
+                    c.erro(format!("{onde}: regra `{id}` não existe"));
+                }
+            }
+            c.palavras_chave(&onde, &a.palavras_chave);
+        }
+        c.perguntas_esperadas(&onde, &r.perguntas_esperadas);
+    }
+
+    for h in &gabarito.historias {
+        let onde = format!("histórias {}", h.id);
+        c.texto_preenchido(&onde, "titulo", &h.titulo);
+        if let Some(p) = &h.pedido {
+            c.texto_preenchido(&onde, "pedido", p);
+        }
+        // A origem é a análise de impacto da demanda, preparada com as regras dela:
+        // as regras esperadas nos critérios são regras (RN-…) dessa demanda.
+        match gabarito.demandas.iter().find(|d| d.id == h.demanda) {
+            None => c.erro(format!("{onde}: demanda `{}` não existe", h.demanda)),
+            Some(d) => {
+                for id in &h.regras {
+                    if !id.starts_with("RN-") || !d.regras.contains(id) {
+                        c.erro(format!(
+                            "{onde}: regra `{id}` não é uma regra (RN-…) da demanda {}",
+                            d.id
+                        ));
+                    }
+                }
+                if h.quebra && d.abrangencia_esperada == "pequena" {
+                    c.erro(format!(
+                        "{onde}: quebra esperada numa demanda de abrangência pequena"
+                    ));
+                }
+            }
+        }
+        if h.historias_esperadas.is_empty() {
+            c.erro(format!("{onde}: nenhuma história esperada"));
+        }
+        for e in &h.historias_esperadas {
+            let onde = format!("{onde}, {}", e.id);
+            c.texto_preenchido(&onde, "descricao", &e.descricao);
+            c.palavras_chave(&onde, &e.palavras_chave);
+        }
+        c.perguntas_esperadas(&onde, &h.a_confirmar);
+    }
+
+    for cen in &gabarito.cenarios {
+        let onde = format!("cenários {}", cen.id);
+        c.texto_preenchido(&onde, "titulo", &cen.titulo);
+        c.texto_preenchido(&onde, "pedido", &cen.pedido);
+        if cen.regras.is_empty() {
+            c.erro(format!("{onde}: nenhuma regra"));
+        }
+        for id in &cen.regras {
+            match gabarito.regras.iter().find(|r| &r.id == id) {
+                None => c.erro(format!("{onde}: regra `{id}` não existe")),
+                Some(r) => {
+                    citadas_nos_fluxos.insert(r.id.as_str());
+                }
+            }
+            if !cen.pedido.contains(id.as_str()) {
+                c.erro(format!("{onde}: o pedido não cita a regra {id}"));
+            }
+        }
+        let da_lista = |c: &mut Conferencia, onde: &str, regra: &str| {
+            if !cen.regras.iter().any(|r| r == regra) {
+                c.erro(format!("{onde}: regra `{regra}` fora das regras do item"));
+            }
+        };
+        if cen.limites.is_empty() {
+            c.erro(format!("{onde}: nenhum limite esperado"));
+        }
+        for l in &cen.limites {
+            let onde = format!("{onde}, {}", l.id);
+            da_lista(&mut c, &onde, &l.regra);
+            c.texto_preenchido(&onde, "grandeza", &l.grandeza);
+            c.evidencia(&onde, &l.evidencia);
+            // O limite é o do código: o valor aparece no trecho citado.
+            if !numeros_do_trecho(&l.evidencia.trecho)
+                .iter()
+                .any(|n| (n - l.valor).abs() < 1e-9)
+            {
+                c.erro(format!(
+                    "{onde}: o valor {} não aparece no trecho `{}`",
+                    l.valor, l.evidencia.trecho
+                ));
+            }
+            // E está numa evidência da regra.
+            if let Some(r) = gabarito.regras.iter().find(|r| r.id == l.regra)
+                && !r.evidencias.iter().any(|e| {
+                    e.arquivo == l.evidencia.arquivo
+                        && e.linha_inicial <= l.evidencia.linha_final
+                        && l.evidencia.linha_inicial <= e.linha_final
+                })
+            {
+                c.erro(format!(
+                    "{onde}: a evidência do limite não toca as evidências da regra {}",
+                    l.regra
+                ));
+            }
+            if !l
+                .valores_testados
+                .iter()
+                .any(|v| (v - l.valor).abs() < 1e-9)
+                || l.valores_testados.len() < 2
+            {
+                c.erro(format!(
+                    "{onde}: valores_testados precisam do limite e do vizinho do outro lado"
+                ));
+            }
+        }
+        for t in &cen.tabelas {
+            let onde = format!("{onde}, {}", t.id);
+            da_lista(&mut c, &onde, &t.regra);
+            c.texto_preenchido(&onde, "descricao", &t.descricao);
+            if t.condicoes < 2 {
+                c.erro(format!(
+                    "{onde}: tabela de decisão com menos de 2 condições"
+                ));
+            }
+            c.palavras_chave(&onde, &t.palavras_chave);
+        }
+        for n in &cen.negativos {
+            let onde = format!("{onde}, {}", n.id);
+            da_lista(&mut c, &onde, &n.regra);
+            c.texto_preenchido(&onde, "descricao", &n.descricao);
+            c.palavras_chave(&onde, &n.palavras_chave);
+        }
+        c.perguntas_esperadas(&onde, &cen.a_confirmar);
     }
 
     // Toda regra é exercitada por ao menos um fluxo.

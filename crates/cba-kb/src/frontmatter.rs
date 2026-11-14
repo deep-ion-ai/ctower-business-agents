@@ -49,10 +49,22 @@ pub enum TipoDocumento {
     /// Análise de uma reunião (fluxo `reuniao`), em `analises/`: aponta para a
     /// ata, que tem os itens, e guarda as ligações com o código.
     AnaliseReuniao,
+    /// Parecer de revisão de um requisito ou história (fluxo `revisar`), em
+    /// `analises/`: veredito, achados por característica da ISO/IEC/IEEE 29148 e
+    /// perguntas para o autor.
+    ParecerRevisao,
+    /// Histórias de usuário com critérios de aceite (fluxo `historias`, #115), em
+    /// `analises/`: um documento por conjunto, ligado à análise de origem; cada
+    /// história tem identificador estável (`HU-NNNN`).
+    Historias,
+    /// Cenários de teste derivados das regras (fluxo `cenarios`, #117), em
+    /// `analises/`: tabelas de decisão, partição de equivalência e valores-limite,
+    /// cada cenário com identificador estável (`CT-NNNN`).
+    CenariosTeste,
 }
 
 impl TipoDocumento {
-    pub const TODOS: [TipoDocumento; 13] = [
+    pub const TODOS: [TipoDocumento; 16] = [
         Self::Projeto,
         Self::AnaliseImpacto,
         Self::Pergunta,
@@ -66,6 +78,9 @@ impl TipoDocumento {
         Self::Pessoa,
         Self::Ata,
         Self::AnaliseReuniao,
+        Self::ParecerRevisao,
+        Self::Historias,
+        Self::CenariosTeste,
     ];
 
     /// Valor no frontmatter (`analise-impacto`).
@@ -84,6 +99,9 @@ impl TipoDocumento {
             Self::Pessoa => "pessoa",
             Self::Ata => "ata",
             Self::AnaliseReuniao => "analise-reuniao",
+            Self::ParecerRevisao => "parecer-revisao",
+            Self::Historias => "historias",
+            Self::CenariosTeste => "cenarios-teste",
         }
     }
 
@@ -493,6 +511,12 @@ pub struct FrontmatterAnalise {
     pub criado: Data,
     #[serde(default)]
     pub analista: Option<String>,
+    /// Análise de que esta foi derivada (`A-0193`): nas histórias (#115), a análise
+    /// de impacto de onde vêm as afirmações e as regras citadas pelos critérios.
+    /// Só é gravado quando existe, para os documentos das outras análises não
+    /// mudarem.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origem: Option<Id>,
 }
 
 impl Frontmatter for FrontmatterAnalise {
@@ -501,10 +525,24 @@ impl Frontmatter for FrontmatterAnalise {
         TipoDocumento::Pergunta,
         TipoDocumento::Funcionalidade,
         TipoDocumento::AnaliseReuniao,
+        TipoDocumento::ParecerRevisao,
+        TipoDocumento::Historias,
+        TipoDocumento::CenariosTeste,
     ];
 
     fn validar(&self) -> Result<(), ErroCampo> {
-        exigir_serie(&self.id, &Serie::Analise, "análise (A-NNNN)")
+        exigir_serie(&self.id, &Serie::Analise, "análise (A-NNNN)")?;
+        match &self.origem {
+            Some(o) if o.serie() != &Serie::Analise => Err(ErroCampo::novo(
+                "origem",
+                format!("`{o}` não é um identificador de análise (A-NNNN)"),
+            )),
+            Some(o) if *o == self.id => Err(ErroCampo::novo(
+                "origem",
+                "a análise não pode ser a origem dela mesma",
+            )),
+            _ => Ok(()),
+        }
     }
 }
 

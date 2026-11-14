@@ -12,11 +12,20 @@ import {
 import { ROTULO_SESSAO } from "./DocumentoAoVivo";
 import type { Tela } from "./Navegacao";
 import { NovaAnalise } from "./NovaAnalise";
+import { NovaHistorias } from "./NovaHistorias";
 import { NovaReuniao } from "./NovaReuniao";
 import { BotoesProximoPasso } from "./ProximoPasso";
 import { apiReuniaoTauri, type ApiReuniao } from "./reunioes";
 
-const FLUXOS: Fluxo[] = ["perguntar", "explicar", "impacto", "reuniao"];
+const FLUXOS: Fluxo[] = [
+  "perguntar",
+  "explicar",
+  "impacto",
+  "reuniao",
+  "revisar",
+  "historias",
+  "cenarios",
+];
 
 const ESTADO_ANALISE: Record<EstadoAnalise, string> = {
   criada: "criada",
@@ -176,7 +185,21 @@ export function PainelDemanda({
                 aoCriar={abrirCriada}
               />
             )}
-            {fluxo && fluxo !== "reuniao" && (
+            {(fluxo === "historias" || fluxo === "cenarios") && (
+              <NovaHistorias
+                key={fluxo}
+                fluxo={fluxo}
+                api={api}
+                projetos={[{ id: projeto, nome: projeto }]}
+                demandaFixa={d.id}
+                aoCancelar={() => setFluxo(null)}
+                aoCriar={abrirCriada}
+              />
+            )}
+            {fluxo &&
+          fluxo !== "reuniao" &&
+          fluxo !== "historias" &&
+          fluxo !== "cenarios" && (
               <NovaAnalise
                 key={fluxo}
                 api={api}

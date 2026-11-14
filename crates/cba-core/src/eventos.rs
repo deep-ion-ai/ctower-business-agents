@@ -42,6 +42,12 @@ pub enum Mudanca {
     Sugestao,
     /// Termo proposto para o glossário.
     Termo,
+    /// História de usuário ou critério de aceite registrado, decidido ou editado
+    /// (fluxo `historias`).
+    Historia,
+    /// Tabela de decisão ou cenário de teste registrado, decidido ou editado (fluxo
+    /// `cenarios`).
+    Cenario,
     /// Arquivos da pasta do projeto alterados por uma sessão ligada à análise (ou
     /// alteração desfeita ou mantida pelo analista). Não muda o estado da análise:
     /// a `versao` do evento é 0, e a tela relê o aviso de alteração
@@ -55,6 +61,9 @@ pub enum Mudanca {
     /// `analise` do evento traz o identificador da reunião (`R-0001`), e a
     /// `versao` é 0: a tela relê o estado da ata (`R-NNNN.estado.json`).
     Ata,
+    /// Parecer de revisão alterado (achado, INVEST ou veredito registrado,
+    /// achado descartado pelo analista).
+    Parecer,
 }
 
 /// Uma linha do diário.

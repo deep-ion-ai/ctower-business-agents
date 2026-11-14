@@ -10,10 +10,19 @@ import {
 import { ROTULO_SESSAO } from "./DocumentoAoVivo";
 import type { Tela } from "./Navegacao";
 import { NovaAnalise } from "./NovaAnalise";
+import { NovaHistorias } from "./NovaHistorias";
 import { NovaReuniao } from "./NovaReuniao";
 import type { ApiReuniao } from "./reunioes";
 
-const FLUXOS: Fluxo[] = ["perguntar", "explicar", "impacto", "reuniao"];
+const FLUXOS: Fluxo[] = [
+  "perguntar",
+  "explicar",
+  "impacto",
+  "reuniao",
+  "revisar",
+  "historias",
+  "cenarios",
+];
 
 const ESTADO: Record<AnaliseInicio["estado"], string> = {
   criada: "criada",
@@ -122,7 +131,20 @@ export function TelaInicio({
             aoCriar={abrirCriada}
           />
         )}
-        {fluxo && fluxo !== "reuniao" && inicio && !semProjeto && (
+        {(fluxo === "historias" || fluxo === "cenarios") && inicio && !semProjeto && (
+          <NovaHistorias
+            key={fluxo}
+            fluxo={fluxo}
+            api={api}
+            projetos={inicio.projetos}
+            aoCancelar={() => setFluxo(null)}
+            aoCriar={abrirCriada}
+          />
+        )}
+        {fluxo &&
+          fluxo !== "reuniao" &&
+          fluxo !== "historias" &&
+          fluxo !== "cenarios" && inicio && !semProjeto && (
           <NovaAnalise
             key={fluxo}
             api={api}

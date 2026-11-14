@@ -17,6 +17,10 @@
 //! - as sugestões que têm documento e não foram recusadas, com link para ele.
 //!
 //! Os termos propostos ficam no estado e viram glossário na aprovação (#11).
+//!
+//! No parecer de revisão (fluxo `revisar`), o veredito, os achados e a
+//! verificação INVEST vêm do parecer do estado ([`crate::parecer::textos`]); os
+//! achados descartados pelo analista ficam de fora.
 
 use cba_core::analise::{Analise, Confianca, EstadoAfirmacao, EstadoPergunta, Evidencia, Fluxo};
 use cba_docs::{Citacao, Conteudo, Templates, Texto};
@@ -26,14 +30,33 @@ use cba_kb::{Base, Documento};
 /// Seções com papel especial, que não recebem afirmações.
 const ESPECIAIS: [&str; 3] = ["perguntas", "sugestoes", "evidencias"];
 
+/// Seções montadas a partir de registros próprios do fluxo, que também não
+/// recebem afirmações (o parecer de revisão e as histórias têm ferramentas
+/// próprias).
+fn secoes_estruturadas(fluxo: Fluxo) -> &'static [&'static str] {
+    match fluxo {
+        Fluxo::Revisar => crate::parecer::SECOES,
+        Fluxo::Historias => &[cba_docs::HISTORIAS, cba_docs::RASTREABILIDADE],
+        Fluxo::Cenarios => &[
+            cba_docs::TABELAS_DECISAO,
+            cba_docs::VALORES_LIMITE,
+            cba_docs::CENARIOS,
+            cba_docs::RASTREABILIDADE,
+        ],
+        _ => &[],
+    }
+}
+
 /// Seção do documento em que entra a entrada do analista: a pergunta, a demanda
-/// como veio ou a reunião analisada. O documento negocial não tem: o título já
-/// diz a funcionalidade.
+/// como veio, a reunião analisada ou o pedido de histórias. O documento negocial
+/// não tem: o título já diz a funcionalidade.
 pub fn secao_da_entrada(fluxo: Fluxo) -> Option<&'static str> {
     match fluxo {
         Fluxo::Perguntar => Some("pergunta"),
         Fluxo::Impacto => Some("demanda_como_veio"),
         Fluxo::Reuniao => Some("reuniao"),
+        Fluxo::Revisar => Some("requisito"),
+        Fluxo::Historias | Fluxo::Cenarios => Some("pedido"),
         Fluxo::Explicar => None,
     }
 }
@@ -48,7 +71,11 @@ pub fn secoes_de_afirmacao(fluxo: Fluxo) -> Vec<&'static str> {
             m.secoes
                 .iter()
                 .map(|s| s.marcador)
-                .filter(|s| !ESPECIAIS.contains(s) && Some(*s) != entrada)
+                .filter(|s| {
+                    !ESPECIAIS.contains(s)
+                        && !secoes_estruturadas(fluxo).contains(s)
+                        && Some(*s) != entrada
+                })
                 .collect()
         })
         .unwrap_or_default()
@@ -101,6 +128,9 @@ pub fn conteudo(
 ) -> Conteudo<FrontmatterAnalise> {
     frontmatter.status = analise.estado.status_documento();
     frontmatter.titulo.clone_from(&analise.titulo);
+    if analise.origem.is_some() {
+        frontmatter.origem.clone_from(&analise.origem);
+    }
     if analise.fluxo == Fluxo::Impacto {
         frontmatter.abrangencia = analise
             .afirmacoes
@@ -110,11 +140,30 @@ pub fn conteudo(
             .filter(|a| a.secao == SECAO_DA_ABRANGENCIA)
             .find_map(|a| abrangencia_do_texto(&a.texto));
     }
+    let fonte = (analise.fluxo == Fluxo::Revisar)
+        .then(|| crate::parecer::fonte(&frontmatter.demanda))
+        .flatten();
     let mut conteudo = Conteudo::novo(frontmatter, analise.documento.clone());
+    if let Some(fonte) = fonte {
+        conteudo.textos.push(Texto::novo("requisito", fonte));
+    }
     if let Some(secao) = secao_da_entrada(analise.fluxo) {
         conteudo
             .textos
             .push(Texto::novo(secao, analise.entrada.clone()));
+    }
+    if analise.fluxo == Fluxo::Revisar {
+        conteudo.textos.extend(crate::parecer::textos(analise));
+    }
+    if analise.fluxo == Fluxo::Historias {
+        conteudo
+            .textos
+            .extend(crate::historias::textos(analise, &analise.documento));
+    }
+    if analise.fluxo == Fluxo::Cenarios {
+        conteudo
+            .textos
+            .extend(crate::cenarios::textos(analise, &analise.documento));
     }
     conteudo.afirmacoes = analise
         .afirmacoes
@@ -181,6 +230,7 @@ mod tests {
         assert!(!impacto.contains(&"demanda_como_veio"));
         let explicar = secoes_de_afirmacao(Fluxo::Explicar);
         assert_eq!(explicar.first(), Some(&"objetivo"));
+        assert_eq!(secoes_de_afirmacao(Fluxo::Revisar), ["contexto_no_codigo"]);
         for fluxo in [Fluxo::Perguntar, Fluxo::Impacto, Fluxo::Explicar] {
             for s in secoes_de_afirmacao(fluxo) {
                 assert!(!ESPECIAIS.contains(&s));

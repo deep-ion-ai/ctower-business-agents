@@ -167,6 +167,7 @@ fn montar_base() -> (tempfile::TempDir, Base, Projeto, PathBuf) {
                     base: None,
                     criado: data(),
                     analista: Some("Ana Exemplo".into()),
+                    origem: None,
                 },
                 "\n# Pergunta\n\nComo a cobrança calcula os encargos de uma fatura paga \
                  com atraso?\n\n## Resposta\n\nPassada a carência, há multa única e \
