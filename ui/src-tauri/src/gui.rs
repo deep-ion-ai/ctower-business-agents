@@ -6,8 +6,8 @@ use cba_session::clientes::{self, EstadoClientes};
 use std::sync::Arc;
 
 use crate::{
-    alteracoes, analise, base, configuracoes, conversa, inicio, primeiro_uso, projeto, prompts,
-    repositorios, revisao, terminal, vigia,
+    alteracoes, analise, base, configuracoes, conversa, demandas, inicio, primeiro_uso, projeto,
+    prompts, repositorios, revisao, terminal, vigia,
 };
 
 pub fn rodar() {
@@ -70,6 +70,11 @@ pub fn rodar() {
             projeto::revalidar_projeto_app,
             projeto::mapa_projeto_app,
             projeto::mapear_projeto_app,
+            demandas::listar_demandas_app,
+            demandas::criar_demanda_app,
+            demandas::encerrar_demanda_app,
+            demandas::reabrir_demanda_app,
+            demandas::painel_demanda_app,
             base::buscar_base,
             base::abrir_documento_base,
             base::vigiar_base,
