@@ -51,6 +51,15 @@
 #   pergunta; palavras-chave no Dado / Quando / Então). O preparo da avaliação
 #   cria a análise de origem com uma afirmação confirmada por regra da demanda
 #   e uma pergunta em aberto por pergunta esperada dela.
+# - `cenarios` (fluxo "Cenários de teste", #117) traz os cenários esperados a
+#   partir das `regras` pedidas (o preparo da avaliação grava as regras na base
+#   e cria a análise de cenários com o `pedido`): os `limites` que o agente deve
+#   ler do código (o `valor` aparece no `trecho` da `evidencia`, conferido contra
+#   a fixture; `valores_testados` são o limite e o vizinho do outro lado da
+#   comparação), as `tabelas` de decisão esperadas (regra, número mínimo de
+#   condições e palavras-chave nas condições), os cenários `negativos` (com as
+#   palavras-chave no título e nos passos) e os temas `a_confirmar` (limite que
+#   vem de tabela de parâmetros, com pergunta).
 # - A avaliação dos fluxos (crate cba-avaliacao, docs/avaliacao.md) usa este
 #   arquivo como referência.
 
@@ -768,3 +777,76 @@ historias:
     a_confirmar:
       - tema: A parcela mínima de R$ 100,00 vale só para pessoa física?
         palavras_chave: [["100", "100,00", minim*]]
+
+# Cenários de teste derivados das regras (fluxo "Cenários de teste", #117). Os
+# limites estão no código da fixture; o máximo de parcelas vem da tabela
+# PARAMETRO e fica a confirmar.
+cenarios:
+  - id: CEN-FAT-001
+    titulo: Cenários de teste do cancelamento de fatura
+    pedido: >-
+      Cenários de teste do cancelamento de fatura, a partir das regras
+      RN-FAT-012, RN-FAT-013 e RN-FAT-014.
+    regras: [RN-FAT-012, RN-FAT-013, RN-FAT-014]
+    limites:
+      - id: CEN-FAT-001-L1
+        regra: RN-FAT-013
+        grandeza: tamanho do motivo, em caracteres, sem os espaços das pontas
+        valor: 10
+        # `< 10` recusa: 9 é recusado, 10 é aceito.
+        valores_testados: [9, 10]
+        evidencia:
+          arquivo: db/03_pkg_cobranca.sql
+          linha_inicial: 119
+          linha_final: 119
+          trecho: "LENGTH(TRIM(P_MOTIVO)) < 10"
+      - id: CEN-FAT-001-L2
+        regra: RN-FAT-014
+        grandeza: dias desde a emissão da fatura
+        valor: 30
+        # `> 30` exige supervisor: 30 dias ainda não, 31 dias sim.
+        valores_testados: [30, 31]
+        evidencia:
+          arquivo: delphi/UFrmCancelamento.pas
+          linha_inicial: 41
+          linha_final: 41
+          trecho: "DIAS_LIMITE_SEM_SUPERVISOR = 30;"
+    tabelas:
+      - id: CEN-FAT-001-T1
+        regra: RN-FAT-014
+        descricao: >-
+          Emitida há mais de 30 dias × perfil SUPERVISOR: só a combinação
+          "mais de 30 dias e sem supervisor" é recusada.
+        condicoes: 2
+        palavras_chave: [[supervisor*, perfil*], [dias, emiss*, "30"]]
+    negativos:
+      - id: CEN-FAT-001-N1
+        regra: RN-FAT-012
+        descricao: Fatura com pagamento parcial não pode ser cancelada (erro -20011).
+        palavras_chave: [[pagamento parcial, pago*, pagamento*, vl_pago, "20011"]]
+      - id: CEN-FAT-001-N2
+        regra: RN-FAT-012
+        descricao: Só fatura ABERTA pode ser cancelada (erro -20010).
+        palavras_chave: [[aberta, "20010"], [cancel*]]
+
+  - id: CEN-FAT-002
+    titulo: Cenários de teste da quantidade de parcelas
+    pedido: >-
+      Cenários de teste da quantidade de parcelas do parcelamento, a partir
+      da regra RN-FAT-008.
+    regras: [RN-FAT-008]
+    limites:
+      - id: CEN-FAT-002-L1
+        regra: RN-FAT-008
+        grandeza: quantidade mínima de parcelas
+        valor: 2
+        # `quantidade < MIN_PARCELAS` recusa: 1 é recusado, 2 é aceito.
+        valores_testados: [1, 2]
+        evidencia:
+          arquivo: backend/src/main/java/exemplo/faturamento/ParcelamentoService.java
+          linha_inicial: 14
+          linha_final: 14
+          trecho: "MIN_PARCELAS = 2"
+    a_confirmar:
+      - tema: O máximo de parcelas vem do parâmetro MAX_PARCELAS (6 na carga inicial); qual é o valor em produção?
+        palavras_chave: [[max_parcelas, maxim*, "6", "7"]]

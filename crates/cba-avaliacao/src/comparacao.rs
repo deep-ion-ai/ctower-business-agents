@@ -36,6 +36,7 @@ use cba_tools::documento::{SECAO_DA_ABRANGENCIA, abrangencia_do_texto};
 use cba_tools::evidencias::{EvidenciaCitada, validar};
 use serde::Serialize;
 
+use crate::cenarios::{CenariosAvaliados, avaliar_cenarios};
 use crate::gabarito::{Gabarito, Item, Regra, Veredito};
 use crate::historias::{HistoriasAvaliadas, avaliar_historias};
 use crate::parecer::{ParecerAvaliado, avaliar_parecer};
@@ -82,6 +83,9 @@ pub struct Avaliacao {
     /// Histórias com critérios de aceite (fluxo `historias`, [`crate::historias`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub historias: Option<HistoriasAvaliadas>,
+    /// Cenários de teste (fluxo `cenarios`, [`crate::cenarios`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cenarios: Option<CenariosAvaliados>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -141,11 +145,13 @@ impl Avaliacao {
     pub fn falhas(&self) -> Vec<String> {
         let mut f = Vec::new();
         // No parecer de revisão, o conteúdo são os achados; as afirmações são opcionais.
-        match (&self.parecer, &self.historias) {
-            (Some(p), _) => f.extend(p.falhas()),
+        match (&self.parecer, &self.historias, &self.cenarios) {
+            (Some(p), ..) => f.extend(p.falhas()),
             // Nas histórias, o conteúdo são as histórias e os critérios.
-            (_, Some(h)) => f.extend(h.falhas()),
-            (None, None) if self.afirmacoes == 0 => {
+            (_, Some(h), _) => f.extend(h.falhas()),
+            // Nos cenários, o conteúdo são as tabelas e os cenários.
+            (.., Some(c)) => f.extend(c.falhas()),
+            (None, None, None) if self.afirmacoes == 0 => {
                 f.push("nenhuma afirmação registrada".to_owned())
             }
             _ => {}
@@ -489,6 +495,10 @@ pub fn avaliar(analise: &Analise, item: &Item, gabarito: &Gabarito, escopo: &Esc
             .historias
             .as_ref()
             .map(|h| avaliar_historias(analise, h, gabarito)),
+        cenarios: item
+            .cenarios
+            .as_ref()
+            .map(|c| avaliar_cenarios(analise, c, gabarito)),
     }
 }
 
@@ -507,6 +517,7 @@ pub fn nome_do_fluxo(fluxo: cba_core::analise::Fluxo) -> &'static str {
         Fluxo::Reuniao => "reuniao",
         Fluxo::Revisar => "revisar",
         Fluxo::Historias => "historias",
+        Fluxo::Cenarios => "cenarios",
     }
 }
 

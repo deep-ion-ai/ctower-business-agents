@@ -140,6 +140,60 @@ fn cita(c: &Criterio, id: &str, esperadas: &[EvidenciaEsperada]) -> bool {
     })
 }
 
+/// Grava a regra do gabarito na base (`regras/RN-…md`), como a aprovação de uma
+/// análise a teria deixado, com as evidências do gabarito conferidas contra o
+/// código como no `afirmar`. Devolve as evidências conferidas.
+pub fn gravar_regra(
+    ambiente: &cba_core::ambiente::Ambiente,
+    regra: &crate::gabarito::Regra,
+    origem: Option<cba_kb::CaminhoRelativo>,
+) -> Result<Vec<cba_core::analise::Evidencia>, String> {
+    use cba_kb::frontmatter::{FrontmatterRegra, StatusRegra, TipoDocumento};
+    use cba_tools::evidencias::{EvidenciaCitada, validar};
+
+    let id = &regra.id;
+    let mut evidencias = Vec::new();
+    for e in &regra.evidencias {
+        let citada = EvidenciaCitada {
+            arquivo: e.arquivo.clone(),
+            linha_inicial: e.linha_inicial,
+            linha_final: e.linha_final,
+            trecho: e.trecho.clone(),
+        };
+        evidencias.push(validar(&ambiente.escopo, &citada).map_err(|r| format!("{id}: {r:?}"))?);
+    }
+    let rn = cba_kb::Id::analisar(id).map_err(|e| e.to_string())?;
+    let documento = cba_kb::Documento::novo(
+        FrontmatterRegra {
+            tipo: TipoDocumento::Regra,
+            id: rn.clone(),
+            titulo: regra.titulo.clone(),
+            area: "geral".into(),
+            status: StatusRegra::Confirmada,
+            evidencias: evidencias
+                .iter()
+                .map(|e| Evidencia {
+                    arquivo: e.arquivo.clone(),
+                    linhas: e.linhas,
+                    hash: e.hash.clone(),
+                    commit: e.commit.clone(),
+                })
+                .collect(),
+            origem,
+        },
+        format!(
+            "\n# {id} · {}\n\n{}\n",
+            regra.titulo,
+            regra.enunciado.trim()
+        ),
+    );
+    ambiente
+        .kb
+        .gravar(&rn.arquivo(), &documento)
+        .map_err(|e| format!("regra {id}: {e}"))?;
+    Ok(evidencias)
+}
+
 /// Prepara a análise de origem das histórias, como o analista a teria deixado:
 /// a análise de impacto da demanda do gabarito, com uma afirmação confirmada por
 /// regra da demanda (o enunciado e as evidências esperadas, conferidas como no
@@ -155,8 +209,6 @@ pub fn preparar_origem(
     use cba_core::analise::{Confianca, EstadoAfirmacao, Fluxo, NovaAfirmacao};
     use cba_core::analises::NovaAnalise;
     use cba_core::eventos::Mudanca;
-    use cba_kb::frontmatter::{FrontmatterRegra, StatusRegra, TipoDocumento};
-    use cba_tools::evidencias::{EvidenciaCitada, validar};
 
     let demanda = gabarito
         .demandas
@@ -180,46 +232,7 @@ pub fn preparar_origem(
             .iter()
             .find(|r| &r.id == id)
             .ok_or_else(|| format!("a regra {id} não existe no gabarito"))?;
-        let mut evidencias = Vec::new();
-        for e in &regra.evidencias {
-            let citada = EvidenciaCitada {
-                arquivo: e.arquivo.clone(),
-                linha_inicial: e.linha_inicial,
-                linha_final: e.linha_final,
-                trecho: e.trecho.clone(),
-            };
-            evidencias
-                .push(validar(&ambiente.escopo, &citada).map_err(|r| format!("{id}: {r:?}"))?);
-        }
-        let rn = cba_kb::Id::analisar(id).map_err(|e| e.to_string())?;
-        let documento = cba_kb::Documento::novo(
-            FrontmatterRegra {
-                tipo: TipoDocumento::Regra,
-                id: rn.clone(),
-                titulo: regra.titulo.clone(),
-                area: "geral".into(),
-                status: StatusRegra::Confirmada,
-                evidencias: evidencias
-                    .iter()
-                    .map(|e| Evidencia {
-                        arquivo: e.arquivo.clone(),
-                        linhas: e.linhas,
-                        hash: e.hash.clone(),
-                        commit: e.commit.clone(),
-                    })
-                    .collect(),
-                origem: Some(origem.documento.clone()),
-            },
-            format!(
-                "\n# {id} · {}\n\n{}\n",
-                regra.titulo,
-                regra.enunciado.trim()
-            ),
-        );
-        ambiente
-            .kb
-            .gravar(&rn.arquivo(), &documento)
-            .map_err(|e| format!("regra {id}: {e}"))?;
+        let evidencias = gravar_regra(ambiente, regra, Some(origem.documento.clone()))?;
         afirmacoes.push(NovaAfirmacao {
             secao: "como_e_hoje".into(),
             texto: regra.enunciado.trim().to_owned(),

@@ -32,8 +32,8 @@ USO
 
       --modelo <m>            modelo do claude (padrão: sonnet)
       --orcamento <usd>       --max-budget-usd de cada execução (padrão: 1.5)
-      --fluxos <lista>        perguntar,explicar,impacto,revisar,historias,reuniao,
-                              reuniao-longa
+      --fluxos <lista>        perguntar,explicar,impacto,revisar,historias,cenarios,
+                              reuniao,reuniao-longa
                               (padrão: perguntar,explicar,impacto)
       --repeticoes <n>        execuções de cada fluxo (padrão: 1)
       --pergunta <id>         item do fluxo perguntar (padrão: P-FAT-001)
@@ -41,6 +41,7 @@ USO
       --demanda <id>          item do fluxo impacto (padrão: D-FAT-001)
       --revisao <id>          item do fluxo revisar (padrão: REV-FAT-001)
       --historias <id>        item do fluxo historias (padrão: HIS-FAT-001)
+      --cenarios <id>         item do fluxo cenarios (padrão: CEN-FAT-001)
       --reuniao <id>          reunião dos fluxos reuniao e reuniao-longa (padrão: REU-FAT-001)
       --orcamento-longa <usd> --max-budget-usd da reunião longa (padrão: 3)
       --longa-minutos <n>     duração da reunião longa sintética (padrão: 120)
@@ -308,6 +309,7 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
         "--demanda",
         "--revisao",
         "--historias",
+        "--cenarios",
         "--saida",
         "--cba",
         "--claude",
@@ -370,6 +372,7 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
             "impacto" => ("--demanda", "D-FAT-001", Fluxo::Impacto),
             "revisar" => ("--revisao", "REV-FAT-001", Fluxo::Revisar),
             "historias" => ("--historias", "HIS-FAT-001", Fluxo::Historias),
+            "cenarios" => ("--cenarios", "CEN-FAT-001", Fluxo::Cenarios),
             "reuniao" => {
                 reunioes.0 = true;
                 continue;
@@ -380,7 +383,7 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
             }
             outro => {
                 return Err(format!(
-                    "fluxo desconhecido: {outro} (use perguntar, explicar, impacto, revisar, historias, \
+                    "fluxo desconhecido: {outro} (use perguntar, explicar, impacto, revisar, historias, cenarios, \
                      reuniao ou reuniao-longa)"
                 ));
             }
