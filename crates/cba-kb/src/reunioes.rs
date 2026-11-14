@@ -157,7 +157,7 @@ impl Projeto {
             let trava = demandas.juntar(&format!(".{id}{SUFIXO_DA_TRAVA}"))?;
             match fs::create_dir(self.caminho(&trava)) {
                 Ok(()) => {}
-                Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
+                Err(e) if arquivo::trava_ocupada(&e) => continue,
                 Err(erro) => return Err(self.erro_io(&trava, erro)),
             }
             let _trava = Trava(self.caminho(&trava));
