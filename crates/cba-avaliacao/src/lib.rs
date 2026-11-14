@@ -16,6 +16,10 @@
 //!   medir o custo de uma reunião de cerca de 2 h, [`longa`] gera uma reunião
 //!   sintética a partir da reunião da fixture.
 //!
+//! No fluxo `revisar`, [`parecer`] mede o parecer de revisão: os achados
+//! esperados (a contradição plantada com evidência), os termos vagos apontados e
+//! o veredito (#116).
+//!
 //! O relatório ([`relatorio`]) sai em JSON e Markdown.
 
 pub mod ata;
@@ -23,6 +27,7 @@ pub mod comparacao;
 pub mod execucao;
 pub mod gabarito;
 pub mod longa;
+pub mod parecer;
 pub mod pastas;
 pub mod relatorio;
 pub mod texto;

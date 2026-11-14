@@ -15,6 +15,8 @@ test = false
 doctest = false
 
 [dev-dependencies]
+# Lista de referência dos termos vagos, para conferir as revisões do gabarito.
+cba-core.workspace = true
 # Texto do .docx das reuniões, para as verificações de dados fictícios.
 cba-reunioes.workspace = true
 serde = { version = "1", features = ["derive"] }

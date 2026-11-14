@@ -33,6 +33,15 @@
 #   `responsavel` e `prazo` são grupos de termos conferidos nos campos do item.
 #   `falas` lista o início (M:SS) das falas que sustentam o item, para conferir
 #   se o agente citou a fala certa. `transcript` é relativo a este arquivo.
+# - `revisoes` (fluxo "Revisar requisito", #116) traz requisitos e histórias
+#   fictícios com problemas plantados e o parecer esperado: o `veredito`
+#   (pronta, pronta_com_ressalvas ou precisa_de_retrabalho), os
+#   `termos_vagos` da lista de referência (cba_core::qualidade) que devem ser
+#   apontados e os `achados` esperados. Um achado registrado atende quando é
+#   da `caracteristica` (ou de uma das `tambem_em`), tem um termo de cada grupo
+#   de `palavras_chave` no trecho, no problema ou na reescrita e, se o esperado
+#   cita `regras`, tem evidência válida que toca uma evidência esperada de uma
+#   delas (ou cita a regra pelo id).
 # - A avaliação dos fluxos (crate cba-avaliacao, docs/avaliacao.md) usa este
 #   arquivo como referência.
 
@@ -684,3 +693,49 @@ reunioes:
         descricao: Começar a análise de impacto da trava.
         palavras_chave: [[impacto]]
         falas: ["1:47"]
+
+# Requisitos e histórias fictícios para o fluxo "Revisar requisito" (#116), com
+# problemas plantados e o parecer esperado. Os textos são do autor fictício da
+# história; o sistema continua o mesmo.
+revisoes:
+  - id: REV-FAT-001
+    titulo: Cancelamento de fatura pelo atendente
+    texto: |-
+      Cancelamento de fatura pelo atendente
+
+      Como atendente da central, quero cancelar uma fatura informando o motivo, para corrigir cobranças lançadas por engano.
+
+      Critérios de aceite:
+      - O atendente pode cancelar fatura aberta, inclusive a que já tem pagamento parcial.
+      - O motivo do cancelamento é obrigatório.
+      - O cancelamento deve ser rápido e a mensagem de confirmação, adequada.
+      - Vale para faturas avulsas e/ou parceladas, etc.
+    veredito: precisa_de_retrabalho
+    termos_vagos: [rápido, adequado, e/ou, etc.]
+    achados:
+      - id: REV-FAT-001-C1
+        caracteristica: correcao
+        descricao: >-
+          Contradição plantada: a história permite cancelar fatura com
+          pagamento parcial; a regra RN-FAT-012 só cancela fatura sem nenhum
+          valor pago.
+        regras: [RN-FAT-012]
+        palavras_chave: [[pagamento parcial, pago*, pagamento*, vl_pago]]
+      - id: REV-FAT-001-L1
+        caracteristica: completude
+        tambem_em: [verificabilidade, ambiguidade]
+        descricao: >-
+          O motivo é obrigatório, mas o sistema exige ao menos 10 caracteres
+          (RN-FAT-013); a história não diz.
+        regras: [RN-FAT-013]
+        palavras_chave: [[motivo], ["10", dez, caracteres, minimo]]
+      - id: REV-FAT-001-L2
+        caracteristica: completude
+        descricao: >-
+          Fatura emitida há mais de 30 dias só pode ser cancelada por
+          supervisor (RN-FAT-014); a história não trata o perfil.
+        regras: [RN-FAT-014]
+        palavras_chave: [[supervisor], ["30", trinta, emiss*, dias]]
+    perguntas_esperadas:
+      - tema: A história muda a regra que proíbe cancelar fatura com pagamento parcial, ou o texto está errado?
+        palavras_chave: [[pagamento parcial, pago*, pagamento*], [regra, muda*, mudanca, alter*, err*, intenc*, proposit*, correto, confirm*, pretend*, deve*]]

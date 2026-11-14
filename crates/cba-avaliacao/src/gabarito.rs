@@ -31,6 +31,9 @@ pub struct Gabarito {
     /// Reuniões fictícias e a ata esperada de cada uma (fluxo `reuniao`).
     #[serde(default)]
     pub reunioes: Vec<Reuniao>,
+    /// Requisitos e histórias com problemas plantados (fluxo `revisar`, #116).
+    #[serde(default)]
+    pub revisoes: Vec<Revisao>,
     /// Pasta do gabarito, para resolver `raiz`. Preenchida por [`Gabarito::carregar`].
     #[serde(skip)]
     pub pasta: PathBuf,
@@ -119,6 +122,44 @@ pub struct Demanda {
     pub perguntas_esperadas: Vec<PerguntaEsperada>,
 }
 
+/// Requisito ou história fictícios e o parecer esperado (fluxo `revisar`).
+#[derive(Debug, Clone, Deserialize)]
+pub struct Revisao {
+    pub id: String,
+    pub titulo: String,
+    pub texto: String,
+    #[serde(flatten)]
+    pub esperado: RevisaoEsperada,
+    #[serde(default)]
+    pub perguntas_esperadas: Vec<PerguntaEsperada>,
+}
+
+/// O que o parecer da revisão deve ter.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RevisaoEsperada {
+    pub veredito: cba_core::parecer::Veredito,
+    /// Termos da lista de referência (`cba_core::qualidade::TERMOS_VAGOS`) que
+    /// devem ter achado de ambiguidade ou verificabilidade.
+    #[serde(default)]
+    pub termos_vagos: Vec<String>,
+    pub achados: Vec<AchadoEsperado>,
+}
+
+/// Achado esperado no parecer.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AchadoEsperado {
+    pub id: String,
+    pub caracteristica: cba_core::qualidade::Caracteristica,
+    /// Outras características aceitas.
+    #[serde(default)]
+    pub tambem_em: Vec<cba_core::qualidade::Caracteristica>,
+    pub descricao: String,
+    /// Regras do gabarito que o achado toca (pela evidência ou pelo id).
+    #[serde(default)]
+    pub regras: Vec<String>,
+    pub palavras_chave: Vec<Vec<String>>,
+}
+
 /// Reunião fictícia: o transcript e a ata esperada.
 #[derive(Debug, Clone, Deserialize)]
 pub struct Reuniao {
@@ -200,6 +241,9 @@ pub struct Item {
     pub verificacao_da_premissa: Option<VerificacaoDaPremissa>,
     /// Abrangência esperada (`pequena`, `media` ou `grande`), só no fluxo impacto.
     pub abrangencia: Option<String>,
+    /// Parecer esperado, só no fluxo revisar.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revisao: Option<RevisaoEsperada>,
 }
 
 /// Erro ao ler o gabarito ou ao achar um item.
@@ -286,6 +330,7 @@ impl Gabarito {
                 perguntas_esperadas: p.perguntas_esperadas.clone(),
                 verificacao_da_premissa: None,
                 abrangencia: None,
+                revisao: None,
             });
         }
         if let Some(f) = self.funcionalidades.iter().find(|f| f.id == id) {
@@ -299,6 +344,7 @@ impl Gabarito {
                 perguntas_esperadas: f.perguntas_esperadas.clone(),
                 verificacao_da_premissa: None,
                 abrangencia: None,
+                revisao: None,
             });
         }
         if let Some(d) = self.demandas.iter().find(|d| d.id == id) {
@@ -312,10 +358,26 @@ impl Gabarito {
                 perguntas_esperadas: d.perguntas_esperadas.clone(),
                 verificacao_da_premissa: d.verificacao_da_premissa.clone(),
                 abrangencia: Some(d.abrangencia_esperada.clone()),
+                revisao: None,
+            });
+        }
+        if let Some(r) = self.revisoes.iter().find(|r| r.id == id) {
+            return Ok(Item {
+                id: r.id.clone(),
+                fluxo: Fluxo::Revisar,
+                titulo: r.titulo.clone(),
+                entrada: r.texto.clone(),
+                // As regras da revisão ficam nos achados esperados.
+                regras: Vec::new(),
+                arquivos: Vec::new(),
+                perguntas_esperadas: r.perguntas_esperadas.clone(),
+                verificacao_da_premissa: None,
+                abrangencia: None,
+                revisao: Some(r.esperado.clone()),
             });
         }
         Err(Erro(format!(
-            "o item `{id}` não existe no gabarito (use o id de uma pergunta, funcionalidade ou demanda)"
+            "o item `{id}` não existe no gabarito (use o id de uma pergunta, funcionalidade, demanda ou revisão)"
         )))
     }
 }

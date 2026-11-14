@@ -37,6 +37,7 @@ use cba_tools::evidencias::{EvidenciaCitada, validar};
 use serde::Serialize;
 
 use crate::gabarito::{Gabarito, Item, Regra, Veredito};
+use crate::parecer::{ParecerAvaliado, avaliar_parecer};
 use crate::texto;
 
 /// Evidências mais largas que isso não contam para achar regras.
@@ -74,6 +75,9 @@ pub struct Avaliacao {
     pub perguntas_esperadas: Vec<PerguntaAvaliada>,
     pub premissa: Option<PremissaAvaliada>,
     pub abrangencia: Option<AbrangenciaAvaliada>,
+    /// Parecer de revisão (fluxo `revisar`, [`crate::parecer`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parecer: Option<ParecerAvaliado>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -132,8 +136,11 @@ impl Avaliacao {
     /// Falhas graves: invalidam a execução independentemente da cobertura.
     pub fn falhas(&self) -> Vec<String> {
         let mut f = Vec::new();
-        if self.afirmacoes == 0 {
-            f.push("nenhuma afirmação registrada".to_owned());
+        // No parecer de revisão, o conteúdo são os achados; as afirmações são opcionais.
+        match &self.parecer {
+            Some(p) => f.extend(p.falhas()),
+            None if self.afirmacoes == 0 => f.push("nenhuma afirmação registrada".to_owned()),
+            None => {}
         }
         if !self.confirmado_sem_evidencia_valida.is_empty() {
             f.push(format!(
@@ -240,6 +247,17 @@ fn tocadas(regra: &Regra, evidencias: &[&Evidencia]) -> BTreeSet<usize> {
         })
         .map(|(i, _)| i)
         .collect()
+}
+
+/// As evidências dadas tocam uma evidência esperada da regra (evidências largas
+/// demais não contam).
+pub(crate) fn toca(regra: &Regra, evidencias: &[&Evidencia]) -> bool {
+    let ev: Vec<&Evidencia> = evidencias
+        .iter()
+        .copied()
+        .filter(|e| e.linhas.fim - e.linhas.inicio < LINHAS_PARA_CASAR)
+        .collect();
+    !tocadas(regra, &ev).is_empty()
 }
 
 /// A afirmação, pelas evidências dadas, encontra a regra.
@@ -455,6 +473,10 @@ pub fn avaliar(analise: &Analise, item: &Item, gabarito: &Gabarito, escopo: &Esc
         perguntas_esperadas,
         premissa,
         abrangencia,
+        parecer: item
+            .revisao
+            .as_ref()
+            .map(|r| avaliar_parecer(analise, r, gabarito, escopo)),
     }
 }
 
@@ -477,6 +499,10 @@ pub fn nome_do_fluxo(fluxo: cba_core::analise::Fluxo) -> &'static str {
 
 /// Confere a evidência gravada contra o código: a mesma validação do registro e o
 /// mesmo hash.
+pub(crate) fn conferir_evidencia(escopo: &Escopo, e: &Evidencia) -> Result<(), String> {
+    conferir(escopo, e)
+}
+
 fn conferir(escopo: &Escopo, e: &Evidencia) -> Result<(), String> {
     let citada = EvidenciaCitada {
         arquivo: e.arquivo.as_str().to_owned(),
