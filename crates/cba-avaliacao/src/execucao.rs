@@ -114,6 +114,7 @@ fn preparar(raiz: &Path, projeto: &Path, item: &Item, cba: &Path) -> Result<Prep
     cba_kb::Base::criar(&base).map_err(erro("base de conhecimento"))?;
     Config {
         base: Some(base.clone()),
+        ..Default::default()
     }
     .gravar(&dados)
     .map_err(erro("configuração do app"))?;
