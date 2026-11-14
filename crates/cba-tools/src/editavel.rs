@@ -282,9 +282,9 @@ fn descricao_da_variavel(nome: &str) -> &'static str {
     match nome {
         "id" => "Identificador da análise (A-NNNN).",
         "titulo" => "Título da análise.",
-        "fluxo" => "Nome do fluxo da análise (pergunta, explicação, impacto ou reunião).",
+        "fluxo" => "Nome do fluxo da análise (pergunta, explicação ou impacto).",
         "documento" => "Caminho do documento da análise, relativo à base.",
-        "entrada" => "A entrada do analista (pergunta, funcionalidade, demanda ou reunião).",
+        "entrada" => "A entrada do analista (pergunta, funcionalidade ou demanda).",
         "secoes" => "Lista das seções do documento, com o que vai em cada uma.",
         "secoes_obrigatorias" => "Seções que a análise precisa preencher para ser aprovada.",
         "contexto" => "Contexto da base de conhecimento para o fluxo.",
@@ -499,14 +499,13 @@ mod tests {
         let lista = textos_editaveis();
         let de = |g: Grupo| lista.iter().filter(|t| t.grupo == g).count();
         assert_eq!(de(Grupo::Template), cba_docs::MODELOS.len());
-        assert_eq!(de(Grupo::Roteiro), 4);
-        assert_eq!(de(Grupo::Prompt), 7);
+        assert_eq!(de(Grupo::Roteiro), 3);
+        assert_eq!(de(Grupo::Prompt), 5);
         let arquivos: std::collections::BTreeSet<&str> =
             lista.iter().map(|t| t.arquivo.as_str()).collect();
         assert_eq!(arquivos.len(), lista.len(), "caminhos distintos");
         assert!(arquivos.contains("_templates/analise-impacto.md"));
         assert!(arquivos.contains("_templates/roteiros/perguntar.md"));
-        assert!(arquivos.contains("_templates/roteiros/reuniao.md"));
         assert!(arquivos.contains("_templates/prompts/aprofundar.md"));
         assert!(lista.iter().all(|t| !t.padrao.trim().is_empty()));
     }

@@ -208,10 +208,7 @@ export type AvisoAnalise =
 
 /** Prompt pronto (#32): `prompts_prontos { projeto, analise }`. */
 export interface PromptPronto {
-  /**
-   * aprofundar, resumir, criterios-de-aceite, conferir-evidencias, retomar; na análise
-   * de reunião, resumir-para-o-cliente e listar-duvidas (o app filtra pelo fluxo).
-   */
+  /** aprofundar, resumir, criterios-de-aceite, conferir-evidencias, retomar. */
   id: string;
   /** Rótulo do botão. */
   rotulo: string;

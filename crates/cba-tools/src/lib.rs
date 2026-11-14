@@ -11,8 +11,8 @@
 //!   módulo: [`analises`] (`listar_analises`), [`ciclo`] (`iniciar_analise`,
 //!   `retomar_analise` e `concluir_analise`), [`afirmar`], [`perguntar`],
 //!   [`sugestao`] (`registrar_sugestao`), [`termo`] (`propor_termo`) e
-//!   [`reuniao`] (`ler_transcript`, `propor_papel`, `registrar_item_ata`,
-//!   `registrar_resumo_ata` e `sugerir_demanda`, do fluxo "Analisar reunião").
+//!   [`reuniao`] (`ler_transcript`, `propor_papel`, `registrar_item_ata` e
+//!   `sugerir_demanda`, do fluxo "Analisar reunião").
 //! - Consulta, só de leitura e paginada ([`paginacao`]): [`conhecimento`] (busca no
 //!   índice da base), [`mapa`], [`estrutura`], [`banco`] (`schema`) e
 //!   [`referencias`], a partir do mapa estrutural do projeto ([`fontes`]).
@@ -88,7 +88,6 @@ pub fn registro_padrao() -> Registro {
         .registrar(reuniao::ler_transcript())
         .registrar(reuniao::propor_papel())
         .registrar(reuniao::registrar_item_ata())
-        .registrar(reuniao::registrar_resumo_ata())
         .registrar(reuniao::sugerir_demanda())
         .registrar(ciclo::concluir_analise());
     registro
@@ -122,7 +121,6 @@ mod tests {
             "ler_transcript",
             "propor_papel",
             "registrar_item_ata",
-            "registrar_resumo_ata",
             "sugerir_demanda",
             "concluir_analise",
         ] {
@@ -134,7 +132,6 @@ mod tests {
         assert!(!r.obter("concluir_analise").unwrap().e_somente_leitura());
         assert!(!r.obter("propor_papel").unwrap().e_somente_leitura());
         assert!(!r.obter("registrar_item_ata").unwrap().e_somente_leitura());
-        assert!(!r.obter("registrar_resumo_ata").unwrap().e_somente_leitura());
         for consulta in [
             "retomar_analise",
             "conhecimento",
