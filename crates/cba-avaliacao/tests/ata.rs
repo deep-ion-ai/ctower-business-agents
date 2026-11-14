@@ -399,8 +399,8 @@ fn ata_gravada_por_execucao_real() {
     let g = gabarito();
     let r = g.reuniao("REU-FAT-001").unwrap();
     let f = falas(&g, r);
-    let caminho =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/atas/REU-FAT-001.estado.json");
+    let caminho = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/atas/REU-FAT-001.estado.json");
     let estado: EstadoAta =
         serde_json::from_str(&std::fs::read_to_string(caminho).unwrap()).unwrap();
     let a = avaliar_ata(
