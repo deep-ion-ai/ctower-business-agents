@@ -85,7 +85,9 @@ export function AprovacaoAnalise({ api, projeto, analise, versao, aoAprovar }: P
     setAjustes((a) => ({ ...a, [n]: { ...ajuste(n), [campo]: valor } }));
   const todasComArea =
     prontidao.regras.length > 0 && prontidao.regras.every((r) => ajuste(r.afirmacao).area);
-  const faltaArea = prontidao.areaObrigatoria && !area && !todasComArea;
+  // Sem regras a criar (as histórias, por exemplo), a área não importa.
+  const faltaArea =
+    prontidao.areaObrigatoria && prontidao.regras.length > 0 && !area && !todasComArea;
   const aprovada = prontidao.estado === "aprovada";
 
   const aprovar = () => {

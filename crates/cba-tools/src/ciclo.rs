@@ -182,6 +182,79 @@ fn demanda_aberta(ambiente: &Ambiente, id: IdDemanda) -> Result<DemandaLida, Err
     Ok(lida)
 }
 
+/// Cria uma análise do fluxo `historias` (#115) a partir da análise de origem
+/// (`origem`, A-NNNN, que não pode ser outra de histórias) ou de uma demanda
+/// aberta (`demanda`). Sem `demanda`, a análise herda a da origem. Sem `entrada` e
+/// sem `titulo`, eles vêm da origem (ou da demanda). Usada por `iniciar_analise` e
+/// pela tela de nova análise do app.
+pub fn criar_analise_de_historias(
+    ambiente: &Ambiente,
+    origem: Option<Id>,
+    demanda: Option<IdDemanda>,
+    entrada: Option<String>,
+    titulo: Option<String>,
+) -> Result<Analise, ErroFerramenta> {
+    let lida = origem
+        .as_ref()
+        .map(|o| ambiente.analises.carregar(o))
+        .transpose()?;
+    if let Some(o) = &lida
+        && o.fluxo == Fluxo::Historias
+    {
+        return Err(ErroFerramenta::Recusa(format!(
+            "a análise {} já é de histórias; a origem é a análise do código de onde vêm as \
+             afirmações (impacto, explicação ou pergunta)",
+            o.id
+        )));
+    }
+    // A demanda pedida ou, sem ela, a da análise de origem.
+    let demanda = match (demanda, &lida) {
+        (Some(d), _) => Some(demanda_aberta(ambiente, d)?),
+        (None, Some(o)) => ambiente
+            .kb
+            .ler::<FrontmatterAnalise>(&o.documento)
+            .ok()
+            .and_then(|d| d.frontmatter.demanda.id)
+            .and_then(|d| ler_demanda(ambiente, d).ok()),
+        (None, None) => {
+            return Err(ErroFerramenta::Argumentos(
+                "no fluxo `historias`, informe `origem` (a análise A-NNNN de onde vêm as \
+                 afirmações) ou `demanda` (D-NNNN)"
+                    .into(),
+            ));
+        }
+    };
+    let entrada = entrada
+        .filter(|e| !e.trim().is_empty())
+        .unwrap_or_else(|| match (&lida, &demanda) {
+            (Some(o), _) => pedido_de_historias(o),
+            (None, Some(d)) => format!(
+                "Histórias de usuário com critérios de aceite da demanda {} ({}).",
+                d.id, d.documento.frontmatter.titulo
+            ),
+            (None, None) => "Histórias de usuário com critérios de aceite.".into(),
+        });
+    let titulo = match titulo {
+        Some(t) if !t.trim().is_empty() => t,
+        _ => titulo_da_entrada(&match (&lida, &demanda) {
+            (Some(o), _) => format!("Histórias · {}", o.titulo),
+            (None, Some(d)) => format!("Histórias · {}", d.documento.frontmatter.titulo),
+            (None, None) => entrada.clone(),
+        }),
+    };
+    Ok(ambiente.analises.criar_derivada(
+        NovaAnalise {
+            fluxo: Fluxo::Historias,
+            titulo,
+            entrada,
+            analista: None,
+            base: versao_do_codigo(ambiente),
+        },
+        demanda.as_ref().map(demanda_do_frontmatter),
+        origem,
+    )?)
+}
+
 /// `iniciar_analise`: o roteiro do fluxo, a entrada e o contexto da base.
 pub fn iniciar_analise() -> Ferramenta {
     Ferramenta::nova(
@@ -319,66 +392,12 @@ pub fn iniciar_analise() -> Ferramenta {
                         .as_deref()
                         .map(comum::id_da_analise)
                         .transpose()?;
-                    let lida = origem
-                        .as_ref()
-                        .map(|o| ambiente.analises.carregar(o))
-                        .transpose()?;
-                    if let Some(o) = &lida
-                        && o.fluxo == Fluxo::Historias
-                    {
-                        return Err(ErroFerramenta::Recusa(format!(
-                            "a análise {} já é de histórias; a origem é a análise do código \
-                             de onde vêm as afirmações (impacto, explicação ou pergunta)",
-                            o.id
-                        )));
-                    }
-                    // A demanda pedida ou, sem ela, a da análise de origem.
-                    let demanda = match (ligacao.demanda, &lida) {
-                        (Some(d), _) => Some(demanda_aberta(ambiente, d)?),
-                        (None, Some(o)) => ambiente
-                            .kb
-                            .ler::<FrontmatterAnalise>(&o.documento)
-                            .ok()
-                            .and_then(|d| d.frontmatter.demanda.id)
-                            .and_then(|d| ler_demanda(ambiente, d).ok()),
-                        (None, None) => {
-                            return Err(ErroFerramenta::Argumentos(
-                                "no fluxo `historias`, informe `origem` (a análise A-NNNN de \
-                                 onde vêm as afirmações) ou `demanda` (D-NNNN)"
-                                    .into(),
-                            ));
-                        }
-                    };
-                    let entrada = entrada.filter(|e| !e.trim().is_empty()).unwrap_or_else(
-                        || match (&lida, &demanda) {
-                            (Some(o), _) => pedido_de_historias(o),
-                            (None, Some(d)) => format!(
-                                "Histórias de usuário com critérios de aceite da demanda {} ({}).",
-                                d.id, d.documento.frontmatter.titulo
-                            ),
-                            (None, None) => "Histórias de usuário com critérios de aceite.".into(),
-                        },
-                    );
-                    let titulo = match args.titulo {
-                        Some(t) if !t.trim().is_empty() => t,
-                        _ => titulo_da_entrada(&match (&lida, &demanda) {
-                            (Some(o), _) => format!("Histórias · {}", o.titulo),
-                            (None, Some(d)) => {
-                                format!("Histórias · {}", d.documento.frontmatter.titulo)
-                            }
-                            (None, None) => entrada.clone(),
-                        }),
-                    };
-                    let analise = ambiente.analises.criar_derivada(
-                        NovaAnalise {
-                            fluxo: Fluxo::Historias,
-                            titulo,
-                            entrada,
-                            analista: None,
-                            base: versao_do_codigo(ambiente),
-                        },
-                        demanda.as_ref().map(demanda_do_frontmatter),
+                    let analise = criar_analise_de_historias(
+                        ambiente,
                         origem,
+                        ligacao.demanda,
+                        entrada,
+                        args.titulo,
                     )?;
                     ligacao.demanda = None;
                     (analise.id, true)

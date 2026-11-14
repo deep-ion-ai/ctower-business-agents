@@ -167,6 +167,30 @@ pub async fn criar_analise_fluxo(
     .await
 }
 
+/// Cria a análise de histórias com critérios de aceite (#115) a partir de uma
+/// análise de origem ou de uma demanda.
+#[tauri::command]
+pub async fn criar_analise_de_historias_app(
+    projeto: String,
+    origem: Option<String>,
+    demanda: Option<String>,
+    entrada: Option<String>,
+    titulo: Option<String>,
+) -> Result<AnaliseCriada, String> {
+    let dados = dados()?;
+    bloqueante(move || {
+        crate::analise::criar_analise_de_historias(
+            &dados,
+            &projeto,
+            origem.as_deref(),
+            demanda.as_deref(),
+            entrada.as_deref(),
+            titulo.as_deref(),
+        )
+    })
+    .await
+}
+
 #[cfg(test)]
 #[path = "inicio_testes.rs"]
 mod tests;
