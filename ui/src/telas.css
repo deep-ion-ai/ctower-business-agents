@@ -102,6 +102,9 @@
 .lista-areas,
 .lista-pastas,
 .lista-arquivos,
+.lista-demandas,
+.lista-itens-ata,
+.linha-do-tempo,
 .resultados-base ul {
   list-style: none;
   padding: 0;
@@ -116,6 +119,9 @@
 .lista-areas > li,
 .lista-pastas > li,
 .lista-arquivos > li,
+.lista-demandas > li,
+.lista-itens-ata > li,
+.linha-do-tempo > li,
 .resultados-base li {
   display: flex;
   flex-wrap: wrap;
@@ -132,6 +138,9 @@
 .lista-areas > li:last-child,
 .lista-pastas > li:last-child,
 .lista-arquivos > li:last-child,
+.lista-demandas > li:last-child,
+.lista-itens-ata > li:last-child,
+.linha-do-tempo > li:last-child,
 .resultados-base li:last-child {
   border-bottom: 0;
 }
@@ -149,6 +158,22 @@
 
 .regra[data-status="obsoleta"] {
   color: var(--muted);
+}
+
+/* Demanda encerrada: fica no fim da lista, apagada. */
+.lista-demandas > li[data-status="encerrada"] {
+  color: var(--muted);
+}
+
+/* Transcript guardado sem a ata aprovada (#136): o prazo de retenção. */
+.aviso-transcript {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.aviso-transcript[data-tone="attention"] {
+  color: var(--attention);
+  font-weight: 600;
 }
 
 .aviso-revalidar {
@@ -1328,4 +1353,72 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
+}
+
+/* Nova reunião e ata ao vivo (#141) */
+.nova-reuniao textarea {
+  width: 100%;
+  font-family: var(--font-mono, monospace);
+}
+
+.nova-reuniao .aceite {
+  flex-direction: row;
+  align-items: center;
+  font-weight: 600;
+}
+
+.aviso-privacidade {
+  border-left: 3px solid var(--attention);
+  padding: 4px 12px;
+}
+
+.aviso-privacidade h4,
+.previa-transcript h4 {
+  margin: 4px 0;
+}
+
+.previa-transcript .falantes,
+.avisos-transcript,
+.citacoes-fala {
+  margin: 4px 0;
+  padding-left: 20px;
+}
+
+.avisos-transcript li,
+.citacoes-fala [data-tone="attention"] {
+  color: var(--attention);
+}
+
+.lista-participantes {
+  list-style: none;
+  padding: 0;
+}
+
+.lista-participantes > li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.lista-participantes > li:last-child {
+  border-bottom: 0;
+}
+
+.lista-participantes p {
+  margin: 4px 0;
+}
+
+.confirmacao-participante {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.confirmacao-participante label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.itens-ata > li {
+  margin-bottom: 6px;
 }

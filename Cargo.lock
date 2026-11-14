@@ -441,10 +441,12 @@ name = "cba-app"
 version = "0.2.0"
 dependencies = [
  "cba-core",
+ "cba-docs",
  "cba-index",
  "cba-kb",
  "cba-mcp",
  "cba-repos",
+ "cba-reunioes",
  "cba-session",
  "cba-tools",
  "dirs 6.0.0",
@@ -468,8 +470,10 @@ name = "cba-avaliacao"
 version = "0.2.0"
 dependencies = [
  "cba-core",
+ "cba-docs",
  "cba-index",
  "cba-kb",
+ "cba-reunioes",
  "cba-session",
  "cba-tools",
  "dunce",
@@ -504,6 +508,7 @@ dependencies = [
  "pulldown-cmark",
  "quick-xml",
  "serde",
+ "serde_json",
  "serde_norway",
  "tempfile",
  "thiserror 2.0.21",
@@ -514,6 +519,7 @@ dependencies = [
 name = "cba-fixtures"
 version = "0.2.0"
 dependencies = [
+ "cba-reunioes",
  "serde",
  "serde_norway",
 ]
@@ -576,6 +582,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "cba-reunioes"
+version = "0.2.0"
+dependencies = [
+ "cba-core",
+ "cba-docs",
+ "cba-kb",
+ "quick-xml",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tracing",
+ "zip",
+]
+
+[[package]]
 name = "cba-session"
 version = "0.2.0"
 dependencies = [
@@ -605,6 +627,7 @@ dependencies = [
  "cba-index",
  "cba-kb",
  "cba-repos",
+ "cba-reunioes",
  "dunce",
  "serde",
  "serde_json",

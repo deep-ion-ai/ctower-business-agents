@@ -31,12 +31,15 @@
 //! para o time de desenvolvimento.
 //!
 //! Depois da aprovação, a revisão fica fechada: as regras já foram para a base.
+//!
+//! A análise do fluxo `reuniao` não é aprovada aqui ([`aprovar_revisada`] recusa):
+//! ela é aprovada com a ata, em [`crate::aprovacao_ata`], que apaga o transcript.
 
 use std::path::{Path, PathBuf};
 
 use cba_core::ambiente::Ambiente;
 use cba_core::analise::{
-    Analise, ErroModelo, EstadoAfirmacao, EstadoAnalise, EstadoPergunta, EstadoTermo,
+    Analise, ErroModelo, EstadoAfirmacao, EstadoAnalise, EstadoPergunta, EstadoTermo, Fluxo,
 };
 use cba_core::analises;
 use cba_core::eventos::Mudanca;
@@ -130,6 +133,11 @@ pub enum ErroRevisao {
          (ou a de cada afirmação confirmada)"
     )]
     AreaNaoEscolhida,
+    #[error(
+        "a análise {0} é de uma reunião: ela é aprovada pela aprovação da ata, que \
+         apaga o transcript"
+    )]
+    Reuniao(Id),
     #[error(transparent)]
     Aprovacao(#[from] ErroAprovacao),
     #[error("{0}")]
@@ -338,6 +346,9 @@ pub fn aprovar_revisada(
     id: &Id,
     opcoes: &OpcoesAprovacao,
 ) -> Result<Aprovacao, ErroRevisao> {
+    if amb.analises.carregar(id)?.fluxo == Fluxo::Reuniao {
+        return Err(ErroRevisao::Reuniao(id.clone()));
+    }
     let p = prontidao(amb, id)?;
     if p.estado != EstadoAnalise::Aprovada {
         if !p.pendencias.is_empty() {

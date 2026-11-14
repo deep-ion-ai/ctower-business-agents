@@ -8,6 +8,7 @@ import type {
   ResumoRevalidacao,
   VisaoProjeto,
 } from "../conhecimento";
+import type { DemandaVista, NovaDemanda, PainelDemanda } from "../demandas";
 
 /** Dados do sistema fictício "Faturamento Exemplo" depois de uma análise aprovada. */
 export const PROJETO = "faturamento-exemplo";
@@ -201,6 +202,113 @@ export function documentoFicticio(caminho: string): DocumentoAberto {
   };
 }
 
+export const DEMANDA = `${PROJETO}/demandas/D-0001-parcelamento-pj/demanda.md`;
+export const ATA = `${PROJETO}/demandas/D-0001-parcelamento-pj/reunioes/R-0002.md`;
+
+export function demandasFicticias(): DemandaVista[] {
+  return [
+    {
+      id: "D-0001",
+      titulo: "Parcelamento PJ",
+      status: "aberta",
+      chave: "FAT-12",
+      origem: null,
+      criado: "2026-11-01",
+      encerrado: null,
+      documento: DEMANDA,
+    },
+    {
+      id: "D-0002",
+      titulo: "Multa de fatura vencida",
+      status: "encerrada",
+      chave: null,
+      origem: null,
+      criado: "2026-10-01",
+      encerrado: "2026-10-20",
+      documento: `${PROJETO}/demandas/D-0002-multa/demanda.md`,
+    },
+  ];
+}
+
+/** Demanda com uma ata em rascunho, uma análise, uma sessão e uma ata aprovada. */
+export function painelFicticio(parcial: Partial<PainelDemanda> = {}): PainelDemanda {
+  const reuniao = {
+    participantes: 3,
+    itens: 4,
+    documento: null,
+    transcriptGuardado: null,
+  };
+  return {
+    demanda: demandasFicticias()[0],
+    linhaDoTempo: [
+      {
+        tipo: "reuniao",
+        data: "2026-11-03",
+        instanteMs: null,
+        id: "R-0001",
+        status: "rascunho",
+        objetivo: "Levantar o pedido",
+        ...reuniao,
+      },
+      {
+        tipo: "analise",
+        data: "2026-11-04",
+        instanteMs: 1_793_800_000_000,
+        id: "A-0003",
+        titulo: "Parcelamento para pessoa jurídica",
+        fluxo: "impacto",
+        estado: "em-andamento",
+        criadaMs: 1_793_800_000_000,
+      },
+      {
+        tipo: "sessao",
+        data: "2026-11-04",
+        instanteMs: 1_793_800_000_001,
+        id: "sessao-1",
+        analise: "A-0003",
+        estado: "aguardando-analista",
+        cliente: "claude-code",
+        inicioMs: 1_793_800_000_001,
+      },
+      {
+        tipo: "reuniao",
+        data: "2026-11-05",
+        instanteMs: null,
+        id: "R-0002",
+        status: "aprovada",
+        objetivo: "Validar as regras do parcelamento",
+        ...reuniao,
+        documento: ATA,
+      },
+    ],
+    pendencias: [
+      {
+        id: "P-1",
+        reuniao: "R-0002",
+        data: "2026-11-05",
+        texto: "Enviar a tabela de juros do parcelamento",
+        responsavel: "Ana (PO)",
+        prazo: "2026-11-20",
+        referencias: [],
+      },
+    ],
+    duvidas: [
+      {
+        id: "DV-1",
+        reuniao: "R-0002",
+        data: "2026-11-05",
+        texto: "O parcelamento vale para fatura já vencida?",
+        responsavel: null,
+        prazo: null,
+        referencias: [],
+      },
+    ],
+    proximosPassos: [],
+    problemas: [],
+    ...parcial,
+  };
+}
+
 /** API falsa das telas do início, do projeto e da base, com a vigia controlada pelo teste. */
 export function apiConhecimentoFalsa() {
   const avisos: (() => void)[] = [];
@@ -290,6 +398,25 @@ export function apiConhecimentoFalsa() {
       avisos.push(f);
       return Promise.resolve(parar);
     }),
+    listarDemandas: vi.fn((): Promise<DemandaVista[]> => Promise.resolve(demandasFicticias())),
+    criarDemanda: vi.fn(
+      (_p: string, nova: NovaDemanda): Promise<DemandaVista> =>
+        Promise.resolve({
+          ...demandasFicticias()[0],
+          id: "D-0003",
+          titulo: nova.titulo,
+          chave: nova.chave ?? null,
+        }),
+    ),
+    encerrarDemanda: vi.fn(
+      (_p: string, id: string): Promise<DemandaVista> =>
+        Promise.resolve({ ...demandasFicticias()[0], id, status: "encerrada" }),
+    ),
+    reabrirDemanda: vi.fn(
+      (_p: string, id: string): Promise<DemandaVista> =>
+        Promise.resolve({ ...demandasFicticias()[0], id, status: "aberta" }),
+    ),
+    painelDemanda: vi.fn((): Promise<PainelDemanda> => Promise.resolve(painelFicticio())),
     verificarAmbiente: vi.fn(
       (): Promise<AmbienteClaude> => Promise.resolve({ pronto: true, pendencias: [] }),
     ),

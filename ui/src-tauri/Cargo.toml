@@ -18,10 +18,12 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 cba-core.workspace = true
+cba-docs.workspace = true
 cba-index.workspace = true
 cba-kb.workspace = true
 cba-mcp.workspace = true
 cba-repos.workspace = true
+cba-reunioes.workspace = true
 cba-session.workspace = true
 cba-tools.workspace = true
 dirs.workspace = true

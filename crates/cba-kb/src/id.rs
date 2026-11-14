@@ -177,6 +177,149 @@ impl<'de> Deserialize<'de> for Id {
     }
 }
 
+/// Identificador de uma demanda, `D-NNNN`, sequencial por projeto.
+///
+/// Fica fora de [`Serie`] porque a demanda é uma pasta
+/// (`demandas/D-NNNN-<slug>/demanda.md`), não um arquivo `<pasta>/<id>.md`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct IdDemanda(u32);
+
+impl IdDemanda {
+    /// Prefixo do identificador e do nome da pasta.
+    pub const PREFIXO: &'static str = "D-";
+
+    /// Identificador de número `numero` (a partir de 1).
+    pub fn novo(numero: u32) -> Self {
+        Self(numero.max(1))
+    }
+
+    pub fn numero(self) -> u32 {
+        self.0
+    }
+
+    /// Lê um identificador na forma canônica (`D-0007`, `D-12345`).
+    pub fn analisar(texto: &str) -> Result<Self, IdInvalido> {
+        numero_com_prefixo(texto, Self::PREFIXO, "esperado D-NNNN").map(Self)
+    }
+
+    /// Identificador de uma pasta de demanda: `D-NNNN` ou `D-NNNN-<slug>`.
+    pub fn de_pasta(nome: &str) -> Option<Self> {
+        let resto = nome.strip_prefix(Self::PREFIXO)?;
+        let fim = resto.find('-').unwrap_or(resto.len());
+        let id = Self::analisar(&nome[..Self::PREFIXO.len() + fim]).ok()?;
+        let slug = &resto[fim..];
+        (slug.is_empty() || slug.strip_prefix('-').is_some_and(crate::caminho::e_slug))
+            .then_some(id)
+    }
+}
+
+impl fmt::Display for IdDemanda {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}{:04}", Self::PREFIXO, self.0)
+    }
+}
+
+impl std::str::FromStr for IdDemanda {
+    type Err = IdInvalido;
+
+    fn from_str(texto: &str) -> Result<Self, Self::Err> {
+        Self::analisar(texto)
+    }
+}
+
+impl Serialize for IdDemanda {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.collect_str(self)
+    }
+}
+
+impl<'de> Deserialize<'de> for IdDemanda {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let texto = String::deserialize(d)?;
+        Self::analisar(&texto).map_err(serde::de::Error::custom)
+    }
+}
+
+/// Número de um identificador `<prefixo>NNNN` (4 dígitos no mínimo), na forma
+/// canônica.
+fn numero_com_prefixo(
+    texto: &str,
+    prefixo: &str,
+    formato: &'static str,
+) -> Result<u32, IdInvalido> {
+    let erro = |motivo| IdInvalido {
+        valor: texto.to_owned(),
+        motivo,
+    };
+    let numero = texto.strip_prefix(prefixo).ok_or_else(|| erro(formato))?;
+    if numero.is_empty() || !numero.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(erro("o número tem só dígitos"));
+    }
+    let n: u32 = numero.parse().map_err(|_| erro("número grande demais"))?;
+    if n == 0 {
+        return Err(erro("a numeração começa em 1"));
+    }
+    if format!("{prefixo}{n:04}") != texto {
+        return Err(erro("fora da forma canônica (dígitos a mais ou a menos)"));
+    }
+    Ok(n)
+}
+
+/// Identificador de uma reunião, `R-NNNN`, sequencial por projeto (não por
+/// demanda): o transcript fica no diretório de dados do app pelo identificador da
+/// reunião, que por isso não pode repetir entre demandas.
+///
+/// A ata fica na pasta da demanda (`demandas/D-NNNN-<slug>/reunioes/R-NNNN.md`).
+/// A reserva sem colisão está em [`crate::Projeto::criar_reuniao`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct IdReuniao(u32);
+
+impl IdReuniao {
+    /// Prefixo do identificador e do nome dos arquivos.
+    pub const PREFIXO: &'static str = "R-";
+
+    /// Identificador de número `numero` (a partir de 1).
+    pub fn novo(numero: u32) -> Self {
+        Self(numero.max(1))
+    }
+
+    pub fn numero(self) -> u32 {
+        self.0
+    }
+
+    /// Lê um identificador na forma canônica (`R-0003`, `R-12345`).
+    pub fn analisar(texto: &str) -> Result<Self, IdInvalido> {
+        numero_com_prefixo(texto, Self::PREFIXO, "esperado R-NNNN").map(Self)
+    }
+}
+
+impl fmt::Display for IdReuniao {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}{:04}", Self::PREFIXO, self.0)
+    }
+}
+
+impl std::str::FromStr for IdReuniao {
+    type Err = IdInvalido;
+
+    fn from_str(texto: &str) -> Result<Self, Self::Err> {
+        Self::analisar(texto)
+    }
+}
+
+impl Serialize for IdReuniao {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.collect_str(self)
+    }
+}
+
+impl<'de> Deserialize<'de> for IdReuniao {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let texto = String::deserialize(d)?;
+        Self::analisar(&texto).map_err(serde::de::Error::custom)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -230,5 +373,48 @@ mod tests {
         assert_eq!(fat.numero("RN-COB-012"), None);
         assert_eq!(Serie::Analise.numero("A-0042"), Some(42));
         assert_eq!(Serie::Analise.numero("S-0042"), None);
+    }
+
+    #[test]
+    fn id_de_demanda() {
+        assert_eq!(IdDemanda::novo(7).to_string(), "D-0007");
+        assert_eq!(IdDemanda::novo(12345).to_string(), "D-12345");
+        assert_eq!(IdDemanda::analisar("D-0007").unwrap().numero(), 7);
+        for ruim in ["D-7", "D-00007", "D-0000", "A-0001", "D-", "D-00a1"] {
+            assert!(IdDemanda::analisar(ruim).is_err(), "{ruim:?}");
+        }
+        assert_eq!(IdDemanda::de_pasta("D-0003"), Some(IdDemanda::novo(3)));
+        assert_eq!(
+            IdDemanda::de_pasta("D-0003-nota-fiscal-de-servico"),
+            Some(IdDemanda::novo(3))
+        );
+        for ruim in [
+            "D-3-x",
+            "D-0003-",
+            "D-0003-Nota",
+            "D-0003x",
+            "analises",
+            ".D-0003",
+        ] {
+            assert_eq!(IdDemanda::de_pasta(ruim), None, "{ruim:?}");
+        }
+    }
+
+    #[test]
+    fn id_de_reuniao() {
+        assert_eq!(IdReuniao::novo(3).to_string(), "R-0003");
+        assert_eq!(IdReuniao::novo(12345).to_string(), "R-12345");
+        assert_eq!(IdReuniao::analisar("R-0003").unwrap().numero(), 3);
+        for ruim in [
+            "R-3",
+            "R-00003",
+            "R-0000",
+            "D-0001",
+            "R-",
+            "R-00a1",
+            "RN-FAT-001",
+        ] {
+            assert!(IdReuniao::analisar(ruim).is_err(), "{ruim:?}");
+        }
     }
 }

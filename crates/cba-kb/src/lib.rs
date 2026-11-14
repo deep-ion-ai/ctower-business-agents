@@ -5,6 +5,7 @@
 //! ```text
 //! <base>/
 //!   _templates/
+//!     papeis.yaml                  # papéis das pessoas, editável
 //!   <projeto>/
 //!     projeto.md
 //!     regras-do-projeto.md         # regras do projeto para o agente (#31)
@@ -14,6 +15,10 @@
 //!     funcionalidades/<area>/<tema>/
 //!     analises/<id>.md
 //!     sugestoes/<id>.md
+//!     demandas/D-NNNN-<slug>/demanda.md
+//!     pessoas/<slug>.md            # catálogo de pessoas: nome, apelidos e papéis
+//!     demandas/D-NNNN-<slug>/reunioes/R-NNNN.md            # ata
+//!     demandas/D-NNNN-<slug>/reunioes/R-NNNN.estado.json   # estado da ata
 //! ```
 //!
 //! O que esta crate oferece:
@@ -28,6 +33,10 @@
 //!   reservados sem colisão por [`Projeto::criar_numerado`], mesmo com dois
 //!   processos (app e servidor MCP) gravando ao mesmo tempo.
 //!
+//! - Catálogo de pessoas por projeto ([`PessoaLida`], [`CatalogoDePessoas`],
+//!   [`normalizar_nome`]), com os papéis sugeridos de `_templates/papeis.yaml`
+//!   ([`Papeis`]). Nunca guarda falas.
+//!
 //! - Índice SQLite com busca FTS5 ([`indice`]): espelho reconstruível da base, no
 //!   diretório de dados do app.
 //!
@@ -36,19 +45,30 @@
 pub mod arquivo;
 mod base;
 mod caminho;
+mod demandas;
 mod documento;
 mod erro;
 pub mod frontmatter;
 mod id;
 pub mod indice;
 pub mod layout;
+mod papeis;
+mod pessoas;
+mod reunioes;
 
 pub use base::{Base, PADRAO_REGRAS_DO_PROJETO, Projeto};
 pub use caminho::{CaminhoInvalido, CaminhoRelativo, e_slug, slug};
+pub use demandas::{DemandaLida, NovaDemanda};
 pub use documento::{Documento, ErroFrontmatter};
 pub use erro::{Erro, Resultado};
 pub use frontmatter::{ErroCampo, Frontmatter, TipoDocumento};
-pub use id::{Id, IdInvalido, Serie};
+pub use id::{Id, IdDemanda, IdInvalido, IdReuniao, Serie};
+pub use papeis::{AvisoPapeis, OrigemPapeis, PADRAO_PAPEIS, Papeis, Papel};
+pub use pessoas::{
+    Casamento, CatalogoDePessoas, NovaPessoa, PapelSugerido, Participante, PessoaLida,
+    normalizar_nome, normalizar_texto, sem_dominio,
+};
+pub use reunioes::ArquivosDaReuniao;
 
 /// Tipos YAML do frontmatter livre ([`frontmatter::FrontmatterLivre`]).
 pub mod yaml {

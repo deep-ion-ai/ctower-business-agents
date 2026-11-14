@@ -9,11 +9,11 @@ use crate::base::Projeto;
 use crate::caminho::CaminhoRelativo;
 use crate::documento::Documento;
 use crate::frontmatter::{
-    self, Frontmatter, FrontmatterAnalise, FrontmatterFuncionalidade, FrontmatterLivre,
-    FrontmatterMemoria, FrontmatterProjeto, FrontmatterRegra, FrontmatterSugestao,
-    FrontmatterTermo, TipoDocumento,
+    self, Frontmatter, FrontmatterAnalise, FrontmatterAta, FrontmatterDemanda,
+    FrontmatterFuncionalidade, FrontmatterLivre, FrontmatterMemoria, FrontmatterPessoa,
+    FrontmatterProjeto, FrontmatterRegra, FrontmatterSugestao, FrontmatterTermo, TipoDocumento,
 };
-use crate::id::Id;
+use crate::id::{Id, IdDemanda};
 use crate::layout;
 use crate::yaml::{Mapping, Value};
 
@@ -110,6 +110,19 @@ pub(super) fn extrair(projeto: &Projeto, relativo: &CaminhoRelativo, bytes: Vec<
             "analise",
         ));
     }
+    // Na análise, `demanda: {id: D-NNNN, ...}`; na ata, `demanda: D-NNNN`.
+    if let Some(id) = mapa
+        .get("demanda")
+        .and_then(|d| match d {
+            Value::Mapping(m) => texto_do_campo(m, "id"),
+            outro => texto_de(outro),
+        })
+        .and_then(|id| IdDemanda::analisar(&id).ok())
+    {
+        let arquivo = projeto.arquivo_da_demanda(id);
+        r.ligacoes
+            .push((projeto.na_base(&arquivo).as_str().to_owned(), "demanda"));
+    }
     if let Some(valor) = mapa.get("evidencias") {
         r.evidencias = serde_norway::from_value(valor.clone()).unwrap_or_default();
     }
@@ -133,7 +146,9 @@ fn validar(tipo: TipoDocumento, relativo: &CaminhoRelativo, texto: &str) -> Resu
     }
     match tipo {
         TipoDocumento::Projeto => com::<FrontmatterProjeto>(texto),
-        TipoDocumento::AnaliseImpacto | TipoDocumento::Pergunta => com::<FrontmatterAnalise>(texto),
+        TipoDocumento::AnaliseImpacto | TipoDocumento::Pergunta | TipoDocumento::AnaliseReuniao => {
+            com::<FrontmatterAnalise>(texto)
+        }
         // Explicação de funcionalidade: análise em `analises/`, documento negocial
         // em `funcionalidades/`.
         TipoDocumento::Funcionalidade if relativo.partes().next() == Some(layout::ANALISES) => {
@@ -146,6 +161,9 @@ fn validar(tipo: TipoDocumento, relativo: &CaminhoRelativo, texto: &str) -> Resu
         TipoDocumento::Termo => com::<FrontmatterTermo>(texto),
         TipoDocumento::Sugestao => com::<FrontmatterSugestao>(texto),
         TipoDocumento::MemoriaArea => com::<FrontmatterMemoria>(texto),
+        TipoDocumento::Demanda => com::<FrontmatterDemanda>(texto),
+        TipoDocumento::Pessoa => com::<FrontmatterPessoa>(texto),
+        TipoDocumento::Ata => com::<FrontmatterAta>(texto),
     }
 }
 

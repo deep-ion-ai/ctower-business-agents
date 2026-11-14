@@ -154,6 +154,7 @@ fn analise(tipo: TipoDocumento, numero: u32, titulo: &str) -> FrontmatterAnalise
         titulo: titulo.into(),
         projeto: PROJETO.into(),
         demanda: Demanda {
+            id: None,
             origem: "texto".into(),
             chave: None,
         },
@@ -676,7 +677,7 @@ fn base_com_projeto() -> (tempfile::TempDir, Base, cba_kb::Projeto) {
 fn template_editado_na_base_substitui_o_padrao() {
     let (_dir, base, _) = base_com_projeto();
     let criados = Templates::copiar_padrao(&base).unwrap();
-    assert_eq!(criados.len(), 7);
+    assert_eq!(criados.len(), 9);
     assert!(criados.contains(&c("_templates/regra.md")));
 
     // O analista edita o template da regra (no Windows, com CRLF).

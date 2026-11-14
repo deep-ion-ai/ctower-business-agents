@@ -37,6 +37,7 @@ fn cenario() -> Cenario {
     cba_kb::Base::criar(raiz.join("base")).unwrap();
     Config {
         base: Some(raiz.join("base")),
+        ..Default::default()
     }
     .gravar(&dados)
     .unwrap();
@@ -141,6 +142,7 @@ fn iniciar_analise_criada_pelo_app_devolve_roteiro_e_monta_o_documento() {
     // Estado em andamento, templates copiados e documento já no template do tipo.
     assert_eq!(c.analise("A-0001").estado, EstadoAnalise::EmAndamento);
     assert!(c.amb.base.raiz().join("_templates/pergunta.md").is_file());
+    assert!(c.amb.base.raiz().join("_templates/papeis.yaml").is_file());
     let doc = c.documento("A-0001");
     assert_eq!(doc.frontmatter.status, StatusAnalise::Rascunho);
     assert!(
