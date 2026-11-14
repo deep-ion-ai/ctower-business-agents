@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { mensagemDe, type Fluxo } from "./analise";
+import { mensagemDe, type AnaliseCriada, type Fluxo } from "./analise";
 import { ClientesIA, type AbrirLink } from "./ClientesIA";
 import {
   ROTULO_FLUXO,
@@ -10,8 +10,10 @@ import {
 import { ROTULO_SESSAO } from "./DocumentoAoVivo";
 import type { Tela } from "./Navegacao";
 import { NovaAnalise } from "./NovaAnalise";
+import { NovaReuniao } from "./NovaReuniao";
+import type { ApiReuniao } from "./reunioes";
 
-const FLUXOS: Fluxo[] = ["perguntar", "explicar", "impacto"];
+const FLUXOS: Fluxo[] = ["perguntar", "explicar", "impacto", "reuniao"];
 
 const ESTADO: Record<AnaliseInicio["estado"], string> = {
   criada: "criada",
@@ -25,6 +27,8 @@ interface Props {
   navegar: (t: Tela) => void;
   abrirLink?: AbrirLink;
   aoPrimeiroUso?: () => void;
+  /** Nova reunião (#141); para testes. */
+  apiReuniao?: ApiReuniao;
 }
 
 /**
@@ -36,6 +40,7 @@ export function TelaInicio({
   navegar,
   abrirLink,
   aoPrimeiroUso,
+  apiReuniao,
 }: Props) {
   const [inicio, setInicio] = useState<Inicio | null>(null);
   const [falha, setFalha] = useState<string | null>(null);
@@ -58,6 +63,16 @@ export function TelaInicio({
       tipo: "analise",
       projeto: a.projeto,
       aberta: { id: a.id, abertura: { tipo: "reabrir" } },
+    });
+
+  const abrirCriada = (projeto: string, criada: AnaliseCriada) =>
+    navegar({
+      tipo: "analise",
+      projeto,
+      aberta: {
+        id: criada.analise.id,
+        abertura: { tipo: "nova", promptInicial: criada.promptInicial },
+      },
     });
 
   const semProjeto = inicio !== null && (inicio.base === null || inicio.projetos.length === 0);
@@ -98,23 +113,23 @@ export function TelaInicio({
             </button>
           ))}
         </div>
-        {fluxo && inicio && !semProjeto && (
+        {fluxo === "reuniao" && inicio && !semProjeto && (
+          <NovaReuniao
+            api={api}
+            apiReuniao={apiReuniao}
+            projetos={inicio.projetos}
+            aoCancelar={() => setFluxo(null)}
+            aoCriar={abrirCriada}
+          />
+        )}
+        {fluxo && fluxo !== "reuniao" && inicio && !semProjeto && (
           <NovaAnalise
             key={fluxo}
             api={api}
             fluxo={fluxo}
             projetos={inicio.projetos}
             aoCancelar={() => setFluxo(null)}
-            aoCriar={(projeto, criada) =>
-              navegar({
-                tipo: "analise",
-                projeto,
-                aberta: {
-                  id: criada.analise.id,
-                  abertura: { tipo: "nova", promptInicial: criada.promptInicial },
-                },
-              })
-            }
+            aoCriar={abrirCriada}
           />
         )}
       </section>
