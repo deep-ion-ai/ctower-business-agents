@@ -1,6 +1,6 @@
 # Avaliação dos fluxos contra o gabarito
 
-Roteiros, limites e modelos mudam com o tempo. A avaliação mostra se um ajuste piorou a análise (spec, critério de aceite 2): roda os fluxos com o Claude Code real no sistema fictício **Faturamento Exemplo** e compara o que o agente registrou com o gabarito `fixtures/gabaritos/faturamento-exemplo.yaml`. Além dos três fluxos de análise (perguntar, explicar, impacto), avalia o fluxo **Analisar reunião** (`reuniao`) com os transcripts fictícios de `fixtures/reunioes/` e mede o custo de uma reunião longa, de cerca de 2 h ([seção própria](#fluxo-reuniao)), e o fluxo **Revisar requisito** (`revisar`) com uma história fictícia com problemas plantados ([seção própria](#fluxo-revisar)).
+Roteiros, limites e modelos mudam com o tempo. A avaliação mostra se um ajuste piorou a análise (spec, critério de aceite 2): roda os fluxos com o Claude Code real no sistema fictício **Faturamento Exemplo** e compara o que o agente registrou com o gabarito `fixtures/gabaritos/faturamento-exemplo.yaml`. Além dos três fluxos de análise (perguntar, explicar, impacto), avalia o fluxo **Analisar reunião** (`reuniao`) com os transcripts fictícios de `fixtures/reunioes/` e mede o custo de uma reunião longa, de cerca de 2 h ([seção própria](#fluxo-reuniao)), o fluxo **Revisar requisito** (`revisar`) com uma história fictícia com problemas plantados ([seção própria](#fluxo-revisar)) e o fluxo **Histórias e critérios** (`historias`) a partir da análise de impacto de uma demanda ([seção própria](#fluxo-historias)).
 
 Ela fica na crate `crates/cba-avaliacao` e tem duas partes:
 
@@ -38,9 +38,9 @@ Opções principais:
 |---|---|---|
 | `--modelo` | `sonnet` | modelo do `claude` |
 | `--orcamento` | `1.5` | `--max-budget-usd` de **cada** execução, em US$ |
-| `--fluxos` | `perguntar,explicar,impacto` | fluxos a rodar; também `revisar`, `reuniao` e `reuniao-longa` |
+| `--fluxos` | `perguntar,explicar,impacto` | fluxos a rodar; também `revisar`, `historias`, `reuniao` e `reuniao-longa` |
 | `--repeticoes` | `1` | execuções de cada fluxo (o modelo varia de uma para outra; use 3 ou mais para comparar versões) |
-| `--pergunta`, `--funcionalidade`, `--demanda`, `--revisao` | `P-FAT-001`, `F-FAT-002`, `D-FAT-001`, `REV-FAT-001` | item do gabarito de cada fluxo |
+| `--pergunta`, `--funcionalidade`, `--demanda`, `--revisao`, `--historias` | `P-FAT-001`, `F-FAT-002`, `D-FAT-001`, `REV-FAT-001`, `HIS-FAT-001` | item do gabarito de cada fluxo |
 | `--reuniao` | `REU-FAT-001` | reunião do gabarito dos fluxos `reuniao` e `reuniao-longa` |
 | `--orcamento-longa` | `3` | `--max-budget-usd` da reunião longa, em US$ |
 | `--longa-minutos`, `--longa-palavras` | `120`, `25000` | tamanho da reunião longa sintética |
@@ -136,6 +136,30 @@ A execução é a mesma dos três primeiros fluxos: a análise é criada com o t
 Falha grave (revisão): achado de correção sem evidência válida, nenhum achado quando o veredito esperado não é `pronta`, estado ausente, erro da execução ou arquivo do projeto alterado. Achados, termos e veredito são cobertura. Para comparar um estado gravado: `cargo run -p cba-avaliacao -- comparar --estado <pasta>/estado.json --item REV-FAT-001`.
 
 O roteiro de revisão é provisório até a primeira execução com o modelo real: por isso ainda não é copiado para a base nem aparece no editor de textos (veja `roteiro::revisado`).
+
+## Fluxo historias
+
+O fluxo **Histórias e critérios** (`historias`, #115) parte de uma análise de origem (de preferência aprovada) e registra histórias de usuário ("Como / quero / para") com critérios de aceite em Dado / Quando / Então, cada critério ligado às afirmações e às regras que o sustentam (roteiro `crates/cba-tools/textos/roteiros/historias.md`, ferramentas `registrar_historia` e `registrar_criterio`). O gabarito tem, em `historias`, o que se espera a partir da análise de impacto de uma demanda. `HIS-FAT-001` parte da `D-FAT-003` (parcelamento para pessoa física, abrangência média).
+
+```sh
+cargo run -p cba-avaliacao -- rodar --fluxos historias --orcamento 1.5
+```
+
+### Preparo
+
+Antes do `claude`, o preparo cria a análise de origem como o analista a teria deixado: a análise de impacto da demanda, com uma afirmação confirmada por regra da demanda (o enunciado e as evidências do gabarito, conferidas como no `afirmar`), a abrangência e uma pergunta em aberto por pergunta esperada da demanda, concluída e aprovada; e grava as regras da demanda na base (`regras/RN-FAT-007.md`...), como a aprovação de análises anteriores as teria deixado. Depois cria a análise de histórias ligada a ela (`cba_tools::ciclo::criar_analise_de_historias`, a mesma da tela de nova análise), e o pedido é `Inicie a análise A-0002 pelo ctower`.
+
+### Critérios
+
+- **História esperada.** Uma história registrada (não descartada nem quebrada) atende quando o título e a narrativa têm um termo de cada grupo de palavras-chave.
+- **Regra citada.** Cada regra esperada é citada por algum critério, pelo identificador (`regras`) ou por uma afirmação cuja evidência toca uma evidência esperada da regra.
+- **Valor concreto.** Critérios com ao menos um número no Dado, no Quando ou no Então.
+- **A confirmar.** Cada tema de `a_confirmar` tem um critério com pergunta cujo texto tem as palavras-chave.
+- **Quebra.** Quando o gabarito pede (`quebra: true`), há proposta de quebra, fatia ou mais de uma história.
+
+Falha grave (histórias): nenhuma história, critério sem origem (a ferramenta já recusa; pegaria uma regressão), estado ausente, erro da execução ou arquivo do projeto alterado. Os demais são cobertura. Para comparar um estado gravado: `cargo run -p cba-avaliacao -- comparar --estado <pasta>/estado.json --item HIS-FAT-001`.
+
+O roteiro de histórias também é provisório até a primeira execução com o modelo real.
 
 ## Ao mudar o gabarito ou a fixture
 
