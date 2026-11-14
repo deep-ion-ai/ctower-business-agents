@@ -523,6 +523,29 @@ fn segundos(horario: &str) -> Option<u64> {
     }
 }
 
+/// Palavras seguidas da fala que bastam para dizer que um texto a copia.
+const PALAVRAS_COPIADAS: usize = 5;
+
+fn palavras(texto: &str) -> Vec<String> {
+    texto
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|p| !p.is_empty())
+        .map(str::to_lowercase)
+        .collect()
+}
+
+/// Primeira sequência de [`PALAVRAS_COPIADAS`] palavras de alguma fala que aparece
+/// no texto.
+fn copia_de_fala(texto: &str, falas: &[cba_reunioes::Fala]) -> Option<String> {
+    let texto = format!(" {} ", palavras(texto).join(" "));
+    falas.iter().find_map(|f| {
+        palavras(&f.texto)
+            .windows(PALAVRAS_COPIADAS)
+            .map(|j| j.join(" "))
+            .find(|s| texto.contains(&format!(" {s} ")))
+    })
+}
+
 fn conferir_reuniao(c: &mut Conferencia, pasta_gabarito: &Path, raiz: &Path, r: &Reuniao) {
     let onde = format!("reunião {}", r.id);
     c.texto_preenchido(&onde, "titulo", &r.titulo);
@@ -581,6 +604,13 @@ fn conferir_reuniao(c: &mut Conferencia, pasta_gabarito: &Path, raiz: &Path, r: 
     for item in &r.itens {
         let onde = format!("{onde}, item {}", item.id);
         c.texto_preenchido(&onde, "descricao", &item.descricao);
+        // A descrição vai para o relatório da avaliação, que não leva texto de
+        // fala: ela é escrita com outras palavras, sem copiar a fala.
+        if let Some(copiado) = copia_de_fala(&item.descricao, &transcript.falas) {
+            c.erro(format!(
+                "{onde}: a descrição copia uma fala (`{copiado}`); reescreva com outras palavras"
+            ));
+        }
         for tipo in std::iter::once(&item.tipo).chain(&item.tambem_em) {
             if !TIPOS_DE_ITEM.contains(&tipo.as_str()) {
                 c.erro(format!(
