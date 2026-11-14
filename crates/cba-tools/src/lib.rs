@@ -28,6 +28,8 @@
 //!   registro.
 //! - [`aprovacao`]: a aprovação da análise pelo analista, que leva à base as
 //!   afirmações confirmadas (regras) e os termos aceitos (glossário).
+//! - [`aprovacao_ata`]: a aprovação da ata de uma reunião (fluxo `reuniao`), com o
+//!   segundo aviso e o descarte do transcript.
 //! - [`revisao`]: a revisão do analista (decisões, edição do texto, prontidão para
 //!   aprovar, aprovação com a escolha da área e exportação).
 //! - [`revalidacao`]: a revalidação das evidências das regras e das análises por
@@ -38,6 +40,7 @@
 pub mod afirmar;
 pub mod analises;
 pub mod aprovacao;
+pub mod aprovacao_ata;
 pub mod banco;
 pub mod ciclo;
 mod comum;

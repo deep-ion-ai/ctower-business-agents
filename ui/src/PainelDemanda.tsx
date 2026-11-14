@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { mensagemDe, type AnaliseCriada, type EstadoAnalise, type Fluxo } from "./analise";
 import { ROTULO_FLUXO, type ApiConhecimento } from "./conhecimento";
 import {
@@ -13,7 +13,8 @@ import { ROTULO_SESSAO } from "./DocumentoAoVivo";
 import type { Tela } from "./Navegacao";
 import { NovaAnalise } from "./NovaAnalise";
 import { NovaReuniao } from "./NovaReuniao";
-import type { ApiReuniao } from "./reunioes";
+import { BotoesProximoPasso } from "./ProximoPasso";
+import { apiReuniaoTauri, type ApiReuniao } from "./reunioes";
 
 const FLUXOS: Fluxo[] = ["perguntar", "explicar", "impacto", "reuniao"];
 
@@ -28,8 +29,9 @@ const ESTADO_ANALISE: Record<EstadoAnalise, string> = {
  * Painel da demanda (#138): o lugar onde o analista acompanha um pedido do cliente
  * sem se perder em conversas espalhadas. Cabeçalho (id, título, status, chave), a
  * linha do tempo em ordem cronológica (atas, análises e sessões do Claude), as
- * pendências, as dúvidas em aberto e os próximos passos das atas aprovadas, e a
- * criação de uma análise já ligada à demanda.
+ * pendências, as dúvidas em aberto e os próximos passos das atas aprovadas (cada
+ * passo com os botões que abrem análises ligadas à demanda, #142), e a criação de
+ * uma análise já ligada à demanda.
  */
 export function PainelDemanda({
   api,
@@ -42,7 +44,7 @@ export function PainelDemanda({
   projeto: string;
   demanda: string;
   navegar: (t: Tela) => void;
-  /** Nova reunião (#141); para testes. */
+  /** Nova reunião (#141) e próximos passos (#142); para testes. */
   apiReuniao?: ApiReuniao;
 }) {
   const [painel, setPainel] = useState<Painel | null>(null);
@@ -228,6 +230,19 @@ export function PainelDemanda({
         titulo="Próximos passos"
         itens={painel.proximosPassos}
         vazio="Nenhum próximo passo nas atas aprovadas."
+        acoes={
+          aberta
+            ? (i) => (
+                <BotoesProximoPasso
+                  api={apiReuniao ?? apiReuniaoTauri}
+                  projeto={projeto}
+                  reuniao={i.reuniao}
+                  passo={i}
+                  aoCriar={(c) => abrirCriada(projeto, c)}
+                />
+              )
+            : undefined
+        }
       />
 
       {painel.problemas.length > 0 && (
@@ -328,10 +343,13 @@ function ItensDasAtas({
   titulo,
   itens,
   vazio,
+  acoes,
 }: {
   titulo: string;
   itens: ItemDaAta[];
   vazio: string;
+  /** Ações de cada item (os botões dos próximos passos). */
+  acoes?: (i: ItemDaAta) => ReactNode;
 }) {
   return (
     <section aria-label={titulo}>
@@ -349,6 +367,7 @@ function ItensDasAtas({
                 {" "}
                 · reunião {i.reuniao} ({i.data})
               </span>
+              {acoes?.(i)}
             </li>
           ))}
         </ul>

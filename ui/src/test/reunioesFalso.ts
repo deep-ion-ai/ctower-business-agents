@@ -1,8 +1,12 @@
+import type { AnaliseCriada } from "../analise";
 import type {
+  AcaoProximoPasso,
   ApiReuniao,
+  AtaAprovada,
   AtaVista,
   ConfirmacaoParticipante,
   PreviaTranscript,
+  ProntidaoAta,
   ReuniaoCriada,
 } from "../reunioes";
 
@@ -106,6 +110,53 @@ export const DECISAO = {
   evidencias: ["db/03_pkg_cobranca.sql:71-72"],
 };
 
+export function prontidaoFicticia(parcial: Partial<ProntidaoAta> = {}): ProntidaoAta {
+  return {
+    reuniao: "R-0001",
+    status: "rascunho",
+    estadoAnalise: "concluida",
+    concluida: false,
+    podeAprovar: true,
+    pendencias: [],
+    avisos: ["1 participante(s) sem papel confirmado"],
+    transcriptGuardado: true,
+    citacoesConferiveis: 3,
+    itens: 4,
+    avisoDescarte:
+      "Ao aprovar a ata, o transcript da reunião é apagado e as citações da ata deixam de ser conferíveis.",
+    ...parcial,
+  };
+}
+
+export const NECESSIDADE = {
+  id: "N-1",
+  tipo: "necessidade" as const,
+  texto: "Trava do supervisor em todos os canais",
+  responsavel: null,
+  prazo: null,
+  referencias: [],
+  citacoes: [],
+  evidencias: [],
+};
+
+export const PROXIMO_PASSO = {
+  id: "PP-1",
+  tipo: "proximo_passo" as const,
+  texto: "Analisar o impacto da trava nos outros canais",
+  responsavel: null,
+  prazo: null,
+  referencias: ["N-1"],
+  citacoes: [],
+  evidencias: [],
+};
+
+export function analiseCriadaFicticia(id = "A-0009", fluxo: "impacto" | "perguntar" = "impacto"): AnaliseCriada {
+  return {
+    analise: { id, titulo: "Impacto da necessidade N-1", fluxo, estado: "criada", atualizadaMs: 9 },
+    promptInicial: `Inicie a análise ${id} pelo ctower`,
+  };
+}
+
 /** API falsa da reunião. */
 export function apiReuniaoFalsa(ata: AtaVista = ataFicticia()) {
   const api = {
@@ -132,6 +183,24 @@ export function apiReuniaoFalsa(ata: AtaVista = ataFicticia()) {
     confirmarParticipantes: vi.fn(
       (_p: string, _r: string, _c: ConfirmacaoParticipante[]): Promise<AtaVista> =>
         Promise.resolve(ata),
+    ),
+    prontidaoAta: vi.fn(
+      (_p: string, _a: string): Promise<ProntidaoAta> => Promise.resolve(prontidaoFicticia()),
+    ),
+    aprovarAta: vi.fn(
+      (_p: string, _a: string, _c: boolean): Promise<AtaAprovada> =>
+        Promise.resolve({
+          reuniao: "R-0001",
+          jaAprovada: false,
+          transcriptApagado: true,
+          citacoesMarcadas: 3,
+          data: "2026-11-14",
+          avisos: [],
+        }),
+    ),
+    analisarProximoPasso: vi.fn(
+      (_p: string, _r: string, _i: string, acao: AcaoProximoPasso): Promise<AnaliseCriada> =>
+        Promise.resolve(analiseCriadaFicticia("A-0009", acao.tipo)),
     ),
   } satisfies ApiReuniao;
   return api;

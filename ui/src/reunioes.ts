@@ -1,12 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { AnaliseCriada } from "./analise";
+import type { AnaliseCriada, EstadoAnalise } from "./analise";
 import type { StatusAta, TranscriptGuardado } from "./demandas";
 
 /**
  * Espelho dos comandos da reunião (`ui/src-tauri/src/reunioes.rs`, campos em
  * camelCase): a prévia do transcript, a nova reunião, a ata ao vivo e a confirmação
- * dos participantes (#141).
+ * dos participantes (#141), a aprovação da ata com o descarte do transcript e os
+ * próximos passos que abrem análises (#142).
  */
 export type FormatoTranscript = "vtt" | "docx" | "texto_teams" | "desconhecido";
 
@@ -139,6 +140,40 @@ export interface ConfirmacaoParticipante {
   mesmos: string[];
 }
 
+/** Se a ata pode ser aprovada (`cba_tools::aprovacao_ata::ProntidaoAta`). */
+export interface ProntidaoAta {
+  reuniao: string;
+  status: StatusAta;
+  estadoAnalise: EstadoAnalise;
+  /** Ata aprovada, transcript apagado e análise aprovada. */
+  concluida: boolean;
+  podeAprovar: boolean;
+  pendencias: string[];
+  avisos: string[];
+  transcriptGuardado: boolean;
+  /** Citações que viram "conferida em <data>" na aprovação. */
+  citacoesConferiveis: number;
+  itens: number;
+  /** O segundo aviso: o transcript é apagado e as citações deixam de ser conferíveis. */
+  avisoDescarte: string;
+}
+
+/** Resultado da aprovação da ata. */
+export interface AtaAprovada {
+  reuniao: string;
+  jaAprovada: boolean;
+  transcriptApagado: boolean;
+  citacoesMarcadas: number;
+  /** `AAAA-MM-DD`. */
+  data: string;
+  avisos: string[];
+}
+
+/** O que fazer com um próximo passo da ata aprovada. */
+export type AcaoProximoPasso =
+  | { tipo: "impacto"; necessidade: string | null }
+  | { tipo: "perguntar"; pergunta: string };
+
 /** Operações das telas da reunião. A interface usa {@link apiReuniaoTauri}; os testes, uma falsa. */
 export interface ApiReuniao {
   /** Diálogo para escolher o `.vtt` ou o `.docx`; `null` se cancelado. */
@@ -157,6 +192,16 @@ export interface ApiReuniao {
     reuniao: string,
     confirmacoes: ConfirmacaoParticipante[],
   ): Promise<AtaVista>;
+  prontidaoAta(projeto: string, analise: string): Promise<ProntidaoAta>;
+  /** Recusado (no app também) sem a confirmação do segundo aviso. */
+  aprovarAta(projeto: string, analise: string, confirmacao: boolean): Promise<AtaAprovada>;
+  /** Abre a análise de um próximo passo (`PP-1`), ligada à demanda da reunião. */
+  analisarProximoPasso(
+    projeto: string,
+    reuniao: string,
+    item: string,
+    acao: AcaoProximoPasso,
+  ): Promise<AnaliseCriada>;
 }
 
 export const apiReuniaoTauri: ApiReuniao = {
@@ -175,6 +220,11 @@ export const apiReuniaoTauri: ApiReuniao = {
   ataReuniao: (projeto, reuniao) => invoke("ata_reuniao_app", { projeto, reuniao }),
   confirmarParticipantes: (projeto, reuniao, confirmacoes) =>
     invoke("confirmar_participantes_app", { projeto, reuniao, confirmacoes }),
+  prontidaoAta: (projeto, analise) => invoke("prontidao_ata_app", { projeto, analise }),
+  aprovarAta: (projeto, analise, confirmacao) =>
+    invoke("aprovar_ata_app", { projeto, analise, confirmacao }),
+  analisarProximoPasso: (projeto, reuniao, item, acao) =>
+    invoke("analisar_proximo_passo_app", { projeto, reuniao, item, acao }),
 };
 
 /** Nome do arquivo de um caminho (Windows ou Unix). */
