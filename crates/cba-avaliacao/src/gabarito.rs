@@ -8,10 +8,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use cba_core::analise::Fluxo;
-use cba_docs::TipoItem;
 use serde::{Deserialize, Serialize};
-
-use crate::texto;
 
 /// Gabarito de um sistema fictício.
 #[derive(Debug, Clone, Deserialize)]
@@ -28,9 +25,6 @@ pub struct Gabarito {
     pub funcionalidades: Vec<Funcionalidade>,
     #[serde(default)]
     pub demandas: Vec<Demanda>,
-    /// Reuniões fictícias e a ata esperada de cada uma (fluxo `reuniao`).
-    #[serde(default)]
-    pub reunioes: Vec<Reuniao>,
     /// Pasta do gabarito, para resolver `raiz`. Preenchida por [`Gabarito::carregar`].
     #[serde(skip)]
     pub pasta: PathBuf,
@@ -119,70 +113,6 @@ pub struct Demanda {
     pub perguntas_esperadas: Vec<PerguntaEsperada>,
 }
 
-/// Reunião fictícia: o transcript e a ata esperada.
-#[derive(Debug, Clone, Deserialize)]
-pub struct Reuniao {
-    pub id: String,
-    pub titulo: String,
-    /// Transcript, relativo ao gabarito (resolvido em [`Gabarito::transcript`]).
-    pub transcript: String,
-    /// Título da demanda a que a reunião pertence.
-    pub demanda: String,
-    pub participantes: Vec<ParticipanteEsperado>,
-    pub itens: Vec<ItemEsperado>,
-}
-
-/// Papel esperado de um participante.
-#[derive(Debug, Clone, Deserialize)]
-pub struct ParticipanteEsperado {
-    /// Nome como aparece no transcript.
-    pub nome: String,
-    /// Papel do catálogo padrão.
-    pub papel: String,
-    /// Outros papéis que também valem.
-    #[serde(default)]
-    pub tambem_aceitos: Vec<String>,
-}
-
-impl ParticipanteEsperado {
-    /// O papel proposto é o esperado ou um dos aceitos (sem acentos nem maiúsculas).
-    pub fn aceita(&self, papel: &str) -> bool {
-        let proposto = texto::normalizar(papel.trim());
-        std::iter::once(&self.papel)
-            .chain(&self.tambem_aceitos)
-            .any(|p| texto::normalizar(p.trim()) == proposto)
-    }
-}
-
-/// Item esperado da ata.
-#[derive(Debug, Clone, Deserialize)]
-pub struct ItemEsperado {
-    pub id: String,
-    pub tipo: TipoItem,
-    /// Outras seções em que o item também vale (uma decisão registrada como regra).
-    #[serde(default)]
-    pub tambem_em: Vec<TipoItem>,
-    pub descricao: String,
-    /// Grupos de termos ([`crate::texto::atende`]) conferidos no texto do item.
-    pub palavras_chave: Vec<Vec<String>>,
-    /// Pendência: grupos de termos conferidos no responsável registrado.
-    #[serde(default)]
-    pub responsavel: Vec<Vec<String>>,
-    /// Pendência: grupos de termos conferidos no prazo registrado.
-    #[serde(default)]
-    pub prazo: Vec<Vec<String>>,
-    /// Início (`M:SS`) das falas que sustentam o item, no transcript da reunião.
-    #[serde(default)]
-    pub falas: Vec<String>,
-}
-
-impl ItemEsperado {
-    /// O item vale na seção do `tipo`.
-    pub fn aceita_tipo(&self, tipo: TipoItem) -> bool {
-        self.tipo == tipo || self.tambem_em.contains(&tipo)
-    }
-}
-
 /// Um exemplo de um dos três fluxos, já no formato que a avaliação usa.
 #[derive(Debug, Clone, Serialize)]
 pub struct Item {
@@ -239,23 +169,6 @@ impl Gabarito {
     /// Pasta do sistema analisado.
     pub fn raiz_do_projeto(&self) -> PathBuf {
         self.raiz
-            .split('/')
-            .fold(self.pasta.clone(), |acc, parte| acc.join(parte))
-    }
-
-    /// Reunião pelo id (`REU-*`).
-    pub fn reuniao(&self, id: &str) -> Result<&Reuniao, Erro> {
-        self.reunioes.iter().find(|r| r.id == id).ok_or_else(|| {
-            Erro(format!(
-                "a reunião `{id}` não existe no gabarito (use o id de uma reunião, como REU-FAT-001)"
-            ))
-        })
-    }
-
-    /// Caminho do transcript da reunião.
-    pub fn transcript(&self, reuniao: &Reuniao) -> PathBuf {
-        reuniao
-            .transcript
             .split('/')
             .fold(self.pasta.clone(), |acc, parte| acc.join(parte))
     }

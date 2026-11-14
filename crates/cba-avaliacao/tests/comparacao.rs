@@ -421,8 +421,6 @@ fn relatorio_resume_por_fluxo_em_json_e_markdown() {
         item: "D-FAT-001".into(),
         repeticao: r,
         avaliacao,
-        ata: None,
-        transcript: None,
         arquivos_alterados: vec![],
         claude: None,
         erro: None,

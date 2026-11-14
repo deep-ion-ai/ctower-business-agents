@@ -3,20 +3,15 @@
 //! ```text
 //! cargo run -p cba-avaliacao -- rodar [opções]       # com o Claude real
 //! cargo run -p cba-avaliacao -- comparar --estado <A-NNNN.estado.json> --item <ID>
-//! cargo run -p cba-avaliacao -- comparar --ata <R-NNNN.estado.json> --reuniao <ID>
 //! ```
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 use std::time::Duration;
 
-use cba_avaliacao::ata::{Transcripts, avaliar_ata};
 use cba_avaliacao::comparacao::{avaliar, nome_do_fluxo};
-use cba_avaliacao::execucao::{
-    Opcoes, escopo, executar, executar_reuniao, falas_da_reuniao, versao_do_claude,
-};
-use cba_avaliacao::gabarito::{Gabarito, Item, Reuniao};
-use cba_avaliacao::longa::{self, OpcoesLonga, TamanhoTranscript};
+use cba_avaliacao::execucao::{Opcoes, escopo, executar, versao_do_claude};
+use cba_avaliacao::gabarito::{Gabarito, Item};
 use cba_avaliacao::relatorio::{Execucao, Parametros, Relatorio};
 use cba_avaliacao::{gabarito_padrao, raiz_do_repositorio};
 use cba_core::analise::{Analise, Fluxo};
@@ -32,16 +27,11 @@ USO
 
       --modelo <m>            modelo do claude (padrão: sonnet)
       --orcamento <usd>       --max-budget-usd de cada execução (padrão: 1.5)
-      --fluxos <lista>        perguntar,explicar,impacto,reuniao,reuniao-longa
-                              (padrão: perguntar,explicar,impacto)
+      --fluxos <lista>        perguntar,explicar,impacto (padrão: os três)
       --repeticoes <n>        execuções de cada fluxo (padrão: 1)
       --pergunta <id>         item do fluxo perguntar (padrão: P-FAT-001)
       --funcionalidade <id>   item do fluxo explicar (padrão: F-FAT-002)
       --demanda <id>          item do fluxo impacto (padrão: D-FAT-001)
-      --reuniao <id>          reunião dos fluxos reuniao e reuniao-longa (padrão: REU-FAT-001)
-      --orcamento-longa <usd> --max-budget-usd da reunião longa (padrão: 3)
-      --longa-minutos <n>     duração da reunião longa sintética (padrão: 120)
-      --longa-palavras <n>    palavras da reunião longa sintética (padrão: 25000)
       --saida <pasta>         pasta do relatório (padrão: target/avaliacao/<data-hora>)
       --cba <executável>      cba compilado (padrão: target/debug/cba)
       --claude <executável>   claude (padrão: claude, pelo PATH)
@@ -52,11 +42,6 @@ USO
 
   cba-avaliacao comparar --estado <A-NNNN.estado.json> --item <id> [--gabarito <arquivo>] [--saida <pasta>]
       Compara um estado já gravado com o item do gabarito, sem chamar o Claude.
-
-  cba-avaliacao comparar --ata <R-NNNN.estado.json> --reuniao <id> [--longa] [--gabarito <arquivo>] [--saida <pasta>]
-      Compara o estado de uma ata com a reunião do gabarito, sem chamar o Claude. As
-      citações são conferidas de novo contra o transcript da fixture (com --longa,
-      contra a reunião longa sintética, com --longa-minutos e --longa-palavras).
 
 Sai com 0 sem falhas graves, 1 com falha grave e 2 em erro de uso.";
 
@@ -127,48 +112,10 @@ fn carregar_gabarito(args: &Args) -> Result<Gabarito, String> {
     Gabarito::carregar(&caminho).map_err(|e| e.to_string())
 }
 
-/// Tamanho da reunião longa pelas opções.
-fn opcoes_da_longa(args: &Args) -> Result<OpcoesLonga, String> {
-    let padrao = OpcoesLonga::default();
-    Ok(OpcoesLonga {
-        minutos: match args.valor("--longa-minutos") {
-            Some(v) => v
-                .parse()
-                .ok()
-                .filter(|n| *n >= 1)
-                .ok_or("--longa-minutos precisa ser um inteiro a partir de 1")?,
-            None => padrao.minutos,
-        },
-        palavras: match args.valor("--longa-palavras") {
-            Some(v) => v
-                .parse()
-                .map_err(|_| "--longa-palavras precisa ser um inteiro")?,
-            None => padrao.palavras,
-        },
-    })
-}
-
 fn comparar(resto: &[String]) -> Result<bool, String> {
-    let args = Args {
-        resto,
-        chaves: &["--longa"],
-    };
-    args.conferir(&[
-        "--estado",
-        "--item",
-        "--ata",
-        "--reuniao",
-        "--gabarito",
-        "--saida",
-        "--longa-minutos",
-        "--longa-palavras",
-    ])?;
-    if args.valor("--ata").is_some() {
-        return comparar_ata(&args);
-    }
-    let estado = args
-        .valor("--estado")
-        .ok_or("informe --estado (ou --ata)")?;
+    let args = Args { resto, chaves: &[] };
+    args.conferir(&["--estado", "--item", "--gabarito", "--saida"])?;
+    let estado = args.valor("--estado").ok_or("informe --estado")?;
     let item = args.valor("--item").ok_or("informe --item")?;
     let gabarito = carregar_gabarito(&args)?;
     let item = gabarito.item(item).map_err(|e| e.to_string())?;
@@ -191,17 +138,11 @@ fn comparar(resto: &[String]) -> Result<bool, String> {
             item: item.id.clone(),
             repeticao: 1,
             avaliacao: Some(avaliacao),
-            ata: None,
-            transcript: None,
             arquivos_alterados: Vec::new(),
             claude: None,
             erro: None,
         }],
     );
-    imprimir(&args, &relatorio)
-}
-
-fn imprimir(args: &Args, relatorio: &Relatorio) -> Result<bool, String> {
     if let Some(saida) = args.valor("--saida") {
         relatorio
             .gravar(Path::new(saida))
@@ -209,53 +150,6 @@ fn imprimir(args: &Args, relatorio: &Relatorio) -> Result<bool, String> {
     }
     print!("{}", relatorio.markdown());
     Ok(relatorio.sem_falhas_graves)
-}
-
-fn comparar_ata(args: &Args) -> Result<bool, String> {
-    let caminho = args.valor("--ata").ok_or("informe --ata")?;
-    let id = args.valor("--reuniao").ok_or("informe --reuniao")?;
-    let gabarito = carregar_gabarito(args)?;
-    let reuniao: &Reuniao = gabarito.reuniao(id).map_err(|e| e.to_string())?;
-    let texto = std::fs::read_to_string(caminho).map_err(|e| format!("{caminho}: {e}"))?;
-    let estado: cba_docs::EstadoAta =
-        serde_json::from_str(&texto).map_err(|e| format!("{caminho}: estado ilegível: {e}"))?;
-    let original = falas_da_reuniao(&gabarito, reuniao)?.falas;
-    let longa = args
-        .chave("--longa")
-        .then(|| opcoes_da_longa(args))
-        .transpose()?;
-    let lido = match longa {
-        Some(o) => longa::gerar(&original, o),
-        None => original.clone(),
-    };
-    let ata = avaliar_ata(
-        &estado,
-        reuniao,
-        Some(Transcripts {
-            original: &original,
-            lido: &lido,
-        }),
-    );
-    let relatorio = Relatorio::novo(
-        None,
-        vec![Execucao {
-            fluxo: if longa.is_some() {
-                "reuniao-longa"
-            } else {
-                "reuniao"
-            }
-            .to_owned(),
-            item: reuniao.id.clone(),
-            repeticao: 1,
-            avaliacao: None,
-            ata: Some(ata),
-            transcript: Some(TamanhoTranscript::de(&lido)),
-            arquivos_alterados: Vec::new(),
-            claude: None,
-            erro: None,
-        }],
-    );
-    imprimir(args, &relatorio)
 }
 
 fn executavel_padrao_do_cba() -> PathBuf {
@@ -308,10 +202,6 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
         "--claude",
         "--gabarito",
         "--tempo-limite",
-        "--reuniao",
-        "--orcamento-longa",
-        "--longa-minutos",
-        "--longa-palavras",
     ])?;
     let gabarito = carregar_gabarito(&args)?;
     let modelo = args.valor("--modelo").unwrap_or("sonnet").to_owned();
@@ -336,22 +226,7 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
         .parse()
         .map_err(|_| "--tempo-limite precisa ser um inteiro (segundos)")?;
 
-    let orcamento_longa: f64 = args
-        .valor("--orcamento-longa")
-        .unwrap_or("3")
-        .parse()
-        .map_err(|_| "--orcamento-longa precisa ser um número (US$, com ponto)")?;
-    if orcamento_longa.is_nan() || orcamento_longa <= 0.0 {
-        return Err("--orcamento-longa precisa ser maior que zero".into());
-    }
-    let longa = opcoes_da_longa(&args)?;
-    let reuniao = gabarito
-        .reuniao(args.valor("--reuniao").unwrap_or("REU-FAT-001"))
-        .map_err(|e| e.to_string())?;
-
     let mut itens: Vec<Item> = Vec::new();
-    // Fluxo `reuniao`: (normal, longa).
-    let mut reunioes = (false, false);
     for fluxo in args
         .valor("--fluxos")
         .unwrap_or("perguntar,explicar,impacto")
@@ -363,18 +238,9 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
             "perguntar" => ("--pergunta", "P-FAT-001", Fluxo::Perguntar),
             "explicar" => ("--funcionalidade", "F-FAT-002", Fluxo::Explicar),
             "impacto" => ("--demanda", "D-FAT-001", Fluxo::Impacto),
-            "reuniao" => {
-                reunioes.0 = true;
-                continue;
-            }
-            "reuniao-longa" => {
-                reunioes.1 = true;
-                continue;
-            }
             outro => {
                 return Err(format!(
-                    "fluxo desconhecido: {outro} (use perguntar, explicar, impacto, reuniao ou \
-                     reuniao-longa)"
+                    "fluxo desconhecido: {outro} (use perguntar, explicar ou impacto)"
                 ));
             }
         };
@@ -385,7 +251,7 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
         }
         itens.push(item);
     }
-    if itens.is_empty() && reunioes == (false, false) {
+    if itens.is_empty() {
         return Err("nenhum fluxo escolhido".into());
     }
 
@@ -419,17 +285,10 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
         tempo_limite: Duration::from_secs(tempo_limite),
         manter: args.chave("--manter"),
     };
-    let normais = (itens.len() as u32 + u32::from(reunioes.0)) * repeticoes;
-    let longas = u32::from(reunioes.1) * repeticoes;
-    let total = normais + longas;
+    let total = itens.len() as u32 * repeticoes;
     eprintln!(
-        "{total} execução(ões) com {modelo} ({versao}); orçamento de US$ {orcamento:.2} cada{}, até cerca de US$ {:.2} no total.",
-        if longas > 0 {
-            format!(" (US$ {orcamento_longa:.2} na reunião longa)")
-        } else {
-            String::new()
-        },
-        orcamento * f64::from(normais) + orcamento_longa * f64::from(longas)
+        "{total} execução(ões) com {modelo} ({versao}); orçamento de US$ {orcamento:.2} cada, até cerca de US$ {:.2} no total.",
+        orcamento * f64::from(total)
     );
 
     let mut execucoes = Vec::new();
@@ -459,70 +318,17 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
             execucoes.push(e);
         }
     }
-    for (ligado, longa) in [(reunioes.0, None), (reunioes.1, Some(longa))] {
-        if !ligado {
-            continue;
-        }
-        let opcoes = Opcoes {
-            orcamento_usd: if longa.is_some() {
-                orcamento_longa
-            } else {
-                orcamento
-            },
-            ..opcoes.clone()
-        };
-        for r in 1..=repeticoes {
-            let fluxo = if longa.is_some() {
-                "reuniao-longa"
-            } else {
-                "reuniao"
-            };
-            eprintln!("- {fluxo} {} (repetição {r})...", reuniao.id);
-            let pasta = saida.join(format!("{fluxo}-{}-{r}", reuniao.id));
-            let e = executar_reuniao(&gabarito, reuniao, longa, r, &opcoes, &pasta);
-            let custo = e
-                .claude
-                .as_ref()
-                .and_then(|c| c.custo_usd)
-                .map_or("?".to_owned(), |c| format!("{c:.2}"));
-            let resultado = e.ata.as_ref().map_or("-".to_owned(), |a| {
-                format!(
-                    "papéis {} de {}, itens {} de {}",
-                    a.papeis_acertados, a.papeis_esperados, a.itens_atendidos, a.itens_esperados
-                )
-            });
-            let falhas = e.falhas();
-            eprintln!(
-                "  {resultado}, custo US$ {custo}{}",
-                if falhas.is_empty() {
-                    String::new()
-                } else {
-                    format!(", falhas: {}", falhas.join("; "))
-                }
-            );
-            execucoes.push(e);
-        }
-    }
 
-    let mut nomes: Vec<String> = itens.iter().map(|i| i.id.clone()).collect();
-    if reunioes.0 {
-        nomes.push(reuniao.id.clone());
-    }
-    if reunioes.1 {
-        nomes.push(format!("{} (longa)", reuniao.id));
-    }
     let relatorio = Relatorio::novo(
         Some(Parametros {
             data: carimbo(),
             modelo,
             orcamento_por_execucao_usd: orcamento,
             repeticoes,
-            itens: nomes,
+            itens: itens.iter().map(|i| i.id.clone()).collect(),
             permitir_edicao: opcoes.permitir_edicao,
             versao_do_claude: Some(versao),
             commit: commit_do_repositorio(),
-            orcamento_reuniao_longa_usd: reunioes.1.then_some(orcamento_longa),
-            reuniao_longa: reunioes.1.then_some(longa),
         }),
         execucoes,
     );

@@ -1,6 +1,6 @@
 [package]
 name = "cba-avaliacao"
-description = "Avaliação dos fluxos (perguntar, explicar, impacto, reunião) contra o gabarito da fixture."
+description = "Avaliação dos fluxos (perguntar, explicar, impacto) contra o gabarito da fixture."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -13,10 +13,8 @@ publish = false
 
 [dependencies]
 cba-core.workspace = true
-cba-docs.workspace = true
 cba-index.workspace = true
 cba-kb.workspace = true
-cba-reunioes.workspace = true
 cba-session.workspace = true
 cba-tools.workspace = true
 dunce = "1"

@@ -1,4 +1,4 @@
-//! Avaliação dos fluxos (perguntar, explicar, impacto, reunião) contra o gabarito da fixture
+//! Avaliação dos fluxos (perguntar, explicar, impacto) contra o gabarito da fixture
 //! (spec, critério de aceite 2; issue #33).
 //!
 //! Dois usos:
@@ -7,22 +7,16 @@
 //!   (`<base>/<projeto>/analises/A-NNNN.estado.json`) e mede, contra o gabarito, as
 //!   regras encontradas, as evidências válidas, as afirmações `confirmado` sem
 //!   evidência válida, as perguntas esperadas, a premissa corrigida e a abrangência.
-//!   É determinística e testada no CI comum, com estados de exemplo. No fluxo
-//!   `reuniao`, [`ata`] lê o estado da ata (`R-NNNN.estado.json`) e mede os papéis
-//!   propostos, os itens por seção, as citações e as seções vazias (#137).
+//!   É determinística e testada no CI comum, com estados de exemplo.
 //! - **Execução** ([`execucao`]): roda cada fluxo com o Claude Code real numa cópia
 //!   da fixture, isolada da configuração do usuário, e compara o resultado. Usa a
-//!   assinatura de quem roda e fica fora do CI comum (`docs/avaliacao.md`). Para
-//!   medir o custo de uma reunião de cerca de 2 h, [`longa`] gera uma reunião
-//!   sintética a partir da reunião da fixture.
+//!   assinatura de quem roda e fica fora do CI comum (`docs/avaliacao.md`).
 //!
 //! O relatório ([`relatorio`]) sai em JSON e Markdown.
 
-pub mod ata;
 pub mod comparacao;
 pub mod execucao;
 pub mod gabarito;
-pub mod longa;
 pub mod pastas;
 pub mod relatorio;
 pub mod texto;
