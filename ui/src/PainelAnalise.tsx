@@ -23,8 +23,6 @@ import { chaveEvidencia, DocumentoAoVivo } from "./DocumentoAoVivo";
 import { ExportacaoAnalise } from "./ExportacaoAnalise";
 import { PromptsProntos } from "./PromptsProntos";
 import { apiRevisaoTauri, type ApiRevisao, type DecisaoRevisao } from "./revisao";
-import { AtaAoVivo } from "./AtaAoVivo";
-import { apiReuniaoTauri, type ApiReuniao } from "./reunioes";
 import { TerminalClaude, type ControleTerminal, type EstadoTerminal } from "./TerminalClaude";
 import { TrechoEvidencia, type CargaTrecho } from "./TrechoEvidencia";
 import type { ApiTerminal, PedidoClaude } from "./terminal";
@@ -54,8 +52,6 @@ interface Props {
   apiAlteracoes?: ApiAlteracoes;
   /** Revisão, aprovação e exportação (#37); para testes. */
   apiRevisao?: ApiRevisao;
-  /** Ata ao vivo e participantes da análise de uma reunião (#141); para testes. */
-  apiReuniao?: ApiReuniao;
   criarTela?: () => TelaTerminal;
 }
 
@@ -89,7 +85,6 @@ export function PainelAnalise({
   criarTela,
   apiAlteracoes = apiAlteracoesTauri,
   apiRevisao = apiRevisaoTauri,
-  apiReuniao = apiReuniaoTauri,
 }: Props) {
   const { vista, erro, recarregar } = useAnaliseAoVivo(api, projeto, analise);
   const [revisando, setRevisando] = useState(false);
@@ -384,14 +379,6 @@ export function PainelAnalise({
             <p className="error-text" role="alert">
               {falhaRevisao}
             </p>
-          )}
-          {vista?.analise.fluxo === "reuniao" && vista.analise.reuniao && (
-            <AtaAoVivo
-              api={apiReuniao}
-              vigiar={api.vigiar}
-              projeto={projeto}
-              reuniao={vista.analise.reuniao}
-            />
           )}
           {vista && (
             <DocumentoAoVivo

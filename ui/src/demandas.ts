@@ -46,7 +46,7 @@ export interface ReuniaoVista {
   itens: number;
   /** A ata, relativa à raiz da base; `null` se ainda não foi montada. */
   documento: string | null;
-  /** Transcript guardado no diretório de dados, com a ata ainda não aprovada. */
+  /** Sempre `null` por enquanto: a guarda do transcript (#136) vai preenchê-lo. */
   transcriptGuardado: TranscriptGuardado | null;
 }
 

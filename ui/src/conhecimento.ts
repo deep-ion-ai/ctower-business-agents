@@ -263,7 +263,6 @@ export const ROTULO_FLUXO: Record<Fluxo, string> = {
   perguntar: "Perguntar ao sistema",
   explicar: "Explicar funcionalidade",
   impacto: "Analisar impacto",
-  reuniao: "Analisar reunião",
 };
 
 export const ROTULO_STATUS_REGRA: Record<StatusRegra, string> = {
@@ -284,7 +283,6 @@ const ROTULO_TIPO: Record<string, string> = {
   demanda: "Demanda",
   pessoa: "Pessoa",
   ata: "Ata de reunião",
-  "analise-reuniao": "Análise de reunião",
   projeto: "Projeto",
   "regras-do-projeto": "Regras do projeto",
 };

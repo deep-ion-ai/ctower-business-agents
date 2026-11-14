@@ -195,7 +195,7 @@ pub struct AnaliseCriada {
 }
 
 /// Título a partir da pergunta: a primeira linha, até 80 caracteres.
-pub(crate) fn titulo_da_entrada(entrada: &str) -> String {
+fn titulo_da_entrada(entrada: &str) -> String {
     let linha = entrada.trim().lines().next().unwrap_or_default().trim();
     if linha.chars().count() <= 80 {
         return linha.to_owned();
@@ -223,9 +223,6 @@ pub fn criar_analise_do_fluxo(
     entrada: &str,
     titulo: Option<&str>,
 ) -> Result<AnaliseCriada, String> {
-    if fluxo == Fluxo::Reuniao {
-        return Err(crate::demandas::FLUXO_REUNIAO.into());
-    }
     criar_analise_com_demanda(dados, projeto, fluxo, entrada, titulo, None)
 }
 

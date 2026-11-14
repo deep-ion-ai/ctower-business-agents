@@ -19,8 +19,6 @@ const ENTRADA: Record<Fluxo, { rotulo: string; exemplo: string }> = {
     rotulo: "Texto da demanda",
     exemplo: "Ex.: Permitir parcelamento da fatura em até 3 vezes para clientes pessoa jurídica.",
   },
-  // A reunião tem formulário próprio (NovaReuniao), com o transcript.
-  reuniao: { rotulo: "Transcript", exemplo: "" },
 };
 
 /**

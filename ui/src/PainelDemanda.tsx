@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { mensagemDe, type AnaliseCriada, type EstadoAnalise, type Fluxo } from "./analise";
+import { mensagemDe, type EstadoAnalise, type Fluxo } from "./analise";
 import { ROTULO_FLUXO, type ApiConhecimento } from "./conhecimento";
 import {
   ROTULO_STATUS_ATA,
@@ -12,10 +12,8 @@ import {
 import { ROTULO_SESSAO } from "./DocumentoAoVivo";
 import type { Tela } from "./Navegacao";
 import { NovaAnalise } from "./NovaAnalise";
-import { NovaReuniao } from "./NovaReuniao";
-import type { ApiReuniao } from "./reunioes";
 
-const FLUXOS: Fluxo[] = ["perguntar", "explicar", "impacto", "reuniao"];
+const FLUXOS: Fluxo[] = ["perguntar", "explicar", "impacto"];
 
 const ESTADO_ANALISE: Record<EstadoAnalise, string> = {
   criada: "criada",
@@ -36,14 +34,11 @@ export function PainelDemanda({
   projeto,
   demanda,
   navegar,
-  apiReuniao,
 }: {
   api: ApiConhecimento;
   projeto: string;
   demanda: string;
   navegar: (t: Tela) => void;
-  /** Nova reunião (#141); para testes. */
-  apiReuniao?: ApiReuniao;
 }) {
   const [painel, setPainel] = useState<Painel | null>(null);
   const [falha, setFalha] = useState<string | null>(null);
@@ -76,15 +71,6 @@ export function PainelDemanda({
     };
   }, [api, carregar]);
 
-  const abrirCriada = (p: string, criada: AnaliseCriada) =>
-    navegar({
-      tipo: "analise",
-      projeto: p,
-      aberta: {
-        id: criada.analise.id,
-        abertura: { tipo: "nova", promptInicial: criada.promptInicial },
-      },
-    });
   const abrirDocumento = (caminho: string) => navegar({ tipo: "base", documento: caminho });
   const abrirAnalise = (id: string) =>
     navegar({ tipo: "analise", projeto, aberta: { id, abertura: { tipo: "reabrir" } } });
@@ -164,17 +150,7 @@ export function PainelDemanda({
                 </button>
               ))}
             </div>
-            {fluxo === "reuniao" && (
-              <NovaReuniao
-                api={api}
-                apiReuniao={apiReuniao}
-                projetos={[{ id: projeto, nome: projeto }]}
-                demandaFixa={d.id}
-                aoCancelar={() => setFluxo(null)}
-                aoCriar={abrirCriada}
-              />
-            )}
-            {fluxo && fluxo !== "reuniao" && (
+            {fluxo && (
               <NovaAnalise
                 key={fluxo}
                 api={api}
@@ -182,7 +158,16 @@ export function PainelDemanda({
                 projetos={[{ id: projeto, nome: projeto }]}
                 demandaFixa={d.id}
                 aoCancelar={() => setFluxo(null)}
-                aoCriar={abrirCriada}
+                aoCriar={(p, criada) =>
+                  navegar({
+                    tipo: "analise",
+                    projeto: p,
+                    aberta: {
+                      id: criada.analise.id,
+                      abertura: { tipo: "nova", promptInicial: criada.promptInicial },
+                    },
+                  })
+                }
               />
             )}
           </>
@@ -308,8 +293,8 @@ function EventoDaLinha({
 }
 
 /**
- * Aviso de transcript guardado sem a ata aprovada, com a data em que ele é apagado
- * (`cba_reunioes::Guarda::situacao`).
+ * Aviso de transcript guardado sem a ata aprovada, com a data em que ele é apagado.
+ * Ainda não aparece: a guarda do transcript (#136) vai preencher o campo do painel.
  */
 export function AvisoTranscriptGuardado({ guardado }: { guardado: TranscriptGuardado }) {
   return (
