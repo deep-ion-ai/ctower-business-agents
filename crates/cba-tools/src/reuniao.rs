@@ -153,7 +153,7 @@ fn falas(ambiente: &Ambiente, id: IdReuniao) -> Result<Vec<Fala>, ErroFerramenta
 
 /// Avisa o app de que a ata mudou (a ata ao vivo relê o estado). Só
 /// identificadores.
-fn notificar_ata(ambiente: &Ambiente, id: IdReuniao) {
+pub(crate) fn notificar_ata(ambiente: &Ambiente, id: IdReuniao) {
     let evento = Evento {
         quando_ms: cba_core::tempo::agora_ms(),
         projeto: ambiente.kb.nome().to_owned(),

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { mensagemDe, type AvisoAnalise } from "./analise";
+import { mensagemDe, type AnaliseCriada, type AvisoAnalise } from "./analise";
 import { ROTULO_STATUS_ATA } from "./demandas";
 import { AvisoTranscriptGuardado } from "./PainelDemanda";
+import { BotoesProximoPasso } from "./ProximoPasso";
 import {
   TIPOS_ITEM,
   TITULO_TIPO_ITEM,
@@ -83,18 +84,22 @@ export function useAtaAoVivo(api: ApiReuniao, vigiar: Vigiar, projeto: string, r
 /**
  * Ata ao vivo da análise de uma reunião (#141), como o documento ao vivo das
  * análises: os participantes, com a confirmação do papel, e os itens registrados
- * pelo agente, com as falas de origem.
+ * pelo agente, com as falas de origem. Na ata aprovada, cada próximo passo tem os
+ * botões que abrem análises ligadas à demanda (#142).
  */
 export function AtaAoVivo({
   api,
   vigiar,
   projeto,
   reuniao,
+  aoCriarAnalise,
 }: {
   api: ApiReuniao;
   vigiar: Vigiar;
   projeto: string;
   reuniao: string;
+  /** Análise aberta por um próximo passo; sem ela, os botões não aparecem. */
+  aoCriarAnalise?: (criada: AnaliseCriada) => void;
 }) {
   const { ata, setAta, erro } = useAtaAoVivo(api, vigiar, projeto, reuniao);
 
@@ -175,6 +180,15 @@ export function AtaAoVivo({
                       <span className="muted"> · ligado a {i.referencias.join(", ")}</span>
                     )}
                     <Citacoes citacoes={i.citacoes} />
+                    {aprovada && i.tipo === "proximo_passo" && aoCriarAnalise && (
+                      <BotoesProximoPasso
+                        api={api}
+                        projeto={projeto}
+                        reuniao={ata.id}
+                        passo={i}
+                        aoCriar={aoCriarAnalise}
+                      />
+                    )}
                     {i.evidencias.length > 0 && (
                       <ul className="evidencias" aria-label="Evidências">
                         {i.evidencias.map((e) => (

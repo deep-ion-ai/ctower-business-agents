@@ -289,6 +289,7 @@ export function painelFicticio(parcial: Partial<PainelDemanda> = {}): PainelDema
         texto: "Enviar a tabela de juros do parcelamento",
         responsavel: "Ana (PO)",
         prazo: "2026-11-20",
+        referencias: [],
       },
     ],
     duvidas: [
@@ -299,6 +300,7 @@ export function painelFicticio(parcial: Partial<PainelDemanda> = {}): PainelDema
         texto: "O parcelamento vale para fatura já vencida?",
         responsavel: null,
         prazo: null,
+        referencias: [],
       },
     ],
     proximosPassos: [],
