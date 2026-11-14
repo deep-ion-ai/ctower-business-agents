@@ -20,7 +20,8 @@ const DESCRICAO_DA_SECAO: &str = "Seção do documento em que a afirmação entr
     Análise de impacto: demanda_como_entendida, como_e_hoje, funcionalidades, dados, \
     integracoes, documentos_e_telas, riscos, abrangencia. \
     Explicar funcionalidade: objetivo, atores_e_telas, fluxo_principal, \
-    fluxos_alternativos, excecoes, regras, dados, integracoes.";
+    fluxos_alternativos, excecoes, regras, dados, integracoes. \
+    Análise de reunião: ligacao_com_o_codigo.";
 
 #[derive(Debug, Deserialize)]
 struct Args {
@@ -63,7 +64,7 @@ pub fn afirmar() -> Ferramenta {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 10000,
-                    "description": "A afirmação, em linguagem de negócio, com números quando houver (\"A multa por atraso é de 2% sobre o valor original\")."
+                    "description": "A afirmação, em linguagem de negócio, com números quando houver (\"A multa por atraso é de 2% sobre o valor original\"). Aceita Markdown simples: quando enumerar itens (perfis, grupos, passos), use uma lista com um item por linha em vez de uma enumeração longa entre parênteses; use **negrito** só para o que o leitor precisa notar. Não cole código, JSON nem trechos minificados no texto: o código fica nas evidências."
                 },
                 "confianca": {
                     "type": "string",
@@ -188,11 +189,13 @@ mod tests {
             .split_once("Pergunta ao sistema:")
             .unwrap();
         let (perguntar, resto) = resto.split_once("Análise de impacto:").unwrap();
-        let (impacto, explicar) = resto.split_once("Explicar funcionalidade:").unwrap();
+        let (impacto, resto) = resto.split_once("Explicar funcionalidade:").unwrap();
+        let (explicar, reuniao) = resto.split_once("Análise de reunião:").unwrap();
         for (fluxo, texto) in [
             (Fluxo::Perguntar, perguntar),
             (Fluxo::Impacto, impacto),
             (Fluxo::Explicar, explicar),
+            (Fluxo::Reuniao, reuniao),
         ] {
             let lista: Vec<&str> = texto
                 .trim()

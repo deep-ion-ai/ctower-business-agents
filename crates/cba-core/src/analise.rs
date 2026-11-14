@@ -23,7 +23,7 @@
 //! partir de 1, único dentro da análise e nunca reaproveitado.
 
 use cba_kb::frontmatter::{Linhas, StatusAnalise, StatusSugestao, TipoDocumento};
-use cba_kb::{CaminhoRelativo, Id};
+use cba_kb::{CaminhoRelativo, Id, IdReuniao};
 use serde::{Deserialize, Serialize};
 
 /// Versão do formato do arquivo de estado. Sobe quando um campo muda de sentido;
@@ -40,6 +40,9 @@ pub enum Fluxo {
     Explicar,
     /// Análise de impacto de uma demanda.
     Impacto,
+    /// Análise de uma reunião a partir do transcript: o agente monta a ata
+    /// (épico #93).
+    Reuniao,
 }
 
 impl Fluxo {
@@ -49,6 +52,7 @@ impl Fluxo {
             Self::Perguntar => TipoDocumento::Pergunta,
             Self::Explicar => TipoDocumento::Funcionalidade,
             Self::Impacto => TipoDocumento::AnaliseImpacto,
+            Self::Reuniao => TipoDocumento::AnaliseReuniao,
         }
     }
 }
@@ -161,8 +165,11 @@ pub enum EstadoAfirmacao {
     Confirmada,
     /// Marcada como incorreta, com o comentário do analista.
     Incorreta { comentario: String },
-    /// O analista pediu aprofundamento.
-    Aprofundar,
+    /// O analista pediu aprofundamento, com o que quer ver detalhado, se disse.
+    Aprofundar {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pedido: Option<String>,
+    },
     /// Alguma evidência mudou e a afirmação precisa ser revista.
     ARevalidar,
 }
@@ -225,6 +232,9 @@ pub struct Pergunta {
     pub afirmacao: Option<u32>,
     #[serde(flatten)]
     pub estado: EstadoPergunta,
+    /// A resposta já foi enviada ao agente pelo app ("Enviar respostas").
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub resposta_enviada: bool,
     #[serde(default)]
     pub sessao: Option<String>,
     pub registrada_ms: u64,
@@ -289,7 +299,13 @@ pub enum EstadoTermo {
 pub struct TermoProposto {
     pub numero: u32,
     pub termo: String,
+    /// Definição que vai para o glossário: a do agente ou, depois de uma edição do
+    /// analista ([`Analise::editar_termo`]), a editada.
     pub definicao: String,
+    /// Definição proposta pelo agente, guardada na primeira edição do analista. Só
+    /// existe quando a definição foi editada.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub definicao_original: Option<String>,
     #[serde(default)]
     pub sinonimos: Vec<String>,
     /// Onde o termo vive no código: entidades, tabelas, telas, serviços, documentos.
@@ -367,6 +383,10 @@ pub struct Analise {
     pub sugestoes: Vec<Sugestao>,
     #[serde(default)]
     pub termos: Vec<TermoProposto>,
+    /// Reunião analisada (fluxo `reuniao`): a ata em
+    /// `demandas/D-NNNN-<slug>/reunioes/R-NNNN.md`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reuniao: Option<IdReuniao>,
 }
 
 /// Operação recusada pelo modelo. As mensagens se dirigem a quem chamou (o agente
@@ -405,6 +425,8 @@ pub enum ErroModelo {
          não registre de novo"
     )]
     TermoRepetido { termo: String, numero: u32 },
+    #[error("a pergunta número {0} não foi respondida: não há resposta para enviar")]
+    PerguntaSemResposta(u32),
 }
 
 fn exigir(campo: &'static str, valor: &str) -> Result<(), ErroModelo> {
@@ -447,6 +469,7 @@ impl Analise {
             perguntas: Vec::new(),
             sugestoes: Vec::new(),
             termos: Vec::new(),
+            reuniao: None,
         }
     }
 
@@ -595,6 +618,15 @@ impl Analise {
         if let EstadoAfirmacao::Incorreta { comentario } = &estado {
             exigir("comentario", comentario)?;
         }
+        // Pedido em branco é o mesmo que nenhum.
+        let estado = match estado {
+            EstadoAfirmacao::Aprofundar { pedido } => EstadoAfirmacao::Aprofundar {
+                pedido: pedido
+                    .map(|p| p.trim().to_string())
+                    .filter(|p| !p.is_empty()),
+            },
+            outro => outro,
+        };
         let a = self
             .afirmacoes
             .iter_mut()
@@ -661,6 +693,7 @@ impl Analise {
             texto: texto.trim().to_owned(),
             afirmacao,
             estado: EstadoPergunta::Aberta,
+            resposta_enviada: false,
             sessao,
             registrada_ms: agora_ms,
         });
@@ -691,6 +724,28 @@ impl Analise {
             });
         }
         p.estado = estado;
+        Ok(())
+    }
+
+    /// Marca as respostas das perguntas como enviadas ao agente. Todas precisam
+    /// existir e estar respondidas; nada muda se alguma não estiver.
+    pub fn marcar_respostas_enviadas(&mut self, numeros: &[u32]) -> Result<(), ErroModelo> {
+        for &numero in numeros {
+            let p = self.perguntas.iter().find(|p| p.numero == numero).ok_or(
+                ErroModelo::ItemDesconhecido {
+                    tipo: "pergunta",
+                    numero,
+                },
+            )?;
+            if !matches!(p.estado, EstadoPergunta::Respondida { .. }) {
+                return Err(ErroModelo::PerguntaSemResposta(numero));
+            }
+        }
+        for p in &mut self.perguntas {
+            if numeros.contains(&p.numero) {
+                p.resposta_enviada = true;
+            }
+        }
         Ok(())
     }
 
@@ -754,6 +809,7 @@ impl Analise {
             numero,
             termo: novo.termo.trim().to_owned(),
             definicao: novo.definicao.trim().to_owned(),
+            definicao_original: None,
             sinonimos: limpar(novo.sinonimos),
             onde_vive: limpar(novo.onde_vive),
             area: novo
@@ -783,6 +839,41 @@ impl Analise {
             });
         }
         t.estado = estado;
+        Ok(())
+    }
+
+    /// Troca a definição de um termo proposto ou aceito (o recusado não vai ao
+    /// glossário), guardando a do agente em [`TermoProposto::definicao_original`] na
+    /// primeira edição. Voltar à definição original apaga a marca.
+    pub fn editar_termo(&mut self, numero: u32, definicao: &str) -> Result<(), ErroModelo> {
+        exigir("definicao", definicao)?;
+        if self.estado == EstadoAnalise::Aprovada {
+            return Err(ErroModelo::AnaliseAprovada(self.id.clone()));
+        }
+        let t = self.termos.iter_mut().find(|t| t.numero == numero).ok_or(
+            ErroModelo::ItemDesconhecido {
+                tipo: "termo",
+                numero,
+            },
+        )?;
+        if t.estado == EstadoTermo::Recusado {
+            return Err(ErroModelo::ItemDecidido {
+                tipo: "o termo",
+                numero,
+            });
+        }
+        let definicao = definicao.trim();
+        if t.definicao == definicao {
+            return Ok(());
+        }
+        let original = t
+            .definicao_original
+            .take()
+            .unwrap_or_else(|| t.definicao.clone());
+        if original != definicao {
+            t.definicao_original = Some(original);
+        }
+        t.definicao = definicao.to_owned();
         Ok(())
     }
 
@@ -1177,6 +1268,59 @@ mod tests {
     }
 
     #[test]
+    fn edicao_da_definicao_do_termo_guarda_a_original() {
+        let mut a = analise();
+        let novo = |termo: &str| NovoTermo {
+            termo: termo.into(),
+            definicao: "Valor cobrado por atraso.".into(),
+            sinonimos: vec![],
+            onde_vive: vec![],
+            area: None,
+            evidencias: vec![],
+            sessao: None,
+        };
+        a.registrar_termo(novo("Multa"), 2).unwrap();
+        a.registrar_termo(novo("Juros"), 2).unwrap();
+        a.editar_termo(1, "  Valor cobrado sobre a parcela paga com atraso.  ")
+            .unwrap();
+        assert_eq!(
+            a.termos[0].definicao,
+            "Valor cobrado sobre a parcela paga com atraso."
+        );
+        assert_eq!(
+            a.termos[0].definicao_original.as_deref(),
+            Some("Valor cobrado por atraso.")
+        );
+        // Aceito, ainda pode ser editado; a segunda edição mantém a do agente.
+        a.decidir_termo(1, EstadoTermo::Aceito).unwrap();
+        a.editar_termo(1, "Valor cobrado por pagar depois do vencimento.")
+            .unwrap();
+        assert_eq!(
+            a.termos[0].definicao_original.as_deref(),
+            Some("Valor cobrado por atraso.")
+        );
+        // Voltar à definição do agente apaga a marca.
+        a.editar_termo(1, "Valor cobrado por atraso.").unwrap();
+        assert_eq!(a.termos[0].definicao_original, None);
+        let json = serde_json::to_value(&a.termos[0]).unwrap();
+        assert!(json.get("definicao_original").is_none());
+
+        assert_eq!(
+            a.editar_termo(1, " "),
+            Err(ErroModelo::CampoVazio("definicao"))
+        );
+        a.decidir_termo(2, EstadoTermo::Recusado).unwrap();
+        assert!(matches!(
+            a.editar_termo(2, "Outra."),
+            Err(ErroModelo::ItemDecidido { .. })
+        ));
+        assert!(matches!(
+            a.editar_termo(9, "Outra."),
+            Err(ErroModelo::ItemDesconhecido { .. })
+        ));
+    }
+
+    #[test]
     fn hash_diferente_marca_a_revalidar() {
         let mut a = analise();
         a.registrar_afirmacao(afirmacao(Confianca::Confirmado, vec![evidencia()]), 2)
@@ -1237,9 +1381,85 @@ mod tests {
         b.registrar_afirmacao(afirmacao(Confianca::Confirmado, vec![evidencia()]), 2)
             .unwrap();
         b.revalidar(|_| Some(false));
-        b.marcar_afirmacao(1, EstadoAfirmacao::Aprofundar).unwrap();
+        b.marcar_afirmacao(1, EstadoAfirmacao::Aprofundar { pedido: None })
+            .unwrap();
         b.revalidar(|_| Some(true));
-        assert_eq!(b.afirmacoes[0].estado, EstadoAfirmacao::Aprofundar);
+        assert_eq!(
+            b.afirmacoes[0].estado,
+            EstadoAfirmacao::Aprofundar { pedido: None }
+        );
+    }
+
+    #[test]
+    fn respostas_enviadas_ficam_marcadas() {
+        let mut a = analise();
+        a.registrar_pergunta("Vale para órgão público?", None, None, 1)
+            .unwrap();
+        a.registrar_pergunta("E para pessoa física?", None, None, 2)
+            .unwrap();
+        a.decidir_pergunta(
+            1,
+            EstadoPergunta::Respondida {
+                resposta: "Sim.".into(),
+            },
+        )
+        .unwrap();
+        // Uma sem resposta recusa o lote inteiro.
+        assert_eq!(
+            a.marcar_respostas_enviadas(&[1, 2]),
+            Err(ErroModelo::PerguntaSemResposta(2))
+        );
+        assert!(!a.perguntas[0].resposta_enviada);
+        assert!(matches!(
+            a.marcar_respostas_enviadas(&[9]),
+            Err(ErroModelo::ItemDesconhecido { numero: 9, .. })
+        ));
+        a.marcar_respostas_enviadas(&[1]).unwrap();
+        assert!(a.perguntas[0].resposta_enviada);
+        let json = serde_json::to_value(&a).unwrap();
+        assert_eq!(json["perguntas"][0]["resposta_enviada"], true);
+        assert!(json["perguntas"][1].get("resposta_enviada").is_none());
+    }
+
+    #[test]
+    fn aprofundamento_guarda_o_pedido_do_analista() {
+        let mut a = analise();
+        a.registrar_afirmacao(afirmacao(Confianca::Confirmado, vec![evidencia()]), 2)
+            .unwrap();
+        a.marcar_afirmacao(
+            1,
+            EstadoAfirmacao::Aprofundar {
+                pedido: Some("  Quais perfis podem consultar?  ".into()),
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            a.afirmacoes[0].estado,
+            EstadoAfirmacao::Aprofundar {
+                pedido: Some("Quais perfis podem consultar?".into())
+            }
+        );
+        let json = serde_json::to_value(&a).unwrap();
+        assert_eq!(json["afirmacoes"][0]["estado"], "aprofundar");
+        assert_eq!(
+            json["afirmacoes"][0]["pedido"],
+            "Quais perfis podem consultar?"
+        );
+        // Em branco vira nenhum; o estado antigo, sem pedido, continua lido.
+        a.marcar_afirmacao(
+            1,
+            EstadoAfirmacao::Aprofundar {
+                pedido: Some(" ".into()),
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            a.afirmacoes[0].estado,
+            EstadoAfirmacao::Aprofundar { pedido: None }
+        );
+        let antigo: EstadoAfirmacao =
+            serde_json::from_value(serde_json::json!({"estado": "aprofundar"})).unwrap();
+        assert_eq!(antigo, EstadoAfirmacao::Aprofundar { pedido: None });
     }
 
     #[test]

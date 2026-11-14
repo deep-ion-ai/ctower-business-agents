@@ -26,12 +26,14 @@ use cba_kb::{Base, Documento};
 /// Seções com papel especial, que não recebem afirmações.
 const ESPECIAIS: [&str; 3] = ["perguntas", "sugestoes", "evidencias"];
 
-/// Seção do documento em que entra a entrada do analista: a pergunta ou a demanda
-/// como veio. O documento negocial não tem: o título já diz a funcionalidade.
+/// Seção do documento em que entra a entrada do analista: a pergunta, a demanda
+/// como veio ou a reunião analisada. O documento negocial não tem: o título já
+/// diz a funcionalidade.
 pub fn secao_da_entrada(fluxo: Fluxo) -> Option<&'static str> {
     match fluxo {
         Fluxo::Perguntar => Some("pergunta"),
         Fluxo::Impacto => Some("demanda_como_veio"),
+        Fluxo::Reuniao => Some("reuniao"),
         Fluxo::Explicar => None,
     }
 }

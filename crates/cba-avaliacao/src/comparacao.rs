@@ -470,6 +470,7 @@ pub fn nome_do_fluxo(fluxo: cba_core::analise::Fluxo) -> &'static str {
         Fluxo::Perguntar => "perguntar",
         Fluxo::Explicar => "explicar",
         Fluxo::Impacto => "impacto",
+        Fluxo::Reuniao => "reuniao",
     }
 }
 

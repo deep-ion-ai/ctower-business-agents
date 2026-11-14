@@ -9,13 +9,18 @@ import type { VistaAnalise } from "./analise";
 
 /** Decisão do analista (`cba_tools::revisao::Decisao`). */
 export type DecisaoRevisao =
-  | { tipo: "afirmacao"; numero: number; estado: "confirmada" | "aprofundar" | "registrada" }
+  | { tipo: "afirmacao"; numero: number; estado: "confirmada" | "registrada" }
+  /** As respostas destas perguntas foram enviadas ao agente. */
+  | { tipo: "respostas-enviadas"; numeros: number[] }
+  /** Aprofundamento, com o que o analista quer ver detalhado (opcional). */
+  | { tipo: "afirmacao"; numero: number; estado: "aprofundar"; pedido?: string }
   | { tipo: "afirmacao"; numero: number; estado: "incorreta"; comentario: string }
   | { tipo: "editar-afirmacao"; numero: number; texto: string }
   | { tipo: "pergunta"; numero: number; estado: "respondida"; resposta: string }
   | { tipo: "pergunta"; numero: number; estado: "descartada" }
   | { tipo: "sugestao"; numero: number; estado: "aceita" | "recusada" }
-  | { tipo: "termo"; numero: number; estado: "aceito" | "recusado" };
+  | { tipo: "termo"; numero: number; estado: "aceito" | "recusado" }
+  | { tipo: "editar-termo"; numero: number; definicao: string };
 
 export interface Area {
   id: string;

@@ -31,6 +31,35 @@ pub fn data_utc(ms: u64) -> Data {
     Data::nova(ano, mes, dia).expect("o algoritmo só produz datas válidas")
 }
 
+/// Dias desde 1970-01-01 (negativo antes).
+pub fn dias_desde_1970(data: Data) -> i64 {
+    // Algoritmo "days_from_civil" de Howard Hinnant.
+    let (ano, mes, dia) = (
+        i64::from(data.ano),
+        i64::from(data.mes),
+        i64::from(data.dia),
+    );
+    let y = if mes <= 2 { ano - 1 } else { ano };
+    let era = y.div_euclid(400);
+    let yoe = y.rem_euclid(400);
+    let mp = (mes + 9) % 12;
+    let doy = (153 * mp + 2) / 5 + dia - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146_097 + doe - 719_468
+}
+
+/// A data `dias` depois de `data` (antes, se negativo). Datas anteriores a 1970
+/// ficam em 1970-01-01.
+pub fn somar_dias(data: Data, dias: i64) -> Data {
+    let total = dias_desde_1970(data).saturating_add(dias).max(0) as u64;
+    data_utc(total * 86_400_000)
+}
+
+/// Dias de `de` até `ate` (negativo se `ate` vem antes).
+pub fn dias_entre(de: Data, ate: Data) -> i64 {
+    dias_desde_1970(ate) - dias_desde_1970(de)
+}
+
 /// Data UTC de hoje.
 pub fn hoje() -> Data {
     data_utc(agora_ms())
@@ -49,5 +78,24 @@ mod tests {
         assert_eq!(data_utc(1_794_355_200_000).to_string(), "2026-11-11");
         // Um milissegundo antes da virada do ano.
         assert_eq!(data_utc(1_798_761_599_999).to_string(), "2026-12-31");
+    }
+
+    #[test]
+    fn aritmetica_de_dias() {
+        let d = |t: &str| Data::analisar(t).unwrap();
+        assert_eq!(dias_desde_1970(d("1970-01-01")), 0);
+        assert_eq!(
+            dias_desde_1970(d("2026-11-11")),
+            1_794_355_200_000 / 86_400_000
+        );
+        assert_eq!(somar_dias(d("2026-11-14"), 30).to_string(), "2026-12-14");
+        assert_eq!(somar_dias(d("2026-12-20"), 30).to_string(), "2027-01-19");
+        assert_eq!(somar_dias(d("2028-02-28"), 1).to_string(), "2028-02-29");
+        assert_eq!(somar_dias(d("2026-03-01"), -1).to_string(), "2026-02-28");
+        assert_eq!(dias_entre(d("2026-11-14"), d("2026-12-14")), 30);
+        assert_eq!(dias_entre(d("2026-12-14"), d("2026-11-14")), -30);
+        for n in [0u64, 59, 365, 10_957, 20_000, 40_000] {
+            assert_eq!(dias_desde_1970(data_utc(n * 86_400_000)), n as i64);
+        }
     }
 }

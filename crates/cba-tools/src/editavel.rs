@@ -190,6 +190,10 @@ fn rotulo_do_template(tipo: cba_kb::frontmatter::TipoDocumento) -> &'static str 
         T::Sugestao => "Sugestão de alteração",
         T::Projeto => "Projeto",
         T::MemoriaArea => "Memória da área",
+        T::Demanda => "Demanda",
+        T::Pessoa => "Pessoa",
+        T::Ata => "Ata de reunião",
+        T::AnaliseReuniao => "Análise de reunião",
     }
 }
 
@@ -199,6 +203,7 @@ fn rotulo_do_roteiro(fluxo: cba_core::analise::Fluxo) -> &'static str {
         Fluxo::Perguntar => "Perguntar ao sistema",
         Fluxo::Explicar => "Explicar funcionalidade",
         Fluxo::Impacto => "Analisar impacto",
+        Fluxo::Reuniao => "Analisar reunião",
     }
 }
 
@@ -216,16 +221,23 @@ pub fn textos_editaveis() -> Vec<TextoEditavel> {
             padrao: m.padrao,
         })
         .collect();
-    lista.extend(crate::roteiro::FLUXOS.iter().map(|f| {
-        let p = crate::roteiro::padrao(*f);
-        TextoEditavel {
-            grupo: Grupo::Roteiro,
-            id: p.nome,
-            rotulo: rotulo_do_roteiro(*f),
-            arquivo: p.arquivo(),
-            padrao: p.texto,
-        }
-    }));
+    // Só os roteiros revisados: a cópia de um provisório na base esconderia a
+    // versão revisada que vier depois (veja `roteiro::revisado`).
+    lista.extend(
+        crate::roteiro::FLUXOS
+            .iter()
+            .filter(|f| crate::roteiro::revisado(**f))
+            .map(|f| {
+                let p = crate::roteiro::padrao(*f);
+                TextoEditavel {
+                    grupo: Grupo::Roteiro,
+                    id: p.nome,
+                    rotulo: rotulo_do_roteiro(*f),
+                    arquivo: p.arquivo(),
+                    padrao: p.texto,
+                }
+            }),
+    );
     lista.extend(crate::prompts::DEFINICOES.iter().map(|d| {
         let p = crate::prompts::padrao(d);
         TextoEditavel {
@@ -270,9 +282,9 @@ fn descricao_da_variavel(nome: &str) -> &'static str {
     match nome {
         "id" => "Identificador da análise (A-NNNN).",
         "titulo" => "Título da análise.",
-        "fluxo" => "Nome do fluxo da análise (pergunta, explicação ou impacto).",
+        "fluxo" => "Nome do fluxo da análise (pergunta, explicação, impacto ou reunião).",
         "documento" => "Caminho do documento da análise, relativo à base.",
-        "entrada" => "A entrada do analista (pergunta, funcionalidade ou demanda).",
+        "entrada" => "A entrada do analista (pergunta, funcionalidade, demanda ou reunião).",
         "secoes" => "Lista das seções do documento, com o que vai em cada uma.",
         "secoes_obrigatorias" => "Seções que a análise precisa preencher para ser aprovada.",
         "contexto" => "Contexto da base de conhecimento para o fluxo.",
@@ -487,13 +499,14 @@ mod tests {
         let lista = textos_editaveis();
         let de = |g: Grupo| lista.iter().filter(|t| t.grupo == g).count();
         assert_eq!(de(Grupo::Template), cba_docs::MODELOS.len());
-        assert_eq!(de(Grupo::Roteiro), 3);
-        assert_eq!(de(Grupo::Prompt), 5);
+        assert_eq!(de(Grupo::Roteiro), 4);
+        assert_eq!(de(Grupo::Prompt), 7);
         let arquivos: std::collections::BTreeSet<&str> =
             lista.iter().map(|t| t.arquivo.as_str()).collect();
         assert_eq!(arquivos.len(), lista.len(), "caminhos distintos");
         assert!(arquivos.contains("_templates/analise-impacto.md"));
         assert!(arquivos.contains("_templates/roteiros/perguntar.md"));
+        assert!(arquivos.contains("_templates/roteiros/reuniao.md"));
         assert!(arquivos.contains("_templates/prompts/aprofundar.md"));
         assert!(lista.iter().all(|t| !t.padrao.trim().is_empty()));
     }

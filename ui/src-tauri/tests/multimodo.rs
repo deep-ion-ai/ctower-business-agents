@@ -134,6 +134,7 @@ fn preparar_dados(raiz: &Path) -> cba_core::dados::DiretorioDados {
     cba_kb::Base::criar(raiz.join("base")).unwrap();
     cba_core::config::Config {
         base: Some(raiz.join("base")),
+        ..Default::default()
     }
     .gravar(&dados)
     .unwrap();
@@ -1495,6 +1496,7 @@ fn hook_dispara_o_retrato_e_a_conferencia_em_processo_separado() {
     cba_kb::Base::criar(raiz.join("base")).unwrap();
     cba_core::config::Config {
         base: Some(raiz.join("base")),
+        ..Default::default()
     }
     .gravar(&dados)
     .unwrap();

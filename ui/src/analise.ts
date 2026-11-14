@@ -6,7 +6,7 @@ import type { ProjetoResumo } from "./terminal";
  * `A-NNNN.estado.json` (campos em snake_case), e dos comandos da tela da análise
  * (`ui/src-tauri/src/analise.rs` e `vigia.rs`, campos em camelCase).
  */
-export type Fluxo = "perguntar" | "explicar" | "impacto";
+export type Fluxo = "perguntar" | "explicar" | "impacto" | "reuniao";
 export type EstadoAnalise = "criada" | "em-andamento" | "concluida" | "aprovada";
 export type EstadoSessao = "ativa" | "aguardando-analista" | "concluida" | "encerrada";
 export type Cliente = "claude-code" | "claude-desktop" | "desconhecido";
@@ -26,7 +26,7 @@ export type EstadoAfirmacao =
   | { estado: "registrada" }
   | { estado: "confirmada" }
   | { estado: "incorreta"; comentario: string }
-  | { estado: "aprofundar" }
+  | { estado: "aprofundar"; pedido?: string }
   | { estado: "a-revalidar" };
 
 export type Afirmacao = {
@@ -45,6 +45,8 @@ export type Pergunta = {
   numero: number;
   texto: string;
   afirmacao?: number | null;
+  /** A resposta já foi enviada ao agente ("Enviar respostas"). */
+  resposta_enviada?: boolean;
   registrada_ms: number;
 } & ({ estado: "aberta" } | { estado: "respondida"; resposta: string } | { estado: "descartada" });
 
@@ -67,6 +69,8 @@ export interface TermoProposto {
   numero: number;
   termo: string;
   definicao: string;
+  /** Definição do agente, quando o analista a editou. */
+  definicao_original?: string;
   sinonimos?: string[];
   onde_vive?: string[];
   estado: "proposto" | "aceito" | "recusado";
@@ -96,6 +100,8 @@ export interface Analise {
   perguntas: Pergunta[];
   sugestoes: Sugestao[];
   termos: TermoProposto[];
+  /** Reunião analisada (fluxo `reuniao`), `R-0001`. */
+  reuniao?: string | null;
 }
 
 export interface SessaoVista {
@@ -208,7 +214,10 @@ export type AvisoAnalise =
 
 /** Prompt pronto (#32): `prompts_prontos { projeto, analise }`. */
 export interface PromptPronto {
-  /** aprofundar, resumir, criterios-de-aceite, conferir-evidencias, retomar. */
+  /**
+   * aprofundar, resumir, criterios-de-aceite, conferir-evidencias, retomar; na análise
+   * de reunião, resumir-para-o-cliente e listar-duvidas (o app filtra pelo fluxo).
+   */
   id: string;
   /** Rótulo do botão. */
   rotulo: string;

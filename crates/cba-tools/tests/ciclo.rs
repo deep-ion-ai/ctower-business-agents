@@ -37,6 +37,7 @@ fn cenario() -> Cenario {
     cba_kb::Base::criar(raiz.join("base")).unwrap();
     Config {
         base: Some(raiz.join("base")),
+        ..Default::default()
     }
     .gravar(&dados)
     .unwrap();
@@ -141,6 +142,7 @@ fn iniciar_analise_criada_pelo_app_devolve_roteiro_e_monta_o_documento() {
     // Estado em andamento, templates copiados e documento já no template do tipo.
     assert_eq!(c.analise("A-0001").estado, EstadoAnalise::EmAndamento);
     assert!(c.amb.base.raiz().join("_templates/pergunta.md").is_file());
+    assert!(c.amb.base.raiz().join("_templates/papeis.yaml").is_file());
     let doc = c.documento("A-0001");
     assert_eq!(doc.frontmatter.status, StatusAnalise::Rascunho);
     assert!(
@@ -373,6 +375,12 @@ fn retomar_analise_devolve_todo_o_estado_sem_alterar() {
                 EstadoAfirmacao::Incorreta {
                     comentario: "Faltou a carência".into(),
                 },
+            )?;
+            a.marcar_afirmacao(
+                2,
+                EstadoAfirmacao::Aprofundar {
+                    pedido: Some("Qual lote usa o outro percentual?".into()),
+                },
             )
         })
         .unwrap();
@@ -400,7 +408,11 @@ fn retomar_analise_devolve_todo_o_estado_sem_alterar() {
     );
     assert!(t.contains("`db/03_pkg_cobranca.sql:71-72`"), "{t}");
     assert!(
-        t.contains("[a_confirmar; registrada] O lote de cobrança"),
+        t.contains("[a_confirmar; o analista pediu para aprofundar] O lote de cobrança"),
+        "{t}"
+    );
+    assert!(
+        t.contains("O que o analista quer aprofundar: Qual lote usa o outro percentual?"),
         "{t}"
     );
     assert!(
@@ -419,7 +431,11 @@ fn retomar_analise_devolve_todo_o_estado_sem_alterar() {
         d["afirmacoes"][0]["evidencias"][0]["trecho"],
         "FN_PARAMETRO('PERC_MULTA_ATRASO') / 100, 2)"
     );
-    assert_eq!(d["afirmacoes"][1]["estado"], "registrada");
+    assert_eq!(d["afirmacoes"][1]["estado"], "aprofundar");
+    assert_eq!(
+        d["afirmacoes"][1]["pedido"],
+        "Qual lote usa o outro percentual?"
+    );
     // a_confirmar cria pergunta; mais a registrada à parte.
     assert_eq!(d["perguntas"].as_array().unwrap().len(), 2);
     assert_eq!(d["perguntas"][1]["estado"], "aberta");

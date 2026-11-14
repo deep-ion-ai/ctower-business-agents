@@ -2,10 +2,11 @@
 //! campos tirados do frontmatter ([`Montavel`]).
 
 use cba_kb::frontmatter::{
-    Abrangencia, Frontmatter, FrontmatterAnalise, FrontmatterFuncionalidade, FrontmatterRegra,
-    FrontmatterSugestao, FrontmatterTermo, StatusAnalise, StatusRegra, StatusSugestao,
+    Abrangencia, Frontmatter, FrontmatterAnalise, FrontmatterAta, FrontmatterFuncionalidade,
+    FrontmatterRegra, FrontmatterSugestao, FrontmatterTermo, StatusAnalise, StatusAta, StatusRegra,
+    StatusSugestao,
 };
-use cba_kb::{CaminhoRelativo, TipoDocumento};
+use cba_kb::{CaminhoRelativo, TipoDocumento, layout};
 
 use crate::link;
 
@@ -46,6 +47,9 @@ impl Modelo {
 pub(crate) const PERGUNTAS: &str = "perguntas";
 pub(crate) const SUGESTOES: &str = "sugestoes";
 pub(crate) const EVIDENCIAS: &str = "evidencias";
+/// Seções da ata com texto próprio quando vazias.
+pub(crate) const PARTICIPANTES: &str = "participantes";
+pub(crate) const REFERENCIAS_FALAS: &str = "referencias_falas";
 
 const fn s(marcador: &'static str, titulo: &'static str) -> Secao {
     Secao { marcador, titulo }
@@ -84,7 +88,7 @@ const CAMPOS_FUNCIONALIDADE_OU_ANALISE: &[&str] = &[
 ];
 
 /// Tipos que têm template, na ordem da spec (seção 7.3).
-pub const MODELOS: [Modelo; 7] = [
+pub const MODELOS: [Modelo; 9] = [
     Modelo {
         tipo: TipoDocumento::AnaliseImpacto,
         secoes: &[
@@ -184,6 +188,37 @@ pub const MODELOS: [Modelo; 7] = [
         ],
         padrao: include_str!("../templates/sugestao.md"),
     },
+    Modelo {
+        tipo: TipoDocumento::Ata,
+        secoes: &[
+            s("identificacao", "Identificação"),
+            s(PARTICIPANTES, "Participantes e papéis"),
+            s("objetivo", "Objetivo"),
+            s("resumo", "Resumo"),
+            s("decisoes", "Decisões"),
+            s("necessidades", "Necessidades e requisitos levantados"),
+            s("regras", "Regras de negócio citadas"),
+            s("pendencias", "Pendências"),
+            s("duvidas", "Dúvidas em aberto"),
+            s("proximos_passos", "Próximos passos"),
+            s(REFERENCIAS_FALAS, "Referências às falas"),
+            EVIDENCIAS_SECAO,
+        ],
+        campos: &["id", "projeto", "demanda", "data", "duracao", "status"],
+        padrao: include_str!("../templates/ata.md"),
+    },
+    Modelo {
+        tipo: TipoDocumento::AnaliseReuniao,
+        secoes: &[
+            s("reuniao", "Reunião"),
+            s("ligacao_com_o_codigo", "Ligação com o código"),
+            s(PERGUNTAS, "Perguntas em aberto"),
+            SUGESTOES_SECAO,
+            EVIDENCIAS_SECAO,
+        ],
+        campos: CAMPOS_ANALISE,
+        padrao: include_str!("../templates/analise-reuniao.md"),
+    },
 ];
 
 /// Modelo do tipo, se o tipo tiver template (`projeto` e `memoria-area` não têm).
@@ -199,6 +234,8 @@ pub(crate) fn texto_vazio(marcador: &str) -> &'static str {
         EVIDENCIAS => "_Nenhuma evidência registrada._",
         // Os campos da identificação já estão no template padrão.
         "identificacao" => "",
+        PARTICIPANTES => "_Nenhum participante registrado._",
+        REFERENCIAS_FALAS => "_Nenhuma fala citada._",
         _ => "_Nada registrado._",
     }
 }
@@ -361,6 +398,47 @@ impl Montavel for FrontmatterSugestao {
     }
 }
 
+impl Montavel for FrontmatterAta {
+    fn tipo(&self) -> TipoDocumento {
+        self.tipo
+    }
+
+    fn campos(&self, caminho: &CaminhoRelativo) -> Vec<(&'static str, String)> {
+        let status = match self.status {
+            StatusAta::Rascunho => "rascunho",
+            StatusAta::Aprovada => "aprovada",
+        };
+        let id = self.demanda.to_string();
+        let demanda = match demanda_da_ata(caminho) {
+            Some(d) => link(&id, caminho, &d),
+            None => id,
+        };
+        vec![
+            ("id", self.id.to_string()),
+            ("projeto", self.projeto.clone()),
+            ("demanda", demanda),
+            ("data", self.data.to_string()),
+            (
+                "duracao",
+                self.duracao
+                    .map_or_else(|| NAO_INFORMADA.into(), |d| d.to_string()),
+            ),
+            ("status", status.into()),
+        ]
+    }
+}
+
+/// `demanda.md` da demanda de uma ata em `<pasta da demanda>/reunioes/R-NNNN.md`.
+fn demanda_da_ata(ata: &CaminhoRelativo) -> Option<CaminhoRelativo> {
+    let partes: Vec<&str> = ata.partes().collect();
+    match partes.as_slice() {
+        [pasta @ .., reunioes, _] if *reunioes == layout::REUNIOES && !pasta.is_empty() => {
+            CaminhoRelativo::novo(&format!("{}/{}", pasta.join("/"), layout::ARQUIVO_DEMANDA)).ok()
+        }
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -375,6 +453,8 @@ mod tests {
             TipoDocumento::Regra,
             TipoDocumento::Termo,
             TipoDocumento::Sugestao,
+            TipoDocumento::Ata,
+            TipoDocumento::AnaliseReuniao,
         ] {
             assert_eq!(modelo(tipo).unwrap().tipo, tipo);
         }

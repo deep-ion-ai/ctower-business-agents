@@ -3,7 +3,10 @@
 //! Para cada gabarito: todo arquivo citado existe dentro da raiz do projeto,
 //! todo intervalo de linhas é válido, o trecho esperado aparece no
 //! intervalo, os ids são únicos, toda regra citada existe e os três fluxos
-//! da spec (pergunta, funcionalidade, impacto) têm ao menos um item.
+//! da spec (pergunta, funcionalidade, impacto) têm ao menos um item. Nas
+//! reuniões (`reunioes`, fluxo "Analisar reunião"), o transcript existe e tem
+//! falas, todo participante é falante dele (e todo falante tem papel
+//! esperado), e cada item esperado aponta para falas que existem.
 
 mod comum;
 
@@ -25,7 +28,57 @@ struct Gabarito {
     funcionalidades: Vec<Funcionalidade>,
     demandas: Vec<Demanda>,
     exclusoes: Vec<Exclusao>,
+    #[serde(default)]
+    reunioes: Vec<Reuniao>,
 }
+
+/// Ata esperada de um transcript de `fixtures/reunioes/` (avaliação, #137).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Reuniao {
+    id: String,
+    titulo: String,
+    /// Relativo ao gabarito.
+    transcript: String,
+    demanda: String,
+    participantes: Vec<ParticipanteEsperado>,
+    itens: Vec<ItemDaAta>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ParticipanteEsperado {
+    nome: String,
+    papel: String,
+    #[serde(default)]
+    tambem_aceitos: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ItemDaAta {
+    id: String,
+    tipo: String,
+    #[serde(default)]
+    tambem_em: Vec<String>,
+    descricao: String,
+    palavras_chave: Vec<Vec<String>>,
+    #[serde(default)]
+    responsavel: Vec<Vec<String>>,
+    #[serde(default)]
+    prazo: Vec<Vec<String>>,
+    falas: Vec<String>,
+}
+
+/// Tipos de item da ata (`cba_docs::TipoItem`).
+const TIPOS_DE_ITEM: [&str; 6] = [
+    "decisao",
+    "necessidade",
+    "regra",
+    "pendencia",
+    "duvida",
+    "proximo_passo",
+];
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -286,7 +339,14 @@ fn conferir(caminho: &Path) -> Vec<String> {
         .chain(gabarito.inconsistencias.iter().map(|i| &i.id))
         .chain(gabarito.perguntas.iter().map(|p| &p.id))
         .chain(gabarito.funcionalidades.iter().map(|f| &f.id))
-        .chain(gabarito.demandas.iter().map(|d| &d.id));
+        .chain(gabarito.demandas.iter().map(|d| &d.id))
+        .chain(gabarito.reunioes.iter().map(|r| &r.id))
+        .chain(
+            gabarito
+                .reunioes
+                .iter()
+                .flat_map(|r| r.itens.iter().map(|i| &i.id)),
+        );
     let mut contagem: HashMap<&str, usize> = HashMap::new();
     for id in ids {
         if id.trim().is_empty() {
@@ -429,6 +489,10 @@ fn conferir(caminho: &Path) -> Vec<String> {
         }
     }
 
+    for r in &gabarito.reunioes {
+        conferir_reuniao(&mut c, pasta_gabarito, &raiz_canonica, r);
+    }
+
     // Toda regra é exercitada por ao menos um fluxo.
     for regra in &gabarito.regras {
         if !citadas_nos_fluxos.contains(regra.id.as_str()) {
@@ -440,6 +504,151 @@ fn conferir(caminho: &Path) -> Vec<String> {
     }
 
     c.erros
+}
+
+/// Início `M:SS` ou `H:MM:SS` em segundos.
+fn segundos(horario: &str) -> Option<u64> {
+    let partes: Vec<&str> = horario.split(':').collect();
+    let numero = |s: &str| {
+        (!s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()))
+            .then(|| s.parse::<u64>().ok())
+            .flatten()
+    };
+    match partes.as_slice() {
+        [m, s] if s.len() == 2 => Some(numero(m)? * 60 + numero(s)?),
+        [h, m, s] if m.len() == 2 && s.len() == 2 => {
+            Some(numero(h)? * 3600 + numero(m)? * 60 + numero(s)?)
+        }
+        _ => None,
+    }
+}
+
+/// Palavras seguidas da fala que bastam para dizer que um texto a copia.
+const PALAVRAS_COPIADAS: usize = 5;
+
+fn palavras(texto: &str) -> Vec<String> {
+    texto
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|p| !p.is_empty())
+        .map(str::to_lowercase)
+        .collect()
+}
+
+/// Primeira sequência de [`PALAVRAS_COPIADAS`] palavras de alguma fala que aparece
+/// no texto.
+fn copia_de_fala(texto: &str, falas: &[cba_reunioes::Fala]) -> Option<String> {
+    let texto = format!(" {} ", palavras(texto).join(" "));
+    falas.iter().find_map(|f| {
+        palavras(&f.texto)
+            .windows(PALAVRAS_COPIADAS)
+            .map(|j| j.join(" "))
+            .find(|s| texto.contains(&format!(" {s} ")))
+    })
+}
+
+fn conferir_reuniao(c: &mut Conferencia, pasta_gabarito: &Path, raiz: &Path, r: &Reuniao) {
+    let onde = format!("reunião {}", r.id);
+    c.texto_preenchido(&onde, "titulo", &r.titulo);
+    c.texto_preenchido(&onde, "demanda", &r.demanda);
+    let caminho = r
+        .transcript
+        .split('/')
+        .fold(pasta_gabarito.to_path_buf(), |acc, parte| acc.join(parte));
+    let Ok(canonico) = caminho.canonicalize() else {
+        c.erro(format!("{onde}: transcript `{}` não existe", r.transcript));
+        return;
+    };
+    // O transcript não pode ficar dentro do projeto analisado.
+    if canonico.starts_with(raiz) {
+        c.erro(format!(
+            "{onde}: o transcript não pode ficar dentro da raiz do projeto"
+        ));
+    }
+    let nome = canonico
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned());
+    let transcript = cba_reunioes::analisar(
+        &fs::read(&canonico).expect("transcript legível"),
+        nome.as_deref(),
+    );
+    if transcript.falas.is_empty() || !transcript.avisos.is_empty() {
+        c.erro(format!(
+            "{onde}: o transcript não foi lido sem avisos ({:?})",
+            transcript.avisos
+        ));
+        return;
+    }
+
+    let falantes = transcript.falantes();
+    for p in &r.participantes {
+        c.texto_preenchido(&onde, "participantes.papel", &p.papel);
+        if !falantes.contains(&p.nome.as_str()) {
+            c.erro(format!(
+                "{onde}: participante `{}` não é falante do transcript",
+                p.nome
+            ));
+        }
+        if p.tambem_aceitos.iter().any(|a| a.trim().is_empty()) {
+            c.erro(format!("{onde}: papel aceito vazio para `{}`", p.nome));
+        }
+    }
+    for f in &falantes {
+        if !r.participantes.iter().any(|p| p.nome == *f) {
+            c.erro(format!("{onde}: falante `{f}` sem papel esperado"));
+        }
+    }
+
+    if r.itens.is_empty() {
+        c.erro(format!("{onde}: nenhum item esperado"));
+    }
+    for item in &r.itens {
+        let onde = format!("{onde}, item {}", item.id);
+        c.texto_preenchido(&onde, "descricao", &item.descricao);
+        // A descrição vai para o relatório da avaliação, que não leva texto de
+        // fala: ela é escrita com outras palavras, sem copiar a fala.
+        if let Some(copiado) = copia_de_fala(&item.descricao, &transcript.falas) {
+            c.erro(format!(
+                "{onde}: a descrição copia uma fala (`{copiado}`); reescreva com outras palavras"
+            ));
+        }
+        for tipo in std::iter::once(&item.tipo).chain(&item.tambem_em) {
+            if !TIPOS_DE_ITEM.contains(&tipo.as_str()) {
+                c.erro(format!(
+                    "{onde}: tipo `{tipo}` deve ser um de {}",
+                    TIPOS_DE_ITEM.join(", ")
+                ));
+            }
+        }
+        c.palavras_chave(&onde, &item.palavras_chave);
+        let pendencia = item.tipo == "pendencia";
+        if !pendencia && (!item.responsavel.is_empty() || !item.prazo.is_empty()) {
+            c.erro(format!(
+                "{onde}: responsável e prazo só valem em pendências"
+            ));
+        }
+        if !item.responsavel.is_empty() {
+            c.palavras_chave(&format!("{onde}, responsável"), &item.responsavel);
+        }
+        if !item.prazo.is_empty() {
+            c.palavras_chave(&format!("{onde}, prazo"), &item.prazo);
+        }
+        if item.falas.is_empty() {
+            c.erro(format!("{onde}: nenhuma fala de origem"));
+        }
+        for horario in &item.falas {
+            let existe = segundos(horario).is_some_and(|s| {
+                transcript
+                    .falas
+                    .iter()
+                    .any(|f| f.inicio.is_some_and(|i| i.segundos() == s))
+            });
+            if !existe {
+                c.erro(format!(
+                    "{onde}: nenhuma fala começa em `{horario}` no transcript"
+                ));
+            }
+        }
+    }
 }
 
 #[test]

@@ -6,16 +6,27 @@ use cba_session::clientes::{self, EstadoClientes};
 use std::sync::Arc;
 
 use crate::{
-    alteracoes, analise, base, configuracoes, conversa, inicio, primeiro_uso, projeto, prompts,
-    repositorios, revisao, terminal, vigia,
+    alteracoes, analise, base, configuracoes, conversa, demandas, inicio, primeiro_uso, projeto,
+    prompts, repositorios, reunioes, revisao, terminal, vigia,
 };
 
 pub fn rodar() {
     // Sem log o app ainda funciona; o erro não tem para onde ir antes da janela.
-    if let Ok(dados) = DiretorioDados::padrao() {
+    let dados = DiretorioDados::padrao().ok();
+    if let Some(dados) = &dados {
         let _ = cba_core::log::iniciar(&dados.logs(), "app");
     }
     tracing::info!(versao = cba_core::VERSAO, "app iniciado");
+    if let Some(dados) = dados {
+        // Retenção dos transcripts das reuniões (#136): apaga os de prazo vencido,
+        // fora da thread da interface. O aviso dos que vencem fica para as telas
+        // da demanda e da reunião.
+        let _ = std::thread::Builder::new()
+            .name("cba-retencao-transcripts".into())
+            .spawn(move || {
+                cba_reunioes::aplicar_retencao_no_inicio(&dados);
+            });
+    }
     let sessoes = terminal::Estado::default();
     let vigias = Arc::new(vigia::Vigias::padrao());
     tauri::Builder::default()
@@ -70,6 +81,18 @@ pub fn rodar() {
             projeto::revalidar_projeto_app,
             projeto::mapa_projeto_app,
             projeto::mapear_projeto_app,
+            demandas::listar_demandas_app,
+            demandas::criar_demanda_app,
+            demandas::encerrar_demanda_app,
+            demandas::reabrir_demanda_app,
+            demandas::painel_demanda_app,
+            reunioes::previa_transcript_app,
+            reunioes::criar_reuniao_app,
+            reunioes::ata_reuniao_app,
+            reunioes::confirmar_participantes_app,
+            reunioes::prontidao_ata_app,
+            reunioes::aprovar_ata_app,
+            reunioes::analisar_proximo_passo_app,
             base::buscar_base,
             base::abrir_documento_base,
             base::vigiar_base,
