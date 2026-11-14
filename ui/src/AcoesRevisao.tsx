@@ -2,6 +2,7 @@ import { useId, useState } from "react";
 import type { Afirmacao, Pergunta, TermoProposto } from "./analise";
 import { DialogoConfirmacao } from "./DialogoConfirmacao";
 import type { DecisaoRevisao } from "./revisao";
+import { TextoAfirmacao } from "./TextoAfirmacao";
 import { Icon, type IconName } from "./shell/icons";
 
 /** Botão de ação da revisão: só o ícone, com o rótulo no nome acessível e na dica (#130). */
@@ -133,7 +134,9 @@ function DialogoAprofundar({
           aoPedir(pedido.trim());
         }}
       >
-        <blockquote className="muted">{afirmacao.texto}</blockquote>
+        <blockquote className="afirmacao">
+          <TextoAfirmacao texto={afirmacao.texto} />
+        </blockquote>
         <label htmlFor={id}>O que você quer que o agente aprofunde? (opcional)</label>
         <textarea
           id={id}
