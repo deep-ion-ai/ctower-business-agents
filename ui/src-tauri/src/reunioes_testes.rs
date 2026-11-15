@@ -821,3 +821,44 @@ fn acao_do_proximo_passo_vem_da_tela_em_camel_case() {
         }
     );
 }
+
+/// Na análise de uma reunião, exportar leva a ata (`R-NNNN.md`), não o documento
+/// da análise, que só aponta para ela.
+#[test]
+fn exportar_a_analise_da_reuniao_leva_a_ata() {
+    use crate::revisao::{PedidoExportacao, exportar};
+    use cba_tools::revisao::{Formato, OpcoesExportacao};
+
+    let c = cenario();
+    let analise = reuniao_concluida(&c);
+    let pasta = c.dir.path().join("exportados");
+    std::fs::create_dir_all(&pasta).unwrap();
+    let pedido = |nome: &str, formato| PedidoExportacao {
+        destino: pasta.join(nome),
+        formato,
+        opcoes: OpcoesExportacao::default(),
+    };
+
+    let md = exportar(
+        &c.dados,
+        PROJETO,
+        &analise,
+        &pedido("ata", Formato::Markdown),
+    )
+    .unwrap();
+    let texto = std::fs::read_to_string(&md).unwrap();
+    assert!(texto.starts_with("# R-0001"), "{texto}");
+    for trecho in [
+        "Trava do supervisor em todos os canais.",
+        "Levantar os canais de cancelamento.",
+        "O portal do cliente também cancela?",
+        "Analisar o impacto da trava nos outros canais.",
+    ] {
+        assert!(texto.contains(trecho), "falta {trecho:?}: {texto}");
+    }
+    assert!(!texto.contains("## Ligação com o código"), "{texto}");
+
+    let docx = exportar(&c.dados, PROJETO, &analise, &pedido("ata", Formato::Word)).unwrap();
+    assert_eq!(docx, pasta.join("ata.docx"));
+    assert!(std::fs::metadata(&docx).unwrap().len() > 0);
+}

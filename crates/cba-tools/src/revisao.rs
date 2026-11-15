@@ -146,6 +146,8 @@ pub enum ErroRevisao {
     Exportacao(#[from] cba_docs::ErroExportacao),
     #[error("documento da análise ilegível: {0}")]
     Documento(std::io::Error),
+    #[error(transparent)]
+    Base(#[from] cba_kb::Erro),
 }
 
 /// Aplica a decisão do analista e remonta o documento. Devolve a análise gravada.
@@ -446,6 +448,9 @@ pub fn destino_da_exportacao(
 }
 
 /// Exporta o documento da análise para `destino` e devolve o caminho gravado.
+///
+/// Na análise de uma reunião, o documento dela só aponta para a ata; o que se
+/// exporta é a ata (`R-NNNN.md`), quando ela já foi montada na base.
 pub fn exportar_analise(
     amb: &Ambiente,
     id: &Id,
@@ -455,13 +460,24 @@ pub fn exportar_analise(
 ) -> Result<PathBuf, ErroRevisao> {
     let analise = amb.analises.carregar(id)?;
     let destino = destino_da_exportacao(&amb.escopo, destino, formato)?;
-    let texto = std::fs::read_to_string(amb.kb.caminho(&analise.documento))
-        .map_err(ErroRevisao::Documento)?;
-    let fonte = TrechosDoProjeto(&amb.escopo);
+    let ler = |c: &CaminhoRelativo| {
+        std::fs::read_to_string(amb.kb.caminho(c)).map_err(ErroRevisao::Documento)
+    };
+    let texto_analise = ler(&analise.documento)?;
     // Commit da análise: o `base.commit` do frontmatter, para a nota sem commit próprio.
-    let commit = cba_kb::Documento::<cba_kb::frontmatter::FrontmatterAnalise>::analisar(&texto)
-        .ok()
-        .and_then(|d| d.frontmatter.base.and_then(|b| b.commit));
+    let commit =
+        cba_kb::Documento::<cba_kb::frontmatter::FrontmatterAnalise>::analisar(&texto_analise)
+            .ok()
+            .and_then(|d| d.frontmatter.base.and_then(|b| b.commit));
+    let ata = match analise.reuniao {
+        Some(r) => Some(amb.kb.reuniao(r)?.ata).filter(|a| amb.kb.existe(a)),
+        None => None,
+    };
+    let texto = match &ata {
+        Some(a) => ler(a)?,
+        None => texto_analise,
+    };
+    let fonte = TrechosDoProjeto(&amb.escopo);
     let forge = amb.projeto.repositorios.forge.as_ref().map(LinksDoForge);
     let links = forge
         .as_ref()
