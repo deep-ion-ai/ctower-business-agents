@@ -1384,7 +1384,18 @@
   padding-left: 20px;
 }
 
+.citacoes-fala-bloco {
+  margin: 2px 0 4px;
+}
+
+.citacoes-fala-bloco > summary {
+  cursor: pointer;
+  font-size: 0.9em;
+  width: fit-content;
+}
+
 .avisos-transcript li,
+.citacoes-fala-bloco [data-tone="attention"],
 .citacoes-fala [data-tone="attention"] {
   color: var(--attention);
 }
