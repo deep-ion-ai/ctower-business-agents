@@ -58,7 +58,7 @@ pub use exclusoes::{Exclusao, Exclusoes, Motivo, REGRAS_PADRAO};
 pub use extrator::{
     Extracao, Extrator, Fonte, Linhas, Referencia, Registro, Simbolo, TipoReferencia, TipoSimbolo,
 };
-pub use git::{RepositorioGit, detectar_git};
+pub use git::{RepositorioGit, detectar_git, remotos_git, repositorios_em};
 pub use inventario::{
     ArquivoInventariado, Estatisticas, Ignorado, Inventario, PastaInventariada, Resumo, inventariar,
 };

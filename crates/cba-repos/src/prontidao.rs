@@ -8,7 +8,7 @@
 use crate::demanda::{Ferramentas, PRAZO_CLI};
 use crate::process::{RunError, cite, run};
 use crate::{
-    CREDENTIAL_DEADLINE, ForgeConfig, GithubConfig, GitlabConfig, JiraConfig, Repositorios, Secret,
+    CREDENTIAL_DEADLINE, ForgeKind, GithubConfig, GitlabConfig, JiraConfig, Repositorios, Secret,
     TrackerConfig, run_credential,
 };
 use serde::{Deserialize, Serialize};
@@ -313,10 +313,27 @@ fn prontidao_gh(_g: &GithubConfig, f: &Ferramentas, titulo: &str) -> Integracao 
 /// Confere as integrações cadastradas do projeto.
 pub fn conferir(r: &Repositorios, f: &Ferramentas) -> Prontidao {
     let mut integracoes = Vec::new();
-    match &r.forge {
-        Some(ForgeConfig::Github(g)) => integracoes.push(prontidao_gh(g, f, "Código (GitHub)")),
-        Some(ForgeConfig::Gitlab(g)) => integracoes.push(prontidao_glab(g, f, "Código (GitLab)")),
-        None => {}
+    for repo in &r.codigo {
+        let titulo = format!("Código ({})", repo.rotulo());
+        match repo.forja {
+            ForgeKind::Github => integracoes.push(prontidao_gh(
+                &GithubConfig {
+                    repo: repo.caminho.clone(),
+                },
+                f,
+                &titulo,
+            )),
+            ForgeKind::Gitlab => integracoes.push(prontidao_glab(
+                &GitlabConfig {
+                    host: repo.host.clone(),
+                    path: repo.caminho.clone(),
+                    clone_url: repo.url_clone.clone(),
+                    credential_cmd: repo.comando_credencial.clone(),
+                },
+                f,
+                &titulo,
+            )),
+        }
     }
     match &r.tracker {
         Some(TrackerConfig::Github(g)) => integracoes.push(prontidao_gh(g, f, "Issues (GitHub)")),
@@ -439,17 +456,20 @@ esac"#,
             ..Default::default()
         };
         let r = Repositorios {
-            forge: Some(ForgeConfig::Gitlab(GitlabConfig {
+            codigo: vec![crate::RepositorioCodigo {
+                forja: ForgeKind::Gitlab,
                 host: "gitlab.example.com".into(),
-                path: "g/p/app".into(),
-                credential_cmd: "echo tok".into(),
+                caminho: "g/p/app".into(),
+                token: crate::OrigemToken::Comando,
+                comando_credencial: "echo tok".into(),
                 ..Default::default()
-            })),
+            }],
             tracker: Some(TrackerConfig::Github(GithubConfig { repo: "o/r".into() })),
         };
         let p = conferir(&r, &f);
         assert!(p.pronta(), "{p:?}");
         assert_eq!(p.integracoes.len(), 2);
+        assert_eq!(p.integracoes[0].titulo, "Código (GitLab g/p/app)");
         assert!(!format!("{p:?}").contains("ghp_x"));
         // Sem nada cadastrado, nada a conferir.
         assert!(conferir(&Repositorios::default(), &f).pronta());

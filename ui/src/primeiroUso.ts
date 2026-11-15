@@ -3,7 +3,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { apiAnaliseTauri, type ApiAmbiente } from "./analise";
 import { estadoClientes, type EstadoClientes } from "./clientes";
-import type { Repositorios } from "./repositorios";
+import type { ForgeKind, Repositorios } from "./repositorios";
 import type { ProjetoResumo } from "./terminal";
 
 /**
@@ -48,6 +48,11 @@ export interface PastaVista {
   prefixo: string | null;
   branch: string | null;
   git: boolean;
+  /** Remoto do repositório git da pasta e o que se deduz dele (issue #178). */
+  remoto?: string | null;
+  forja?: ForgeKind | null;
+  host?: string | null;
+  caminhoRepo?: string | null;
 }
 
 export interface Contagem {

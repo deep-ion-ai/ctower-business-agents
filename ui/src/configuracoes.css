@@ -94,6 +94,27 @@ button.link.perigo {
   color: var(--muted);
 }
 
+.repositorios-codigo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.repositorios-codigo h4 {
+  margin: 0;
+}
+
+.repositorio-codigo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-self: stretch;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
 .passos-prontidao {
   list-style: none;
   padding: 0;

@@ -52,6 +52,50 @@ pub fn prontidao(
     ))
 }
 
+/// Repositório git encontrado numa pasta escolhida pelo analista, com a forja
+/// deduzida do remoto.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoDetectado {
+    pub caminho: std::path::PathBuf,
+    pub branch: Option<String>,
+    pub remoto: Option<String>,
+    pub forja: Option<cba_repos::ForgeKind>,
+    pub host: Option<String>,
+    pub caminho_repo: Option<String>,
+}
+
+/// Repositórios git na pasta: ela mesma, se é um; senão, as subpastas imediatas
+/// que são (#178).
+pub fn detectar_repositorios(pasta: &std::path::Path) -> Result<Vec<RepoDetectado>, String> {
+    if !pasta.is_absolute() {
+        return Err(format!(
+            "informe o caminho completo da pasta: {}",
+            pasta.display()
+        ));
+    }
+    if !pasta.is_dir() {
+        return Err(format!("pasta não encontrada: {}", pasta.display()));
+    }
+    Ok(cba_index::repositorios_em(pasta)
+        .into_iter()
+        .map(|g| {
+            let remoto = cba_index::remotos_git(&g.raiz).into_iter().next();
+            let r = remoto
+                .as_deref()
+                .and_then(cba_repos::RepositorioCodigo::da_url);
+            RepoDetectado {
+                forja: r.as_ref().map(|r| r.forja),
+                host: r.as_ref().map(|r| r.host.clone()),
+                caminho_repo: r.map(|r| r.caminho),
+                remoto,
+                branch: g.branch,
+                caminho: g.raiz,
+            }
+        })
+        .collect())
+}
+
 /// Cria a análise com título e descrição da issue como entrada e o link dela em
 /// `demanda.origem`.
 pub fn criar_analise_de_issue(
@@ -109,6 +153,11 @@ pub async fn salvar_repositorios_app(
 ) -> Result<Repositorios, String> {
     let dados = dados()?;
     bloqueante(move || salvar_repositorios(&dados, &projeto, repositorios)).await
+}
+
+#[tauri::command]
+pub async fn detectar_repositorios_app(pasta: String) -> Result<Vec<RepoDetectado>, String> {
+    bloqueante(move || detectar_repositorios(std::path::Path::new(&pasta))).await
 }
 
 #[tauri::command]

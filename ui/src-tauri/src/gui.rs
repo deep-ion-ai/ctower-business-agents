@@ -101,6 +101,7 @@ pub fn rodar() {
             base::parar_vigia_base,
             repositorios::salvar_repositorios_app,
             repositorios::prontidao_repositorios_app,
+            repositorios::detectar_repositorios_app,
             repositorios::criar_analise_de_demanda,
             configuracoes::configuracoes_app,
             configuracoes::avaliar_troca_base_app,

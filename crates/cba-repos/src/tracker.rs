@@ -8,6 +8,7 @@
 //! O cadastro guarda só o **comando de credencial**, nunca o token.
 
 use crate::ParseEnumError;
+use crate::codigo::{RepositorioCodigo, repo_github_ok};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fmt;
@@ -152,7 +153,8 @@ pub enum TrackerConfig {
     Jira(JiraConfig),
 }
 
-/// Forja do projeto com a configuração dela.
+/// Forja única do cadastro antigo (antes da #178). Só é lida, para migrar para
+/// [`RepositorioCodigo`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ForgeConfig {
@@ -218,24 +220,59 @@ pub fn default_type_map() -> BTreeMap<String, JiraTypeRole> {
 
 /// Onde ficam o código e as issues de um projeto. Os dois são opcionais: sem
 /// eles o app funciona como antes (só pastas locais).
+///
+/// O cadastro antigo tinha uma forja só (`forge`); ao ler, ela vira uma lista de
+/// um repositório de código (#178). A gravação só escreve `codigo`.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default)]
+#[serde(default, from = "RepositoriosGravados")]
 pub struct Repositorios {
-    pub forge: Option<ForgeConfig>,
+    /// Repositórios de código (GitHub e GitLab, em qualquer combinação).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub codigo: Vec<RepositorioCodigo>,
     pub tracker: Option<TrackerConfig>,
+}
+
+/// Forma gravada, com o campo `forge` do cadastro antigo.
+#[derive(Deserialize, Default)]
+#[serde(default)]
+struct RepositoriosGravados {
+    codigo: Vec<RepositorioCodigo>,
+    forge: Option<ForgeConfig>,
+    tracker: Option<TrackerConfig>,
+}
+
+impl From<RepositoriosGravados> for Repositorios {
+    fn from(g: RepositoriosGravados) -> Self {
+        let mut codigo = g.codigo;
+        if codigo.is_empty()
+            && let Some(f) = g.forge
+        {
+            codigo.push(f.into());
+        }
+        Repositorios {
+            codigo,
+            tracker: g.tracker,
+        }
+    }
 }
 
 impl Repositorios {
     pub fn vazio(&self) -> bool {
-        self.forge.is_none() && self.tracker.is_none()
+        self.codigo.is_empty() && self.tracker.is_none()
+    }
+
+    /// Algum repositório de código cadastrado é o remoto `url`?
+    pub fn codigo_aponta_para(&self, url: &str) -> bool {
+        self.codigo.iter().any(|r| r.aponta_para(url))
     }
 
     /// Confere o cadastro sem rede.
     pub fn validar(&self) -> Result<(), String> {
-        if let Some(f) = &self.forge {
-            match f {
-                ForgeConfig::Github(g) => validar_repo_github(g, "código")?,
-                ForgeConfig::Gitlab(g) => validar_gitlab(g, "código")?,
+        let mut chaves = std::collections::HashSet::new();
+        for (i, r) in self.codigo.iter().enumerate() {
+            r.validar(i + 1)?;
+            if !chaves.insert(r.chave()) {
+                return Err(format!("repositório de código repetido: {}", r.rotulo()));
             }
         }
         match &self.tracker {
@@ -248,21 +285,25 @@ impl Repositorios {
     }
 
     /// Confere que o cadastro novo não muda o que a spec manda fixo depois do
-    /// cadastro: o tipo da forja e do rastreador e, no GitLab, host e caminho.
+    /// cadastro: cada repositório de código já cadastrado (forja, host e caminho)
+    /// continua lá, e o tipo do rastreador e, no GitLab, host e caminho, não mudam.
+    /// Repositórios de código novos podem ser acrescentados.
     pub fn validar_troca(&self, novo: &Repositorios) -> Result<(), String> {
-        match (&self.forge, &novo.forge) {
-            (Some(a), Some(b)) if a.kind() != b.kind() => {
-                return Err("o tipo do repositório de código não muda depois do cadastro".into());
+        for a in &self.codigo {
+            match novo.codigo.iter().find(|b| b.chave() == a.chave()) {
+                None => {
+                    return Err(format!(
+                        "o repositório de código {} não pode ser removido nem trocado",
+                        a.rotulo()
+                    ));
+                }
+                Some(b) if b.forja != a.forja => {
+                    return Err(
+                        "o tipo do repositório de código não muda depois do cadastro".into(),
+                    );
+                }
+                Some(_) => {}
             }
-            (Some(ForgeConfig::Gitlab(a)), Some(ForgeConfig::Gitlab(b)))
-                if (a.host.as_str(), a.path.as_str()) != (b.host.as_str(), b.path.as_str()) =>
-            {
-                return Err("host e caminho do GitLab não mudam depois do cadastro".into());
-            }
-            (Some(_), None) => {
-                return Err("o repositório de código não pode ser removido".into());
-            }
-            _ => {}
         }
         match (&self.tracker, &novo.tracker) {
             (Some(a), Some(b)) if a.kind() != b.kind() => {
@@ -280,16 +321,6 @@ impl Repositorios {
         }
         Ok(())
     }
-}
-
-fn repo_github_ok(r: &str) -> bool {
-    let mut it = r.split('/');
-    let ok = |s: &str| {
-        !s.is_empty()
-            && s.chars()
-                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
-    };
-    matches!((it.next(), it.next(), it.next()), (Some(a), Some(b), None) if ok(a) && ok(b))
 }
 
 fn validar_repo_github(g: &GithubConfig, o_que: &str) -> Result<(), String> {
@@ -390,9 +421,13 @@ mod tests {
         }
     }
 
+    fn cod(f: ForgeConfig) -> RepositorioCodigo {
+        f.into()
+    }
+
     fn repos(f: ForgeConfig, t: TrackerConfig) -> Repositorios {
         Repositorios {
-            forge: Some(f),
+            codigo: vec![cod(f)],
             tracker: Some(t),
         }
     }
@@ -425,7 +460,7 @@ mod tests {
     fn jira_url_chave_e_credencial() {
         let ok = |j: JiraConfig| {
             Repositorios {
-                forge: None,
+                codigo: vec![],
                 tracker: Some(TrackerConfig::Jira(j)),
             }
             .validar()
@@ -476,7 +511,7 @@ mod tests {
     fn jira_jql_e_limite_fora_do_modo_sprint() {
         let ok = |j: JiraConfig| {
             Repositorios {
-                forge: None,
+                codigo: vec![],
                 tracker: Some(TrackerConfig::Jira(j)),
             }
             .validar()
@@ -526,7 +561,7 @@ mod tests {
     fn gitlab_e_github() {
         let f = |f: ForgeConfig| {
             Repositorios {
-                forge: Some(f),
+                codigo: vec![cod(f)],
                 tracker: None,
             }
             .validar()
@@ -609,6 +644,68 @@ mod tests {
         );
         assert!(base.validar_troca(&Repositorios::default()).is_err());
         assert!(Repositorios::default().validar_troca(&base).is_ok());
+    }
+
+    #[test]
+    fn varios_repositorios_de_codigo() {
+        let dois = Repositorios {
+            codigo: vec![
+                cod(ForgeConfig::Github(github())),
+                cod(ForgeConfig::Gitlab(gitlab())),
+            ],
+            tracker: None,
+        };
+        dois.validar().unwrap();
+        assert!(dois.codigo_aponta_para("git@gitlab.example.com:grupo/projeto/app.git"));
+        assert!(dois.codigo_aponta_para("https://github.com/deep-ion-ai/app"));
+        assert!(!dois.codigo_aponta_para("https://github.com/deep-ion-ai/outro"));
+        // Repetido (mesmo host e caminho, sem diferenciar maiúsculas): recusa.
+        let mut repetido = dois.clone();
+        let mut r = cod(ForgeConfig::Github(github()));
+        r.caminho = "Deep-Ion-AI/App".into();
+        repetido.codigo.push(r);
+        assert!(repetido.validar().unwrap_err().contains("repetido"));
+        // Acrescentar pode; remover ou trocar um já cadastrado, não.
+        let um = Repositorios {
+            codigo: vec![cod(ForgeConfig::Github(github()))],
+            tracker: None,
+        };
+        assert!(um.validar_troca(&dois).is_ok());
+        assert!(dois.validar_troca(&um).is_err());
+        let mut com_branch = dois.clone();
+        com_branch.codigo[1].branch = "develop".into();
+        assert!(dois.validar_troca(&com_branch).is_ok());
+    }
+
+    #[test]
+    fn cadastro_antigo_com_uma_forja_vira_lista_de_um() {
+        let antigo = json!({
+            "forge": {
+                "kind": "gitlab",
+                "host": "gitlab.example.com",
+                "path": "grupo/projeto/app",
+                "clone_url": "https://gitlab.example.com/grupo/projeto/app.git",
+                "credential_cmd": "pass show gitlab | head -1"
+            },
+            "tracker": { "kind": "github", "repo": "deep-ion-ai/app" }
+        });
+        let r: Repositorios = serde_json::from_value(antigo).unwrap();
+        assert_eq!(r.codigo, vec![cod(ForgeConfig::Gitlab(gitlab()))]);
+        assert_eq!(r.tracker, Some(TrackerConfig::Github(github())));
+        r.validar().unwrap();
+        // Gravado de novo, só a forma nova; relido, igual.
+        let v = serde_json::to_value(&r).unwrap();
+        assert!(v.get("forge").is_none());
+        assert_eq!(v["codigo"][0]["forja"], "gitlab");
+        assert_eq!(v["codigo"][0]["token"], "comando");
+        assert_eq!(serde_json::from_value::<Repositorios>(v).unwrap(), r);
+        // Sem nada: vazio, e o campo some na gravação.
+        let vazio: Repositorios = serde_json::from_value(json!({})).unwrap();
+        assert!(vazio.vazio());
+        assert_eq!(
+            serde_json::to_value(&vazio).unwrap(),
+            json!({ "tracker": null })
+        );
     }
 
     #[test]

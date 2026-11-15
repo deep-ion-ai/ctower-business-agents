@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 /**
- * Repositório de código (forja) e de issues (rastreador) de um projeto. Espelha
+ * Repositórios de código e de issues (rastreador) de um projeto. Espelha
  * `crates/cba-repos` (nomes de campo em snake_case, como no ctower-agents). O cadastro
  * guarda só o comando de credencial, nunca o token.
  */
@@ -33,7 +33,31 @@ export interface JiraConfig {
   type_map: Record<string, PapelTipoJira>;
 }
 
-export type ForgeConfig = ({ kind: "github" } & GithubConfig) | ({ kind: "gitlab" } & GitlabConfig);
+export type ForgeKind = "github" | "gitlab";
+
+/**
+ * De onde vem o token do repositório de código: `global` = o token do host (no GitHub,
+ * hoje, o `gh auth`); `proprio` = um token só deste repositório; `comando` = um comando
+ * que imprime o token (`comando_credencial`).
+ */
+export type OrigemToken = "global" | "proprio" | "comando";
+
+export interface RepositorioCodigo {
+  forja: ForgeKind;
+  /** `github.com` no GitHub. */
+  host: string;
+  /** `dono/repo` ou `grupo/sub/app`. */
+  caminho: string;
+  /** Como foi colada (HTTPS ou SSH). */
+  url_clone: string;
+  /** Pasta local deste repositório (absoluta); `null` = o projeto todo (cadastro antigo). */
+  pasta: string | null;
+  /** Vazio = branch padrão. */
+  branch: string;
+  token: OrigemToken;
+  /** Usado quando `token === "comando"`. */
+  comando_credencial: string;
+}
 
 export type TrackerConfig =
   | ({ kind: "github" } & GithubConfig)
@@ -41,11 +65,11 @@ export type TrackerConfig =
   | ({ kind: "jira" } & JiraConfig);
 
 export interface Repositorios {
-  forge: ForgeConfig | null;
+  codigo: RepositorioCodigo[];
   tracker: TrackerConfig | null;
 }
 
-export const SEM_REPOSITORIOS: Repositorios = { forge: null, tracker: null };
+export const SEM_REPOSITORIOS: Repositorios = { codigo: [], tracker: null };
 
 export const PAPEIS_JIRA: PapelTipoJira[] = ["epic", "issue", "bug", "chore", "ignore"];
 
@@ -80,6 +104,65 @@ export const JIRA_VAZIO: JiraConfig = {
 };
 
 export const MAX_ISSUES_TETO = 5000;
+
+export const REPOSITORIO_CODIGO_VAZIO: RepositorioCodigo = {
+  forja: "github",
+  host: "github.com",
+  caminho: "",
+  url_clone: "",
+  pasta: null,
+  branch: "",
+  token: "global",
+  comando_credencial: "",
+};
+
+/**
+ * Deduz forja, host e caminho de uma URL de clone: `https://host/a/b(.git)`,
+ * `ssh://[usuário@]host[:porta]/a/b(.git)` ou `git@host:a/b.git`. GitHub só em
+ * `github.com` (ou `ssh.github.com`); qualquer outro host é GitLab. `null` se não der.
+ */
+export function repositorioDaUrl(url: string): RepositorioCodigo | null {
+  const u = url.trim();
+  let host: string;
+  let caminho: string;
+  const comEsquema = /^(https?|ssh|git):\/\/(?:[^@/]+@)?([^/:]+)(?::\d+)?\/(.+)$/i.exec(u);
+  const scp = /^(?:[^@/\s]+@)?([^/:\s]+):(?!\/\/)(.+)$/.exec(u);
+  if (comEsquema) {
+    host = comEsquema[2]!;
+    caminho = comEsquema[3]!;
+  } else if (scp) {
+    host = scp[1]!;
+    caminho = scp[2]!;
+  } else {
+    return null;
+  }
+  caminho = caminho
+    .replace(/[?#].*$/, "")
+    .replace(/^\/+|\/+$/g, "")
+    .replace(/\.git$/i, "")
+    .replace(/\/+$/, "");
+  host = host.toLowerCase();
+  if (!host || !caminho.includes("/") || /\s/.test(caminho)) return null;
+  const github = host === "github.com" || host === "ssh.github.com";
+  return {
+    ...REPOSITORIO_CODIGO_VAZIO,
+    forja: github ? "github" : "gitlab",
+    host: github ? "github.com" : host,
+    caminho,
+    url_clone: u,
+  };
+}
+
+/** Mesmo repositório de código: host e caminho, sem diferenciar maiúsculas. */
+export function mesmoRepositorio(
+  a: Pick<RepositorioCodigo, "host" | "caminho">,
+  b: Pick<RepositorioCodigo, "host" | "caminho">,
+): boolean {
+  return (
+    a.host.trim().toLowerCase() === b.host.trim().toLowerCase() &&
+    a.caminho.trim().toLowerCase() === b.caminho.trim().toLowerCase()
+  );
+}
 
 /** `Tipo = papel`, uma por linha. */
 export function mapaDeTipos(texto: string): Record<string, PapelTipoJira> {
@@ -116,9 +199,22 @@ export function validarRepositorios(r: Repositorios): string | null {
     REPO_GITHUB.test(g.repo.trim())
       ? null
       : `Repositório GitHub de ${o} inválido: use dono/repositório.`;
-  if (r.forge) {
-    const e = r.forge.kind === "github" ? github(r.forge, "código") : gitlab(r.forge, "código");
-    if (e) return e;
+  for (const [i, c] of r.codigo.entries()) {
+    const o = `Repositório de código ${i + 1}`;
+    if (!c.host.trim()) return `${o}: informe o host.`;
+    if (c.forja === "github" && !REPO_GITHUB.test(c.caminho.trim())) {
+      return `${o}: caminho do GitHub inválido, use dono/repositório.`;
+    }
+    if (c.forja === "gitlab" && !c.caminho.includes("/")) {
+      return `${o}: caminho do GitLab inválido, use grupo/projeto/app.`;
+    }
+    if (c.token === "comando" && !c.comando_credencial.trim()) {
+      return `${o}: informe o comando que imprime o token (ex.: pass show gitlab | head -1).`;
+    }
+    const j = r.codigo.findIndex((d) => mesmoRepositorio(c, d));
+    if (j < i) {
+      return `${o}: repete o repositório de código ${j + 1} (${c.host}/${c.caminho}).`;
+    }
   }
   const t = r.tracker;
   if (!t) return null;
@@ -163,13 +259,25 @@ export interface Prontidao {
   integracoes: IntegracaoProntidao[];
 }
 
+/** Repositório git achado numa pasta (visão do backend, em camelCase). */
+export interface RepoDetectado {
+  caminho: string;
+  branch: string | null;
+  remoto: string | null;
+  forja: ForgeKind | null;
+  host: string | null;
+  caminhoRepo: string | null;
+}
+
 export interface ApiRepositorios {
   salvarRepositorios(projeto: string, repositorios: Repositorios): Promise<Repositorios>;
   prontidaoRepositorios(projeto: string): Promise<Prontidao>;
+  detectarRepositorios(pasta: string): Promise<RepoDetectado[]>;
 }
 
 export const apiRepositoriosTauri: ApiRepositorios = {
   salvarRepositorios: (projeto, repositorios) =>
     invoke("salvar_repositorios_app", { projeto, repositorios }),
   prontidaoRepositorios: (projeto) => invoke("prontidao_repositorios_app", { projeto }),
+  detectarRepositorios: (pasta) => invoke("detectar_repositorios_app", { pasta }),
 };

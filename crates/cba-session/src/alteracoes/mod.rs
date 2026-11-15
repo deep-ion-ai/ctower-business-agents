@@ -64,7 +64,7 @@ use cba_core::dados::DiretorioDados;
 use cba_core::eventos::{DiarioEventos, Evento, Mudanca, Notificador};
 use cba_core::tempo;
 use cba_kb::Id;
-use cba_repos::ForgeConfig;
+use cba_repos::RepositorioCodigo;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -939,19 +939,17 @@ pub fn pastas_da_sessao(
     {
         pastas.push(g.raiz);
     }
-    Ok(sem_codigo_fonte(
-        pastas,
-        projeto.repositorios.forge.as_ref(),
-    ))
+    Ok(sem_codigo_fonte(pastas, &projeto.repositorios.codigo))
 }
 
 /// Tira de `pastas` as que estão num repositório git com algum remoto apontando
-/// para `forja` (o repositório de código cadastrado). Sem forja, devolve todas.
-/// Uma pasta cujo remoto não se consegue ler (git ausente) continua na lista.
-pub fn sem_codigo_fonte(pastas: Vec<PathBuf>, forja: Option<&ForgeConfig>) -> Vec<PathBuf> {
-    let Some(forja) = forja else {
+/// para **qualquer** repositório de código cadastrado (#519, #178). Sem
+/// repositórios, devolve todas. Uma pasta cujo remoto não se consegue ler (git
+/// ausente) continua na lista.
+pub fn sem_codigo_fonte(pastas: Vec<PathBuf>, repos: &[RepositorioCodigo]) -> Vec<PathBuf> {
+    if repos.is_empty() {
         return pastas;
-    };
+    }
     let mut vistos: BTreeMap<PathBuf, bool> = BTreeMap::new();
     pastas
         .into_iter()
@@ -967,52 +965,16 @@ pub fn sem_codigo_fonte(pastas: Vec<PathBuf>, forja: Option<&ForgeConfig>) -> Ve
                 git::remotos(&raiz)
                     .unwrap_or_default()
                     .iter()
-                    .any(|url| aponta_para(url, forja))
+                    .any(|url| aponta_para(url, repos))
             });
             !codigo
         })
         .collect()
 }
 
-/// Host (sem usuário nem porta) e caminho (sem `.git` nem barras nas pontas) de
-/// uma URL de remoto do git: `https://host/a/b.git`, `ssh://git@host:22/a/b`,
-/// `git@host:a/b.git`. Em minúsculas, para comparar.
-fn host_e_caminho(url: &str) -> Option<(String, String)> {
-    let url = url.trim();
-    let (autoridade, caminho) = if let Some((_, resto)) = url.split_once("://") {
-        resto.split_once('/')?
-    } else {
-        // Forma scp do ssh: [usuário@]host:caminho.
-        let (antes, depois) = url.split_once(':')?;
-        if antes.contains('/') {
-            return None;
-        }
-        (antes, depois)
-    };
-    let host = autoridade.rsplit_once('@').map_or(autoridade, |(_, h)| h);
-    let host = host.split_once(':').map_or(host, |(h, _)| h);
-    let caminho = caminho.trim_matches('/');
-    let caminho = caminho.strip_suffix(".git").unwrap_or(caminho);
-    if host.is_empty() || caminho.is_empty() {
-        return None;
-    }
-    Some((host.to_ascii_lowercase(), caminho.to_ascii_lowercase()))
-}
-
-/// Se a URL do remoto aponta para o repositório de código cadastrado.
-pub fn aponta_para(url: &str, forja: &ForgeConfig) -> bool {
-    let Some((host, caminho)) = host_e_caminho(url) else {
-        return false;
-    };
-    let mesmo = |h: &str, c: &str| {
-        let h = h.trim().to_ascii_lowercase();
-        let c = c.trim().trim_matches('/').to_ascii_lowercase();
-        !c.is_empty() && host == h && caminho == c
-    };
-    match forja {
-        ForgeConfig::Github(g) => mesmo("github.com", &g.repo) || mesmo("ssh.github.com", &g.repo),
-        ForgeConfig::Gitlab(g) => mesmo(&g.host, &g.path),
-    }
+/// Se a URL do remoto aponta para algum dos repositórios de código cadastrados.
+pub fn aponta_para(url: &str, repos: &[RepositorioCodigo]) -> bool {
+    repos.iter().any(|r| r.aponta_para(url))
 }
 
 /// Tarefa feita fora do caminho do hook.
