@@ -18,6 +18,8 @@ Antes de abrir um PR que mude:
 - as descrições ou os schemas das ferramentas MCP;
 - a fixture ou o gabarito.
 
+Para validar o fluxo de uso num código real, fora da fixture, veja o [projeto de referência](projeto-de-referencia.md) (OpenCBS-Cloud e especificações do Open Finance Brasil).
+
 Rode também quando sair uma versão nova do Claude Code ou do modelo padrão. Rode antes e depois da mudança, com os mesmos parâmetros, e compare os dois relatórios. Ponha no PR o resumo do relatório e o custo.
 
 ## Como rodar
