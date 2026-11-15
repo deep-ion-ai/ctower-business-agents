@@ -52,6 +52,7 @@ macro_rules! str_enum {
     };
 }
 
+pub mod codigo;
 mod credential;
 pub mod demanda;
 pub mod link;
@@ -60,6 +61,7 @@ pub mod prontidao;
 mod secret;
 pub mod tracker;
 
+pub use codigo::{OrigemToken, RepositorioCodigo};
 pub use credential::{CREDENTIAL_DEADLINE, CredentialError, run_credential};
 pub use secret::Secret;
 pub use tracker::*;
