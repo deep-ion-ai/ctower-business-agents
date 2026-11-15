@@ -115,6 +115,20 @@ button.link.perigo {
   padding: 8px 12px;
 }
 
+.token-repositorio p,
+.tokens-hosts p {
+  margin: 4px 0 0;
+}
+
+.tokens-hosts {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .passos-prontidao {
   list-style: none;
   padding: 0;

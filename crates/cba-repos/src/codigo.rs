@@ -80,6 +80,21 @@ impl RepositorioCodigo {
         })
     }
 
+    /// URL de clone: a do cadastro ou, sem ela (cadastro antigo do GitHub), a
+    /// HTTPS deduzida de host e caminho.
+    pub fn url_efetiva(&self) -> String {
+        let url = self.url_clone.trim();
+        if url.is_empty() {
+            format!(
+                "https://{}/{}.git",
+                self.host.trim(),
+                self.caminho.trim().trim_matches('/')
+            )
+        } else {
+            url.to_string()
+        }
+    }
+
     /// Identificador para comparar: `host/caminho` em minúsculas.
     pub fn chave(&self) -> String {
         format!(

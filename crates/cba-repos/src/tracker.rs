@@ -341,11 +341,7 @@ fn validar_gitlab(g: &GitlabConfig, o_que: &str) -> Result<(), String> {
             g.host, g.path
         ));
     }
-    if g.credential_cmd.trim().is_empty() {
-        return Err("informe o comando de credencial do GitLab (ex.: pass show \
-                    gitlab | head -1)"
-            .into());
-    }
+    // Sem comando de credencial, vale o token global do host no chaveiro (#179).
     Ok(())
 }
 
