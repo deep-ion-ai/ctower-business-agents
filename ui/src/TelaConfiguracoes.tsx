@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { mensagemDe, type SituacaoProtecao } from "./analise";
-import { CadastroProjeto, ResumoDoInventario } from "./CadastroProjeto";
+import { AssistenteProjeto } from "./AssistenteProjeto";
+import { ResumoDoInventario } from "./ResumoDoInventario";
 import {
   ESTADO_DO_TEXTO,
   apiConfiguracoesTauri,
@@ -36,7 +37,7 @@ const CLIENTE = {
  * (pastas, exclusões, ambiente do Claude, proteção contra edição, regras do projeto,
  * descadastro) e os textos editáveis da base (templates, roteiros e prompts). Monta
  * os passos do primeiro uso ({@link EscolhaCliente}, {@link EscolhaBase},
- * {@link CadastroProjeto}, {@link AmbienteDoProjeto}) com o que só as configurações
+ * {@link AssistenteProjeto}, {@link AmbienteDoProjeto}) com o que só as configurações
  * fazem: mover ou reapontar a base, desfazer o ambiente e descadastrar.
  */
 export function TelaConfiguracoes({
@@ -505,18 +506,15 @@ function SecaoProjetos({
       ))}
       {cfg.base &&
         (cadastrando ? (
-          <>
-            <CadastroProjeto
-              api={api}
-              aoConcluir={() => {
-                setCadastrando(false);
-                aoMudar();
-              }}
-            />
-            <button type="button" className="link" onClick={() => setCadastrando(false)}>
-              Cancelar
-            </button>
-          </>
+          <AssistenteProjeto
+            api={api}
+            aoConcluir={() => {
+              // O cartão do projeto novo mostra o preparo do ambiente do Claude.
+              setCadastrando(false);
+              aoMudar();
+            }}
+            aoCancelar={() => setCadastrando(false)}
+          />
         ) : (
           <button className="btn" type="button" onClick={() => setCadastrando(true)}>
             Cadastrar outro projeto

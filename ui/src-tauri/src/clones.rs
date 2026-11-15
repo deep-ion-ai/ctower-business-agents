@@ -105,6 +105,27 @@ pub fn testar(
     testar_acesso(&f.git, repo, token.as_ref())
 }
 
+/// "Testar conexão" do Jira no cadastro: os passos da prontidão, com o token
+/// digitado (ainda não gravado) ou o do chaveiro.
+pub fn testar_jira(
+    f: &Ferramentas,
+    jira: &cba_repos::JiraConfig,
+    token: Option<&str>,
+) -> cba_repos::prontidao::Integracao {
+    match token.map(str::trim).filter(|t| !t.is_empty()) {
+        Some(t) => {
+            let memoria = cba_repos::chaveiro::ChaveiroMemoria::default();
+            let _ = memoria.gravar(&conta_global(&jira.host()), &Secret::new(t));
+            let f = Ferramentas {
+                chaveiro: std::sync::Arc::new(memoria),
+                ..f.clone()
+            };
+            cba_repos::prontidao::prontidao_jira(jira, &f)
+        }
+        None => cba_repos::prontidao::prontidao_jira(jira, f),
+    }
+}
+
 /// Evento do clone para a tela, por repositório (`indice` na lista pedida).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase", tag = "tipo")]
@@ -248,6 +269,21 @@ pub async fn testar_acesso_app(
     token: Option<String>,
 ) -> Result<(), String> {
     bloqueante(move || testar(&Ferramentas::default(), &repositorio, token.as_deref())).await
+}
+
+#[tauri::command]
+pub async fn testar_jira_app(
+    jira: cba_repos::JiraConfig,
+    token: Option<String>,
+) -> Result<cba_repos::prontidao::Integracao, String> {
+    bloqueante(move || {
+        Ok(testar_jira(
+            &Ferramentas::default(),
+            &jira,
+            token.as_deref(),
+        ))
+    })
+    .await
 }
 
 #[tauri::command]
@@ -413,6 +449,43 @@ mod tests {
         }
         let tudo = format!("{eventos:?}{r:?}{}", serde_json::to_string(&r).unwrap());
         assert!(!tudo.contains("glpat") && !tudo.contains("ghp-"), "{tudo}");
+    }
+
+    #[test]
+    fn testa_o_jira_com_o_token_digitado_ou_o_do_chaveiro() {
+        use std::os::unix::fs::PermissionsExt;
+        let d = tempfile::tempdir().unwrap();
+        let jira_bin = d.path().join("jira");
+        std::fs::write(
+            &jira_bin,
+            "#!/bin/sh\ncase \"$1\" in version) echo 1.7;; me) [ \"$JIRA_API_TOKEN\" = tok ] && echo ana || exit 1;; serverinfo) echo 9;; esac\n",
+        )
+        .unwrap();
+        std::fs::set_permissions(&jira_bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let yml = d.path().join("jira.yml");
+        std::fs::write(&yml, "server: https://jira.example.com\n").unwrap();
+        let jira = cba_repos::JiraConfig {
+            url: "https://jira.example.com".into(),
+            project_key: "PROJ".into(),
+            config_file: yml.display().to_string(),
+            ..Default::default()
+        };
+        let chaveiro = Arc::new(ChaveiroMemoria::default());
+        let f = Ferramentas {
+            jira: jira_bin,
+            chaveiro: chaveiro.clone(),
+            ..Default::default()
+        };
+        assert!(!testar_jira(&f, &jira, None).pronta());
+        let i = testar_jira(&f, &jira, Some("tok"));
+        assert!(i.pronta(), "{i:?}");
+        assert!(!format!("{i:?}").contains("tok\""));
+        // O token digitado não foi gravado no chaveiro de verdade.
+        assert!(!testar_jira(&f, &jira, None).pronta());
+        chaveiro
+            .gravar(&conta_global("jira.example.com"), &Secret::new("tok"))
+            .unwrap();
+        assert!(testar_jira(&f, &jira, None).pronta());
     }
 
     #[test]

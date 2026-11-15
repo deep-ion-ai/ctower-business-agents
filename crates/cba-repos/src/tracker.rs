@@ -123,6 +123,20 @@ impl JiraConfig {
         n.parse().ok().filter(|n| *n > 0)
     }
 
+    /// Host da URL (`https://jira.example.com:8443/x` → `jira.example.com`): a
+    /// conta do token no chaveiro.
+    pub fn host(&self) -> String {
+        let u = self.url.trim();
+        let resto = u.split_once("://").map_or(u, |(_, r)| r);
+        let autoridade = resto.split('/').next().unwrap_or("");
+        let autoridade = autoridade.rsplit_once('@').map_or(autoridade, |(_, h)| h);
+        autoridade
+            .split(':')
+            .next()
+            .unwrap_or("")
+            .to_ascii_lowercase()
+    }
+
     /// Link da issue: `<url>/browse/PROJ-5450`.
     pub fn issue_url(&self, key: &str) -> String {
         format!("{}/browse/{key}", self.url.trim_end_matches('/'))
@@ -364,11 +378,7 @@ fn validar_jira(j: &JiraConfig) -> Result<(), String> {
             j.project_key
         ));
     }
-    if j.credential_cmd.trim().is_empty() {
-        return Err("informe o comando de credencial do Jira (ex.: pass show \
-                    jira | head -1)"
-            .into());
-    }
+    // Sem comando de credencial, vale o token do host do Jira no chaveiro (#180).
     if j.active_sprint_only {
         return Ok(());
     }
@@ -494,12 +504,13 @@ mod tests {
             })
             .is_ok()
         );
+        // Sem comando: o token vem do chaveiro.
         assert!(
             ok(JiraConfig {
                 credential_cmd: "  ".into(),
                 ..jira()
             })
-            .is_err()
+            .is_ok()
         );
     }
 
@@ -737,6 +748,12 @@ mod tests {
         assert_eq!(f.effective_jql(), "a");
         assert_eq!(f.issue_limit(), Some(5000));
         assert_eq!(j.number_from_key("PROJ-5450"), Some(5450));
+        assert_eq!(j.host(), "jira.example.com");
+        let com_porta = JiraConfig {
+            url: "https://u@Jira.Example.com:8443/jira".into(),
+            ..j.clone()
+        };
+        assert_eq!(com_porta.host(), "jira.example.com");
         for k in ["OUTRO-1", "PROJ5450", "PROJ-", "PROJ-12a", "PROJ-0"] {
             assert_eq!(j.number_from_key(k), None, "{k}");
         }

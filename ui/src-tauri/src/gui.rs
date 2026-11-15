@@ -109,6 +109,7 @@ pub fn rodar() {
             clones::tokens_guardados_app,
             clones::testar_acesso_app,
             clones::clonar_repositorios_app,
+            clones::testar_jira_app,
             repositorios::criar_analise_de_demanda,
             configuracoes::configuracoes_app,
             configuracoes::avaliar_troca_base_app,
