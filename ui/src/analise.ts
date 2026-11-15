@@ -6,7 +6,14 @@ import type { ProjetoResumo } from "./terminal";
  * `A-NNNN.estado.json` (campos em snake_case), e dos comandos da tela da análise
  * (`ui/src-tauri/src/analise.rs` e `vigia.rs`, campos em camelCase).
  */
-export type Fluxo = "perguntar" | "explicar" | "impacto" | "reuniao";
+export type Fluxo =
+  | "perguntar"
+  | "explicar"
+  | "impacto"
+  | "reuniao"
+  | "revisar"
+  | "historias"
+  | "cenarios";
 export type EstadoAnalise = "criada" | "em-andamento" | "concluida" | "aprovada";
 export type EstadoSessao = "ativa" | "aguardando-analista" | "concluida" | "encerrada";
 export type Cliente = "claude-code" | "claude-desktop" | "desconhecido";
@@ -102,6 +109,161 @@ export interface Analise {
   termos: TermoProposto[];
   /** Reunião analisada (fluxo `reuniao`), `R-0001`. */
   reuniao?: string | null;
+  /** Análise de origem (fluxo `historias`), `A-0001`. */
+  origem?: string | null;
+  /** Histórias de usuário (fluxo `historias`, #115). */
+  historias?: Historia[];
+  /** Tabelas de decisão (fluxo `cenarios`, #117). */
+  tabelas?: TabelaDecisao[];
+  /** Cenários de teste (fluxo `cenarios`, #117). */
+  cenarios?: Cenario[];
+  /** Parecer de revisão (fluxo `revisar`, `cba_core::parecer::Parecer`). */
+  parecer?: Parecer | null;
+}
+
+/** Característica da ISO/IEC/IEEE 29148 violada (`cba_core::qualidade`). */
+export type Caracteristica =
+  | "ambiguidade"
+  | "verificabilidade"
+  | "completude"
+  | "consistencia"
+  | "correcao"
+  | "singularidade";
+export type Severidade = "alta" | "media" | "baixa";
+export type Veredito = "pronta" | "pronta_com_ressalvas" | "precisa_de_retrabalho";
+
+export type Achado = {
+  numero: number;
+  caracteristica: Caracteristica;
+  severidade: Severidade;
+  /** Trecho do texto revisado; vazio só na completude. */
+  trecho: string;
+  problema: string;
+  reescrita?: string | null;
+  /** Regras da base (`RN-FAT-012`). */
+  regras?: string[];
+  evidencias: Evidencia[];
+  registrada_ms: number;
+} & ({ estado: "registrado" } | { estado: "descartado"; motivo?: string | null });
+
+export interface AvaliacaoInvest {
+  criterio: "independente" | "negociavel" | "valiosa" | "estimavel" | "pequena" | "testavel";
+  resultado: "atende" | "atende_em_parte" | "nao_atende";
+  justificativa: string;
+}
+
+export interface Parecer {
+  achados: Achado[];
+  invest?: AvaliacaoInvest[];
+  veredito?: { veredito: Veredito; justificativa: string; registrada_ms: number } | null;
+}
+
+/** O que sustenta um critério (`cba_core::requisito::Fundamento`). */
+export type Fundamento =
+  | { tipo: "afirmacao"; ref: string; texto: string; evidencias?: unknown[] }
+  | { tipo: "regra"; id: string; titulo: string; evidencias?: unknown[] };
+
+export type SituacaoItem = "pendente" | "aceito" | "descartado";
+export type SituacaoHistoria = "pendente" | "aceita" | "descartada" | "quebrada";
+export type LetraInvest =
+  "independente" | "negociavel" | "valiosa" | "estimavel" | "pequena" | "testavel";
+
+export interface Gherkin {
+  dado: string;
+  quando: string;
+  entao: string;
+}
+
+export interface Narrativa {
+  titulo: string;
+  como: string;
+  quero: string;
+  para: string;
+}
+
+/** Critério de aceite (`cba_core::historias::Criterio`), `CA-<numero>`. */
+export interface Criterio extends Gherkin {
+  numero: number;
+  original?: Gherkin | null;
+  fundamentos: Fundamento[];
+  /** Pergunta de que depende (`A-0001/2`): o critério fica "a confirmar". */
+  pergunta?: string | null;
+  situacao: SituacaoItem;
+  registrado_ms: number;
+}
+
+/** História de usuário (`cba_core::historias::Historia`), `HU-NNNN`. */
+export interface Historia extends Narrativa {
+  id: string;
+  original?: Narrativa | null;
+  criterios: Criterio[];
+  invest?: { criterio: LetraInvest; motivo: string }[];
+  quebra?: string | null;
+  fatia_de?: string | null;
+  situacao: SituacaoHistoria;
+  /** O analista pediu a quebra em fatias (texto vazio: sem detalhe). */
+  quebra_pedida?: string | null;
+  registrada_ms: number;
+}
+
+/** Técnica de um cenário de teste (`cba_core::cenarios::Tecnica`). */
+export type Tecnica =
+  | "tabela_de_decisao"
+  | "particao_de_equivalencia"
+  | "valor_limite"
+  | "negativo"
+  | "excecao";
+
+/** Evidência registrada (`cba_core::analise::Evidencia`), como o estado a guarda. */
+export interface EvidenciaRegistrada {
+  arquivo: string;
+  linhas: string;
+  trecho?: string;
+}
+
+/** Tabela de decisão (`cba_core::cenarios::TabelaDecisao`), `TD-<numero>`. */
+export interface TabelaDecisao {
+  numero: number;
+  titulo: string;
+  condicoes: { texto: string; evidencias?: EvidenciaRegistrada[] }[];
+  acoes: string[];
+  colunas: {
+    numero: number;
+    /** Um valor por condição: S, N ou - (indiferente). */
+    valores: ("S" | "N" | "-")[];
+    acoes?: number[];
+    impossivel?: string | null;
+  }[];
+  fundamentos: Fundamento[];
+  situacao: SituacaoItem;
+  registrada_ms: number;
+}
+
+/** Limite lido do código (`cba_core::cenarios::Limite`). */
+export interface LimiteCenario {
+  grandeza: string;
+  valor: string;
+  evidencias: EvidenciaRegistrada[];
+  /** Parâmetro de configuração de onde o valor vem: o cenário fica "a confirmar". */
+  configuracao?: string | null;
+}
+
+/** Cenário de teste (`cba_core::cenarios::Cenario`), `CT-NNNN`. */
+export interface Cenario extends Gherkin {
+  id: string;
+  tecnica: Tecnica;
+  titulo: string;
+  original?: (Gherkin & { titulo: string }) | null;
+  valor?: string | null;
+  limite?: LimiteCenario | null;
+  /** Coluna da tabela de decisão que o cenário exercita. */
+  coluna?: { tabela: number; coluna: number } | null;
+  /** História que o cenário verifica (`HU-0001`). */
+  historia?: string | null;
+  fundamentos: Fundamento[];
+  pergunta?: string | null;
+  situacao: SituacaoItem;
+  registrado_ms: number;
 }
 
 export interface SessaoVista {

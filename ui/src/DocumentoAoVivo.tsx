@@ -17,6 +17,8 @@ import {
   AcoesTermo,
   type Revisao,
 } from "./AcoesRevisao";
+import { CenariosAoVivo } from "./CenariosAoVivo";
+import { HistoriasAoVivo } from "./HistoriasAoVivo";
 import { TextoAfirmacao } from "./TextoAfirmacao";
 import { Icon } from "./shell/icons";
 
@@ -48,6 +50,7 @@ const SECOES_CONHECIDAS: [string, string][] = [
   ["resposta", "Resposta"],
   ["regras_encontradas", "Regras encontradas"],
   ["exemplo", "Exemplo"],
+  ["contexto_no_codigo", "O que a base e o código dizem"],
 ];
 const TITULO_SECAO = Object.fromEntries(SECOES_CONHECIDAS) as Record<string, string>;
 const ORDEM_SECAO = new Map(SECOES_CONHECIDAS.map(([s], i) => [s, i]));
@@ -139,6 +142,9 @@ export function DocumentoAoVivo({
   semCabecalho = false,
 }: Props) {
   const { analise } = vista;
+  const deCenarios = analise.fluxo === "cenarios";
+  // Histórias e cenários têm registros próprios, no lugar das afirmações.
+  const deHistorias = analise.fluxo === "historias" || deCenarios;
   // Aprovada, a revisão fecha: as regras já foram para a base.
   const rev = analise.estado === "aprovada" ? undefined : revisao;
   const secoes = agrupar(analise.afirmacoes);
@@ -186,11 +192,24 @@ export function DocumentoAoVivo({
         </header>
       )}
 
-      <section aria-label="Pergunta">
-        <h3>Pergunta</h3>
-        <blockquote>{analise.entrada}</blockquote>
-      </section>
+      {/* Na revisão, o texto revisado já aparece no parecer, com as marcas. */}
+      {analise.fluxo !== "revisar" && (
+        <section aria-label={deHistorias ? "Pedido" : "Pergunta"}>
+          <h3>{deHistorias ? "Pedido" : "Pergunta"}</h3>
+          <blockquote>{analise.entrada}</blockquote>
+        </section>
+      )}
 
+      {deCenarios ? (
+        <CenariosAoVivo
+          tabelas={analise.tabelas ?? []}
+          cenarios={analise.cenarios ?? []}
+          origem={analise.origem}
+          revisao={rev}
+        />
+      ) : deHistorias ? (
+        <HistoriasAoVivo historias={analise.historias ?? []} origem={analise.origem} revisao={rev} />
+      ) : (
       <section aria-label="Afirmações">
         <h3>Afirmações</h3>
         {secoes.length === 0 && <p className="muted">Nenhuma afirmação registrada ainda.</p>}
@@ -270,6 +289,7 @@ export function DocumentoAoVivo({
           </div>
         ))}
       </section>
+      )}
 
       <section aria-label="Perguntas em aberto">
         <h3>Perguntas</h3>
@@ -289,6 +309,7 @@ export function DocumentoAoVivo({
         {rev && <EnviarRespostas perguntas={perguntas} revisao={rev} />}
       </section>
 
+      {!deHistorias && (
       <section aria-label="Sugestões de alteração">
         <h3>Sugestões de alteração</h3>
         {sugestoes.length === 0 ? (
@@ -334,6 +355,7 @@ export function DocumentoAoVivo({
           </ol>
         )}
       </section>
+      )}
 
       {analise.termos.length > 0 && (
         <section aria-label="Termos propostos para o glossário">

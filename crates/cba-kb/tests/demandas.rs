@@ -63,6 +63,7 @@ fn analise(id: &str, demanda: Option<IdDemanda>) -> Documento<FrontmatterAnalise
             base: None,
             criado: data(2),
             analista: None,
+            origem: None,
         },
         format!("\n# Análise {id}\n"),
     )
