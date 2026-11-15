@@ -128,6 +128,56 @@ describe("AtaAoVivo", () => {
     expect(screen.queryByRole("button", { name: "Confirmar os participantes" })).toBeNull();
     expect(screen.queryByLabelText(/Papel de/)).toBeNull();
   });
+
+  it("falas de origem dos itens vêm recolhidas, com o aviso de não confere à vista", async () => {
+    const item = {
+      ...DECISAO,
+      citacoes: [
+        ...DECISAO.citacoes,
+        { falante: "João Pereira", inicio: "00:02:00", trecho: "fala alterada", status: "não confere" },
+      ],
+    };
+    const api = apiReuniaoFalsa(ataFicticia({ itens: [item] }));
+    render(
+      <AtaAoVivo
+        api={api}
+        vigiar={() => Promise.resolve(() => undefined)}
+        projeto="faturamento-exemplo"
+        reuniao="R-0001"
+      />,
+    );
+    const li = await screen.findByTestId("item-D-1");
+    const bloco = li.querySelector("details")!;
+    expect(bloco.open).toBe(false);
+    const resumo = within(li).getByText(/Ver as 2 falas de origem/);
+    expect(resumo).toHaveTextContent("· 1 não confere");
+    fireEvent.click(resumo);
+    expect(bloco.open).toBe(true);
+    expect(within(li).getByRole("list", { name: "Falas de origem" })).toHaveTextContent(
+      "00:01:40 Silva, Maria: “vamos levar a trava para o banco” (conferida)",
+    );
+  });
+
+  it("mostra o resumo com os parágrafos e a formatação do Markdown", async () => {
+    const api = apiReuniaoFalsa(
+      ataFicticia({ resumo: "Primeiro parágrafo.\n\nSegundo com **destaque**.\n\n<b>cru</b>" }),
+    );
+    render(
+      <AtaAoVivo
+        api={api}
+        vigiar={() => Promise.resolve(() => undefined)}
+        projeto="faturamento-exemplo"
+        reuniao="R-0001"
+      />,
+    );
+    const resumo = await screen.findByRole("region", { name: "Resumo" });
+    const paragrafos = resumo.querySelectorAll("p");
+    expect(paragrafos).toHaveLength(3);
+    expect(paragrafos[0]).toHaveTextContent("Primeiro parágrafo.");
+    expect(within(resumo).getByText("destaque").tagName).toBe("STRONG");
+    // HTML do texto do agente vira texto, não marcação.
+    expect(resumo.querySelector("b")).toBeNull();
+  });
 });
 
 describe("montarConfirmacoes", () => {

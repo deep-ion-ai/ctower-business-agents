@@ -1,4 +1,6 @@
+import Markdown from "markdown-to-jsx";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { OPCOES_MARKDOWN_BASE } from "./markdownOpcoes";
 import { mensagemDe, type AnaliseCriada, type AvisoAnalise } from "./analise";
 import { ROTULO_STATUS_ATA } from "./demandas";
 import { AvisoTranscriptGuardado } from "./PainelDemanda";
@@ -136,13 +138,13 @@ export function AtaAoVivo({
       {ata.objetivo && (
         <section aria-label="Objetivo">
           <h3>Objetivo</h3>
-          <p>{ata.objetivo}</p>
+          <Markdown options={OPCOES_MARKDOWN_BASE}>{ata.objetivo}</Markdown>
         </section>
       )}
       {ata.resumo && (
         <section aria-label="Resumo">
           <h3>Resumo</h3>
-          <p>{ata.resumo}</p>
+          <Markdown options={OPCOES_MARKDOWN_BASE}>{ata.resumo}</Markdown>
         </section>
       )}
 
@@ -216,17 +218,26 @@ export function AtaAoVivo({
 
 function Citacoes({ citacoes }: { citacoes: CitacaoVista[] }) {
   if (citacoes.length === 0) return null;
+  const naoConferem = citacoes.filter((c) => c.status === "não confere").length;
+  // Recolhidas por padrão: o analista abre só quando quer ler a fala de origem.
+  // A contagem de "não confere" fica no resumo para o aviso não sumir junto.
   return (
-    <ul className="citacoes-fala" aria-label="Falas de origem">
-      {citacoes.map((c, n) => (
-        <li key={n}>
-          <span className="mono">{c.inicio}</span> {c.falante}: “{c.trecho}”{" "}
-          <span className="muted" data-tone={c.status === "não confere" ? "attention" : undefined}>
-            ({c.status})
-          </span>
-        </li>
-      ))}
-    </ul>
+    <details className="citacoes-fala-bloco">
+      <summary className="muted">
+        {citacoes.length === 1 ? "Ver a fala de origem" : `Ver as ${citacoes.length} falas de origem`}
+        {naoConferem > 0 && <span data-tone="attention"> · {naoConferem} não confere</span>}
+      </summary>
+      <ul className="citacoes-fala" aria-label="Falas de origem">
+        {citacoes.map((c, n) => (
+          <li key={n}>
+            <span className="mono">{c.inicio}</span> {c.falante}: “{c.trecho}”{" "}
+            <span className="muted" data-tone={c.status === "não confere" ? "attention" : undefined}>
+              ({c.status})
+            </span>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
 
