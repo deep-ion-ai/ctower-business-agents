@@ -1,10 +1,15 @@
 //! Prompts prontos da tela da análise (spec, seção 8): aprofundar, resumir para o
-//! solicitante, gerar critérios de aceite, conferir evidências e retomar; na
+//! solicitante, gerar histórias e critérios, gerar cenários de teste, conferir
+//! evidências e retomar; na
 //! análise de reunião (#140), resumir para o cliente e listar dúvidas para enviar.
 //!
 //! Cada prompt vale para alguns fluxos ([`Fluxos`]): os de resumo para o
-//! solicitante e de critérios de aceite são das análises do código; os de resumo
-//! para o cliente e de dúvidas, da análise de reunião.
+//! solicitante e de gerar histórias são das análises do código; os de resumo para
+//! o cliente e de dúvidas, da análise de reunião. A análise de histórias (#115)
+//! não tem afirmações: fica com gerar cenários e retomar; a de cenários (#117), só
+//! com retomar. "Gerar histórias e critérios" abre o fluxo `historias` a partir da
+//! análise (substituiu o "Gerar critérios de aceite", que só escrevia no chat), e
+//! "Gerar cenários de teste" abre o fluxo `cenarios`.
 //!
 //! Cada um é um pedido curto com variáveis da análise (`{{id}}`, `{{titulo}}`,
 //! `{{fluxo}}`, `{{documento}}`), que o app envia ao cliente de IA como se o
@@ -65,8 +70,13 @@ pub struct PromptPronto {
 pub(crate) enum Fluxos {
     /// Todos.
     Todos,
+    /// Os que têm afirmações com evidências: todos menos os de histórias e de
+    /// cenários.
+    ComAfirmacoes,
     /// As análises do código: perguntar, explicar e impacto.
     DoCodigo,
+    /// As análises do código e a de histórias: as origens dos cenários de teste.
+    OrigemDeCenarios,
     /// Só a análise de reunião.
     Reuniao,
 }
@@ -75,7 +85,12 @@ impl Fluxos {
     fn inclui(self, fluxo: Fluxo) -> bool {
         match self {
             Self::Todos => true,
-            Self::DoCodigo => fluxo != Fluxo::Reuniao,
+            Self::ComAfirmacoes => !matches!(fluxo, Fluxo::Historias | Fluxo::Cenarios),
+            Self::DoCodigo => matches!(fluxo, Fluxo::Perguntar | Fluxo::Explicar | Fluxo::Impacto),
+            Self::OrigemDeCenarios => matches!(
+                fluxo,
+                Fluxo::Perguntar | Fluxo::Explicar | Fluxo::Impacto | Fluxo::Historias
+            ),
             Self::Reuniao => fluxo == Fluxo::Reuniao,
         }
     }
@@ -94,14 +109,14 @@ pub(crate) struct Definicao {
     fluxos: Fluxos,
 }
 
-pub(crate) const DEFINICOES: [Definicao; 7] = [
+pub(crate) const DEFINICOES: [Definicao; 8] = [
     Definicao {
         id: "aprofundar",
         rotulo: "Aprofundar",
         descricao: "Pede ao agente que busque evidência para o que você marcou para aprofundar e para o que ainda é inferido ou a confirmar.",
         texto: include_str!("../textos/prompts/aprofundar.md"),
         registra: true,
-        fluxos: Fluxos::Todos,
+        fluxos: Fluxos::ComAfirmacoes,
     },
     Definicao {
         id: "resumir",
@@ -128,12 +143,22 @@ pub(crate) const DEFINICOES: [Definicao; 7] = [
         fluxos: Fluxos::Reuniao,
     },
     Definicao {
-        id: "criterios-de-aceite",
-        rotulo: "Gerar critérios de aceite",
-        descricao: "Pede critérios de aceite (Dado / Quando / Então) com exemplos com números, a partir do que foi registrado.",
-        texto: include_str!("../textos/prompts/criterios-de-aceite.md"),
+        id: "gerar-historias",
+        rotulo: "Gerar histórias e critérios",
+        descricao: "Abre uma análise de histórias a partir desta: histórias com critérios de aceite (Dado / Quando / Então) com valores, cada critério ligado às afirmações e às regras, para revisar e aprovar no app.",
+        texto: include_str!("../textos/prompts/gerar-historias.md"),
+        // Registra numa análise nova, não nesta: vale também na aprovada.
         registra: false,
         fluxos: Fluxos::DoCodigo,
+    },
+    Definicao {
+        id: "gerar-cenarios",
+        rotulo: "Gerar cenários de teste",
+        descricao: "Abre uma análise de cenários a partir desta: tabela de decisão, partição de equivalência e valores-limite lidos do código, cada cenário ligado à regra e à evidência do limite, com exportação em CSV.",
+        texto: include_str!("../textos/prompts/gerar-cenarios.md"),
+        // Registra numa análise nova, não nesta: vale também na aprovada.
+        registra: false,
+        fluxos: Fluxos::OrigemDeCenarios,
     },
     Definicao {
         id: "conferir-evidencias",
@@ -141,7 +166,7 @@ pub(crate) const DEFINICOES: [Definicao; 7] = [
         descricao: "Pede ao agente que releia no código atual cada trecho citado e diga o que confere e o que não se sustenta.",
         texto: include_str!("../textos/prompts/conferir-evidencias.md"),
         registra: true,
-        fluxos: Fluxos::Todos,
+        fluxos: Fluxos::ComAfirmacoes,
     },
     Definicao {
         id: "retomar",
@@ -208,7 +233,7 @@ impl Prompts {
 
     /// Os prompts da análise, com as variáveis preenchidas: só os do fluxo dela.
     /// `documento` é o caminho do documento relativo à base. Numa análise
-    /// aprovada, só os que não registram nada (os resumos, os critérios de aceite,
+    /// aprovada, só os que não registram nada (os resumos, gerar histórias e cenários,
     /// as dúvidas e retomar).
     pub fn para(&self, analise: &Analise, documento: &str) -> (Vec<PromptPronto>, Vec<Aviso>) {
         let valor = |nome: &str| -> Option<String> {
@@ -332,7 +357,8 @@ mod tests {
             [
                 "aprofundar",
                 "resumir",
-                "criterios-de-aceite",
+                "gerar-historias",
+                "gerar-cenarios",
                 "conferir-evidencias",
                 "retomar"
             ]
@@ -344,7 +370,7 @@ mod tests {
             assert!(!p.rotulo.is_empty() && !p.descricao.is_empty());
             assert!(arquivo_do_prompt(&p.id).is_some());
         }
-        assert_eq!(prontos[4].texto, "Retome a análise A-0007 pelo ctower.");
+        assert_eq!(prontos[5].texto, "Retome a análise A-0007 pelo ctower.");
         assert!(
             prontos[1]
                 .texto
@@ -360,7 +386,10 @@ mod tests {
         a.estado = EstadoAnalise::Aprovada;
         let (prontos, _) = Prompts::padrao().para(&a, "x.md");
         let ids: Vec<&str> = prontos.iter().map(|p| p.id.as_str()).collect();
-        assert_eq!(ids, ["resumir", "criterios-de-aceite", "retomar"]);
+        assert_eq!(
+            ids,
+            ["resumir", "gerar-historias", "gerar-cenarios", "retomar"]
+        );
 
         let mut r = reuniao();
         r.estado = EstadoAnalise::Aprovada;
@@ -395,7 +424,8 @@ mod tests {
                 [
                     "aprofundar",
                     "resumir",
-                    "criterios-de-aceite",
+                    "gerar-historias",
+                    "gerar-cenarios",
                     "conferir-evidencias",
                     "retomar"
                 ],
@@ -414,6 +444,37 @@ mod tests {
                 "retomar"
             ]
         );
+        // A análise de histórias não tem afirmações: gera cenários e retoma; a de
+        // cenários só retoma.
+        let mut historias = analise();
+        historias.fluxo = Fluxo::Historias;
+        assert_eq!(ids(&historias), ["gerar-cenarios", "retomar"]);
+        historias.fluxo = Fluxo::Cenarios;
+        assert_eq!(ids(&historias), ["retomar"]);
+    }
+
+    #[test]
+    fn gerar_cenarios_abre_o_fluxo_a_partir_da_analise() {
+        let (prontos, _) = Prompts::padrao().para(&analise(), "x.md");
+        let p = prontos.iter().find(|p| p.id == "gerar-cenarios").unwrap();
+        assert!(
+            p.texto.contains("fluxo \"cenarios\" e origem \"A-0007\""),
+            "{}",
+            p.texto
+        );
+        assert!(p.texto.contains("registrar_cenario"), "{}", p.texto);
+    }
+
+    #[test]
+    fn gerar_historias_abre_o_fluxo_a_partir_da_analise() {
+        let (prontos, _) = Prompts::padrao().para(&analise(), "x.md");
+        let p = prontos.iter().find(|p| p.id == "gerar-historias").unwrap();
+        assert!(
+            p.texto.contains("fluxo \"historias\" e origem \"A-0007\""),
+            "{}",
+            p.texto
+        );
+        assert!(p.texto.contains("registrar_historia"), "{}", p.texto);
     }
 
     /// O texto do prompt, sem o comentário inicial, numa linha só.

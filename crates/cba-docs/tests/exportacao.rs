@@ -20,13 +20,15 @@ use cba_docs::{
 use quick_xml::Reader;
 use quick_xml::events::Event;
 
-const DOCUMENTOS: [&str; 10] = [
+const DOCUMENTOS: [&str; 12] = [
     "ata",
     "analise-impacto",
     "analise-impacto-vazia",
     "caso-de-uso",
+    "cenarios-teste",
     "funcionalidade",
     "funcionalidade-de-analise",
+    "historias",
     "pergunta",
     "regra",
     "sugestao",

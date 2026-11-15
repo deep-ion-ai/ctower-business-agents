@@ -77,6 +77,8 @@ pub fn rodar() {
             alteracoes::mudar_protecao_projeto,
             inicio::inicio_app,
             inicio::criar_analise_fluxo,
+            inicio::criar_analise_de_historias_app,
+            inicio::criar_analise_de_cenarios_app,
             projeto::visao_projeto_app,
             projeto::revalidar_projeto_app,
             projeto::mapa_projeto_app,

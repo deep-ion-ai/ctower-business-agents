@@ -93,6 +93,20 @@ pub fn afirmar() -> Ferramenta {
             let analise = ambiente.analises.carregar(&id)?;
             let secao = args.secao.trim();
             let secoes = secoes_de_afirmacao(analise.fluxo);
+            if analise.fluxo == cba_core::analise::Fluxo::Historias {
+                return Err(ErroFerramenta::Recusa(format!(
+                    "a análise {id} é de histórias e não recebe afirmações: registre as \
+                     histórias com `registrar_historia` e os critérios com \
+                     `registrar_criterio`, citando as afirmações da análise de origem"
+                )));
+            }
+            if analise.fluxo == cba_core::analise::Fluxo::Cenarios {
+                return Err(ErroFerramenta::Recusa(format!(
+                    "a análise {id} é de cenários de teste e não recebe afirmações: registre \
+                     as tabelas de decisão com `registrar_tabela_decisao` e os cenários com \
+                     `registrar_cenario`, citando as regras e as afirmações de origem"
+                )));
+            }
             if !secoes.contains(&secao) {
                 let dica = match secao {
                     "perguntas" => " Para perguntas ao solicitante, use `perguntar`.",
