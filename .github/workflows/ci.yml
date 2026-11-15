@@ -16,37 +16,60 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Decide se os jobs dos instaladores rodam. Em PRs para develop ou main, em push
-  # e em execução manual, sempre. Em PRs para outras bases (as wip/**), só quando o
-  # PR mexe em packaging/** ou neste workflow.
+  # Decide quais jobs rodam, um output por área, em qualquer PR (inclusive para
+  # develop e main). Push em develop ou main e execução manual rodam tudo, e um PR
+  # que mexe em .github/workflows/** também. O diff é contra a base do PR, sem ação
+  # de terceiros:
+  #   rust       crates/, ui/ (o cba-app embute ui/dist), fixtures/, Cargo.toml,
+  #              Cargo.lock, rust-toolchain.toml
+  #   ui         ui/
+  #   politicas  crates/, ui/, fixtures/, scripts/, Cargo.*, rust-toolchain.toml e os
+  #              arquivos de versão (release-please-config.json e o manifest)
+  #   instaladores  packaging/
+  # PR só de docs/, *.md da raiz, LICENSE e afins não roda nenhum deles; `titulo`,
+  # CLA e `ci-ok` continuam.
   mudancas:
     runs-on: ubuntu-latest
     outputs:
+      rust: ${{ steps.filtro.outputs.rust }}
+      ui: ${{ steps.filtro.outputs.ui }}
+      politicas: ${{ steps.filtro.outputs.politicas }}
       instaladores: ${{ steps.filtro.outputs.instaladores }}
     steps:
       # Em PR o checkout traz o merge commit de teste; o primeiro pai é a base.
       - uses: actions/checkout@v7
-        if: github.event_name == 'pull_request' && github.base_ref != 'develop' && github.base_ref != 'main'
+        if: github.event_name == 'pull_request'
         with:
           fetch-depth: 2
       - id: filtro
         env:
           EVENTO: ${{ github.event_name }}
-          BASE: ${{ github.base_ref }}
         run: |
-          if [ "$EVENTO" != pull_request ] || [ "$BASE" = develop ] || [ "$BASE" = main ]; then
-            echo "instaladores=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          alterados=$(git diff --name-only HEAD^1 HEAD)
-          printf '%s\n' "$alterados"
-          if printf '%s\n' "$alterados" | grep -Eq '^(packaging/|\.github/workflows/ci\.yml$)'; then
-            echo "instaladores=true" >> "$GITHUB_OUTPUT"
+          if [ "$EVENTO" != pull_request ]; then
+            alterados=
+            tudo=true
           else
-            echo "instaladores=false" >> "$GITHUB_OUTPUT"
+            alterados=$(git diff --name-only HEAD^1 HEAD)
+            printf '%s\n' "$alterados"
+            tudo=false
+            if printf '%s\n' "$alterados" | grep -Eq '^\.github/workflows/'; then tudo=true; fi
           fi
+          # area NOME REGEX: true se roda tudo ou algum arquivo alterado casa.
+          area() {
+            if [ "$tudo" = true ] || printf '%s\n' "$alterados" | grep -Eq "$2"; then
+              echo "$1=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "$1=false" >> "$GITHUB_OUTPUT"
+            fi
+          }
+          area rust '^(crates/|ui/|fixtures/|Cargo\.toml$|Cargo\.lock$|rust-toolchain\.toml$)'
+          area ui '^ui/'
+          area politicas '^(crates/|ui/|fixtures/|scripts/|Cargo\.|rust-toolchain\.toml$|release-please-config\.json$|\.release-please-manifest\.json$)'
+          area instaladores '^packaging/'
 
   rust:
+    needs: mudancas
+    if: needs.mudancas.outputs.rust == 'true'
     strategy:
       # Um sistema que falha não cancela os outros.
       fail-fast: false
@@ -87,6 +110,8 @@ jobs:
 
   # Frontend do app: tipos, testes de componentes e build do Vite.
   ui:
+    needs: mudancas
+    if: needs.mudancas.outputs.ui == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -105,6 +130,8 @@ jobs:
 
   # Regras do repositório que não dependem do sistema operacional.
   politicas:
+    needs: mudancas
+    if: needs.mudancas.outputs.politicas == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -167,7 +194,7 @@ jobs:
         run: pwsh -NoProfile -File packaging/tests/test-install.ps1 -Shell pwsh
 
   # Check obrigatório da develop e da main. Sempre roda e falha só se algum job
-  # falhou ou foi cancelado; job pulado (os instaladores numa wip) conta como sucesso.
+  # falhou ou foi cancelado; job pulado (área que o PR não tocou) conta como sucesso.
   ci-ok:
     if: always()
     needs: [mudancas, rust, ui, politicas, instalador-sh, instalador-ps1]
