@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import { mensagemDe, type SituacaoProtecao } from "./analise";
-import { AssistenteProjeto } from "./AssistenteProjeto";
 import { ResumoDoInventario } from "./ResumoDoInventario";
 import {
   ESTADO_DO_TEXTO,
@@ -19,6 +18,7 @@ import { EditorTexto } from "./EditorTexto";
 import { EscolhaBase } from "./EscolhaBase";
 import { EscolhaCliente } from "./EscolhaCliente";
 import { FormRepositorios } from "./FormRepositorios";
+import { ModalNovoProjeto } from "./ModalNovoProjeto";
 import { ProntidaoRepositorios } from "./ProntidaoRepositorios";
 import { validarRepositorios, type Repositorios } from "./repositorios";
 import { SecaoClones } from "./SecaoClones";
@@ -37,7 +37,7 @@ const CLIENTE = {
  * (pastas, exclusões, ambiente do Claude, proteção contra edição, regras do projeto,
  * descadastro) e os textos editáveis da base (templates, roteiros e prompts). Monta
  * os passos do primeiro uso ({@link EscolhaCliente}, {@link EscolhaBase},
- * {@link AssistenteProjeto}, {@link AmbienteDoProjeto}) com o que só as configurações
+ * {@link ModalNovoProjeto}, {@link AmbienteDoProjeto}) com o que só as configurações
  * fazem: mover ou reapontar a base, desfazer o ambiente e descadastrar.
  */
 export function TelaConfiguracoes({
@@ -504,22 +504,22 @@ function SecaoProjetos({
           aoEditar={aoEditar}
         />
       ))}
-      {cfg.base &&
-        (cadastrando ? (
-          <AssistenteProjeto
-            api={api}
-            aoConcluir={() => {
-              // O cartão do projeto novo mostra o preparo do ambiente do Claude.
-              setCadastrando(false);
-              aoMudar();
-            }}
-            aoCancelar={() => setCadastrando(false)}
-          />
-        ) : (
-          <button className="btn" type="button" onClick={() => setCadastrando(true)}>
-            Cadastrar outro projeto
-          </button>
-        ))}
+      {cfg.base && (
+        <button className="btn" type="button" onClick={() => setCadastrando(true)}>
+          + Novo projeto
+        </button>
+      )}
+      {cadastrando && (
+        <ModalNovoProjeto
+          api={api}
+          aoFechar={() => setCadastrando(false)}
+          aoConcluir={() => {
+            // O cartão do projeto novo mostra o preparo do ambiente do Claude.
+            setCadastrando(false);
+            aoMudar();
+          }}
+        />
+      )}
     </section>
   );
 }
