@@ -118,6 +118,22 @@ describe("TelaInicio", () => {
     expect(api.criarAnalise).not.toHaveBeenCalled();
   });
 
+  it("revisa um requisito pela chave no rastreador ou pelo texto colado", async () => {
+    const { api } = montar();
+    fireEvent.click(await screen.findByRole("button", { name: "Revisar requisito" }));
+    const form = await screen.findByRole("form", { name: "Revisar requisito" });
+    const iniciar = within(form).getByRole("button", { name: "Iniciar a análise" });
+    fireEvent.change(within(form).getByLabelText(/Chave no rastreador/), {
+      target: { value: "PROJ-482" },
+    });
+    await waitFor(() => expect(iniciar).toBeEnabled());
+    fireEvent.click(iniciar);
+    await waitFor(() =>
+      expect(api.criarAnaliseDeDemanda).toHaveBeenCalledWith(PROJETO, "revisar", "PROJ-482"),
+    );
+    expect(within(form).getByLabelText(/Requisito ou história a revisar/)).toBeInTheDocument();
+  });
+
   it("pede o preparo do ambiente antes de criar a análise", async () => {
     const falsa = apiConhecimentoFalsa();
     falsa.api.verificarAmbiente.mockResolvedValueOnce({

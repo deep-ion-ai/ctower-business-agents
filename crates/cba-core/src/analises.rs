@@ -110,6 +110,21 @@ impl Analises {
         nova: NovaAnalise,
         demanda: Option<Demanda>,
     ) -> Result<Analise, Erro> {
+        self.criar_derivada(nova, demanda, None)
+    }
+
+    /// Como [`Analises::criar_com_demanda`], com a análise de origem (`origem` no
+    /// frontmatter e no estado): a análise de histórias (#115) é derivada de uma
+    /// análise de impacto. A origem precisa existir neste projeto.
+    pub fn criar_derivada(
+        &self,
+        nova: NovaAnalise,
+        demanda: Option<Demanda>,
+        origem: Option<Id>,
+    ) -> Result<Analise, Erro> {
+        if let Some(o) = &origem {
+            self.carregar(o)?;
+        }
         if nova.titulo.trim().is_empty() {
             return Err(ErroModelo::CampoVazio("titulo").into());
         }
@@ -135,11 +150,12 @@ impl Analises {
                     base: nova.base.clone(),
                     criado: tempo::data_utc(agora),
                     analista: nova.analista.clone(),
+                    origem: origem.clone(),
                 },
                 format!("# {titulo}\n"),
             )
         })?;
-        let analise = Analise::nova(
+        let mut analise = Analise::nova(
             id,
             self.kb.nome(),
             nova.fluxo,
@@ -147,6 +163,7 @@ impl Analises {
             nova.entrada.trim(),
             agora,
         );
+        analise.origem = origem;
         {
             let _trava = self.travar()?;
             self.gravar_estado(&analise, true)?;
@@ -227,6 +244,33 @@ impl Analises {
         };
         self.notificar(&analise.1, mudanca);
         Ok(analise)
+    }
+
+    /// Maior número de uma série de itens numerada por projeto entre as análises
+    /// gravadas, menos `exceto`: as histórias (`HU-NNNN`, com
+    /// [`Analise::maior_historia`]) e, depois, os cenários de teste. O próximo
+    /// número é o maior entre este e o da análise que está sendo alterada, mais 1.
+    ///
+    /// Chame dentro de [`Analises::alterar`] (ou [`Analises::alterar_e`]): todas as
+    /// análises do projeto gravam sob a mesma trava, então duas sessões que
+    /// registram ao mesmo tempo em análises diferentes não pegam o mesmo número.
+    /// Estados ilegíveis ficam de fora (como em [`Analises::listar`]).
+    pub fn maior_numero(&self, exceto: &Id, numero: impl Fn(&Analise) -> u32) -> u32 {
+        match self.listar() {
+            Ok(analises) => analises
+                .iter()
+                .filter(|a| &a.id != exceto)
+                .map(numero)
+                .max()
+                .unwrap_or(0),
+            Err(e) => {
+                tracing::warn!(
+                    erro = tipo_do_erro(&e),
+                    "análises não listadas para numerar"
+                );
+                0
+            }
+        }
     }
 
     /// Todas as análises do projeto, em ordem de identificador. Estados ilegíveis

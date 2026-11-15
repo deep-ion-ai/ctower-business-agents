@@ -9,6 +9,10 @@
 //!   sugestão) e as transições de estado.
 //! - [`analises`]: persistência na base, com trava entre processos e notificação ao
 //!   app ([`eventos`]).
+//! - [`parecer`]: parecer de revisão de um requisito ou história (fluxo
+//!   `revisar`): achados, verificação INVEST e veredito.
+//! - [`qualidade`]: critérios de qualidade de requisitos (características da
+//!   ISO/IEC/IEEE 29148, INVEST e a lista de referência de termos vagos).
 //! - [`ambiente`]: identificação do projeto pelo diretório de trabalho do processo.
 //! - [`config`], [`dados`] e [`log`]: configuração, diretório de dados e log.
 //!
@@ -18,10 +22,15 @@
 pub mod ambiente;
 pub mod analise;
 pub mod analises;
+pub mod cenarios;
 pub mod config;
 pub mod dados;
 pub mod eventos;
+pub mod historias;
 pub mod log;
+pub mod parecer;
+pub mod qualidade;
+pub mod requisito;
 pub mod tempo;
 
 /// Nome da crate, para diagnóstico.
