@@ -292,7 +292,8 @@ impl Projeto {
 
     /// Documentos Markdown do projeto (recursivo), em ordem, relativos à raiz do
     /// projeto. Ignora arquivos e pastas que começam com `.` (temporários da
-    /// gravação atômica, `.git`).
+    /// gravação atômica, `.git`) e as memórias das análises
+    /// ([`layout::SUFIXO_MEMORIA_DA_ANALISE`]), que são texto de trabalho do agente.
     pub fn documentos(&self) -> Resultado<Vec<CaminhoRelativo>> {
         let mut saida = Vec::new();
         let mut pendentes = vec![self.raiz()];
@@ -322,6 +323,7 @@ impl Projeto {
                 if tipo.is_dir() {
                     pendentes.push(caminho);
                 } else if caminho.extension().is_some_and(|e| e == layout::EXTENSAO)
+                    && !layout::e_memoria_da_analise(&entrada.file_name().to_string_lossy())
                     && let Some(rel) = relativo(&caminho)
                 {
                     saida.push(rel);

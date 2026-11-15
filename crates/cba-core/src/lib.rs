@@ -9,6 +9,8 @@
 //!   sugestão) e as transições de estado.
 //! - [`analises`]: persistência na base, com trava entre processos e notificação ao
 //!   app ([`eventos`]).
+//! - [`memoria`]: a memória de trabalho do agente em cada análise, que a retomada
+//!   devolve (#143).
 //! - [`parecer`]: parecer de revisão de um requisito ou história (fluxo
 //!   `revisar`): achados, verificação INVEST e veredito.
 //! - [`qualidade`]: critérios de qualidade de requisitos (características da
@@ -28,6 +30,7 @@ pub mod dados;
 pub mod eventos;
 pub mod historias;
 pub mod log;
+pub mod memoria;
 pub mod parecer;
 pub mod qualidade;
 pub mod requisito;

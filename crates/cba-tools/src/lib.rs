@@ -10,7 +10,8 @@
 //! - [`registro_padrao`]: as ferramentas que o produto expõe, cada uma no seu
 //!   módulo: [`analises`] (`listar_analises`), [`ciclo`] (`iniciar_analise`,
 //!   `retomar_analise` e `concluir_analise`), [`afirmar`], [`perguntar`],
-//!   [`sugestao`] (`registrar_sugestao`), [`termo`] (`propor_termo`) e
+//!   [`sugestao`] (`registrar_sugestao`), [`termo`] (`propor_termo`),
+//!   [`memoria`] (`memorizar`, a memória de trabalho que a retomada devolve),
 //!   [`reuniao`] (`ler_transcript`, `propor_papel`, `registrar_item_ata`,
 //!   `registrar_resumo_ata` e `sugerir_demanda`, do fluxo "Analisar reunião"),
 //!   [`parecer`] (`verificar_termos_vagos`, `registrar_achado`, `registrar_invest`
@@ -61,6 +62,7 @@ mod fontes;
 pub mod fundamentos;
 pub mod historias;
 pub mod mapa;
+pub mod memoria;
 mod paginacao;
 pub mod parecer;
 pub mod perguntar;
@@ -98,6 +100,7 @@ pub fn registro_padrao() -> Registro {
         .registrar(perguntar::perguntar())
         .registrar(sugestao::registrar_sugestao())
         .registrar(termo::propor_termo())
+        .registrar(memoria::memorizar())
         .registrar(reuniao::ler_transcript())
         .registrar(reuniao::propor_papel())
         .registrar(reuniao::registrar_item_ata())
@@ -140,6 +143,7 @@ mod tests {
             "perguntar",
             "registrar_sugestao",
             "propor_termo",
+            "memorizar",
             "ler_transcript",
             "propor_papel",
             "registrar_item_ata",
@@ -159,6 +163,7 @@ mod tests {
         }
         // As de registro alteram a análise.
         assert!(!r.obter("afirmar").unwrap().e_somente_leitura());
+        assert!(!r.obter("memorizar").unwrap().e_somente_leitura());
         assert!(!r.obter("registrar_historia").unwrap().e_somente_leitura());
         assert!(!r.obter("registrar_criterio").unwrap().e_somente_leitura());
         assert!(!r.obter("registrar_cenario").unwrap().e_somente_leitura());

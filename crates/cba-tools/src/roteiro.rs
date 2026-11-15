@@ -392,6 +392,14 @@ mod tests {
             for s in secoes_de_afirmacao(fluxo) {
                 assert!(r.contains(&format!("`{s}`")), "{fluxo:?} sem {s}: {r}");
             }
+            // Todo fluxo orienta a memória no próprio roteiro (#143), e não só
+            // pelo lembrete genérico das cópias antigas da base.
+            assert!(
+                r.contains(
+                    "**Mantenha a memória da análise** com `memorizar` (analise: \"A-0003\")"
+                ),
+                "{fluxo:?} sem o passo da memória: {r}"
+            );
         }
     }
 
@@ -431,6 +439,7 @@ mod tests {
             "perguntar",
             "propor_termo",
             "registrar_sugestao",
+            "memorizar",
             "concluir_analise",
         ] {
             assert!(r.contains(&format!("`{ferramenta}`")), "{ferramenta}: {r}");
