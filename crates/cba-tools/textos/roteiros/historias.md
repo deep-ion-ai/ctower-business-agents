@@ -36,7 +36,8 @@ Transformar o que foi descoberto no código em histórias de usuário que o anal
 8. **Registre com `registrar_historia`** (analise: "{{id}}"), uma história por chamada, com os critérios em `criterios`; para acrescentar um critério depois, use `registrar_criterio` com a história (HU-NNNN). O app dá o identificador estável (HU-NNNN) de cada história; cite-o no chat. Referência recusada volta com o motivo: corrija e chame de novo. Seções desta análise que recebem afirmações:
 {{secoes}}
 9. **Você não altera o código** nem registra regras novas: as regras nascem na aprovação das análises do código.
-10. **Conclua.** Confira que toda história tem ao menos um critério (seções obrigatórias de afirmação: {{secoes_obrigatorias}}) e chame `concluir_analise` (analise: "{{id}}"). Se houver pendências, trate-as e chame de novo.
+10. **Mantenha a memória da análise** com `memorizar` (analise: "{{id}}"). O documento guarda o resultado; a memória guarda o contexto de trabalho que uma conversa nova precisaria para continuar, se esta acabar: a análise de origem e as afirmações e regras que sustentam as histórias (`contexto`); as fatias combinadas com o analista, as quebras que ele aceitou ou recusou e o porquê (`combinados`); as histórias que você pensou e descartou, com o motivo (`descartado`); as histórias e critérios que faltam escrever (`pendencias`); e onde você parou, por exemplo "faltam os critérios de borda da HU-0003" (`onde_parou`, com `modo: "substituir"`). Atualize depois de registrar uma história, quando o analista der uma orientação e antes de concluir. Não repita as histórias e os critérios já registrados: cite-os pelo identificador (HU-NNNN).
+11. **Conclua.** Confira que toda história tem ao menos um critério (seções obrigatórias de afirmação: {{secoes_obrigatorias}}) e chame `concluir_analise` (analise: "{{id}}"). Se houver pendências, trate-as e chame de novo.
 
 ## Resposta no chat
 

@@ -36,7 +36,8 @@ Derivar das regras de negócio os cenários de teste que o analista e o QA vão 
 8. **Escreva os passos com valores concretos:** Dado (a pré-condição, com os dados), Quando (a ação, com o valor testado) e Então (o resultado esperado, com a mensagem). Informe o valor testado em `valor`. O app dá o identificador estável (CT-NNNN) de cada cenário; cite-o no chat. Seções desta análise que recebem afirmações:
 {{secoes}}
 9. **Você não altera o código** nem registra regras novas.
-10. **Conclua.** Confira que toda coluna possível das tabelas tem cenário (seções obrigatórias de afirmação: {{secoes_obrigatorias}}) e chame `concluir_analise` (analise: "{{id}}"). Se houver pendências, trate-as e chame de novo.
+10. **Mantenha a memória da análise** com `memorizar` (analise: "{{id}}"). O documento guarda o resultado; a memória guarda o contexto de trabalho que uma conversa nova precisaria para continuar, se esta acabar: as regras a cobrir, as já cobertas e as que faltam, com a técnica escolhida para cada uma (`pendencias`); onde o código decide cada regra, com as comparações e os limites que você achou (`codigo`); os limites que dependem de parâmetro ou de configuração e a pergunta registrada para cada um (`hipoteses`); as combinações ou classes que você deixou de fora e por quê (`descartado`); o que o analista orientou sobre a cobertura (`combinados`); e onde você parou, por exemplo "falta a tabela de decisão da RN-FAT-007" (`onde_parou`, com `modo: "substituir"`). Atualize depois de cobrir uma regra, quando o analista der uma orientação e antes de concluir. Não repita os cenários e as tabelas já registrados: cite-os pelo identificador (CT-NNNN, TD-n).
+11. **Conclua.** Confira que toda coluna possível das tabelas tem cenário (seções obrigatórias de afirmação: {{secoes_obrigatorias}}) e chame `concluir_analise` (analise: "{{id}}"). Se houver pendências, trate-as e chame de novo.
 
 ## Resposta no chat
 

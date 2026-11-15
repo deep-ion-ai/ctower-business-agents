@@ -48,7 +48,8 @@ Dizer ao analista se o requisito ou a história pode ir para o desenvolvimento, 
 {{secoes}}
 8. **Registre o veredito** com `registrar_veredito` (analise: "{{id}}"), depois dos achados: `pronta`, `pronta_com_ressalvas` ou `precisa_de_retrabalho`, com uma justificativa curta. Achado de severidade alta pede retrabalho; os demais, ao menos ressalvas.
 9. **Você não altera o código nem o texto do autor.** Se o analista pedir uma correção no código, explique o que mudaria e registre com `registrar_sugestao`.
-10. **Conclua.** Chame `concluir_analise` (analise: "{{id}}"), que confere o veredito e avisa dos termos vagos sem achado. Seções obrigatórias: {{secoes_obrigatorias}}. Se houver pendências, trate-as e chame de novo.
+10. **Mantenha a memória da análise** com `memorizar` (analise: "{{id}}"). O documento guarda o resultado; a memória guarda o contexto de trabalho que uma conversa nova precisaria para continuar, se esta acabar: as afirmações do texto já conferidas no código e o que se concluiu (`investigado`); as diferenças que você viu e decidiu não apontar como achado, com o motivo (`descartado`); as diferenças que ainda não sabe se são erro do texto ou mudança pedida de propósito (`hipoteses`); onde está o código de cada regra conferida (`codigo`); o que o analista orientou sobre a revisão (`combinados`); e onde você parou, por exemplo "faltam os critérios 3 a 5 e o INVEST" (`onde_parou`, com `modo: "substituir"`). Atualize depois de conferir uma regra, quando o analista der uma orientação e antes de concluir. Não repita os achados, o INVEST e as perguntas já registrados.
+11. **Conclua.** Chame `concluir_analise` (analise: "{{id}}"), que confere o veredito e avisa dos termos vagos sem achado. Seções obrigatórias: {{secoes_obrigatorias}}. Se houver pendências, trate-as e chame de novo.
 
 ## Resposta no chat
 
