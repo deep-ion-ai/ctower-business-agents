@@ -1,0 +1,117 @@
+WEBVTT
+
+6d1f0c2a-8b3e-4f5a-9c7d-2e4b6a8c0d1f/11-0
+00:00:03.120 --> 00:00:13.100
+<v Silva, Maria>Bom dia, pessoal. Obrigada por virem. O assunto de hoje é o cancelamento de fatura no Faturamento Exemplo.</v>
+
+6d1f0c2a-8b3e-4f5a-9c7d-2e4b6a8c0d1f/14-0
+00:00:16.978 --> 00:00:26.798
+<v Silva, Maria>A auditoria interna apontou que faturas antigas estão sendo canceladas sem a aprovação de um supervisor.</v>
+
+6d1f0c2a-8b3e-4f5a-9c7d-2e4b6a8c0d1f/17-0
+00:00:30.650 --> 00:00:39.910
+<v João Pereira>Bom dia. Isso acontece porque a trava dos 30 dias só existe na tela de retaguarda, a tela Delphi.</v>
+
+6d1f0c2a-8b3e-4f5a-9c7d-2e4b6a8c0d1f/20-0
+00:00:43.671 --> 00:00:50.771
+<v João Pereira>Quem cancela pelo processo do banco passa direto, sem checar o perfil.</v>
+
+6d1f0c2a-8b3e-4f5a-9c7d-2e4b6a8c0d1f/23-0
+00:00:54.181 --> 00:01:07.361
+<v Ana Souza>Só para eu registrar direito: hoje a regra é que fatura emitida há mais de 30 dias só pode ser cancelada por usuário com perfil SUPERVISOR, certo?</v>
+
+6d1f0c2a-8b3e-4f5a-9c7d-2e4b6a8c0d1f/26-0
+00:01:11.759 --> 00:01:22.939
+<v João Pereira>Isso. E a regra que já vale em todo lugar é que fatura com pagamento parcial não pode ser cancelada, nem pelo supervisor.</v>
+
+6d1f0c2a-8b3e-4f5a-9c7d-2e4b6a8c0d1f/29-0
+00:01:27.012 --> 00:01:39.392
+<v carlos.lima@exemplo.com>Confirmo. No banco a procedure de cancelamento só confere o status ABERTA, se não há valor pago e o motivo com pelo menos 10 caracteres.</v>
+
+6d1f0c2a-8b3e-4f5a-9c7d-2e4b6a8c0d1f/32-0
+00:01:43.660 --> 00:01:52.760
+<v Silva, Maria>Então a necessidade é clara: a checagem do supervisor precisa valer também fora da tela Delphi.</v>
+
+6d1f0c2a-8b3e-4f5a-9c7d-2e4b6a8c0d1f/35-0
+00:01:56.495 --> 00:02:05.995
+<v Silva, Maria>Também precisamos de um relatório mensal dos cancelamentos por usuário, para a auditoria acompanhar.</v>
+
+6d1f0c2a-8b3e-4f5a-9c7d-2e4b6a8c0d1f/38-0
+00:02:09.795 --> 00:02:15.535
+<v Ana Souza>O relatório precisa mostrar o motivo do cancelamento?</v>
+
+6d1f0c2a-8b3e-4f5a-9c7d-2e4b6a8c0d1f/41-0
+00:02:18.724 --> 00:02:21.264
+<v Silva, Maria>Precisa, sim.</v>
+
+6d1f0c2a-8b3e-4f5a-9c7d-2e4b6a8c0d1f/44-0
+00:02:23.933 --> 00:02:28.793
+<v Silva, Maria>Motivo, data, usuário e o valor da fatura.</v>
+
+6d1f0c2a-8b3e-4f5a-9c7d-2e4b6a8c0d1f/47-0
+00:02:31.839 --> 00:02:40.619
+<v João Pereira>Minha sugestão é colocar a trava no banco, na própria procedure, assim nenhuma tela escapa.</v>
+
+6d1f0c2a-8b3e-4f5a-9c7d-2e4b6a8c0d1f/50-0
+00:02:44.302 --> 00:02:52.842
+<v carlos.lima@exemplo.com>Concordo. Só preciso saber de onde vem o perfil do usuário quando a chamada vem do lote.</v>
+
+6d1f0c2a-8b3e-4f5a-9c7d-2e4b6a8c0d1f/53-0
+00:02:56.486 --> 00:03:02.946
+<v Silva, Maria>Fechado então: a trava dos 30 dias vai para o banco. Decidido.</v>
+
+6d1f0c2a-8b3e-4f5a-9c7d-2e4b6a8c0d1f/56-0
+00:03:06.252 --> 00:03:12.312
+<v Silva, Maria>E o mínimo de 10 caracteres no motivo continua como está.</v>
+
+6d1f0c2a-8b3e-4f5a-9c7d-2e4b6a8c0d1f/59-0
+00:03:15.553 --> 00:03:23.373
+<v Ana Souza>Fica uma dúvida: os 30 dias contam da data de emissão ou da data de vencimento?</v>
+
+6d1f0c2a-8b3e-4f5a-9c7d-2e4b6a8c0d1f/62-0
+00:03:26.900 --> 00:03:33.920
+<v João Pereira>Na tela conta da emissão, mas eu não sei se a auditoria pensou assim.</v>
+
+6d1f0c2a-8b3e-4f5a-9c7d-2e4b6a8c0d1f/65-0
+00:03:37.317 --> 00:03:43.617
+<v Silva, Maria>Eu confirmo com a auditoria e trago a resposta até o dia 25.</v>
+
+6d1f0c2a-8b3e-4f5a-9c7d-2e4b6a8c0d1f/68-0
+00:03:46.897 --> 00:03:55.357
+<v Ana Souza>Outra dúvida: fatura de órgão público precisa de alguma aprovação a mais para cancelar?</v>
+
+6d1f0c2a-8b3e-4f5a-9c7d-2e4b6a8c0d1f/71-0
+00:03:58.988 --> 00:04:03.768
+<v Silva, Maria>Não sei responder agora. Deixa em aberto.</v>
+
+6d1f0c2a-8b3e-4f5a-9c7d-2e4b6a8c0d1f/74-0
+00:04:06.801 --> 00:04:17.021
+<v carlos.lima@exemplo.com>Eu levanto todos os pontos que cancelam fatura hoje, no banco, no backend e no lote, até sexta-feira, dia 20.</v>
+
+6d1f0c2a-8b3e-4f5a-9c7d-2e4b6a8c0d1f/77-0
+00:04:20.938 --> 00:04:30.198
+<v Ana Souza>Eu escrevo a demanda com os critérios de aceite até quarta, dia 18, e mando para a Maria revisar.</v>
+
+6d1f0c2a-8b3e-4f5a-9c7d-2e4b6a8c0d1f/80-0
+00:04:33.959 --> 00:04:41.459
+<v João Pereira>Depois disso dá para pedir a análise de impacto da mudança no cancelamento.</v>
+
+6d1f0c2a-8b3e-4f5a-9c7d-2e4b6a8c0d1f/83-0
+00:04:44.934 --> 00:04:54.274
+<v Silva, Maria>Combinado. Próximos passos: análise de impacto e uma nova conversa no dia 27 para fechar o escopo.</v>
+
+6d1f0c2a-8b3e-4f5a-9c7d-2e4b6a8c0d1f/86-0
+00:04:58.048 --> 00:05:06.908
+<v carlos.lima@exemplo.com>Uma pergunta antes de fechar: o relatório mensal entra nessa mesma demanda ou fica separado?</v>
+
+6d1f0c2a-8b3e-4f5a-9c7d-2e4b6a8c0d1f/89-0
+00:05:10.604 --> 00:05:18.584
+<v Silva, Maria>Fica separado. Primeiro a trava, depois o relatório. Pode registrar como decisão.</v>
+
+6d1f0c2a-8b3e-4f5a-9c7d-2e4b6a8c0d1f/92-0
+00:05:22.137 --> 00:05:29.317
+<v Ana Souza>Registrado. Então são duas demandas, e o relatório vem depois da trava.</v>
+
+6d1f0c2a-8b3e-4f5a-9c7d-2e4b6a8c0d1f/95-0
+00:05:32.740 --> 00:05:35.600
+<v Silva, Maria>Obrigada a todos.</v>

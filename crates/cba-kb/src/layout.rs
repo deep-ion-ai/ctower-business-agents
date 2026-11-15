@@ -25,6 +25,21 @@ pub const AREAS: &str = "areas";
 pub const FUNCIONALIDADES: &str = "funcionalidades";
 pub const ANALISES: &str = "analises";
 pub const SUGESTOES: &str = "sugestoes";
+/// Demandas, uma pasta por demanda (`demandas/D-NNNN-<slug>/`). Criada na
+/// primeira demanda, não em todo projeto.
+pub const DEMANDAS: &str = "demandas";
+/// Documento da demanda, dentro da pasta dela.
+pub const ARQUIVO_DEMANDA: &str = "demanda.md";
+/// Catálogo de pessoas do projeto, um documento por pessoa (`pessoas/<slug>.md`).
+/// Criada na primeira pessoa, não em todo projeto.
+pub const PESSOAS: &str = "pessoas";
+/// Catálogo de papéis das pessoas, editável, em `_templates/`.
+pub const ARQUIVO_PAPEIS: &str = "papeis.yaml";
+/// Atas das reuniões, dentro da pasta da demanda (`reunioes/R-NNNN.md`, com o
+/// estado em `reunioes/R-NNNN.estado.json`).
+pub const REUNIOES: &str = "reunioes";
+/// Sufixo do arquivo de estado de uma ata (`R-NNNN.estado.json`).
+pub const SUFIXO_ESTADO_ATA: &str = ".estado.json";
 
 /// Pastas criadas em todo projeto.
 pub const PASTAS_DO_PROJETO: [&str; 6] = [
@@ -62,6 +77,11 @@ pub fn projeto() -> CaminhoRelativo {
 /// `regras-do-projeto.md`.
 pub fn regras_do_projeto() -> CaminhoRelativo {
     CaminhoRelativo::novo(ARQUIVO_REGRAS_DO_PROJETO).expect("nome fixo válido")
+}
+
+/// `_templates/papeis.yaml`, relativo à raiz da base.
+pub fn papeis() -> CaminhoRelativo {
+    caminho(format!("{TEMPLATES}/{ARQUIVO_PAPEIS}")).expect("nome fixo válido")
 }
 
 /// `glossario/<slug do termo>.md`.
@@ -103,6 +123,7 @@ mod tests {
     fn caminhos_padrao() {
         assert_eq!(projeto().as_str(), "projeto.md");
         assert_eq!(regras_do_projeto().as_str(), "regras-do-projeto.md");
+        assert_eq!(papeis().as_str(), "_templates/papeis.yaml");
         assert_eq!(
             termo("Nota Fiscal").unwrap().as_str(),
             "glossario/nota-fiscal.md"

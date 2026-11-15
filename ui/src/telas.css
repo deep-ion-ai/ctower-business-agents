@@ -102,6 +102,9 @@
 .lista-areas,
 .lista-pastas,
 .lista-arquivos,
+.lista-demandas,
+.lista-itens-ata,
+.linha-do-tempo,
 .resultados-base ul {
   list-style: none;
   padding: 0;
@@ -116,6 +119,9 @@
 .lista-areas > li,
 .lista-pastas > li,
 .lista-arquivos > li,
+.lista-demandas > li,
+.lista-itens-ata > li,
+.linha-do-tempo > li,
 .resultados-base li {
   display: flex;
   flex-wrap: wrap;
@@ -132,6 +138,9 @@
 .lista-areas > li:last-child,
 .lista-pastas > li:last-child,
 .lista-arquivos > li:last-child,
+.lista-demandas > li:last-child,
+.lista-itens-ata > li:last-child,
+.linha-do-tempo > li:last-child,
 .resultados-base li:last-child {
   border-bottom: 0;
 }
@@ -149,6 +158,22 @@
 
 .regra[data-status="obsoleta"] {
   color: var(--muted);
+}
+
+/* Demanda encerrada: fica no fim da lista, apagada. */
+.lista-demandas > li[data-status="encerrada"] {
+  color: var(--muted);
+}
+
+/* Transcript guardado sem a ata aprovada (#136): o prazo de retenção. */
+.aviso-transcript {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.aviso-transcript[data-tone="attention"] {
+  color: var(--attention);
+  font-weight: 600;
 }
 
 .aviso-revalidar {
@@ -1328,4 +1353,290 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
+}
+
+/* Nova reunião e ata ao vivo (#141) */
+.nova-reuniao textarea {
+  width: 100%;
+  font-family: var(--font-mono, monospace);
+}
+
+.nova-reuniao .aceite {
+  flex-direction: row;
+  align-items: center;
+  font-weight: 600;
+}
+
+.aviso-privacidade {
+  border-left: 3px solid var(--attention);
+  padding: 4px 12px;
+}
+
+.aviso-privacidade h4,
+.previa-transcript h4 {
+  margin: 4px 0;
+}
+
+.previa-transcript .falantes,
+.avisos-transcript,
+.citacoes-fala {
+  margin: 4px 0;
+  padding-left: 20px;
+}
+
+.citacoes-fala-bloco {
+  margin: 2px 0 4px;
+}
+
+.citacoes-fala-bloco > summary {
+  cursor: pointer;
+  font-size: 0.9em;
+  width: fit-content;
+}
+
+.avisos-transcript li,
+.citacoes-fala-bloco [data-tone="attention"],
+.citacoes-fala [data-tone="attention"] {
+  color: var(--attention);
+}
+
+.lista-participantes {
+  list-style: none;
+  padding: 0;
+}
+
+.lista-participantes > li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.lista-participantes > li:last-child {
+  border-bottom: 0;
+}
+
+.lista-participantes p {
+  margin: 4px 0;
+}
+
+.confirmacao-participante {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.confirmacao-participante label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.itens-ata > li {
+  margin-bottom: 6px;
+}
+
+/* Parecer de revisão de requisito (#116) */
+.parecer-ao-vivo .requisito-revisado {
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+.parecer-ao-vivo mark {
+  background: none;
+  color: inherit;
+  text-decoration-line: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+.parecer-ao-vivo .marca-ambiguidade {
+  text-decoration-color: var(--attention);
+}
+
+.parecer-ao-vivo .marca-contradicao {
+  text-decoration-color: var(--error);
+}
+
+.parecer-ao-vivo .legenda-marcas {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+}
+
+.parecer-ao-vivo .contagem-achados {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.parecer-ao-vivo ol.achados {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.parecer-ao-vivo .achado {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 10px 14px;
+}
+
+.parecer-ao-vivo .achado[data-caracteristica="correcao"] {
+  border-color: var(--error-border);
+}
+
+/* Histórias e critérios de aceite (#115). */
+.historias-ao-vivo .historia {
+  margin: 12px 0;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.historias-ao-vivo .historia.situacao-descartada,
+.historias-ao-vivo .historia.situacao-quebrada {
+  opacity: 0.6;
+}
+.parecer-ao-vivo .achado-cabecalho,
+.historia-cabecalho,
+.criterio-cabecalho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.parecer-ao-vivo .achado-cabecalho .btn {
+  margin-left: auto;
+}
+
+.parecer-ao-vivo .achado-trecho {
+  font-style: italic;
+}
+
+.parecer-ao-vivo .tabela-invest {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.parecer-ao-vivo .tabela-invest th,
+.parecer-ao-vivo .tabela-invest td {
+  border: 1px solid var(--border);
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.parecer-ao-vivo .tabela-invest tr[data-resultado="nao_atende"] td:nth-child(2) {
+  color: var(--error-soft);
+.invest {
+  display: inline-flex;
+  gap: 4px;
+}
+.invest span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 20px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--mono);
+}
+.invest-ok {
+  background: var(--done-bg);
+  color: var(--done);
+}
+.invest-falha {
+  background: var(--attention-bg);
+  color: var(--attention);
+}
+.historias-ao-vivo .criterios {
+  padding-left: 0;
+  list-style: none;
+}
+.historias-ao-vivo .criterio {
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+.historias-ao-vivo .criterio.situacao-descartado .gherkin {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+.gherkin {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 10px;
+  margin: 6px 0;
+}
+.gherkin dt {
+  font-weight: 600;
+  color: var(--epic);
+}
+.gherkin dd {
+  margin: 0;
+}
+.origens .chip {
+  margin-right: 6px;
+  padding: 0 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  color: var(--link);
+  font-size: 12px;
+}
+.form-historia,
+.form-criterio,
+.form-quebra {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+/* Cenários de teste (#117). */
+.cenarios-ao-vivo .tabela-decisao {
+  margin: 12px 0;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.cenarios-ao-vivo .tabela-decisao.situacao-descartado {
+  opacity: 0.6;
+}
+.cenarios-ao-vivo .tabela-rolagem {
+  overflow-x: auto;
+}
+.cenarios-ao-vivo table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 8px 0;
+}
+.cenarios-ao-vivo th,
+.cenarios-ao-vivo td {
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+.cenarios-ao-vivo td {
+  text-align: center;
+}
+.cenarios-ao-vivo .valores-limite td {
+  text-align: left;
+}
+.cenarios-ao-vivo .evidencia-condicao {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+}
+.cenarios-ao-vivo .limite {
+  font-family: var(--mono);
+  color: var(--attention);
+}
+.cenarios-ao-vivo .criterio.situacao-descartado .gherkin {
+  text-decoration: line-through;
+  color: var(--muted);
 }

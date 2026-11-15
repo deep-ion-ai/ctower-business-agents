@@ -11,10 +11,11 @@ publish = false
 cba-kb.workspace = true
 pulldown-cmark = { version = "0.13", default-features = false }
 serde.workspace = true
+serde_json.workspace = true
 thiserror = "2"
-zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+zip.workspace = true
 
 [dev-dependencies]
-quick-xml = "0.42"
+quick-xml.workspace = true
 serde_norway.workspace = true
 tempfile = "3"

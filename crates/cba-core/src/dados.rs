@@ -1,5 +1,5 @@
 //! Diretório de dados do app: índice, configuração, cadastro dos projetos, eventos,
-//! sessões e logs.
+//! sessões, logs e a guarda temporária dos transcripts das reuniões.
 //!
 //! Fica no diretório de dados locais do usuário, numa pasta com o identificador do
 //! app, separado da pasta da base de conhecimento (os Markdown, numa pasta escolhida
@@ -91,6 +91,13 @@ impl DiretorioDados {
     pub fn sessoes(&self) -> PathBuf {
         self.raiz.join("sessoes")
     }
+
+    /// Guarda temporária dos transcripts das reuniões
+    /// (`<dados>/reunioes/<projeto>/<R-NNNN>/`, ver `cba_reunioes::guarda`). Só
+    /// aqui o transcript existe em disco: nunca na base nem no repositório.
+    pub fn reunioes(&self) -> PathBuf {
+        self.raiz.join("reunioes")
+    }
 }
 
 #[cfg(test)]
@@ -112,6 +119,7 @@ mod tests {
         assert_eq!(d.projetos(), raiz.join("projetos"));
         assert_eq!(d.eventos(), raiz.join("eventos"));
         assert_eq!(d.sessoes(), raiz.join("sessoes"));
+        assert_eq!(d.reunioes(), raiz.join("reunioes"));
     }
 
     #[test]

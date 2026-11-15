@@ -10,6 +10,7 @@ import {
 } from "./analise";
 import type { Revisao } from "./AcoesRevisao";
 import { AprovacaoAnalise } from "./AprovacaoAnalise";
+import { AprovacaoAta } from "./AprovacaoAta";
 import { AvisoAlteracao } from "./AvisoAlteracao";
 import { BotaoPainel } from "./BotaoPainel";
 import { ClientesConversa, type Modo } from "./ClientesConversa";
@@ -30,8 +31,11 @@ import {
   type OrigemEvidencia,
 } from "./DocumentoAoVivo";
 import { ExportacaoAnalise } from "./ExportacaoAnalise";
+import { ParecerAoVivo } from "./ParecerAoVivo";
 import { PromptsProntos } from "./PromptsProntos";
 import { apiRevisaoTauri, type ApiRevisao, type DecisaoRevisao } from "./revisao";
+import { AtaAoVivo } from "./AtaAoVivo";
+import { apiReuniaoTauri, type ApiReuniao } from "./reunioes";
 import { TerminalClaude, type ControleTerminal, type EstadoTerminal } from "./TerminalClaude";
 import { TrechoEvidencia, type CargaTrecho } from "./TrechoEvidencia";
 import type { ApiTerminal, PedidoClaude } from "./terminal";
@@ -70,7 +74,11 @@ interface Props {
   apiAlteracoes?: ApiAlteracoes;
   /** Revisão, aprovação e exportação (#37); para testes. */
   apiRevisao?: ApiRevisao;
+  /** Ata ao vivo e participantes da análise de uma reunião (#141); para testes. */
+  apiReuniao?: ApiReuniao;
   criarTela?: () => TelaTerminal;
+  /** Abre outra análise (a criada por um próximo passo da ata, #142). */
+  aoAbrirAnalise?: (id: string, abertura: Abertura) => void;
 }
 
 const AVISO_DESKTOP =
@@ -109,6 +117,8 @@ export function PainelAnalise({
   criarTela,
   apiAlteracoes = apiAlteracoesTauri,
   apiRevisao = apiRevisaoTauri,
+  apiReuniao = apiReuniaoTauri,
+  aoAbrirAnalise,
 }: Props) {
   const { vista, erro, recarregar } = useAnaliseAoVivo(api, projeto, analise);
   const [revisando, setRevisando] = useState(false);
@@ -453,16 +463,37 @@ export function PainelAnalise({
                 aoAlternar={alternar("aprovar")}
                 aoFechar={fecharMenu}
                 rotulo="Aprovar"
-                rotuloPainel="Aprovar a análise"
+                rotuloPainel={
+                  vista.analise.fluxo === "reuniao"
+                    ? "Aprovar a ata"
+                    : vista.analise.fluxo === "revisar"
+                      ? "Aprovar o parecer"
+                    : vista.analise.fluxo === "historias"
+                      ? "Aprovar as histórias"
+                    : vista.analise.fluxo === "cenarios"
+                      ? "Aprovar os cenários"
+                      : "Aprovar a análise"
+                }
                 classePainel="painel-revisao"
               >
-                <AprovacaoAnalise
-                  api={apiRevisao}
-                  projeto={projeto}
-                  analise={analise}
-                  versao={vista.analise.versao}
-                  aoAprovar={recarregar}
-                />
+                {vista.analise.fluxo === "reuniao" ? (
+                  // A análise de uma reunião é aprovada com a ata, que apaga o transcript.
+                  <AprovacaoAta
+                    api={apiReuniao}
+                    projeto={projeto}
+                    analise={analise}
+                    versao={vista.analise.versao}
+                    aoAprovar={recarregar}
+                  />
+                ) : (
+                  <AprovacaoAnalise
+                    api={apiRevisao}
+                    projeto={projeto}
+                    analise={analise}
+                    versao={vista.analise.versao}
+                    aoAprovar={recarregar}
+                  />
+                )}
               </BotaoPainel>
               <BotaoPainel
                 aberto={menu === "exportar"}
@@ -477,6 +508,7 @@ export function PainelAnalise({
                   projeto={projeto}
                   analise={analise}
                   aprovada={vista.analise.estado === "aprovada"}
+                  csv={vista.analise.fluxo === "cenarios"}
                 />
               </BotaoPainel>
             </>
@@ -499,6 +531,26 @@ export function PainelAnalise({
             <p className="error-text" role="alert">
               {falhaRevisao}
             </p>
+          )}
+          {vista?.analise.fluxo === "reuniao" && vista.analise.reuniao && (
+            <AtaAoVivo
+              api={apiReuniao}
+              vigiar={api.vigiar}
+              projeto={projeto}
+              reuniao={vista.analise.reuniao}
+              aoCriarAnalise={
+                aoAbrirAnalise &&
+                ((c) =>
+                  aoAbrirAnalise(c.analise.id, { tipo: "nova", promptInicial: c.promptInicial }))
+              }
+            />
+          )}
+          {vista?.analise.fluxo === "revisar" && (
+            <ParecerAoVivo
+              analise={vista.analise}
+              ocupado={revisando}
+              aoDecidir={revisao.aoDecidir}
+            />
           )}
           {vista && (
             <DocumentoAoVivo

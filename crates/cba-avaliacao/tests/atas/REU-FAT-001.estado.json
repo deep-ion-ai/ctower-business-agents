@@ -1,0 +1,335 @@
+{
+  "id": "R-0001",
+  "projeto": "faturamento-exemplo",
+  "demanda": "D-0001",
+  "data": "2026-11-14",
+  "duracao": null,
+  "status": "rascunho",
+  "participantes": [
+    {
+      "nome": "Silva, Maria",
+      "papel": null,
+      "pessoa": null,
+      "proposta": {
+        "papel": "PO",
+        "justificativa": "Conduz a reunião, traz a demanda da auditoria e decide escopo e prioridade.",
+        "citacoes": [
+          {
+            "falante": "Silva, Maria",
+            "inicio": "00:02:56",
+            "trecho": "a trava dos 30 dias vai para o banco. Decidido.",
+            "status": "conferida"
+          }
+        ]
+      }
+    },
+    {
+      "nome": "João Pereira",
+      "papel": null,
+      "pessoa": null,
+      "proposta": {
+        "papel": "desenvolvedor",
+        "justificativa": "Explica como o sistema funciona hoje e sugere a solução técnica.",
+        "citacoes": [
+          {
+            "falante": "João Pereira",
+            "inicio": "00:00:30",
+            "trecho": "a trava dos 30 dias só existe na tela de retaguarda",
+            "status": "conferida"
+          }
+        ]
+      }
+    },
+    {
+      "nome": "Ana Souza",
+      "papel": null,
+      "pessoa": null,
+      "proposta": {
+        "papel": "analista de negócio",
+        "justificativa": "Valida regras, levanta dúvidas e escreve a demanda com critérios de aceite.",
+        "citacoes": [
+          {
+            "falante": "Ana Souza",
+            "inicio": "00:00:54",
+            "trecho": "Só para eu registrar direito",
+            "status": "conferida"
+          },
+          {
+            "falante": "Ana Souza",
+            "inicio": "00:04:20",
+            "trecho": "Eu escrevo a demanda com os critérios de aceite",
+            "status": "conferida"
+          }
+        ]
+      }
+    },
+    {
+      "nome": "carlos.lima@exemplo.com",
+      "papel": null,
+      "pessoa": null,
+      "proposta": {
+        "papel": "desenvolvedor",
+        "justificativa": "Conhece a procedure do banco e do lote e fará o levantamento técnico.",
+        "citacoes": [
+          {
+            "falante": "carlos.lima@exemplo.com",
+            "inicio": "00:01:27",
+            "trecho": "No banco a procedure de cancelamento só confere o status ABERTA",
+            "status": "conferida"
+          },
+          {
+            "falante": "carlos.lima@exemplo.com",
+            "inicio": "00:04:06",
+            "trecho": "Eu levanto todos os pontos que cancelam fatura hoje",
+            "status": "conferida"
+          }
+        ]
+      }
+    }
+  ],
+  "objetivo": "Tratar o cancelamento de faturas antigas sem aprovação de supervisor, apontado pela auditoria interna, e definir como fechar essa brecha.",
+  "resumo": "A auditoria apontou cancelamentos de faturas com mais de 30 dias sem supervisor. A equipe explicou que a trava existe só na tela de retaguarda, enquanto o cancelamento pelo banco não checa o perfil.\n\nFicou decidido levar a trava para a procedure no banco, mantendo o mínimo de 10 caracteres no motivo e a proibição de cancelar fatura com pagamento parcial. O relatório mensal de cancelamentos pedido pela auditoria foi separado em outra demanda, a ser tratada depois da trava.\n\nFicaram abertas a contagem dos 30 dias (emissão ou vencimento), a regra para órgãos públicos e a origem do perfil do usuário no lote. Foram distribuídas ações para levantamento dos pontos de cancelamento, escrita da demanda e confirmação com a auditoria, e marcada nova conversa para fechar o escopo.",
+  "itens": [
+    {
+      "id": "D-1",
+      "tipo": "decisao",
+      "texto": "A trava dos 30 dias (cancelamento de fatura antiga só com aprovação de supervisor) passa a ser implementada no banco, na procedure de cancelamento, para valer em qualquer tela ou processo.",
+      "citacoes": [
+        {
+          "falante": "Silva, Maria",
+          "inicio": "00:02:56",
+          "trecho": "a trava dos 30 dias vai para o banco. Decidido.",
+          "status": "conferida"
+        }
+      ]
+    },
+    {
+      "id": "D-2",
+      "tipo": "decisao",
+      "texto": "O relatório mensal de cancelamentos fica em demanda separada; primeiro a trava, depois o relatório.",
+      "citacoes": [
+        {
+          "falante": "Silva, Maria",
+          "inicio": "00:05:10",
+          "trecho": "Fica separado. Primeiro a trava, depois o relatório.",
+          "status": "conferida"
+        }
+      ]
+    },
+    {
+      "id": "N-1",
+      "tipo": "necessidade",
+      "texto": "A checagem de aprovação por supervisor no cancelamento de fatura antiga precisa valer também fora da tela Delphi (por exemplo, no processo do banco e no lote).",
+      "citacoes": [
+        {
+          "falante": "Silva, Maria",
+          "inicio": "00:01:43",
+          "trecho": "a checagem do supervisor precisa valer também fora da tela Delphi",
+          "status": "conferida"
+        }
+      ]
+    },
+    {
+      "id": "N-2",
+      "tipo": "necessidade",
+      "texto": "Relatório mensal dos cancelamentos por usuário, para acompanhamento da auditoria, com motivo, data, usuário e valor da fatura.",
+      "citacoes": [
+        {
+          "falante": "Silva, Maria",
+          "inicio": "00:01:56",
+          "trecho": "relatório mensal dos cancelamentos por usuário",
+          "status": "conferida"
+        },
+        {
+          "falante": "Silva, Maria",
+          "inicio": "00:02:23",
+          "trecho": "Motivo, data, usuário e o valor da fatura.",
+          "status": "conferida"
+        }
+      ]
+    },
+    {
+      "id": "R-1",
+      "tipo": "regra",
+      "texto": "Fatura emitida há mais de 30 dias só pode ser cancelada por usuário com perfil SUPERVISOR. Hoje essa checagem existe apenas na tela de retaguarda (Delphi); o cancelamento pelo processo do banco não confere o perfil.",
+      "citacoes": [
+        {
+          "falante": "Ana Souza",
+          "inicio": "00:00:54",
+          "trecho": "fatura emitida há mais de 30 dias só pode ser cancelada por usuário com perfil SUPERVISOR",
+          "status": "conferida"
+        },
+        {
+          "falante": "João Pereira",
+          "inicio": "00:00:43",
+          "trecho": "passa direto, sem checar o perfil",
+          "status": "conferida"
+        }
+      ]
+    },
+    {
+      "id": "R-2",
+      "tipo": "regra",
+      "texto": "Fatura com pagamento parcial não pode ser cancelada, nem por supervisor; a regra já vale em todo lugar.",
+      "citacoes": [
+        {
+          "falante": "João Pereira",
+          "inicio": "00:01:11",
+          "trecho": "fatura com pagamento parcial não pode ser cancelada, nem pelo supervisor",
+          "status": "conferida"
+        }
+      ]
+    },
+    {
+      "id": "R-3",
+      "tipo": "regra",
+      "texto": "A procedure de cancelamento no banco confere hoje: status ABERTA, ausência de valor pago e motivo com pelo menos 10 caracteres. O mínimo de 10 caracteres no motivo continua como está.",
+      "citacoes": [
+        {
+          "falante": "carlos.lima@exemplo.com",
+          "inicio": "00:01:27",
+          "trecho": "só confere o status ABERTA, se não há valor pago e o motivo com pelo menos 10 caracteres",
+          "status": "conferida"
+        },
+        {
+          "falante": "Silva, Maria",
+          "inicio": "00:03:06",
+          "trecho": "o mínimo de 10 caracteres no motivo continua como está",
+          "status": "conferida"
+        }
+      ]
+    },
+    {
+      "id": "P-1",
+      "tipo": "pendencia",
+      "texto": "Confirmar com a auditoria se os 30 dias contam da emissão ou do vencimento e trazer a resposta.",
+      "responsavel": "Maria Silva",
+      "prazo": "até o dia 25",
+      "citacoes": [
+        {
+          "falante": "Silva, Maria",
+          "inicio": "00:03:37",
+          "trecho": "Eu confirmo com a auditoria e trago a resposta até o dia 25.",
+          "status": "conferida"
+        }
+      ]
+    },
+    {
+      "id": "P-2",
+      "tipo": "pendencia",
+      "texto": "Levantar todos os pontos que cancelam fatura hoje: banco, backend e lote.",
+      "responsavel": "Carlos Lima",
+      "prazo": "até sexta-feira, dia 20",
+      "citacoes": [
+        {
+          "falante": "carlos.lima@exemplo.com",
+          "inicio": "00:04:06",
+          "trecho": "no banco, no backend e no lote, até sexta-feira, dia 20",
+          "status": "conferida"
+        }
+      ]
+    },
+    {
+      "id": "P-3",
+      "tipo": "pendencia",
+      "texto": "Escrever a demanda com os critérios de aceite e enviar a Maria para revisão.",
+      "responsavel": "Ana Souza",
+      "prazo": "até quarta, dia 18",
+      "citacoes": [
+        {
+          "falante": "Ana Souza",
+          "inicio": "00:04:20",
+          "trecho": "até quarta, dia 18",
+          "status": "conferida"
+        }
+      ]
+    },
+    {
+      "id": "DV-1",
+      "tipo": "duvida",
+      "texto": "Os 30 dias contam da data de emissão ou da data de vencimento? Na tela conta da emissão, mas não se sabe se a auditoria pensa assim (pendência com Maria).",
+      "citacoes": [
+        {
+          "falante": "Ana Souza",
+          "inicio": "00:03:15",
+          "trecho": "os 30 dias contam da data de emissão ou da data de vencimento",
+          "status": "conferida"
+        },
+        {
+          "falante": "João Pereira",
+          "inicio": "00:03:26",
+          "trecho": "Na tela conta da emissão",
+          "status": "conferida"
+        }
+      ]
+    },
+    {
+      "id": "DV-2",
+      "tipo": "duvida",
+      "texto": "Fatura de órgão público exige alguma aprovação adicional para cancelar? Sem resposta na reunião; responsável e prazo a definir.",
+      "citacoes": [
+        {
+          "falante": "Ana Souza",
+          "inicio": "00:03:46",
+          "trecho": "fatura de órgão público precisa de alguma aprovação a mais para cancelar",
+          "status": "conferida"
+        },
+        {
+          "falante": "Silva, Maria",
+          "inicio": "00:03:58",
+          "trecho": "Deixa em aberto.",
+          "status": "conferida"
+        }
+      ]
+    },
+    {
+      "id": "DV-3",
+      "tipo": "duvida",
+      "texto": "De onde vem o perfil do usuário quando o cancelamento é chamado pelo lote? Ninguém respondeu na reunião.",
+      "citacoes": [
+        {
+          "falante": "carlos.lima@exemplo.com",
+          "inicio": "00:02:44",
+          "trecho": "de onde vem o perfil do usuário quando a chamada vem do lote",
+          "status": "conferida"
+        }
+      ]
+    },
+    {
+      "id": "PP-1",
+      "tipo": "proximo_passo",
+      "texto": "Analisar o impacto da mudança no cancelamento (trava de 30 dias no banco), depois da demanda escrita e do levantamento dos pontos de cancelamento.",
+      "referencias": [
+        "D-1",
+        "N-1"
+      ],
+      "citacoes": [
+        {
+          "falante": "João Pereira",
+          "inicio": "00:04:33",
+          "trecho": "pedir a análise de impacto da mudança no cancelamento",
+          "status": "conferida"
+        },
+        {
+          "falante": "Silva, Maria",
+          "inicio": "00:04:44",
+          "trecho": "Próximos passos: análise de impacto",
+          "status": "conferida"
+        }
+      ]
+    },
+    {
+      "id": "PP-2",
+      "tipo": "proximo_passo",
+      "texto": "Nova reunião no dia 27 para fechar o escopo.",
+      "citacoes": [
+        {
+          "falante": "Silva, Maria",
+          "inicio": "00:04:44",
+          "trecho": "uma nova conversa no dia 27 para fechar o escopo",
+          "status": "conferida"
+        }
+      ]
+    }
+  ]
+}

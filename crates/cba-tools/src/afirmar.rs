@@ -20,7 +20,8 @@ const DESCRICAO_DA_SECAO: &str = "Seção do documento em que a afirmação entr
     Análise de impacto: demanda_como_entendida, como_e_hoje, funcionalidades, dados, \
     integracoes, documentos_e_telas, riscos, abrangencia. \
     Explicar funcionalidade: objetivo, atores_e_telas, fluxo_principal, \
-    fluxos_alternativos, excecoes, regras, dados, integracoes.";
+    fluxos_alternativos, excecoes, regras, dados, integracoes. \
+    Análise de reunião: ligacao_com_o_codigo.";
 
 #[derive(Debug, Deserialize)]
 struct Args {
@@ -92,6 +93,20 @@ pub fn afirmar() -> Ferramenta {
             let analise = ambiente.analises.carregar(&id)?;
             let secao = args.secao.trim();
             let secoes = secoes_de_afirmacao(analise.fluxo);
+            if analise.fluxo == cba_core::analise::Fluxo::Historias {
+                return Err(ErroFerramenta::Recusa(format!(
+                    "a análise {id} é de histórias e não recebe afirmações: registre as \
+                     histórias com `registrar_historia` e os critérios com \
+                     `registrar_criterio`, citando as afirmações da análise de origem"
+                )));
+            }
+            if analise.fluxo == cba_core::analise::Fluxo::Cenarios {
+                return Err(ErroFerramenta::Recusa(format!(
+                    "a análise {id} é de cenários de teste e não recebe afirmações: registre \
+                     as tabelas de decisão com `registrar_tabela_decisao` e os cenários com \
+                     `registrar_cenario`, citando as regras e as afirmações de origem"
+                )));
+            }
             if !secoes.contains(&secao) {
                 let dica = match secao {
                     "perguntas" => " Para perguntas ao solicitante, use `perguntar`.",
@@ -188,11 +203,13 @@ mod tests {
             .split_once("Pergunta ao sistema:")
             .unwrap();
         let (perguntar, resto) = resto.split_once("Análise de impacto:").unwrap();
-        let (impacto, explicar) = resto.split_once("Explicar funcionalidade:").unwrap();
+        let (impacto, resto) = resto.split_once("Explicar funcionalidade:").unwrap();
+        let (explicar, reuniao) = resto.split_once("Análise de reunião:").unwrap();
         for (fluxo, texto) in [
             (Fluxo::Perguntar, perguntar),
             (Fluxo::Impacto, impacto),
             (Fluxo::Explicar, explicar),
+            (Fluxo::Reuniao, reuniao),
         ] {
             let lista: Vec<&str> = texto
                 .trim()

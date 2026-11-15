@@ -8,6 +8,8 @@ interface Props {
   analise: string;
   /** A análise já foi aprovada (fora disso, o documento sai como rascunho). */
   aprovada: boolean;
+  /** Oferece o CSV com uma linha por cenário (análise de cenários de teste, #117). */
+  csv?: boolean;
 }
 
 /**
@@ -15,7 +17,7 @@ interface Props {
  * diálogo de salvar do projeto. O documento sai autocontido: sem o frontmatter
  * interno, com as evidências como notas e, se marcado, os trechos citados.
  */
-export function ExportacaoAnalise({ api, projeto, analise, aprovada }: Props) {
+export function ExportacaoAnalise({ api, projeto, analise, aprovada, csv = false }: Props) {
   const [formato, setFormato] = useState<FormatoExportacao>("word");
   const [opcoes, setOpcoes] = useState<OpcoesExportacao>({
     evidencias: true,
@@ -70,8 +72,22 @@ export function ExportacaoAnalise({ api, projeto, analise, aprovada }: Props) {
           />{" "}
           Markdown (.md)
         </label>
+        {csv && (
+          <>
+            {" "}
+            <label>
+              <input
+                type="radio"
+                name="formato-exportacao"
+                checked={formato === "csv"}
+                onChange={() => setFormato("csv")}
+              />{" "}
+              CSV, um cenário por linha (.csv)
+            </label>
+          </>
+        )}
       </fieldset>
-      <fieldset>
+      <fieldset disabled={formato === "csv"}>
         <legend>Incluir</legend>
         <label>
           <input type="checkbox" checked={opcoes.evidencias} onChange={marcar("evidencias")} />{" "}

@@ -36,12 +36,14 @@ mod configuracoes;
 #[cfg(windows)]
 mod console;
 mod conversa;
+mod demandas;
 mod gui;
 mod inicio;
 mod primeiro_uso;
 mod projeto;
 mod prompts;
 mod repositorios;
+mod reunioes;
 mod revisao;
 mod terminal;
 #[cfg(test)]

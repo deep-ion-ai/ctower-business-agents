@@ -76,6 +76,34 @@ describe("TelaInicio", () => {
     );
   });
 
+  it("liga a análise a uma demanda aberta, se o analista escolher", async () => {
+    const { api } = montar();
+    fireEvent.click(await screen.findByRole("button", { name: "Perguntar ao sistema" }));
+    const form = screen.getByRole("form", { name: "Perguntar ao sistema" });
+    const select = await within(form).findByLabelText("Demanda (opcional)");
+    // Só as abertas.
+    expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual([
+      "Sem demanda",
+      "D-0001: Parcelamento PJ",
+    ]);
+    fireEvent.change(select, { target: { value: "D-0001" } });
+    fireEvent.change(within(form).getByLabelText("Pergunta"), {
+      target: { value: "Como funciona o parcelamento?" },
+    });
+    const iniciar = within(form).getByRole("button", { name: "Iniciar a análise" });
+    await waitFor(() => expect(iniciar).toBeEnabled());
+    fireEvent.click(iniciar);
+    await waitFor(() =>
+      expect(api.criarAnalise).toHaveBeenCalledWith(
+        PROJETO,
+        "perguntar",
+        "Como funciona o parcelamento?",
+        undefined,
+        "D-0001",
+      ),
+    );
+  });
+
   it("inicia a análise a partir de uma issue do projeto", async () => {
     const { api } = montar();
     fireEvent.click(await screen.findByRole("button", { name: "Analisar impacto" }));
@@ -88,6 +116,22 @@ describe("TelaInicio", () => {
       expect(api.criarAnaliseDeDemanda).toHaveBeenCalledWith(PROJETO, "impacto", "PROJ-123"),
     );
     expect(api.criarAnalise).not.toHaveBeenCalled();
+  });
+
+  it("revisa um requisito pela chave no rastreador ou pelo texto colado", async () => {
+    const { api } = montar();
+    fireEvent.click(await screen.findByRole("button", { name: "Revisar requisito" }));
+    const form = await screen.findByRole("form", { name: "Revisar requisito" });
+    const iniciar = within(form).getByRole("button", { name: "Iniciar a análise" });
+    fireEvent.change(within(form).getByLabelText(/Chave no rastreador/), {
+      target: { value: "PROJ-482" },
+    });
+    await waitFor(() => expect(iniciar).toBeEnabled());
+    fireEvent.click(iniciar);
+    await waitFor(() =>
+      expect(api.criarAnaliseDeDemanda).toHaveBeenCalledWith(PROJETO, "revisar", "PROJ-482"),
+    );
+    expect(within(form).getByLabelText(/Requisito ou história a revisar/)).toBeInTheDocument();
   });
 
   it("pede o preparo do ambiente antes de criar a análise", async () => {

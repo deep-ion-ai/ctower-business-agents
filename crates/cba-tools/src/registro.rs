@@ -118,6 +118,23 @@ impl From<cba_core::analises::Erro> for ErroFerramenta {
     }
 }
 
+impl From<cba_docs::ErroAta> for ErroFerramenta {
+    fn from(erro: cba_docs::ErroAta) -> Self {
+        use cba_docs::ErroAta;
+        match erro {
+            ErroAta::TextoVazio | ErroAta::IdDeItem(_) => Self::Argumentos(erro.to_string()),
+            ErroAta::ItemInexistente(_)
+            | ErroAta::TipoDoItem { .. }
+            | ErroAta::ItemRepetido(_)
+            | ErroAta::Base(cba_kb::Erro::ReuniaoInexistente { .. })
+            | ErroAta::Base(cba_kb::Erro::DemandaInexistente { .. }) => {
+                Self::Recusa(erro.to_string())
+            }
+            _ => Self::Interno(erro.to_string()),
+        }
+    }
+}
+
 /// Converte os argumentos (já conferidos pelo schema) na estrutura da ferramenta.
 pub fn ler_argumentos<T: DeserializeOwned>(argumentos: Value) -> Result<T, ErroFerramenta> {
     serde_json::from_value(argumentos).map_err(|e| ErroFerramenta::Argumentos(e.to_string()))

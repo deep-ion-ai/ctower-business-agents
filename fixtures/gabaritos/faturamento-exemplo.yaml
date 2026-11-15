@@ -23,6 +23,43 @@
 # - `verificacao_da_premissa` (demandas) diz como o agente deve julgar a
 #   suposição do solicitante, na seção "Demanda como entendida": `veredito`
 #   (`nao_confere` ou `confere_em_parte`) e `palavras_chave`, no mesmo formato.
+# - `reunioes` (fluxo "Analisar reunião", #137) descreve a ata esperada de cada
+#   transcript de fixtures/reunioes/: o papel de cada participante (`nome` como
+#   aparece no transcript, `papel` do catálogo padrão e, se houver, outros
+#   papéis aceitos em `tambem_aceitos`) e os itens esperados por seção (`tipo`:
+#   decisao, necessidade, regra, pendencia, duvida ou proximo_passo). Um item
+#   registrado atende quando é do `tipo` (ou de um dos `tambem_em`) e o texto
+#   tem um termo de cada grupo de `palavras_chave`. Nas pendências,
+#   `responsavel` e `prazo` são grupos de termos conferidos nos campos do item.
+#   `falas` lista o início (M:SS) das falas que sustentam o item, para conferir
+#   se o agente citou a fala certa. `transcript` é relativo a este arquivo.
+# - `revisoes` (fluxo "Revisar requisito", #116) traz requisitos e histórias
+#   fictícios com problemas plantados e o parecer esperado: o `veredito`
+#   (pronta, pronta_com_ressalvas ou precisa_de_retrabalho), os
+#   `termos_vagos` da lista de referência (cba_core::qualidade) que devem ser
+#   apontados e os `achados` esperados. Um achado registrado atende quando é
+#   da `caracteristica` (ou de uma das `tambem_em`), tem um termo de cada grupo
+#   de `palavras_chave` no trecho, no problema ou na reescrita e, se o esperado
+#   cita `regras`, tem evidência válida que toca uma evidência esperada de uma
+#   delas (ou cita a regra pelo id).
+# - `historias` (fluxo "Histórias e critérios", #115) traz as histórias
+#   esperadas a partir da análise de impacto de uma `demanda`: as `regras` que
+#   os critérios devem citar (pelo id ou por uma afirmação cuja evidência toca
+#   a regra), se a abrangência pede a `quebra` em fatias, as
+#   `historias_esperadas` (palavras-chave no título e na narrativa "Como /
+#   quero / para") e os temas que devem ficar `a_confirmar` (critério com
+#   pergunta; palavras-chave no Dado / Quando / Então). O preparo da avaliação
+#   cria a análise de origem com uma afirmação confirmada por regra da demanda
+#   e uma pergunta em aberto por pergunta esperada dela.
+# - `cenarios` (fluxo "Cenários de teste", #117) traz os cenários esperados a
+#   partir das `regras` pedidas (o preparo da avaliação grava as regras na base
+#   e cria a análise de cenários com o `pedido`): os `limites` que o agente deve
+#   ler do código (o `valor` aparece no `trecho` da `evidencia`, conferido contra
+#   a fixture; `valores_testados` são o limite e o vizinho do outro lado da
+#   comparação), as `tabelas` de decisão esperadas (regra, número mínimo de
+#   condições e palavras-chave nas condições), os cenários `negativos` (com as
+#   palavras-chave no título e nos passos) e os temas `a_confirmar` (limite que
+#   vem de tabela de parâmetros, com pergunta).
 # - A avaliação dos fluxos (crate cba-avaliacao, docs/avaliacao.md) usa este
 #   arquivo como referência.
 
@@ -522,3 +559,294 @@ demandas:
 exclusoes:
   - arquivo: .env
     motivo: segredo
+
+# Reuniões fictícias (fixtures/reunioes/) e a ata esperada de cada uma.
+reunioes:
+  - id: REU-FAT-001
+    titulo: Alinhamento da trava de cancelamento de fatura antiga
+    transcript: ../reunioes/reuniao-01-cancelamento.vtt
+    demanda: Trava de cancelamento de fatura antiga
+    participantes:
+      - nome: Silva, Maria
+        papel: gerente/patrocinador
+        tambem_aceitos: [PO]
+      - nome: João Pereira
+        papel: usuário-chave
+      - nome: Ana Souza
+        papel: analista de negócio
+      - nome: carlos.lima@exemplo.com
+        papel: desenvolvedor
+    itens:
+      - id: REU-FAT-001-D1
+        tipo: decisao
+        descricao: Decidido levar a checagem dos 30 dias com supervisor para a procedure do banco.
+        palavras_chave: [[trava, supervisor, "30 dias", checagem], [banco, procedure]]
+        falas: ["2:56"]
+      - id: REU-FAT-001-D2
+        tipo: decisao
+        tambem_em: [regra]
+        descricao: Fica mantida a exigência de motivo com no mínimo 10 caracteres.
+        palavras_chave: [["10", dez], [motivo]]
+        falas: ["3:06"]
+      - id: REU-FAT-001-D3
+        tipo: decisao
+        descricao: O relatório de cancelamentos vira uma demanda separada, feita depois da trava.
+        palavras_chave: [[relatorio], [separad*, outra demanda, duas demandas, demanda propria, demanda separada, depois]]
+        falas: ["5:10"]
+      - id: REU-FAT-001-N1
+        tipo: necessidade
+        descricao: Exigir o supervisor para faturas antigas em todos os canais, não só na tela Delphi.
+        palavras_chave: [[supervisor, trava, "30 dias"], [delphi, fora da tela, "todas as", "todos os", qualquer, canal*, banco, lote, backend, nenhuma tela]]
+        falas: ["1:43"]
+      - id: REU-FAT-001-N2
+        tipo: necessidade
+        descricao: Relatório por mês dos cancelamentos de cada usuário, para acompanhamento da auditoria.
+        palavras_chave: [[relatorio], [mensal, mes]]
+        falas: ["1:56"]
+      - id: REU-FAT-001-N3
+        tipo: necessidade
+        descricao: "Campos do relatório: motivo, data, usuário e valor da fatura."
+        palavras_chave: [[relatorio, campos, colunas], [motivo], [valor]]
+        falas: ["2:18", "2:23"]
+      - id: REU-FAT-001-R1
+        tipo: regra
+        descricao: Nenhum perfil cancela fatura que já recebeu pagamento parcial (RN-FAT-012).
+        palavras_chave: [[pagamento parcial, parcialmente paga, valor pago, pago parcial*], [cancel*]]
+        falas: ["1:11"]
+      - id: REU-FAT-001-R2
+        tipo: regra
+        descricao: Cancelar fatura com mais de 30 dias desde a emissão exige perfil SUPERVISOR (RN-FAT-014).
+        palavras_chave: [["30 dias", trinta dias], [supervisor]]
+        falas: ["0:54", "1:11"]
+      - id: REU-FAT-001-P1
+        tipo: pendencia
+        descricao: Carlos levanta onde o cancelamento acontece hoje (banco, backend e lote); prazo sexta, dia 20.
+        palavras_chave: [[levant*, mapea*, mapei*, identific*, list*, pontos, inventari*], [cancel*]]
+        responsavel: [[carlos]]
+        prazo: [["20", sexta*]]
+        falas: ["4:06"]
+      - id: REU-FAT-001-P2
+        tipo: pendencia
+        descricao: Ana redige a demanda, com critérios de aceite, para revisão da Maria; prazo quarta, dia 18.
+        palavras_chave: [[demanda, criterio*]]
+        responsavel: [[ana]]
+        prazo: [["18", quarta*]]
+        falas: ["4:20"]
+      - id: REU-FAT-001-P3
+        tipo: pendencia
+        descricao: Maria consulta a auditoria sobre o marco dos 30 dias; prazo dia 25.
+        palavras_chave: [[auditoria], [confirm*, consult*, verific*, respost*, alinh*, valid*]]
+        responsavel: [[maria, silva]]
+        prazo: [["25"]]
+        falas: ["3:37"]
+      - id: REU-FAT-001-DV1
+        tipo: duvida
+        descricao: O prazo de 30 dias conta a partir da emissão ou do vencimento?
+        palavras_chave: [[emissao], [vencimento]]
+        falas: ["3:15", "3:26"]
+      - id: REU-FAT-001-DV2
+        tipo: duvida
+        descricao: Cancelar fatura de órgão público exige alguma aprovação adicional?
+        palavras_chave: [[orgao publico, orgaos publicos]]
+        falas: ["3:46", "3:58"]
+      - id: REU-FAT-001-DV3
+        tipo: duvida
+        descricao: Qual perfil de usuário vale quando o cancelamento chega pelo lote?
+        palavras_chave: [[perfil, usuario], [lote]]
+        falas: ["2:44"]
+      - id: REU-FAT-001-PP1
+        tipo: proximo_passo
+        descricao: Abrir a análise de impacto sobre a trava.
+        palavras_chave: [[impacto]]
+        falas: ["4:33", "4:44"]
+      - id: REU-FAT-001-PP2
+        tipo: proximo_passo
+        descricao: Nova reunião em 27 para concluir o escopo.
+        palavras_chave: [["27", nova conversa, nova reuniao]]
+        falas: ["4:44"]
+
+  - id: REU-FAT-002
+    titulo: Fechamento do escopo da trava de cancelamento
+    transcript: ../reunioes/reuniao-02-fechamento.vtt
+    demanda: Trava de cancelamento de fatura antiga
+    participantes:
+      - nome: Maria Silva
+        papel: gerente/patrocinador
+        tambem_aceitos: [PO]
+      - nome: Beatriz Rocha
+        papel: QA
+      - nome: Ana Souza
+        papel: analista de negócio
+      - nome: João Pereira
+        papel: usuário-chave
+    itens:
+      - id: REU-FAT-002-D1
+        tipo: decisao
+        tambem_em: [regra]
+        descricao: "Sem aprovação adicional para órgão público: segue a regra comum a todos os clientes."
+        palavras_chave: [[orgao publico, orgaos publicos], [extra, mesma regra, sem aprovacao, nao tem, nao precisa, nenhuma aprovacao, demais clientes, outros clientes]]
+        falas: ["1:26"]
+      - id: REU-FAT-002-R1
+        tipo: regra
+        tambem_em: [decisao]
+        descricao: O marco dos 30 dias é a emissão da fatura, segundo a auditoria.
+        palavras_chave: [[emissao], ["30 dias", trinta dias, prazo]]
+        falas: ["0:13"]
+      - id: REU-FAT-002-P1
+        tipo: pendencia
+        descricao: João monta no ambiente de testes duas faturas (31 dias e pagamento parcial) até segunda.
+        palavras_chave: [[fatura*], [teste*, homologa*]]
+        responsavel: [[joao]]
+        prazo: [[segunda*]]
+        falas: ["1:16"]
+      - id: REU-FAT-002-P2
+        tipo: pendencia
+        tambem_em: [necessidade, proximo_passo, decisao]
+        descricao: Beatriz prepara os cenários de aceite (sem prazo dito).
+        palavras_chave: [[cenario*, teste*], [aceite]]
+        responsavel: [[beatriz]]
+        falas: ["0:25"]
+      - id: REU-FAT-002-PP1
+        tipo: proximo_passo
+        descricao: Começar a análise de impacto da trava.
+        palavras_chave: [[impacto]]
+        falas: ["1:47"]
+
+# Requisitos e histórias fictícios para o fluxo "Revisar requisito" (#116), com
+# problemas plantados e o parecer esperado. Os textos são do autor fictício da
+# história; o sistema continua o mesmo.
+revisoes:
+  - id: REV-FAT-001
+    titulo: Cancelamento de fatura pelo atendente
+    texto: |-
+      Cancelamento de fatura pelo atendente
+
+      Como atendente da central, quero cancelar uma fatura informando o motivo, para corrigir cobranças lançadas por engano.
+
+      Critérios de aceite:
+      - O atendente pode cancelar fatura aberta, inclusive a que já tem pagamento parcial.
+      - O motivo do cancelamento é obrigatório.
+      - O cancelamento deve ser rápido e a mensagem de confirmação, adequada.
+      - Vale para faturas avulsas e/ou parceladas, etc.
+    veredito: precisa_de_retrabalho
+    termos_vagos: [rápido, adequado, e/ou, etc.]
+    achados:
+      - id: REV-FAT-001-C1
+        caracteristica: correcao
+        descricao: >-
+          Contradição plantada: a história permite cancelar fatura com
+          pagamento parcial; a regra RN-FAT-012 só cancela fatura sem nenhum
+          valor pago.
+        regras: [RN-FAT-012]
+        palavras_chave: [[pagamento parcial, pago*, pagamento*, vl_pago]]
+      - id: REV-FAT-001-L1
+        caracteristica: completude
+        tambem_em: [verificabilidade, ambiguidade]
+        descricao: >-
+          O motivo é obrigatório, mas o sistema exige ao menos 10 caracteres
+          (RN-FAT-013); a história não diz.
+        regras: [RN-FAT-013]
+        palavras_chave: [[motivo], ["10", dez, caracteres, minimo]]
+      - id: REV-FAT-001-L2
+        caracteristica: completude
+        descricao: >-
+          Fatura emitida há mais de 30 dias só pode ser cancelada por
+          supervisor (RN-FAT-014); a história não trata o perfil.
+        regras: [RN-FAT-014]
+        palavras_chave: [[supervisor], ["30", trinta, emiss*, dias]]
+    perguntas_esperadas:
+      - tema: A história muda a regra que proíbe cancelar fatura com pagamento parcial, ou o texto está errado?
+        palavras_chave: [[pagamento parcial, pago*, pagamento*], [regra, muda*, mudanca, alter*, err*, intenc*, proposit*, correto, confirm*, pretend*, deve*]]
+
+# Histórias com critérios de aceite a partir da análise de impacto de uma
+# demanda (fluxo "Histórias e critérios", #115).
+historias:
+  - id: HIS-FAT-001
+    titulo: Histórias do parcelamento para pessoa física
+    demanda: D-FAT-003
+    regras: [RN-FAT-007, RN-FAT-008, RN-FAT-009]
+    # Abrangência média: tela, backend e parâmetros por tipo de cliente.
+    quebra: true
+    historias_esperadas:
+      - id: HIS-FAT-001-H1
+        descricao: Pessoa física passa a poder parcelar a fatura (hoje bloqueada na tela e no backend).
+        palavras_chave: [[pessoa fisica, pessoas fisicas, pf], [parcel*]]
+      - id: HIS-FAT-001-H2
+        descricao: Limite de 3 parcelas e parcela mínima de R$ 100,00 para pessoa física, sem mudar os demais tipos.
+        palavras_chave: [["3", tres, limite*, minim*, "100", "100,00", parametr*]]
+    a_confirmar:
+      - tema: A parcela mínima de R$ 100,00 vale só para pessoa física?
+        palavras_chave: [["100", "100,00", minim*]]
+
+# Cenários de teste derivados das regras (fluxo "Cenários de teste", #117). Os
+# limites estão no código da fixture; o máximo de parcelas vem da tabela
+# PARAMETRO e fica a confirmar.
+cenarios:
+  - id: CEN-FAT-001
+    titulo: Cenários de teste do cancelamento de fatura
+    pedido: >-
+      Cenários de teste do cancelamento de fatura, a partir das regras
+      RN-FAT-012, RN-FAT-013 e RN-FAT-014.
+    regras: [RN-FAT-012, RN-FAT-013, RN-FAT-014]
+    limites:
+      - id: CEN-FAT-001-L1
+        regra: RN-FAT-013
+        grandeza: tamanho do motivo, em caracteres, sem os espaços das pontas
+        valor: 10
+        # `< 10` recusa: 9 é recusado, 10 é aceito.
+        valores_testados: [9, 10]
+        evidencia:
+          arquivo: db/03_pkg_cobranca.sql
+          linha_inicial: 119
+          linha_final: 119
+          trecho: "LENGTH(TRIM(P_MOTIVO)) < 10"
+      - id: CEN-FAT-001-L2
+        regra: RN-FAT-014
+        grandeza: dias desde a emissão da fatura
+        valor: 30
+        # `> 30` exige supervisor: 30 dias ainda não, 31 dias sim.
+        valores_testados: [30, 31]
+        evidencia:
+          arquivo: delphi/UFrmCancelamento.pas
+          linha_inicial: 41
+          linha_final: 41
+          trecho: "DIAS_LIMITE_SEM_SUPERVISOR = 30;"
+    tabelas:
+      - id: CEN-FAT-001-T1
+        regra: RN-FAT-014
+        descricao: >-
+          Emitida há mais de 30 dias × perfil SUPERVISOR: só a combinação
+          "mais de 30 dias e sem supervisor" é recusada.
+        condicoes: 2
+        palavras_chave: [[supervisor*, perfil*], [dias, emiss*, "30"]]
+    negativos:
+      - id: CEN-FAT-001-N1
+        regra: RN-FAT-012
+        descricao: Fatura com pagamento parcial não pode ser cancelada (erro -20011).
+        palavras_chave: [[pagamento parcial, pago*, pagamento*, vl_pago, "20011"]]
+      - id: CEN-FAT-001-N2
+        regra: RN-FAT-012
+        descricao: Só fatura ABERTA pode ser cancelada (erro -20010).
+        palavras_chave: [[aberta, "20010"], [cancel*]]
+
+  - id: CEN-FAT-002
+    titulo: Cenários de teste da quantidade de parcelas
+    pedido: >-
+      Cenários de teste da quantidade de parcelas do parcelamento, a partir
+      da regra RN-FAT-008.
+    regras: [RN-FAT-008]
+    limites:
+      - id: CEN-FAT-002-L1
+        regra: RN-FAT-008
+        grandeza: quantidade mínima de parcelas
+        valor: 2
+        # `quantidade < MIN_PARCELAS` recusa: 1 é recusado, 2 é aceito.
+        valores_testados: [1, 2]
+        evidencia:
+          arquivo: backend/src/main/java/exemplo/faturamento/ParcelamentoService.java
+          linha_inicial: 14
+          linha_final: 14
+          trecho: "MIN_PARCELAS = 2"
+    a_confirmar:
+      - tema: O máximo de parcelas vem do parâmetro MAX_PARCELAS (6 na carga inicial); qual é o valor em produção?
+        palavras_chave: [[max_parcelas, maxim*, "6", "7"]]

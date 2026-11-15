@@ -61,6 +61,9 @@ pub fn criar_analise_de_issue(
     referencia: &str,
     ferramentas: &Ferramentas,
 ) -> Result<AnaliseCriada, String> {
+    if fluxo == Fluxo::Reuniao {
+        return Err(crate::demandas::FLUXO_REUNIAO.into());
+    }
     let p = cadastrado(dados, projeto)?;
     let tracker = p
         .repositorios
@@ -80,6 +83,7 @@ pub fn criar_analise_de_issue(
         &entrada,
         Some(&d.titulo),
         Some(Demanda {
+            id: None,
             origem: d.url,
             chave: Some(d.chave),
         }),

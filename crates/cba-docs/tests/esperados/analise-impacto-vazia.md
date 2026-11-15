@@ -4,6 +4,7 @@ id: A-0009
 titulo: Sem registros ainda
 projeto: faturamento-exemplo
 demanda:
+  id: null
   origem: texto
   chave: null
 status: rascunho

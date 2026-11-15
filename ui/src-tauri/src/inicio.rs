@@ -142,17 +142,77 @@ pub async fn inicio_app() -> Result<Inicio, String> {
     bloqueante(move || inicio(&dados)).await
 }
 
-/// Cria a análise de um fluxo (perguntar, explicar, impacto) pelo início.
+/// Cria a análise de um fluxo (perguntar, explicar, impacto) pelo início ou pelo
+/// painel da demanda. Com `demanda` (`D-0001`), a análise fica ligada a ela.
 #[tauri::command]
 pub async fn criar_analise_fluxo(
     projeto: String,
     fluxo: Fluxo,
     entrada: String,
     titulo: Option<String>,
+    demanda: Option<String>,
 ) -> Result<AnaliseCriada, String> {
     let dados = dados()?;
-    bloqueante(move || criar_analise_do_fluxo(&dados, &projeto, fluxo, &entrada, titulo.as_deref()))
-        .await
+    bloqueante(move || match demanda.as_deref().map(str::trim) {
+        Some(d) if !d.is_empty() => crate::demandas::criar_analise_ligada(
+            &dados,
+            &projeto,
+            d,
+            fluxo,
+            &entrada,
+            titulo.as_deref(),
+        ),
+        _ => criar_analise_do_fluxo(&dados, &projeto, fluxo, &entrada, titulo.as_deref()),
+    })
+    .await
+}
+
+/// Cria a análise de histórias com critérios de aceite (#115) a partir de uma
+/// análise de origem ou de uma demanda.
+#[tauri::command]
+pub async fn criar_analise_de_historias_app(
+    projeto: String,
+    origem: Option<String>,
+    demanda: Option<String>,
+    entrada: Option<String>,
+    titulo: Option<String>,
+) -> Result<AnaliseCriada, String> {
+    let dados = dados()?;
+    bloqueante(move || {
+        crate::analise::criar_analise_de_historias(
+            &dados,
+            &projeto,
+            origem.as_deref(),
+            demanda.as_deref(),
+            entrada.as_deref(),
+            titulo.as_deref(),
+        )
+    })
+    .await
+}
+
+/// Cria a análise de cenários de teste (#117) a partir de uma análise de origem,
+/// de uma demanda ou só do pedido.
+#[tauri::command]
+pub async fn criar_analise_de_cenarios_app(
+    projeto: String,
+    origem: Option<String>,
+    demanda: Option<String>,
+    entrada: Option<String>,
+    titulo: Option<String>,
+) -> Result<AnaliseCriada, String> {
+    let dados = dados()?;
+    bloqueante(move || {
+        crate::analise::criar_analise_de_cenarios(
+            &dados,
+            &projeto,
+            origem.as_deref(),
+            demanda.as_deref(),
+            entrada.as_deref(),
+            titulo.as_deref(),
+        )
+    })
+    .await
 }
 
 #[cfg(test)]
