@@ -50,6 +50,10 @@ pub struct Preferencias {
     /// `None` quando o arquivo é anterior ao assistente.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub primeiro_uso_concluido: Option<bool>,
+    /// Pasta base dos clones dos repositórios de código (#179); `None` = a
+    /// sugerida.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pasta_clones: Option<PathBuf>,
 }
 
 impl Preferencias {

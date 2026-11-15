@@ -32,6 +32,7 @@ mod alteracoes;
 mod analise;
 mod base;
 mod cli;
+mod clones;
 mod configuracoes;
 #[cfg(windows)]
 mod console;

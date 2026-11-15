@@ -6,8 +6,8 @@ use cba_session::clientes::{self, EstadoClientes};
 use std::sync::Arc;
 
 use crate::{
-    alteracoes, analise, base, configuracoes, conversa, demandas, inicio, primeiro_uso, projeto,
-    prompts, repositorios, reunioes, revisao, terminal, vigia,
+    alteracoes, analise, base, clones, configuracoes, conversa, demandas, inicio, primeiro_uso,
+    projeto, prompts, repositorios, reunioes, revisao, terminal, vigia,
 };
 
 pub fn rodar() {
@@ -102,6 +102,13 @@ pub fn rodar() {
             repositorios::salvar_repositorios_app,
             repositorios::prontidao_repositorios_app,
             repositorios::detectar_repositorios_app,
+            clones::pasta_clones_app,
+            clones::definir_pasta_clones_app,
+            clones::salvar_token_app,
+            clones::apagar_token_app,
+            clones::tokens_guardados_app,
+            clones::testar_acesso_app,
+            clones::clonar_repositorios_app,
             repositorios::criar_analise_de_demanda,
             configuracoes::configuracoes_app,
             configuracoes::avaliar_troca_base_app,

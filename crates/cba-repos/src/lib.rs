@@ -52,6 +52,8 @@ macro_rules! str_enum {
     };
 }
 
+pub mod chaveiro;
+pub mod clone;
 pub mod codigo;
 mod credential;
 pub mod demanda;

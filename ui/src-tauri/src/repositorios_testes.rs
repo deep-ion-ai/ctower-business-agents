@@ -212,6 +212,7 @@ echo '{{"title":"Cancelar fatura","description":"{historia}","web_url":"https://
 echo '{{"fields":{{"summary":"Cancelar fatura","description":"{historia}"}}}}'"#
             ),
         ),
+        ..Default::default()
     };
     for (tracker, referencia, fonte) in [
         (

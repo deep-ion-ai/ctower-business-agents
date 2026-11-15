@@ -5,11 +5,13 @@
 //! `server` igual à `url`, comando de credencial, `jira me` e `jira serverinfo`.
 //! GitLab: `glab version` e `glab api version`. GitHub: `gh` e `gh auth token`.
 
+use crate::chaveiro::token_do_repositorio;
+use crate::clone::testar_acesso;
 use crate::demanda::{Ferramentas, PRAZO_CLI};
 use crate::process::{RunError, cite, run};
 use crate::{
-    CREDENTIAL_DEADLINE, ForgeKind, GithubConfig, GitlabConfig, JiraConfig, Repositorios, Secret,
-    TrackerConfig, run_credential,
+    CREDENTIAL_DEADLINE, GithubConfig, GitlabConfig, JiraConfig, OrigemToken, RepositorioCodigo,
+    Repositorios, Secret, TrackerConfig, run_credential,
 };
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -246,11 +248,11 @@ fn prontidao_glab(g: &GitlabConfig, f: &Ferramentas, titulo: &str) -> Integracao
     );
     b.passo(
         "credencial",
-        "Comando de credencial responde",
-        "Rode o comando de credencial num terminal; o cache do gpg-agent pode ter expirado.",
+        "Token do GitLab disponível",
+        "Cadastre o token global do host em Configurações, ou rode o comando de credencial \
+         num terminal (o cache do gpg-agent pode ter expirado).",
         || {
-            let s = run_credential("GitLab", &g.credential_cmd, CREDENTIAL_DEADLINE)
-                .map_err(|e| e.to_string())?;
+            let s = crate::demanda::token_gitlab(g, f).map_err(|e| e.to_string())?;
             *cred.borrow_mut() = Some(s);
             Ok(None)
         },
@@ -289,9 +291,12 @@ fn prontidao_gh(_g: &GithubConfig, f: &Ferramentas, titulo: &str) -> Integracao 
     );
     b.passo(
         "credencial",
-        "gh autenticado (gh auth token)",
-        "Rode `gh auth login` num terminal.",
+        "gh autenticado (token do chaveiro ou gh auth token)",
+        "Cadastre o token do github.com em Configurações ou rode `gh auth login` num terminal.",
         || {
+            if crate::demanda::token_github(f).is_some() {
+                return Ok(Some("token do chaveiro".into()));
+            }
             let mut c = Command::new(&f.gh);
             c.args(["auth", "token"]);
             // Só interessa que haja token; o valor não é guardado nem mostrado.
@@ -310,30 +315,54 @@ fn prontidao_gh(_g: &GithubConfig, f: &Ferramentas, titulo: &str) -> Integracao 
     }
 }
 
+/// Repositório de código: git instalado, token (chaveiro, comando ou nenhum) e
+/// acesso de leitura (`git ls-remote`).
+fn prontidao_codigo(repo: &RepositorioCodigo, f: &Ferramentas) -> Integracao {
+    let mut b = Construtor::novo();
+    let cred: std::cell::RefCell<Option<Secret>> = Default::default();
+    b.passo(
+        "git",
+        "git instalado",
+        "Instale o git (https://git-scm.com) e deixe-o no PATH.",
+        || {
+            let mut c = Command::new(&f.git);
+            c.arg("--version");
+            saida(c, None).map(Some)
+        },
+    );
+    b.passo(
+        "credencial",
+        "Token disponível",
+        "Informe o token de novo (Configurações › Projetos) ou confira o comando de credencial.",
+        || {
+            let t = token_do_repositorio(repo, f.chaveiro.as_ref()).map_err(|e| e.to_string())?;
+            let detalhe = match (&t, repo.token) {
+                (None, _) => "sem token: chave SSH ou credencial do próprio git",
+                (Some(_), OrigemToken::Comando) => "comando de credencial",
+                (Some(_), _) => "chaveiro do sistema",
+            };
+            *cred.borrow_mut() = t;
+            Ok(Some(detalhe.into()))
+        },
+    );
+    let token = cred.borrow();
+    b.passo(
+        "acesso",
+        "Acesso de leitura (git ls-remote)",
+        "Confira a URL de clone e se o token tem permissão de leitura do repositório.",
+        || testar_acesso(&f.git, repo, token.as_ref()).map(|()| None),
+    );
+    Integracao {
+        titulo: format!("Código ({})", repo.rotulo()),
+        passos: b.passos,
+    }
+}
+
 /// Confere as integrações cadastradas do projeto.
 pub fn conferir(r: &Repositorios, f: &Ferramentas) -> Prontidao {
     let mut integracoes = Vec::new();
     for repo in &r.codigo {
-        let titulo = format!("Código ({})", repo.rotulo());
-        match repo.forja {
-            ForgeKind::Github => integracoes.push(prontidao_gh(
-                &GithubConfig {
-                    repo: repo.caminho.clone(),
-                },
-                f,
-                &titulo,
-            )),
-            ForgeKind::Gitlab => integracoes.push(prontidao_glab(
-                &GitlabConfig {
-                    host: repo.host.clone(),
-                    path: repo.caminho.clone(),
-                    clone_url: repo.url_clone.clone(),
-                    credential_cmd: repo.comando_credencial.clone(),
-                },
-                f,
-                &titulo,
-            )),
-        }
+        integracoes.push(prontidao_codigo(repo, f));
     }
     match &r.tracker {
         Some(TrackerConfig::Github(g)) => integracoes.push(prontidao_gh(g, f, "Issues (GitHub)")),
@@ -439,38 +468,68 @@ esac"#,
 
     #[test]
     fn gitlab_e_github() {
+        use crate::chaveiro::{Chaveiro, ChaveiroMemoria, conta_global, conta_propria};
+        use crate::{ForgeKind, OrigemToken, RepositorioCodigo};
         let d = tempfile::tempdir().unwrap();
-        let glab = script(
-            d.path(),
-            "glab",
-            r#"case "$1" in version) echo "glab 1.50";; api) [ "$GITLAB_TOKEN" = tok ] && echo '{"version":"17"}' || exit 1;; esac"#,
-        );
         let gh = script(
             d.path(),
             "gh",
             r#"case "$1" in --version) echo "gh 2.60";; auth) echo ghp_x;; esac"#,
         );
+        // git falso: o ls-remote só passa com o token esperado de cada repositório.
+        let git = script(
+            d.path(),
+            "git",
+            r#"case "$*" in
+--version) echo "git version 2.45";;
+*ls-remote*gitlab.example.com/g/p/app*) [ "$CBA_GIT_TOKEN" = tok ] || { echo "Authentication failed" >&2; exit 128; };;
+*ls-remote*github.com/o/web*) [ "$CBA_GIT_TOKEN" = so-do-web ] || { echo "Authentication failed" >&2; exit 128; };;
+*) exit 2;;
+esac"#,
+        );
+        let chaveiro = std::sync::Arc::new(ChaveiroMemoria::default());
         let f = Ferramentas {
-            glab,
             gh,
+            git,
+            chaveiro: chaveiro.clone(),
+            ..Default::default()
+        };
+        let web = RepositorioCodigo {
+            caminho: "o/web".into(),
+            token: OrigemToken::Proprio,
             ..Default::default()
         };
         let r = Repositorios {
-            codigo: vec![crate::RepositorioCodigo {
-                forja: ForgeKind::Gitlab,
-                host: "gitlab.example.com".into(),
-                caminho: "g/p/app".into(),
-                token: crate::OrigemToken::Comando,
-                comando_credencial: "echo tok".into(),
-                ..Default::default()
-            }],
+            codigo: vec![
+                RepositorioCodigo {
+                    forja: ForgeKind::Gitlab,
+                    host: "gitlab.example.com".into(),
+                    caminho: "g/p/app".into(),
+                    url_clone: "https://gitlab.example.com/g/p/app.git".into(),
+                    ..Default::default()
+                },
+                web.clone(),
+            ],
             tracker: Some(TrackerConfig::Github(GithubConfig { repo: "o/r".into() })),
         };
         let p = conferir(&r, &f);
-        assert!(p.pronta(), "{p:?}");
-        assert_eq!(p.integracoes.len(), 2);
+        assert!(!p.pronta());
+        assert_eq!(p.integracoes.len(), 3);
         assert_eq!(p.integracoes[0].titulo, "Código (GitLab g/p/app)");
-        assert!(!format!("{p:?}").contains("ghp_x"));
+        assert_eq!(p.integracoes[0].passos[2].situacao, Situacao::Falhou);
+        assert_eq!(p.integracoes[1].passos[1].situacao, Situacao::Falhou);
+        chaveiro
+            .gravar(&conta_global("gitlab.example.com"), &Secret::new("tok"))
+            .unwrap();
+        chaveiro
+            .gravar(&conta_propria(&web), &Secret::new("so-do-web"))
+            .unwrap();
+        let p = conferir(&r, &f);
+        assert!(p.pronta(), "{p:?}");
+        let texto = format!("{p:?}");
+        for segredo in ["ghp_x", "so-do-web", "\"tok\""] {
+            assert!(!texto.contains(segredo), "{segredo}: {texto}");
+        }
         // Sem nada cadastrado, nada a conferir.
         assert!(conferir(&Repositorios::default(), &f).pronta());
     }

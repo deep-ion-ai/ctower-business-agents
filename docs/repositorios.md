@@ -30,10 +30,36 @@ do Jira são os mesmos. O código está em `crates/cba-repos` (sem Tauri), copia
 
 ## Credenciais
 
-O cadastro guarda só o **comando de credencial** (por exemplo `pass show jira | head -1`), nunca o
-token. O comando roda com `/bin/sh -c`, sem entrada, sem terminal e com prazo de 10 s; vale a
-primeira linha da saída. O token chega ao `jira`, ao `glab` e ao `gh` só no ambiente do processo
-filho. Nada vai a disco, a log ou à configuração do Claude.
+O cadastro nunca guarda o token. Há três origens (#179):
+
+- **Token global do host** (`token: global`): um PAT no chaveiro do sistema (Keychain no macOS,
+  Gerenciador de Credenciais no Windows, keyutils no Linux), na conta `host:<host>` do serviço
+  `ai.deep-ion.ctower-business-agents`. Vale para todos os repositórios daquele host; trocá-lo vale
+  para todos de uma vez.
+- **Token só deste repositório** (`token: proprio`): conta `repo:<host>/<caminho>`. Tem precedência
+  sobre o global.
+- **Comando de credencial** (`token: comando`, e o Jira): o comando (por exemplo
+  `pass show jira | head -1`) roda com `/bin/sh -c`, sem entrada, sem terminal e com prazo de 10 s;
+  vale a primeira linha da saída.
+
+Os mesmos tokens servem às issues: o GitHub recebe o token global do `github.com` em `GH_TOKEN` (sem
+ele, vale o `gh auth login`); o GitLab de issues sem comando de credencial usa o token global do
+host. O token chega ao `git`, ao `jira`, ao `glab` e ao `gh` só no ambiente do processo filho. Nada
+vai a disco, a log ou à configuração do Claude.
+
+## Clone inicial
+
+O app clona os repositórios (HTTPS ou SSH) numa pasta base configurável (preferências do app; padrão
+`Documentos/ctower-business-repos`), uma subpasta por repositório, com progresso e erro claro por
+repositório. Só o clone inicial: atualizar (fetch/pull) fica com o analista.
+
+O token não vai para a URL, para os argumentos nem para o `.git/config`: o `git` recebe com `-c` um
+credential helper que vale só para aquela execução e lê o token de uma variável de ambiente. URL de
+clone com senha ou token embutido é recusada. Nenhuma execução pede nada no terminal
+(`GIT_TERMINAL_PROMPT=0`, SSH em `BatchMode`); no SSH valem as chaves do analista.
+
+"Testar acesso" roda `git ls-remote --heads` com o token digitado (ou o guardado) e confirma a
+permissão de leitura antes de clonar.
 
 ## Regras que não mudam depois do cadastro
 
@@ -44,9 +70,10 @@ não foi cadastrado pode ser acrescentado depois.
 ## Prontidão
 
 Em Configurações, cada projeto mostra os passos de cada integração e a orientação de quem falhou.
+Repositório de código: `git` instalado, token disponível e acesso de leitura (`git ls-remote`).
 Jira: `jira` instalado, configuração presente, `server` igual à URL, comando de credencial, `jira me`
-e `jira serverinfo`. GitLab: `glab version` e `glab api version`. GitHub: `gh` e `gh auth token`. A
-prontidão não bloqueia o app.
+e `jira serverinfo`. GitLab de issues: `glab version`, token e `glab api version`. GitHub de issues:
+`gh` e token (chaveiro ou `gh auth token`). A prontidão não bloqueia o app.
 
 ## Uso nas análises
 

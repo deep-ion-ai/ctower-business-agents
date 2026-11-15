@@ -15,11 +15,26 @@ import {
   type TrocaBase,
 } from "../configuracoes";
 import type { PreviaProjeto } from "../primeiroUso";
-import type { Prontidao, RepoDetectado, Repositorios } from "../repositorios";
+import type {
+  AlvoToken,
+  EventoClone,
+  Prontidao,
+  RepoDetectado,
+  RepositorioCodigo,
+  Repositorios,
+  ResultadoClone,
+} from "../repositorios";
 import { apiPrimeiroUsoFalsa, inventarioFicticio } from "./falsos";
 
 export const BASE = "/Users/analista/Documents/ctower-business";
 export const CODIGO = "/codigo/faturamento-exemplo";
+export const PASTA_CLONES = "/Users/analista/Documents/ctower-business-repos";
+
+/** Conta do chaveiro falso: `host` (global) ou `host/caminho` (próprio). */
+export function contaDoAlvo(alvo: AlvoToken): string {
+  const caminho = alvo.caminho?.trim();
+  return caminho ? `${alvo.host}/${caminho}` : alvo.host;
+}
 
 export function configuracoesFicticias(parcial: Partial<Configuracoes> = {}): Configuracoes {
   return {
@@ -161,8 +176,50 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
       versao: versaoDe(arquivo),
     };
   };
+  /** O chaveiro falso: conta → token. */
+  const chaveiro = new Map<string, string>();
+  let pastaClones: string | null = PASTA_CLONES;
   const api = {
     ...base,
+    pastaClones: vi.fn((): Promise<string | null> => Promise.resolve(pastaClones)),
+    definirPastaClones: vi.fn((pasta: string): Promise<string> => {
+      if (!pasta.startsWith("/")) {
+        return Promise.reject(`informe o caminho completo da pasta dos clones: ${pasta}`);
+      }
+      pastaClones = pasta;
+      return Promise.resolve(pasta);
+    }),
+    salvarToken: vi.fn((alvo: AlvoToken, token: string): Promise<void> => {
+      chaveiro.set(contaDoAlvo(alvo), token);
+      return Promise.resolve();
+    }),
+    apagarToken: vi.fn((alvo: AlvoToken): Promise<void> => {
+      chaveiro.delete(contaDoAlvo(alvo));
+      return Promise.resolve();
+    }),
+    tokensGuardados: vi.fn(
+      (alvos: AlvoToken[]): Promise<boolean[]> =>
+        Promise.resolve(alvos.map((a) => chaveiro.has(contaDoAlvo(a)))),
+    ),
+    testarAcesso: vi.fn(
+      (_repositorio: RepositorioCodigo, _token?: string | null): Promise<void> =>
+        Promise.resolve(),
+    ),
+    clonarRepositorios: vi.fn(
+      (
+        repositorios: RepositorioCodigo[],
+        pastaBase: string,
+        aoEvento: (e: EventoClone) => void,
+      ): Promise<ResultadoClone[]> =>
+        Promise.resolve(
+          repositorios.map((r, indice) => {
+            const pasta = `${pastaBase}/${r.caminho.split("/").pop()}`;
+            aoEvento({ tipo: "inicio", indice });
+            aoEvento({ tipo: "concluido", indice, pasta });
+            return { repositorio: { ...r, pasta }, erro: null };
+          }),
+        ),
+    ),
     configuracoes: vi.fn((): Promise<Configuracoes> => Promise.resolve(cfg)),
     salvarRepositorios: vi.fn(
       (_projeto: string, repositorios: Repositorios): Promise<Repositorios> =>
@@ -294,5 +351,10 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
   const editarFora = (arquivo: string, texto: string) => {
     arquivos.set(arquivo, { texto, versao: `v${++contador}` });
   };
-  return Object.assign(api, { editarFora, textoNaBase: (arquivo: string) => arquivos.get(arquivo)!.texto });
+  return Object.assign(api, {
+    editarFora,
+    textoNaBase: (arquivo: string) => arquivos.get(arquivo)!.texto,
+    /** O conteúdo do chaveiro falso (conta → token). */
+    chaveiro,
+  });
 }

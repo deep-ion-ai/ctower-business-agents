@@ -5,13 +5,21 @@ import { ProntidaoRepositorios } from "./ProntidaoRepositorios";
 import {
   REPOSITORIO_CODIGO_VAZIO,
   SEM_REPOSITORIOS,
+  alvoDoToken,
+  progressoInicialClone,
+  reduzirProgressoClone,
   repositorioDaUrl,
   validarRepositorios,
+  type EventoClone,
   type RepositorioCodigo,
   type Repositorios,
 } from "./repositorios";
 import { TelaConfiguracoes } from "./TelaConfiguracoes";
-import { apiConfiguracoesFalsa, configuracoesFicticias } from "./test/configuracoesFalso";
+import {
+  PASTA_CLONES,
+  apiConfiguracoesFalsa,
+  configuracoesFicticias,
+} from "./test/configuracoesFalso";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(), Channel: vi.fn() }));
 
@@ -50,16 +58,19 @@ function Controlado({
   inicial = SEM_REPOSITORIOS,
   travado,
   aoMudar,
+  api = apiConfiguracoesFalsa(),
 }: {
   inicial?: Repositorios;
   travado?: Repositorios;
   aoMudar?: (r: Repositorios) => void;
+  api?: ReturnType<typeof apiConfiguracoesFalsa>;
 }) {
   const [v, setV] = useState(inicial);
   return (
     <FormRepositorios
       valor={v}
       travado={travado}
+      api={api}
       aoMudar={(r) => {
         setV(r);
         aoMudar?.(r);
@@ -113,6 +124,10 @@ describe("validarRepositorios", () => {
     };
     expect(validarRepositorios({ codigo: [GITLAB], tracker: JIRA })).toBeNull();
     expect(validarRepositorios({ codigo: [GITHUB, GITLAB], tracker: gitlab })).toBeNull();
+    // Sem comando de credencial, vale o token global do host no chaveiro.
+    expect(
+      validarRepositorios({ codigo: [], tracker: { ...gitlab, credential_cmd: " " } }),
+    ).toBeNull();
   });
 
   it("recusa repositórios de código inválidos, apontando qual", () => {
@@ -228,6 +243,135 @@ describe("FormRepositorios", () => {
   });
 });
 
+describe("token do repositório de código", () => {
+  const PROPRIO: RepositorioCodigo = { ...GITHUB, token: "proprio" };
+
+  it("alvo: só o host no token global, host e caminho no próprio", () => {
+    expect(alvoDoToken(GITHUB)).toEqual({ host: "github.com", caminho: null });
+    expect(alvoDoToken(PROPRIO)).toEqual({ host: "github.com", caminho: "o/r" });
+  });
+
+  it("testa o acesso com o token digitado e mostra o resultado", async () => {
+    const api = apiConfiguracoesFalsa();
+    render(<Controlado inicial={{ codigo: [GITHUB], tracker: null }} api={api} />);
+    const grupo = within(screen.getByRole("group", { name: "Repositório de código 1" }));
+    const campo = grupo.getByLabelText("Token (PAT)");
+    expect(campo).toHaveAttribute("type", "password");
+    expect(campo).toHaveAttribute("autocomplete", "off");
+    expect(grupo.getByText(/chaveiro do sistema, nunca no projeto/)).toBeInTheDocument();
+    fireEvent.change(campo, { target: { value: "ghp_segredo" } });
+    fireEvent.click(grupo.getByRole("button", { name: "Testar acesso" }));
+    expect(await grupo.findByText("Acesso OK")).toBeInTheDocument();
+    expect(api.testarAcesso).toHaveBeenCalledWith(GITHUB, "ghp_segredo");
+
+    api.testarAcesso.mockRejectedValueOnce("sem permissão de leitura em o/r");
+    fireEvent.click(grupo.getByRole("button", { name: "Testar acesso" }));
+    expect(await grupo.findByText("sem permissão de leitura em o/r")).toBeInTheDocument();
+    expect(grupo.getByRole("status")).toHaveTextContent("sem permissão de leitura em o/r");
+  });
+
+  it("sem token digitado, testa com o guardado", async () => {
+    const api = apiConfiguracoesFalsa();
+    render(<Controlado inicial={{ codigo: [GITHUB], tracker: null }} api={api} />);
+    fireEvent.click(screen.getByRole("button", { name: "Testar acesso" }));
+    await screen.findByText("Acesso OK");
+    expect(api.testarAcesso).toHaveBeenCalledWith(GITHUB, null);
+  });
+
+  it.each([
+    ["global", GITHUB, { host: "github.com", caminho: null }],
+    ["proprio", PROPRIO, { host: "github.com", caminho: "o/r" }],
+  ] as const)(
+    "guarda o token %s no chaveiro, limpa o campo e não o põe no cadastro",
+    async (_origem, repo, alvo) => {
+      const api = apiConfiguracoesFalsa();
+      const aoMudar = vi.fn();
+      render(
+        <Controlado inicial={{ codigo: [repo], tracker: null }} api={api} aoMudar={aoMudar} />,
+      );
+      expect(await screen.findByText(/Nenhum token guardado/)).toBeInTheDocument();
+      const campo = screen.getByLabelText("Token (PAT)");
+      fireEvent.change(campo, { target: { value: "ghp_segredo" } });
+      fireEvent.change(screen.getByLabelText("Branch (opcional)"), {
+        target: { value: "main" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Guardar no chaveiro" }));
+      await waitFor(() => expect(api.salvarToken).toHaveBeenCalledWith(alvo, "ghp_segredo"));
+      await waitFor(() => expect(campo).toHaveValue(""));
+      expect(await screen.findByText(/^\s*Token guardado\.$/)).toBeInTheDocument();
+      expect(aoMudar).toHaveBeenCalled();
+      for (const [valor] of aoMudar.mock.calls) {
+        expect(JSON.stringify(valor)).not.toContain("ghp_segredo");
+      }
+      expect(ultimoValor(aoMudar).codigo[0]).toEqual({ ...repo, branch: "main" });
+    },
+  );
+
+  it("consulta o chaveiro ao trocar de origem e não mostra o campo no comando", async () => {
+    const api = apiConfiguracoesFalsa();
+    api.chaveiro.set("github.com/o/r", "x");
+    render(<Controlado inicial={{ codigo: [GITHUB], tracker: null }} api={api} />);
+    expect(await screen.findByText(/Nenhum token guardado/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Token"), { target: { value: "proprio" } });
+    expect(await screen.findByText(/^\s*Token guardado\.$/)).toBeInTheDocument();
+    expect(api.tokensGuardados).toHaveBeenLastCalledWith([
+      { host: "github.com", caminho: "o/r" },
+    ]);
+    fireEvent.change(screen.getByLabelText("Token"), { target: { value: "comando" } });
+    expect(screen.queryByLabelText("Token (PAT)")).not.toBeInTheDocument();
+  });
+});
+
+describe("reduzirProgressoClone", () => {
+  it("monta o progresso por repositório a partir dos eventos", () => {
+    const eventos: EventoClone[] = [
+      { tipo: "inicio", indice: 0 },
+      { tipo: "progresso", indice: 0, etapa: "Recebendo objetos", percentual: 40 },
+      { tipo: "concluido", indice: 0, pasta: "/clones/r" },
+      { tipo: "inicio", indice: 1 },
+      { tipo: "progresso", indice: 1, etapa: "Conectando", percentual: null },
+      { tipo: "falhou", indice: 1, erro: "autenticação recusada" },
+    ];
+    const inicial = progressoInicialClone(3);
+    const passos = eventos.reduce(
+      (acc, e) => [...acc, reduzirProgressoClone(acc[acc.length - 1]!, e)],
+      [inicial],
+    );
+    expect(passos[2]![0]).toEqual({
+      situacao: "clonando",
+      etapa: "Recebendo objetos",
+      percentual: 40,
+      pasta: null,
+      erro: null,
+    });
+    expect(passos[passos.length - 1]).toEqual([
+      {
+        situacao: "concluido",
+        etapa: "Recebendo objetos",
+        percentual: 100,
+        pasta: "/clones/r",
+        erro: null,
+      },
+      {
+        situacao: "falhou",
+        etapa: "Conectando",
+        percentual: null,
+        pasta: null,
+        erro: "autenticação recusada",
+      },
+      { situacao: "aguardando", etapa: null, percentual: null, pasta: null, erro: null },
+    ]);
+    // Não muda o estado anterior.
+    expect(inicial.every((p) => p.situacao === "aguardando")).toBe(true);
+  });
+
+  it("estende a lista num índice além dela e ignora índice inválido", () => {
+    const r = reduzirProgressoClone([], { tipo: "inicio", indice: 1 });
+    expect(r.map((p) => p.situacao)).toEqual(["aguardando", "clonando"]);
+    expect(reduzirProgressoClone(r, { tipo: "inicio", indice: -1 })).toBe(r);
+  });
+});
+
 describe("ProntidaoRepositorios", () => {
   it("mostra cada passo e a orientação de quem falhou", async () => {
     const api = {
@@ -269,6 +413,86 @@ describe("ProntidaoRepositorios", () => {
     expect(screen.getByText("falhou")).toHaveAttribute("data-tone", "error");
     expect(screen.getByText("não conferido")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Conferir de novo" })).toBeInTheDocument();
+  });
+});
+
+describe("clones e tokens nas configurações", () => {
+  it("mostra e grava a pasta dos clones", async () => {
+    const api = apiConfiguracoesFalsa();
+    render(<TelaConfiguracoes api={api} aoMudarProjetos={vi.fn()} />);
+    const grupo = within(await screen.findByRole("group", { name: "Pasta dos clones" }));
+    const campo = grupo.getByLabelText("Pasta dos clones");
+    await waitFor(() => expect(campo).toHaveValue(PASTA_CLONES));
+    const salvar = grupo.getByRole("button", { name: "Salvar a pasta" });
+    expect(salvar).toBeDisabled();
+    fireEvent.change(campo, { target: { value: "relativa" } });
+    fireEvent.click(salvar);
+    expect(await grupo.findByRole("alert")).toHaveTextContent(/caminho completo/);
+    fireEvent.change(campo, { target: { value: "/clones" } });
+    fireEvent.click(salvar);
+    expect(await grupo.findByText(/Salvo\./)).toBeInTheDocument();
+    expect(api.definirPastaClones).toHaveBeenLastCalledWith("/clones");
+  });
+
+  it("guarda e apaga o token global de um host conhecido", async () => {
+    const cfg = configuracoesFicticias();
+    cfg.projetos[0].repositorios = {
+      codigo: [GITLAB],
+      tracker: {
+        kind: "gitlab",
+        host: "gitlab.interno.example",
+        path: "g/p",
+        clone_url: "",
+        credential_cmd: "",
+      },
+    };
+    const api = apiConfiguracoesFalsa(cfg);
+    render(<TelaConfiguracoes api={api} aoMudarProjetos={vi.fn()} />);
+    const grupo = within(await screen.findByRole("group", { name: "Tokens globais por host" }));
+    expect(grupo.getByLabelText("Token de github.com")).toBeInTheDocument();
+    expect(grupo.getByLabelText("Token de gitlab.interno.example")).toBeInTheDocument();
+    const campo = grupo.getByLabelText("Token de gitlab.example.com");
+    expect(campo).toHaveAttribute("type", "password");
+    const apagar = grupo.getByRole("button", { name: "Apagar o token de gitlab.example.com" });
+    await waitFor(() => expect(api.tokensGuardados).toHaveBeenCalled());
+    expect(apagar).toBeDisabled();
+
+    fireEvent.change(campo, { target: { value: "glpat-segredo" } });
+    fireEvent.click(grupo.getByRole("button", { name: "Guardar o token de gitlab.example.com" }));
+    await waitFor(() =>
+      expect(api.salvarToken).toHaveBeenCalledWith(
+        { host: "gitlab.example.com", caminho: null },
+        "glpat-segredo",
+      ),
+    );
+    await waitFor(() => expect(campo).toHaveValue(""));
+    await waitFor(() => expect(apagar).toBeEnabled());
+    expect(api.chaveiro.get("gitlab.example.com")).toBe("glpat-segredo");
+
+    fireEvent.click(apagar);
+    await waitFor(() =>
+      expect(api.apagarToken).toHaveBeenCalledWith({ host: "gitlab.example.com", caminho: null }),
+    );
+    await waitFor(() => expect(apagar).toBeDisabled());
+    expect(api.chaveiro.has("gitlab.example.com")).toBe(false);
+  });
+
+  it("acrescenta outro host", async () => {
+    const api = apiConfiguracoesFalsa();
+    render(<TelaConfiguracoes api={api} aoMudarProjetos={vi.fn()} />);
+    const grupo = within(await screen.findByRole("group", { name: "Tokens globais por host" }));
+    fireEvent.change(grupo.getByLabelText("Outro host"), {
+      target: { value: "Git.Example.org" },
+    });
+    fireEvent.click(grupo.getByRole("button", { name: "Acrescentar host" }));
+    expect(grupo.getByLabelText("Token de git.example.org")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(api.tokensGuardados).toHaveBeenLastCalledWith([
+        { host: "github.com", caminho: null },
+        { host: "git.example.org", caminho: null },
+      ]),
+    );
+    expect(await grupo.findAllByText("sem token")).toHaveLength(2);
   });
 });
 
