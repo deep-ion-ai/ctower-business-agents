@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { TelaInicio } from "./TelaInicio";
 import { PROJETO, apiConhecimentoFalsa, inicioFicticio } from "./test/conhecimentoFalso";
+import { apiConfiguracoesFalsa } from "./test/configuracoesFalso";
 import { clientesProntos } from "./test/falsos";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(), Channel: vi.fn() }));
@@ -14,6 +15,28 @@ function montar(falsa = apiConhecimentoFalsa()) {
 }
 
 describe("TelaInicio", () => {
+  it("“Novo projeto” abre o assistente numa modal; Esc e Cancelar fecham", async () => {
+    const falsa = apiConhecimentoFalsa();
+    const apiProjeto = apiConfiguracoesFalsa();
+    render(
+      <TelaInicio api={falsa.api} navegar={vi.fn()} apiProjeto={apiProjeto} aoMudarProjetos={vi.fn()} />,
+    );
+    const projetos = await screen.findByRole("region", { name: "Projetos" });
+    const botao = within(projetos).getByRole("button", { name: "+ Novo projeto" });
+    botao.focus();
+    fireEvent.click(botao);
+    const modal = screen.getByRole("dialog", { name: "Novo projeto" });
+    expect(modal).toHaveAttribute("aria-modal", "true");
+    expect(within(modal).getByRole("form", { name: "Cadastrar projeto" })).toBeInTheDocument();
+    fireEvent.keyDown(modal, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(botao).toHaveFocus();
+    fireEvent.click(botao);
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancelar" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+
   it("mostra os projetos, as análises em andamento e recentes e os clientes de IA", async () => {
     montar();
     const andamento = await screen.findByRole("region", { name: "Em andamento" });

@@ -479,6 +479,8 @@ export function Navegacao({
                   navegar={navegar}
                   abrirLink={abrirLink}
                   aoPrimeiroUso={aoPrimeiroUso}
+                  apiProjeto={apiConfiguracoes}
+                  aoMudarProjetos={() => setRecarga((r) => r + 1)}
                 />
               )}
               {aba?.tela.tipo === "projeto" && (
