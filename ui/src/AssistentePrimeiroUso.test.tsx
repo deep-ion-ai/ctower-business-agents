@@ -1,14 +1,8 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { AssistentePrimeiroUso } from "./AssistentePrimeiroUso";
-import { CadastroProjeto } from "./CadastroProjeto";
 import { EscolhaBase } from "./EscolhaBase";
 import { EscolhaCliente } from "./EscolhaCliente";
-import {
-  apiPrimeiroUsoFalsa,
-  clientesProntos,
-  inventarioFicticio,
-  situacaoInicial,
-} from "./test/falsos";
+import { apiPrimeiroUsoFalsa, clientesProntos, situacaoInicial } from "./test/falsos";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(), Channel: vi.fn() }));
 
@@ -178,117 +172,18 @@ describe("Primeiro uso: base de conhecimento", () => {
   });
 });
 
-describe("Primeiro uso: cadastro do projeto", () => {
-  function preencher() {
-    fireEvent.change(screen.getByLabelText("Nome do projeto"), {
-      target: { value: "Faturamento Exemplo" },
-    });
-    fireEvent.change(screen.getByLabelText(/Pasta principal/), {
-      target: { value: "/codigo/faturamento-exemplo" },
-    });
-  }
-
-  it("mostra o inventário e o que fica fora antes de cadastrar", async () => {
-    const api = apiPrimeiroUsoFalsa();
-    render(<CadastroProjeto api={api} aoConcluir={vi.fn()} />);
-    const cadastrar = screen.getByRole("button", { name: "Cadastrar o projeto" });
-    expect(cadastrar).toBeDisabled();
-    preencher();
-    fireEvent.click(screen.getByRole("button", { name: "Ver o que será analisado" }));
-    const previa = within(await screen.findByRole("region", { name: "Prévia do inventário" }));
-    expect(previa.getByText(/Será analisado: 14 arquivos/)).toBeInTheDocument();
-    expect(previa.getByText("SQL")).toBeInTheDocument();
-    expect(previa.getByText(/Fica fora: 1 itens/)).toBeInTheDocument();
-    expect(previa.getAllByText("possível segredo").length).toBeGreaterThan(0);
-    expect(previa.getByText(".env")).toBeInTheDocument();
-    expect(cadastrar).toBeEnabled();
-  });
-
-  it("aplica as exclusões e reinclusões ajustadas pelo analista", async () => {
-    const api = apiPrimeiroUsoFalsa();
-    const aoConcluir = vi.fn();
-    render(<CadastroProjeto api={api} aoConcluir={aoConcluir} />);
-    preencher();
-    fireEvent.click(screen.getByRole("button", { name: "Ver o que será analisado" }));
-    await screen.findByRole("region", { name: "Prévia do inventário" });
-
-    // Excluir a pasta cobol: a prévia fica desatualizada até ser refeita.
-    fireEvent.change(screen.getByLabelText(/Excluir também/), {
-      target: { value: "cobol/\n\n*.log" },
-    });
-    expect(screen.getByText(/Atualize a prévia antes de cadastrar/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Cadastrar o projeto" })).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: "Atualizar a prévia" }));
-    await waitFor(() =>
-      expect(api.previaProjeto).toHaveBeenLastCalledWith(
-        expect.objectContaining({ exclusoes: ["cobol/", "*.log"], inclusoes: [] }),
-      ),
-    );
-
-    // Reincluir o .env pela lista do que fica fora.
-    fireEvent.click(await screen.findByRole("button", { name: "Incluir .env na análise" }));
-    await waitFor(() =>
-      expect(api.previaProjeto).toHaveBeenLastCalledWith(
-        expect.objectContaining({ inclusoes: ["/.env"] }),
-      ),
-    );
-    expect(
-      within(screen.getByRole("group", { name: "Reincluídos" })).getByText("/.env"),
-    ).toBeInTheDocument();
-
-    const cadastrar = screen.getByRole("button", { name: "Cadastrar o projeto" });
-    await waitFor(() => expect(cadastrar).toBeEnabled());
-    fireEvent.click(cadastrar);
-    await waitFor(() =>
-      expect(api.cadastrarProjeto).toHaveBeenCalledWith({
-        nome: "Faturamento Exemplo",
-        pastas: ["/codigo/faturamento-exemplo"],
-        exclusoes: ["cobol/", "*.log"],
-        inclusoes: ["/.env"],
-        repositorios: { codigo: [], tracker: null },
-      }),
-    );
-    await waitFor(() => expect(aoConcluir).toHaveBeenCalled());
-  });
-
-  it("aceita mais de uma pasta e avisa do projeto já cadastrado", async () => {
-    const api = apiPrimeiroUsoFalsa();
-    api.previaProjeto.mockImplementation((p) =>
-      Promise.resolve({
-        id: "faturamento-exemplo",
-        nome: p.nome,
-        pastas: [],
-        exclusoes: [],
-        inclusoes: [],
-        jaCadastrado: true,
-        inventario: inventarioFicticio(),
-      }),
-    );
-    render(<CadastroProjeto api={api} aoConcluir={vi.fn()} />);
-    preencher();
-    fireEvent.click(screen.getByRole("button", { name: "Acrescentar outra pasta" }));
-    fireEvent.click(screen.getAllByRole("button", { name: "Escolher pasta…" })[1]);
-    await waitFor(() =>
-      expect(screen.getByLabelText(/Pasta 2/)).toHaveValue("/codigo/faturamento-exemplo"),
-    );
-    fireEvent.change(screen.getByLabelText(/Pasta 2/), { target: { value: "/codigo/telas" } });
-    fireEvent.click(screen.getByRole("button", { name: "Ver o que será analisado" }));
-    expect(await screen.findByText(/Já existe um projeto cadastrado/)).toBeInTheDocument();
-    expect(api.previaProjeto).toHaveBeenCalledWith(
-      expect.objectContaining({ pastas: ["/codigo/faturamento-exemplo", "/codigo/telas"] }),
-    );
-    expect(screen.getByRole("button", { name: "Cadastrar o projeto" })).toBeDisabled();
-  });
-
-  it("mostra a recusa do cadastro", async () => {
-    const api = apiPrimeiroUsoFalsa();
-    api.previaProjeto.mockRejectedValue("pasta não encontrada: /codigo/faturamento-exemplo");
-    render(<CadastroProjeto api={api} aoConcluir={vi.fn()} />);
-    preencher();
-    fireEvent.click(screen.getByRole("button", { name: "Ver o que será analisado" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("pasta não encontrada");
-  });
-});
+/** O caminho comum do assistente de projeto: uma pasta e Continuar até cadastrar. */
+async function cadastrarPeloAssistente() {
+  fireEvent.click(screen.getByRole("button", { name: /Escolher a pasta do código/ }));
+  await screen.findByRole("button", { name: "Trocar a pasta do código" });
+  fireEvent.click(continuar());
+  await screen.findByRole("region", { name: "Prévia do inventário" });
+  fireEvent.click(continuar());
+  await screen.findByRole("heading", { name: "Conectar as demandas (opcional)" });
+  fireEvent.click(continuar());
+  fireEvent.click(await screen.findByRole("button", { name: "Cadastrar o projeto" }));
+  await screen.findByRole("heading", { name: "“Faturamento Exemplo” está cadastrado" });
+}
 
 describe("Assistente do primeiro uso", () => {
   async function ateOAmbiente(api: ReturnType<typeof apiPrimeiroUsoFalsa>) {
@@ -297,15 +192,8 @@ describe("Assistente do primeiro uso", () => {
     await screen.findByText(/o app vai criá-la/);
     fireEvent.click(screen.getByRole("button", { name: "Usar esta pasta" }));
     await screen.findByRole("form", { name: "Cadastrar projeto" });
-    fireEvent.change(screen.getByLabelText("Nome do projeto"), {
-      target: { value: "Faturamento Exemplo" },
-    });
-    fireEvent.change(screen.getByLabelText(/Pasta principal/), {
-      target: { value: "/codigo/faturamento-exemplo" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Ver o que será analisado" }));
-    await screen.findByRole("region", { name: "Prévia do inventário" });
-    fireEvent.click(screen.getByRole("button", { name: "Cadastrar o projeto" }));
+    await cadastrarPeloAssistente();
+    fireEvent.click(screen.getByRole("button", { name: "Preparar o ambiente do Claude" }));
     await screen.findByRole("region", { name: "Ambiente do Claude" });
     expect(api.configurarBase).toHaveBeenCalledWith("/Users/analista/Documents/ctower-business");
   }
@@ -381,6 +269,23 @@ describe("Assistente do primeiro uso", () => {
     expect(api.prepararAmbiente).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Preparar depois" }));
     expect(await screen.findByText(/ainda não foi preparado/)).toBeInTheDocument();
+    expect(api.prepararAmbiente).not.toHaveBeenCalled();
+  });
+
+  it("“Fazer depois” no fim do cadastro segue para a primeira análise sem preparar", async () => {
+    const api = apiPrimeiroUsoFalsa();
+    render(<AssistentePrimeiroUso api={api} situacao={situacaoInicial()} aoConcluir={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Continuar" }, { timeout: 2000 }));
+    await screen.findByText(/o app vai criá-la/);
+    fireEvent.click(screen.getByRole("button", { name: "Usar esta pasta" }));
+    await screen.findByRole("form", { name: "Cadastrar projeto" });
+    await cadastrarPeloAssistente();
+    expect(api.cadastrarProjeto).toHaveBeenCalledWith(
+      expect.objectContaining({ nome: "Faturamento Exemplo", pastas: ["/codigo/faturamento-exemplo"] }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Fazer depois" }));
+    expect(await screen.findByRole("region", { name: "Primeira análise" })).toBeInTheDocument();
+    expect(screen.getByText(/ainda não foi preparado/)).toBeInTheDocument();
     expect(api.prepararAmbiente).not.toHaveBeenCalled();
   });
 

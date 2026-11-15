@@ -153,6 +153,19 @@ export function repositorioDaUrl(url: string): RepositorioCodigo | null {
   };
 }
 
+/**
+ * Host de uma URL (`https://jira.example.com:8443/x` → `jira.example.com`), em
+ * minúsculas, como o `JiraConfig::host` do `cba-repos`: é a conta do token no chaveiro.
+ */
+export function hostDaUrl(url: string): string {
+  const u = url.trim();
+  const i = u.indexOf("://");
+  const resto = i >= 0 ? u.slice(i + 3) : u;
+  const autoridade = resto.split("/")[0] ?? "";
+  const semUsuario = autoridade.slice(autoridade.lastIndexOf("@") + 1);
+  return (semUsuario.split(":")[0] ?? "").toLowerCase();
+}
+
 /** Mesmo repositório de código: host e caminho, sem diferenciar maiúsculas. */
 export function mesmoRepositorio(
   a: Pick<RepositorioCodigo, "host" | "caminho">,
@@ -224,9 +237,7 @@ export function validarRepositorios(r: Repositorios): string | null {
   if (!/^[A-Z][A-Z0-9_]*$/.test(t.project_key)) {
     return "Chave do projeto Jira inválida: maiúsculas, como PROJ.";
   }
-  if (!t.credential_cmd.trim()) {
-    return "Informe o comando de credencial do Jira (ex.: pass show jira | head -1).";
-  }
+  // Sem comando de credencial, vale o token do host do Jira guardado no chaveiro (#180).
   if (!t.active_sprint_only) {
     if (!t.jql.trim()) {
       return "Informe o JQL (ex.: labels = minha-equipe AND updated >= -90d) ou marque “somente a sprint ativa”.";
@@ -379,6 +390,11 @@ export interface ApiRepositorios {
     pastaBase: string,
     aoEvento: (e: EventoClone) => void,
   ): Promise<ResultadoClone[]>;
+  /**
+   * Testa a conexão com o Jira (acesso, projeto e campos). Com `token` (digitado e
+   * ainda não guardado), usa ele; senão, o comando de credencial ou o do chaveiro.
+   */
+  testarJira(jira: JiraConfig, token: string | null): Promise<IntegracaoProntidao>;
 }
 
 export const apiRepositoriosTauri: ApiRepositorios = {
@@ -399,4 +415,5 @@ export const apiRepositoriosTauri: ApiRepositorios = {
     // O canal não é desligado ao fim: um evento pode chegar depois da resposta.
     return invoke<ResultadoClone[]>("clonar_repositorios_app", { repositorios, pastaBase, canal });
   },
+  testarJira: (jira, token) => invoke("testar_jira_app", { jira, token }),
 };

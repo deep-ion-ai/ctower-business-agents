@@ -38,13 +38,15 @@ O cadastro nunca guarda o token. Há três origens (#179):
   para todos de uma vez.
 - **Token só deste repositório** (`token: proprio`): conta `repo:<host>/<caminho>`. Tem precedência
   sobre o global.
-- **Comando de credencial** (`token: comando`, e o Jira): o comando (por exemplo
+- **Comando de credencial** (`token: comando`; no Jira e no GitLab de issues, quando preenchido): o comando (por exemplo
   `pass show jira | head -1`) roda com `/bin/sh -c`, sem entrada, sem terminal e com prazo de 10 s;
   vale a primeira linha da saída.
 
 Os mesmos tokens servem às issues: o GitHub recebe o token global do `github.com` em `GH_TOKEN` (sem
 ele, vale o `gh auth login`); o GitLab de issues sem comando de credencial usa o token global do
-host. O token chega ao `git`, ao `jira`, ao `glab` e ao `gh` só no ambiente do processo filho. Nada
+host; o Jira sem comando de credencial usa o token do host do Jira (conta `host:<host do Jira>`).
+No cadastro, "Testar conexão" do Jira roda os passos da prontidão com o token digitado, sem gravá-lo.
+O token chega ao `git`, ao `jira`, ao `glab` e ao `gh` só no ambiente do processo filho. Nada
 vai a disco, a log ou à configuração do Claude.
 
 ## Clone inicial

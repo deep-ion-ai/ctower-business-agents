@@ -10,8 +10,8 @@ use crate::clone::testar_acesso;
 use crate::demanda::{Ferramentas, PRAZO_CLI};
 use crate::process::{RunError, cite, run};
 use crate::{
-    CREDENTIAL_DEADLINE, GithubConfig, GitlabConfig, JiraConfig, OrigemToken, RepositorioCodigo,
-    Repositorios, Secret, TrackerConfig, run_credential,
+    GithubConfig, GitlabConfig, JiraConfig, OrigemToken, RepositorioCodigo, Repositorios, Secret,
+    TrackerConfig,
 };
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -194,11 +194,11 @@ pub fn prontidao_jira(j: &JiraConfig, f: &Ferramentas) -> Integracao {
     );
     b.passo(
         "credencial",
-        "Comando de credencial responde",
-        "Rode o comando de credencial num terminal; o cache do gpg-agent pode ter expirado.",
+        "Token do Jira disponível",
+        "Informe o token do Jira (fica no chaveiro do sistema) ou confira o comando de \
+         credencial; o cache do gpg-agent pode ter expirado.",
         || {
-            let s = run_credential("Jira", &j.credential_cmd, CREDENTIAL_DEADLINE)
-                .map_err(|e| e.to_string())?;
+            let s = crate::demanda::token_jira(j, f).map_err(|e| e.to_string())?;
             *cred.borrow_mut() = Some(s);
             Ok(None)
         },

@@ -148,7 +148,8 @@ describe("validarRepositorios", () => {
     expect(t({ url: "jira.example.com" })).toMatch(/URL do Jira/);
     expect(t({ url: "https://jira.example.com/" })).toMatch(/URL do Jira/);
     expect(t({ project_key: "proj" })).toMatch(/Chave do projeto/);
-    expect(t({ credential_cmd: " " })).toMatch(/credencial/);
+    // Sem comando de credencial, vale o token do host do Jira no chaveiro (#180).
+    expect(t({ credential_cmd: " " })).toBeNull();
     expect(t({ active_sprint_only: false })).toMatch(/JQL/);
     expect(t({ active_sprint_only: false, jql: "a", max_issues: 5001 })).toMatch(/Limite/);
     expect(t({ active_sprint_only: false, jql: "a", max_issues: 5000 })).toBeNull();

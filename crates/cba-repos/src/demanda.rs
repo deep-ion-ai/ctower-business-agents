@@ -73,6 +73,23 @@ pub fn token_gitlab(g: &GitlabConfig, f: &Ferramentas) -> Result<Secret, Demanda
         .ok_or_else(|| DemandaErro::SemToken(g.host.trim().to_string()))
 }
 
+/// Token do Jira: o do comando de credencial, se cadastrado; senão, o do host
+/// do Jira no chaveiro (#180).
+pub fn token_jira(j: &JiraConfig, f: &Ferramentas) -> Result<Secret, DemandaErro> {
+    if !j.credential_cmd.trim().is_empty() {
+        return Ok(run_credential(
+            "Jira",
+            &j.credential_cmd,
+            CREDENTIAL_DEADLINE,
+        )?);
+    }
+    let host = j.host();
+    f.chaveiro
+        .ler(&conta_global(&host))
+        .map_err(DemandaErro::Chaveiro)?
+        .ok_or(DemandaErro::SemToken(host))
+}
+
 /// Token global do GitHub no chaveiro, se houver; sem ele, vale o `gh auth`.
 pub fn token_github(f: &Ferramentas) -> Option<Secret> {
     f.chaveiro.ler(&conta_global(HOST_GITHUB)).ok().flatten()
@@ -214,7 +231,7 @@ pub fn buscar_jira(j: &JiraConfig, ref_: &str, f: &Ferramentas) -> Result<Demand
     if j.number_from_key(&chave).is_none() {
         return Err(DemandaErro::Referencia(ref_.to_string()));
     }
-    let token = run_credential("Jira", &j.credential_cmd, CREDENTIAL_DEADLINE)?;
+    let token = token_jira(j, f)?;
     let mut c = Command::new(&f.jira);
     c.args(["issue", "view", &chave, "--raw"])
         .env("JIRA_API_TOKEN", token.expose());
