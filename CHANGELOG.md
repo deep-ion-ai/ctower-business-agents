@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.4.0](https://github.com/deep-ion-ai/ctower-business-agents/compare/v0.3.0...v0.4.0) (2026-11-15)
+
+
+### Features
+
+* **analise:** memória por análise para retomar o contexto ([#143](https://github.com/deep-ion-ai/ctower-business-agents/issues/143)) ([c51de85](https://github.com/deep-ion-ai/ctower-business-agents/commit/c51de854e832faafb5d5a69d83df050b9de9be6e))
+* **analise:** passo da memória nos roteiros de reunião, revisão, histórias e cenários ([#143](https://github.com/deep-ion-ai/ctower-business-agents/issues/143)) ([5fac18c](https://github.com/deep-ion-ai/ctower-business-agents/commit/5fac18c22e8bf4cf3dcea389431c321146d6f31d))
+* da análise para o requisito: histórias, cenários de teste e revisão ([#127](https://github.com/deep-ion-ai/ctower-business-agents/issues/127)) ([1b8de6d](https://github.com/deep-ion-ai/ctower-business-agents/commit/1b8de6d625cf2fbc3da4963be40850d7d347fccd))
+* **fluxos:** cenários de teste derivados das regras ([#117](https://github.com/deep-ion-ai/ctower-business-agents/issues/117)) ([#163](https://github.com/deep-ion-ai/ctower-business-agents/issues/163)) ([f25080e](https://github.com/deep-ion-ai/ctower-business-agents/commit/f25080e4ec2cc43f1f2befa03af9f234676acd72))
+* **fluxos:** histórias com critérios de aceite a partir de uma análise ([#115](https://github.com/deep-ion-ai/ctower-business-agents/issues/115)) ([#162](https://github.com/deep-ion-ai/ctower-business-agents/issues/162)) ([8b3d899](https://github.com/deep-ion-ai/ctower-business-agents/commit/8b3d8992ec21e67d39df8973490cead227de0ff8))
+* **fluxos:** revisão de qualidade de requisito ou história contra o código ([#116](https://github.com/deep-ion-ai/ctower-business-agents/issues/116)) ([#161](https://github.com/deep-ion-ai/ctower-business-agents/issues/161)) ([486bdd7](https://github.com/deep-ion-ai/ctower-business-agents/commit/486bdd7453c0522de0df274289639a9a6ffea548))
+
+
+### Bug Fixes
+
+* **export:** exportar a análise de reunião leva a ata ([#93](https://github.com/deep-ion-ai/ctower-business-agents/issues/93)) ([b95b058](https://github.com/deep-ion-ai/ctower-business-agents/commit/b95b058c5eb04c2356c4037de72541b0d7141953))
+* melhorias da ata de reunião (resumo, falas de origem e exportação) ([#93](https://github.com/deep-ion-ai/ctower-business-agents/issues/93)) ([caf5b2d](https://github.com/deep-ion-ai/ctower-business-agents/commit/caf5b2d7356db321e3f97dca9a5fc9b6bd5c09c6))
+* **ui:** restaura a regra do cabeçalho do achado do parecer, quebrada no rebase da [#115](https://github.com/deep-ion-ai/ctower-business-agents/issues/115) ([#164](https://github.com/deep-ion-ai/ctower-business-agents/issues/164)) ([7d3cda1](https://github.com/deep-ion-ai/ctower-business-agents/commit/7d3cda1937f50e43631e1b28d716f0f2d3b9e912))
+* **ui:** resumo da ata em Markdown e falas de origem recolhidas ([#93](https://github.com/deep-ion-ai/ctower-business-agents/issues/93)) ([38fd6a4](https://github.com/deep-ion-ai/ctower-business-agents/commit/38fd6a456993f6aeee096b2bea3128287f10f4db))
+
 ## [0.3.0](https://github.com/deep-ion-ai/ctower-business-agents/compare/v0.2.0...v0.3.0) (2026-11-14)
 
 
