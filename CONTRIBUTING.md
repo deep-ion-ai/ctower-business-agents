@@ -123,8 +123,13 @@ O CI roda nos runners do GitHub. Em PRs de fork, um mantenedor precisa aprovar a
 
 O workflow `ci` roda em todo PR e em push na `develop` e na `main`. Push numa `wip/**` não dispara o CI: cada merge nela já passou pelo CI do PR.
 
-- `rust`, `ui` e `politicas` rodam sempre.
-- Os testes dos instaladores (`instalador-sh` e `instalador-ps1`) rodam em PRs para `develop` ou `main`, em push nessas branches e em execução manual. Em PRs para outras bases, como uma `wip/<slug>`, só rodam se o PR mexer em `packaging/**` ou em `.github/workflows/ci.yml`.
+- O job `mudancas` compara o PR com a base (`git diff`, sem ação de terceiros) e decide quais jobs rodam, em PRs para qualquer base:
+  - `rust`: `crates/**`, `ui/**` (o `cba-app` embute `ui/dist`), `fixtures/**`, `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`;
+  - `ui`: `ui/**`;
+  - `politicas`: `crates/**`, `ui/**`, `fixtures/**`, `scripts/**`, `Cargo.*`, `rust-toolchain.toml`, `release-please-config.json` e `.release-please-manifest.json`;
+  - `instalador-sh` e `instalador-ps1`: `packaging/**`.
+- Mudança em `.github/workflows/**` roda tudo. Push na `develop` ou `main` e execução manual (`workflow_dispatch`) também rodam tudo.
+- Um PR só de `docs/`, dos `*.md` da raiz, `LICENSE` e afins não roda nenhum desses jobs; `titulo`, `CLA` e `ci-ok` continuam. Se um job novo ler um caminho novo, inclua-o no filtro do `mudancas`.
 - O job `ci-ok` sempre roda e reúne o resultado dos outros: falha se algum falhou ou foi cancelado, e conta os pulados como sucesso. **O `ci-ok` é o único check do CI marcado como obrigatório** na `develop` e na `main` (Settings → Branches ou Rules), no lugar da lista de jobs. Um job novo no `ci.yml` precisa entrar no `needs` do `ci-ok`.
 
 ## CLA
