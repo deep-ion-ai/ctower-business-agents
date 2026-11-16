@@ -402,6 +402,12 @@ export interface Trecho {
   total: number;
 }
 
+/** Onde as linhas de uma evidência estão na forja do repositório. */
+export interface LinkForja {
+  url: string;
+  forja: "github" | "gitlab";
+}
+
 export interface Situacao {
   base: string | null;
   projetos: ProjetoResumo[];
@@ -543,6 +549,17 @@ export interface ApiAnalise extends ApiAmbiente {
   vigiar(projeto: string, aoAviso: (a: AvisoAnalise) => void): Promise<() => void>;
   /** Prompts prontos da análise; lista vazia se o comando não existir (antes da #32). */
   promptsProntos(projeto: string, analise: string): Promise<PromptPronto[]>;
+  /**
+   * Link das linhas citadas na forja do repositório que contém o arquivo (#185);
+   * `null` sem repositório cadastrado ou se o comando falhar.
+   */
+  linkForja(
+    projeto: string,
+    arquivo: string,
+    inicio: number,
+    fim: number,
+    commit?: string | null,
+  ): Promise<LinkForja | null>;
 }
 
 export const apiAnaliseTauri: ApiAnalise = {
@@ -574,6 +591,20 @@ export const apiAnaliseTauri: ApiAnalise = {
     } catch {
       // O comando chega com a #32; sem ele (ou com falha), a tela fica sem os botões.
       return [];
+    }
+  },
+  async linkForja(projeto, arquivo, inicio, fim, commit) {
+    try {
+      return await invoke<LinkForja | null>("link_forja_evidencia_projeto", {
+        projeto,
+        arquivo,
+        inicio,
+        fim,
+        commit: commit ?? null,
+      });
+    } catch {
+      // Sem repositório de código cadastrado, a evidência fica sem o link.
+      return null;
     }
   },
 };

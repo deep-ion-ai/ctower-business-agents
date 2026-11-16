@@ -63,6 +63,7 @@ pub fn rodar() {
             analise::criar_analise_pergunta,
             analise::carregar_analise_projeto,
             analise::trecho_evidencia_projeto,
+            analise::link_forja_evidencia_projeto,
             conversa::opcoes_conversa_analise,
             conversa::abrir_conversa_por_link,
             conversa::conversa_passou_ao_desktop,

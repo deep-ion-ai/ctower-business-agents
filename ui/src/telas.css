@@ -854,11 +854,11 @@
   border-bottom: 1px solid var(--border);
 }
 
-.conversa-onde {
+.conversa-estado {
   flex: 1;
   min-width: 0;
   font-size: 13px;
-  color: var(--muted);
+  color: var(--text);
 }
 
 .ponto-conversa {
@@ -869,21 +869,166 @@
   background: var(--faint);
 }
 
-.ponto-conversa[data-onde="terminalEmbutido"] {
+.ponto-conversa[data-tom="done"] {
   background: var(--ok);
 }
 
-.ponto-conversa[data-onde="claudeDesktop"],
-.ponto-conversa[data-onde="terminalDoAnalista"] {
+.ponto-conversa[data-tom="running"] {
   background: var(--running);
 }
 
-.painel-conversa > :not(.conversa-cabecalho) {
+.ponto-conversa[data-tom="attention"] {
+  background: var(--attention);
+}
+
+/* Abas do painel lateral: Conversa com o agente e Código (#185). */
+.painel-lateral {
+  gap: 0;
+}
+
+.abas-lateral {
+  flex: none;
+  display: flex;
+  gap: 2px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.aba-lateral {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.aba-lateral:hover {
+  color: var(--text);
+}
+
+.aba-lateral[aria-selected="true"] {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.aba-lateral[data-aberta="true"]:not([aria-selected="true"])::after {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.aba-lateral:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.painel-aba {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.painel-aba[hidden] {
+  display: none;
+}
+
+.painel-aba > :not(.conversa-cabecalho) {
   margin: 0 12px;
 }
 
-.painel-conversa > .painel-terminal {
-  margin: 8px 12px 12px;
+.painel-aba > .painel-terminal {
+  margin: 0 12px;
+}
+
+.painel-aba > :last-child {
+  margin-bottom: 12px;
+}
+
+.painel-lateral .painel-flutuante {
+  right: 12px;
+  max-width: calc(100% - 24px);
+}
+
+.seletor-onde {
+  flex: none;
+}
+
+.acoes-rapidas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.acoes-rapidas .acao-terminal {
+  margin-left: auto;
+}
+
+.nota-terminal {
+  margin-top: 0;
+  margin-bottom: 0;
+  font-size: 12px;
+}
+
+.mensagem-agente {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.mensagem-agente textarea {
+  flex: 1;
+  min-width: 0;
+  resize: vertical;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.mensagem-agente textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.sem-evidencia {
+  margin-top: 12px;
+}
+
+.trecho-caminho {
+  margin: 0;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+  word-break: break-all;
+}
+
+.trecho-barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.trecho-navegacao {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .sem-conversa {
@@ -1798,4 +1943,8 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.painel-lateral .trecho-codigo {
+  max-height: none;
 }

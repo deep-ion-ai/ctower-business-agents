@@ -364,9 +364,8 @@ describe("Revisão, aprovação e exportação", () => {
     await waitFor(() => expect(terminal.aberturas.length).toBe(1));
     await act(async () => terminal.aberturas[0].resolver(5));
     await screen.findByText(AFIRMACAO_MULTA.texto);
-    fireEvent.click(await screen.findByRole("button", { name: "Prompts prontos" }));
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Aprofundar a análise" })).toBeEnabled(),
+      expect(screen.getByRole("button", { name: "Aprofundar as pendentes" })).toBeEnabled(),
     );
     await pedirAprofundamento(2, "Quais perfis\npodem consultar?");
     await waitFor(() =>

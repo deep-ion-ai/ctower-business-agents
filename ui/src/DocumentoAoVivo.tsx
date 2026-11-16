@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import type {
   Afirmacao,
+  Analise,
   Confianca,
   EstadoAnalise,
   EstadoSessao,
@@ -98,11 +99,33 @@ export type OrigemEvidencia =
   | `sugestao-${number}`
   | `diagrama-${number}`;
 
+/**
+ * As evidências de uma origem, sem repetir: é por elas que a aba Código navega
+ * (anterior e próxima) a partir da evidência aberta (#185).
+ */
+export function evidenciasDaOrigem(analise: Analise, origem: OrigemEvidencia): Evidencia[] {
+  const [tipo, n] = origem.split("-");
+  const numero = Number(n);
+  let lista: Evidencia[];
+  if (tipo === "afirmacao") {
+    lista = analise.afirmacoes.find((a) => a.numero === numero)?.evidencias ?? [];
+  } else if (tipo === "diagrama") {
+    const d = (analise.diagramas ?? []).find((x) => x.numero === numero);
+    lista = [...(d?.nos ?? []), ...(d?.arestas ?? [])].flatMap((el) => el.evidencias ?? []);
+  } else {
+    const e = analise.sugestoes.find((s) => s.numero === numero)?.evidencia;
+    lista = e ? [e] : [];
+  }
+  return [...new Map(lista.map((e) => [chaveEvidencia(e), e])).values()];
+}
+
 interface Props {
   vista: VistaAnalise;
   /** Evidência aberta (destacada na lista). */
   evidenciaAberta?: string | null;
   aoAbrirEvidencia: (e: Evidencia, origem: OrigemEvidencia) => void;
+  /** Fecha a evidência aberta (ao ocultar o código de onde ela veio). */
+  aoFecharEvidencia?: () => void;
   /** Trecho da evidência aberta, mostrado abaixo do item em `origemTrecho`. */
   trecho?: ReactNode;
   origemTrecho?: OrigemEvidencia | null;
@@ -145,6 +168,7 @@ export function DocumentoAoVivo({
   vista,
   evidenciaAberta,
   aoAbrirEvidencia,
+  aoFecharEvidencia,
   trecho,
   origemTrecho,
   revisao,
@@ -178,24 +202,10 @@ export function DocumentoAoVivo({
     });
     // Fechar o código fecha também o trecho aberto dali.
     if (codigoVisivel(o) && origemTrecho === o && evidenciaAberta) {
-      const ev = evidenciaDaOrigem(o);
-      if (ev) aoAbrirEvidencia(ev, o);
+      const ev = evidenciasDaOrigem(analise, o).find((e) => chaveEvidencia(e) === evidenciaAberta);
+      if (aoFecharEvidencia) aoFecharEvidencia();
+      else if (ev) aoAbrirEvidencia(ev, o);
     }
-  };
-  const evidenciaDaOrigem = (o: OrigemEvidencia): Evidencia | undefined => {
-    const [tipo, n] = o.split("-");
-    const numero = Number(n);
-    if (tipo === "afirmacao")
-      return analise.afirmacoes
-        .find((a) => a.numero === numero)
-        ?.evidencias.find((e) => chaveEvidencia(e) === evidenciaAberta);
-    if (tipo === "diagrama") {
-      const d = diagramas.find((x) => x.numero === numero);
-      return [...(d?.nos ?? []), ...(d?.arestas ?? [])]
-        .flatMap((el) => el.evidencias ?? [])
-        .find((e) => chaveEvidencia(e) === evidenciaAberta);
-    }
-    return analise.sugestoes.find((s) => s.numero === numero)?.evidencia ?? undefined;
   };
 
   return (

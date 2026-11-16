@@ -4,6 +4,7 @@ import type {
   AnaliseResumo,
   AvisoAnalise,
   PlanoPreparo,
+  LinkForja,
   PromptPronto,
   Situacao,
   ApiAnalise,
@@ -136,6 +137,7 @@ export function apiAnaliseFalsa(vista: VistaAnalise = vistaFicticia()) {
       return Promise.resolve(parar);
     }),
     promptsProntos: vi.fn((): Promise<PromptPronto[]> => Promise.resolve([])),
+    linkForja: vi.fn((): Promise<LinkForja | null> => Promise.resolve(null)),
   } satisfies ApiAnalise;
   const avisar = (a: AvisoAnalise) => avisos.forEach((f) => f(a));
   return { api, avisar, parar };
