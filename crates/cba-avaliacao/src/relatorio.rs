@@ -621,6 +621,10 @@ fn criterios_das_analises(s: &mut String) {
     );
     let _ = writeln!(
         s,
+        "- **Fluxo do processo e modelo de dados** (`explicar`): raia esperada atendida pela raia de algum passo com as palavras-chave; passo do fluxo principal atendido por um nó com as palavras-chave no rótulo ou na descrição, ou com evidência que toca a esperada; decisão esperada, do mesmo jeito, por um nó de decisão; fluxograma coerente com início, fim, decisões com dois caminhos e todos os passos alcançáveis. Entidade esperada achada pela tabela, com o nome de negócio e a ligação ao glossário; relação esperada achada pelas tabelas das pontas, com a origem (chave estrangeira ou join). Falha grave: relação registrada com a origem errada (o documento não distingue a relação inferida)."
+    );
+    let _ = writeln!(
+        s,
         "- **Histórias e critérios** (`historias`): história esperada atendida por uma história com as palavras-chave no título e na narrativa; regra esperada citada por um critério, pelo id ou por uma afirmação cuja evidência toca a regra; critério com valor concreto (um número); tema a confirmar marcado num critério com pergunta; quebra proposta quando a abrangência pede. Falha grave: nenhuma história, ou critério sem origem."
     );
 }
@@ -757,6 +761,9 @@ fn analise_md(s: &mut String, e: &Execucao) {
     if let Some(c) = &a.ciclo_vida {
         ciclo_vida_md(s, c);
     }
+    if let Some(m) = &a.modelagem {
+        modelagem_md(s, m);
+    }
     let _ = writeln!(s, "- Concluída: {}\n", sim_nao(a.concluida));
 }
 
@@ -820,6 +827,91 @@ fn ciclo_vida_md(s: &mut String, c: &crate::ciclo_vida::CicloVidaAvaliado) {
     let achados = faltam(&c.achados);
     if !achados.is_empty() {
         let _ = writeln!(s, "  - Achados não apontados: {achados}");
+    }
+}
+
+fn modelagem_md(s: &mut String, m: &crate::modelagem::ModelagemAvaliada) {
+    let itens = |s: &mut String, nome: &str, lista: &[crate::modelagem::ItemAvaliado]| {
+        if lista.is_empty() {
+            return;
+        }
+        let feitos = lista.iter().filter(|i| i.atendido_por.is_some()).count();
+        let _ = writeln!(s, "  - {nome}: {feitos} de {}", lista.len());
+        for i in lista {
+            let _ = writeln!(
+                s,
+                "    - {}: {}",
+                i.id,
+                i.atendido_por.as_deref().unwrap_or("não encontrado")
+            );
+        }
+    };
+    if let Some(p) = &m.processo {
+        let _ = writeln!(
+            s,
+            "- Fluxo do processo: {} ({})",
+            p.diagrama.as_deref().unwrap_or("não registrado"),
+            if p.coerente() {
+                "coerente"
+            } else {
+                "incoerente"
+            }
+        );
+        itens(s, "Raias esperadas", &p.raias);
+        itens(s, "Passos do fluxo principal", &p.principal);
+        itens(s, "Decisões dos alternativos e exceções", &p.decisoes);
+        if !p.decisoes_sem_caminhos.is_empty() {
+            let _ = writeln!(
+                s,
+                "  - Decisões sem dois caminhos: {}",
+                p.decisoes_sem_caminhos.join(", ")
+            );
+        }
+        if !p.inalcancaveis.is_empty() {
+            let _ = writeln!(
+                s,
+                "  - Passos inalcançáveis: {}",
+                p.inalcancaveis.join(", ")
+            );
+        }
+    }
+    if let Some(d) = &m.dados {
+        let _ = writeln!(
+            s,
+            "- Modelo de dados: {}",
+            d.diagrama.as_deref().unwrap_or("não registrado")
+        );
+        for e in &d.entidades {
+            let _ = writeln!(
+                s,
+                "  - {} ({}): {}{}",
+                e.id,
+                e.tabela,
+                e.registrada.as_deref().unwrap_or("não registrada"),
+                match (&e.registrada, e.nome_confere, &e.termo) {
+                    (None, ..) => String::new(),
+                    (_, _, Some(t)) => format!(" (glossário: {t})"),
+                    (_, true, None) => " (nome confere, fora do glossário)".to_owned(),
+                    (_, false, None) => " (nome diverge, fora do glossário)".to_owned(),
+                }
+            );
+        }
+        for r in &d.relacoes {
+            let _ = writeln!(
+                s,
+                "  - {} ({} – {}, esperada {}{}): {}",
+                r.id,
+                r.de,
+                r.para,
+                r.origem_esperada,
+                if r.opcional { ", opcional" } else { "" },
+                match &r.origem_registrada {
+                    None => "não registrada".to_owned(),
+                    Some(o) if r.origem_diverge() => format!("registrada como {o} (diverge)"),
+                    Some(o) => format!("registrada como {o}"),
+                }
+            );
+        }
     }
 }
 

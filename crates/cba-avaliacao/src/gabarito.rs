@@ -122,6 +122,70 @@ pub struct Funcionalidade {
     pub arquivos: Vec<String>,
     #[serde(default)]
     pub perguntas_esperadas: Vec<PerguntaEsperada>,
+    /// Fluxo do processo esperado no documento negocial (#120).
+    #[serde(default)]
+    pub processo: Option<ProcessoEsperado>,
+    /// Modelo de dados conceitual esperado (#120).
+    #[serde(default)]
+    pub modelo_dados: Option<ModeloDadosEsperado>,
+}
+
+/// Fluxo do processo esperado: atores (raias), passos do fluxo principal e
+/// decisões dos alternativos e das exceções.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProcessoEsperado {
+    #[serde(default)]
+    pub raias: Vec<ItemDoProcesso>,
+    #[serde(default)]
+    pub principal: Vec<ItemDoProcesso>,
+    #[serde(default)]
+    pub decisoes: Vec<ItemDoProcesso>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ItemDoProcesso {
+    pub id: String,
+    pub descricao: String,
+    pub palavras_chave: Vec<Vec<String>>,
+    #[serde(default)]
+    pub evidencias: Vec<EvidenciaEsperada>,
+}
+
+/// Modelo de dados conceitual esperado: entidades pela tabela e relações com a
+/// origem (`chave_estrangeira` ou `join`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModeloDadosEsperado {
+    #[serde(default)]
+    pub entidades: Vec<EntidadeEsperada>,
+    #[serde(default)]
+    pub relacoes: Vec<RelacaoEsperada>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EntidadeEsperada {
+    pub id: String,
+    pub tabela: String,
+    pub palavras_chave: Vec<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RelacaoEsperada {
+    pub id: String,
+    pub de: String,
+    pub para: String,
+    /// `chave_estrangeira` ou `join`.
+    pub origem: String,
+    #[serde(default)]
+    pub opcional: bool,
+    #[serde(default)]
+    pub evidencias: Vec<EvidenciaEsperada>,
+}
+
+/// Diagramas esperados do documento negocial (fluxo explicar).
+#[derive(Debug, Clone, Serialize)]
+pub struct ModelagemEsperada {
+    pub processo: Option<ProcessoEsperado>,
+    pub modelo_dados: Option<ModeloDadosEsperado>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -422,6 +486,9 @@ pub struct Item {
     /// Ciclo de vida esperado (fluxo explicar com o diagrama de estados, #119).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ciclo_vida: Option<CicloVidaEsperado>,
+    /// Fluxo do processo e modelo de dados esperados, só no fluxo explicar (#120).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub modelagem: Option<ModelagemEsperada>,
 }
 
 /// Erro ao ler o gabarito ou ao achar um item.
@@ -512,6 +579,7 @@ impl Gabarito {
                 historias: None,
                 cenarios: None,
                 ciclo_vida: None,
+                modelagem: None,
             });
         }
         if let Some(f) = self.funcionalidades.iter().find(|f| f.id == id) {
@@ -529,6 +597,12 @@ impl Gabarito {
                 historias: None,
                 cenarios: None,
                 ciclo_vida: None,
+                modelagem: (f.processo.is_some() || f.modelo_dados.is_some()).then(|| {
+                    ModelagemEsperada {
+                        processo: f.processo.clone(),
+                        modelo_dados: f.modelo_dados.clone(),
+                    }
+                }),
             });
         }
         if let Some(d) = self.demandas.iter().find(|d| d.id == id) {
@@ -546,6 +620,7 @@ impl Gabarito {
                 historias: None,
                 cenarios: None,
                 ciclo_vida: None,
+                modelagem: None,
             });
         }
         if let Some(r) = self.revisoes.iter().find(|r| r.id == id) {
@@ -564,6 +639,7 @@ impl Gabarito {
                 historias: None,
                 cenarios: None,
                 ciclo_vida: None,
+                modelagem: None,
             });
         }
         if let Some(h) = self.historias.iter().find(|h| h.id == id) {
@@ -582,6 +658,7 @@ impl Gabarito {
                 historias: Some(h.esperado.clone()),
                 cenarios: None,
                 ciclo_vida: None,
+                modelagem: None,
             });
         }
         if let Some(c) = self.cenarios.iter().find(|c| c.id == id) {
@@ -599,6 +676,7 @@ impl Gabarito {
                 historias: None,
                 cenarios: Some(c.esperado.clone()),
                 ciclo_vida: None,
+                modelagem: None,
             });
         }
         if let Some(c) = self.ciclos_vida.iter().find(|c| c.id == id) {
@@ -616,6 +694,7 @@ impl Gabarito {
                 historias: None,
                 cenarios: None,
                 ciclo_vida: Some(c.esperado.clone()),
+                modelagem: None,
             });
         }
         Err(Erro(format!(
