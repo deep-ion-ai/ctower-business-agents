@@ -56,10 +56,19 @@ export type OrigemPergunta =
   | { tipo: "achado-diagrama"; diagrama: number; achado: string }
   | { tipo: "aresta"; diagrama: number; de: string; para: string };
 
+/** Pessoa do catálogo (#133) a quem a pergunta se dirige. */
+export interface DestinoPergunta {
+  slug: string;
+  nome: string;
+  papel?: string | null;
+}
+
 export type Pergunta = {
   numero: number;
   texto: string;
   afirmacao?: number | null;
+  /** Para quem perguntar, vindo do catálogo de pessoas; sem ele o cartão mostra só o texto. */
+  para?: DestinoPergunta | null;
   /** Item que virou esta pergunta (#119, #120). */
   origem?: OrigemPergunta | null;
   /** Evidências do item de origem. */
