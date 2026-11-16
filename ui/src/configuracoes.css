@@ -1,7 +1,421 @@
 /* Tela de configurações (#39, visual do Control Tower em #85). Cores só por token. */
 
 .configuracoes {
+  max-width: 78rem;
+}
+
+/* Menu lateral e a seção escolhida (#191). */
+.config-layout {
+  display: grid;
+  grid-template-columns: 15rem minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.config-conteudo {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
   max-width: 60rem;
+}
+
+.menu-config {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  position: sticky;
+  top: 0;
+}
+
+.menu-config-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.menu-config-titulo {
+  padding: 0 12px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.menu-config-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu-config-item:hover {
+  background: var(--hover);
+}
+
+.menu-config-item[aria-current="page"] {
+  background: var(--selected);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.menu-config-nome {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.menu-config-contagem {
+  padding: 0 7px;
+  border-radius: 10px;
+  background: var(--attention-bg);
+  color: var(--attention);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.menu-config-novo {
+  align-self: flex-start;
+  margin: 4px 0 0 12px;
+}
+
+.menu-config-vazio {
+  margin: 0;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.ponto-status {
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+.ponto-status[data-estado="ok"] {
+  background: var(--ok);
+}
+
+.ponto-status[data-estado="pendente"] {
+  background: var(--attention);
+}
+
+.config-secao {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.config-secao .config-secao-topo h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.config-secao-topo p {
+  margin: 0;
+}
+
+.config-cartao {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.config-cartao-topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.config-secao .config-cartao-topo h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text);
+}
+
+.config-caminho {
+  overflow-wrap: anywhere;
+}
+
+.config-linha-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.config-acoes-inicio {
+  justify-content: flex-start;
+}
+
+.config-vazio p {
+  margin: 0;
+}
+
+.config-aviso {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.config-filtros {
+  display: flex;
+  gap: 8px;
+}
+
+.config-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.config-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+
+.config-item-texto {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.config-item-nome {
+  font-weight: 500;
+}
+
+/* Cartões de opção do Assistente de IA. */
+.cartoes-opcao,
+.cartoes-tema {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.cartoes-tema {
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+}
+
+.cartao-opcao,
+.cartao-tema {
+  display: grid;
+  gap: 4px 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.cartao-opcao {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+}
+
+.cartao-opcao[data-escolhido="true"],
+.cartao-tema[data-escolhido="true"] {
+  border-color: var(--accent);
+  background: var(--selected);
+}
+
+.cartao-opcao[data-indisponivel="true"] {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+
+.cartao-opcao:focus-within,
+.cartao-tema:focus-within {
+  outline: 2px solid var(--running);
+  outline-offset: 2px;
+}
+
+.cartao-opcao-corpo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cartao-opcao-titulo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+.cartao-tema input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tema-miniatura {
+  display: flex;
+  height: 4.5rem;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+}
+
+.tema-miniatura-lado {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+}
+
+.tema-miniatura-lado[data-tema="light"] {
+  background: var(--previa-claro-bg);
+  --previa-barra: var(--previa-claro-barra);
+  --previa-linha: var(--previa-claro-linha);
+}
+
+.tema-miniatura-lado[data-tema="dark"] {
+  background: var(--previa-escuro-bg);
+  --previa-barra: var(--previa-escuro-barra);
+  --previa-linha: var(--previa-escuro-linha);
+}
+
+.tema-miniatura-barra {
+  height: 8px;
+  width: 40%;
+  border-radius: 4px;
+  background: var(--previa-barra);
+}
+
+.tema-miniatura-linha {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--previa-linha);
+}
+
+.tema-miniatura-linha.curta {
+  width: 60%;
+}
+
+.confirmacao-tema {
+  margin: 0;
+  min-height: 1.5em;
+}
+
+/* Menu “⋯” das ações secundárias. */
+.menu-mais {
+  position: relative;
+}
+
+.menu-mais-lista {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  min-width: 14rem;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px var(--shadow);
+}
+
+.menu-mais-lista button {
+  display: block;
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu-mais-lista button:hover:not(:disabled),
+.menu-mais-lista button:focus-visible {
+  background: var(--hover);
+}
+
+.menu-mais-lista button:disabled {
+  color: var(--faint);
+  cursor: not-allowed;
+}
+
+/* Diálogo da troca da base (dois passos). */
+.dialogo-troca-base {
+  width: min(40rem, 100%);
+  max-height: 100%;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dialogo-troca-base:focus {
+  outline: none;
+}
+
+.dialogo.dialogo-troca-base h3 {
+  margin: 0;
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: 16px;
+  color: var(--text);
+}
+
+.dialogo-troca-base .dialogo-passo {
+  margin: 0;
+  font-size: 12px;
+}
+
+.dialogo-troca-base .confirmar-troca {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dialogo-acoes-troca .espaco {
+  flex: 1;
+}
+
+@media (max-width: 52rem) {
+  .config-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .menu-config {
+    position: static;
+  }
 }
 
 .configuracoes > h2 {
@@ -25,7 +439,9 @@
 }
 
 .secao-config h4,
-.secao-config h5 {
+.secao-config h5,
+.config-secao h4,
+.config-secao h5 {
   margin: 8px 0 4px;
   font-size: 14px;
   font-weight: 600;

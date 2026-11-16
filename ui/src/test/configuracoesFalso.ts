@@ -8,6 +8,7 @@ import {
   type AvisoTexto,
   type Configuracoes,
   type EstadoTexto,
+  type InfoBase,
   type LeituraTexto,
   type ModoTroca,
   type SalvoTexto,
@@ -221,6 +222,22 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
         ),
     ),
     configuracoes: vi.fn((): Promise<Configuracoes> => Promise.resolve(cfg)),
+    infoBase: vi.fn(
+      (): Promise<InfoBase | null> =>
+        Promise.resolve(
+          cfg.base
+            ? {
+                caminho: cfg.base,
+                existe: true,
+                arquivos: 142,
+                bytes: 3_460_000,
+                git: true,
+                indiceAtualizadoEm: 1_700_000_000,
+              }
+            : null,
+        ),
+    ),
+    abrirBase: vi.fn((): Promise<string> => Promise.resolve(cfg.base ?? "")),
     salvarRepositorios: vi.fn(
       (_projeto: string, repositorios: Repositorios): Promise<Repositorios> =>
         Promise.resolve(repositorios),

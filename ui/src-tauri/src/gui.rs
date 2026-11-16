@@ -113,6 +113,8 @@ pub fn rodar() {
             clones::testar_jira_app,
             repositorios::criar_analise_de_demanda,
             configuracoes::configuracoes_app,
+            configuracoes::info_base_app,
+            configuracoes::abrir_base_app,
             configuracoes::avaliar_troca_base_app,
             configuracoes::trocar_base_app,
             configuracoes::previa_exclusoes_app,

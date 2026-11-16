@@ -46,6 +46,18 @@ export interface Configuracoes {
   configClaude: { estado: string; settings: string } | null;
 }
 
+/** A pasta da base como as configurações a mostram (`InfoBase`). */
+export interface InfoBase {
+  caminho: string;
+  existe: boolean;
+  /** Arquivos da base, sem a pasta `.git`. */
+  arquivos: number;
+  bytes: number;
+  git: boolean;
+  /** Última atualização do índice, em segundos desde 1970; `null` se ainda não há índice. */
+  indiceAtualizadoEm: number | null;
+}
+
 export type ModoTroca = "mover" | "reapontar";
 
 export interface AvaliacaoTroca {
@@ -158,6 +170,10 @@ export interface AmbienteDetalhado extends AmbienteClaude {
 
 export interface ApiConfiguracoes extends ApiPrimeiroUso, ApiRepositorios {
   configuracoes(): Promise<Configuracoes>;
+  /** Documentos, tamanho, git e índice da base; `null` sem base escolhida. */
+  infoBase(): Promise<InfoBase | null>;
+  /** Abre a pasta da base no gerenciador de arquivos do sistema. */
+  abrirBase(): Promise<string>;
   verificarAmbiente(projeto: string): Promise<AmbienteDetalhado>;
   avaliarTroca(destino: string): Promise<AvaliacaoTroca>;
   /** Só depois da confirmação do analista. */
@@ -186,6 +202,8 @@ export const apiConfiguracoesTauri: ApiConfiguracoes = {
   ...apiPrimeiroUsoTauri,
   ...apiRepositoriosTauri,
   configuracoes: () => invoke("configuracoes_app"),
+  infoBase: () => invoke("info_base_app"),
+  abrirBase: () => invoke("abrir_base_app"),
   avaliarTroca: (destino) => invoke("avaliar_troca_base_app", { destino }),
   trocarBase: (destino, modo) => invoke("trocar_base_app", { destino, modo }),
   previaExclusoes: (ajuste) => invoke("previa_exclusoes_app", { ajuste }),
@@ -207,7 +225,7 @@ export const apiConfiguracoesTauri: ApiConfiguracoes = {
 /** Como a tela descreve a situação de um texto editável. */
 export const ESTADO_DO_TEXTO: Record<EstadoTexto, string> = {
   padrao: "padrão do app",
-  igualAoPadrao: "cópia do padrão na base",
-  editado: "editado na base (sobrepõe o padrão)",
+  igualAoPadrao: "cópia sem mudanças",
+  editado: "editado por você",
   ilegivel: "ilegível (o app usa o padrão)",
 };
