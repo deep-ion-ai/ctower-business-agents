@@ -92,6 +92,24 @@ impl Cadastro {
         gravar(&self.dir(&projeto.id)?.join(PROJETO), projeto)
     }
 
+    /// Troca o cadastro de um projeto já cadastrado por `novo` (outras pastas,
+    /// exclusões ou reinclusões) e refaz o inventário (#192).
+    ///
+    /// O inventário novo é feito antes de gravar qualquer coisa: se as pastas não
+    /// puderem ser lidas, o cadastro e o inventário anteriores ficam como estavam. Só
+    /// então o projeto e o inventário são gravados, cada um de forma atômica.
+    pub fn ajustar(&self, novo: &Projeto) -> Result<Inventario, Erro> {
+        if self.obter(&novo.id)?.is_none() {
+            return Err(Erro::NaoCadastrado(novo.id.clone()));
+        }
+        novo.validar()?;
+        let anterior = self.inventario(&novo.id).ok().flatten();
+        let inventario = inventariar(novo, anterior.as_ref())?;
+        self.salvar(novo)?;
+        gravar(&self.dir(&novo.id)?.join(INVENTARIO), &inventario)?;
+        Ok(inventario)
+    }
+
     /// Remove o projeto, o inventário e o mapa dele. Devolve se existia.
     ///
     /// Não toca nas pastas do projeto nem na base de conhecimento.
@@ -203,4 +221,66 @@ fn gravar_json<T: Serialize>(arq: &Path, valor: &T, legivel: bool) -> Result<(),
         let _ = fs::remove_file(&tmp);
         Erro::io(arq, e)
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn pasta_com(raiz: &Path, nome: &str, arquivo: &str) -> PathBuf {
+        let p = raiz.join(nome);
+        fs::create_dir_all(&p).unwrap();
+        fs::write(p.join(arquivo), "conteudo").unwrap();
+        p
+    }
+
+    #[test]
+    fn ajustar_grava_as_pastas_e_refaz_o_inventario() {
+        let tmp = tempfile::tempdir().unwrap();
+        let a = pasta_com(tmp.path(), "api", "a.sql");
+        let b = pasta_com(tmp.path(), "web", "b.ts");
+        let cadastro = Cadastro::em(tmp.path().join("cadastro"));
+        let projeto = Projeto::novo("Faturamento", [&a]).unwrap();
+        cadastro.cadastrar(&projeto).unwrap();
+        cadastro.inventariar(&projeto.id).unwrap();
+
+        let novo = projeto.com_pastas([&a, &b]).unwrap();
+        let inventario = cadastro.ajustar(&novo).unwrap();
+        assert!(inventario.arquivo("web/b.ts").is_some());
+        assert_eq!(cadastro.obter("faturamento").unwrap().unwrap(), novo);
+        let gravado = cadastro.inventario("faturamento").unwrap().unwrap();
+        assert!(gravado.arquivo("web/b.ts").is_some());
+
+        let sem_web = novo.com_pastas([&a]).unwrap();
+        let inventario = cadastro.ajustar(&sem_web).unwrap();
+        assert!(inventario.arquivo("web/b.ts").is_none());
+        assert!(inventario.arquivo("a.sql").is_some());
+    }
+
+    #[test]
+    fn ajustar_invalido_nao_muda_nada() {
+        let tmp = tempfile::tempdir().unwrap();
+        let a = pasta_com(tmp.path(), "api", "a.sql");
+        let b = pasta_com(tmp.path(), "web", "b.ts");
+        let cadastro = Cadastro::em(tmp.path().join("cadastro"));
+        let projeto = Projeto::novo("Faturamento", [&a]).unwrap();
+        cadastro.cadastrar(&projeto).unwrap();
+        let antes = cadastro.inventariar(&projeto.id).unwrap();
+
+        // Pasta que sumiu entre a escolha e o salvamento: nada é gravado.
+        let novo = projeto.com_pastas([&a, &b]).unwrap();
+        fs::remove_dir_all(&b).unwrap();
+        assert!(cadastro.ajustar(&novo).is_err());
+        assert_eq!(cadastro.obter("faturamento").unwrap().unwrap(), projeto);
+        let depois = cadastro.inventario("faturamento").unwrap().unwrap();
+        assert_eq!(depois.resumo().analisados, antes.resumo().analisados);
+
+        // Projeto que não está cadastrado não é criado por engano.
+        let outro = Projeto::novo("Outro", [&a]).unwrap();
+        assert!(matches!(
+            cadastro.ajustar(&outro),
+            Err(Erro::NaoCadastrado(_))
+        ));
+        assert!(cadastro.obter("outro").unwrap().is_none());
+    }
 }

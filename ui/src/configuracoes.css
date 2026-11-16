@@ -447,14 +447,6 @@
   font-weight: 600;
 }
 
-.cartao-projeto {
-  padding: 10px 14px;
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--border-strong);
-  border-radius: 6px;
-  background: var(--surface-2);
-}
-
 .detalhe-ambiente {
   margin: 4px 0;
 }
@@ -478,10 +470,6 @@
   color: var(--error-soft);
 }
 
-button.link.perigo {
-  color: var(--error-soft);
-}
-
 @media (max-width: 40rem) {
   .textos-editaveis td {
     display: block;
@@ -490,8 +478,7 @@ button.link.perigo {
 
 /* Na coluna da seção, o botão fica do tamanho do texto. */
 .secao-config > .btn,
-.secao-config > p > .btn,
-.cartao-projeto > .btn {
+.secao-config > p > .btn {
   align-self: flex-start;
 }
 
@@ -861,5 +848,499 @@ button.chip-variavel:hover {
   .editor-texto-lateral {
     width: auto;
     max-height: 12rem;
+  }
+}
+
+/* Página do projeto (#192): cabeçalho, abas e os cartões de cada aba. Só tokens do
+   tema, nos dois temas. */
+.pagina-projeto {
+  gap: 0;
+}
+
+.pagina-projeto-topo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pagina-projeto-titulo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.pagina-projeto-titulo h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.pagina-projeto-topo > p {
+  margin: 0;
+}
+
+.abas-projeto {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-top: 6px;
+}
+
+.aba-projeto {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 14px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+  font: 500 13px var(--sans);
+  cursor: pointer;
+}
+
+.aba-projeto:hover {
+  color: var(--text);
+}
+
+.aba-projeto[aria-selected="true"] {
+  border-bottom-color: var(--accent);
+  color: var(--text);
+}
+
+.aba-projeto:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.marca-aba {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--attention-bg);
+  color: var(--attention);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.painel-projeto {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 60rem;
+  padding: 20px 0;
+}
+
+.painel-projeto:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.painel-projeto > div {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.saude-projeto,
+.itens-preparo,
+.lista-config,
+.chips-exclusao {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.saude-projeto {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.saude-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.saude-icone {
+  display: inline-flex;
+  flex: 0 0 28px;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--idle-bg);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+[data-estado="ok"] > .saude-icone {
+  background: var(--done-bg);
+  color: var(--done);
+}
+
+[data-estado="problema"] > .saude-icone {
+  background: var(--attention-bg);
+  color: var(--attention);
+}
+
+.saude-texto {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.cartao-config {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.cartao-config-topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  border-radius: 10px 10px 0 0;
+  background: var(--bg-header);
+}
+
+.config-secao .cartao-config-topo h4 {
+  flex: 1;
+  margin: 0;
+}
+
+.linha-config {
+  padding: 12px 16px;
+}
+
+.lista-config > .linha-config + .linha-config {
+  border-top: 1px solid var(--border);
+}
+
+.linha-repositorio,
+.linha-pasta,
+.zona-cuidado-item,
+.protecao-corpo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px 14px;
+}
+
+.linha-pasta {
+  align-items: center;
+}
+
+.linha-pasta > .caminho {
+  flex: 1;
+  min-width: 12rem;
+}
+
+.linha-config-texto {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 14rem;
+}
+
+.cartao-config .caminho,
+.aba-avancado .caminho {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+.cartao-config > p,
+.cartao-config > .linha-config > p {
+  margin: 0;
+}
+
+.demandas-corpo,
+.preparo-corpo,
+.instrucoes-corpo,
+.exclusoes-corpo {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.repositorio-edicao {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pilulas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pilula {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-2);
+  font: 500 12.5px var(--sans);
+  cursor: pointer;
+}
+
+.pilula[aria-checked="true"] {
+  border-color: var(--accent);
+  background: var(--running-bg);
+  color: var(--running);
+}
+
+.pilula:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pilula:focus-visible,
+.interruptor:focus-visible,
+.chip-exclusao button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.mais-opcoes > summary {
+  color: var(--link);
+  cursor: pointer;
+}
+
+.resumo-leitura {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 14px;
+}
+
+.resumo-cartao {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 14px 16px;
+}
+
+.resumo-numero {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.resumo-numero .muted {
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.chips-exclusao {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip-exclusao {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 12px;
+}
+
+.chip-exclusao button {
+  min-width: 24px;
+  min-height: 24px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.chip-exclusao button:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.nova-exclusao {
+  display: flex;
+  gap: 8px;
+}
+
+.nova-exclusao input {
+  flex: 1;
+  min-width: 0;
+}
+
+.aba-leitura.com-barra {
+  padding-bottom: 64px;
+}
+
+.barra-pendente {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--attention-border);
+  border-radius: 10px;
+  background: var(--attention-card);
+  color: var(--attention);
+  font-size: 13px;
+}
+
+.barra-pendente > span {
+  flex: 1;
+  min-width: 12rem;
+}
+
+.protecao-texto {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.config-secao .protecao-texto h4 {
+  margin: 0;
+}
+
+.protecao-texto p {
+  margin: 0;
+}
+
+.interruptor {
+  position: relative;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 24px;
+  border: none;
+  border-radius: 12px;
+  background: var(--border-strong);
+  cursor: pointer;
+}
+
+.interruptor > span {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--text);
+  transition: left 0.15s;
+}
+
+.interruptor[aria-checked="true"] {
+  background: var(--ok);
+}
+
+.interruptor[aria-checked="true"] > span {
+  left: 23px;
+  background: var(--surface);
+}
+
+.interruptor:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.itens-preparo {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.itens-preparo > li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.detalhes-tecnicos > summary {
+  color: var(--muted);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.detalhes-tecnicos .detalhe-ambiente {
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.previa-instrucoes {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.zona-cuidado {
+  border: 1px solid var(--error-border);
+  border-radius: 10px;
+}
+
+.config-secao .zona-cuidado > h4 {
+  margin: 0;
+  padding: 10px 16px;
+  border-radius: 10px 10px 0 0;
+  background: var(--error-bg);
+  color: var(--error-soft);
+}
+
+.zona-cuidado-item {
+  align-items: center;
+  border-top: 1px solid var(--error-border);
+}
+
+.o-que-muda {
+  margin: 0 0 12px;
+  padding-left: 18px;
+  line-height: 1.7;
+}
+
+.dialogo .field input {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+}
+
+@media (max-width: 40rem) {
+  .saude-item {
+    flex-wrap: wrap;
+  }
+
+  .linha-repositorio > .btn,
+  .zona-cuidado-item > .btn {
+    margin-left: auto;
   }
 }

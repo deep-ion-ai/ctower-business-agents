@@ -58,85 +58,110 @@ function CampoTexto({
   );
 }
 
-function CamposGitlab({
+/** Parte dos campos: só os essenciais, só os de “Mais opções” ou todos (o padrão). */
+export type ParteDosCampos = "essenciais" | "mais" | "tudo";
+
+export function CamposGitlab({
   valor,
   aoMudar,
   fixo,
+  parte = "tudo",
 }: {
   valor: GitlabConfig;
   aoMudar: (v: GitlabConfig) => void;
   /** Host e caminho não mudam depois do cadastro. */
   fixo: boolean;
+  parte?: ParteDosCampos;
 }) {
   return (
     <>
-      <div className="field-pair">
-        <CampoTexto
-          rotulo="Host do GitLab"
-          valor={valor.host}
-          exemplo="gitlab.example.com"
-          desabilitado={fixo}
-          aoMudar={(host) => aoMudar({ ...valor, host })}
-        />
-        <CampoTexto
-          rotulo="Caminho do projeto"
-          valor={valor.path}
-          exemplo="grupo/projeto/app"
-          desabilitado={fixo}
-          aoMudar={(path) => aoMudar({ ...valor, path })}
-        />
-      </div>
-      <CampoTexto
-        rotulo="URL de clone (HTTPS ou SSH)"
-        valor={valor.clone_url}
-        exemplo="https://gitlab.example.com/grupo/projeto/app.git"
-        aoMudar={(clone_url) => aoMudar({ ...valor, clone_url })}
-      />
-      <CampoTexto
-        rotulo="Comando de credencial (opcional, imprime o token)"
-        valor={valor.credential_cmd}
-        exemplo="pass show gitlab | head -1"
-        mono
-        aoMudar={(credential_cmd) => aoMudar({ ...valor, credential_cmd })}
-      />
-      <p className="muted">
-        Vazio: vale o token global do host guardado no chaveiro do sistema (Configurações ›
-        Acessos).
-      </p>
+      {parte !== "mais" && (
+        <div className="field-pair">
+          <CampoTexto
+            rotulo="Host do GitLab"
+            valor={valor.host}
+            exemplo="gitlab.example.com"
+            desabilitado={fixo}
+            aoMudar={(host) => aoMudar({ ...valor, host })}
+          />
+          <CampoTexto
+            rotulo="Caminho do projeto"
+            valor={valor.path}
+            exemplo="grupo/projeto/app"
+            desabilitado={fixo}
+            aoMudar={(path) => aoMudar({ ...valor, path })}
+          />
+        </div>
+      )}
+      {parte !== "essenciais" && (
+        <>
+          <CampoTexto
+            rotulo="URL de clone (HTTPS ou SSH)"
+            valor={valor.clone_url}
+            exemplo="https://gitlab.example.com/grupo/projeto/app.git"
+            aoMudar={(clone_url) => aoMudar({ ...valor, clone_url })}
+          />
+          <CampoTexto
+            rotulo="Comando de credencial (opcional, imprime o token)"
+            valor={valor.credential_cmd}
+            exemplo="pass show gitlab | head -1"
+            mono
+            aoMudar={(credential_cmd) => aoMudar({ ...valor, credential_cmd })}
+          />
+          <p className="muted">
+            Vazio: vale o token global do host guardado no chaveiro do sistema (Configurações ›
+            Acessos).
+          </p>
+        </>
+      )}
     </>
   );
 }
 
-function CamposJira({ valor, aoMudar }: { valor: JiraConfig; aoMudar: (v: JiraConfig) => void }) {
+export function CamposJira({
+  valor,
+  aoMudar,
+  parte = "tudo",
+}: {
+  valor: JiraConfig;
+  aoMudar: (v: JiraConfig) => void;
+  parte?: ParteDosCampos;
+}) {
   const campo = <K extends keyof JiraConfig>(k: K, v: JiraConfig[K]) =>
     aoMudar({ ...valor, [k]: v });
+  const essenciais = parte !== "mais";
+  const mais = parte !== "essenciais";
   return (
     <>
-      <div className="field-pair">
-        <CampoTexto
-          rotulo="URL do Jira"
-          valor={valor.url}
-          exemplo="https://jira.example.com"
-          aoMudar={(v) => campo("url", v)}
-        />
-        <CampoTexto
-          rotulo="Chave do projeto"
-          valor={valor.project_key}
-          exemplo="PROJ"
-          aoMudar={(v) => campo("project_key", v)}
-        />
-      </div>
-      <div className="field">
-        <label>
-          <input
-            type="checkbox"
-            checked={valor.active_sprint_only}
-            onChange={(e) => campo("active_sprint_only", e.target.checked)}
-          />{" "}
-          Usar somente a sprint ativa (<code>sprint in openSprints()</code>)
-        </label>
-      </div>
-      {!valor.active_sprint_only && (
+      {essenciais && (
+        <div className="field-pair">
+          <CampoTexto
+            rotulo="URL do Jira"
+            valor={valor.url}
+            exemplo="https://jira.example.com"
+            aoMudar={(v) => campo("url", v)}
+          />
+          <CampoTexto
+            rotulo="Chave do projeto"
+            valor={valor.project_key}
+            exemplo="PROJ"
+            aoMudar={(v) => campo("project_key", v)}
+          />
+        </div>
+      )}
+      {essenciais && (
+        <div className="field">
+          <label>
+            <input
+              type="checkbox"
+              checked={valor.active_sprint_only}
+              onChange={(e) => campo("active_sprint_only", e.target.checked)}
+            />{" "}
+            Usar somente a sprint ativa (<code>sprint in openSprints()</code>)
+          </label>
+        </div>
+      )}
+      {mais && !valor.active_sprint_only && (
         <div className="field-pair">
           <CampoTexto
             rotulo="JQL"
@@ -159,55 +184,59 @@ function CamposJira({ valor, aoMudar }: { valor: JiraConfig; aoMudar: (v: JiraCo
           </div>
         </div>
       )}
-      <CampoTexto
-        rotulo="Comando de credencial (imprime o token)"
-        valor={valor.credential_cmd}
-        exemplo="pass show jira | head -1"
-        mono
-        aoMudar={(v) => campo("credential_cmd", v)}
-      />
-      <CampoTexto
-        rotulo="Configuração do jira-cli"
-        valor={valor.config_file}
-        exemplo="~/.config/.jira/.config.yml"
-        mono
-        aoMudar={(v) => campo("config_file", v)}
-      />
-      <div className="field-pair">
-        <CampoTexto
-          rotulo="Campo do Epic Link (opcional)"
-          valor={valor.epic_link_field}
-          exemplo="customfield_10601"
-          aoMudar={(v) => campo("epic_link_field", v)}
-        />
-        <CampoTexto
-          rotulo="Campo do Epic Name (opcional)"
-          valor={valor.epic_name_field}
-          exemplo="customfield_10604"
-          aoMudar={(v) => campo("epic_name_field", v)}
-        />
-        <CampoTexto
-          rotulo="Campo da sprint (vazio = detectar)"
-          valor={valor.sprint_field}
-          exemplo="customfield_10600"
-          aoMudar={(v) => campo("sprint_field", v)}
-        />
-      </div>
-      <div className="field">
-        <label>
-          Tipos de issue (tipo = epic | issue | bug | chore | ignore)
-          <textarea
-            rows={4}
-            value={textoDoMapa(valor.type_map)}
-            onChange={(e) => campo("type_map", mapaDeTipos(e.target.value))}
+      {mais && (
+        <>
+          <CampoTexto
+            rotulo="Comando de credencial (imprime o token)"
+            valor={valor.credential_cmd}
+            exemplo="pass show jira | head -1"
+            mono
+            aoMudar={(v) => campo("credential_cmd", v)}
           />
-        </label>
-      </div>
+          <CampoTexto
+            rotulo="Configuração do jira-cli"
+            valor={valor.config_file}
+            exemplo="~/.config/.jira/.config.yml"
+            mono
+            aoMudar={(v) => campo("config_file", v)}
+          />
+          <div className="field-pair">
+            <CampoTexto
+              rotulo="Campo do Epic Link (opcional)"
+              valor={valor.epic_link_field}
+              exemplo="customfield_10601"
+              aoMudar={(v) => campo("epic_link_field", v)}
+            />
+            <CampoTexto
+              rotulo="Campo do Epic Name (opcional)"
+              valor={valor.epic_name_field}
+              exemplo="customfield_10604"
+              aoMudar={(v) => campo("epic_name_field", v)}
+            />
+            <CampoTexto
+              rotulo="Campo da sprint (vazio = detectar)"
+              valor={valor.sprint_field}
+              exemplo="customfield_10600"
+              aoMudar={(v) => campo("sprint_field", v)}
+            />
+          </div>
+          <div className="field">
+            <label>
+              Tipos de issue (tipo = epic | issue | bug | chore | ignore)
+              <textarea
+                rows={4}
+                value={textoDoMapa(valor.type_map)}
+                onChange={(e) => campo("type_map", mapaDeTipos(e.target.value))}
+              />
+            </label>
+          </div>
+        </>
+      )}
     </>
   );
 }
 
-function CampoRepoGithub({
+export function CampoRepoGithub({
   valor,
   aoMudar,
   rotulo,
@@ -232,7 +261,7 @@ const ORIGENS_TOKEN: { valor: OrigemToken; rotulo: string }[] = [
   { valor: "comando", rotulo: "Comando que imprime o token" },
 ];
 
-type ApiToken = Pick<ApiRepositorios, "salvarToken" | "tokensGuardados" | "testarAcesso">;
+export type ApiToken = Pick<ApiRepositorios, "salvarToken" | "tokensGuardados" | "testarAcesso">;
 
 /**
  * Token (PAT) de um repositório de código, quando a origem é o chaveiro (global do host
@@ -346,22 +375,24 @@ function TokenDoRepositorio({ api, valor }: { api: ApiToken; valor: RepositorioC
  * Um repositório de código da lista. Colar a URL de clone preenche forja, host e
  * caminho; `fixo` (já gravado) trava os três, porque o cadastro não os muda depois.
  */
-function ItemRepositorioCodigo({
+export function ItemRepositorioCodigo({
   numero,
   valor,
   aoMudar,
   aoRemover,
   fixo,
   api,
+  nome = `Repositório de código ${numero}`,
 }: {
   api: ApiToken;
   numero: number;
   valor: RepositorioCodigo;
   aoMudar: (v: RepositorioCodigo) => void;
-  aoRemover: () => void;
+  /** Sem ele, o item não oferece “Remover”. */
+  aoRemover?: () => void;
   fixo: boolean;
+  nome?: string;
 }) {
-  const nome = `Repositório de código ${numero}`;
   const mudarUrl = (url_clone: string) => {
     const deduzido = fixo ? null : repositorioDaUrl(url_clone);
     aoMudar(
@@ -458,7 +489,7 @@ function ItemRepositorioCodigo({
           aoMudar={(comando_credencial) => aoMudar({ ...valor, comando_credencial })}
         />
       )}
-      {!fixo && (
+      {!fixo && aoRemover && (
         <div className="acoes">
           <button className="btn btn-sm" type="button" onClick={aoRemover}>
             Remover
@@ -517,9 +548,8 @@ export function FormRepositorios({
     <fieldset className="repositorios-projeto" aria-label="Repositórios">
       <legend>Repositórios</legend>
       <p className="muted">
-        Opcional. O token (PAT) fica no chaveiro do sistema, nunca no projeto; o cadastro
-        guarda no máximo o comando que imprime o token (por exemplo{" "}
-        <code>pass show gitlab | head -1</code>).
+        Opcional. O token (PAT) fica no chaveiro do sistema, nunca no projeto; o cadastro guarda no
+        máximo o comando que imprime o token (por exemplo <code>pass show gitlab | head -1</code>).
       </p>
 
       <section className="repositorios-codigo" aria-label="Repositórios de código">

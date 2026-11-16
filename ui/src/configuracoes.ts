@@ -83,8 +83,14 @@ export interface TrocaBase {
   avisos: string[];
 }
 
-export interface AjusteExclusoes {
+/**
+ * O que é analisado num projeto cadastrado (#192): as pastas (as que ficam guardam o
+ * prefixo; as novas ganham um), as exclusões e as reinclusões.
+ */
+export interface AjusteLeitura {
   projeto: string;
+  /** Caminhos absolutos; a lista vazia é recusada (o projeto precisa de uma pasta). */
+  pastas: string[];
   exclusoes: string[];
   inclusoes: string[];
 }
@@ -179,8 +185,10 @@ export interface ApiConfiguracoes extends ApiPrimeiroUso, ApiRepositorios, ApiAc
   avaliarTroca(destino: string): Promise<AvaliacaoTroca>;
   /** Só depois da confirmação do analista. */
   trocarBase(destino: string, modo: ModoTroca): Promise<TrocaBase>;
-  previaExclusoes(ajuste: AjusteExclusoes): Promise<PreviaProjeto>;
-  salvarExclusoes(ajuste: AjusteExclusoes): Promise<ProjetoCadastrado>;
+  /** O inventário com as pastas e as exclusões ajustadas, sem gravar. */
+  previaLeitura(ajuste: AjusteLeitura): Promise<PreviaProjeto>;
+  /** Grava pastas e exclusões e refaz o inventário; se falhar, nada muda. */
+  salvarLeitura(ajuste: AjusteLeitura): Promise<ProjetoCadastrado>;
   /** Proteção, servidor MCP e (no último projeto) hooks. Só depois da confirmação. */
   desfazerAmbiente(projeto: string): Promise<AmbienteDesfeito>;
   /** Desfaz o ambiente e apaga o cadastro; os documentos ficam. Só depois da confirmação. */
@@ -208,8 +216,8 @@ export const apiConfiguracoesTauri: ApiConfiguracoes = {
   abrirBase: () => invoke("abrir_base_app"),
   avaliarTroca: (destino) => invoke("avaliar_troca_base_app", { destino }),
   trocarBase: (destino, modo) => invoke("trocar_base_app", { destino, modo }),
-  previaExclusoes: (ajuste) => invoke("previa_exclusoes_app", { ajuste }),
-  salvarExclusoes: (ajuste) => invoke("salvar_exclusoes_app", { ajuste }),
+  previaLeitura: (ajuste) => invoke("previa_leitura_app", { ajuste }),
+  salvarLeitura: (ajuste) => invoke("salvar_leitura_app", { ajuste }),
   desfazerAmbiente: (projeto) => invoke("desfazer_ambiente_projeto", { projeto }),
   descadastrar: (projeto) => invoke("descadastrar_projeto_app", { projeto }),
   textos: () => invoke("textos_editaveis_app"),

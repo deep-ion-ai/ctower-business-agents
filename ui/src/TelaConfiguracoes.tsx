@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { mensagemDe } from "./analise";
 import { ConfigAparencia } from "./ConfigAparencia";
 import { ConfigAssistente } from "./ConfigAssistente";
@@ -11,11 +11,12 @@ import {
   type Configuracoes,
   type TextoEditavel,
 } from "./configuracoes";
-import { escolhaEfetiva, useEscolhaLembrada } from "./configSecoes";
+import { escolhaEfetiva, useEscolhaLembrada, type Escolha } from "./configSecoes";
+import { DialogoConfirmacao } from "./DialogoConfirmacao";
 import { EditorTexto } from "./EditorTexto";
 import { MenuConfiguracoes } from "./MenuConfiguracoes";
 import { ModalNovoProjeto } from "./ModalNovoProjeto";
-import { usePendenciasProjetos } from "./pendenciasProjetos";
+import { useEstadoProjetos } from "./pendenciasProjetos";
 import { SecaoAcessos } from "./SecaoAcessos";
 import { SecaoClones } from "./SecaoClones";
 import "./configuracoes.css";
@@ -45,7 +46,32 @@ export function TelaConfiguracoes({
   const [textos, setTextos] = useState<TextoEditavel[]>([]);
   const [falha, setFalha] = useState<string | null>(null);
   const [cadastrando, setCadastrando] = useState(false);
-  const [lembrada, escolher] = useEscolhaLembrada();
+  const [lembrada, escolherAgora] = useEscolhaLembrada();
+  /** Escolha à espera da confirmação de sair sem salvar “O que é analisado”. */
+  const [saida, setSaida] = useState<Escolha | null>(null);
+  // Alterações sem salvar: no editor de textos e na página do projeto (#192).
+  const pendencias = useRef({ editor: false, projeto: false });
+  const pendencia = useRef(aoPendencia);
+  pendencia.current = aoPendencia;
+  const avisarPendencia = useCallback((qual: "editor" | "projeto", p: boolean) => {
+    pendencias.current[qual] = p;
+    pendencia.current?.(pendencias.current.editor || pendencias.current.projeto);
+  }, []);
+  const pendenciaDoEditor = useCallback(
+    (p: boolean) => avisarPendencia("editor", p),
+    [avisarPendencia],
+  );
+  const pendenciaDoProjeto = useCallback(
+    (p: boolean) => avisarPendencia("projeto", p),
+    [avisarPendencia],
+  );
+  const escolher = useCallback(
+    (e: Escolha) => {
+      if (pendencias.current.projeto) setSaida(e);
+      else escolherAgora(e);
+    },
+    [escolherAgora],
+  );
 
   const carregar = useCallback(() => {
     api
@@ -66,7 +92,16 @@ export function TelaConfiguracoes({
     aoMudarProjetos?.();
   };
 
-  const { noMenu, ambienteVerificado } = usePendenciasProjetos(api, cfg?.projetos ?? SEM_PROJETOS);
+  const { noMenu, estadoDe, reverificarAmbiente, conferirProntidao, garantirProntidao } =
+    useEstadoProjetos(api, cfg?.projetos ?? SEM_PROJETOS);
+  const prontidao = useCallback(
+    (id: string, forcar?: boolean) => (forcar ? void conferirProntidao(id) : garantirProntidao(id)),
+    [conferirProntidao, garantirProntidao],
+  );
+  const irParaAcessos = useCallback(
+    () => escolher({ secao: "acessos", projeto: null }),
+    [escolher],
+  );
 
   if (!cfg) {
     return (
@@ -134,14 +169,19 @@ export function TelaConfiguracoes({
             )}
             {escolha.secao === "projeto" && projeto && (
               <ConfigProjeto
+                key={projeto.id}
                 api={api}
                 cfg={cfg}
                 projeto={projeto}
                 textos={textos}
+                estado={estadoDe(projeto.id)}
                 aoMudar={mudou}
                 aoAbrirTexto={carregar}
                 aoEditar={setEditando}
-                aoAmbiente={ambienteVerificado}
+                aoReverificarAmbiente={reverificarAmbiente}
+                aoConferirProntidao={prontidao}
+                aoIrParaAcessos={irParaAcessos}
+                aoPendencia={pendenciaDoProjeto}
               />
             )}
           </div>
@@ -169,8 +209,34 @@ export function TelaConfiguracoes({
             carregar();
           }}
           aoAlterado={carregar}
-          aoPendencia={aoPendencia}
+          aoPendencia={pendenciaDoEditor}
         />
+      )}
+      {saida && (
+        <DialogoConfirmacao
+          titulo="Sair sem salvar?"
+          aoCancelar={() => setSaida(null)}
+          acoes={
+            <>
+              <button className="btn" type="button" autoFocus onClick={() => setSaida(null)}>
+                Cancelar
+              </button>
+              <button
+                className="btn btn-danger"
+                type="button"
+                onClick={() => {
+                  avisarPendencia("projeto", false);
+                  escolherAgora(saida);
+                  setSaida(null);
+                }}
+              >
+                Descartar as alterações
+              </button>
+            </>
+          }
+        >
+          <p>As alterações em “O que é analisado” ainda não foram salvas e serão perdidas.</p>
+        </DialogoConfirmacao>
       )}
     </>
   );

@@ -210,12 +210,13 @@ fn copia_que_nao_confere_e_desfeita() {
 #[test]
 fn exclusoes_com_previa_e_gravacao() {
     let c = cenario();
-    let ajuste = AjusteExclusoes {
+    let ajuste = AjusteLeitura {
         projeto: PROJETO.into(),
+        pastas: vec![c.codigo.to_str().unwrap().into()],
         exclusoes: vec!["cobol/".into(), " ".into()],
         inclusoes: vec![],
     };
-    let previa = previa_exclusoes(&c.dados, &ajuste).unwrap();
+    let previa = previa_leitura(&c.dados, &ajuste).unwrap();
     assert_eq!(previa.exclusoes, ["cobol/"]);
     assert!(
         !previa
@@ -235,7 +236,7 @@ fn exclusoes_com_previa_e_gravacao() {
             .is_empty()
     );
 
-    let feito = salvar_exclusoes(&c.dados, &ajuste).unwrap();
+    let feito = salvar_leitura(&c.dados, &ajuste).unwrap();
     assert!(
         !feito
             .inventario
@@ -256,16 +257,96 @@ fn exclusoes_com_previa_e_gravacao() {
             .any(|l| l.nome() == "COBOL")
     );
 
-    let invalido = AjusteExclusoes {
+    let invalido = AjusteLeitura {
         exclusoes: vec!["[".into()],
         ..ajuste.clone()
     };
-    assert!(salvar_exclusoes(&c.dados, &invalido).is_err());
-    let desconhecido = AjusteExclusoes {
+    assert!(salvar_leitura(&c.dados, &invalido).is_err());
+    let desconhecido = AjusteLeitura {
         projeto: "outro".into(),
         ..ajuste
     };
-    assert!(previa_exclusoes(&c.dados, &desconhecido).is_err());
+    assert!(previa_leitura(&c.dados, &desconhecido).is_err());
+}
+
+#[test]
+fn pastas_adicionadas_e_removidas_sem_descadastrar() {
+    let c = cenario();
+    let telas = c.dir.path().join("codigo").join("telas");
+    fs::create_dir_all(&telas).unwrap();
+    fs::write(telas.join("UFrmMulta.pas"), "unit UFrmMulta;").unwrap();
+    let raiz = c.codigo.to_str().unwrap().to_string();
+    let ajuste = AjusteLeitura {
+        projeto: PROJETO.into(),
+        pastas: vec![raiz.clone(), telas.to_str().unwrap().into()],
+        ..Default::default()
+    };
+    let cadastro = Cadastro::em(c.dados.projetos());
+
+    // A prévia mostra a pasta nova sem gravar.
+    let previa = previa_leitura(&c.dados, &ajuste).unwrap();
+    assert_eq!(previa.pastas.len(), 2);
+    assert_eq!(previa.pastas[1].prefixo.as_deref(), Some("telas"));
+    assert_eq!(cadastro.obter(PROJETO).unwrap().unwrap().pastas.len(), 1);
+
+    let feito = salvar_leitura(&c.dados, &ajuste).unwrap();
+    assert_eq!(feito.pastas.len(), 2);
+    let gravado = cadastro.obter(PROJETO).unwrap().unwrap();
+    assert_eq!(gravado.pastas[1].prefixo.as_deref(), Some("telas"));
+    assert!(
+        cadastro
+            .inventario(PROJETO)
+            .unwrap()
+            .unwrap()
+            .arquivo("telas/UFrmMulta.pas")
+            .is_some()
+    );
+
+    // Remover a pasta nova volta ao que era; a raiz nunca muda de prefixo.
+    let so_raiz = AjusteLeitura {
+        pastas: vec![raiz.clone()],
+        ..ajuste.clone()
+    };
+    salvar_leitura(&c.dados, &so_raiz).unwrap();
+    let gravado = cadastro.obter(PROJETO).unwrap().unwrap();
+    assert_eq!(gravado.pastas.len(), 1);
+    assert_eq!(gravado.pastas[0].prefixo, None);
+    assert!(
+        cadastro
+            .inventario(PROJETO)
+            .unwrap()
+            .unwrap()
+            .arquivo("telas/UFrmMulta.pas")
+            .is_none()
+    );
+
+    // A última pasta não sai, e nada é gravado.
+    let sem_pastas = AjusteLeitura {
+        pastas: vec![" ".into()],
+        ..ajuste.clone()
+    };
+    let erro = salvar_leitura(&c.dados, &sem_pastas).unwrap_err();
+    assert!(erro.contains("última"), "{erro}");
+    assert_eq!(cadastro.obter(PROJETO).unwrap().unwrap(), gravado);
+
+    // Caminho relativo ou que não existe: recusado, cadastro intacto.
+    for ruim in ["relativa/pasta", "/nao/existe/mesmo"] {
+        let pedido = AjusteLeitura {
+            pastas: vec![raiz.clone(), ruim.into()],
+            ..ajuste.clone()
+        };
+        assert!(salvar_leitura(&c.dados, &pedido).is_err(), "{ruim}");
+        assert_eq!(cadastro.obter(PROJETO).unwrap().unwrap(), gravado);
+    }
+
+    // A pasta da base não pode virar pasta do projeto.
+    let base = base_atual(&c.dados);
+    let com_base = AjusteLeitura {
+        pastas: vec![raiz, base.to_str().unwrap().into()],
+        ..ajuste
+    };
+    assert!(salvar_leitura(&c.dados, &com_base).is_err());
+    assert_eq!(cadastro.obter(PROJETO).unwrap().unwrap(), gravado);
 }
 
 // ---------------------------------------------------------------------------

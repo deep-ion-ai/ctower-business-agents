@@ -15,7 +15,9 @@
 //!
 //!   Nos dois casos o índice (`cba_kb::indice`) é reconstruído a partir da base
 //!   nova.
-//! - **Ajustar as exclusões** de um projeto cadastrado, com a prévia do inventário.
+//! - **Ajustar o que é analisado** num projeto cadastrado: pastas (adicionar e remover
+//!   sem descadastrar; #192), exclusões e reinclusões, com a prévia do inventário. O
+//!   inventário novo é feito antes de gravar, e a última pasta não pode sair.
 //! - **Desfazer o ambiente** de um projeto: desliga a proteção contra edição (tira só
 //!   as regras que o app acrescentou) e tira o servidor MCP e, se for o último
 //!   projeto, os hooks. A configuração do Claude volta a ser a de antes.
@@ -573,13 +575,17 @@ pub fn trocar_base(
 }
 
 // ---------------------------------------------------------------------------
-// Exclusões de um projeto cadastrado
+// O que é analisado num projeto cadastrado: pastas, exclusões e reinclusões
 
-/// Novas exclusões e reinclusões de um projeto.
+/// Novas pastas, exclusões e reinclusões de um projeto (#192).
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AjusteExclusoes {
+pub struct AjusteLeitura {
     pub projeto: String,
+    /// Caminhos absolutos das pastas, as que ficam e as novas. As que ficam guardam o
+    /// prefixo; as novas ganham um. Vazio é recusado: o projeto precisa de uma pasta.
+    #[serde(default)]
+    pub pastas: Vec<String>,
     #[serde(default)]
     pub exclusoes: Vec<String>,
     #[serde(default)]
@@ -593,21 +599,28 @@ fn cadastrado(dados: &DiretorioDados, projeto: &str) -> Result<cba_index::Projet
         .ok_or_else(|| format!("o projeto \"{projeto}\" não está cadastrado"))
 }
 
-fn ajustado(
-    dados: &DiretorioDados,
-    ajuste: &AjusteExclusoes,
-) -> Result<cba_index::Projeto, String> {
-    let mut projeto = cadastrado(dados, &ajuste.projeto)?;
+fn ajustado(dados: &DiretorioDados, ajuste: &AjusteLeitura) -> Result<cba_index::Projeto, String> {
+    let atual = cadastrado(dados, &ajuste.projeto)?;
+    let mut projeto = atual
+        .com_pastas(limpar(&ajuste.pastas).iter().map(PathBuf::from))
+        .map_err(|e| e.to_string())?;
     projeto.exclusoes = limpar(&ajuste.exclusoes);
     projeto.inclusoes = limpar(&ajuste.inclusoes);
     projeto.validar().map_err(|e| e.to_string())?;
+    // Uma pasta nova não pode conter a base de conhecimento (nem estar dentro dela).
+    if projeto.pastas != atual.pastas
+        && let Some(base) = Config::ler(dados).map_err(|e| e.to_string())?.base()
+        && let Some(r) = primeiro_uso::conflito_com_projeto(base, &projeto)
+    {
+        return Err(r);
+    }
     Ok(projeto)
 }
 
-/// O inventário com as exclusões ajustadas, sem gravar.
-pub fn previa_exclusoes(
+/// O inventário com as pastas e as exclusões ajustadas, sem gravar.
+pub fn previa_leitura(
     dados: &DiretorioDados,
-    ajuste: &AjusteExclusoes,
+    ajuste: &AjusteLeitura,
 ) -> Result<PreviaProjeto, String> {
     let projeto = ajustado(dados, ajuste)?;
     let inventario = cba_index::inventariar(&projeto, None).map_err(|e| e.to_string())?;
@@ -622,17 +635,17 @@ pub fn previa_exclusoes(
     })
 }
 
-/// Grava as exclusões ajustadas e inventaria de novo.
-pub fn salvar_exclusoes(
+/// Grava as pastas e as exclusões ajustadas e refaz o inventário. O inventário novo
+/// é feito antes de gravar: se falhar, o cadastro fica como estava.
+pub fn salvar_leitura(
     dados: &DiretorioDados,
-    ajuste: &AjusteExclusoes,
+    ajuste: &AjusteLeitura,
 ) -> Result<ProjetoCadastrado, String> {
     let projeto = ajustado(dados, ajuste)?;
-    let cadastro = Cadastro::em(dados.projetos());
-    cadastro.salvar(&projeto).map_err(|e| e.to_string())?;
-    let inventario = cadastro
-        .inventariar(&projeto.id)
+    let inventario = Cadastro::em(dados.projetos())
+        .ajustar(&projeto)
         .map_err(|e| e.to_string())?;
+    tracing::info!(projeto = %projeto.id, pastas = projeto.pastas.len(), "leitura do projeto ajustada");
     Ok(ProjetoCadastrado {
         pastas: pastas_vista(&inventario),
         inventario: resumo_inventario(&inventario),
@@ -1138,15 +1151,16 @@ pub async fn trocar_base_app(
 }
 
 #[tauri::command]
-pub async fn previa_exclusoes_app(ajuste: AjusteExclusoes) -> Result<PreviaProjeto, String> {
+pub async fn previa_leitura_app(ajuste: AjusteLeitura) -> Result<PreviaProjeto, String> {
     let dados = dados()?;
-    bloqueante(move || previa_exclusoes(&dados, &ajuste)).await
+    bloqueante(move || previa_leitura(&dados, &ajuste)).await
 }
 
+/// Grava pastas, exclusões e reinclusões de um projeto e refaz o inventário (#192).
 #[tauri::command]
-pub async fn salvar_exclusoes_app(ajuste: AjusteExclusoes) -> Result<ProjetoCadastrado, String> {
+pub async fn salvar_leitura_app(ajuste: AjusteLeitura) -> Result<ProjetoCadastrado, String> {
     let dados = dados()?;
-    bloqueante(move || salvar_exclusoes(&dados, &ajuste)).await
+    bloqueante(move || salvar_leitura(&dados, &ajuste)).await
 }
 
 #[tauri::command]
