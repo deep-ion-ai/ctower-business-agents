@@ -53,7 +53,12 @@ const SECOES_CONHECIDAS: [string, string][] = [
   ["exemplo", "Exemplo"],
   ["contexto_no_codigo", "O que a base e o código dizem"],
 ];
-const TITULO_SECAO = Object.fromEntries(SECOES_CONHECIDAS) as Record<string, string>;
+const TITULO_SECAO = Object.fromEntries([
+  ...SECOES_CONHECIDAS,
+  // Diagramas do documento negocial (#120): só o título; a ordem é a do registro.
+  ["fluxo_processo", "Fluxo do processo"],
+  ["modelo_dados", "Modelo de dados conceitual"],
+]) as Record<string, string>;
 const ORDEM_SECAO = new Map(SECOES_CONHECIDAS.map(([s], i) => [s, i]));
 
 const ESTADO_AFIRMACAO: Partial<Record<Afirmacao["estado"], string>> = {

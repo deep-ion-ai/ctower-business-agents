@@ -1,5 +1,5 @@
 import { useId, useState } from "react";
-import type { Afirmacao, Pergunta, TermoProposto } from "./analise";
+import type { Afirmacao, OrigemPergunta, Pergunta, TermoProposto } from "./analise";
 import { DialogoConfirmacao } from "./DialogoConfirmacao";
 import type { DecisaoRevisao } from "./revisao";
 import { TextoAfirmacao } from "./TextoAfirmacao";
@@ -310,6 +310,91 @@ export function AcoesPergunta({ pergunta, revisao }: { pergunta: Pergunta; revis
         aoClicar={() => decidir({ tipo: "pergunta", numero, estado: "descartada" })}
       />
     </div>
+  );
+}
+
+/** Mesma origem de pergunta (o item já virou pergunta). */
+export function mesmaOrigem(a: OrigemPergunta | null | undefined, b: OrigemPergunta): boolean {
+  if (!a || a.diagrama !== b.diagrama) return false;
+  if (a.tipo === "aresta" && b.tipo === "aresta") return a.de === b.de && a.para === b.para;
+  if (a.tipo === "achado-diagrama" && b.tipo === "achado-diagrama") return a.achado === b.achado;
+  return false;
+}
+
+/**
+ * "Virar pergunta" (#120): o analista transforma um item da análise (a relação
+ * inferida de um modelo de dados, por exemplo) numa pergunta em aberto, com o
+ * texto já preenchido e editável; o app copia as evidências do item. O item que já
+ * virou pergunta mostra o número dela, sem botão, para não duplicar.
+ */
+export function VirarPergunta({
+  origem,
+  textoInicial,
+  perguntas,
+  revisao,
+}: {
+  origem: OrigemPergunta;
+  textoInicial: string;
+  perguntas: Pergunta[];
+  revisao?: Revisao;
+}) {
+  const [editando, setEditando] = useState(false);
+  const [texto, setTexto] = useState(textoInicial);
+  const [erro, setErro] = useState<string | null>(null);
+  const id = useId();
+  const ja = perguntas.find((p) => mesmaOrigem(p.origem, origem));
+  if (ja) {
+    return (
+      <span className="badge" data-tone="done" title={ja.texto}>
+        virou a pergunta {ja.numero}
+      </span>
+    );
+  }
+  if (!revisao) return null;
+  if (editando)
+    return (
+      <form
+        className="form-revisao"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!texto.trim()) return;
+          revisao
+            .aoDecidir({ tipo: "virar-pergunta", texto: texto.trim(), origem })
+            .then(() => setEditando(false))
+            .catch((m: unknown) => setErro(String(m)));
+        }}
+      >
+        <label htmlFor={id}>Pergunta</label>
+        <textarea id={id} value={texto} rows={3} onChange={(e) => setTexto(e.target.value)} />
+        {erro && (
+          <p className="erro" role="alert">
+            {erro}
+          </p>
+        )}
+        <div>
+          <button className="btn" type="submit" disabled={revisao.ocupado || !texto.trim()}>
+            Registrar pergunta
+          </button>{" "}
+          <button className="btn" type="button" onClick={() => setEditando(false)}>
+            Cancelar
+          </button>
+        </div>
+      </form>
+    );
+  return (
+    <button
+      type="button"
+      className="btn btn-sm"
+      title="Registra uma pergunta em aberto com este item e a evidência dele, sem passar pelo agente"
+      disabled={revisao.ocupado}
+      onClick={() => {
+        setTexto(textoInicial);
+        setErro(null);
+        setEditando(true);
+      }}
+    >
+      Virar pergunta
+    </button>
   );
 }
 

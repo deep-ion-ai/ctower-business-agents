@@ -34,7 +34,7 @@ export type DecisaoRevisao =
   | { tipo: "cenario"; cenario: string; situacao: SituacaoItem }
   | ({ tipo: "editar-cenario"; cenario: string; titulo: string } & Gherkin)
   | { tipo: "tabela"; numero: number; situacao: SituacaoItem }
-  /** "Virar pergunta" (#119): pergunta do analista a partir de um item da análise. */
+  /** "Virar pergunta" (#119, #120): pergunta do analista a partir de um item da análise, com o texto editado e as evidências do item. */
   | { tipo: "virar-pergunta"; texto: string; origem: OrigemPergunta };
 
 export interface Area {

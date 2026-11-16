@@ -1735,3 +1735,14 @@
 .achado-diagrama > .btn {
   margin-left: 0.5rem;
 }
+.tabela-diagrama .atributos-entidade {
+  margin: 4px 0 0;
+  padding-left: 16px;
+  color: var(--muted);
+}
+.tabela-diagrama .virar-pergunta {
+  margin-top: 4px;
+}
+.tabela-diagrama tr[data-tracejada] td:first-child {
+  border-left: 2px dashed var(--border);
+}

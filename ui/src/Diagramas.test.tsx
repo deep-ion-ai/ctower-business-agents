@@ -267,3 +267,133 @@ describe("diagramas Mermaid (#118)", () => {
     expect(screen.getByText(/de um achado do D-1 · db\/04_pkg_situacao.sql:9-10/)).toBeInTheDocument();
   });
 });
+
+const MODELO: Diagrama = {
+  numero: 2,
+  tipo: "dados",
+  titulo: "Modelo de dados do cancelamento",
+  secao: "modelo_dados",
+  nos: [
+    {
+      chave: "fatura",
+      rotulo: "Fatura",
+      entidade: {
+        tabela: "FATURA",
+        atributos: [{ nome: "Data de emissão", coluna: "DT_EMISSAO" }],
+        termo: "Fatura",
+      },
+    },
+    { chave: "historico", rotulo: "Histórico da fatura", entidade: { tabela: "LOG_FATURA" } },
+  ],
+  arestas: [
+    {
+      de: "fatura",
+      para: "historico",
+      rotulo: "registra",
+      confianca: "inferido",
+      evidencias: [evidencia("db/03_pkg_cobranca.sql", "130-131")],
+      relacao: { de: "um", para: "zero_ou_muitos", origem: "join" },
+    },
+  ],
+  registrada_ms: 4,
+};
+
+describe("fluxo do processo e modelo de dados (#120)", () => {
+  it("lê a entidade do erDiagram pelo id", () => {
+    expect(elementoDoId("diagrama-mermaid-2-entity-e2-1")).toEqual({ tipo: "no", indice: 1 });
+    expect(elementoDoId("e1")).toEqual({ tipo: "no", indice: 0 });
+  });
+
+  it("o modelo mostra tabela, glossário, atributos e a relação inferida, que vira pergunta uma vez", async () => {
+    const aoDecidir = vi.fn(() => Promise.resolve());
+    const vista = vistaFicticia({}, { diagramas: [MODELO] });
+    const { rerender } = render(
+      <DocumentoAoVivo
+        vista={vista}
+        aoAbrirEvidencia={vi.fn()}
+        revisao={{ aoDecidir, ocupado: false }}
+      />,
+    );
+    const bloco = screen.getByTestId("diagrama-2");
+    expect(screen.getByText("Modelo de dados conceitual")).toBeInTheDocument();
+    expect(within(bloco).getByText("FATURA")).toBeInTheDocument();
+    expect(within(bloco).getByText("glossário: Fatura")).toBeInTheDocument();
+    expect(within(bloco).getByText("fora do glossário")).toBeInTheDocument();
+    expect(within(bloco).getByRole("list", { name: "Atributos de Fatura" })).toHaveTextContent(
+      "Data de emissão DT_EMISSAO",
+    );
+    const linha = within(bloco).getAllByRole("row")[3];
+    expect(linha).toHaveAttribute("data-tracejada", "true");
+    expect(linha).toHaveTextContent("1:0..N");
+    expect(linha).toHaveTextContent("inferida de join no código");
+
+    fireEvent.click(within(linha).getByRole("button", { name: "Virar pergunta" }));
+    const campo = within(linha).getByLabelText("Pergunta");
+    expect((campo as HTMLTextAreaElement).value).toContain(
+      "A relação entre Fatura e Histórico da fatura foi inferida do código",
+    );
+    fireEvent.change(campo, { target: { value: "O histórico é sempre de uma fatura?" } });
+    fireEvent.click(within(linha).getByRole("button", { name: "Registrar pergunta" }));
+    await waitFor(() =>
+      expect(aoDecidir).toHaveBeenCalledWith({
+        tipo: "virar-pergunta",
+        texto: "O histórico é sempre de uma fatura?",
+        origem: { tipo: "aresta", diagrama: 2, de: "fatura", para: "historico" },
+      }),
+    );
+
+    // Já virou pergunta: mostra o número, sem botão.
+    const comPergunta = vistaFicticia(
+      {},
+      {
+        diagramas: [MODELO],
+        perguntas: [
+          {
+            numero: 3,
+            texto: "O histórico é sempre de uma fatura?",
+            estado: "aberta",
+            registrada_ms: 5,
+            origem: { tipo: "aresta", diagrama: 2, de: "fatura", para: "historico" },
+          },
+        ],
+      },
+    );
+    rerender(
+      <DocumentoAoVivo
+        vista={comPergunta}
+        aoAbrirEvidencia={vi.fn()}
+        revisao={{ aoDecidir, ocupado: false }}
+      />,
+    );
+    const linha2 = within(screen.getByTestId("diagrama-2")).getAllByRole("row")[3];
+    expect(within(linha2).getByText("virou a pergunta 3")).toBeInTheDocument();
+    expect(within(linha2).queryByRole("button", { name: "Virar pergunta" })).toBeNull();
+  });
+
+  it("o fluxo do processo mostra a raia de cada passo", () => {
+    const fluxo: Diagrama = {
+      numero: 1,
+      tipo: "fluxo",
+      titulo: "Cancelamento de fatura",
+      secao: "fluxo_processo",
+      nos: [
+        { chave: "i", rotulo: "Informar a fatura", papel: "inicio", raia: "Atendente" },
+        { chave: "g", rotulo: "Gravar", raia: "Banco de dados" },
+      ],
+      arestas: [{ de: "i", para: "g", rotulo: "motivo válido", confianca: "inferido" }],
+      registrada_ms: 1,
+    };
+    render(
+      <DocumentoAoVivo vista={vistaFicticia({}, { diagramas: [fluxo] })} aoAbrirEvidencia={vi.fn()} />,
+    );
+    const bloco = screen.getByTestId("diagrama-1");
+    expect(screen.getByText("Fluxo do processo")).toBeInTheDocument();
+    expect(within(bloco).getByRole("columnheader", { name: "Raia · condição" })).toBeInTheDocument();
+    const linhas = within(bloco).getAllByRole("row");
+    expect(linhas[1]).toHaveTextContent("Atendente");
+    expect(linhas[2]).toHaveTextContent("Banco de dados");
+    expect(linhas[3]).toHaveTextContent("motivo válido");
+    // Sem revisão (ou fora do modelo de dados), sem "Virar pergunta".
+    expect(within(bloco).queryByRole("button", { name: "Virar pergunta" })).toBeNull();
+  });
+});
