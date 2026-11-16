@@ -1531,6 +1531,7 @@
 
 .parecer-ao-vivo .tabela-invest tr[data-resultado="nao_atende"] td:nth-child(2) {
   color: var(--error-soft);
+}
 .invest {
   display: inline-flex;
   gap: 4px;
