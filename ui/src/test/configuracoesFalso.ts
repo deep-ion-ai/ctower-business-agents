@@ -18,6 +18,11 @@ import {
 import type { PreviaProjeto } from "../primeiroUso";
 import type { EstadoToken, HostCadastrado, TesteToken } from "../acessos";
 import type {
+  AmbienteTeste,
+  EntradaAmbienteTeste,
+  SituacaoAmbienteTeste,
+} from "../ambienteTeste";
+import type {
   AlvoToken,
   ForgeKind,
   EventoClone,
@@ -153,6 +158,19 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
       },
     ]),
   );
+  const ambientes = new Map<string, AmbienteTeste>(
+    cfg.projetos.flatMap((p) => (p.ambienteTeste ? [[p.id, p.ambienteTeste] as const] : [])),
+  );
+  const senhasTeste = new Map<string, string>();
+  const situacaoTeste = (projeto: string): SituacaoAmbienteTeste => {
+    const ambiente = ambientes.get(projeto) ?? null;
+    return {
+      ambiente,
+      comSenha: (ambiente?.usuarios ?? [])
+        .map((u) => u.id)
+        .filter((id) => senhasTeste.has(`${projeto}/${id}`)),
+    };
+  };
   const catalogo = (arquivo: string) => {
     const t = TEXTOS.find((x) => x.arquivo === arquivo);
     if (!t) throw new Error(`${arquivo} não é um texto editável da base`);
@@ -279,6 +297,43 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
           }),
         ),
     ),
+    // Ambiente de teste: o cadastro e o "chaveiro" das senhas, como o app faz.
+    ambienteTeste: vi.fn(
+      (projeto: string): Promise<SituacaoAmbienteTeste> =>
+        Promise.resolve(situacaoTeste(projeto)),
+    ),
+    salvarAmbienteTeste: vi.fn(
+      (projeto: string, e: EntradaAmbienteTeste): Promise<SituacaoAmbienteTeste> => {
+        const anterior = ambientes.get(projeto)?.usuarios ?? [];
+        let maior = Math.max(0, ...anterior.map((u) => Number(u.id.slice(1)) || 0));
+        const usuarios = e.usuarios.map((u) => {
+          const id = u.id && anterior.some((a) => a.id === u.id) ? u.id : `u${++maior}`;
+          if (u.senha) senhasTeste.set(`${projeto}/${id}`, u.senha);
+          return {
+            id,
+            usuario: u.usuario.trim(),
+            perfil: u.perfil.trim(),
+            descricao: u.descricao.trim(),
+          };
+        });
+        for (const a of anterior)
+          if (!usuarios.some((u) => u.id === a.id)) senhasTeste.delete(`${projeto}/${a.id}`);
+        ambientes.set(projeto, {
+          url: e.url.trim(),
+          tipo: "web",
+          autenticacao: "usuario_senha",
+          observacoes: e.observacoes.trim(),
+          usuarios,
+        });
+        return Promise.resolve(situacaoTeste(projeto));
+      },
+    ),
+    removerAmbienteTeste: vi.fn((projeto: string): Promise<SituacaoAmbienteTeste> => {
+      for (const u of ambientes.get(projeto)?.usuarios ?? [])
+        senhasTeste.delete(`${projeto}/${u.id}`);
+      ambientes.delete(projeto);
+      return Promise.resolve(situacaoTeste(projeto));
+    }),
     configuracoes: vi.fn((): Promise<Configuracoes> => Promise.resolve(cfg)),
     infoBase: vi.fn(
       (): Promise<InfoBase | null> =>
@@ -441,6 +496,8 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
     textoNaBase: (arquivo: string) => arquivos.get(arquivo)!.texto,
     /** O conteúdo do chaveiro falso (conta → token). */
     chaveiro,
+    /** Senhas dos usuários de teste (`<projeto>/<id>` → senha). */
+    senhasTeste,
     comandos,
     testes,
     /** Define o resultado dos próximos "Testar". */

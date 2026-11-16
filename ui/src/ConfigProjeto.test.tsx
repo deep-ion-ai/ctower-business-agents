@@ -139,7 +139,7 @@ function montar({
 
 describe("ConfigProjeto", () => {
   describe("cabeçalho e abas", () => {
-    it("mostra nome, selo, resumo e as cinco abas com aria de abas", () => {
+    it("mostra nome, selo, resumo e as seis abas com aria de abas", () => {
       montar();
       expect(screen.getByRole("heading", { name: "Faturamento Exemplo" })).toBeInTheDocument();
       expect(screen.getByText("✓ Tudo pronto")).toBeInTheDocument();
@@ -153,6 +153,7 @@ describe("ConfigProjeto", () => {
         "Visão geral",
         "Código e demandas",
         "O que é analisado",
+        "Ambiente de teste",
         "Agente",
         "Avançado",
       ]);
@@ -611,5 +612,98 @@ describe("ConfigProjeto", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
       expect(api.descadastrar).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("aba Ambiente de teste", () => {
+  const campo = (p: ReturnType<ReturnType<typeof montar>["aba"]>, nome: string, i = 0) =>
+    p.getAllByLabelText(nome)[i] as HTMLInputElement;
+
+  it("cadastra URL e usuários com perfil; a senha vai para o chaveiro e não volta", async () => {
+    const m = montar();
+    const p = m.aba("Ambiente de teste");
+    expect(await p.findByText(/Nenhum usuário cadastrado/)).toBeInTheDocument();
+    expect(p.getByText("Web · usuário e senha")).toBeInTheDocument();
+
+    fireEvent.change(p.getByLabelText("URL do ambiente de teste"), {
+      target: { value: "https://hml.exemplo.com/login" },
+    });
+    fireEvent.click(p.getByRole("button", { name: "+ Adicionar usuário" }));
+    fireEvent.click(p.getByRole("button", { name: "+ Adicionar usuário" }));
+    fireEvent.change(campo(p, "Usuário (login)", 0), { target: { value: "ana" } });
+    fireEvent.change(campo(p, "Senha", 0), { target: { value: "s-ana" } });
+    fireEvent.change(campo(p, "Perfil", 0), { target: { value: "Atendente" } });
+    fireEvent.change(campo(p, "Usuário (login)", 1), { target: { value: "bia" } });
+    fireEvent.change(campo(p, "Perfil", 1), { target: { value: "Gestor" } });
+    expect(m.aoPendencia).toHaveBeenLastCalledWith(true);
+
+    fireEvent.click(p.getByRole("button", { name: "Salvar" }));
+    expect(await p.findByText(/Ambiente de teste salvo\. 1 usuário está sem senha\./)).toBeInTheDocument();
+    expect(m.api.salvarAmbienteTeste).toHaveBeenCalledWith("faturamento-exemplo", {
+      url: "https://hml.exemplo.com/login",
+      observacoes: "",
+      usuarios: [
+        { id: null, usuario: "ana", perfil: "Atendente", descricao: "", senha: "s-ana" },
+        { id: null, usuario: "bia", perfil: "Gestor", descricao: "", senha: null },
+      ],
+    });
+    expect(m.api.senhasTeste.get("faturamento-exemplo/u1")).toBe("s-ana");
+    // Depois de salvar, o campo de senha volta vazio e só diz que há senha guardada.
+    expect(campo(p, "Senha", 0).value).toBe("");
+    expect(campo(p, "Senha", 0).placeholder).toBe("guardada no chaveiro");
+    expect(p.getByText("✓ Senha guardada no chaveiro")).toBeInTheDocument();
+    expect(p.getByText("Sem senha guardada")).toBeInTheDocument();
+    expect(p.getByText("2 usuários · 2 perfis")).toBeInTheDocument();
+    expect(m.aoPendencia).toHaveBeenLastCalledWith(false);
+  });
+
+  it("aponta URL inválida e usuário sem perfil sem chamar o app", async () => {
+    const m = montar();
+    const p = m.aba("Ambiente de teste");
+    await p.findByText(/Nenhum usuário cadastrado/);
+    fireEvent.change(p.getByLabelText("URL do ambiente de teste"), {
+      target: { value: "https://ana:s@hml.exemplo.com" },
+    });
+    fireEvent.click(p.getByRole("button", { name: "+ Adicionar usuário" }));
+    fireEvent.change(campo(p, "Usuário (login)"), { target: { value: "ana" } });
+    fireEvent.click(p.getByRole("button", { name: "Salvar" }));
+    const alerta = within(p.getByRole("alert"));
+    expect(alerta.getByText(/Tire o usuário e a senha da URL/)).toBeInTheDocument();
+    expect(alerta.getByText("Informe o perfil do usuário ana.")).toBeInTheDocument();
+    expect(m.api.salvarAmbienteTeste).not.toHaveBeenCalled();
+  });
+
+  it("pede confirmação ao sair da aba com alterações não salvas", async () => {
+    const m = montar();
+    const p = m.aba("Ambiente de teste");
+    await p.findByText(/Nenhum usuário cadastrado/);
+    fireEvent.change(p.getByLabelText("URL do ambiente de teste"), {
+      target: { value: "https://hml.exemplo.com" },
+    });
+    fireEvent.click(screen.getByRole("tab", { name: "Agente" }));
+    expect(screen.getByText(/“Ambiente de teste” ainda não foram salvas/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Descartar as alterações" }));
+    expect(screen.getByRole("tab", { name: "Agente" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("remove o ambiente e as senhas depois da confirmação", async () => {
+    const api = apiConfiguracoesFalsa();
+    await api.salvarAmbienteTeste("faturamento-exemplo", {
+      url: "https://hml.exemplo.com",
+      observacoes: "Precisa de VPN.",
+      usuarios: [{ id: null, usuario: "ana", perfil: "Atendente", descricao: "", senha: "s" }],
+    });
+    const m = montar({ api });
+    const p = m.aba("Ambiente de teste");
+    expect(await p.findByDisplayValue("https://hml.exemplo.com")).toBeInTheDocument();
+    expect(p.getByDisplayValue("Precisa de VPN.")).toBeInTheDocument();
+    fireEvent.click(p.getByRole("button", { name: "Remover o ambiente…" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remover o ambiente" }));
+    await waitFor(() =>
+      expect(api.removerAmbienteTeste).toHaveBeenCalledWith("faturamento-exemplo"),
+    );
+    expect(await p.findByText(/As senhas foram apagadas do chaveiro/)).toBeInTheDocument();
+    expect(api.senhasTeste.size).toBe(0);
+    expect(p.getByLabelText("URL do ambiente de teste")).toHaveValue("");
   });
 });

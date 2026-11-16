@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { AbaAgente } from "./AbaAgente";
+import { AbaAmbienteTeste } from "./AbaAmbienteTeste";
 import { AbaAvancado } from "./AbaAvancado";
 import { AbaCodigoDemandas } from "./AbaCodigoDemandas";
 import { AbaLeitura } from "./AbaLeitura";
@@ -38,7 +39,7 @@ export interface PropsConfigProjeto {
   aoConferirProntidao: (projeto: string, forcar?: boolean) => void;
   /** Leva para a seção Acessos (tokens globais dos hosts). */
   aoIrParaAcessos: () => void;
-  /** Há (ou deixou de haver) alterações não salvas em “O que é analisado”. */
+  /** Há (ou deixou de haver) alterações não salvas em “O que é analisado” ou no ambiente de teste. */
   aoPendencia?: (pendente: boolean) => void;
 }
 
@@ -48,9 +49,10 @@ const SELO = {
 
 /**
  * Página do projeto nas configurações (#192): cabeçalho com nome, selo de saúde e
- * resumo, e as abas Visão geral, Código e demandas, O que é analisado, Agente e
- * Avançado. As abas seguem o padrão WAI-ARIA (setas, Home e End; uma só aba no Tab).
- * Sair de “O que é analisado” com alterações não salvas pede confirmação.
+ * resumo, e as abas Visão geral, Código e demandas, O que é analisado, Ambiente de
+ * teste, Agente e Avançado. As abas seguem o padrão WAI-ARIA (setas, Home e End; uma
+ * só aba no Tab). Sair de “O que é analisado” ou de “Ambiente de teste” com
+ * alterações não salvas pede confirmação.
  */
 export function ConfigProjeto(props: PropsConfigProjeto) {
   const { projeto, estado, aoConferirProntidao, aoPendencia } = props;
@@ -80,7 +82,7 @@ export function ConfigProjeto(props: PropsConfigProjeto) {
 
   const irPara = (nova: AbaProjeto) => {
     if (nova === aba) return;
-    if (aba === "leitura" && pendente) {
+    if ((aba === "leitura" || aba === "teste") && pendente) {
       setSaida(nova);
       return;
     }
@@ -172,6 +174,7 @@ export function ConfigProjeto(props: PropsConfigProjeto) {
         {aba === "geral" && <AbaVisaoGeral itens={itens} aoIr={irPara} />}
         {aba === "codigo" && <AbaCodigoDemandas {...props} />}
         {aba === "leitura" && <AbaLeitura {...props} aoPendencia={setPendente} />}
+        {aba === "teste" && <AbaAmbienteTeste {...props} aoPendencia={setPendente} />}
         {aba === "agente" && <AbaAgente {...props} />}
         {aba === "avancado" && <AbaAvancado {...props} />}
       </div>
@@ -198,7 +201,10 @@ export function ConfigProjeto(props: PropsConfigProjeto) {
             </>
           }
         >
-          <p>As alterações em “O que é analisado” ainda não foram salvas e serão perdidas.</p>
+          <p>
+            As alterações em “{aba === "teste" ? "Ambiente de teste" : "O que é analisado"}” ainda
+            não foram salvas e serão perdidas.
+          </p>
         </DialogoConfirmacao>
       )}
     </section>

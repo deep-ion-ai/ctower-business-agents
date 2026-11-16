@@ -30,6 +30,7 @@
 
 mod acessos;
 mod alteracoes;
+mod ambiente_teste;
 mod analise;
 mod base;
 mod cli;

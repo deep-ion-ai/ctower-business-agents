@@ -68,6 +68,7 @@ Ambiente típico: notebook (Windows ou macOS), assinatura pessoal de IA, acesso 
 - **Laço de agente próprio** no app, com as mesmas ferramentas: ChatGPT Plus/Pro pelo programa "Sign in with ChatGPT" da OpenAI e, para uso corporativo, chave de API da Anthropic, Amazon Bedrock ou Google Vertex AI.
 - Integração com Jira e GitLab/GitHub para ler a demanda pela chave e publicar o documento como comentário ou anexo.
 - Fluxos **revisar história** e **gerar critérios de aceite e cenários de teste** (histórias com critérios de aceite: fluxo `historias`, #115, com documento próprio do tipo `historias`, identificador estável `HU-NNNN` por história e cada critério ligado às afirmações e às regras `RN-…`; cenários de teste: fluxo `cenarios`, #117, com documento próprio do tipo `cenarios-teste`, tabela de decisão, partição de equivalência e valores-limite lidos do código, identificador estável `CT-NNNN` por cenário ligado à regra e à evidência do limite, e exportação em CSV, uma linha por cenário).
+- **Ambiente de teste do projeto**, para simular o uso e não deixar a análise limitada ao código: URL da aplicação em teste e usuários de teste com o perfil de cada um. Primeira etapa: só aplicações web com login por usuário e senha, cadastro na aba "Ambiente de teste" do projeto, sem nada exposto ao agente ainda (seção 9).
 - **Importação de bases existentes** em Markdown (catálogos de regras, casos de uso, memórias de engenharia reversa), com revalidação das evidências contra o código atual.
 - Conexão a um banco de dados para extrair o schema, além de arquivos DDL.
 - Busca semântica (embeddings) sobre a base de conhecimento, só se a busca textual se mostrar insuficiente (seção 7.5).
@@ -84,7 +85,7 @@ Fora deste repositório. Só registrada aqui para orientar decisões do núcleo:
 ### Fora de escopo
 
 - Desenvolvimento: gerar ou alterar código, abrir PR, fazer push.
-- Execução do sistema analisado ou de testes.
+- Execução do sistema analisado ou de testes. O ambiente de teste (seção 3, fase 2) só guarda onde e com quem entrar; usá-lo numa análise é uma etapa futura.
 - Uso multiusuário ou sincronização entre máquinas (a base pode ficar numa pasta sincronizada ou num repositório git, por conta do analista).
 - Embutir, instalar ou modificar o binário do Claude Code, ou intermediar o login do analista em qualquer provedor.
 
@@ -395,6 +396,7 @@ Pontos validados na prova de conceito (seção 13):
 - **Exclusões padrão:** dependências de terceiros, binários, arquivos com padrão de segredo. As ferramentas MCP respeitam as exclusões; as ferramentas próprias do cliente de IA não, e os limites orientam o agente a evitá-las.
 - **Transcript das reuniões (épico #93):** as falas analisadas ficam só no diretório de dados (`<dados>/reunioes/<projeto>/<R-NNNN>/falas.json`, com os metadados em `guarda.json`), nunca na base nem no repositório. São apagadas ao aprovar a ata ou descartar a reunião, quando as citações da ata passam a "conferida em <data>", ou pela retenção, que roda no início do app e apaga as guardadas há mais de `retencao_transcript_dias` (em `<dados>/config/app.json`, padrão 30) e sinaliza as que vencem em até 7 dias. O diário de eventos e o log registram só o projeto, a reunião, o índice da fala e contagens, nunca o texto (`cba_reunioes::guarda`).
 - **Dados do sistema analisado** ficam na máquina do analista: na base de conhecimento e nos históricos do próprio cliente de IA. O app não envia nada a serviços próprios.
+- **Ambiente de teste:** o cadastro do projeto (`projeto.json`, no diretório de dados, fora da base e do repositório) guarda a URL, os usuários e os perfis, nunca a senha. A senha vai da tela direto para o chaveiro do sistema (Keychain no macOS, Gerenciador de Credenciais no Windows, keyutils no Linux), na conta `teste:<projeto>/<id do usuário>`, e não volta para a tela, para a base nem para o log; a tela só sabe quais usuários têm senha guardada. A URL não pode trazer usuário e senha embutidos. Remover um usuário, remover o ambiente ou descadastrar o projeto apaga as senhas.
 - **Sem telemetria** no MVP.
 
 ## 10. Interface
