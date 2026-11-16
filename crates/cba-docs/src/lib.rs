@@ -18,8 +18,13 @@
 //!
 //! Seções e campos de cada tipo: [`MODELOS`].
 //!
+//! A ata de reunião segue o mesmo caminho a partir de um estado próprio
+//! ([`EstadoAta`], em `R-NNNN.estado.json`), convertido num [`Conteudo`] e
+//! montado pelo template `ata` ([`Templates::gravar_ata`]).
+//!
 //! Papel na arquitetura: seção 5 de `docs/specs/2026-11-11-mvp-standalone.md`.
 
+mod ata;
 mod conteudo;
 mod exportacao;
 mod modelo;
@@ -29,6 +34,10 @@ mod word;
 
 use cba_kb::CaminhoRelativo;
 
+pub use ata::{
+    CitacaoFala, ErroAta, EstadoAta, IdItemAta, ItemAta, NovoItem, Participante, PropostaDePapel,
+    StatusCitacao, TipoItem,
+};
 pub use conteudo::{
     Afirmacao, Citacao, Confianca, Conteudo, Pergunta, ReferenciaSugestao, Texto, bloco_de_codigo,
 };
@@ -37,7 +46,10 @@ pub use exportacao::{
     exportar, exportar_com_links, exportar_markdown, exportar_markdown_com_links, exportar_word,
     gravar_exportacao, gravar_exportacao_com_links,
 };
-pub use modelo::{MODELOS, Modelo, Montavel, Secao, modelo};
+pub use modelo::{
+    CENARIOS, HISTORIAS, MODELOS, Modelo, Montavel, RASTREABILIDADE, Secao, TABELAS_DECISAO,
+    VALORES_LIMITE, modelo,
+};
 pub use montagem::{ErroMontagem, Montado};
 pub use template::{Aviso, Origem, Template, Templates, arquivo_do_template};
 
@@ -46,7 +58,7 @@ pub const NOME: &str = env!("CARGO_PKG_NAME");
 
 /// Link Markdown de um documento da base para outro, com caminho relativo ao
 /// documento de origem (`de`). Os dois caminhos são relativos à raiz do projeto.
-pub(crate) fn link(texto: &str, de: &CaminhoRelativo, para: &CaminhoRelativo) -> String {
+pub fn link(texto: &str, de: &CaminhoRelativo, para: &CaminhoRelativo) -> String {
     let texto = texto.replace('[', "\\[").replace(']', "\\]");
     let destino = caminho_relativo(de, para);
     if destino.contains([' ', '(', ')', '<', '>']) {

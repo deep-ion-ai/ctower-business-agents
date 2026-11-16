@@ -61,6 +61,53 @@ describe("Navegacao", () => {
     );
   });
 
+  it("pede confirmação ao trocar de aba com alterações não salvas no editor de textos", async () => {
+    render(
+      <Navegacao
+        api={apiConhecimentoFalsa().api}
+        apiAnalise={apiAnaliseFalsa().api}
+        apiConfiguracoes={apiConfiguracoesFalsa()}
+      />,
+    );
+    await screen.findByRole("region", { name: "Início" });
+    const atividades = screen.getByRole("navigation", { name: "Telas" });
+    fireEvent.click(within(atividades).getByRole("button", { name: "Configurações" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Editar Perguntar ao sistema" }));
+    const campo = await screen.findByRole("textbox", { name: "Texto" });
+
+    // Sem alterações, trocar de aba não pergunta.
+    fireEvent.click(within(atividades).getByRole("button", { name: "Início" }));
+    expect(await screen.findByRole("region", { name: "Início" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(within(atividades).getByRole("button", { name: "Configurações" }));
+    // A tela das configurações abre do zero: o editor fechou junto.
+    fireEvent.click(await screen.findByRole("button", { name: "Editar Perguntar ao sistema" }));
+    const campoDeNovo = await screen.findByRole("textbox", { name: "Texto" });
+    expect(campoDeNovo).not.toBe(campo);
+
+    fireEvent.change(campoDeNovo, { target: { value: "rascunho" } });
+    // Pela barra de atividades...
+    fireEvent.click(within(atividades).getByRole("button", { name: "Início" }));
+    let dialogo = within(await screen.findByRole("dialog", { name: "Alterações não salvas" }));
+    fireEvent.click(dialogo.getByRole("button", { name: "Continuar editando" }));
+    expect(screen.getByRole("textbox", { name: "Texto" })).toHaveValue("rascunho");
+    // ... e pelas abas abertas.
+    fireEvent.click(screen.getByRole("tab", { name: "Início" }));
+    dialogo = within(await screen.findByRole("dialog", { name: "Alterações não salvas" }));
+    fireEvent.click(dialogo.getByRole("button", { name: "Descartar e sair" }));
+    expect(await screen.findByRole("region", { name: "Início" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    // Fechar a aba de configurações com pendência também pergunta.
+    fireEvent.click(within(atividades).getByRole("button", { name: "Configurações" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Editar Perguntar ao sistema" }));
+    fireEvent.change(await screen.findByRole("textbox", { name: "Texto" }), {
+      target: { value: "outro rascunho" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Fechar Configurações" }));
+    expect(await screen.findByRole("dialog", { name: "Alterações não salvas" })).toBeInTheDocument();
+  });
+
   it("do projeto para o documento na base", async () => {
     const { conhecimento } = montar();
     fireEvent.click(await screen.findByRole("button", { name: "Faturamento Exemplo" }));

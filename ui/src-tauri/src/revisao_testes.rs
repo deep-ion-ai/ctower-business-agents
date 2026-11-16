@@ -148,7 +148,10 @@ fn revisao_e_aprovacao_de_ponta_a_ponta() {
         &id,
         json!({"tipo": "afirmacao", "numero": 2, "estado": "aprofundar"}),
     );
-    assert_eq!(v.analise.afirmacoes[1].estado, EstadoAfirmacao::Aprofundar);
+    assert_eq!(
+        v.analise.afirmacoes[1].estado,
+        EstadoAfirmacao::Aprofundar { pedido: None }
+    );
     let p = prontidao(&c.dados, PROJETO, &id).unwrap();
     assert!(
         p.pendencias

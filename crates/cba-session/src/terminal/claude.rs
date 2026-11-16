@@ -31,10 +31,23 @@ const PROIBIDOS: &[&str] = &[
     "bypassPermissions",
 ];
 
-/// Variáveis que o app não repassa ao `claude`. `CLAUDECODE` marca um processo
-/// iniciado de dentro de uma sessão do Claude Code (o app aberto por um terminal onde o
-/// Claude Code roda) e faria o `claude` recusar a sessão aninhada.
-const VARIAVEIS_REMOVIDAS: &[&str] = &["CLAUDECODE"];
+/// Variáveis que o app não repassa ao `claude`: as que marcam um processo iniciado de
+/// dentro de uma sessão do Claude Code (o app aberto por um terminal onde o Claude Code
+/// roda). `CLAUDECODE` faria o `claude` recusar a sessão aninhada, e
+/// `CLAUDE_CODE_CHILD_SESSION` desliga a gravação da conversa: sem ela, a sessão da
+/// análise não pode ser retomada pelo identificador (#130). As demais são da sessão
+/// de fora (identificador, canal de mensagens) e não valem para a conversa nova.
+const VARIAVEIS_REMOVIDAS: &[&str] = &[
+    "CLAUDECODE",
+    "CLAUDE_CODE_CHILD_SESSION",
+    "CLAUDE_CODE_SESSION_ID",
+    "CLAUDE_CODE_ENTRYPOINT",
+    "CLAUDE_CODE_EXECPATH",
+    "CLAUDE_CODE_MESSAGING_SOCKET",
+    "CLAUDE_CODE_MESSAGING_TOKEN",
+    "CLAUDE_CODE_SESSION_ATTENDED",
+    "CLAUDE_PID",
+];
 
 /// Como a conversa começa.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -394,6 +407,12 @@ mod tests {
         );
         assert_eq!(env(&l, "TERM").as_deref(), Some("xterm-256color"));
         assert!(l.comando.env_remover.iter().any(|v| v == "CLAUDECODE"));
+        assert!(
+            l.comando
+                .env_remover
+                .iter()
+                .any(|v| v == "CLAUDE_CODE_CHILD_SESSION")
+        );
     }
 
     #[test]

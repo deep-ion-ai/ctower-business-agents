@@ -7,6 +7,7 @@ import {
   type ResumoRevalidacao,
   type VisaoProjeto,
 } from "./conhecimento";
+import { ListaDemandas } from "./ListaDemandas";
 import type { Tela } from "./Navegacao";
 import type { ProjetoResumo } from "./terminal";
 
@@ -16,7 +17,7 @@ type Revalidacao =
   | { tipo: "falha"; mensagem: string };
 
 /**
- * Projeto (spec, seção 10): áreas, regras (as "a revalidar" primeiro e destacadas),
+ * Projeto (spec, seção 10): as demandas (#138), áreas, regras (as "a revalidar" primeiro e destacadas),
  * glossário e mapa. Ao abrir, confere as evidências contra o código atual (spec,
  * seção 6.5) e relê a lista se algo mudou; o analista pode conferir de novo.
  */
@@ -154,6 +155,8 @@ function Projeto({
           Conferir de novo
         </button>
       </div>
+
+      <ListaDemandas api={api} projeto={projeto} navegar={navegar} />
 
       {aRevalidar > 0 && (
         <p className="aviso-revalidar" role="alert">

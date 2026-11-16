@@ -15,6 +15,8 @@
 //! - [`sessoes`]: os terminais abertos ([`Sessoes`]), o envio de prompts prontos à
 //!   sessão viva e a última sessão de cada projeto ([`UltimasSessoes`]), para oferecer
 //!   a retomada quando o app é reaberto.
+//! - [`transcricao`]: se a conversa de uma sessão foi gravada ([`conversa_gravada`]),
+//!   para só oferecer a retomada pelo identificador quando ela pode dar certo.
 //!
 //! Botão "Continuar no Claude Desktop": é o prompt `/desktop` enviado por
 //! [`Sessoes::enviar_prompt`] (comando do próprio Claude Code). Pela documentação, o
@@ -25,6 +27,7 @@ pub mod claude;
 pub mod desktop;
 pub mod pty;
 pub mod sessoes;
+pub mod transcricao;
 
 pub use claude::{
     ErroAbertura, Lancamento, PedidoClaude, RelatorioErro, Retomada, lancamento, pendencias,
@@ -32,6 +35,7 @@ pub use claude::{
 pub use desktop::{ResultadoDesktop, executar_no_pty, lancamento_desktop, montar_desktop};
 pub use pty::{Comando, DecodificadorUtf8, ErroTerminal, Evento, Fim, Tamanho, Terminal};
 pub use sessoes::{PAUSA_ENVIO, Sessoes, UltimaSessao, UltimasSessoes};
+pub use transcricao::conversa_gravada;
 
 /// Prompt que move a sessão para a aba de código do Claude Desktop.
 pub const PROMPT_DESKTOP: &str = "/desktop";

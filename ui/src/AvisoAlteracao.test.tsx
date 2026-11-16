@@ -1,6 +1,6 @@
 import { act } from "react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { AvisoAlteracao } from "./AvisoAlteracao";
+import { AvisoAlteracao, NOTA_CODIGO_FONTE } from "./AvisoAlteracao";
 import { AmbienteDoProjeto } from "./PrepararAmbiente";
 import type {
   AmbienteClaude,
@@ -51,6 +51,12 @@ function montar(inicial: Aviso) {
   return { api, vigiar, parar, avisar, ...r };
 }
 
+/** Abre o painel pelo ícone da barra e devolve a região do aviso. */
+async function abrir(rotulo: RegExp = /alterad/) {
+  fireEvent.click(await screen.findByRole("button", { name: rotulo }));
+  return screen.getByRole("region", { name: "Aviso de alteração" });
+}
+
 describe("AvisoAlteracao", () => {
   it("sem alteração, não mostra nada; aparece quando a vigia avisa", async () => {
     const { api, avisar, container } = montar({ arquivos: [], avisos: [] });
@@ -64,14 +70,37 @@ describe("AvisoAlteracao", () => {
 
     api.alteracoes.mockResolvedValue({ arquivos: [PKG], avisos: [] });
     act(() => avisar({ tipo: "mudanca", analise: "A-0001", mudanca: "alteracao", versao: 0 }));
-    const aviso = await screen.findByRole("alert", { name: "Aviso de alteração" });
+    // Só o ícone com o contador; o detalhe abre pelo ícone.
+    const icone = await screen.findByRole("button", { name: "1 arquivo alterado nesta análise" });
+    expect(icone).toHaveAttribute("aria-expanded", "false");
+    expect(icone).toHaveTextContent("1");
+    expect(screen.queryByRole("region", { name: "Aviso de alteração" })).toBeNull();
+    const aviso = await abrir();
+    expect(icone).toHaveAttribute("aria-expanded", "true");
+    expect(icone).toHaveAttribute("aria-controls", aviso.id);
     expect(within(aviso).getByText("db/03_pkg_cobranca.sql")).toBeInTheDocument();
     expect(within(aviso).getByText("modificado")).toHaveAttribute("data-tone", "attention");
+    expect(within(aviso).getByText(NOTA_CODIGO_FONTE)).toBeInTheDocument();
+  });
+
+  it("o painel fecha pelo ícone e pelo Esc, com o foco de volta no ícone", async () => {
+    montar({ arquivos: [PKG, NOVO], avisos: [] });
+    const icone = await screen.findByRole("button", { name: "2 arquivos alterados nesta análise" });
+    expect(icone).toHaveTextContent("2");
+    await abrir();
+    fireEvent.click(icone);
+    expect(screen.queryByRole("region", { name: "Aviso de alteração" })).toBeNull();
+    expect(icone).toHaveAttribute("aria-expanded", "false");
+    await abrir();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("region", { name: "Aviso de alteração" })).toBeNull();
+    expect(icone).toHaveFocus();
   });
 
   it("mostra o diff e desfaz só depois da confirmação", async () => {
     const { api } = montar({ arquivos: [PKG, NOVO], avisos: ["pasta fora do git"] });
-    expect(await screen.findByText("A pasta do projeto foi alterada nesta análise")).toBeVisible();
+    await abrir();
+    expect(screen.getByText("A pasta do projeto foi alterada nesta análise")).toBeVisible();
     expect(screen.getByText("pasta fora do git")).toBeInTheDocument();
 
     fireEvent.click(screen.getAllByRole("button", { name: "Ver o diff" })[0]);
@@ -103,13 +132,16 @@ describe("AvisoAlteracao", () => {
         { sessao: "s1", pasta: "/codigo/faturamento", caminho: "db/04_novo.sql", hashAtual: "def" },
       ]),
     );
-    // Relê depois de desfazer: sem alterações, o aviso some.
-    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    // Relê depois de desfazer: sem alterações, o painel e o ícone somem.
+    await waitFor(() =>
+      expect(screen.queryByRole("region", { name: "Aviso de alteração" })).toBeNull(),
+    );
+    expect(screen.queryByRole("button", { name: /alterad/ })).toBeNull();
   });
 
   it("manter também pede confirmação, e a falha aparece", async () => {
     const { api } = montar({ arquivos: [PKG], avisos: [] });
-    await screen.findByText("db/03_pkg_cobranca.sql");
+    await abrir();
     api.manter.mockRejectedValueOnce("db/03_pkg_cobranca.sql mudou desde que o aviso foi mostrado");
     fireEvent.click(screen.getByRole("button", { name: "Manter" }));
     fireEvent.click(screen.getByRole("button", { name: "Sim, manter" }));
@@ -123,7 +155,7 @@ describe("AvisoAlteracao", () => {
       arquivos: [{ ...PKG, desfazivel: false, diff: null, hashAtual: null }],
       avisos: [],
     });
-    await screen.findByText("db/03_pkg_cobranca.sql");
+    await abrir();
     expect(screen.queryByRole("button", { name: "Desfazer" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Ver o diff" })).toBeNull();
     expect(screen.getByRole("button", { name: "Manter" })).toBeDisabled();

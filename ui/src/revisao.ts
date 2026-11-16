@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
-import type { VistaAnalise } from "./analise";
+import type { Gherkin, Narrativa, SituacaoItem, VistaAnalise } from "./analise";
 
 /**
  * Revisão, aprovação e exportação da análise (#37): espelho de
@@ -9,13 +9,31 @@ import type { VistaAnalise } from "./analise";
 
 /** Decisão do analista (`cba_tools::revisao::Decisao`). */
 export type DecisaoRevisao =
-  | { tipo: "afirmacao"; numero: number; estado: "confirmada" | "aprofundar" | "registrada" }
+  | { tipo: "afirmacao"; numero: number; estado: "confirmada" | "registrada" }
+  /** As respostas destas perguntas foram enviadas ao agente. */
+  | { tipo: "respostas-enviadas"; numeros: number[] }
+  /** Aprofundamento, com o que o analista quer ver detalhado (opcional). */
+  | { tipo: "afirmacao"; numero: number; estado: "aprofundar"; pedido?: string }
   | { tipo: "afirmacao"; numero: number; estado: "incorreta"; comentario: string }
   | { tipo: "editar-afirmacao"; numero: number; texto: string }
   | { tipo: "pergunta"; numero: number; estado: "respondida"; resposta: string }
   | { tipo: "pergunta"; numero: number; estado: "descartada" }
   | { tipo: "sugestao"; numero: number; estado: "aceita" | "recusada" }
-  | { tipo: "termo"; numero: number; estado: "aceito" | "recusado" };
+  | { tipo: "termo"; numero: number; estado: "aceito" | "recusado" }
+  | { tipo: "editar-termo"; numero: number; definicao: string }
+  /** Achado do parecer de revisão: descartar, com o motivo, ou desfazer o descarte. */
+  | { tipo: "achado"; numero: number; estado: "descartado"; motivo?: string }
+  | { tipo: "achado"; numero: number; estado: "registrado" }
+  /** Histórias (#115): aceitar, descartar, desfazer ou pedir a quebra em fatias. */
+  | { tipo: "historia"; historia: string; decisao: "aceitar" | "descartar" | "desfazer" }
+  | { tipo: "historia"; historia: string; decisao: "quebrar"; pedido?: string }
+  | ({ tipo: "editar-historia"; historia: string } & Narrativa)
+  | { tipo: "criterio"; historia: string; numero: number; situacao: SituacaoItem }
+  | ({ tipo: "editar-criterio"; historia: string; numero: number } & Gherkin)
+  /** Cenários de teste (#117): aceitar, descartar ou desfazer; editar título e passos. */
+  | { tipo: "cenario"; cenario: string; situacao: SituacaoItem }
+  | ({ tipo: "editar-cenario"; cenario: string; titulo: string } & Gherkin)
+  | { tipo: "tabela"; numero: number; situacao: SituacaoItem };
 
 export interface Area {
   id: string;
@@ -24,7 +42,7 @@ export interface Area {
 }
 
 export interface Pendencia {
-  tipo: "analise" | "afirmacao" | "termo";
+  tipo: "analise" | "afirmacao" | "termo" | "historia" | "criterio" | "tabela" | "cenario";
   numero: number | null;
   motivo: string;
 }
@@ -65,7 +83,8 @@ export interface AprovacaoFeita {
   avisos: string[];
 }
 
-export type FormatoExportacao = "markdown" | "word";
+/** Formato da exportação; `csv` (uma linha por cenário) só nos cenários de teste (#117). */
+export type FormatoExportacao = "markdown" | "word" | "csv";
 
 export interface OpcoesExportacao {
   /** Notas de rodapé e seção de evidências. */
@@ -82,7 +101,17 @@ export interface PedidoExportacao {
   opcoes: OpcoesExportacao;
 }
 
-export const EXTENSAO: Record<FormatoExportacao, string> = { markdown: "md", word: "docx" };
+export const EXTENSAO: Record<FormatoExportacao, string> = {
+  markdown: "md",
+  word: "docx",
+  csv: "csv",
+};
+
+const FILTRO: Record<FormatoExportacao, { name: string; extensions: string[] }> = {
+  markdown: { name: "Markdown", extensions: ["md"] },
+  word: { name: "Documento do Word", extensions: ["docx"] },
+  csv: { name: "CSV (planilha, ferramentas de teste)", extensions: ["csv"] },
+};
 
 /** Operações da revisão. A interface usa {@link apiRevisaoTauri}; os testes, uma falsa. */
 export interface ApiRevisao {
@@ -105,11 +134,7 @@ export const apiRevisaoTauri: ApiRevisao = {
     save({
       title: "Exportar a análise",
       defaultPath: `${nome}.${EXTENSAO[formato]}`,
-      filters: [
-        formato === "word"
-          ? { name: "Documento do Word", extensions: ["docx"] }
-          : { name: "Markdown", extensions: ["md"] },
-      ],
+      filters: [FILTRO[formato]],
     }),
   exportar: (projeto, analise, pedido) =>
     invoke("exportar_analise_projeto", { projeto, analise, pedido }),

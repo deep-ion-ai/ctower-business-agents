@@ -351,3 +351,160 @@ fn tarefas_pelo_nome() {
     }
     assert_eq!(Tarefa::do_nome("outra"), None);
 }
+
+// ---------------------------------------------------------------------------
+// Pastas de código-fonte fora do aviso (#130)
+
+fn github(repo: &str) -> Vec<RepositorioCodigo> {
+    vec![RepositorioCodigo {
+        caminho: repo.into(),
+        ..Default::default()
+    }]
+}
+
+fn gitlab(host: &str, path: &str) -> Vec<RepositorioCodigo> {
+    vec![RepositorioCodigo {
+        forja: cba_repos::ForgeKind::Gitlab,
+        host: host.into(),
+        caminho: path.into(),
+        ..Default::default()
+    }]
+}
+
+#[test]
+fn url_do_remoto_aponta_para_a_forja() {
+    let gh = github("Acme/Faturamento");
+    for url in [
+        "https://github.com/acme/faturamento.git",
+        "https://user@github.com/acme/faturamento/",
+        "git@github.com:acme/faturamento.git",
+        "ssh://git@github.com/Acme/Faturamento",
+        "ssh://git@ssh.github.com:443/acme/faturamento.git",
+    ] {
+        assert!(aponta_para(url, &gh), "{url}");
+    }
+    for url in [
+        "https://github.com/acme/faturamento-docs.git",
+        "https://github.com/outro/faturamento.git",
+        "https://gitlab.com/acme/faturamento.git",
+        "/caminho/local/faturamento",
+        "",
+    ] {
+        assert!(!aponta_para(url, &gh), "{url}");
+    }
+    let gl = gitlab("gitlab.example.com", "grupo/sub/app");
+    assert!(aponta_para(
+        "https://gitlab.example.com/grupo/sub/app.git",
+        &gl
+    ));
+    assert!(aponta_para("git@gitlab.example.com:grupo/sub/app.git", &gl));
+    assert!(aponta_para(
+        "ssh://git@gitlab.example.com:2222/grupo/sub/app",
+        &gl
+    ));
+    assert!(!aponta_para(
+        "https://gitlab.example.com/grupo/app.git",
+        &gl
+    ));
+}
+
+/// Um repositório git com o remoto `origin` em `url`.
+fn repo_com_remoto(pasta: &Path, url: &str) {
+    fs::create_dir_all(pasta).unwrap();
+    fs::write(pasta.join("leia-me.md"), "x\n").unwrap();
+    git(pasta, &["init", "-q"]);
+    git(pasta, &["remote", "add", "origin", url]);
+}
+
+#[test]
+fn pasta_de_codigo_fonte_sai_do_retrato() {
+    let dir = tempfile::tempdir().unwrap();
+    let raiz = dunce::canonicalize(dir.path()).unwrap();
+    let codigo = raiz.join("codigo");
+    let docs = raiz.join("docs");
+    let solta = raiz.join("solta");
+    repo_com_remoto(&codigo, "git@github.com:acme/faturamento.git");
+    repo_com_remoto(&docs, "https://github.com/acme/faturamento-docs.git");
+    fs::create_dir_all(&solta).unwrap();
+    let pastas = vec![codigo.join("."), docs.clone(), solta.clone()];
+
+    // Sem forja cadastrada, nada muda.
+    assert_eq!(sem_codigo_fonte(pastas.clone(), &[]), pastas);
+    // Com a forja, só o repositório de código sai.
+    assert_eq!(
+        sem_codigo_fonte(pastas.clone(), &github("acme/faturamento")),
+        vec![docs.clone(), solta.clone()]
+    );
+    // Uma subpasta do repositório de código também sai.
+    fs::create_dir_all(codigo.join("db")).unwrap();
+    assert!(sem_codigo_fonte(vec![codigo.join("db")], &github("acme/faturamento")).is_empty());
+}
+
+#[test]
+fn pasta_de_qualquer_repositorio_cadastrado_sai_do_retrato() {
+    let dir = tempfile::tempdir().unwrap();
+    let raiz = dunce::canonicalize(dir.path()).unwrap();
+    let web = raiz.join("web");
+    let legado = raiz.join("legado");
+    let docs = raiz.join("docs");
+    repo_com_remoto(&web, "git@github.com:acme/faturamento-web.git");
+    repo_com_remoto(&legado, "https://gitlab.example.com/acme/legado/app.git");
+    repo_com_remoto(&docs, "https://github.com/acme/faturamento-docs.git");
+    let mut repos = github("acme/faturamento-web");
+    repos.extend(gitlab("gitlab.example.com", "acme/legado/app"));
+    assert_eq!(
+        sem_codigo_fonte(vec![web.clone(), legado.clone(), docs.clone()], &repos),
+        vec![docs.clone()]
+    );
+    // Só um dos dois cadastrado: o outro volta para o aviso.
+    assert_eq!(
+        sem_codigo_fonte(vec![web, legado.clone(), docs.clone()], &repos[..1]),
+        vec![legado, docs]
+    );
+}
+
+#[test]
+fn sessao_altera_codigo_sem_aviso_e_docs_com_aviso() {
+    let dir = tempfile::tempdir().unwrap();
+    let raiz = dunce::canonicalize(dir.path()).unwrap();
+    let codigo = raiz.join("codigo");
+    let docs = raiz.join("docs");
+    repo_com_remoto(&codigo, "https://github.com/acme/faturamento.git");
+    repo_com_remoto(&docs, "https://github.com/acme/faturamento-docs.git");
+    for p in [&codigo, &docs] {
+        git(p, &["config", "core.autocrlf", "false"]);
+        git(p, &["add", "-A"]);
+        git(p, &["commit", "-q", "-m", "inicial"]);
+    }
+    let dados = DiretorioDados::em(raiz.join("dados"));
+    let mut projeto = cba_index::Projeto::novo("Faturamento", [&codigo, &docs]).unwrap();
+    projeto.repositorios.codigo = github("acme/faturamento");
+    cba_index::Cadastro::em(dados.projetos())
+        .cadastrar(&projeto)
+        .unwrap();
+    let mut registro = RegistroSessao::novo(SESSAO, &projeto.id, 0);
+    registro.diretorio = Some(codigo.clone());
+
+    let pastas = pastas_da_sessao(&dados, &registro).unwrap();
+    assert_eq!(pastas, vec![docs.clone()]);
+    let retratos = Retratos::do_diretorio(&dados);
+    retratar(&retratos, SESSAO, &projeto.id, &pastas).unwrap();
+
+    fs::write(codigo.join("leia-me.md"), "alterado pela sessão\n").unwrap();
+    fs::write(docs.join("leia-me.md"), "alterado pela sessão\n").unwrap();
+    let c = conferir(&retratos, SESSAO).unwrap();
+    let alterados: Vec<_> = c
+        .alterados
+        .iter()
+        .map(|a| (a.pasta.clone(), a.caminho.as_str(), a.desfazivel))
+        .collect();
+    assert_eq!(alterados, [(docs.clone(), "leia-me.md", true)]);
+    let (detalhes, _) = detalhar(&retratos, SESSAO).unwrap();
+    assert!(
+        detalhes[0]
+            .diff
+            .as_deref()
+            .unwrap()
+            .contains("+alterado pela sessão")
+    );
+}

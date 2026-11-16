@@ -50,6 +50,10 @@ pub struct Preferencias {
     /// `None` quando o arquivo é anterior ao assistente.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub primeiro_uso_concluido: Option<bool>,
+    /// Pasta base dos clones dos repositórios de código (#179); `None` = a
+    /// sugerida.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pasta_clones: Option<PathBuf>,
 }
 
 impl Preferencias {
@@ -439,6 +443,12 @@ pub struct PastaVista {
     /// Branch, se a pasta está num repositório git.
     pub branch: Option<String>,
     pub git: bool,
+    /// URL do primeiro remoto do repositório git da pasta.
+    pub remoto: Option<String>,
+    /// Forja, host e caminho deduzidos do remoto (#178).
+    pub forja: Option<cba_repos::ForgeKind>,
+    pub host: Option<String>,
+    pub caminho_repo: Option<String>,
 }
 
 /// Contagem com rótulo para a interface.
@@ -563,11 +573,24 @@ pub(crate) fn pastas_vista(inventario: &Inventario) -> Vec<PastaVista> {
     inventario
         .pastas
         .iter()
-        .map(|p| PastaVista {
-            caminho: p.caminho.clone(),
-            prefixo: p.prefixo.clone(),
-            branch: p.git.as_ref().and_then(|g| g.branch.clone()),
-            git: p.git.is_some(),
+        .map(|p| {
+            let remoto = p
+                .git
+                .as_ref()
+                .and_then(|_| cba_index::remotos_git(&p.caminho).into_iter().next());
+            let deduzido = remoto
+                .as_deref()
+                .and_then(cba_repos::RepositorioCodigo::da_url);
+            PastaVista {
+                caminho: p.caminho.clone(),
+                prefixo: p.prefixo.clone(),
+                branch: p.git.as_ref().and_then(|g| g.branch.clone()),
+                git: p.git.is_some(),
+                forja: deduzido.as_ref().map(|r| r.forja),
+                host: deduzido.as_ref().map(|r| r.host.clone()),
+                caminho_repo: deduzido.map(|r| r.caminho),
+                remoto,
+            }
         })
         .collect()
 }

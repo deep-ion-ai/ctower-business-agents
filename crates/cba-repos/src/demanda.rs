@@ -4,6 +4,8 @@
 //! `jira issue view --raw` (JSON da API v2). O token chega ao processo filho só
 //! no ambiente. Sem escrita no rastreador.
 
+use crate::chaveiro::{Chaveiro, ChaveiroNativo, conta_global};
+use crate::codigo::HOST_GITHUB;
 use crate::process::{self, RunError, cite};
 use crate::{
     CREDENTIAL_DEADLINE, CredentialError, GithubConfig, GitlabConfig, JiraConfig, Secret,
@@ -11,19 +13,25 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::fmt;
 use std::path::PathBuf;
 use std::process::Command;
+use std::sync::Arc;
 use std::time::Duration;
 
 /// Prazo de uma chamada às CLIs.
 pub const PRAZO_CLI: Duration = Duration::from_secs(60);
 
-/// Binários usados; configuráveis para os testes usarem CLIs falsas.
-#[derive(Debug, Clone)]
+/// Binários e chaveiro usados; configuráveis para os testes usarem CLIs falsas
+/// e um chaveiro em memória.
+#[derive(Clone)]
 pub struct Ferramentas {
     pub gh: PathBuf,
     pub glab: PathBuf,
     pub jira: PathBuf,
+    pub git: PathBuf,
+    /// Onde estão os tokens (PAT) globais por host e próprios de repositório.
+    pub chaveiro: Arc<dyn Chaveiro>,
 }
 
 impl Default for Ferramentas {
@@ -32,8 +40,59 @@ impl Default for Ferramentas {
             gh: "gh".into(),
             glab: "glab".into(),
             jira: "jira".into(),
+            git: "git".into(),
+            chaveiro: Arc::new(ChaveiroNativo),
         }
     }
+}
+
+impl fmt::Debug for Ferramentas {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Ferramentas")
+            .field("gh", &self.gh)
+            .field("glab", &self.glab)
+            .field("jira", &self.jira)
+            .field("git", &self.git)
+            .finish_non_exhaustive()
+    }
+}
+
+/// Token do GitLab de issues: o do comando de credencial, se cadastrado; senão,
+/// o token global do host no chaveiro (#179).
+pub fn token_gitlab(g: &GitlabConfig, f: &Ferramentas) -> Result<Secret, DemandaErro> {
+    if !g.credential_cmd.trim().is_empty() {
+        return Ok(run_credential(
+            "GitLab",
+            &g.credential_cmd,
+            CREDENTIAL_DEADLINE,
+        )?);
+    }
+    f.chaveiro
+        .ler(&conta_global(&g.host))
+        .map_err(DemandaErro::Chaveiro)?
+        .ok_or_else(|| DemandaErro::SemToken(g.host.trim().to_string()))
+}
+
+/// Token do Jira: o do comando de credencial, se cadastrado; senão, o do host
+/// do Jira no chaveiro (#180).
+pub fn token_jira(j: &JiraConfig, f: &Ferramentas) -> Result<Secret, DemandaErro> {
+    if !j.credential_cmd.trim().is_empty() {
+        return Ok(run_credential(
+            "Jira",
+            &j.credential_cmd,
+            CREDENTIAL_DEADLINE,
+        )?);
+    }
+    let host = j.host();
+    f.chaveiro
+        .ler(&conta_global(&host))
+        .map_err(DemandaErro::Chaveiro)?
+        .ok_or(DemandaErro::SemToken(host))
+}
+
+/// Token global do GitHub no chaveiro, se houver; sem ele, vale o `gh auth`.
+pub fn token_github(f: &Ferramentas) -> Option<Secret> {
+    f.chaveiro.ler(&conta_global(HOST_GITHUB)).ok().flatten()
 }
 
 /// Issue lida do rastreador.
@@ -52,6 +111,12 @@ pub enum DemandaErro {
     Referencia(String),
     #[error("{0}")]
     Credencial(#[from] CredentialError),
+    #[error("{0}")]
+    Chaveiro(String),
+    #[error(
+        "sem token para {0}: cadastre o token do host em Configurações ou o comando de credencial"
+    )]
+    SemToken(String),
     #[error("{ferramenta} não encontrado: instale-o e confira a prontidão do projeto")]
     SemFerramenta { ferramenta: &'static str },
     #[error("{ferramenta} falhou: {detalhe}")]
@@ -115,9 +180,13 @@ pub fn buscar_github(
     f: &Ferramentas,
 ) -> Result<Demanda, DemandaErro> {
     let n = numero(ref_)?;
-    // `gh auth token` é o token do ambiente do gh; o gh o usa sozinho, então
-    // aqui não há credencial a injetar.
+    // Com token do GitHub no chaveiro, ele vai no ambiente (`GH_TOKEN`); sem ele,
+    // o gh usa a própria autenticação (`gh auth login`).
+    let token = token_github(f);
     let mut c = Command::new(&f.gh);
+    if let Some(t) = &token {
+        c.env("GH_TOKEN", t.expose());
+    }
     c.args([
         "issue",
         "view",
@@ -127,7 +196,7 @@ pub fn buscar_github(
         "--json",
         "title,body,url",
     ]);
-    let v = rodar_json("gh", c, &Secret::new(""))?;
+    let v = rodar_json("gh", c, token.as_ref().unwrap_or(&Secret::new("")))?;
     Ok(Demanda {
         chave: format!("#{n}"),
         titulo: texto(&v, &["title"]).to_string(),
@@ -142,7 +211,7 @@ pub fn buscar_gitlab(
     f: &Ferramentas,
 ) -> Result<Demanda, DemandaErro> {
     let n = numero(ref_)?;
-    let token = run_credential("GitLab", &g.credential_cmd, CREDENTIAL_DEADLINE)?;
+    let token = token_gitlab(g, f)?;
     let id = g.path.trim_matches('/').replace('/', "%2F");
     let mut c = Command::new(&f.glab);
     c.args(["api", &format!("projects/{id}/issues/{n}")])
@@ -162,7 +231,7 @@ pub fn buscar_jira(j: &JiraConfig, ref_: &str, f: &Ferramentas) -> Result<Demand
     if j.number_from_key(&chave).is_none() {
         return Err(DemandaErro::Referencia(ref_.to_string()));
     }
-    let token = run_credential("Jira", &j.credential_cmd, CREDENTIAL_DEADLINE)?;
+    let token = token_jira(j, f)?;
     let mut c = Command::new(&f.jira);
     c.args(["issue", "view", &chave, "--raw"])
         .env("JIRA_API_TOKEN", token.expose());
@@ -287,6 +356,49 @@ echo '{"title":"T","description":"D","web_url":"https://gitlab.example.com/g/p/a
         let dem = buscar_gitlab(&g, "#7", &f).unwrap();
         assert_eq!((dem.titulo.as_str(), dem.descricao.as_str()), ("T", "D"));
         assert_eq!(dem.url, "https://gitlab.example.com/g/p/app/-/issues/7");
+    }
+
+    #[test]
+    fn gitlab_e_github_usam_o_token_global_do_chaveiro() {
+        use crate::chaveiro::ChaveiroMemoria;
+        let d = tempfile::tempdir().unwrap();
+        let chaveiro = Arc::new(ChaveiroMemoria::default());
+        let f = Ferramentas {
+            glab: script(
+                d.path(),
+                "glab",
+                r#"[ "$GITLAB_TOKEN" = "do-chaveiro" ] || { echo "sem token" >&2; exit 1; }
+echo '{"title":"T","description":"D","web_url":"u"}'"#,
+            ),
+            gh: script(
+                d.path(),
+                "gh",
+                r#"[ "$GH_TOKEN" = "gh-do-chaveiro" ] || { echo "sem token" >&2; exit 1; }
+echo '{"title":"T","body":"B","url":"u"}'"#,
+            ),
+            chaveiro: chaveiro.clone(),
+            ..Default::default()
+        };
+        let g = GitlabConfig {
+            host: "gitlab.example.com".into(),
+            path: "g/app".into(),
+            ..Default::default()
+        };
+        let e = buscar_gitlab(&g, "1", &f).unwrap_err();
+        assert!(matches!(e, DemandaErro::SemToken(_)), "{e}");
+        chaveiro
+            .gravar(
+                &conta_global("gitlab.example.com"),
+                &Secret::new("do-chaveiro"),
+            )
+            .unwrap();
+        assert_eq!(buscar_gitlab(&g, "1", &f).unwrap().titulo, "T");
+        let gh = GithubConfig { repo: "o/r".into() };
+        assert!(buscar_github(&gh, "1", &f).is_err());
+        chaveiro
+            .gravar(&conta_global("github.com"), &Secret::new("gh-do-chaveiro"))
+            .unwrap();
+        assert_eq!(buscar_github(&gh, "1", &f).unwrap().descricao, "B");
     }
 
     #[test]

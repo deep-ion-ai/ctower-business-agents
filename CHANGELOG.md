@@ -1,5 +1,66 @@
 # Changelog
 
+## [0.4.0](https://github.com/deep-ion-ai/ctower-business-agents/compare/v0.3.0...v0.4.0) (2026-11-15)
+
+
+### Features
+
+* **analise:** memória por análise para retomar o contexto ([#143](https://github.com/deep-ion-ai/ctower-business-agents/issues/143)) ([c51de85](https://github.com/deep-ion-ai/ctower-business-agents/commit/c51de854e832faafb5d5a69d83df050b9de9be6e))
+* **analise:** passo da memória nos roteiros de reunião, revisão, histórias e cenários ([#143](https://github.com/deep-ion-ai/ctower-business-agents/issues/143)) ([5fac18c](https://github.com/deep-ion-ai/ctower-business-agents/commit/5fac18c22e8bf4cf3dcea389431c321146d6f31d))
+* da análise para o requisito: histórias, cenários de teste e revisão ([#127](https://github.com/deep-ion-ai/ctower-business-agents/issues/127)) ([1b8de6d](https://github.com/deep-ion-ai/ctower-business-agents/commit/1b8de6d625cf2fbc3da4963be40850d7d347fccd))
+* **fluxos:** cenários de teste derivados das regras ([#117](https://github.com/deep-ion-ai/ctower-business-agents/issues/117)) ([#163](https://github.com/deep-ion-ai/ctower-business-agents/issues/163)) ([f25080e](https://github.com/deep-ion-ai/ctower-business-agents/commit/f25080e4ec2cc43f1f2befa03af9f234676acd72))
+* **fluxos:** histórias com critérios de aceite a partir de uma análise ([#115](https://github.com/deep-ion-ai/ctower-business-agents/issues/115)) ([#162](https://github.com/deep-ion-ai/ctower-business-agents/issues/162)) ([8b3d899](https://github.com/deep-ion-ai/ctower-business-agents/commit/8b3d8992ec21e67d39df8973490cead227de0ff8))
+* **fluxos:** revisão de qualidade de requisito ou história contra o código ([#116](https://github.com/deep-ion-ai/ctower-business-agents/issues/116)) ([#161](https://github.com/deep-ion-ai/ctower-business-agents/issues/161)) ([486bdd7](https://github.com/deep-ion-ai/ctower-business-agents/commit/486bdd7453c0522de0df274289639a9a6ffea548))
+
+
+### Bug Fixes
+
+* **export:** exportar a análise de reunião leva a ata ([#93](https://github.com/deep-ion-ai/ctower-business-agents/issues/93)) ([b95b058](https://github.com/deep-ion-ai/ctower-business-agents/commit/b95b058c5eb04c2356c4037de72541b0d7141953))
+* melhorias da ata de reunião (resumo, falas de origem e exportação) ([#93](https://github.com/deep-ion-ai/ctower-business-agents/issues/93)) ([caf5b2d](https://github.com/deep-ion-ai/ctower-business-agents/commit/caf5b2d7356db321e3f97dca9a5fc9b6bd5c09c6))
+* **ui:** restaura a regra do cabeçalho do achado do parecer, quebrada no rebase da [#115](https://github.com/deep-ion-ai/ctower-business-agents/issues/115) ([#164](https://github.com/deep-ion-ai/ctower-business-agents/issues/164)) ([7d3cda1](https://github.com/deep-ion-ai/ctower-business-agents/commit/7d3cda1937f50e43631e1b28d716f0f2d3b9e912))
+* **ui:** resumo da ata em Markdown e falas de origem recolhidas ([#93](https://github.com/deep-ion-ai/ctower-business-agents/issues/93)) ([38fd6a4](https://github.com/deep-ion-ai/ctower-business-agents/commit/38fd6a456993f6aeee096b2bea3128287f10f4db))
+
+## [0.3.0](https://github.com/deep-ion-ai/ctower-business-agents/compare/v0.2.0...v0.3.0) (2026-11-14)
+
+
+### Features
+
+* analisar reunião a partir do transcript do Teams, com ata ligada à demanda ([#93](https://github.com/deep-ion-ai/ctower-business-agents/issues/93)) ([#156](https://github.com/deep-ion-ai/ctower-business-agents/issues/156)) ([fc73968](https://github.com/deep-ion-ai/ctower-business-agents/commit/fc73968c673939478a523d98cb91acc9c46eecae))
+* **docs:** template e montagem da ata, com exportação para Markdown e Word ([14f1f1d](https://github.com/deep-ion-ai/ctower-business-agents/commit/14f1f1d634a66cdfe8d788373d6e82d423fc43ea)), closes [#135](https://github.com/deep-ion-ai/ctower-business-agents/issues/135) [#93](https://github.com/deep-ion-ai/ctower-business-agents/issues/93)
+* **fluxos:** roteiro reuniao e prompts prontos (resumo para o cliente, dúvidas) ([#140](https://github.com/deep-ion-ai/ctower-business-agents/issues/140)) ([69bfb8e](https://github.com/deep-ion-ai/ctower-business-agents/commit/69bfb8eaf9cff4e8dbcdaba4b1452ab0b9f38cae))
+* **kb:** catálogo de pessoas por projeto com apelidos e histórico de papéis ([6aec461](https://github.com/deep-ion-ai/ctower-business-agents/commit/6aec46116cd7c8194499bf2595e209f4ec034d10)), closes [#133](https://github.com/deep-ion-ai/ctower-business-agents/issues/133) [#93](https://github.com/deep-ion-ai/ctower-business-agents/issues/93)
+* **kb:** demanda como pasta na base, com status, chave externa e ligação das análises ([bdc0f24](https://github.com/deep-ion-ai/ctower-business-agents/commit/bdc0f24077705bcf663aa3f22fe6fc0ae54a5e02)), closes [#132](https://github.com/deep-ion-ai/ctower-business-agents/issues/132) [#93](https://github.com/deep-ion-ai/ctower-business-agents/issues/93)
+* **mcp:** ler_transcript, propor_papel, registrar_item_ata e sugerir_demanda ([#139](https://github.com/deep-ion-ai/ctower-business-agents/issues/139)) ([bc3e690](https://github.com/deep-ion-ai/ctower-business-agents/commit/bc3e6906e08bd4a2e298436f8586602f7d57e613)), closes [#93](https://github.com/deep-ion-ai/ctower-business-agents/issues/93)
+* **reunioes:** guarda temporária do transcript, evidência do tipo fala e descarte ([#136](https://github.com/deep-ion-ai/ctower-business-agents/issues/136)) ([d67ca9f](https://github.com/deep-ion-ai/ctower-business-agents/commit/d67ca9fda05d34a1b90dd6c134835bd9d63aec81))
+* **reunioes:** parser de transcript do Teams (texto colado, .vtt e .docx) ([5f83edd](https://github.com/deep-ion-ai/ctower-business-agents/commit/5f83edda4d775d170583c4d4733dcd929bcf9979))
+* **ui:** análise com documento à esquerda, menu de conversa e aviso na barra ([#130](https://github.com/deep-ion-ai/ctower-business-agents/issues/130)) ([#131](https://github.com/deep-ion-ai/ctower-business-agents/issues/131)) ([4dd66f4](https://github.com/deep-ion-ai/ctower-business-agents/commit/4dd66f4e07347844d84ec12fb64511a618ea441a))
+* **ui:** aprovação da ata com descarte e próximos passos que abrem análises ([#142](https://github.com/deep-ion-ai/ctower-business-agents/issues/142)) ([f6abd38](https://github.com/deep-ion-ai/ctower-business-agents/commit/f6abd383fbb33e229c929cc4e72a4c7b39a3c1a7))
+* **ui:** nova reunião com avisos, confirmação de participantes e ata ao vivo ([#141](https://github.com/deep-ion-ai/ctower-business-agents/issues/141)) ([f21f2c3](https://github.com/deep-ion-ai/ctower-business-agents/commit/f21f2c3d175794914fecfdc35e1b836da766f659)), closes [#93](https://github.com/deep-ion-ai/ctower-business-agents/issues/93)
+* **ui:** painel da demanda e lista de demandas ([#138](https://github.com/deep-ion-ai/ctower-business-agents/issues/138)) ([1fec5b9](https://github.com/deep-ion-ai/ctower-business-agents/commit/1fec5b95bc384356fb31d07866d1e81d9d93e28f))
+
+
+### Bug Fixes
+
+* **kb:** trata acesso negado do Windows como trava ocupada na reserva de demanda e reunião ([eee2ec2](https://github.com/deep-ion-ai/ctower-business-agents/commit/eee2ec2f12a7706e8bb461c30bc900e79d565e86))
+
+## [0.2.0](https://github.com/deep-ion-ai/ctower-business-agents/compare/v0.1.0...v0.2.0) (2026-11-13)
+
+
+### Features
+
+* **app:** repositórios no cadastro do projeto, prontidão e análise a partir de issue ([#86](https://github.com/deep-ion-ai/ctower-business-agents/issues/86)) ([5e712d6](https://github.com/deep-ion-ai/ctower-business-agents/commit/5e712d6980d3909a1571179e372bd2ba3570d4c8))
+* **config:** comandos para ler, validar, salvar e restaurar textos editáveis ([91e3115](https://github.com/deep-ion-ai/ctower-business-agents/commit/91e31157fa221cc3862a692812e3b191e31f2b77))
+* **docs:** links das evidências no forge, no commit, na exportação ([#86](https://github.com/deep-ion-ai/ctower-business-agents/issues/86)) ([f5d786a](https://github.com/deep-ion-ai/ctower-business-agents/commit/f5d786a3cb1a696ae207edf41e458fcd3635134b))
+* **index:** repositório de código e de issues por projeto (GitHub, GitLab e Jira) ([ecf1fc0](https://github.com/deep-ion-ai/ctower-business-agents/commit/ecf1fc01225ab0c822fc61a0b2a2b5d9e1ddd6da))
+* **repos:** crate cba-repos com forja, rastreador, credencial, prontidão e busca de issue ([#86](https://github.com/deep-ion-ai/ctower-business-agents/issues/86)) ([d1a07dc](https://github.com/deep-ion-ai/ctower-business-agents/commit/d1a07dcbeeeeeb959e89affccf8c3b488ad0a8ee))
+* **ui:** editor de templates, roteiros e prompts no app ([#106](https://github.com/deep-ion-ai/ctower-business-agents/issues/106)) ([#111](https://github.com/deep-ion-ai/ctower-business-agents/issues/111)) ([14493f4](https://github.com/deep-ion-ai/ctower-business-agents/commit/14493f470d0eb7a8dd82c1f96784bd7ead19deb1))
+* **ui:** repositórios no cadastro e nas configurações, prontidão e análise a partir de issue ([#86](https://github.com/deep-ion-ai/ctower-business-agents/issues/86)) ([0e8e043](https://github.com/deep-ion-ai/ctower-business-agents/commit/0e8e0434dca07637a3df4ddef6dbaebdcf63a552))
+
+
+### Bug Fixes
+
+* **repos:** Cargo.lock na versão do workspace e processo portável para Windows ([#86](https://github.com/deep-ion-ai/ctower-business-agents/issues/86)) ([df2c89b](https://github.com/deep-ion-ai/ctower-business-agents/commit/df2c89b69ef5a20b2455d692b75c6dc31b6d73b0))
+
 ## 0.1.0 (2026-11-12)
 
 

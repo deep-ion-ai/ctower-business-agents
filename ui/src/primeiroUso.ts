@@ -3,7 +3,12 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { apiAnaliseTauri, type ApiAmbiente } from "./analise";
 import { estadoClientes, type EstadoClientes } from "./clientes";
-import type { Repositorios } from "./repositorios";
+import {
+  apiRepositoriosTauri,
+  type ApiRepositorios,
+  type ForgeKind,
+  type Repositorios,
+} from "./repositorios";
 import type { ProjetoResumo } from "./terminal";
 
 /**
@@ -48,6 +53,11 @@ export interface PastaVista {
   prefixo: string | null;
   branch: string | null;
   git: boolean;
+  /** Remoto do repositório git da pasta e o que se deduz dele (issue #178). */
+  remoto?: string | null;
+  forja?: ForgeKind | null;
+  host?: string | null;
+  caminhoRepo?: string | null;
 }
 
 export interface Contagem {
@@ -95,8 +105,20 @@ export interface ProjetoCadastrado {
   inventario: ResumoInventario;
 }
 
+/** O que o cadastro do projeto (assistente, #180) usa dos repositórios: clone, tokens e testes. */
+export type ApiRepositoriosDoCadastro = Pick<
+  ApiRepositorios,
+  | "pastaClones"
+  | "salvarToken"
+  | "tokensGuardados"
+  | "testarAcesso"
+  | "clonarRepositorios"
+  | "detectarRepositorios"
+  | "testarJira"
+>;
+
 /** Operações do primeiro uso. A interface usa {@link apiPrimeiroUsoTauri}; os testes, uma falsa. */
-export interface ApiPrimeiroUso extends ApiAmbiente {
+export interface ApiPrimeiroUso extends ApiAmbiente, ApiRepositoriosDoCadastro {
   situacao(): Promise<Situacao>;
   estadoClientes(): Promise<EstadoClientes>;
   escolherCliente(cliente: ClientePreferido): Promise<void>;
@@ -133,6 +155,13 @@ export const apiPrimeiroUsoTauri: ApiPrimeiroUso = {
   verificarAmbiente: apiAnaliseTauri.verificarAmbiente,
   planejarPreparo: apiAnaliseTauri.planejarPreparo,
   prepararAmbiente: apiAnaliseTauri.prepararAmbiente,
+  pastaClones: apiRepositoriosTauri.pastaClones,
+  salvarToken: apiRepositoriosTauri.salvarToken,
+  tokensGuardados: apiRepositoriosTauri.tokensGuardados,
+  testarAcesso: apiRepositoriosTauri.testarAcesso,
+  clonarRepositorios: apiRepositoriosTauri.clonarRepositorios,
+  detectarRepositorios: apiRepositoriosTauri.detectarRepositorios,
+  testarJira: apiRepositoriosTauri.testarJira,
 };
 
 /**

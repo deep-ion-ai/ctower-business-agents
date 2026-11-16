@@ -82,7 +82,3 @@ export function comoOpcoes(valor: unknown): OpcoesConversa | null {
 export function principal(opcoes: OpcoesConversa | null): ClienteConversa {
   return opcoes?.opcoes.find((o) => o.disponivel)?.cliente ?? "terminalEmbutido";
 }
-
-export function desktopDisponivel(opcoes: OpcoesConversa | null): boolean {
-  return opcoes?.opcoes.some((o) => o.cliente === "claudeDesktop" && o.disponivel) ?? false;
-}

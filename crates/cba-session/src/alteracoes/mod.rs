@@ -5,6 +5,10 @@
 //! app confere as pastas do projeto contra o retrato tirado no início da sessão e,
 //! se algo mudou, avisa na análise, com o diff e a opção de desfazer.
 //!
+//! As pastas de código-fonte (num repositório git cujo remoto é o repositório de
+//! código cadastrado no projeto) não entram no retrato: o aviso cobre só as demais
+//! pastas do projeto ([`pastas_da_sessao`]; #130).
+//!
 //! # Retrato e conferência
 //!
 //! O retrato é tirado uma vez por sessão, no primeiro `SessionStart` (ou no primeiro
@@ -60,6 +64,7 @@ use cba_core::dados::DiretorioDados;
 use cba_core::eventos::{DiarioEventos, Evento, Mudanca, Notificador};
 use cba_core::tempo;
 use cba_kb::Id;
+use cba_repos::RepositorioCodigo;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -913,7 +918,9 @@ pub fn manter(retratos: &Retratos, sessao: &str, pedidos: &[Pedido]) -> Result<V
 // Ligação com as sessões, as análises e o diário de eventos
 
 /// Pastas a retratar numa sessão: as do projeto cadastrado e, se a sessão foi
-/// aberta numa worktree fora delas, a worktree.
+/// aberta numa worktree fora delas, a worktree. As pastas de código-fonte (num
+/// repositório git cujo remoto é o repositório de código cadastrado no projeto)
+/// ficam de fora: o aviso cobre só as demais pastas do projeto (#130).
 pub fn pastas_da_sessao(
     dados: &DiretorioDados,
     registro: &RegistroSessao,
@@ -932,7 +939,42 @@ pub fn pastas_da_sessao(
     {
         pastas.push(g.raiz);
     }
-    Ok(pastas)
+    Ok(sem_codigo_fonte(pastas, &projeto.repositorios.codigo))
+}
+
+/// Tira de `pastas` as que estão num repositório git com algum remoto apontando
+/// para **qualquer** repositório de código cadastrado (#519, #178). Sem
+/// repositórios, devolve todas. Uma pasta cujo remoto não se consegue ler (git
+/// ausente) continua na lista.
+pub fn sem_codigo_fonte(pastas: Vec<PathBuf>, repos: &[RepositorioCodigo]) -> Vec<PathBuf> {
+    if repos.is_empty() {
+        return pastas;
+    }
+    let mut vistos: BTreeMap<PathBuf, bool> = BTreeMap::new();
+    pastas
+        .into_iter()
+        .filter(|pasta| {
+            let raiz = dunce::canonicalize(pasta)
+                .ok()
+                .and_then(|p| cba_index::detectar_git(&p))
+                .map(|g| g.raiz);
+            let Some(raiz) = raiz else {
+                return true;
+            };
+            let codigo = *vistos.entry(raiz.clone()).or_insert_with(|| {
+                git::remotos(&raiz)
+                    .unwrap_or_default()
+                    .iter()
+                    .any(|url| aponta_para(url, repos))
+            });
+            !codigo
+        })
+        .collect()
+}
+
+/// Se a URL do remoto aponta para algum dos repositórios de código cadastrados.
+pub fn aponta_para(url: &str, repos: &[RepositorioCodigo]) -> bool {
+    repos.iter().any(|r| r.aponta_para(url))
 }
 
 /// Tarefa feita fora do caminho do hook.

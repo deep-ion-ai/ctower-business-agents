@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { BotaoPainel } from "./BotaoPainel";
 import {
   mensagemDe,
   type ApiAlteracoes,
@@ -31,23 +32,42 @@ function pedido(a: ArquivoAlterado): PedidoAlteracao {
 
 type Confirmacao = { acao: "desfazer" | "manter"; arquivos: ArquivoAlterado[] };
 
+/** Nota fixa do painel: o que o aviso não cobre (#130). */
+export const NOTA_CODIGO_FONTE =
+  "As pastas de código-fonte dos repositórios cadastrados não entram neste aviso.";
+
 /**
- * Aviso de alteração na pasta do projeto (spec, seção 4.6; #29): os arquivos que as
- * sessões desta análise alteraram, com o diff, e as opções de desfazer (com
+ * Aviso de alteração na pasta do projeto (spec, seção 4.6; #29, #130): um ícone
+ * âmbar na barra, com o número de arquivos que as sessões desta análise alteraram.
+ * O ícone abre o painel com a lista, o diff e as opções de desfazer (com
  * confirmação) e de manter. Relê a cada aviso `alteracao` da vigia sobre a análise.
- * Sem alterações, não mostra nada.
+ * Sem alterações, não mostra nada. As pastas de código-fonte já ficam de fora no
+ * retrato (`cba_session::alteracoes`).
  */
 export function AvisoAlteracao({
   api,
   vigiar,
   projeto,
   analise,
+  aberto: abertoFora,
+  aoAlternar,
+  aoFechar,
 }: {
   api: ApiAlteracoes;
   vigiar: ApiAnalise["vigiar"];
   projeto: string;
   analise: string;
+  /** Painel aberto, quando a barra controla (um painel por vez). */
+  aberto?: boolean;
+  aoAlternar?: () => void;
+  aoFechar?: () => void;
 }) {
+  const [abertoLocal, setAbertoLocal] = useState(false);
+  const controlado = abertoFora !== undefined && aoAlternar && aoFechar;
+  const aberto = controlado ? abertoFora : abertoLocal;
+  const alternarPainel = controlado ? aoAlternar : () => setAbertoLocal((v) => !v);
+  const fecharLocal = useCallback(() => setAbertoLocal(false), []);
+  const fechar = controlado ? aoFechar : fecharLocal;
   const [aviso, setAviso] = useState<Aviso | null>(null);
   const [falha, setFalha] = useState<string | null>(null);
   const [abertos, setAbertos] = useState<Set<string>>(new Set());
@@ -92,8 +112,14 @@ export function AvisoAlteracao({
     };
   }, [vigiar, projeto, analise, carregar]);
 
-  if (!aviso && !falha) return null;
-  if (aviso && aviso.arquivos.length === 0 && !falha) return null;
+  const vazio = (!aviso || aviso.arquivos.length === 0) && !falha;
+
+  // Sem alterações (desfeitas ou mantidas), o painel fecha junto com o ícone.
+  useEffect(() => {
+    if (vazio && aberto) fechar();
+  }, [vazio, aberto, fechar]);
+
+  if (vazio) return null;
 
   const arquivos = aviso?.arquivos ?? [];
   const desfaziveis = arquivos.filter((a) => a.desfazivel);
@@ -128,8 +154,33 @@ export function AvisoAlteracao({
   const nomes = (lista: ArquivoAlterado[]) =>
     lista.length === 1 ? lista[0].caminho : `${lista.length} arquivos`;
 
+  const n = arquivos.length;
+  const rotulo =
+    n === 0
+      ? "Falha no aviso de alteração"
+      : n === 1
+        ? "1 arquivo alterado nesta análise"
+        : `${n} arquivos alterados nesta análise`;
+
   return (
-    <section className="aviso-alteracao" role="alert" aria-label="Aviso de alteração">
+    <BotaoPainel
+      aberto={aberto}
+      aoAlternar={alternarPainel}
+      aoFechar={fechar}
+      rotulo={rotulo}
+      titulo="A pasta do projeto foi alterada"
+      classeBotao="btn-icone btn-alteracao"
+      conteudo={
+        <>
+          <IconePastaAlterada />
+          <span className="contador" aria-hidden="true">
+            {n === 0 ? "!" : n}
+          </span>
+        </>
+      }
+      rotuloPainel="Aviso de alteração"
+      classePainel="aviso-alteracao"
+    >
       {arquivos.length > 0 && (
         <>
           <h3>A pasta do projeto foi alterada nesta análise</h3>
@@ -137,7 +188,7 @@ export function AvisoAlteracao({
             Durante a conversa,{" "}
             {arquivos.length === 1 ? "um arquivo" : `${arquivos.length} arquivos`} do projeto{" "}
             {arquivos.length === 1 ? "foi alterado" : "foram alterados"}. O produto analisa e não
-            altera o código; a decisão sobre o repositório é sua. Confira o diff e desfaça o que não
+            altera o projeto; a decisão sobre essas pastas é sua. Confira o diff e desfaça o que não
             deveria ter mudado.
           </p>
           <ul className="arquivos-alterados">
@@ -224,6 +275,27 @@ export function AvisoAlteracao({
           {falha}
         </p>
       )}
-    </section>
+      <p className="nota-alteracao muted">{NOTA_CODIGO_FONTE}</p>
+    </BotaoPainel>
+  );
+}
+
+function IconePastaAlterada() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      <path d="M12 11v3" />
+      <path d="M12 17h.01" />
+    </svg>
   );
 }

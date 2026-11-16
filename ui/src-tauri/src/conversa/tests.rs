@@ -157,6 +157,20 @@ fn com_sessao_oferece_a_retomada_pelo_identificador() {
     let retomada = o.comando_retomada.unwrap();
     assert!(retomada.ends_with("claude --resume sessao-1"), "{retomada}");
     assert!(retomada.contains(&c.pasta), "{retomada}");
+
+    // Sem a conversa gravada, a sessão não é oferecida para retomar.
+    let o = opcoes_com_gravacao(
+        &c.dados,
+        PROJETO,
+        "A-0001",
+        Desktop::Instalado,
+        plataforma(),
+        |_| false,
+    )
+    .unwrap();
+    assert_eq!(o.sessao, None);
+    assert_eq!(o.comando_retomada, None);
+    assert!(o.pedido.contains("retomar_analise"), "{}", o.pedido);
 }
 
 #[test]

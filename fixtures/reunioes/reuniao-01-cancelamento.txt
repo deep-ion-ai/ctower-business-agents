@@ -1,0 +1,86 @@
+Silva, Maria  0:03
+Bom dia, pessoal. Obrigada por virem. O assunto de hoje é o cancelamento de fatura no Faturamento Exemplo.
+
+Silva, Maria  0:16
+A auditoria interna apontou que faturas antigas estão sendo canceladas sem a aprovação de um supervisor.
+
+João Pereira  0:30
+Bom dia. Isso acontece porque a trava dos 30 dias só existe na tela de retaguarda, a tela Delphi.
+
+João Pereira  0:43
+Quem cancela pelo processo do banco passa direto, sem checar o perfil.
+
+Ana Souza  0:54
+Só para eu registrar direito: hoje a regra é que fatura emitida há mais de 30 dias só pode ser cancelada por usuário com perfil SUPERVISOR, certo?
+
+João Pereira  1:11
+Isso. E a regra que já vale em todo lugar é que fatura com pagamento parcial não pode ser cancelada, nem pelo supervisor.
+
+carlos.lima@exemplo.com  1:27
+Confirmo. No banco a procedure de cancelamento só confere o status ABERTA, se não há valor pago e o motivo com pelo menos 10 caracteres.
+
+Silva, Maria  1:43
+Então a necessidade é clara: a checagem do supervisor precisa valer também fora da tela Delphi.
+
+Silva, Maria  1:56
+Também precisamos de um relatório mensal dos cancelamentos por usuário, para a auditoria acompanhar.
+
+Ana Souza  2:09
+O relatório precisa mostrar o motivo do cancelamento?
+
+Silva, Maria  2:18
+Precisa, sim.
+
+Silva, Maria  2:23
+Motivo, data, usuário e o valor da fatura.
+
+João Pereira  2:31
+Minha sugestão é colocar a trava no banco, na própria procedure, assim nenhuma tela escapa.
+
+carlos.lima@exemplo.com  2:44
+Concordo. Só preciso saber de onde vem o perfil do usuário quando a chamada vem do lote.
+
+Silva, Maria  2:56
+Fechado então: a trava dos 30 dias vai para o banco. Decidido.
+
+Silva, Maria  3:06
+E o mínimo de 10 caracteres no motivo continua como está.
+
+Ana Souza  3:15
+Fica uma dúvida: os 30 dias contam da data de emissão ou da data de vencimento?
+
+João Pereira  3:26
+Na tela conta da emissão, mas eu não sei se a auditoria pensou assim.
+
+Silva, Maria  3:37
+Eu confirmo com a auditoria e trago a resposta até o dia 25.
+
+Ana Souza  3:46
+Outra dúvida: fatura de órgão público precisa de alguma aprovação a mais para cancelar?
+
+Silva, Maria  3:58
+Não sei responder agora. Deixa em aberto.
+
+carlos.lima@exemplo.com  4:06
+Eu levanto todos os pontos que cancelam fatura hoje, no banco, no backend e no lote, até sexta-feira, dia 20.
+
+Ana Souza  4:20
+Eu escrevo a demanda com os critérios de aceite até quarta, dia 18, e mando para a Maria revisar.
+
+João Pereira  4:33
+Depois disso dá para pedir a análise de impacto da mudança no cancelamento.
+
+Silva, Maria  4:44
+Combinado. Próximos passos: análise de impacto e uma nova conversa no dia 27 para fechar o escopo.
+
+carlos.lima@exemplo.com  4:58
+Uma pergunta antes de fechar: o relatório mensal entra nessa mesma demanda ou fica separado?
+
+Silva, Maria  5:10
+Fica separado. Primeiro a trava, depois o relatório. Pode registrar como decisão.
+
+Ana Souza  5:22
+Registrado. Então são duas demandas, e o relatório vem depois da trava.
+
+Silva, Maria  5:32
+Obrigada a todos.

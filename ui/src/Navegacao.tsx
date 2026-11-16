@@ -15,8 +15,10 @@ import {
   type ApiConhecimento,
   type Inicio,
 } from "./conhecimento";
+import { DialogoConfirmacao } from "./DialogoConfirmacao";
 import { ROTULO_SESSAO } from "./DocumentoAoVivo";
 import type { Abertura } from "./PainelAnalise";
+import { PainelDemanda } from "./PainelDemanda";
 import { Icon, type IconName } from "./shell/icons";
 import { Titlebar } from "./shell/Titlebar";
 import { TelaAnalise } from "./TelaAnalise";
@@ -38,7 +40,8 @@ export type Tela =
       pergunta?: string;
       aberta?: { id: string; abertura: Abertura };
     }
-  | { tipo: "configuracoes" };
+  | { tipo: "configuracoes" }
+  | { tipo: "demanda"; projeto: string; demanda: string };
 
 interface Props {
   /** Tela ao abrir (ex.: a análise sugerida no fim do primeiro uso). */
@@ -67,14 +70,15 @@ const AREAS: { tipo: Tela["tipo"]; rotulo: string; icone: IconName }[] = [
   { tipo: "configuracoes", rotulo: "Configurações", icone: "settings" },
 ];
 
-const ROTULO_AREA = Object.fromEntries(AREAS.map((a) => [a.tipo, a.rotulo])) as Record<
-  Tela["tipo"],
-  string
->;
-const ICONE_AREA = Object.fromEntries(AREAS.map((a) => [a.tipo, a.icone])) as Record<
-  Tela["tipo"],
-  IconName
->;
+// A demanda não tem área própria na barra de atividades: abre pela tela do projeto.
+const ROTULO_AREA = {
+  ...Object.fromEntries(AREAS.map((a) => [a.tipo, a.rotulo])),
+  demanda: "Demanda",
+} as Record<Tela["tipo"], string>;
+const ICONE_AREA = {
+  ...Object.fromEntries(AREAS.map((a) => [a.tipo, a.icone])),
+  demanda: "file",
+} as Record<Tela["tipo"], IconName>;
 
 /** Aba aberta na área de editor: a tela que ela mostra e o contador de remontagem. */
 interface Aba {
@@ -93,6 +97,8 @@ export function chaveDaTela(t: Tela): string {
       return t.documento ? `doc:${t.documento}` : "base";
     case "analise":
       return t.aberta ? `analise:${t.projeto ?? ""}:${t.aberta.id}` : "analise";
+    case "demanda":
+      return `demanda:${t.projeto}:${t.demanda}`;
     default:
       return t.tipo;
   }
@@ -171,7 +177,19 @@ export function Navegacao({
     setDocumentos((ds) => (ds[0] === doc ? ds : [doc, ...ds.filter((d) => d !== doc)].slice(0, 20)));
   }, []);
 
-  const navegar = useCallback((t: Tela) => {
+  // Alterações sem salvar no editor de textos (das configurações): sair da aba, ou
+  // fechá-la, pede confirmação. `saida` guarda a ação à espera da resposta.
+  const pendenteRef = useRef(false);
+  const [saida, setSaida] = useState<(() => void) | null>(null);
+  const aoPendencia = useCallback((p: boolean) => {
+    pendenteRef.current = p;
+  }, []);
+  const sairDaAba = useCallback((acao: () => void) => {
+    if (pendenteRef.current) setSaida(() => acao);
+    else acao();
+  }, []);
+
+  const navegarAgora = useCallback((t: Tela) => {
     const chave = chaveDaTela(t);
     const vez = ++contador.current;
     setAbas((atuais) =>
@@ -185,6 +203,8 @@ export function Navegacao({
     // Na gaveta, escolher um item fecha o painel.
     if (telaEstreita()) setLadoAberto(false);
   }, [lembrarDocumento]);
+
+  const navegar = useCallback((t: Tela) => sairDaAba(() => navegarAgora(t)), [sairDaAba, navegarAgora]);
 
   useEffect(() => {
     let ativo = true;
@@ -216,13 +236,27 @@ export function Navegacao({
       return;
     }
     const existente = [...abas].reverse().find((a) => a.tela.tipo === tipo);
-    if (existente) {
-      setAtiva(existente.chave);
+    if (existente) ativar(existente.chave);
+    else navegar({ tipo } as Tela);
+  };
+
+  const ativar = (chave: string) => {
+    if (chave === ativa) return;
+    sairDaAba(() => {
+      setAtiva(chave);
       if (telaEstreita()) setLadoAberto(false);
-    } else navegar({ tipo } as Tela);
+    });
   };
 
   const fechar = (chave: string) => {
+    if (chave === ativa && pendenteRef.current) {
+      sairDaAba(() => fecharAgora(chave));
+      return;
+    }
+    fecharAgora(chave);
+  };
+
+  const fecharAgora = (chave: string) => {
     const i = abas.findIndex((a) => a.chave === chave);
     const resto = abas.filter((a) => a.chave !== chave);
     setAbas(resto);
@@ -248,6 +282,7 @@ export function Navegacao({
     if (t.tipo === "projeto" && t.projeto) return nomeProjeto(t.projeto);
     if (t.tipo === "base" && t.documento) return nomeDoArquivo(t.documento);
     if (t.tipo === "analise" && t.aberta) return t.aberta.id;
+    if (t.tipo === "demanda") return t.demanda;
     return ROTULO_AREA[t.tipo];
   };
 
@@ -370,7 +405,11 @@ export function Navegacao({
             </div>
             {refazerPrimeiroUso && (
               <div className="sp-foot">
-                <button type="button" className="link" onClick={refazerPrimeiroUso}>
+                <button
+                  type="button"
+                  className="link"
+                  onClick={() => sairDaAba(refazerPrimeiroUso)}
+                >
                   Refazer o primeiro uso
                 </button>
               </div>
@@ -405,7 +444,7 @@ export function Navegacao({
                       aria-selected={a.chave === ativa}
                       aria-controls="area-editor"
                       title={titulo}
-                      onClick={() => setAtiva(a.chave)}
+                      onClick={() => ativar(a.chave)}
                     >
                       <Icon name={ICONE_AREA[a.tela.tipo]} size={14} />
                       <span className="etab-title">{titulo}</span>
@@ -440,6 +479,8 @@ export function Navegacao({
                   navegar={navegar}
                   abrirLink={abrirLink}
                   aoPrimeiroUso={aoPrimeiroUso}
+                  apiProjeto={apiConfiguracoes}
+                  aoMudarProjetos={() => setRecarga((r) => r + 1)}
                 />
               )}
               {aba?.tela.tipo === "projeto" && (
@@ -471,17 +512,63 @@ export function Navegacao({
                   aoPrimeiroUso={aoPrimeiroUso}
                 />
               )}
+              {aba?.tela.tipo === "demanda" && (
+                <PainelDemanda
+                  key={aba.vez}
+                  api={api}
+                  projeto={aba.tela.projeto}
+                  demanda={aba.tela.demanda}
+                  navegar={navegar}
+                />
+              )}
               {aba?.tela.tipo === "configuracoes" && (
                 <TelaConfiguracoes
                   key={aba.vez}
                   api={apiConfiguracoes}
                   aoMudarProjetos={() => setRecarga((r) => r + 1)}
+                  aoPendencia={aoPendencia}
                 />
               )}
             </div>
           </div>
         </div>
       </div>
+
+      {saida && (
+        <DialogoConfirmacao
+          titulo="Alterações não salvas"
+          aoCancelar={() => setSaida(null)}
+          acoes={
+            <>
+              <button
+                type="button"
+                className="btn btn-primary"
+                autoFocus
+                onClick={() => setSaida(null)}
+              >
+                Continuar editando
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  const acao = saida;
+                  pendenteRef.current = false;
+                  setSaida(null);
+                  acao();
+                }}
+              >
+                Descartar e sair
+              </button>
+            </>
+          }
+        >
+          <p>
+            O editor de textos das configurações tem alterações que não foram salvas. Sair agora as
+            descarta.
+          </p>
+        </DialogoConfirmacao>
+      )}
 
       <footer className="statusbar" aria-label="Barra de status">
         <span className="sb-item mono" title={inicio?.base ?? undefined}>

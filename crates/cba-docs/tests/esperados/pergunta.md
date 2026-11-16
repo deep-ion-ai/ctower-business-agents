@@ -4,6 +4,7 @@ id: A-0001
 titulo: Cálculo da multa por atraso
 projeto: faturamento-exemplo
 demanda:
+  id: null
   origem: texto
   chave: null
 status: rascunho

@@ -88,11 +88,27 @@ pub fn opcoes_conversa(
     desktop: Desktop,
     plataforma: Plataforma,
 ) -> Result<OpcoesConversa, String> {
+    opcoes_com_gravacao(dados, projeto, analise, desktop, plataforma, |_| true)
+}
+
+/// [`opcoes_conversa`] com a conferência de que a conversa da sessão foi gravada: sem
+/// ela, a sessão não é oferecida para retomar (o `--resume` falharia com "No
+/// conversation found") e o analista começa uma conversa nova sobre a análise (#130).
+pub fn opcoes_com_gravacao(
+    dados: &DiretorioDados,
+    projeto: &str,
+    analise: &str,
+    desktop: Desktop,
+    plataforma: Plataforma,
+    gravada: impl Fn(&str) -> bool,
+) -> Result<OpcoesConversa, String> {
     let vista = analise::carregar_analise(dados, projeto, analise)?;
     let alvo = analise::alvo(dados, projeto)?;
     let preferido = preferido(dados);
-    let sessao = vista.sessao.map(|s| s.id);
-    let pedido = pedido(&vista.analise, sessao.is_some());
+    // O pedido considera qualquer sessão vista (a análise já começou); a retomada
+    // pelo identificador, só a gravada.
+    let pedido = pedido(&vista.analise, vista.sessao.is_some());
+    let sessao = vista.sessao.map(|s| s.id).filter(|id| gravada(id));
     let pasta = &alvo.diretorio;
     let mut problema = None;
     let mut ok = |r: Result<String, passagem::ErroPassagem>| match r {
@@ -180,7 +196,8 @@ pub fn marcar_cliente(
     .map_err(|e| format!("não foi possível marcar o cliente da sessão: {e}"))
 }
 
-/// Sessão mais recente da análise, pelo registro dos hooks.
+/// Sessão mais recente da análise, pelo registro dos hooks, se a conversa dela foi
+/// gravada (só assim pode ser retomada).
 fn sessao_da_analise(
     dados: &DiretorioDados,
     projeto: &str,
@@ -188,7 +205,8 @@ fn sessao_da_analise(
 ) -> Result<Option<String>, String> {
     Ok(analise::carregar_analise(dados, projeto, analise)?
         .sessao
-        .map(|s| s.id))
+        .map(|s| s.id)
+        .filter(|id| terminal::conversa_gravada(&AmbienteReal, id)))
 }
 
 // ---------------------------------------------------------------------------
@@ -213,12 +231,13 @@ pub async fn opcoes_conversa_analise(
 ) -> Result<OpcoesConversa, String> {
     let dados = dados()?;
     bloqueante(move || {
-        opcoes_conversa(
+        opcoes_com_gravacao(
             &dados,
             &projeto,
             &analise,
             desktop_real(),
             Plataforma::atual(),
+            |id| terminal::conversa_gravada(&AmbienteReal, id),
         )
     })
     .await
@@ -250,8 +269,8 @@ pub async fn conversa_passou_ao_desktop(projeto: String, analise: String) -> Res
     bloqueante(move || marcar_cliente(&dados, &projeto, &analise, Cliente::ClaudeDesktop)).await
 }
 
-/// Abre no Desktop a sessão da análise (`claude --desktop --resume <id>`, num PTY), ou
-/// a mais recente da pasta (`--continue`) se nenhuma estiver ligada à análise.
+/// Abre no Desktop a sessão da análise (`claude --desktop --resume <id>`, num PTY).
+/// Sem sessão gravada da análise, recusa: a conversa nova vai pelo link.
 #[tauri::command]
 pub async fn retomar_conversa_no_desktop(
     projeto: String,
@@ -269,9 +288,17 @@ pub async fn retomar_conversa_no_desktop(
                 }
                 .relatorio()
             })?;
+        // Sem sessão gravada, nada de `--continue`: ele abriria a última conversa da
+        // pasta, que pode ser de outra análise (#130).
         let retomada = match sessao_da_analise(&dados, &projeto, &analise).map_err(falha)? {
             Some(id) => Retomada::Sessao { id },
-            None => Retomada::Continuar,
+            None => {
+                return Err(falha(
+                    "esta análise não tem conversa gravada para retomar; comece uma \
+                     conversa nova sobre ela no Claude Desktop"
+                        .into(),
+                ));
+            }
         };
         let exe = std::env::current_exe()
             .map_err(|e| falha(format!("caminho do executável do app: {e}")))?;

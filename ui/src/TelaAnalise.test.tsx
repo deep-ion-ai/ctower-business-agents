@@ -142,7 +142,14 @@ describe("TelaAnalise", () => {
     const { terminal } = montar(analise);
     expect(await screen.findByText("concluída")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "A-0001: Multa por atraso" }));
-    expect(await screen.findByText("Como continuar esta análise?")).toBeInTheDocument();
+    // O documento à esquerda; a conversa à direita, sem o bloco "Como continuar".
+    expect(await screen.findByRole("article", { name: "Documento da análise" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Escolher onde continuar" })).toBeInTheDocument();
+    expect(screen.queryByText("Como continuar esta análise?")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continuar a conversa" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
     expect(analise.api.carregarAnalise).toHaveBeenCalledWith("faturamento-exemplo", "A-0001");
     expect(terminal.api.abrir).not.toHaveBeenCalled();
   });

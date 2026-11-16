@@ -8,6 +8,7 @@ import {
   type SessaoVista,
   type Situacao,
 } from "./analise";
+import type { DemandaVista, NovaDemanda, PainelDemanda } from "./demandas";
 
 /**
  * Espelho dos comandos do início, do projeto e da base de conhecimento
@@ -171,21 +172,44 @@ export interface DocumentoAberto {
   problema: string | null;
 }
 
+/** Pedido de uma análise de histórias: a origem, a demanda, ou as duas. */
+export interface PedidoHistorias {
+  origem?: string;
+  demanda?: string;
+  /** O que o analista quer nas histórias (opcional). */
+  entrada?: string;
+  titulo?: string;
+}
+
 /** Operações das telas do início, do projeto e da base. A interface usa {@link apiConhecimentoTauri}; os testes, uma falsa. */
 export interface ApiConhecimento extends ApiAmbiente {
   situacao(): Promise<Situacao>;
   inicio(): Promise<Inicio>;
+  /** Com `demanda` (`D-0001`), a análise fica ligada a ela (`demanda.id`). */
   criarAnalise(
     projeto: string,
     fluxo: Fluxo,
     entrada: string,
     titulo?: string,
+    demanda?: string,
   ): Promise<AnaliseCriada>;
   /**
    * Cria a análise a partir de uma issue do rastreador do projeto (`PROJ-123`, `#12`):
    * título e descrição viram a entrada e o link vai em `demanda.origem`.
    */
   criarAnaliseDeDemanda(projeto: string, fluxo: Fluxo, referencia: string): Promise<AnaliseCriada>;
+  /** Análises do projeto, da mais recente para a mais antiga (a origem das histórias). */
+  listarAnalises(projeto: string): Promise<AnaliseResumo[]>;
+  /**
+   * Cria a análise de histórias (#115) a partir da análise de origem (`A-0001`) ou de
+   * uma demanda (`D-0001`); sem demanda, ela herda a da origem.
+   */
+  criarAnaliseDeHistorias(projeto: string, pedido: PedidoHistorias): Promise<AnaliseCriada>;
+  /**
+   * Cria a análise de cenários de teste (#117) a partir da análise de origem (do código
+   * ou de histórias), de uma demanda ou só do pedido com as regras.
+   */
+  criarAnaliseDeCenarios(projeto: string, pedido: PedidoHistorias): Promise<AnaliseCriada>;
   visaoProjeto(projeto: string): Promise<VisaoProjeto>;
   revalidar(projeto: string): Promise<ResumoRevalidacao>;
   /** `null` se o projeto ainda não foi mapeado. */
@@ -198,20 +222,44 @@ export interface ApiConhecimento extends ApiAmbiente {
   abrirDocumento(caminho: string): Promise<DocumentoAberto>;
   /** Avisa quando a base muda fora do app; devolve a função que para. */
   vigiarBase(aoMudar: () => void): Promise<() => void>;
+  /** Demandas do projeto, as abertas primeiro. */
+  listarDemandas(projeto: string): Promise<DemandaVista[]>;
+  criarDemanda(projeto: string, nova: NovaDemanda): Promise<DemandaVista>;
+  encerrarDemanda(projeto: string, demanda: string): Promise<DemandaVista>;
+  reabrirDemanda(projeto: string, demanda: string): Promise<DemandaVista>;
+  painelDemanda(projeto: string, demanda: string): Promise<PainelDemanda>;
 }
 
 export const apiConhecimentoTauri: ApiConhecimento = {
   situacao: () => invoke("situacao_app"),
   inicio: () => invoke("inicio_app"),
-  criarAnalise: (projeto, fluxo, entrada, titulo) =>
+  criarAnalise: (projeto, fluxo, entrada, titulo, demanda) =>
     invoke("criar_analise_fluxo", {
       projeto,
       fluxo,
       entrada,
       titulo: titulo ?? null,
+      demanda: demanda ?? null,
     }),
   criarAnaliseDeDemanda: (projeto, fluxo, referencia) =>
     invoke("criar_analise_de_demanda", { projeto, fluxo, referencia }),
+  listarAnalises: apiAnaliseTauri.listarAnalises,
+  criarAnaliseDeHistorias: (projeto, pedido) =>
+    invoke("criar_analise_de_historias_app", {
+      projeto,
+      origem: pedido.origem ?? null,
+      demanda: pedido.demanda ?? null,
+      entrada: pedido.entrada ?? null,
+      titulo: pedido.titulo ?? null,
+    }),
+  criarAnaliseDeCenarios: (projeto, pedido) =>
+    invoke("criar_analise_de_cenarios_app", {
+      projeto,
+      origem: pedido.origem ?? null,
+      demanda: pedido.demanda ?? null,
+      entrada: pedido.entrada ?? null,
+      titulo: pedido.titulo ?? null,
+    }),
   visaoProjeto: (projeto) => invoke("visao_projeto_app", { projeto }),
   revalidar: (projeto) => invoke("revalidar_projeto_app", { projeto }),
   mapa: (projeto, modulo) => invoke("mapa_projeto_app", { projeto, modulo: modulo ?? null }),
@@ -233,6 +281,17 @@ export const apiConhecimentoTauri: ApiConhecimento = {
       invoke("parar_vigia_base", { id }).catch(() => undefined);
     };
   },
+  listarDemandas: (projeto) => invoke("listar_demandas_app", { projeto }),
+  criarDemanda: (projeto, nova) =>
+    invoke("criar_demanda_app", {
+      projeto,
+      titulo: nova.titulo,
+      descricao: nova.descricao ?? null,
+      chave: nova.chave ?? null,
+    }),
+  encerrarDemanda: (projeto, demanda) => invoke("encerrar_demanda_app", { projeto, demanda }),
+  reabrirDemanda: (projeto, demanda) => invoke("reabrir_demanda_app", { projeto, demanda }),
+  painelDemanda: (projeto, demanda) => invoke("painel_demanda_app", { projeto, demanda }),
   verificarAmbiente: apiAnaliseTauri.verificarAmbiente,
   planejarPreparo: apiAnaliseTauri.planejarPreparo,
   prepararAmbiente: apiAnaliseTauri.prepararAmbiente,
@@ -242,6 +301,10 @@ export const ROTULO_FLUXO: Record<Fluxo, string> = {
   perguntar: "Perguntar ao sistema",
   explicar: "Explicar funcionalidade",
   impacto: "Analisar impacto",
+  reuniao: "Analisar reunião",
+  revisar: "Revisar requisito",
+  historias: "Histórias e critérios",
+  cenarios: "Cenários de teste",
 };
 
 export const ROTULO_STATUS_REGRA: Record<StatusRegra, string> = {
@@ -259,6 +322,13 @@ const ROTULO_TIPO: Record<string, string> = {
   "caso-de-uso": "Caso de uso",
   sugestao: "Sugestão",
   "memoria-area": "Memória da área",
+  demanda: "Demanda",
+  pessoa: "Pessoa",
+  ata: "Ata de reunião",
+  "analise-reuniao": "Análise de reunião",
+  "parecer-revisao": "Parecer de revisão",
+  historias: "Histórias e critérios de aceite",
+  "cenarios-teste": "Cenários de teste",
   projeto: "Projeto",
   "regras-do-projeto": "Regras do projeto",
 };

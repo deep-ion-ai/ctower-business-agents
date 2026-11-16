@@ -134,6 +134,7 @@ fn preparar_dados(raiz: &Path) -> cba_core::dados::DiretorioDados {
     cba_kb::Base::criar(raiz.join("base")).unwrap();
     cba_core::config::Config {
         base: Some(raiz.join("base")),
+        ..Default::default()
     }
     .gravar(&dados)
     .unwrap();
@@ -681,7 +682,7 @@ fn mcp_pergunta_ao_projeto_do_inicio_ao_documento_na_base() {
 
     // Os prompts prontos da análise, como o comando `prompts_prontos` da janela.
     let prontos = cba_tools::prompts::da_analise(&dados, "faturamento-exemplo", "A-0001").unwrap();
-    assert_eq!(prontos.len(), 5);
+    assert_eq!(prontos.len(), 6);
     for p in &prontos {
         assert!(p.texto.contains("A-0001"), "{p:?}");
         assert!(!p.texto.contains("{{"), "{p:?}");
@@ -1495,6 +1496,7 @@ fn hook_dispara_o_retrato_e_a_conferencia_em_processo_separado() {
     cba_kb::Base::criar(raiz.join("base")).unwrap();
     cba_core::config::Config {
         base: Some(raiz.join("base")),
+        ..Default::default()
     }
     .gravar(&dados)
     .unwrap();

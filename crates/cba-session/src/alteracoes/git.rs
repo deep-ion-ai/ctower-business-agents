@@ -120,3 +120,18 @@ pub fn conteudo(raiz: &Path, commit: &str, caminho: &str) -> Result<Option<Vec<u
     let objeto = format!("{commit}:{caminho}");
     executar(raiz, &["cat-file", "--filters", &objeto])
 }
+
+/// URLs dos remotos do repositório (`remote.<nome>.url`), na ordem da
+/// configuração. Vazio se não há remotos.
+pub fn remotos(raiz: &Path) -> Result<Vec<String>, ErroGit> {
+    let saida = executar(raiz, &["config", "--get-regexp", r"^remote\..*\.url$"])?;
+    Ok(saida
+        .map(|s| {
+            String::from_utf8_lossy(&s)
+                .lines()
+                .filter_map(|l| l.split_once(' ').map(|(_, url)| url.trim().to_owned()))
+                .filter(|u| !u.is_empty())
+                .collect()
+        })
+        .unwrap_or_default())
+}

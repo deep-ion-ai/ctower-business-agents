@@ -108,12 +108,29 @@ impl From<cba_core::analises::Erro> for ErroFerramenta {
     fn from(erro: cba_core::analises::Erro) -> Self {
         use cba_core::analises::Erro;
         match erro {
-            Erro::NaoEncontrada(_) | Erro::NaoEAnalise(_) | Erro::Modelo(_) => {
+            Erro::NaoEncontrada(_) | Erro::NaoEAnalise(_) | Erro::Modelo(_) | Erro::Memoria(_) => {
                 Self::Recusa(erro.to_string())
             }
             Erro::EstadoIlegivel { .. } | Erro::Io { .. } | Erro::Base(_) => {
                 Self::Interno(erro.to_string())
             }
+        }
+    }
+}
+
+impl From<cba_docs::ErroAta> for ErroFerramenta {
+    fn from(erro: cba_docs::ErroAta) -> Self {
+        use cba_docs::ErroAta;
+        match erro {
+            ErroAta::TextoVazio | ErroAta::IdDeItem(_) => Self::Argumentos(erro.to_string()),
+            ErroAta::ItemInexistente(_)
+            | ErroAta::TipoDoItem { .. }
+            | ErroAta::ItemRepetido(_)
+            | ErroAta::Base(cba_kb::Erro::ReuniaoInexistente { .. })
+            | ErroAta::Base(cba_kb::Erro::DemandaInexistente { .. }) => {
+                Self::Recusa(erro.to_string())
+            }
+            _ => Self::Interno(erro.to_string()),
         }
     }
 }

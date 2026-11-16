@@ -12,9 +12,13 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror = "2"
 zeroize = "1"
+# Tokens no chaveiro do sistema (#179): Keychain no macOS, Gerenciador de
+# Credenciais no Windows, keyutils no Linux.
+keyring = { version = "3", features = ["apple-native", "windows-native", "linux-native"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
 [dev-dependencies]
 tempfile = "3"
+dunce = "1"

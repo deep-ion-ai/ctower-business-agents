@@ -6,8 +6,6 @@
 
 mod comum;
 
-use std::fs;
-
 /// Nomes de empresas, órgãos e sistemas reais que não podem aparecer nas
 /// fixtures. Comparação sem acentos, sem diferenciar maiúsculas e por
 /// palavra inteira (termos com várias palavras exigem a sequência exata).
@@ -107,8 +105,7 @@ fn fixtures_nao_citam_empresas_nem_projetos_reais() {
         .collect();
     let mut achados = Vec::new();
     for arquivo in comum::arquivos_recursivos(&comum::pasta_fixtures()) {
-        let texto = fs::read_to_string(&arquivo)
-            .unwrap_or_else(|e| panic!("{} não é texto UTF-8: {e}", arquivo.display()));
+        let texto = comum::texto_do_arquivo(&arquivo);
         for (numero, linha) in texto.lines().enumerate() {
             let normalizada = normalizar(linha);
             for (termo, termo_normalizado) in &termos {
@@ -209,7 +206,7 @@ fn validacao_de_documentos_reconhece_exemplos() {
 fn fixtures_so_tem_cpf_e_cnpj_invalidos() {
     let mut achados = Vec::new();
     for arquivo in comum::arquivos_recursivos(&comum::pasta_fixtures()) {
-        let texto = fs::read_to_string(&arquivo).expect("texto UTF-8");
+        let texto = comum::texto_do_arquivo(&arquivo);
         for documento in documentos(&texto) {
             if documento_valido(&documento) {
                 achados.push(format!(

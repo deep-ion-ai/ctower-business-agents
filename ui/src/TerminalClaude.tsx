@@ -34,6 +34,12 @@ export interface PropsTerminalClaude {
   /** Prompt inicial, retomada e argumentos do `claude` (opcionais). */
   pedido?: PedidoClaude;
   aoMudarEstado?: (estado: EstadoTerminal) => void;
+  /**
+   * Como "Continuar a conversa" reabre depois do fim da sessão. Sem ele, a última
+   * conversa da pasta (`--continue`), que pode ser de outra análise: a tela de
+   * análise passa a sessão da própria análise (#130).
+   */
+  continuacao?: () => PedidoClaude;
   /** Para testes. */
   api?: ApiTerminal;
   /** Para testes: a tela do terminal (padrão: xterm.js). */
@@ -50,7 +56,7 @@ export interface PropsTerminalClaude {
  */
 export const TerminalClaude = forwardRef<ControleTerminal, PropsTerminalClaude>(
   function TerminalClaude(
-    { projeto, pedido, aoMudarEstado, api = apiTauri, criarTela = criarTelaXterm },
+    { projeto, pedido, aoMudarEstado, continuacao, api = apiTauri, criarTela = criarTelaXterm },
     ref,
   ) {
     const elemento = useRef<HTMLDivElement>(null);
@@ -177,11 +183,11 @@ export const TerminalClaude = forwardRef<ControleTerminal, PropsTerminalClaude>(
         <Situacao
           estado={estado}
           aoContinuar={() =>
-            reabrir({
-              ...pedidoProps.current,
-              promptInicial: undefined,
-              retomada: { modo: "continuar" },
-            })
+            reabrir(
+              continuacao
+                ? { ...pedidoProps.current, promptInicial: undefined, ...continuacao() }
+                : { ...pedidoProps.current, promptInicial: undefined, retomada: { modo: "continuar" } },
+            )
           }
           aoNova={() => reabrir()}
         />
