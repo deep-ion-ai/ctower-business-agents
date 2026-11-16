@@ -527,11 +527,11 @@ fn desfazer_diz_o_que_ficou_e_por_que() {
     let raiz = dunce::canonicalize(c.dir.path()).unwrap();
     let (preparador, estado, _) = configuracao_do_analista(&raiz);
     analise::preparar_ambiente(&c.dados, &preparador, PROJETO).unwrap();
-    // O Claude Code grava a confiança na pasta ao abrir a primeira conversa.
+    // O Claude Code grava dados da pasta ao abrir uma conversa.
     let mut v: serde_json::Value = serde_json::from_slice(&fs::read(&estado).unwrap()).unwrap();
     for (_, projeto) in v["projects"].as_object_mut().unwrap().iter_mut() {
         if projeto["mcpServers"].get("cba").is_some() {
-            projeto["hasTrustDialogAccepted"] = true.into();
+            projeto["lastCost"] = 0.into();
         }
     }
     fs::write(&estado, serde_json::to_vec_pretty(&v).unwrap()).unwrap();
@@ -540,7 +540,7 @@ fn desfazer_diz_o_que_ficou_e_por_que() {
     assert!(!feito.igual_ao_antes);
     assert_eq!(feito.avisos.len(), 1, "{:?}", feito.avisos);
     assert!(
-        feito.avisos[0].contains("confiança na pasta"),
+        feito.avisos[0].contains("histórico de uso"),
         "{}",
         feito.avisos[0]
     );
