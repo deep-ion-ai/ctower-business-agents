@@ -176,7 +176,9 @@ function montar(c: ReturnType<typeof cenarioRevisao>, abertura: Abertura = { tip
 
 /** Abre um painel da barra (Aprovar, Exportar) e devolve a região de dentro. */
 async function abrirPainel(botao: string, regiao: string) {
-  fireEvent.click(await screen.findByRole("button", { name: botao }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: botao === "Aprovar" ? /^Aprovar/ : botao }),
+  );
   return screen.findByRole("region", { name: regiao });
 }
 
@@ -192,7 +194,7 @@ describe("Revisão, aprovação e exportação", () => {
     const aprovacao = await abrirPainel("Aprovar", "Aprovação");
     const pendencias = await within(aprovacao).findByRole("list", { name: "Pendências" });
     expect(within(pendencias).getAllByRole("listitem")).toHaveLength(3);
-    expect(within(aprovacao).getByRole("button", { name: "Aprovar análise" })).toBeDisabled();
+    expect(within(aprovacao).getByRole("button", { name: /^Aprovar(…| e gravar na base)$/ })).toBeDisabled();
 
     // Confirmar a afirmação 1.
     fireEvent.click(within(afirmacao(1)).getByRole("button", { name: "Confirmar" }));
@@ -203,10 +205,10 @@ describe("Revisão, aprovação e exportação", () => {
         estado: "confirmada",
       }),
     );
-    expect(await screen.findByText("(confirmada pelo analista)")).toBeInTheDocument();
+    expect(await screen.findByText("confirmada por você")).toBeInTheDocument();
 
     // Marcar a 2 como incorreta exige o comentário.
-    fireEvent.click(within(afirmacao(2)).getByRole("button", { name: "Marcar incorreta" }));
+    fireEvent.click(within(afirmacao(2)).getByRole("button", { name: "Incorreta" }));
     const comentario = within(afirmacao(2)).getByLabelText(/Por que está incorreta/);
     const marcar = within(afirmacao(2)).getByRole("button", { name: "Marcar como incorreta" });
     expect(marcar).toBeDisabled();
@@ -220,7 +222,7 @@ describe("Revisão, aprovação e exportação", () => {
         comentario: "Os juros não entram na base da multa.",
       }),
     );
-    expect(await screen.findByText("(marcada como incorreta)")).toBeInTheDocument();
+    expect(await screen.findByText("marcada como incorreta")).toBeInTheDocument();
     expect(screen.getByText("Os juros não entram na base da multa.")).toBeInTheDocument();
 
     // Termo aceito e pergunta respondida.
@@ -230,7 +232,6 @@ describe("Revisão, aprovação e exportação", () => {
       }),
     );
     await waitFor(() => expect(c.estado().termos[0].estado).toBe("aceito"));
-    fireEvent.click(screen.getByRole("button", { name: "Responder" }));
     fireEvent.change(screen.getByLabelText("Resposta"), { target: { value: "Sim." } });
     fireEvent.click(screen.getByRole("button", { name: "Salvar resposta" }));
     await waitFor(() => expect(c.estado().perguntas[0].estado).toBe("respondida"));
@@ -240,7 +241,7 @@ describe("Revisão, aprovação e exportação", () => {
       expect(within(aprovacao).queryByRole("list", { name: "Pendências" })).not.toBeInTheDocument(),
     );
     expect(within(aprovacao).getByText(/1 incorreta\(s\) ficam registradas e não viram regra/)).toBeInTheDocument();
-    const aprovar = within(aprovacao).getByRole("button", { name: "Aprovar análise" });
+    const aprovar = within(aprovacao).getByRole("button", { name: /^Aprovar(…| e gravar na base)$/ });
     expect(aprovar).toBeDisabled();
     expect(within(aprovacao).getByText(/escolha a das regras/)).toBeInTheDocument();
     fireEvent.change(within(aprovacao).getByLabelText("Área das regras"), {
@@ -293,8 +294,10 @@ describe("Revisão, aprovação e exportação", () => {
     expect(await screen.findByText("Depois da carência, a multa é de 2%.")).toBeInTheDocument();
     expect(screen.getByText(/texto editado pelo analista/)).toBeInTheDocument();
     expect(
-      screen.getAllByRole("button", { name: /^Ver .*evidência.* no código$/ }).length,
-    ).toBeGreaterThan(0);
+      within(afirmacao(1).closest("li")!).getByRole("button", {
+        name: "db/03_pkg_cobranca.sql:71-72",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("edita a definição do termo proposto para o glossário", async () => {
@@ -362,9 +365,8 @@ describe("Revisão, aprovação e exportação", () => {
     await waitFor(() => expect(terminal.aberturas.length).toBe(1));
     await act(async () => terminal.aberturas[0].resolver(5));
     await screen.findByText(AFIRMACAO_MULTA.texto);
-    fireEvent.click(await screen.findByRole("button", { name: "Prompts prontos" }));
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Aprofundar a análise" })).toBeEnabled(),
+      expect(screen.getByRole("button", { name: "Aprofundar as pendentes" })).toBeEnabled(),
     );
     await pedirAprofundamento(2, "Quais perfis\npodem consultar?");
     await waitFor(() =>
@@ -396,7 +398,7 @@ describe("Revisão, aprovação e exportação", () => {
     await screen.findByText(AFIRMACAO_MULTA.texto);
     await pedirAprofundamento(2, "");
     expect(await screen.findByText(/Aprofundamento registrado/)).toBeInTheDocument();
-    expect(await screen.findByText("(aprofundamento pedido)")).toBeInTheDocument();
+    expect(await screen.findByText("aprofundamento pedido")).toBeInTheDocument();
     expect(c.estado().afirmacoes[1]).not.toHaveProperty("pedido");
   });
 
@@ -436,7 +438,6 @@ describe("Revisão, aprovação e exportação", () => {
 
     const responder = async (numero: number, resposta: string) => {
       const item = within(perguntas).getByText(c.estado().perguntas[numero - 1].texto).closest("li")!;
-      fireEvent.click(within(item).getByRole("button", { name: "Responder" }));
       fireEvent.change(within(item).getByLabelText("Resposta"), { target: { value: resposta } });
       fireEvent.click(within(item).getByRole("button", { name: "Salvar resposta" }));
       await waitFor(() =>
@@ -478,7 +479,7 @@ describe("Revisão, aprovação e exportação", () => {
     // Uma resposta nova depois do envio volta a oferecer o botão, só com ela.
     await responder(2, "Sim.");
     expect(
-      await within(perguntas).findByRole("button", { name: "Enviar resposta" }),
+      await within(perguntas).findByRole("button", { name: "Enviar resposta ao agente" }),
     ).toBeEnabled();
   });
 
@@ -502,7 +503,8 @@ describe("Revisão, aprovação e exportação", () => {
       expect(c.revisao.exportar).toHaveBeenCalledWith("faturamento-exemplo", "A-0001", {
         destino: "/home/analista/A-0001.docx",
         formato: "word",
-        opcoes: { evidencias: true, perguntas: true, trechos: true },
+        opcoes: { evidencias: true, perguntas: true, trechos: true, codigo_diagramas: true },
+        figuras: [],
       }),
     );
     expect(c.revisao.escolherDestino).toHaveBeenCalledWith("A-0001", "word");
@@ -517,7 +519,7 @@ describe("Revisão, aprovação e exportação", () => {
       expect(c.revisao.exportar).toHaveBeenLastCalledWith("faturamento-exemplo", "A-0001", {
         destino: "/home/analista/A-0001.md",
         formato: "markdown",
-        opcoes: { evidencias: true, perguntas: false, trechos: true },
+        opcoes: { evidencias: true, perguntas: false, trechos: true, codigo_diagramas: true },
       }),
     );
 

@@ -361,6 +361,33 @@ pub struct VistaAnalise {
     pub sessao: Option<SessaoVista>,
     /// Pedido para uma conversa nova continuar a análise.
     pub prompt_retomada: String,
+    /// Código Mermaid de cada diagrama registrado, gerado como na montagem do
+    /// documento, para a prévia desenhar a figura (#118).
+    pub diagramas: Vec<DiagramaVisto>,
+}
+
+/// Código Mermaid de um diagrama da análise (`D-<numero>`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiagramaVisto {
+    pub numero: u32,
+    pub mermaid: String,
+    /// Achados do ciclo de vida calculados pelo app (#119); vazio fora do
+    /// diagrama de estados.
+    pub achados: Vec<cba_core::diagramas::AchadoDiagrama>,
+}
+
+/// Mermaid de cada diagrama da análise, na ordem de registro.
+pub(crate) fn diagramas_vistos(analise: &Analise) -> Vec<DiagramaVisto> {
+    analise
+        .diagramas
+        .iter()
+        .map(|d| DiagramaVisto {
+            numero: d.numero,
+            mermaid: cba_docs::mermaid(&cba_tools::documento::diagrama(d)),
+            achados: d.achados(),
+        })
+        .collect()
 }
 
 /// Sessão mais recente: o registro dos hooks (#25), que guarda o instante da última
@@ -402,6 +429,7 @@ pub fn carregar_analise(
         documento: ambiente.kb.caminho(&analise.documento),
         sessao: sessao_recente(dados, &analise),
         prompt_retomada: prompt_de_retomada(&id),
+        diagramas: diagramas_vistos(&analise),
         analise,
     })
 }
@@ -464,6 +492,63 @@ pub fn trecho_evidencia(
             .collect(),
         total,
     })
+}
+
+/// Link de uma evidência na forja do repositório que contém o arquivo (#185).
+#[derive(Debug, Serialize, PartialEq, Eq)]
+pub struct LinkForja {
+    pub url: String,
+    pub forja: cba_repos::ForgeKind,
+}
+
+/// Link do arquivo e das linhas citadas no GitHub ou no GitLab. Vale o `commit` da
+/// evidência; sem ele, a branch cadastrada do repositório. `None` sem repositório de
+/// código cadastrado que contenha o arquivo, ou sem commit nem branch.
+pub fn link_forja_evidencia(
+    dados: &DiretorioDados,
+    projeto: &str,
+    arquivo: &str,
+    inicio: u32,
+    fim: u32,
+    commit: Option<&str>,
+) -> Result<Option<LinkForja>, String> {
+    let cadastrado = Cadastro::em(dados.projetos())
+        .obter(projeto)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("o projeto \"{projeto}\" não está cadastrado"))?;
+    let escopo = cadastrado.escopo().map_err(|e| e.to_string())?;
+    // Pastas canônicas, para comparar com o caminho resolvido pelo escopo.
+    let repos: Vec<cba_repos::RepositorioCodigo> = cadastrado
+        .repositorios
+        .codigo
+        .iter()
+        .cloned()
+        .map(|mut r| {
+            r.pasta = r.pasta.map(|p| dunce::canonicalize(&p).unwrap_or(p));
+            r
+        })
+        .collect();
+    let absoluto = escopo.resolver(arquivo).ok();
+    let Some((repo, _)) =
+        cba_repos::codigo::repositorio_do_arquivo(&repos, absoluto.as_deref(), arquivo)
+    else {
+        return Ok(None);
+    };
+    let referencia = commit
+        .map(str::trim)
+        .filter(|c| !c.is_empty())
+        .unwrap_or_else(|| repo.branch.trim());
+    let url = cba_repos::link::link_evidencia(
+        &repos,
+        absoluto.as_deref(),
+        referencia,
+        arquivo,
+        Some((inicio, fim.max(inicio))),
+    );
+    Ok(url.map(|url| LinkForja {
+        url,
+        forja: repo.forja,
+    }))
 }
 
 // ---------------------------------------------------------------------------
@@ -529,6 +614,21 @@ pub async fn trecho_evidencia_projeto(
 ) -> Result<Trecho, String> {
     let dados = dados()?;
     bloqueante(move || trecho_evidencia(&dados, &projeto, &arquivo, inicio, fim)).await
+}
+
+#[tauri::command]
+pub async fn link_forja_evidencia_projeto(
+    projeto: String,
+    arquivo: String,
+    inicio: u32,
+    fim: u32,
+    commit: Option<String>,
+) -> Result<Option<LinkForja>, String> {
+    let dados = dados()?;
+    bloqueante(move || {
+        link_forja_evidencia(&dados, &projeto, &arquivo, inicio, fim, commit.as_deref())
+    })
+    .await
 }
 
 #[cfg(test)]
@@ -726,6 +826,58 @@ mod tests {
 
         assert!(carregar_analise(&c.dados, PROJETO, "A-0009").is_err());
         assert!(carregar_analise(&c.dados, PROJETO, "S-0001").is_err());
+    }
+
+    #[test]
+    fn link_da_evidencia_na_forja_do_repositorio() {
+        let c = cenario();
+        // Sem repositório de código cadastrado, não há link.
+        assert!(
+            link_forja_evidencia(
+                &c.dados,
+                PROJETO,
+                "db/03_pkg_cobranca.sql",
+                71,
+                72,
+                Some("abc")
+            )
+            .unwrap()
+            .is_none()
+        );
+
+        let cadastro = Cadastro::em(c.dados.projetos());
+        let mut projeto = cadastro.obter(PROJETO).unwrap().unwrap();
+        projeto.repositorios.codigo = vec![cba_repos::RepositorioCodigo {
+            caminho: "acme/faturamento".into(),
+            branch: "main".into(),
+            ..Default::default()
+        }];
+        cadastro.salvar(&projeto).unwrap();
+
+        let l = link_forja_evidencia(
+            &c.dados,
+            PROJETO,
+            "db/03_pkg_cobranca.sql",
+            71,
+            72,
+            Some("abc"),
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(
+            l.url,
+            "https://github.com/acme/faturamento/blob/abc/db/03_pkg_cobranca.sql#L71-L72"
+        );
+        assert_eq!(serde_json::to_value(&l).unwrap()["forja"], "github");
+        // Sem o commit da evidência, vale a branch cadastrada.
+        let l = link_forja_evidencia(&c.dados, PROJETO, "db/03_pkg_cobranca.sql", 5, 5, None)
+            .unwrap()
+            .unwrap();
+        assert!(
+            l.url.contains("/blob/main/") && l.url.ends_with("#L5"),
+            "{}",
+            l.url
+        );
     }
 
     #[test]

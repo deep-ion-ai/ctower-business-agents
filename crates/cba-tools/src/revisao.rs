@@ -7,7 +7,9 @@
 //! - [`revisar`] aplica uma [`Decisao`]: confirmar, marcar como incorreta (com
 //!   comentário) ou pedir aprofundamento de uma afirmação, desfazer essa decisão,
 //!   editar o texto de uma afirmação, responder ou descartar uma pergunta, aceitar
-//!   ou recusar uma sugestão ou um termo. Tudo vai para o estado da análise, sob a
+//!   ou recusar uma sugestão ou um termo, transformar um item da análise numa
+//!   pergunta ("Virar pergunta", #120: a relação inferida de um modelo de dados,
+//!   com o texto editado pelo analista e as evidências do item). Tudo vai para o estado da análise, sob a
 //!   trava, e o documento é remontado a partir dele ([`crate::documento::remontar`]):
 //!   o documento `.md` nunca é editado à mão, porque a próxima montagem apagaria a
 //!   edição. A edição muda só o texto: seção, confiança e evidências ficam.
@@ -20,7 +22,9 @@
 //!   (`cba_docs::gravar_exportacao`), com os trechos citados lidos pelo escopo do
 //!   projeto (as exclusões valem também aqui), fora das pastas do projeto; os
 //!   cenários de teste também em CSV, uma linha por cenário
-//!   ([`crate::cenarios::csv`]).
+//!   ([`crate::cenarios::csv`]). No Word, os diagramas saem como as figuras que o
+//!   app renderizou ([`cba_docs::Figuras`]), a partir dos blocos que
+//!   [`diagramas_para_exportar`] lista.
 //!
 //! # O que é obrigatório antes de aprovar
 //!
@@ -42,6 +46,7 @@ use std::path::{Path, PathBuf};
 use cba_core::ambiente::Ambiente;
 use cba_core::analise::{
     Analise, ErroModelo, EstadoAfirmacao, EstadoAnalise, EstadoPergunta, EstadoTermo, Fluxo,
+    OrigemPergunta,
 };
 use cba_core::analises;
 use cba_core::cenarios::TextoCenario;
@@ -158,13 +163,23 @@ pub enum Decisao {
     },
     /// Aceitar, descartar ou desfazer a decisão sobre uma tabela de decisão.
     Tabela { numero: u32, situacao: SituacaoItem },
+    /// "Virar pergunta" (#119, #120): registrar uma pergunta para o solicitante a
+    /// partir de um item da análise (um achado do ciclo de vida ou a relação
+    /// inferida do modelo de dados), com o texto editado pelo analista; as
+    /// evidências vêm do item. Não reabre a análise; o item vira pergunta uma vez só.
+    VirarPergunta {
+        texto: String,
+        origem: OrigemPergunta,
+    },
 }
 
 impl Decisao {
     fn mudanca(&self) -> Mudanca {
         match self {
             Self::Afirmacao { .. } | Self::EditarAfirmacao { .. } => Mudanca::Afirmacao,
-            Self::Pergunta { .. } | Self::RespostasEnviadas { .. } => Mudanca::Pergunta,
+            Self::Pergunta { .. } | Self::RespostasEnviadas { .. } | Self::VirarPergunta { .. } => {
+                Mudanca::Pergunta
+            }
             Self::Sugestao { .. } => Mudanca::Sugestao,
             Self::Termo { .. } | Self::EditarTermo { .. } => Mudanca::Termo,
             Self::Achado { .. } => Mudanca::Parecer,
@@ -178,7 +193,7 @@ impl Decisao {
         }
     }
 
-    fn aplicar(self, a: &mut Analise) -> Result<(), ErroModelo> {
+    fn aplicar(self, a: &mut Analise, agora_ms: u64) -> Result<(), ErroModelo> {
         if a.estado == EstadoAnalise::Aprovada {
             return Err(ErroModelo::AnaliseAprovada(a.id.clone()));
         }
@@ -209,6 +224,9 @@ impl Decisao {
             Self::Cenario { cenario, situacao } => a.decidir_cenario(cenario, situacao),
             Self::EditarCenario { cenario, texto } => a.editar_cenario(cenario, texto),
             Self::Tabela { numero, situacao } => a.decidir_tabela(numero, situacao),
+            Self::VirarPergunta { texto, origem } => {
+                a.virar_pergunta(&texto, origem, agora_ms).map(|_| ())
+            }
         }
     }
 }
@@ -283,7 +301,7 @@ pub fn revisar(amb: &Ambiente, id: &Id, decisao: Decisao) -> Result<Analise, Err
     let (_, analise) = amb.analises.alterar_e(
         id,
         mudanca,
-        |a, _| decisao.aplicar(a),
+        |a, agora| decisao.aplicar(a, agora),
         |a| {
             if documento::remontar(&amb.base, &amb.kb, a).is_err() {
                 // O estado é a fonte de verdade; o documento se refaz no próximo
@@ -701,6 +719,7 @@ pub fn exportar_analise(
     destino: &Path,
     formato: Formato,
     opcoes: &OpcoesExportacao,
+    figuras: &cba_docs::Figuras,
 ) -> Result<PathBuf, ErroRevisao> {
     let analise = amb.analises.carregar(id)?;
     if formato == Formato::Csv && analise.fluxo != Fluxo::Cenarios {
@@ -721,23 +740,7 @@ pub fn exportar_analise(
         Formato::Word => cba_docs::Formato::Word,
         _ => cba_docs::Formato::Markdown,
     };
-    let ler = |c: &CaminhoRelativo| {
-        std::fs::read_to_string(amb.kb.caminho(c)).map_err(ErroRevisao::Documento)
-    };
-    let texto_analise = ler(&analise.documento)?;
-    // Commit da análise: o `base.commit` do frontmatter, para a nota sem commit próprio.
-    let commit =
-        cba_kb::Documento::<cba_kb::frontmatter::FrontmatterAnalise>::analisar(&texto_analise)
-            .ok()
-            .and_then(|d| d.frontmatter.base.and_then(|b| b.commit));
-    let ata = match analise.reuniao {
-        Some(r) => Some(amb.kb.reuniao(r)?.ata).filter(|a| amb.kb.existe(a)),
-        None => None,
-    };
-    let texto = match &ata {
-        Some(a) => ler(a)?,
-        None => texto_analise,
-    };
+    let (texto, commit) = texto_para_exportar(amb, &analise)?;
     let fonte = TrechosDoProjeto(&amb.escopo);
     // Pastas canônicas, para comparar com o caminho resolvido pelo escopo.
     let repos: Vec<cba_repos::RepositorioCodigo> = amb
@@ -758,8 +761,50 @@ pub fn exportar_analise(
     let links = forge
         .as_ref()
         .map(|f| (f as &dyn cba_docs::LinksDeEvidencia, commit.as_deref()));
-    cba_docs::gravar_exportacao_com_links(&destino, &texto, formato, opcoes, Some(&fonte), links)?;
+    cba_docs::gravar_exportacao_com_links(
+        &destino,
+        &texto,
+        formato,
+        opcoes,
+        Some(&fonte),
+        links,
+        figuras,
+    )?;
     Ok(destino)
+}
+
+/// Texto que a exportação lê (o documento da análise ou, na de uma reunião, a
+/// ata já montada) e o commit da análise (o `base.commit` do frontmatter, para a
+/// nota sem commit próprio).
+fn texto_para_exportar(
+    amb: &Ambiente,
+    analise: &Analise,
+) -> Result<(String, Option<String>), ErroRevisao> {
+    let ler = |c: &CaminhoRelativo| {
+        std::fs::read_to_string(amb.kb.caminho(c)).map_err(ErroRevisao::Documento)
+    };
+    let texto_analise = ler(&analise.documento)?;
+    let commit =
+        cba_kb::Documento::<cba_kb::frontmatter::FrontmatterAnalise>::analisar(&texto_analise)
+            .ok()
+            .and_then(|d| d.frontmatter.base.and_then(|b| b.commit));
+    let ata = match analise.reuniao {
+        Some(r) => Some(amb.kb.reuniao(r)?.ata).filter(|a| amb.kb.existe(a)),
+        None => None,
+    };
+    let texto = match &ata {
+        Some(a) => ler(a)?,
+        None => texto_analise,
+    };
+    Ok((texto, commit))
+}
+
+/// Código dos blocos Mermaid do documento que a exportação vai ler, na ordem:
+/// o que o app renderiza antes de exportar em Word ([`exportar_analise`]).
+pub fn diagramas_para_exportar(amb: &Ambiente, id: &Id) -> Result<Vec<String>, ErroRevisao> {
+    let analise = amb.analises.carregar(id)?;
+    let (texto, _) = texto_para_exportar(amb, &analise)?;
+    Ok(cba_docs::blocos_mermaid(&texto))
 }
 
 /// Links das evidências nos repositórios de código do projeto (GitHub ou GitLab),

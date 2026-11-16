@@ -134,6 +134,46 @@ pub struct PedidoExportacao {
     pub formato: cba_tools::revisao::Formato,
     #[serde(default)]
     pub opcoes: cba_tools::revisao::OpcoesExportacao,
+    /// Figuras dos diagramas renderizadas pela tela (Word), pelo código Mermaid
+    /// do bloco. Bloco sem figura sai como aviso e código.
+    #[serde(default)]
+    pub figuras: Vec<FiguraPedida>,
+}
+
+/// Figura de um diagrama, renderizada pela tela em PNG.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FiguraPedida {
+    /// Código do bloco ` ```mermaid `, como [`diagramas_exportacao`] devolveu.
+    pub codigo: String,
+    /// Bytes do PNG.
+    pub png: Vec<u8>,
+    /// Tamanho de exibição, em pixels CSS.
+    pub largura: u32,
+    pub altura: u32,
+}
+
+/// Figuras do pedido, conferidas (PNG válido, tamanho e quantidade).
+fn figuras(pedido: &PedidoExportacao) -> Result<cba_docs::Figuras, String> {
+    let mut figuras = cba_docs::Figuras::novas();
+    for f in &pedido.figuras {
+        let figura = cba_docs::Figura::nova(f.png.clone(), f.largura, f.altura)
+            .map_err(|e| e.to_string())?;
+        figuras
+            .inserir(&f.codigo, figura)
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(figuras)
+}
+
+/// Código dos blocos Mermaid que a exportação vai ler, para a tela renderizar.
+pub fn diagramas_exportacao(
+    dados: &DiretorioDados,
+    projeto: &str,
+    analise: &str,
+) -> Result<Vec<String>, String> {
+    let amb = ambiente(dados, projeto)?;
+    revisao::diagramas_para_exportar(&amb, &id(analise)?).map_err(|e| e.to_string())
 }
 
 /// Exporta o documento e devolve o caminho gravado.
@@ -150,6 +190,7 @@ pub fn exportar(
         &pedido.destino,
         pedido.formato,
         &pedido.opcoes,
+        &figuras(pedido)?,
     )
     .map_err(|e| e.to_string())
 }
@@ -197,6 +238,15 @@ pub async fn exportar_analise_projeto(
         exportar(&dados, &projeto, &analise, &pedido).map(|p| p.display().to_string())
     })
     .await
+}
+
+#[tauri::command]
+pub async fn diagramas_exportacao_projeto(
+    projeto: String,
+    analise: String,
+) -> Result<Vec<String>, String> {
+    let dados = dados()?;
+    bloqueante(move || diagramas_exportacao(&dados, &projeto, &analise)).await
 }
 
 #[cfg(test)]

@@ -682,7 +682,7 @@ fn mcp_pergunta_ao_projeto_do_inicio_ao_documento_na_base() {
 
     // Os prompts prontos da análise, como o comando `prompts_prontos` da janela.
     let prontos = cba_tools::prompts::da_analise(&dados, "faturamento-exemplo", "A-0001").unwrap();
-    assert_eq!(prontos.len(), 6);
+    assert_eq!(prontos.len(), 7);
     for p in &prontos {
         assert!(p.texto.contains("A-0001"), "{p:?}");
         assert!(!p.texto.contains("{{"), "{p:?}");
@@ -800,9 +800,17 @@ fn fluxo_de_ponta_a_ponta(
     assert!(!roteiro.contains("<!--"), "{roteiro}");
     let concluir = respostas.last().unwrap()["result"].clone();
     assert_eq!(concluir["structuredContent"]["estado"], "concluida");
-    assert_eq!(
-        concluir["structuredContent"]["pendencias"],
-        json!([]),
+    // No documento negocial sem diagramas registrados, só as pendências do fluxo do
+    // processo e do modelo de dados (#120), que não impedem a conclusão.
+    let pendencias = concluir["structuredContent"]["pendencias"]
+        .as_array()
+        .unwrap();
+    let esperadas = if fluxo == "explicar" { 2 } else { 0 };
+    assert_eq!(pendencias.len(), esperadas, "{concluir}");
+    assert!(
+        pendencias
+            .iter()
+            .all(|p| p.as_str().unwrap().contains("registrar_diagrama")),
         "{concluir}"
     );
     let documento = concluir["structuredContent"]["documento"]
@@ -1056,6 +1064,18 @@ fn mcp_explicar_funcionalidade_do_inicio_ao_documento_na_base() {
             json!([parcelas[2], minimo[1]]),
         ),
         (
+            "fluxo_processo",
+            "O pedido sai da tela de parcelamento e é validado no backend antes de gerar as parcelas.".into(),
+            "inferido",
+            json!([pf[1], pf[0]]),
+        ),
+        (
+            "modelo_dados",
+            "O parcelamento lê os parâmetros de parcelas da tabela de parâmetros.".into(),
+            "inferido",
+            json!([parcelas[2]]),
+        ),
+        (
             "integracoes",
             "O cálculo dos encargos é pedido ao serviço de encargos.".into(),
             "confirmado",
@@ -1097,8 +1117,10 @@ fn mcp_explicar_funcionalidade_do_inicio_ao_documento_na_base() {
             "Fluxo principal",
             "Fluxos alternativos",
             "Exceções",
+            "Fluxo do processo",
             "Regras de negócio",
             "Dados lidos e gravados",
+            "Modelo de dados conceitual",
             "Integrações",
             "Perguntas em aberto",
             "Sugestões de alteração",

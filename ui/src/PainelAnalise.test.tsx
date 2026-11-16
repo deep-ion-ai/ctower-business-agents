@@ -16,7 +16,12 @@ import {
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(), Channel: vi.fn() }));
 vi.mock("./telaXterm", () => ({ criarTelaXterm: vi.fn() }));
 
-function montar(abertura: Abertura, vista?: VistaAnalise, opcoes?: OpcoesConversa) {
+function montar(
+  abertura: Abertura,
+  vista?: VistaAnalise,
+  opcoes?: OpcoesConversa,
+  abrirUrl?: (url: string) => Promise<void>,
+) {
   const analise = apiAnaliseFalsa(vista);
   const terminal = apiTerminalFalsa();
   // Como o Rust: a sessão da análise vem nas opções (conversa gravada, retomável).
@@ -35,9 +40,10 @@ function montar(abertura: Abertura, vista?: VistaAnalise, opcoes?: OpcoesConvers
       apiTerminal={terminal.api}
       apiConversa={conversa}
       criarTela={() => tela}
+      abrirUrl={abrirUrl}
     />,
   );
-  return { ...analise, terminal, conversa, aoVoltar, ...r };
+  return { ...analise, terminal, conversa, aoVoltar, tela, ...r };
 }
 
 /** Abre o menu "continuar a conversa" da barra e devolve o painel. */
@@ -51,6 +57,10 @@ async function terminalAberto(t: ReturnType<typeof apiTerminalFalsa>, id = 1) {
   await waitFor(() => expect(t.aberturas.length).toBeGreaterThan(0));
   await act(async () => t.aberturas[t.aberturas.length - 1].resolver(id));
 }
+
+beforeEach(() => {
+  localStorage.clear();
+});
 
 describe("PainelAnalise", () => {
   it("análise nova abre o terminal com o pedido de iniciar_analise", async () => {
@@ -102,8 +112,7 @@ describe("PainelAnalise", () => {
       { tipo: "reabrir" },
       vistaFicticia({}, { afirmacoes: [AFIRMACAO_MULTA] }),
     );
-    fireEvent.click(await screen.findByRole("button", { name: /^Ver .*evidência.* no código$/ }));
-    fireEvent.click(screen.getByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
+    fireEvent.click(await screen.findByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
     expect(api.trechoEvidencia).toHaveBeenCalledWith(
       "faturamento-exemplo",
       "db/03_pkg_cobranca.sql",
@@ -131,7 +140,7 @@ describe("PainelAnalise", () => {
     montar({ tipo: "reabrir" });
     await screen.findByText("Nenhuma afirmação registrada ainda.");
     const documento = screen.getByRole("region", { name: "Documento ao vivo" });
-    const conversa = screen.getByRole("region", { name: "Conversa" });
+    const conversa = screen.getByRole("region", { name: "Painel lateral" });
     // O documento vem antes na ordem (à esquerda; primeiro quando as colunas empilham).
     expect(
       documento.compareDocumentPosition(conversa) & Node.DOCUMENT_POSITION_FOLLOWING,
@@ -140,52 +149,171 @@ describe("PainelAnalise", () => {
     expect(within(barra).getByRole("heading", { name: "A-0001: Multa por atraso" })).toBeVisible();
     // Sem o título repetido no documento.
     expect(within(documento).queryByRole("heading", { level: 2 })).not.toBeInTheDocument();
-    for (const nome of ["Continuar a conversa", "Aprovar", "Exportar"]) {
-      expect(within(barra).getByRole("button", { name: nome })).toHaveAttribute(
-        "aria-expanded",
-        "false",
-      );
-    }
+    expect(within(barra).getByRole("button", { name: "Exportar" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    // O menu "Continuar a conversa" saiu da barra: vive no painel lateral (#185).
+    expect(
+      within(barra).queryByRole("button", { name: "Continuar a conversa" }),
+    ).not.toBeInTheDocument();
+    expect(within(conversa).getByRole("button", { name: "Continuar a conversa" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
     // Um painel por vez; Esc fecha.
     fireEvent.click(within(barra).getByRole("button", { name: "Exportar" }));
     expect(screen.getByRole("region", { name: "Exportar o documento" })).toBeVisible();
-    fireEvent.click(within(barra).getByRole("button", { name: "Aprovar" }));
+    // Aprovar abre um diálogo modal; Esc fecha e devolve o foco ao botão.
+    const aprovar = within(barra).getByRole("button", { name: /^Aprovar/ });
+    fireEvent.click(aprovar);
     expect(screen.queryByRole("region", { name: "Exportar o documento" })).not.toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Aprovar a análise" })).toBeVisible();
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByRole("region", { name: "Aprovar a análise" })).not.toBeInTheDocument();
-    expect(within(barra).getByRole("button", { name: "Aprovar" })).toHaveFocus();
+    expect(screen.getByRole("dialog", { name: "Aprovar a análise" })).toBeVisible();
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("abre o trecho da evidência logo abaixo da afirmação", async () => {
+  it("o chip de evidência abre a aba Código, não o meio do documento", async () => {
     montar({ tipo: "reabrir" }, vistaFicticia({}, { afirmacoes: [AFIRMACAO_MULTA] }));
-    fireEvent.click(await screen.findByRole("button", { name: /^Ver .*evidência.* no código$/ }));
-    fireEvent.click(screen.getByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
+    const abaCodigo = screen.getByRole("tab", { name: "Código" });
+    expect(abaCodigo).toHaveAttribute("aria-selected", "false");
+    fireEvent.click(await screen.findByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
+    const trecho = await screen.findByRole("region", { name: "Trecho da evidência" });
+    expect(abaCodigo).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tabpanel", { name: "Código" })).toContainElement(trecho);
     const afirmacao = screen.getByTestId(`afirmacao-${AFIRMACAO_MULTA.numero}`);
-    expect(
-      await within(afirmacao).findByRole("region", { name: "Trecho da evidência" }),
-    ).toBeInTheDocument();
-    // Clicar de novo na mesma evidência fecha o trecho.
-    fireEvent.click(screen.getByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
-    expect(screen.queryByRole("region", { name: "Trecho da evidência" })).not.toBeInTheDocument();
+    expect(afirmacao).not.toContainElement(trecho);
+    // Caminho do arquivo e linhas citadas.
+    expect(within(trecho).getByText("db/03_pkg_cobranca.sql")).toBeVisible();
+    expect(within(trecho).getByText(/linhas 71-72/)).toBeVisible();
+    // Voltar à conversa não perde o trecho.
+    fireEvent.click(screen.getByRole("tab", { name: "Conversa com o agente" }));
+    expect(document.getElementById(abaCodigo.getAttribute("aria-controls")!)).not.toBeVisible();
+    fireEvent.click(abaCodigo);
+    expect(screen.getByRole("region", { name: "Trecho da evidência" })).toBeVisible();
+    // Fechar o trecho volta à conversa.
+    fireEvent.click(within(trecho).getByRole("button", { name: "Fechar" }));
+    expect(screen.getByRole("tab", { name: "Conversa com o agente" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
   });
 
-  it("deixa as evidências recolhidas atrás do ícone de código", async () => {
+  it("anterior e próxima navegam entre as evidências da mesma afirmação", async () => {
+    const segunda = {
+      arquivo: "db/03_pkg_cobranca.sql",
+      linhas: "90-91",
+      trecho: "x",
+      hash: "def",
+      estado: "valida" as const,
+    };
+    const { api } = montar(
+      { tipo: "reabrir" },
+      vistaFicticia(
+        {},
+        {
+          afirmacoes: [
+            { ...AFIRMACAO_MULTA, evidencias: [...AFIRMACAO_MULTA.evidencias, segunda] },
+          ],
+        },
+      ),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
+    const trecho = await screen.findByRole("region", { name: "Trecho da evidência" });
+    expect(within(trecho).getByText("1 de 2")).toBeInTheDocument();
+    expect(within(trecho).getByRole("button", { name: /Anterior/ })).toBeDisabled();
+    fireEvent.click(within(trecho).getByRole("button", { name: /Próxima/ }));
+    await waitFor(() =>
+      expect(api.trechoEvidencia).toHaveBeenLastCalledWith(
+        "faturamento-exemplo",
+        "db/03_pkg_cobranca.sql",
+        90,
+        91,
+      ),
+    );
+    const novo = await screen.findByRole("region", { name: "Trecho da evidência" });
+    await waitFor(() => expect(novo.querySelector('[data-linha="90"]')).toHaveAttribute("data-citada"));
+    expect(within(novo).getByText("2 de 2")).toBeInTheDocument();
+    expect(within(novo).getByRole("button", { name: /Próxima/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "db/03_pkg_cobranca.sql:90-91" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    fireEvent.click(within(novo).getByRole("button", { name: /Anterior/ }));
+    await waitFor(() => expect(within(novo).getByText("1 de 2")).toBeInTheDocument());
+  });
+
+  it("abre as linhas citadas na forja do repositório", async () => {
+    const abrirUrl = vi.fn(() => Promise.resolve());
+    const { api } = montar(
+      { tipo: "reabrir" },
+      vistaFicticia({}, { afirmacoes: [AFIRMACAO_MULTA] }),
+      undefined,
+      abrirUrl,
+    );
+    api.linkForja.mockResolvedValue({
+      url: "https://gitlab.example.com/g/p/-/blob/abc/db/03_pkg_cobranca.sql#L71-72",
+      forja: "gitlab",
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Abrir no GitLab/ }));
+    expect(api.linkForja).toHaveBeenCalledWith(
+      "faturamento-exemplo",
+      "db/03_pkg_cobranca.sql",
+      71,
+      72,
+      undefined,
+    );
+    expect(abrirUrl).toHaveBeenCalledWith(
+      "https://gitlab.example.com/g/p/-/blob/abc/db/03_pkg_cobranca.sql#L71-72",
+    );
+  });
+
+  it("sem repositório de código cadastrado, a aba Código fica sem o link da forja", async () => {
     montar({ tipo: "reabrir" }, vistaFicticia({}, { afirmacoes: [AFIRMACAO_MULTA] }));
-    const ver = await screen.findByRole("button", { name: /^Ver .*evidência.* no código$/ });
-    expect(ver).toHaveAttribute("aria-expanded", "false");
-    expect(
-      screen.queryByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }),
-    ).not.toBeInTheDocument();
-    fireEvent.click(ver);
-    fireEvent.click(screen.getByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
+    fireEvent.click(await screen.findByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
+    await screen.findByRole("region", { name: "Trecho da evidência" });
+    expect(screen.queryByRole("button", { name: /Abrir no (GitHub|GitLab)/ })).not.toBeInTheDocument();
+  });
+
+  it("as abas se navegam pelo teclado e a aba Código começa vazia", () => {
+    montar({ tipo: "reabrir" });
+    const conversa = screen.getByRole("tab", { name: "Conversa com o agente" });
+    const codigo = screen.getByRole("tab", { name: "Código" });
+    expect(conversa).toHaveAttribute("aria-selected", "true");
+    expect(conversa).toHaveAttribute("tabindex", "0");
+    expect(codigo).toHaveAttribute("tabindex", "-1");
+    conversa.focus();
+    fireEvent.keyDown(conversa, { key: "ArrowRight" });
+    expect(codigo).toHaveAttribute("aria-selected", "true");
+    expect(codigo).toHaveFocus();
+    expect(screen.getByText(/Nenhuma evidência aberta/)).toBeVisible();
+    fireEvent.keyDown(codigo, { key: "Home" });
+    expect(conversa).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(conversa, { key: "End" });
+    expect(codigo).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("mostra as evidências como chips arquivo:linhas, sem esconder atrás de ícone", async () => {
+    const { api } = montar(
+      { tipo: "reabrir" },
+      vistaFicticia({}, { afirmacoes: [AFIRMACAO_MULTA] }),
+    );
+    const chip = await screen.findByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" });
+    expect(chip).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByRole("button", { name: /no código$/ })).not.toBeInTheDocument();
+    fireEvent.click(chip);
     expect(await screen.findByRole("region", { name: "Trecho da evidência" })).toBeInTheDocument();
-    // Ocultar o código fecha também o trecho aberto.
-    fireEvent.click(screen.getByRole("button", { name: /^Ocultar .* no código$/ }));
+    expect(api.trechoEvidencia).toHaveBeenCalled();
+    expect(chip).toHaveAttribute("aria-pressed", "true");
+    // Fechar o trecho solta o chip.
+    fireEvent.click(
+      within(screen.getByRole("region", { name: "Trecho da evidência" })).getByRole("button", {
+        name: "Fechar",
+      }),
+    );
     expect(screen.queryByRole("region", { name: "Trecho da evidência" })).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }),
-    ).not.toBeInTheDocument();
+    expect(chip).toHaveAttribute("aria-pressed", "false");
   });
 
   it("mostra a recusa de um trecho fora do escopo", async () => {
@@ -196,8 +324,7 @@ describe("PainelAnalise", () => {
     api.trechoEvidencia.mockRejectedValue(
       "`db/03_pkg_cobranca.sql`: caminho fora das pastas do projeto",
     );
-    fireEvent.click(await screen.findByRole("button", { name: /^Ver .*evidência.* no código$/ }));
-    fireEvent.click(screen.getByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
+    fireEvent.click(await screen.findByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "caminho fora das pastas do projeto",
     );
@@ -231,7 +358,7 @@ describe("PainelAnalise", () => {
     await waitFor(() =>
       expect(api.promptsProntos).toHaveBeenCalledWith("faturamento-exemplo", "A-0001"),
     );
-    expect(screen.queryByRole("group", { name: "Prompts prontos" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Mais pedidos" })).not.toBeInTheDocument();
   });
 
   it("envia um prompt pronto à sessão viva", async () => {
@@ -257,14 +384,14 @@ describe("PainelAnalise", () => {
         criarTela={telaFalsa}
       />,
     );
-    fireEvent.click(await screen.findByRole("button", { name: "Prompts prontos" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Mais pedidos" }));
     const botao = await screen.findByRole("button", { name: "Resumir para o solicitante" });
     expect(botao).toBeDisabled();
     await terminalAberto(terminal, 7);
     await waitFor(() => expect(botao).toBeEnabled());
     fireEvent.click(botao);
     // O menu fecha ao enviar.
-    expect(screen.queryByRole("group", { name: "Prompts prontos" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Mais pedidos" })).not.toBeInTheDocument();
     await waitFor(() =>
       expect(terminal.api.enviarPrompt).toHaveBeenCalledWith(7, "Resuma para o solicitante."),
     );
@@ -613,5 +740,168 @@ describe("PainelAnalise", () => {
     expect(cartoes[cartoes.length - 1]).toBe("claudeDesktop");
     fireEvent.click(meuTerminal);
     expect(await screen.findByText("o Claude Desktop não existe para Linux")).toBeVisible();
+  });
+
+  describe("conversa com o agente (#185)", () => {
+    it("abrindo o Claude Code, diz que está abrindo", async () => {
+      montar({ tipo: "nova", promptInicial: "Inicie" });
+      await waitFor(() =>
+        expect(screen.getByRole("status", { name: "Estado do agente" })).toHaveTextContent(
+          "Abrindo o Claude Code",
+        ),
+      );
+    });
+
+    it.each([
+      ["ativa", "Trabalhando na análise"],
+      ["aguardando-analista", "Terminou e espera você"],
+      ["concluida", "Respondeu e espera a sua próxima mensagem"],
+      ["encerrada", "Pronto para conversar"],
+    ] as const)("com a sessão %s, mostra \"%s\"", async (sessao, texto) => {
+      const { terminal } = montar(
+        { tipo: "nova", promptInicial: "Inicie" },
+        vistaFicticia({ sessao: { id: "s-1", estado: sessao, cliente: "claude-code" } }),
+      );
+      await terminalAberto(terminal);
+      await waitFor(() =>
+        expect(screen.getByRole("status", { name: "Estado do agente" })).toHaveTextContent(texto),
+      );
+    });
+
+    it("sem conversa aberta, o estado é 'Nenhuma conversa aberta'", async () => {
+      montar({ tipo: "reabrir" });
+      expect(screen.getByRole("status", { name: "Estado do agente" })).toHaveTextContent(
+        "Nenhuma conversa aberta",
+      );
+      // O seletor mostra onde escolher, e as ações só valem com uma conversa.
+      expect(screen.getByRole("button", { name: "Continuar a conversa" })).toHaveTextContent(
+        "Escolher onde",
+      );
+      expect(screen.queryByRole("group", { name: "Ações rápidas" })).not.toBeInTheDocument();
+    });
+
+    it("o seletor mostra onde a conversa roda", async () => {
+      const { terminal } = montar({ tipo: "nova", promptInicial: "Inicie" });
+      await terminalAberto(terminal);
+      expect(screen.getByRole("button", { name: "Continuar a conversa" })).toHaveTextContent(
+        "Aqui no app",
+      );
+    });
+
+    it("esconder o terminal não encerra a sessão, é lembrado e reabrir mostra o terminal", async () => {
+      const { terminal, unmount } = montar({ tipo: "nova", promptInicial: "Inicie" });
+      await terminalAberto(terminal, 4);
+      expect(screen.getByTestId("terminal-tela")).toBeVisible();
+      fireEvent.click(screen.getByRole("button", { name: "Esconder o terminal" }));
+      // Continua montado, só escondido: a sessão não é interrompida.
+      expect(screen.getByTestId("terminal-tela")).toBeInTheDocument();
+      expect(screen.getByTestId("terminal-tela")).not.toBeVisible();
+      expect(terminal.api.encerrar).not.toHaveBeenCalled();
+      expect(terminal.api.abrir).toHaveBeenCalledTimes(1);
+      expect(screen.getByText(/O terminal está escondido/)).toBeVisible();
+      expect(localStorage.getItem("cba.terminalVisivel")).toBe("0");
+
+      // Com o terminal escondido, a caixa continua falando com a mesma sessão.
+      fireEvent.change(screen.getByRole("textbox", { name: "Escreva ao agente" }), {
+        target: { value: "Oi" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
+      await waitFor(() => expect(terminal.api.enviarPrompt).toHaveBeenCalledWith(4, "Oi"));
+
+      fireEvent.click(screen.getByRole("button", { name: "Mostrar o terminal" }));
+      expect(screen.getByTestId("terminal-tela")).toBeVisible();
+      expect(terminal.api.abrir).toHaveBeenCalledTimes(1);
+      expect(localStorage.getItem("cba.terminalVisivel")).toBe("1");
+      unmount();
+    });
+
+    it("lembra o terminal escondido na próxima abertura", async () => {
+      localStorage.setItem("cba.terminalVisivel", "0");
+      const { terminal } = montar({ tipo: "nova", promptInicial: "Inicie" });
+      await terminalAberto(terminal);
+      expect(screen.getByTestId("terminal-tela")).not.toBeVisible();
+      expect(screen.getByRole("button", { name: "Mostrar o terminal" })).toBeInTheDocument();
+    });
+
+    it("a caixa de mensagem envia o mesmo que digitar no terminal, com as quebras de linha", async () => {
+      const { terminal } = montar({ tipo: "nova", promptInicial: "Inicie" });
+      const caixa = await screen.findByRole("textbox", { name: "Escreva ao agente" });
+      expect(caixa).toBeDisabled();
+      await terminalAberto(terminal, 9);
+      await waitFor(() => expect(caixa).toBeEnabled());
+      expect(screen.getByRole("button", { name: "Enviar" })).toBeDisabled();
+      fireEvent.change(caixa, { target: { value: "Qual é a multa?\nE os juros?" } });
+      fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
+      await waitFor(() =>
+        expect(terminal.api.enviarPrompt).toHaveBeenCalledWith(9, "Qual é a multa?\nE os juros?"),
+      );
+      await waitFor(() => expect(caixa).toHaveValue(""));
+      // Enter envia; Shift+Enter quebra a linha (não envia).
+      fireEvent.change(caixa, { target: { value: "Outra" } });
+      fireEvent.keyDown(caixa, { key: "Enter", shiftKey: true });
+      expect(terminal.api.enviarPrompt).toHaveBeenCalledTimes(1);
+      fireEvent.keyDown(caixa, { key: "Enter" });
+      await waitFor(() => expect(terminal.api.enviarPrompt).toHaveBeenLastCalledWith(9, "Outra"));
+    });
+
+    it("falha ao enviar mantém o texto na caixa e mostra o motivo", async () => {
+      const { terminal } = montar({ tipo: "nova", promptInicial: "Inicie" });
+      await terminalAberto(terminal, 2);
+      terminal.api.enviarPrompt.mockRejectedValueOnce("o processo saiu");
+      const caixa = screen.getByRole("textbox", { name: "Escreva ao agente" });
+      await waitFor(() => expect(caixa).toBeEnabled());
+      fireEvent.change(caixa, { target: { value: "Oi" } });
+      fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent("o processo saiu");
+      expect(caixa).toHaveValue("Oi");
+    });
+
+    it("as ações rápidas enviam o mesmo pedido que digitar no terminal", async () => {
+      const { api, terminal } = montar({ tipo: "nova", promptInicial: "Inicie" });
+      api.promptsProntos.mockResolvedValue([
+        { id: "aprofundar", rotulo: "Aprofundar a análise", descricao: "", texto: "Aprofunde a A-0001." },
+      ]);
+      const grupo = await screen.findByRole("group", { name: "Ações rápidas" });
+      const botoes = ["Aprofundar as pendentes", "Outro exemplo", "Explicar sem termos técnicos"].map(
+        (nome) => within(grupo).getByRole("button", { name: nome }),
+      );
+      // Sem a sessão viva, não há para onde enviar.
+      for (const b of botoes) expect(b).toBeDisabled();
+      await terminalAberto(terminal, 6);
+      for (const b of botoes) await waitFor(() => expect(b).toBeEnabled());
+
+      fireEvent.click(botoes[0]);
+      await waitFor(() =>
+        expect(terminal.api.enviarPrompt).toHaveBeenCalledWith(
+          6,
+          "Aprofunde a A-0001. Comece pelas afirmações que ainda esperam a revisão do analista.",
+        ),
+      );
+      fireEvent.click(botoes[1]);
+      await waitFor(() =>
+        expect(terminal.api.enviarPrompt).toHaveBeenCalledWith(6, expect.stringMatching(/outro exemplo/i)),
+      );
+      fireEvent.click(botoes[2]);
+      await waitFor(() =>
+        expect(terminal.api.enviarPrompt).toHaveBeenCalledWith(6, expect.stringMatching(/sem termos técnicos/)),
+      );
+      // Tudo numa linha só: o terminal envia a cada quebra de linha.
+      for (const [, texto] of terminal.api.enviarPrompt.mock.calls as unknown as [number, string][])
+        expect(texto).not.toMatch(/\n/);
+    });
+
+    it("sem a prompt pronto de aprofundar, a ação rápida usa o pedido padrão", async () => {
+      const { terminal } = montar({ tipo: "nova", promptInicial: "Inicie" });
+      await terminalAberto(terminal, 6);
+      const botao = screen.getByRole("button", { name: "Aprofundar as pendentes" });
+      await waitFor(() => expect(botao).toBeEnabled());
+      fireEvent.click(botao);
+      await waitFor(() =>
+        expect(terminal.api.enviarPrompt).toHaveBeenCalledWith(
+          6,
+          expect.stringMatching(/^Aprofunde a análise pelo ctower\. Comece pelas afirmações pendentes|^Aprofunde a análise pelo ctower\. Comece pelas afirmações que ainda esperam/),
+        ),
+      );
+    });
   });
 });

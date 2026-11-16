@@ -109,7 +109,7 @@ pub(crate) struct Definicao {
     fluxos: Fluxos,
 }
 
-pub(crate) const DEFINICOES: [Definicao; 8] = [
+pub(crate) const DEFINICOES: [Definicao; 9] = [
     Definicao {
         id: "aprofundar",
         rotulo: "Aprofundar",
@@ -159,6 +159,14 @@ pub(crate) const DEFINICOES: [Definicao; 8] = [
         // Registra numa análise nova, não nesta: vale também na aprovada.
         registra: false,
         fluxos: Fluxos::OrigemDeCenarios,
+    },
+    Definicao {
+        id: "ciclo-de-vida",
+        rotulo: "Montar o ciclo de vida",
+        descricao: "Pede ao agente o diagrama de estados da entidade da análise: os valores do campo de status, cada rotina que o grava (evento, condição, efeitos e evidência) e os achados de estado inalcançável, sem saída e transição sem condição.",
+        texto: include_str!("../textos/prompts/ciclo-de-vida.md"),
+        registra: true,
+        fluxos: Fluxos::DoCodigo,
     },
     Definicao {
         id: "conferir-evidencias",
@@ -359,6 +367,7 @@ mod tests {
                 "resumir",
                 "gerar-historias",
                 "gerar-cenarios",
+                "ciclo-de-vida",
                 "conferir-evidencias",
                 "retomar"
             ]
@@ -370,7 +379,7 @@ mod tests {
             assert!(!p.rotulo.is_empty() && !p.descricao.is_empty());
             assert!(arquivo_do_prompt(&p.id).is_some());
         }
-        assert_eq!(prontos[5].texto, "Retome a análise A-0007 pelo ctower.");
+        assert_eq!(prontos[6].texto, "Retome a análise A-0007 pelo ctower.");
         assert!(
             prontos[1]
                 .texto
@@ -426,6 +435,7 @@ mod tests {
                     "resumir",
                     "gerar-historias",
                     "gerar-cenarios",
+                    "ciclo-de-vida",
                     "conferir-evidencias",
                     "retomar"
                 ],

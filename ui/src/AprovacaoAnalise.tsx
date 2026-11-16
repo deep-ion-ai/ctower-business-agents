@@ -1,6 +1,13 @@
 import { useEffect, useId, useState } from "react";
 import { mensagemDe } from "./analise";
-import type { ApiRevisao, AprovacaoFeita, Area, OpcoesAprovacao, Prontidao } from "./revisao";
+import type {
+  ApiRevisao,
+  AprovacaoFeita,
+  Area,
+  OpcoesAprovacao,
+  Pendencia,
+  Prontidao,
+} from "./revisao";
 
 interface Props {
   api: ApiRevisao;
@@ -10,6 +17,37 @@ interface Props {
   versao: number;
   /** Chamado depois de aprovar, para a tela reler a análise. */
   aoAprovar?: (feita: AprovacaoFeita) => void;
+  /** "Ir para" de uma pendência com número: o chamador fecha o diálogo e leva ao cartão. */
+  aoIrPara?: (pendencia: Pendencia) => void;
+  /** "Revisar as N pendentes": o chamador fecha o diálogo e leva à primeira. */
+  aoRevisarPendentes?: (pendencias: Pendencia[]) => void;
+}
+
+/** Prontidão da aprovação, relida a cada versão da análise; `null` sem o comando. */
+export function useProntidao(
+  api: ApiRevisao,
+  projeto: string,
+  analise: string,
+  versao: number,
+  habilitado = true,
+) {
+  const [prontidao, setProntidao] = useState<Prontidao | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  useEffect(() => {
+    if (!habilitado) return;
+    let ativo = true;
+    // Sem o comando (ou com resposta inesperada), a aprovação não aparece.
+    Promise.resolve()
+      .then(() => api.prontidao(projeto, analise))
+      .then((p) => {
+        if (ativo && p && Array.isArray(p.areas)) setProntidao(p);
+      })
+      .catch((e: unknown) => ativo && setErro(mensagemDe(e)));
+    return () => {
+      ativo = false;
+    };
+  }, [api, projeto, analise, versao, habilitado]);
+  return { prontidao, erro, setErro };
 }
 
 const ACAO = { criada: "criada", atualizada: "atualizada", "sem-mudanca": "sem mudança" } as const;
@@ -48,35 +86,31 @@ function SeletorArea({
 }
 
 /**
- * Aprovação da análise (#37, spec 7.4): mostra o que falta revisar, pede a área das
- * regras (obrigatória quando o projeto declara mais de uma) e, ao aprovar, leva à
- * base as afirmações confirmadas (regras) e os termos aceitos (glossário). As
- * incorretas ficam registradas na análise e não viram regra.
+ * Aprovação da análise (#37, spec 7.4; diálogo guiado, #186): mostra o que falta revisar
+ * (com "Ir para" em cada item), pede a área das regras (obrigatória quando o projeto
+ * declara mais de uma) e, ao aprovar, leva à base as afirmações confirmadas (regras) e
+ * os termos aceitos (glossário). As incorretas ficam registradas e não viram regra.
  */
-export function AprovacaoAnalise({ api, projeto, analise, versao, aoAprovar }: Props) {
-  const [prontidao, setProntidao] = useState<Prontidao | null>(null);
-  const [erro, setErro] = useState<string | null>(null);
+export function AprovacaoAnalise({
+  api,
+  projeto,
+  analise,
+  versao,
+  aoAprovar,
+  aoIrPara,
+  aoRevisarPendentes,
+}: Props) {
+  const { prontidao, erro, setErro } = useProntidao(api, projeto, analise, versao);
   const [area, setArea] = useState("");
   const [ajustes, setAjustes] = useState<Record<number, { area: string; titulo: string }>>({});
   const [ocupado, setOcupado] = useState(false);
   const [feita, setFeita] = useState<AprovacaoFeita | null>(null);
 
+  // Com uma área só, ela já vem escolhida.
+  const unica = prontidao?.areas.length === 1 ? prontidao.areas[0].id : "";
   useEffect(() => {
-    let ativo = true;
-    // Sem o comando (ou com resposta inesperada), a aprovação não aparece.
-    Promise.resolve()
-      .then(() => api.prontidao(projeto, analise))
-      .then((p) => {
-        if (!ativo || !p || !Array.isArray(p.areas)) return;
-        setProntidao(p);
-        // Com uma área só, ela já vem escolhida.
-        if (p.areas.length === 1) setArea((a) => a || p.areas[0].id);
-      })
-      .catch((e: unknown) => ativo && setErro(mensagemDe(e)));
-    return () => {
-      ativo = false;
-    };
-  }, [api, projeto, analise, versao]);
+    if (unica) setArea((a) => a || unica);
+  }, [unica]);
 
   if (!prontidao) return erro ? <p className="error-text">{erro}</p> : null;
 
@@ -89,6 +123,7 @@ export function AprovacaoAnalise({ api, projeto, analise, versao, aoAprovar }: P
   const faltaArea =
     prontidao.areaObrigatoria && prontidao.regras.length > 0 && !area && !todasComArea;
   const aprovada = prontidao.estado === "aprovada";
+  const podeGravar = prontidao.pendencias.length === 0;
 
   const aprovar = () => {
     const opcoes: OpcoesAprovacao = { area: area.trim() || null, afirmacoes: {} };
@@ -121,9 +156,33 @@ export function AprovacaoAnalise({ api, projeto, analise, versao, aoAprovar }: P
           <p>Antes de aprovar:</p>
           <ul aria-label="Pendências">
             {prontidao.pendencias.map((p) => (
-              <li key={`${p.tipo}-${p.numero ?? ""}`}>{p.motivo}</li>
+              <li key={`${p.tipo}-${p.numero ?? ""}`}>
+                {p.motivo}
+                {aoIrPara && p.tipo === "afirmacao" && p.numero !== null && (
+                  <>
+                    {" "}
+                    <button
+                      className="btn btn-link"
+                      type="button"
+                      aria-label={`Ir para: ${p.motivo}`}
+                      onClick={() => aoIrPara(p)}
+                    >
+                      Ir para
+                    </button>
+                  </>
+                )}
+              </li>
             ))}
           </ul>
+          {aoRevisarPendentes && (
+            <button
+              className="btn"
+              type="button"
+              onClick={() => aoRevisarPendentes(prontidao.pendencias)}
+            >
+              Revisar as {prontidao.pendencias.length} pendentes
+            </button>
+          )}
         </div>
       )}
       {!aprovada && prontidao.avisos.length > 0 && (
@@ -183,7 +242,7 @@ export function AprovacaoAnalise({ api, projeto, analise, versao, aoAprovar }: P
             disabled={!prontidao.podeAprovar || faltaArea || ocupado}
             onClick={aprovar}
           >
-            Aprovar análise
+            {podeGravar ? "Aprovar e gravar na base" : "Aprovar…"}
           </button>
         </>
       )}

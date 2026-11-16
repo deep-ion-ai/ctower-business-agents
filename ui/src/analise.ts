@@ -48,10 +48,31 @@ export type Afirmacao = {
   registrada_ms: number;
 } & EstadoAfirmacao;
 
+/**
+ * Item de que o analista fez a pergunta ("Virar pergunta", `cba_core::analise::OrigemPergunta`):
+ * um achado do ciclo de vida (#119) ou a relação inferida do modelo de dados (#120).
+ */
+export type OrigemPergunta =
+  | { tipo: "achado-diagrama"; diagrama: number; achado: string }
+  | { tipo: "aresta"; diagrama: number; de: string; para: string };
+
+/** Pessoa do catálogo (#133) a quem a pergunta se dirige. */
+export interface DestinoPergunta {
+  slug: string;
+  nome: string;
+  papel?: string | null;
+}
+
 export type Pergunta = {
   numero: number;
   texto: string;
   afirmacao?: number | null;
+  /** Para quem perguntar, vindo do catálogo de pessoas; sem ele o cartão mostra só o texto. */
+  para?: DestinoPergunta | null;
+  /** Item que virou esta pergunta (#119, #120). */
+  origem?: OrigemPergunta | null;
+  /** Evidências do item de origem. */
+  evidencias?: Evidencia[];
   /** A resposta já foi enviada ao agente ("Enviar respostas"). */
   resposta_enviada?: boolean;
   registrada_ms: number;
@@ -119,6 +140,89 @@ export interface Analise {
   cenarios?: Cenario[];
   /** Parecer de revisão (fluxo `revisar`, `cba_core::parecer::Parecer`). */
   parecer?: Parecer | null;
+  /** Diagramas registrados pelo agente (#118). */
+  diagramas?: Diagrama[];
+}
+
+/** Papel de um nó do diagrama (`cba_core::diagramas::PapelNo`). */
+export type PapelNo = "etapa" | "inicio" | "fim" | "decisao";
+
+/** Nó de um diagrama (`cba_core::diagramas::No`). */
+export interface NoDiagrama {
+  chave: string;
+  rotulo: string;
+  papel?: PapelNo;
+  descricao?: string | null;
+  evidencias?: Evidencia[];
+  /** Ator que executa o passo (tipo `fluxo`, #120). */
+  raia?: string | null;
+  /** Entidade de negócio (tipo `dados`, #120). */
+  entidade?: EntidadeDiagrama | null;
+}
+
+/** Entidade do modelo de dados conceitual (`cba_core::diagramas::Entidade`). */
+export interface EntidadeDiagrama {
+  tabela: string;
+  atributos?: { nome: string; coluna: string }[];
+  /** Termo do glossário que vive na tabela, ligado pelo app. */
+  termo?: string | null;
+}
+
+/** Multiplicidade de uma ponta da relação (`cba_core::diagramas::Multiplicidade`). */
+export type Multiplicidade = "zero_ou_um" | "um" | "zero_ou_muitos" | "um_ou_muitos";
+
+/** Relação entre entidades (`cba_core::diagramas::Relacao`). */
+export interface RelacaoDiagrama {
+  de: Multiplicidade;
+  para: Multiplicidade;
+  origem: "chave_estrangeira" | "join";
+}
+
+/** Aresta de um diagrama (`cba_core::diagramas::Aresta`). */
+export interface ArestaDiagrama {
+  de: string;
+  para: string;
+  rotulo?: string | null;
+  descricao?: string | null;
+  /** Guarda da transição (ciclo de vida, #119). */
+  condicao?: string | null;
+  /** Efeitos colaterais da transição (#119). */
+  efeitos?: string | null;
+  confianca: Confianca;
+  evidencias?: Evidencia[];
+  /** Relação entre entidades (tipo `dados`, #120). */
+  relacao?: RelacaoDiagrama | null;
+}
+
+/** Diagrama `D-<numero>` (`cba_core::diagramas::Diagrama`). */
+export interface Diagrama {
+  numero: number;
+  tipo: "estados" | "fluxo" | "dados";
+  titulo: string;
+  secao: string;
+  nos: NoDiagrama[];
+  arestas?: ArestaDiagrama[];
+  registrada_ms: number;
+}
+
+/** Código Mermaid de um diagrama, gerado pelo app como na montagem do documento. */
+export interface DiagramaVisto {
+  numero: number;
+  mermaid: string;
+  /** Achados do ciclo de vida calculados pelo app (#119). */
+  achados?: AchadoDiagrama[];
+}
+
+/** Achado do ciclo de vida (`cba_core::diagramas::AchadoDiagrama`). */
+export interface AchadoDiagrama {
+  /** `inalcancavel:<chave>`, `sem-saida:<chave>` ou `sem-condicao:<n>`. */
+  id: string;
+  tipo: "inalcancavel" | "sem_saida" | "sem_condicao";
+  estado?: string | null;
+  /** Número da aresta, a partir de 1. */
+  aresta?: number | null;
+  texto: string;
+  evidencias?: Evidencia[];
 }
 
 /** Característica da ISO/IEC/IEEE 29148 violada (`cba_core::qualidade`). */
@@ -279,6 +383,8 @@ export interface VistaAnalise {
   sessao: SessaoVista | null;
   /** Pedido para uma conversa nova continuar a análise (`retomar_analise`). */
   promptRetomada: string;
+  /** Mermaid de cada diagrama (#118); ausente em respostas antigas. */
+  diagramas?: DiagramaVisto[];
 }
 
 export interface AnaliseResumo {
@@ -303,6 +409,12 @@ export interface Trecho {
   primeira: number;
   linhas: string[];
   total: number;
+}
+
+/** Onde as linhas de uma evidência estão na forja do repositório. */
+export interface LinkForja {
+  url: string;
+  forja: "github" | "gitlab";
 }
 
 export interface Situacao {
@@ -446,6 +558,17 @@ export interface ApiAnalise extends ApiAmbiente {
   vigiar(projeto: string, aoAviso: (a: AvisoAnalise) => void): Promise<() => void>;
   /** Prompts prontos da análise; lista vazia se o comando não existir (antes da #32). */
   promptsProntos(projeto: string, analise: string): Promise<PromptPronto[]>;
+  /**
+   * Link das linhas citadas na forja do repositório que contém o arquivo (#185);
+   * `null` sem repositório cadastrado ou se o comando falhar.
+   */
+  linkForja(
+    projeto: string,
+    arquivo: string,
+    inicio: number,
+    fim: number,
+    commit?: string | null,
+  ): Promise<LinkForja | null>;
 }
 
 export const apiAnaliseTauri: ApiAnalise = {
@@ -477,6 +600,20 @@ export const apiAnaliseTauri: ApiAnalise = {
     } catch {
       // O comando chega com a #32; sem ele (ou com falha), a tela fica sem os botões.
       return [];
+    }
+  },
+  async linkForja(projeto, arquivo, inicio, fim, commit) {
+    try {
+      return await invoke<LinkForja | null>("link_forja_evidencia_projeto", {
+        projeto,
+        arquivo,
+        inicio,
+        fim,
+        commit: commit ?? null,
+      });
+    } catch {
+      // Sem repositório de código cadastrado, a evidência fica sem o link.
+      return null;
     }
   },
 };

@@ -18,6 +18,11 @@
 //!
 //! Seções e campos de cada tipo: [`MODELOS`].
 //!
+//! Diagramas (#118): o agente registra nós e arestas com evidências e a montagem
+//! gera o bloco ` ```mermaid ` ([`mermaid`]), com legenda e tabela de elementos.
+//! Na exportação para Word, o bloco vira a figura renderizada pelo app
+//! ([`Figuras`]) ou, sem ela, um aviso e o código.
+//!
 //! A ata de reunião segue o mesmo caminho a partir de um estado próprio
 //! ([`EstadoAta`], em `R-NNNN.estado.json`), convertido num [`Conteudo`] e
 //! montado pelo template `ata` ([`Templates::gravar_ata`]).
@@ -26,7 +31,9 @@
 
 mod ata;
 mod conteudo;
+mod diagrama;
 mod exportacao;
+mod figura;
 mod modelo;
 mod montagem;
 mod template;
@@ -41,14 +48,21 @@ pub use ata::{
 pub use conteudo::{
     Afirmacao, Citacao, Confianca, Conteudo, Pergunta, ReferenciaSugestao, Texto, bloco_de_codigo,
 };
+pub use diagrama::{
+    ArestaDiagrama, AtributoDiagrama, Diagrama, EntidadeDiagrama, LINGUAGEM_MERMAID,
+    Multiplicidade, NoDiagrama, OrigemRelacao, PapelNo, RelacaoDiagrama, TipoDiagrama, mermaid,
+};
 pub use exportacao::{
     CodigoEmPasta, ErroExportacao, FonteDeTrechos, Formato, LinksDeEvidencia, OpcoesExportacao,
     exportar, exportar_com_links, exportar_markdown, exportar_markdown_com_links, exportar_word,
     gravar_exportacao, gravar_exportacao_com_links,
 };
+pub use figura::{
+    ErroFigura, Figura, Figuras, MAXIMO_DE_FIGURAS, TAMANHO_MAXIMO_DA_FIGURA, blocos_mermaid,
+};
 pub use modelo::{
-    CENARIOS, HISTORIAS, MODELOS, Modelo, Montavel, RASTREABILIDADE, Secao, TABELAS_DECISAO,
-    VALORES_LIMITE, modelo,
+    CENARIOS, FLUXO_PROCESSO, HISTORIAS, MODELO_DADOS, MODELOS, Modelo, Montavel, RASTREABILIDADE,
+    Secao, TABELAS_DECISAO, VALORES_LIMITE, modelo,
 };
 pub use montagem::{ErroMontagem, Montado};
 pub use template::{Aviso, Origem, Template, Templates, arquivo_do_template};

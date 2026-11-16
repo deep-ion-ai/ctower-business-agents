@@ -11,6 +11,7 @@
 //! | `` `código` ``                | estilo de caractere `CodigoEmLinha`            |
 //! | lista com marcador / numerada | `numbering.xml` (cada lista numerada reinicia) |
 //! | bloco de código               | estilo `Codigo`, linhas com `w:br`             |
+//! | bloco ` ```mermaid `          | figura PNG do app ([`Figuras`]) ou aviso + código |
 //! | citação `>`                   | estilo `Citacao`                               |
 //! | tabela                        | `w:tbl` com bordas e linha de título repetida  |
 //! | `[^n]` (referência)           | nota de rodapé do Word, uma por ocorrência     |
@@ -22,7 +23,12 @@
 //! à lista de evidências e ao apêndice, o texto de cada nota começa com
 //! `Evidência [n]:`.
 //!
-//! A saída é determinística: o mesmo Markdown dá sempre os mesmos bytes.
+//! O bloco Mermaid sem figura (inválido ou não renderizado) sai como um parágrafo
+//! de aviso, no estilo `Aviso`, seguido do código: o documento nunca quebra por
+//! causa de um diagrama.
+//!
+//! A saída é determinística: o mesmo Markdown e as mesmas figuras dão sempre os
+//! mesmos bytes.
 
 use std::collections::HashMap;
 use std::io::{Cursor, Write};
@@ -32,11 +38,27 @@ use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipWriter};
 
 use crate::exportacao::opcoes_markdown;
+use crate::figura::{Figura, Figuras, e_mermaid};
 
 const NS_W: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 const NS_R: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 const NS_REL: &str = "http://schemas.openxmlformats.org/package/2006/relationships";
 const REL_DOC: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+const NS_WP: &str = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing";
+const NS_A: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
+const NS_PIC: &str = "http://schemas.openxmlformats.org/drawingml/2006/picture";
+
+/// EMU (unidade do DrawingML) por pixel a 96 pontos por polegada.
+const EMU_POR_PIXEL: u64 = 9525;
+/// EMU por twip.
+const EMU_POR_TWIP: u64 = 635;
+/// Altura máxima de uma figura: pouco mais da metade da página útil.
+const ALTURA_MAXIMA_EMU: u64 = 8_000_000;
+/// Primeiro `rId` das imagens (os anteriores são das partes fixas).
+const RID_IMAGENS: usize = 100;
+
+/// Texto do aviso no lugar de um diagrama sem figura.
+pub(crate) const AVISO_DIAGRAMA: &str = "Diagrama não renderizado.";
 
 /// Recuo de cada nível de lista, em twips.
 const RECUO: u32 = 360;
@@ -44,8 +66,8 @@ const RECUO: u32 = 360;
 const LARGURA_UTIL: u32 = 8504;
 
 /// Gera o `.docx` do Markdown.
-pub(crate) fn docx(markdown: &str) -> zip::result::ZipResult<Vec<u8>> {
-    let mut escritor = Escritor::novo(markdown);
+pub(crate) fn docx(markdown: &str, figuras: &Figuras) -> zip::result::ZipResult<Vec<u8>> {
+    let mut escritor = Escritor::novo(markdown, figuras);
     for evento in Parser::new_ext(markdown, opcoes_markdown()) {
         escritor.evento(evento);
     }
@@ -236,8 +258,13 @@ struct Paragrafo {
     em_linha: EmLinha,
 }
 
-struct Escritor {
+struct Escritor<'f> {
     corpo: String,
+    figuras: &'f Figuras,
+    /// O bloco de código aberto é Mermaid.
+    codigo_mermaid: bool,
+    /// PNGs das figuras inseridas, na ordem (`word/media/figuraN.png`).
+    imagens: Vec<Vec<u8>>,
     paragrafo: Option<Paragrafo>,
     /// Formatação herdada pelos parágrafos novos (negrito do cabeçalho da tabela).
     negrito_herdado: bool,
@@ -261,10 +288,13 @@ struct Escritor {
     ultimo_bloco_tabela: bool,
 }
 
-impl Escritor {
-    fn novo(markdown: &str) -> Self {
+impl<'f> Escritor<'f> {
+    fn novo(markdown: &str, figuras: &'f Figuras) -> Self {
         Self {
             corpo: String::new(),
+            figuras,
+            codigo_mermaid: false,
+            imagens: Vec::new(),
             paragrafo: None,
             negrito_herdado: false,
             listas: Vec::new(),
@@ -290,6 +320,16 @@ impl Escritor {
                 Event::End(TagEnd::CodeBlock) => {
                     let codigo = self.codigo.take().unwrap_or_default();
                     let codigo = codigo.strip_suffix('\n').unwrap_or(&codigo);
+                    if std::mem::take(&mut self.codigo_mermaid) {
+                        let figuras: &'f Figuras = self.figuras;
+                        if let Some(figura) = figuras.figura(codigo) {
+                            self.figura(figura);
+                            return;
+                        }
+                        self.bloco(&format!(
+                            "<w:p><w:pPr><w:pStyle w:val=\"Aviso\"/></w:pPr><w:r><w:rPr><w:b/></w:rPr><w:t xml:space=\"preserve\">{AVISO_DIAGRAMA} </w:t></w:r><w:r><w:t xml:space=\"preserve\">O código Mermaid não pôde ser desenhado e foi mantido como texto; o restante do documento não foi afetado.</w:t></w:r></w:p>"
+                        ));
+                    }
                     self.bloco(&format!(
                         "<w:p><w:pPr><w:pStyle w:val=\"Codigo\"/></w:pPr><w:r>{}</w:r></w:p>",
                         conteudo_do_run(codigo)
@@ -318,8 +358,9 @@ impl Escritor {
                 self.titulo_aberto = false;
                 self.fechar_paragrafo();
             }
-            Event::Start(Tag::CodeBlock(_)) => {
+            Event::Start(Tag::CodeBlock(tipo)) => {
                 self.fechar_paragrafo();
+                self.codigo_mermaid = e_mermaid(&tipo);
                 self.codigo = Some(String::new());
             }
             Event::Start(Tag::BlockQuote(_)) => {
@@ -547,6 +588,29 @@ impl Escritor {
         }
     }
 
+    /// Parágrafo centralizado com a imagem da figura, no tamanho dela, reduzida
+    /// para caber na largura útil e na altura máxima.
+    fn figura(&mut self, figura: &Figura) {
+        self.imagens.push(figura.png.clone());
+        let n = self.imagens.len();
+        let mut cx = u64::from(figura.largura) * EMU_POR_PIXEL;
+        let mut cy = u64::from(figura.altura) * EMU_POR_PIXEL;
+        let largura_maxima = u64::from(LARGURA_UTIL) * EMU_POR_TWIP;
+        if cx > largura_maxima {
+            cy = cy * largura_maxima / cx;
+            cx = largura_maxima;
+        }
+        if cy > ALTURA_MAXIMA_EMU {
+            cx = cx * ALTURA_MAXIMA_EMU / cy;
+            cy = ALTURA_MAXIMA_EMU;
+        }
+        let (cx, cy) = (cx.max(1), cy.max(1));
+        let rid = RID_IMAGENS + n;
+        self.bloco(&format!(
+            "<w:p><w:pPr><w:pStyle w:val=\"Figura\"/></w:pPr><w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\"><wp:extent cx=\"{cx}\" cy=\"{cy}\"/><wp:docPr id=\"{n}\" name=\"Figura {n}\"/><wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a=\"{NS_A}\" noChangeAspect=\"1\"/></wp:cNvGraphicFramePr><a:graphic xmlns:a=\"{NS_A}\"><a:graphicData uri=\"{NS_PIC}\"><pic:pic xmlns:pic=\"{NS_PIC}\"><pic:nvPicPr><pic:cNvPr id=\"{n}\" name=\"figura{n}.png\"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed=\"rId{rid}\"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"{cx}\" cy=\"{cy}\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>"
+        ));
+    }
+
     /// Cria a nota de rodapé da referência e devolve o run da referência.
     fn nota(&mut self, rotulo: &str) -> String {
         let id = self.notas.len() + 1;
@@ -578,7 +642,7 @@ impl Escritor {
             self.corpo.push_str("<w:p/>");
         }
         let documento = format!(
-            "{XML}<w:document xmlns:w=\"{NS_W}\" xmlns:r=\"{NS_R}\"><w:body>{}<w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1417\" w:right=\"1701\" w:bottom=\"1417\" w:left=\"1701\" w:header=\"708\" w:footer=\"708\" w:gutter=\"0\"/></w:sectPr></w:body></w:document>",
+            "{XML}<w:document xmlns:w=\"{NS_W}\" xmlns:r=\"{NS_R}\" xmlns:wp=\"{NS_WP}\"><w:body>{}<w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1417\" w:right=\"1701\" w:bottom=\"1417\" w:left=\"1701\" w:header=\"708\" w:footer=\"708\" w:gutter=\"0\"/></w:sectPr></w:body></w:document>",
             self.corpo
         );
         let notas = format!(
@@ -595,7 +659,10 @@ impl Escritor {
             ("_rels/.rels", &rels_pacote()),
             ("docProps/core.xml", &propriedades),
             ("word/document.xml", &documento),
-            ("word/_rels/document.xml.rels", &rels_documento()),
+            (
+                "word/_rels/document.xml.rels",
+                &rels_documento(self.imagens.len()),
+            ),
             ("word/styles.xml", &estilos()),
             ("word/numbering.xml", &numeracao(&self.numeracoes)),
             ("word/footnotes.xml", &notas),
@@ -608,6 +675,12 @@ impl Escritor {
         for (nome, xml) in partes {
             zip.start_file(nome, opcoes)?;
             zip.write_all(xml.as_bytes())?;
+        }
+        // PNG já é comprimido.
+        let guardado = opcoes.compression_method(CompressionMethod::Stored);
+        for (i, png) in self.imagens.iter().enumerate() {
+            zip.start_file(format!("word/media/figura{}.png", i + 1), guardado)?;
+            zip.write_all(png)?;
         }
         Ok(zip.finish()?.into_inner())
     }
@@ -672,6 +745,7 @@ const TIPOS: &str = concat!(
     "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">",
     "<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>",
     "<Default Extension=\"xml\" ContentType=\"application/xml\"/>",
+    "<Default Extension=\"png\" ContentType=\"image/png\"/>",
     "<Override PartName=\"/word/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml\"/>",
     "<Override PartName=\"/word/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml\"/>",
     "<Override PartName=\"/word/numbering.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml\"/>",
@@ -687,12 +761,20 @@ fn rels_pacote() -> String {
     )
 }
 
-fn rels_documento() -> String {
+fn rels_documento(imagens: usize) -> String {
     let rel = |id: u32, tipo: &str| {
         format!("<Relationship Id=\"rId{id}\" Type=\"{REL_DOC}/{tipo}\" Target=\"{tipo}.xml\"/>")
     };
+    let figuras: String = (1..=imagens)
+        .map(|n| {
+            format!(
+                "<Relationship Id=\"rId{}\" Type=\"{REL_DOC}/image\" Target=\"media/figura{n}.png\"/>",
+                RID_IMAGENS + n
+            )
+        })
+        .collect();
     format!(
-        "{XML}<Relationships xmlns=\"{NS_REL}\">{}{}{}{}</Relationships>",
+        "{XML}<Relationships xmlns=\"{NS_REL}\">{}{}{}{}{figuras}</Relationships>",
         rel(1, "styles"),
         rel(2, "numbering"),
         rel(3, "footnotes"),
@@ -722,6 +804,8 @@ fn estilos() -> String {
     s.push_str("<w:style w:type=\"paragraph\" w:styleId=\"ListParagraph\"><w:name w:val=\"List Paragraph\"/><w:basedOn w:val=\"Normal\"/><w:qFormat/><w:pPr><w:spacing w:after=\"60\"/><w:ind w:left=\"720\"/></w:pPr></w:style>");
     s.push_str("<w:style w:type=\"paragraph\" w:styleId=\"Codigo\"><w:name w:val=\"Código\"/><w:basedOn w:val=\"Normal\"/><w:pPr><w:keepLines/><w:pBdr><w:top w:val=\"single\" w:sz=\"4\" w:space=\"4\" w:color=\"D0D0D0\"/><w:left w:val=\"single\" w:sz=\"4\" w:space=\"4\" w:color=\"D0D0D0\"/><w:bottom w:val=\"single\" w:sz=\"4\" w:space=\"4\" w:color=\"D0D0D0\"/><w:right w:val=\"single\" w:sz=\"4\" w:space=\"4\" w:color=\"D0D0D0\"/></w:pBdr><w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"F4F4F4\"/><w:spacing w:before=\"60\" w:after=\"180\" w:line=\"240\" w:lineRule=\"auto\"/><w:ind w:left=\"113\" w:right=\"113\"/></w:pPr><w:rPr><w:rFonts w:ascii=\"Consolas\" w:hAnsi=\"Consolas\" w:cs=\"Consolas\"/><w:noProof/><w:sz w:val=\"18\"/><w:szCs w:val=\"18\"/></w:rPr></w:style>");
     s.push_str("<w:style w:type=\"character\" w:styleId=\"CodigoEmLinha\"><w:name w:val=\"Código em linha\"/><w:rPr><w:rFonts w:ascii=\"Consolas\" w:hAnsi=\"Consolas\" w:cs=\"Consolas\"/><w:noProof/><w:sz w:val=\"20\"/><w:szCs w:val=\"20\"/><w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"F4F4F4\"/></w:rPr></w:style>");
+    s.push_str("<w:style w:type=\"paragraph\" w:styleId=\"Figura\"><w:name w:val=\"Figura\"/><w:basedOn w:val=\"Normal\"/><w:pPr><w:keepNext/><w:jc w:val=\"center\"/><w:spacing w:before=\"120\" w:after=\"60\"/></w:pPr></w:style>");
+    s.push_str("<w:style w:type=\"paragraph\" w:styleId=\"Aviso\"><w:name w:val=\"Aviso\"/><w:basedOn w:val=\"Normal\"/><w:pPr><w:keepNext/><w:pBdr><w:left w:val=\"single\" w:sz=\"18\" w:space=\"6\" w:color=\"C77C02\"/></w:pBdr><w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"FFF4E0\"/><w:spacing w:before=\"120\" w:after=\"60\"/><w:ind w:left=\"113\"/></w:pPr></w:style>");
     s.push_str("<w:style w:type=\"paragraph\" w:styleId=\"Citacao\"><w:name w:val=\"Quote\"/><w:basedOn w:val=\"Normal\"/><w:qFormat/><w:pPr><w:ind w:left=\"720\" w:right=\"720\"/></w:pPr><w:rPr><w:i/><w:color w:val=\"555555\"/></w:rPr></w:style>");
     s.push_str("<w:style w:type=\"paragraph\" w:styleId=\"Evidencia\"><w:name w:val=\"Evidência\"/><w:basedOn w:val=\"Normal\"/><w:pPr><w:spacing w:after=\"60\"/><w:ind w:left=\"567\" w:hanging=\"567\"/></w:pPr><w:rPr><w:sz w:val=\"20\"/><w:szCs w:val=\"20\"/></w:rPr></w:style>");
     s.push_str("<w:style w:type=\"paragraph\" w:styleId=\"FootnoteText\"><w:name w:val=\"footnote text\"/><w:basedOn w:val=\"Normal\"/><w:pPr><w:spacing w:after=\"0\" w:line=\"240\" w:lineRule=\"auto\"/></w:pPr><w:rPr><w:sz w:val=\"18\"/><w:szCs w:val=\"18\"/></w:rPr></w:style>");
