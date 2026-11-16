@@ -64,6 +64,8 @@ pub enum Mudanca {
     /// Parecer de revisão alterado (achado, INVEST ou veredito registrado,
     /// achado descartado pelo analista).
     Parecer,
+    /// Diagrama registrado ou substituído.
+    Diagrama,
 }
 
 /// Uma linha do diário.

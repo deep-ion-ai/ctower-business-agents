@@ -502,7 +502,8 @@ describe("Revisão, aprovação e exportação", () => {
       expect(c.revisao.exportar).toHaveBeenCalledWith("faturamento-exemplo", "A-0001", {
         destino: "/home/analista/A-0001.docx",
         formato: "word",
-        opcoes: { evidencias: true, perguntas: true, trechos: true },
+        opcoes: { evidencias: true, perguntas: true, trechos: true, codigo_diagramas: true },
+        figuras: [],
       }),
     );
     expect(c.revisao.escolherDestino).toHaveBeenCalledWith("A-0001", "word");
@@ -517,7 +518,7 @@ describe("Revisão, aprovação e exportação", () => {
       expect(c.revisao.exportar).toHaveBeenLastCalledWith("faturamento-exemplo", "A-0001", {
         destino: "/home/analista/A-0001.md",
         formato: "markdown",
-        opcoes: { evidencias: true, perguntas: false, trechos: true },
+        opcoes: { evidencias: true, perguntas: false, trechos: true, codigo_diagramas: true },
       }),
     );
 

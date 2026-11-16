@@ -27,6 +27,7 @@ use cba_kb::{CaminhoRelativo, Id, IdCenario, IdHistoria, IdReuniao};
 use serde::{Deserialize, Serialize};
 
 use crate::cenarios::{Cenario, TabelaDecisao};
+use crate::diagramas::Diagrama;
 use crate::historias::Historia;
 use crate::parecer::{
     Achado, AvaliacaoInvest, EstadoAchado, NovoAchado, Parecer, Veredito, VereditoRegistrado,
@@ -425,6 +426,10 @@ pub struct Analise {
     /// Cenários de teste (fluxo `cenarios`, [`crate::cenarios`]).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub cenarios: Vec<Cenario>,
+    /// Diagramas registrados ([`crate::diagramas`]), que o app transforma em
+    /// Mermaid na montagem do documento.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub diagramas: Vec<Diagrama>,
 }
 
 /// Operação recusada pelo modelo. As mensagens se dirigem a quem chamou (o agente
@@ -535,6 +540,8 @@ pub enum ErroModelo {
          registrada; {0}"
     )]
     ColunaInvalida(String),
+    #[error("diagrama recusado: {0}")]
+    DiagramaInvalido(String),
 }
 
 fn exigir(campo: &'static str, valor: &str) -> Result<(), ErroModelo> {
@@ -583,6 +590,7 @@ impl Analise {
             historias: Vec::new(),
             tabelas: Vec::new(),
             cenarios: Vec::new(),
+            diagramas: Vec::new(),
         }
     }
 

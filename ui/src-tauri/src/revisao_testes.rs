@@ -286,6 +286,7 @@ fn exporta_markdown_e_word_fora_das_pastas_do_projeto() {
         destino,
         formato,
         opcoes: OpcoesExportacao::default(),
+        figuras: Vec::new(),
     };
     // Sem a extensão, o app acrescenta a do formato.
     let md = exportar(
@@ -329,7 +330,9 @@ fn exporta_markdown_e_word_fora_das_pastas_do_projeto() {
                 evidencias: false,
                 perguntas: false,
                 trechos: false,
+                ..OpcoesExportacao::default()
             },
+            figuras: Vec::new(),
         },
     )
     .unwrap();
@@ -375,4 +378,71 @@ fn exporta_markdown_e_word_fora_das_pastas_do_projeto() {
     .unwrap();
     assert_eq!(da_tela.formato, Formato::Word);
     assert!(!da_tela.opcoes.perguntas);
+}
+
+/// PNG mínimo (assinatura e IHDR).
+fn png() -> Vec<u8> {
+    let mut p = b"\x89PNG\r\n\x1a\n".to_vec();
+    p.extend_from_slice(&13u32.to_be_bytes());
+    p.extend_from_slice(b"IHDR");
+    p.extend_from_slice(&320u32.to_be_bytes());
+    p.extend_from_slice(&120u32.to_be_bytes());
+    p.extend_from_slice(&[8, 6, 0, 0, 0, 0, 0, 0, 0]);
+    p
+}
+
+#[test]
+fn diagrama_na_vista_e_figura_na_exportacao_word() {
+    let c = cenario();
+    let id = analise_concluida(&c);
+    c.chamar(
+        "registrar_diagrama",
+        json!({
+            "analise": id,
+            "secao": "resposta",
+            "tipo": "fluxo",
+            "titulo": "Cobrança da multa",
+            "nos": [
+                {"chave": "atraso", "rotulo": "Pagamento em atraso", "papel": "inicio"},
+                {"chave": "carencia", "rotulo": "Dentro da carência?", "papel": "decisao"},
+                {"chave": "multa", "rotulo": "Cobra multa", "papel": "fim"}
+            ],
+            "arestas": [
+                {"de": "atraso", "para": "carencia", "confianca": "inferido"},
+                {"de": "carencia", "para": "multa", "rotulo": "não", "confianca": "inferido"}
+            ]
+        }),
+    );
+    // A vista traz o Mermaid gerado como na montagem.
+    let vista = analise::carregar_analise(&c.dados, PROJETO, &id).unwrap();
+    assert_eq!(vista.diagramas.len(), 1);
+    assert_eq!(vista.diagramas[0].numero, 1);
+    assert!(vista.diagramas[0].mermaid.starts_with("flowchart TD\n"));
+    assert!(documento(&vista).contains(vista.diagramas[0].mermaid.trim_end()));
+
+    let blocos = diagramas_exportacao(&c.dados, PROJETO, &id).unwrap();
+    assert_eq!(blocos, [vista.diagramas[0].mermaid.trim_end()]);
+
+    let pasta = c.dir.path().join("exportados");
+    fs::create_dir_all(&pasta).unwrap();
+    let pedido = |png: Vec<u8>| PedidoExportacao {
+        destino: pasta.join("multa.docx"),
+        formato: Formato::Word,
+        opcoes: OpcoesExportacao::default(),
+        figuras: vec![FiguraPedida {
+            codigo: blocos[0].clone(),
+            png,
+            largura: 320,
+            altura: 120,
+        }],
+    };
+    let docx = exportar(&c.dados, PROJETO, &id, &pedido(png())).unwrap();
+    let bytes = fs::read(&docx).unwrap();
+    // O nome de cada parte aparece sem compressão no zip.
+    let nome = b"word/media/figura1.png";
+    assert!(bytes.windows(nome.len()).any(|w| w == nome));
+
+    // O que não é PNG é recusado.
+    let erro = exportar(&c.dados, PROJETO, &id, &pedido(b"<svg/>".to_vec())).unwrap_err();
+    assert!(erro.contains("PNG"), "{erro}");
 }

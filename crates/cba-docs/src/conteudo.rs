@@ -1,13 +1,15 @@
 //! Entrada da montagem: os registros estruturados de um documento.
 //!
 //! O agente não escreve o documento; ele registra afirmações, perguntas e
-//! sugestões pelas ferramentas MCP (spec, seções 6.1 e 7.3). Quem monta o
+//! sugestões (e diagramas) pelas ferramentas MCP (spec, seções 6.1 e 7.3). Quem monta o
 //! documento converte esses registros num [`Conteudo`] e chama
 //! [`crate::Templates::montar`]. O texto do agente fica só dentro dos campos.
 
 use cba_kb::frontmatter::{Evidencia, FrontmatterRegra, Linhas};
 use cba_kb::{CaminhoRelativo, Id};
 use serde::{Deserialize, Serialize};
+
+use crate::diagrama::Diagrama;
 
 /// Tudo o que entra num documento: o frontmatter tipado, o caminho do documento e
 /// os registros, cada um ligado a uma seção do template pelo nome do marcador
@@ -37,6 +39,11 @@ pub struct Conteudo<F> {
     /// link para o documento de cada uma.
     #[serde(default)]
     pub sugestoes: Vec<ReferenciaSugestao>,
+    /// Diagramas registrados, cada um na sua seção (depois dos textos e antes
+    /// das afirmações): o código Mermaid gerado, a legenda numerada e a tabela
+    /// de elementos com as evidências ([`crate::Diagrama`]).
+    #[serde(default)]
+    pub diagramas: Vec<Diagrama>,
 }
 
 impl<F> Conteudo<F> {
@@ -49,6 +56,7 @@ impl<F> Conteudo<F> {
             afirmacoes: Vec::new(),
             perguntas: Vec::new(),
             sugestoes: Vec::new(),
+            diagramas: Vec::new(),
         }
     }
 }

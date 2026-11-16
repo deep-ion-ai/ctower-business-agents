@@ -93,12 +93,27 @@ export interface OpcoesExportacao {
   perguntas: boolean;
   /** Apêndice com os trechos de código citados. */
   trechos: boolean;
+  /** Word: apêndice com o código Mermaid dos diagramas desenhados (#118). */
+  codigo_diagramas: boolean;
+}
+
+/** Figura de um diagrama renderizada pela tela, para o Word (#118). */
+export interface FiguraPedida {
+  /** Código do bloco Mermaid, como {@link ApiRevisao.diagramasExportacao} devolveu. */
+  codigo: string;
+  /** Bytes do PNG. */
+  png: number[];
+  /** Tamanho de exibição, em pixels CSS. */
+  largura: number;
+  altura: number;
 }
 
 export interface PedidoExportacao {
   destino: string;
   formato: FormatoExportacao;
   opcoes: OpcoesExportacao;
+  /** Word: as figuras dos diagramas; bloco sem figura sai como aviso e código. */
+  figuras?: FiguraPedida[];
 }
 
 export const EXTENSAO: Record<FormatoExportacao, string> = {
@@ -122,6 +137,11 @@ export interface ApiRevisao {
   escolherDestino(nome: string, formato: FormatoExportacao): Promise<string | null>;
   /** Exporta e devolve o caminho gravado. */
   exportar(projeto: string, analise: string, pedido: PedidoExportacao): Promise<string>;
+  /**
+   * Código dos blocos Mermaid do documento que a exportação vai ler (#118), para a tela
+   * desenhar as figuras do Word. Sem ela, o Word sai com aviso e código no lugar.
+   */
+  diagramasExportacao?(projeto: string, analise: string): Promise<string[]>;
 }
 
 export const apiRevisaoTauri: ApiRevisao = {
@@ -138,4 +158,6 @@ export const apiRevisaoTauri: ApiRevisao = {
     }),
   exportar: (projeto, analise, pedido) =>
     invoke("exportar_analise_projeto", { projeto, analise, pedido }),
+  diagramasExportacao: (projeto, analise) =>
+    invoke("diagramas_exportacao_projeto", { projeto, analise }),
 };

@@ -7,8 +7,11 @@
 //!
 //! Regras:
 //!
-//! - Seções saem na ordem do template. Dentro de cada seção, primeiro os textos e
-//!   depois as afirmações, na ordem de registro.
+//! - Seções saem na ordem do template. Dentro de cada seção, primeiro os textos,
+//!   depois os diagramas e por fim as afirmações, na ordem de registro.
+//! - Cada diagrama sai como bloco ` ```mermaid ` gerado dos elementos registrados,
+//!   com a legenda "Figura n" (numerada na ordem do documento) e a tabela de
+//!   elementos, cujas evidências também viram notas de rodapé.
 //! - Cada afirmação traz o selo de confiança e notas de rodapé `[^n]` com
 //!   `arquivo:linhas`. A numeração segue a ordem em que as notas aparecem no
 //!   documento; o mesmo trecho citado duas vezes usa a mesma nota.
@@ -108,6 +111,7 @@ impl Template {
             .textos
             .iter()
             .map(|t| t.secao.as_str())
+            .chain(conteudo.diagramas.iter().map(|d| d.secao.as_str()))
             .chain(conteudo.afirmacoes.iter().map(|a| a.secao.as_str()))
         {
             if !com_registros.contains(&secao) {
@@ -208,10 +212,12 @@ impl Template {
     }
 }
 
-/// Notas de rodapé do documento, na ordem em que aparecem.
+/// Notas de rodapé do documento, na ordem em que aparecem, e o número da última
+/// figura (diagrama).
 #[derive(Default)]
 struct Notas {
     lista: Vec<Citacao>,
+    figuras: u32,
 }
 
 impl Notas {
@@ -267,6 +273,15 @@ fn montar_secao<F>(marcador: &str, conteudo: &Conteudo<F>, notas: &mut Notas) ->
     for t in conteudo.textos.iter().filter(|t| t.secao == marcador) {
         let refs = notas.referencias(&t.citacoes);
         blocos.push(com_referencias(t.texto.trim(), &refs));
+    }
+    for d in conteudo.diagramas.iter().filter(|d| d.secao == marcador) {
+        notas.figuras += 1;
+        let figura = notas.figuras;
+        blocos.push(crate::diagrama::markdown(
+            d,
+            figura,
+            &mut |c: &[Citacao]| notas.referencias(c),
+        ));
     }
     let afirmacoes: Vec<String> = conteudo
         .afirmacoes

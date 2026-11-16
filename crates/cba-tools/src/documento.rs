@@ -14,7 +14,9 @@
 //! - na análise de impacto, a abrangência estimada no frontmatter, tirada da
 //!   afirmação mais recente da seção `abrangencia` ([`abrangencia_do_texto`]);
 //! - as perguntas abertas;
-//! - as sugestões que têm documento e não foram recusadas, com link para ele.
+//! - as sugestões que têm documento e não foram recusadas, com link para ele;
+//! - os diagramas registrados ([`diagrama`]), que a montagem transforma em
+//!   Mermaid, com legenda e tabela de elementos.
 //!
 //! Os termos propostos ficam no estado e viram glossário na aprovação (#11).
 //!
@@ -112,6 +114,47 @@ pub fn citacao(e: &Evidencia) -> Citacao {
     }
 }
 
+/// Diagrama do estado como a montagem recebe.
+pub fn diagrama(d: &cba_core::diagramas::Diagrama) -> cba_docs::Diagrama {
+    use cba_core::diagramas::{PapelNo, TipoDiagrama};
+    cba_docs::Diagrama {
+        secao: d.secao.clone(),
+        tipo: match d.tipo {
+            TipoDiagrama::Estados => cba_docs::TipoDiagrama::Estados,
+            TipoDiagrama::Fluxo => cba_docs::TipoDiagrama::Fluxo,
+        },
+        titulo: d.titulo.clone(),
+        nos: d
+            .nos
+            .iter()
+            .map(|n| cba_docs::NoDiagrama {
+                chave: n.chave.clone(),
+                rotulo: n.rotulo.clone(),
+                papel: match n.papel {
+                    PapelNo::Etapa => cba_docs::PapelNo::Etapa,
+                    PapelNo::Inicio => cba_docs::PapelNo::Inicio,
+                    PapelNo::Fim => cba_docs::PapelNo::Fim,
+                    PapelNo::Decisao => cba_docs::PapelNo::Decisao,
+                },
+                descricao: n.descricao.clone(),
+                evidencias: n.evidencias.iter().map(citacao).collect(),
+            })
+            .collect(),
+        arestas: d
+            .arestas
+            .iter()
+            .map(|a| cba_docs::ArestaDiagrama {
+                de: a.de.clone(),
+                para: a.para.clone(),
+                rotulo: a.rotulo.clone(),
+                descricao: a.descricao.clone(),
+                confianca: confianca(a.confianca),
+                evidencias: a.evidencias.iter().map(citacao).collect(),
+            })
+            .collect(),
+    }
+}
+
 fn confianca(c: Confianca) -> cba_docs::Confianca {
     match c {
         Confianca::Confirmado => cba_docs::Confianca::Confirmado,
@@ -176,6 +219,7 @@ pub fn conteudo(
             evidencias: a.evidencias.iter().map(citacao).collect(),
         })
         .collect();
+    conteudo.diagramas = analise.diagramas.iter().map(diagrama).collect();
     conteudo.perguntas = analise
         .perguntas
         .iter()

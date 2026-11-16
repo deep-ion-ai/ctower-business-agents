@@ -1640,3 +1640,82 @@
   text-decoration: line-through;
   color: var(--muted);
 }
+
+/* Diagramas Mermaid (#118): figura gerada pelo app, aviso de Mermaid inválido e a
+   tabela de elementos do documento ao vivo. */
+.diagrama {
+  margin: 12px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+.diagrama-figura {
+  width: 100%;
+  overflow-x: auto;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+.diagrama-figura svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+.diagrama-figura[data-clicavel] [data-id],
+.diagrama-figura[data-clicavel] g.node {
+  cursor: pointer;
+}
+.diagrama-carregando,
+.diagrama-codigo {
+  width: 100%;
+  overflow-x: auto;
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.aviso-diagrama {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--attention-border);
+  border-left: 3px solid var(--attention);
+  border-radius: 6px;
+  background: var(--attention-card);
+}
+.aviso-diagrama p {
+  margin: 0 0 8px;
+}
+.aviso-diagrama pre {
+  margin: 0;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.legenda-diagrama {
+  margin: 8px 0 0;
+}
+.tabela-diagrama {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 13px;
+}
+.tabela-diagrama th,
+.tabela-diagrama td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+.tabela-diagrama th {
+  color: var(--muted);
+  font-weight: 500;
+}
+.tabela-diagrama tr[data-selecionada] {
+  background: var(--selected);
+}
+.tabela-diagrama .evidencia {
+  margin: 0 4px 4px 0;
+}
