@@ -886,6 +886,11 @@ ciclos_vida:
         final: true
       - valor: SUSPENSA
       - valor: PROTESTADA
+        evidencia:
+          arquivo: db/04_pkg_situacao.sql
+          linha_inicial: 9
+          linha_final: 10
+          trecho: "'PROTESTADA'"
     transicoes:
       - id: CV-FAT-001-T1
         de: ABERTA
@@ -894,8 +899,8 @@ ciclos_vida:
         palavras_chave: [[pag*, quita*]]
         evidencia:
           arquivo: db/04_pkg_situacao.sql
-          linha_inicial: 54
-          linha_final: 57
+          linha_inicial: 59
+          linha_final: 62
           trecho: "SET STATUS = 'PAGA'"
       - id: CV-FAT-001-T2
         de: ABERTA
@@ -903,8 +908,8 @@ ciclos_vida:
         palavras_chave: [[parcel*]]
         evidencia:
           arquivo: db/04_pkg_situacao.sql
-          linha_inicial: 74
-          linha_final: 76
+          linha_inicial: 79
+          linha_final: 81
           trecho: "SET STATUS = 'PARCELADA'"
       - id: CV-FAT-001-T3
         de: PARCELADA
@@ -912,8 +917,8 @@ ciclos_vida:
         palavras_chave: [[parcela*, quita*, ultima, última]]
         evidencia:
           arquivo: db/04_pkg_situacao.sql
-          linha_inicial: 98
-          linha_final: 102
+          linha_inicial: 103
+          linha_final: 107
           trecho: "AND STATUS = 'PARCELADA'"
       - id: CV-FAT-001-T4
         de: ABERTA
@@ -930,8 +935,8 @@ ciclos_vida:
         palavras_chave: [[contesta*, suspen*]]
         evidencia:
           arquivo: db/04_pkg_situacao.sql
-          linha_inicial: 116
-          linha_final: 119
+          linha_inicial: 121
+          linha_final: 124
           trecho: "SET STATUS = 'SUSPENSA'"
     achados:
       - tipo: inalcancavel
