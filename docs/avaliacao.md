@@ -1,6 +1,6 @@
 # Avaliação dos fluxos contra o gabarito
 
-Roteiros, limites e modelos mudam com o tempo. A avaliação mostra se um ajuste piorou a análise (spec, critério de aceite 2): roda os fluxos com o Claude Code real no sistema fictício **Faturamento Exemplo** e compara o que o agente registrou com o gabarito `fixtures/gabaritos/faturamento-exemplo.yaml`. Além dos três fluxos de análise (perguntar, explicar, impacto), avalia o fluxo **Analisar reunião** (`reuniao`) com os transcripts fictícios de `fixtures/reunioes/` e mede o custo de uma reunião longa, de cerca de 2 h ([seção própria](#fluxo-reuniao)), o fluxo **Revisar requisito** (`revisar`) com uma história fictícia com problemas plantados ([seção própria](#fluxo-revisar)) o fluxo **Histórias e critérios** (`historias`) a partir da análise de impacto de uma demanda ([seção própria](#fluxo-historias)) e o fluxo **Cenários de teste** (`cenarios`) a partir das regras ([seção própria](#fluxo-cenarios)).
+Roteiros, limites e modelos mudam com o tempo. A avaliação mostra se um ajuste piorou a análise (spec, critério de aceite 2): roda os fluxos com o Claude Code real no sistema fictício **Faturamento Exemplo** e compara o que o agente registrou com o gabarito `fixtures/gabaritos/faturamento-exemplo.yaml`. Além dos três fluxos de análise (perguntar, explicar, impacto), avalia o fluxo **Analisar reunião** (`reuniao`) com os transcripts fictícios de `fixtures/reunioes/` e mede o custo de uma reunião longa, de cerca de 2 h ([seção própria](#fluxo-reuniao)), o fluxo **Revisar requisito** (`revisar`) com uma história fictícia com problemas plantados ([seção própria](#fluxo-revisar)) o fluxo **Histórias e critérios** (`historias`) a partir da análise de impacto de uma demanda ([seção própria](#fluxo-historias)) o fluxo **Cenários de teste** (`cenarios`) a partir das regras ([seção própria](#fluxo-cenarios)) e o **ciclo de vida** de uma entidade, o diagrama de estados numa análise de explicar ([seção própria](#ciclo-de-vida)).
 
 Ela fica na crate `crates/cba-avaliacao` e tem duas partes:
 
@@ -40,9 +40,9 @@ Opções principais:
 |---|---|---|
 | `--modelo` | `sonnet` | modelo do `claude` |
 | `--orcamento` | `1.5` | `--max-budget-usd` de **cada** execução, em US$ |
-| `--fluxos` | `perguntar,explicar,impacto` | fluxos a rodar; também `revisar`, `historias`, `cenarios`, `reuniao` e `reuniao-longa` |
+| `--fluxos` | `perguntar,explicar,impacto` | fluxos a rodar; também `revisar`, `historias`, `cenarios`, `ciclo-vida`, `reuniao` e `reuniao-longa` |
 | `--repeticoes` | `1` | execuções de cada fluxo (o modelo varia de uma para outra; use 3 ou mais para comparar versões) |
-| `--pergunta`, `--funcionalidade`, `--demanda`, `--revisao`, `--historias`, `--cenarios` | `P-FAT-001`, `F-FAT-002`, `D-FAT-001`, `REV-FAT-001`, `HIS-FAT-001`, `CEN-FAT-001` | item do gabarito de cada fluxo |
+| `--pergunta`, `--funcionalidade`, `--demanda`, `--revisao`, `--historias`, `--cenarios`, `--ciclo-vida` | `P-FAT-001`, `F-FAT-002`, `D-FAT-001`, `REV-FAT-001`, `HIS-FAT-001`, `CEN-FAT-001`, `CV-FAT-001` | item do gabarito de cada fluxo |
 | `--reuniao` | `REU-FAT-001` | reunião do gabarito dos fluxos `reuniao` e `reuniao-longa` |
 | `--orcamento-longa` | `3` | `--max-budget-usd` da reunião longa, em US$ |
 | `--longa-minutos`, `--longa-palavras` | `120`, `25000` | tamanho da reunião longa sintética |
@@ -187,6 +187,22 @@ Antes do `claude`, o preparo grava na base as regras do item (`regras/RN-FAT-012
 Falha grave (cenários): nenhum cenário, cenário sem origem (a ferramenta já recusa; pegaria uma regressão), estado ausente, erro da execução ou arquivo do projeto alterado. Os demais são cobertura. Para comparar um estado gravado: `cargo run -p cba-avaliacao -- comparar --estado <pasta>/estado.json --item CEN-FAT-001`.
 
 O roteiro de cenários também é provisório até a primeira execução com o modelo real. O teste da crate `cba-fixtures` confere que o valor de cada limite esperado aparece no trecho citado da fixture e que a evidência toca a da regra.
+
+## Ciclo de vida
+
+O **ciclo de vida** de uma entidade (#119) é o diagrama de estados que o agente registra com `registrar_diagrama` (tipo `estados`) numa análise de explicar, pelo passo "Ciclo de vida" do roteiro `crates/cba-tools/textos/roteiros/explicar.md` ou pelo prompt pronto "Montar o ciclo de vida": um estado por valor do campo de status (a chave é o valor como o código grava), uma transição por rotina que grava o campo, com evento, condição, efeitos e evidência. O app calcula os achados: estado inalcançável, estado sem saída e transição sem condição. O gabarito tem, em `ciclos_vida`, `CV-FAT-001`: a fatura, com os seis valores de `FATURA.STATUS` (o `CHECK` ampliado em `db/04_pkg_situacao.sql`), as cinco transições gravadas pelo PL/SQL e os achados `PROTESTADA` inalcançável e `SUSPENSA` sem saída.
+
+```sh
+cargo run -p cba-avaliacao -- rodar --fluxos ciclo-vida --orcamento 1.5
+```
+
+O preparo cria a análise de explicar com o pedido do gabarito. A comparação usa o diagrama de estados da análise com mais estados do gabarito:
+
+- **Estados.** Cada estado esperado é um nó cuja chave é o valor do código (sem diferença de maiúsculas); o inicial e os finais conferem pela marca de início e fim. Estados a mais são listados.
+- **Transições.** Cada transição esperada é sustentada por uma aresta entre os mesmos estados com evidência que toca a esperada.
+- **Achados.** Cada achado esperado é apontado pelo app no diagrama registrado.
+
+Falha grave (ciclo de vida): nenhum diagrama de estados, estado ausente, erro da execução ou arquivo do projeto alterado. Os demais são cobertura. Para comparar um estado gravado: `cargo run -p cba-avaliacao -- comparar --estado <pasta>/estado.json --item CV-FAT-001`. O roteiro é provisório até a primeira execução com o modelo real; o teste da crate `cba-fixtures` confere que os achados esperados são exatamente os que as transições do gabarito implicam.
 
 ## Ao mudar o gabarito ou a fixture
 

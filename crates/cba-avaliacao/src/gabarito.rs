@@ -41,6 +41,9 @@ pub struct Gabarito {
     /// Cenários de teste esperados a partir de regras (fluxo `cenarios`, #117).
     #[serde(default)]
     pub cenarios: Vec<Cenarios>,
+    /// Ciclos de vida esperados de entidades com campo de status (#119).
+    #[serde(default)]
+    pub ciclos_vida: Vec<CicloVida>,
     /// Pasta do gabarito, para resolver `raiz`. Preenchida por [`Gabarito::carregar`].
     #[serde(skip)]
     pub pasta: PathBuf,
@@ -279,6 +282,53 @@ pub struct NegativoEsperado {
     pub palavras_chave: Vec<Vec<String>>,
 }
 
+/// Ciclo de vida de uma entidade (#119): a análise de explicar com o `pedido`,
+/// que deve registrar o diagrama de estados esperado.
+#[derive(Debug, Clone, Deserialize)]
+pub struct CicloVida {
+    pub id: String,
+    pub titulo: String,
+    pub pedido: String,
+    #[serde(flatten)]
+    pub esperado: CicloVidaEsperado,
+}
+
+/// O que o diagrama de estados deve ter.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CicloVidaEsperado {
+    pub entidade: String,
+    pub estados: Vec<EstadoEsperado>,
+    pub transicoes: Vec<TransicaoEsperada>,
+    #[serde(default)]
+    pub achados: Vec<AchadoDeEstadoEsperado>,
+}
+
+/// Estado esperado, pelo valor gravado no código.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EstadoEsperado {
+    pub valor: String,
+    #[serde(default)]
+    pub inicial: bool,
+    #[serde(default, rename = "final")]
+    pub final_: bool,
+}
+
+/// Transição esperada, com a evidência da rotina que grava o valor.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TransicaoEsperada {
+    pub id: String,
+    pub de: String,
+    pub para: String,
+    pub evidencia: EvidenciaEsperada,
+}
+
+/// Achado que o app deve apontar no diagrama (`inalcancavel` ou `sem_saida`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AchadoDeEstadoEsperado {
+    pub tipo: String,
+    pub estado: String,
+}
+
 /// Reunião fictícia: o transcript e a ata esperada.
 #[derive(Debug, Clone, Deserialize)]
 pub struct Reuniao {
@@ -369,6 +419,9 @@ pub struct Item {
     /// Cenários esperados, só no fluxo cenarios.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cenarios: Option<CenariosEsperados>,
+    /// Ciclo de vida esperado (fluxo explicar com o diagrama de estados, #119).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ciclo_vida: Option<CicloVidaEsperado>,
 }
 
 /// Erro ao ler o gabarito ou ao achar um item.
@@ -458,6 +511,7 @@ impl Gabarito {
                 revisao: None,
                 historias: None,
                 cenarios: None,
+                ciclo_vida: None,
             });
         }
         if let Some(f) = self.funcionalidades.iter().find(|f| f.id == id) {
@@ -474,6 +528,7 @@ impl Gabarito {
                 revisao: None,
                 historias: None,
                 cenarios: None,
+                ciclo_vida: None,
             });
         }
         if let Some(d) = self.demandas.iter().find(|d| d.id == id) {
@@ -490,6 +545,7 @@ impl Gabarito {
                 revisao: None,
                 historias: None,
                 cenarios: None,
+                ciclo_vida: None,
             });
         }
         if let Some(r) = self.revisoes.iter().find(|r| r.id == id) {
@@ -507,6 +563,7 @@ impl Gabarito {
                 revisao: Some(r.esperado.clone()),
                 historias: None,
                 cenarios: None,
+                ciclo_vida: None,
             });
         }
         if let Some(h) = self.historias.iter().find(|h| h.id == id) {
@@ -524,6 +581,7 @@ impl Gabarito {
                 revisao: None,
                 historias: Some(h.esperado.clone()),
                 cenarios: None,
+                ciclo_vida: None,
             });
         }
         if let Some(c) = self.cenarios.iter().find(|c| c.id == id) {
@@ -540,11 +598,29 @@ impl Gabarito {
                 revisao: None,
                 historias: None,
                 cenarios: Some(c.esperado.clone()),
+                ciclo_vida: None,
+            });
+        }
+        if let Some(c) = self.ciclos_vida.iter().find(|c| c.id == id) {
+            return Ok(Item {
+                id: c.id.clone(),
+                fluxo: Fluxo::Explicar,
+                titulo: c.titulo.clone(),
+                entrada: c.pedido.clone(),
+                regras: Vec::new(),
+                arquivos: Vec::new(),
+                perguntas_esperadas: Vec::new(),
+                verificacao_da_premissa: None,
+                abrangencia: None,
+                revisao: None,
+                historias: None,
+                cenarios: None,
+                ciclo_vida: Some(c.esperado.clone()),
             });
         }
         Err(Erro(format!(
             "o item `{id}` não existe no gabarito (use o id de uma pergunta, funcionalidade, \
-             demanda, revisão, histórias ou cenários)"
+             demanda, revisão, histórias, cenários ou ciclo de vida)"
         )))
     }
 }
