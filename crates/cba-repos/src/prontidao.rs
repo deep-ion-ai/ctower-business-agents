@@ -249,7 +249,7 @@ fn prontidao_glab(g: &GitlabConfig, f: &Ferramentas, titulo: &str) -> Integracao
     b.passo(
         "credencial",
         "Token do GitLab disponível",
-        "Cadastre o token global do host em Configurações, ou rode o comando de credencial \
+        "Cadastre o token global do host em Configurações › Acessos, ou rode o comando de credencial \
          num terminal (o cache do gpg-agent pode ter expirado).",
         || {
             let s = crate::demanda::token_gitlab(g, f).map_err(|e| e.to_string())?;
@@ -292,7 +292,7 @@ fn prontidao_gh(_g: &GithubConfig, f: &Ferramentas, titulo: &str) -> Integracao 
     b.passo(
         "credencial",
         "gh autenticado (token do chaveiro ou gh auth token)",
-        "Cadastre o token do github.com em Configurações ou rode `gh auth login` num terminal.",
+        "Cadastre o token do github.com em Configurações › Acessos ou rode `gh auth login` num terminal.",
         || {
             if crate::demanda::token_github(f).is_some() {
                 return Ok(Some("token do chaveiro".into()));
@@ -333,7 +333,8 @@ fn prontidao_codigo(repo: &RepositorioCodigo, f: &Ferramentas) -> Integracao {
     b.passo(
         "credencial",
         "Token disponível",
-        "Informe o token de novo (Configurações › Projetos) ou confira o comando de credencial.",
+        "Informe o token de novo (Configurações › Acessos ou o cadastro do repositório) ou \
+         confira o comando de credencial.",
         || {
             let t = token_do_repositorio(repo, f.chaveiro.as_ref()).map_err(|e| e.to_string())?;
             let detalhe = match (&t, repo.token) {

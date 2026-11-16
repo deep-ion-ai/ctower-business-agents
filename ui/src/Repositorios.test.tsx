@@ -1,7 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { FormRepositorios } from "./FormRepositorios";
-import { ProntidaoRepositorios } from "./ProntidaoRepositorios";
 import {
   REPOSITORIO_CODIGO_VAZIO,
   SEM_REPOSITORIOS,
@@ -373,51 +372,13 @@ describe("reduzirProgressoClone", () => {
   });
 });
 
-describe("ProntidaoRepositorios", () => {
-  it("mostra cada passo e a orientação de quem falhou", async () => {
-    const api = {
-      prontidaoRepositorios: vi.fn().mockResolvedValue({
-        integracoes: [
-          {
-            titulo: "Issues (Jira)",
-            passos: [
-              {
-                id: "cli",
-                rotulo: "jira-cli instalado",
-                situacao: "ok",
-                detalhe: "jira version 1.7.0",
-                orientacao: null,
-              },
-              {
-                id: "servidor",
-                rotulo: "Servidor igual à URL",
-                situacao: "falhou",
-                detalhe: "a configuração usa outro",
-                orientacao: "Corrija o `server` do .config.yml.",
-              },
-              {
-                id: "me",
-                rotulo: "Autenticação (jira me)",
-                situacao: "pulado",
-                detalhe: null,
-                orientacao: null,
-              },
-            ],
-          },
-        ],
-      }),
-    };
-    render(<ProntidaoRepositorios api={api} projeto="p" />);
-    fireEvent.click(screen.getByRole("button", { name: "Conferir" }));
-    expect(await screen.findByText("jira-cli instalado")).toBeInTheDocument();
-    expect(screen.getByText("Corrija o `server` do .config.yml.")).toBeInTheDocument();
-    expect(screen.getByText("falhou")).toHaveAttribute("data-tone", "error");
-    expect(screen.getByText("não conferido")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Conferir de novo" })).toBeInTheDocument();
+describe("clones nas configurações", () => {
+  // A pasta dos clones fica na seção “Pasta da base”; os tokens, em Acessos (#193).
+  beforeEach(() => {
+    localStorage.setItem("cba.configuracoes.secao", "pasta");
   });
-});
+  afterEach(() => localStorage.clear());
 
-describe("clones e tokens nas configurações", () => {
   it("mostra e grava a pasta dos clones", async () => {
     const api = apiConfiguracoesFalsa();
     render(<TelaConfiguracoes api={api} aoMudarProjetos={vi.fn()} />);
@@ -434,104 +395,45 @@ describe("clones e tokens nas configurações", () => {
     expect(await grupo.findByText(/Salvo\./)).toBeInTheDocument();
     expect(api.definirPastaClones).toHaveBeenLastCalledWith("/clones");
   });
-
-  it("guarda e apaga o token global de um host conhecido", async () => {
-    const cfg = configuracoesFicticias();
-    cfg.projetos[0].repositorios = {
-      codigo: [GITLAB],
-      tracker: {
-        kind: "gitlab",
-        host: "gitlab.interno.example",
-        path: "g/p",
-        clone_url: "",
-        credential_cmd: "",
-      },
-    };
-    const api = apiConfiguracoesFalsa(cfg);
-    render(<TelaConfiguracoes api={api} aoMudarProjetos={vi.fn()} />);
-    const grupo = within(await screen.findByRole("group", { name: "Tokens globais por host" }));
-    expect(grupo.getByLabelText("Token de github.com")).toBeInTheDocument();
-    expect(grupo.getByLabelText("Token de gitlab.interno.example")).toBeInTheDocument();
-    const campo = grupo.getByLabelText("Token de gitlab.example.com");
-    expect(campo).toHaveAttribute("type", "password");
-    const apagar = grupo.getByRole("button", { name: "Apagar o token de gitlab.example.com" });
-    await waitFor(() => expect(api.tokensGuardados).toHaveBeenCalled());
-    expect(apagar).toBeDisabled();
-
-    fireEvent.change(campo, { target: { value: "glpat-segredo" } });
-    fireEvent.click(grupo.getByRole("button", { name: "Guardar o token de gitlab.example.com" }));
-    await waitFor(() =>
-      expect(api.salvarToken).toHaveBeenCalledWith(
-        { host: "gitlab.example.com", caminho: null },
-        "glpat-segredo",
-      ),
-    );
-    await waitFor(() => expect(campo).toHaveValue(""));
-    await waitFor(() => expect(apagar).toBeEnabled());
-    expect(api.chaveiro.get("gitlab.example.com")).toBe("glpat-segredo");
-
-    fireEvent.click(apagar);
-    await waitFor(() =>
-      expect(api.apagarToken).toHaveBeenCalledWith({ host: "gitlab.example.com", caminho: null }),
-    );
-    await waitFor(() => expect(apagar).toBeDisabled());
-    expect(api.chaveiro.has("gitlab.example.com")).toBe(false);
-  });
-
-  it("acrescenta outro host", async () => {
-    const api = apiConfiguracoesFalsa();
-    render(<TelaConfiguracoes api={api} aoMudarProjetos={vi.fn()} />);
-    const grupo = within(await screen.findByRole("group", { name: "Tokens globais por host" }));
-    fireEvent.change(grupo.getByLabelText("Outro host"), {
-      target: { value: "Git.Example.org" },
-    });
-    fireEvent.click(grupo.getByRole("button", { name: "Acrescentar host" }));
-    expect(grupo.getByLabelText("Token de git.example.org")).toBeInTheDocument();
-    await waitFor(() =>
-      expect(api.tokensGuardados).toHaveBeenLastCalledWith([
-        { host: "github.com", caminho: null },
-        { host: "git.example.org", caminho: null },
-      ]),
-    );
-    expect(await grupo.findAllByText("sem token")).toHaveLength(2);
-  });
 });
 
 describe("repositórios nas configurações", () => {
-  it("grava os repositórios do projeto e trava o tipo depois", async () => {
+  beforeEach(() => {
+    localStorage.setItem("cba.configuracoes.secao", "projeto:faturamento-exemplo");
+  });
+  afterEach(() => localStorage.clear());
+
+  async function abaCodigo() {
+    fireEvent.click(await screen.findByRole("tab", { name: "Código e demandas" }));
+    return within(screen.getByRole("tabpanel"));
+  }
+
+  it("adiciona um repositório de código pela aba Código e demandas", async () => {
     const api = apiConfiguracoesFalsa();
     render(<TelaConfiguracoes api={api} aoMudarProjetos={vi.fn()} />);
-    const grupo = within(
-      await screen.findByRole("group", {
-        name: "Repositórios de Faturamento Exemplo",
-      }),
-    );
-    fireEvent.click(grupo.getByRole("button", { name: "Adicionar repositório" }));
-    fireEvent.change(grupo.getByLabelText(/URL de clone/), {
+    const aba = await abaCodigo();
+    fireEvent.click(aba.getByRole("button", { name: "+ Adicionar repositório" }));
+    fireEvent.change(aba.getByLabelText(/URL de clone/), {
       target: { value: "https://github.com/o/r.git" },
     });
-    fireEvent.click(grupo.getByRole("button", { name: "Salvar repositórios" }));
+    fireEvent.click(aba.getByRole("button", { name: "Adicionar" }));
     await waitFor(() =>
       expect(api.salvarRepositorios).toHaveBeenCalledWith("faturamento-exemplo", {
         codigo: [GITHUB],
         tracker: null,
       }),
     );
+    // A prontidão é conferida de novo depois de salvar.
+    await waitFor(() => expect(api.prontidaoRepositorios).toHaveBeenCalledTimes(2));
   });
 
   it("não envia cadastro inválido", async () => {
     const api = apiConfiguracoesFalsa();
     render(<TelaConfiguracoes api={api} aoMudarProjetos={vi.fn()} />);
-    const grupo = within(
-      await screen.findByRole("group", {
-        name: "Repositórios de Faturamento Exemplo",
-      }),
-    );
-    fireEvent.change(grupo.getByLabelText(/Repositório de demandas/), {
-      target: { value: "jira" },
-    });
-    fireEvent.click(grupo.getByRole("button", { name: "Salvar repositórios" }));
-    expect(await grupo.findByRole("alert")).toHaveTextContent(/URL do Jira/);
+    const aba = await abaCodigo();
+    fireEvent.click(aba.getByRole("radio", { name: "Jira" }));
+    fireEvent.click(aba.getByRole("button", { name: "Salvar as demandas" }));
+    expect(await aba.findByRole("alert")).toHaveTextContent(/URL do Jira/);
     expect(api.salvarRepositorios).not.toHaveBeenCalled();
   });
 
@@ -539,13 +441,12 @@ describe("repositórios nas configurações", () => {
     const cfg = configuracoesFicticias();
     cfg.projetos[0].repositorios = { codigo: [GITHUB], tracker: JIRA };
     render(<TelaConfiguracoes api={apiConfiguracoesFalsa(cfg)} aoMudarProjetos={vi.fn()} />);
-    const grupo = within(
-      await screen.findByRole("group", {
-        name: "Repositórios de Faturamento Exemplo",
-      }),
-    );
-    expect(grupo.getByLabelText("Forja")).toBeDisabled();
-    expect(grupo.queryByRole("button", { name: "Remover" })).not.toBeInTheDocument();
-    expect(grupo.getByLabelText(/Repositório de demandas/)).toBeDisabled();
+    const aba = await abaCodigo();
+    fireEvent.click(aba.getByRole("button", { name: "Editar o/r" }));
+    expect(aba.getByLabelText("Forja")).toBeDisabled();
+    expect(aba.queryByRole("button", { name: "Remover" })).not.toBeInTheDocument();
+    expect(aba.getByRole("radio", { name: "GitHub Issues" })).toBeDisabled();
+    expect(aba.getByRole("radio", { name: "Jira" })).toHaveAttribute("aria-checked", "true");
   });
+
 });

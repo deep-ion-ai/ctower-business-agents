@@ -14,6 +14,7 @@ import {
   type ProjetoCadastrado,
 } from "./primeiroUso";
 import { apiRepositoriosTauri, type ApiRepositorios, type Repositorios } from "./repositorios";
+import { apiAcessosTauri, type ApiAcessos } from "./acessos";
 
 /**
  * Espelho dos comandos das configurações (`ui/src-tauri/src/configuracoes.rs`, campos
@@ -46,6 +47,18 @@ export interface Configuracoes {
   configClaude: { estado: string; settings: string } | null;
 }
 
+/** A pasta da base como as configurações a mostram (`InfoBase`). */
+export interface InfoBase {
+  caminho: string;
+  existe: boolean;
+  /** Arquivos da base, sem a pasta `.git`. */
+  arquivos: number;
+  bytes: number;
+  git: boolean;
+  /** Última atualização do índice, em segundos desde 1970; `null` se ainda não há índice. */
+  indiceAtualizadoEm: number | null;
+}
+
 export type ModoTroca = "mover" | "reapontar";
 
 export interface AvaliacaoTroca {
@@ -70,8 +83,14 @@ export interface TrocaBase {
   avisos: string[];
 }
 
-export interface AjusteExclusoes {
+/**
+ * O que é analisado num projeto cadastrado (#192): as pastas (as que ficam guardam o
+ * prefixo; as novas ganham um), as exclusões e as reinclusões.
+ */
+export interface AjusteLeitura {
   projeto: string;
+  /** Caminhos absolutos; a lista vazia é recusada (o projeto precisa de uma pasta). */
+  pastas: string[];
   exclusoes: string[];
   inclusoes: string[];
 }
@@ -156,14 +175,20 @@ export interface AmbienteDetalhado extends AmbienteClaude {
   verificacao?: VerificacaoAmbiente;
 }
 
-export interface ApiConfiguracoes extends ApiPrimeiroUso, ApiRepositorios {
+export interface ApiConfiguracoes extends ApiPrimeiroUso, ApiRepositorios, ApiAcessos {
   configuracoes(): Promise<Configuracoes>;
+  /** Documentos, tamanho, git e índice da base; `null` sem base escolhida. */
+  infoBase(): Promise<InfoBase | null>;
+  /** Abre a pasta da base no gerenciador de arquivos do sistema. */
+  abrirBase(): Promise<string>;
   verificarAmbiente(projeto: string): Promise<AmbienteDetalhado>;
   avaliarTroca(destino: string): Promise<AvaliacaoTroca>;
   /** Só depois da confirmação do analista. */
   trocarBase(destino: string, modo: ModoTroca): Promise<TrocaBase>;
-  previaExclusoes(ajuste: AjusteExclusoes): Promise<PreviaProjeto>;
-  salvarExclusoes(ajuste: AjusteExclusoes): Promise<ProjetoCadastrado>;
+  /** O inventário com as pastas e as exclusões ajustadas, sem gravar. */
+  previaLeitura(ajuste: AjusteLeitura): Promise<PreviaProjeto>;
+  /** Grava pastas e exclusões e refaz o inventário; se falhar, nada muda. */
+  salvarLeitura(ajuste: AjusteLeitura): Promise<ProjetoCadastrado>;
   /** Proteção, servidor MCP e (no último projeto) hooks. Só depois da confirmação. */
   desfazerAmbiente(projeto: string): Promise<AmbienteDesfeito>;
   /** Desfaz o ambiente e apaga o cadastro; os documentos ficam. Só depois da confirmação. */
@@ -185,11 +210,14 @@ export interface ApiConfiguracoes extends ApiPrimeiroUso, ApiRepositorios {
 export const apiConfiguracoesTauri: ApiConfiguracoes = {
   ...apiPrimeiroUsoTauri,
   ...apiRepositoriosTauri,
+  ...apiAcessosTauri,
   configuracoes: () => invoke("configuracoes_app"),
+  infoBase: () => invoke("info_base_app"),
+  abrirBase: () => invoke("abrir_base_app"),
   avaliarTroca: (destino) => invoke("avaliar_troca_base_app", { destino }),
   trocarBase: (destino, modo) => invoke("trocar_base_app", { destino, modo }),
-  previaExclusoes: (ajuste) => invoke("previa_exclusoes_app", { ajuste }),
-  salvarExclusoes: (ajuste) => invoke("salvar_exclusoes_app", { ajuste }),
+  previaLeitura: (ajuste) => invoke("previa_leitura_app", { ajuste }),
+  salvarLeitura: (ajuste) => invoke("salvar_leitura_app", { ajuste }),
   desfazerAmbiente: (projeto) => invoke("desfazer_ambiente_projeto", { projeto }),
   descadastrar: (projeto) => invoke("descadastrar_projeto_app", { projeto }),
   textos: () => invoke("textos_editaveis_app"),
@@ -207,7 +235,7 @@ export const apiConfiguracoesTauri: ApiConfiguracoes = {
 /** Como a tela descreve a situação de um texto editável. */
 export const ESTADO_DO_TEXTO: Record<EstadoTexto, string> = {
   padrao: "padrão do app",
-  igualAoPadrao: "cópia do padrão na base",
-  editado: "editado na base (sobrepõe o padrão)",
+  igualAoPadrao: "cópia sem mudanças",
+  editado: "editado por você",
   ilegivel: "ilegível (o app usa o padrão)",
 };

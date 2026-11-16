@@ -10,11 +10,14 @@ export function PrepararAmbiente({
   projeto,
   ambiente,
   aoConcluir,
+  oferecerProtecao = true,
 }: {
   api: ApiAmbiente;
   projeto: string;
   ambiente: AmbienteClaude;
   aoConcluir: () => void;
+  /** Falso onde a proteção tem lugar próprio (a aba Agente das configurações, #192). */
+  oferecerProtecao?: boolean;
 }) {
   const [plano, setPlano] = useState<PlanoPreparo | null>(null);
   const [ocupado, setOcupado] = useState(false);
@@ -83,7 +86,7 @@ export function PrepararAmbiente({
               </li>
             )}
           </ul>
-          {api.mudarProtecao && (
+          {api.mudarProtecao && oferecerProtecao && (
             <label className="protecao-opcional">
               <input
                 type="checkbox"
@@ -95,12 +98,14 @@ export function PrepararAmbiente({
               ela, o app só avisa quando a pasta for alterada.
             </label>
           )}
-          <button className="btn" type="button" onClick={preparar} disabled={ocupado}>
-            Concordo, preparar o ambiente
-          </button>{" "}
-          <button className="btn" type="button" onClick={() => setPlano(null)} disabled={ocupado}>
-            Agora não
-          </button>
+          <div className="acoes">
+            <button className="btn" type="button" onClick={() => setPlano(null)} disabled={ocupado}>
+              Agora não
+            </button>
+            <button className="btn btn-primary" type="button" onClick={preparar} disabled={ocupado}>
+              Concordo, preparar o ambiente
+            </button>
+          </div>
         </>
       )}
       {falha && (

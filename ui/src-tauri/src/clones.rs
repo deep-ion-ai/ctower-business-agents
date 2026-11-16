@@ -8,7 +8,9 @@
 use std::path::{Path, PathBuf};
 
 use cba_core::dados::DiretorioDados;
-use cba_repos::chaveiro::{Chaveiro, conta_global, conta_propria, token_do_repositorio};
+use cba_repos::chaveiro::{
+    Chaveiro, conta_comando_global, conta_global, conta_propria, token_do_repositorio,
+};
 use cba_repos::clone::{Progresso, clonar, testar_acesso};
 use cba_repos::demanda::Ferramentas;
 use cba_repos::{RepositorioCodigo, Secret};
@@ -55,7 +57,7 @@ pub struct AlvoToken {
 }
 
 impl AlvoToken {
-    fn conta(&self) -> Result<String, String> {
+    pub(crate) fn conta(&self) -> Result<String, String> {
         let host = self.host.trim();
         if host.is_empty() || host.contains('/') || host.contains(':') {
             return Err(format!("host inválido: {:?}", self.host));
@@ -76,11 +78,22 @@ pub fn salvar_token(chaveiro: &dyn Chaveiro, alvo: &AlvoToken, token: &str) -> R
     if token.is_empty() {
         return Err("informe o token".into());
     }
-    chaveiro.gravar(&alvo.conta()?, &Secret::new(token))
+    let conta = alvo.conta()?;
+    chaveiro.gravar(&conta, &Secret::new(token))?;
+    // O token guardado substitui o comando do host (#193).
+    if conta == conta_global(&alvo.host) {
+        chaveiro.apagar(&conta_comando_global(&alvo.host))?;
+    }
+    Ok(())
 }
 
 pub fn apagar_token(chaveiro: &dyn Chaveiro, alvo: &AlvoToken) -> Result<(), String> {
     chaveiro.apagar(&alvo.conta()?)
+}
+
+/// O token do alvo mudou: o último teste da seção Acessos deixa de valer.
+fn esquecer_teste(alvo: &AlvoToken) -> Result<(), String> {
+    crate::acessos::esquecer_teste(&dados()?, &alvo.conta()?)
 }
 
 /// Para cada alvo, se há token guardado (nunca o token).
@@ -250,12 +263,20 @@ pub async fn definir_pasta_clones_app(pasta: String) -> Result<PathBuf, String> 
 
 #[tauri::command]
 pub async fn salvar_token_app(alvo: AlvoToken, token: String) -> Result<(), String> {
-    bloqueante(move || salvar_token(Ferramentas::default().chaveiro.as_ref(), &alvo, &token)).await
+    bloqueante(move || {
+        salvar_token(Ferramentas::default().chaveiro.as_ref(), &alvo, &token)?;
+        esquecer_teste(&alvo)
+    })
+    .await
 }
 
 #[tauri::command]
 pub async fn apagar_token_app(alvo: AlvoToken) -> Result<(), String> {
-    bloqueante(move || apagar_token(Ferramentas::default().chaveiro.as_ref(), &alvo)).await
+    bloqueante(move || {
+        apagar_token(Ferramentas::default().chaveiro.as_ref(), &alvo)?;
+        esquecer_teste(&alvo)
+    })
+    .await
 }
 
 #[tauri::command]

@@ -52,6 +52,7 @@ macro_rules! str_enum {
     };
 }
 
+pub mod acessos;
 pub mod chaveiro;
 pub mod clone;
 pub mod codigo;

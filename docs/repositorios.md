@@ -49,6 +49,22 @@ No cadastro, "Testar conexão" do Jira roda os passos da prontidão com o token 
 O token chega ao `git`, ao `jira`, ao `glab` e ao `gh` só no ambiente do processo filho. Nada
 vai a disco, a log ou à configuração do Claude.
 
+### Seção Acessos (#193)
+
+Em Configurações › Acessos ficam os tokens globais de cada host do GitHub e do GitLab (quem os usa,
+o último teste e a validade, Testar, Trocar, Remover com confirmação que lista os afetados e
+"+ Adicionar host") e os repositórios com token próprio, com atalho para o projeto. No lugar do
+token do host dá para usar um **comando que imprime o token**: ele fica no chaveiro, na conta
+`comando:host:<host>`, e vale para tudo que usaria o token global (clone, issues, prontidão) quando
+não há token guardado. Guardar um token apaga o comando do host, e vice-versa.
+
+"Testar" o token do host usa a API da forja pelas CLIs, com o token só no ambiente:
+`gh api -i user` (a validade vem do cabeçalho `github-authentication-token-expiration`) e
+`glab api user` mais `glab api personal_access_tokens/self` (`expires_at`). Sem a CLI, o teste é o
+`git ls-remote` num repositório do host. O resultado (sucesso, quando, mensagem sem o token, dono e
+validade) e os hosts acrescentados à mão ficam nas preferências do app; o token, nunca. Trocar ou
+remover o token apaga o último teste daquele token.
+
 ## Clone inicial
 
 O app clona os repositórios (HTTPS ou SSH) numa pasta base configurável (preferências do app; padrão

@@ -19,6 +19,8 @@ function montar() {
 }
 
 describe("Navegacao", () => {
+  afterEach(() => localStorage.clear());
+
   it("passa pelo início, pelo projeto, pela base e pelas análises", async () => {
     montar();
     const abas = screen.getByRole("navigation", { name: "Telas" });
@@ -41,6 +43,8 @@ describe("Navegacao", () => {
   it("abre as configurações e relê os projetos quando elas mudam", async () => {
     const conhecimento = apiConhecimentoFalsa();
     const configuracoes = apiConfiguracoesFalsa();
+    // A tela das configurações abre na seção que o analista deixou aberta.
+    localStorage.setItem("cba.configuracoes.secao", "projeto:faturamento-exemplo");
     render(
       <Navegacao
         api={conhecimento.api}
@@ -53,15 +57,19 @@ describe("Navegacao", () => {
     fireEvent.click(within(abas).getByRole("button", { name: "Configurações" }));
     expect(await screen.findByRole("region", { name: "Configurações" })).toBeInTheDocument();
     const lidas = conhecimento.api.situacao.mock.calls.length;
-    fireEvent.click(await screen.findByRole("button", { name: "Descadastrar o projeto" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: /Confirmo o descadastro/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Descadastrar" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "Avançado" }));
+    fireEvent.click(screen.getByRole("button", { name: "Descadastrar…" }));
+    fireEvent.change(screen.getByLabelText(/digite o nome do projeto/), {
+      target: { value: "Faturamento Exemplo" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Descadastrar o projeto" }));
     await waitFor(() =>
       expect(conhecimento.api.situacao.mock.calls.length).toBeGreaterThan(lidas),
     );
   });
 
   it("pede confirmação ao trocar de aba com alterações não salvas no editor de textos", async () => {
+    localStorage.setItem("cba.configuracoes.secao", "modelos");
     render(
       <Navegacao
         api={apiConhecimentoFalsa().api}
