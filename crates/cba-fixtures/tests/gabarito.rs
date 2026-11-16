@@ -928,7 +928,9 @@ fn conferir_ciclo_vida(c: &mut Conferencia, cv: &CicloVida) {
         }
         c.palavras_chave(&onde_t, &t.palavras_chave);
         c.evidencia(&onde_t, &t.evidencia);
-        if !t.evidencia.trecho.contains(t.para.as_str()) && !t.evidencia.trecho.contains(t.de.as_str()) {
+        if !t.evidencia.trecho.contains(t.para.as_str())
+            && !t.evidencia.trecho.contains(t.de.as_str())
+        {
             c.erro(format!(
                 "{onde_t}: o trecho deve citar o valor gravado ({} ou {})",
                 t.para, t.de

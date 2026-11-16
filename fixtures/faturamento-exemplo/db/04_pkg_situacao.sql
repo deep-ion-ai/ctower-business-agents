@@ -4,6 +4,11 @@
 -- contestacao)
 -- =====================================================================
 
+-- Situacoes acrescentadas depois da carga inicial (script 01)
+ALTER TABLE FATURA DROP CONSTRAINT CK_FATURA_STATUS;
+ALTER TABLE FATURA ADD CONSTRAINT CK_FATURA_STATUS
+    CHECK (STATUS IN ('ABERTA', 'PAGA', 'PARCELADA', 'CANCELADA', 'SUSPENSA', 'PROTESTADA'));
+
 CREATE OR REPLACE PACKAGE PKG_SITUACAO AS
 
     PROCEDURE PRC_REGISTRAR_PAGAMENTO (P_ID_FATURA IN NUMBER,
