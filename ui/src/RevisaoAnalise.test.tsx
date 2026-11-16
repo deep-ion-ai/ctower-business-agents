@@ -256,6 +256,7 @@ describe("Revisão, aprovação e exportação", () => {
       expect(c.revisao.aprovar).toHaveBeenCalledWith("faturamento-exemplo", "A-0001", {
         area: "cobranca",
         afirmacoes: { 1: { area: null, titulo: "Multa por atraso" } },
+        regras: [1],
       }),
     );
     const resultado = await screen.findByRole("status", { name: "Resultado da aprovação" });

@@ -2287,3 +2287,56 @@
 .form-resposta .acoes-revisao {
   margin-top: 6px;
 }
+
+/* Aprovação (#214): uma caixa por afirmação para dizer se ela vira regra. */
+.regras-previstas {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 8px 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.regra-prevista {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.regra-escolha {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.regra-texto {
+  display: -webkit-box;
+  margin: 4px 0 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  white-space: pre-line;
+}
+
+.regra-campos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-top: 6px;
+}
+
+.regra-campos > label {
+  display: flex;
+  flex: 1 1 18rem;
+  align-items: center;
+  gap: 6px;
+}
+
+.regra-campos > label > input {
+  flex: 1;
+  min-width: 0;
+}
