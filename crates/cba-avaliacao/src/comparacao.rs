@@ -37,6 +37,7 @@ use cba_tools::evidencias::{EvidenciaCitada, validar};
 use serde::Serialize;
 
 use crate::cenarios::{CenariosAvaliados, avaliar_cenarios};
+use crate::ciclo_vida::{CicloVidaAvaliado, avaliar_ciclo_vida};
 use crate::gabarito::{Gabarito, Item, Regra, Veredito};
 use crate::historias::{HistoriasAvaliadas, avaliar_historias};
 use crate::parecer::{ParecerAvaliado, avaliar_parecer};
@@ -86,6 +87,9 @@ pub struct Avaliacao {
     /// Cenários de teste (fluxo `cenarios`, [`crate::cenarios`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cenarios: Option<CenariosAvaliados>,
+    /// Ciclo de vida da entidade (diagrama de estados, [`crate::ciclo_vida`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ciclo_vida: Option<CicloVidaAvaliado>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -144,6 +148,9 @@ impl Avaliacao {
     /// Falhas graves: invalidam a execução independentemente da cobertura.
     pub fn falhas(&self) -> Vec<String> {
         let mut f = Vec::new();
+        if let Some(c) = &self.ciclo_vida {
+            f.extend(c.falhas());
+        }
         // No parecer de revisão, o conteúdo são os achados; as afirmações são opcionais.
         match (&self.parecer, &self.historias, &self.cenarios) {
             (Some(p), ..) => f.extend(p.falhas()),
@@ -151,7 +158,7 @@ impl Avaliacao {
             (_, Some(h), _) => f.extend(h.falhas()),
             // Nos cenários, o conteúdo são as tabelas e os cenários.
             (.., Some(c)) => f.extend(c.falhas()),
-            (None, None, None) if self.afirmacoes == 0 => {
+            (None, None, None) if self.afirmacoes == 0 && self.ciclo_vida.is_none() => {
                 f.push("nenhuma afirmação registrada".to_owned())
             }
             _ => {}
@@ -499,6 +506,10 @@ pub fn avaliar(analise: &Analise, item: &Item, gabarito: &Gabarito, escopo: &Esc
             .cenarios
             .as_ref()
             .map(|c| avaliar_cenarios(analise, c, gabarito)),
+        ciclo_vida: item
+            .ciclo_vida
+            .as_ref()
+            .map(|c| avaliar_ciclo_vida(analise, c)),
     }
 }
 

@@ -616,7 +616,8 @@ fn criterios_das_analises(s: &mut String) {
     );
     let _ = writeln!(
         s,
-        "- **Cenários de teste** (`cenarios`): limite esperado lido por um cenário da regra cujo limite tem o mesmo valor, não vem de configuração e cita evidência que toca a esperada (limite de outro valor é listado como divergente); cada valor testado esperado (o limite e o vizinho) presente num cenário da regra; tabela de decisão esperada atendida por uma tabela com as condições mínimas, ligada à regra e com as palavras-chave nas condições; cenário negativo esperado atendido por um cenário da regra com as palavras-chave; tema a confirmar marcado num cenário com pergunta. Falha grave: nenhum cenário, ou cenário sem origem."
+        "- **Ciclo de vida** (`ciclo-vida`, análise de explicar com diagrama de estados): estado esperado encontrado quando um nó tem o valor do código como chave; inicial e finais conferem pela marca de início e fim; transição esperada sustentada quando uma aresta liga os mesmos estados e cita evidência que toca a esperada; achado esperado (inalcançável, sem saída) apontado pelo app no diagrama. Falha grave: nenhum diagrama de estados.\n\
+- **Cenários de teste** (`cenarios`): limite esperado lido por um cenário da regra cujo limite tem o mesmo valor, não vem de configuração e cita evidência que toca a esperada (limite de outro valor é listado como divergente); cada valor testado esperado (o limite e o vizinho) presente num cenário da regra; tabela de decisão esperada atendida por uma tabela com as condições mínimas, ligada à regra e com as palavras-chave nas condições; cenário negativo esperado atendido por um cenário da regra com as palavras-chave; tema a confirmar marcado num cenário com pergunta. Falha grave: nenhum cenário, ou cenário sem origem."
     );
     let _ = writeln!(
         s,
@@ -753,7 +754,73 @@ fn analise_md(s: &mut String, e: &Execucao) {
     if let Some(c) = &a.cenarios {
         cenarios_md(s, c);
     }
+    if let Some(c) = &a.ciclo_vida {
+        ciclo_vida_md(s, c);
+    }
     let _ = writeln!(s, "- Concluída: {}\n", sim_nao(a.concluida));
+}
+
+fn ciclo_vida_md(s: &mut String, c: &crate::ciclo_vida::CicloVidaAvaliado) {
+    let Some(d) = &c.diagrama else {
+        let _ = writeln!(s, "- Ciclo de vida: nenhum diagrama de estados registrado");
+        return;
+    };
+    let faltam = |l: &[crate::ciclo_vida::ElementoAvaliado]| {
+        l.iter()
+            .filter(|e| !e.encontrado)
+            .map(|e| e.esperado.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let _ = writeln!(
+        s,
+        "- Ciclo de vida ({d}): estados {:.0}%, transições sustentadas {:.0}%, achados {:.0}%",
+        c.cobertura_de_estados() * 100.0,
+        c.cobertura_de_transicoes() * 100.0,
+        c.cobertura_de_achados() * 100.0
+    );
+    let ausentes = faltam(&c.estados);
+    if !ausentes.is_empty() {
+        let _ = writeln!(s, "  - Estados ausentes: {ausentes}");
+    }
+    if !c.estados_extras.is_empty() {
+        let _ = writeln!(
+            s,
+            "  - Estados fora do gabarito: {}",
+            c.estados_extras.join(", ")
+        );
+    }
+    if !c.inicial_confere {
+        let _ = writeln!(s, "  - Estado inicial não marcado como início");
+    }
+    if !c.finais_sem_marca.is_empty() {
+        let _ = writeln!(
+            s,
+            "  - Finais sem a marca de fim: {}",
+            c.finais_sem_marca.join(", ")
+        );
+    }
+    for t in c
+        .transicoes
+        .iter()
+        .filter(|t| !(t.encontrada && t.sustentada))
+    {
+        let _ = writeln!(
+            s,
+            "  - {} ({}): {}",
+            t.id,
+            t.transicao,
+            if t.encontrada {
+                "sem evidência que toque a esperada"
+            } else {
+                "não registrada"
+            }
+        );
+    }
+    let achados = faltam(&c.achados);
+    if !achados.is_empty() {
+        let _ = writeln!(s, "  - Achados não apontados: {achados}");
+    }
 }
 
 fn cenarios_md(s: &mut String, c: &crate::cenarios::CenariosAvaliados) {
