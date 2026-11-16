@@ -312,6 +312,7 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
             diretorio: CODIGO,
             chave: CODIGO,
             servidorMcp: "ok",
+            pastaConfiavel: true,
             hooks: [
               { evento: "SessionStart", situacao: "ok" },
               { evento: "Stop", situacao: "ok" },

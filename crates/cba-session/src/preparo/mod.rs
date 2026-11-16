@@ -11,6 +11,7 @@
 //! | Item | Arquivo | Escopo |
 //! |---|---|---|
 //! | Servidor MCP `cba` (`<executável> mcp`) | `~/.claude.json`, em `projects["<chave>"].mcpServers` | local: só sessões nessa pasta |
+//! | Confiança na pasta (`hasTrustDialogAccepted: true`, #218) | `~/.claude.json`, em `projects["<chave>"]` | local: só sessões nessa pasta |
 //! | Hooks dos eventos de [`crate::hooks::EVENTOS`] (`"<executável>" hook <evento>`) | `~/.claude/settings.json`, em `hooks` | usuário: todas as sessões |
 //!
 //! | Opcional: proteção contra edição, `Edit(//<pasta>/**)` em `permissions.deny` ([`protecao`]) | `~/.claude/settings.json` | usuário, com caminho absoluto |
@@ -28,6 +29,11 @@
 //!   documentados para hooks: `~/.claude/settings.json`, `.claude/settings.json` e
 //!   `.claude/settings.local.json` do projeto, política gerenciada, plugins. O
 //!   `~/.claude.json` não é local de hooks.
+//! - A confiança na pasta não está documentada. Lido no código do Claude Code 2.1.325:
+//!   o diálogo "Quick safety check" não aparece se `projects["<chave>"]` tem
+//!   `hasTrustDialogAccepted: true`, com a mesma chave do escopo local do MCP (a raiz
+//!   do repositório principal, ou a pasta fora do git). É o campo que o próprio Claude
+//!   grava quando o analista escolhe "Yes, I trust this folder".
 //! - <https://code.claude.com/docs/en/settings.md> e
 //!   <https://code.claude.com/docs/en/claude-directory.md>: `CLAUDE_CONFIG_DIR` muda
 //!   `~/.claude` e `~/.claude.json`; o Desktop lê os mesmos arquivos de configuração.
@@ -109,7 +115,7 @@ use serde::Serialize;
 use crate::clientes::{Ambiente, AmbienteReal, Plataforma};
 use crate::hooks::EVENTOS;
 use json::{Json, Objeto};
-use registro::{Registro, TrocaHook, TrocaMcp};
+use registro::{Registro, TrocaConfianca, TrocaHook, TrocaMcp};
 
 /// Nome do servidor MCP na configuração (as ferramentas aparecem como `mcp__cba__*`).
 pub const NOME_SERVIDOR: &str = "cba";
@@ -117,6 +123,8 @@ pub const NOME_SERVIDOR: &str = "cba";
 pub const VAR_PROJETO: &str = "CBA_PROJETO";
 /// Limite de tempo de cada hook, em segundos (o padrão do Claude Code é 600).
 pub const LIMITE_HOOK_S: u64 = 10;
+/// Campo da entrada da pasta em `projects` com a confiança do Claude Code na pasta.
+pub const CAMPO_CONFIANCA: &str = "hasTrustDialogAccepted";
 /// Nome do executável do app, sem extensão: identifica as nossas entradas.
 const NOME_EXECUTAVEL: &str = "cba";
 
@@ -289,6 +297,9 @@ pub enum Acao {
 pub enum Item {
     /// `projects["<chave>"].mcpServers.cba` no `.claude.json`.
     ServidorMcp { chave: String },
+    /// `projects["<chave>"].hasTrustDialogAccepted` no `.claude.json`: a pasta é
+    /// confiável e o Claude não pergunta na primeira conversa (#218).
+    Confianca { chave: String },
     /// `hooks.<evento>` no `settings.json`.
     Hook { evento: String },
 }
@@ -330,7 +341,7 @@ pub enum Mantido {
     /// O servidor MCP da pasta mudou depois do preparo e ficou como está.
     ServidorMudouDepois { arquivo: PathBuf, chave: String },
     /// A entrada da pasta não existia antes do preparo e fica, porque guarda dados que
-    /// o próprio Claude Code gravou ao abrir conversas nela (como a confiança na pasta).
+    /// o próprio Claude Code gravou ao abrir conversas nela (como o histórico de uso).
     EntradaDoClaude { arquivo: PathBuf, chave: String },
 }
 
@@ -405,10 +416,13 @@ pub struct Verificacao {
     pub diretorio: PathBuf,
     pub chave: String,
     pub servidor_mcp: Situacao,
+    /// O Claude Code confia na pasta: a primeira conversa abre sem o diálogo de
+    /// confiança (#218).
+    pub pasta_confiavel: bool,
     pub hooks: Vec<SituacaoHook>,
     /// `disableAllHooks: true` nas configurações do usuário: os hooks não rodam.
     pub hooks_desativados: bool,
-    /// Tudo no lugar e os hooks ativos.
+    /// Tudo no lugar (com a pasta confiável) e os hooks ativos.
     pub pronto: bool,
 }
 
@@ -473,7 +487,10 @@ impl Preparador {
     /// Confere se o servidor MCP e os hooks estão no lugar, sem gravar nada.
     pub fn verificar(&self, alvo: &Alvo) -> Result<Verificacao, Erro> {
         let estado = arquivo::ler(&self.config.estado)?;
-        let servidor_mcp = match self.projeto(&estado.raiz, alvo, &estado.caminho)? {
+        let projeto = self.projeto(&estado.raiz, alvo, &estado.caminho)?;
+        let pasta_confiavel =
+            projeto.is_some_and(|p| matches!(p.get(CAMPO_CONFIANCA), Some(Json::Bool(true))));
+        let servidor_mcp = match projeto {
             None => Situacao::Ausente,
             Some(projeto) => match servidores(projeto, &estado.caminho)?
                 .and_then(|s| s.get(NOME_SERVIDOR))
@@ -505,12 +522,14 @@ impl Preparador {
             });
         }
         let pronto = servidor_mcp == Situacao::Ok
+            && pasta_confiavel
             && !hooks_desativados
             && hooks.iter().all(|h| h.situacao == Situacao::Ok);
         Ok(Verificacao {
             diretorio: alvo.diretorio.clone(),
             chave: alvo.chave.clone(),
             servidor_mcp,
+            pasta_confiavel,
             hooks,
             hooks_desativados,
             pronto,
@@ -529,6 +548,7 @@ impl Preparador {
         let mut resultado = self.resultado(alvo, Modo::Gravar);
         let mut registro = Registro::ler(&self.config.registro());
         let mut acao_mcp = (Acao::SemMudanca, None);
+        let mut acao_confianca = Acao::SemMudanca;
         let mut mantidos = Vec::new();
         let mut pastas_minhas = Vec::new();
         let mut pastas_todas = Vec::new();
@@ -538,6 +558,8 @@ impl Preparador {
             &mut registro,
             |raiz, caminho, reg| {
                 mantidos.clear();
+                // Antes do servidor: a entrada da pasta pode ficar vazia e sair.
+                acao_confianca = self.remover_confianca(raiz, alvo, caminho, reg)?;
                 acao_mcp = self.remover_mcp(raiz, alvo, caminho, reg, &mut mantidos)?;
                 pastas_minhas = pastas_com_servidor(raiz, Some(&self.executavel_texto()));
                 pastas_todas = pastas_com_servidor(raiz, None);
@@ -553,6 +575,14 @@ impl Preparador {
             },
             acao: acao_mcp.0,
             outra_instalacao: acao_mcp.1,
+        });
+        resultado.alteracoes.push(Alteracao {
+            arquivo: self.config.estado.clone(),
+            item: Item::Confianca {
+                chave: alvo.chave.clone(),
+            },
+            acao: acao_confianca,
+            outra_instalacao: None,
         });
         resultado.mantidos.append(&mut mantidos);
 
@@ -634,12 +664,14 @@ impl Preparador {
         let mut registro = Registro::ler(&self.config.registro());
 
         let mut acao_mcp = (Acao::SemMudanca, None);
+        let mut acao_confianca = Acao::SemMudanca;
         if let Some(backup) = self.editar_registrando(
             &self.config.estado,
             modo,
             &mut registro,
             |raiz, caminho, reg| {
                 acao_mcp = self.registrar_mcp(raiz, alvo, caminho, reg)?;
+                acao_confianca = self.registrar_confianca(raiz, alvo, caminho, reg)?;
                 Ok(())
             },
         )? {
@@ -652,6 +684,14 @@ impl Preparador {
             },
             acao: acao_mcp.0,
             outra_instalacao: acao_mcp.1,
+        });
+        resultado.alteracoes.push(Alteracao {
+            arquivo: self.config.estado.clone(),
+            item: Item::Confianca {
+                chave: alvo.chave.clone(),
+            },
+            acao: acao_confianca,
+            outra_instalacao: None,
         });
 
         let mut acoes = Vec::new();
@@ -850,6 +890,81 @@ impl Preparador {
             }
         }
         Ok((acao, outra))
+    }
+
+    /// Marca a pasta de `alvo` como confiável no Claude Code (o mesmo campo que ele
+    /// grava quando o analista aceita o diálogo), guardando no registro o valor de
+    /// antes. Se já é confiável, nada muda e nada é registrado: a confiança não foi o
+    /// app que deu, e o desfazer não a tira.
+    fn registrar_confianca(
+        &self,
+        raiz: &mut Objeto,
+        alvo: &Alvo,
+        caminho: &Path,
+        reg: &mut Registro,
+    ) -> Result<Acao, Erro> {
+        let projetos = raiz
+            .objeto_mut("projects")
+            .ok_or_else(|| formato(caminho, "projects"))?;
+        let chave = self
+            .chave_existente(projetos, alvo)
+            .unwrap_or_else(|| alvo.chave.clone());
+        let projeto = projetos
+            .objeto_mut(&chave)
+            .ok_or_else(|| formato(caminho, &format!("projects[{chave:?}]")))?;
+        let antes = projeto.get(CAMPO_CONFIANCA).cloned();
+        if matches!(antes, Some(Json::Bool(true))) {
+            return Ok(Acao::SemMudanca);
+        }
+        projeto.inserir(CAMPO_CONFIANCA, Json::Bool(true));
+        reg.instalacoes
+            .entry(self.executavel_texto())
+            .or_default()
+            .confianca
+            .entry(chave)
+            .or_insert(TrocaConfianca { antes });
+        Ok(Acao::Adicionado)
+    }
+
+    /// Tira a confiança que esta instalação deu à pasta de `alvo`, devolvendo o valor
+    /// de antes. Só com registro, e só se o campo ainda está `true`; se outra
+    /// instalação ainda tem o servidor na pasta, a confiança fica e passa a ser dela.
+    fn remover_confianca(
+        &self,
+        raiz: &mut Objeto,
+        alvo: &Alvo,
+        caminho: &Path,
+        reg: &mut Registro,
+    ) -> Result<Acao, Erro> {
+        let exe = self.executavel_texto();
+        let projetos = match raiz.get_mut("projects") {
+            None => None,
+            Some(Json::Objeto(p)) => Some(p),
+            Some(_) => return Err(formato(caminho, "projects")),
+        };
+        let chave = projetos
+            .as_ref()
+            .and_then(|p| self.chave_existente(p, alvo))
+            .unwrap_or_else(|| alvo.chave.clone());
+        let Some((troca, transferida)) = reg.tirar_confianca(&exe, &chave) else {
+            return Ok(Acao::SemMudanca);
+        };
+        if transferida {
+            return Ok(Acao::SemMudanca);
+        }
+        let Some(Json::Objeto(projeto)) = projetos.and_then(|p| p.get_mut(&chave)) else {
+            return Ok(Acao::SemMudanca);
+        };
+        if !matches!(projeto.get(CAMPO_CONFIANCA), Some(Json::Bool(true))) {
+            return Ok(Acao::SemMudanca);
+        }
+        match troca.antes {
+            Some(antes) => projeto.inserir(CAMPO_CONFIANCA, antes),
+            None => {
+                projeto.remover(CAMPO_CONFIANCA);
+            }
+        }
+        Ok(Acao::Removido)
     }
 
     /// Tira o servidor MCP de `alvo`, devolvendo o de antes se o registro o tiver.

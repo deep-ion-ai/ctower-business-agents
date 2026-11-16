@@ -169,6 +169,8 @@ export interface VerificacaoAmbiente {
   diretorio: string;
   chave: string;
   servidorMcp: Situacao;
+  /** O Claude Code confia na pasta: a primeira conversa abre sem o diálogo (#218). */
+  pastaConfiavel: boolean;
   hooks: { evento: string; situacao: Situacao }[];
   hooksDesativados: boolean;
   pronto: boolean;

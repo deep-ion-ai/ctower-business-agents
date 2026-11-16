@@ -76,16 +76,15 @@ export function PrepararAmbiente({
       {plano && (
         <>
           <p>
-            O app vai registrar o servidor MCP e os hooks na configuração do Claude Code. Nada é
-            criado nas pastas do projeto, e o app faz uma cópia de segurança de cada arquivo antes
-            de gravar.
+            O app vai registrar o servidor MCP e os hooks na configuração do Claude Code e marcar a
+            pasta do projeto como confiável, para o Claude não perguntar isso na primeira conversa.
+            Nada é criado nas pastas do projeto, e o app faz uma cópia de segurança de cada arquivo
+            antes de gravar. Ao desfazer o preparo, tudo isso sai.
           </p>
           <ul className="plano-preparo">
             {mudancas.map((a) => (
-              <li key={`${a.arquivo}-${a.item.tipo === "hook" ? a.item.evento : a.item.chave}`}>
-                {a.item.tipo === "hook"
-                  ? `Hook ${a.item.evento}`
-                  : `Servidor MCP "cba" para a pasta ${a.item.chave}`}{" "}
+              <li key={`${a.arquivo}-${a.item.tipo}-${chaveDoItem(a.item)}`}>
+                {descreverItem(a.item)}{" "}
                 <span className="muted">
                   ({a.acao === "atualizado" ? "atualizado" : "adicionado"} em {a.arquivo}
                   {a.outraInstalacao ? "; hoje vai para outra instalação do app" : ""})
@@ -156,6 +155,22 @@ export function PrepararAmbiente({
       )}
     </div>
   );
+}
+
+function chaveDoItem(item: AlteracaoPreparo["item"]): string {
+  return item.tipo === "hook" ? item.evento : item.chave;
+}
+
+/** Texto de um item do plano. */
+export function descreverItem(item: AlteracaoPreparo["item"]): string {
+  switch (item.tipo) {
+    case "hook":
+      return `Hook ${item.evento}`;
+    case "servidorMcp":
+      return `Servidor MCP "cba" para a pasta ${item.chave}`;
+    case "confianca":
+      return `Pasta ${item.chave} marcada como confiável no Claude Code (sem a pergunta "Quick safety check", em inglês, na primeira conversa)`;
+  }
 }
 
 /** Executáveis de outras instalações do app que o preparo tira do lugar, sem repetição. */
