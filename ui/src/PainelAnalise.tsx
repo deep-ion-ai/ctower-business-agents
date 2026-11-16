@@ -59,6 +59,12 @@ export type Abertura =
   /** Análise existente: o analista escolhe retomar a conversa ou começar outra. */
   | { tipo: "reabrir" };
 
+/**
+ * A conversa do terminal embutido, para quem fecha a análise: sem processo vivo,
+ * viva à espera do analista ou com o agente trabalhando (#212).
+ */
+export type EstadoConversa = "nenhuma" | "aberta" | "trabalhando";
+
 /** Onde a conversa está, quando não está no terminal embutido. */
 type Fora = { cliente: "claudeDesktop" | "terminalDoAnalista"; aviso: string };
 
@@ -140,6 +146,8 @@ interface Props {
   aoAbrirAnalise?: (id: string, abertura: Abertura) => void;
   /** Abre um link no navegador do sistema (o da evidência na forja); para testes. */
   abrirUrl?: (url: string) => Promise<void>;
+  /** Avisa quando a conversa do terminal embutido abre, trabalha ou termina. */
+  aoMudarConversa?: (estado: EstadoConversa) => void;
 }
 
 const AVISO_DESKTOP =
@@ -183,6 +191,7 @@ export function PainelAnalise({
   apiReuniao = apiReuniaoTauri,
   aoAbrirAnalise,
   abrirUrl = openUrl,
+  aoMudarConversa,
 }: Props) {
   const { vista, erro, recarregar } = useAnaliseAoVivo(api, projeto, analise);
   const [revisando, setRevisando] = useState(false);
@@ -229,6 +238,19 @@ export function PainelAnalise({
     vista?.analise.versao ?? 0,
     !!vista && vista.analise.fluxo !== "reuniao",
   );
+
+  // Quem fecha a análise (a aba da navegação) pergunta antes de encerrar a conversa.
+  const estadoConversa: EstadoConversa = !vivo
+    ? "nenhuma"
+    : vista?.sessao?.estado === "ativa"
+      ? "trabalhando"
+      : "aberta";
+  const avisarConversa = useRef(aoMudarConversa);
+  avisarConversa.current = aoMudarConversa;
+  useEffect(() => {
+    avisarConversa.current?.(estadoConversa);
+  }, [estadoConversa]);
+  useEffect(() => () => avisarConversa.current?.("nenhuma"), []);
 
   const fecharMenu = useCallback(() => setMenu(null), []);
   const alternar = (m: Menu) => () => setMenu((atual) => (atual === m ? null : m));

@@ -616,6 +616,16 @@ button.sb-item:hover {
   flex-direction: column;
 }
 
+/* Aba de análise aberta, montada mesmo fora da vez (#212): sem caixa própria, a tela
+   dela fica direto na área de editor; escondida, some sem desmontar o terminal. */
+.editor-aba {
+  display: contents;
+}
+
+.editor-aba[hidden] {
+  display: none;
+}
+
 .titlebar .brand-name {
   margin: 0;
   font-size: 14px;
