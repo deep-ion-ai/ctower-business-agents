@@ -65,6 +65,7 @@ pub mod fundamentos;
 pub mod historias;
 pub mod mapa;
 pub mod memoria;
+mod modelo_dados;
 mod paginacao;
 pub mod parecer;
 pub mod perguntar;

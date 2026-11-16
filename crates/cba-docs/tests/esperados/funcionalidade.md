@@ -32,6 +32,10 @@ _Nada registrado._
 - **[confirmado]** Tela oferece até 12 parcelas; backend aceita até 6 (INC-FAT-001): A tela de parcelamento valida e oferece de 2 a 12 parcelas (constante fixa no código), enquanto o backend aceita no máximo MAX_PARCELAS (hoje 6). Pedidos de 7 a 12 parcelas passam pela tela e são recusados pelo backend.[^1][^2]
 - **[confirmado]** Tela calcula a parcela mínima sobre o valor original (INC-FAT-003): A tela confere o valor mínimo da parcela dividindo só o valor da fatura, enquanto o backend divide o valor original mais os encargos. Uma fatura em atraso pode ser recusada pela tela e aceita pelo backend.[^3][^4]
 
+## Fluxo do processo
+
+_Fluxo do processo ainda não registrado._
+
 ## Regras de negócio
 
 - **[confirmado]** Parcelamento só para pessoa jurídica e órgão público (RN-FAT-007): Pessoa física não pode parcelar fatura. Pessoa jurídica e órgão público podem.[^5][^6]
@@ -43,6 +47,10 @@ _Nada registrado._
 ## Dados lidos e gravados
 
 _Nada registrado._
+
+## Modelo de dados conceitual
+
+_Modelo de dados conceitual ainda não registrado._
 
 ## Integrações
 

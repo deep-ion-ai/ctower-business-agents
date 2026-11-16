@@ -276,6 +276,13 @@ pub enum OrigemPergunta {
     /// Achado do ciclo de vida de um diagrama de estados
     /// ([`crate::diagramas::Diagrama::achados`]), pelo id.
     AchadoDiagrama { diagrama: u32, achado: String },
+    /// Aresta de um diagrama, pelas chaves das pontas: a relação inferida do
+    /// modelo de dados conceitual (#120).
+    Aresta {
+        diagrama: u32,
+        de: String,
+        para: String,
+    },
 }
 
 impl OrigemPergunta {
@@ -284,6 +291,9 @@ impl OrigemPergunta {
         match self {
             Self::AchadoDiagrama { diagrama, achado } => {
                 format!("achado `{achado}` do diagrama D-{diagrama}")
+            }
+            Self::Aresta { diagrama, de, para } => {
+                format!("relação `{de}` → `{para}` do diagrama D-{diagrama}")
             }
         }
     }
@@ -890,6 +900,16 @@ impl Analise {
                     .ok_or_else(|| ErroModelo::OrigemDesconhecida(origem.descricao()))?
                     .evidencias
             }
+            OrigemPergunta::Aresta { diagrama, de, para } => self
+                .diagrama(*diagrama)
+                .ok_or(ErroModelo::ItemDesconhecido {
+                    tipo: "diagrama",
+                    numero: *diagrama,
+                })?
+                .aresta(de, para)
+                .ok_or_else(|| ErroModelo::OrigemDesconhecida(origem.descricao()))?
+                .evidencias
+                .clone(),
         };
         let numero = proximo(&self.perguntas, |p| p.numero);
         self.perguntas.push(Pergunta {
@@ -904,6 +924,13 @@ impl Analise {
             evidencias,
         });
         Ok(numero)
+    }
+
+    /// Pergunta que saiu do item, se ele já virou pergunta.
+    pub fn pergunta_de(&self, origem: &OrigemPergunta) -> Option<&Pergunta> {
+        self.perguntas
+            .iter()
+            .find(|p| p.origem.as_ref() == Some(origem))
     }
 
     /// Responde ou descarta uma pergunta aberta.
@@ -1815,6 +1842,8 @@ mod tests {
             papel,
             descricao: None,
             evidencias,
+            raia: None,
+            entidade: None,
         };
         a.registrar_diagrama(
             NovoDiagrama {

@@ -19,6 +19,17 @@
 //!
 //! Registrar de novo com `substituir` troca o diagrama inteiro, mantendo o número:
 //! é como o agente corrige um diagrama.
+//!
+//! # Fluxo do processo e modelo de dados (#120)
+//!
+//! - No tipo `fluxo`, cada passo pode ter a raia ([`No::raia`]): o ator que o
+//!   executa (a tela do atendente, o banco, o lote). A figura agrupa os passos de
+//!   cada raia.
+//! - O tipo `dados` é o modelo de dados conceitual: cada nó é uma entidade de
+//!   negócio ([`Entidade`]: a tabela de origem e os atributos de negócio, sem as
+//!   colunas técnicas), e cada aresta é uma relação ([`Relacao`]: a cardinalidade
+//!   das duas pontas e a origem, chave estrangeira ou join no código). Relação
+//!   inferida de join não é `confirmado`: o código mostra o uso, não a regra.
 
 use serde::{Deserialize, Serialize};
 
@@ -30,6 +41,9 @@ pub const MAXIMO_DE_NOS: usize = 40;
 pub const MAXIMO_DE_ARESTAS: usize = 80;
 /// Tamanho máximo da chave de um nó.
 pub const TAMANHO_DA_CHAVE: usize = 40;
+/// Atributos no máximo numa entidade do modelo de dados: o modelo conceitual
+/// mostra os de negócio, não a tabela inteira.
+pub const MAXIMO_DE_ATRIBUTOS: usize = 30;
 
 /// O que o diagrama mostra.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -37,8 +51,10 @@ pub const TAMANHO_DA_CHAVE: usize = 40;
 pub enum TipoDiagrama {
     /// Ciclo de vida de uma entidade: estados e transições.
     Estados,
-    /// Fluxo de um processo: passos, decisões e caminhos.
+    /// Fluxo de um processo: passos, decisões e caminhos, em raias por ator.
     Fluxo,
+    /// Modelo de dados conceitual: entidades de negócio e relações (#120).
+    Dados,
 }
 
 /// Papel de um nó no diagrama, que define a forma dele na figura.
@@ -69,6 +85,88 @@ pub struct No {
     pub descricao: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub evidencias: Vec<Evidencia>,
+    /// Raia do passo (tipo `fluxo`): o ator que o executa ("Atendente",
+    /// "Banco de dados").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub raia: Option<String>,
+    /// Entidade de negócio (tipo `dados`, e só nele).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entidade: Option<Entidade>,
+}
+
+/// Entidade de negócio do modelo de dados conceitual: o nó do tipo `dados`, cujo
+/// rótulo é o nome de negócio (o do glossário, quando há).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Entidade {
+    /// Tabela de origem (`FATURA`).
+    pub tabela: String,
+    /// Atributos de negócio, sem as colunas técnicas (chaves, auditoria).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub atributos: Vec<Atributo>,
+    /// Termo do glossário da base ou proposto na análise que vive nesta tabela,
+    /// achado pelo app no registro.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub termo: Option<String>,
+}
+
+/// Atributo de negócio de uma entidade.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Atributo {
+    /// Nome de negócio ("Data de emissão").
+    pub nome: String,
+    /// Coluna de origem (`DT_EMISSAO`).
+    pub coluna: String,
+}
+
+/// Quantos registros de uma ponta se ligam a um registro da outra.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Multiplicidade {
+    ZeroOuUm,
+    Um,
+    ZeroOuMuitos,
+    UmOuMuitos,
+}
+
+impl Multiplicidade {
+    /// Rótulo curto ("0..1", "1", "0..N", "1..N").
+    pub fn rotulo(self) -> &'static str {
+        match self {
+            Self::ZeroOuUm => "0..1",
+            Self::Um => "1",
+            Self::ZeroOuMuitos => "0..N",
+            Self::UmOuMuitos => "1..N",
+        }
+    }
+}
+
+/// De onde vem a relação entre duas entidades.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OrigemRelacao {
+    /// Chave estrangeira declarada nos scripts do banco.
+    ChaveEstrangeira,
+    /// Inferida de um join (ou de uma gravação) no código, sem chave estrangeira.
+    Join,
+}
+
+/// Relação entre duas entidades (aresta do tipo `dados`): `de` é a multiplicidade
+/// da entidade de origem para cada registro da de destino, e `para` a da de
+/// destino para cada registro da de origem. Cliente → Fatura: `de` = um (cada
+/// fatura tem um cliente), `para` = zero ou muitos (cada cliente tem zero ou mais
+/// faturas).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Relacao {
+    pub de: Multiplicidade,
+    pub para: Multiplicidade,
+    pub origem: OrigemRelacao,
+}
+
+impl Relacao {
+    /// `1:0..N`.
+    pub fn cardinalidade(&self) -> String {
+        format!("{}:{}", self.de.rotulo(), self.para.rotulo())
+    }
 }
 
 /// Aresta do diagrama (transição ou caminho).
@@ -93,6 +191,17 @@ pub struct Aresta {
     pub confianca: Confianca,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub evidencias: Vec<Evidencia>,
+    /// Relação entre entidades (tipo `dados`, e só nele).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relacao: Option<Relacao>,
+}
+
+impl Aresta {
+    /// Relação inferida de join no código, sem chave estrangeira.
+    pub fn inferida_de_join(&self) -> bool {
+        self.relacao
+            .is_some_and(|r| r.origem == OrigemRelacao::Join)
+    }
 }
 
 /// Diagrama `D-<numero>` registrado na análise.
@@ -120,6 +229,11 @@ impl Diagrama {
     /// Nó pela chave.
     pub fn no(&self, chave: &str) -> Option<&No> {
         self.nos.iter().find(|n| n.chave == chave)
+    }
+
+    /// Aresta pelas chaves das pontas (a primeira, se houver mais de uma).
+    pub fn aresta(&self, de: &str, para: &str) -> Option<&Aresta> {
+        self.arestas.iter().find(|a| a.de == de && a.para == para)
     }
 
     /// Achados do ciclo de vida (#119), só no diagrama de estados, calculados das
@@ -299,6 +413,7 @@ impl NovoDiagrama {
             no.chave = no.chave.trim().to_owned();
             no.rotulo = no.rotulo.trim().to_owned();
             no.descricao = aparar(no.descricao.take());
+            no.raia = aparar(no.raia.take());
             if no.chave.is_empty() {
                 return Err(invalido("todo nó precisa de `chave`"));
             }
@@ -317,7 +432,23 @@ impl NovoDiagrama {
                     no.chave
                 )));
             }
+            conferir_no(self.tipo, no)?;
             chaves.push(no.chave.clone());
+        }
+        if self.tipo == TipoDiagrama::Dados {
+            let mut tabelas: Vec<String> = Vec::new();
+            for no in &self.nos {
+                let tabela = no.entidade.as_ref().map(|e| e.tabela.to_uppercase());
+                if let Some(t) = tabela {
+                    if tabelas.contains(&t) {
+                        return Err(invalido(format!(
+                            "a tabela `{t}` aparece em mais de uma entidade; cada entidade \
+                             tem a sua tabela de origem"
+                        )));
+                    }
+                    tabelas.push(t);
+                }
+            }
         }
         for (i, aresta) in self.arestas.iter_mut().enumerate() {
             aresta.de = aresta.de.trim().to_owned();
@@ -326,6 +457,7 @@ impl NovoDiagrama {
             aresta.descricao = aparar(aresta.descricao.take());
             aresta.condicao = aparar(aresta.condicao.take());
             aresta.efeitos = aparar(aresta.efeitos.take());
+            conferir_relacao(self.tipo, i, aresta)?;
             for ponta in [&aresta.de, &aresta.para] {
                 if !chaves.contains(ponta) {
                     return Err(invalido(format!(
@@ -349,6 +481,87 @@ impl NovoDiagrama {
             }
         }
         Ok(self)
+    }
+}
+
+/// Confere o nó conforme o tipo do diagrama: raia só no fluxo; entidade (com
+/// tabela e atributos completos) em todo nó do modelo de dados, e só nele.
+fn conferir_no(tipo: TipoDiagrama, no: &mut No) -> Result<(), ErroModelo> {
+    if no.raia.is_some() && tipo != TipoDiagrama::Fluxo {
+        return Err(invalido(format!(
+            "o nó `{}` tem `raia`, que só vale no tipo `fluxo` (o ator que executa o passo)",
+            no.chave
+        )));
+    }
+    match (tipo, no.entidade.as_mut()) {
+        (TipoDiagrama::Dados, None) => Err(invalido(format!(
+            "no tipo `dados`, cada nó é uma entidade: informe a `tabela` do nó `{}`",
+            no.chave
+        ))),
+        (TipoDiagrama::Dados, Some(e)) => {
+            if no.papel != PapelNo::Etapa {
+                return Err(invalido(format!(
+                    "no tipo `dados`, os nós são entidades: omita o `papel` do nó `{}`",
+                    no.chave
+                )));
+            }
+            e.tabela = e.tabela.trim().to_owned();
+            e.termo = aparar(e.termo.take());
+            if e.tabela.is_empty() {
+                return Err(invalido(format!(
+                    "a entidade `{}` precisa de `tabela`",
+                    no.chave
+                )));
+            }
+            if e.atributos.len() > MAXIMO_DE_ATRIBUTOS {
+                return Err(invalido(format!(
+                    "a entidade `{}` tem {} atributos, mais que o máximo de \
+                     {MAXIMO_DE_ATRIBUTOS}; deixe só os de negócio",
+                    no.chave,
+                    e.atributos.len()
+                )));
+            }
+            for atributo in &mut e.atributos {
+                atributo.nome = atributo.nome.trim().to_owned();
+                atributo.coluna = atributo.coluna.trim().to_owned();
+                if atributo.nome.is_empty() || atributo.coluna.is_empty() {
+                    return Err(invalido(format!(
+                        "cada atributo da entidade `{}` precisa de `nome` e `coluna`",
+                        no.chave
+                    )));
+                }
+            }
+            Ok(())
+        }
+        (_, Some(_)) => Err(invalido(format!(
+            "o nó `{}` tem `tabela` ou `atributos`, que só valem no tipo `dados`",
+            no.chave
+        ))),
+        (_, None) => Ok(()),
+    }
+}
+
+/// Confere a aresta conforme o tipo: relação (cardinalidade e origem) em toda
+/// aresta do modelo de dados, e só nele; relação de join não é `confirmado`.
+fn conferir_relacao(tipo: TipoDiagrama, i: usize, aresta: &Aresta) -> Result<(), ErroModelo> {
+    let onde = format!("a aresta {} (`{}` → `{}`)", i + 1, aresta.de, aresta.para);
+    match (tipo, aresta.relacao) {
+        (TipoDiagrama::Dados, None) => Err(invalido(format!(
+            "no tipo `dados`, cada aresta é uma relação: informe a cardinalidade e a \
+             origem (`chave_estrangeira` ou `join`) d{onde}"
+        ))),
+        (TipoDiagrama::Dados, Some(r))
+            if r.origem == OrigemRelacao::Join && aresta.confianca == Confianca::Confirmado =>
+        {
+            Err(invalido(format!(
+                "{onde} vem de um join no código, sem chave estrangeira: é uma relação \
+                 inferida; use `inferido` (ou `a_confirmar`)"
+            )))
+        }
+        (TipoDiagrama::Dados, Some(_)) | (_, None) => Ok(()),
+        (_, Some(_)) => Err(invalido(format!(
+            "{onde} tem cardinalidade ou origem, que só valem no tipo `dados`"
+        ))),
     }
 }
 
@@ -423,6 +636,8 @@ mod tests {
             papel: PapelNo::Etapa,
             descricao: None,
             evidencias: vec![],
+            raia: None,
+            entidade: None,
         }
     }
 
@@ -436,7 +651,191 @@ mod tests {
             efeitos: None,
             confianca,
             evidencias: vec![],
+            relacao: None,
         }
+    }
+
+    fn entidade(chave: &str, tabela: &str) -> No {
+        No {
+            entidade: Some(Entidade {
+                tabela: format!(" {tabela} "),
+                atributos: vec![Atributo {
+                    nome: " Nome ".into(),
+                    coluna: "NOME".into(),
+                }],
+                termo: None,
+            }),
+            ..no(chave, chave)
+        }
+    }
+
+    fn relacao(de: &str, para: &str, origem: OrigemRelacao, confianca: Confianca) -> Aresta {
+        Aresta {
+            relacao: Some(Relacao {
+                de: Multiplicidade::Um,
+                para: Multiplicidade::ZeroOuMuitos,
+                origem,
+            }),
+            ..aresta(de, para, confianca)
+        }
+    }
+
+    #[test]
+    fn raias_no_fluxo_e_entidades_no_modelo_de_dados() {
+        let mut a = analise();
+        let mut fluxo = novo(
+            vec![
+                No {
+                    raia: Some(" Atendente ".into()),
+                    ..no("A", "Informar a fatura")
+                },
+                no("B", "Gravar"),
+            ],
+            vec![aresta("A", "B", Confianca::Inferido)],
+        );
+        fluxo.tipo = TipoDiagrama::Fluxo;
+        a.registrar_diagrama(fluxo, None, 1).unwrap();
+        assert_eq!(a.diagramas[0].nos[0].raia.as_deref(), Some("Atendente"));
+        assert_eq!(a.diagramas[0].nos[1].raia, None);
+
+        let mut dados = novo(
+            vec![entidade("C", "CLIENTE"), entidade("F", "FATURA")],
+            vec![relacao("C", "F", OrigemRelacao::Join, Confianca::Inferido)],
+        );
+        dados.tipo = TipoDiagrama::Dados;
+        let n = a.registrar_diagrama(dados, None, 2).unwrap();
+        let d = a.diagrama(n).unwrap();
+        let e = d.nos[0].entidade.as_ref().unwrap();
+        assert_eq!(e.tabela, "CLIENTE");
+        assert_eq!(e.atributos[0].nome, "Nome");
+        assert!(d.aresta("C", "F").unwrap().inferida_de_join());
+        assert_eq!(d.arestas[0].relacao.unwrap().cardinalidade(), "1:0..N");
+    }
+
+    #[test]
+    fn relacao_vira_pergunta_uma_vez_so() {
+        use crate::analise::{EstadoPergunta, OrigemPergunta};
+        let mut a = analise();
+        let evidencia = Evidencia {
+            arquivo: cba_kb::CaminhoRelativo::novo("db/03_pkg_cobranca.sql").unwrap(),
+            linhas: cba_kb::frontmatter::Linhas::novo(130, 131).unwrap(),
+            trecho: "INSERT INTO LOG_FATURA".into(),
+            hash: "h".into(),
+            commit: None,
+            estado: crate::analise::EstadoEvidencia::Valida,
+        };
+        let mut dados = novo(
+            vec![entidade("F", "FATURA"), entidade("L", "LOG_FATURA")],
+            vec![Aresta {
+                evidencias: vec![evidencia.clone()],
+                ..relacao("F", "L", OrigemRelacao::Join, Confianca::Inferido)
+            }],
+        );
+        dados.tipo = TipoDiagrama::Dados;
+        a.registrar_diagrama(dados, None, 1).unwrap();
+        a.concluir().unwrap();
+        let origem = OrigemPergunta::Aresta {
+            diagrama: 1,
+            de: "F".into(),
+            para: "L".into(),
+        };
+        let n = a
+            .virar_pergunta(" O histórico é da fatura? ", origem.clone(), 9)
+            .unwrap();
+        let p = a.pergunta_de(&origem).unwrap();
+        assert_eq!(p.numero, n);
+        assert_eq!(p.texto, "O histórico é da fatura?");
+        assert_eq!(p.estado, EstadoPergunta::Aberta);
+        assert_eq!(p.evidencias, vec![evidencia]);
+        // Não reabre a análise concluída.
+        assert_eq!(a.estado, EstadoAnalise::Concluida);
+        let erro = a.virar_pergunta("de novo", origem, 10).unwrap_err();
+        assert!(erro.to_string().contains("já virou a pergunta 1"), "{erro}");
+        let outra = OrigemPergunta::Aresta {
+            diagrama: 1,
+            de: "L".into(),
+            para: "F".into(),
+        };
+        assert!(a.virar_pergunta("x", outra, 10).is_err());
+        assert_eq!(a.perguntas.len(), 1);
+        let json = serde_json::to_value(&a.perguntas[0]).unwrap();
+        assert_eq!(json["origem"]["tipo"], "aresta");
+        assert_eq!(json["origem"]["diagrama"], 1);
+    }
+
+    #[test]
+    fn recusa_elementos_fora_do_tipo() {
+        let mut a = analise();
+        let dados = |nos, arestas| NovoDiagrama {
+            tipo: TipoDiagrama::Dados,
+            ..novo(nos, arestas)
+        };
+        let casos = [
+            (
+                dados(vec![no("C", "Cliente")], vec![]),
+                "informe a `tabela`",
+            ),
+            (
+                dados(
+                    vec![entidade("C", "CLIENTE"), entidade("D", "cliente")],
+                    vec![],
+                ),
+                "mais de uma entidade",
+            ),
+            (
+                dados(
+                    vec![No {
+                        papel: PapelNo::Inicio,
+                        ..entidade("C", "CLIENTE")
+                    }],
+                    vec![],
+                ),
+                "omita o `papel`",
+            ),
+            (
+                dados(
+                    vec![entidade("C", "CLIENTE"), entidade("F", "FATURA")],
+                    vec![aresta("C", "F", Confianca::Inferido)],
+                ),
+                "cardinalidade e a origem",
+            ),
+            (
+                dados(
+                    vec![entidade("C", "CLIENTE"), entidade("F", "FATURA")],
+                    vec![Aresta {
+                        evidencias: vec![],
+                        ..relacao("C", "F", OrigemRelacao::Join, Confianca::Confirmado)
+                    }],
+                ),
+                "relação inferida",
+            ),
+            (
+                novo(vec![entidade("C", "CLIENTE")], vec![]),
+                "só valem no tipo `dados`",
+            ),
+            (
+                novo(
+                    vec![No {
+                        raia: Some("Atendente".into()),
+                        ..no("A", "a")
+                    }],
+                    vec![],
+                ),
+                "só vale no tipo `fluxo`",
+            ),
+            (
+                novo(
+                    vec![no("A", "a"), no("B", "b")],
+                    vec![relacao("A", "B", OrigemRelacao::Join, Confianca::Inferido)],
+                ),
+                "só valem no tipo `dados`",
+            ),
+        ];
+        for (diagrama, trecho) in casos {
+            let erro = a.registrar_diagrama(diagrama, None, 1).unwrap_err();
+            assert!(erro.to_string().contains(trecho), "{trecho}: {erro}");
+        }
+        assert!(a.diagramas.is_empty());
     }
 
     fn novo(nos: Vec<No>, arestas: Vec<Aresta>) -> NovoDiagrama {

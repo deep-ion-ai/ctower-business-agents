@@ -34,6 +34,8 @@ fn no(chave: &str, papel: PapelNo) -> No {
         papel,
         descricao: None,
         evidencias: vec![],
+        raia: None,
+        entidade: None,
     }
 }
 
@@ -51,6 +53,7 @@ fn aresta(de: &str, para: &str, evidencia: Option<Evidencia>) -> Aresta {
             Confianca::Inferido
         },
         evidencias: evidencia.into_iter().collect(),
+        relacao: None,
     }
 }
 

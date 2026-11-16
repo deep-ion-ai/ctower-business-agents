@@ -169,6 +169,12 @@ fn dica_da_secao(fluxo: Fluxo, marcador: &str) -> &'static str {
             "caminhos que mudam por uma condição do negócio, com a condição"
         }
         (Fluxo::Explicar, "excecoes") => "recusas, erros e bloqueios, com a condição e a mensagem",
+        (Fluxo::Explicar, "fluxo_processo") => {
+            "o fluxograma do processo, registrado com `registrar_diagrama` (tipo `fluxo`): o caminho principal, as decisões dos alternativos e das exceções e um passo de fim para cada desfecho, cada passo com a raia do ator que o executa e com evidência"
+        }
+        (Fluxo::Explicar, "modelo_dados") => {
+            "o modelo de dados conceitual, registrado com `registrar_diagrama` (tipo `dados`): as entidades de negócio lidas e gravadas, com o nome do glossário, a tabela e os atributos de negócio, e as relações com cardinalidade, por chave estrangeira ou inferidas de join"
+        }
         (Fluxo::Explicar, "regras") => {
             "uma regra de negócio por afirmação, com valores e de onde vêm; a mesma regra em mais de uma camada vai numa afirmação só, com as evidências de cada uma e as divergências"
         }

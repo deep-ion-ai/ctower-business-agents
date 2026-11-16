@@ -67,6 +67,10 @@ _Nada registrado._
 
 _Nada registrado._
 
+## Fluxo do processo
+
+_Fluxo do processo ainda não registrado._
+
 ## Regras de negócio
 
 _Nada registrado._
@@ -74,6 +78,10 @@ _Nada registrado._
 ## Dados lidos e gravados
 
 _Nada registrado._
+
+## Modelo de dados conceitual
+
+_Modelo de dados conceitual ainda não registrado._
 
 ## Integrações
 
