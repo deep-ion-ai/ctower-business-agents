@@ -36,6 +36,52 @@ struct Gabarito {
     historias: Vec<Historias>,
     #[serde(default)]
     cenarios: Vec<Cenarios>,
+    #[serde(default)]
+    ciclos_vida: Vec<CicloVida>,
+}
+
+/// Ciclo de vida esperado de uma entidade com campo de status (#119).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CicloVida {
+    id: String,
+    titulo: String,
+    entidade: String,
+    pedido: String,
+    campo: Evidencia,
+    estados: Vec<EstadoEsperado>,
+    transicoes: Vec<TransicaoEsperada>,
+    #[serde(default)]
+    achados: Vec<AchadoDeEstado>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EstadoEsperado {
+    valor: String,
+    #[serde(default)]
+    inicial: bool,
+    #[serde(default)]
+    r#final: bool,
+    #[serde(default)]
+    evidencia: Option<Evidencia>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TransicaoEsperada {
+    id: String,
+    de: String,
+    para: String,
+    palavras_chave: Vec<Vec<String>>,
+    evidencia: Evidencia,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AchadoDeEstado {
+    tipo: String,
+    estado: String,
 }
 
 /// Cenários de teste esperados a partir das regras (fluxo "Cenários de teste",
@@ -476,6 +522,13 @@ fn conferir(caminho: &Path) -> Vec<String> {
         )
         .chain(gabarito.historias.iter().map(|h| &h.id))
         .chain(gabarito.cenarios.iter().map(|c| &c.id))
+        .chain(gabarito.ciclos_vida.iter().map(|c| &c.id))
+        .chain(
+            gabarito
+                .ciclos_vida
+                .iter()
+                .flat_map(|c| c.transicoes.iter().map(|t| &t.id)),
+        )
         .chain(gabarito.cenarios.iter().flat_map(|c| {
             c.limites
                 .iter()
@@ -823,6 +876,10 @@ fn conferir(caminho: &Path) -> Vec<String> {
         c.perguntas_esperadas(&onde, &cen.a_confirmar);
     }
 
+    for cv in &gabarito.ciclos_vida {
+        conferir_ciclo_vida(&mut c, cv);
+    }
+
     // Toda regra é exercitada por ao menos um fluxo.
     for regra in &gabarito.regras {
         if !citadas_nos_fluxos.contains(regra.id.as_str()) {
@@ -834,6 +891,74 @@ fn conferir(caminho: &Path) -> Vec<String> {
     }
 
     c.erros
+}
+
+/// Ciclo de vida (#119): estados únicos com um inicial, transições entre estados
+/// declarados com evidência que grava o valor de destino, e os achados iguais aos
+/// calculados das transições (inalcançável e sem saída).
+fn conferir_ciclo_vida(c: &mut Conferencia, cv: &CicloVida) {
+    let onde = format!("ciclo de vida {}", cv.id);
+    c.texto_preenchido(&onde, "titulo", &cv.titulo);
+    c.texto_preenchido(&onde, "entidade", &cv.entidade);
+    c.texto_preenchido(&onde, "pedido", &cv.pedido);
+    c.evidencia(&format!("{onde}, campo"), &cv.campo);
+    let valores: Vec<&str> = cv.estados.iter().map(|e| e.valor.as_str()).collect();
+    let unicos: HashSet<&str> = valores.iter().copied().collect();
+    if unicos.len() != valores.len() {
+        c.erro(format!("{onde}: estado repetido"));
+    }
+    if cv.estados.iter().filter(|e| e.inicial).count() != 1 {
+        c.erro(format!("{onde}: precisa de exatamente um estado inicial"));
+    }
+    for e in &cv.estados {
+        c.texto_preenchido(&onde, "estados.valor", &e.valor);
+        if e.inicial && e.r#final {
+            c.erro(format!("{onde}: {} é inicial e final", e.valor));
+        }
+        if let Some(ev) = &e.evidencia {
+            c.evidencia(&format!("{onde}, estado {}", e.valor), ev);
+        }
+    }
+    for t in &cv.transicoes {
+        let onde_t = format!("{onde}, {}", t.id);
+        for ponta in [&t.de, &t.para] {
+            if !unicos.contains(ponta.as_str()) {
+                c.erro(format!("{onde_t}: estado `{ponta}` não declarado"));
+            }
+        }
+        c.palavras_chave(&onde_t, &t.palavras_chave);
+        c.evidencia(&onde_t, &t.evidencia);
+        if !t.evidencia.trecho.contains(t.para.as_str()) && !t.evidencia.trecho.contains(t.de.as_str()) {
+            c.erro(format!(
+                "{onde_t}: o trecho deve citar o valor gravado ({} ou {})",
+                t.para, t.de
+            ));
+        }
+    }
+    // Os achados esperados são exatamente os que as transições implicam.
+    let mut calculados: Vec<(String, String)> = Vec::new();
+    for e in &cv.estados {
+        let chega = cv.transicoes.iter().any(|t| t.para == e.valor);
+        let sai = cv.transicoes.iter().any(|t| t.de == e.valor);
+        if !e.inicial && !chega {
+            calculados.push(("inalcancavel".into(), e.valor.clone()));
+        }
+        if !e.r#final && !sai && chega {
+            calculados.push(("sem_saida".into(), e.valor.clone()));
+        }
+    }
+    let mut esperados: Vec<(String, String)> = cv
+        .achados
+        .iter()
+        .map(|a| (a.tipo.clone(), a.estado.clone()))
+        .collect();
+    calculados.sort();
+    esperados.sort();
+    if calculados != esperados {
+        c.erro(format!(
+            "{onde}: achados {esperados:?} diferem dos calculados das transições {calculados:?}"
+        ));
+    }
 }
 
 /// Início `M:SS` ou `H:MM:SS` em segundos.
