@@ -140,11 +140,16 @@ export type ElementoDoDiagrama =
 /**
  * Elemento a partir do SVG do Mermaid (flowchart): o nó tem `id` `<render>-flowchart-n3-2`
  * (terceiro nó) e a aresta, nos traços e no rótulo, `data-id` `L_n1_n2_0` (de `n1` para
- * `n2`). Aceita também `n3`. Índices a partir de 0.
+ * `n2`). Aceita também `n3`. No modelo de dados (erDiagram), a entidade tem `id`
+ * `<render>-entity-e2-1` (segunda entidade). Índices a partir de 0.
  */
 export function elementoDoId(id: string | null | undefined): ElementoDoDiagrama | null {
   if (!id) return null;
-  const no = /^n(\d+)$/.exec(id) ?? /(?:^|-)flowchart-n(\d+)-\d+$/.exec(id);
+  const no =
+    /^[ne](\d+)$/.exec(id) ??
+    /(?:^|-)flowchart-n(\d+)-\d+$/.exec(id) ??
+    // Entidade do modelo de dados (erDiagram, #120): `entity-e2-1`.
+    /(?:^|-)entity-e(\d+)-\d+$/.exec(id);
   if (no) return { tipo: "no", indice: Number(no[1]) - 1 };
   const aresta = /^L[_-]n(\d+)[_-]n(\d+)(?:[_-](\d+))?$/.exec(id);
   if (aresta) {

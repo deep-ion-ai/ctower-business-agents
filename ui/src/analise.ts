@@ -48,14 +48,19 @@ export type Afirmacao = {
   registrada_ms: number;
 } & EstadoAfirmacao;
 
-/** Item de que o analista fez a pergunta ("Virar pergunta", `cba_core::analise::OrigemPergunta`). */
-export type OrigemPergunta = { tipo: "achado-diagrama"; diagrama: number; achado: string };
+/**
+ * Item de que o analista fez a pergunta ("Virar pergunta", `cba_core::analise::OrigemPergunta`):
+ * um achado do ciclo de vida (#119) ou a relação inferida do modelo de dados (#120).
+ */
+export type OrigemPergunta =
+  | { tipo: "achado-diagrama"; diagrama: number; achado: string }
+  | { tipo: "aresta"; diagrama: number; de: string; para: string };
 
 export type Pergunta = {
   numero: number;
   texto: string;
   afirmacao?: number | null;
-  /** Item que virou esta pergunta (#119). */
+  /** Item que virou esta pergunta (#119, #120). */
   origem?: OrigemPergunta | null;
   /** Evidências do item de origem. */
   evidencias?: Evidencia[];
@@ -140,6 +145,28 @@ export interface NoDiagrama {
   papel?: PapelNo;
   descricao?: string | null;
   evidencias?: Evidencia[];
+  /** Ator que executa o passo (tipo `fluxo`, #120). */
+  raia?: string | null;
+  /** Entidade de negócio (tipo `dados`, #120). */
+  entidade?: EntidadeDiagrama | null;
+}
+
+/** Entidade do modelo de dados conceitual (`cba_core::diagramas::Entidade`). */
+export interface EntidadeDiagrama {
+  tabela: string;
+  atributos?: { nome: string; coluna: string }[];
+  /** Termo do glossário que vive na tabela, ligado pelo app. */
+  termo?: string | null;
+}
+
+/** Multiplicidade de uma ponta da relação (`cba_core::diagramas::Multiplicidade`). */
+export type Multiplicidade = "zero_ou_um" | "um" | "zero_ou_muitos" | "um_ou_muitos";
+
+/** Relação entre entidades (`cba_core::diagramas::Relacao`). */
+export interface RelacaoDiagrama {
+  de: Multiplicidade;
+  para: Multiplicidade;
+  origem: "chave_estrangeira" | "join";
 }
 
 /** Aresta de um diagrama (`cba_core::diagramas::Aresta`). */
@@ -154,12 +181,14 @@ export interface ArestaDiagrama {
   efeitos?: string | null;
   confianca: Confianca;
   evidencias?: Evidencia[];
+  /** Relação entre entidades (tipo `dados`, #120). */
+  relacao?: RelacaoDiagrama | null;
 }
 
 /** Diagrama `D-<numero>` (`cba_core::diagramas::Diagrama`). */
 export interface Diagrama {
   numero: number;
-  tipo: "estados" | "fluxo";
+  tipo: "estados" | "fluxo" | "dados";
   titulo: string;
   secao: string;
   nos: NoDiagrama[];
