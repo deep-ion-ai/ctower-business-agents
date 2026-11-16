@@ -261,6 +261,7 @@ export function DocumentoAoVivo({
                   data-estado={a.estado}
                   data-pendente={(rev && a.estado === "registrada") || undefined}
                   data-testid={`afirmacao-${a.numero}`}
+                  tabIndex={-1}
                 >
                   <span className="badge" data-tone={a.confianca === "confirmado" ? "done" : undefined}>
                     {ROTULO_CONFIANCA[a.confianca]}

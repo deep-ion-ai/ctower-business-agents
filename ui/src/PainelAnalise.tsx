@@ -9,7 +9,9 @@ import {
   type Pergunta,
 } from "./analise";
 import type { Revisao } from "./AcoesRevisao";
-import { AprovacaoAnalise } from "./AprovacaoAnalise";
+import { AprovacaoAnalise, useProntidao } from "./AprovacaoAnalise";
+import { AprovacaoDialogo } from "./AprovacaoDialogo";
+import { FaixaCodigoAlterado } from "./FaixaCodigoAlterado";
 import { AprovacaoAta } from "./AprovacaoAta";
 import { AvisoAlteracao } from "./AvisoAlteracao";
 import { BotaoPainel } from "./BotaoPainel";
@@ -33,11 +35,12 @@ import {
 import { ExportacaoAnalise } from "./ExportacaoAnalise";
 import { ParecerAoVivo } from "./ParecerAoVivo";
 import { PromptsProntos } from "./PromptsProntos";
-import { apiRevisaoTauri, type ApiRevisao, type DecisaoRevisao } from "./revisao";
+import { apiRevisaoTauri, type ApiRevisao, type DecisaoRevisao, type Pendencia } from "./revisao";
 import { AtaAoVivo } from "./AtaAoVivo";
 import { apiReuniaoTauri, type ApiReuniao } from "./reunioes";
 import { TerminalClaude, type ControleTerminal, type EstadoTerminal } from "./TerminalClaude";
 import { TrechoEvidencia, type CargaTrecho } from "./TrechoEvidencia";
+import type { CodigoAlterado } from "./FaixaCodigoAlterado";
 import type { ApiTerminal, PedidoClaude } from "./terminal";
 import type { TelaTerminal } from "./telaXterm";
 import { useAnaliseAoVivo } from "./useAnaliseAoVivo";
@@ -53,7 +56,7 @@ export type Abertura =
 type Fora = { cliente: "claudeDesktop" | "terminalDoAnalista"; aviso: string };
 
 /** Painel aberto na barra (um por vez). */
-type Menu = "alteracao" | "continuar" | "aprovar" | "exportar";
+type Menu = "alteracao" | "continuar" | "exportar";
 
 const ONDE_TEXTO: Record<ClienteConversa, string> = {
   terminalEmbutido: "aqui, no terminal do app",
@@ -87,6 +90,8 @@ const AVISO_LINK_DESKTOP =
   "Abrimos o Claude Desktop com o pedido: confirme a pasta e envie. O documento ao lado se atualiza sozinho a cada registro.";
 const AVISO_APROFUNDAR =
   "Aprofundamento registrado. Com a conversa aberta aqui, o pedido vai direto ao agente; noutro cliente, peça para ele aprofundar a análise.";
+const AVISO_REVALIDAR =
+  "Sem conversa aberta aqui, o pedido não foi enviado: peça ao agente, no cliente em que a conversa está, para revalidar as afirmações marcadas.";
 const AVISO_TERMINAL =
   "A conversa continua no seu terminal. O documento ao lado se atualiza sozinho a cada registro.";
 
@@ -135,6 +140,7 @@ export function PainelAnalise({
   const [trecho, setTrecho] = useState<CargaTrecho | null>(null);
   const [origemTrecho, setOrigemTrecho] = useState<OrigemEvidencia | null>(null);
   const [menu, setMenu] = useState<Menu | null>(null);
+  const [aprovando, setAprovando] = useState(false);
   const [falhaEnvio, setFalhaEnvio] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
@@ -149,6 +155,15 @@ export function PainelAnalise({
     : conversa
       ? "terminalEmbutido"
       : null;
+
+  // A análise de uma reunião é aprovada pela ata: a prontidão das análises não vale.
+  const { prontidao } = useProntidao(
+    apiRevisao,
+    projeto,
+    analise,
+    vista?.analise.versao ?? 0,
+    !!vista && vista.analise.fluxo !== "reuniao",
+  );
 
   const fecharMenu = useCallback(() => setMenu(null), []);
   const alternar = (m: Menu) => () => setMenu((atual) => (atual === m ? null : m));
@@ -384,6 +399,70 @@ export function PainelAnalise({
       );
   };
 
+  /** Leva ao cartão da afirmação: rola e foca (depois de o diálogo devolver o foco). */
+  const irParaAfirmacao = (numero: number) => {
+    setAprovando(false);
+    setMenu(null);
+    setTimeout(() => {
+      const el = document.querySelector<HTMLElement>(`[data-testid="afirmacao-${numero}"]`);
+      el?.scrollIntoView?.({ block: "center" });
+      el?.focus();
+    }, 0);
+  };
+
+  const revisarPendentes = (pendencias: Pendencia[]) => {
+    const primeira = pendencias.find((p) => p.tipo === "afirmacao" && p.numero !== null);
+    if (primeira?.numero != null) irParaAfirmacao(primeira.numero);
+    else setAprovando(false);
+  };
+
+  /** Pede ao agente que revalide as afirmações do código alterado; `false` sem conversa viva. */
+  const pedirRevalidacao = (alterados: CodigoAlterado[]) => {
+    if (!vivo) {
+      setAviso(AVISO_REVALIDAR);
+      return false;
+    }
+    const numeros = [...new Set(alterados.flatMap((c) => c.afirmacoes))].sort((a, b) => a - b);
+    enviar(
+      `O código citado na análise ${analise} mudou (${alterados.map((c) => c.arquivo).join(", ")}). ` +
+        `Revalide as afirmações ${numeros.join(", ")}: confira cada evidência no código atual e, ` +
+        "pelo ctower, registre com `afirmar` o que continua valendo ou o que mudou.",
+    );
+    return true;
+  };
+
+  const aprovada = vista?.analise.estado === "aprovada";
+  const deAta = vista?.analise.fluxo === "reuniao";
+  const pendentes = !deAta && !aprovada && prontidao ? prontidao.pendencias.length : null;
+  const agenteTrabalhando = !aprovada && vista?.sessao?.estado === "ativa";
+  const pronta = pendentes === 0 && !!prontidao?.podeAprovar;
+  const rotuloAprovar = aprovada
+    ? "Análise aprovada"
+    : agenteTrabalhando
+      ? "Aguardando o agente"
+      : pronta
+        ? "Aprovar análise"
+        : "Aprovar…";
+  const selo = aprovada
+    ? null
+    : agenteTrabalhando
+      ? "Agente trabalhando"
+      : pronta
+        ? "Pronta para aprovar"
+        : pendentes
+          ? `Aguardando sua revisão · ${pendentes} ${pendentes === 1 ? "pendente" : "pendentes"}`
+          : null;
+  const tituloAprovar =
+    deAta
+      ? "Aprovar a ata"
+      : vista?.analise.fluxo === "revisar"
+        ? "Aprovar o parecer"
+        : vista?.analise.fluxo === "historias"
+          ? "Aprovar as histórias"
+          : vista?.analise.fluxo === "cenarios"
+            ? "Aprovar os cenários"
+            : "Aprovar a análise";
+
   return (
     <div className="painel-analise">
       <header className="painel-barra">
@@ -405,6 +484,16 @@ export function PainelAnalise({
                 data-tone={vista.analise.estado === "aprovada" ? "done" : undefined}
               >
                 {ROTULO_ANALISE[vista.analise.estado]}
+              </span>
+            )}
+            {vista && selo && (
+              <span
+                className="badge selo-aprovacao"
+                role="status"
+                aria-label="Situação da aprovação"
+                data-tone={pronta ? "done" : agenteTrabalhando ? "running" : "attention"}
+              >
+                {selo}
               </span>
             )}
           </div>
@@ -458,43 +547,18 @@ export function PainelAnalise({
           {vista && (
             <>
               <span className="separador" aria-hidden="true" />
-              <BotaoPainel
-                aberto={menu === "aprovar"}
-                aoAlternar={alternar("aprovar")}
-                aoFechar={fecharMenu}
-                rotulo="Aprovar"
-                rotuloPainel={
-                  vista.analise.fluxo === "reuniao"
-                    ? "Aprovar a ata"
-                    : vista.analise.fluxo === "revisar"
-                      ? "Aprovar o parecer"
-                    : vista.analise.fluxo === "historias"
-                      ? "Aprovar as histórias"
-                    : vista.analise.fluxo === "cenarios"
-                      ? "Aprovar os cenários"
-                      : "Aprovar a análise"
-                }
-                classePainel="painel-revisao"
+              <button
+                className="btn btn-primary"
+                type="button"
+                aria-haspopup="dialog"
+                disabled={agenteTrabalhando}
+                onClick={() => {
+                  setMenu(null);
+                  setAprovando(true);
+                }}
               >
-                {vista.analise.fluxo === "reuniao" ? (
-                  // A análise de uma reunião é aprovada com a ata, que apaga o transcript.
-                  <AprovacaoAta
-                    api={apiReuniao}
-                    projeto={projeto}
-                    analise={analise}
-                    versao={vista.analise.versao}
-                    aoAprovar={recarregar}
-                  />
-                ) : (
-                  <AprovacaoAnalise
-                    api={apiRevisao}
-                    projeto={projeto}
-                    analise={analise}
-                    versao={vista.analise.versao}
-                    aoAprovar={recarregar}
-                  />
-                )}
-              </BotaoPainel>
+                {rotuloAprovar}
+              </button>
               <BotaoPainel
                 aberto={menu === "exportar"}
                 aoAlternar={alternar("exportar")}
@@ -515,6 +579,30 @@ export function PainelAnalise({
           )}
         </div>
       </header>
+      {vista && aprovando && (
+        <AprovacaoDialogo titulo={tituloAprovar} aoFechar={() => setAprovando(false)}>
+          {deAta ? (
+            // A análise de uma reunião é aprovada com a ata, que apaga o transcript.
+            <AprovacaoAta
+              api={apiReuniao}
+              projeto={projeto}
+              analise={analise}
+              versao={vista.analise.versao}
+              aoAprovar={recarregar}
+            />
+          ) : (
+            <AprovacaoAnalise
+              api={apiRevisao}
+              projeto={projeto}
+              analise={analise}
+              versao={vista.analise.versao}
+              aoAprovar={recarregar}
+              aoIrPara={(p) => p.numero !== null && irParaAfirmacao(p.numero)}
+              aoRevisarPendentes={revisarPendentes}
+            />
+          )}
+        </AprovacaoDialogo>
+      )}
       <div
         className="painel-colunas"
         ref={colunas}
@@ -531,6 +619,17 @@ export function PainelAnalise({
             <p className="error-text" role="alert">
               {falhaRevisao}
             </p>
+          )}
+          {vista && (
+            <FaixaCodigoAlterado
+              afirmacoes={vista.analise.afirmacoes}
+              aoVer={(e, origem) => {
+                abrirEvidencia(e, origem);
+                irParaAfirmacao(Number(origem.replace("afirmacao-", "")));
+              }}
+              aoPedir={pedirRevalidacao}
+              aoIrPara={irParaAfirmacao}
+            />
           )}
           {vista?.analise.fluxo === "reuniao" && vista.analise.reuniao && (
             <AtaAoVivo

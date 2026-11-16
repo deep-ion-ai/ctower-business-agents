@@ -140,7 +140,7 @@ describe("PainelAnalise", () => {
     expect(within(barra).getByRole("heading", { name: "A-0001: Multa por atraso" })).toBeVisible();
     // Sem o título repetido no documento.
     expect(within(documento).queryByRole("heading", { level: 2 })).not.toBeInTheDocument();
-    for (const nome of ["Continuar a conversa", "Aprovar", "Exportar"]) {
+    for (const nome of ["Continuar a conversa", "Exportar"]) {
       expect(within(barra).getByRole("button", { name: nome })).toHaveAttribute(
         "aria-expanded",
         "false",
@@ -149,12 +149,13 @@ describe("PainelAnalise", () => {
     // Um painel por vez; Esc fecha.
     fireEvent.click(within(barra).getByRole("button", { name: "Exportar" }));
     expect(screen.getByRole("region", { name: "Exportar o documento" })).toBeVisible();
-    fireEvent.click(within(barra).getByRole("button", { name: "Aprovar" }));
+    // Aprovar abre um diálogo modal; Esc fecha e devolve o foco ao botão.
+    const aprovar = within(barra).getByRole("button", { name: /^Aprovar/ });
+    fireEvent.click(aprovar);
     expect(screen.queryByRole("region", { name: "Exportar o documento" })).not.toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Aprovar a análise" })).toBeVisible();
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByRole("region", { name: "Aprovar a análise" })).not.toBeInTheDocument();
-    expect(within(barra).getByRole("button", { name: "Aprovar" })).toHaveFocus();
+    expect(screen.getByRole("dialog", { name: "Aprovar a análise" })).toBeVisible();
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("abre o trecho da evidência logo abaixo da afirmação", async () => {
