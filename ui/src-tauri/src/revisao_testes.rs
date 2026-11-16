@@ -1,7 +1,7 @@
 //! Revisão, aprovação e exportação de ponta a ponta com o sistema fictício
 //! "Faturamento Exemplo" (#37), pelas funções dos comandos.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 
 use cba_core::analise::{EstadoAfirmacao, EstadoAnalise, EstadoPergunta, EstadoTermo};
@@ -117,7 +117,11 @@ fn revisao_e_aprovacao_de_ponta_a_ponta() {
     assert!(p.area_obrigatoria);
     assert_eq!(p.areas.len(), 3);
     assert_eq!(p.avisos.len(), 1, "{:?}", p.avisos);
-    let erro = aprovar(&c.dados, PROJETO, &id, &OpcoesAprovacao::default()).unwrap_err();
+    let marcada = OpcoesAprovacao {
+        regras: Some(BTreeSet::from([1])),
+        ..Default::default()
+    };
+    let erro = aprovar(&c.dados, PROJETO, &id, &marcada).unwrap_err();
     assert!(erro.contains("ainda não pode ser aprovada"), "{erro}");
     assert!(erro.contains("afirmação 1"), "{erro}");
 
@@ -199,11 +203,19 @@ fn revisao_e_aprovacao_de_ponta_a_ponta() {
     assert!(p.pode_aprovar, "{:?}", p.pendencias);
     assert_eq!(p.regras.len(), 1);
     assert_eq!(p.regras[0].afirmacao, 1);
+    // A afirmação está na Resposta: só vira regra se o analista marcar.
+    assert_eq!(p.regras[0].secao, "resposta");
+    assert_eq!(p.regras[0].secao_titulo, "Resposta");
+    assert!(!p.regras[0].sugerida);
     assert_eq!(p.incorretas, [2]);
     assert_eq!(p.termos_aceitos, ["Carência"]);
 
     // Sem área, com três áreas declaradas, a aprovação pede a escolha.
-    let erro = aprovar(&c.dados, PROJETO, &id, &OpcoesAprovacao::default()).unwrap_err();
+    let marcada = OpcoesAprovacao {
+        regras: Some(BTreeSet::from([1])),
+        ..Default::default()
+    };
+    let erro = aprovar(&c.dados, PROJETO, &id, &marcada).unwrap_err();
     assert!(erro.contains("escolha a área"), "{erro}");
 
     // Área por afirmação no lugar da geral, e o título trocado pelo analista.
@@ -216,11 +228,13 @@ fn revisao_e_aprovacao_de_ponta_a_ponta() {
                 titulo: Some("Multa por atraso".into()),
             },
         )]),
+        regras: Some(BTreeSet::from([1])),
     };
     // O formato que a tela envia: chaves numéricas como texto.
     let da_tela: OpcoesAprovacao = serde_json::from_value(json!({
         "area": null,
-        "afirmacoes": {"1": {"area": "Cobrança", "titulo": "Multa por atraso"}}
+        "afirmacoes": {"1": {"area": "Cobrança", "titulo": "Multa por atraso"}},
+        "regras": [1]
     }))
     .unwrap();
     assert_eq!(da_tela, opcoes);
@@ -265,7 +279,7 @@ fn revisao_e_aprovacao_de_ponta_a_ponta() {
             .unwrap();
     let erro = revisar(&c.dados, PROJETO, &id, depois).unwrap_err();
     assert!(erro.contains("aprovada"), "{erro}");
-    let de_novo = aprovar(&c.dados, PROJETO, &id, &OpcoesAprovacao::default()).unwrap();
+    let de_novo = aprovar(&c.dados, PROJETO, &id, &marcada).unwrap();
     assert!(de_novo.ja_aprovada);
     assert_eq!(de_novo.regras.len(), 1);
 }

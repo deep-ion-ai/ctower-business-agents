@@ -51,9 +51,15 @@ export interface Pendencia {
 
 export interface RegraPrevista {
   afirmacao: number;
-  /** Título derivado do texto, que o analista pode trocar. */
+  /** Título derivado do texto (sem markdown), que o analista pode trocar. */
   titulo: string;
   texto: string;
+  /** Seção da afirmação (o marcador, como `regras_encontradas`). */
+  secao?: string;
+  /** Título da seção no documento ("Regras encontradas"); vazio se desconhecida. */
+  secaoTitulo?: string;
+  /** Vem marcada para virar regra: as respostas e os exemplos não vêm. */
+  sugerida?: boolean;
 }
 
 /** Se a análise pode ser aprovada e o que a aprovação fará. */
@@ -74,6 +80,8 @@ export interface Prontidao {
 export interface OpcoesAprovacao {
   area: string | null;
   afirmacoes: Record<number, { area: string | null; titulo: string | null }>;
+  /** Afirmações que viram regra; sem a lista, as de fora da resposta e dos exemplos. */
+  regras?: number[] | null;
 }
 
 export type Acao = "criada" | "atualizada" | "sem-mudanca";

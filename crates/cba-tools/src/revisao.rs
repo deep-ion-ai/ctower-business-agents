@@ -65,6 +65,7 @@ use serde::{Deserialize, Serialize};
 use crate::aprovacao::{self, Aprovacao, ErroAprovacao, OpcoesAprovacao, titulo_da_regra};
 use crate::documento;
 use crate::evidencias::ArquivoDoProjeto;
+use crate::roteiro;
 
 /// Formato da exportação: o documento em Markdown ou Word ou, só nos cenários de
 /// teste, a lista de cenários em CSV.
@@ -334,6 +335,12 @@ pub struct RegraPrevista {
     /// Título derivado do texto, que o analista pode trocar.
     pub titulo: String,
     pub texto: String,
+    /// Seção da afirmação (o marcador, como `regras_encontradas`).
+    pub secao: String,
+    /// Título da seção no documento ("Regras encontradas"); vazio se desconhecida.
+    pub secao_titulo: String,
+    /// Se vira regra quando o analista não escolhe: as respostas e os exemplos não.
+    pub sugerida: bool,
 }
 
 /// Se a análise pode ser aprovada, o que falta e o que a aprovação fará.
@@ -577,6 +584,9 @@ pub fn prontidao(amb: &Ambiente, id: &Id) -> Result<Prontidao, ErroRevisao> {
             afirmacao: a.numero,
             titulo: titulo_da_regra(&a.texto),
             texto: a.texto.clone(),
+            secao: a.secao.clone(),
+            secao_titulo: roteiro::titulo_da_secao(analise.fluxo, &a.secao).to_owned(),
+            sugerida: aprovacao::vira_regra_por_padrao(&a.secao),
         })
         .collect();
     Ok(Prontidao {
@@ -621,13 +631,21 @@ pub fn aprovar_revisada(
             ));
         }
         let tem = |a: &Option<String>| a.as_deref().is_some_and(|t| !t.trim().is_empty());
-        let todas_com_area = p.regras.iter().all(|r| {
+        let escolhidas: Vec<&RegraPrevista> = p
+            .regras
+            .iter()
+            .filter(|r| match &opcoes.regras {
+                Some(e) => e.contains(&r.afirmacao),
+                None => r.sugerida,
+            })
+            .collect();
+        let todas_com_area = escolhidas.iter().all(|r| {
             opcoes
                 .afirmacoes
                 .get(&r.afirmacao)
                 .is_some_and(|aj| tem(&aj.area))
         });
-        if p.area_obrigatoria && !tem(&opcoes.area) && !todas_com_area {
+        if p.area_obrigatoria && !escolhidas.is_empty() && !tem(&opcoes.area) && !todas_com_area {
             return Err(ErroRevisao::AreaNaoEscolhida);
         }
     }

@@ -7,7 +7,15 @@ import type {
   OpcoesAprovacao,
   Pendencia,
   Prontidao,
+  RegraPrevista,
 } from "./revisao";
+
+/** O que o analista mudou na regra de uma afirmação; `titulo` nulo é o sugerido. */
+interface Ajuste {
+  area: string;
+  titulo: string | null;
+  trocarArea: boolean;
+}
 
 interface Props {
   api: ApiRevisao;
@@ -88,8 +96,9 @@ function SeletorArea({
 /**
  * Aprovação da análise (#37, spec 7.4; diálogo guiado, #186): mostra o que falta revisar
  * (com "Ir para" em cada item), pede a área das regras (obrigatória quando o projeto
- * declara mais de uma) e, ao aprovar, leva à base as afirmações confirmadas (regras) e
- * os termos aceitos (glossário). As incorretas ficam registradas e não viram regra.
+ * declara mais de uma) e, ao aprovar, leva à base as afirmações confirmadas marcadas
+ * para virar regra (#214: respostas e exemplos vêm desmarcados) e os termos aceitos
+ * (glossário). As incorretas ficam registradas e não viram regra.
  */
 export function AprovacaoAnalise({
   api,
@@ -102,7 +111,8 @@ export function AprovacaoAnalise({
 }: Props) {
   const { prontidao, erro, setErro } = useProntidao(api, projeto, analise, versao);
   const [area, setArea] = useState("");
-  const [ajustes, setAjustes] = useState<Record<number, { area: string; titulo: string }>>({});
+  const [ajustes, setAjustes] = useState<Record<number, Ajuste>>({});
+  const [marcadas, setMarcadas] = useState<Record<number, boolean>>({});
   const [ocupado, setOcupado] = useState(false);
   const [feita, setFeita] = useState<AprovacaoFeita | null>(null);
 
@@ -114,25 +124,32 @@ export function AprovacaoAnalise({
 
   if (!prontidao) return erro ? <p className="error-text">{erro}</p> : null;
 
-  const ajuste = (n: number) => ajustes[n] ?? { area: "", titulo: "" };
-  const mudar = (n: number, campo: "area" | "titulo", valor: string) =>
-    setAjustes((a) => ({ ...a, [n]: { ...ajuste(n), [campo]: valor } }));
-  const todasComArea =
-    prontidao.regras.length > 0 && prontidao.regras.every((r) => ajuste(r.afirmacao).area);
+  const ajuste = (n: number): Ajuste => ajustes[n] ?? { area: "", titulo: null, trocarArea: false };
+  const mudar = (n: number, campo: Partial<Ajuste>) =>
+    setAjustes((a) => ({ ...a, [n]: { ...ajuste(n), ...campo } }));
+  // Sem a escolha do analista, vale a sugestão: respostas e exemplos ficam de fora.
+  const marcada = (r: RegraPrevista) => marcadas[r.afirmacao] ?? r.sugerida !== false;
+  const escolhidas = prontidao.regras.filter(marcada);
+  const todasComArea = escolhidas.length > 0 && escolhidas.every((r) => ajuste(r.afirmacao).area);
   // Sem regras a criar (as histórias, por exemplo), a área não importa.
-  const faltaArea =
-    prontidao.areaObrigatoria && prontidao.regras.length > 0 && !area && !todasComArea;
+  const faltaArea = prontidao.areaObrigatoria && escolhidas.length > 0 && !area && !todasComArea;
   const aprovada = prontidao.estado === "aprovada";
   const podeGravar = prontidao.pendencias.length === 0;
 
   const aprovar = () => {
-    const opcoes: OpcoesAprovacao = { area: area.trim() || null, afirmacoes: {} };
-    for (const r of prontidao.regras) {
+    const opcoes: OpcoesAprovacao = {
+      area: area.trim() || null,
+      afirmacoes: {},
+      regras: escolhidas.map((r) => r.afirmacao),
+    };
+    for (const r of escolhidas) {
       const a = ajuste(r.afirmacao);
-      if (a.area || a.titulo.trim())
+      const titulo = a.titulo?.trim() ?? "";
+      const trocado = titulo && titulo !== r.titulo ? titulo : null;
+      if (a.area.trim() || trocado)
         opcoes.afirmacoes[r.afirmacao] = {
           area: a.area.trim() || null,
-          titulo: a.titulo.trim() || null,
+          titulo: trocado,
         };
     }
     setOcupado(true);
@@ -197,7 +214,7 @@ export function AprovacaoAnalise({
           <p className="muted">
             {prontidao.regras.length === 0
               ? "Nenhuma afirmação confirmada: a aprovação não cria regras."
-              : `${prontidao.regras.length} afirmação(ões) confirmada(s) vão virar regra.`}
+              : `${escolhidas.length} de ${prontidao.regras.length} afirmação(ões) confirmada(s) vão virar regra.`}
             {prontidao.incorretas.length > 0 &&
               ` ${prontidao.incorretas.length} incorreta(s) ficam registradas e não viram regra.`}
             {prontidao.termosAceitos.length > 0 &&
@@ -211,27 +228,70 @@ export function AprovacaoAnalise({
             aoMudar={setArea}
           />
           {prontidao.regras.length > 0 && (
-            <ol className="regras-previstas" aria-label="Regras que a aprovação cria">
-              {prontidao.regras.map((r) => (
-                <li key={r.afirmacao}>
-                  <label>
-                    Título da regra da afirmação {r.afirmacao}{" "}
-                    <input
-                      value={ajuste(r.afirmacao).titulo}
-                      placeholder={r.titulo}
-                      onChange={(e) => mudar(r.afirmacao, "titulo", e.target.value)}
-                    />
-                  </label>{" "}
-                  <SeletorArea
-                    areas={prontidao.areas}
-                    valor={ajuste(r.afirmacao).area}
-                    rotulo={`Área da afirmação ${r.afirmacao}`}
-                    vazio="A da análise"
-                    aoMudar={(v) => mudar(r.afirmacao, "area", v)}
-                  />
-                </li>
-              ))}
-            </ol>
+            <>
+              <p className="muted">
+                Marque o que vira regra. Respostas e exemplos vêm desmarcados.
+              </p>
+              <ol className="regras-previstas" aria-label="Afirmações confirmadas">
+                {prontidao.regras.map((r) => {
+                  const a = ajuste(r.afirmacao);
+                  const sim = marcada(r);
+                  return (
+                    <li key={r.afirmacao} className="regra-prevista">
+                      <label className="regra-escolha">
+                        <input
+                          type="checkbox"
+                          checked={sim}
+                          aria-label={`A afirmação ${r.afirmacao} vira regra`}
+                          onChange={(e) =>
+                            setMarcadas((m) => ({
+                              ...m,
+                              [r.afirmacao]: e.target.checked,
+                            }))
+                          }
+                        />{" "}
+                        <span>
+                          Afirmação {r.afirmacao}
+                          {r.secaoTitulo ? ` · ${r.secaoTitulo}` : ""}
+                        </span>
+                      </label>
+                      <p className="regra-texto muted">{r.texto}</p>
+                      {sim && (
+                        <div className="regra-campos">
+                          <label>
+                            <span>Título</span>
+                            <input
+                              aria-label={`Título da regra da afirmação ${r.afirmacao}`}
+                              value={a.titulo ?? r.titulo}
+                              placeholder={r.titulo}
+                              onChange={(e) => mudar(r.afirmacao, { titulo: e.target.value })}
+                            />
+                          </label>
+                          {a.trocarArea || a.area ? (
+                            <SeletorArea
+                              areas={prontidao.areas}
+                              valor={a.area}
+                              rotulo={`Área da afirmação ${r.afirmacao}`}
+                              vazio="A das regras"
+                              aoMudar={(v) => mudar(r.afirmacao, { area: v })}
+                            />
+                          ) : (
+                            <button
+                              className="btn btn-link"
+                              type="button"
+                              aria-label={`Trocar a área da afirmação ${r.afirmacao}`}
+                              onClick={() => mudar(r.afirmacao, { trocarArea: true })}
+                            >
+                              Trocar a área
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
+            </>
           )}
           {faltaArea && prontidao.podeAprovar && (
             <p className="muted">O projeto tem mais de uma área: escolha a das regras.</p>

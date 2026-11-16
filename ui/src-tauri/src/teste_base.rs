@@ -2,6 +2,7 @@
 //! sistema fictício "Faturamento Exemplo" numa pasta temporária (para a revalidação
 //! poder mudar o código), cadastrada pelo primeiro uso, com uma base vazia.
 
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -132,6 +133,8 @@ impl Cenario {
             &id,
             &OpcoesAprovacao {
                 area: Some("cobranca".into()),
+                // A afirmação está na Resposta, que só vira regra se escolhida.
+                regras: Some(BTreeSet::from([1])),
                 ..Default::default()
             },
         )

@@ -2,7 +2,7 @@
 //! afirmações confirmadas viram regras e os termos aceitos viram glossário, sem
 //! duplicar, e uma análise nova sobre o mesmo assunto recebe as regras no contexto.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -89,7 +89,7 @@ impl RegraG {
             .collect();
         json!({
             "analise": analise,
-            "secao": "resposta",
+            "secao": "regras_encontradas",
             "texto": self.enunciado,
             "confianca": "confirmado",
             "evidencias": evidencias,
@@ -475,6 +475,8 @@ fn nova_analise_com_a_mesma_evidencia_atualiza_a_regra_e_o_termo() {
     let mut args = g.regra("RN-FAT-001").afirmar(&b.id);
     args["texto"] = json!("A multa por atraso é de 2% sobre o valor original.");
     args["evidencias"].as_array_mut().unwrap().reverse();
+    // Na Resposta: vira regra porque o analista marca.
+    args["secao"] = json!("resposta");
     c.chamar("afirmar", args);
     c.chamar(
         "propor_termo",
@@ -490,7 +492,11 @@ fn nova_analise_com_a_mesma_evidencia_atualiza_a_regra_e_o_termo() {
         &[(1, EstadoAfirmacao::Confirmada)],
         &[(1, EstadoTermo::Aceito)],
     );
-    let r = c.aprovar(&b.id, &OpcoesAprovacao::default()).unwrap();
+    let marcada = OpcoesAprovacao {
+        regras: Some(BTreeSet::from([1])),
+        ..Default::default()
+    };
+    let r = c.aprovar(&b.id, &marcada).unwrap();
 
     assert_eq!(r.regras.len(), 1);
     assert_eq!(r.regras[0].id.to_string(), "RN-FAT-001");
@@ -600,6 +606,7 @@ fn area_da_aprovacao_ajustes_e_sem_area() {
                 titulo: Some("Carência de 3 dias sem encargos".into()),
             },
         )]),
+        ..Default::default()
     };
     let r = c.aprovar(&a.id, &opcoes).unwrap();
     let ids: Vec<String> = r.regras.iter().map(|x| x.id.to_string()).collect();
@@ -671,4 +678,99 @@ fn campos_desconhecidos_da_regra_existente_sao_mantidos() {
     assert!(depois.contains("status: confirmada"), "{depois}");
     let projeto: Documento<FrontmatterProjeto> = c.amb.kb.ler_projeto().unwrap();
     assert_eq!(projeto.frontmatter.areas.len(), 3);
+}
+
+/// Análise com Resposta, Regras encontradas e Exemplo, todas confirmadas (#214).
+fn analise_com_resposta_e_exemplo(c: &Cenario) -> Analise {
+    let g = gabarito();
+    let a = c.criar("Multa", "Como é a multa de uma fatura em atraso?");
+    let mut resposta = g.regra("RN-FAT-001").afirmar(&a.id);
+    resposta["secao"] = json!("resposta");
+    resposta["texto"] = json!("**Resposta.** Uma multa única sobre o valor original.");
+    c.chamar("afirmar", resposta);
+    let mut regra = g.regra("RN-FAT-003").afirmar(&a.id);
+    regra["texto"] = json!("**Carência de três dias.** Dentro dela não há multa[^1].");
+    c.chamar("afirmar", regra);
+    c.chamar(
+        "afirmar",
+        json!({
+            "analise": a.id,
+            "secao": "exemplo",
+            "texto": "**Exemplo.** Fatura de R$ 100 paga no quinto dia: multa de R$ 2.",
+            "confianca": "inferido",
+        }),
+    );
+    c.concluir_e_decidir(
+        &a.id,
+        &[
+            (1, EstadoAfirmacao::Confirmada),
+            (2, EstadoAfirmacao::Confirmada),
+            (3, EstadoAfirmacao::Confirmada),
+        ],
+        &[],
+    );
+    a
+}
+
+#[test]
+fn sem_escolha_resposta_e_exemplo_nao_viram_regra() {
+    let c = cenario();
+    let a = analise_com_resposta_e_exemplo(&c);
+    let r = c.aprovar(&a.id, &OpcoesAprovacao::default()).unwrap();
+    assert_eq!(r.regras.len(), 1, "{:?}", r.regras);
+    assert_eq!(r.regras[0].afirmacoes, [2]);
+    let doc = c.regra(&r.regras[0].arquivo);
+    assert_eq!(doc.frontmatter.titulo, "Carência de três dias");
+    assert_eq!(c.arquivos("regras").len(), 1);
+}
+
+#[test]
+fn so_o_que_foi_marcado_vira_regra() {
+    let c = cenario();
+    let a = analise_com_resposta_e_exemplo(&c);
+    // O analista marca a resposta e desmarca a regra; o exemplo fica de fora.
+    let opcoes = OpcoesAprovacao {
+        regras: Some(BTreeSet::from([1])),
+        afirmacoes: BTreeMap::from([(
+            1,
+            AjusteDaRegra {
+                area: None,
+                titulo: Some("**Multa** única[^2]".into()),
+            },
+        )]),
+        ..Default::default()
+    };
+    let r = c.aprovar(&a.id, &opcoes).unwrap();
+    assert_eq!(r.regras.len(), 1, "{:?}", r.regras);
+    assert_eq!(r.regras[0].afirmacoes, [1]);
+    let doc = c.regra(&r.regras[0].arquivo);
+    assert_eq!(doc.frontmatter.titulo, "Multa única");
+
+    // Nada marcado: a análise é aprovada sem criar regras.
+    let c = cenario();
+    let b = analise_com_resposta_e_exemplo(&c);
+    let nenhuma = OpcoesAprovacao {
+        regras: Some(BTreeSet::new()),
+        ..Default::default()
+    };
+    let r = c.aprovar(&b.id, &nenhuma).unwrap();
+    assert!(r.regras.is_empty());
+    assert_eq!(r.analise.estado, EstadoAnalise::Aprovada);
+    assert!(c.arquivos("regras").is_empty());
+}
+
+#[test]
+fn escolha_de_afirmacao_nao_confirmada_e_recusada() {
+    let c = cenario();
+    let a = analise_da_multa(&c);
+    let opcoes = OpcoesAprovacao {
+        regras: Some(BTreeSet::from([1, 3])),
+        ..Default::default()
+    };
+    let erro = c.aprovar(&a.id, &opcoes).unwrap_err();
+    assert!(
+        matches!(erro, ErroAprovacao::AjusteSemAfirmacao(3)),
+        "{erro}"
+    );
+    assert!(c.arquivos("regras").is_empty());
 }
