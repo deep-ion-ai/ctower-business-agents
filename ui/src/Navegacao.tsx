@@ -17,7 +17,7 @@ import {
 } from "./conhecimento";
 import { DialogoConfirmacao } from "./DialogoConfirmacao";
 import { ROTULO_SESSAO } from "./DocumentoAoVivo";
-import type { Abertura } from "./PainelAnalise";
+import type { Abertura, EstadoConversa } from "./PainelAnalise";
 import { PainelDemanda } from "./PainelDemanda";
 import { Icon, type IconName } from "./shell/icons";
 import { Titlebar } from "./shell/Titlebar";
@@ -27,7 +27,8 @@ import { TelaBase } from "./TelaBase";
 import { TelaConfiguracoes } from "./TelaConfiguracoes";
 import { TelaInicio } from "./TelaInicio";
 import { TelaProjeto } from "./TelaProjeto";
-import type { ProjetoResumo } from "./terminal";
+import type { ApiTerminal, ProjetoResumo } from "./terminal";
+import type { TelaTerminal } from "./telaXterm";
 
 /** Tela visível e o que ela abre. */
 export type Tela =
@@ -51,6 +52,10 @@ interface Props {
   apiAnalise?: ApiAnalise;
   /** Para testes. */
   apiConfiguracoes?: ApiConfiguracoes;
+  /** Para testes: o terminal embutido das análises. */
+  apiTerminal?: ApiTerminal;
+  /** Para testes. */
+  criarTela?: () => TelaTerminal;
   abrirLink?: AbrirLink;
   /** Abre o assistente do primeiro uso. */
   aoPrimeiroUso?: () => void;
@@ -104,6 +109,12 @@ export function chaveDaTela(t: Tela): string {
   }
 }
 
+/**
+ * Aba que fica montada (escondida) quando outra está à vista: a de uma análise
+ * aberta, cujo terminal roda o agente. Desmontar encerraria o processo (#212).
+ */
+const ficaViva = (a: Aba) => a.tela.tipo === "analise" && !!a.tela.aberta;
+
 const nomeDoArquivo = (caminho: string) =>
   (caminho.split("/").pop() ?? caminho).replace(/\.md$/, "");
 
@@ -146,6 +157,8 @@ export function Navegacao({
   api = apiConhecimentoTauri,
   apiAnalise,
   apiConfiguracoes,
+  apiTerminal,
+  criarTela,
   abrirLink,
   aoPrimeiroUso,
   refazerPrimeiroUso,
@@ -189,14 +202,26 @@ export function Navegacao({
     else acao();
   }, []);
 
+  // Conversa de cada aba de análise aberta: fechar a aba com ela viva pede confirmação.
+  const conversas = useRef(new Map<string, EstadoConversa>());
+  const [fechamento, setFechamento] = useState<{ chave: string; trabalhando: boolean } | null>(
+    null,
+  );
+  const aoMudarConversa = useCallback((chave: string, estado: EstadoConversa) => {
+    if (estado === "nenhuma") conversas.current.delete(chave);
+    else conversas.current.set(chave, estado);
+  }, []);
+
   const navegarAgora = useCallback((t: Tela) => {
     const chave = chaveDaTela(t);
     const vez = ++contador.current;
-    setAbas((atuais) =>
-      atuais.some((a) => a.chave === chave)
-        ? atuais.map((a) => (a.chave === chave ? { chave, tela: t, vez } : a))
-        : [...atuais, { chave, tela: t, vez }],
-    );
+    setAbas((atuais) => {
+      const existente = atuais.find((a) => a.chave === chave);
+      if (!existente) return [...atuais, { chave, tela: t, vez }];
+      // A análise já aberta só ganha o foco: abrir do zero encerraria a conversa (#212).
+      if (ficaViva(existente)) return atuais;
+      return atuais.map((a) => (a.chave === chave ? { chave, tela: t, vez } : a));
+    });
     setAtiva(chave);
     if (t.tipo === "base" && t.documento) lembrarDocumento(t.documento);
     setRecarga((r) => r + 1);
@@ -249,6 +274,11 @@ export function Navegacao({
   };
 
   const fechar = (chave: string) => {
+    const conversa = conversas.current.get(chave);
+    if (conversa) {
+      setFechamento({ chave, trabalhando: conversa === "trabalhando" });
+      return;
+    }
     if (chave === ativa && pendenteRef.current) {
       sairDaAba(() => fecharAgora(chave));
       return;
@@ -257,6 +287,7 @@ export function Navegacao({
   };
 
   const fecharAgora = (chave: string) => {
+    conversas.current.delete(chave);
     const i = abas.findIndex((a) => a.chave === chave);
     const resto = abas.filter((a) => a.chave !== chave);
     setAbas(resto);
@@ -502,15 +533,41 @@ export function Navegacao({
                   aoAbrirDocumento={lembrarDocumento}
                 />
               )}
-              {aba?.tela.tipo === "analise" && (
+              {aba?.tela.tipo === "analise" && !ficaViva(aba) && (
                 <TelaAnalise
                   key={aba.vez}
                   api={apiAnalise}
+                  apiTerminal={apiTerminal}
+                  criarTela={criarTela}
                   projetoInicial={aba.tela.projeto}
                   perguntaInicial={aba.tela.pergunta}
-                  aberturaInicial={aba.tela.aberta}
                   aoPrimeiroUso={aoPrimeiroUso}
+                  aoAbrirAnalise={(projeto, id, abertura) =>
+                    navegar({ tipo: "analise", projeto, aberta: { id, abertura } })
+                  }
                 />
+              )}
+              {/* As análises abertas ficam montadas, escondidas fora da vez: o agente
+                  continua trabalhando enquanto o analista está noutra aba (#212). */}
+              {abas.filter(ficaViva).map((a) =>
+                a.tela.tipo === "analise" ? (
+                  <div key={a.chave} className="editor-aba" hidden={a.chave !== ativa}>
+                    <TelaAnalise
+                      key={a.vez}
+                      api={apiAnalise}
+                      apiTerminal={apiTerminal}
+                      criarTela={criarTela}
+                      projetoInicial={a.tela.projeto}
+                      aberturaInicial={a.tela.aberta}
+                      aoPrimeiroUso={aoPrimeiroUso}
+                      aoAbrirAnalise={(projeto, id, abertura) =>
+                        navegar({ tipo: "analise", projeto, aberta: { id, abertura } })
+                      }
+                      aoVoltar={(projeto) => navegar({ tipo: "analise", projeto })}
+                      aoMudarConversa={(estado) => aoMudarConversa(a.chave, estado)}
+                    />
+                  </div>
+                ) : null,
               )}
               {aba?.tela.tipo === "demanda" && (
                 <PainelDemanda
@@ -566,6 +623,46 @@ export function Navegacao({
           <p>
             O editor de textos das configurações tem alterações que não foram salvas. Sair agora as
             descarta.
+          </p>
+        </DialogoConfirmacao>
+      )}
+
+      {fechamento && (
+        <DialogoConfirmacao
+          titulo="Fechar a análise"
+          aoCancelar={() => setFechamento(null)}
+          acoes={
+            <>
+              <button
+                type="button"
+                className="btn btn-primary"
+                autoFocus
+                onClick={() => setFechamento(null)}
+              >
+                Manter a conversa
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  const { chave } = fechamento;
+                  setFechamento(null);
+                  fecharAgora(chave);
+                }}
+              >
+                Encerrar a conversa
+              </button>
+            </>
+          }
+        >
+          <p>
+            {fechamento.trabalhando
+              ? "O agente ainda está trabalhando. Encerrar a conversa?"
+              : "A conversa com o agente continua aberta nesta análise. Encerrar a conversa?"}
+          </p>
+          <p className="muted">
+            Fechar a aba encerra o Claude Code desta análise. Dá para retomar a conversa depois,
+            pela própria análise.
           </p>
         </DialogoConfirmacao>
       )}

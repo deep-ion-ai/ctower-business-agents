@@ -8,7 +8,7 @@ import {
   type EstadoAnalise,
   type Situacao,
 } from "./analise";
-import { PainelAnalise, type Abertura } from "./PainelAnalise";
+import { PainelAnalise, type Abertura, type EstadoConversa } from "./PainelAnalise";
 import { PrepararAmbiente } from "./PrepararAmbiente";
 import type { ApiTerminal } from "./terminal";
 import type { TelaTerminal } from "./telaXterm";
@@ -26,6 +26,15 @@ interface Props {
   aoPrimeiroUso?: () => void;
   /** Análise já aberta (criada pelo início ou escolhida numa lista); exige `projetoInicial`. */
   aberturaInicial?: { id: string; abertura: Abertura };
+  /**
+   * Abre a análise fora desta tela (na navegação, numa aba própria, que fica viva
+   * enquanto aberta: #212). Sem ele, a análise abre aqui mesmo, no lugar da lista.
+   */
+  aoAbrirAnalise?: (projeto: string, id: string, abertura: Abertura) => void;
+  /** "← Análises" fora desta tela (na navegação, a aba da lista). Sem ele, volta aqui. */
+  aoVoltar?: (projeto: string) => void;
+  /** A conversa da análise aberta (a navegação confirma antes de fechar a aba). */
+  aoMudarConversa?: (estado: EstadoConversa) => void;
 }
 
 const ESTADO: Record<EstadoAnalise, string> = {
@@ -48,6 +57,9 @@ export function TelaAnalise({
   perguntaInicial = "",
   aoPrimeiroUso,
   aberturaInicial,
+  aoAbrirAnalise,
+  aoVoltar,
+  aoMudarConversa,
 }: Props) {
   const [situacao, setSituacao] = useState<Situacao | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -71,6 +83,11 @@ export function TelaAnalise({
 
   useEffect(recarregar, [recarregar]);
 
+  const abrir = (p: string, id: string, abertura: Abertura) => {
+    if (aoAbrirAnalise) aoAbrirAnalise(p, id, abertura);
+    else setAberta({ id, abertura });
+  };
+
   if (aberta && projeto) {
     return (
       <section className="tela-analise tela-analise-aberta" aria-label="Análise">
@@ -80,10 +97,11 @@ export function TelaAnalise({
           projeto={projeto}
           analise={aberta.id}
           abertura={aberta.abertura}
-          aoVoltar={() => setAberta(null)}
+          aoVoltar={aoVoltar ? () => aoVoltar(projeto) : () => setAberta(null)}
           apiTerminal={apiTerminal}
           criarTela={criarTela}
-          aoAbrirAnalise={(id, abertura) => setAberta({ id, abertura })}
+          aoAbrirAnalise={(id, abertura) => abrir(projeto, id, abertura)}
+          aoMudarConversa={aoMudarConversa}
         />
       </section>
     );
@@ -128,7 +146,7 @@ export function TelaAnalise({
               api={api}
               projeto={projeto}
               perguntaInicial={perguntaInicial}
-              aoAbrir={(id, abertura) => setAberta({ id, abertura })}
+              aoAbrir={(id, abertura) => abrir(projeto, id, abertura)}
             />
           )}
         </>
