@@ -84,6 +84,12 @@ pub struct Aresta {
     /// Condição e efeito, em linguagem de negócio.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub descricao: Option<String>,
+    /// Guarda da transição: o que precisa ser verdade para o estado mudar (#119).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub condicao: Option<String>,
+    /// Efeitos colaterais da transição: o que mais a rotina grava ou dispara (#119).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub efeitos: Option<String>,
     pub confianca: Confianca,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub evidencias: Vec<Evidencia>,
@@ -114,6 +120,130 @@ impl Diagrama {
     /// Nó pela chave.
     pub fn no(&self, chave: &str) -> Option<&No> {
         self.nos.iter().find(|n| n.chave == chave)
+    }
+
+    /// Achados do ciclo de vida (#119), só no diagrama de estados, calculados das
+    /// transições registradas: estado inalcançável (não é o inicial e nenhuma
+    /// transição chega a ele), estado sem saída (não é final, alguma transição
+    /// chega e nenhuma sai) e transição sem condição. Transição de um estado para
+    /// ele mesmo não conta como chegada nem saída. Na ordem dos nós e depois das
+    /// arestas.
+    pub fn achados(&self) -> Vec<AchadoDiagrama> {
+        if self.tipo != TipoDiagrama::Estados {
+            return Vec::new();
+        }
+        let mut achados = Vec::new();
+        for no in &self.nos {
+            let chega = self
+                .arestas
+                .iter()
+                .any(|a| a.para == no.chave && a.de != no.chave);
+            let sai = self
+                .arestas
+                .iter()
+                .any(|a| a.de == no.chave && a.para != no.chave);
+            let tipo = if no.papel != PapelNo::Inicio && !chega {
+                TipoAchadoDiagrama::Inalcancavel
+            } else if no.papel != PapelNo::Fim && chega && !sai {
+                TipoAchadoDiagrama::SemSaida
+            } else {
+                continue;
+            };
+            achados.push(AchadoDiagrama::do_estado(tipo, no));
+        }
+        for (i, aresta) in self.arestas.iter().enumerate() {
+            if aresta.condicao.is_none() {
+                let rotulo = |c: &str| self.no(c).map_or(c.to_owned(), |n| n.rotulo.clone());
+                achados.push(AchadoDiagrama {
+                    id: format!("sem-condicao:{}", i + 1),
+                    tipo: TipoAchadoDiagrama::SemCondicao,
+                    estado: None,
+                    aresta: Some(i as u32 + 1),
+                    texto: format!(
+                        "A transição de {} para {} não tem condição registrada: o código \
+                         muda o estado sem conferir nada, ou a condição não foi encontrada.",
+                        rotulo(&aresta.de),
+                        rotulo(&aresta.para)
+                    ),
+                    evidencias: aresta.evidencias.clone(),
+                });
+            }
+        }
+        achados
+    }
+
+    /// Achado pelo id (`inalcancavel:PROTESTADA`, `sem-condicao:2`).
+    pub fn achado(&self, id: &str) -> Option<AchadoDiagrama> {
+        self.achados().into_iter().find(|a| a.id == id)
+    }
+}
+
+/// Tipo de achado do ciclo de vida.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TipoAchadoDiagrama {
+    /// Nenhuma transição chega ao estado (e ele não é o inicial).
+    Inalcancavel,
+    /// O estado não é final e nenhuma transição sai dele.
+    SemSaida,
+    /// A transição não tem condição (guarda) registrada.
+    SemCondicao,
+}
+
+impl TipoAchadoDiagrama {
+    /// Prefixo do id do achado.
+    pub fn prefixo(self) -> &'static str {
+        match self {
+            Self::Inalcancavel => "inalcancavel",
+            Self::SemSaida => "sem-saida",
+            Self::SemCondicao => "sem-condicao",
+        }
+    }
+}
+
+/// Achado do ciclo de vida para o analista, calculado de um diagrama de estados
+/// ([`Diagrama::achados`]). Não fica gravado: muda junto com o diagrama.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AchadoDiagrama {
+    /// Estável enquanto o elemento existir: `inalcancavel:<chave>`,
+    /// `sem-saida:<chave>` ou `sem-condicao:<n>` (n-ésima aresta, a partir de 1).
+    pub id: String,
+    pub tipo: TipoAchadoDiagrama,
+    /// Chave do estado (inalcançável e sem saída).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub estado: Option<String>,
+    /// Número da aresta, a partir de 1 (sem condição).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aresta: Option<u32>,
+    /// O achado em linguagem de negócio, pronto para virar pergunta.
+    pub texto: String,
+    /// Evidências do elemento (o estado ou a transição).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub evidencias: Vec<Evidencia>,
+}
+
+impl AchadoDiagrama {
+    fn do_estado(tipo: TipoAchadoDiagrama, no: &No) -> Self {
+        let texto = match tipo {
+            TipoAchadoDiagrama::Inalcancavel => format!(
+                "O estado {} (`{}`) é inalcançável: nenhuma rotina registrada leva a \
+                 entidade até ele. Ele ainda é usado ou ficou para trás?",
+                no.rotulo, no.chave
+            ),
+            _ => format!(
+                "O estado {} (`{}`) não tem saída: nenhuma rotina registrada tira a \
+                 entidade dele, e ele não é final. Como a entidade sai desse estado?",
+                no.rotulo, no.chave
+            ),
+        };
+        Self {
+            id: format!("{}:{}", tipo.prefixo(), no.chave),
+            tipo,
+            estado: Some(no.chave.clone()),
+            aresta: None,
+            texto,
+            evidencias: no.evidencias.clone(),
+        }
     }
 }
 
@@ -194,6 +324,8 @@ impl NovoDiagrama {
             aresta.para = aresta.para.trim().to_owned();
             aresta.rotulo = aparar(aresta.rotulo.take());
             aresta.descricao = aparar(aresta.descricao.take());
+            aresta.condicao = aparar(aresta.condicao.take());
+            aresta.efeitos = aparar(aresta.efeitos.take());
             for ponta in [&aresta.de, &aresta.para] {
                 if !chaves.contains(ponta) {
                     return Err(invalido(format!(
@@ -300,6 +432,8 @@ mod tests {
             para: para.into(),
             rotulo: Some(" emitir ".into()),
             descricao: Some("  ".into()),
+            condicao: None,
+            efeitos: None,
             confianca,
             evidencias: vec![],
         }
@@ -429,5 +563,68 @@ mod tests {
         assert!(json["nos"][0].get("evidencias").is_none());
         let lido: Diagrama = serde_json::from_value(json).unwrap();
         assert_eq!(lido, d);
+    }
+
+    #[test]
+    fn achados_do_ciclo_de_vida() {
+        let papel = |chave: &str, rotulo: &str, papel: PapelNo| No {
+            papel,
+            ..no(chave, rotulo)
+        };
+        let transicao = |de: &str, para: &str, condicao: Option<&str>| Aresta {
+            condicao: condicao.map(Into::into),
+            ..aresta(de, para, Confianca::Inferido)
+        };
+        let d = Diagrama {
+            numero: 1,
+            tipo: TipoDiagrama::Estados,
+            titulo: "Ciclo de vida da fatura".into(),
+            secao: "s".into(),
+            nos: vec![
+                papel("ABERTA", "Aberta", PapelNo::Inicio),
+                papel("PAGA", "Paga", PapelNo::Fim),
+                no("SUSPENSA", "Suspensa"),
+                no("PROTESTADA", "Protestada"),
+            ],
+            arestas: vec![
+                transicao("ABERTA", "PAGA", Some("pagamento total")),
+                transicao("ABERTA", "SUSPENSA", None),
+                // Laço não conta como saída.
+                transicao("SUSPENSA", "SUSPENSA", Some("x")),
+            ],
+            sessao: None,
+            registrada_ms: 1,
+        };
+        let achados = d.achados();
+        let ids: Vec<&str> = achados.iter().map(|a| a.id.as_str()).collect();
+        assert_eq!(
+            ids,
+            [
+                "sem-saida:SUSPENSA",
+                "inalcancavel:PROTESTADA",
+                "sem-condicao:2"
+            ]
+        );
+        assert!(
+            achados[1].texto.contains("Protestada"),
+            "{}",
+            achados[1].texto
+        );
+        assert_eq!(achados[2].aresta, Some(2));
+        assert!(achados[2].texto.contains("de Aberta para Suspensa"));
+        assert_eq!(
+            d.achado("inalcancavel:PROTESTADA")
+                .unwrap()
+                .estado
+                .as_deref(),
+            Some("PROTESTADA")
+        );
+        assert!(d.achado("inalcancavel:ABERTA").is_none());
+        // Só o diagrama de estados tem achados.
+        let fluxo = Diagrama {
+            tipo: TipoDiagrama::Fluxo,
+            ..d
+        };
+        assert!(fluxo.achados().is_empty());
     }
 }

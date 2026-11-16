@@ -44,6 +44,7 @@ use std::path::{Path, PathBuf};
 use cba_core::ambiente::Ambiente;
 use cba_core::analise::{
     Analise, ErroModelo, EstadoAfirmacao, EstadoAnalise, EstadoPergunta, EstadoTermo, Fluxo,
+    OrigemPergunta,
 };
 use cba_core::analises;
 use cba_core::cenarios::TextoCenario;
@@ -160,13 +161,22 @@ pub enum Decisao {
     },
     /// Aceitar, descartar ou desfazer a decisão sobre uma tabela de decisão.
     Tabela { numero: u32, situacao: SituacaoItem },
+    /// "Virar pergunta" (#119): registrar uma pergunta para o solicitante a partir
+    /// de um item da análise (um achado do ciclo de vida), com o texto editado
+    /// pelo analista; as evidências vêm do item. Não reabre a análise.
+    VirarPergunta {
+        texto: String,
+        origem: OrigemPergunta,
+    },
 }
 
 impl Decisao {
     fn mudanca(&self) -> Mudanca {
         match self {
             Self::Afirmacao { .. } | Self::EditarAfirmacao { .. } => Mudanca::Afirmacao,
-            Self::Pergunta { .. } | Self::RespostasEnviadas { .. } => Mudanca::Pergunta,
+            Self::Pergunta { .. } | Self::RespostasEnviadas { .. } | Self::VirarPergunta { .. } => {
+                Mudanca::Pergunta
+            }
             Self::Sugestao { .. } => Mudanca::Sugestao,
             Self::Termo { .. } | Self::EditarTermo { .. } => Mudanca::Termo,
             Self::Achado { .. } => Mudanca::Parecer,
@@ -180,7 +190,7 @@ impl Decisao {
         }
     }
 
-    fn aplicar(self, a: &mut Analise) -> Result<(), ErroModelo> {
+    fn aplicar(self, a: &mut Analise, agora_ms: u64) -> Result<(), ErroModelo> {
         if a.estado == EstadoAnalise::Aprovada {
             return Err(ErroModelo::AnaliseAprovada(a.id.clone()));
         }
@@ -211,6 +221,9 @@ impl Decisao {
             Self::Cenario { cenario, situacao } => a.decidir_cenario(cenario, situacao),
             Self::EditarCenario { cenario, texto } => a.editar_cenario(cenario, texto),
             Self::Tabela { numero, situacao } => a.decidir_tabela(numero, situacao),
+            Self::VirarPergunta { texto, origem } => {
+                a.virar_pergunta(&texto, origem, agora_ms).map(|_| ())
+            }
         }
     }
 }
@@ -285,7 +298,7 @@ pub fn revisar(amb: &Ambiente, id: &Id, decisao: Decisao) -> Result<Analise, Err
     let (_, analise) = amb.analises.alterar_e(
         id,
         mudanca,
-        |a, _| decisao.aplicar(a),
+        |a, agora| decisao.aplicar(a, agora),
         |a| {
             if documento::remontar(&amb.base, &amb.kb, a).is_err() {
                 // O estado é a fonte de verdade; o documento se refaz no próximo

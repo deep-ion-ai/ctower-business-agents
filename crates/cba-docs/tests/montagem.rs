@@ -287,6 +287,7 @@ fn conteudo_pergunta(g: &Gabarito) -> Conteudo<FrontmatterAnalise> {
     ));
     conteudo.perguntas.push(Pergunta {
         texto: "O lote de cobrança deveria ler os parâmetros em vez de usar valores fixos?".into(),
+        evidencias: vec![],
     });
     conteudo
 }
@@ -351,10 +352,12 @@ fn conteudo_analise_impacto(g: &Gabarito) -> Conteudo<FrontmatterAnalise> {
     ));
     conteudo.perguntas.push(Pergunta {
         texto: "O limite de 3 parcelas vale também para órgão público?".into(),
+        evidencias: vec![],
     });
     conteudo.perguntas.push(Pergunta {
         texto: "A tela deve deixar de oferecer até 12 parcelas?\nHoje o backend recusa acima de 6."
             .into(),
+        evidencias: vec![],
     });
     conteudo.sugestoes.push(ReferenciaSugestao {
         id: Serie::Sugestao.id(1),
@@ -401,6 +404,7 @@ fn conteudo_funcionalidade(g: &Gabarito) -> Conteudo<FrontmatterFuncionalidade> 
     }
     conteudo.perguntas.push(Pergunta {
         texto: "Qual dos limites de parcelas (tela ou backend) é o correto?".into(),
+        evidencias: vec![],
     });
     conteudo
 }
@@ -646,6 +650,8 @@ fn diagrama_da_fatura() -> Diagrama {
                 para: "C".into(),
                 rotulo: Some("cancelar".into()),
                 descricao: Some("Sem pagamento e com motivo de ao menos 10 caracteres.".into()),
+                condicao: None,
+                efeitos: None,
                 confianca: Confianca::Confirmado,
                 evidencias: vec![Citacao::nova(
                     c("db/03_pkg_cobranca.sql"),
@@ -657,6 +663,8 @@ fn diagrama_da_fatura() -> Diagrama {
                 para: "R".into(),
                 rotulo: Some("parcelar".into()),
                 descricao: Some("Só fatura aberta pode ser parcelada.".into()),
+                condicao: None,
+                efeitos: None,
                 confianca: Confianca::Inferido,
                 evidencias: vec![Citacao::nova(
                     c("backend/src/main/java/exemplo/faturamento/ParcelamentoService.java"),
@@ -668,10 +676,13 @@ fn diagrama_da_fatura() -> Diagrama {
                 para: "P".into(),
                 rotulo: Some("pagar".into()),
                 descricao: None,
+                condicao: None,
+                efeitos: None,
                 confianca: Confianca::AConfirmar,
                 evidencias: vec![],
             },
         ],
+        achados: vec![],
     }
 }
 

@@ -372,6 +372,9 @@ pub struct VistaAnalise {
 pub struct DiagramaVisto {
     pub numero: u32,
     pub mermaid: String,
+    /// Achados do ciclo de vida calculados pelo app (#119); vazio fora do
+    /// diagrama de estados.
+    pub achados: Vec<cba_core::diagramas::AchadoDiagrama>,
 }
 
 /// Mermaid de cada diagrama da análise, na ordem de registro.
@@ -382,6 +385,7 @@ pub(crate) fn diagramas_vistos(analise: &Analise) -> Vec<DiagramaVisto> {
         .map(|d| DiagramaVisto {
             numero: d.numero,
             mermaid: cba_docs::mermaid(&cba_tools::documento::diagrama(d)),
+            achados: d.achados(),
         })
         .collect()
 }

@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
-import type { Gherkin, Narrativa, SituacaoItem, VistaAnalise } from "./analise";
+import type { Gherkin, Narrativa, OrigemPergunta, SituacaoItem, VistaAnalise } from "./analise";
 
 /**
  * Revisão, aprovação e exportação da análise (#37): espelho de
@@ -33,7 +33,9 @@ export type DecisaoRevisao =
   /** Cenários de teste (#117): aceitar, descartar ou desfazer; editar título e passos. */
   | { tipo: "cenario"; cenario: string; situacao: SituacaoItem }
   | ({ tipo: "editar-cenario"; cenario: string; titulo: string } & Gherkin)
-  | { tipo: "tabela"; numero: number; situacao: SituacaoItem };
+  | { tipo: "tabela"; numero: number; situacao: SituacaoItem }
+  /** "Virar pergunta" (#119): pergunta do analista a partir de um item da análise. */
+  | { tipo: "virar-pergunta"; texto: string; origem: OrigemPergunta };
 
 export interface Area {
   id: string;

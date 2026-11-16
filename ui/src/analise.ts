@@ -48,10 +48,17 @@ export type Afirmacao = {
   registrada_ms: number;
 } & EstadoAfirmacao;
 
+/** Item de que o analista fez a pergunta ("Virar pergunta", `cba_core::analise::OrigemPergunta`). */
+export type OrigemPergunta = { tipo: "achado-diagrama"; diagrama: number; achado: string };
+
 export type Pergunta = {
   numero: number;
   texto: string;
   afirmacao?: number | null;
+  /** Item que virou esta pergunta (#119). */
+  origem?: OrigemPergunta | null;
+  /** Evidências do item de origem. */
+  evidencias?: Evidencia[];
   /** A resposta já foi enviada ao agente ("Enviar respostas"). */
   resposta_enviada?: boolean;
   registrada_ms: number;
@@ -141,6 +148,10 @@ export interface ArestaDiagrama {
   para: string;
   rotulo?: string | null;
   descricao?: string | null;
+  /** Guarda da transição (ciclo de vida, #119). */
+  condicao?: string | null;
+  /** Efeitos colaterais da transição (#119). */
+  efeitos?: string | null;
   confianca: Confianca;
   evidencias?: Evidencia[];
 }
@@ -160,6 +171,20 @@ export interface Diagrama {
 export interface DiagramaVisto {
   numero: number;
   mermaid: string;
+  /** Achados do ciclo de vida calculados pelo app (#119). */
+  achados?: AchadoDiagrama[];
+}
+
+/** Achado do ciclo de vida (`cba_core::diagramas::AchadoDiagrama`). */
+export interface AchadoDiagrama {
+  /** `inalcancavel:<chave>`, `sem-saida:<chave>` ou `sem-condicao:<n>`. */
+  id: string;
+  tipo: "inalcancavel" | "sem_saida" | "sem_condicao";
+  estado?: string | null;
+  /** Número da aresta, a partir de 1. */
+  aresta?: number | null;
+  texto: string;
+  evidencias?: Evidencia[];
 }
 
 /** Característica da ISO/IEC/IEEE 29148 violada (`cba_core::qualidade`). */
