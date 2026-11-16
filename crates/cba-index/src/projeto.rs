@@ -8,6 +8,7 @@ use cba_repos::Repositorios;
 use serde::{Deserialize, Serialize};
 
 use crate::Erro;
+use crate::ambiente_teste::AmbienteTeste;
 use crate::exclusoes::{Exclusao, Exclusoes, Motivo};
 
 /// Uma pasta local do projeto.
@@ -44,6 +45,10 @@ pub struct Projeto {
     /// nunca o token.
     #[serde(default, skip_serializing_if = "Repositorios::vazio")]
     pub repositorios: Repositorios,
+    /// Ambiente de teste da aplicação (URL, usuários e perfis), para simular o
+    /// uso. Opcional. Nunca guarda a senha, que fica no chaveiro do sistema.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ambiente_teste: Option<AmbienteTeste>,
 }
 
 impl Projeto {
@@ -74,6 +79,7 @@ impl Projeto {
             exclusoes: Vec::new(),
             inclusoes: Vec::new(),
             repositorios: Repositorios::default(),
+            ambiente_teste: None,
         };
         projeto.validar()?;
         Ok(projeto)
@@ -136,6 +142,9 @@ impl Projeto {
         }
         Exclusoes::novas(&self.exclusoes, &self.inclusoes)?;
         self.repositorios.validar().map_err(Erro::Repositorios)?;
+        if let Some(a) = &self.ambiente_teste {
+            a.validar().map_err(Erro::AmbienteTeste)?;
+        }
         Ok(())
     }
 

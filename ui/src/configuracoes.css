@@ -1344,3 +1344,45 @@ button.chip-variavel:hover {
     margin-left: auto;
   }
 }
+
+/* Aba “Ambiente de teste” do projeto. */
+.aba-ambiente-teste {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.aba-ambiente-teste > p {
+  margin: 0;
+}
+
+.ambiente-teste-campos,
+.usuario-teste {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lista-usuarios-teste {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.usuario-teste-rodape,
+.acoes-ambiente-teste {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.acoes-ambiente-teste {
+  justify-content: flex-start;
+}
+
+.aba-ambiente-teste ul.error-text {
+  margin: 0;
+  padding-left: 18px;
+}
