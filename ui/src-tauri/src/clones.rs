@@ -8,10 +8,11 @@
 use std::path::{Path, PathBuf};
 
 use cba_core::dados::DiretorioDados;
+use cba_repos::acessos::testar_acesso_repositorio;
 use cba_repos::chaveiro::{
     Chaveiro, conta_comando_global, conta_global, conta_propria, token_do_repositorio,
 };
-use cba_repos::clone::{Progresso, clonar, testar_acesso};
+use cba_repos::clone::{Progresso, clonar};
 use cba_repos::demanda::Ferramentas;
 use cba_repos::{RepositorioCodigo, Secret};
 use serde::{Deserialize, Serialize};
@@ -104,8 +105,9 @@ pub fn tokens_guardados(chaveiro: &dyn Chaveiro, alvos: &[AlvoToken]) -> Result<
         .collect()
 }
 
-/// Testa o acesso de leitura. Com `token` (digitado e ainda não gravado), usa
-/// ele; senão, o do repositório (próprio, global do host ou comando).
+/// Testa o acesso de leitura: o token na API da forja (#215) e a URL no git. Com
+/// `token` (digitado e ainda não gravado), usa ele; senão, o do repositório
+/// (próprio, global do host ou comando).
 pub fn testar(
     f: &Ferramentas,
     repo: &RepositorioCodigo,
@@ -115,7 +117,7 @@ pub fn testar(
         Some(t) => Some(Secret::new(t)),
         None => token_do_repositorio(repo, f.chaveiro.as_ref()).map_err(|e| e.to_string())?,
     };
-    testar_acesso(&f.git, repo, token.as_ref())
+    testar_acesso_repositorio(f, repo, token.as_ref())
 }
 
 /// "Testar conexão" do Jira no cadastro: os passos da prontidão, com o token

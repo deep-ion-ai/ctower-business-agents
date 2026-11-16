@@ -61,6 +61,47 @@ fn comando_git(git: &Path, forja: ForgeKind, token: Option<&Secret>) -> Command 
     c
 }
 
+/// Base64 (RFC 4648, com `=`) para o cabeçalho `Authorization: Basic`.
+fn base64(dados: &[u8]) -> String {
+    const ALFABETO: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut s = String::with_capacity(dados.len().div_ceil(3) * 4);
+    for bloco in dados.chunks(3) {
+        let b = [
+            bloco[0],
+            *bloco.get(1).unwrap_or(&0),
+            *bloco.get(2).unwrap_or(&0),
+        ];
+        let n = (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]);
+        for i in 0..4 {
+            if i <= bloco.len() {
+                s.push(ALFABETO[((n >> (18 - 6 * i)) & 63) as usize] as char);
+            } else {
+                s.push('=');
+            }
+        }
+    }
+    s
+}
+
+/// Faz o git mandar o token já no primeiro pedido HTTP (#215), por
+/// `http.extraHeader` em `GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n`: só no ambiente
+/// do processo filho, nunca nos argumentos. Sem isso, o git só usa a credencial
+/// quando o servidor responde 401, e num repositório público um token falso
+/// passaria no teste. Acrescenta às entradas que o ambiente já tiver.
+fn enviar_token_de_saida(c: &mut Command, forja: ForgeKind, token: &Secret) {
+    let n = std::env::var("GIT_CONFIG_COUNT")
+        .ok()
+        .and_then(|v| v.trim().parse::<u32>().ok())
+        .unwrap_or(0);
+    let credencial = format!("{}:{}", usuario_http(forja), token.expose());
+    c.env("GIT_CONFIG_COUNT", (n + 1).to_string())
+        .env(format!("GIT_CONFIG_KEY_{n}"), "http.extraHeader")
+        .env(
+            format!("GIT_CONFIG_VALUE_{n}"),
+            format!("Authorization: Basic {}", base64(credencial.as_bytes())),
+        );
+}
+
 /// Confere a URL de clone: preenchida, sem senha ou token embutido e sem cara de
 /// opção do git.
 pub fn validar_url(url: &str) -> Result<(), String> {
@@ -121,7 +162,10 @@ fn explicar(stderr: &str, token: Option<&Secret>) -> String {
     }
 }
 
-/// Valida o acesso de leitura antes de clonar: `git ls-remote --heads`.
+/// Valida o acesso de leitura antes de clonar: `git ls-remote --heads`. Com
+/// token, ele vai já no primeiro pedido: um token recusado faz o teste falhar
+/// mesmo num repositório público. O teste pela API da forja fica com
+/// [`crate::acessos::testar_acesso_repositorio`].
 pub fn testar_acesso(
     git: &Path,
     repo: &RepositorioCodigo,
@@ -130,6 +174,9 @@ pub fn testar_acesso(
     let url = repo.url_efetiva();
     validar_url(&url)?;
     let mut c = comando_git(git, repo.forja, token);
+    if let Some(t) = token {
+        enviar_token_de_saida(&mut c, repo.forja, t);
+    }
     c.args(["ls-remote", "--heads", "--", &url]);
     let o = process::run(c, PRAZO_TESTE).map_err(|e| match e {
         RunError::NotFound => "git não encontrado: instale o git e deixe-o no PATH".to_string(),
@@ -364,6 +411,23 @@ mod tests {
     }
 
     #[test]
+    fn base64_do_cabecalho() {
+        let casos = [
+            ("", ""),
+            ("f", "Zg=="),
+            ("fo", "Zm8="),
+            ("foo", "Zm9v"),
+            ("foob", "Zm9vYg=="),
+            ("fooba", "Zm9vYmE="),
+            ("foobar", "Zm9vYmFy"),
+            ("oauth2:glpat-x", "b2F1dGgyOmdscGF0LXg="),
+        ];
+        for (de, para) in casos {
+            assert_eq!(base64(de.as_bytes()), para, "{de}");
+        }
+    }
+
+    #[test]
     fn mensagens_claras_sem_token() {
         let t = Secret::new("glpat-segredo");
         let m = explicar(
@@ -510,6 +574,10 @@ mod tests {
                 r#"case "$*" in *glpat*) echo "token nos argumentos" >&2; exit 9;; esac
 [ "$CBA_GIT_TOKEN" = "glpat-x" ] && [ "$CBA_GIT_USUARIO" = "oauth2" ] || { echo "sem token" >&2; exit 8; }
 [ "$GIT_TERMINAL_PROMPT" = "0" ] || exit 7
+# ls-remote: o token vai logo no primeiro pedido, também só pelo ambiente.
+case "$*" in *ls-remote*)
+  [ "$GIT_CONFIG_KEY_0" = "http.extraHeader" ] && [ "$GIT_CONFIG_VALUE_0" = "Authorization: Basic b2F1dGgyOmdscGF0LXg=" ] || { echo "token não vai de saída" >&2; exit 6; };;
+esac
 exit 0"#,
             );
             let repo = RepositorioCodigo {

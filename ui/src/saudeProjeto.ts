@@ -32,6 +32,8 @@ export interface ItemSaude {
   /** Rótulo do botão que leva à aba certa. */
   acao: string;
   aba: AbaProjeto;
+  /** O conserto é o token global do host: o botão leva a Configurações › Acessos. */
+  acessos?: boolean;
 }
 
 /** `undefined`: ainda não conferido; `null`: a conferência falhou. */
@@ -61,6 +63,31 @@ export function primeiraFalha(i: IntegracaoProntidao | undefined): string | null
   const p = i?.passos.find((x) => x.situacao === "falhou");
   if (!p) return null;
   return p.detalhe ? `${p.rotulo}: ${p.detalhe}` : p.rotulo;
+}
+
+/** O primeiro passo que falhou. */
+function passoQueFalhou(i: IntegracaoProntidao | undefined) {
+  return i?.passos.find((p) => p.situacao === "falhou");
+}
+
+/**
+ * O passo que falhou é do token: a credencial, o token recusado pela API da forja
+ * (`token`, #215) ou o acesso com ele.
+ */
+export function falhaDoToken(i: IntegracaoProntidao | undefined): boolean {
+  const id = passoQueFalhou(i)?.id;
+  return id === "credencial" || id === "token" || id === "acesso";
+}
+
+/** O problema é o próprio token (falta ou a API da forja o recusou), não a URL. */
+function semTokenValido(i: IntegracaoProntidao | undefined): boolean {
+  const id = passoQueFalhou(i)?.id;
+  return id === "credencial" || id === "token";
+}
+
+/** As demandas usam o token global do host (o de Configurações › Acessos). */
+function demandasComTokenDoHost(t: TrackerConfig): boolean {
+  return t.kind === "github" || (t.kind === "gitlab" && !t.credential_cmd.trim());
 }
 
 /**
@@ -128,8 +155,15 @@ export function itensDeSaude(projeto: ProjetoConfig, estado: EstadoDoProjeto): I
     };
   } else {
     const comFalha = codigo
-      .map((c, i) => ({ c, falha: primeiraFalha(integracaoDoRepositorio(prontidao, i)) }))
+      .map((c, i) => {
+        const integ = integracaoDoRepositorio(prontidao, i);
+        return { c, integ, falha: primeiraFalha(integ) };
+      })
       .filter((x) => x.falha !== null);
+    // Token global do host ausente ou recusado pela API da forja: a pendência leva a
+    // Acessos, mesmo que o repositório seja público (#215).
+    const doHost = comFalha.find((x) => x.c.token === "global" && semTokenValido(x.integ));
+    const recusadoNoHost = doHost && passoQueFalhou(doHost.integ)?.id === "token" ? doHost : null;
     itemCodigo =
       prontidao === null
         ? {
@@ -140,7 +174,17 @@ export function itensDeSaude(projeto: ProjetoConfig, estado: EstadoDoProjeto): I
             acao: "Ver repositórios",
             aba: "codigo",
           }
-        : comFalha.length > 0
+        : recusadoNoHost
+          ? {
+              id: "codigo",
+              estado: "problema",
+              titulo: `O token de ${recusadoNoHost.c.host} foi recusado`,
+              texto: `${recusadoNoHost.c.caminho}: ${recusadoNoHost.falha}.`,
+              acao: "Abrir Acessos",
+              aba: "codigo",
+              acessos: true,
+            }
+          : comFalha.length > 0
           ? {
               id: "codigo",
               estado: "problema",
@@ -149,8 +193,9 @@ export function itensDeSaude(projeto: ProjetoConfig, estado: EstadoDoProjeto): I
                   ? "Um repositório está sem acesso"
                   : `${comFalha.length} repositórios estão sem acesso`,
               texto: `${comFalha[0].c.caminho}: ${comFalha[0].falha}.`,
-              acao: "Resolver",
+              acao: doHost ? "Abrir Acessos" : "Resolver",
               aba: "codigo",
+              acessos: !!doHost,
             }
           : {
               id: "codigo",
@@ -179,7 +224,9 @@ export function itensDeSaude(projeto: ProjetoConfig, estado: EstadoDoProjeto): I
           estado: "problema",
           titulo: "As demandas não estão acessíveis",
           texto: `${descreverDemandas(tracker)}: ${primeiraFalha(integ)}.`,
-          acao: "Resolver",
+          ...(demandasComTokenDoHost(tracker) && semTokenValido(integ)
+            ? { acao: "Abrir Acessos", acessos: true }
+            : { acao: "Resolver" }),
           aba: "codigo",
         }
       : {

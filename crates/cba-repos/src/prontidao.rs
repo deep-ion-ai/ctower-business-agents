@@ -5,13 +5,15 @@
 //! `server` igual à `url`, comando de credencial, `jira me` e `jira serverinfo`.
 //! GitLab: `glab version` e `glab api version`. GitHub: `gh` e `gh auth token`.
 
-use crate::chaveiro::token_do_repositorio;
+use crate::acessos::{ErroVerificacao, verificar_token_host, verificar_token_repositorio};
+use crate::chaveiro::{conta_propria, token_do_repositorio};
 use crate::clone::testar_acesso;
+use crate::codigo::HOST_GITHUB;
 use crate::demanda::{Ferramentas, PRAZO_CLI};
 use crate::process::{RunError, cite, run};
 use crate::{
-    GithubConfig, GitlabConfig, JiraConfig, OrigemToken, RepositorioCodigo, Repositorios, Secret,
-    TrackerConfig,
+    ForgeKind, GithubConfig, GitlabConfig, JiraConfig, OrigemToken, RepositorioCodigo,
+    Repositorios, Secret, TrackerConfig,
 };
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -259,6 +261,22 @@ fn prontidao_glab(g: &GitlabConfig, f: &Ferramentas, titulo: &str) -> Integracao
     );
     let token = cred.borrow();
     b.passo(
+        "token",
+        "Token aceito pela API do GitLab",
+        if g.credential_cmd.trim().is_empty() {
+            "Gere outro token no GitLab (escopo `read_api`) e atualize o token global do host em \
+             Configurações › Acessos."
+        } else {
+            "Gere outro token no GitLab (escopo `read_api`) e confira o comando de credencial."
+        },
+        || match token.as_ref() {
+            Some(t) => verificar_token_host(ForgeKind::Gitlab, g.host.trim(), t, f)
+                .map(|v| v.usuario.map(|u| format!("token de {u}")))
+                .map_err(|e| e.to_string()),
+            None => Ok(None),
+        },
+    );
+    b.passo(
         "api",
         "API do GitLab responde (glab api version)",
         "Confira o host do cadastro e se o token tem o escopo `read_api`.",
@@ -277,8 +295,9 @@ fn prontidao_glab(g: &GitlabConfig, f: &Ferramentas, titulo: &str) -> Integracao
     }
 }
 
-fn prontidao_gh(_g: &GithubConfig, f: &Ferramentas, titulo: &str) -> Integracao {
+fn prontidao_gh(g: &GithubConfig, f: &Ferramentas, titulo: &str) -> Integracao {
     let mut b = Construtor::novo();
+    let cred: std::cell::RefCell<Option<Secret>> = Default::default();
     b.passo(
         "cli",
         "gh instalado",
@@ -294,8 +313,9 @@ fn prontidao_gh(_g: &GithubConfig, f: &Ferramentas, titulo: &str) -> Integracao 
         "gh autenticado (token do chaveiro ou gh auth token)",
         "Cadastre o token do github.com em Configurações › Acessos ou rode `gh auth login` num terminal.",
         || {
-            if crate::demanda::token_github(f).is_some() {
-                return Ok(Some("token do chaveiro".into()));
+            if let Some(t) = crate::demanda::token_github(f) {
+                *cred.borrow_mut() = Some(t);
+                return Ok(Some("token global do github.com (chaveiro)".into()));
             }
             let mut c = Command::new(&f.gh);
             c.args(["auth", "token"]);
@@ -309,14 +329,74 @@ fn prontidao_gh(_g: &GithubConfig, f: &Ferramentas, titulo: &str) -> Integracao 
             })
         },
     );
+    let token = cred.borrow();
+    b.passo(
+        "token",
+        "Token aceito pela API do GitHub",
+        "Gere outro token no GitHub e atualize o token global do github.com em \
+         Configurações › Acessos.",
+        || match token.as_ref() {
+            Some(t) => verificar_token_host(ForgeKind::Github, HOST_GITHUB, t, f)
+                .map(|v| v.usuario.map(|u| format!("token de {u}")))
+                .map_err(|e| e.to_string()),
+            // Sem token no chaveiro, vale a autenticação do próprio gh: o passo
+            // seguinte a confere.
+            None => Ok(Some("autenticação do gh".into())),
+        },
+    );
+    b.passo(
+        "issues",
+        "Repositório com as issues ligadas",
+        "Ligue as Issues do repositório no GitHub (Settings › General › Features) ou escolha \
+         outro repositório, e confira se o token tem acesso a ele.",
+        || issues_ligadas_github(g, f, token.as_ref()),
+    );
     Integracao {
         titulo: titulo.into(),
         passos: b.passos,
     }
 }
 
-/// Repositório de código: git instalado, token (chaveiro, comando ou nenhum) e
-/// acesso de leitura (`git ls-remote`).
+/// O repositório das demandas existe, o token o enxerga e as issues estão ligadas
+/// (`gh api repos/{repo}`, campo `has_issues`). Um fork vem com elas desligadas.
+fn issues_ligadas_github(
+    g: &GithubConfig,
+    f: &Ferramentas,
+    token: Option<&Secret>,
+) -> Result<Option<String>, String> {
+    let repo = g.repo.trim().trim_matches('/');
+    if repo.is_empty()
+        || !repo
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | '/'))
+    {
+        return Err(format!("repositório das demandas inválido: {repo}"));
+    }
+    let mut c = Command::new(&f.gh);
+    c.args(["api", &format!("repos/{repo}")])
+        .env("GH_HOST", HOST_GITHUB);
+    if let Some(t) = token {
+        c.env("GH_TOKEN", t.expose());
+    }
+    let o = run(c, PRAZO_CLI).map_err(|e| cite(&e.to_string(), token))?;
+    if !o.status.success() {
+        let err = cite(&String::from_utf8_lossy(&o.stderr), token);
+        return Err(if err.is_empty() {
+            format!("o GitHub não devolveu {repo}")
+        } else {
+            err
+        });
+    }
+    let v: serde_json::Value = serde_json::from_slice(&o.stdout)
+        .map_err(|_| format!("resposta inesperada do GitHub para {repo}"))?;
+    if v["has_issues"].as_bool() == Some(false) {
+        return Err(format!("as issues estão desligadas em {repo}"));
+    }
+    Ok(Some(repo.to_string()))
+}
+
+/// Repositório de código: git instalado, token (chaveiro, comando ou nenhum),
+/// token aceito pela API da forja (#215) e acesso de leitura (`git ls-remote`).
 fn prontidao_codigo(repo: &RepositorioCodigo, f: &Ferramentas) -> Integracao {
     let mut b = Construtor::novo();
     let cred: std::cell::RefCell<Option<Secret>> = Default::default();
@@ -338,15 +418,48 @@ fn prontidao_codigo(repo: &RepositorioCodigo, f: &Ferramentas) -> Integracao {
         || {
             let t = token_do_repositorio(repo, f.chaveiro.as_ref()).map_err(|e| e.to_string())?;
             let detalhe = match (&t, repo.token) {
-                (None, _) => "sem token: chave SSH ou credencial do próprio git",
-                (Some(_), OrigemToken::Comando) => "comando de credencial",
-                (Some(_), _) => "chaveiro do sistema",
+                (None, _) => "sem token: chave SSH ou credencial do próprio git".to_string(),
+                (Some(_), OrigemToken::Comando) => "comando de credencial".into(),
+                (Some(_), _) if proprio_no_chaveiro(repo, f) => {
+                    "token próprio do repositório (chaveiro)".into()
+                }
+                (Some(_), _) => format!("token global de {} (chaveiro)", repo.host.trim()),
             };
             *cred.borrow_mut() = t;
-            Ok(Some(detalhe.into()))
+            Ok(Some(detalhe))
         },
     );
     let token = cred.borrow();
+    let orientacao_token = match repo.token {
+        OrigemToken::Comando => {
+            "Gere outro token na forja (com leitura do repositório) e confira o comando de \
+             credencial."
+        }
+        _ if proprio_no_chaveiro(repo, f) => {
+            "Gere outro token na forja (com leitura do repositório) e informe-o no cadastro do \
+             repositório."
+        }
+        _ => {
+            "Gere outro token na forja (com leitura do repositório) e atualize o token global do \
+             host em Configurações › Acessos."
+        }
+    };
+    b.passo(
+        "token",
+        &format!("Token aceito pela API do {}", repo.forja.label()),
+        orientacao_token,
+        || match token.as_ref() {
+            None => Ok(Some("sem token: nada a conferir na API".into())),
+            Some(t) => match verificar_token_repositorio(repo, t, f) {
+                Ok(()) => Ok(None),
+                // Sem a CLI da forja, o passo seguinte confere o token pelo git.
+                Err(ErroVerificacao::SemFerramenta(cli)) => {
+                    Ok(Some(format!("{cli} não encontrado: conferido só pelo git")))
+                }
+                Err(ErroVerificacao::Recusado(m)) => Err(m),
+            },
+        },
+    );
     b.passo(
         "acesso",
         "Acesso de leitura (git ls-remote)",
@@ -357,6 +470,13 @@ fn prontidao_codigo(repo: &RepositorioCodigo, f: &Ferramentas) -> Integracao {
         titulo: format!("Código ({})", repo.rotulo()),
         passos: b.passos,
     }
+}
+
+/// O repositório tem token próprio guardado no chaveiro (o que vale antes do
+/// global do host).
+fn proprio_no_chaveiro(repo: &RepositorioCodigo, f: &Ferramentas) -> bool {
+    repo.token != OrigemToken::Comando
+        && matches!(f.chaveiro.ler(&conta_propria(repo)), Ok(Some(_)))
 }
 
 /// Confere as integrações cadastradas do projeto.
@@ -475,7 +595,21 @@ esac"#,
         let gh = script(
             d.path(),
             "gh",
-            r#"case "$1" in --version) echo "gh 2.60";; auth) echo ghp_x;; esac"#,
+            r#"case "$1 $2" in
+"--version "*) echo "gh 2.60";;
+"auth token") echo ghp_x;;
+"api repos/o/web") [ "$GH_TOKEN" = so-do-web ] || { echo "gh: Bad credentials (HTTP 401)" >&2; exit 1; }; echo '{}';;
+"api repos/o/r") echo '{"has_issues":true}';;
+*) exit 2;;
+esac"#,
+        );
+        let glab = script(
+            d.path(),
+            "glab",
+            r#"case "$1 $2" in
+"api projects/g%2Fp%2Fapp") [ "$GITLAB_TOKEN" = tok ] || { echo "glab: 401 Unauthorized (HTTP 401)" >&2; exit 1; }; echo '{}';;
+*) exit 2;;
+esac"#,
         );
         // git falso: o ls-remote só passa com o token esperado de cada repositório.
         let git = script(
@@ -491,6 +625,7 @@ esac"#,
         let chaveiro = std::sync::Arc::new(ChaveiroMemoria::default());
         let f = Ferramentas {
             gh,
+            glab,
             git,
             chaveiro: chaveiro.clone(),
             ..Default::default()
@@ -517,7 +652,7 @@ esac"#,
         assert!(!p.pronta());
         assert_eq!(p.integracoes.len(), 3);
         assert_eq!(p.integracoes[0].titulo, "Código (GitLab g/p/app)");
-        assert_eq!(p.integracoes[0].passos[2].situacao, Situacao::Falhou);
+        assert_eq!(p.integracoes[0].passos[3].situacao, Situacao::Falhou);
         assert_eq!(p.integracoes[1].passos[1].situacao, Situacao::Falhou);
         chaveiro
             .gravar(&conta_global("gitlab.example.com"), &Secret::new("tok"))
@@ -533,5 +668,144 @@ esac"#,
         }
         // Sem nada cadastrado, nada a conferir.
         assert!(conferir(&Repositorios::default(), &f).pronta());
+    }
+
+    /// git falso que aceita qualquer coisa, como um repositório público lido sem
+    /// mandar o token.
+    fn git_publico(dir: &std::path::Path) -> std::path::PathBuf {
+        script(
+            dir,
+            "git",
+            r#"case "$*" in --version) echo "git version 2.45";; esac; exit 0"#,
+        )
+    }
+
+    #[test]
+    fn token_falso_em_repositorio_publico_falha_na_api() {
+        use crate::RepositorioCodigo;
+        use crate::chaveiro::{Chaveiro, ChaveiroMemoria, conta_global};
+        let d = tempfile::tempdir().unwrap();
+        let gh = script(
+            d.path(),
+            "gh",
+            r#"[ "$GH_TOKEN" = ghp-bom ] || { echo "gh: Bad credentials (HTTP 401)" >&2; exit 1; }
+[ "$GH_HOST" = github.com ] || exit 3
+echo '{"login":"ana"}'"#,
+        );
+        let chaveiro = std::sync::Arc::new(ChaveiroMemoria::default());
+        chaveiro
+            .gravar(&conta_global("github.com"), &Secret::new("ghp-falso-123"))
+            .unwrap();
+        let f = Ferramentas {
+            gh,
+            git: git_publico(d.path()),
+            chaveiro: chaveiro.clone(),
+            ..Default::default()
+        };
+        let repo = RepositorioCodigo {
+            caminho: "o/publico".into(),
+            ..Default::default()
+        };
+        let i = prontidao_codigo(&repo, &f);
+        let ids: Vec<_> = i
+            .passos
+            .iter()
+            .map(|p| (p.id.as_str(), p.situacao))
+            .collect();
+        assert_eq!(
+            ids,
+            [
+                ("git", Situacao::Ok),
+                ("credencial", Situacao::Ok),
+                ("token", Situacao::Falhou),
+                ("acesso", Situacao::Pulado)
+            ]
+        );
+        assert_eq!(
+            i.passos[1].detalhe.as_deref(),
+            Some("token global de github.com (chaveiro)")
+        );
+        let msg = i.passos[2].detalhe.clone().unwrap();
+        assert!(msg.contains("recusou o token"), "{msg}");
+        assert!(
+            i.passos[2]
+                .orientacao
+                .as_deref()
+                .unwrap()
+                .contains("Acessos"),
+            "{i:?}"
+        );
+        assert!(!format!("{i:?}").contains("ghp-falso-123"));
+
+        // Com o token bom, passa.
+        chaveiro
+            .gravar(&conta_global("github.com"), &Secret::new("ghp-bom"))
+            .unwrap();
+        assert!(prontidao_codigo(&repo, &f).pronta());
+
+        // Sem o gh, o passo da API não barra: o git confere o token.
+        let sem_gh = Ferramentas {
+            gh: d.path().join("nada"),
+            ..f.clone()
+        };
+        let i = prontidao_codigo(&repo, &sem_gh);
+        assert!(i.pronta(), "{i:?}");
+        assert!(
+            i.passos[2]
+                .detalhe
+                .as_deref()
+                .unwrap()
+                .contains("só pelo git")
+        );
+    }
+
+    #[test]
+    fn github_issues_com_token_invalido_ou_desligadas() {
+        use crate::chaveiro::{Chaveiro, ChaveiroMemoria, conta_global};
+        let d = tempfile::tempdir().unwrap();
+        let gh = script(
+            d.path(),
+            "gh",
+            r#"case "$1 $2" in
+"--version "*) echo "gh 2.60";;
+"api -i") [ "$GH_TOKEN" = ghp-bom ] || { echo "gh: Bad credentials (HTTP 401)" >&2; exit 1; }; printf 'HTTP/2.0 200 OK\r\n\r\n{"login":"ana"}';;
+"api repos/o/fork") echo '{"has_issues":false}';;
+"api repos/o/r") echo '{"has_issues":true}';;
+*) exit 2;;
+esac"#,
+        );
+        let chaveiro = std::sync::Arc::new(ChaveiroMemoria::default());
+        chaveiro
+            .gravar(&conta_global("github.com"), &Secret::new("ghp-ruim"))
+            .unwrap();
+        let f = Ferramentas {
+            gh,
+            chaveiro: chaveiro.clone(),
+            ..Default::default()
+        };
+        let cfg = |repo: &str| GithubConfig { repo: repo.into() };
+        let i = prontidao_gh(&cfg("o/r"), &f, "Issues (GitHub)");
+        assert_eq!(i.passos[2].id, "token");
+        assert_eq!(i.passos[2].situacao, Situacao::Falhou);
+        assert!(!format!("{i:?}").contains("ghp-ruim"));
+
+        chaveiro
+            .gravar(&conta_global("github.com"), &Secret::new("ghp-bom"))
+            .unwrap();
+        let i = prontidao_gh(&cfg("o/r"), &f, "Issues (GitHub)");
+        assert!(i.pronta(), "{i:?}");
+        assert_eq!(i.passos[2].detalhe.as_deref(), Some("token de ana"));
+
+        let i = prontidao_gh(&cfg("o/fork"), &f, "Issues (GitHub)");
+        assert_eq!(i.passos[3].id, "issues");
+        assert_eq!(i.passos[3].situacao, Situacao::Falhou);
+        assert!(
+            i.passos[3]
+                .detalhe
+                .as_deref()
+                .unwrap()
+                .contains("desligadas"),
+            "{i:?}"
+        );
     }
 }

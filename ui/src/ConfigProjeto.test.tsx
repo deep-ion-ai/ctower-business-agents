@@ -223,6 +223,115 @@ describe("ConfigProjeto", () => {
       );
     });
 
+    it("token global recusado pela API leva a Acessos, mesmo com o repositório público", () => {
+      const { aoIrParaAcessos } = montar({
+        projeto: projetoFicticio({ repositorios: { codigo: [API_REPO], tracker: null } }),
+        estado: {
+          ambiente: PRONTO,
+          prontidao: {
+            integracoes: [
+              {
+                titulo: "Código",
+                passos: [
+                  { id: "git", rotulo: "git instalado", situacao: "ok", detalhe: null, orientacao: null },
+                  {
+                    id: "token",
+                    rotulo: "Token aceito pela API do GitHub",
+                    situacao: "falhou",
+                    detalhe: "a API do GitHub recusou o token (inválido, expirado ou revogado)",
+                    orientacao: "Atualize o token global em Configurações › Acessos.",
+                  },
+                  {
+                    id: "acesso",
+                    rotulo: "Acesso de leitura (git ls-remote)",
+                    situacao: "pulado",
+                    detalhe: null,
+                    orientacao: null,
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      });
+      expect(screen.getByText("1 pendência")).toBeInTheDocument();
+      expect(screen.queryByText("Código acessível")).not.toBeInTheDocument();
+      expect(screen.getByText("O token de github.com foi recusado")).toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Abrir Acessos: O token de github.com foi recusado" }),
+      );
+      expect(aoIrParaAcessos).toHaveBeenCalled();
+      expect(screen.getByRole("tab", { name: /Visão geral/ })).toHaveAttribute("aria-selected", "true");
+    });
+
+    it("demandas do GitHub com o token do host recusado levam a Acessos", () => {
+      const { aoIrParaAcessos } = montar({
+        projeto: projetoFicticio({
+          repositorios: { codigo: [], tracker: { kind: "github", repo: "o/r" } },
+        }),
+        estado: {
+          ambiente: PRONTO,
+          prontidao: {
+            integracoes: [
+              {
+                titulo: "Issues (GitHub)",
+                passos: [
+                  {
+                    id: "token",
+                    rotulo: "Token aceito pela API do GitHub",
+                    situacao: "falhou",
+                    detalhe: "recusou o token: Bad credentials",
+                    orientacao: null,
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      });
+      expect(screen.queryByText("Demandas conectadas")).not.toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Abrir Acessos: As demandas não estão acessíveis" }),
+      );
+      expect(aoIrParaAcessos).toHaveBeenCalled();
+    });
+
+    it("issues desligadas no repositório das demandas: Resolver na aba", () => {
+      const { aoIrParaAcessos } = montar({
+        projeto: projetoFicticio({
+          repositorios: { codigo: [], tracker: { kind: "github", repo: "o/fork" } },
+        }),
+        estado: {
+          ambiente: PRONTO,
+          prontidao: {
+            integracoes: [
+              {
+                titulo: "Issues (GitHub)",
+                passos: [
+                  {
+                    id: "issues",
+                    rotulo: "Repositório com as issues ligadas",
+                    situacao: "falhou",
+                    detalhe: "as issues estão desligadas em o/fork",
+                    orientacao: null,
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      });
+      expect(screen.getByText(/as issues estão desligadas em o\/fork/)).toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Resolver: As demandas não estão acessíveis" }),
+      );
+      expect(aoIrParaAcessos).not.toHaveBeenCalled();
+      expect(screen.getByRole("tab", { name: /Código e demandas/ })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+    });
+
     it("uma pasta que sumiu é pendência de O que é analisado", () => {
       montar({
         projeto: projetoFicticio({

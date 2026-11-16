@@ -169,7 +169,9 @@ export function ConfigProjeto(props: PropsConfigProjeto) {
         className="painel-projeto"
         tabIndex={0}
       >
-        {aba === "geral" && <AbaVisaoGeral itens={itens} aoIr={irPara} />}
+        {aba === "geral" && (
+          <AbaVisaoGeral itens={itens} aoIr={irPara} aoIrParaAcessos={props.aoIrParaAcessos} />
+        )}
         {aba === "codigo" && <AbaCodigoDemandas {...props} />}
         {aba === "leitura" && <AbaLeitura {...props} aoPendencia={setPendente} />}
         {aba === "agente" && <AbaAgente {...props} />}
