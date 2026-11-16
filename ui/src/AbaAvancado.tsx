@@ -185,6 +185,12 @@ export function AbaAvancado({
           <ul className="o-que-muda">
             <li>O projeto, o inventário e o mapa do código deixam de existir no app.</li>
             <li>O preparo do agente neste projeto é desfeito (e a proteção, se ligada).</li>
+            {projeto.ambienteTeste && (
+              <li>
+                O ambiente de teste sai do app, e as senhas dos usuários de teste são apagadas do
+                chaveiro do sistema.
+              </li>
+            )}
             <li>
               <strong className="ok-text">Continuam:</strong> os documentos do projeto na base
               {cfg.base ? (

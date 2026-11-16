@@ -79,6 +79,9 @@ pub struct ProjetoConfig {
     pub inclusoes: Vec<String>,
     /// Repositório de código e de issues; só o comando de credencial, nunca o token.
     pub repositorios: cba_repos::Repositorios,
+    /// Ambiente de teste (URL, usuários e perfis); nunca a senha, que fica no
+    /// chaveiro do sistema.
+    pub ambiente_teste: Option<cba_index::AmbienteTeste>,
 }
 
 /// O que a tela de configurações mostra ao abrir.
@@ -117,6 +120,7 @@ pub fn configuracoes(
             exclusoes: s.exclusoes,
             inclusoes: s.inclusoes,
             repositorios: s.repositorios,
+            ambiente_teste: s.ambiente_teste,
         })
         .collect();
     Ok(Configuracoes {
@@ -803,6 +807,14 @@ pub fn descadastrar(
     Cadastro::em(dados.projetos())
         .remover(&cadastrado.id)
         .map_err(|e| e.to_string())?;
+    // As senhas dos usuários de teste não sobrevivem ao projeto. Falhar aqui não
+    // desfaz o descadastro: só fica registrado.
+    if let Err(e) = crate::ambiente_teste::apagar_senhas(
+        &cadastrado,
+        cba_repos::demanda::Ferramentas::default().chaveiro.as_ref(),
+    ) {
+        tracing::warn!(projeto, erro = %e, "senhas do ambiente de teste não apagadas");
+    }
     let documentos = Config::ler(dados)
         .ok()
         .and_then(|c| c.base.map(|b| b.join(&cadastrado.id)))

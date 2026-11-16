@@ -1,3 +1,8 @@
+import {
+  apiAmbienteTesteTauri,
+  type AmbienteTeste,
+  type ApiAmbienteTeste,
+} from "./ambienteTeste";
 import { invoke } from "@tauri-apps/api/core";
 import {
   apiAnaliseTauri,
@@ -36,6 +41,8 @@ export interface ProjetoConfig {
   inclusoes: string[];
   /** Repositório de código e de issues; só o comando de credencial, nunca o token. */
   repositorios: Repositorios;
+  /** Ambiente de teste (URL, usuários e perfis); nunca a senha. */
+  ambienteTeste?: AmbienteTeste | null;
 }
 
 export interface Configuracoes {
@@ -180,7 +187,11 @@ export interface AmbienteDetalhado extends AmbienteClaude {
   verificacao?: VerificacaoAmbiente;
 }
 
-export interface ApiConfiguracoes extends ApiPrimeiroUso, ApiRepositorios, ApiAcessos {
+export interface ApiConfiguracoes
+  extends ApiPrimeiroUso,
+    ApiRepositorios,
+    ApiAcessos,
+    ApiAmbienteTeste {
   configuracoes(): Promise<Configuracoes>;
   /** Documentos, tamanho, git e índice da base; `null` sem base escolhida. */
   infoBase(): Promise<InfoBase | null>;
@@ -216,6 +227,7 @@ export const apiConfiguracoesTauri: ApiConfiguracoes = {
   ...apiPrimeiroUsoTauri,
   ...apiRepositoriosTauri,
   ...apiAcessosTauri,
+  ...apiAmbienteTesteTauri,
   configuracoes: () => invoke("configuracoes_app"),
   infoBase: () => invoke("info_base_app"),
   abrirBase: () => invoke("abrir_base_app"),

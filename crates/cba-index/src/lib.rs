@@ -42,6 +42,7 @@
 //! projeto com mais de uma pasta tem no máximo uma pasta sem prefixo (a raiz); as
 //! demais aparecem sob o seu prefixo (`prefixo/caminho/no/arquivo`). Veja [`Pasta`].
 
+pub mod ambiente_teste;
 mod cadastro;
 mod erro;
 mod exclusoes;
@@ -52,6 +53,7 @@ mod linguagem;
 mod mapa;
 mod projeto;
 
+pub use ambiente_teste::{AmbienteTeste, UsuarioTeste};
 pub use cadastro::Cadastro;
 pub use erro::Erro;
 pub use exclusoes::{Exclusao, Exclusoes, Motivo, REGRAS_PADRAO};

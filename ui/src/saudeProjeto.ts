@@ -11,12 +11,13 @@ import type {
  * das abas, o selo do cabeçalho e o nº de pendências do menu saem daqui, para os
  * quatro dizerem a mesma coisa.
  */
-export type AbaProjeto = "geral" | "codigo" | "leitura" | "agente" | "avancado";
+export type AbaProjeto = "geral" | "codigo" | "leitura" | "teste" | "agente" | "avancado";
 
 export const ABAS_DO_PROJETO: { id: AbaProjeto; rotulo: string }[] = [
   { id: "geral", rotulo: "Visão geral" },
   { id: "codigo", rotulo: "Código e demandas" },
   { id: "leitura", rotulo: "O que é analisado" },
+  { id: "teste", rotulo: "Ambiente de teste" },
   { id: "agente", rotulo: "Agente" },
   { id: "avancado", rotulo: "Avançado" },
 ];

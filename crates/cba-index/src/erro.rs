@@ -45,6 +45,9 @@ pub enum Erro {
     #[error("repositórios do projeto: {0}")]
     Repositorios(String),
 
+    #[error("ambiente de teste: {0}")]
+    AmbienteTeste(String),
+
     #[error("projeto já cadastrado: {0}")]
     JaCadastrado(String),
 
