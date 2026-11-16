@@ -181,6 +181,10 @@ impl From<&Evidencia> for Citacao {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Pergunta {
     pub texto: String,
+    /// Evidências do item que virou pergunta ("Virar pergunta", #119), que saem
+    /// como notas de rodapé.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub evidencias: Vec<Citacao>,
 }
 
 /// Sugestão de alteração citada num documento.

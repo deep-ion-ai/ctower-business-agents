@@ -301,7 +301,10 @@ fn montar_secao<F>(marcador: &str, conteudo: &Conteudo<F>, notas: &mut Notas) ->
             .perguntas
             .iter()
             .enumerate()
-            .map(|(i, p)| format!("{}. {}", i + 1, recuar(p.texto.trim(), 3)))
+            .map(|(i, p)| {
+                let refs = notas.referencias(&p.evidencias);
+                format!("{}. {}{refs}", i + 1, recuar(p.texto.trim(), 3))
+            })
             .collect();
         blocos.push(itens.join("\n"));
     }

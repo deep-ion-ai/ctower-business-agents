@@ -1719,3 +1719,19 @@
 .tabela-diagrama .evidencia {
   margin: 0 4px 4px 0;
 }
+
+/* Achados do ciclo de vida (#119), abaixo da tabela de elementos do diagrama. */
+.achados-diagrama {
+  margin-top: 0.75rem;
+}
+.achados-diagrama ul {
+  margin: 0.25rem 0 0;
+  padding-left: 1.25rem;
+}
+.achado-diagrama {
+  margin-bottom: 0.5rem;
+}
+.achado-diagrama .badge,
+.achado-diagrama > .btn {
+  margin-left: 0.5rem;
+}

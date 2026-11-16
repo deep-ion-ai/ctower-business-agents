@@ -42,6 +42,10 @@ struct ArgsAresta {
     rotulo: Option<String>,
     #[serde(default)]
     descricao: Option<String>,
+    #[serde(default)]
+    condicao: Option<String>,
+    #[serde(default)]
+    efeitos: Option<String>,
     confianca: Confianca,
     #[serde(default)]
     evidencias: Vec<EvidenciaCitada>,
@@ -88,8 +92,12 @@ pub fn registrar_diagrama() -> Ferramenta {
          estado). Tipo `fluxo`: passos de um processo (nó `decisao` para as escolhas; o \
          rótulo da aresta é a condição do caminho). Use rótulos de negócio, curtos, e \
          uma aresta por transição. Aresta `confirmado` exige evidência; `inferido` e \
-         `a_confirmar` aparecem tracejadas. Para corrigir um diagrama, registre de novo \
-         com `substituir` igual ao número dele.",
+         `a_confirmar` aparecem tracejadas. No ciclo de vida (`estados`), a chave do \
+         nó é o valor que o código grava no campo de status (`ABERTA`), o papel marca \
+         o estado inicial e os finais, e cada transição traz a `condicao` (guarda) e \
+         os `efeitos` que o código mostra; o app aponta estados inalcançáveis, sem \
+         saída e transições sem condição como achados, devolvidos na resposta. Para \
+         corrigir um diagrama, registre de novo com `substituir` igual ao número dele.",
         json!({
             "type": "object",
             "properties": {
@@ -163,6 +171,16 @@ pub fn registrar_diagrama() -> Ferramenta {
                                 "maxLength": 1000,
                                 "description": "Condição e efeito da transição, em linguagem de negócio."
                             },
+                            "condicao": {
+                                "type": "string",
+                                "maxLength": 500,
+                                "description": "Estados: guarda da transição, o que o código confere antes de mudar o estado (\"sem pagamento e motivo com 10 caracteres\"). Omita se o código não confere nada."
+                            },
+                            "efeitos": {
+                                "type": "string",
+                                "maxLength": 500,
+                                "description": "Estados: o que mais a rotina grava ou dispara na transição (\"grava o log CANCELAMENTO\")."
+                            },
                             "confianca": {
                                 "type": "string",
                                 "enum": ["confirmado", "inferido", "a_confirmar"],
@@ -224,6 +242,8 @@ pub fn registrar_diagrama() -> Ferramenta {
                     para: a.para,
                     rotulo: a.rotulo,
                     descricao: a.descricao,
+                    condicao: a.condicao,
+                    efeitos: a.efeitos,
                     confianca: a.confianca,
                 });
             }
@@ -285,6 +305,11 @@ pub fn registrar_diagrama() -> Ferramenta {
                     "nos": diagrama.nos.len(),
                     "arestas": diagrama.arestas.len(),
                     "avisos": avisos,
+                    "achados": diagrama
+                        .achados()
+                        .into_iter()
+                        .map(|a| json!({"id": a.id, "texto": a.texto}))
+                        .collect::<Vec<_>>(),
                 }),
             ))
         },

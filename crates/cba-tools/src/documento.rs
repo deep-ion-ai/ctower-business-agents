@@ -148,10 +148,13 @@ pub fn diagrama(d: &cba_core::diagramas::Diagrama) -> cba_docs::Diagrama {
                 para: a.para.clone(),
                 rotulo: a.rotulo.clone(),
                 descricao: a.descricao.clone(),
+                condicao: a.condicao.clone(),
+                efeitos: a.efeitos.clone(),
                 confianca: confianca(a.confianca),
                 evidencias: a.evidencias.iter().map(citacao).collect(),
             })
             .collect(),
+        achados: d.achados().into_iter().map(|a| a.texto).collect(),
     }
 }
 
@@ -226,6 +229,7 @@ pub fn conteudo(
         .filter(|p| p.estado == EstadoPergunta::Aberta)
         .map(|p| cba_docs::Pergunta {
             texto: p.texto.clone(),
+            evidencias: p.evidencias.iter().map(citacao).collect(),
         })
         .collect();
     conteudo.sugestoes = analise

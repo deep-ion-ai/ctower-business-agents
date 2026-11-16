@@ -183,4 +183,87 @@ describe("diagramas Mermaid (#118)", () => {
     expect(exportar.mock.lastCall?.[2]).not.toHaveProperty("figuras");
     expect(desenharPng).not.toHaveBeenCalled();
   });
+
+  it("ciclo de vida: condição e efeitos, achados e Virar pergunta (#119)", async () => {
+    const ciclo: Diagrama = {
+      ...DIAGRAMA,
+      nos: [
+        ...DIAGRAMA.nos,
+        {
+          chave: "PROTESTADA",
+          rotulo: "Protestada",
+          evidencias: [evidencia("db/04_pkg_situacao.sql", "9-10")],
+        },
+      ],
+      arestas: [{ ...DIAGRAMA.arestas![0], condicao: "sem pagamento", efeitos: "grava o log" }],
+    };
+    const achado = {
+      id: "inalcancavel:PROTESTADA",
+      tipo: "inalcancavel" as const,
+      estado: "PROTESTADA",
+      texto: "O estado Protestada (`PROTESTADA`) é inalcançável.",
+      evidencias: [evidencia("db/04_pkg_situacao.sql", "9-10")],
+    };
+    const aoDecidir = vi.fn(() => Promise.resolve());
+    const vista = vistaFicticia(
+      { diagramas: [{ numero: 1, mermaid: CODIGO, achados: [achado] }] },
+      { diagramas: [ciclo], estado: "concluida" },
+    );
+    const { rerender } = render(
+      <DocumentoAoVivo
+        vista={vista}
+        aoAbrirEvidencia={vi.fn()}
+        revisao={{ aoDecidir, ocupado: false }}
+      />,
+    );
+    const bloco = screen.getByTestId("diagrama-1");
+    expect(within(bloco).getByRole("columnheader", { name: "Condição" })).toBeInTheDocument();
+    expect(within(bloco).getByRole("cell", { name: "sem pagamento" })).toBeInTheDocument();
+    expect(within(bloco).getByRole("cell", { name: "grava o log" })).toBeInTheDocument();
+    const item = within(bloco).getByTestId("achado-inalcancavel:PROTESTADA");
+    expect(item).toHaveTextContent("Estado inalcançável");
+
+    fireEvent.click(within(item).getByRole("button", { name: "Virar pergunta" }));
+    const campo = within(item).getByLabelText("Pergunta para o solicitante");
+    expect(campo).toHaveValue(achado.texto);
+    fireEvent.change(campo, { target: { value: "  A fatura ainda pode ser protestada?  " } });
+    fireEvent.click(within(item).getByRole("button", { name: "Registrar pergunta" }));
+    await waitFor(() =>
+      expect(aoDecidir).toHaveBeenCalledWith({
+        tipo: "virar-pergunta",
+        texto: "A fatura ainda pode ser protestada?",
+        origem: { tipo: "achado-diagrama", diagrama: 1, achado: "inalcancavel:PROTESTADA" },
+      }),
+    );
+
+    // Depois de registrada, o achado mostra a pergunta e não oferece o botão de novo.
+    const comPergunta = vistaFicticia(
+      { diagramas: [{ numero: 1, mermaid: CODIGO, achados: [achado] }] },
+      {
+        diagramas: [ciclo],
+        estado: "concluida",
+        perguntas: [
+          {
+            numero: 1,
+            texto: "A fatura ainda pode ser protestada?",
+            estado: "aberta",
+            registrada_ms: 4,
+            origem: { tipo: "achado-diagrama", diagrama: 1, achado: "inalcancavel:PROTESTADA" },
+            evidencias: [evidencia("db/04_pkg_situacao.sql", "9-10")],
+          },
+        ],
+      },
+    );
+    rerender(
+      <DocumentoAoVivo
+        vista={comPergunta}
+        aoAbrirEvidencia={vi.fn()}
+        revisao={{ aoDecidir, ocupado: false }}
+      />,
+    );
+    const marcado = screen.getByTestId("achado-inalcancavel:PROTESTADA");
+    expect(marcado).toHaveTextContent("virou a pergunta 1");
+    expect(within(marcado).queryByRole("button", { name: "Virar pergunta" })).toBeNull();
+    expect(screen.getByText(/de um achado do D-1 · db\/04_pkg_situacao.sql:9-10/)).toBeInTheDocument();
+  });
 });

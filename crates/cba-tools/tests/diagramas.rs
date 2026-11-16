@@ -295,3 +295,101 @@ fn exporta_para_word_com_a_figura_do_app() {
         .unwrap();
     assert!(documento.contains("Diagrama não renderizado."));
 }
+
+#[test]
+fn ciclo_de_vida_aponta_achados_e_o_achado_vira_pergunta() {
+    use cba_core::analise::{EstadoAnalise, OrigemPergunta};
+    use cba_tools::revisao::Decisao;
+
+    let c = cenario();
+    let a = c.criar(Fluxo::Explicar);
+    let mut args = ciclo(&a);
+    args["secao"] = json!("fluxo_principal");
+    args["arestas"][0]["condicao"] = json!("aberta, sem pagamento e com motivo");
+    args["arestas"][0]["efeitos"] = json!("grava o log CANCELAMENTO");
+    args["nos"].as_array_mut().unwrap().push(json!({
+        "chave": "PROTESTADA",
+        "rotulo": "Protestada",
+        "evidencias": [{
+            "arquivo": "db/04_pkg_situacao.sql",
+            "linha_inicial": 9,
+            "linha_final": 10,
+            "trecho": "'PROTESTADA'"
+        }]
+    }));
+    let r = c.chamar(args).unwrap();
+    let ids: Vec<&str> = r["achados"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|a| a["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(ids, ["inalcancavel:PROTESTADA", "sem-condicao:2"], "{r}");
+
+    let estado = c.amb.analises.carregar(&a.id).unwrap();
+    let doc = c.documento(&estado);
+    assert!(
+        doc.contains(
+            "| Aberta → Cancelada | cancelar | aberta, sem pagamento e com motivo | grava o log \
+             CANCELAMENTO |"
+        ),
+        "{doc}"
+    );
+    assert!(
+        doc.contains(
+            "**Achados do ciclo de vida (Ciclo de vida da fatura):**\n- O estado Protestada"
+        ),
+        "{doc}"
+    );
+
+    // "Virar pergunta": a pergunta leva o texto editado e a evidência do estado, e a
+    // análise concluída continua concluída.
+    c.amb
+        .analises
+        .alterar(&a.id, cba_core::eventos::Mudanca::Estado, |a, _| {
+            a.concluir()
+        })
+        .unwrap();
+    let origem = OrigemPergunta::AchadoDiagrama {
+        diagrama: 1,
+        achado: "inalcancavel:PROTESTADA".into(),
+    };
+    let decisao = Decisao::VirarPergunta {
+        texto: "A fatura ainda pode ser protestada?".into(),
+        origem: origem.clone(),
+    };
+    // A decisão chega da tela em JSON.
+    assert_eq!(
+        serde_json::to_value(&decisao).unwrap(),
+        json!({
+            "tipo": "virar-pergunta",
+            "texto": "A fatura ainda pode ser protestada?",
+            "origem": {"tipo": "achado-diagrama", "diagrama": 1, "achado": "inalcancavel:PROTESTADA"}
+        })
+    );
+    let depois = revisao::revisar(&c.amb, &a.id, decisao.clone()).unwrap();
+    assert_eq!(depois.estado, EstadoAnalise::Concluida);
+    let p = &depois.perguntas[0];
+    assert_eq!(p.origem.as_ref(), Some(&origem));
+    assert_eq!(p.evidencias[0].arquivo.as_str(), "db/04_pkg_situacao.sql");
+    let doc = c.documento(&depois);
+    let perguntas = &doc[doc.find("A fatura ainda pode ser protestada?").expect(&doc)..];
+    assert!(
+        perguntas.starts_with("A fatura ainda pode ser protestada?[^"),
+        "{doc}"
+    );
+    assert!(doc.contains("`db/04_pkg_situacao.sql:9-10`"), "{doc}");
+    // A pergunta não impede a aprovação.
+    let prontidao = revisao::prontidao(&c.amb, &a.id).unwrap();
+    assert!(
+        prontidao
+            .pendencias
+            .iter()
+            .all(|p| !p.motivo.contains("pergunta")),
+        "{:?}",
+        prontidao.pendencias
+    );
+    // Sem duplicar.
+    let erro = revisao::revisar(&c.amb, &a.id, decisao).unwrap_err();
+    assert!(erro.to_string().contains("já virou a pergunta 1"), "{erro}");
+}

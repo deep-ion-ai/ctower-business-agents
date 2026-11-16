@@ -98,6 +98,12 @@ pub struct ArestaDiagrama {
     pub rotulo: Option<String>,
     #[serde(default)]
     pub descricao: Option<String>,
+    /// Guarda da transição (#119).
+    #[serde(default)]
+    pub condicao: Option<String>,
+    /// Efeitos colaterais da transição (#119).
+    #[serde(default)]
+    pub efeitos: Option<String>,
     pub confianca: Confianca,
     #[serde(default)]
     pub evidencias: Vec<Citacao>,
@@ -114,6 +120,10 @@ pub struct Diagrama {
     pub nos: Vec<NoDiagrama>,
     #[serde(default)]
     pub arestas: Vec<ArestaDiagrama>,
+    /// Achados do ciclo de vida (`cba_core::diagramas::Diagrama::achados`), em
+    /// linguagem de negócio, listados abaixo das tabelas (#119).
+    #[serde(default)]
+    pub achados: Vec<String>,
 }
 
 impl Diagrama {
@@ -290,14 +300,37 @@ pub(crate) fn markdown(
         blocos.push(tabela.join("\n"));
     }
     if !diagrama.arestas.is_empty() {
-        let mut tabela = vec![
-            format!("| {nome_aresta} | {nome_rotulo} | Descrição | Confiança |"),
-            "| --- | --- | --- | --- |".to_owned(),
-        ];
+        // Condição e efeitos (#119) só ganham coluna quando alguma transição os tem.
+        let guarda = diagrama
+            .arestas
+            .iter()
+            .any(|a| a.condicao.is_some() || a.efeitos.is_some());
+        let mut tabela = if guarda {
+            vec![
+                format!(
+                    "| {nome_aresta} | {nome_rotulo} | Condição | Efeitos | Descrição | Confiança |"
+                ),
+                "| --- | --- | --- | --- | --- | --- |".to_owned(),
+            ]
+        } else {
+            vec![
+                format!("| {nome_aresta} | {nome_rotulo} | Descrição | Confiança |"),
+                "| --- | --- | --- | --- |".to_owned(),
+            ]
+        };
         for aresta in &diagrama.arestas {
             let refs = referencias(&aresta.evidencias);
+            let extra = if guarda {
+                format!(
+                    "{} | {} | ",
+                    celula(aresta.condicao.as_deref().unwrap_or("")),
+                    celula(aresta.efeitos.as_deref().unwrap_or(""))
+                )
+            } else {
+                String::new()
+            };
             tabela.push(format!(
-                "| {} → {} | {} | {} | {} |",
+                "| {} → {} | {} | {extra}{} | {} |",
                 celula(diagrama.rotulo_do_no(&aresta.de)),
                 celula(diagrama.rotulo_do_no(&aresta.para)),
                 celula(aresta.rotulo.as_deref().unwrap_or("")),
@@ -306,6 +339,14 @@ pub(crate) fn markdown(
             ));
         }
         blocos.push(tabela.join("\n"));
+    }
+    if !diagrama.achados.is_empty() {
+        let mut lista = vec![format!(
+            "**Achados do ciclo de vida ({}):**",
+            celula(&diagrama.titulo)
+        )];
+        lista.extend(diagrama.achados.iter().map(|a| format!("- {}", celula(a))));
+        blocos.push(lista.join("\n"));
     }
     blocos.join("\n\n")
 }
@@ -332,6 +373,8 @@ mod tests {
             para: para.into(),
             rotulo: rotulo.map(Into::into),
             descricao: None,
+            condicao: None,
+            efeitos: None,
             confianca,
             evidencias: vec![],
         }
@@ -352,6 +395,7 @@ mod tests {
                 aresta("E", "P", Some("pagar com juros"), Confianca::Inferido),
                 aresta("E", "X", None, Confianca::Inferido),
             ],
+            achados: vec![],
         }
     }
 
@@ -436,6 +480,31 @@ mod tests {
             md.contains(
                 "| Rascunho → Emitida | emitir | itens e cliente ativo[^1] | confirmado |\n\
                  | Emitida → Paga | pagar com juros |  | inferido |"
+            ),
+            "{md}"
+        );
+    }
+
+    #[test]
+    fn condicao_efeitos_e_achados_do_ciclo_de_vida() {
+        let mut d = fatura();
+        d.arestas[0].condicao = Some("itens | cliente ativo".into());
+        d.arestas[1].efeitos = Some("grava o log".into());
+        d.achados = vec!["O estado Protestada é inalcançável.".into()];
+        let md = markdown(&d, 1, &mut |_: &[Citacao]| String::new());
+        assert!(
+            md.contains(
+                "| Transição | Evento | Condição | Efeitos | Descrição | Confiança |\n\
+                 | --- | --- | --- | --- | --- | --- |\n\
+                 | Rascunho → Emitida | emitir | itens \\| cliente ativo |  |  | confirmado |\n\
+                 | Emitida → Paga | pagar com juros |  | grava o log |  | inferido |"
+            ),
+            "{md}"
+        );
+        assert!(
+            md.ends_with(
+                "**Achados do ciclo de vida (Ciclo de vida da fatura):**\n\
+                 - O estado Protestada é inalcançável."
             ),
             "{md}"
         );

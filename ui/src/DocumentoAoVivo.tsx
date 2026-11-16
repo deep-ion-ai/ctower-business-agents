@@ -152,7 +152,7 @@ export function DocumentoAoVivo({
   // Aprovada, a revisão fecha: as regras já foram para a base.
   const rev = analise.estado === "aprovada" ? undefined : revisao;
   const diagramas = analise.diagramas ?? [];
-  const mermaidDe = new Map((vista.diagramas ?? []).map((d) => [d.numero, d.mermaid]));
+  const vistos = new Map((vista.diagramas ?? []).map((d) => [d.numero, d]));
   const secoes = agrupar(
     analise.afirmacoes,
     diagramas.map((d) => d.secao),
@@ -237,7 +237,10 @@ export function DocumentoAoVivo({
                 <DiagramaAoVivo
                   key={d.numero}
                   diagrama={d}
-                  mermaid={mermaidDe.get(d.numero)}
+                  mermaid={vistos.get(d.numero)?.mermaid}
+                  achados={vistos.get(d.numero)?.achados}
+                  perguntas={analise.perguntas}
+                  revisao={rev}
                   evidenciaAberta={evidenciaAberta}
                   aoAbrirEvidencia={(e) => aoAbrirEvidencia(e, `diagrama-${d.numero}`)}
                   trecho={trecho}
@@ -330,6 +333,13 @@ export function DocumentoAoVivo({
             {perguntas.map((p) => (
               <li key={p.numero} className={`pergunta estado-${p.estado}`}>
                 {p.texto}
+                {p.origem?.tipo === "achado-diagrama" && (
+                  <span className="muted origem-pergunta">
+                    {" "}
+                    · de um achado do D-{p.origem.diagrama}
+                    {(p.evidencias ?? []).map((e) => ` · ${chaveEvidencia(e)}`).join("")}
+                  </span>
+                )}
                 <EstadoDaPergunta pergunta={p} />
                 {rev && <AcoesPergunta pergunta={p} revisao={rev} />}
               </li>
