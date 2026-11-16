@@ -176,7 +176,9 @@ function montar(c: ReturnType<typeof cenarioRevisao>, abertura: Abertura = { tip
 
 /** Abre um painel da barra (Aprovar, Exportar) e devolve a região de dentro. */
 async function abrirPainel(botao: string, regiao: string) {
-  fireEvent.click(await screen.findByRole("button", { name: botao }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: botao === "Aprovar" ? /^Aprovar/ : botao }),
+  );
   return screen.findByRole("region", { name: regiao });
 }
 
@@ -192,7 +194,7 @@ describe("Revisão, aprovação e exportação", () => {
     const aprovacao = await abrirPainel("Aprovar", "Aprovação");
     const pendencias = await within(aprovacao).findByRole("list", { name: "Pendências" });
     expect(within(pendencias).getAllByRole("listitem")).toHaveLength(3);
-    expect(within(aprovacao).getByRole("button", { name: "Aprovar análise" })).toBeDisabled();
+    expect(within(aprovacao).getByRole("button", { name: /^Aprovar(…| e gravar na base)$/ })).toBeDisabled();
 
     // Confirmar a afirmação 1.
     fireEvent.click(within(afirmacao(1)).getByRole("button", { name: "Confirmar" }));
@@ -240,7 +242,7 @@ describe("Revisão, aprovação e exportação", () => {
       expect(within(aprovacao).queryByRole("list", { name: "Pendências" })).not.toBeInTheDocument(),
     );
     expect(within(aprovacao).getByText(/1 incorreta\(s\) ficam registradas e não viram regra/)).toBeInTheDocument();
-    const aprovar = within(aprovacao).getByRole("button", { name: "Aprovar análise" });
+    const aprovar = within(aprovacao).getByRole("button", { name: /^Aprovar(…| e gravar na base)$/ });
     expect(aprovar).toBeDisabled();
     expect(within(aprovacao).getByText(/escolha a das regras/)).toBeInTheDocument();
     fireEvent.change(within(aprovacao).getByLabelText("Área das regras"), {
