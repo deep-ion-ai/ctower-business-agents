@@ -315,7 +315,7 @@ describe("fluxo do processo e modelo de dados (#120)", () => {
       />,
     );
     const bloco = screen.getByTestId("diagrama-2");
-    expect(screen.getByText("Modelo de dados conceitual")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Modelo de dados conceitual" })).toBeInTheDocument();
     expect(within(bloco).getByText("FATURA")).toBeInTheDocument();
     expect(within(bloco).getByText("glossário: Fatura")).toBeInTheDocument();
     expect(within(bloco).getByText("fora do glossário")).toBeInTheDocument();
@@ -387,7 +387,7 @@ describe("fluxo do processo e modelo de dados (#120)", () => {
       <DocumentoAoVivo vista={vistaFicticia({}, { diagramas: [fluxo] })} aoAbrirEvidencia={vi.fn()} />,
     );
     const bloco = screen.getByTestId("diagrama-1");
-    expect(screen.getByText("Fluxo do processo")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Fluxo do processo" })).toBeInTheDocument();
     expect(within(bloco).getByRole("columnheader", { name: "Raia · condição" })).toBeInTheDocument();
     const linhas = within(bloco).getAllByRole("row");
     expect(linhas[1]).toHaveTextContent("Atendente");

@@ -112,8 +112,7 @@ describe("PainelAnalise", () => {
       { tipo: "reabrir" },
       vistaFicticia({}, { afirmacoes: [AFIRMACAO_MULTA] }),
     );
-    fireEvent.click(await screen.findByRole("button", { name: /^Ver .*evidência.* no código$/ }));
-    fireEvent.click(screen.getByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
+    fireEvent.click(await screen.findByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
     expect(api.trechoEvidencia).toHaveBeenCalledWith(
       "faturamento-exemplo",
       "db/03_pkg_cobranca.sql",
@@ -178,8 +177,7 @@ describe("PainelAnalise", () => {
     montar({ tipo: "reabrir" }, vistaFicticia({}, { afirmacoes: [AFIRMACAO_MULTA] }));
     const abaCodigo = screen.getByRole("tab", { name: "Código" });
     expect(abaCodigo).toHaveAttribute("aria-selected", "false");
-    fireEvent.click(await screen.findByRole("button", { name: /^Ver .*evidência.* no código$/ }));
-    fireEvent.click(screen.getByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
+    fireEvent.click(await screen.findByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
     const trecho = await screen.findByRole("region", { name: "Trecho da evidência" });
     expect(abaCodigo).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tabpanel", { name: "Código" })).toContainElement(trecho);
@@ -220,8 +218,7 @@ describe("PainelAnalise", () => {
         },
       ),
     );
-    fireEvent.click(await screen.findByRole("button", { name: /^Ver .*evidências no código$/ }));
-    fireEvent.click(screen.getByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
+    fireEvent.click(await screen.findByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
     const trecho = await screen.findByRole("region", { name: "Trecho da evidência" });
     expect(within(trecho).getByText("1 de 2")).toBeInTheDocument();
     expect(within(trecho).getByRole("button", { name: /Anterior/ })).toBeDisabled();
@@ -258,8 +255,7 @@ describe("PainelAnalise", () => {
       url: "https://gitlab.example.com/g/p/-/blob/abc/db/03_pkg_cobranca.sql#L71-72",
       forja: "gitlab",
     });
-    fireEvent.click(await screen.findByRole("button", { name: /^Ver .*evidência.* no código$/ }));
-    fireEvent.click(screen.getByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
+    fireEvent.click(await screen.findByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
     fireEvent.click(await screen.findByRole("button", { name: /Abrir no GitLab/ }));
     expect(api.linkForja).toHaveBeenCalledWith(
       "faturamento-exemplo",
@@ -275,8 +271,7 @@ describe("PainelAnalise", () => {
 
   it("sem repositório de código cadastrado, a aba Código fica sem o link da forja", async () => {
     montar({ tipo: "reabrir" }, vistaFicticia({}, { afirmacoes: [AFIRMACAO_MULTA] }));
-    fireEvent.click(await screen.findByRole("button", { name: /^Ver .*evidência.* no código$/ }));
-    fireEvent.click(screen.getByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
+    fireEvent.click(await screen.findByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
     await screen.findByRole("region", { name: "Trecho da evidência" });
     expect(screen.queryByRole("button", { name: /Abrir no (GitHub|GitLab)/ })).not.toBeInTheDocument();
   });
@@ -299,22 +294,26 @@ describe("PainelAnalise", () => {
     expect(codigo).toHaveAttribute("aria-selected", "true");
   });
 
-  it("deixa as evidências recolhidas atrás do ícone de código", async () => {
-    montar({ tipo: "reabrir" }, vistaFicticia({}, { afirmacoes: [AFIRMACAO_MULTA] }));
-    const ver = await screen.findByRole("button", { name: /^Ver .*evidência.* no código$/ });
-    expect(ver).toHaveAttribute("aria-expanded", "false");
-    expect(
-      screen.queryByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }),
-    ).not.toBeInTheDocument();
-    fireEvent.click(ver);
-    fireEvent.click(screen.getByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
+  it("mostra as evidências como chips arquivo:linhas, sem esconder atrás de ícone", async () => {
+    const { api } = montar(
+      { tipo: "reabrir" },
+      vistaFicticia({}, { afirmacoes: [AFIRMACAO_MULTA] }),
+    );
+    const chip = await screen.findByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" });
+    expect(chip).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByRole("button", { name: /no código$/ })).not.toBeInTheDocument();
+    fireEvent.click(chip);
     expect(await screen.findByRole("region", { name: "Trecho da evidência" })).toBeInTheDocument();
-    // Ocultar o código fecha também o trecho aberto.
-    fireEvent.click(screen.getByRole("button", { name: /^Ocultar .* no código$/ }));
+    expect(api.trechoEvidencia).toHaveBeenCalled();
+    expect(chip).toHaveAttribute("aria-pressed", "true");
+    // Fechar o trecho solta o chip.
+    fireEvent.click(
+      within(screen.getByRole("region", { name: "Trecho da evidência" })).getByRole("button", {
+        name: "Fechar",
+      }),
+    );
     expect(screen.queryByRole("region", { name: "Trecho da evidência" })).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }),
-    ).not.toBeInTheDocument();
+    expect(chip).toHaveAttribute("aria-pressed", "false");
   });
 
   it("mostra a recusa de um trecho fora do escopo", async () => {
@@ -325,8 +324,7 @@ describe("PainelAnalise", () => {
     api.trechoEvidencia.mockRejectedValue(
       "`db/03_pkg_cobranca.sql`: caminho fora das pastas do projeto",
     );
-    fireEvent.click(await screen.findByRole("button", { name: /^Ver .*evidência.* no código$/ }));
-    fireEvent.click(screen.getByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
+    fireEvent.click(await screen.findByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "caminho fora das pastas do projeto",
     );

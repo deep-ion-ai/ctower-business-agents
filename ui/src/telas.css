@@ -1416,14 +1416,13 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Texto da afirmação em Markdown (#130): o primeiro parágrafo segue o selo na
-   mesma linha; listas e parágrafos seguintes vêm abaixo. */
+/* Texto da afirmação em Markdown (#130): o primeiro parágrafo abre o texto; listas e
+   parágrafos seguintes vêm abaixo. */
 .afirmacao .texto > p {
   margin: 6px 0 0;
 }
 
 .afirmacao .texto > p:first-child {
-  display: inline;
   margin: 0;
 }
 
@@ -1460,7 +1459,6 @@
 }
 
 .afirmacao .texto > .destaque-afirmacao:first-child {
-  display: inline;
   margin: 0;
 }
 
@@ -1947,4 +1945,345 @@
 
 .painel-lateral .trecho-codigo {
   max-height: none;
+}
+
+/* Revisão da análise (#184): faixa de progresso, sumário e cartões. */
+.faixa-revisao {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 -8px;
+  padding: 10px 8px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.faixa-revisao-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.faixa-revisao-contagem {
+  margin: 0;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.faixa-revisao-barra {
+  display: flex;
+  flex: 1 1 160px;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--idle-bg);
+}
+
+.faixa-revisao-segmento {
+  flex-basis: 0;
+  min-width: 4px;
+}
+
+.faixa-revisao-segmento[data-segmento="confirmadas"] {
+  background: var(--ok);
+}
+
+.faixa-revisao-segmento[data-segmento="incorretas"] {
+  background: var(--error);
+}
+
+.faixa-revisao-segmento[data-segmento="aprofundar"] {
+  background: var(--running);
+}
+
+/* As pendentes ocupam o resto da barra, sem cor de resultado. */
+.faixa-revisao-segmento[data-segmento="pendentes"] {
+  background: var(--idle-bg);
+}
+
+.faixa-revisao-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.filtro-revisao[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--selected);
+  color: var(--text);
+}
+
+.filtro-revisao-n {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.faixa-revisao-atalhos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 0 0 0 auto;
+  font-size: 12px;
+}
+
+.atalho kbd {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--btn-bg);
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 11px;
+  text-align: center;
+}
+
+.documento-ao-vivo {
+  container: documento / inline-size;
+}
+
+.documento-corpo {
+  display: block;
+}
+
+.documento-corpo[data-com-sumario] {
+  display: grid;
+  grid-template-columns: 188px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.documento-conteudo {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.sumario-analise {
+  position: sticky;
+  top: 96px;
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+}
+
+.sumario-analise ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sumario-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sumario-item:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.sumario-ok {
+  display: inline-flex;
+  color: var(--ok);
+}
+
+.sumario-n {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--attention-bg);
+  color: var(--attention);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+@container documento (max-width: 760px) {
+  .documento-corpo[data-com-sumario] {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .sumario-analise {
+    position: static;
+    max-height: none;
+  }
+
+  .sumario-analise ol {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .sumario-item {
+    width: auto;
+    border: 1px solid var(--border);
+  }
+}
+
+.cartoes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.documento-ao-vivo .cartoes {
+  padding-left: 0;
+}
+
+.cartao {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.cartao:focus-visible,
+.cartao[data-atual] {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.cartao:focus:not(:focus-visible):not([data-atual]) {
+  outline: none;
+}
+
+.cartao-cabeca {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-bottom: 6px;
+}
+
+.cartao-numero {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 11px;
+  background: var(--idle-bg);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.cartao > p {
+  margin: 4px 0;
+}
+
+.cartao .comentario {
+  margin: 6px 0 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--border-strong);
+  overflow-wrap: anywhere;
+}
+
+.cartao .evidencias {
+  margin-top: 8px;
+}
+
+.chip-evidencia {
+  border-radius: 12px;
+}
+
+.chip-evidencia[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--selected);
+}
+
+.cartao .acoes-revisao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.btn-acao-rotulada {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.btn-acao-rotulada[data-tom="ok"]:hover:not(:disabled) {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+
+.btn-acao-rotulada[data-tom="erro"]:hover:not(:disabled) {
+  color: var(--error);
+  border-color: var(--error);
+}
+
+.btn-acao-rotulada:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.cartao.afirmacao[data-pendente="true"] {
+  background: var(--attention-card);
+  border-color: var(--attention-border);
+  box-shadow: inset 3px 0 0 var(--attention);
+}
+
+.cartao.afirmacao[data-estado="confirmada"] {
+  box-shadow: inset 3px 0 0 var(--ok);
+}
+
+.cartao.afirmacao[data-estado="incorreta"] {
+  box-shadow: inset 3px 0 0 var(--error);
+}
+
+.cartao.afirmacao[data-estado="aprofundar"] {
+  box-shadow: inset 3px 0 0 var(--running);
+}
+
+.cartao.afirmacao[data-estado="a-revalidar"] {
+  box-shadow: inset 3px 0 0 var(--attention);
+}
+
+.cartao.pergunta[data-estado="descartada"] .texto-pergunta {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.para-quem {
+  font-size: 13px;
+}
+
+.form-resposta {
+  margin-top: 8px;
+}
+
+.form-resposta .acoes-revisao {
+  margin-top: 6px;
 }
