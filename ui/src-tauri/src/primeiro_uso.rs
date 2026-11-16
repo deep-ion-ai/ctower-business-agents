@@ -257,7 +257,7 @@ fn raizes_do_projeto(projeto: &cba_index::Projeto) -> Vec<(PathBuf, String)> {
 }
 
 /// Recusa da base diante de um projeto (cadastrado ou em cadastro).
-fn conflito_com_projeto(base: &Path, projeto: &cba_index::Projeto) -> Option<String> {
+pub(crate) fn conflito_com_projeto(base: &Path, projeto: &cba_index::Projeto) -> Option<String> {
     let base = canonica_aproximada(base);
     let repo_da_base = detectar_git(&base)
         .map(|g| canonica_aproximada(&g.raiz_principal))

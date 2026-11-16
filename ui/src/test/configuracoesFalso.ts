@@ -1,7 +1,7 @@
 import type { SituacaoProtecao } from "../analise";
 import {
   CONFLITO,
-  type AjusteExclusoes,
+  type AjusteLeitura,
   type AmbienteDetalhado,
   type ApiConfiguracoes,
   type AvaliacaoTroca,
@@ -344,23 +344,33 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
           avisos: [],
         }),
     ),
-    previaExclusoes: vi.fn(
-      (a: AjusteExclusoes): Promise<PreviaProjeto> =>
+    previaLeitura: vi.fn(
+      (a: AjusteLeitura): Promise<PreviaProjeto> =>
         Promise.resolve({
           id: a.projeto,
           nome: "Faturamento Exemplo",
-          pastas: [],
+          pastas: a.pastas.map((caminho, i) => ({
+            caminho,
+            prefixo: i === 0 ? null : (caminho.split("/").pop() ?? null),
+            branch: null,
+            git: false,
+          })),
           exclusoes: a.exclusoes,
           inclusoes: a.inclusoes,
           jaCadastrado: false,
           inventario: inventarioFicticio(),
         }),
     ),
-    salvarExclusoes: vi.fn((a: AjusteExclusoes) =>
+    salvarLeitura: vi.fn((a: AjusteLeitura) =>
       Promise.resolve({
         id: a.projeto,
         nome: "Faturamento Exemplo",
-        pastas: [],
+        pastas: a.pastas.map((caminho, i) => ({
+          caminho,
+          prefixo: i === 0 ? null : (caminho.split("/").pop() ?? null),
+          branch: null,
+          git: false,
+        })),
         inventario: inventarioFicticio(),
       }),
     ),

@@ -57,9 +57,12 @@ describe("Navegacao", () => {
     fireEvent.click(within(abas).getByRole("button", { name: "Configurações" }));
     expect(await screen.findByRole("region", { name: "Configurações" })).toBeInTheDocument();
     const lidas = conhecimento.api.situacao.mock.calls.length;
-    fireEvent.click(await screen.findByRole("button", { name: "Descadastrar o projeto" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: /Confirmo o descadastro/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Descadastrar" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "Avançado" }));
+    fireEvent.click(screen.getByRole("button", { name: "Descadastrar…" }));
+    fireEvent.change(screen.getByLabelText(/digite o nome do projeto/), {
+      target: { value: "Faturamento Exemplo" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Descadastrar o projeto" }));
     await waitFor(() =>
       expect(conhecimento.api.situacao.mock.calls.length).toBeGreaterThan(lidas),
     );

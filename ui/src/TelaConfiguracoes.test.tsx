@@ -45,8 +45,9 @@ function montar(api = apiConfiguracoesFalsa(), secao?: string) {
 
 const PROJETO_ABERTO = "projeto:faturamento-exemplo";
 
-async function cartao() {
-  return within(await screen.findByRole("article", { name: "Faturamento Exemplo" }));
+/** A página do projeto aberto (#192). */
+async function pagina() {
+  return within(await screen.findByRole("region", { name: "Projeto Faturamento Exemplo" }));
 }
 
 const NOME_DO_MENU = "Seções das configurações";
@@ -124,7 +125,9 @@ describe("TelaConfiguracoes", () => {
         "aria-current",
         "page",
       );
-      expect(await screen.findByRole("article", { name: "Faturamento Exemplo" })).toBeInTheDocument();
+      expect(
+        await screen.findByRole("region", { name: "Projeto Faturamento Exemplo" }),
+      ).toBeInTheDocument();
     });
 
     it("lembra a seção ao sair e voltar para as configurações", async () => {
@@ -149,7 +152,9 @@ describe("TelaConfiguracoes", () => {
       expect(localStorage.getItem(CHAVE_SECAO)).toBe(PROJETO_ABERTO);
       primeira.unmount();
       montar(api);
-      expect(await screen.findByRole("article", { name: "Faturamento Exemplo" })).toBeInTheDocument();
+      expect(
+        await screen.findByRole("region", { name: "Projeto Faturamento Exemplo" }),
+      ).toBeInTheDocument();
 
       // Outra base, sem esse projeto: a tela não fica vazia.
       localStorage.setItem(CHAVE_SECAO, "projeto:que-sumiu");
@@ -189,8 +194,9 @@ describe("TelaConfiguracoes", () => {
       });
       montar(api);
       const item = await menu().findByRole("button", { name: /Faturamento Exemplo/ });
-      await waitFor(() => expect(item).toHaveTextContent("2"));
-      expect(within(item).getByText("pendências")).toBeInTheDocument();
+      // O agente não preparado conta como uma pendência, como no cabeçalho do projeto.
+      await waitFor(() => expect(item).toHaveTextContent("1"));
+      expect(within(item).getByText("pendência")).toBeInTheDocument();
     });
 
     it("sem pendências, o projeto não mostra contagem", async () => {
@@ -537,117 +543,130 @@ describe("TelaConfiguracoes", () => {
       expect(menu().getByText(/Escolha a pasta da base para cadastrar projetos/)).toBeInTheDocument();
     });
 
-    it("mostra a pasta, o ambiente e a proteção do projeto escolhido", async () => {
-      montar(undefined, PROJETO_ABERTO);
-      const projeto = await cartao();
-      expect(projeto.getByText("/codigo/faturamento-exemplo")).toBeInTheDocument();
-      expect(await projeto.findByText("Servidor MCP “cba”: registrado")).toBeInTheDocument();
-      expect(projeto.getByText("Hooks: 2 de 2 registrados")).toBeInTheDocument();
-      expect(await projeto.findByText(/Desligada \(padrão\)/)).toBeInTheDocument();
-      expect(screen.getByText(/O ambiente do Claude fica em/)).toBeInTheDocument();
-    });
-
-    it("ajusta as exclusões com a prévia do inventário", async () => {
-      const { api, aoMudarProjetos } = montar(undefined, PROJETO_ABERTO);
-      const projeto = await cartao();
-      fireEvent.click(projeto.getByText("Exclusões: o que fica fora da análise"));
-      const campo = projeto.getByLabelText(/Excluir também/);
-      expect(campo).toHaveValue("docs/antigos/");
-      fireEvent.change(campo, { target: { value: "docs/antigos/\ncobol/" } });
-      fireEvent.click(projeto.getByRole("button", { name: "Ver o que será analisado" }));
-      await waitFor(() =>
-        expect(api.previaExclusoes).toHaveBeenCalledWith({
-          projeto: "faturamento-exemplo",
-          exclusoes: ["docs/antigos/", "cobol/"],
-          inclusoes: [],
-        }),
-      );
-      // Reincluir um item ignorado pela prévia.
-      fireEvent.click(await projeto.findByRole("button", { name: "Incluir .env na análise" }));
-      await waitFor(() =>
-        expect(api.previaExclusoes).toHaveBeenLastCalledWith(
-          expect.objectContaining({ inclusoes: ["/.env"] }),
-        ),
-      );
-      fireEvent.click(projeto.getByRole("button", { name: "Salvar as exclusões" }));
-      await waitFor(() =>
-        expect(api.salvarExclusoes).toHaveBeenCalledWith({
-          projeto: "faturamento-exemplo",
-          exclusoes: ["docs/antigos/", "cobol/"],
-          inclusoes: ["/.env"],
-        }),
-      );
-      expect(await projeto.findByText(/Exclusões salvas/)).toBeInTheDocument();
-      expect(aoMudarProjetos).toHaveBeenCalled();
-    });
-
-    it("desfaz o ambiente com confirmação e verifica de novo", async () => {
+    it("abre a página do projeto com cabeçalho e abas, verificando o ambiente uma vez só", async () => {
       const { api } = montar(undefined, PROJETO_ABERTO);
-      const projeto = await cartao();
-      // O menu, o detalhe e o estado do ambiente verificam uma vez cada.
-      await waitFor(() => expect(api.verificarAmbiente).toHaveBeenCalledTimes(3));
-      fireEvent.click(projeto.getByRole("button", { name: "Desfazer o ambiente" }));
-      const confirmar = within(
-        projeto.getByRole("region", { name: "Confirmar desfazer o ambiente" }),
+      const projeto = await pagina();
+      expect(projeto.getByRole("heading", { name: "Faturamento Exemplo" })).toBeInTheDocument();
+      expect(await projeto.findByText("✓ Tudo pronto")).toBeInTheDocument();
+      expect(projeto.getByRole("tablist", { name: "Partes do projeto" })).toBeInTheDocument();
+      expect(projeto.getByRole("tab", { name: "Visão geral" })).toHaveAttribute(
+        "aria-selected",
+        "true",
       );
-      fireEvent.click(confirmar.getByRole("button", { name: "Desfazer" }));
-      await waitFor(() => expect(api.desfazerAmbiente).toHaveBeenCalledWith("faturamento-exemplo"));
-      expect(await projeto.findByText(/Ambiente desfeito/)).toBeInTheDocument();
-      await waitFor(() => expect(api.verificarAmbiente).toHaveBeenCalledTimes(5));
-      expect(api.situacaoProtecao).toHaveBeenCalledTimes(2);
+      // O menu verificou; a página reaproveita (antes eram mais duas verificações).
+      fireEvent.click(projeto.getByRole("tab", { name: "Agente" }));
+      expect(await projeto.findByText("Ferramentas do app conectadas ao Claude")).toBeInTheDocument();
+      expect(api.verificarAmbiente).toHaveBeenCalledTimes(1);
+      // A prontidão dos repositórios é conferida sozinha, uma vez.
+      expect(api.prontidaoRepositorios).toHaveBeenCalledTimes(1);
+      fireEvent.click(projeto.getByRole("tab", { name: "Código e demandas" }));
+      fireEvent.click(projeto.getByRole("tab", { name: "Visão geral" }));
+      expect(api.prontidaoRepositorios).toHaveBeenCalledTimes(1);
     });
 
     it("o menu confere as pendências de novo quando o ambiente muda", async () => {
       const api = apiConfiguracoesFalsa();
       montar(api, PROJETO_ABERTO);
-      const projeto = await cartao();
-      await waitFor(() => expect(api.verificarAmbiente).toHaveBeenCalledTimes(3));
+      const projeto = await pagina();
       const item = menu().getByRole("button", { name: /Faturamento Exemplo/ });
+      await waitFor(() =>
+        expect(item.querySelector(".ponto-status")).toHaveAttribute("data-estado", "ok"),
+      );
       expect(item.querySelector(".menu-config-contagem")).toBeNull();
 
       api.verificarAmbiente.mockResolvedValue({ pronto: false, pendencias: ["hooks ausentes"] });
-      fireEvent.click(projeto.getByRole("button", { name: "Desfazer o ambiente" }));
+      fireEvent.click(projeto.getByRole("tab", { name: "Avançado" }));
+      fireEvent.click(projeto.getByRole("button", { name: "Desfazer o preparo…" }));
       fireEvent.click(
-        within(projeto.getByRole("region", { name: "Confirmar desfazer o ambiente" })).getByRole(
-          "button",
-          { name: "Desfazer" },
-        ),
+        within(screen.getByRole("dialog")).getByRole("button", { name: "Desfazer o preparo" }),
       );
       await waitFor(() => expect(item.querySelector(".menu-config-contagem")).not.toBeNull());
       expect(item).toHaveTextContent("1");
+      expect(projeto.getByText("1 pendência")).toBeInTheDocument();
+      expect(projeto.getByRole("tab", { name: /Agente/ })).toHaveTextContent("!");
     });
 
-    it("liga a proteção mostrando as regras antes", async () => {
-      const { api } = montar(undefined, PROJETO_ABERTO);
-      const projeto = await cartao();
-      fireEvent.click(await projeto.findByRole("button", { name: "Ligar a proteção" }));
-      expect(projeto.getByText("Edit(//codigo/faturamento-exemplo/**)")).toBeInTheDocument();
-      expect(api.mudarProtecao).not.toHaveBeenCalled();
-      fireEvent.click(projeto.getByRole("button", { name: "Concordo, ligar" }));
-      await waitFor(() =>
-        expect(api.mudarProtecao).toHaveBeenCalledWith("faturamento-exemplo", true),
+    it("Trocar o token leva à seção Acessos", async () => {
+      const cfg = configuracoesFicticias();
+      cfg.projetos[0].repositorios = {
+        codigo: [
+          {
+            forja: "github",
+            host: "github.com",
+            caminho: "o/r",
+            url_clone: "https://github.com/o/r.git",
+            pasta: null,
+            branch: "",
+            token: "global",
+            comando_credencial: "",
+          },
+        ],
+        tracker: null,
+      };
+      const api = apiConfiguracoesFalsa(cfg);
+      api.prontidaoRepositorios.mockResolvedValue({
+        integracoes: [
+          {
+            titulo: "Código (GitHub o/r)",
+            passos: [
+              {
+                id: "acesso",
+                rotulo: "Acesso de leitura (git ls-remote)",
+                situacao: "falhou",
+                detalhe: "token recusado",
+                orientacao: null,
+              },
+            ],
+          },
+        ],
+      });
+      montar(api, PROJETO_ABERTO);
+      const projeto = await pagina();
+      fireEvent.click(await projeto.findByRole("button", { name: /Resolver: Um repositório/ }));
+      fireEvent.click(
+        await projeto.findByRole("button", { name: "Trocar o token global de github.com" }),
       );
-      expect(await projeto.findByText(/Ligada: o Claude não edita/)).toBeInTheDocument();
-      expect(projeto.getByRole("button", { name: "Desligar a proteção" })).toBeInTheDocument();
+      expect(menu().getByRole("button", { name: "Acessos" })).toHaveAttribute("aria-current", "page");
     });
 
-    it("descadastra só depois da confirmação, e a falha mantém o cadastro", async () => {
+    it("sair pelo menu com alterações não salvas em O que é analisado pede confirmação", async () => {
+      const aoPendencia = vi.fn();
+      localStorage.setItem(CHAVE_SECAO, PROJETO_ABERTO);
+      const api = apiConfiguracoesFalsa();
+      render(<TelaConfiguracoes api={api} aoPendencia={aoPendencia} />);
+      const projeto = await pagina();
+      fireEvent.click(projeto.getByRole("tab", { name: "O que é analisado" }));
+      fireEvent.click(await projeto.findByRole("button", { name: "Remover a exclusão docs/antigos/" }));
+      expect(projeto.getByRole("region", { name: "Alterações não salvas" })).toBeInTheDocument();
+      await waitFor(() => expect(aoPendencia).toHaveBeenLastCalledWith(true));
+
+      fireEvent.click(menu().getByRole("button", { name: "Aparência" }));
+      const dialogo = within(screen.getByRole("dialog", { name: "Sair sem salvar?" }));
+      fireEvent.click(dialogo.getByRole("button", { name: "Cancelar" }));
+      expect(screen.getByRole("region", { name: "Alterações não salvas" })).toBeInTheDocument();
+
+      fireEvent.click(menu().getByRole("button", { name: "Aparência" }));
+      fireEvent.click(screen.getByRole("button", { name: "Descartar as alterações" }));
+      expect(menu().getByRole("button", { name: "Aparência" })).toHaveAttribute("aria-current", "page");
+      expect(aoPendencia).toHaveBeenLastCalledWith(false);
+      expect(api.salvarLeitura).not.toHaveBeenCalled();
+    });
+
+    it("descadastra digitando o nome; a falha mantém o cadastro", async () => {
       const api = apiConfiguracoesFalsa();
       api.descadastrar.mockRejectedValueOnce(new Error("settings.json inválido"));
       const { aoMudarProjetos } = montar(api, PROJETO_ABERTO);
-      const projeto = await cartao();
-      fireEvent.click(projeto.getByRole("button", { name: "Descadastrar o projeto" }));
-      const confirmar = within(
-        projeto.getByRole("region", { name: "Confirmar o descadastro de Faturamento Exemplo" }),
-      );
-      expect(
-        confirmar.getByText(/Os documentos do projeto na base de conhecimento ficam/),
-      ).toBeInTheDocument();
-      const botao = confirmar.getByRole("button", { name: "Descadastrar" });
+      const projeto = await pagina();
+      fireEvent.click(projeto.getByRole("tab", { name: "Avançado" }));
+      fireEvent.click(projeto.getByRole("button", { name: "Descadastrar…" }));
+      const dialogo = within(screen.getByRole("dialog", { name: "Descadastrar “Faturamento Exemplo”?" }));
+      const botao = dialogo.getByRole("button", { name: "Descadastrar o projeto" });
       expect(botao).toBeDisabled();
-      fireEvent.click(confirmar.getByRole("checkbox"));
+      fireEvent.change(dialogo.getByLabelText(/digite o nome do projeto/), {
+        target: { value: "Faturamento Exemplo" },
+      });
       fireEvent.click(botao);
-      expect(await projeto.findByText(/Não foi possível descadastrar/)).toBeInTheDocument();
+      expect(await dialogo.findByText(/Não foi possível descadastrar/)).toBeInTheDocument();
       expect(aoMudarProjetos).not.toHaveBeenCalled();
 
       api.configuracoes.mockResolvedValue(configuracoesFicticias({ projetos: [] }));
@@ -657,19 +676,6 @@ describe("TelaConfiguracoes", () => {
       expect(await menu().findByText("Nenhum projeto cadastrado.")).toBeInTheDocument();
       expect(menu().getByRole("button", { name: "Aparência" })).toHaveAttribute("aria-current", "page");
       expect(aoMudarProjetos).toHaveBeenCalled();
-    });
-
-    it("abre as regras do projeto no editor do computador", async () => {
-      const { api } = montar(undefined, PROJETO_ABERTO);
-      const projeto = await cartao();
-      fireEvent.click(
-        await projeto.findByRole("button", {
-          name: "Abrir Regras do projeto Faturamento Exemplo no editor do computador",
-        }),
-      );
-      await waitFor(() =>
-        expect(api.abrirTexto).toHaveBeenCalledWith("faturamento-exemplo/regras-do-projeto.md"),
-      );
     });
   });
 
@@ -929,10 +935,11 @@ describe("TelaConfiguracoes", () => {
       expect(janela.destroy).toHaveBeenCalledTimes(1);
     });
 
-    it("regras do projeto: editor sem variáveis, aberto pelo cartão do projeto", async () => {
+    it("regras do projeto: editor sem variáveis, aberto pela aba Agente do projeto", async () => {
       const api = apiConfiguracoesFalsa();
       montar(api, "projeto:faturamento-exemplo");
-      const projeto = await cartao();
+      const projeto = await pagina();
+      fireEvent.click(projeto.getByRole("tab", { name: "Agente" }));
       fireEvent.click(
         await projeto.findByRole("button", {
           name: "Editar Regras do projeto Faturamento Exemplo",
