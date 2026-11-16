@@ -20,7 +20,8 @@ const DESCRICAO_DA_SECAO: &str = "Seção do documento em que a afirmação entr
     Análise de impacto: demanda_como_entendida, como_e_hoje, funcionalidades, dados, \
     integracoes, documentos_e_telas, riscos, abrangencia. \
     Explicar funcionalidade: objetivo, atores_e_telas, fluxo_principal, \
-    fluxos_alternativos, excecoes, regras, dados, integracoes. \
+    fluxos_alternativos, excecoes, fluxo_processo, regras, dados, modelo_dados, \
+    integracoes. \
     Análise de reunião: ligacao_com_o_codigo.";
 
 #[derive(Debug, Deserialize)]

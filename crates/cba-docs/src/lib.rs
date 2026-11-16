@@ -49,7 +49,8 @@ pub use conteudo::{
     Afirmacao, Citacao, Confianca, Conteudo, Pergunta, ReferenciaSugestao, Texto, bloco_de_codigo,
 };
 pub use diagrama::{
-    ArestaDiagrama, Diagrama, LINGUAGEM_MERMAID, NoDiagrama, PapelNo, TipoDiagrama, mermaid,
+    ArestaDiagrama, AtributoDiagrama, Diagrama, EntidadeDiagrama, LINGUAGEM_MERMAID,
+    Multiplicidade, NoDiagrama, OrigemRelacao, PapelNo, RelacaoDiagrama, TipoDiagrama, mermaid,
 };
 pub use exportacao::{
     CodigoEmPasta, ErroExportacao, FonteDeTrechos, Formato, LinksDeEvidencia, OpcoesExportacao,
@@ -60,8 +61,8 @@ pub use figura::{
     ErroFigura, Figura, Figuras, MAXIMO_DE_FIGURAS, TAMANHO_MAXIMO_DA_FIGURA, blocos_mermaid,
 };
 pub use modelo::{
-    CENARIOS, HISTORIAS, MODELOS, Modelo, Montavel, RASTREABILIDADE, Secao, TABELAS_DECISAO,
-    VALORES_LIMITE, modelo,
+    CENARIOS, FLUXO_PROCESSO, HISTORIAS, MODELO_DADOS, MODELOS, Modelo, Montavel, RASTREABILIDADE,
+    Secao, TABELAS_DECISAO, VALORES_LIMITE, modelo,
 };
 pub use montagem::{ErroMontagem, Montado};
 pub use template::{Aviso, Origem, Template, Templates, arquivo_do_template};

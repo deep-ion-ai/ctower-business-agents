@@ -8,8 +8,10 @@ Marcadores de campo: {{titulo}}, {{status}}, {{id}}, {{projeto}}, {{criado}},
 documento gravado em analises/) saem como "—".
 
 Marcadores de seção: {{objetivo}}, {{atores_e_telas}}, {{fluxo_principal}},
-{{fluxos_alternativos}}, {{excecoes}}, {{regras}}, {{dados}}, {{integracoes}},
-{{perguntas}}, {{sugestoes}}, {{evidencias}}.
+{{fluxos_alternativos}}, {{excecoes}}, {{fluxo_processo}}, {{regras}}, {{dados}},
+{{modelo_dados}}, {{integracoes}}, {{perguntas}}, {{sugestoes}}, {{evidencias}}.
+{{fluxo_processo}} e {{modelo_dados}} trazem os diagramas gerados pelo app (o
+fluxograma em raias por ator e o modelo de dados conceitual).
 -->
 # {{titulo}}
 
@@ -35,6 +37,10 @@ Documento negocial da funcionalidade · Status: {{status}}
 
 {{excecoes}}
 
+## Fluxo do processo
+
+{{fluxo_processo}}
+
 ## Regras de negócio
 
 {{regras}}
@@ -42,6 +48,10 @@ Documento negocial da funcionalidade · Status: {{status}}
 ## Dados lidos e gravados
 
 {{dados}}
+
+## Modelo de dados conceitual
+
+{{modelo_dados}}
 
 ## Integrações
 

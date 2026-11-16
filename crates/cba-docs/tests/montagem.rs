@@ -627,6 +627,8 @@ fn diagrama_da_fatura() -> Diagrama {
         papel,
         descricao: None,
         evidencias: vec![],
+        raia: None,
+        entidade: None,
     };
     let mut aberta = no("A", "Aberta", PapelNo::Inicio);
     aberta.descricao = Some("Situação inicial de toda fatura.".into());
@@ -657,6 +659,7 @@ fn diagrama_da_fatura() -> Diagrama {
                     c("db/03_pkg_cobranca.sql"),
                     Linhas::novo(111, 128).unwrap(),
                 )],
+                relacao: None,
             },
             ArestaDiagrama {
                 de: "A".into(),
@@ -670,6 +673,7 @@ fn diagrama_da_fatura() -> Diagrama {
                     c("backend/src/main/java/exemplo/faturamento/ParcelamentoService.java"),
                     Linhas::novo(27, 27).unwrap(),
                 )],
+                relacao: None,
             },
             ArestaDiagrama {
                 de: "A".into(),
@@ -680,6 +684,7 @@ fn diagrama_da_fatura() -> Diagrama {
                 efeitos: None,
                 confianca: Confianca::AConfirmar,
                 evidencias: vec![],
+                relacao: None,
             },
         ],
         achados: vec![],

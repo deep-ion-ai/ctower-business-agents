@@ -1205,6 +1205,34 @@ fn aviso_do_roteiro(aviso: &crate::editavel::Aviso) -> String {
 // ---------------------------------------------------------------------------
 // concluir_analise
 
+/// Diagramas que o documento negocial (fluxo `explicar`, #120) ainda não tem: o
+/// fluxograma do processo e o modelo de dados conceitual. Viram pendências da
+/// conclusão, sem impedi-la (nem toda funcionalidade grava dados).
+fn diagramas_faltando(analise: &Analise) -> Vec<String> {
+    use cba_core::diagramas::TipoDiagrama;
+    if analise.fluxo != Fluxo::Explicar {
+        return Vec::new();
+    }
+    let tem = |tipo: TipoDiagrama| analise.diagramas.iter().any(|d| d.tipo == tipo);
+    let mut faltam = Vec::new();
+    if !tem(TipoDiagrama::Fluxo) {
+        faltam.push(format!(
+            "o documento não tem o fluxo do processo: registre-o com `registrar_diagrama` \
+             (tipo `fluxo`, secao `{}`), com as raias por ator",
+            cba_docs::FLUXO_PROCESSO
+        ));
+    }
+    if !tem(TipoDiagrama::Dados) {
+        faltam.push(format!(
+            "o documento não tem o modelo de dados conceitual: registre-o com \
+             `registrar_diagrama` (tipo `dados`, secao `{}`), se a funcionalidade lê ou \
+             grava dados",
+            cba_docs::MODELO_DADOS
+        ));
+    }
+    faltam
+}
+
 /// `concluir_analise`: fecha a rodada e devolve o caminho do documento.
 pub fn concluir_analise() -> Ferramenta {
     Ferramenta::nova(
@@ -1445,6 +1473,7 @@ fn concluir(ambiente: &Ambiente, id: &Id) -> Result<Saida, ErroFerramenta> {
             });
         }
     }
+    pendencias.extend(diagramas_faltando(analise));
     let abertas: Vec<&str> = perguntas_abertas(analise)
         .map(|p| p.texto.as_str())
         .collect();

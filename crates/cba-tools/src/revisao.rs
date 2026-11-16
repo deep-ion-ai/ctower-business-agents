@@ -7,7 +7,9 @@
 //! - [`revisar`] aplica uma [`Decisao`]: confirmar, marcar como incorreta (com
 //!   comentário) ou pedir aprofundamento de uma afirmação, desfazer essa decisão,
 //!   editar o texto de uma afirmação, responder ou descartar uma pergunta, aceitar
-//!   ou recusar uma sugestão ou um termo. Tudo vai para o estado da análise, sob a
+//!   ou recusar uma sugestão ou um termo, transformar um item da análise numa
+//!   pergunta ("Virar pergunta", #120: a relação inferida de um modelo de dados,
+//!   com o texto editado pelo analista e as evidências do item). Tudo vai para o estado da análise, sob a
 //!   trava, e o documento é remontado a partir dele ([`crate::documento::remontar`]):
 //!   o documento `.md` nunca é editado à mão, porque a próxima montagem apagaria a
 //!   edição. A edição muda só o texto: seção, confiança e evidências ficam.
@@ -161,9 +163,10 @@ pub enum Decisao {
     },
     /// Aceitar, descartar ou desfazer a decisão sobre uma tabela de decisão.
     Tabela { numero: u32, situacao: SituacaoItem },
-    /// "Virar pergunta" (#119): registrar uma pergunta para o solicitante a partir
-    /// de um item da análise (um achado do ciclo de vida), com o texto editado
-    /// pelo analista; as evidências vêm do item. Não reabre a análise.
+    /// "Virar pergunta" (#119, #120): registrar uma pergunta para o solicitante a
+    /// partir de um item da análise (um achado do ciclo de vida ou a relação
+    /// inferida do modelo de dados), com o texto editado pelo analista; as
+    /// evidências vêm do item. Não reabre a análise; o item vira pergunta uma vez só.
     VirarPergunta {
         texto: String,
         origem: OrigemPergunta,

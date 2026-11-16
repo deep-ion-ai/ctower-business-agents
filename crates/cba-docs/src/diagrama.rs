@@ -28,6 +28,14 @@
 //! estados saem da esquerda para a direita (`LR`) e o fluxo de cima para baixo
 //! (`TD`). A tabela de elementos logo abaixo da figura leva a descrição, a
 //! confiança e as evidências (como notas de rodapé) de cada estado e transição.
+//!
+//! No fluxo do processo (#120), os passos com raia ficam num `subgraph` por ator,
+//! na ordem em que cada ator aparece. O modelo de dados conceitual (tipo `dados`)
+//! sai como `erDiagram`: cada entidade com o nome de negócio e a tabela de origem
+//! (`e1["Fatura (FATURA)"]`) e os atributos de negócio (a coluna e o nome); cada
+//! relação com a cardinalidade das duas pontas, em linha contínua quando vem de
+//! chave estrangeira confirmada e tracejada quando é inferida de um join no código
+//! (ou não confirmada).
 
 use serde::{Deserialize, Serialize};
 
@@ -42,6 +50,8 @@ pub const LINGUAGEM_MERMAID: &str = "mermaid";
 pub enum TipoDiagrama {
     Estados,
     Fluxo,
+    /// Modelo de dados conceitual (#120).
+    Dados,
 }
 
 impl TipoDiagrama {
@@ -50,8 +60,95 @@ impl TipoDiagrama {
         match self {
             Self::Estados => ("Estado", "Transição", "Evento"),
             Self::Fluxo => ("Passo", "Caminho", "Condição"),
+            Self::Dados => ("Entidade", "Relação", "Verbo"),
         }
     }
+}
+
+/// Entidade de negócio de um nó do modelo de dados.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EntidadeDiagrama {
+    /// Tabela de origem.
+    pub tabela: String,
+    #[serde(default)]
+    pub atributos: Vec<AtributoDiagrama>,
+    /// Termo do glossário que vive na tabela, se houver.
+    #[serde(default)]
+    pub termo: Option<String>,
+}
+
+/// Atributo de negócio: o nome e a coluna de origem.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AtributoDiagrama {
+    pub nome: String,
+    pub coluna: String,
+}
+
+/// Multiplicidade de uma ponta da relação
+/// (`cba_core::diagramas::Multiplicidade`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Multiplicidade {
+    ZeroOuUm,
+    Um,
+    ZeroOuMuitos,
+    UmOuMuitos,
+}
+
+impl Multiplicidade {
+    fn rotulo(self) -> &'static str {
+        match self {
+            Self::ZeroOuUm => "0..1",
+            Self::Um => "1",
+            Self::ZeroOuMuitos => "0..N",
+            Self::UmOuMuitos => "1..N",
+        }
+    }
+
+    /// Marca do `erDiagram` na ponta esquerda (a entidade de origem).
+    fn marca_esquerda(self) -> &'static str {
+        match self {
+            Self::ZeroOuUm => "|o",
+            Self::Um => "||",
+            Self::ZeroOuMuitos => "}o",
+            Self::UmOuMuitos => "}|",
+        }
+    }
+
+    /// Marca do `erDiagram` na ponta direita (a entidade de destino).
+    fn marca_direita(self) -> &'static str {
+        match self {
+            Self::ZeroOuUm => "o|",
+            Self::Um => "||",
+            Self::ZeroOuMuitos => "o{",
+            Self::UmOuMuitos => "|{",
+        }
+    }
+}
+
+/// Origem da relação (`cba_core::diagramas::OrigemRelacao`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OrigemRelacao {
+    ChaveEstrangeira,
+    Join,
+}
+
+impl OrigemRelacao {
+    fn rotulo(self) -> &'static str {
+        match self {
+            Self::ChaveEstrangeira => "chave estrangeira",
+            Self::Join => "inferida (join no código)",
+        }
+    }
+}
+
+/// Relação entre entidades de uma aresta do modelo de dados.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RelacaoDiagrama {
+    pub de: Multiplicidade,
+    pub para: Multiplicidade,
+    pub origem: OrigemRelacao,
 }
 
 /// Papel do nó (`cba_core::diagramas::PapelNo`), que define a forma.
@@ -87,6 +184,12 @@ pub struct NoDiagrama {
     pub descricao: Option<String>,
     #[serde(default)]
     pub evidencias: Vec<Citacao>,
+    /// Raia (ator) do passo, no fluxo do processo.
+    #[serde(default)]
+    pub raia: Option<String>,
+    /// Entidade, no modelo de dados.
+    #[serde(default)]
+    pub entidade: Option<EntidadeDiagrama>,
 }
 
 /// Aresta do diagrama.
@@ -107,6 +210,9 @@ pub struct ArestaDiagrama {
     pub confianca: Confianca,
     #[serde(default)]
     pub evidencias: Vec<Citacao>,
+    /// Relação, no modelo de dados.
+    #[serde(default)]
+    pub relacao: Option<RelacaoDiagrama>,
 }
 
 /// Diagrama de uma seção do documento.
@@ -199,10 +305,12 @@ pub fn mermaid(diagrama: &Diagrama) -> String {
     let direcao = match diagrama.tipo {
         TipoDiagrama::Estados => "LR",
         TipoDiagrama::Fluxo => "TD",
+        TipoDiagrama::Dados => return mermaid_dados(diagrama),
     };
     let mut linhas = vec![format!("flowchart {direcao}")];
     let mut inicio = Vec::new();
     let mut fim = Vec::new();
+    let mut declaracoes: Vec<(Option<&str>, String)> = Vec::new();
     for (i, no) in diagrama.nos.iter().enumerate() {
         let id = format!("n{}", i + 1);
         let rotulo = rotulo_mermaid(&no.rotulo);
@@ -210,14 +318,38 @@ pub fn mermaid(diagrama: &Diagrama) -> String {
             (PapelNo::Decisao, _) => format!("{{{rotulo}}}"),
             (PapelNo::Inicio | PapelNo::Fim, _) => format!("([{rotulo}])"),
             (PapelNo::Etapa, TipoDiagrama::Estados) => format!("({rotulo})"),
-            (PapelNo::Etapa, TipoDiagrama::Fluxo) => format!("[{rotulo}]"),
+            (PapelNo::Etapa, _) => format!("[{rotulo}]"),
         };
         match no.papel {
             PapelNo::Inicio => inicio.push(id.clone()),
             PapelNo::Fim => fim.push(id.clone()),
             _ => {}
         }
-        linhas.push(format!("  {id}{forma}"));
+        let raia = no
+            .raia
+            .as_deref()
+            .map(str::trim)
+            .filter(|r| !r.is_empty() && diagrama.tipo == TipoDiagrama::Fluxo);
+        declaracoes.push((raia, format!("{id}{forma}")));
+    }
+    // Raias na ordem em que cada ator aparece; os passos sem raia ficam fora.
+    let mut raias: Vec<&str> = Vec::new();
+    for (raia, _) in &declaracoes {
+        if let Some(r) = raia
+            && !raias.contains(r)
+        {
+            raias.push(r);
+        }
+    }
+    for (i, raia) in raias.iter().enumerate() {
+        linhas.push(format!("  subgraph r{}[{}]", i + 1, rotulo_mermaid(raia)));
+        for (_, d) in declaracoes.iter().filter(|(r, _)| r == &Some(*raia)) {
+            linhas.push(format!("    {d}"));
+        }
+        linhas.push("  end".into());
+    }
+    for (_, d) in declaracoes.iter().filter(|(r, _)| r.is_none()) {
+        linhas.push(format!("  {d}"));
     }
     for aresta in &diagrama.arestas {
         let (Some(de), Some(para)) = (
@@ -252,6 +384,122 @@ pub fn mermaid(diagrama: &Diagrama) -> String {
     codigo
 }
 
+/// Palavra do `erDiagram` (tipo e nome do atributo): letras sem acento, dígitos,
+/// `_` e `-`, começando por letra ou `_`.
+fn palavra_er(texto: &str) -> String {
+    let mut saida = String::new();
+    for c in texto.trim().chars() {
+        let c = sem_acento(c);
+        if c.is_ascii_alphanumeric() || c == '-' {
+            saida.push(c);
+        } else if !saida.ends_with('_') {
+            saida.push('_');
+        }
+    }
+    let saida = saida.trim_matches('_').to_owned();
+    match saida.chars().next() {
+        None => "_".to_owned(),
+        Some(c) if c.is_ascii_digit() || c == '-' => format!("_{saida}"),
+        Some(_) => saida,
+    }
+}
+
+fn sem_acento(c: char) -> char {
+    match c {
+        'á' | 'à' | 'â' | 'ã' | 'ä' => 'a',
+        'Á' | 'À' | 'Â' | 'Ã' | 'Ä' => 'A',
+        'é' | 'è' | 'ê' | 'ë' => 'e',
+        'É' | 'È' | 'Ê' | 'Ë' => 'E',
+        'í' | 'ì' | 'î' | 'ï' => 'i',
+        'Í' | 'Ì' | 'Î' | 'Ï' => 'I',
+        'ó' | 'ò' | 'ô' | 'õ' | 'ö' => 'o',
+        'Ó' | 'Ò' | 'Ô' | 'Õ' | 'Ö' => 'O',
+        'ú' | 'ù' | 'û' | 'ü' => 'u',
+        'Ú' | 'Ù' | 'Û' | 'Ü' => 'U',
+        'ç' => 'c',
+        'Ç' => 'C',
+        'ñ' => 'n',
+        'Ñ' => 'N',
+        c => c,
+    }
+}
+
+/// Nome da entidade na figura: o nome de negócio e a tabela de origem.
+fn nome_da_entidade(no: &NoDiagrama) -> String {
+    match &no.entidade {
+        Some(e) if !e.tabela.trim().eq_ignore_ascii_case(no.rotulo.trim()) => {
+            format!("{} ({})", no.rotulo.trim(), e.tabela.trim())
+        }
+        _ => no.rotulo.trim().to_owned(),
+    }
+}
+
+/// Modelo de dados conceitual como `erDiagram`: entidades `e1`…`eN` com o nome de
+/// negócio e a tabela, os atributos (`COLUNA Nome_de_negocio`) e as relações com a
+/// cardinalidade, contínuas (chave estrangeira confirmada) ou tracejadas.
+fn mermaid_dados(diagrama: &Diagrama) -> String {
+    let mut linhas = vec!["erDiagram".to_owned()];
+    for (i, no) in diagrama.nos.iter().enumerate() {
+        let id = format!("e{}", i + 1);
+        let nome = rotulo_mermaid(&nome_da_entidade(no));
+        let atributos = no
+            .entidade
+            .as_ref()
+            .map(|e| e.atributos.as_slice())
+            .unwrap_or_default();
+        if atributos.is_empty() {
+            linhas.push(format!("  {id}[{nome}]"));
+        } else {
+            linhas.push(format!("  {id}[{nome}] {{"));
+            for a in atributos {
+                linhas.push(format!(
+                    "    {} {}",
+                    palavra_er(&a.coluna),
+                    palavra_er(&a.nome)
+                ));
+            }
+            linhas.push("  }".into());
+        }
+    }
+    for aresta in &diagrama.arestas {
+        let (Some(de), Some(para)) = (
+            diagrama.nos.iter().position(|n| n.chave == aresta.de),
+            diagrama.nos.iter().position(|n| n.chave == aresta.para),
+        ) else {
+            continue;
+        };
+        let relacao = aresta.relacao.unwrap_or(RelacaoDiagrama {
+            de: Multiplicidade::Um,
+            para: Multiplicidade::ZeroOuMuitos,
+            origem: OrigemRelacao::Join,
+        });
+        let linha = if relacao.origem == OrigemRelacao::ChaveEstrangeira
+            && aresta.confianca == Confianca::Confirmado
+        {
+            "--"
+        } else {
+            ".."
+        };
+        let rotulo = aresta
+            .rotulo
+            .as_deref()
+            .map(str::trim)
+            .filter(|r| !r.is_empty())
+            .unwrap_or("relaciona");
+        linhas.push(format!(
+            "  e{} {}{linha}{} e{} : {}",
+            de + 1,
+            relacao.de.marca_esquerda(),
+            relacao.para.marca_direita(),
+            para + 1,
+            rotulo_mermaid(rotulo)
+        ));
+    }
+    let mut codigo = linhas.join("\n");
+    codigo.push('\n');
+    codigo
+}
+
 /// Texto de uma célula de tabela: numa linha só, com `|` escapado.
 fn celula(texto: &str) -> String {
     texto
@@ -273,25 +521,42 @@ pub(crate) fn markdown(
     figura: u32,
     referencias: &mut dyn FnMut(&[Citacao]) -> String,
 ) -> String {
-    let (nome_no, nome_aresta, nome_rotulo) = diagrama.tipo.nomes();
     let mut blocos = vec![
         crate::conteudo::bloco_de_codigo(&mermaid(diagrama), LINGUAGEM_MERMAID),
         format!("*Figura {figura}: {}*", celula(&diagrama.titulo)),
     ];
+    if diagrama.tipo == TipoDiagrama::Dados {
+        blocos.extend(tabelas_dos_dados(diagrama, referencias));
+        return blocos.join("\n\n");
+    }
+    let (nome_no, nome_aresta, nome_rotulo) = diagrama.tipo.nomes();
+    let com_raia = diagrama.nos.iter().any(|n| n.raia.is_some());
     let detalhados: Vec<&NoDiagrama> = diagrama
         .nos
         .iter()
         .filter(|n| n.descricao.is_some() || !n.evidencias.is_empty())
         .collect();
     if !detalhados.is_empty() {
-        let mut tabela = vec![
-            format!("| {nome_no} | Descrição |"),
-            "| --- | --- |".to_owned(),
-        ];
+        let mut tabela = if com_raia {
+            vec![
+                format!("| {nome_no} | Raia | Descrição |"),
+                "| --- | --- | --- |".to_owned(),
+            ]
+        } else {
+            vec![
+                format!("| {nome_no} | Descrição |"),
+                "| --- | --- |".to_owned(),
+            ]
+        };
         for no in detalhados {
             let refs = referencias(&no.evidencias);
+            let raia = if com_raia {
+                format!(" {} |", celula(no.raia.as_deref().unwrap_or("")))
+            } else {
+                String::new()
+            };
             tabela.push(format!(
-                "| {}{} | {} |",
+                "| {}{} |{raia} {} |",
                 celula(&no.rotulo),
                 no.papel.sufixo(),
                 com_notas(no.descricao.as_deref(), &refs)
@@ -351,6 +616,74 @@ pub(crate) fn markdown(
     blocos.join("\n\n")
 }
 
+/// Tabelas do modelo de dados: as entidades (nome, tabela, atributos de negócio e
+/// termo do glossário) e as relações (cardinalidade e origem).
+fn tabelas_dos_dados(
+    diagrama: &Diagrama,
+    referencias: &mut dyn FnMut(&[Citacao]) -> String,
+) -> Vec<String> {
+    let mut blocos = Vec::new();
+    let mut tabela = vec![
+        "| Entidade | Tabela | Atributos de negócio | Glossário | Descrição |".to_owned(),
+        "| --- | --- | --- | --- | --- |".to_owned(),
+    ];
+    for no in &diagrama.nos {
+        let refs = referencias(&no.evidencias);
+        let (tabela_de_origem, atributos, termo) = match &no.entidade {
+            Some(e) => (
+                format!("`{}`", celula(&e.tabela)),
+                e.atributos
+                    .iter()
+                    .map(|a| format!("{} (`{}`)", celula(&a.nome), celula(&a.coluna)))
+                    .collect::<Vec<_>>()
+                    .join("; "),
+                e.termo
+                    .as_deref()
+                    .map_or_else(|| "não está no glossário".to_owned(), celula),
+            ),
+            None => (String::new(), String::new(), String::new()),
+        };
+        tabela.push(format!(
+            "| {} | {tabela_de_origem} | {atributos} | {termo} | {} |",
+            celula(&no.rotulo),
+            com_notas(no.descricao.as_deref(), &refs)
+        ));
+    }
+    blocos.push(tabela.join("\n"));
+    if !diagrama.arestas.is_empty() {
+        let mut tabela = vec![
+            "| Relação | Cardinalidade | Origem | Descrição | Confiança |".to_owned(),
+            "| --- | --- | --- | --- | --- |".to_owned(),
+        ];
+        for aresta in &diagrama.arestas {
+            let refs = referencias(&aresta.evidencias);
+            let verbo = aresta
+                .rotulo
+                .as_deref()
+                .map(|r| format!(" ({})", celula(r)))
+                .unwrap_or_default();
+            let (cardinalidade, origem) = aresta.relacao.map_or_else(
+                || (String::new(), String::new()),
+                |r| {
+                    (
+                        format!("{}:{}", r.de.rotulo(), r.para.rotulo()),
+                        r.origem.rotulo().to_owned(),
+                    )
+                },
+            );
+            tabela.push(format!(
+                "| {} → {}{verbo} | {cardinalidade} | {origem} | {} | {} |",
+                celula(diagrama.rotulo_do_no(&aresta.de)),
+                celula(diagrama.rotulo_do_no(&aresta.para)),
+                com_notas(aresta.descricao.as_deref(), &refs),
+                aresta.confianca.rotulo()
+            ));
+        }
+        blocos.push(tabela.join("\n"));
+    }
+    blocos
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -364,6 +697,8 @@ mod tests {
             papel,
             descricao: None,
             evidencias: vec![],
+            raia: None,
+            entidade: None,
         }
     }
 
@@ -377,6 +712,7 @@ mod tests {
             efeitos: None,
             confianca,
             evidencias: vec![],
+            relacao: None,
         }
     }
 
@@ -505,6 +841,183 @@ mod tests {
             md.ends_with(
                 "**Achados do ciclo de vida (Ciclo de vida da fatura):**\n\
                  - O estado Protestada é inalcançável."
+            ),
+            "{md}"
+        );
+    }
+
+    fn raia(n: NoDiagrama, raia: &str) -> NoDiagrama {
+        NoDiagrama {
+            raia: Some(raia.into()),
+            ..n
+        }
+    }
+
+    #[test]
+    fn fluxo_com_raias_em_subgraph() {
+        let d = Diagrama {
+            tipo: TipoDiagrama::Fluxo,
+            titulo: "Cancelamento de fatura".into(),
+            nos: vec![
+                raia(
+                    no("i", "Pedir o cancelamento", PapelNo::Inicio),
+                    "Atendente",
+                ),
+                raia(
+                    no("m", "Motivo com 10 caracteres?", PapelNo::Decisao),
+                    "Atendente",
+                ),
+                raia(
+                    no("g", "Gravar o cancelamento", PapelNo::Etapa),
+                    "Banco de dados",
+                ),
+                no("f", "Fim", PapelNo::Fim),
+            ],
+            arestas: vec![
+                aresta("i", "m", None, Confianca::Confirmado),
+                aresta("m", "g", Some("sim"), Confianca::Confirmado),
+                aresta("g", "f", None, Confianca::Inferido),
+            ],
+            ..fatura()
+        };
+        assert_eq!(
+            mermaid(&d),
+            "flowchart TD\n  subgraph r1[\"Atendente\"]\n    n1([\"Pedir o cancelamento\"])\n    \
+             n2{\"Motivo com 10 caracteres?\"}\n  end\n  subgraph r2[\"Banco de dados\"]\n    \
+             n3[\"Gravar o cancelamento\"]\n  end\n  n4([\"Fim\"])\n  n1 --> n2\n  \
+             n2 -->|\"sim\"| n3\n  n3 -.-> n4\n  classDef inicio stroke-width:3px\n  \
+             class n1 inicio\n  classDef fim stroke-width:3px\n  class n4 fim\n"
+        );
+        let mut d = d;
+        d.nos[2].descricao = Some("PRC_CANCELAR_FATURA".into());
+        let md = markdown(&d, 1, &mut |_: &[Citacao]| String::new());
+        assert!(
+            md.contains(
+                "| Passo | Raia | Descrição |\n| --- | --- | --- |\n\
+                 | Gravar o cancelamento | Banco de dados | PRC_CANCELAR_FATURA |"
+            ),
+            "{md}"
+        );
+    }
+
+    fn entidade(chave: &str, rotulo: &str, tabela: &str, atributos: &[(&str, &str)]) -> NoDiagrama {
+        NoDiagrama {
+            entidade: Some(EntidadeDiagrama {
+                tabela: tabela.into(),
+                atributos: atributos
+                    .iter()
+                    .map(|(nome, coluna)| AtributoDiagrama {
+                        nome: (*nome).into(),
+                        coluna: (*coluna).into(),
+                    })
+                    .collect(),
+                termo: None,
+            }),
+            ..no(chave, rotulo, PapelNo::Etapa)
+        }
+    }
+
+    fn relacao(
+        de: &str,
+        para: &str,
+        verbo: &str,
+        origem: OrigemRelacao,
+        confianca: Confianca,
+    ) -> ArestaDiagrama {
+        ArestaDiagrama {
+            relacao: Some(RelacaoDiagrama {
+                de: Multiplicidade::Um,
+                para: Multiplicidade::ZeroOuMuitos,
+                origem,
+            }),
+            ..aresta(de, para, Some(verbo), confianca)
+        }
+    }
+
+    fn modelo() -> Diagrama {
+        Diagrama {
+            secao: "modelo_dados".into(),
+            tipo: TipoDiagrama::Dados,
+            titulo: "Modelo de dados do faturamento".into(),
+            nos: vec![
+                entidade(
+                    "CLIENTE",
+                    "Cliente",
+                    "CLIENTE",
+                    &[("Tipo de cliente", "TIPO_CLIENTE")],
+                ),
+                entidade(
+                    "FATURA",
+                    "Fatura",
+                    "FATURA",
+                    &[("Data de emissão", "DT_EMISSAO"), ("Situação", "STATUS")],
+                ),
+                entidade("LOG", "Histórico da fatura", "LOG_FATURA", &[]),
+            ],
+            arestas: vec![
+                relacao(
+                    "CLIENTE",
+                    "FATURA",
+                    "recebe",
+                    OrigemRelacao::ChaveEstrangeira,
+                    Confianca::Confirmado,
+                ),
+                relacao(
+                    "FATURA",
+                    "LOG",
+                    "registra",
+                    OrigemRelacao::Join,
+                    Confianca::Inferido,
+                ),
+            ],
+            achados: vec![],
+        }
+    }
+
+    #[test]
+    fn modelo_de_dados_em_er_com_relacao_inferida_tracejada() {
+        assert_eq!(
+            mermaid(&modelo()),
+            "erDiagram\n  e1[\"Cliente\"] {\n    TIPO_CLIENTE Tipo_de_cliente\n  }\n  \
+             e2[\"Fatura\"] {\n    DT_EMISSAO Data_de_emissao\n    STATUS Situacao\n  }\n  \
+             e3[\"Histórico da fatura (LOG_FATURA)\"]\n  \
+             e1 ||--o{ e2 : \"recebe\"\n  e2 ||..o{ e3 : \"registra\"\n"
+        );
+        assert_eq!(palavra_er(" 1ª parcela "), "_1_parcela");
+        assert_eq!(palavra_er("%%"), "_");
+    }
+
+    #[test]
+    fn tabelas_do_modelo_de_dados() {
+        let mut d = modelo();
+        d.nos[1].entidade.as_mut().unwrap().termo = Some("Fatura".into());
+        d.arestas[1].evidencias = vec![Citacao::nova(
+            CaminhoRelativo::novo("db/03_pkg_cobranca.sql").unwrap(),
+            Linhas::novo(130, 131).unwrap(),
+        )];
+        let md = markdown(&d, 3, &mut |c: &[Citacao]| {
+            if c.is_empty() {
+                String::new()
+            } else {
+                "[^7]".into()
+            }
+        });
+        assert!(md.starts_with("```mermaid\nerDiagram\n"), "{md}");
+        assert!(
+            md.contains("*Figura 3: Modelo de dados do faturamento*"),
+            "{md}"
+        );
+        assert!(
+            md.contains(
+                "| Fatura | `FATURA` | Data de emissão (`DT_EMISSAO`); Situação (`STATUS`) | Fatura |  |"
+            ),
+            "{md}"
+        );
+        assert!(md.contains("| Cliente | `CLIENTE` | Tipo de cliente (`TIPO_CLIENTE`) | não está no glossário |  |"), "{md}");
+        assert!(
+            md.contains(
+                "| Cliente → Fatura (recebe) | 1:0..N | chave estrangeira |  | confirmado |\n\
+                 | Fatura → Histórico da fatura (registra) | 1:0..N | inferida (join no código) | [^7] | inferido |"
             ),
             "{md}"
         );

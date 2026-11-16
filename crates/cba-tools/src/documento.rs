@@ -116,12 +116,19 @@ pub fn citacao(e: &Evidencia) -> Citacao {
 
 /// Diagrama do estado como a montagem recebe.
 pub fn diagrama(d: &cba_core::diagramas::Diagrama) -> cba_docs::Diagrama {
-    use cba_core::diagramas::{PapelNo, TipoDiagrama};
+    use cba_core::diagramas::{Multiplicidade, OrigemRelacao, PapelNo, TipoDiagrama};
+    let multiplicidade = |m: Multiplicidade| match m {
+        Multiplicidade::ZeroOuUm => cba_docs::Multiplicidade::ZeroOuUm,
+        Multiplicidade::Um => cba_docs::Multiplicidade::Um,
+        Multiplicidade::ZeroOuMuitos => cba_docs::Multiplicidade::ZeroOuMuitos,
+        Multiplicidade::UmOuMuitos => cba_docs::Multiplicidade::UmOuMuitos,
+    };
     cba_docs::Diagrama {
         secao: d.secao.clone(),
         tipo: match d.tipo {
             TipoDiagrama::Estados => cba_docs::TipoDiagrama::Estados,
             TipoDiagrama::Fluxo => cba_docs::TipoDiagrama::Fluxo,
+            TipoDiagrama::Dados => cba_docs::TipoDiagrama::Dados,
         },
         titulo: d.titulo.clone(),
         nos: d
@@ -138,6 +145,19 @@ pub fn diagrama(d: &cba_core::diagramas::Diagrama) -> cba_docs::Diagrama {
                 },
                 descricao: n.descricao.clone(),
                 evidencias: n.evidencias.iter().map(citacao).collect(),
+                raia: n.raia.clone(),
+                entidade: n.entidade.as_ref().map(|e| cba_docs::EntidadeDiagrama {
+                    tabela: e.tabela.clone(),
+                    atributos: e
+                        .atributos
+                        .iter()
+                        .map(|a| cba_docs::AtributoDiagrama {
+                            nome: a.nome.clone(),
+                            coluna: a.coluna.clone(),
+                        })
+                        .collect(),
+                    termo: e.termo.clone(),
+                }),
             })
             .collect(),
         arestas: d
@@ -152,6 +172,16 @@ pub fn diagrama(d: &cba_core::diagramas::Diagrama) -> cba_docs::Diagrama {
                 efeitos: a.efeitos.clone(),
                 confianca: confianca(a.confianca),
                 evidencias: a.evidencias.iter().map(citacao).collect(),
+                relacao: a.relacao.map(|r| cba_docs::RelacaoDiagrama {
+                    de: multiplicidade(r.de),
+                    para: multiplicidade(r.para),
+                    origem: match r.origem {
+                        OrigemRelacao::ChaveEstrangeira => {
+                            cba_docs::OrigemRelacao::ChaveEstrangeira
+                        }
+                        OrigemRelacao::Join => cba_docs::OrigemRelacao::Join,
+                    },
+                }),
             })
             .collect(),
         achados: d.achados().into_iter().map(|a| a.texto).collect(),
