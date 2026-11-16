@@ -28,6 +28,7 @@
 
 #![windows_subsystem = "windows"]
 
+mod acessos;
 mod alteracoes;
 mod analise;
 mod base;

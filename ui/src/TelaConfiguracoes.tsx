@@ -16,6 +16,7 @@ import { EditorTexto } from "./EditorTexto";
 import { MenuConfiguracoes } from "./MenuConfiguracoes";
 import { ModalNovoProjeto } from "./ModalNovoProjeto";
 import { usePendenciasProjetos } from "./pendenciasProjetos";
+import { SecaoAcessos } from "./SecaoAcessos";
 import { SecaoClones } from "./SecaoClones";
 import "./configuracoes.css";
 
@@ -108,14 +109,17 @@ export function TelaConfiguracoes({
             {escolha.secao === "assistente" && (
               <ConfigAssistente api={api} cliente={cfg.cliente} aoMudar={carregar} />
             )}
-            {/* “Acessos” (#193): quando existir, `SecaoAcessos` entra aqui, com
-                `acessos` fora de SECOES_OCULTAS (configSecoes.ts). */}
+            {escolha.secao === "acessos" && (
+              <SecaoAcessos
+                api={api}
+                cfg={cfg}
+                aoAbrirProjeto={(projeto) => escolher({ secao: "projeto", projeto })}
+              />
+            )}
             {escolha.secao === "pasta" && (
               <>
                 <ConfigPastaBase api={api} cfg={cfg} aoMudar={mudou} />
-                {/* Provisório: até a seção Acessos existir, é aqui que ficam a pasta dos
-                    clones e os tokens globais. */}
-                <SecaoClones api={api} cfg={cfg} />
+                <SecaoClones api={api} />
               </>
             )}
             {escolha.secao === "modelos" && (

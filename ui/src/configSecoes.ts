@@ -25,11 +25,10 @@ export const GRUPOS_DO_MENU: { titulo: string; secoes: { id: SecaoConfig; rotulo
 ];
 
 /**
- * Seções que o menu esconde enquanto não existem. "Acessos" (tokens do GitHub e do
- * GitLab, #193) já tem lugar no menu e no tipo das seções: para ligá-lo, tire "acessos"
- * desta lista e renderize a `SecaoAcessos` em `TelaConfiguracoes`.
+ * Seções que o menu esconde enquanto não existem. Hoje nenhuma: "Acessos" (#193) já
+ * existe. Uma seção nova ainda sem tela entra aqui até ficar pronta.
  */
-export const SECOES_OCULTAS: readonly SecaoConfig[] = ["acessos"];
+export const SECOES_OCULTAS: readonly SecaoConfig[] = [];
 
 export interface Escolha {
   secao: SecaoConfig;

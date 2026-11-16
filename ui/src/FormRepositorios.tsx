@@ -100,8 +100,8 @@ function CamposGitlab({
         aoMudar={(credential_cmd) => aoMudar({ ...valor, credential_cmd })}
       />
       <p className="muted">
-        Vazio: vale o token global do host guardado no chaveiro do sistema (Configurações,
-        “Tokens globais por host”).
+        Vazio: vale o token global do host guardado no chaveiro do sistema (Configurações ›
+        Acessos).
       </p>
     </>
   );
@@ -309,7 +309,8 @@ function TokenDoRepositorio({ api, valor }: { api: ApiToken; valor: RepositorioC
         <p className="muted">
           {valor.token === "proprio"
             ? "Só deste repositório; tem precedência sobre o token global do host."
-            : `Vale para todos os repositórios de ${alvo.host || "este host"}.`}{" "}
+            : `Vale para todos os repositórios de ${alvo.host || "este host"} ` +
+              "(Configurações › Acessos)."}{" "}
           Fica no chaveiro do sistema, nunca no projeto.
           {guardado === true && <span className="ok-text"> Token guardado.</span>}
           {guardado === false && <span> Nenhum token guardado.</span>}

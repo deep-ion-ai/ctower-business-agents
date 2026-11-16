@@ -417,8 +417,8 @@ describe("ProntidaoRepositorios", () => {
   });
 });
 
-describe("clones e tokens nas configurações", () => {
-  // Por enquanto ficam na seção “Pasta da base”, até a seção Acessos (#193).
+describe("clones nas configurações", () => {
+  // A pasta dos clones fica na seção “Pasta da base”; os tokens, em Acessos (#193).
   beforeEach(() => {
     localStorage.setItem("cba.configuracoes.secao", "pasta");
   });
@@ -439,67 +439,6 @@ describe("clones e tokens nas configurações", () => {
     fireEvent.click(salvar);
     expect(await grupo.findByText(/Salvo\./)).toBeInTheDocument();
     expect(api.definirPastaClones).toHaveBeenLastCalledWith("/clones");
-  });
-
-  it("guarda e apaga o token global de um host conhecido", async () => {
-    const cfg = configuracoesFicticias();
-    cfg.projetos[0].repositorios = {
-      codigo: [GITLAB],
-      tracker: {
-        kind: "gitlab",
-        host: "gitlab.interno.example",
-        path: "g/p",
-        clone_url: "",
-        credential_cmd: "",
-      },
-    };
-    const api = apiConfiguracoesFalsa(cfg);
-    render(<TelaConfiguracoes api={api} aoMudarProjetos={vi.fn()} />);
-    const grupo = within(await screen.findByRole("group", { name: "Tokens globais por host" }));
-    expect(grupo.getByLabelText("Token de github.com")).toBeInTheDocument();
-    expect(grupo.getByLabelText("Token de gitlab.interno.example")).toBeInTheDocument();
-    const campo = grupo.getByLabelText("Token de gitlab.example.com");
-    expect(campo).toHaveAttribute("type", "password");
-    const apagar = grupo.getByRole("button", { name: "Apagar o token de gitlab.example.com" });
-    await waitFor(() => expect(api.tokensGuardados).toHaveBeenCalled());
-    expect(apagar).toBeDisabled();
-
-    fireEvent.change(campo, { target: { value: "glpat-segredo" } });
-    fireEvent.click(grupo.getByRole("button", { name: "Guardar o token de gitlab.example.com" }));
-    await waitFor(() =>
-      expect(api.salvarToken).toHaveBeenCalledWith(
-        { host: "gitlab.example.com", caminho: null },
-        "glpat-segredo",
-      ),
-    );
-    await waitFor(() => expect(campo).toHaveValue(""));
-    await waitFor(() => expect(apagar).toBeEnabled());
-    expect(api.chaveiro.get("gitlab.example.com")).toBe("glpat-segredo");
-
-    fireEvent.click(apagar);
-    await waitFor(() =>
-      expect(api.apagarToken).toHaveBeenCalledWith({ host: "gitlab.example.com", caminho: null }),
-    );
-    await waitFor(() => expect(apagar).toBeDisabled());
-    expect(api.chaveiro.has("gitlab.example.com")).toBe(false);
-  });
-
-  it("acrescenta outro host", async () => {
-    const api = apiConfiguracoesFalsa();
-    render(<TelaConfiguracoes api={api} aoMudarProjetos={vi.fn()} />);
-    const grupo = within(await screen.findByRole("group", { name: "Tokens globais por host" }));
-    fireEvent.change(grupo.getByLabelText("Outro host"), {
-      target: { value: "Git.Example.org" },
-    });
-    fireEvent.click(grupo.getByRole("button", { name: "Acrescentar host" }));
-    expect(grupo.getByLabelText("Token de git.example.org")).toBeInTheDocument();
-    await waitFor(() =>
-      expect(api.tokensGuardados).toHaveBeenLastCalledWith([
-        { host: "github.com", caminho: null },
-        { host: "git.example.org", caminho: null },
-      ]),
-    );
-    expect(await grupo.findAllByText("sem token")).toHaveLength(2);
   });
 });
 
