@@ -1,0 +1,844 @@
+/* Assistente de cadastro de projeto (#180). Só os tokens de theme.css (claro e escuro). */
+
+.assistente-projeto {
+  width: min(56rem, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.assistente-projeto p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.assistente-projeto .dica {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.assistente-projeto input.caminho {
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+/* ---- Etapas ---- */
+
+.etapas-cadastro {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 8px 16px;
+}
+
+.etapas-cadastro button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.etapas-cadastro button:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.etapas-cadastro .circulo {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1.5px solid var(--faint);
+  color: var(--faint);
+}
+
+.etapas-cadastro .atual .circulo {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.etapas-cadastro .feita .circulo {
+  border-color: var(--done);
+  background: var(--done-bg);
+  color: var(--done);
+}
+
+.etapas-cadastro .feita button:hover .rotulo {
+  text-decoration: underline;
+}
+
+.etapas-cadastro .textos {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.etapas-cadastro .rotulo {
+  font-weight: 600;
+}
+
+.etapas-cadastro .sub {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.trilho-etapas {
+  margin-top: 10px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.trilho-etapas .barra {
+  height: 100%;
+  background: var(--accent);
+}
+
+/* ---- Passo ---- */
+
+.passo-cadastro {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cabecalho-passo h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.cabecalho-passo h2:focus {
+  outline: none;
+}
+
+.cabecalho-passo h2:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.subtitulo-passo {
+  margin: 0 0 8px;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.secao-passo {
+  display: flex;
+  flex-direction: column;
+}
+
+fieldset.sem-borda {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cartao-assistente {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+/* Opções em cartão (radio de verdade, navegável pelas setas). */
+.opcoes-cartao {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 12px;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.opcoes-demandas {
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+}
+
+.opcoes-cartao > legend {
+  float: left;
+  width: 100%;
+}
+
+.opcoes-cartao .opcao:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---- Pasta existente ---- */
+
+.pasta-existente,
+.clonar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.escolher-pasta-grande {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 28px 16px;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.escolher-pasta-grande:hover {
+  border-color: var(--accent);
+  background: var(--selected);
+}
+
+.escolher-pasta-grande .titulo-botao {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--link);
+}
+
+.linha-pasta-escolhida,
+.linha-resumo-clone {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.linha-pasta-escolhida .caminho-escolhido,
+.linha-resumo-clone > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.lista-repos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lista-repos li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ---- Clonar ---- */
+
+.cartoes-repo {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.linha-repo {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.linha-repo .campo-url {
+  flex: 3 1 18rem;
+}
+
+.linha-repo .campo-branch {
+  flex: 1 1 8rem;
+}
+
+.linha-chip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.linha-campo-botao {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.linha-campo-botao > .field {
+  flex: 1 1 16rem;
+}
+
+.linha-campo-botao > .dica {
+  align-self: center;
+}
+
+/* Controle segmentado (radio por baixo). */
+.segmentado {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.segmentado legend {
+  float: left;
+  margin-right: 10px;
+  padding: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.segmentado label {
+  position: relative;
+  min-height: 32px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border-strong);
+  background: var(--btn-bg);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.segmentado label:first-of-type {
+  border-radius: 6px 0 0 6px;
+}
+
+.segmentado label:last-of-type {
+  border-radius: 0 6px 6px 0;
+  border-left: 0;
+}
+
+.segmentado label.escolhido {
+  background: var(--selected);
+  color: var(--accent);
+}
+
+.segmentado label:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  z-index: 1;
+}
+
+.token-proprio {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.token-proprio p:empty {
+  display: none;
+}
+
+/* Progresso do clone. */
+.progresso-clone {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.linha-progresso {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.barra-progresso {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.barra-progresso .preenchimento {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+  transition: width 0.2s ease;
+}
+
+.progresso-clone[data-situacao="concluido"] .preenchimento {
+  background: var(--ok);
+}
+
+.progresso-clone[data-situacao="falhou"] .preenchimento {
+  background: var(--error);
+}
+
+.texto-progresso {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-family: var(--mono);
+}
+
+.falha-clone {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* Tokens globais. */
+.lista-tokens {
+  list-style: none;
+  margin: 0;
+  gap: 0;
+  padding: 0;
+}
+
+.lista-tokens > li {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.lista-tokens > li:last-child {
+  border-bottom: 0;
+}
+
+.linha-token {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+}
+
+.linha-token input {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.linha-token .aviso-token {
+  flex-basis: 100%;
+}
+
+.linha-token .aviso-token:empty {
+  display: none;
+}
+
+/* ---- O que será lido ---- */
+
+.status-previa:empty {
+  display: none;
+}
+
+.status-previa progress {
+  vertical-align: middle;
+}
+
+.falha-previa {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.previa-leitura {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 14px;
+}
+
+.previa-leitura[aria-busy="true"] {
+  opacity: 0.6;
+}
+
+.numero-destaque {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.numero-destaque strong {
+  font-size: 28px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.numero-destaque span {
+  color: var(--text-2);
+}
+
+.barras-linguagem,
+.motivos-fora {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.barras-linguagem li {
+  display: grid;
+  grid-template-columns: minmax(6rem, 9rem) 1fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.barras-linguagem .trilho {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.barras-linguagem .barra {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--ok);
+}
+
+.barras-linguagem .numero,
+.motivos-fora .numero {
+  font-family: var(--mono);
+  font-size: 12px;
+  text-align: right;
+}
+
+.motivos-fora li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.aviso-segredos {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--attention-border);
+  border-radius: 8px;
+  background: var(--attention-card);
+}
+
+.aviso-segredos ul,
+.lista-incluiveis {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.aviso-segredos li,
+.lista-incluiveis li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  overflow-wrap: anywhere;
+}
+
+.ajustes-leitura {
+  padding: 0;
+  gap: 0;
+}
+
+.disclosure {
+  width: 100%;
+  min-height: var(--touch);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.disclosure:hover {
+  background: var(--hover);
+}
+
+.conteudo-ajustes {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 16px 16px;
+}
+
+.conteudo-ajustes[hidden],
+.mais-opcoes[hidden] {
+  display: none;
+}
+
+.conteudo-ajustes textarea {
+  width: 100%;
+}
+
+/* ---- Demandas ---- */
+
+.linha-info {
+  flex-direction: row;
+  align-items: flex-start;
+}
+
+.campos-jira .linha-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mais-opcoes {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.mais-opcoes textarea {
+  width: 100%;
+}
+
+.passos-teste {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.passos-teste li {
+  display: flex;
+  gap: 8px;
+}
+
+.passos-teste .simbolo {
+  flex: 0 0 1em;
+  font-weight: 700;
+}
+
+.passos-teste [data-situacao="ok"] .simbolo,
+.passos-teste li[data-situacao="ok"] .simbolo {
+  color: var(--ok);
+}
+
+.passos-teste li[data-situacao="falhou"] .simbolo {
+  color: var(--error-soft);
+}
+
+.passos-teste li[data-situacao="pulado"] .simbolo {
+  color: var(--faint);
+}
+
+.passos-teste .orientacao {
+  display: block;
+}
+
+/* ---- Revisar ---- */
+
+.resumo-cadastro {
+  margin: 0;
+  gap: 0;
+  padding: 0;
+}
+
+.linha-resumo {
+  display: grid;
+  grid-template-columns: minmax(7rem, 10rem) 1fr auto;
+  align-items: baseline;
+  gap: 4px 14px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.linha-resumo:last-child {
+  border-bottom: 0;
+}
+
+.linha-resumo dt {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.linha-resumo dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.lista-simples {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* ---- Rodapé ---- */
+
+.rodape-assistente {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.rodape-assistente .espaco {
+  flex: 1;
+}
+
+/* ---- Concluído ---- */
+
+.assistente-projeto.concluido {
+  align-items: center;
+  text-align: center;
+  padding: 32px 18px;
+}
+
+.assistente-projeto.concluido h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.assistente-projeto.concluido h2:focus {
+  outline: none;
+}
+
+.selo-concluido {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  background: var(--done-bg);
+}
+
+.assistente-projeto.concluido .acoes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+@media (max-width: 40rem) {
+  .linha-resumo {
+    grid-template-columns: 1fr auto;
+  }
+
+  .linha-resumo dd {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
+/* ---- Modal “Novo projeto” (Início e Configurações) ---- */
+
+.modal-projeto-fundo {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: color-mix(in srgb, var(--scrim) 60%, transparent);
+}
+
+.modal-projeto {
+  width: min(60rem, 100%);
+  max-height: 100%;
+  overflow: auto;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 20px 20px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px var(--shadow);
+}
+
+.modal-projeto:focus {
+  outline: none;
+}
+
+.modal-projeto-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.modal-projeto-topo h2 {
+  margin: 0;
+}
+
+/* Dentro da modal, o assistente usa a largura toda, sem moldura própria. */
+.modal-projeto .assistente-projeto {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0;
+  border: 0;
+}
+
+/* Título da seção com a ação ao lado (Projetos no Início). */
+.titulo-com-acao {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.titulo-com-acao h2 {
+  margin: 0;
+}

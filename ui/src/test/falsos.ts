@@ -22,6 +22,15 @@ import type {
   ProjetoCadastrado,
   Situacao as SituacaoPrimeiroUso,
 } from "../primeiroUso";
+import type {
+  AlvoToken,
+  EventoClone,
+  IntegracaoProntidao,
+  JiraConfig,
+  RepoDetectado,
+  RepositorioCodigo,
+  ResultadoClone,
+} from "../repositorios";
 import type { ApiTerminal, EventoTerminal, PedidoClaude, Tamanho } from "../terminal";
 import type { TelaTerminal } from "../telaXterm";
 
@@ -276,6 +285,35 @@ export function apiPrimeiroUsoFalsa() {
     ),
     prepararAmbiente: vi.fn((): Promise<PlanoPreparo> =>
       Promise.resolve({ diretorio: "/codigo", alteracoes: [], gravado: true }),
+    ),
+    pastaClones: vi.fn((): Promise<string | null> => Promise.resolve("/Users/analista/repos")),
+    salvarToken: vi.fn((_alvo: AlvoToken, _token: string): Promise<void> => Promise.resolve()),
+    tokensGuardados: vi.fn(
+      (alvos: AlvoToken[]): Promise<boolean[]> => Promise.resolve(alvos.map(() => false)),
+    ),
+    testarAcesso: vi.fn(
+      (_repositorio: RepositorioCodigo, _token?: string | null): Promise<void> =>
+        Promise.resolve(),
+    ),
+    clonarRepositorios: vi.fn(
+      (
+        repositorios: RepositorioCodigo[],
+        pastaBase: string,
+        aoEvento: (e: EventoClone) => void,
+      ): Promise<ResultadoClone[]> =>
+        Promise.resolve(
+          repositorios.map((r, indice) => {
+            const pasta = `${pastaBase}/${r.caminho.split("/").pop()}`;
+            aoEvento({ tipo: "inicio", indice });
+            aoEvento({ tipo: "concluido", indice, pasta });
+            return { repositorio: { ...r, pasta }, erro: null };
+          }),
+        ),
+    ),
+    detectarRepositorios: vi.fn((_pasta: string): Promise<RepoDetectado[]> => Promise.resolve([])),
+    testarJira: vi.fn(
+      (_jira: JiraConfig, _token: string | null): Promise<IntegracaoProntidao> =>
+        Promise.resolve({ titulo: "Jira", passos: [] }),
     ),
   } satisfies ApiPrimeiroUso;
   return api;

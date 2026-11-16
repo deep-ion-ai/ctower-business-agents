@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { mensagemDe } from "./analise";
-import { CadastroProjeto, ResumoDoInventario } from "./CadastroProjeto";
+import { AssistenteProjeto } from "./AssistenteProjeto";
+import { ResumoDoInventario } from "./ResumoDoInventario";
 import { EscolhaBase } from "./EscolhaBase";
 import { EscolhaCliente } from "./EscolhaCliente";
 import { AmbienteDoProjeto } from "./PrepararAmbiente";
@@ -97,9 +98,16 @@ export function AssistentePrimeiroUso({
               }}
             />
           )}
-          <CadastroProjeto
+          <AssistenteProjeto
             api={api}
             aoConcluir={(s) => {
+              // “Fazer depois”: segue para a primeira análise sem preparar o ambiente.
+              setProjeto({ id: s.id, nome: s.nome });
+              setCadastrado(s);
+              setAmbientePronto(false);
+              setEtapa("pronto");
+            }}
+            aoPrepararAmbiente={(s) => {
               setProjeto({ id: s.id, nome: s.nome });
               setCadastrado(s);
               setEtapa("ambiente");

@@ -60,15 +60,17 @@ describe("App", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Continuar" }));
     await screen.findByText(/o app vai criá-la/);
     fireEvent.click(screen.getByRole("button", { name: "Usar esta pasta" }));
-    fireEvent.change(await screen.findByLabelText("Nome do projeto"), {
-      target: { value: "Faturamento Exemplo" },
-    });
-    fireEvent.change(screen.getByLabelText(/Pasta principal/), {
-      target: { value: "/codigo/faturamento-exemplo" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Ver o que será analisado" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Escolher a pasta do código/ }));
+    await screen.findByRole("button", { name: "Trocar a pasta do código" });
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
     await screen.findByRole("region", { name: "Prévia do inventário" });
-    fireEvent.click(screen.getByRole("button", { name: "Cadastrar o projeto" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    await screen.findByRole("heading", { name: "Conectar as demandas (opcional)" });
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Cadastrar o projeto" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Preparar o ambiente do Claude" }),
+    );
     await screen.findByText(/O ambiente do Claude está preparado/);
     fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
     fireEvent.click(await screen.findByRole("button", { name: "Fazer a primeira análise" }));

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { mensagemDe, type AnaliseCriada, type Fluxo } from "./analise";
+import type { ApiAssistenteProjeto } from "./AssistenteProjeto";
 import { ClientesIA, type AbrirLink } from "./ClientesIA";
+import { apiConfiguracoesTauri } from "./configuracoes";
 import {
   ROTULO_FLUXO,
   type AnaliseInicio,
@@ -11,6 +13,7 @@ import { ROTULO_SESSAO } from "./DocumentoAoVivo";
 import type { Tela } from "./Navegacao";
 import { NovaAnalise } from "./NovaAnalise";
 import { NovaHistorias } from "./NovaHistorias";
+import { ModalNovoProjeto } from "./ModalNovoProjeto";
 import { NovaReuniao } from "./NovaReuniao";
 import type { ApiReuniao } from "./reunioes";
 
@@ -38,6 +41,10 @@ interface Props {
   aoPrimeiroUso?: () => void;
   /** Nova reunião (#141); para testes. */
   apiReuniao?: ApiReuniao;
+  /** Assistente de cadastro do botão “Novo projeto”; para testes. */
+  apiProjeto?: ApiAssistenteProjeto;
+  /** Um projeto foi cadastrado (o painel lateral recarrega a lista). */
+  aoMudarProjetos?: () => void;
 }
 
 /**
@@ -50,10 +57,13 @@ export function TelaInicio({
   abrirLink,
   aoPrimeiroUso,
   apiReuniao,
+  apiProjeto = apiConfiguracoesTauri,
+  aoMudarProjetos,
 }: Props) {
   const [inicio, setInicio] = useState<Inicio | null>(null);
   const [falha, setFalha] = useState<string | null>(null);
   const [fluxo, setFluxo] = useState<Fluxo | null>(null);
+  const [novoProjeto, setNovoProjeto] = useState(false);
 
   const carregar = useCallback(() => {
     api
@@ -83,6 +93,12 @@ export function TelaInicio({
         abertura: { tipo: "nova", promptInicial: criada.promptInicial },
       },
     });
+
+  const projetoCadastrado = () => {
+    setNovoProjeto(false);
+    carregar();
+    aoMudarProjetos?.();
+  };
 
   const semProjeto = inicio !== null && (inicio.base === null || inicio.projetos.length === 0);
 
@@ -171,7 +187,15 @@ export function TelaInicio({
             aoAbrir={abrirAnalise}
           />
           <section aria-label="Projetos">
-            <h2>Projetos</h2>
+            <div className="titulo-com-acao">
+              <h2>Projetos</h2>
+              {inicio.base !== null && (
+                <button className="btn" type="button" onClick={() => setNovoProjeto(true)}>
+                  + Novo projeto
+                </button>
+              )}
+            </div>
+            {inicio.projetos.length === 0 && <p className="muted">Nenhum projeto cadastrado.</p>}
             <ul className="lista-projetos">
               {inicio.projetos.map((s) => (
                 <li key={s.id}>
@@ -202,6 +226,19 @@ export function TelaInicio({
       )}
 
       <ClientesIA abrirLink={abrirLink} />
+
+      {novoProjeto && (
+        <ModalNovoProjeto
+          api={apiProjeto}
+          aoFechar={() => setNovoProjeto(false)}
+          aoConcluir={projetoCadastrado}
+          aoPrepararAmbiente={() => {
+            // O preparo do ambiente do Claude fica no cartão do projeto, em Configurações.
+            projetoCadastrado();
+            navegar({ tipo: "configuracoes" });
+          }}
+        />
+      )}
     </section>
   );
 }

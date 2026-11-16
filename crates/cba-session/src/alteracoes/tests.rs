@@ -355,17 +355,20 @@ fn tarefas_pelo_nome() {
 // ---------------------------------------------------------------------------
 // Pastas de código-fonte fora do aviso (#130)
 
-fn github(repo: &str) -> ForgeConfig {
-    ForgeConfig::Github(cba_repos::GithubConfig { repo: repo.into() })
+fn github(repo: &str) -> Vec<RepositorioCodigo> {
+    vec![RepositorioCodigo {
+        caminho: repo.into(),
+        ..Default::default()
+    }]
 }
 
-fn gitlab(host: &str, path: &str) -> ForgeConfig {
-    ForgeConfig::Gitlab(cba_repos::GitlabConfig {
+fn gitlab(host: &str, path: &str) -> Vec<RepositorioCodigo> {
+    vec![RepositorioCodigo {
+        forja: cba_repos::ForgeKind::Gitlab,
         host: host.into(),
-        path: path.into(),
-        clone_url: String::new(),
-        credential_cmd: "true".into(),
-    })
+        caminho: path.into(),
+        ..Default::default()
+    }]
 }
 
 #[test]
@@ -426,16 +429,37 @@ fn pasta_de_codigo_fonte_sai_do_retrato() {
     let pastas = vec![codigo.join("."), docs.clone(), solta.clone()];
 
     // Sem forja cadastrada, nada muda.
-    assert_eq!(sem_codigo_fonte(pastas.clone(), None), pastas);
+    assert_eq!(sem_codigo_fonte(pastas.clone(), &[]), pastas);
     // Com a forja, só o repositório de código sai.
     assert_eq!(
-        sem_codigo_fonte(pastas.clone(), Some(&github("acme/faturamento"))),
+        sem_codigo_fonte(pastas.clone(), &github("acme/faturamento")),
         vec![docs.clone(), solta.clone()]
     );
     // Uma subpasta do repositório de código também sai.
     fs::create_dir_all(codigo.join("db")).unwrap();
-    assert!(
-        sem_codigo_fonte(vec![codigo.join("db")], Some(&github("acme/faturamento"))).is_empty()
+    assert!(sem_codigo_fonte(vec![codigo.join("db")], &github("acme/faturamento")).is_empty());
+}
+
+#[test]
+fn pasta_de_qualquer_repositorio_cadastrado_sai_do_retrato() {
+    let dir = tempfile::tempdir().unwrap();
+    let raiz = dunce::canonicalize(dir.path()).unwrap();
+    let web = raiz.join("web");
+    let legado = raiz.join("legado");
+    let docs = raiz.join("docs");
+    repo_com_remoto(&web, "git@github.com:acme/faturamento-web.git");
+    repo_com_remoto(&legado, "https://gitlab.example.com/acme/legado/app.git");
+    repo_com_remoto(&docs, "https://github.com/acme/faturamento-docs.git");
+    let mut repos = github("acme/faturamento-web");
+    repos.extend(gitlab("gitlab.example.com", "acme/legado/app"));
+    assert_eq!(
+        sem_codigo_fonte(vec![web.clone(), legado.clone(), docs.clone()], &repos),
+        vec![docs.clone()]
+    );
+    // Só um dos dois cadastrado: o outro volta para o aviso.
+    assert_eq!(
+        sem_codigo_fonte(vec![web, legado.clone(), docs.clone()], &repos[..1]),
+        vec![legado, docs]
     );
 }
 
@@ -454,7 +478,7 @@ fn sessao_altera_codigo_sem_aviso_e_docs_com_aviso() {
     }
     let dados = DiretorioDados::em(raiz.join("dados"));
     let mut projeto = cba_index::Projeto::novo("Faturamento", [&codigo, &docs]).unwrap();
-    projeto.repositorios.forge = Some(github("acme/faturamento"));
+    projeto.repositorios.codigo = github("acme/faturamento");
     cba_index::Cadastro::em(dados.projetos())
         .cadastrar(&projeto)
         .unwrap();

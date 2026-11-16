@@ -36,12 +36,17 @@ pub struct RepositorioGit {
 /// Devolve `None` se a pasta não está num repositório ou se o `.git` não pôde ser
 /// lido.
 pub fn detectar_git(caminho: &Path) -> Option<RepositorioGit> {
+    detectar_com_comum(caminho).map(|(r, _)| r)
+}
+
+/// Como [`detectar_git`], com o diretório comum do git (onde fica o `config`).
+fn detectar_com_comum(caminho: &Path) -> Option<(RepositorioGit, PathBuf)> {
     let inicio = dunce::canonicalize(caminho).ok()?;
     let mut atual = Some(inicio.as_path());
     while let Some(dir) = atual {
         let ponto_git = dir.join(".git");
         if ponto_git.is_dir() {
-            return ler(dir, &ponto_git, &ponto_git, false);
+            return ler(dir, &ponto_git, &ponto_git, false).map(|r| (r, ponto_git));
         }
         if ponto_git.is_file() {
             // Worktree ou submódulo: `.git` é um arquivo `gitdir: <caminho>`.
@@ -51,10 +56,10 @@ pub fn detectar_git(caminho: &Path) -> Option<RepositorioGit> {
             return match fs::read_to_string(git_dir.join("commondir")) {
                 Ok(c) => {
                     let comum = dunce::canonicalize(git_dir.join(c.trim())).ok()?;
-                    ler(dir, &git_dir, &comum, true)
+                    ler(dir, &git_dir, &comum, true).map(|r| (r, comum))
                 }
                 // Submódulo: repositório próprio, sem diretório comum.
-                Err(_) => ler(dir, &git_dir, &git_dir, false),
+                Err(_) => ler(dir, &git_dir, &git_dir, false).map(|r| (r, git_dir)),
             };
         }
         atual = dir.parent();
@@ -86,6 +91,68 @@ fn ler(raiz: &Path, git_dir: &Path, comum: &Path, worktree: bool) -> Option<Repo
         branch,
         commit,
     })
+}
+
+/// URLs dos remotos (`remote.<nome>.url`) do repositório git que contém
+/// `caminho`, na ordem do `config`, lidas do arquivo, sem executar o git. Vazio
+/// fora de um repositório ou sem remotos.
+pub fn remotos_git(caminho: &Path) -> Vec<String> {
+    let Some((_, comum)) = detectar_com_comum(caminho) else {
+        return Vec::new();
+    };
+    let Ok(config) = fs::read_to_string(comum.join("config")) else {
+        return Vec::new();
+    };
+    let mut urls = Vec::new();
+    let mut em_remoto = false;
+    for linha in config.lines() {
+        let l = linha.trim();
+        if l.starts_with('[') {
+            em_remoto = l
+                .trim_start_matches('[')
+                .trim_start()
+                .to_ascii_lowercase()
+                .starts_with("remote ");
+            continue;
+        }
+        if !em_remoto || l.starts_with('#') || l.starts_with(';') {
+            continue;
+        }
+        if let Some((chave, valor)) = l.split_once('=')
+            && chave.trim().eq_ignore_ascii_case("url")
+        {
+            let url = valor.trim().trim_matches('"').trim();
+            if !url.is_empty() {
+                urls.push(url.to_string());
+            }
+        }
+    }
+    urls
+}
+
+/// Repositórios git em `pasta`: ela mesma, se é a raiz de um; senão, as
+/// subpastas imediatas (um nível) que são raiz de um repositório, em ordem de
+/// nome. Pastas ocultas ficam de fora.
+pub fn repositorios_em(pasta: &Path) -> Vec<RepositorioGit> {
+    let Ok(pasta) = dunce::canonicalize(pasta) else {
+        return Vec::new();
+    };
+    let eh_raiz = |p: &Path| p.join(".git").exists();
+    if eh_raiz(&pasta) {
+        return detectar_git(&pasta).into_iter().collect();
+    }
+    let Ok(itens) = fs::read_dir(&pasta) else {
+        return Vec::new();
+    };
+    let mut filhas: Vec<PathBuf> = itens
+        .flatten()
+        .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
+        .filter(|e| !e.file_name().to_string_lossy().starts_with('.'))
+        .map(|e| e.path())
+        .filter(|p| eh_raiz(p))
+        .collect();
+    filhas.sort();
+    filhas.iter().filter_map(|p| detectar_git(p)).collect()
 }
 
 fn resolver_ref(git_dir: &Path, comum: &Path, nome: &str) -> Option<String> {
@@ -175,6 +242,50 @@ mod tests {
     }
 
     #[test]
+    fn remotos_lidos_do_config() {
+        let tmp = tempfile::tempdir().unwrap();
+        let raiz = tmp.path();
+        escrever(&raiz.join(".git/HEAD"), "ref: refs/heads/main\n");
+        escrever(
+            &raiz.join(".git/config"),
+            "[core]\n\tbare = false\n[remote \"origin\"]\n\turl = git@github.com:o/r.git\n\
+             \tfetch = +refs/heads/*:refs/remotes/origin/*\n[branch \"main\"]\n\tremote = origin\n\
+             [remote \"gl\"]\n\t# comentário\n\tURL = \"https://gitlab.example.com/g/app.git\"\n",
+        );
+        fs::create_dir_all(raiz.join("src")).unwrap();
+        assert_eq!(
+            remotos_git(&raiz.join("src")),
+            [
+                "git@github.com:o/r.git",
+                "https://gitlab.example.com/g/app.git"
+            ]
+        );
+        let sem = tempfile::tempdir().unwrap();
+        escrever(&sem.path().join(".git/HEAD"), "ref: refs/heads/main\n");
+        assert!(remotos_git(sem.path()).is_empty());
+    }
+
+    #[test]
+    fn repositorios_na_pasta_um_nivel() {
+        let tmp = tempfile::tempdir().unwrap();
+        let base = tmp.path();
+        for n in ["b-web", "a-legado", ".oculto"] {
+            escrever(&base.join(n).join(".git/HEAD"), "ref: refs/heads/main\n");
+        }
+        escrever(&base.join("solta/x/.git/HEAD"), "ref: refs/heads/main\n");
+        let achados: Vec<_> = repositorios_em(base)
+            .into_iter()
+            .map(|r| r.raiz.file_name().unwrap().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(achados, ["a-legado", "b-web"]);
+        // A própria pasta é um repositório: só ela.
+        let um = repositorios_em(&base.join("b-web"));
+        assert_eq!(um.len(), 1);
+        assert_eq!(um[0].raiz, dunce::canonicalize(base.join("b-web")).unwrap());
+        assert!(repositorios_em(&base.join("nao-existe")).is_empty());
+    }
+
+    #[test]
     fn worktree_aponta_para_o_repositorio_principal() {
         let tmp = tempfile::tempdir().unwrap();
         let principal = tmp.path().join("principal");
@@ -192,5 +303,11 @@ mod tests {
         assert_eq!(r.raiz_principal, dunce::canonicalize(&principal).unwrap());
         assert_eq!(r.branch.as_deref(), Some("outra"));
         assert_eq!(r.commit.as_deref(), Some(C2));
+        // O config (e os remotos) é o do repositório principal.
+        escrever(
+            &principal.join(".git/config"),
+            "[remote \"origin\"]\n\turl = https://github.com/o/r.git\n",
+        );
+        assert_eq!(remotos_git(&wt), ["https://github.com/o/r.git"]);
     }
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { mensagemDe, type SituacaoProtecao } from "./analise";
-import { CadastroProjeto, ResumoDoInventario } from "./CadastroProjeto";
+import { ResumoDoInventario } from "./ResumoDoInventario";
 import {
   ESTADO_DO_TEXTO,
   apiConfiguracoesTauri,
@@ -18,8 +18,10 @@ import { EditorTexto } from "./EditorTexto";
 import { EscolhaBase } from "./EscolhaBase";
 import { EscolhaCliente } from "./EscolhaCliente";
 import { FormRepositorios } from "./FormRepositorios";
+import { ModalNovoProjeto } from "./ModalNovoProjeto";
 import { ProntidaoRepositorios } from "./ProntidaoRepositorios";
 import { validarRepositorios, type Repositorios } from "./repositorios";
+import { SecaoClones } from "./SecaoClones";
 import { AmbienteDoProjeto } from "./PrepararAmbiente";
 import { padraoDoCaminho, tamanhoLegivel, type PreviaProjeto } from "./primeiroUso";
 import "./configuracoes.css";
@@ -35,7 +37,7 @@ const CLIENTE = {
  * (pastas, exclusões, ambiente do Claude, proteção contra edição, regras do projeto,
  * descadastro) e os textos editáveis da base (templates, roteiros e prompts). Monta
  * os passos do primeiro uso ({@link EscolhaCliente}, {@link EscolhaBase},
- * {@link CadastroProjeto}, {@link AmbienteDoProjeto}) com o que só as configurações
+ * {@link ModalNovoProjeto}, {@link AmbienteDoProjeto}) com o que só as configurações
  * fazem: mover ou reapontar a base, desfazer o ambiente e descadastrar.
  */
 export function TelaConfiguracoes({
@@ -102,6 +104,7 @@ export function TelaConfiguracoes({
         <SecaoAparencia />
         <SecaoCliente api={api} cfg={cfg} aoMudar={carregar} />
         <SecaoBase api={api} cfg={cfg} aoMudar={mudou} />
+        <SecaoClones api={api} cfg={cfg} />
         <SecaoProjetos
           api={api}
           cfg={cfg}
@@ -501,25 +504,22 @@ function SecaoProjetos({
           aoEditar={aoEditar}
         />
       ))}
-      {cfg.base &&
-        (cadastrando ? (
-          <>
-            <CadastroProjeto
-              api={api}
-              aoConcluir={() => {
-                setCadastrando(false);
-                aoMudar();
-              }}
-            />
-            <button type="button" className="link" onClick={() => setCadastrando(false)}>
-              Cancelar
-            </button>
-          </>
-        ) : (
-          <button className="btn" type="button" onClick={() => setCadastrando(true)}>
-            Cadastrar outro projeto
-          </button>
-        ))}
+      {cfg.base && (
+        <button className="btn" type="button" onClick={() => setCadastrando(true)}>
+          + Novo projeto
+        </button>
+      )}
+      {cadastrando && (
+        <ModalNovoProjeto
+          api={api}
+          aoFechar={() => setCadastrando(false)}
+          aoConcluir={() => {
+            // O cartão do projeto novo mostra o preparo do ambiente do Claude.
+            setCadastrando(false);
+            aoMudar();
+          }}
+        />
+      )}
     </section>
   );
 }
@@ -624,7 +624,12 @@ function RepositoriosDoProjeto({
 
   return (
     <div role="group" aria-label={`Repositórios de ${projeto.nome}`}>
-      <FormRepositorios valor={valor} aoMudar={setValor} travado={projeto.repositorios} />
+      <FormRepositorios
+        valor={valor}
+        aoMudar={setValor}
+        travado={projeto.repositorios}
+        api={api}
+      />
       <div className="acoes">
         <button
           className="btn btn-primary"
