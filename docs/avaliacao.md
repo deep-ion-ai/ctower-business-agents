@@ -138,7 +138,7 @@ A execução é a mesma dos três primeiros fluxos: a análise é criada com o t
 
 Falha grave (revisão): achado de correção sem evidência válida, nenhum achado quando o veredito esperado não é `pronta`, estado ausente, erro da execução ou arquivo do projeto alterado. Achados, termos e veredito são cobertura. Para comparar um estado gravado: `cargo run -p cba-avaliacao -- comparar --estado <pasta>/estado.json --item REV-FAT-001`.
 
-O roteiro de revisão é provisório até a primeira execução com o modelo real: por isso ainda não é copiado para a base nem aparece no editor de textos (veja `roteiro::revisado`).
+O roteiro de revisão foi avaliado com o modelo real na #168 ([relatório](avaliacao/2026-11-16-revisar-historias-cenarios-sonnet.md)): nas três repetições, o achado de correção com evidência para a contradição com a RN-FAT-012, os quatro termos vagos e o veredito esperado. A primeira rodada registrou uma vez a omissão do mínimo de 10 caracteres do motivo como `correcao`; o roteiro passou a dizer que o texto que omite uma condição não a contradiz (é `completude`). Por isso entrou em `roteiro::revisado`: é copiado para a base e aparece no editor de textos.
 
 ## Fluxo historias
 
@@ -162,7 +162,7 @@ Antes do `claude`, o preparo cria a análise de origem como o analista a teria d
 
 Falha grave (histórias): nenhuma história, critério sem origem (a ferramenta já recusa; pegaria uma regressão), estado ausente, erro da execução ou arquivo do projeto alterado. Os demais são cobertura. Para comparar um estado gravado: `cargo run -p cba-avaliacao -- comparar --estado <pasta>/estado.json --item HIS-FAT-001`.
 
-O roteiro de histórias também é provisório até a primeira execução com o modelo real.
+O roteiro de histórias foi avaliado com o modelo real na #168 ([relatório](avaliacao/2026-11-16-revisar-historias-cenarios-sonnet.md)), sem ajuste: nas três repetições, as duas histórias esperadas, as três regras citadas pelos critérios, todo critério com valor concreto e com afirmação ou regra de origem, o tema a confirmar e a verificação INVEST de cada história. Está em `roteiro::revisado`. As colunas "Regras" e "Abrangência" do resumo do relatório medem as afirmações da própria análise, e o fluxo de histórias não registra afirmações (cita as da análise de origem): ali o 0% não é falha; a cobertura do fluxo está nas linhas "Regras citadas pelos critérios" de cada execução.
 
 ## Fluxo cenarios
 
@@ -187,7 +187,7 @@ Antes do `claude`, o preparo grava na base as regras do item (`regras/RN-FAT-012
 
 Falha grave (cenários): nenhum cenário, cenário sem origem (a ferramenta já recusa; pegaria uma regressão), estado ausente, erro da execução ou arquivo do projeto alterado. Os demais são cobertura. Para comparar um estado gravado: `cargo run -p cba-avaliacao -- comparar --estado <pasta>/estado.json --item CEN-FAT-001`.
 
-O roteiro de cenários também é provisório até a primeira execução com o modelo real. O teste da crate `cba-fixtures` confere que o valor de cada limite esperado aparece no trecho citado da fixture e que a evidência toca a da regra.
+O roteiro de cenários foi avaliado com o modelo real na #168, com `CEN-FAT-001` ([relatório](avaliacao/2026-11-16-revisar-historias-cenarios-sonnet.md)) e `CEN-FAT-002` ([relatório](avaliacao/2026-11-16-cenarios-fat-002-sonnet.md)). Na primeira rodada, duas de três execuções leram o limite de 10 caracteres da RN-FAT-013 só da tela Delphi (`TAM_MINIMO_MOTIVO = 10`), e não do PL/SQL, que protege o dado em qualquer caminho de entrada; o roteiro passou a pedir o trecho de cada camada que decide a regra, começando pelo banco ou serviço. Depois do ajuste, nas três repetições de cada item: os limites batem com o código da fixture (10 no PL/SQL, 30 no Delphi, 2 no backend), com os valores vizinhos testados; a tabela de decisão da RN-FAT-014; os negativos da RN-FAT-012; e `MAX_PARCELAS` a confirmar, com pergunta. Está em `roteiro::revisado`. Como no fluxo de histórias, as colunas "Regras" do resumo não se aplicam: os cenários citam as regras sem registrar afirmações. O teste da crate `cba-fixtures` confere que o valor de cada limite esperado aparece no trecho citado da fixture e que a evidência toca a da regra.
 
 ## Ciclo de vida
 
@@ -216,3 +216,5 @@ Falha grave (ciclo de vida): nenhum diagrama de estados, estado ausente, erro da
 O relatório da primeira execução, com os três fluxos, está em [`docs/avaliacao/2026-11-12-sonnet.md`](avaliacao/2026-11-12-sonnet.md) (e o JSON ao lado).
 
 O da primeira execução do fluxo `reuniao`, com a reunião 1 e a reunião longa (custo de uma reunião de 2 h), está em [`docs/avaliacao/2026-11-14-reuniao-sonnet.md`](avaliacao/2026-11-14-reuniao-sonnet.md).
+
+Os da avaliação dos fluxos `revisar`, `historias` e `cenarios` (#168), com três repetições de cada item e os roteiros já ajustados, estão em [`docs/avaliacao/2026-11-16-revisar-historias-cenarios-sonnet.md`](avaliacao/2026-11-16-revisar-historias-cenarios-sonnet.md) (US$ 2,16) e [`docs/avaliacao/2026-11-16-cenarios-fat-002-sonnet.md`](avaliacao/2026-11-16-cenarios-fat-002-sonnet.md) (US$ 0,90). O commit que aparece neles é o de partida: os roteiros avaliados são os do commit da #168, compilados antes do commit.
