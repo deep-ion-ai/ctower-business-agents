@@ -21,6 +21,7 @@ import {
 import {
   FORJA,
   ORIGEM_DEMANDAS,
+  falhaDoToken,
   falhou,
   integracaoDasDemandas,
   integracaoDoRepositorio,
@@ -32,13 +33,6 @@ export function descreverToken(r: RepositorioCodigo): string {
   if (r.token === "proprio") return "próprio deste repositório";
   if (r.token === "comando") return "comando de credencial";
   return `global de ${r.host || "host"}`;
-}
-
-/** O passo que falhou é do token (credencial) ou do acesso com ele. */
-function falhaDoToken(i: IntegracaoProntidao | undefined): boolean {
-  return !!i?.passos.some(
-    (p) => p.situacao === "falhou" && (p.id === "credencial" || p.id === "acesso"),
-  );
 }
 
 type Edicao =

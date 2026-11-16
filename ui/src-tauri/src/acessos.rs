@@ -12,7 +12,7 @@ use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use cba_core::dados::DiretorioDados;
-use cba_repos::acessos::{ErroVerificacao, verificar_token_host};
+use cba_repos::acessos::{ErroVerificacao, testar_acesso_repositorio, verificar_token_host};
 use cba_repos::chaveiro::{
     Chaveiro, comando_global, conta_comando_global, conta_global, token_do_repositorio,
     token_global,
@@ -265,7 +265,7 @@ pub fn testar_host(
 }
 
 /// Testa o acesso de leitura de um repositório com o token dele (próprio,
-/// comando ou global do host) e guarda o resultado na conta do token próprio.
+/// comando ou global do host), na API da forja e no git, e guarda o resultado na conta do token próprio.
 pub fn testar_repositorio(
     dados: &DiretorioDados,
     f: &Ferramentas,
@@ -273,7 +273,7 @@ pub fn testar_repositorio(
 ) -> Result<TesteToken, String> {
     let teste = match token_do_repositorio(repo, f.chaveiro.as_ref()) {
         Err(e) => falhou(e.to_string()),
-        Ok(token) => match testar_acesso(&f.git, repo, token.as_ref()) {
+        Ok(token) => match testar_acesso_repositorio(f, repo, token.as_ref()) {
             Ok(()) => TesteToken {
                 ok: true,
                 quando: agora(),
