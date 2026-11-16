@@ -2,6 +2,7 @@ import type { SituacaoProtecao } from "../analise";
 import {
   CONFLITO,
   type AjusteLeitura,
+  type AmbienteDesfeito,
   type AmbienteDetalhado,
   type ApiConfiguracoes,
   type AvaliacaoTroca,
@@ -374,12 +375,14 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
         inventario: inventarioFicticio(),
       }),
     ),
-    desfazerAmbiente: vi.fn((_s: string) =>
-      Promise.resolve({
-        protecaoTirada: [],
-        preparo: { diretorio: CODIGO, alteracoes: [], gravado: true },
-        avisos: [],
-      }),
+    desfazerAmbiente: vi.fn(
+      (_s: string): Promise<AmbienteDesfeito> =>
+        Promise.resolve({
+          protecaoTirada: [],
+          preparo: { diretorio: CODIGO, alteracoes: [], gravado: true },
+          avisos: [],
+          igualAoAntes: true,
+        }),
     ),
     descadastrar: vi.fn((_s: string) =>
       Promise.resolve({
@@ -387,6 +390,7 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
           protecaoTirada: [],
           preparo: { diretorio: CODIGO, alteracoes: [], gravado: true },
           avisos: [],
+          igualAoAntes: true,
         },
         documentos: `${BASE}/faturamento-exemplo`,
       }),

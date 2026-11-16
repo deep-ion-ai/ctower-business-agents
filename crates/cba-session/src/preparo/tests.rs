@@ -583,11 +583,10 @@ fn chave_existente_com_outra_grafia_e_reaproveitada() {
     let projetos = estado["projects"].as_object().unwrap();
     assert_eq!(projetos.len(), 1);
     assert!(projetos[&grafia]["mcpServers"]["cba"].is_object());
-    c.preparador().desfazer(&alvo).unwrap();
-    assert_eq!(
-        c.estado(),
-        json!({ "projects": { grafia: { "allowedTools": [], "mcpServers": {} } } })
-    );
+    let r = c.preparador().desfazer(&alvo).unwrap();
+    assert!(r.voltou_ao_que_era(), "{:?}", r.mantidos);
+    // O `mcpServers` não existia: sai junto.
+    assert_eq!(fs::read_to_string(&c.config.estado).unwrap(), original);
 }
 
 #[cfg(unix)]
@@ -848,4 +847,298 @@ fn protecao_desligada_tira_so_as_regras_do_app() {
             .unwrap()
             .is_empty()
     );
+}
+
+// ---------------------------------------------------------------------------
+// Outra instalação do app (#213)
+
+/// Executável de outra instalação do app (a de desenvolvimento, por exemplo).
+fn outra_instalacao(c: &Cenario) -> PathBuf {
+    c.raiz
+        .join("dev")
+        .join("target")
+        .join(if cfg!(windows) { "cba.exe" } else { "cba" })
+}
+
+/// Configuração com os hooks e o servidor de outra instalação, indentada com quatro
+/// espaços (como no teste de uso completo).
+fn com_outra_instalacao(c: &Cenario, com_projeto: bool) -> (String, String) {
+    let dev = outra_instalacao(c);
+    let mut hooks = serde_json::Map::new();
+    for evento in EVENTOS {
+        hooks.insert(
+            evento.to_string(),
+            json!([{ "hooks": [{
+                "type": "command",
+                "command": comando(&dev, evento),
+                "timeout": LIMITE_HOOK_S
+            }]}]),
+        );
+    }
+    let settings = json!({
+        "theme": "dark",
+        "hooks": hooks,
+        "zDepois": [1, 2]
+    });
+    let mut projetos = serde_json::Map::new();
+    if com_projeto {
+        projetos.insert(
+            "/projetos/do-dev".into(),
+            json!({ "mcpServers": { "cba": {
+                "type": "stdio",
+                "command": dev.to_string_lossy(),
+                "args": ["mcp"],
+                "env": { "CBA_PROJETO": "do-dev" }
+            }}, "hasTrustDialogAccepted": true }),
+        );
+    }
+    let estado = json!({ "numStartups": 3, "projects": projetos });
+    let quatro = |v: &Value| {
+        let mut b = Vec::new();
+        let f = serde_json::ser::PrettyFormatter::with_indent(b"    ");
+        let mut s = serde_json::Serializer::with_formatter(&mut b, f);
+        serde::Serialize::serialize(v, &mut s).unwrap();
+        String::from_utf8(b).unwrap() + "\n"
+    };
+    let (settings, estado) = (quatro(&settings), quatro(&estado));
+    fs::create_dir_all(c.config.settings.parent().unwrap()).unwrap();
+    fs::write(&c.config.settings, &settings).unwrap();
+    fs::write(&c.config.estado, &estado).unwrap();
+    (settings, estado)
+}
+
+#[test]
+fn hooks_de_outra_instalacao_voltam_ao_desfazer() {
+    for com_projeto in [true, false] {
+        let c = Cenario::novo();
+        let (settings, estado) = com_outra_instalacao(&c, com_projeto);
+        let alvo = c.alvo("teste", &c.pasta("teste"));
+        let dev = outra_instalacao(&c);
+        let dev_no_hook = comando(&dev, "X")
+            .trim_start_matches('"')
+            .split('"')
+            .next()
+            .unwrap()
+            .to_string();
+        let p = c.preparador();
+
+        // O plano avisa que os hooks vão para outra instalação hoje.
+        let plano = p.planejar(&alvo).unwrap();
+        assert_eq!(plano.outras_instalacoes(), [dev_no_hook.as_str()]);
+        let hooks: Vec<_> = plano
+            .alteracoes
+            .iter()
+            .filter(|a| matches!(a.item, Item::Hook { .. }))
+            .collect();
+        assert_eq!(hooks.len(), EVENTOS.len());
+        assert!(hooks.iter().all(|a| a.acao == Acao::Atualizado
+            && a.outra_instalacao.as_deref() == Some(dev_no_hook.as_str())));
+
+        p.preparar(&alvo).unwrap();
+        assert!(p.verificar(&alvo).unwrap().pronto);
+        assert!(c.config.registro().exists());
+        // A indentação do analista fica.
+        assert!(
+            fs::read_to_string(&c.config.settings)
+                .unwrap()
+                .contains("\n    \"theme\"")
+        );
+
+        let r = p.desfazer(&alvo).unwrap();
+        assert!(r.voltou_ao_que_era(), "{:?}", r.mantidos);
+        assert!(
+            r.alteracoes
+                .iter()
+                .filter(|a| matches!(a.item, Item::Hook { .. }))
+                .all(|a| a.acao == Acao::Restaurado),
+            "{:?}",
+            r.alteracoes
+        );
+        // Diff vazio.
+        assert_eq!(fs::read_to_string(&c.config.settings).unwrap(), settings);
+        assert_eq!(fs::read_to_string(&c.config.estado).unwrap(), estado);
+        assert!(
+            !c.config.registro().exists(),
+            "o registro sai quando fica vazio"
+        );
+    }
+}
+
+#[test]
+fn servidor_de_outra_instalacao_na_mesma_pasta_volta_ao_desfazer() {
+    let c = Cenario::novo();
+    let alvo = c.alvo("s", &c.pasta("s"));
+    c.preparador_com(outra_instalacao(&c))
+        .preparar(&alvo)
+        .unwrap();
+    // Sem registro da outra instalação (como num preparo de uma versão anterior).
+    fs::remove_file(c.config.registro()).unwrap();
+    let antes = (
+        fs::read(&c.config.estado).unwrap(),
+        fs::read(&c.config.settings).unwrap(),
+    );
+
+    let p = c.preparador();
+    let r = p.preparar(&alvo).unwrap();
+    assert_eq!(r.alteracoes[0].acao, Acao::Atualizado);
+    assert!(r.alteracoes[0].outra_instalacao.is_some());
+    let r = p.desfazer(&alvo).unwrap();
+    assert_eq!(r.alteracoes[0].acao, Acao::Restaurado);
+    assert!(r.voltou_ao_que_era(), "{:?}", r.mantidos);
+    let depois = (
+        fs::read(&c.config.estado).unwrap(),
+        fs::read(&c.config.settings).unwrap(),
+    );
+    assert_eq!(antes, depois);
+}
+
+#[test]
+fn hooks_em_uso_por_outra_pasta_ficam_e_sao_ditos() {
+    let c = Cenario::novo();
+    let (settings, estado) = com_outra_instalacao(&c, true);
+    let a = c.alvo("a", &c.pasta("a"));
+    let b = c.alvo("b", &c.pasta("b"));
+    let p = c.preparador();
+    p.preparar(&a).unwrap();
+    p.preparar(&b).unwrap();
+
+    let r = p.desfazer(&a).unwrap();
+    assert!(!r.voltou_ao_que_era());
+    assert!(matches!(
+        &r.mantidos[..],
+        [Mantido::HooksEmUso { pastas, .. }] if pastas == std::slice::from_ref(&b.chave)
+    ));
+    assert!(p.verificar(&b).unwrap().pronto, "b continua pronto");
+
+    let r = p.desfazer(&b).unwrap();
+    assert!(r.voltou_ao_que_era(), "{:?}", r.mantidos);
+    assert_eq!(fs::read_to_string(&c.config.settings).unwrap(), settings);
+    assert_eq!(fs::read_to_string(&c.config.estado).unwrap(), estado);
+}
+
+#[test]
+fn hook_mudado_depois_do_preparo_nao_e_sobrescrito() {
+    let c = Cenario::novo();
+    com_outra_instalacao(&c, false);
+    let alvo = c.alvo("s", &c.pasta("s"));
+    let p = c.preparador();
+    p.preparar(&alvo).unwrap();
+    // O analista acrescenta um handler seu ao Stop depois do preparo.
+    let mut s = c.settings();
+    s["hooks"]["Stop"][0]["hooks"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({ "type": "command", "command": "som.sh" }));
+    fs::write(
+        &c.config.settings,
+        serde_json::to_string_pretty(&s).unwrap(),
+    )
+    .unwrap();
+
+    let r = p.desfazer(&alvo).unwrap();
+    assert!(!r.voltou_ao_que_era());
+    assert!(
+        r.mantidos.iter().any(|m| matches!(
+            m,
+            Mantido::HooksMudaramDepois { eventos, .. } if eventos == &["Stop".to_string()]
+        )),
+        "{:?}",
+        r.mantidos
+    );
+    let stop = &c.settings()["hooks"]["Stop"];
+    assert_eq!(
+        stop,
+        &json!([{ "hooks": [{ "type": "command", "command": "som.sh" }] }])
+    );
+    // Os outros eventos voltaram para a outra instalação.
+    let dev = outra_instalacao(&c);
+    assert_eq!(
+        c.settings()["hooks"]["SessionStart"][0]["hooks"][0]["command"],
+        comando(&dev, "SessionStart")
+    );
+}
+
+#[test]
+fn entrada_que_o_claude_gravou_na_pasta_fica_e_e_dita() {
+    let c = Cenario::novo();
+    let alvo = c.alvo("s", &c.pasta("s"));
+    let p = c.preparador();
+    p.preparar(&alvo).unwrap();
+    // O Claude Code grava a confiança na pasta ao abrir a primeira conversa.
+    let mut e = c.estado();
+    e["projects"][&alvo.chave]["hasTrustDialogAccepted"] = json!(true);
+    fs::write(&c.config.estado, serde_json::to_string_pretty(&e).unwrap()).unwrap();
+
+    let r = p.desfazer(&alvo).unwrap();
+    assert!(matches!(
+        &r.mantidos[..],
+        [Mantido::EntradaDoClaude { chave, .. }] if *chave == alvo.chave
+    ));
+    assert_eq!(
+        c.estado()["projects"][&alvo.chave],
+        json!({ "hasTrustDialogAccepted": true }),
+        "o servidor e o mcpServers, que não existiam, saem"
+    );
+}
+
+#[test]
+fn instalacoes_em_pilha_voltam_ao_original() {
+    // A de desenvolvimento prepara P1; a de teste prepara P2 (toma os hooks); a de
+    // desenvolvimento prepara P1 de novo (toma de volta). Desfazer as duas volta ao
+    // arquivo original.
+    let c = Cenario::novo();
+    fs::create_dir_all(c.config.settings.parent().unwrap()).unwrap();
+    fs::write(&c.config.settings, SETTINGS_DO_ANALISTA).unwrap();
+    let p1 = c.alvo("p1", &c.pasta("p1"));
+    let p2 = c.alvo("p2", &c.pasta("p2"));
+    let dev = c.preparador_com(outra_instalacao(&c));
+    let teste = c.preparador();
+    dev.preparar(&p1).unwrap();
+    teste.preparar(&p2).unwrap();
+    dev.preparar(&p1).unwrap();
+    assert!(dev.verificar(&p1).unwrap().pronto);
+
+    let r = teste.desfazer(&p2).unwrap();
+    assert!(r.voltou_ao_que_era(), "{:?}", r.mantidos);
+    assert!(
+        dev.verificar(&p1).unwrap().pronto,
+        "os hooks ficam com a dev"
+    );
+    dev.desfazer(&p1).unwrap();
+    assert_eq!(
+        fs::read_to_string(&c.config.settings).unwrap(),
+        SETTINGS_DO_ANALISTA
+    );
+    assert!(!c.config.registro().exists());
+}
+
+#[test]
+fn sem_registro_os_hooks_ficam_se_outra_pasta_usa() {
+    // Preparo de uma versão anterior do app: o desfazer não sabe o que havia antes.
+    let c = Cenario::novo();
+    let a = c.alvo("a", &c.pasta("a"));
+    let b = c.alvo("b", &c.pasta("b"));
+    c.preparador_com(outra_instalacao(&c)).preparar(&a).unwrap();
+    let p = c.preparador();
+    p.preparar(&b).unwrap();
+    fs::remove_file(c.config.registro()).unwrap();
+
+    let r = p.desfazer(&b).unwrap();
+    assert!(matches!(
+        &r.mantidos[..],
+        [Mantido::HooksEmUso { pastas, .. }] if pastas == std::slice::from_ref(&a.chave)
+    ));
+    assert_eq!(p.verificar(&b).unwrap().servidor_mcp, Situacao::Ausente);
+}
+
+#[test]
+fn registro_ilegivel_nao_impede_o_desfazer() {
+    let c = Cenario::novo();
+    let alvo = c.alvo("s", &c.pasta("s"));
+    let p = c.preparador();
+    p.preparar(&alvo).unwrap();
+    fs::write(c.config.registro(), "{ quebrado").unwrap();
+    let r = p.desfazer(&alvo).unwrap();
+    assert!(r.alteracoes.iter().all(|a| a.acao == Acao::Removido));
+    assert_eq!(c.settings(), json!({}));
 }

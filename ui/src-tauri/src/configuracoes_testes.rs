@@ -381,7 +381,8 @@ impl Ambiente for ComConfigDir {
 
 // No formato em que o Claude Code grava esses arquivos (JSON com 2 espaços), como no
 // teste do preparo (#24). Um arquivo editado à mão em outro formato volta com o mesmo
-// conteúdo e a mesma ordem das chaves, mas reformatado.
+// conteúdo, a mesma ordem das chaves e a mesma indentação, mas um JSON numa linha só
+// volta reformatado.
 const ESTADO_DO_ANALISTA: &str = r#"{
   "numStartups": 7,
   "projects": {
@@ -459,7 +460,8 @@ fn desfazer_o_ambiente_deixa_a_configuracao_do_claude_como_antes() {
 
     let feito = desfazer_ambiente(&c.dados, &preparador, PROJETO).unwrap();
     assert_eq!(feito.protecao_tirada.len(), 1);
-    assert!(feito.avisos.is_empty());
+    assert!(feito.avisos.is_empty(), "{:?}", feito.avisos);
+    assert!(feito.igual_ao_antes);
     // Byte a byte, como antes do preparo.
     assert_eq!(fs::read_to_string(&estado).unwrap(), ESTADO_DO_ANALISTA);
     assert_eq!(fs::read_to_string(&settings).unwrap(), SETTINGS_DO_ANALISTA);
@@ -475,6 +477,73 @@ fn desfazer_o_ambiente_deixa_a_configuracao_do_claude_como_antes() {
     );
     desfazer_ambiente(&c.dados, &preparador, PROJETO).unwrap();
     assert_eq!(fs::read_to_string(&settings).unwrap(), SETTINGS_DO_ANALISTA);
+}
+
+#[test]
+fn desfazer_devolve_os_hooks_de_outra_instalacao_do_app() {
+    // #213: os hooks apontavam para outra instalação (a de desenvolvimento).
+    let c = cenario();
+    let raiz = dunce::canonicalize(c.dir.path()).unwrap();
+    let (preparador, estado, settings) = configuracao_do_analista(&raiz);
+    let dev = raiz
+        .join("dev")
+        .join(if cfg!(windows) { "cba.exe" } else { "cba" });
+    let dev = Preparador::novo(preparador.config.clone(), dev, Plataforma::atual()).unwrap();
+    let outro = raiz.join("codigo").join("do-dev");
+    fs::create_dir_all(&outro).unwrap();
+    dev.preparar(&cba_session::preparo::Alvo::da_pasta("do-dev", &outro).unwrap())
+        .unwrap();
+    // A configuração "de antes", com 4 espaços de indentação.
+    let quatro = |caminho: &Path| {
+        let v: serde_json::Value = serde_json::from_slice(&fs::read(caminho).unwrap()).unwrap();
+        let mut b = Vec::new();
+        let f = serde_json::ser::PrettyFormatter::with_indent(b"    ");
+        let mut ser = serde_json::Serializer::with_formatter(&mut b, f);
+        serde::Serialize::serialize(&v, &mut ser).unwrap();
+        b.push(b'\n');
+        fs::write(caminho, &b).unwrap();
+        b
+    };
+    let (estado_antes, settings_antes) = (quatro(&estado), quatro(&settings));
+
+    let plano = analise::planejar_preparo(&c.dados, &preparador, PROJETO).unwrap();
+    assert_eq!(
+        plano.outras_instalacoes().len(),
+        1,
+        "o plano avisa da troca"
+    );
+    analise::preparar_ambiente(&c.dados, &preparador, PROJETO).unwrap();
+    assert_ne!(fs::read(&settings).unwrap(), settings_antes);
+
+    let feito = desfazer_ambiente(&c.dados, &preparador, PROJETO).unwrap();
+    assert!(feito.igual_ao_antes, "{:?}", feito.avisos);
+    assert_eq!(fs::read(&settings).unwrap(), settings_antes, "diff vazio");
+    assert_eq!(fs::read(&estado).unwrap(), estado_antes, "diff vazio");
+}
+
+#[test]
+fn desfazer_diz_o_que_ficou_e_por_que() {
+    let c = cenario();
+    let raiz = dunce::canonicalize(c.dir.path()).unwrap();
+    let (preparador, estado, _) = configuracao_do_analista(&raiz);
+    analise::preparar_ambiente(&c.dados, &preparador, PROJETO).unwrap();
+    // O Claude Code grava a confiança na pasta ao abrir a primeira conversa.
+    let mut v: serde_json::Value = serde_json::from_slice(&fs::read(&estado).unwrap()).unwrap();
+    for (_, projeto) in v["projects"].as_object_mut().unwrap().iter_mut() {
+        if projeto["mcpServers"].get("cba").is_some() {
+            projeto["hasTrustDialogAccepted"] = true.into();
+        }
+    }
+    fs::write(&estado, serde_json::to_vec_pretty(&v).unwrap()).unwrap();
+
+    let feito = desfazer_ambiente(&c.dados, &preparador, PROJETO).unwrap();
+    assert!(!feito.igual_ao_antes);
+    assert_eq!(feito.avisos.len(), 1, "{:?}", feito.avisos);
+    assert!(
+        feito.avisos[0].contains("confiança na pasta"),
+        "{}",
+        feito.avisos[0]
+    );
 }
 
 #[test]

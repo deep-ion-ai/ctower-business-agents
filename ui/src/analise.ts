@@ -430,7 +430,12 @@ export interface AmbienteClaude {
 export interface AlteracaoPreparo {
   arquivo: string;
   item: { tipo: "servidorMcp"; chave: string } | { tipo: "hook"; evento: string };
-  acao: "adicionado" | "atualizado" | "removido" | "semMudanca";
+  acao: "adicionado" | "atualizado" | "removido" | "restaurado" | "semMudanca";
+  /**
+   * Executável de outra instalação do app: em "atualizado", para onde a entrada apontava
+   * antes (o plano avisa da troca); em "restaurado", para onde voltou a apontar.
+   */
+  outraInstalacao?: string;
 }
 
 export interface PlanoPreparo {

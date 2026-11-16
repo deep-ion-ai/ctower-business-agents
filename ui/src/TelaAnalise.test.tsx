@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { TelaAnalise } from "./TelaAnalise";
 import { apiAnaliseFalsa, apiTerminalFalsa, telaFalsa } from "./test/falsos";
 
@@ -89,6 +89,40 @@ describe("TelaAnalise", () => {
     );
     fireEvent.change(screen.getByLabelText("Pergunta"), { target: { value: "Qual a multa?" } });
     expect(screen.getByRole("button", { name: "Perguntar" })).toBeEnabled();
+  });
+
+  it("avisa que os avisos vão para outra instalação e pede concordância (#213)", async () => {
+    const analise = apiAnaliseFalsa();
+    analise.api.verificarAmbiente
+      .mockResolvedValueOnce({ pronto: false, pendencias: ["os hooks estão desatualizados"] })
+      .mockResolvedValueOnce({ pronto: true, pendencias: [] });
+    const dev = "/home/ana/projetos/cba/target/debug/cba";
+    analise.api.planejarPreparo.mockResolvedValue({
+      diretorio: "/codigo",
+      gravado: false,
+      alteracoes: ["SessionStart", "Stop"].map((evento) => ({
+        arquivo: "/home/ana/.claude/settings.json",
+        item: { tipo: "hook" as const, evento },
+        acao: "atualizado" as const,
+        outraInstalacao: dev,
+      })),
+    });
+    montar(analise);
+    fireEvent.click(await screen.findByRole("button", { name: "Ver o que será alterado" }));
+    const aviso = await screen.findByRole("note");
+    expect(aviso).toHaveTextContent("Hoje os avisos do Claude vão para outra instalação do app");
+    expect(within(aviso).getAllByText(dev)).toHaveLength(1);
+    expect(screen.getByText("Hook SessionStart").parentElement).toHaveTextContent(
+      "hoje vai para outra instalação do app",
+    );
+    const concordo = screen.getByRole("button", { name: "Concordo, preparar o ambiente" });
+    expect(concordo).toBeDisabled();
+    fireEvent.click(within(aviso).getByRole("checkbox"));
+    expect(concordo).toBeEnabled();
+    fireEvent.click(concordo);
+    await waitFor(() =>
+      expect(analise.api.prepararAmbiente).toHaveBeenCalledWith("faturamento-exemplo"),
+    );
   });
 
   it("cria a análise da pergunta e abre o terminal com o pedido de início", async () => {
