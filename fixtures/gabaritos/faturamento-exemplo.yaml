@@ -60,6 +60,14 @@
 #   condições e palavras-chave nas condições), os cenários `negativos` (com as
 #   palavras-chave no título e nos passos) e os temas `a_confirmar` (limite que
 #   vem de tabela de parâmetros, com pergunta).
+# - `ciclos_vida` (ciclo de vida de uma entidade, #119) traz o diagrama de
+#   estados esperado de uma entidade com campo de status: o `campo` (com a
+#   evidência da definição), os `estados` pelo valor gravado no código (com o
+#   inicial e os finais), as `transicoes` (de, para, palavras-chave no evento ou
+#   na condição e a evidência da rotina que grava o campo) e os `achados` que o
+#   app deve apontar (`inalcancavel`: nenhuma transição chega ao estado;
+#   `sem_saida`: estado não final de que nenhuma transição sai). A análise é do
+#   fluxo explicar, com o `pedido` como entrada.
 # - A avaliação dos fluxos (crate cba-avaliacao, docs/avaliacao.md) usa este
 #   arquivo como referência.
 
@@ -850,3 +858,83 @@ cenarios:
     a_confirmar:
       - tema: O máximo de parcelas vem do parâmetro MAX_PARCELAS (6 na carga inicial); qual é o valor em produção?
         palavras_chave: [[max_parcelas, maxim*, "6", "7"]]
+
+ciclos_vida:
+  - id: CV-FAT-001
+    titulo: Ciclo de vida da fatura
+    entidade: fatura
+    pedido: >-
+      Ciclo de vida da fatura: quais são as situações possíveis da fatura, o
+      que faz a fatura passar de uma situação para outra e em que condição.
+    campo:
+      arquivo: db/01_tabelas.sql
+      linha_inicial: 28
+      linha_final: 28
+      trecho: "STATUS            VARCHAR2(10)   DEFAULT 'ABERTA'"
+    estados:
+      - valor: ABERTA
+        inicial: true
+        evidencia:
+          arquivo: db/01_tabelas.sql
+          linha_inicial: 28
+          linha_final: 28
+          trecho: "DEFAULT 'ABERTA'"
+      - valor: PAGA
+        final: true
+      - valor: PARCELADA
+      - valor: CANCELADA
+        final: true
+      - valor: SUSPENSA
+      - valor: PROTESTADA
+    transicoes:
+      - id: CV-FAT-001-T1
+        de: ABERTA
+        para: PAGA
+        # Pagamento parcial mantém a fatura aberta.
+        palavras_chave: [[pag*, quita*]]
+        evidencia:
+          arquivo: db/04_pkg_situacao.sql
+          linha_inicial: 54
+          linha_final: 57
+          trecho: "SET STATUS = 'PAGA'"
+      - id: CV-FAT-001-T2
+        de: ABERTA
+        para: PARCELADA
+        palavras_chave: [[parcel*]]
+        evidencia:
+          arquivo: db/04_pkg_situacao.sql
+          linha_inicial: 74
+          linha_final: 76
+          trecho: "SET STATUS = 'PARCELADA'"
+      - id: CV-FAT-001-T3
+        de: PARCELADA
+        para: PAGA
+        palavras_chave: [[parcela*, quita*, ultima, última]]
+        evidencia:
+          arquivo: db/04_pkg_situacao.sql
+          linha_inicial: 98
+          linha_final: 102
+          trecho: "AND STATUS = 'PARCELADA'"
+      - id: CV-FAT-001-T4
+        de: ABERTA
+        para: CANCELADA
+        palavras_chave: [[cancel*]]
+        evidencia:
+          arquivo: db/03_pkg_cobranca.sql
+          linha_inicial: 123
+          linha_final: 127
+          trecho: "SET STATUS          = 'CANCELADA'"
+      - id: CV-FAT-001-T5
+        de: ABERTA
+        para: SUSPENSA
+        palavras_chave: [[contesta*, suspen*]]
+        evidencia:
+          arquivo: db/04_pkg_situacao.sql
+          linha_inicial: 116
+          linha_final: 119
+          trecho: "SET STATUS = 'SUSPENSA'"
+    achados:
+      - tipo: inalcancavel
+        estado: PROTESTADA
+      - tipo: sem_saida
+        estado: SUSPENSA
