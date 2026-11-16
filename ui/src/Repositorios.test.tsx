@@ -418,6 +418,12 @@ describe("ProntidaoRepositorios", () => {
 });
 
 describe("clones e tokens nas configurações", () => {
+  // Por enquanto ficam na seção “Pasta da base”, até a seção Acessos (#193).
+  beforeEach(() => {
+    localStorage.setItem("cba.configuracoes.secao", "pasta");
+  });
+  afterEach(() => localStorage.clear());
+
   it("mostra e grava a pasta dos clones", async () => {
     const api = apiConfiguracoesFalsa();
     render(<TelaConfiguracoes api={api} aoMudarProjetos={vi.fn()} />);
@@ -498,6 +504,11 @@ describe("clones e tokens nas configurações", () => {
 });
 
 describe("repositórios nas configurações", () => {
+  beforeEach(() => {
+    localStorage.setItem("cba.configuracoes.secao", "projeto:faturamento-exemplo");
+  });
+  afterEach(() => localStorage.clear());
+
   it("grava os repositórios do projeto e trava o tipo depois", async () => {
     const api = apiConfiguracoesFalsa();
     render(<TelaConfiguracoes api={api} aoMudarProjetos={vi.fn()} />);

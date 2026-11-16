@@ -539,6 +539,37 @@ fn configuracoes_reunem_cliente_base_e_projetos() {
     assert!(json["configClaude"].is_null());
 }
 
+#[test]
+fn info_da_base_conta_arquivos_sem_o_git_e_reconhece_repositorio() {
+    let c = cenario();
+    let base = base_atual(&c.dados);
+    let antes = info_base(&c.dados).unwrap().unwrap();
+    assert_eq!(antes.caminho, base);
+    assert!(antes.existe);
+    assert!(!antes.git);
+
+    fs::write(base.join("nota.md"), "# nota\n").unwrap();
+    fs::create_dir_all(base.join(".git")).unwrap();
+    fs::write(base.join(".git/HEAD"), "ref: refs/heads/main\n").unwrap();
+    fs::write(base.join(".git/objeto"), "x".repeat(1000)).unwrap();
+
+    let depois = info_base(&c.dados).unwrap().unwrap();
+    assert!(depois.git);
+    // A pasta `.git` não entra na conta; a nota nova entra.
+    assert_eq!(depois.arquivos, antes.arquivos + 1);
+    assert_eq!(depois.bytes, antes.bytes + "# nota\n".len() as u64);
+    let json = serde_json::to_value(&depois).unwrap();
+    assert_eq!(json["arquivos"], depois.arquivos);
+    assert!(json.get("indiceAtualizadoEm").is_some());
+}
+
+#[test]
+fn info_da_base_sem_base_configurada_e_vazia() {
+    let dir = tempfile::tempdir().unwrap();
+    let dados = DiretorioDados::em(dir.path());
+    assert_eq!(info_base(&dados).unwrap(), None);
+}
+
 // ---------------------------------------------------------------------------
 // Editor embutido dos textos
 

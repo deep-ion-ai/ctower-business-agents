@@ -19,6 +19,8 @@ function montar() {
 }
 
 describe("Navegacao", () => {
+  afterEach(() => localStorage.clear());
+
   it("passa pelo início, pelo projeto, pela base e pelas análises", async () => {
     montar();
     const abas = screen.getByRole("navigation", { name: "Telas" });
@@ -41,6 +43,8 @@ describe("Navegacao", () => {
   it("abre as configurações e relê os projetos quando elas mudam", async () => {
     const conhecimento = apiConhecimentoFalsa();
     const configuracoes = apiConfiguracoesFalsa();
+    // A tela das configurações abre na seção que o analista deixou aberta.
+    localStorage.setItem("cba.configuracoes.secao", "projeto:faturamento-exemplo");
     render(
       <Navegacao
         api={conhecimento.api}
@@ -62,6 +66,7 @@ describe("Navegacao", () => {
   });
 
   it("pede confirmação ao trocar de aba com alterações não salvas no editor de textos", async () => {
+    localStorage.setItem("cba.configuracoes.secao", "modelos");
     render(
       <Navegacao
         api={apiConhecimentoFalsa().api}

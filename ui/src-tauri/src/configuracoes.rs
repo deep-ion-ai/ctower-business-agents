@@ -334,6 +334,90 @@ pub fn avaliar_troca(
     })
 }
 
+/// A pasta da base como as configurações a mostram (#191): o que há nela e quando o
+/// índice foi atualizado pela última vez.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InfoBase {
+    pub caminho: PathBuf,
+    /// A pasta existe no disco.
+    pub existe: bool,
+    /// Arquivos da base (sem a pasta `.git`).
+    pub arquivos: usize,
+    pub bytes: u64,
+    /// A pasta é um repositório git.
+    pub git: bool,
+    /// Última atualização do índice, em segundos desde 1970 (`None` se ainda não há índice).
+    pub indice_atualizado_em: Option<u64>,
+}
+
+/// Conta os arquivos e os bytes da pasta, sem seguir links simbólicos e ignorando
+/// `.git`. O que não puder ser lido fica fora da conta: é só para exibir.
+fn medir_pasta(raiz: &Path) -> (usize, u64) {
+    let (mut arquivos, mut bytes) = (0, 0);
+    let mut pendentes = vec![raiz.to_path_buf()];
+    while let Some(pasta) = pendentes.pop() {
+        let Ok(entradas) = fs::read_dir(&pasta) else {
+            continue;
+        };
+        for entrada in entradas.flatten() {
+            let Ok(tipo) = entrada.file_type() else {
+                continue;
+            };
+            if tipo.is_dir() {
+                if entrada.file_name() != ".git" {
+                    pendentes.push(entrada.path());
+                }
+            } else if tipo.is_file() {
+                arquivos += 1;
+                bytes += entrada.metadata().map(|m| m.len()).unwrap_or(0);
+            }
+        }
+    }
+    (arquivos, bytes)
+}
+
+/// Quando o índice foi atualizado: a modificação mais recente do arquivo do SQLite e
+/// do seu `-wal`, onde as gravações recentes ficam até o checkpoint.
+fn indice_atualizado_em(dados: &DiretorioDados) -> Option<u64> {
+    let arquivo = dados.arquivo_do_indice();
+    let wal = {
+        let mut nome = arquivo.clone().into_os_string();
+        nome.push("-wal");
+        PathBuf::from(nome)
+    };
+    [arquivo, wal]
+        .iter()
+        .filter_map(|a| fs::metadata(a).and_then(|m| m.modified()).ok())
+        .max()
+        .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs())
+}
+
+/// Dados da base configurada; `None` se ainda não há base.
+pub fn info_base(dados: &DiretorioDados) -> Result<Option<InfoBase>, String> {
+    let Some(caminho) = Config::ler(dados)
+        .map_err(|e| format!("configuração do app ilegível: {e}"))?
+        .base
+    else {
+        return Ok(None);
+    };
+    let existe = caminho.is_dir();
+    let (arquivos, bytes) = if existe {
+        medir_pasta(&caminho)
+    } else {
+        (0, 0)
+    };
+    Ok(Some(InfoBase {
+        git: existe && cba_index::detectar_git(&caminho).is_some(),
+        indice_atualizado_em: indice_atualizado_em(dados),
+        caminho,
+        existe,
+        arquivos,
+        bytes,
+    }))
+}
+
 /// Desfaz uma cópia que não chegou ao fim: apaga só o que estava no destino por causa
 /// dela (o destino era novo ou vazio).
 fn limpar_destino(destino: &Path, era_novo: bool) {
@@ -1009,6 +1093,23 @@ fn preparador() -> Result<Preparador, String> {
 pub async fn configuracoes_app() -> Result<Configuracoes, String> {
     let dados = dados()?;
     bloqueante(move || configuracoes(&dados, preparador().ok().as_ref())).await
+}
+
+#[tauri::command]
+pub async fn info_base_app() -> Result<Option<InfoBase>, String> {
+    let dados = dados()?;
+    bloqueante(move || info_base(&dados)).await
+}
+
+/// Abre a pasta da base no gerenciador de arquivos do sistema operacional.
+#[tauri::command]
+pub async fn abrir_base_app(app: tauri::AppHandle) -> Result<PathBuf, String> {
+    let dados = dados()?;
+    let caminho = bloqueante(move || base_configurada(&dados)).await?;
+    app.opener()
+        .open_path(caminho.to_string_lossy(), None::<&str>)
+        .map_err(|e| format!("não foi possível abrir {}: {e}", caminho.display()))?;
+    Ok(caminho)
 }
 
 #[tauri::command]
