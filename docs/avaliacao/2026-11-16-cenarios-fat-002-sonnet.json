@@ -1,0 +1,324 @@
+{
+  "formato": 1,
+  "parametros": {
+    "data": "2026-11-16-034612",
+    "modelo": "sonnet",
+    "orcamento_por_execucao_usd": 1.5,
+    "repeticoes": 3,
+    "itens": [
+      "CEN-FAT-002"
+    ],
+    "permitir_edicao": false,
+    "versao_do_claude": "2.1.325 (Claude Code)",
+    "commit": "e541283"
+  },
+  "resumo": [
+    {
+      "fluxo": "cenarios",
+      "item": "CEN-FAT-002",
+      "execucoes": 3,
+      "avaliadas": 3,
+      "concluidas": 3,
+      "regras_esperadas": 1,
+      "regras_media": 0.0,
+      "regras_min": 0.0,
+      "regras_max": 0.0,
+      "evidencias": 0,
+      "evidencias_validas": 0,
+      "confirmado_sem_evidencia_valida": 0,
+      "perguntas_media": null,
+      "premissa_corrigida": null,
+      "abrangencia_confere": null,
+      "arquivos_media": null,
+      "execucoes_com_arquivos_alterados": 0,
+      "execucoes_com_falha": 0,
+      "custo_usd": 0.8956640999999999,
+      "duracao_s": 197.969,
+      "tokens": {
+        "entrada": 64,
+        "saida": 32829,
+        "cache_criacao": 116092,
+        "cache_leitura": 1028781
+      }
+    }
+  ],
+  "execucoes": [
+    {
+      "fluxo": "cenarios",
+      "item": "CEN-FAT-002",
+      "repeticao": 1,
+      "avaliacao": {
+        "item": "CEN-FAT-002",
+        "fluxo": "cenarios",
+        "analise": "A-0001",
+        "estado": "concluida",
+        "concluida": true,
+        "afirmacoes": 0,
+        "por_confianca": {
+          "confirmado": 0,
+          "inferido": 0,
+          "a_confirmar": 0
+        },
+        "perguntas_registradas": 2,
+        "sugestoes": 0,
+        "termos": 0,
+        "evidencias": 0,
+        "evidencias_validas": 0,
+        "evidencias_invalidas": [],
+        "confirmado_sem_evidencia_valida": [],
+        "regras": [
+          {
+            "id": "RN-FAT-008",
+            "titulo": "Quantidade de parcelas entre 2 e MAX_PARCELAS",
+            "encontrada": false,
+            "afirmacoes": []
+          }
+        ],
+        "regras_encontradas": 0,
+        "regras_esperadas": 1,
+        "outras_regras_encontradas": [],
+        "afirmacoes_fora_do_gabarito": [],
+        "arquivos": [],
+        "perguntas_esperadas": [],
+        "premissa": null,
+        "abrangencia": null,
+        "cenarios": {
+          "cenarios": 7,
+          "tabelas": 0,
+          "cenarios_sem_origem": [],
+          "limites": [
+            {
+              "id": "CEN-FAT-002-L1",
+              "regra": "RN-FAT-008",
+              "valor": 2.0,
+              "lido_por": "CT-0001",
+              "divergentes": [
+                "CT-0007: 12"
+              ],
+              "valores": [
+                [
+                  1.0,
+                  "CT-0001"
+                ],
+                [
+                  2.0,
+                  "CT-0002"
+                ]
+              ]
+            }
+          ],
+          "tabelas_esperadas": [],
+          "negativos": [],
+          "a_confirmar": [
+            {
+              "id": "O máximo de parcelas vem do parâmetro MAX_PARCELAS (6 na carga inicial); qual é o valor em produção?",
+              "descricao": "O máximo de parcelas vem do parâmetro MAX_PARCELAS (6 na carga inicial); qual é o valor em produção?",
+              "atendido_por": "CT-0004"
+            }
+          ]
+        }
+      },
+      "arquivos_alterados": [],
+      "claude": {
+        "custo_usd": 0.2749608,
+        "turnos": 27,
+        "duracao_ms": 60543,
+        "erro": false,
+        "subtipo": "success",
+        "tokens": {
+          "entrada": 20,
+          "saida": 10183,
+          "cache_criacao": 35966,
+          "cache_leitura": 292268
+        }
+      },
+      "erro": null
+    },
+    {
+      "fluxo": "cenarios",
+      "item": "CEN-FAT-002",
+      "repeticao": 2,
+      "avaliacao": {
+        "item": "CEN-FAT-002",
+        "fluxo": "cenarios",
+        "analise": "A-0001",
+        "estado": "concluida",
+        "concluida": true,
+        "afirmacoes": 0,
+        "por_confianca": {
+          "confirmado": 0,
+          "inferido": 0,
+          "a_confirmar": 0
+        },
+        "perguntas_registradas": 1,
+        "sugestoes": 0,
+        "termos": 0,
+        "evidencias": 0,
+        "evidencias_validas": 0,
+        "evidencias_invalidas": [],
+        "confirmado_sem_evidencia_valida": [],
+        "regras": [
+          {
+            "id": "RN-FAT-008",
+            "titulo": "Quantidade de parcelas entre 2 e MAX_PARCELAS",
+            "encontrada": false,
+            "afirmacoes": []
+          }
+        ],
+        "regras_encontradas": 0,
+        "regras_esperadas": 1,
+        "outras_regras_encontradas": [],
+        "afirmacoes_fora_do_gabarito": [],
+        "arquivos": [],
+        "perguntas_esperadas": [],
+        "premissa": null,
+        "abrangencia": null,
+        "cenarios": {
+          "cenarios": 6,
+          "tabelas": 0,
+          "cenarios_sem_origem": [],
+          "limites": [
+            {
+              "id": "CEN-FAT-002-L1",
+              "regra": "RN-FAT-008",
+              "valor": 2.0,
+              "lido_por": "CT-0001",
+              "divergentes": [
+                "CT-0003: 12",
+                "CT-0006: 12"
+              ],
+              "valores": [
+                [
+                  1.0,
+                  "CT-0001"
+                ],
+                [
+                  2.0,
+                  "CT-0002"
+                ]
+              ]
+            }
+          ],
+          "tabelas_esperadas": [],
+          "negativos": [],
+          "a_confirmar": [
+            {
+              "id": "O máximo de parcelas vem do parâmetro MAX_PARCELAS (6 na carga inicial); qual é o valor em produção?",
+              "descricao": "O máximo de parcelas vem do parâmetro MAX_PARCELAS (6 na carga inicial); qual é o valor em produção?",
+              "atendido_por": "CT-0004"
+            }
+          ]
+        }
+      },
+      "arquivos_alterados": [],
+      "claude": {
+        "custo_usd": 0.2851853999999999,
+        "turnos": 25,
+        "duracao_ms": 60125,
+        "erro": false,
+        "subtipo": "success",
+        "tokens": {
+          "entrada": 20,
+          "saida": 9734,
+          "cache_criacao": 38631,
+          "cache_leitura": 332814
+        }
+      },
+      "erro": null
+    },
+    {
+      "fluxo": "cenarios",
+      "item": "CEN-FAT-002",
+      "repeticao": 3,
+      "avaliacao": {
+        "item": "CEN-FAT-002",
+        "fluxo": "cenarios",
+        "analise": "A-0001",
+        "estado": "concluida",
+        "concluida": true,
+        "afirmacoes": 0,
+        "por_confianca": {
+          "confirmado": 0,
+          "inferido": 0,
+          "a_confirmar": 0
+        },
+        "perguntas_registradas": 2,
+        "sugestoes": 0,
+        "termos": 0,
+        "evidencias": 0,
+        "evidencias_validas": 0,
+        "evidencias_invalidas": [],
+        "confirmado_sem_evidencia_valida": [],
+        "regras": [
+          {
+            "id": "RN-FAT-008",
+            "titulo": "Quantidade de parcelas entre 2 e MAX_PARCELAS",
+            "encontrada": false,
+            "afirmacoes": []
+          }
+        ],
+        "regras_encontradas": 0,
+        "regras_esperadas": 1,
+        "outras_regras_encontradas": [],
+        "afirmacoes_fora_do_gabarito": [],
+        "arquivos": [],
+        "perguntas_esperadas": [],
+        "premissa": null,
+        "abrangencia": null,
+        "cenarios": {
+          "cenarios": 10,
+          "tabelas": 0,
+          "cenarios_sem_origem": [],
+          "limites": [
+            {
+              "id": "CEN-FAT-002-L1",
+              "regra": "RN-FAT-008",
+              "valor": 2.0,
+              "lido_por": "CT-0001",
+              "divergentes": [
+                "CT-0008: 12",
+                "CT-0009: 12"
+              ],
+              "valores": [
+                [
+                  1.0,
+                  "CT-0001"
+                ],
+                [
+                  2.0,
+                  "CT-0002"
+                ]
+              ]
+            }
+          ],
+          "tabelas_esperadas": [],
+          "negativos": [],
+          "a_confirmar": [
+            {
+              "id": "O máximo de parcelas vem do parâmetro MAX_PARCELAS (6 na carga inicial); qual é o valor em produção?",
+              "descricao": "O máximo de parcelas vem do parâmetro MAX_PARCELAS (6 na carga inicial); qual é o valor em produção?",
+              "atendido_por": "CT-0006"
+            }
+          ]
+        }
+      },
+      "arquivos_alterados": [],
+      "claude": {
+        "custo_usd": 0.3355178999999999,
+        "turnos": 32,
+        "duracao_ms": 77301,
+        "erro": false,
+        "subtipo": "success",
+        "tokens": {
+          "entrada": 24,
+          "saida": 12912,
+          "cache_criacao": 41495,
+          "cache_leitura": 403699
+        }
+      },
+      "erro": null
+    }
+  ],
+  "custo_total_usd": 0.8956640999999999,
+  "sem_falhas_graves": true
+}

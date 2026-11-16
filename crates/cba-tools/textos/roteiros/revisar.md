@@ -5,7 +5,8 @@ agente.
 
 Para ajustar o roteiro à sua organização (por exemplo, os termos vagos que a
 casa também evita ou o formato de história adotado), edite este arquivo na base
-(_templates/roteiros/revisar.md). Para voltar ao padrão do app, apague-o.
+(_templates/roteiros/revisar.md). Para voltar ao padrão do app, apague-o: o app
+grava de novo a cópia padrão na próxima análise.
 
 Variáveis: {{id}}, {{titulo}}, {{fluxo}}, {{documento}}, {{entrada}},
 {{secoes}}, {{secoes_obrigatorias}} e {{contexto}}; o que cada uma traz está no
@@ -38,7 +39,7 @@ Dizer ao analista se o requisito ou a história pode ir para o desenvolvimento, 
    - `correcao`: o texto **contradiz uma regra confirmada da base ou o que o código faz** (um valor, um perfil, uma condição diferente). Diga no `problema` o que a regra ou o código fazem, com valores, cite em `regras` a regra da base contrariada (RN-…) e, em `evidencias`, o trecho do código: arquivo relativo à raiz do projeto, linhas e o trecho copiado, exatamente como está. Sem evidência, o achado de correção é recusado. Na dúvida se a diferença é erro do texto ou mudança pedida de propósito, registre o achado e pergunte ao autor com `perguntar`.
    - `ambiguidade`: termos vagos. Chame `verificar_termos_vagos` (analise: "{{id}}"): ele devolve os termos da lista de referência que aparecem no texto ("rápido", "adequado", "etc.", "normalmente", "e/ou" e outros). Registre um achado para cada um (pode juntar no mesmo achado termos da mesma frase), com a reescrita verificável. Aponte também outros termos vagos que a lista não tem.
    - `verificabilidade`: critério de aceite que não se pode testar com um resultado objetivo ("deve ser rápido", "o sistema deve funcionar bem").
-   - `completude`: casos de exceção e perfis que o código trata e o texto não diz (outro tipo de cliente, um bloqueio, um limite, uma aprovação). Compare com as regras e exceções do código e cite a evidência; o `trecho` pode ficar vazio, porque o achado aponta o que falta.
+   - `completude`: casos de exceção, perfis e valores que o código trata e o texto não diz (outro tipo de cliente, um bloqueio, um limite, uma aprovação, o tamanho mínimo de um campo que o texto só chama de obrigatório). O texto que omite uma condição não a contradiz: é completude, não correção. Compare com as regras e exceções do código e cite a evidência; o `trecho` pode ficar vazio, porque o achado aponta o que falta.
    - `consistencia`: termo que diverge do glossário do projeto (um sinônimo que o glossário não usa, um nome do sistema em vez do nome do negócio). Na reescrita, use o termo do glossário.
    - `singularidade`: o texto junta mais de uma necessidade; sugira a divisão.
    Severidade: `alta` quando o texto, como está, leva a construir a coisa errada (contradição, regra errada, critério que contradiz outro); `media` quando gera dúvida ou retrabalho provável; `baixa` para melhoria de redação. O `trecho` é copiado do texto revisado, como está; trecho que não aparece no texto é recusado.

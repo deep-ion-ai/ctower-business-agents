@@ -3,8 +3,10 @@ Roteiro do fluxo "cenários de teste". O agente o recebe na resposta de
 iniciar_analise e de retomar_analise. Este comentário inicial não vai para o
 agente.
 
-Roteiro provisório: entra na cópia editável da base (_templates/roteiros/) depois
-da avaliação do fluxo contra o gabarito (docs/avaliacao.md).
+Para ajustar o roteiro à sua organização (por exemplo, as técnicas que a casa
+exige ou o formato dos passos), edite este arquivo na base
+(_templates/roteiros/cenarios.md). Para voltar ao padrão do app, apague-o: o app
+grava de novo a cópia padrão na próxima análise.
 
 Variáveis: {{id}}, {{titulo}}, {{fluxo}}, {{documento}}, {{entrada}},
 {{secoes}}, {{secoes_obrigatorias}} e {{contexto}}; o que cada uma traz está no
@@ -30,7 +32,7 @@ Derivar das regras de negócio os cenários de teste que o analista e o QA vão 
 2. **Leia o código de cada regra.** Abra o trecho citado nas evidências e ache onde a regra é decidida: as comparações (`<`, `<=`, `>`), as constantes, os parâmetros lidos de tabela, as mensagens e os códigos de erro. É dali que saem os valores dos cenários.
 3. **Regra com duas ou mais condições combinadas vira tabela de decisão** (`registrar_tabela_decisao`): as condições (verdadeiras ou falsas, cada uma com a evidência do trecho que a testa), as ações (com a mensagem ou o código de erro) e as colunas, uma por combinação, com S, N ou - (indiferente). Cubra todas as combinações; a que não pode acontecer vira coluna `impossivel` com a justificativa. O app recusa a tabela incompleta ou com duas colunas para a mesma combinação. Depois, registre um cenário por coluna possível (técnica `tabela_de_decisao`, `tabela`: "TD-n/Rn").
 4. **Regra numérica ou de data vira partição de equivalência e valores-limite.** Separe as classes (válida e inválidas) e teste um representante de cada (`particao_de_equivalencia`); teste o limite e o valor logo antes e logo depois (`valor_limite`): numa regra "recusa se `dias > 30`", os dias 30 e 31; numa "recusa se `tamanho < 10`", os tamanhos 9 e 10. Veja se a comparação é estrita ou não: é ela que diz de que lado o limite cai. Inclua o zero, o vazio e o máximo do campo quando o código os trata.
-5. **Informe o limite com a evidência** em `limite`: a grandeza, o valor como está no código e o trecho que o define. O valor precisa aparecer no trecho citado; se não aparece, o app recusa. Quando o código lê o limite de tabela de parâmetros ou de configuração (o valor não está no código, só a chave), informe `configuracao` com o parâmetro e cite a `pergunta` (registre-a com `perguntar` nesta análise, como `{{id}}/n`, se ainda não existir): o cenário fica "a confirmar". O valor de uma carga inicial de parâmetros não garante o valor em produção.
+5. **Informe o limite com a evidência** em `limite`: a grandeza, o valor como está no código e o trecho que o define. O valor precisa aparecer no trecho citado; se não aparece, o app recusa. Quando a regra é decidida em mais de uma camada (a tela e o banco, por exemplo), leia o limite em cada uma e cite o trecho de todas em `limite`, começando pela camada que protege o dado (banco ou serviço), que vale para qualquer caminho de entrada: a tela pode ser contornada. Se o valor diverge entre as camadas, registre um cenário por camada e pergunte qual vale. Quando o código lê o limite de tabela de parâmetros ou de configuração (o valor não está no código, só a chave), informe `configuracao` com o parâmetro e cite a `pergunta` (registre-a com `perguntar` nesta análise, como `{{id}}/n`, se ainda não existir): o cenário fica "a confirmar". O valor de uma carga inicial de parâmetros não garante o valor em produção.
 6. **Inclua os cenários negativos e de exceção que o código trata** (`negativo`, `excecao`): entrada recusada, estado que impede a operação, a mensagem ou o código de erro exato no Então.
 7. **Cada cenário cita a origem** em `regras` (`RN-<SIGLA>-NNN`) ou `afirmacoes` (o número na análise de origem ou `A-NNNN/n`) e, se verifica uma história, `historia` (HU-NNNN). Cenário sem origem é recusado.
 8. **Escreva os passos com valores concretos:** Dado (a pré-condição, com os dados), Quando (a ação, com o valor testado) e Então (o resultado esperado, com a mensagem). Informe o valor testado em `valor`. O app dá o identificador estável (CT-NNNN) de cada cenário; cite-o no chat. Seções desta análise que recebem afirmações:

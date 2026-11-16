@@ -3,8 +3,10 @@ Roteiro do fluxo "histórias e critérios de aceite". O agente o recebe na
 resposta de iniciar_analise e de retomar_analise. Este comentário inicial não vai
 para o agente.
 
-Roteiro provisório: entra na cópia editável da base (_templates/roteiros/) depois
-da avaliação do fluxo contra o gabarito (docs/avaliacao.md).
+Para ajustar o roteiro à sua organização (por exemplo, o formato de história da
+casa ou o nível de detalhe dos critérios), edite este arquivo na base
+(_templates/roteiros/historias.md). Para voltar ao padrão do app, apague-o: o app
+grava de novo a cópia padrão na próxima análise.
 
 Variáveis: {{id}}, {{titulo}}, {{fluxo}}, {{documento}}, {{entrada}},
 {{secoes}}, {{secoes_obrigatorias}} e {{contexto}}; o que cada uma traz está no
