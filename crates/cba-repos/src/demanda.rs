@@ -4,7 +4,7 @@
 //! `jira issue view --raw` (JSON da API v2). O token chega ao processo filho só
 //! no ambiente. Sem escrita no rastreador.
 
-use crate::chaveiro::{Chaveiro, ChaveiroNativo, conta_global};
+use crate::chaveiro::{Chaveiro, ChaveiroNativo, ErroToken, token_global};
 use crate::codigo::HOST_GITHUB;
 use crate::process::{self, RunError, cite};
 use crate::{
@@ -57,8 +57,17 @@ impl fmt::Debug for Ferramentas {
     }
 }
 
+impl From<ErroToken> for DemandaErro {
+    fn from(e: ErroToken) -> Self {
+        match e {
+            ErroToken::Comando(c) => DemandaErro::Credencial(c),
+            e => DemandaErro::Chaveiro(e.to_string()),
+        }
+    }
+}
+
 /// Token do GitLab de issues: o do comando de credencial, se cadastrado; senão,
-/// o token global do host no chaveiro (#179).
+/// o token global do host (chaveiro ou comando do host, #179 e #193).
 pub fn token_gitlab(g: &GitlabConfig, f: &Ferramentas) -> Result<Secret, DemandaErro> {
     if !g.credential_cmd.trim().is_empty() {
         return Ok(run_credential(
@@ -67,9 +76,7 @@ pub fn token_gitlab(g: &GitlabConfig, f: &Ferramentas) -> Result<Secret, Demanda
             CREDENTIAL_DEADLINE,
         )?);
     }
-    f.chaveiro
-        .ler(&conta_global(&g.host))
-        .map_err(DemandaErro::Chaveiro)?
+    token_global(&g.host, "GitLab", f.chaveiro.as_ref())?
         .ok_or_else(|| DemandaErro::SemToken(g.host.trim().to_string()))
 }
 
@@ -84,15 +91,15 @@ pub fn token_jira(j: &JiraConfig, f: &Ferramentas) -> Result<Secret, DemandaErro
         )?);
     }
     let host = j.host();
-    f.chaveiro
-        .ler(&conta_global(&host))
-        .map_err(DemandaErro::Chaveiro)?
-        .ok_or(DemandaErro::SemToken(host))
+    token_global(&host, "Jira", f.chaveiro.as_ref())?.ok_or(DemandaErro::SemToken(host))
 }
 
-/// Token global do GitHub no chaveiro, se houver; sem ele, vale o `gh auth`.
+/// Token global do GitHub (chaveiro ou comando do host), se houver; sem ele,
+/// vale o `gh auth`.
 pub fn token_github(f: &Ferramentas) -> Option<Secret> {
-    f.chaveiro.ler(&conta_global(HOST_GITHUB)).ok().flatten()
+    token_global(HOST_GITHUB, "GitHub", f.chaveiro.as_ref())
+        .ok()
+        .flatten()
 }
 
 /// Issue lida do rastreador.
@@ -114,7 +121,8 @@ pub enum DemandaErro {
     #[error("{0}")]
     Chaveiro(String),
     #[error(
-        "sem token para {0}: cadastre o token do host em Configurações ou o comando de credencial"
+        "sem token para {0}: cadastre o token do host em Configurações › Acessos ou o comando \
+         de credencial"
     )]
     SemToken(String),
     #[error("{ferramenta} não encontrado: instale-o e confira a prontidão do projeto")]
@@ -360,7 +368,7 @@ echo '{"title":"T","description":"D","web_url":"https://gitlab.example.com/g/p/a
 
     #[test]
     fn gitlab_e_github_usam_o_token_global_do_chaveiro() {
-        use crate::chaveiro::ChaveiroMemoria;
+        use crate::chaveiro::{ChaveiroMemoria, conta_global};
         let d = tempfile::tempdir().unwrap();
         let chaveiro = Arc::new(ChaveiroMemoria::default());
         let f = Ferramentas {

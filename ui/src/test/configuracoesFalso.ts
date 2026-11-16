@@ -16,8 +16,10 @@ import {
   type TrocaBase,
 } from "../configuracoes";
 import type { PreviaProjeto } from "../primeiroUso";
+import type { EstadoToken, HostCadastrado, TesteToken } from "../acessos";
 import type {
   AlvoToken,
+  ForgeKind,
   EventoClone,
   Prontidao,
   RepoDetectado,
@@ -179,6 +181,13 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
   };
   /** O chaveiro falso: conta → token. */
   const chaveiro = new Map<string, string>();
+  /** Comandos que imprimem o token global (host → comando). */
+  const comandos = new Map<string, string>();
+  /** Últimos testes (conta → resultado). */
+  const testes = new Map<string, TesteToken>();
+  let hostsExtras: HostCadastrado[] = [];
+  /** Resultado do próximo "Testar" (o padrão: acesso ok agora). */
+  let proximoTeste: () => TesteToken = () => ({ ok: true, quando: Date.now() });
   let pastaClones: string | null = PASTA_CLONES;
   const api = {
     ...base,
@@ -192,11 +201,60 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
     }),
     salvarToken: vi.fn((alvo: AlvoToken, token: string): Promise<void> => {
       chaveiro.set(contaDoAlvo(alvo), token);
+      if (!alvo.caminho) comandos.delete(alvo.host);
+      testes.delete(contaDoAlvo(alvo));
       return Promise.resolve();
     }),
     apagarToken: vi.fn((alvo: AlvoToken): Promise<void> => {
       chaveiro.delete(contaDoAlvo(alvo));
+      testes.delete(contaDoAlvo(alvo));
       return Promise.resolve();
+    }),
+    hostsAcessos: vi.fn((): Promise<HostCadastrado[]> => Promise.resolve([...hostsExtras])),
+    adicionarHostAcesso: vi.fn((host: string, forja: ForgeKind): Promise<HostCadastrado> => {
+      const h = { host: host.trim().toLowerCase(), forja };
+      hostsExtras = [...hostsExtras.filter((x) => x.host !== h.host), h];
+      return Promise.resolve(h);
+    }),
+    removerHostAcesso: vi.fn((host: string): Promise<void> => {
+      chaveiro.delete(host);
+      comandos.delete(host);
+      testes.delete(host);
+      hostsExtras = hostsExtras.filter((x) => x.host !== host);
+      return Promise.resolve();
+    }),
+    definirComandoHost: vi.fn((host: string, comando: string): Promise<void> => {
+      if (!comando.trim()) return Promise.reject("informe o comando que imprime o token");
+      comandos.set(host, comando.trim());
+      chaveiro.delete(host);
+      testes.delete(host);
+      return Promise.resolve();
+    }),
+    estadoTokens: vi.fn(
+      (alvos: AlvoToken[]): Promise<EstadoToken[]> =>
+        Promise.resolve(
+          alvos.map((a) => ({
+            guardado: chaveiro.has(contaDoAlvo(a)),
+            comando: a.caminho ? null : (comandos.get(a.host) ?? null),
+            teste: testes.get(contaDoAlvo(a)) ?? null,
+          })),
+        ),
+    ),
+    testarTokenHost: vi.fn(
+      (
+        host: string,
+        _forja: ForgeKind,
+        _exemplo: RepositorioCodigo | null,
+      ): Promise<TesteToken> => {
+        const t = proximoTeste();
+        testes.set(host, t);
+        return Promise.resolve(t);
+      },
+    ),
+    testarTokenRepositorio: vi.fn((r: RepositorioCodigo): Promise<TesteToken> => {
+      const t = proximoTeste();
+      testes.set(contaDoAlvo({ host: r.host, caminho: r.caminho }), t);
+      return Promise.resolve(t);
     }),
     tokensGuardados: vi.fn(
       (alvos: AlvoToken[]): Promise<boolean[]> =>
@@ -373,5 +431,11 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
     textoNaBase: (arquivo: string) => arquivos.get(arquivo)!.texto,
     /** O conteúdo do chaveiro falso (conta → token). */
     chaveiro,
+    comandos,
+    testes,
+    /** Define o resultado dos próximos "Testar". */
+    aoTestar: (f: () => TesteToken) => {
+      proximoTeste = f;
+    },
   });
 }

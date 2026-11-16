@@ -14,6 +14,7 @@ import {
   type ProjetoCadastrado,
 } from "./primeiroUso";
 import { apiRepositoriosTauri, type ApiRepositorios, type Repositorios } from "./repositorios";
+import { apiAcessosTauri, type ApiAcessos } from "./acessos";
 
 /**
  * Espelho dos comandos das configurações (`ui/src-tauri/src/configuracoes.rs`, campos
@@ -168,7 +169,7 @@ export interface AmbienteDetalhado extends AmbienteClaude {
   verificacao?: VerificacaoAmbiente;
 }
 
-export interface ApiConfiguracoes extends ApiPrimeiroUso, ApiRepositorios {
+export interface ApiConfiguracoes extends ApiPrimeiroUso, ApiRepositorios, ApiAcessos {
   configuracoes(): Promise<Configuracoes>;
   /** Documentos, tamanho, git e índice da base; `null` sem base escolhida. */
   infoBase(): Promise<InfoBase | null>;
@@ -201,6 +202,7 @@ export interface ApiConfiguracoes extends ApiPrimeiroUso, ApiRepositorios {
 export const apiConfiguracoesTauri: ApiConfiguracoes = {
   ...apiPrimeiroUsoTauri,
   ...apiRepositoriosTauri,
+  ...apiAcessosTauri,
   configuracoes: () => invoke("configuracoes_app"),
   infoBase: () => invoke("info_base_app"),
   abrirBase: () => invoke("abrir_base_app"),

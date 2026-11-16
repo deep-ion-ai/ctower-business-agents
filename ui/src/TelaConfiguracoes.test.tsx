@@ -78,20 +78,24 @@ async function trocarPasta(destino: string) {
 
 describe("TelaConfiguracoes", () => {
   describe("menu lateral", () => {
-    it("tem os grupos App, Base de conhecimento e Projetos, com o Acessos oculto", async () => {
+    it("tem os grupos App, Base de conhecimento e Projetos", async () => {
       montar();
       await screen.findByRole("heading", { name: "Aparência" });
       const m = menu();
       expect(m.getByRole("group", { name: "App" })).toBeInTheDocument();
       expect(m.getByRole("group", { name: "Base de conhecimento" })).toBeInTheDocument();
       expect(m.getByRole("group", { name: "Projetos" })).toBeInTheDocument();
-      for (const nome of ["Aparência", "Assistente de IA", "Pasta da base", "Modelos e prompts"]) {
+      for (const nome of [
+        "Aparência",
+        "Assistente de IA",
+        "Acessos",
+        "Pasta da base",
+        "Modelos e prompts",
+      ]) {
         expect(m.getByRole("button", { name: nome })).toBeInTheDocument();
       }
       expect(m.getByRole("button", { name: "Faturamento Exemplo" })).toBeInTheDocument();
       expect(m.getByRole("button", { name: "+ Novo projeto" })).toBeEnabled();
-      // “Acessos” espera a #193: o item existe no código, mas não aparece.
-      expect(m.queryByRole("button", { name: "Acessos" })).not.toBeInTheDocument();
     });
 
     it("marca o item aberto com aria-current e mostra só a seção escolhida", async () => {
@@ -153,8 +157,8 @@ describe("TelaConfiguracoes", () => {
       expect(await screen.findAllByRole("heading", { name: "Aparência", level: 2 })).not.toHaveLength(0);
     });
 
-    it("ignora uma seção lembrada que não existe ou está oculta", async () => {
-      localStorage.setItem(CHAVE_SECAO, "acessos");
+    it("ignora uma seção lembrada que não existe", async () => {
+      localStorage.setItem(CHAVE_SECAO, "inexistente");
       montar();
       expect(await menu().findByRole("button", { name: "Aparência" })).toHaveAttribute(
         "aria-current",
@@ -170,8 +174,8 @@ describe("TelaConfiguracoes", () => {
       fireEvent.keyDown(aparencia, { key: "ArrowDown" });
       expect(m.getByRole("button", { name: "Assistente de IA" })).toHaveFocus();
       fireEvent.keyDown(m.getByRole("button", { name: "Assistente de IA" }), { key: "ArrowDown" });
-      expect(m.getByRole("button", { name: "Pasta da base" })).toHaveFocus();
-      fireEvent.keyDown(m.getByRole("button", { name: "Pasta da base" }), { key: "ArrowUp" });
+      expect(m.getByRole("button", { name: "Acessos" })).toHaveFocus();
+      fireEvent.keyDown(m.getByRole("button", { name: "Acessos" }), { key: "ArrowUp" });
       expect(m.getByRole("button", { name: "Assistente de IA" })).toHaveFocus();
       // Itens são botões de verdade: Tab e Enter/Espaço do navegador valem.
       expect(m.getByRole("button", { name: "Assistente de IA" }).tagName).toBe("BUTTON");

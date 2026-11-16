@@ -54,6 +54,10 @@ pub struct Preferencias {
     /// sugerida.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pasta_clones: Option<PathBuf>,
+    /// Hosts acrescentados na seção Acessos e o último teste de cada token
+    /// (#193); nunca o token.
+    #[serde(default, skip_serializing_if = "crate::acessos::AcessosSalvos::vazio")]
+    pub acessos: crate::acessos::AcessosSalvos,
 }
 
 impl Preferencias {

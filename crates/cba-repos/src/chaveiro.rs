@@ -4,7 +4,9 @@
 //! Dois níveis: o token **global** de um host (`host:gitlab.example.com`), que
 //! vale para todos os repositórios daquele host, e o token **próprio** de um
 //! repositório (`repo:gitlab.example.com/grupo/app`), que tem precedência. O
-//! comando que imprime o token continua como alternativa (`token = comando`).
+//! comando que imprime o token continua como alternativa: no repositório
+//! (`token = comando`, no cadastro) ou no host (#193), guardado no chaveiro em
+//! `comando:host:<host>` no lugar do token global.
 //!
 //! O token nunca vai para o cadastro, para logs nem para mensagens: só sai do
 //! chaveiro como [`Secret`] e vai para o ambiente do processo filho.
@@ -108,6 +110,41 @@ pub fn conta_global(host: &str) -> String {
     format!("host:{}", host.trim().to_ascii_lowercase())
 }
 
+/// Conta do comando que imprime o token global de um host (#193): a
+/// alternativa a guardar o token. O comando não é segredo, mas fica no chaveiro
+/// junto do token para que todo lugar que lê o token global o encontre.
+pub fn conta_comando_global(host: &str) -> String {
+    format!("comando:{}", conta_global(host))
+}
+
+/// O comando que imprime o token global do host, se configurado.
+pub fn comando_global(host: &str, chaveiro: &dyn Chaveiro) -> Result<Option<String>, String> {
+    Ok(chaveiro
+        .ler(&conta_comando_global(host))?
+        .map(|c| c.expose().to_string())
+        .filter(|c| !c.trim().is_empty()))
+}
+
+/// Token global do host: o guardado no chaveiro ou, sem ele, o que o comando
+/// do host imprime. `None`: nenhum dos dois. `what` nomeia o host nas
+/// mensagens do comando ("GitHub", "GitLab", "Jira").
+pub fn token_global(
+    host: &str,
+    what: &'static str,
+    chaveiro: &dyn Chaveiro,
+) -> Result<Option<Secret>, ErroToken> {
+    if let Some(t) = chaveiro
+        .ler(&conta_global(host))
+        .map_err(ErroToken::Chaveiro)?
+    {
+        return Ok(Some(t));
+    }
+    match comando_global(host, chaveiro).map_err(ErroToken::Chaveiro)? {
+        Some(cmd) => Ok(Some(run_credential(what, &cmd, CREDENTIAL_DEADLINE)?)),
+        None => Ok(None),
+    }
+}
+
 /// Conta do token próprio de um repositório.
 pub fn conta_propria(repo: &RepositorioCodigo) -> String {
     format!("repo:{}", repo.chave())
@@ -150,9 +187,7 @@ pub fn token_do_repositorio(
     if repo.token == OrigemToken::Proprio {
         return Err(ErroToken::SemTokenProprio(repo.rotulo()));
     }
-    chaveiro
-        .ler(&conta_global(&repo.host))
-        .map_err(ErroToken::Chaveiro)
+    token_global(&repo.host, repo.forja.label(), chaveiro)
 }
 
 #[cfg(test)]
@@ -227,9 +262,43 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn comando_do_host_vale_para_os_repositorios_do_host_sem_token_guardado() {
+        let c = ChaveiroMemoria::default();
+        let a = gl("g/a", OrigemToken::Global);
+        c.gravar(
+            &conta_comando_global("gitlab.example.com"),
+            &Secret::new("echo do-comando-do-host"),
+        )
+        .unwrap();
+        assert_eq!(
+            comando_global("GitLab.example.com", &c).unwrap().as_deref(),
+            Some("echo do-comando-do-host")
+        );
+        assert_eq!(
+            token_do_repositorio(&a, &c).unwrap().unwrap().expose(),
+            "do-comando-do-host"
+        );
+        // O token guardado tem precedência sobre o comando do host.
+        c.gravar(
+            &conta_global("gitlab.example.com"),
+            &Secret::new("guardado"),
+        )
+        .unwrap();
+        assert_eq!(
+            token_do_repositorio(&a, &c).unwrap().unwrap().expose(),
+            "guardado"
+        );
+    }
+
     #[test]
     fn contas_e_debug_sem_token() {
         assert_eq!(conta_global(" GitHub.com "), "host:github.com");
+        assert_eq!(
+            conta_comando_global("GitHub.com"),
+            "comando:host:github.com"
+        );
         assert_eq!(
             conta_propria(&gl("G/App", OrigemToken::Proprio)),
             "repo:gitlab.example.com/g/app"
