@@ -127,8 +127,14 @@ fn prepara_em_configuracao_vazia() {
     assert!(r.gravado);
     assert_eq!(r.diretorio, pasta);
     assert!(r.backups.is_empty(), "não havia arquivo antes");
-    assert_eq!(r.alteracoes.len(), 1 + EVENTOS.len());
+    assert_eq!(r.alteracoes.len(), 2 + EVENTOS.len());
     assert!(r.alteracoes.iter().all(|a| a.acao == Acao::Adicionado));
+    assert_eq!(
+        r.alteracoes[1].item,
+        Item::Confianca {
+            chave: alvo.chave.clone()
+        }
+    );
 
     let estado = c.estado();
     assert_eq!(
@@ -139,6 +145,10 @@ fn prepara_em_configuracao_vazia() {
             "args": ["mcp"],
             "env": { "CBA_PROJETO": "faturamento-exemplo" }
         })
+    );
+    assert_eq!(
+        estado["projects"][&alvo.chave]["hasTrustDialogAccepted"],
+        true
     );
     let settings = c.settings();
     for evento in EVENTOS {
@@ -311,8 +321,21 @@ fn preserva_a_configuracao_do_analista_e_desfaz_exatamente() {
     );
     assert_eq!(pre[0]["matcher"], "Bash");
 
+    assert_eq!(
+        r.alteracoes[1].acao,
+        Acao::SemMudanca,
+        "o analista já confiava na pasta"
+    );
+
     let r = c.preparador().desfazer(&alvo).unwrap();
-    assert!(r.alteracoes.iter().all(|a| a.acao == Acao::Removido));
+    for a in &r.alteracoes {
+        let esperada = match a.item {
+            // A confiança não foi o app que deu: fica.
+            Item::Confianca { .. } => Acao::SemMudanca,
+            _ => Acao::Removido,
+        };
+        assert_eq!(a.acao, esperada, "{a:?}");
+    }
     assert_eq!(
         fs::read_to_string(&c.config.estado).unwrap(),
         estado_original
@@ -440,7 +463,13 @@ fn outro_executavel_e_substituido_sem_duplicar() {
     );
 
     let r = p.preparar(&alvo).unwrap();
-    assert!(r.alteracoes.iter().all(|a| a.acao == Acao::Atualizado));
+    assert!(
+        r.alteracoes
+            .iter()
+            .filter(|a| !matches!(a.item, Item::Confianca { .. }))
+            .all(|a| a.acao == Acao::Atualizado)
+    );
+    assert_eq!(r.alteracoes[1].acao, Acao::SemMudanca, "já era confiável");
     let settings = c.settings();
     for evento in EVENTOS {
         let grupos = settings["hooks"][evento].as_array().unwrap();
@@ -1064,9 +1093,9 @@ fn entrada_que_o_claude_gravou_na_pasta_fica_e_e_dita() {
     let alvo = c.alvo("s", &c.pasta("s"));
     let p = c.preparador();
     p.preparar(&alvo).unwrap();
-    // O Claude Code grava a confiança na pasta ao abrir a primeira conversa.
+    // O Claude Code grava dados da pasta ao abrir uma conversa.
     let mut e = c.estado();
-    e["projects"][&alvo.chave]["hasTrustDialogAccepted"] = json!(true);
+    e["projects"][&alvo.chave]["lastCost"] = json!(0);
     fs::write(&c.config.estado, serde_json::to_string_pretty(&e).unwrap()).unwrap();
 
     let r = p.desfazer(&alvo).unwrap();
@@ -1076,8 +1105,8 @@ fn entrada_que_o_claude_gravou_na_pasta_fica_e_e_dita() {
     ));
     assert_eq!(
         c.estado()["projects"][&alvo.chave],
-        json!({ "hasTrustDialogAccepted": true }),
-        "o servidor e o mcpServers, que não existiam, saem"
+        json!({ "lastCost": 0 }),
+        "o servidor, o mcpServers e a confiança, que não existiam, saem"
     );
 }
 
@@ -1139,6 +1168,135 @@ fn registro_ilegivel_nao_impede_o_desfazer() {
     p.preparar(&alvo).unwrap();
     fs::write(c.config.registro(), "{ quebrado").unwrap();
     let r = p.desfazer(&alvo).unwrap();
-    assert!(r.alteracoes.iter().all(|a| a.acao == Acao::Removido));
+    assert!(
+        r.alteracoes
+            .iter()
+            .filter(|a| !matches!(a.item, Item::Confianca { .. }))
+            .all(|a| a.acao == Acao::Removido)
+    );
     assert_eq!(c.settings(), json!({}));
+}
+
+// ---------------------------------------------------------------------------
+// Confiança na pasta (#218)
+
+#[test]
+fn preparo_marca_a_pasta_como_confiavel_e_o_desfazer_tira() {
+    let c = Cenario::novo();
+    // O analista já tem outra pasta registrada (o arquivo não é criado pelo app).
+    fs::write(
+        &c.config.estado,
+        "{\n  \"numStartups\": 1,\n  \"projects\": {}\n}\n",
+    )
+    .unwrap();
+    let original = fs::read_to_string(&c.config.estado).unwrap();
+    let alvo = c.alvo("s", &c.pasta("s"));
+    let p = c.preparador();
+
+    let antes = p.verificar(&alvo).unwrap();
+    assert!(!antes.pasta_confiavel);
+    let plano = p.planejar(&alvo).unwrap();
+    assert!(plano.alteracoes.iter().any(|a| a.item
+        == Item::Confianca {
+            chave: alvo.chave.clone()
+        }
+        && a.acao == Acao::Adicionado));
+
+    p.preparar(&alvo).unwrap();
+    let v = p.verificar(&alvo).unwrap();
+    assert!(v.pasta_confiavel && v.pronto);
+
+    let r = p.desfazer(&alvo).unwrap();
+    assert!(r.voltou_ao_que_era(), "{:?}", r.mantidos);
+    assert!(
+        r.alteracoes
+            .iter()
+            .any(|a| matches!(a.item, Item::Confianca { .. }) && a.acao == Acao::Removido)
+    );
+    assert_eq!(fs::read_to_string(&c.config.estado).unwrap(), original);
+}
+
+#[test]
+fn sem_confianca_o_ambiente_nao_esta_pronto() {
+    let c = Cenario::novo();
+    let alvo = c.alvo("s", &c.pasta("s"));
+    let p = c.preparador();
+    p.preparar(&alvo).unwrap();
+    // O analista (ou uma versão anterior do app) deixou a pasta sem confiança.
+    let mut e = c.estado();
+    e["projects"][&alvo.chave]
+        .as_object_mut()
+        .unwrap()
+        .remove("hasTrustDialogAccepted");
+    fs::write(&c.config.estado, serde_json::to_string_pretty(&e).unwrap()).unwrap();
+    let v = p.verificar(&alvo).unwrap();
+    assert!(!v.pasta_confiavel);
+    assert!(!v.pronto);
+    assert!(
+        crate::terminal::claude::pendencias(&v)
+            .iter()
+            .any(|t| t.contains("confiável"))
+    );
+    let r = p.preparar(&alvo).unwrap();
+    assert_eq!(r.alteracoes[1].acao, Acao::Adicionado);
+    assert!(p.verificar(&alvo).unwrap().pronto);
+}
+
+#[test]
+fn confianca_recusada_antes_volta_ao_desfazer() {
+    let c = Cenario::novo();
+    let alvo = c.alvo("s", &c.pasta("s"));
+    let chave_json = serde_json::to_string(&alvo.chave).unwrap();
+    let original = format!(
+        "{{\n  \"projects\": {{\n    {chave_json}: {{\n      \"hasTrustDialogAccepted\": false\n    }}\n  }}\n}}\n"
+    );
+    fs::write(&c.config.estado, &original).unwrap();
+    let p = c.preparador();
+    p.preparar(&alvo).unwrap();
+    assert_eq!(
+        c.estado()["projects"][&alvo.chave]["hasTrustDialogAccepted"],
+        true
+    );
+    p.desfazer(&alvo).unwrap();
+    assert_eq!(fs::read_to_string(&c.config.estado).unwrap(), original);
+}
+
+#[test]
+fn confianca_fica_com_a_outra_instalacao_que_ainda_usa_a_pasta() {
+    let c = Cenario::novo();
+    let alvo = c.alvo("s", &c.pasta("s"));
+    let dev = c.preparador_com(outra_instalacao(&c));
+    let teste = c.preparador();
+    // A de teste prepara primeiro (dá a confiança); a dev prepara a mesma pasta.
+    teste.preparar(&alvo).unwrap();
+    let r = dev.preparar(&alvo).unwrap();
+    assert_eq!(r.alteracoes[1].acao, Acao::SemMudanca);
+
+    // Desfazer a de teste devolve o servidor da dev; a confiança continua.
+    teste.desfazer(&alvo).unwrap();
+    assert_eq!(
+        c.estado()["projects"][&alvo.chave]["hasTrustDialogAccepted"],
+        true
+    );
+    // A dev herdou a confiança e a tira ao desfazer.
+    let r = dev.desfazer(&alvo).unwrap();
+    assert!(
+        r.alteracoes
+            .iter()
+            .any(|a| matches!(a.item, Item::Confianca { .. }) && a.acao == Acao::Removido)
+    );
+    assert!(c.estado()["projects"].get(&alvo.chave).is_none());
+    assert!(!c.config.registro().exists());
+}
+
+#[test]
+fn worktree_fica_confiavel_pela_chave_do_repositorio_principal() {
+    let c = Cenario::novo();
+    let (repo, wt) = repo_com_worktree(&c.raiz);
+    let alvo = c.alvo("w", &wt.join("modulo"));
+    c.preparador().preparar(&alvo).unwrap();
+    assert_eq!(
+        c.estado()["projects"][&chave(&repo)]["hasTrustDialogAccepted"],
+        true
+    );
 }

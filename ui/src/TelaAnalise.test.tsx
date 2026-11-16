@@ -63,6 +63,11 @@ describe("TelaAnalise", () => {
           acao: "adicionado",
         },
         {
+          arquivo: "/home/ana/.claude.json",
+          item: { tipo: "confianca", chave: "/codigo" },
+          acao: "adicionado",
+        },
+        {
           arquivo: "/home/ana/.claude/settings.json",
           item: { tipo: "hook", evento: "SessionStart" },
           acao: "adicionado",
@@ -78,6 +83,10 @@ describe("TelaAnalise", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ver o que será alterado" }));
     expect(await screen.findByText(/Servidor MCP "cba" para a pasta \/codigo/)).toBeInTheDocument();
     expect(screen.getByText("Hook SessionStart")).toBeInTheDocument();
+    // A confiança na pasta entra no plano (#218).
+    expect(
+      screen.getByText(/Pasta \/codigo marcada como confiável no Claude Code/),
+    ).toBeInTheDocument();
     expect(analise.api.prepararAmbiente).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Concordo, preparar o ambiente" }));

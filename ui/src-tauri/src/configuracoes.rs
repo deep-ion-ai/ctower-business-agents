@@ -764,7 +764,7 @@ fn explicar_mantido(m: &preparo::Mantido) -> String {
         ),
         Mantido::EntradaDoClaude { arquivo, chave } => format!(
             "A pasta {chave} continua registrada em {} com dados que o próprio Claude Code \
-             gravou ao abrir conversas nela (como a confiança na pasta). O app não mexe \
+             gravou ao abrir conversas nela (como o histórico de uso). O app não mexe \
              nesses dados.",
             arquivo.display()
         ),

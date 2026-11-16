@@ -25,6 +25,7 @@ const PRONTO: AmbienteDetalhado = {
     diretorio: CODIGO,
     chave: CODIGO,
     servidorMcp: "ok",
+    pastaConfiavel: true,
     hooks: [
       { evento: "SessionStart", situacao: "ok" },
       { evento: "Stop", situacao: "ok" },
@@ -41,6 +42,7 @@ const SEM_PREPARO: AmbienteDetalhado = {
     diretorio: CODIGO,
     chave: CODIGO,
     servidorMcp: "ausente",
+    pastaConfiavel: false,
     hooks: [
       { evento: "SessionStart", situacao: "ausente" },
       { evento: "Stop", situacao: "ausente" },
@@ -581,7 +583,7 @@ describe("ConfigProjeto", () => {
     it("não diz que voltou ao que era quando algo ficou, e diz o quê e por quê (#213)", async () => {
       const { aba, api } = montar();
       const ficou =
-        "A pasta /codigo continua registrada em /home/ana/.claude.json com dados que o próprio Claude Code gravou ao abrir conversas nela (como a confiança na pasta).";
+        "A pasta /codigo continua registrada em /home/ana/.claude.json com dados que o próprio Claude Code gravou ao abrir conversas nela (como o histórico de uso).";
       api.desfazerAmbiente.mockResolvedValueOnce({
         protecaoTirada: [],
         preparo: { diretorio: "/codigo", alteracoes: [], gravado: true },

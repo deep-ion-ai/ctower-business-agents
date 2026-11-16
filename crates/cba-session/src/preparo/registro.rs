@@ -12,7 +12,9 @@
 //!   (`None` se não existia) e o que ela gravou;
 //! - para cada pasta (chave de `projects`) em que ela mudou o servidor MCP, o servidor
 //!   `cba` anterior (de outra instalação, se havia), o que ela gravou e se a entrada da
-//!   pasta e o `mcpServers` já existiam.
+//!   pasta e o `mcpServers` já existiam;
+//! - para cada pasta que ela marcou como confiável (`hasTrustDialogAccepted`, #218),
+//!   o valor anterior do campo (`None` se não existia).
 //!
 //! O primeiro "antes" fica: preparar de novo só atualiza o "depois". Só entram
 //! entradas no formato do app (`"<…/cba>" hook <evento>`, `<…/cba> mcp`) e os grupos
@@ -58,6 +60,15 @@ pub struct TrocaMcp {
     pub depois: Json,
 }
 
+/// Confiança na pasta (`projects["<chave>"].hasTrustDialogAccepted`) que a instalação
+/// marcou (#218).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TrocaConfianca {
+    /// Valor do campo antes; `None` se não existia.
+    #[serde(default)]
+    pub antes: Option<Json>,
+}
+
 /// O que uma instalação trocou.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -69,11 +80,14 @@ pub struct Instalacao {
     pub hooks: BTreeMap<String, TrocaHook>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub mcp: BTreeMap<String, TrocaMcp>,
+    /// Por chave de `projects`.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub confianca: BTreeMap<String, TrocaConfianca>,
 }
 
 impl Instalacao {
     pub fn vazia(&self) -> bool {
-        self.hooks.is_empty() && self.mcp.is_empty()
+        self.hooks.is_empty() && self.mcp.is_empty() && self.confianca.is_empty()
     }
 }
 
@@ -195,6 +209,29 @@ impl Registro {
             }
         }
         Some((existia, hooks))
+    }
+
+    /// Tira do registro a confiança na pasta `chave` marcada pela instalação `exe`.
+    /// Se outra instalação ainda tem o servidor MCP nessa pasta, a confiança passa a
+    /// ser dela (ela a tira quando desfizer) e a resposta diz que foi transferida.
+    pub fn tirar_confianca(&mut self, exe: &str, chave: &str) -> Option<(TrocaConfianca, bool)> {
+        let saiu = self.instalacoes.get_mut(exe)?.confianca.remove(chave)?;
+        self.limpar(exe);
+        let herdeira = self
+            .instalacoes
+            .iter_mut()
+            .find(|(e, i)| e.as_str() != exe && i.mcp.contains_key(chave));
+        let transferida = match herdeira {
+            Some((_, outra)) => {
+                outra
+                    .confianca
+                    .entry(chave.to_string())
+                    .or_insert_with(|| saiu.clone());
+                true
+            }
+            None => false,
+        };
+        Some((saiu, transferida))
     }
 
     /// Tira a instalação que ficou sem trocas.

@@ -429,7 +429,10 @@ export interface AmbienteClaude {
 
 export interface AlteracaoPreparo {
   arquivo: string;
-  item: { tipo: "servidorMcp"; chave: string } | { tipo: "hook"; evento: string };
+  item:
+    | { tipo: "servidorMcp"; chave: string }
+    | { tipo: "confianca"; chave: string }
+    | { tipo: "hook"; evento: string };
   acao: "adicionado" | "atualizado" | "removido" | "restaurado" | "semMudanca";
   /**
    * Executável de outra instalação do app: em "atualizado", para onde a entrada apontava
