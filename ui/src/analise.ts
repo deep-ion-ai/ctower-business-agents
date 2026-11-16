@@ -119,6 +119,47 @@ export interface Analise {
   cenarios?: Cenario[];
   /** Parecer de revisão (fluxo `revisar`, `cba_core::parecer::Parecer`). */
   parecer?: Parecer | null;
+  /** Diagramas registrados pelo agente (#118). */
+  diagramas?: Diagrama[];
+}
+
+/** Papel de um nó do diagrama (`cba_core::diagramas::PapelNo`). */
+export type PapelNo = "etapa" | "inicio" | "fim" | "decisao";
+
+/** Nó de um diagrama (`cba_core::diagramas::No`). */
+export interface NoDiagrama {
+  chave: string;
+  rotulo: string;
+  papel?: PapelNo;
+  descricao?: string | null;
+  evidencias?: Evidencia[];
+}
+
+/** Aresta de um diagrama (`cba_core::diagramas::Aresta`). */
+export interface ArestaDiagrama {
+  de: string;
+  para: string;
+  rotulo?: string | null;
+  descricao?: string | null;
+  confianca: Confianca;
+  evidencias?: Evidencia[];
+}
+
+/** Diagrama `D-<numero>` (`cba_core::diagramas::Diagrama`). */
+export interface Diagrama {
+  numero: number;
+  tipo: "estados" | "fluxo";
+  titulo: string;
+  secao: string;
+  nos: NoDiagrama[];
+  arestas?: ArestaDiagrama[];
+  registrada_ms: number;
+}
+
+/** Código Mermaid de um diagrama, gerado pelo app como na montagem do documento. */
+export interface DiagramaVisto {
+  numero: number;
+  mermaid: string;
 }
 
 /** Característica da ISO/IEC/IEEE 29148 violada (`cba_core::qualidade`). */
@@ -279,6 +320,8 @@ export interface VistaAnalise {
   sessao: SessaoVista | null;
   /** Pedido para uma conversa nova continuar a análise (`retomar_analise`). */
   promptRetomada: string;
+  /** Mermaid de cada diagrama (#118); ausente em respostas antigas. */
+  diagramas?: DiagramaVisto[];
 }
 
 export interface AnaliseResumo {

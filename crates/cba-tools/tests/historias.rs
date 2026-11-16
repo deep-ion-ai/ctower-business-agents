@@ -489,6 +489,7 @@ fn historias_a_partir_de_uma_analise_de_impacto() {
         &saida,
         revisao::Formato::Markdown,
         &revisao::OpcoesExportacao::default(),
+        &cba_docs::Figuras::default(),
     )
     .unwrap();
     let exportado = std::fs::read_to_string(arquivo).unwrap();

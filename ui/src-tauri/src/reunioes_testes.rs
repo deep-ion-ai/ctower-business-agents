@@ -837,6 +837,7 @@ fn exportar_a_analise_da_reuniao_leva_a_ata() {
         destino: pasta.join(nome),
         formato,
         opcoes: OpcoesExportacao::default(),
+        figuras: Vec::new(),
     };
 
     let md = exportar(

@@ -18,6 +18,7 @@ import {
   type Revisao,
 } from "./AcoesRevisao";
 import { CenariosAoVivo } from "./CenariosAoVivo";
+import { DiagramaAoVivo } from "./DiagramaAoVivo";
 import { HistoriasAoVivo } from "./HistoriasAoVivo";
 import { TextoAfirmacao } from "./TextoAfirmacao";
 import { Icon } from "./shell/icons";
@@ -87,7 +88,10 @@ export function chaveEvidencia(e: Evidencia): string {
 }
 
 /** Onde uma evidência foi escolhida: o trecho abre logo abaixo dela (#130). */
-export type OrigemEvidencia = `afirmacao-${number}` | `sugestao-${number}`;
+export type OrigemEvidencia =
+  | `afirmacao-${number}`
+  | `sugestao-${number}`
+  | `diagrama-${number}`;
 
 interface Props {
   vista: VistaAnalise;
@@ -147,7 +151,12 @@ export function DocumentoAoVivo({
   const deHistorias = analise.fluxo === "historias" || deCenarios;
   // Aprovada, a revisão fecha: as regras já foram para a base.
   const rev = analise.estado === "aprovada" ? undefined : revisao;
-  const secoes = agrupar(analise.afirmacoes);
+  const diagramas = analise.diagramas ?? [];
+  const mermaidDe = new Map((vista.diagramas ?? []).map((d) => [d.numero, d.mermaid]));
+  const secoes = agrupar(
+    analise.afirmacoes,
+    diagramas.map((d) => d.secao),
+  );
   const perguntas = [...analise.perguntas].sort(
     (a, b) => Number(a.estado !== "aberta") - Number(b.estado !== "aberta") || a.numero - b.numero,
   );
@@ -175,6 +184,12 @@ export function DocumentoAoVivo({
       return analise.afirmacoes
         .find((a) => a.numero === numero)
         ?.evidencias.find((e) => chaveEvidencia(e) === evidenciaAberta);
+    if (tipo === "diagrama") {
+      const d = diagramas.find((x) => x.numero === numero);
+      return [...(d?.nos ?? []), ...(d?.arestas ?? [])]
+        .flatMap((el) => el.evidencias ?? [])
+        .find((e) => chaveEvidencia(e) === evidenciaAberta);
+    }
     return analise.sugestoes.find((s) => s.numero === numero)?.evidencia ?? undefined;
   };
 
@@ -216,6 +231,20 @@ export function DocumentoAoVivo({
         {secoes.map(([secao, afirmacoes]) => (
           <div key={secao} className="secao">
             <h4>{TITULO_SECAO[secao] ?? secao}</h4>
+            {diagramas
+              .filter((d) => d.secao === secao)
+              .map((d) => (
+                <DiagramaAoVivo
+                  key={d.numero}
+                  diagrama={d}
+                  mermaid={mermaidDe.get(d.numero)}
+                  evidenciaAberta={evidenciaAberta}
+                  aoAbrirEvidencia={(e) => aoAbrirEvidencia(e, `diagrama-${d.numero}`)}
+                  trecho={trecho}
+                  trechoAberto={origemTrecho === `diagrama-${d.numero}`}
+                />
+              ))}
+            {afirmacoes.length > 0 && (
             <ol className="afirmacoes">
               {afirmacoes.map((a) => (
                 <li
@@ -286,6 +315,7 @@ export function DocumentoAoVivo({
                 </li>
               ))}
             </ol>
+            )}
           </div>
         ))}
       </section>
@@ -401,9 +431,13 @@ function EstadoDaPergunta({ pergunta }: { pergunta: Pergunta }) {
   return null;
 }
 
-/** Afirmações por seção, na ordem em que cada seção apareceu. */
-function agrupar(afirmacoes: Afirmacao[]): [string, Afirmacao[]][] {
+/**
+ * Afirmações por seção, na ordem em que cada seção apareceu; `outras` são seções que
+ * têm só diagramas (entram com a lista de afirmações vazia).
+ */
+function agrupar(afirmacoes: Afirmacao[], outras: string[] = []): [string, Afirmacao[]][] {
   const grupos = new Map<string, Afirmacao[]>();
+  for (const s of outras) grupos.set(s, []);
   for (const a of [...afirmacoes].sort((x, y) => x.numero - y.numero)) {
     const lista = grupos.get(a.secao) ?? [];
     lista.push(a);

@@ -361,6 +361,29 @@ pub struct VistaAnalise {
     pub sessao: Option<SessaoVista>,
     /// Pedido para uma conversa nova continuar a análise.
     pub prompt_retomada: String,
+    /// Código Mermaid de cada diagrama registrado, gerado como na montagem do
+    /// documento, para a prévia desenhar a figura (#118).
+    pub diagramas: Vec<DiagramaVisto>,
+}
+
+/// Código Mermaid de um diagrama da análise (`D-<numero>`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiagramaVisto {
+    pub numero: u32,
+    pub mermaid: String,
+}
+
+/// Mermaid de cada diagrama da análise, na ordem de registro.
+pub(crate) fn diagramas_vistos(analise: &Analise) -> Vec<DiagramaVisto> {
+    analise
+        .diagramas
+        .iter()
+        .map(|d| DiagramaVisto {
+            numero: d.numero,
+            mermaid: cba_docs::mermaid(&cba_tools::documento::diagrama(d)),
+        })
+        .collect()
 }
 
 /// Sessão mais recente: o registro dos hooks (#25), que guarda o instante da última
@@ -402,6 +425,7 @@ pub fn carregar_analise(
         documento: ambiente.kb.caminho(&analise.documento),
         sessao: sessao_recente(dados, &analise),
         prompt_retomada: prompt_de_retomada(&id),
+        diagramas: diagramas_vistos(&analise),
         analise,
     })
 }

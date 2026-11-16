@@ -314,6 +314,7 @@ fn exportacao_liga_cada_evidencia_ao_seu_repositorio() {
             destino: c.dir.path().join("multa"),
             formato: Formato::Markdown,
             opcoes: OpcoesExportacao::default(),
+            figuras: Vec::new(),
         },
     )
     .unwrap();
@@ -380,6 +381,7 @@ fn exportacao_liga_as_evidencias_ao_forge_no_commit() {
             destino,
             formato: Formato::Markdown,
             opcoes: OpcoesExportacao::default(),
+            figuras: Vec::new(),
         },
     )
     .unwrap();

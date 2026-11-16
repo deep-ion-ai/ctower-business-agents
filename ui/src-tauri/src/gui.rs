@@ -128,6 +128,7 @@ pub fn rodar() {
             revisao::prontidao_aprovacao_projeto,
             revisao::aprovar_analise_projeto,
             revisao::exportar_analise_projeto,
+            revisao::diagramas_exportacao_projeto,
         ])
         .build(tauri::generate_context!())
         .expect("erro ao iniciar o app")

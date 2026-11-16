@@ -20,7 +20,9 @@
 //!   (`cba_docs::gravar_exportacao`), com os trechos citados lidos pelo escopo do
 //!   projeto (as exclusões valem também aqui), fora das pastas do projeto; os
 //!   cenários de teste também em CSV, uma linha por cenário
-//!   ([`crate::cenarios::csv`]).
+//!   ([`crate::cenarios::csv`]). No Word, os diagramas saem como as figuras que o
+//!   app renderizou ([`cba_docs::Figuras`]), a partir dos blocos que
+//!   [`diagramas_para_exportar`] lista.
 //!
 //! # O que é obrigatório antes de aprovar
 //!
@@ -701,6 +703,7 @@ pub fn exportar_analise(
     destino: &Path,
     formato: Formato,
     opcoes: &OpcoesExportacao,
+    figuras: &cba_docs::Figuras,
 ) -> Result<PathBuf, ErroRevisao> {
     let analise = amb.analises.carregar(id)?;
     if formato == Formato::Csv && analise.fluxo != Fluxo::Cenarios {
@@ -721,23 +724,7 @@ pub fn exportar_analise(
         Formato::Word => cba_docs::Formato::Word,
         _ => cba_docs::Formato::Markdown,
     };
-    let ler = |c: &CaminhoRelativo| {
-        std::fs::read_to_string(amb.kb.caminho(c)).map_err(ErroRevisao::Documento)
-    };
-    let texto_analise = ler(&analise.documento)?;
-    // Commit da análise: o `base.commit` do frontmatter, para a nota sem commit próprio.
-    let commit =
-        cba_kb::Documento::<cba_kb::frontmatter::FrontmatterAnalise>::analisar(&texto_analise)
-            .ok()
-            .and_then(|d| d.frontmatter.base.and_then(|b| b.commit));
-    let ata = match analise.reuniao {
-        Some(r) => Some(amb.kb.reuniao(r)?.ata).filter(|a| amb.kb.existe(a)),
-        None => None,
-    };
-    let texto = match &ata {
-        Some(a) => ler(a)?,
-        None => texto_analise,
-    };
+    let (texto, commit) = texto_para_exportar(amb, &analise)?;
     let fonte = TrechosDoProjeto(&amb.escopo);
     // Pastas canônicas, para comparar com o caminho resolvido pelo escopo.
     let repos: Vec<cba_repos::RepositorioCodigo> = amb
@@ -758,8 +745,50 @@ pub fn exportar_analise(
     let links = forge
         .as_ref()
         .map(|f| (f as &dyn cba_docs::LinksDeEvidencia, commit.as_deref()));
-    cba_docs::gravar_exportacao_com_links(&destino, &texto, formato, opcoes, Some(&fonte), links)?;
+    cba_docs::gravar_exportacao_com_links(
+        &destino,
+        &texto,
+        formato,
+        opcoes,
+        Some(&fonte),
+        links,
+        figuras,
+    )?;
     Ok(destino)
+}
+
+/// Texto que a exportação lê (o documento da análise ou, na de uma reunião, a
+/// ata já montada) e o commit da análise (o `base.commit` do frontmatter, para a
+/// nota sem commit próprio).
+fn texto_para_exportar(
+    amb: &Ambiente,
+    analise: &Analise,
+) -> Result<(String, Option<String>), ErroRevisao> {
+    let ler = |c: &CaminhoRelativo| {
+        std::fs::read_to_string(amb.kb.caminho(c)).map_err(ErroRevisao::Documento)
+    };
+    let texto_analise = ler(&analise.documento)?;
+    let commit =
+        cba_kb::Documento::<cba_kb::frontmatter::FrontmatterAnalise>::analisar(&texto_analise)
+            .ok()
+            .and_then(|d| d.frontmatter.base.and_then(|b| b.commit));
+    let ata = match analise.reuniao {
+        Some(r) => Some(amb.kb.reuniao(r)?.ata).filter(|a| amb.kb.existe(a)),
+        None => None,
+    };
+    let texto = match &ata {
+        Some(a) => ler(a)?,
+        None => texto_analise,
+    };
+    Ok((texto, commit))
+}
+
+/// Código dos blocos Mermaid do documento que a exportação vai ler, na ordem:
+/// o que o app renderiza antes de exportar em Word ([`exportar_analise`]).
+pub fn diagramas_para_exportar(amb: &Ambiente, id: &Id) -> Result<Vec<String>, ErroRevisao> {
+    let analise = amb.analises.carregar(id)?;
+    let (texto, _) = texto_para_exportar(amb, &analise)?;
+    Ok(cba_docs::blocos_mermaid(&texto))
 }
 
 /// Links das evidências nos repositórios de código do projeto (GitHub ou GitLab),

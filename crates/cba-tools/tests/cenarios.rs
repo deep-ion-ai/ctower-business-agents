@@ -550,6 +550,7 @@ fn cenarios_das_regras_do_cancelamento() {
         &c.dir.path().join("cenarios"),
         revisao::Formato::Csv,
         &revisao::OpcoesExportacao::default(),
+        &cba_docs::Figuras::default(),
     )
     .unwrap();
     assert_eq!(csv.extension().unwrap(), "csv");
@@ -578,6 +579,7 @@ fn cenarios_das_regras_do_cancelamento() {
         &c.dir.path().join("cenarios"),
         revisao::Formato::Markdown,
         &revisao::OpcoesExportacao::default(),
+        &cba_docs::Figuras::default(),
     )
     .unwrap();
     let md = std::fs::read_to_string(md).unwrap();
@@ -591,6 +593,7 @@ fn cenarios_das_regras_do_cancelamento() {
         &c.dir.path().join("x"),
         revisao::Formato::Csv,
         &revisao::OpcoesExportacao::default(),
+        &cba_docs::Figuras::default(),
     );
     assert!(m.is_ok(), "{m:?}");
 }
@@ -669,6 +672,7 @@ fn cenarios_a_partir_de_historias_ligam_a_historia() {
         &c.dir.path().join("x"),
         revisao::Formato::Csv,
         &revisao::OpcoesExportacao::default(),
+        &cba_docs::Figuras::default(),
     )
     .unwrap_err();
     assert!(m.to_string().contains("CSV"), "{m}");
