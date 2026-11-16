@@ -30,6 +30,7 @@ pub mod execucao;
 pub mod gabarito;
 pub mod historias;
 pub mod longa;
+pub mod modelagem;
 pub mod parecer;
 pub mod pastas;
 pub mod relatorio;

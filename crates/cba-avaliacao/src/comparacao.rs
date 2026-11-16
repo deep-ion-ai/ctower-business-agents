@@ -25,7 +25,9 @@
 //! - **abrangência** (impacto): a afirmação mais recente da seção `abrangencia`
 //!   começa pela estimativa esperada;
 //! - **arquivos citados:** quais arquivos esperados do item aparecem em evidências
-//!   válidas.
+//!   válidas;
+//! - **diagramas do documento negocial** (explicar, #120): o fluxo do processo e o
+//!   modelo de dados conceitual ([`crate::modelagem`]).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -40,6 +42,7 @@ use crate::cenarios::{CenariosAvaliados, avaliar_cenarios};
 use crate::ciclo_vida::{CicloVidaAvaliado, avaliar_ciclo_vida};
 use crate::gabarito::{Gabarito, Item, Regra, Veredito};
 use crate::historias::{HistoriasAvaliadas, avaliar_historias};
+use crate::modelagem::{ModelagemAvaliada, avaliar_modelagem};
 use crate::parecer::{ParecerAvaliado, avaliar_parecer};
 use crate::texto;
 
@@ -90,6 +93,10 @@ pub struct Avaliacao {
     /// Ciclo de vida da entidade (diagrama de estados, [`crate::ciclo_vida`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ciclo_vida: Option<CicloVidaAvaliado>,
+    /// Fluxo do processo e modelo de dados do documento negocial (fluxo
+    /// `explicar`, [`crate::modelagem`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub modelagem: Option<ModelagemAvaliada>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -162,6 +169,9 @@ impl Avaliacao {
                 f.push("nenhuma afirmação registrada".to_owned())
             }
             _ => {}
+        }
+        if let Some(m) = &self.modelagem {
+            f.extend(m.falhas());
         }
         if !self.confirmado_sem_evidencia_valida.is_empty() {
             f.push(format!(
@@ -510,6 +520,10 @@ pub fn avaliar(analise: &Analise, item: &Item, gabarito: &Gabarito, escopo: &Esc
             .ciclo_vida
             .as_ref()
             .map(|c| avaliar_ciclo_vida(analise, c)),
+        modelagem: item
+            .modelagem
+            .as_ref()
+            .map(|m| avaliar_modelagem(analise, m)),
     }
 }
 
