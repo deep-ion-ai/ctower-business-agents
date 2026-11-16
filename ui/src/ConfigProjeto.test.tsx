@@ -572,8 +572,30 @@ describe("ConfigProjeto", () => {
       expect(api.desfazerAmbiente).not.toHaveBeenCalled();
       fireEvent.click(dialogo.getByRole("button", { name: "Desfazer o preparo" }));
       await waitFor(() => expect(api.desfazerAmbiente).toHaveBeenCalledWith("faturamento-exemplo"));
-      expect(await painel.findByText(/Preparo desfeito/)).toBeInTheDocument();
+      expect(await painel.findByText(/Preparo desfeito/)).toHaveTextContent(
+        "voltou a ser a de antes do preparo",
+      );
       expect(aoReverificarAmbiente).toHaveBeenCalledWith("faturamento-exemplo");
+    });
+
+    it("não diz que voltou ao que era quando algo ficou, e diz o quê e por quê (#213)", async () => {
+      const { aba, api } = montar();
+      const ficou =
+        "A pasta /codigo continua registrada em /home/ana/.claude.json com dados que o próprio Claude Code gravou ao abrir conversas nela (como a confiança na pasta).";
+      api.desfazerAmbiente.mockResolvedValueOnce({
+        protecaoTirada: [],
+        preparo: { diretorio: "/codigo", alteracoes: [], gravado: true },
+        avisos: [ficou],
+        igualAoAntes: false,
+      });
+      const painel = aba("Avançado");
+      fireEvent.click(painel.getByRole("button", { name: "Desfazer o preparo…" }));
+      const dialogo = within(screen.getByRole("dialog", { name: "Desfazer o preparo do agente?" }));
+      fireEvent.click(dialogo.getByRole("button", { name: "Desfazer o preparo" }));
+      const status = await painel.findByRole("status");
+      expect(status).toHaveTextContent("não voltou inteira ao que era antes");
+      expect(status).not.toHaveTextContent("voltou a ser a de antes");
+      expect(within(status).getByText(ficou)).toBeInTheDocument();
     });
 
     it("sem preparo, não oferece desfazer", () => {

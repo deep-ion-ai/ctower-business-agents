@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { mensagemDe, type AmbienteClaude, type ApiAmbiente, type PlanoPreparo } from "./analise";
+import {
+  mensagemDe,
+  type AlteracaoPreparo,
+  type AmbienteClaude,
+  type ApiAmbiente,
+  type PlanoPreparo,
+} from "./analise";
 
 /**
  * Preparo do ambiente com consentimento: mostra o que falta, o que será alterado na
@@ -24,13 +30,18 @@ export function PrepararAmbiente({
   const [falha, setFalha] = useState<string | null>(null);
   // Proteção opcional contra edição (#29): desligada por padrão.
   const [proteger, setProteger] = useState(false);
+  // Concordância com a troca dos avisos de outra instalação do app (#213).
+  const [aceitaTroca, setAceitaTroca] = useState(false);
 
   const planejar = () => {
     setOcupado(true);
     setFalha(null);
     api
       .planejarPreparo(projeto)
-      .then(setPlano)
+      .then((p) => {
+        setAceitaTroca(false);
+        setPlano(p);
+      })
       .catch((e: unknown) => setFalha(mensagemDe(e)))
       .finally(() => setOcupado(false));
   };
@@ -47,6 +58,7 @@ export function PrepararAmbiente({
   };
 
   const mudancas = plano?.alteracoes.filter((a) => a.acao !== "semMudanca") ?? [];
+  const outras = outrasInstalacoes(mudancas);
 
   return (
     <div className="preparar-ambiente" role="region" aria-label="Preparar o ambiente">
@@ -75,7 +87,8 @@ export function PrepararAmbiente({
                   ? `Hook ${a.item.evento}`
                   : `Servidor MCP "cba" para a pasta ${a.item.chave}`}{" "}
                 <span className="muted">
-                  ({a.acao === "atualizado" ? "atualizado" : "adicionado"} em {a.arquivo})
+                  ({a.acao === "atualizado" ? "atualizado" : "adicionado"} em {a.arquivo}
+                  {a.outraInstalacao ? "; hoje vai para outra instalação do app" : ""})
                 </span>
               </li>
             ))}
@@ -86,6 +99,29 @@ export function PrepararAmbiente({
               </li>
             )}
           </ul>
+          {outras.length > 0 && (
+            <div className="aviso-outra-instalacao attention-text" role="note">
+              <p>
+                <strong>Hoje os avisos do Claude vão para outra instalação do app</strong>, em{" "}
+                {outras.map((o, i) => (
+                  <span key={o}>
+                    {i > 0 ? ", " : ""}
+                    <code>{o}</code>
+                  </span>
+                ))}
+                . Ao preparar, eles passam a vir para esta, e a outra deixa de recebê-los. Ao
+                desfazer o preparo, o app devolve os avisos para a outra instalação.
+              </p>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={aceitaTroca}
+                  onChange={(e) => setAceitaTroca(e.target.checked)}
+                />{" "}
+                Entendo e quero que os avisos venham para esta instalação.
+              </label>
+            </div>
+          )}
           {api.mudarProtecao && oferecerProtecao && (
             <label className="protecao-opcional">
               <input
@@ -102,7 +138,12 @@ export function PrepararAmbiente({
             <button className="btn" type="button" onClick={() => setPlano(null)} disabled={ocupado}>
               Agora não
             </button>
-            <button className="btn btn-primary" type="button" onClick={preparar} disabled={ocupado}>
+            <button
+              className="btn btn-primary"
+              type="button"
+              onClick={preparar}
+              disabled={ocupado || (outras.length > 0 && !aceitaTroca)}
+            >
               Concordo, preparar o ambiente
             </button>
           </div>
@@ -115,6 +156,17 @@ export function PrepararAmbiente({
       )}
     </div>
   );
+}
+
+/** Executáveis de outras instalações do app que o preparo tira do lugar, sem repetição. */
+export function outrasInstalacoes(alteracoes: AlteracaoPreparo[]): string[] {
+  const v: string[] = [];
+  for (const a of alteracoes) {
+    if (a.acao === "atualizado" && a.outraInstalacao && !v.includes(a.outraInstalacao)) {
+      v.push(a.outraInstalacao);
+    }
+  }
+  return v;
 }
 
 /**

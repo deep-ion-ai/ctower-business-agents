@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { mensagemDe } from "./analise";
 import type { PropsConfigProjeto } from "./ConfigProjeto";
-import type { AmbienteDetalhado } from "./configuracoes";
+import type { AmbienteDesfeito, AmbienteDetalhado } from "./configuracoes";
 import { DialogoConfirmacao } from "./DialogoConfirmacao";
 
 /** Há algo do app na configuração do Claude deste projeto (servidor MCP ou hooks). */
@@ -29,7 +29,7 @@ export function AbaAvancado({
   const [nome, setNome] = useState("");
   const [ocupado, setOcupado] = useState(false);
   const [falha, setFalha] = useState<string | null>(null);
-  const [feito, setFeito] = useState<string[] | null>(null);
+  const [feito, setFeito] = useState<AmbienteDesfeito | null>(null);
   const preparo = temPreparo(estado.ambiente);
 
   const fechar = () => {
@@ -45,7 +45,7 @@ export function AbaAvancado({
     api
       .desfazerAmbiente(projeto.id)
       .then((r) => {
-        setFeito(r.avisos);
+        setFeito(r);
         setDialogo(null);
         void aoReverificarAmbiente(projeto.id);
       })
@@ -74,10 +74,16 @@ export function AbaAvancado({
     <div className="aba-avancado">
       {feito && (
         <div className="ok-text" role="status">
-          <p>
-            Preparo desfeito: a configuração do Claude voltou a ser a de antes para este projeto.
-          </p>
-          {feito.map((a) => (
+          {/* #213: só diz que voltou ao que era quando isso é verdade. */}
+          {feito.igualAoAntes && feito.avisos.length === 0 ? (
+            <p>Preparo desfeito: a configuração do Claude voltou a ser a de antes do preparo.</p>
+          ) : (
+            <p>
+              Preparo desfeito, mas a configuração do Claude não voltou inteira ao que era antes.
+              O que ficou, e por quê:
+            </p>
+          )}
+          {feito.avisos.map((a) => (
             <p key={a} className="attention-text">
               {a}
             </p>
@@ -143,9 +149,10 @@ export function AbaAvancado({
           }
         >
           <p>
-            O app vai tirar da configuração do Claude o servidor MCP deste projeto, a proteção
-            contra edição (se ligada) e, se nenhum outro projeto usar, os avisos automáticos
-            (hooks). Sem eles, as conversas nesta pasta não enxergam o app.
+            O app vai tirar da configuração do Claude o servidor MCP deste projeto e a proteção
+            contra edição (se ligada). Os avisos automáticos (hooks) voltam a ser como eram antes
+            do preparo, a menos que outro projeto ainda os use. Sem o servidor, as conversas nesta
+            pasta não enxergam o app.
           </p>
           {falha && (
             <p className="error-text" role="alert">
