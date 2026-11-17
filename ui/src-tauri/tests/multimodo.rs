@@ -1350,7 +1350,8 @@ fn hook_acompanha_a_sessao_na_pasta_do_projeto() {
     let cwd = fixture().join("db");
 
     let esperado = [
-        ("SessionStart", "ativa", None),
+        // O SessionStart deixa a sessão à espera da mensagem, não trabalhando (#222).
+        ("SessionStart", "concluida", None),
         ("UserPromptSubmit", "ativa", None),
         ("PreToolUse", "ativa", Some("ativa")),
         (
