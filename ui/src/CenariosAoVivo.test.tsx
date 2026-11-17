@@ -84,7 +84,7 @@ function revisao(): Revisao & { aoDecidir: ReturnType<typeof vi.fn> } {
 describe("CenariosAoVivo", () => {
   it("mostra a tabela de decisão, os limites e os cenários", () => {
     render(<CenariosAoVivo tabelas={[tabela()]} cenarios={cenarios()} origem="A-0001" />);
-    expect(screen.getByText(/1 tabela\(s\) de decisão · 2 cenário\(s\) · 1 a confirmar/)).toBeTruthy();
+    expect(screen.getByText(/1 tabela de decisão · 2 cenários · 1 a confirmar/)).toBeTruthy();
     const td = screen.getByRole("table", { name: "Tabela de decisão TD-1" });
     expect(within(td).getByText("R3")).toBeTruthy();
     expect(within(td).getByText("CT-0001")).toBeTruthy();

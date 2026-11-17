@@ -206,7 +206,7 @@ describe("PainelAnalise", () => {
     );
     fireEvent.click(
       await screen.findByRole("button", {
-        name: "db/03_pkg_cobranca.sql:71-72",
+        name: "03_pkg_cobranca.sql:71-72",
       }),
     );
     expect(api.trechoEvidencia).toHaveBeenCalledWith(
@@ -231,7 +231,7 @@ describe("PainelAnalise", () => {
       within(linha(71) as HTMLElement).getByText("linha 71"),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }),
+      screen.getByRole("button", { name: "03_pkg_cobranca.sql:71-72" }),
     ).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(within(trecho).getByRole("button", { name: "Fechar" }));
     expect(
@@ -294,7 +294,7 @@ describe("PainelAnalise", () => {
     expect(abaCodigo).toHaveAttribute("aria-selected", "false");
     fireEvent.click(
       await screen.findByRole("button", {
-        name: "db/03_pkg_cobranca.sql:71-72",
+        name: "03_pkg_cobranca.sql:71-72",
       }),
     );
     const trecho = await screen.findByRole("region", {
@@ -349,7 +349,7 @@ describe("PainelAnalise", () => {
     );
     fireEvent.click(
       await screen.findByRole("button", {
-        name: "db/03_pkg_cobranca.sql:71-72",
+        name: "03_pkg_cobranca.sql:71-72",
       }),
     );
     const trecho = await screen.findByRole("region", {
@@ -381,7 +381,7 @@ describe("PainelAnalise", () => {
       within(novo).getByRole("button", { name: /Próxima/ }),
     ).toBeDisabled();
     expect(
-      screen.getByRole("button", { name: "db/03_pkg_cobranca.sql:90-91" }),
+      screen.getByRole("button", { name: "03_pkg_cobranca.sql:90-91" }),
     ).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(within(novo).getByRole("button", { name: /Anterior/ }));
     await waitFor(() =>
@@ -403,7 +403,7 @@ describe("PainelAnalise", () => {
     });
     fireEvent.click(
       await screen.findByRole("button", {
-        name: "db/03_pkg_cobranca.sql:71-72",
+        name: "03_pkg_cobranca.sql:71-72",
       }),
     );
     fireEvent.click(
@@ -428,7 +428,7 @@ describe("PainelAnalise", () => {
     );
     fireEvent.click(
       await screen.findByRole("button", {
-        name: "db/03_pkg_cobranca.sql:71-72",
+        name: "03_pkg_cobranca.sql:71-72",
       }),
     );
     await screen.findByRole("region", { name: "Trecho da evidência" });
@@ -461,7 +461,7 @@ describe("PainelAnalise", () => {
       vistaFicticia({}, { afirmacoes: [AFIRMACAO_MULTA] }),
     );
     const chip = await screen.findByRole("button", {
-      name: "db/03_pkg_cobranca.sql:71-72",
+      name: "03_pkg_cobranca.sql:71-72",
     });
     expect(chip).toHaveAttribute("aria-pressed", "false");
     expect(
@@ -497,7 +497,7 @@ describe("PainelAnalise", () => {
     );
     fireEvent.click(
       await screen.findByRole("button", {
-        name: "db/03_pkg_cobranca.sql:71-72",
+        name: "03_pkg_cobranca.sql:71-72",
       }),
     );
     expect(await screen.findByRole("alert")).toHaveTextContent(

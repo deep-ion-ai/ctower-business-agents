@@ -140,7 +140,7 @@ describe("Aprovação guiada", () => {
     expect(await caixa(3)).not.toBeChecked();
     expect(await caixa(4)).toBeChecked();
     expect(
-      screen.getByText(/2 de 4 afirmação\(ões\) confirmada\(s\) vão virar regra/),
+      screen.getByText(/2 de 4 afirmações confirmadas vão virar regra/),
     ).toBeInTheDocument();
     // Só as marcadas mostram título e área; o título sugerido vem preenchido, sem markdown.
     expect(screen.queryByLabelText("Título da regra da afirmação 1")).not.toBeInTheDocument();

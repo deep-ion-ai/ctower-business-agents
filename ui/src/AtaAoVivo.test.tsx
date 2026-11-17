@@ -69,7 +69,7 @@ describe("AtaAoVivo", () => {
     expect(item).toHaveTextContent("00:01:40 Silva, Maria: “vamos levar a trava para o banco”");
     expect(within(item).getByText("db/03_pkg_cobranca.sql:71-72")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Decisões" })).toBeInTheDocument();
-    expect(screen.getByText(/1 item\(ns\) registrado/)).toBeInTheDocument();
+    expect(screen.getByText(/1 item registrado/)).toBeInTheDocument();
     expect(api.ataReuniao).toHaveBeenCalledTimes(2);
 
     unmount();

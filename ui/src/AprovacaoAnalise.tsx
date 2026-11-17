@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import { contar } from "./formatacao";
 import { mensagemDe } from "./analise";
 import type {
   ApiRevisao,
@@ -217,9 +218,9 @@ export function AprovacaoAnalise({
           <p className="muted">
             {prontidao.regras.length === 0
               ? "Nenhuma afirmação confirmada: a aprovação não cria regras."
-              : `${escolhidas.length} de ${prontidao.regras.length} afirmação(ões) confirmada(s) vão virar regra.`}
+              : `${escolhidas.length} de ${contar(prontidao.regras.length, "afirmação confirmada", "afirmações confirmadas")} vão virar regra.`}
             {prontidao.incorretas.length > 0 &&
-              ` ${prontidao.incorretas.length} incorreta(s) ficam registradas e não viram regra.`}
+              ` ${contar(prontidao.incorretas.length, "incorreta", "incorretas")} ${prontidao.incorretas.length === 1 ? "fica registrada e não vira regra." : "ficam registradas e não viram regra."}`}
             {prontidao.termosAceitos.length > 0 &&
               ` Termos para o glossário: ${prontidao.termosAceitos.join(", ")}.`}
           </p>

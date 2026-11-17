@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { contar } from "./formatacao";
 import { mensagemDe } from "./analise";
 import {
   ROTULO_STATUS_REGRA,
@@ -183,7 +184,7 @@ function Projeto({
                 {a.sigla && ` (${a.sigla})`}
               </button>{" "}
               <span className="muted">
-                {a.regras} regra(s) · {a.termos} termo(s)
+                {contar(a.regras, "regra", "regras")} · {contar(a.termos, "termo", "termos")}
                 {!a.declarada && " · fora do projeto.md"}
               </span>
               {a.aRevalidar > 0 && (
@@ -285,13 +286,13 @@ function Projeto({
 function TextoRevalidacao({ resumo }: { resumo: ResumoRevalidacao }) {
   const marcadas = resumo.regras.filter((r) => r.depois === "a-revalidar");
   const restauradas = resumo.regras.filter((r) => r.depois === "confirmada");
-  const partes = [`${resumo.evidencias} evidência(s) conferida(s)`];
+  const partes = [`${contar(resumo.evidencias, "evidência conferida", "evidências conferidas")}`];
   if (resumo.desatualizadas > 0) partes.push(`${resumo.desatualizadas} não confere(m)`);
   if (marcadas.length > 0)
     partes.push(`passaram a revalidar: ${marcadas.map((r) => r.id).join(", ")}`);
   if (restauradas.length > 0)
     partes.push(`voltaram a confirmadas: ${restauradas.map((r) => r.id).join(", ")}`);
-  if (resumo.problemas.length > 0) partes.push(`${resumo.problemas.length} documento(s) com problema`);
+  if (resumo.problemas.length > 0) partes.push(`${contar(resumo.problemas.length, "documento", "documentos")} com problema`);
   return <span className="muted">{partes.join("; ")}.</span>;
 }
 
@@ -379,7 +380,7 @@ function MapaProjeto({ api, projeto }: { api: ApiConhecimento; projeto: string }
             ))}
           </nav>
           <p>
-            {mapa.modulo.arquivos} arquivo(s)
+            {contar(mapa.modulo.arquivos, "arquivo", "arquivos")}
             {mapa.modulo.linguagens.length > 0 &&
               `: ${mapa.modulo.linguagens.map((l) => `${l.rotulo} ${l.quantidade}`).join(", ")}`}
             {mapa.modulo.falhas > 0 && ` · ${mapa.modulo.falhas} com falha de extração`}
@@ -398,7 +399,7 @@ function MapaProjeto({ api, projeto }: { api: ApiConhecimento; projeto: string }
                   <button type="button" className="link" onClick={() => void entrar(s.caminho)}>
                     {s.caminho.split("/").pop()}/
                   </button>{" "}
-                  <span className="muted">{s.arquivos} arquivo(s)</span>
+                  <span className="muted">{contar(s.arquivos, "arquivo", "arquivos")}</span>
                 </li>
               ))}
             </ul>
@@ -419,7 +420,7 @@ function MapaProjeto({ api, projeto }: { api: ApiConhecimento; projeto: string }
                 {mapa.modulo.dependencias.map((d) => (
                   <li key={`${d.de}->${d.para}`}>
                     {d.de || "(raiz)"} → {d.para || "(raiz)"}{" "}
-                    <span className="muted">{d.referencias} referência(s)</span>
+                    <span className="muted">{contar(d.referencias, "referência", "referências")}</span>
                   </li>
                 ))}
               </ul>

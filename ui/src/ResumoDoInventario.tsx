@@ -1,3 +1,4 @@
+import { numero } from "./formatacao";
 import { tamanhoLegivel, type ResumoInventario } from "./primeiroUso";
 
 /** O que será analisado (por linguagem) e o que fica fora (por motivo e item a item). */
@@ -15,7 +16,7 @@ export function ResumoDoInventario({
     <div className="resumo-inventario">
       <div role="group" aria-label="O que será analisado">
         <h3>
-          Será analisado: {inventario.analisados} arquivos (
+          Será analisado: {numero(inventario.analisados)} arquivos (
           {tamanhoLegivel(inventario.bytesAnalisados)})
         </h3>
         <table>

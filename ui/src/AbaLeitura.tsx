@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { mensagemDe } from "./analise";
 import { plural } from "./estadoCadastro";
 import type { PropsConfigProjeto } from "./ConfigProjeto";
+import { numero } from "./formatacao";
 import { padraoDoCaminho, tamanhoLegivel, type PreviaProjeto } from "./primeiroUso";
 
 interface Rascunho {
@@ -131,7 +132,7 @@ export function AbaLeitura({
         <div className="cartao-config resumo-cartao" role="group" aria-label="Será analisado">
           <span className="muted">Será analisado</span>
           <strong className="resumo-numero">
-            {inv ? `${inv.analisados} arquivos` : "…"}
+            {inv ? `${numero(inv.analisados)} arquivos` : "…"}
             {inv && <span className="muted"> · {tamanhoLegivel(inv.bytesAnalisados)}</span>}
           </strong>
           {inv && inv.porLinguagem.length > 0 && (
@@ -159,7 +160,7 @@ export function AbaLeitura({
             <span className="attention-text">
               {segredos === 1
                 ? "1 arquivo parece ter segredo e fica fora da análise."
-                : `${segredos} arquivos parecem ter segredos e ficam fora da análise.`}
+                : `${numero(segredos)} arquivos parecem ter segredos e ficam fora da análise.`}
             </span>
           )}
           {inv && inv.itensIgnorados.length > 0 && (

@@ -529,6 +529,12 @@ export function intervaloDe(linhas: string): { inicio: number; fim: number } {
 }
 
 /** Mensagem de um erro vindo do Rust (texto) ou do JavaScript. */
+/** Rótulo curto do chip de evidência: `Arquivo.java:94-98` (o caminho completo vai no title). */
+export function rotuloDaEvidencia(e: { arquivo: string; linhas: string }): string {
+  const nome = e.arquivo.split(/[\\/]/).pop() || e.arquivo;
+  return `${nome}:${e.linhas}`;
+}
+
 export function mensagemDe(e: unknown): string {
   if (typeof e === "string") return e;
   if (e instanceof Error) return e.message;

@@ -31,7 +31,7 @@ describe("AprovacaoAta", () => {
     expect(api.prontidaoAta).toHaveBeenCalledWith(PROJETO, "A-0005");
     const dialogo = screen.getByRole("dialog", { name: "Aprovar a ata e apagar o transcript?" });
     expect(dialogo).toHaveTextContent("as citações da ata deixam de ser conferíveis");
-    expect(dialogo).toHaveTextContent("3 citação(ões) deixam de ser conferíveis");
+    expect(dialogo).toHaveTextContent("3 citações deixam de ser conferíveis");
     // O botão seguro tem o foco.
     expect(within(dialogo).getByRole("button", { name: "Cancelar" })).toHaveFocus();
 
@@ -67,7 +67,7 @@ describe("AprovacaoAta", () => {
       name: "Resultado da aprovação da ata",
     });
     expect(resultado).toHaveTextContent("Ata aprovada em 2026-11-14. O transcript foi apagado.");
-    expect(resultado).toHaveTextContent("3 citação(ões) marcadas como conferidas em 2026-11-14");
+    expect(resultado).toHaveTextContent("3 citações marcadas como conferidas em 2026-11-14");
     expect(resultado).toHaveTextContent("já estão no painel da demanda");
     expect(aoAprovar).toHaveBeenCalled();
     // A prontidão é relida: a aprovação não é mais oferecida.

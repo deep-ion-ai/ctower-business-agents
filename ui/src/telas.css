@@ -2429,3 +2429,15 @@
   flex: 1;
   min-width: 0;
 }
+
+.detalhe-tecnico {
+  margin-top: 4px;
+  font-weight: 400;
+}
+
+.detalhe-tecnico pre {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
