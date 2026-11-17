@@ -323,6 +323,50 @@ pub fn avaliar_base(
     })
 }
 
+/// Se dá para criar uma pasta dentro do ancestral existente mais próximo de
+/// `caminho` (que ainda não existe): ele precisa ser uma pasta com permissão de
+/// escrita e de travessia. No Unix, o teste é o do próprio sistema (`access`), que
+/// vale para dono, grupo, ACLs e sistema de arquivos só de leitura.
+fn ancestral_gravavel(caminho: &Path) -> bool {
+    let Some(ancestral) = caminho.ancestors().find(|a| a.exists()) else {
+        return true;
+    };
+    if !ancestral.is_dir() {
+        return false;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        let Ok(c) = std::ffi::CString::new(ancestral.as_os_str().as_bytes()) else {
+            return false;
+        };
+        // SAFETY: `c` é uma string C válida e termina em NUL.
+        unsafe { libc::access(c.as_ptr(), libc::W_OK | libc::X_OK) == 0 }
+    }
+    #[cfg(not(unix))]
+    {
+        std::fs::metadata(ancestral).is_ok_and(|m| !m.permissions().readonly())
+    }
+}
+
+/// Texto em português para uma falha de E/S ao criar a pasta da base.
+fn erro_de_criacao(caminho: &Path, erro: &std::io::Error) -> String {
+    use std::io::ErrorKind;
+    let motivo = match erro.kind() {
+        ErrorKind::PermissionDenied => "Sem permissão para criar a pasta aqui".to_string(),
+        ErrorKind::ReadOnlyFilesystem => {
+            "o disco ou a pasta é somente leitura; escolha outro local".to_string()
+        }
+        ErrorKind::StorageFull | ErrorKind::QuotaExceeded => {
+            "não há espaço livre no disco; libere espaço ou escolha outro local".to_string()
+        }
+        ErrorKind::NotADirectory => "uma parte do caminho é um arquivo, não uma pasta".to_string(),
+        ErrorKind::InvalidFilename => "o nome da pasta não é válido neste sistema".to_string(),
+        _ => format!("não foi possível criar a pasta ({erro})"),
+    };
+    format!("{}: {motivo}", caminho.display())
+}
+
 fn recusa_da_base(
     dados: &DiretorioDados,
     restricoes: &Restricoes,
@@ -344,6 +388,9 @@ fn recusa_da_base(
                 t.display()
             ));
         }
+    }
+    if estado == Some(EstadoPasta::Nova) && !ancestral_gravavel(caminho) {
+        return Some("Sem permissão para criar a pasta aqui".into());
     }
     let app = canonica_aproximada(dados.raiz());
     if caminho.starts_with(&app) || app.starts_with(caminho) {
@@ -368,7 +415,10 @@ pub fn configurar_base(
         return Err(r);
     }
     let pasta = avaliacao.caminho;
-    cba_kb::Base::criar(&pasta).map_err(|e| e.to_string())?;
+    cba_kb::Base::criar(&pasta).map_err(|e| match &e {
+        cba_kb::Erro::PastaDaBase { caminho, erro } => erro_de_criacao(caminho, erro),
+        _ => e.to_string(),
+    })?;
     let mut config = Config::ler(dados).map_err(|e| e.to_string())?;
     config.base = Some(pasta.clone());
     config
@@ -832,6 +882,47 @@ mod tests {
         assert_eq!(Config::ler(&dados).unwrap().base, Some(gravada.clone()));
         let a = avaliar_base(&dados, &r, nova.to_str().unwrap()).unwrap();
         assert_eq!(a.estado, Some(EstadoPasta::Base));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn base_sob_pasta_somente_leitura_e_recusada() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let dados = DiretorioDados::em(dir.path().join("dados"));
+        let r = sem_restricoes();
+        let ro = dir.path().join("somente-leitura");
+        fs::create_dir_all(&ro).unwrap();
+        fs::set_permissions(&ro, fs::Permissions::from_mode(0o555)).unwrap();
+        // Como root o sistema ignora a permissão: nada a verificar.
+        let root = fs::create_dir(ro.join("sonda")).is_ok();
+        if !root {
+            let alvo = ro.join("a").join("base");
+            let a = avaliar_base(&dados, &r, alvo.to_str().unwrap()).unwrap();
+            assert_eq!(a.estado, Some(EstadoPasta::Nova));
+            assert_eq!(
+                a.recusa.as_deref(),
+                Some("Sem permissão para criar a pasta aqui")
+            );
+            let e = configurar_base(&dados, &r, alvo.to_str().unwrap()).unwrap_err();
+            assert!(e.contains("Sem permissão"), "{e}");
+            // Uma pasta gravável continua aceita.
+            let ok = dir.path().join("livre").join("base");
+            let a = avaliar_base(&dados, &r, ok.to_str().unwrap()).unwrap();
+            assert!(a.recusa.is_none());
+        }
+        fs::set_permissions(&ro, fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    #[test]
+    fn erros_de_criacao_sao_traduzidos() {
+        use std::io::{Error, ErrorKind};
+        let p = Path::new("/x/base");
+        let t = |k| erro_de_criacao(p, &Error::from(k));
+        assert!(t(ErrorKind::PermissionDenied).contains("Sem permissão"));
+        assert!(t(ErrorKind::StorageFull).contains("espaço"));
+        assert!(t(ErrorKind::ReadOnlyFilesystem).contains("somente leitura"));
+        assert!(t(ErrorKind::NotADirectory).contains("arquivo"));
     }
 
     #[test]

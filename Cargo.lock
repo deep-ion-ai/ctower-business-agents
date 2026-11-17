@@ -451,6 +451,7 @@ dependencies = [
  "cba-tools",
  "dirs 6.0.0",
  "dunce",
+ "libc",
  "serde",
  "serde_json",
  "serde_norway",
