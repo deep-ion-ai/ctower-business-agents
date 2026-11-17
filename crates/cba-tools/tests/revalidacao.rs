@@ -16,7 +16,7 @@ use cba_core::eventos::Mudanca;
 use cba_kb::frontmatter::{FrontmatterRegra, Linhas, StatusRegra, TipoDocumento};
 use cba_kb::{CaminhoRelativo, Documento, Id};
 use cba_tools::evidencias::{EvidenciaCitada, hash_das_linhas, validar};
-use cba_tools::revalidacao::{Origem, Relatorio, revalidar_projeto};
+use cba_tools::revalidacao::{Origem, Relatorio, Vistos, revalidar_analise, revalidar_projeto};
 
 const COMMIT_1: &str = "1111111111111111111111111111111111111111";
 const COMMIT_2: &str = "2222222222222222222222222222222222222222";
@@ -146,6 +146,7 @@ impl Cenario {
                     })
                     .collect(),
                 origem: None,
+                informada: None,
             },
             "# Regra de exemplo\n",
         );
@@ -355,6 +356,79 @@ fn arquivo_removido_desatualiza_com_o_motivo() {
     fs::write(c.arquivo(JAVA), original).unwrap();
     c.revalidar();
     assert_eq!(c.status(&rn), StatusRegra::Confirmada);
+}
+
+/// #216: a edição feita na pasta do projeto fora de qualquer sessão (no editor, por
+/// um `git pull`) marca a afirmação que cita o trecho, e desfazer a edição tira a
+/// marca. É a conferência que a tela da análise aberta faz a cada poucos segundos.
+#[test]
+fn edicao_fora_da_sessao_marca_a_analise_aberta_e_desfazer_tira_a_marca() {
+    let c = cenario();
+    let multa = c.evidencia(PKG, 71, 72, "FN_PARAMETRO('PERC_MULTA_ATRASO') / 100, 2)");
+    let java = c.evidencia(JAVA, 28, 29, "PKG_COBRANCA.FN_CALCULAR_JUROS");
+    let a1 = c.analise("Multa por atraso");
+    let n_multa = c.afirmar(&a1, vec![multa.clone()]);
+    let n_java = c.afirmar(&a1, vec![java]);
+    let rn = c.regra("RN-COB-001", std::slice::from_ref(&multa));
+    let mut vistos = Vistos::default();
+
+    // A primeira conferência lê os arquivos e não muda nada.
+    assert_eq!(revalidar_analise(&c.amb, &a1, &mut vistos).unwrap(), None);
+    let antes = c.carregar(&a1);
+    // Nada mudou: nem lê de novo, nem grava.
+    assert_eq!(revalidar_analise(&c.amb, &a1, &mut vistos).unwrap(), None);
+    assert_eq!(c.carregar(&a1), antes);
+
+    // Edição fora do trecho citado: o arquivo é relido, a análise fica como está.
+    c.trocar_linha(PKG, 1, "-- cabeçalho editado à mão");
+    assert_eq!(revalidar_analise(&c.amb, &a1, &mut vistos).unwrap(), None);
+    assert_eq!(c.carregar(&a1).versao, antes.versao);
+
+    // O analista edita a linha citada no editor, sem sessão aberta.
+    let original = fs::read(c.arquivo(PKG)).unwrap();
+    c.trocar_linha(
+        PKG,
+        72,
+        "        RETURN ROUND(V_FATURA.VL_ORIGINAL * 3 / 100, 2);",
+    );
+    let m = revalidar_analise(&c.amb, &a1, &mut vistos)
+        .unwrap()
+        .expect("a análise muda");
+    assert_eq!(m.id, a1);
+    assert_eq!(m.afirmacoes_marcadas, [n_multa]);
+    assert!(m.afirmacoes_restauradas.is_empty());
+    let depois = c.carregar(&a1);
+    let afirmacao = |a: &Analise, n: u32| a.afirmacoes.iter().find(|x| x.numero == n).cloned();
+    let marcada = afirmacao(&depois, n_multa).unwrap();
+    assert_eq!(marcada.estado, EstadoAfirmacao::ARevalidar);
+    assert_eq!(marcada.evidencias[0].estado, EstadoEvidencia::ARevalidar);
+    assert_eq!(
+        afirmacao(&depois, n_java).unwrap().evidencias[0].estado,
+        EstadoEvidencia::Valida
+    );
+    // Só a análise: a regra fica para a revalidação do projeto.
+    assert_eq!(c.status(&rn), StatusRegra::Confirmada);
+    // A gravação não provoca outra leitura.
+    assert_eq!(revalidar_analise(&c.amb, &a1, &mut vistos).unwrap(), None);
+    assert_eq!(c.carregar(&a1).versao, depois.versao);
+
+    // Desfazer a edição tira a marca.
+    fs::write(c.arquivo(PKG), original).unwrap();
+    let m = revalidar_analise(&c.amb, &a1, &mut vistos)
+        .unwrap()
+        .expect("a análise volta");
+    assert_eq!(m.afirmacoes_restauradas, [n_multa]);
+    let restaurada = c.carregar(&a1);
+    let a = afirmacao(&restaurada, n_multa).unwrap();
+    assert_eq!(a.estado, EstadoAfirmacao::Registrada);
+    assert_eq!(a.evidencias[0].estado, EstadoEvidencia::Valida);
+
+    // Arquivo removido (um `git pull` que o apaga) também marca.
+    fs::remove_file(c.arquivo(JAVA)).unwrap();
+    let m = revalidar_analise(&c.amb, &a1, &mut vistos)
+        .unwrap()
+        .unwrap();
+    assert_eq!(m.afirmacoes_marcadas, [n_java]);
 }
 
 /// Todas as linhas não vazias dos arquivos de texto da fixture, como evidências de

@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { mensagemDe } from "./analise";
-import { CadastroProjeto, ResumoDoInventario } from "./CadastroProjeto";
+import { AssistenteProjeto } from "./AssistenteProjeto";
+import { ResumoDoInventario } from "./ResumoDoInventario";
 import { EscolhaBase } from "./EscolhaBase";
 import { EscolhaCliente } from "./EscolhaCliente";
 import { AmbienteDoProjeto } from "./PrepararAmbiente";
@@ -28,6 +29,8 @@ export interface FimPrimeiroUso {
   projeto: string;
   /** Pergunta escolhida para a primeira análise (vazia se o analista não quiser). */
   pergunta: string;
+  /** O ambiente do Claude está preparado: a análise já pode começar (#227). */
+  ambientePronto?: boolean;
 }
 
 /**
@@ -64,7 +67,7 @@ export function AssistentePrimeiroUso({
             className={i === indice ? "atual" : i < indice ? "feita" : undefined}
             aria-current={i === indice ? "step" : undefined}
           >
-            {e.rotulo}
+            {e.rotulo}{" "}
           </li>
         ))}
       </ol>
@@ -97,9 +100,16 @@ export function AssistentePrimeiroUso({
               }}
             />
           )}
-          <CadastroProjeto
+          <AssistenteProjeto
             api={api}
             aoConcluir={(s) => {
+              // “Fazer depois”: segue para a primeira análise sem preparar o ambiente.
+              setProjeto({ id: s.id, nome: s.nome });
+              setCadastrado(s);
+              setAmbientePronto(false);
+              setEtapa("pronto");
+            }}
+            aoPrepararAmbiente={(s) => {
               setProjeto({ id: s.id, nome: s.nome });
               setCadastrado(s);
               setEtapa("ambiente");
@@ -219,7 +229,13 @@ function Pronto({
     setFalha(null);
     api
       .concluir()
-      .then(() => aoConcluir({ projeto: projeto.id, pergunta: comPergunta ? pergunta.trim() : "" }))
+      .then(() =>
+        aoConcluir({
+          projeto: projeto.id,
+          pergunta: comPergunta ? pergunta.trim() : "",
+          ambientePronto,
+        }),
+      )
       .catch((e: unknown) => {
         setFalha(mensagemDe(e));
         setGravando(false);

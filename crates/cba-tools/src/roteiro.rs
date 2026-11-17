@@ -78,16 +78,22 @@ pub fn nome_do_arquivo(fluxo: Fluxo) -> &'static str {
 }
 
 /// Se o roteiro padrão do fluxo já foi revisado. Só os revisados são copiados
-/// para a base. Os três primeiros foram revisados (#32): perguntar no M1, explicar
-/// e impacto no M2; o de reunião, na #140. O de revisão (#116) é provisório até
-/// ser avaliado com o modelo real (`cba-avaliacao rodar --fluxos revisar`), e o
-/// de histórias (#115) também (`--fluxos historias`), e o de cenários (#117)
-/// (`--fluxos cenarios`). Um fluxo novo entra aqui só
-/// depois de ter o roteiro revisado.
+/// para a base e aparecem no editor de textos. Os três primeiros foram revisados
+/// (#32): perguntar no M1, explicar e impacto no M2; o de reunião, na #140; os de
+/// revisão (#116), histórias (#115) e cenários (#117), na #168, depois da
+/// avaliação com o modelo real (`cba-avaliacao rodar --fluxos
+/// revisar,historias,cenarios`). Hoje todos os fluxos estão revisados; um fluxo
+/// novo entra aqui só depois de ter o roteiro avaliado.
 pub fn revisado(fluxo: Fluxo) -> bool {
     matches!(
         fluxo,
-        Fluxo::Perguntar | Fluxo::Explicar | Fluxo::Impacto | Fluxo::Reuniao
+        Fluxo::Perguntar
+            | Fluxo::Explicar
+            | Fluxo::Impacto
+            | Fluxo::Reuniao
+            | Fluxo::Revisar
+            | Fluxo::Historias
+            | Fluxo::Cenarios
     )
 }
 
@@ -169,6 +175,12 @@ fn dica_da_secao(fluxo: Fluxo, marcador: &str) -> &'static str {
             "caminhos que mudam por uma condição do negócio, com a condição"
         }
         (Fluxo::Explicar, "excecoes") => "recusas, erros e bloqueios, com a condição e a mensagem",
+        (Fluxo::Explicar, "fluxo_processo") => {
+            "o fluxograma do processo, registrado com `registrar_diagrama` (tipo `fluxo`): o caminho principal, as decisões dos alternativos e das exceções e um passo de fim para cada desfecho, cada passo com a raia do ator que o executa e com evidência"
+        }
+        (Fluxo::Explicar, "modelo_dados") => {
+            "o modelo de dados conceitual, registrado com `registrar_diagrama` (tipo `dados`): as entidades de negócio lidas e gravadas, com o nome do glossário, a tabela e os atributos de negócio, e as relações com cardinalidade, por chave estrangeira ou inferidas de join"
+        }
         (Fluxo::Explicar, "regras") => {
             "uma regra de negócio por afirmação, com valores e de onde vêm; a mesma regra em mais de uma camada vai numa afirmação só, com as evidências de cada uma e as divergências"
         }
@@ -631,24 +643,21 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let base = Base::criar(dir.path()).unwrap();
         let criados = Roteiros::copiar_padrao(&base).unwrap();
-        // O de reunião foi revisado na #140; os de revisão (#116) e de histórias
-        // (#115) são provisórios e não vão para a base.
-        assert_eq!(
-            FLUXOS
-                .into_iter()
-                .filter(|f| !revisado(*f))
-                .collect::<Vec<_>>(),
-            [Fluxo::Revisar, Fluxo::Historias, Fluxo::Cenarios]
-        );
-        assert!(base.ler_texto(&arquivo_do_roteiro(Fluxo::Revisar)).is_err());
-        assert!(
-            base.ler_texto(&arquivo_do_roteiro(Fluxo::Historias))
-                .is_err()
-        );
+        // Todos os roteiros estão revisados (os de revisão, histórias e
+        // cenários, na #168) e vão para a base.
+        assert!(FLUXOS.into_iter().all(revisado));
         assert_eq!(
             criados,
-            ["perguntar", "explicar", "impacto", "reuniao"]
-                .map(|f| CaminhoRelativo::novo(&format!("_templates/roteiros/{f}.md")).unwrap())
+            [
+                "perguntar",
+                "explicar",
+                "impacto",
+                "reuniao",
+                "revisar",
+                "historias",
+                "cenarios"
+            ]
+            .map(|f| CaminhoRelativo::novo(&format!("_templates/roteiros/{f}.md")).unwrap())
         );
         // A cópia é o padrão embutido, byte a byte.
         for fluxo in FLUXOS.into_iter().filter(|f| revisado(*f)) {

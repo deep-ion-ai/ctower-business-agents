@@ -1,12 +1,14 @@
 import Markdown from "markdown-to-jsx";
-import type { ReactNode } from "react";
+import { useMemo, type MouseEvent, type ReactNode } from "react";
 import {
   resolverLink,
   rotuloTipo,
   type DocumentoAberto,
   type LigacaoVista,
 } from "./conhecimento";
+import { ConsultaReversa } from "./ConsultaReversa";
 import { OPCOES_MARKDOWN_BASE } from "./markdownOpcoes";
+import { separarNotasSeguidas } from "./notasDeRodape";
 
 /** Campos do frontmatter que já aparecem no cabeçalho. */
 const NO_CABECALHO = new Set(["tipo", "titulo", "termo", "status"]);
@@ -31,38 +33,19 @@ export function DocumentoBase({
   documento,
   aoAbrirDocumento,
   aoAbrirAnalise,
+  aoEditar,
 }: {
   documento: DocumentoAberto;
   aoAbrirDocumento: (caminho: string) => void;
   aoAbrirAnalise?: (projeto: string, id: string) => void;
+  /** Mostra o botão "Editar". */
+  aoEditar?: () => void;
 }) {
   const campos = documento.campos.filter((c) => !NO_CABECALHO.has(c.chave));
   const saem = documento.ligacoes.filter((l) => l.sai);
   const chegam = documento.ligacoes.filter((l) => !l.sai);
-
-  const Link = ({ href, children }: { href?: string; children?: ReactNode }) => {
-    if (href?.startsWith("#")) return <a href={href}>{children}</a>;
-    const destino = href ? resolverLink(documento.caminho, href) : null;
-    if (!destino) {
-      return (
-        <span className="link-externo" title={href}>
-          {children}
-        </span>
-      );
-    }
-    return (
-      <a
-        href={`#${destino}`}
-        className="link"
-        onClick={(e) => {
-          e.preventDefault();
-          aoAbrirDocumento(destino);
-        }}
-      >
-        {children}
-      </a>
-    );
-  };
+  // Consulta reversa na tela da regra (#121).
+  const regra = documento.campos.find((c) => c.chave === "id")?.valor;
 
   return (
     <article className="documento-base" aria-label={documento.titulo}>
@@ -82,6 +65,11 @@ export function DocumentoBase({
             </span>
           )}
         </h2>
+        {aoEditar && (
+          <button className="btn" type="button" onClick={aoEditar}>
+            Editar
+          </button>
+        )}
         {documento.analise && aoAbrirAnalise && (
           <button
             className="btn"
@@ -120,17 +108,85 @@ export function DocumentoBase({
         </nav>
       )}
 
-      <div className="markdown">
-        <Markdown
-          options={{
-            ...OPCOES_MARKDOWN_BASE,
-            overrides: { a: { component: Link } },
+      {documento.tipo === "regra" && documento.projeto && regra && (
+        <ConsultaReversa
+          projeto={documento.projeto}
+          regra={regra}
+          aoAbrirDocumento={aoAbrirDocumento}
+          aoAbrirAnalise={aoAbrirAnalise}
+        />
+      )}
+
+      <CorpoMarkdown
+        markdown={documento.markdown}
+        caminho={documento.caminho}
+        aoAbrirDocumento={aoAbrirDocumento}
+      />
+    </article>
+  );
+}
+
+/**
+ * O Markdown do documento renderizado, com os links para outros `.md` da base e as
+ * notas de rodapé (todas, mesmo coladas: `[^1][^2]`) navegáveis. Sem
+ * `aoAbrirDocumento` (a prévia do editor), os links para outros documentos aparecem
+ * como texto.
+ */
+export function CorpoMarkdown({
+  markdown,
+  caminho,
+  aoAbrirDocumento,
+}: {
+  markdown: string;
+  /** Do documento, para resolver os links relativos. */
+  caminho: string;
+  aoAbrirDocumento?: (caminho: string) => void;
+}) {
+  const overrides = useMemo(() => {
+    const Link = ({ href, children }: { href?: string; children?: ReactNode }) => {
+      if (href?.startsWith("#")) return <a href={href}>{children}</a>;
+      const destino = href ? resolverLink(caminho, href) : null;
+      if (!destino || !aoAbrirDocumento) {
+        return (
+          <span className="link-externo" title={href}>
+            {children}
+          </span>
+        );
+      }
+      return (
+        <a
+          href={`#${destino}`}
+          className="link"
+          onClick={(e) => {
+            e.preventDefault();
+            aoAbrirDocumento(destino);
           }}
         >
-          {documento.markdown}
-        </Markdown>
-      </div>
-    </article>
+          {children}
+        </a>
+      );
+    };
+    return { a: { component: Link } };
+  }, [caminho, aoAbrirDocumento]);
+
+  // A nota de rodapé leva à sua linha no fim do documento, sem mexer no endereço da janela.
+  const irParaNota = (e: MouseEvent<HTMLDivElement>) => {
+    const link = (e.target as HTMLElement).closest("a");
+    const href = link?.getAttribute("href");
+    if (!href?.startsWith("#") || href.length < 2) return;
+    const alvo = Array.from(e.currentTarget.querySelectorAll("[id]")).find(
+      (el) => el.id === href.slice(1),
+    );
+    e.preventDefault();
+    alvo?.scrollIntoView?.({ block: "center" });
+  };
+
+  return (
+    <div className="markdown" onClick={irParaNota}>
+      <Markdown options={{ ...OPCOES_MARKDOWN_BASE, overrides }}>
+        {separarNotasSeguidas(markdown)}
+      </Markdown>
+    </div>
   );
 }
 

@@ -17,6 +17,12 @@
 //!   volta a válida, a afirmação ao estado anterior e a regra a `confirmada`;
 //! - o [`Relatorio`] diz o que mudou, com o commit gravado na evidência e o atual.
 //!
+//! Com a tela de uma análise aberta, o app chama [`revalidar_analise`] a cada poucos
+//! segundos: só as evidências daquela análise, e só lendo os arquivos citados
+//! quando o tamanho ou a data de modificação de algum deles mudou (#216). É o que
+//! faz a faixa "O código citado na análise mudou" aparecer depois de uma edição no
+//! editor ou de um `git pull`, e sumir quando a edição é desfeita.
+//!
 //! As regras `obsoleta` ficam de fora: já não sustentam nada. A marca de uma regra
 //! não é guardada por evidência (o frontmatter da regra não tem esse campo): a regra
 //! fica `a-revalidar` e o relatório lista as evidências que não conferem.
@@ -359,21 +365,7 @@ pub fn revalidar(
                         a.revalidar(confere);
                         Ok(antes)
                     })?;
-            let mut mudanca = MudancaDeAnalise {
-                id: gravada.id.clone(),
-                titulo: gravada.titulo.clone(),
-                afirmacoes_marcadas: Vec::new(),
-                afirmacoes_restauradas: Vec::new(),
-            };
-            for (de, para) in antes.afirmacoes.iter().zip(&gravada.afirmacoes) {
-                if de.estado != para.estado {
-                    if para.antes_de_revalidar.is_some() {
-                        mudanca.afirmacoes_marcadas.push(para.numero);
-                    } else {
-                        mudanca.afirmacoes_restauradas.push(para.numero);
-                    }
-                }
-            }
+            let mudanca = mudanca_de_analise(&antes, &gravada);
             let estados_antes: HashMap<_, _> = evidencias_da_analise(&antes)
                 .map(|(o, e)| (chave(&o, e), e.estado))
                 .collect();
@@ -431,6 +423,127 @@ pub fn revalidar(
         "revalidação das evidências"
     );
     Ok(relatorio)
+}
+
+/// Afirmações marcadas e restauradas entre o estado `antes` e o `gravado`.
+fn mudanca_de_analise(antes: &Analise, gravada: &Analise) -> MudancaDeAnalise {
+    let mut mudanca = MudancaDeAnalise {
+        id: gravada.id.clone(),
+        titulo: gravada.titulo.clone(),
+        afirmacoes_marcadas: Vec::new(),
+        afirmacoes_restauradas: Vec::new(),
+    };
+    for (de, para) in antes.afirmacoes.iter().zip(&gravada.afirmacoes) {
+        if de.estado != para.estado {
+            if para.antes_de_revalidar.is_some() {
+                mudanca.afirmacoes_marcadas.push(para.numero);
+            } else {
+                mudanca.afirmacoes_restauradas.push(para.numero);
+            }
+        }
+    }
+    mudanca
+}
+
+/// Tamanho e data de modificação (ns) de um arquivo; `None` se não existe ou não
+/// se lê.
+type Assinatura = Option<(u64, u64)>;
+
+/// O que a última [`revalidar_analise`] viu: a versão da análise e a assinatura de
+/// cada arquivo citado. Fica na memória de quem confere (o app, enquanto a tela da
+/// análise está aberta); vazio, a próxima conferência lê todos os arquivos citados.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Vistos {
+    versao: Option<u64>,
+    arquivos: BTreeMap<String, Assinatura>,
+}
+
+fn assinatura(escopo: &Escopo, arquivo: &str) -> Assinatura {
+    let meta = fs::metadata(escopo.resolver(arquivo).ok()?).ok()?;
+    let modificado = meta
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .and_then(|d| u64::try_from(d.as_nanos()).ok())
+        .unwrap_or(0);
+    Some((meta.len(), modificado))
+}
+
+/// Revalida só as evidências de uma análise, para a tela dela acompanhar o código
+/// enquanto está aberta (#216). A edição pode vir de qualquer lugar: do analista
+/// no editor, de um `git pull`, do agente. Nada disso passa pelo retrato da sessão
+/// (o aviso de alteração do `cba-session` confere só as pastas que não são de
+/// código-fonte), então a tela
+/// chama esta função a cada poucos segundos.
+///
+/// Barata quando nada mudou: lê o estado da análise e consulta o tamanho e a data de
+/// modificação dos arquivos citados. Só se algum deles (ou a própria análise) mudou
+/// desde `vistos`, lê os arquivos e confere os hashes. Quando uma evidência deixa de
+/// conferir ou volta a conferir, grava a análise ([`Mudanca::Afirmacao`], que avisa
+/// as telas pelo diário de eventos) e devolve o que mudou.
+pub fn revalidar_analise(
+    ambiente: &Ambiente,
+    id: &Id,
+    vistos: &mut Vistos,
+) -> Result<Option<MudancaDeAnalise>, Erro> {
+    let lida = ambiente.analises.carregar(id)?;
+    let mut citados: BTreeMap<String, BTreeSet<(u32, u32)>> = BTreeMap::new();
+    for (_, e) in evidencias_da_analise(&lida) {
+        citados
+            .entry(e.arquivo.as_str().to_owned())
+            .or_default()
+            .insert((e.linhas.inicio, e.linhas.fim));
+    }
+    // A assinatura é tirada antes da leitura: uma edição no meio do caminho muda a
+    // assinatura de novo, e a próxima conferência lê o arquivo outra vez.
+    let agora = Vistos {
+        versao: Some(lida.versao),
+        arquivos: citados
+            .keys()
+            .map(|a| (a.clone(), assinatura(&ambiente.escopo, a)))
+            .collect(),
+    };
+    if *vistos == agora {
+        return Ok(None);
+    }
+
+    let mut cache = Cache::default();
+    let mut conferidor = Conferidor::novo(&ambiente.escopo, None, &mut cache);
+    for (arquivo, intervalos) in &citados {
+        conferidor.conferir(arquivo, intervalos);
+    }
+    let atual = conferidor.atual;
+    let confere = |e: &Evidencia| {
+        atual
+            .get(&(
+                e.arquivo.as_str().to_owned(),
+                (e.linhas.inicio, e.linhas.fim),
+            ))
+            .map(|s| s.as_ref().is_ok_and(|h| *h == e.hash))
+    };
+
+    let mut previa = lida.clone();
+    if !previa.revalidar(confere).mudou() {
+        *vistos = agora;
+        return Ok(None);
+    }
+    let (antes, gravada) = ambiente.analises.alterar(id, Mudanca::Afirmacao, |a, _| {
+        let antes = a.clone();
+        a.revalidar(confere);
+        Ok(antes)
+    })?;
+    let mudanca = mudanca_de_analise(&antes, &gravada);
+    tracing::info!(
+        marcadas = mudanca.afirmacoes_marcadas.len(),
+        restauradas = mudanca.afirmacoes_restauradas.len(),
+        "evidências da análise revalidadas"
+    );
+    // A gravação mudou a versão; os arquivos são os mesmos já conferidos.
+    *vistos = Vistos {
+        versao: Some(gravada.versao),
+        ..agora
+    };
+    Ok(Some(mudanca))
 }
 
 /// Chave de uma evidência dentro da análise, para comparar antes e depois.

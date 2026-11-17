@@ -130,6 +130,10 @@ fn inventario_da_fixture_ignora_segredos_e_dependencias() {
     let motivo = |c: &str| inv.ignorado(c).map(|i| i.motivo);
     assert_eq!(motivo("frontend/node_modules"), Some(Motivo::Dependencia));
     assert!(inv.ignorado("frontend/node_modules").unwrap().pasta);
+    // Uma pasta ignorada conta os arquivos dela (index.js e package.json).
+    assert_eq!(inv.ignorado("frontend/node_modules").unwrap().arquivos, 2);
+    assert_eq!(inv.ignorado(".git").unwrap().arquivos, 2);
+    assert_eq!(inv.ignorado("db/dump.dat").unwrap().arquivos, 1);
     assert_eq!(
         motivo("frontend/node_modules/lib/index.js"),
         Some(Motivo::Dependencia)
@@ -216,9 +220,12 @@ fn inventario_da_fixture_ignora_segredos_e_dependencias() {
     let r = inv.resumo();
     assert_eq!(r.analisados, esperados.len());
     assert_eq!(r.por_linguagem[&Linguagem::Java], 6);
-    assert_eq!(r.por_linguagem[&Linguagem::Sql], 3);
+    assert_eq!(r.por_linguagem[&Linguagem::Sql], 4);
     assert_eq!(r.ignorados_por_motivo[&Motivo::Segredo], 2);
-    assert_eq!(r.ignorados, inv.ignorados.len());
+    assert_eq!(
+        r.ignorados,
+        inv.ignorados.iter().map(|i| i.arquivos).sum::<usize>()
+    );
     assert_eq!(r.por_linguagem.values().sum::<usize>(), r.analisados);
 }
 

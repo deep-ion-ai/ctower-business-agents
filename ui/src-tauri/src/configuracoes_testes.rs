@@ -210,12 +210,13 @@ fn copia_que_nao_confere_e_desfeita() {
 #[test]
 fn exclusoes_com_previa_e_gravacao() {
     let c = cenario();
-    let ajuste = AjusteExclusoes {
+    let ajuste = AjusteLeitura {
         projeto: PROJETO.into(),
+        pastas: vec![c.codigo.to_str().unwrap().into()],
         exclusoes: vec!["cobol/".into(), " ".into()],
         inclusoes: vec![],
     };
-    let previa = previa_exclusoes(&c.dados, &ajuste).unwrap();
+    let previa = previa_leitura(&c.dados, &ajuste).unwrap();
     assert_eq!(previa.exclusoes, ["cobol/"]);
     assert!(
         !previa
@@ -235,7 +236,7 @@ fn exclusoes_com_previa_e_gravacao() {
             .is_empty()
     );
 
-    let feito = salvar_exclusoes(&c.dados, &ajuste).unwrap();
+    let feito = salvar_leitura(&c.dados, &ajuste).unwrap();
     assert!(
         !feito
             .inventario
@@ -256,16 +257,96 @@ fn exclusoes_com_previa_e_gravacao() {
             .any(|l| l.nome() == "COBOL")
     );
 
-    let invalido = AjusteExclusoes {
+    let invalido = AjusteLeitura {
         exclusoes: vec!["[".into()],
         ..ajuste.clone()
     };
-    assert!(salvar_exclusoes(&c.dados, &invalido).is_err());
-    let desconhecido = AjusteExclusoes {
+    assert!(salvar_leitura(&c.dados, &invalido).is_err());
+    let desconhecido = AjusteLeitura {
         projeto: "outro".into(),
         ..ajuste
     };
-    assert!(previa_exclusoes(&c.dados, &desconhecido).is_err());
+    assert!(previa_leitura(&c.dados, &desconhecido).is_err());
+}
+
+#[test]
+fn pastas_adicionadas_e_removidas_sem_descadastrar() {
+    let c = cenario();
+    let telas = c.dir.path().join("codigo").join("telas");
+    fs::create_dir_all(&telas).unwrap();
+    fs::write(telas.join("UFrmMulta.pas"), "unit UFrmMulta;").unwrap();
+    let raiz = c.codigo.to_str().unwrap().to_string();
+    let ajuste = AjusteLeitura {
+        projeto: PROJETO.into(),
+        pastas: vec![raiz.clone(), telas.to_str().unwrap().into()],
+        ..Default::default()
+    };
+    let cadastro = Cadastro::em(c.dados.projetos());
+
+    // A prévia mostra a pasta nova sem gravar.
+    let previa = previa_leitura(&c.dados, &ajuste).unwrap();
+    assert_eq!(previa.pastas.len(), 2);
+    assert_eq!(previa.pastas[1].prefixo.as_deref(), Some("telas"));
+    assert_eq!(cadastro.obter(PROJETO).unwrap().unwrap().pastas.len(), 1);
+
+    let feito = salvar_leitura(&c.dados, &ajuste).unwrap();
+    assert_eq!(feito.pastas.len(), 2);
+    let gravado = cadastro.obter(PROJETO).unwrap().unwrap();
+    assert_eq!(gravado.pastas[1].prefixo.as_deref(), Some("telas"));
+    assert!(
+        cadastro
+            .inventario(PROJETO)
+            .unwrap()
+            .unwrap()
+            .arquivo("telas/UFrmMulta.pas")
+            .is_some()
+    );
+
+    // Remover a pasta nova volta ao que era; a raiz nunca muda de prefixo.
+    let so_raiz = AjusteLeitura {
+        pastas: vec![raiz.clone()],
+        ..ajuste.clone()
+    };
+    salvar_leitura(&c.dados, &so_raiz).unwrap();
+    let gravado = cadastro.obter(PROJETO).unwrap().unwrap();
+    assert_eq!(gravado.pastas.len(), 1);
+    assert_eq!(gravado.pastas[0].prefixo, None);
+    assert!(
+        cadastro
+            .inventario(PROJETO)
+            .unwrap()
+            .unwrap()
+            .arquivo("telas/UFrmMulta.pas")
+            .is_none()
+    );
+
+    // A última pasta não sai, e nada é gravado.
+    let sem_pastas = AjusteLeitura {
+        pastas: vec![" ".into()],
+        ..ajuste.clone()
+    };
+    let erro = salvar_leitura(&c.dados, &sem_pastas).unwrap_err();
+    assert!(erro.contains("última"), "{erro}");
+    assert_eq!(cadastro.obter(PROJETO).unwrap().unwrap(), gravado);
+
+    // Caminho relativo ou que não existe: recusado, cadastro intacto.
+    for ruim in ["relativa/pasta", "/nao/existe/mesmo"] {
+        let pedido = AjusteLeitura {
+            pastas: vec![raiz.clone(), ruim.into()],
+            ..ajuste.clone()
+        };
+        assert!(salvar_leitura(&c.dados, &pedido).is_err(), "{ruim}");
+        assert_eq!(cadastro.obter(PROJETO).unwrap().unwrap(), gravado);
+    }
+
+    // A pasta da base não pode virar pasta do projeto.
+    let base = base_atual(&c.dados);
+    let com_base = AjusteLeitura {
+        pastas: vec![raiz, base.to_str().unwrap().into()],
+        ..ajuste
+    };
+    assert!(salvar_leitura(&c.dados, &com_base).is_err());
+    assert_eq!(cadastro.obter(PROJETO).unwrap().unwrap(), gravado);
 }
 
 // ---------------------------------------------------------------------------
@@ -300,7 +381,8 @@ impl Ambiente for ComConfigDir {
 
 // No formato em que o Claude Code grava esses arquivos (JSON com 2 espaços), como no
 // teste do preparo (#24). Um arquivo editado à mão em outro formato volta com o mesmo
-// conteúdo e a mesma ordem das chaves, mas reformatado.
+// conteúdo, a mesma ordem das chaves e a mesma indentação, mas um JSON numa linha só
+// volta reformatado.
 const ESTADO_DO_ANALISTA: &str = r#"{
   "numStartups": 7,
   "projects": {
@@ -378,7 +460,8 @@ fn desfazer_o_ambiente_deixa_a_configuracao_do_claude_como_antes() {
 
     let feito = desfazer_ambiente(&c.dados, &preparador, PROJETO).unwrap();
     assert_eq!(feito.protecao_tirada.len(), 1);
-    assert!(feito.avisos.is_empty());
+    assert!(feito.avisos.is_empty(), "{:?}", feito.avisos);
+    assert!(feito.igual_ao_antes);
     // Byte a byte, como antes do preparo.
     assert_eq!(fs::read_to_string(&estado).unwrap(), ESTADO_DO_ANALISTA);
     assert_eq!(fs::read_to_string(&settings).unwrap(), SETTINGS_DO_ANALISTA);
@@ -394,6 +477,73 @@ fn desfazer_o_ambiente_deixa_a_configuracao_do_claude_como_antes() {
     );
     desfazer_ambiente(&c.dados, &preparador, PROJETO).unwrap();
     assert_eq!(fs::read_to_string(&settings).unwrap(), SETTINGS_DO_ANALISTA);
+}
+
+#[test]
+fn desfazer_devolve_os_hooks_de_outra_instalacao_do_app() {
+    // #213: os hooks apontavam para outra instalação (a de desenvolvimento).
+    let c = cenario();
+    let raiz = dunce::canonicalize(c.dir.path()).unwrap();
+    let (preparador, estado, settings) = configuracao_do_analista(&raiz);
+    let dev = raiz
+        .join("dev")
+        .join(if cfg!(windows) { "cba.exe" } else { "cba" });
+    let dev = Preparador::novo(preparador.config.clone(), dev, Plataforma::atual()).unwrap();
+    let outro = raiz.join("codigo").join("do-dev");
+    fs::create_dir_all(&outro).unwrap();
+    dev.preparar(&cba_session::preparo::Alvo::da_pasta("do-dev", &outro).unwrap())
+        .unwrap();
+    // A configuração "de antes", com 4 espaços de indentação.
+    let quatro = |caminho: &Path| {
+        let v: serde_json::Value = serde_json::from_slice(&fs::read(caminho).unwrap()).unwrap();
+        let mut b = Vec::new();
+        let f = serde_json::ser::PrettyFormatter::with_indent(b"    ");
+        let mut ser = serde_json::Serializer::with_formatter(&mut b, f);
+        serde::Serialize::serialize(&v, &mut ser).unwrap();
+        b.push(b'\n');
+        fs::write(caminho, &b).unwrap();
+        b
+    };
+    let (estado_antes, settings_antes) = (quatro(&estado), quatro(&settings));
+
+    let plano = analise::planejar_preparo(&c.dados, &preparador, PROJETO).unwrap();
+    assert_eq!(
+        plano.outras_instalacoes().len(),
+        1,
+        "o plano avisa da troca"
+    );
+    analise::preparar_ambiente(&c.dados, &preparador, PROJETO).unwrap();
+    assert_ne!(fs::read(&settings).unwrap(), settings_antes);
+
+    let feito = desfazer_ambiente(&c.dados, &preparador, PROJETO).unwrap();
+    assert!(feito.igual_ao_antes, "{:?}", feito.avisos);
+    assert_eq!(fs::read(&settings).unwrap(), settings_antes, "diff vazio");
+    assert_eq!(fs::read(&estado).unwrap(), estado_antes, "diff vazio");
+}
+
+#[test]
+fn desfazer_diz_o_que_ficou_e_por_que() {
+    let c = cenario();
+    let raiz = dunce::canonicalize(c.dir.path()).unwrap();
+    let (preparador, estado, _) = configuracao_do_analista(&raiz);
+    analise::preparar_ambiente(&c.dados, &preparador, PROJETO).unwrap();
+    // O Claude Code grava dados da pasta ao abrir uma conversa.
+    let mut v: serde_json::Value = serde_json::from_slice(&fs::read(&estado).unwrap()).unwrap();
+    for (_, projeto) in v["projects"].as_object_mut().unwrap().iter_mut() {
+        if projeto["mcpServers"].get("cba").is_some() {
+            projeto["lastCost"] = 0.into();
+        }
+    }
+    fs::write(&estado, serde_json::to_vec_pretty(&v).unwrap()).unwrap();
+
+    let feito = desfazer_ambiente(&c.dados, &preparador, PROJETO).unwrap();
+    assert!(!feito.igual_ao_antes);
+    assert_eq!(feito.avisos.len(), 1, "{:?}", feito.avisos);
+    assert!(
+        feito.avisos[0].contains("histórico de uso"),
+        "{}",
+        feito.avisos[0]
+    );
 }
 
 #[test]
@@ -477,8 +627,10 @@ fn textos_mostram_quando_a_base_sobrepoe_o_padrao() {
     let lista = textos(&c.dados).unwrap();
     let de = |g: GrupoTexto| lista.iter().filter(|t| t.grupo == g).count();
     assert!(de(GrupoTexto::Template) > 0);
-    assert_eq!(de(GrupoTexto::Roteiro), 4);
-    assert_eq!(de(GrupoTexto::Prompt), 8);
+    // Um roteiro por fluxo: todos revisados (os de revisão, histórias e cenários
+    // na #168).
+    assert_eq!(de(GrupoTexto::Roteiro), 7);
+    assert_eq!(de(GrupoTexto::Prompt), 9);
     assert_eq!(de(GrupoTexto::RegrasDoProjeto), 1);
     let json = serde_json::to_value(&lista).unwrap();
     assert!(json[0]["grupo"].is_string() && json[0]["estado"].is_string());
@@ -535,6 +687,37 @@ fn configuracoes_reunem_cliente_base_e_projetos() {
     let json = serde_json::to_value(&cfg).unwrap();
     assert_eq!(json["projetos"][0]["id"], PROJETO);
     assert!(json["configClaude"].is_null());
+}
+
+#[test]
+fn info_da_base_conta_arquivos_sem_o_git_e_reconhece_repositorio() {
+    let c = cenario();
+    let base = base_atual(&c.dados);
+    let antes = info_base(&c.dados).unwrap().unwrap();
+    assert_eq!(antes.caminho, base);
+    assert!(antes.existe);
+    assert!(!antes.git);
+
+    fs::write(base.join("nota.md"), "# nota\n").unwrap();
+    fs::create_dir_all(base.join(".git")).unwrap();
+    fs::write(base.join(".git/HEAD"), "ref: refs/heads/main\n").unwrap();
+    fs::write(base.join(".git/objeto"), "x".repeat(1000)).unwrap();
+
+    let depois = info_base(&c.dados).unwrap().unwrap();
+    assert!(depois.git);
+    // A pasta `.git` não entra na conta; a nota nova entra.
+    assert_eq!(depois.arquivos, antes.arquivos + 1);
+    assert_eq!(depois.bytes, antes.bytes + "# nota\n".len() as u64);
+    let json = serde_json::to_value(&depois).unwrap();
+    assert_eq!(json["arquivos"], depois.arquivos);
+    assert!(json.get("indiceAtualizadoEm").is_some());
+}
+
+#[test]
+fn info_da_base_sem_base_configurada_e_vazia() {
+    let dir = tempfile::tempdir().unwrap();
+    let dados = DiretorioDados::em(dir.path());
+    assert_eq!(info_base(&dados).unwrap(), None);
 }
 
 // ---------------------------------------------------------------------------

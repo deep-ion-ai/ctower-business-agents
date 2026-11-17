@@ -138,6 +138,7 @@ fn gravar_regra_e_termo_do_gabarito(amb: &Ambiente, id: &str) {
                     status: StatusRegra::Confirmada,
                     evidencias,
                     origem: None,
+                    informada: None,
                 },
                 format!("\n{}\n", texto(&regra["enunciado"])),
             ),
@@ -497,11 +498,11 @@ fn mapa_do_projeto_e_de_um_modulo() {
         .iter()
         .find(|e| e["caminho"] == "db")
         .unwrap();
-    assert_eq!(db["arquivos"], 3);
+    assert_eq!(db["arquivos"], 4);
 
     let (texto, modulo) = c.chamar("mapa", json!({ "modulo": "db/" }));
     assert_eq!(modulo["modulo"], "db");
-    assert_eq!(modulo["arquivos"], 3);
+    assert_eq!(modulo["arquivos"], 4);
     assert!(texto.contains("- db/03_pkg_cobranca.sql — sql"), "{texto}");
 
     let m = c.recusa("mapa", json!({ "modulo": "nao-existe" }));

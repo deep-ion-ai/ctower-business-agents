@@ -49,7 +49,7 @@ fn cadastra_codigo_no_github_e_issues_no_jira_e_codigo_no_gitlab_e_issues_no_jir
         p.repositorios = Repositorios::default();
         Cadastro::em(c.dados.projetos()).salvar(&p).unwrap();
         let r = Repositorios {
-            forge: Some(forge),
+            codigo: vec![forge.into()],
             tracker: Some(TrackerConfig::Jira(jira())),
         };
         assert_eq!(
@@ -64,7 +64,7 @@ fn cadastra_codigo_no_github_e_issues_no_jira_e_codigo_no_gitlab_e_issues_no_jir
 fn recusa_cadastro_invalido_e_troca_de_tipo() {
     let c = cenario();
     let ruim = Repositorios {
-        forge: None,
+        codigo: vec![],
         tracker: Some(TrackerConfig::Jira(JiraConfig {
             project_key: "proj".into(),
             ..jira()
@@ -76,18 +76,30 @@ fn recusa_cadastro_invalido_e_troca_de_tipo() {
             .contains("chave")
     );
     let r = Repositorios {
-        forge: Some(ForgeConfig::Github(GithubConfig { repo: "o/r".into() })),
+        codigo: vec![ForgeConfig::Github(GithubConfig { repo: "o/r".into() }).into()],
         tracker: Some(TrackerConfig::Jira(jira())),
     };
     salvar_repositorios(&c.dados, PROJETO, r.clone()).unwrap();
     let troca = Repositorios {
-        forge: Some(ForgeConfig::Gitlab(gitlab())),
-        ..r
+        codigo: vec![ForgeConfig::Gitlab(gitlab()).into()],
+        ..r.clone()
     };
     assert!(
         salvar_repositorios(&c.dados, PROJETO, troca)
             .unwrap_err()
-            .contains("não muda")
+            .contains("não pode ser removido nem trocado")
+    );
+    // Acrescentar um segundo repositório pode.
+    let mais = Repositorios {
+        codigo: vec![r.codigo[0].clone(), ForgeConfig::Gitlab(gitlab()).into()],
+        ..r
+    };
+    assert_eq!(
+        salvar_repositorios(&c.dados, PROJETO, mais)
+            .unwrap()
+            .codigo
+            .len(),
+        2
     );
 }
 
@@ -95,7 +107,7 @@ fn recusa_cadastro_invalido_e_troca_de_tipo() {
 fn nenhum_token_vai_para_o_cadastro_em_disco() {
     let c = cenario();
     let r = Repositorios {
-        forge: Some(ForgeConfig::Gitlab(gitlab())),
+        codigo: vec![ForgeConfig::Gitlab(gitlab()).into()],
         tracker: Some(TrackerConfig::Jira(jira())),
     };
     salvar_repositorios(&c.dados, PROJETO, r).unwrap();
@@ -131,7 +143,7 @@ fn nenhum_token_vai_para_o_cadastro_em_disco() {
 fn analise_a_partir_de_uma_issue_traz_titulo_descricao_e_link() {
     let c = cenario();
     let r = Repositorios {
-        forge: Some(ForgeConfig::Github(GithubConfig { repo: "o/r".into() })),
+        codigo: vec![ForgeConfig::Github(GithubConfig { repo: "o/r".into() }).into()],
         tracker: Some(TrackerConfig::Jira(jira())),
     };
     salvar_repositorios(&c.dados, PROJETO, r).unwrap();
@@ -200,6 +212,7 @@ echo '{{"title":"Cancelar fatura","description":"{historia}","web_url":"https://
 echo '{{"fields":{{"summary":"Cancelar fatura","description":"{historia}"}}}}'"#
             ),
         ),
+        ..Default::default()
     };
     for (tracker, referencia, fonte) in [
         (
@@ -222,7 +235,7 @@ echo '{{"fields":{{"summary":"Cancelar fatura","description":"{historia}"}}}}'"#
         p.repositorios = Repositorios::default();
         Cadastro::em(c.dados.projetos()).salvar(&p).unwrap();
         let r = Repositorios {
-            forge: None,
+            codigo: vec![],
             tracker: Some(tracker),
         };
         salvar_repositorios(&c.dados, PROJETO, r).unwrap();
@@ -242,6 +255,76 @@ echo '{{"fields":{{"summary":"Cancelar fatura","description":"{historia}"}}}}'"#
             Some(fonte)
         );
     }
+}
+
+#[test]
+fn exportacao_liga_cada_evidencia_ao_seu_repositorio() {
+    use crate::revisao::{PedidoExportacao, exportar};
+    use cba_tools::revisao::{Formato, OpcoesExportacao};
+
+    // Dois repositórios: o GitLab na raiz do projeto e o GitHub em `db/` (um
+    // repositório dentro do outro). A evidência da multa fica em `db/`.
+    let c = cenario();
+    for args in [
+        &["init", "-q"][..],
+        &["add", "-A"],
+        &["commit", "-q", "-m", "base"],
+    ] {
+        let s = std::process::Command::new("git")
+            .args([
+                "-c",
+                "user.name=t",
+                "-c",
+                "user.email=t@t",
+                "-c",
+                "commit.gpgsign=false",
+            ])
+            .args(args)
+            .current_dir(&c.codigo)
+            .status()
+            .unwrap();
+        assert!(s.success(), "git {args:?}");
+    }
+    let gl = cba_repos::RepositorioCodigo {
+        pasta: Some(c.codigo.clone()),
+        ..ForgeConfig::Gitlab(gitlab()).into()
+    };
+    let gh = cba_repos::RepositorioCodigo {
+        pasta: Some(c.codigo.join("db")),
+        ..ForgeConfig::Github(GithubConfig {
+            repo: "deep-ion-ai/banco".into(),
+        })
+        .into()
+    };
+    salvar_repositorios(
+        &c.dados,
+        PROJETO,
+        Repositorios {
+            codigo: vec![gl, gh],
+            tracker: None,
+        },
+    )
+    .unwrap();
+    c.aprovar_analise_da_multa();
+    let md = exportar(
+        &c.dados,
+        PROJETO,
+        "A-0001",
+        &PedidoExportacao {
+            destino: c.dir.path().join("multa"),
+            formato: Formato::Markdown,
+            opcoes: OpcoesExportacao::default(),
+            figuras: Vec::new(),
+        },
+    )
+    .unwrap();
+    let texto = fs::read_to_string(md).unwrap();
+    assert!(
+        texto.contains("](<https://github.com/deep-ion-ai/banco/blob/"),
+        "{texto}"
+    );
+    assert!(texto.contains("/03_pkg_cobranca.sql#L71-L72>)"), "{texto}");
+    assert!(!texto.contains("gitlab.example.com"), "{texto}");
 }
 
 #[test]
@@ -283,7 +366,7 @@ fn exportacao_liga_as_evidencias_ao_forge_no_commit() {
         &c.dados,
         PROJETO,
         Repositorios {
-            forge: Some(ForgeConfig::Gitlab(gitlab())),
+            codigo: vec![ForgeConfig::Gitlab(gitlab()).into()],
             tracker: None,
         },
     )
@@ -298,6 +381,7 @@ fn exportacao_liga_as_evidencias_ao_forge_no_commit() {
             destino,
             formato: Formato::Markdown,
             opcoes: OpcoesExportacao::default(),
+            figuras: Vec::new(),
         },
     )
     .unwrap();
@@ -306,4 +390,69 @@ fn exportacao_liga_as_evidencias_ao_forge_no_commit() {
         "https://gitlab.example.com/grupo/projeto/app/-/blob/{commit}/db/03_pkg_cobranca.sql#L71-72"
     );
     assert!(texto.contains(&esperado), "{texto}");
+}
+
+#[test]
+fn detecta_repositorios_na_pasta_e_deduz_a_forja() {
+    let dir = tempfile::tempdir().unwrap();
+    let base = dunce::canonicalize(dir.path()).unwrap();
+    for (nome, url) in [
+        ("web", "git@github.com:deep-ion-ai/web.git"),
+        ("legado", "https://gitlab.example.com/grupo/legado.git"),
+    ] {
+        let p = base.join(nome);
+        fs::create_dir_all(&p).unwrap();
+        let ok = |args: &[&str]| {
+            assert!(
+                std::process::Command::new("git")
+                    .args(args)
+                    .current_dir(&p)
+                    .status()
+                    .unwrap()
+                    .success()
+            )
+        };
+        ok(&["init", "-q", "-b", "main"]);
+        ok(&["remote", "add", "origin", url]);
+    }
+    fs::create_dir_all(base.join("solta")).unwrap();
+    let achados = detectar_repositorios(&base).unwrap();
+    let resumo: Vec<_> = achados
+        .iter()
+        .map(|r| {
+            (
+                r.caminho
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .into_owned(),
+                r.forja,
+                r.host.clone().unwrap_or_default(),
+                r.caminho_repo.clone().unwrap_or_default(),
+                r.branch.clone().unwrap_or_default(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        resumo,
+        [
+            (
+                "legado".to_string(),
+                Some(cba_repos::ForgeKind::Gitlab),
+                "gitlab.example.com".to_string(),
+                "grupo/legado".to_string(),
+                "main".to_string()
+            ),
+            (
+                "web".to_string(),
+                Some(cba_repos::ForgeKind::Github),
+                "github.com".to_string(),
+                "deep-ion-ai/web".to_string(),
+                "main".to_string()
+            ),
+        ]
+    );
+    // A própria pasta é um repositório: só ela.
+    assert_eq!(detectar_repositorios(&base.join("web")).unwrap().len(), 1);
+    assert!(detectar_repositorios(Path::new("relativa")).is_err());
 }

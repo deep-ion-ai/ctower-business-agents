@@ -59,6 +59,10 @@ pub const RASTREABILIDADE: &str = "rastreabilidade";
 pub const TABELAS_DECISAO: &str = "tabelas_decisao";
 pub const VALORES_LIMITE: &str = "valores_limite";
 pub const CENARIOS: &str = "cenarios";
+/// Seções do documento negocial com os diagramas do processo e do modelo de dados
+/// (#120), registrados com `registrar_diagrama`.
+pub const FLUXO_PROCESSO: &str = "fluxo_processo";
+pub const MODELO_DADOS: &str = "modelo_dados";
 
 const fn s(marcador: &'static str, titulo: &'static str) -> Secao {
     Secao { marcador, titulo }
@@ -139,8 +143,10 @@ pub const MODELOS: [Modelo; 12] = [
             s("fluxo_principal", "Fluxo principal"),
             s("fluxos_alternativos", "Fluxos alternativos"),
             s("excecoes", "Exceções"),
+            s(FLUXO_PROCESSO, "Fluxo do processo"),
             s("regras", "Regras de negócio"),
             s("dados", "Dados lidos e gravados"),
+            s(MODELO_DADOS, "Modelo de dados conceitual"),
             s("integracoes", "Integrações"),
             s(PERGUNTAS, "Perguntas em aberto"),
             SUGESTOES_SECAO,
@@ -314,6 +320,8 @@ pub(crate) fn texto_vazio(marcador: &str) -> &'static str {
         TABELAS_DECISAO => "_Nenhuma tabela de decisão registrada._",
         VALORES_LIMITE => "_Nenhum cenário de valor-limite ou de partição registrado._",
         CENARIOS => "_Nenhum cenário de teste registrado._",
+        FLUXO_PROCESSO => "_Fluxo do processo ainda não registrado._",
+        MODELO_DADOS => "_Modelo de dados conceitual ainda não registrado._",
         _ => "_Nada registrado._",
     }
 }
@@ -425,11 +433,19 @@ impl Montavel for FrontmatterRegra {
             StatusRegra::ARevalidar => "a revalidar",
             StatusRegra::Obsoleta => "obsoleta",
         };
+        // A regra informada por uma pessoa (#123) mostra a exceção no status.
+        let status = match &self.informada {
+            Some(i) => format!(
+                "{status}, informada por {} (sem evidência no código)",
+                i.informacao.descricao()
+            ),
+            None => status.to_owned(),
+        };
         vec![
             ("id", self.id.to_string()),
             ("titulo", self.titulo.clone()),
             ("area", self.area.clone()),
-            ("status", status.into()),
+            ("status", status),
             ("origem", origem(caminho, self.origem.as_ref())),
         ]
     }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { contar } from "./formatacao";
 import { mensagemDe, type AnaliseCriada, type EstadoAnalise, type Fluxo } from "./analise";
 import { ROTULO_FLUXO, type ApiConhecimento } from "./conhecimento";
 import {
@@ -13,8 +14,14 @@ import { ROTULO_SESSAO } from "./DocumentoAoVivo";
 import type { Tela } from "./Navegacao";
 import { NovaAnalise } from "./NovaAnalise";
 import { NovaHistorias } from "./NovaHistorias";
+import { MatrizRastreabilidade } from "./MatrizRastreabilidade";
+import { PautaPerguntas } from "./PautaPerguntas";
+import type { ApiPauta } from "./pauta";
 import { NovaReuniao } from "./NovaReuniao";
 import { BotoesProximoPasso } from "./ProximoPasso";
+import { RegistrosDemanda } from "./RegistrosDemanda";
+import type { ApiRegistros } from "./registros";
+import type { ApiRastreabilidade } from "./rastreabilidade";
 import { apiReuniaoTauri, type ApiReuniao } from "./reunioes";
 
 const FLUXOS: Fluxo[] = [
@@ -48,6 +55,9 @@ export function PainelDemanda({
   demanda,
   navegar,
   apiReuniao,
+  apiRegistros,
+  apiRastreabilidade,
+  apiPauta,
 }: {
   api: ApiConhecimento;
   projeto: string;
@@ -55,6 +65,12 @@ export function PainelDemanda({
   navegar: (t: Tela) => void;
   /** Nova reunião (#141) e próximos passos (#142); para testes. */
   apiReuniao?: ApiReuniao;
+  /** Premissas, decisões, riscos e restrições (#122); para testes. */
+  apiRegistros?: ApiRegistros;
+  /** Matriz de rastreabilidade (#121); para testes. */
+  apiRastreabilidade?: ApiRastreabilidade;
+  /** Pauta de perguntas pendentes (#123); para testes. */
+  apiPauta?: ApiPauta;
 }) {
   const [painel, setPainel] = useState<Painel | null>(null);
   const [falha, setFalha] = useState<string | null>(null);
@@ -239,6 +255,14 @@ export function PainelDemanda({
         )}
       </section>
 
+      <MatrizRastreabilidade
+        projeto={projeto}
+        demanda={d.id}
+        navegar={navegar}
+        api={apiRastreabilidade}
+        atualizacao={painel}
+      />
+
       <ItensDasAtas
         titulo="Pendências"
         itens={painel.pendencias}
@@ -266,6 +290,23 @@ export function PainelDemanda({
               )
             : undefined
         }
+      />
+
+      <PautaPerguntas
+        projeto={projeto}
+        demanda={d.id}
+        api={apiPauta}
+        atualizacao={painel}
+        abrirAnalise={abrirAnalise}
+        abrirDocumento={abrirDocumento}
+      />
+
+      <RegistrosDemanda
+        projeto={projeto}
+        demanda={d.id}
+        api={apiRegistros}
+        atualizacao={painel}
+        abrirDocumento={abrirDocumento}
       />
 
       {painel.problemas.length > 0 && (
@@ -305,7 +346,7 @@ function EventoDaLinha({
             ata {ROTULO_STATUS_ATA[item.status]}
           </span>{" "}
           <span className="muted">
-            {item.participantes} participante(s) · {item.itens} item(ns)
+            {contar(item.participantes, "participante", "participantes")} · {contar(item.itens, "item", "itens")}
           </span>
           {item.documento && (
             <>

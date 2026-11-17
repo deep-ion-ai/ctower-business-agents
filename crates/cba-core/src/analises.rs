@@ -251,6 +251,50 @@ impl Analises {
         Ok(analise)
     }
 
+    /// Altera várias análises de uma vez, sob uma só trava: lê o estado atual de
+    /// cada uma, aplica `alterar` a todas e só então grava. Se `alterar` recusar
+    /// em qualquer uma (ou alguma não existir), nada é gravado em nenhuma. Serve à
+    /// pauta de perguntas (#123): a mesma resposta fecha a pergunta em várias
+    /// análises, ou em nenhuma. Ids repetidos são tratados uma vez só. Devolve as
+    /// análises gravadas, na ordem de `ids`.
+    pub fn alterar_varias(
+        &self,
+        ids: &[Id],
+        mudanca: Mudanca,
+        mut alterar: impl FnMut(&mut Analise, u64) -> Result<(), ErroModelo>,
+    ) -> Result<Vec<Analise>, Erro> {
+        let mut unicos: Vec<&Id> = Vec::new();
+        for id in ids {
+            if !unicos.contains(&id) {
+                unicos.push(id);
+            }
+        }
+        let gravadas = {
+            let _trava = self.travar()?;
+            let mut alteradas = Vec::with_capacity(unicos.len());
+            for id in &unicos {
+                let mut analise = self.carregar(id)?;
+                let estado_anterior = analise.estado;
+                let agora = tempo::agora_ms().max(analise.atualizada_ms);
+                alterar(&mut analise, agora)?;
+                analise.versao += 1;
+                analise.atualizada_ms = agora;
+                alteradas.push((analise, estado_anterior));
+            }
+            for (analise, estado_anterior) in &alteradas {
+                self.gravar_estado(analise, false)?;
+                if analise.estado.status_documento() != estado_anterior.status_documento() {
+                    self.atualizar_status_do_documento(analise)?;
+                }
+            }
+            alteradas.into_iter().map(|(a, _)| a).collect::<Vec<_>>()
+        };
+        for analise in &gravadas {
+            self.notificar(analise, mudanca);
+        }
+        Ok(gravadas)
+    }
+
     /// Arquivo da memória de uma análise, relativo à raiz do projeto.
     pub fn arquivo_de_memoria(id: &Id) -> CaminhoRelativo {
         layout::memoria_da_analise(id)

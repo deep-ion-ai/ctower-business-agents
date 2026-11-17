@@ -80,6 +80,10 @@ fn perguntar(a: &mut Analise, texto: &str) {
         resposta_enviada: false,
         sessao: None,
         registrada_ms: 0,
+        origem: None,
+        evidencias: vec![],
+        destinatario: None,
+        informada: None,
     });
 }
 

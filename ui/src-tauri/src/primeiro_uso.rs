@@ -28,7 +28,8 @@ use crate::terminal::ProjetoResumo;
 
 const PREFERENCIAS: &str = "preferencias.json";
 
-/// Quantos itens ignorados a prévia lista (o resumo conta todos).
+/// Quantos itens ignorados a prévia lista um a um (o resumo conta todos, e os
+/// grupos cobrem todos).
 pub const MAX_IGNORADOS_NA_PREVIA: usize = 500;
 
 /// Como o analista prefere conversar com a IA (spec, seção 4.1, passo 2).
@@ -50,6 +51,14 @@ pub struct Preferencias {
     /// `None` quando o arquivo é anterior ao assistente.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub primeiro_uso_concluido: Option<bool>,
+    /// Pasta base dos clones dos repositórios de código (#179); `None` = a
+    /// sugerida.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pasta_clones: Option<PathBuf>,
+    /// Hosts acrescentados na seção Acessos e o último teste de cada token
+    /// (#193); nunca o token.
+    #[serde(default, skip_serializing_if = "crate::acessos::AcessosSalvos::vazio")]
+    pub acessos: crate::acessos::AcessosSalvos,
 }
 
 impl Preferencias {
@@ -249,7 +258,7 @@ fn raizes_do_projeto(projeto: &cba_index::Projeto) -> Vec<(PathBuf, String)> {
 }
 
 /// Recusa da base diante de um projeto (cadastrado ou em cadastro).
-fn conflito_com_projeto(base: &Path, projeto: &cba_index::Projeto) -> Option<String> {
+pub(crate) fn conflito_com_projeto(base: &Path, projeto: &cba_index::Projeto) -> Option<String> {
     let base = canonica_aproximada(base);
     let repo_da_base = detectar_git(&base)
         .map(|g| canonica_aproximada(&g.raiz_principal))
@@ -315,6 +324,50 @@ pub fn avaliar_base(
     })
 }
 
+/// Se dá para criar uma pasta dentro do ancestral existente mais próximo de
+/// `caminho` (que ainda não existe): ele precisa ser uma pasta com permissão de
+/// escrita e de travessia. No Unix, o teste é o do próprio sistema (`access`), que
+/// vale para dono, grupo, ACLs e sistema de arquivos só de leitura.
+fn ancestral_gravavel(caminho: &Path) -> bool {
+    let Some(ancestral) = caminho.ancestors().find(|a| a.exists()) else {
+        return true;
+    };
+    if !ancestral.is_dir() {
+        return false;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        let Ok(c) = std::ffi::CString::new(ancestral.as_os_str().as_bytes()) else {
+            return false;
+        };
+        // SAFETY: `c` é uma string C válida e termina em NUL.
+        unsafe { libc::access(c.as_ptr(), libc::W_OK | libc::X_OK) == 0 }
+    }
+    #[cfg(not(unix))]
+    {
+        std::fs::metadata(ancestral).is_ok_and(|m| !m.permissions().readonly())
+    }
+}
+
+/// Texto em português para uma falha de E/S ao criar a pasta da base.
+fn erro_de_criacao(caminho: &Path, erro: &std::io::Error) -> String {
+    use std::io::ErrorKind;
+    let motivo = match erro.kind() {
+        ErrorKind::PermissionDenied => "Sem permissão para criar a pasta aqui".to_string(),
+        ErrorKind::ReadOnlyFilesystem => {
+            "o disco ou a pasta é somente leitura; escolha outro local".to_string()
+        }
+        ErrorKind::StorageFull | ErrorKind::QuotaExceeded => {
+            "não há espaço livre no disco; libere espaço ou escolha outro local".to_string()
+        }
+        ErrorKind::NotADirectory => "uma parte do caminho é um arquivo, não uma pasta".to_string(),
+        ErrorKind::InvalidFilename => "o nome da pasta não é válido neste sistema".to_string(),
+        _ => format!("não foi possível criar a pasta ({erro})"),
+    };
+    format!("{}: {motivo}", caminho.display())
+}
+
 fn recusa_da_base(
     dados: &DiretorioDados,
     restricoes: &Restricoes,
@@ -336,6 +389,9 @@ fn recusa_da_base(
                 t.display()
             ));
         }
+    }
+    if estado == Some(EstadoPasta::Nova) && !ancestral_gravavel(caminho) {
+        return Some("Sem permissão para criar a pasta aqui".into());
     }
     let app = canonica_aproximada(dados.raiz());
     if caminho.starts_with(&app) || app.starts_with(caminho) {
@@ -360,7 +416,10 @@ pub fn configurar_base(
         return Err(r);
     }
     let pasta = avaliacao.caminho;
-    cba_kb::Base::criar(&pasta).map_err(|e| e.to_string())?;
+    cba_kb::Base::criar(&pasta).map_err(|e| match &e {
+        cba_kb::Erro::PastaDaBase { caminho, erro } => erro_de_criacao(caminho, erro),
+        _ => e.to_string(),
+    })?;
     let mut config = Config::ler(dados).map_err(|e| e.to_string())?;
     config.base = Some(pasta.clone());
     config
@@ -439,6 +498,12 @@ pub struct PastaVista {
     /// Branch, se a pasta está num repositório git.
     pub branch: Option<String>,
     pub git: bool,
+    /// URL do primeiro remoto do repositório git da pasta.
+    pub remoto: Option<String>,
+    /// Forja, host e caminho deduzidos do remoto (#178).
+    pub forja: Option<cba_repos::ForgeKind>,
+    pub host: Option<String>,
+    pub caminho_repo: Option<String>,
 }
 
 /// Contagem com rótulo para a interface.
@@ -457,6 +522,8 @@ pub struct Contagem {
 pub struct IgnoradoVista {
     pub caminho: String,
     pub pasta: bool,
+    /// Arquivos que o item cobre (numa pasta, os que há dentro dela).
+    pub arquivos: usize,
     pub motivo: String,
     pub rotulo: String,
     pub regra: Option<String>,
@@ -465,13 +532,51 @@ pub struct IgnoradoVista {
     pub ajustavel: bool,
 }
 
-/// Resumo do inventário: o que será analisado e o que fica fora.
+/// Itens que ficam fora, agrupados pela pasta em que estão e pelo tipo (extensão),
+/// para a tela não listar centenas de arquivos soltos.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GrupoIgnorado {
+    /// Pasta que contém os itens (vazio = a raiz do projeto).
+    pub pasta: String,
+    /// Extensão (`png`), `sem extensão` ou `pasta` (pastas inteiras que ficam fora).
+    pub tipo: String,
+    pub motivo: String,
+    pub rotulo: String,
+    /// Itens do grupo (uma pasta ignorada é um item).
+    pub itens: usize,
+    /// Arquivos que o grupo cobre.
+    pub arquivos: usize,
+    /// Até três caminhos do grupo, para reconhecê-lo.
+    pub exemplos: Vec<String>,
+    /// Padrões que reincluem o grupo todo; vazio quando não dá para reincluir.
+    pub padroes: Vec<String>,
+    pub ajustavel: bool,
+}
+
+/// O efeito de uma reinclusão do analista no inventário.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InclusaoVista {
+    pub padrao: String,
+    /// Arquivos que a reinclusão faz entrar na análise.
+    pub entram: usize,
+    /// Arquivos que ela cobre e que continuam fora (binário pelo conteúdo, por exemplo).
+    pub continuam_fora: usize,
+}
+
+/// Resumo do inventário: o que será analisado e o que fica fora. As contagens são
+/// sempre em arquivos.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResumoInventario {
     pub analisados: usize,
     pub bytes_analisados: u64,
     pub ignorados: usize,
+    /// Itens ignorados (uma pasta conta 1), para o "e mais N itens" de `itens_ignorados`.
+    pub total_itens_ignorados: usize,
+    /// Todos os itens ignorados, agrupados por pasta e tipo.
+    pub grupos_ignorados: Vec<GrupoIgnorado>,
     /// Da maior contagem para a menor.
     pub por_linguagem: Vec<Contagem>,
     pub por_motivo: Vec<Contagem>,
@@ -491,11 +596,119 @@ fn ignorado_vista(i: &Ignorado) -> IgnoradoVista {
     IgnoradoVista {
         caminho: i.caminho.clone(),
         pasta: i.pasta,
+        arquivos: i.arquivos,
         motivo: chave(&i.motivo),
         rotulo: i.motivo.descricao().to_owned(),
         regra: i.regra.clone(),
         ajustavel: i.regra.is_some(),
     }
+}
+
+/// Escapa os curingas do glob (`*?[]{}`) de um trecho de caminho.
+fn escapar_glob(texto: &str) -> String {
+    texto
+        .chars()
+        .map(|c| {
+            if matches!(c, '*' | '?' | '[' | ']' | '{' | '}') {
+                format!("[{c}]")
+            } else {
+                c.to_string()
+            }
+        })
+        .collect()
+}
+
+/// Pasta que contém o item e tipo dele: a extensão, `sem extensão` ou `pasta`.
+fn pasta_e_tipo(i: &Ignorado) -> (String, String) {
+    let (pai, nome) = match i.caminho.rsplit_once('/') {
+        Some((p, n)) => (p.to_owned(), n),
+        None => (String::new(), i.caminho.as_str()),
+    };
+    let tipo = if i.pasta {
+        "pasta".to_owned()
+    } else {
+        match nome.rsplit_once('.') {
+            Some((antes, ext)) if !antes.is_empty() && !ext.is_empty() => ext.to_lowercase(),
+            _ => "sem extensão".to_owned(),
+        }
+    };
+    (pai, tipo)
+}
+
+/// Agrupa os itens ignorados por (pasta, tipo, motivo). Dos maiores (em arquivos)
+/// para os menores.
+pub fn agrupar_ignorados(ignorados: &[Ignorado]) -> Vec<GrupoIgnorado> {
+    use std::collections::BTreeMap;
+    let mut mapa: BTreeMap<(String, String, String, bool), Vec<&Ignorado>> = BTreeMap::new();
+    for i in ignorados {
+        let (pai, tipo) = pasta_e_tipo(i);
+        mapa.entry((pai, tipo, chave(&i.motivo), i.regra.is_some()))
+            .or_default()
+            .push(i);
+    }
+    let mut grupos: Vec<GrupoIgnorado> = mapa
+        .into_iter()
+        .map(|((pasta, tipo, motivo, ajustavel), itens)| {
+            let exato = |i: &&Ignorado| format!("/{}", escapar_glob(&i.caminho));
+            // Vários arquivos da mesma pasta e extensão: um só padrão cobre todos.
+            let padroes = if !ajustavel {
+                Vec::new()
+            } else if itens.len() > 1 && !itens[0].pasta && tipo != "sem extensão" {
+                let base = if pasta.is_empty() {
+                    String::new()
+                } else {
+                    format!("/{}", escapar_glob(&pasta))
+                };
+                vec![format!("{base}/*.{}", escapar_glob(&tipo))]
+            } else {
+                itens.iter().map(exato).collect()
+            };
+            GrupoIgnorado {
+                rotulo: itens[0].motivo.descricao().to_owned(),
+                itens: itens.len(),
+                arquivos: itens.iter().map(|i| i.arquivos).sum(),
+                exemplos: itens.iter().take(3).map(|i| i.caminho.clone()).collect(),
+                pasta,
+                tipo,
+                motivo,
+                padroes,
+                ajustavel,
+            }
+        })
+        .collect();
+    grupos.sort_by(|a, b| {
+        b.arquivos
+            .cmp(&a.arquivos)
+            .then_with(|| a.pasta.cmp(&b.pasta))
+            .then_with(|| a.tipo.cmp(&b.tipo))
+    });
+    grupos
+}
+
+/// O que cada reinclusão faz: arquivos que entram e arquivos que continuam fora.
+pub fn inclusoes_vistas(inventario: &Inventario, inclusoes: &[String]) -> Vec<InclusaoVista> {
+    inclusoes
+        .iter()
+        .filter_map(|padrao| {
+            let e = cba_index::Exclusoes::novas(&[], std::slice::from_ref(padrao)).ok()?;
+            let entram = inventario
+                .arquivos
+                .iter()
+                .filter(|a| e.reincluido(&a.caminho))
+                .count();
+            let continuam_fora = inventario
+                .ignorados
+                .iter()
+                .filter(|i| !i.pasta && e.reincluido(&i.caminho))
+                .map(|i| i.arquivos)
+                .sum();
+            Some(InclusaoVista {
+                padrao: padrao.clone(),
+                entram,
+                continuam_fora,
+            })
+        })
+        .collect()
 }
 
 pub fn resumo_inventario(inventario: &Inventario) -> ResumoInventario {
@@ -528,19 +741,28 @@ pub fn resumo_inventario(inventario: &Inventario) -> ResumoInventario {
             .cmp(&a.quantidade)
             .then(a.rotulo.cmp(&b.rotulo))
     });
+    // Os possíveis segredos sempre entram na lista (a tela os destaca); o resto, até o limite.
     let mut ignorados: Vec<&Ignorado> = inventario.ignorados.iter().collect();
+    ignorados.sort_by(|a, b| {
+        (a.motivo != cba_index::Motivo::Segredo)
+            .cmp(&(b.motivo != cba_index::Motivo::Segredo))
+            .then_with(|| a.caminho.cmp(&b.caminho))
+    });
+    let segredos = ignorados
+        .iter()
+        .take_while(|i| i.motivo == cba_index::Motivo::Segredo)
+        .count();
+    ignorados.truncate(segredos.max(MAX_IGNORADOS_NA_PREVIA));
     ignorados.sort_by(|a, b| a.caminho.cmp(&b.caminho));
     ResumoInventario {
         analisados: r.analisados,
         bytes_analisados: r.bytes_analisados,
         ignorados: r.ignorados,
+        total_itens_ignorados: inventario.ignorados.len(),
+        grupos_ignorados: agrupar_ignorados(&inventario.ignorados),
         por_linguagem,
         por_motivo,
-        itens_ignorados: ignorados
-            .into_iter()
-            .take(MAX_IGNORADOS_NA_PREVIA)
-            .map(ignorado_vista)
-            .collect(),
+        itens_ignorados: ignorados.into_iter().map(ignorado_vista).collect(),
         duracao_ms: inventario.estatisticas.duracao_ms,
     }
 }
@@ -554,6 +776,8 @@ pub struct PreviaProjeto {
     pub pastas: Vec<PastaVista>,
     pub exclusoes: Vec<String>,
     pub inclusoes: Vec<String>,
+    /// O que cada reinclusão faz entrar (ou não) na análise.
+    pub inclusoes_vistas: Vec<InclusaoVista>,
     /// Já existe um projeto com o mesmo identificador.
     pub ja_cadastrado: bool,
     pub inventario: ResumoInventario,
@@ -563,11 +787,24 @@ pub(crate) fn pastas_vista(inventario: &Inventario) -> Vec<PastaVista> {
     inventario
         .pastas
         .iter()
-        .map(|p| PastaVista {
-            caminho: p.caminho.clone(),
-            prefixo: p.prefixo.clone(),
-            branch: p.git.as_ref().and_then(|g| g.branch.clone()),
-            git: p.git.is_some(),
+        .map(|p| {
+            let remoto = p
+                .git
+                .as_ref()
+                .and_then(|_| cba_index::remotos_git(&p.caminho).into_iter().next());
+            let deduzido = remoto
+                .as_deref()
+                .and_then(cba_repos::RepositorioCodigo::da_url);
+            PastaVista {
+                caminho: p.caminho.clone(),
+                prefixo: p.prefixo.clone(),
+                branch: p.git.as_ref().and_then(|g| g.branch.clone()),
+                git: p.git.is_some(),
+                forja: deduzido.as_ref().map(|r| r.forja),
+                host: deduzido.as_ref().map(|r| r.host.clone()),
+                caminho_repo: deduzido.map(|r| r.caminho),
+                remoto,
+            }
         })
         .collect()
 }
@@ -584,6 +821,7 @@ pub fn previa_projeto(
         .is_some();
     Ok(PreviaProjeto {
         pastas: pastas_vista(&inventario),
+        inclusoes_vistas: inclusoes_vistas(&inventario, &projeto.inclusoes),
         inventario: resumo_inventario(&inventario),
         id: projeto.id,
         nome: projeto.nome,
@@ -591,6 +829,18 @@ pub fn previa_projeto(
         inclusoes: projeto.inclusoes,
         ja_cadastrado,
     })
+}
+
+/// Já existe um projeto cadastrado com este nome (ou com o mesmo identificador)?
+pub fn nome_em_uso(dados: &DiretorioDados, nome: &str) -> Result<bool, String> {
+    let id = cba_index::slug(nome);
+    if id.is_empty() {
+        return Ok(false);
+    }
+    Ok(Cadastro::em(dados.projetos())
+        .obter(&id)
+        .map_err(|e| e.to_string())?
+        .is_some())
 }
 
 /// Projeto cadastrado, com o inventário gravado.
@@ -683,6 +933,12 @@ pub async fn configurar_base_app(pasta: String) -> Result<PathBuf, String> {
 pub async fn previa_projeto_app(pedido: PedidoProjeto) -> Result<PreviaProjeto, String> {
     let dados = dados()?;
     bloqueante(move || previa_projeto(&dados, &pedido)).await
+}
+
+#[tauri::command]
+pub async fn nome_projeto_em_uso_app(nome: String) -> Result<bool, String> {
+    let dados = dados()?;
+    bloqueante(move || nome_em_uso(&dados, &nome)).await
 }
 
 #[tauri::command]
@@ -807,6 +1063,47 @@ mod tests {
         assert_eq!(a.estado, Some(EstadoPasta::Base));
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn base_sob_pasta_somente_leitura_e_recusada() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let dados = DiretorioDados::em(dir.path().join("dados"));
+        let r = sem_restricoes();
+        let ro = dir.path().join("somente-leitura");
+        fs::create_dir_all(&ro).unwrap();
+        fs::set_permissions(&ro, fs::Permissions::from_mode(0o555)).unwrap();
+        // Como root o sistema ignora a permissão: nada a verificar.
+        let root = fs::create_dir(ro.join("sonda")).is_ok();
+        if !root {
+            let alvo = ro.join("a").join("base");
+            let a = avaliar_base(&dados, &r, alvo.to_str().unwrap()).unwrap();
+            assert_eq!(a.estado, Some(EstadoPasta::Nova));
+            assert_eq!(
+                a.recusa.as_deref(),
+                Some("Sem permissão para criar a pasta aqui")
+            );
+            let e = configurar_base(&dados, &r, alvo.to_str().unwrap()).unwrap_err();
+            assert!(e.contains("Sem permissão"), "{e}");
+            // Uma pasta gravável continua aceita.
+            let ok = dir.path().join("livre").join("base");
+            let a = avaliar_base(&dados, &r, ok.to_str().unwrap()).unwrap();
+            assert!(a.recusa.is_none());
+        }
+        fs::set_permissions(&ro, fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    #[test]
+    fn erros_de_criacao_sao_traduzidos() {
+        use std::io::{Error, ErrorKind};
+        let p = Path::new("/x/base");
+        let t = |k| erro_de_criacao(p, &Error::from(k));
+        assert!(t(ErrorKind::PermissionDenied).contains("Sem permissão"));
+        assert!(t(ErrorKind::StorageFull).contains("espaço"));
+        assert!(t(ErrorKind::ReadOnlyFilesystem).contains("somente leitura"));
+        assert!(t(ErrorKind::NotADirectory).contains("arquivo"));
+    }
+
     #[test]
     fn base_em_pasta_temporaria_ou_nos_dados_do_app_e_recusada() {
         let dir = tempfile::tempdir().unwrap();
@@ -895,7 +1192,7 @@ mod tests {
         assert!(inv.analisados > 0);
         let sql = inv.por_linguagem.iter().find(|c| c.chave == "sql").unwrap();
         assert_eq!(sql.rotulo, "SQL");
-        assert_eq!(sql.quantidade, 3);
+        assert_eq!(sql.quantidade, 4);
         let env = inv
             .itens_ignorados
             .iter()
@@ -932,6 +1229,167 @@ mod tests {
         let mut invalido = pedido(&[&fixture()]);
         invalido.exclusoes = vec!["[".into()];
         assert!(previa_projeto(&dados, &invalido).is_err());
+    }
+
+    /// Projeto de mentira: ícones PNG (binários de verdade), uma pasta de dependências
+    /// com 3 arquivos e um texto com a extensão de binário.
+    fn projeto_com_icones(raiz: &Path) {
+        let ic = raiz.join("web/icones");
+        fs::create_dir_all(&ic).unwrap();
+        for n in ["a", "b", "c"] {
+            fs::write(ic.join(format!("{n}.png")), b"\x89PNG\x00\x01").unwrap();
+        }
+        fs::write(raiz.join("web/app.ts"), "export const x = 1;\n").unwrap();
+        fs::write(raiz.join("web/notas.db"), "texto simples\n").unwrap();
+        let dep = raiz.join("web/node_modules/lib");
+        fs::create_dir_all(&dep).unwrap();
+        for n in ["1.js", "2.js", "3.js"] {
+            fs::write(dep.join(n), "x").unwrap();
+        }
+    }
+
+    #[test]
+    fn previa_conta_em_arquivos_e_agrupa_por_pasta_e_tipo() {
+        let dir = tempfile::tempdir().unwrap();
+        let dados = DiretorioDados::em(dir.path().join("dados"));
+        let raiz = dir.path().join("proj");
+        projeto_com_icones(&raiz);
+        let p = previa_projeto(&dados, &pedido(&[&raiz])).unwrap();
+        let inv = &p.inventario;
+        // node_modules conta os 3 arquivos, não 1 pasta; os 3 PNG e o .db também.
+        assert_eq!(inv.ignorados, 3 + 3 + 1);
+        assert_eq!(inv.total_itens_ignorados, 1 + 3 + 1);
+        let motivo = |m: &str| inv.por_motivo.iter().find(|c| c.chave == m).unwrap();
+        assert_eq!(motivo("dependencia").quantidade, 3);
+        assert_eq!(motivo("binario").quantidade, 4);
+        assert_eq!(
+            inv.por_motivo.iter().map(|c| c.quantidade).sum::<usize>(),
+            inv.ignorados
+        );
+        // Agrupado por pasta e tipo: os ícones são um grupo só, com um padrão só.
+        let g = inv
+            .grupos_ignorados
+            .iter()
+            .find(|g| g.tipo == "png")
+            .unwrap();
+        assert_eq!(
+            (g.pasta.as_str(), g.itens, g.arquivos),
+            ("web/icones", 3, 3)
+        );
+        assert_eq!(g.padroes, ["/web/icones/*.png"]);
+        assert!(g.ajustavel && g.exemplos.len() == 3);
+        let dep = inv
+            .grupos_ignorados
+            .iter()
+            .find(|g| g.tipo == "pasta")
+            .unwrap();
+        assert_eq!((dep.pasta.as_str(), dep.itens, dep.arquivos), ("web", 1, 3));
+        assert_eq!(dep.padroes, ["/web/node_modules"]);
+        assert_eq!(
+            inv.grupos_ignorados
+                .iter()
+                .map(|g| g.arquivos)
+                .sum::<usize>(),
+            inv.ignorados
+        );
+    }
+
+    #[test]
+    fn reincluir_muda_as_contagens_ou_explica_que_continua_fora() {
+        let dir = tempfile::tempdir().unwrap();
+        let dados = DiretorioDados::em(dir.path().join("dados"));
+        let raiz = dir.path().join("proj");
+        projeto_com_icones(&raiz);
+        let antes = previa_projeto(&dados, &pedido(&[&raiz])).unwrap();
+        let mut ped = pedido(&[&raiz]);
+        // Dependências (os 3 arquivos entram), o .db de texto (entra) e os PNG
+        // (binários pelo conteúdo: continuam fora).
+        ped.inclusoes = vec![
+            "/web/node_modules".into(),
+            "/web/notas.db".into(),
+            "/web/icones/*.png".into(),
+        ];
+        let depois = previa_projeto(&dados, &ped).unwrap();
+        assert_eq!(
+            depois.inventario.analisados,
+            antes.inventario.analisados + 3 + 1
+        );
+        assert_eq!(depois.inventario.ignorados, 3);
+        let v = |padrao: &str| {
+            depois
+                .inclusoes_vistas
+                .iter()
+                .find(|i| i.padrao == padrao)
+                .unwrap()
+        };
+        assert_eq!(
+            (
+                v("/web/node_modules").entram,
+                v("/web/node_modules").continuam_fora
+            ),
+            (3, 0)
+        );
+        assert_eq!(
+            (v("/web/notas.db").entram, v("/web/notas.db").continuam_fora),
+            (1, 0)
+        );
+        assert_eq!(
+            (
+                v("/web/icones/*.png").entram,
+                v("/web/icones/*.png").continuam_fora
+            ),
+            (0, 3)
+        );
+    }
+
+    #[test]
+    fn grupos_escapam_curingas_e_nao_agrupam_o_que_nao_se_reinclui() {
+        let item = |caminho: &str, regra: Option<&str>| Ignorado {
+            caminho: caminho.into(),
+            pasta: false,
+            arquivos: 1,
+            motivo: cba_index::Motivo::Binario,
+            regra: regra.map(str::to_owned),
+            detalhe: None,
+            tamanho: None,
+            modificado: None,
+        };
+        let grupos = agrupar_ignorados(&[
+            item("a[1]/x.png", Some("*.png")),
+            item("a[1]/y.png", Some("*.png")),
+            item("LEIA", Some("LEIA")),
+            item("a[1]/z.bin", None),
+        ]);
+        assert_eq!(grupos.len(), 3);
+        let png = grupos.iter().find(|g| g.tipo == "png").unwrap();
+        assert_eq!(png.padroes, ["/a[[]1[]]/*.png"]);
+        let e = cba_index::Exclusoes::novas(&[], &png.padroes).unwrap();
+        assert!(e.reincluido("a[1]/x.png") && !e.reincluido("a1/x.png"));
+        let sem = grupos.iter().find(|g| g.tipo == "sem extensão").unwrap();
+        assert_eq!(
+            (sem.pasta.as_str(), sem.padroes.as_slice()),
+            ("", ["/LEIA".to_owned()].as_slice())
+        );
+        let fixo = grupos.iter().find(|g| g.tipo == "bin").unwrap();
+        assert!(!fixo.ajustavel && fixo.padroes.is_empty());
+    }
+
+    #[test]
+    fn nome_em_uso_compara_pelo_identificador() {
+        let dir = tempfile::tempdir().unwrap();
+        let dados = DiretorioDados::em(dir.path().join("dados"));
+        configurar_base(
+            &dados,
+            &sem_restricoes(),
+            dir.path().join("base").to_str().unwrap(),
+        )
+        .unwrap();
+        assert!(!nome_em_uso(&dados, "Faturamento Exemplo").unwrap());
+        cadastrar_projeto(&dados, &pedido(&[&fixture()])).unwrap();
+        assert!(nome_em_uso(&dados, "Faturamento Exemplo").unwrap());
+        assert!(nome_em_uso(&dados, "  faturamento-exemplo ").unwrap());
+        assert!(!nome_em_uso(&dados, "Outro").unwrap());
+        assert!(!nome_em_uso(&dados, "  ").unwrap());
     }
 
     #[test]

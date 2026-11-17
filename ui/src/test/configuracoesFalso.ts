@@ -1,13 +1,15 @@
 import type { SituacaoProtecao } from "../analise";
 import {
   CONFLITO,
-  type AjusteExclusoes,
+  type AjusteLeitura,
+  type AmbienteDesfeito,
   type AmbienteDetalhado,
   type ApiConfiguracoes,
   type AvaliacaoTroca,
   type AvisoTexto,
   type Configuracoes,
   type EstadoTexto,
+  type InfoBase,
   type LeituraTexto,
   type ModoTroca,
   type SalvoTexto,
@@ -15,11 +17,33 @@ import {
   type TrocaBase,
 } from "../configuracoes";
 import type { PreviaProjeto } from "../primeiroUso";
-import type { Prontidao, Repositorios } from "../repositorios";
+import type { EstadoToken, HostCadastrado, TesteToken } from "../acessos";
+import type {
+  AmbienteTeste,
+  EntradaAmbienteTeste,
+  SituacaoAmbienteTeste,
+} from "../ambienteTeste";
+import type {
+  AlvoToken,
+  ForgeKind,
+  EventoClone,
+  Prontidao,
+  RepoDetectado,
+  RepositorioCodigo,
+  Repositorios,
+  ResultadoClone,
+} from "../repositorios";
 import { apiPrimeiroUsoFalsa, inventarioFicticio } from "./falsos";
 
 export const BASE = "/Users/analista/Documents/ctower-business";
 export const CODIGO = "/codigo/faturamento-exemplo";
+export const PASTA_CLONES = "/Users/analista/Documents/ctower-business-repos";
+
+/** Conta do chaveiro falso: `host` (global) ou `host/caminho` (próprio). */
+export function contaDoAlvo(alvo: AlvoToken): string {
+  const caminho = alvo.caminho?.trim();
+  return caminho ? `${alvo.host}/${caminho}` : alvo.host;
+}
 
 export function configuracoesFicticias(parcial: Partial<Configuracoes> = {}): Configuracoes {
   return {
@@ -33,7 +57,7 @@ export function configuracoesFicticias(parcial: Partial<Configuracoes> = {}): Co
         pastas: [{ caminho: CODIGO, prefixo: null, existe: true }],
         exclusoes: ["docs/antigos/"],
         inclusoes: [],
-        repositorios: { forge: null, tracker: null },
+        repositorios: { codigo: [], tracker: null },
       },
     ],
     configClaude: {
@@ -135,6 +159,19 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
       },
     ]),
   );
+  const ambientes = new Map<string, AmbienteTeste>(
+    cfg.projetos.flatMap((p) => (p.ambienteTeste ? [[p.id, p.ambienteTeste] as const] : [])),
+  );
+  const senhasTeste = new Map<string, string>();
+  const situacaoTeste = (projeto: string): SituacaoAmbienteTeste => {
+    const ambiente = ambientes.get(projeto) ?? null;
+    return {
+      ambiente,
+      comSenha: (ambiente?.usuarios ?? [])
+        .map((u) => u.id)
+        .filter((id) => senhasTeste.has(`${projeto}/${id}`)),
+    };
+  };
   const catalogo = (arquivo: string) => {
     const t = TEXTOS.find((x) => x.arquivo === arquivo);
     if (!t) throw new Error(`${arquivo} não é um texto editável da base`);
@@ -161,14 +198,167 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
       versao: versaoDe(arquivo),
     };
   };
+  /** O chaveiro falso: conta → token. */
+  const chaveiro = new Map<string, string>();
+  /** Comandos que imprimem o token global (host → comando). */
+  const comandos = new Map<string, string>();
+  /** Últimos testes (conta → resultado). */
+  const testes = new Map<string, TesteToken>();
+  let hostsExtras: HostCadastrado[] = [];
+  /** Resultado do próximo "Testar" (o padrão: acesso ok agora). */
+  let proximoTeste: () => TesteToken = () => ({ ok: true, quando: Date.now() });
+  let pastaClones: string | null = PASTA_CLONES;
   const api = {
     ...base,
+    pastaClones: vi.fn((): Promise<string | null> => Promise.resolve(pastaClones)),
+    definirPastaClones: vi.fn((pasta: string): Promise<string> => {
+      if (!pasta.startsWith("/")) {
+        return Promise.reject(`informe o caminho completo da pasta dos clones: ${pasta}`);
+      }
+      pastaClones = pasta;
+      return Promise.resolve(pasta);
+    }),
+    salvarToken: vi.fn((alvo: AlvoToken, token: string): Promise<void> => {
+      chaveiro.set(contaDoAlvo(alvo), token);
+      if (!alvo.caminho) comandos.delete(alvo.host);
+      testes.delete(contaDoAlvo(alvo));
+      return Promise.resolve();
+    }),
+    apagarToken: vi.fn((alvo: AlvoToken): Promise<void> => {
+      chaveiro.delete(contaDoAlvo(alvo));
+      testes.delete(contaDoAlvo(alvo));
+      return Promise.resolve();
+    }),
+    hostsAcessos: vi.fn((): Promise<HostCadastrado[]> => Promise.resolve([...hostsExtras])),
+    adicionarHostAcesso: vi.fn((host: string, forja: ForgeKind): Promise<HostCadastrado> => {
+      const h = { host: host.trim().toLowerCase(), forja };
+      hostsExtras = [...hostsExtras.filter((x) => x.host !== h.host), h];
+      return Promise.resolve(h);
+    }),
+    removerHostAcesso: vi.fn((host: string): Promise<void> => {
+      chaveiro.delete(host);
+      comandos.delete(host);
+      testes.delete(host);
+      hostsExtras = hostsExtras.filter((x) => x.host !== host);
+      return Promise.resolve();
+    }),
+    definirComandoHost: vi.fn((host: string, comando: string): Promise<void> => {
+      if (!comando.trim()) return Promise.reject("informe o comando que imprime o token");
+      comandos.set(host, comando.trim());
+      chaveiro.delete(host);
+      testes.delete(host);
+      return Promise.resolve();
+    }),
+    estadoTokens: vi.fn(
+      (alvos: AlvoToken[]): Promise<EstadoToken[]> =>
+        Promise.resolve(
+          alvos.map((a) => ({
+            guardado: chaveiro.has(contaDoAlvo(a)),
+            comando: a.caminho ? null : (comandos.get(a.host) ?? null),
+            teste: testes.get(contaDoAlvo(a)) ?? null,
+          })),
+        ),
+    ),
+    testarTokenHost: vi.fn(
+      (
+        host: string,
+        _forja: ForgeKind,
+        _exemplo: RepositorioCodigo | null,
+      ): Promise<TesteToken> => {
+        const t = proximoTeste();
+        testes.set(host, t);
+        return Promise.resolve(t);
+      },
+    ),
+    testarTokenRepositorio: vi.fn((r: RepositorioCodigo): Promise<TesteToken> => {
+      const t = proximoTeste();
+      testes.set(contaDoAlvo({ host: r.host, caminho: r.caminho }), t);
+      return Promise.resolve(t);
+    }),
+    tokensGuardados: vi.fn(
+      (alvos: AlvoToken[]): Promise<boolean[]> =>
+        Promise.resolve(alvos.map((a) => chaveiro.has(contaDoAlvo(a)))),
+    ),
+    testarAcesso: vi.fn(
+      (_repositorio: RepositorioCodigo, _token?: string | null): Promise<void> =>
+        Promise.resolve(),
+    ),
+    clonarRepositorios: vi.fn(
+      (
+        repositorios: RepositorioCodigo[],
+        pastaBase: string,
+        aoEvento: (e: EventoClone) => void,
+      ): Promise<ResultadoClone[]> =>
+        Promise.resolve(
+          repositorios.map((r, indice) => {
+            const pasta = `${pastaBase}/${r.caminho.split("/").pop()}`;
+            aoEvento({ tipo: "inicio", indice });
+            aoEvento({ tipo: "concluido", indice, pasta });
+            return { repositorio: { ...r, pasta }, erro: null };
+          }),
+        ),
+    ),
+    cancelarClone: vi.fn((): Promise<boolean> => Promise.resolve(false)),
+    // Ambiente de teste: o cadastro e o "chaveiro" das senhas, como o app faz.
+    ambienteTeste: vi.fn(
+      (projeto: string): Promise<SituacaoAmbienteTeste> =>
+        Promise.resolve(situacaoTeste(projeto)),
+    ),
+    salvarAmbienteTeste: vi.fn(
+      (projeto: string, e: EntradaAmbienteTeste): Promise<SituacaoAmbienteTeste> => {
+        const anterior = ambientes.get(projeto)?.usuarios ?? [];
+        let maior = Math.max(0, ...anterior.map((u) => Number(u.id.slice(1)) || 0));
+        const usuarios = e.usuarios.map((u) => {
+          const id = u.id && anterior.some((a) => a.id === u.id) ? u.id : `u${++maior}`;
+          if (u.senha) senhasTeste.set(`${projeto}/${id}`, u.senha);
+          return {
+            id,
+            usuario: u.usuario.trim(),
+            perfil: u.perfil.trim(),
+            descricao: u.descricao.trim(),
+          };
+        });
+        for (const a of anterior)
+          if (!usuarios.some((u) => u.id === a.id)) senhasTeste.delete(`${projeto}/${a.id}`);
+        ambientes.set(projeto, {
+          url: e.url.trim(),
+          tipo: "web",
+          autenticacao: "usuario_senha",
+          observacoes: e.observacoes.trim(),
+          usuarios,
+        });
+        return Promise.resolve(situacaoTeste(projeto));
+      },
+    ),
+    removerAmbienteTeste: vi.fn((projeto: string): Promise<SituacaoAmbienteTeste> => {
+      for (const u of ambientes.get(projeto)?.usuarios ?? [])
+        senhasTeste.delete(`${projeto}/${u.id}`);
+      ambientes.delete(projeto);
+      return Promise.resolve(situacaoTeste(projeto));
+    }),
     configuracoes: vi.fn((): Promise<Configuracoes> => Promise.resolve(cfg)),
+    infoBase: vi.fn(
+      (): Promise<InfoBase | null> =>
+        Promise.resolve(
+          cfg.base
+            ? {
+                caminho: cfg.base,
+                existe: true,
+                arquivos: 142,
+                bytes: 3_460_000,
+                git: true,
+                indiceAtualizadoEm: 1_700_000_000,
+              }
+            : null,
+        ),
+    ),
+    abrirBase: vi.fn((): Promise<string> => Promise.resolve(cfg.base ?? "")),
     salvarRepositorios: vi.fn(
       (_projeto: string, repositorios: Repositorios): Promise<Repositorios> =>
         Promise.resolve(repositorios),
     ),
     prontidaoRepositorios: vi.fn((): Promise<Prontidao> => Promise.resolve({ integracoes: [] })),
+    detectarRepositorios: vi.fn((): Promise<RepoDetectado[]> => Promise.resolve([])),
     verificarAmbiente: vi.fn(
       (): Promise<AmbienteDetalhado> =>
         Promise.resolve({
@@ -178,6 +368,7 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
             diretorio: CODIGO,
             chave: CODIGO,
             servidorMcp: "ok",
+            pastaConfiavel: true,
             hooks: [
               { evento: "SessionStart", situacao: "ok" },
               { evento: "Stop", situacao: "ok" },
@@ -211,32 +402,45 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
           avisos: [],
         }),
     ),
-    previaExclusoes: vi.fn(
-      (a: AjusteExclusoes): Promise<PreviaProjeto> =>
+    previaLeitura: vi.fn(
+      (a: AjusteLeitura): Promise<PreviaProjeto> =>
         Promise.resolve({
           id: a.projeto,
           nome: "Faturamento Exemplo",
-          pastas: [],
+          pastas: a.pastas.map((caminho, i) => ({
+            caminho,
+            prefixo: i === 0 ? null : (caminho.split("/").pop() ?? null),
+            branch: null,
+            git: false,
+          })),
           exclusoes: a.exclusoes,
           inclusoes: a.inclusoes,
+          inclusoesVistas: [],
           jaCadastrado: false,
           inventario: inventarioFicticio(),
         }),
     ),
-    salvarExclusoes: vi.fn((a: AjusteExclusoes) =>
+    salvarLeitura: vi.fn((a: AjusteLeitura) =>
       Promise.resolve({
         id: a.projeto,
         nome: "Faturamento Exemplo",
-        pastas: [],
+        pastas: a.pastas.map((caminho, i) => ({
+          caminho,
+          prefixo: i === 0 ? null : (caminho.split("/").pop() ?? null),
+          branch: null,
+          git: false,
+        })),
         inventario: inventarioFicticio(),
       }),
     ),
-    desfazerAmbiente: vi.fn((_s: string) =>
-      Promise.resolve({
-        protecaoTirada: [],
-        preparo: { diretorio: CODIGO, alteracoes: [], gravado: true },
-        avisos: [],
-      }),
+    desfazerAmbiente: vi.fn(
+      (_s: string): Promise<AmbienteDesfeito> =>
+        Promise.resolve({
+          protecaoTirada: [],
+          preparo: { diretorio: CODIGO, alteracoes: [], gravado: true },
+          avisos: [],
+          igualAoAntes: true,
+        }),
     ),
     descadastrar: vi.fn((_s: string) =>
       Promise.resolve({
@@ -244,6 +448,7 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
           protecaoTirada: [],
           preparo: { diretorio: CODIGO, alteracoes: [], gravado: true },
           avisos: [],
+          igualAoAntes: true,
         },
         documentos: `${BASE}/faturamento-exemplo`,
       }),
@@ -293,5 +498,18 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
   const editarFora = (arquivo: string, texto: string) => {
     arquivos.set(arquivo, { texto, versao: `v${++contador}` });
   };
-  return Object.assign(api, { editarFora, textoNaBase: (arquivo: string) => arquivos.get(arquivo)!.texto });
+  return Object.assign(api, {
+    editarFora,
+    textoNaBase: (arquivo: string) => arquivos.get(arquivo)!.texto,
+    /** O conteúdo do chaveiro falso (conta → token). */
+    chaveiro,
+    /** Senhas dos usuários de teste (`<projeto>/<id>` → senha). */
+    senhasTeste,
+    comandos,
+    testes,
+    /** Define o resultado dos próximos "Testar". */
+    aoTestar: (f: () => TesteToken) => {
+      proximoTeste = f;
+    },
+  });
 }

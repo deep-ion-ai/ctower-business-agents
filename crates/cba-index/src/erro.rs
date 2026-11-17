@@ -15,6 +15,12 @@ pub enum Erro {
     #[error("o projeto precisa de ao menos uma pasta")]
     SemPastas,
 
+    #[error("o projeto precisa de ao menos uma pasta: não dá para remover a última")]
+    UltimaPasta,
+
+    #[error("o caminho da pasta precisa ser absoluto: {0}")]
+    CaminhoRelativo(PathBuf),
+
     #[error("pasta não encontrada: {0}")]
     PastaNaoEncontrada(PathBuf),
 
@@ -38,6 +44,9 @@ pub enum Erro {
 
     #[error("repositórios do projeto: {0}")]
     Repositorios(String),
+
+    #[error("ambiente de teste: {0}")]
+    AmbienteTeste(String),
 
     #[error("projeto já cadastrado: {0}")]
     JaCadastrado(String),

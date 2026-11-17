@@ -70,6 +70,7 @@ fn cenario() -> Cenario {
                         status,
                         evidencias: Vec::new(),
                         origem: None,
+                        informada: None,
                     },
                     "Só fatura ABERTA e sem nenhum valor pago pode ser cancelada.\n",
                 ),
@@ -504,6 +505,7 @@ fn parecer_exporta_para_markdown_e_word() {
         &destino.path().join("parecer"),
         Formato::Markdown,
         &OpcoesExportacao::default(),
+        &cba_docs::Figuras::default(),
     )
     .unwrap();
     let texto = std::fs::read_to_string(&md).unwrap();
@@ -519,6 +521,7 @@ fn parecer_exporta_para_markdown_e_word() {
         &destino.path().join("parecer"),
         Formato::Word,
         &OpcoesExportacao::default(),
+        &cba_docs::Figuras::default(),
     )
     .unwrap();
     assert!(docx.extension().is_some_and(|e| e == "docx"));

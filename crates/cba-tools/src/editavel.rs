@@ -197,6 +197,10 @@ fn rotulo_do_template(tipo: cba_kb::frontmatter::TipoDocumento) -> &'static str 
         T::ParecerRevisao => "Parecer de revisão",
         T::Historias => "Histórias e critérios de aceite",
         T::CenariosTeste => "Cenários de teste",
+        T::Premissa => "Premissa",
+        T::Decisao => "Decisão",
+        T::Risco => "Risco",
+        T::Restricao => "Restrição",
     }
 }
 
@@ -505,7 +509,7 @@ mod tests {
         let lista = textos_editaveis();
         let de = |g: Grupo| lista.iter().filter(|t| t.grupo == g).count();
         assert_eq!(de(Grupo::Template), cba_docs::MODELOS.len());
-        assert_eq!(de(Grupo::Roteiro), 4);
+        assert_eq!(de(Grupo::Roteiro), crate::roteiro::FLUXOS.len());
         assert_eq!(de(Grupo::Prompt), crate::prompts::DEFINICOES.len());
         let arquivos: std::collections::BTreeSet<&str> =
             lista.iter().map(|t| t.arquivo.as_str()).collect();
@@ -513,6 +517,9 @@ mod tests {
         assert!(arquivos.contains("_templates/analise-impacto.md"));
         assert!(arquivos.contains("_templates/roteiros/perguntar.md"));
         assert!(arquivos.contains("_templates/roteiros/reuniao.md"));
+        assert!(arquivos.contains("_templates/roteiros/revisar.md"));
+        assert!(arquivos.contains("_templates/roteiros/historias.md"));
+        assert!(arquivos.contains("_templates/roteiros/cenarios.md"));
         assert!(arquivos.contains("_templates/prompts/aprofundar.md"));
         assert!(lista.iter().all(|t| !t.padrao.trim().is_empty()));
     }

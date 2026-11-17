@@ -6,8 +6,9 @@ use cba_session::clientes::{self, EstadoClientes};
 use std::sync::Arc;
 
 use crate::{
-    alteracoes, analise, base, configuracoes, conversa, demandas, inicio, primeiro_uso, projeto,
-    prompts, repositorios, reunioes, revisao, terminal, vigia,
+    acessos, alteracoes, ambiente_teste, analise, base, clones, configuracoes, conversa, demandas,
+    inicio, pauta, primeiro_uso, projeto, prompts, rastreabilidade, registros, repositorios,
+    reunioes, revisao, terminal, vigia,
 };
 
 pub fn rodar() {
@@ -40,6 +41,8 @@ pub fn rodar() {
         .manage(sessoes.clone())
         .manage(vigias)
         .manage(Arc::new(base::VigiaBase::default()))
+        .manage(Arc::new(clones::CloneEmAndamento::default()))
+        .manage(Arc::new(analise::EvidenciasVistas::default()))
         .invoke_handler(tauri::generate_handler![
             estado_clientes,
             terminal::listar_projetos,
@@ -54,6 +57,7 @@ pub fn rodar() {
             primeiro_uso::avaliar_base_app,
             primeiro_uso::configurar_base_app,
             primeiro_uso::previa_projeto_app,
+            primeiro_uso::nome_projeto_em_uso_app,
             primeiro_uso::cadastrar_projeto_app,
             primeiro_uso::concluir_primeiro_uso_app,
             analise::verificar_ambiente_projeto,
@@ -63,6 +67,8 @@ pub fn rodar() {
             analise::criar_analise_pergunta,
             analise::carregar_analise_projeto,
             analise::trecho_evidencia_projeto,
+            analise::conferir_evidencias_analise,
+            analise::link_forja_evidencia_projeto,
             conversa::opcoes_conversa_analise,
             conversa::abrir_conversa_por_link,
             conversa::conversa_passou_ao_desktop,
@@ -88,6 +94,19 @@ pub fn rodar() {
             demandas::encerrar_demanda_app,
             demandas::reabrir_demanda_app,
             demandas::painel_demanda_app,
+            registros::registros_demanda_app,
+            registros::criar_registro_app,
+            registros::editar_registro_app,
+            registros::validar_premissa_app,
+            registros::aceitar_proposta_app,
+            registros::recusar_proposta_app,
+            pauta::pauta_perguntas_app,
+            pauta::definir_destinatario_app,
+            pauta::registrar_resposta_app,
+            pauta::exportar_pauta_app,
+            rastreabilidade::matriz_demanda_app,
+            rastreabilidade::dependentes_base_app,
+            rastreabilidade::exportar_matriz_app,
             reunioes::previa_transcript_app,
             reunioes::criar_reuniao_app,
             reunioes::ata_reuniao_app,
@@ -97,16 +116,40 @@ pub fn rodar() {
             reunioes::analisar_proximo_passo_app,
             base::buscar_base,
             base::abrir_documento_base,
+            base::salvar_documento_base,
             base::vigiar_base,
             base::parar_vigia_base,
             repositorios::salvar_repositorios_app,
             repositorios::prontidao_repositorios_app,
+            repositorios::detectar_repositorios_app,
+            clones::pasta_clones_app,
+            clones::definir_pasta_clones_app,
+            clones::salvar_token_app,
+            clones::apagar_token_app,
+            clones::tokens_guardados_app,
+            clones::testar_acesso_app,
+            clones::clonar_repositorios_app,
+            clones::cancelar_clone_app,
+            clones::testar_jira_app,
+            clones::testar_demandas_app,
+            acessos::hosts_acessos_app,
+            acessos::adicionar_host_acesso_app,
+            acessos::remover_host_acesso_app,
+            acessos::definir_comando_host_app,
+            acessos::estado_tokens_app,
+            acessos::testar_token_host_app,
+            acessos::testar_token_repositorio_app,
+            ambiente_teste::ambiente_teste_app,
+            ambiente_teste::salvar_ambiente_teste_app,
+            ambiente_teste::remover_ambiente_teste_app,
             repositorios::criar_analise_de_demanda,
             configuracoes::configuracoes_app,
+            configuracoes::info_base_app,
+            configuracoes::abrir_base_app,
             configuracoes::avaliar_troca_base_app,
             configuracoes::trocar_base_app,
-            configuracoes::previa_exclusoes_app,
-            configuracoes::salvar_exclusoes_app,
+            configuracoes::previa_leitura_app,
+            configuracoes::salvar_leitura_app,
             configuracoes::desfazer_ambiente_projeto,
             configuracoes::descadastrar_projeto_app,
             configuracoes::textos_editaveis_app,
@@ -119,6 +162,7 @@ pub fn rodar() {
             revisao::prontidao_aprovacao_projeto,
             revisao::aprovar_analise_projeto,
             revisao::exportar_analise_projeto,
+            revisao::diagramas_exportacao_projeto,
         ])
         .build(tauri::generate_context!())
         .expect("erro ao iniciar o app")

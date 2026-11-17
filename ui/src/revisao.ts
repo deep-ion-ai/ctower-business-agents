@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
-import type { Gherkin, Narrativa, SituacaoItem, VistaAnalise } from "./analise";
+import type { Gherkin, Narrativa, OrigemPergunta, SituacaoItem, VistaAnalise } from "./analise";
 
 /**
  * Revisão, aprovação e exportação da análise (#37): espelho de
@@ -33,7 +33,9 @@ export type DecisaoRevisao =
   /** Cenários de teste (#117): aceitar, descartar ou desfazer; editar título e passos. */
   | { tipo: "cenario"; cenario: string; situacao: SituacaoItem }
   | ({ tipo: "editar-cenario"; cenario: string; titulo: string } & Gherkin)
-  | { tipo: "tabela"; numero: number; situacao: SituacaoItem };
+  | { tipo: "tabela"; numero: number; situacao: SituacaoItem }
+  /** "Virar pergunta" (#119, #120): pergunta do analista a partir de um item da análise, com o texto editado e as evidências do item. */
+  | { tipo: "virar-pergunta"; texto: string; origem: OrigemPergunta };
 
 export interface Area {
   id: string;
@@ -49,9 +51,15 @@ export interface Pendencia {
 
 export interface RegraPrevista {
   afirmacao: number;
-  /** Título derivado do texto, que o analista pode trocar. */
+  /** Título derivado do texto (sem markdown), que o analista pode trocar. */
   titulo: string;
   texto: string;
+  /** Seção da afirmação (o marcador, como `regras_encontradas`). */
+  secao?: string;
+  /** Título da seção no documento ("Regras encontradas"); vazio se desconhecida. */
+  secaoTitulo?: string;
+  /** Vem marcada para virar regra: as respostas e os exemplos não vêm. */
+  sugerida?: boolean;
 }
 
 /** Se a análise pode ser aprovada e o que a aprovação fará. */
@@ -72,6 +80,8 @@ export interface Prontidao {
 export interface OpcoesAprovacao {
   area: string | null;
   afirmacoes: Record<number, { area: string | null; titulo: string | null }>;
+  /** Afirmações que viram regra; sem a lista, as de fora da resposta e dos exemplos. */
+  regras?: number[] | null;
 }
 
 export type Acao = "criada" | "atualizada" | "sem-mudanca";
@@ -93,12 +103,27 @@ export interface OpcoesExportacao {
   perguntas: boolean;
   /** Apêndice com os trechos de código citados. */
   trechos: boolean;
+  /** Word: apêndice com o código Mermaid dos diagramas desenhados (#118). */
+  codigo_diagramas: boolean;
+}
+
+/** Figura de um diagrama renderizada pela tela, para o Word (#118). */
+export interface FiguraPedida {
+  /** Código do bloco Mermaid, como {@link ApiRevisao.diagramasExportacao} devolveu. */
+  codigo: string;
+  /** Bytes do PNG. */
+  png: number[];
+  /** Tamanho de exibição, em pixels CSS. */
+  largura: number;
+  altura: number;
 }
 
 export interface PedidoExportacao {
   destino: string;
   formato: FormatoExportacao;
   opcoes: OpcoesExportacao;
+  /** Word: as figuras dos diagramas; bloco sem figura sai como aviso e código. */
+  figuras?: FiguraPedida[];
 }
 
 export const EXTENSAO: Record<FormatoExportacao, string> = {
@@ -122,6 +147,11 @@ export interface ApiRevisao {
   escolherDestino(nome: string, formato: FormatoExportacao): Promise<string | null>;
   /** Exporta e devolve o caminho gravado. */
   exportar(projeto: string, analise: string, pedido: PedidoExportacao): Promise<string>;
+  /**
+   * Código dos blocos Mermaid do documento que a exportação vai ler (#118), para a tela
+   * desenhar as figuras do Word. Sem ela, o Word sai com aviso e código no lugar.
+   */
+  diagramasExportacao?(projeto: string, analise: string): Promise<string[]>;
 }
 
 export const apiRevisaoTauri: ApiRevisao = {
@@ -138,4 +168,6 @@ export const apiRevisaoTauri: ApiRevisao = {
     }),
   exportar: (projeto, analise, pedido) =>
     invoke("exportar_analise_projeto", { projeto, analise, pedido }),
+  diagramasExportacao: (projeto, analise) =>
+    invoke("diagramas_exportacao_projeto", { projeto, analise }),
 };

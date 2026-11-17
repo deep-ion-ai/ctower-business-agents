@@ -1,7 +1,7 @@
 //! Revisão, aprovação e exportação de ponta a ponta com o sistema fictício
 //! "Faturamento Exemplo" (#37), pelas funções dos comandos.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 
 use cba_core::analise::{EstadoAfirmacao, EstadoAnalise, EstadoPergunta, EstadoTermo};
@@ -117,7 +117,11 @@ fn revisao_e_aprovacao_de_ponta_a_ponta() {
     assert!(p.area_obrigatoria);
     assert_eq!(p.areas.len(), 3);
     assert_eq!(p.avisos.len(), 1, "{:?}", p.avisos);
-    let erro = aprovar(&c.dados, PROJETO, &id, &OpcoesAprovacao::default()).unwrap_err();
+    let marcada = OpcoesAprovacao {
+        regras: Some(BTreeSet::from([1])),
+        ..Default::default()
+    };
+    let erro = aprovar(&c.dados, PROJETO, &id, &marcada).unwrap_err();
     assert!(erro.contains("ainda não pode ser aprovada"), "{erro}");
     assert!(erro.contains("afirmação 1"), "{erro}");
 
@@ -199,11 +203,19 @@ fn revisao_e_aprovacao_de_ponta_a_ponta() {
     assert!(p.pode_aprovar, "{:?}", p.pendencias);
     assert_eq!(p.regras.len(), 1);
     assert_eq!(p.regras[0].afirmacao, 1);
+    // A afirmação está na Resposta: só vira regra se o analista marcar.
+    assert_eq!(p.regras[0].secao, "resposta");
+    assert_eq!(p.regras[0].secao_titulo, "Resposta");
+    assert!(!p.regras[0].sugerida);
     assert_eq!(p.incorretas, [2]);
     assert_eq!(p.termos_aceitos, ["Carência"]);
 
     // Sem área, com três áreas declaradas, a aprovação pede a escolha.
-    let erro = aprovar(&c.dados, PROJETO, &id, &OpcoesAprovacao::default()).unwrap_err();
+    let marcada = OpcoesAprovacao {
+        regras: Some(BTreeSet::from([1])),
+        ..Default::default()
+    };
+    let erro = aprovar(&c.dados, PROJETO, &id, &marcada).unwrap_err();
     assert!(erro.contains("escolha a área"), "{erro}");
 
     // Área por afirmação no lugar da geral, e o título trocado pelo analista.
@@ -216,11 +228,13 @@ fn revisao_e_aprovacao_de_ponta_a_ponta() {
                 titulo: Some("Multa por atraso".into()),
             },
         )]),
+        regras: Some(BTreeSet::from([1])),
     };
     // O formato que a tela envia: chaves numéricas como texto.
     let da_tela: OpcoesAprovacao = serde_json::from_value(json!({
         "area": null,
-        "afirmacoes": {"1": {"area": "Cobrança", "titulo": "Multa por atraso"}}
+        "afirmacoes": {"1": {"area": "Cobrança", "titulo": "Multa por atraso"}},
+        "regras": [1]
     }))
     .unwrap();
     assert_eq!(da_tela, opcoes);
@@ -265,7 +279,7 @@ fn revisao_e_aprovacao_de_ponta_a_ponta() {
             .unwrap();
     let erro = revisar(&c.dados, PROJETO, &id, depois).unwrap_err();
     assert!(erro.contains("aprovada"), "{erro}");
-    let de_novo = aprovar(&c.dados, PROJETO, &id, &OpcoesAprovacao::default()).unwrap();
+    let de_novo = aprovar(&c.dados, PROJETO, &id, &marcada).unwrap();
     assert!(de_novo.ja_aprovada);
     assert_eq!(de_novo.regras.len(), 1);
 }
@@ -286,6 +300,7 @@ fn exporta_markdown_e_word_fora_das_pastas_do_projeto() {
         destino,
         formato,
         opcoes: OpcoesExportacao::default(),
+        figuras: Vec::new(),
     };
     // Sem a extensão, o app acrescenta a do formato.
     let md = exportar(
@@ -329,7 +344,9 @@ fn exporta_markdown_e_word_fora_das_pastas_do_projeto() {
                 evidencias: false,
                 perguntas: false,
                 trechos: false,
+                ..OpcoesExportacao::default()
             },
+            figuras: Vec::new(),
         },
     )
     .unwrap();
@@ -375,4 +392,71 @@ fn exporta_markdown_e_word_fora_das_pastas_do_projeto() {
     .unwrap();
     assert_eq!(da_tela.formato, Formato::Word);
     assert!(!da_tela.opcoes.perguntas);
+}
+
+/// PNG mínimo (assinatura e IHDR).
+fn png() -> Vec<u8> {
+    let mut p = b"\x89PNG\r\n\x1a\n".to_vec();
+    p.extend_from_slice(&13u32.to_be_bytes());
+    p.extend_from_slice(b"IHDR");
+    p.extend_from_slice(&320u32.to_be_bytes());
+    p.extend_from_slice(&120u32.to_be_bytes());
+    p.extend_from_slice(&[8, 6, 0, 0, 0, 0, 0, 0, 0]);
+    p
+}
+
+#[test]
+fn diagrama_na_vista_e_figura_na_exportacao_word() {
+    let c = cenario();
+    let id = analise_concluida(&c);
+    c.chamar(
+        "registrar_diagrama",
+        json!({
+            "analise": id,
+            "secao": "resposta",
+            "tipo": "fluxo",
+            "titulo": "Cobrança da multa",
+            "nos": [
+                {"chave": "atraso", "rotulo": "Pagamento em atraso", "papel": "inicio"},
+                {"chave": "carencia", "rotulo": "Dentro da carência?", "papel": "decisao"},
+                {"chave": "multa", "rotulo": "Cobra multa", "papel": "fim"}
+            ],
+            "arestas": [
+                {"de": "atraso", "para": "carencia", "confianca": "inferido"},
+                {"de": "carencia", "para": "multa", "rotulo": "não", "confianca": "inferido"}
+            ]
+        }),
+    );
+    // A vista traz o Mermaid gerado como na montagem.
+    let vista = analise::carregar_analise(&c.dados, PROJETO, &id).unwrap();
+    assert_eq!(vista.diagramas.len(), 1);
+    assert_eq!(vista.diagramas[0].numero, 1);
+    assert!(vista.diagramas[0].mermaid.starts_with("flowchart TD\n"));
+    assert!(documento(&vista).contains(vista.diagramas[0].mermaid.trim_end()));
+
+    let blocos = diagramas_exportacao(&c.dados, PROJETO, &id).unwrap();
+    assert_eq!(blocos, [vista.diagramas[0].mermaid.trim_end()]);
+
+    let pasta = c.dir.path().join("exportados");
+    fs::create_dir_all(&pasta).unwrap();
+    let pedido = |png: Vec<u8>| PedidoExportacao {
+        destino: pasta.join("multa.docx"),
+        formato: Formato::Word,
+        opcoes: OpcoesExportacao::default(),
+        figuras: vec![FiguraPedida {
+            codigo: blocos[0].clone(),
+            png,
+            largura: 320,
+            altura: 120,
+        }],
+    };
+    let docx = exportar(&c.dados, PROJETO, &id, &pedido(png())).unwrap();
+    let bytes = fs::read(&docx).unwrap();
+    // O nome de cada parte aparece sem compressão no zip.
+    let nome = b"word/media/figura1.png";
+    assert!(bytes.windows(nome.len()).any(|w| w == nome));
+
+    // O que não é PNG é recusado.
+    let erro = exportar(&c.dados, PROJETO, &id, &pedido(b"<svg/>".to_vec())).unwrap_err();
+    assert!(erro.contains("PNG"), "{erro}");
 }

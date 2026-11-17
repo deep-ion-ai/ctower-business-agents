@@ -1,0 +1,1132 @@
+{
+  "formato": 1,
+  "parametros": {
+    "data": "2026-11-16-035042",
+    "modelo": "sonnet",
+    "orcamento_por_execucao_usd": 1.5,
+    "repeticoes": 3,
+    "itens": [
+      "REV-FAT-001",
+      "HIS-FAT-001",
+      "CEN-FAT-001"
+    ],
+    "permitir_edicao": false,
+    "versao_do_claude": "2.1.325 (Claude Code)",
+    "commit": "e541283"
+  },
+  "resumo": [
+    {
+      "fluxo": "revisar",
+      "item": "REV-FAT-001",
+      "execucoes": 3,
+      "avaliadas": 3,
+      "concluidas": 3,
+      "regras_esperadas": 0,
+      "regras_media": 1.0,
+      "regras_min": 1.0,
+      "regras_max": 1.0,
+      "evidencias": 3,
+      "evidencias_validas": 3,
+      "confirmado_sem_evidencia_valida": 0,
+      "perguntas_media": 1.0,
+      "premissa_corrigida": null,
+      "abrangencia_confere": null,
+      "arquivos_media": null,
+      "execucoes_com_arquivos_alterados": 0,
+      "execucoes_com_falha": 0,
+      "custo_usd": 0.7582705,
+      "duracao_s": 143.952,
+      "tokens": {
+        "entrada": 58,
+        "saida": 20814,
+        "cache_criacao": 113872,
+        "cache_leitura": 945265
+      }
+    },
+    {
+      "fluxo": "historias",
+      "item": "HIS-FAT-001",
+      "execucoes": 3,
+      "avaliadas": 3,
+      "concluidas": 3,
+      "regras_esperadas": 3,
+      "regras_media": 0.0,
+      "regras_min": 0.0,
+      "regras_max": 0.0,
+      "evidencias": 0,
+      "evidencias_validas": 0,
+      "confirmado_sem_evidencia_valida": 0,
+      "perguntas_media": null,
+      "premissa_corrigida": null,
+      "abrangencia_confere": 0,
+      "arquivos_media": null,
+      "execucoes_com_arquivos_alterados": 0,
+      "execucoes_com_falha": 0,
+      "custo_usd": 0.4493197,
+      "duracao_s": 101.41300000000001,
+      "tokens": {
+        "entrada": 40,
+        "saida": 12375,
+        "cache_criacao": 69594,
+        "cache_leitura": 471137
+      }
+    },
+    {
+      "fluxo": "cenarios",
+      "item": "CEN-FAT-001",
+      "execucoes": 3,
+      "avaliadas": 3,
+      "concluidas": 3,
+      "regras_esperadas": 3,
+      "regras_media": 0.0,
+      "regras_min": 0.0,
+      "regras_max": 0.0,
+      "evidencias": 0,
+      "evidencias_validas": 0,
+      "confirmado_sem_evidencia_valida": 0,
+      "perguntas_media": null,
+      "premissa_corrigida": null,
+      "abrangencia_confere": null,
+      "arquivos_media": null,
+      "execucoes_com_arquivos_alterados": 0,
+      "execucoes_com_falha": 0,
+      "custo_usd": 0.9497734,
+      "duracao_s": 214.639,
+      "tokens": {
+        "entrada": 64,
+        "saida": 35226,
+        "cache_criacao": 122943,
+        "cache_leitura": 1056134
+      }
+    }
+  ],
+  "execucoes": [
+    {
+      "fluxo": "revisar",
+      "item": "REV-FAT-001",
+      "repeticao": 1,
+      "avaliacao": {
+        "item": "REV-FAT-001",
+        "fluxo": "revisar",
+        "analise": "A-0001",
+        "estado": "concluida",
+        "concluida": true,
+        "afirmacoes": 1,
+        "por_confianca": {
+          "confirmado": 1,
+          "inferido": 0,
+          "a_confirmar": 0
+        },
+        "perguntas_registradas": 3,
+        "sugestoes": 0,
+        "termos": 0,
+        "evidencias": 1,
+        "evidencias_validas": 1,
+        "evidencias_invalidas": [],
+        "confirmado_sem_evidencia_valida": [],
+        "regras": [],
+        "regras_encontradas": 0,
+        "regras_esperadas": 0,
+        "outras_regras_encontradas": [
+          "RN-FAT-012"
+        ],
+        "afirmacoes_fora_do_gabarito": [],
+        "arquivos": [],
+        "perguntas_esperadas": [
+          {
+            "tema": "A história muda a regra que proíbe cancelar fatura com pagamento parcial, ou o texto está errado?",
+            "atendida_por": 1
+          }
+        ],
+        "premissa": null,
+        "abrangencia": null,
+        "parecer": {
+          "veredito_esperado": "precisa_de_retrabalho",
+          "veredito_registrado": "precisa_de_retrabalho",
+          "achados_registrados": 7,
+          "achados": [
+            {
+              "id": "REV-FAT-001-C1",
+              "descricao": "Contradição plantada: a história permite cancelar fatura com pagamento parcial; a regra RN-FAT-012 só cancela fatura sem nenhum valor pago.",
+              "atendido_por": 1
+            },
+            {
+              "id": "REV-FAT-001-L1",
+              "descricao": "O motivo é obrigatório, mas o sistema exige ao menos 10 caracteres (RN-FAT-013); a história não diz.",
+              "atendido_por": 2
+            },
+            {
+              "id": "REV-FAT-001-L2",
+              "descricao": "Fatura emitida há mais de 30 dias só pode ser cancelada por supervisor (RN-FAT-014); a história não trata o perfil.",
+              "atendido_por": 3
+            }
+          ],
+          "termos_vagos": [
+            {
+              "termo": "rápido",
+              "apontado_por": 7
+            },
+            {
+              "termo": "adequado",
+              "apontado_por": 7
+            },
+            {
+              "termo": "e/ou",
+              "apontado_por": 5
+            },
+            {
+              "termo": "etc.",
+              "apontado_por": 6
+            }
+          ],
+          "evidencias": 5,
+          "evidencias_invalidas": [],
+          "correcao_sem_evidencia_valida": []
+        }
+      },
+      "arquivos_alterados": [],
+      "claude": {
+        "custo_usd": 0.238061,
+        "turnos": 24,
+        "duracao_ms": 45130,
+        "erro": false,
+        "subtipo": "success",
+        "tokens": {
+          "entrada": 16,
+          "saida": 6820,
+          "cache_criacao": 36370,
+          "cache_leitura": 243490
+        }
+      },
+      "erro": null
+    },
+    {
+      "fluxo": "revisar",
+      "item": "REV-FAT-001",
+      "repeticao": 2,
+      "avaliacao": {
+        "item": "REV-FAT-001",
+        "fluxo": "revisar",
+        "analise": "A-0001",
+        "estado": "concluida",
+        "concluida": true,
+        "afirmacoes": 1,
+        "por_confianca": {
+          "confirmado": 1,
+          "inferido": 0,
+          "a_confirmar": 0
+        },
+        "perguntas_registradas": 3,
+        "sugestoes": 0,
+        "termos": 0,
+        "evidencias": 1,
+        "evidencias_validas": 1,
+        "evidencias_invalidas": [],
+        "confirmado_sem_evidencia_valida": [],
+        "regras": [],
+        "regras_encontradas": 0,
+        "regras_esperadas": 0,
+        "outras_regras_encontradas": [
+          "RN-FAT-012",
+          "RN-FAT-013"
+        ],
+        "afirmacoes_fora_do_gabarito": [],
+        "arquivos": [],
+        "perguntas_esperadas": [
+          {
+            "tema": "A história muda a regra que proíbe cancelar fatura com pagamento parcial, ou o texto está errado?",
+            "atendida_por": 1
+          }
+        ],
+        "premissa": null,
+        "abrangencia": null,
+        "parecer": {
+          "veredito_esperado": "precisa_de_retrabalho",
+          "veredito_registrado": "precisa_de_retrabalho",
+          "achados_registrados": 7,
+          "achados": [
+            {
+              "id": "REV-FAT-001-C1",
+              "descricao": "Contradição plantada: a história permite cancelar fatura com pagamento parcial; a regra RN-FAT-012 só cancela fatura sem nenhum valor pago.",
+              "atendido_por": 1
+            },
+            {
+              "id": "REV-FAT-001-L1",
+              "descricao": "O motivo é obrigatório, mas o sistema exige ao menos 10 caracteres (RN-FAT-013); a história não diz.",
+              "atendido_por": 3
+            },
+            {
+              "id": "REV-FAT-001-L2",
+              "descricao": "Fatura emitida há mais de 30 dias só pode ser cancelada por supervisor (RN-FAT-014); a história não trata o perfil.",
+              "atendido_por": 4
+            }
+          ],
+          "termos_vagos": [
+            {
+              "termo": "rápido",
+              "apontado_por": 5
+            },
+            {
+              "termo": "adequado",
+              "apontado_por": 6
+            },
+            {
+              "termo": "e/ou",
+              "apontado_por": 7
+            },
+            {
+              "termo": "etc.",
+              "apontado_por": 7
+            }
+          ],
+          "evidencias": 4,
+          "evidencias_invalidas": [],
+          "correcao_sem_evidencia_valida": []
+        }
+      },
+      "arquivos_alterados": [],
+      "claude": {
+        "custo_usd": 0.2475899,
+        "turnos": 26,
+        "duracao_ms": 47488,
+        "erro": false,
+        "subtipo": "success",
+        "tokens": {
+          "entrada": 20,
+          "saida": 6729,
+          "cache_criacao": 37110,
+          "cache_leitura": 318199
+        }
+      },
+      "erro": null
+    },
+    {
+      "fluxo": "revisar",
+      "item": "REV-FAT-001",
+      "repeticao": 3,
+      "avaliacao": {
+        "item": "REV-FAT-001",
+        "fluxo": "revisar",
+        "analise": "A-0001",
+        "estado": "concluida",
+        "concluida": true,
+        "afirmacoes": 1,
+        "por_confianca": {
+          "confirmado": 1,
+          "inferido": 0,
+          "a_confirmar": 0
+        },
+        "perguntas_registradas": 4,
+        "sugestoes": 0,
+        "termos": 0,
+        "evidencias": 1,
+        "evidencias_validas": 1,
+        "evidencias_invalidas": [],
+        "confirmado_sem_evidencia_valida": [],
+        "regras": [],
+        "regras_encontradas": 0,
+        "regras_esperadas": 0,
+        "outras_regras_encontradas": [
+          "RN-FAT-012",
+          "RN-FAT-013"
+        ],
+        "afirmacoes_fora_do_gabarito": [],
+        "arquivos": [],
+        "perguntas_esperadas": [
+          {
+            "tema": "A história muda a regra que proíbe cancelar fatura com pagamento parcial, ou o texto está errado?",
+            "atendida_por": 1
+          }
+        ],
+        "premissa": null,
+        "abrangencia": null,
+        "parecer": {
+          "veredito_esperado": "precisa_de_retrabalho",
+          "veredito_registrado": "precisa_de_retrabalho",
+          "achados_registrados": 7,
+          "achados": [
+            {
+              "id": "REV-FAT-001-C1",
+              "descricao": "Contradição plantada: a história permite cancelar fatura com pagamento parcial; a regra RN-FAT-012 só cancela fatura sem nenhum valor pago.",
+              "atendido_por": 1
+            },
+            {
+              "id": "REV-FAT-001-L1",
+              "descricao": "O motivo é obrigatório, mas o sistema exige ao menos 10 caracteres (RN-FAT-013); a história não diz.",
+              "atendido_por": 6
+            },
+            {
+              "id": "REV-FAT-001-L2",
+              "descricao": "Fatura emitida há mais de 30 dias só pode ser cancelada por supervisor (RN-FAT-014); a história não trata o perfil.",
+              "atendido_por": 7
+            }
+          ],
+          "termos_vagos": [
+            {
+              "termo": "rápido",
+              "apontado_por": 5
+            },
+            {
+              "termo": "adequado",
+              "apontado_por": 5
+            },
+            {
+              "termo": "e/ou",
+              "apontado_por": 3
+            },
+            {
+              "termo": "etc.",
+              "apontado_por": 4
+            }
+          ],
+          "evidencias": 4,
+          "evidencias_invalidas": [],
+          "correcao_sem_evidencia_valida": []
+        }
+      },
+      "arquivos_alterados": [],
+      "claude": {
+        "custo_usd": 0.27261959999999996,
+        "turnos": 28,
+        "duracao_ms": 51334,
+        "erro": false,
+        "subtipo": "success",
+        "tokens": {
+          "entrada": 22,
+          "saida": 7265,
+          "cache_criacao": 40392,
+          "cache_leitura": 383576
+        }
+      },
+      "erro": null
+    },
+    {
+      "fluxo": "historias",
+      "item": "HIS-FAT-001",
+      "repeticao": 1,
+      "avaliacao": {
+        "item": "HIS-FAT-001",
+        "fluxo": "historias",
+        "analise": "A-0002",
+        "estado": "concluida",
+        "concluida": true,
+        "afirmacoes": 0,
+        "por_confianca": {
+          "confirmado": 0,
+          "inferido": 0,
+          "a_confirmar": 0
+        },
+        "perguntas_registradas": 0,
+        "sugestoes": 0,
+        "termos": 0,
+        "evidencias": 0,
+        "evidencias_validas": 0,
+        "evidencias_invalidas": [],
+        "confirmado_sem_evidencia_valida": [],
+        "regras": [
+          {
+            "id": "RN-FAT-007",
+            "titulo": "Parcelamento só para pessoa jurídica e órgão público",
+            "encontrada": false,
+            "afirmacoes": []
+          },
+          {
+            "id": "RN-FAT-008",
+            "titulo": "Quantidade de parcelas entre 2 e MAX_PARCELAS",
+            "encontrada": false,
+            "afirmacoes": []
+          },
+          {
+            "id": "RN-FAT-009",
+            "titulo": "Valor mínimo da parcela, exceto órgão público",
+            "encontrada": false,
+            "afirmacoes": []
+          }
+        ],
+        "regras_encontradas": 0,
+        "regras_esperadas": 3,
+        "outras_regras_encontradas": [],
+        "afirmacoes_fora_do_gabarito": [],
+        "arquivos": [],
+        "perguntas_esperadas": [],
+        "premissa": null,
+        "abrangencia": {
+          "esperada": "media",
+          "registrada": null,
+          "confere": false
+        },
+        "historias": {
+          "historias": 2,
+          "criterios": 8,
+          "criterios_sem_origem": [],
+          "historias_sem_criterio": [],
+          "criterios_com_valor": 8,
+          "esperadas": [
+            {
+              "id": "HIS-FAT-001-H1",
+              "descricao": "Pessoa física passa a poder parcelar a fatura (hoje bloqueada na tela e no backend).",
+              "atendida_por": "HU-0001"
+            },
+            {
+              "id": "HIS-FAT-001-H2",
+              "descricao": "Limite de 3 parcelas e parcela mínima de R$ 100,00 para pessoa física, sem mudar os demais tipos.",
+              "atendida_por": "HU-0001"
+            }
+          ],
+          "regras": [
+            {
+              "id": "RN-FAT-007",
+              "citada_por": "HU-0001 CA-1"
+            },
+            {
+              "id": "RN-FAT-008",
+              "citada_por": "HU-0001 CA-3"
+            },
+            {
+              "id": "RN-FAT-009",
+              "citada_por": "HU-0001 CA-1"
+            }
+          ],
+          "a_confirmar": [
+            {
+              "tema": "A parcela mínima de R$ 100,00 vale só para pessoa física?",
+              "marcado_em": "HU-0001 CA-1"
+            }
+          ],
+          "quebra_esperada": true,
+          "quebra_proposta": true
+        }
+      },
+      "arquivos_alterados": [],
+      "claude": {
+        "custo_usd": 0.1484043,
+        "turnos": 9,
+        "duracao_ms": 31957,
+        "erro": false,
+        "subtipo": "success",
+        "tokens": {
+          "entrada": 14,
+          "saida": 3895,
+          "cache_criacao": 23202,
+          "cache_leitura": 166183
+        }
+      },
+      "erro": null
+    },
+    {
+      "fluxo": "historias",
+      "item": "HIS-FAT-001",
+      "repeticao": 2,
+      "avaliacao": {
+        "item": "HIS-FAT-001",
+        "fluxo": "historias",
+        "analise": "A-0002",
+        "estado": "concluida",
+        "concluida": true,
+        "afirmacoes": 0,
+        "por_confianca": {
+          "confirmado": 0,
+          "inferido": 0,
+          "a_confirmar": 0
+        },
+        "perguntas_registradas": 0,
+        "sugestoes": 0,
+        "termos": 0,
+        "evidencias": 0,
+        "evidencias_validas": 0,
+        "evidencias_invalidas": [],
+        "confirmado_sem_evidencia_valida": [],
+        "regras": [
+          {
+            "id": "RN-FAT-007",
+            "titulo": "Parcelamento só para pessoa jurídica e órgão público",
+            "encontrada": false,
+            "afirmacoes": []
+          },
+          {
+            "id": "RN-FAT-008",
+            "titulo": "Quantidade de parcelas entre 2 e MAX_PARCELAS",
+            "encontrada": false,
+            "afirmacoes": []
+          },
+          {
+            "id": "RN-FAT-009",
+            "titulo": "Valor mínimo da parcela, exceto órgão público",
+            "encontrada": false,
+            "afirmacoes": []
+          }
+        ],
+        "regras_encontradas": 0,
+        "regras_esperadas": 3,
+        "outras_regras_encontradas": [],
+        "afirmacoes_fora_do_gabarito": [],
+        "arquivos": [],
+        "perguntas_esperadas": [],
+        "premissa": null,
+        "abrangencia": {
+          "esperada": "media",
+          "registrada": null,
+          "confere": false
+        },
+        "historias": {
+          "historias": 3,
+          "criterios": 8,
+          "criterios_sem_origem": [],
+          "historias_sem_criterio": [],
+          "criterios_com_valor": 8,
+          "esperadas": [
+            {
+              "id": "HIS-FAT-001-H1",
+              "descricao": "Pessoa física passa a poder parcelar a fatura (hoje bloqueada na tela e no backend).",
+              "atendida_por": "HU-0001"
+            },
+            {
+              "id": "HIS-FAT-001-H2",
+              "descricao": "Limite de 3 parcelas e parcela mínima de R$ 100,00 para pessoa física, sem mudar os demais tipos.",
+              "atendida_por": "HU-0001"
+            }
+          ],
+          "regras": [
+            {
+              "id": "RN-FAT-007",
+              "citada_por": "HU-0001 CA-1"
+            },
+            {
+              "id": "RN-FAT-008",
+              "citada_por": "HU-0001 CA-1"
+            },
+            {
+              "id": "RN-FAT-009",
+              "citada_por": "HU-0002 CA-1"
+            }
+          ],
+          "a_confirmar": [
+            {
+              "tema": "A parcela mínima de R$ 100,00 vale só para pessoa física?",
+              "marcado_em": "HU-0002 CA-1"
+            }
+          ],
+          "quebra_esperada": true,
+          "quebra_proposta": true
+        }
+      },
+      "arquivos_alterados": [],
+      "claude": {
+        "custo_usd": 0.1519275,
+        "turnos": 10,
+        "duracao_ms": 34902,
+        "erro": false,
+        "subtipo": "success",
+        "tokens": {
+          "entrada": 14,
+          "saida": 4331,
+          "cache_criacao": 23022,
+          "cache_leitura": 165015
+        }
+      },
+      "erro": null
+    },
+    {
+      "fluxo": "historias",
+      "item": "HIS-FAT-001",
+      "repeticao": 3,
+      "avaliacao": {
+        "item": "HIS-FAT-001",
+        "fluxo": "historias",
+        "analise": "A-0002",
+        "estado": "concluida",
+        "concluida": true,
+        "afirmacoes": 0,
+        "por_confianca": {
+          "confirmado": 0,
+          "inferido": 0,
+          "a_confirmar": 0
+        },
+        "perguntas_registradas": 0,
+        "sugestoes": 0,
+        "termos": 0,
+        "evidencias": 0,
+        "evidencias_validas": 0,
+        "evidencias_invalidas": [],
+        "confirmado_sem_evidencia_valida": [],
+        "regras": [
+          {
+            "id": "RN-FAT-007",
+            "titulo": "Parcelamento só para pessoa jurídica e órgão público",
+            "encontrada": false,
+            "afirmacoes": []
+          },
+          {
+            "id": "RN-FAT-008",
+            "titulo": "Quantidade de parcelas entre 2 e MAX_PARCELAS",
+            "encontrada": false,
+            "afirmacoes": []
+          },
+          {
+            "id": "RN-FAT-009",
+            "titulo": "Valor mínimo da parcela, exceto órgão público",
+            "encontrada": false,
+            "afirmacoes": []
+          }
+        ],
+        "regras_encontradas": 0,
+        "regras_esperadas": 3,
+        "outras_regras_encontradas": [],
+        "afirmacoes_fora_do_gabarito": [],
+        "arquivos": [],
+        "perguntas_esperadas": [],
+        "premissa": null,
+        "abrangencia": {
+          "esperada": "media",
+          "registrada": null,
+          "confere": false
+        },
+        "historias": {
+          "historias": 2,
+          "criterios": 8,
+          "criterios_sem_origem": [],
+          "historias_sem_criterio": [],
+          "criterios_com_valor": 8,
+          "esperadas": [
+            {
+              "id": "HIS-FAT-001-H1",
+              "descricao": "Pessoa física passa a poder parcelar a fatura (hoje bloqueada na tela e no backend).",
+              "atendida_por": "HU-0001"
+            },
+            {
+              "id": "HIS-FAT-001-H2",
+              "descricao": "Limite de 3 parcelas e parcela mínima de R$ 100,00 para pessoa física, sem mudar os demais tipos.",
+              "atendida_por": "HU-0001"
+            }
+          ],
+          "regras": [
+            {
+              "id": "RN-FAT-007",
+              "citada_por": "HU-0001 CA-1"
+            },
+            {
+              "id": "RN-FAT-008",
+              "citada_por": "HU-0001 CA-2"
+            },
+            {
+              "id": "RN-FAT-009",
+              "citada_por": "HU-0001 CA-3"
+            }
+          ],
+          "a_confirmar": [
+            {
+              "tema": "A parcela mínima de R$ 100,00 vale só para pessoa física?",
+              "marcado_em": "HU-0001 CA-1"
+            }
+          ],
+          "quebra_esperada": true,
+          "quebra_proposta": true
+        }
+      },
+      "arquivos_alterados": [],
+      "claude": {
+        "custo_usd": 0.14898789999999998,
+        "turnos": 9,
+        "duracao_ms": 34554,
+        "erro": false,
+        "subtipo": "success",
+        "tokens": {
+          "entrada": 12,
+          "saida": 4149,
+          "cache_criacao": 23370,
+          "cache_leitura": 139939
+        }
+      },
+      "erro": null
+    },
+    {
+      "fluxo": "cenarios",
+      "item": "CEN-FAT-001",
+      "repeticao": 1,
+      "avaliacao": {
+        "item": "CEN-FAT-001",
+        "fluxo": "cenarios",
+        "analise": "A-0001",
+        "estado": "concluida",
+        "concluida": true,
+        "afirmacoes": 0,
+        "por_confianca": {
+          "confirmado": 0,
+          "inferido": 0,
+          "a_confirmar": 0
+        },
+        "perguntas_registradas": 0,
+        "sugestoes": 0,
+        "termos": 0,
+        "evidencias": 0,
+        "evidencias_validas": 0,
+        "evidencias_invalidas": [],
+        "confirmado_sem_evidencia_valida": [],
+        "regras": [
+          {
+            "id": "RN-FAT-012",
+            "titulo": "Cancelamento só de fatura aberta e sem pagamento",
+            "encontrada": false,
+            "afirmacoes": []
+          },
+          {
+            "id": "RN-FAT-013",
+            "titulo": "Motivo do cancelamento com ao menos 10 caracteres",
+            "encontrada": false,
+            "afirmacoes": []
+          },
+          {
+            "id": "RN-FAT-014",
+            "titulo": "Cancelamento após 30 dias da emissão exige supervisor",
+            "encontrada": false,
+            "afirmacoes": []
+          }
+        ],
+        "regras_encontradas": 0,
+        "regras_esperadas": 3,
+        "outras_regras_encontradas": [],
+        "afirmacoes_fora_do_gabarito": [],
+        "arquivos": [],
+        "perguntas_esperadas": [],
+        "premissa": null,
+        "abrangencia": null,
+        "cenarios": {
+          "cenarios": 12,
+          "tabelas": 2,
+          "cenarios_sem_origem": [],
+          "limites": [
+            {
+              "id": "CEN-FAT-001-L1",
+              "regra": "RN-FAT-013",
+              "valor": 10.0,
+              "lido_por": "CT-0009",
+              "divergentes": [],
+              "valores": [
+                [
+                  9.0,
+                  "CT-0009"
+                ],
+                [
+                  10.0,
+                  "CT-0010"
+                ]
+              ]
+            },
+            {
+              "id": "CEN-FAT-001-L2",
+              "regra": "RN-FAT-014",
+              "valor": 30.0,
+              "lido_por": "CT-0007",
+              "divergentes": [],
+              "valores": [
+                [
+                  30.0,
+                  "CT-0007"
+                ],
+                [
+                  31.0,
+                  "CT-0008"
+                ]
+              ]
+            }
+          ],
+          "tabelas_esperadas": [
+            {
+              "id": "CEN-FAT-001-T1",
+              "descricao": "Emitida há mais de 30 dias × perfil SUPERVISOR: só a combinação \"mais de 30 dias e sem supervisor\" é recusada.",
+              "atendido_por": "TD-2"
+            }
+          ],
+          "negativos": [
+            {
+              "id": "CEN-FAT-001-N1",
+              "descricao": "Fatura com pagamento parcial não pode ser cancelada (erro -20011).",
+              "atendido_por": "CT-0001"
+            },
+            {
+              "id": "CEN-FAT-001-N2",
+              "descricao": "Só fatura ABERTA pode ser cancelada (erro -20010).",
+              "atendido_por": "CT-0001"
+            }
+          ],
+          "a_confirmar": []
+        }
+      },
+      "arquivos_alterados": [],
+      "claude": {
+        "custo_usd": 0.3036026,
+        "turnos": 28,
+        "duracao_ms": 64328,
+        "erro": false,
+        "subtipo": "success",
+        "tokens": {
+          "entrada": 18,
+          "saida": 10716,
+          "cache_criacao": 41703,
+          "cache_leitura": 295946
+        }
+      },
+      "erro": null
+    },
+    {
+      "fluxo": "cenarios",
+      "item": "CEN-FAT-001",
+      "repeticao": 2,
+      "avaliacao": {
+        "item": "CEN-FAT-001",
+        "fluxo": "cenarios",
+        "analise": "A-0001",
+        "estado": "concluida",
+        "concluida": true,
+        "afirmacoes": 0,
+        "por_confianca": {
+          "confirmado": 0,
+          "inferido": 0,
+          "a_confirmar": 0
+        },
+        "perguntas_registradas": 1,
+        "sugestoes": 0,
+        "termos": 0,
+        "evidencias": 0,
+        "evidencias_validas": 0,
+        "evidencias_invalidas": [],
+        "confirmado_sem_evidencia_valida": [],
+        "regras": [
+          {
+            "id": "RN-FAT-012",
+            "titulo": "Cancelamento só de fatura aberta e sem pagamento",
+            "encontrada": false,
+            "afirmacoes": []
+          },
+          {
+            "id": "RN-FAT-013",
+            "titulo": "Motivo do cancelamento com ao menos 10 caracteres",
+            "encontrada": false,
+            "afirmacoes": []
+          },
+          {
+            "id": "RN-FAT-014",
+            "titulo": "Cancelamento após 30 dias da emissão exige supervisor",
+            "encontrada": false,
+            "afirmacoes": []
+          }
+        ],
+        "regras_encontradas": 0,
+        "regras_esperadas": 3,
+        "outras_regras_encontradas": [],
+        "afirmacoes_fora_do_gabarito": [],
+        "arquivos": [],
+        "perguntas_esperadas": [],
+        "premissa": null,
+        "abrangencia": null,
+        "cenarios": {
+          "cenarios": 13,
+          "tabelas": 2,
+          "cenarios_sem_origem": [],
+          "limites": [
+            {
+              "id": "CEN-FAT-001-L1",
+              "regra": "RN-FAT-013",
+              "valor": 10.0,
+              "lido_por": "CT-0009",
+              "divergentes": [],
+              "valores": [
+                [
+                  9.0,
+                  "CT-0009"
+                ],
+                [
+                  10.0,
+                  "CT-0010"
+                ]
+              ]
+            },
+            {
+              "id": "CEN-FAT-001-L2",
+              "regra": "RN-FAT-014",
+              "valor": 30.0,
+              "lido_por": "CT-0007",
+              "divergentes": [],
+              "valores": [
+                [
+                  30.0,
+                  "CT-0007"
+                ],
+                [
+                  31.0,
+                  "CT-0008"
+                ]
+              ]
+            }
+          ],
+          "tabelas_esperadas": [
+            {
+              "id": "CEN-FAT-001-T1",
+              "descricao": "Emitida há mais de 30 dias × perfil SUPERVISOR: só a combinação \"mais de 30 dias e sem supervisor\" é recusada.",
+              "atendido_por": "TD-2"
+            }
+          ],
+          "negativos": [
+            {
+              "id": "CEN-FAT-001-N1",
+              "descricao": "Fatura com pagamento parcial não pode ser cancelada (erro -20011).",
+              "atendido_por": "CT-0001"
+            },
+            {
+              "id": "CEN-FAT-001-N2",
+              "descricao": "Só fatura ABERTA pode ser cancelada (erro -20010).",
+              "atendido_por": "CT-0001"
+            }
+          ],
+          "a_confirmar": []
+        }
+      },
+      "arquivos_alterados": [],
+      "claude": {
+        "custo_usd": 0.2883209,
+        "turnos": 28,
+        "duracao_ms": 64003,
+        "erro": false,
+        "subtipo": "success",
+        "tokens": {
+          "entrada": 18,
+          "saida": 10805,
+          "cache_criacao": 38323,
+          "cache_leitura": 269429
+        }
+      },
+      "erro": null
+    },
+    {
+      "fluxo": "cenarios",
+      "item": "CEN-FAT-001",
+      "repeticao": 3,
+      "avaliacao": {
+        "item": "CEN-FAT-001",
+        "fluxo": "cenarios",
+        "analise": "A-0001",
+        "estado": "concluida",
+        "concluida": true,
+        "afirmacoes": 0,
+        "por_confianca": {
+          "confirmado": 0,
+          "inferido": 0,
+          "a_confirmar": 0
+        },
+        "perguntas_registradas": 1,
+        "sugestoes": 0,
+        "termos": 0,
+        "evidencias": 0,
+        "evidencias_validas": 0,
+        "evidencias_invalidas": [],
+        "confirmado_sem_evidencia_valida": [],
+        "regras": [
+          {
+            "id": "RN-FAT-012",
+            "titulo": "Cancelamento só de fatura aberta e sem pagamento",
+            "encontrada": false,
+            "afirmacoes": []
+          },
+          {
+            "id": "RN-FAT-013",
+            "titulo": "Motivo do cancelamento com ao menos 10 caracteres",
+            "encontrada": false,
+            "afirmacoes": []
+          },
+          {
+            "id": "RN-FAT-014",
+            "titulo": "Cancelamento após 30 dias da emissão exige supervisor",
+            "encontrada": false,
+            "afirmacoes": []
+          }
+        ],
+        "regras_encontradas": 0,
+        "regras_esperadas": 3,
+        "outras_regras_encontradas": [],
+        "afirmacoes_fora_do_gabarito": [],
+        "arquivos": [],
+        "perguntas_esperadas": [],
+        "premissa": null,
+        "abrangencia": null,
+        "cenarios": {
+          "cenarios": 16,
+          "tabelas": 2,
+          "cenarios_sem_origem": [],
+          "limites": [
+            {
+              "id": "CEN-FAT-001-L1",
+              "regra": "RN-FAT-013",
+              "valor": 10.0,
+              "lido_por": "CT-0009",
+              "divergentes": [],
+              "valores": [
+                [
+                  9.0,
+                  "CT-0003"
+                ],
+                [
+                  10.0,
+                  "CT-0010"
+                ]
+              ]
+            },
+            {
+              "id": "CEN-FAT-001-L2",
+              "regra": "RN-FAT-014",
+              "valor": 30.0,
+              "lido_por": "CT-0011",
+              "divergentes": [],
+              "valores": [
+                [
+                  30.0,
+                  "CT-0011"
+                ],
+                [
+                  31.0,
+                  "CT-0012"
+                ]
+              ]
+            }
+          ],
+          "tabelas_esperadas": [
+            {
+              "id": "CEN-FAT-001-T1",
+              "descricao": "Emitida há mais de 30 dias × perfil SUPERVISOR: só a combinação \"mais de 30 dias e sem supervisor\" é recusada.",
+              "atendido_por": "TD-2"
+            }
+          ],
+          "negativos": [
+            {
+              "id": "CEN-FAT-001-N1",
+              "descricao": "Fatura com pagamento parcial não pode ser cancelada (erro -20011).",
+              "atendido_por": "CT-0001"
+            },
+            {
+              "id": "CEN-FAT-001-N2",
+              "descricao": "Só fatura ABERTA pode ser cancelada (erro -20010).",
+              "atendido_por": "CT-0001"
+            }
+          ],
+          "a_confirmar": []
+        }
+      },
+      "arquivos_alterados": [],
+      "claude": {
+        "custo_usd": 0.3578499,
+        "turnos": 35,
+        "duracao_ms": 86308,
+        "erro": false,
+        "subtipo": "success",
+        "tokens": {
+          "entrada": 28,
+          "saida": 13705,
+          "cache_criacao": 42917,
+          "cache_leitura": 490759
+        }
+      },
+      "erro": null
+    }
+  ],
+  "custo_total_usd": 2.1573636,
+  "sem_falhas_graves": true
+}

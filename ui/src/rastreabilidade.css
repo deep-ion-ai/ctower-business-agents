@@ -1,0 +1,136 @@
+/* Matriz de rastreabilidade e consulta reversa (#121). Cores só por token de theme.css. */
+
+.rastreabilidade-cabecalho,
+.consulta-reversa-cabecalho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 12px;
+}
+
+.rastreabilidade-cabecalho h3,
+.consulta-reversa-cabecalho h3 {
+  margin: 0;
+}
+
+.rastreabilidade-controles,
+.consulta-reversa-alvo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-left: auto;
+}
+
+.rastreabilidade-corpo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+  gap: 16px;
+  margin-top: 12px;
+}
+
+@media (max-width: 900px) {
+  .rastreabilidade-corpo {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.rastreabilidade-tabela {
+  overflow-x: auto;
+}
+
+.rastreabilidade-tabela table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+
+.rastreabilidade-tabela th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  font-size: 0.8em;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border-strong);
+  padding: 6px 8px;
+}
+
+.rastreabilidade-tabela td {
+  vertical-align: top;
+  border-bottom: 1px solid var(--border);
+  padding: 6px 8px;
+}
+
+.rastreabilidade-tabela tr[data-alerta] td {
+  background: var(--attention-card);
+}
+
+.rastreabilidade-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rastreabilidade-revalidar {
+  color: var(--attention);
+}
+
+.rastreabilidade-tabela .badge + .badge {
+  margin-left: 4px;
+}
+
+.rastreabilidade-lacunas h4,
+.consulta-reversa-grupo h4 {
+  margin: 0 0 8px;
+}
+
+.rastreabilidade-lacunas ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.rastreabilidade-lacunas li {
+  border: 1px solid var(--attention-border);
+  background: var(--attention-card);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.rastreabilidade-lacunas li p {
+  margin: 4px 0 0;
+}
+
+.consulta-reversa {
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.consulta-reversa-grupos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.consulta-reversa-grupo {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: var(--surface);
+}
+
+.consulta-reversa-grupo ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.consulta-reversa-mcp code {
+  font-size: 0.9em;
+}

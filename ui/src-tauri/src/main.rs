@@ -28,10 +28,13 @@
 
 #![windows_subsystem = "windows"]
 
+mod acessos;
 mod alteracoes;
+mod ambiente_teste;
 mod analise;
 mod base;
 mod cli;
+mod clones;
 mod configuracoes;
 #[cfg(windows)]
 mod console;
@@ -39,9 +42,12 @@ mod conversa;
 mod demandas;
 mod gui;
 mod inicio;
+mod pauta;
 mod primeiro_uso;
 mod projeto;
 mod prompts;
+mod rastreabilidade;
+mod registros;
 mod repositorios;
 mod reunioes;
 mod revisao;

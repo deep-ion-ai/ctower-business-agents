@@ -4,6 +4,7 @@ import type {
   AnaliseResumo,
   AvisoAnalise,
   PlanoPreparo,
+  LinkForja,
   PromptPronto,
   Situacao,
   ApiAnalise,
@@ -22,6 +23,16 @@ import type {
   ProjetoCadastrado,
   Situacao as SituacaoPrimeiroUso,
 } from "../primeiroUso";
+import type {
+  AlvoToken,
+  EventoClone,
+  IntegracaoProntidao,
+  JiraConfig,
+  RepoDetectado,
+  RepositorioCodigo,
+  ResultadoClone,
+  TrackerConfig,
+} from "../repositorios";
 import type { ApiTerminal, EventoTerminal, PedidoClaude, Tamanho } from "../terminal";
 import type { TelaTerminal } from "../telaXterm";
 
@@ -127,6 +138,8 @@ export function apiAnaliseFalsa(vista: VistaAnalise = vistaFicticia()) {
       return Promise.resolve(parar);
     }),
     promptsProntos: vi.fn((): Promise<PromptPronto[]> => Promise.resolve([])),
+    conferirEvidencias: vi.fn((): Promise<boolean> => Promise.resolve(false)),
+    linkForja: vi.fn((): Promise<LinkForja | null> => Promise.resolve(null)),
   } satisfies ApiAnalise;
   const avisar = (a: AvisoAnalise) => avisos.forEach((f) => f(a));
   return { api, avisar, parar };
@@ -197,6 +210,20 @@ export function inventarioFicticio(parcial: Partial<ResumoInventario> = {}): Res
     analisados: 14,
     bytesAnalisados: 48_000,
     ignorados: 1,
+    totalItensIgnorados: 1,
+    gruposIgnorados: [
+      {
+        pasta: "",
+        tipo: "env",
+        motivo: "segredo",
+        rotulo: "possível segredo",
+        itens: 1,
+        arquivos: 1,
+        exemplos: [".env"],
+        padroes: ["/.env"],
+        ajustavel: true,
+      },
+    ],
     porLinguagem: [
       { chave: "sql", rotulo: "SQL", quantidade: 3 },
       { chave: "delphi", rotulo: "Delphi", quantidade: 2 },
@@ -207,6 +234,7 @@ export function inventarioFicticio(parcial: Partial<ResumoInventario> = {}): Res
       {
         caminho: ".env",
         pasta: false,
+        arquivos: 1,
         motivo: "segredo",
         rotulo: "possível segredo",
         regra: ".env",
@@ -251,10 +279,12 @@ export function apiPrimeiroUsoFalsa() {
         })),
         exclusoes: p.exclusoes,
         inclusoes: p.inclusoes,
+        inclusoesVistas: p.inclusoes.map((padrao) => ({ padrao, entram: 1, continuamFora: 0 })),
         jaCadastrado: false,
         inventario: inventarioFicticio(),
       }),
     ),
+    nomeEmUso: vi.fn((_nome: string): Promise<boolean> => Promise.resolve(false)),
     cadastrarProjeto: vi.fn((p: PedidoProjeto): Promise<ProjetoCadastrado> =>
       Promise.resolve({
         id: "faturamento-exemplo",
@@ -276,6 +306,40 @@ export function apiPrimeiroUsoFalsa() {
     ),
     prepararAmbiente: vi.fn((): Promise<PlanoPreparo> =>
       Promise.resolve({ diretorio: "/codigo", alteracoes: [], gravado: true }),
+    ),
+    pastaClones: vi.fn((): Promise<string | null> => Promise.resolve("/Users/analista/repos")),
+    salvarToken: vi.fn((_alvo: AlvoToken, _token: string): Promise<void> => Promise.resolve()),
+    tokensGuardados: vi.fn(
+      (alvos: AlvoToken[]): Promise<boolean[]> => Promise.resolve(alvos.map(() => false)),
+    ),
+    testarAcesso: vi.fn(
+      (_repositorio: RepositorioCodigo, _token?: string | null): Promise<void> =>
+        Promise.resolve(),
+    ),
+    clonarRepositorios: vi.fn(
+      (
+        repositorios: RepositorioCodigo[],
+        pastaBase: string,
+        aoEvento: (e: EventoClone) => void,
+      ): Promise<ResultadoClone[]> =>
+        Promise.resolve(
+          repositorios.map((r, indice) => {
+            const pasta = `${pastaBase}/${r.caminho.split("/").pop()}`;
+            aoEvento({ tipo: "inicio", indice });
+            aoEvento({ tipo: "concluido", indice, pasta });
+            return { repositorio: { ...r, pasta }, erro: null };
+          }),
+        ),
+    ),
+    cancelarClone: vi.fn((): Promise<boolean> => Promise.resolve(false)),
+    detectarRepositorios: vi.fn((_pasta: string): Promise<RepoDetectado[]> => Promise.resolve([])),
+    testarDemandas: vi.fn(
+      (_tracker: TrackerConfig, _token: string | null): Promise<IntegracaoProntidao> =>
+        Promise.resolve({ titulo: "Issues", passos: [] }),
+    ),
+    testarJira: vi.fn(
+      (_jira: JiraConfig, _token: string | null): Promise<IntegracaoProntidao> =>
+        Promise.resolve({ titulo: "Jira", passos: [] }),
     ),
   } satisfies ApiPrimeiroUso;
   return api;

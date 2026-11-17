@@ -9,8 +9,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use cba_docs::{
-    Afirmacao, Aviso, Citacao, Confianca, Conteudo, ErroMontagem, Montavel, Origem, Pergunta,
-    ReferenciaSugestao, Templates, Texto, arquivo_do_template, bloco_de_codigo,
+    Afirmacao, ArestaDiagrama, Aviso, Citacao, Confianca, Conteudo, Diagrama, ErroMontagem,
+    Montavel, NoDiagrama, Origem, PapelNo, Pergunta, ReferenciaSugestao, Templates, Texto,
+    TipoDiagrama, arquivo_do_template, bloco_de_codigo,
 };
 use cba_kb::frontmatter::{
     Abrangencia, Area, Data, Demanda, Evidencia, FrontmatterAnalise, FrontmatterFuncionalidade,
@@ -286,6 +287,7 @@ fn conteudo_pergunta(g: &Gabarito) -> Conteudo<FrontmatterAnalise> {
     ));
     conteudo.perguntas.push(Pergunta {
         texto: "O lote de cobrança deveria ler os parâmetros em vez de usar valores fixos?".into(),
+        evidencias: vec![],
     });
     conteudo
 }
@@ -350,10 +352,12 @@ fn conteudo_analise_impacto(g: &Gabarito) -> Conteudo<FrontmatterAnalise> {
     ));
     conteudo.perguntas.push(Pergunta {
         texto: "O limite de 3 parcelas vale também para órgão público?".into(),
+        evidencias: vec![],
     });
     conteudo.perguntas.push(Pergunta {
         texto: "A tela deve deixar de oferecer até 12 parcelas?\nHoje o backend recusa acima de 6."
             .into(),
+        evidencias: vec![],
     });
     conteudo.sugestoes.push(ReferenciaSugestao {
         id: Serie::Sugestao.id(1),
@@ -400,6 +404,7 @@ fn conteudo_funcionalidade(g: &Gabarito) -> Conteudo<FrontmatterFuncionalidade> 
     }
     conteudo.perguntas.push(Pergunta {
         texto: "Qual dos limites de parcelas (tela ou backend) é o correto?".into(),
+        evidencias: vec![],
     });
     conteudo
 }
@@ -470,6 +475,7 @@ fn conteudo_regra(g: &Gabarito) -> Conteudo<FrontmatterRegra> {
         status: StatusRegra::Confirmada,
         evidencias,
         origem: Some(c("analises/A-0001.md")),
+        informada: None,
     };
     Conteudo::da_regra(fm, &r.enunciado)
 }
@@ -611,6 +617,142 @@ fn monta_documento_negocial_de_uma_analise() {
             .push(g.regra(id).afirmacao("regras", Confianca::Confirmado));
     }
     montar_e_conferir("funcionalidade-de-analise", &conteudo);
+}
+
+/// Ciclo de vida da fatura do sistema fictício: os estados do `CHECK` da tabela
+/// e as transições que o código mostra.
+fn diagrama_da_fatura() -> Diagrama {
+    let no = |chave: &str, rotulo: &str, papel: PapelNo| NoDiagrama {
+        chave: chave.into(),
+        rotulo: rotulo.into(),
+        papel,
+        descricao: None,
+        evidencias: vec![],
+        raia: None,
+        entidade: None,
+    };
+    let mut aberta = no("A", "Aberta", PapelNo::Inicio);
+    aberta.descricao = Some("Situação inicial de toda fatura.".into());
+    aberta.evidencias = vec![Citacao::nova(
+        c("db/01_tabelas.sql"),
+        Linhas::novo(28, 28).unwrap(),
+    )];
+    Diagrama {
+        secao: "fluxo_principal".into(),
+        tipo: TipoDiagrama::Estados,
+        titulo: "Ciclo de vida da fatura".into(),
+        nos: vec![
+            aberta,
+            no("P", "Paga", PapelNo::Fim),
+            no("R", "Parcelada", PapelNo::Fim),
+            no("C", "Cancelada", PapelNo::Fim),
+        ],
+        arestas: vec![
+            ArestaDiagrama {
+                de: "A".into(),
+                para: "C".into(),
+                rotulo: Some("cancelar".into()),
+                descricao: Some("Sem pagamento e com motivo de ao menos 10 caracteres.".into()),
+                condicao: None,
+                efeitos: None,
+                confianca: Confianca::Confirmado,
+                evidencias: vec![Citacao::nova(
+                    c("db/03_pkg_cobranca.sql"),
+                    Linhas::novo(111, 128).unwrap(),
+                )],
+                relacao: None,
+            },
+            ArestaDiagrama {
+                de: "A".into(),
+                para: "R".into(),
+                rotulo: Some("parcelar".into()),
+                descricao: Some("Só fatura aberta pode ser parcelada.".into()),
+                condicao: None,
+                efeitos: None,
+                confianca: Confianca::Inferido,
+                evidencias: vec![Citacao::nova(
+                    c("backend/src/main/java/exemplo/faturamento/ParcelamentoService.java"),
+                    Linhas::novo(27, 27).unwrap(),
+                )],
+                relacao: None,
+            },
+            ArestaDiagrama {
+                de: "A".into(),
+                para: "P".into(),
+                rotulo: Some("pagar".into()),
+                descricao: None,
+                condicao: None,
+                efeitos: None,
+                confianca: Confianca::AConfirmar,
+                evidencias: vec![],
+                relacao: None,
+            },
+        ],
+        achados: vec![],
+    }
+}
+
+#[test]
+fn monta_documento_com_diagrama() {
+    // Diagrama registrado numa seção: código Mermaid gerado, legenda numerada e
+    // tabela de elementos, com as evidências na mesma numeração das afirmações.
+    let g = gabarito();
+    let mut conteudo = Conteudo::novo(
+        analise(TipoDocumento::Funcionalidade, 7, "Ciclo de vida da fatura"),
+        c("analises/A-0007.md"),
+    );
+    conteudo.textos.push(Texto::novo(
+        "objetivo",
+        "Mostrar as situações da fatura e o que muda cada uma.",
+    ));
+    conteudo.diagramas.push(diagrama_da_fatura());
+    conteudo.afirmacoes.push(
+        g.regra("RN-FAT-003")
+            .afirmacao("fluxo_principal", Confianca::Confirmado),
+    );
+    let texto = montar_e_conferir("funcionalidade-com-diagrama", &conteudo);
+    assert!(
+        texto.contains("```mermaid\nflowchart LR\n  n1([\"Aberta\"])\n"),
+        "{texto}"
+    );
+    assert!(texto.contains("  n1 -.->|\"parcelar\"| n3\n"), "{texto}");
+    assert!(
+        texto.contains("*Figura 1: Ciclo de vida da fatura*"),
+        "{texto}"
+    );
+    assert!(texto.contains("| Aberta (início) | Situação inicial de toda fatura.[^1] |"));
+    assert!(texto.contains(
+        "| Aberta → Cancelada | cancelar | Sem pagamento e com motivo de ao menos 10 caracteres.[^2] | confirmado |"
+    ));
+    assert!(texto.contains("[^1]: `db/01_tabelas.sql:28`"));
+    // A afirmação vem depois do diagrama e continua a numeração das notas.
+    let diagrama = texto.find("```mermaid").unwrap();
+    let afirmacao = texto.find("**[confirmado]**").unwrap();
+    assert!(diagrama < afirmacao);
+    assert!(texto.contains("[^4]: "), "{texto}");
+}
+
+#[test]
+fn figuras_numeradas_na_ordem_do_documento() {
+    let mut conteudo = Conteudo::novo(
+        analise(TipoDocumento::Funcionalidade, 8, "Dois diagramas"),
+        c("analises/A-0008.md"),
+    );
+    let mut segundo = diagrama_da_fatura();
+    segundo.titulo = "Segundo".into();
+    segundo.secao = "objetivo".into();
+    conteudo.diagramas.push(segundo);
+    conteudo.diagramas.push(diagrama_da_fatura());
+    let texto = Templates::padrao()
+        .montar(&conteudo)
+        .unwrap()
+        .documento
+        .para_texto()
+        .unwrap();
+    // `objetivo` vem antes de `fluxo_principal` no template.
+    let primeiro = texto.find("*Figura 1: Segundo*").unwrap();
+    let outro = texto.find("*Figura 2: Ciclo de vida da fatura*").unwrap();
+    assert!(primeiro < outro);
 }
 
 #[test]

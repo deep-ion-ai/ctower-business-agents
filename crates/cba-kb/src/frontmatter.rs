@@ -61,10 +61,19 @@ pub enum TipoDocumento {
     /// `analises/`: tabelas de decisão, partição de equivalência e valores-limite,
     /// cada cenário com identificador estável (`CT-NNNN`).
     CenariosTeste,
+    /// Premissa de uma demanda (#122), em
+    /// `demandas/D-NNNN-<slug>/registros/PR-NNNN.md` ([`crate::registros`]).
+    Premissa,
+    /// Decisão tomada numa demanda (#122), em `registros/DE-NNNN.md`.
+    Decisao,
+    /// Risco de uma demanda (#122), em `registros/RI-NNNN.md`.
+    Risco,
+    /// Restrição de uma demanda (#122), em `registros/RE-NNNN.md`.
+    Restricao,
 }
 
 impl TipoDocumento {
-    pub const TODOS: [TipoDocumento; 16] = [
+    pub const TODOS: [TipoDocumento; 20] = [
         Self::Projeto,
         Self::AnaliseImpacto,
         Self::Pergunta,
@@ -81,6 +90,10 @@ impl TipoDocumento {
         Self::ParecerRevisao,
         Self::Historias,
         Self::CenariosTeste,
+        Self::Premissa,
+        Self::Decisao,
+        Self::Risco,
+        Self::Restricao,
     ];
 
     /// Valor no frontmatter (`analise-impacto`).
@@ -102,6 +115,10 @@ impl TipoDocumento {
             Self::ParecerRevisao => "parecer-revisao",
             Self::Historias => "historias",
             Self::CenariosTeste => "cenarios-teste",
+            Self::Premissa => "premissa",
+            Self::Decisao => "decisao",
+            Self::Risco => "risco",
+            Self::Restricao => "restricao",
         }
     }
 
@@ -561,6 +578,11 @@ pub struct FrontmatterRegra {
     /// (`analises/A-0193.md`).
     #[serde(default)]
     pub origem: Option<CaminhoRelativo>,
+    /// Regra informada por uma pessoa, em resposta a perguntas da pauta (#123):
+    /// não tem evidência de código e fica marcada como tal
+    /// ([`crate::informada`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub informada: Option<crate::informada::RegraInformada>,
 }
 
 impl Frontmatter for FrontmatterRegra {

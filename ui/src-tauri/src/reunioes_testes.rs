@@ -50,6 +50,29 @@ fn nova_demanda() -> DemandaDaReuniao {
 }
 
 #[test]
+fn previa_do_texto_nome_fala_mostra_os_tres_falantes() {
+    let texto = "Marina: Bom dia, vamos falar do cancelamento de fatura.\n\
+                 Rafael: A trava dos 30 dias fica na retaguarda.\n\
+                 Camila: Decidimos manter a trava e registrar o motivo.\n\
+                 Marina: Aprova o gerente financeiro.\n";
+    let p = previa_transcript(&EntradaTranscript::Texto {
+        texto: texto.into(),
+    })
+    .unwrap();
+    assert_eq!(p.formato, Formato::NomeFala);
+    assert_eq!(p.falas, 4);
+    assert_eq!(p.sem_falante, 0);
+    assert!(p.pode_criar);
+    let nomes: Vec<(&str, usize)> = p
+        .falantes
+        .iter()
+        .map(|f| (f.nome.as_str(), f.falas))
+        .collect();
+    assert_eq!(nomes, vec![("Marina", 2), ("Rafael", 1), ("Camila", 1)]);
+    assert_eq!(serde_json::to_value(&p).unwrap()["formato"], "nome_fala");
+}
+
+#[test]
 fn previa_do_texto_colado_e_do_vtt() {
     let p = previa_transcript(&texto_colado()).unwrap();
     assert_eq!(p.formato, Formato::TextoTeams);
@@ -837,6 +860,7 @@ fn exportar_a_analise_da_reuniao_leva_a_ata() {
         destino: pasta.join(nome),
         formato,
         opcoes: OpcoesExportacao::default(),
+        figuras: Vec::new(),
     };
 
     let md = exportar(

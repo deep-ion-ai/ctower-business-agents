@@ -60,6 +60,26 @@
 #   condições e palavras-chave nas condições), os cenários `negativos` (com as
 #   palavras-chave no título e nos passos) e os temas `a_confirmar` (limite que
 #   vem de tabela de parâmetros, com pergunta).
+# - `ciclos_vida` (ciclo de vida de uma entidade, #119) traz o diagrama de
+#   estados esperado de uma entidade com campo de status: o `campo` (com a
+#   evidência da definição), os `estados` pelo valor gravado no código (com o
+#   inicial e os finais), as `transicoes` (de, para, palavras-chave no evento ou
+#   na condição e a evidência da rotina que grava o campo) e os `achados` que o
+#   app deve apontar (`inalcancavel`: nenhuma transição chega ao estado;
+#   `sem_saida`: estado não final de que nenhuma transição sai). A análise é do
+#   fluxo explicar, com o `pedido` como entrada.
+# - `processo` e `modelo_dados` (funcionalidades, fluxo "explicar", #120)
+#   descrevem os diagramas esperados no documento negocial. `processo`: as
+#   `raias` (atores; palavras-chave na raia de algum passo), os passos do
+#   `principal` e as `decisoes` dos fluxos alternativos e das exceções. Um passo
+#   atende quando tem as palavras-chave no rótulo ou na descrição ou cita uma
+#   evidência que toca uma das `evidencias` esperadas; a decisão, quando o nó é
+#   de decisão e atende do mesmo jeito. `modelo_dados`: as `entidades` (pela
+#   `tabela`; o nome de negócio com as palavras-chave) e as `relacoes` entre
+#   tabelas, com a `origem` esperada (`chave_estrangeira`, declarada nos
+#   scripts, ou `join`, sem chave estrangeira, que precisa sair como inferida).
+#   Relação `opcional` não conta na cobertura, mas, se registrada, precisa ter a
+#   origem esperada.
 # - A avaliação dos fluxos (crate cba-avaliacao, docs/avaliacao.md) usa este
 #   arquivo como referência.
 
@@ -476,6 +496,112 @@ funcionalidades:
       - db/03_pkg_cobranca.sql
       - delphi/UFrmCancelamento.pas
       - delphi/UFrmCancelamento.dfm
+    # Fluxo do processo no documento negocial (#120): a tela da retaguarda
+    # valida o motivo e o prazo de 30 dias; o banco confere a situação e o
+    # pagamento e grava o cancelamento e o histórico.
+    processo:
+      raias:
+        - id: F-FAT-003-R1
+          descricao: Atendente, na tela de cancelamento da retaguarda (Delphi).
+          palavras_chave: [[atendente, tela, retaguarda, delphi, operador, usuario, frmcancelamento]]
+        - id: F-FAT-003-R2
+          descricao: Banco de dados (PKG_COBRANCA.PRC_CANCELAR_FATURA).
+          palavras_chave: [[banco, pkg_cobranca, prc_cancelar_fatura, procedure, plsql, "pl/sql", oracle]]
+      principal:
+        - id: F-FAT-003-P1
+          descricao: O atendente informa a fatura e o motivo.
+          palavras_chave: [[fatura, motivo], [inform*, digit*, preench*, pede, pedir, solicit*]]
+          evidencias:
+            - arquivo: delphi/UFrmCancelamento.pas
+              linha_inicial: 84
+              linha_final: 84
+              trecho: "StrToIntDef(edtFatura.Text, 0)"
+        - id: F-FAT-003-P2
+          descricao: A tela chama o cancelamento no banco.
+          palavras_chave: [[cancel*], [banco, rotina, procedure, prc_cancelar_fatura, pkg_cobranca, cham*, envi*]]
+          evidencias:
+            - arquivo: delphi/UFrmCancelamento.pas
+              linha_inicial: 94
+              linha_final: 99
+              trecho: "PKG_COBRANCA.PRC_CANCELAR_FATURA"
+        - id: F-FAT-003-P3
+          descricao: O banco grava a fatura como cancelada e registra o histórico.
+          palavras_chave: [[grav*, atualiz*, registr*, marc*], [cancel*, histor*, log*]]
+          evidencias:
+            - arquivo: db/03_pkg_cobranca.sql
+              linha_inicial: 123
+              linha_final: 131
+              trecho: "INSERT INTO LOG_FATURA"
+      decisoes:
+        - id: F-FAT-003-D1
+          descricao: Motivo com ao menos 10 caracteres (tela e banco).
+          palavras_chave: [[motivo], ["10", dez, caracter*, minim*, tamanho]]
+          evidencias:
+            - arquivo: delphi/UFrmCancelamento.pas
+              linha_inicial: 63
+              linha_final: 63
+              trecho: "Length(Trim(memMotivo.Text)) < TAM_MINIMO_MOTIVO"
+            - arquivo: db/03_pkg_cobranca.sql
+              linha_inicial: 119
+              linha_final: 119
+              trecho: "LENGTH(TRIM(P_MOTIVO)) < 10"
+        - id: F-FAT-003-D2
+          descricao: Emitida há mais de 30 dias exige supervisor (só na tela).
+          palavras_chave: [["30", trinta, dias, prazo, emiss*], [supervisor*, perfil*]]
+          evidencias:
+            - arquivo: delphi/UFrmCancelamento.pas
+              linha_inicial: 70
+              linha_final: 71
+              trecho: "DIAS_LIMITE_SEM_SUPERVISOR"
+        - id: F-FAT-003-D3
+          descricao: Só fatura ABERTA pode ser cancelada.
+          palavras_chave: [[aberta, status, situac*]]
+          evidencias:
+            - arquivo: db/03_pkg_cobranca.sql
+              linha_inicial: 111
+              linha_final: 112
+              trecho: "IF V_STATUS <> 'ABERTA' THEN"
+        - id: F-FAT-003-D4
+          descricao: Fatura com pagamento parcial não pode ser cancelada.
+          palavras_chave: [[pag*, vl_pago, quitad*]]
+          evidencias:
+            - arquivo: db/03_pkg_cobranca.sql
+              linha_inicial: 115
+              linha_final: 116
+              trecho: "IF V_VL_PAGO > 0 THEN"
+    # Modelo de dados conceitual (#120): o cancelamento grava FATURA e
+    # LOG_FATURA. LOG_FATURA tem ID_FATURA, mas sem chave estrangeira: a
+    # relação só aparece no INSERT do PL/SQL e precisa sair como inferida. A
+    # relação com CLIENTE é opcional (o cancelamento não lê o cliente), mas, se
+    # aparecer, vem da chave estrangeira.
+    modelo_dados:
+      entidades:
+        - id: F-FAT-003-E1
+          tabela: FATURA
+          palavras_chave: [[fatura]]
+        - id: F-FAT-003-E2
+          tabela: LOG_FATURA
+          palavras_chave: [[histor*, log, registro*, evento*, ocorrenc*, auditoria]]
+      relacoes:
+        - id: F-FAT-003-M1
+          de: FATURA
+          para: LOG_FATURA
+          origem: join
+          evidencias:
+            - arquivo: db/03_pkg_cobranca.sql
+              linha_inicial: 130
+              linha_final: 131
+              trecho: "INSERT INTO LOG_FATURA (ID_LOG, ID_FATURA"
+        - id: F-FAT-003-M2
+          de: CLIENTE
+          para: FATURA
+          origem: chave_estrangeira
+          opcional: true
+          evidencias:
+            - arquivo: db/01_tabelas.sql
+              linha_inicial: 33
+              linha_final: 34
+              trecho: "FOREIGN KEY (ID_CLIENTE)"
 
   - id: F-FAT-004
     nome: Lote mensal de cobrança
@@ -850,3 +976,88 @@ cenarios:
     a_confirmar:
       - tema: O máximo de parcelas vem do parâmetro MAX_PARCELAS (6 na carga inicial); qual é o valor em produção?
         palavras_chave: [[max_parcelas, maxim*, "6", "7"]]
+
+ciclos_vida:
+  - id: CV-FAT-001
+    titulo: Ciclo de vida da fatura
+    entidade: fatura
+    pedido: >-
+      Ciclo de vida da fatura: quais são as situações possíveis da fatura, o
+      que faz a fatura passar de uma situação para outra e em que condição.
+    campo:
+      arquivo: db/01_tabelas.sql
+      linha_inicial: 28
+      linha_final: 28
+      trecho: "STATUS            VARCHAR2(10)   DEFAULT 'ABERTA'"
+    estados:
+      - valor: ABERTA
+        inicial: true
+        evidencia:
+          arquivo: db/01_tabelas.sql
+          linha_inicial: 28
+          linha_final: 28
+          trecho: "DEFAULT 'ABERTA'"
+      - valor: PAGA
+        final: true
+      - valor: PARCELADA
+      - valor: CANCELADA
+        final: true
+      - valor: SUSPENSA
+      - valor: PROTESTADA
+        evidencia:
+          arquivo: db/04_pkg_situacao.sql
+          linha_inicial: 9
+          linha_final: 10
+          trecho: "'PROTESTADA'"
+    transicoes:
+      - id: CV-FAT-001-T1
+        de: ABERTA
+        para: PAGA
+        # Pagamento parcial mantém a fatura aberta.
+        palavras_chave: [[pag*, quita*]]
+        evidencia:
+          arquivo: db/04_pkg_situacao.sql
+          linha_inicial: 59
+          linha_final: 62
+          trecho: "SET STATUS = 'PAGA'"
+      - id: CV-FAT-001-T2
+        de: ABERTA
+        para: PARCELADA
+        palavras_chave: [[parcel*]]
+        evidencia:
+          arquivo: db/04_pkg_situacao.sql
+          linha_inicial: 79
+          linha_final: 81
+          trecho: "SET STATUS = 'PARCELADA'"
+      - id: CV-FAT-001-T3
+        de: PARCELADA
+        para: PAGA
+        palavras_chave: [[parcela*, quita*, ultima, última]]
+        evidencia:
+          arquivo: db/04_pkg_situacao.sql
+          linha_inicial: 103
+          linha_final: 107
+          trecho: "AND STATUS = 'PARCELADA'"
+      - id: CV-FAT-001-T4
+        de: ABERTA
+        para: CANCELADA
+        palavras_chave: [[cancel*]]
+        evidencia:
+          arquivo: db/03_pkg_cobranca.sql
+          linha_inicial: 123
+          linha_final: 127
+          trecho: "SET STATUS          = 'CANCELADA'"
+      - id: CV-FAT-001-T5
+        de: ABERTA
+        para: SUSPENSA
+        palavras_chave: [[contesta*, suspen*]]
+        evidencia:
+          arquivo: db/04_pkg_situacao.sql
+          linha_inicial: 121
+          linha_final: 124
+          trecho: "SET STATUS = 'SUSPENSA'"
+    achados:
+      - tipo: inalcancavel
+        estado: PROTESTADA
+      - tipo: sem_saida
+        estado: SUSPENSA

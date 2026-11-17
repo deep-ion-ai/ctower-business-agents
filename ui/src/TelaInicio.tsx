@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
+import { contar } from "./formatacao";
 import { mensagemDe, type AnaliseCriada, type Fluxo } from "./analise";
+import type { ApiAssistenteProjeto } from "./AssistenteProjeto";
 import { ClientesIA, type AbrirLink } from "./ClientesIA";
+import { apiConfiguracoesTauri } from "./configuracoes";
 import {
   ROTULO_FLUXO,
   type AnaliseInicio,
@@ -11,7 +14,15 @@ import { ROTULO_SESSAO } from "./DocumentoAoVivo";
 import type { Tela } from "./Navegacao";
 import { NovaAnalise } from "./NovaAnalise";
 import { NovaHistorias } from "./NovaHistorias";
+import { ModalNovoProjeto } from "./ModalNovoProjeto";
 import { NovaReuniao } from "./NovaReuniao";
+import {
+  aguardaRevisao,
+  emAndamento,
+  proximoPasso,
+  type AmbientesConferidos,
+  type PassoInicio,
+} from "./proximoPassoInicio";
 import type { ApiReuniao } from "./reunioes";
 
 const FLUXOS: Fluxo[] = [
@@ -38,6 +49,10 @@ interface Props {
   aoPrimeiroUso?: () => void;
   /** Nova reunião (#141); para testes. */
   apiReuniao?: ApiReuniao;
+  /** Assistente de cadastro do botão “Novo projeto”; para testes. */
+  apiProjeto?: ApiAssistenteProjeto;
+  /** Um projeto foi cadastrado (o painel lateral recarrega a lista). */
+  aoMudarProjetos?: () => void;
 }
 
 /**
@@ -50,10 +65,14 @@ export function TelaInicio({
   abrirLink,
   aoPrimeiroUso,
   apiReuniao,
+  apiProjeto = apiConfiguracoesTauri,
+  aoMudarProjetos,
 }: Props) {
   const [inicio, setInicio] = useState<Inicio | null>(null);
   const [falha, setFalha] = useState<string | null>(null);
   const [fluxo, setFluxo] = useState<Fluxo | null>(null);
+  const [novoProjeto, setNovoProjeto] = useState(false);
+  const [ambientes, setAmbientes] = useState<AmbientesConferidos>({});
 
   const carregar = useCallback(() => {
     api
@@ -66,6 +85,22 @@ export function TelaInicio({
   }, [api]);
 
   useEffect(carregar, [carregar]);
+
+  // O preparo do ambiente de cada projeto alimenta o “próximo passo”.
+  useEffect(() => {
+    if (!inicio) return;
+    let ativo = true;
+    for (const p of inicio.projetos) {
+      if (p.erro) continue;
+      api
+        .verificarAmbiente(p.id)
+        .then((a) => ativo && setAmbientes((m) => ({ ...m, [p.id]: a })))
+        .catch(() => ativo && setAmbientes((m) => ({ ...m, [p.id]: null })));
+    }
+    return () => {
+      ativo = false;
+    };
+  }, [api, inicio]);
 
   const abrirAnalise = (a: AnaliseInicio) =>
     navegar({
@@ -83,6 +118,32 @@ export function TelaInicio({
         abertura: { tipo: "nova", promptInicial: criada.promptInicial },
       },
     });
+
+  const projetoCadastrado = () => {
+    setNovoProjeto(false);
+    carregar();
+    aoMudarProjetos?.();
+  };
+
+  const passo = inicio ? proximoPasso(inicio, ambientes) : null;
+  const executarPasso = (p: PassoInicio) => {
+    switch (p.tipo) {
+      case "responder":
+      case "revisar":
+      case "retomar":
+        abrirAnalise(p.analise);
+        break;
+      case "revalidar":
+        navegar({ tipo: "projeto", projeto: p.projeto });
+        break;
+      case "preparar":
+        navegar({ tipo: "configuracoes" });
+        break;
+      case "primeira-analise":
+        setFluxo("perguntar");
+        break;
+    }
+  };
 
   const semProjeto = inicio !== null && (inicio.base === null || inicio.projetos.length === 0);
 
@@ -105,6 +166,8 @@ export function TelaInicio({
           )}
         </p>
       )}
+
+      {passo && <ProximoPassoInicio passo={passo} aoExecutar={() => executarPasso(passo)} />}
 
       <section aria-label="Nova análise" className="fluxos">
         <h2>Nova análise</h2>
@@ -161,9 +224,17 @@ export function TelaInicio({
           <ListaAnalises
             titulo="Em andamento"
             vazio="Nenhuma análise em andamento."
-            analises={inicio.emAndamento}
+            analises={inicio.emAndamento.filter(emAndamento)}
             aoAbrir={abrirAnalise}
           />
+          {inicio.emAndamento.some(aguardaRevisao) && (
+            <ListaAnalises
+              titulo="Aguardando revisão"
+              vazio=""
+              analises={inicio.emAndamento.filter(aguardaRevisao)}
+              aoAbrir={abrirAnalise}
+            />
+          )}
           <ListaAnalises
             titulo="Recentes"
             vazio="Nenhuma análise ainda."
@@ -171,7 +242,15 @@ export function TelaInicio({
             aoAbrir={abrirAnalise}
           />
           <section aria-label="Projetos">
-            <h2>Projetos</h2>
+            <div className="titulo-com-acao">
+              <h2>Projetos</h2>
+              {inicio.base !== null && (
+                <button className="btn" type="button" onClick={() => setNovoProjeto(true)}>
+                  + Novo projeto
+                </button>
+              )}
+            </div>
+            {inicio.projetos.length === 0 && <p className="muted">Nenhum projeto cadastrado.</p>}
             <ul className="lista-projetos">
               {inicio.projetos.map((s) => (
                 <li key={s.id}>
@@ -186,7 +265,7 @@ export function TelaInicio({
                     <span className="error-text">{s.erro}</span>
                   ) : (
                     <span className="muted">
-                      {s.analises} análise(s) · {s.regras} regra(s) · {s.termos} termo(s)
+                      {contar(s.analises, "análise", "análises")} · {contar(s.regras, "regra", "regras")} · {contar(s.termos, "termo", "termos")}
                     </span>
                   )}
                   {s.aRevalidar > 0 && (
@@ -202,6 +281,81 @@ export function TelaInicio({
       )}
 
       <ClientesIA abrirLink={abrirLink} />
+
+      {novoProjeto && (
+        <ModalNovoProjeto
+          api={apiProjeto}
+          aoFechar={() => setNovoProjeto(false)}
+          aoConcluir={projetoCadastrado}
+          aoPrepararAmbiente={() => {
+            // O preparo do ambiente do Claude fica no cartão do projeto, em Configurações.
+            projetoCadastrado();
+            navegar({ tipo: "configuracoes" });
+          }}
+        />
+      )}
+    </section>
+  );
+}
+
+/** O texto e o botão de cada próximo passo sugerido. */
+function descreverPasso(p: PassoInicio): { titulo: string; texto: string; acao: string } {
+  switch (p.tipo) {
+    case "responder":
+      return {
+        titulo: `O agente aguarda você na ${p.analise.id}`,
+        texto: `${p.analise.titulo} (${p.analise.projetoNome}): o agente fez uma pergunta ou precisa de uma decisão sua.`,
+        acao: "Responder ao agente",
+      };
+    case "revisar":
+      return {
+        titulo: `Revisar e aprovar a ${p.analise.id}`,
+        texto: `${p.analise.titulo} (${p.analise.projetoNome}) foi concluída pelo agente. Confira as afirmações e aprove para elas virarem regras da base.`,
+        acao: "Revisar a análise",
+      };
+    case "revalidar":
+      return {
+        titulo: `Revalidar as regras de ${p.nome}`,
+        texto:
+          p.regras === 1
+            ? "1 regra tem o código citado alterado desde a aprovação."
+            : `${p.regras} regras têm o código citado alterado desde a aprovação.`,
+        acao: "Ver as regras",
+      };
+    case "preparar":
+      return {
+        titulo: `Preparar o ambiente do Claude de ${p.nome}`,
+        texto:
+          "Sem o preparo, o agente não consegue registrar as afirmações da análise no documento.",
+        acao: "Preparar",
+      };
+    case "retomar":
+      return {
+        titulo: `Retomar a ${p.analise.id}`,
+        texto: `${p.analise.titulo} (${p.analise.projetoNome}) está em andamento.`,
+        acao: "Abrir a análise",
+      };
+    case "primeira-analise":
+      return {
+        titulo: `Fazer a primeira análise de ${p.nome}`,
+        texto: "Comece com uma pergunta sobre o projeto; o agente lê o código e registra o que achar.",
+        acao: "Fazer uma pergunta",
+      };
+  }
+}
+
+function ProximoPassoInicio({ passo, aoExecutar }: { passo: PassoInicio; aoExecutar: () => void }) {
+  const { titulo, texto, acao } = descreverPasso(passo);
+  return (
+    <section aria-label="Próximo passo" className="proximo-passo-inicio">
+      <h2>Próximo passo</h2>
+      <p>
+        <strong>{titulo}</strong>
+      </p>
+      <p className="muted">{texto}</p>
+      <button type="button" className="btn btn-primary" onClick={aoExecutar}>
+        {acao}
+      </button>
     </section>
   );
 }

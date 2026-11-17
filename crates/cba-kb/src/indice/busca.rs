@@ -235,6 +235,79 @@ impl Indice {
             total: usize::try_from(total).unwrap_or(0),
         })
     }
+
+    /// Lista os documentos do índice sem busca textual (a Base aberta, antes de
+    /// qualquer consulta): respeita `projeto`, `tipos`, `limite` e `deslocamento` de
+    /// `consulta` e ignora o texto. Ordem: projeto, tipo e caminho. O trecho vem vazio.
+    pub fn listar(&self, consulta: &Consulta) -> ResultadoIndice<Pagina> {
+        let mut filtro = String::from("(?1 IS NULL OR d.projeto = ?1)");
+        let mut parametros: Vec<Sql> = vec![consulta.projeto.clone().map_or(Sql::Null, Sql::Text)];
+        if !consulta.tipos.is_empty() {
+            let marcas: Vec<String> = consulta
+                .tipos
+                .iter()
+                .map(|t| {
+                    parametros.push(Sql::Text(t.como_str().to_owned()));
+                    format!("?{}", parametros.len())
+                })
+                .collect();
+            filtro.push_str(&format!(" AND d.tipo IN ({})", marcas.join(", ")));
+        }
+        let total: i64 = self.conexao.query_row(
+            &format!("SELECT count(*) FROM documento d WHERE {filtro}"),
+            rusqlite::params_from_iter(parametros.iter()),
+            |l| l.get(0),
+        )?;
+        let n = parametros.len();
+        parametros.push(Sql::Integer(
+            i64::try_from(consulta.limite).unwrap_or(i64::MAX),
+        ));
+        parametros.push(Sql::Integer(
+            i64::try_from(consulta.deslocamento).unwrap_or(i64::MAX),
+        ));
+        let sql = format!(
+            "SELECT d.caminho, d.projeto, d.tipo, d.identificador, d.titulo, d.area, d.status \
+             FROM documento d WHERE {filtro} \
+             ORDER BY d.projeto, d.tipo, d.caminho \
+             LIMIT ?{} OFFSET ?{}",
+            n + 1,
+            n + 2
+        );
+        let mut comando = self.conexao.prepare(&sql)?;
+        let linhas = comando.query_map(rusqlite::params_from_iter(parametros.iter()), |l| {
+            Ok((
+                l.get::<_, String>(0)?,
+                l.get::<_, String>(1)?,
+                l.get::<_, Option<String>>(2)?,
+                l.get::<_, Option<String>>(3)?,
+                l.get::<_, String>(4)?,
+                l.get::<_, Option<String>>(5)?,
+                l.get::<_, Option<String>>(6)?,
+            ))
+        })?;
+        let mut resultados = Vec::new();
+        for linha in linhas {
+            let (caminho, projeto, tipo, identificador, titulo, area, status) = linha?;
+            let Ok(caminho) = CaminhoRelativo::novo(&caminho) else {
+                continue;
+            };
+            resultados.push(Resultado {
+                caminho,
+                projeto,
+                tipo: tipo.as_deref().and_then(Tipo::de_str),
+                identificador,
+                titulo,
+                area,
+                status,
+                trecho: String::new(),
+                relevancia: 0.0,
+            });
+        }
+        Ok(Pagina {
+            resultados,
+            total: usize::try_from(total).unwrap_or(0),
+        })
+    }
 }
 
 #[cfg(test)]

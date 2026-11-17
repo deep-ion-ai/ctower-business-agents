@@ -14,6 +14,11 @@
 //!   evidências como notas de rodapé do Word e o apêndice com os trechos. O
 //!   `.docx` é gerado por [`crate::word`], sem dependências nativas.
 //!
+//! Diagramas (#118): no Markdown, o bloco ` ```mermaid ` fica como está. No
+//! Word, cada bloco vira a figura renderizada pelo app ([`Figuras`], em
+//! [`exportar_com_links`]); sem figura, um aviso e o código. Com a opção
+//! `codigo_diagramas`, o código de cada figura vai num apêndice próprio.
+//!
 //! As seções são reconhecidas pelo título, porque o documento na base pode ter
 //! vindo de um template editado: a seção de perguntas é a de título que começa
 //! com "Perguntas", e a de evidências é a de título "Evidências".
@@ -27,6 +32,7 @@ use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 use serde::{Deserialize, Serialize};
 
 use crate::conteudo::{Citacao, bloco_de_codigo};
+use crate::figura::{Figuras, blocos_mermaid};
 use crate::montagem::normalizar;
 
 /// O que entra na exportação. Por padrão, tudo.
@@ -41,6 +47,9 @@ pub struct OpcoesExportacao {
     /// Apêndice com os trechos de código citados nas evidências. Só sai quando
     /// há uma [`FonteDeTrechos`] e `evidencias` está ligado.
     pub trechos: bool,
+    /// No Word, apêndice com o código Mermaid de cada diagrama desenhado como
+    /// figura. No Markdown o código já está no lugar do diagrama.
+    pub codigo_diagramas: bool,
 }
 
 impl Default for OpcoesExportacao {
@@ -49,6 +58,7 @@ impl Default for OpcoesExportacao {
             evidencias: true,
             perguntas: true,
             trechos: true,
+            codigo_diagramas: true,
         }
     }
 }
@@ -205,8 +215,14 @@ pub fn exportar_word(
     opcoes: &OpcoesExportacao,
     codigo: Option<&dyn FonteDeTrechos>,
 ) -> Result<Vec<u8>, ErroExportacao> {
-    let markdown = exportar_markdown(documento, opcoes, codigo);
-    Ok(crate::word::docx(&markdown)?)
+    exportar_com_links(
+        documento,
+        Formato::Word,
+        opcoes,
+        codigo,
+        None,
+        &Figuras::default(),
+    )
 }
 
 /// Exporta no formato pedido.
@@ -216,23 +232,63 @@ pub fn exportar(
     opcoes: &OpcoesExportacao,
     codigo: Option<&dyn FonteDeTrechos>,
 ) -> Result<Vec<u8>, ErroExportacao> {
-    exportar_com_links(documento, formato, opcoes, codigo, None)
+    exportar_com_links(
+        documento,
+        formato,
+        opcoes,
+        codigo,
+        None,
+        &Figuras::default(),
+    )
 }
 
 /// Como [`exportar`], com os links das evidências no forge (ver
-/// [`exportar_markdown_com_links`]).
+/// [`exportar_markdown_com_links`]) e, no Word, as figuras dos diagramas
+/// renderizadas pelo app.
 pub fn exportar_com_links(
     documento: &str,
     formato: Formato,
     opcoes: &OpcoesExportacao,
     codigo: Option<&dyn FonteDeTrechos>,
     links: Option<(&dyn LinksDeEvidencia, Option<&str>)>,
+    figuras: &Figuras,
 ) -> Result<Vec<u8>, ErroExportacao> {
     let markdown = exportar_markdown_com_links(documento, opcoes, codigo, links);
     match formato {
         Formato::Markdown => Ok(markdown.into_bytes()),
-        Formato::Word => Ok(crate::word::docx(&markdown)?),
+        Formato::Word => {
+            let markdown = if opcoes.codigo_diagramas {
+                com_codigo_dos_diagramas(&markdown, figuras)
+            } else {
+                markdown
+            };
+            Ok(crate::word::docx(&markdown, figuras)?)
+        }
     }
+}
+
+/// Título do apêndice com o código dos diagramas (Word).
+pub(crate) const TITULO_CODIGO_DIAGRAMAS: &str = "Apêndice: código dos diagramas";
+
+/// Acrescenta o apêndice com o código Mermaid de cada diagrama que tem figura
+/// (os sem figura já mostram o código no lugar). O código vai num bloco sem
+/// linguagem, para não virar figura de novo.
+fn com_codigo_dos_diagramas(texto: &str, figuras: &Figuras) -> String {
+    let blocos = blocos_mermaid(texto);
+    if !blocos.iter().any(|b| figuras.figura(b).is_some()) {
+        return texto.to_owned();
+    }
+    let mut saida = texto.trim_end().to_owned();
+    saida.push_str(&format!("\n\n## {TITULO_CODIGO_DIAGRAMAS}\n"));
+    for (i, codigo) in blocos.iter().enumerate() {
+        if figuras.figura(codigo).is_none() {
+            continue;
+        }
+        saida.push_str(&format!("\n### Diagrama {}\n\n", i + 1));
+        saida.push_str(&bloco_de_codigo(codigo, ""));
+        saida.push('\n');
+    }
+    saida
 }
 
 /// Exporta e grava em `destino` (atômico, substituindo o arquivo se existir).
@@ -243,10 +299,19 @@ pub fn gravar_exportacao(
     opcoes: &OpcoesExportacao,
     codigo: Option<&dyn FonteDeTrechos>,
 ) -> Result<(), ErroExportacao> {
-    gravar_exportacao_com_links(destino, documento, formato, opcoes, codigo, None)
+    gravar_exportacao_com_links(
+        destino,
+        documento,
+        formato,
+        opcoes,
+        codigo,
+        None,
+        &Figuras::default(),
+    )
 }
 
-/// Como [`gravar_exportacao`], com os links das evidências no forge.
+/// Como [`gravar_exportacao`], com os links das evidências no forge e as
+/// figuras dos diagramas (Word).
 pub fn gravar_exportacao_com_links(
     destino: &Path,
     documento: &str,
@@ -254,8 +319,9 @@ pub fn gravar_exportacao_com_links(
     opcoes: &OpcoesExportacao,
     codigo: Option<&dyn FonteDeTrechos>,
     links: Option<(&dyn LinksDeEvidencia, Option<&str>)>,
+    figuras: &Figuras,
 ) -> Result<(), ErroExportacao> {
-    let bytes = exportar_com_links(documento, formato, opcoes, codigo, links)?;
+    let bytes = exportar_com_links(documento, formato, opcoes, codigo, links, figuras)?;
     cba_kb::arquivo::gravar(destino, &bytes).map_err(|erro| ErroExportacao::Gravar {
         caminho: destino.to_owned(),
         erro,
@@ -569,6 +635,7 @@ mod tests {
             evidencias: false,
             perguntas: false,
             trechos: true,
+            codigo_diagramas: true,
         };
         assert_eq!(limpar(md, &opcoes), "# T\n\n## A\n\nTexto.\n");
     }

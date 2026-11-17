@@ -36,6 +36,52 @@ struct Gabarito {
     historias: Vec<Historias>,
     #[serde(default)]
     cenarios: Vec<Cenarios>,
+    #[serde(default)]
+    ciclos_vida: Vec<CicloVida>,
+}
+
+/// Ciclo de vida esperado de uma entidade com campo de status (#119).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CicloVida {
+    id: String,
+    titulo: String,
+    entidade: String,
+    pedido: String,
+    campo: Evidencia,
+    estados: Vec<EstadoEsperado>,
+    transicoes: Vec<TransicaoEsperada>,
+    #[serde(default)]
+    achados: Vec<AchadoDeEstado>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EstadoEsperado {
+    valor: String,
+    #[serde(default)]
+    inicial: bool,
+    #[serde(default)]
+    r#final: bool,
+    #[serde(default)]
+    evidencia: Option<Evidencia>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TransicaoEsperada {
+    id: String,
+    de: String,
+    para: String,
+    palavras_chave: Vec<Vec<String>>,
+    evidencia: Evidencia,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AchadoDeEstado {
+    tipo: String,
+    estado: String,
 }
 
 /// Cenários de teste esperados a partir das regras (fluxo "Cenários de teste",
@@ -257,6 +303,161 @@ struct Funcionalidade {
     arquivos: Vec<String>,
     #[serde(default)]
     perguntas_esperadas: Vec<PerguntaEsperada>,
+    #[serde(default)]
+    processo: Option<ProcessoEsperado>,
+    #[serde(default)]
+    modelo_dados: Option<ModeloDadosEsperado>,
+}
+
+/// Fluxo do processo esperado no documento negocial (#120).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ProcessoEsperado {
+    raias: Vec<ItemDoProcesso>,
+    principal: Vec<ItemDoProcesso>,
+    decisoes: Vec<ItemDoProcesso>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ItemDoProcesso {
+    id: String,
+    descricao: String,
+    palavras_chave: Vec<Vec<String>>,
+    #[serde(default)]
+    evidencias: Vec<Evidencia>,
+}
+
+/// Modelo de dados conceitual esperado (#120).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ModeloDadosEsperado {
+    entidades: Vec<EntidadeEsperada>,
+    relacoes: Vec<RelacaoEsperada>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EntidadeEsperada {
+    id: String,
+    tabela: String,
+    palavras_chave: Vec<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RelacaoEsperada {
+    id: String,
+    de: String,
+    para: String,
+    origem: String,
+    #[serde(default)]
+    opcional: bool,
+    evidencias: Vec<Evidencia>,
+}
+
+/// Bloco `CREATE TABLE <tabela> (...);` dos scripts de banco da fixture, em
+/// maiúsculas.
+fn bloco_da_tabela(raiz: &Path, tabela: &str) -> Option<String> {
+    let pasta = raiz.join("db");
+    let mut arquivos: Vec<PathBuf> = fs::read_dir(&pasta)
+        .ok()?
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|x| x == "sql"))
+        .collect();
+    arquivos.sort();
+    let inicio = format!("CREATE TABLE {} (", tabela.to_uppercase());
+    for arquivo in arquivos {
+        let texto = fs::read_to_string(&arquivo).ok()?.to_uppercase();
+        if let Some(p) = texto.find(&inicio) {
+            let resto = &texto[p..];
+            let fim = resto.find(");").map_or(resto.len(), |f| f + 2);
+            return Some(resto[..fim].to_owned());
+        }
+    }
+    None
+}
+
+/// Uma das tabelas declara chave estrangeira para a outra.
+fn tem_chave_estrangeira(raiz: &Path, a: &str, b: &str) -> Option<bool> {
+    let ba = bloco_da_tabela(raiz, a)?;
+    let bb = bloco_da_tabela(raiz, b)?;
+    let referencia = |t: &str| format!("REFERENCES {} ", t.to_uppercase());
+    Some(ba.contains(&referencia(b)) || bb.contains(&referencia(a)))
+}
+
+fn conferir_modelagem(c: &mut Conferencia, raiz: &Path, f: &Funcionalidade) {
+    let onde = format!("funcionalidade {}", f.id);
+    if let Some(p) = &f.processo {
+        if p.raias.is_empty() || p.principal.is_empty() {
+            c.erro(format!(
+                "{onde}: processo sem raias ou sem passos do principal"
+            ));
+        }
+        for item in p.raias.iter().chain(&p.principal).chain(&p.decisoes) {
+            let onde = format!("{onde}, processo {}", item.id);
+            c.texto_preenchido(&onde, "descricao", &item.descricao);
+            c.palavras_chave(&onde, &item.palavras_chave);
+            for ev in &item.evidencias {
+                c.evidencia(&onde, ev);
+            }
+        }
+        for item in p.principal.iter().chain(&p.decisoes) {
+            if item.evidencias.is_empty() {
+                c.erro(format!("{onde}, processo {}: sem evidência", item.id));
+            }
+        }
+    }
+    if let Some(m) = &f.modelo_dados {
+        let mut tabelas: Vec<&str> = Vec::new();
+        for e in &m.entidades {
+            let onde = format!("{onde}, entidade {}", e.id);
+            c.palavras_chave(&onde, &e.palavras_chave);
+            if bloco_da_tabela(raiz, &e.tabela).is_none() {
+                c.erro(format!(
+                    "{onde}: tabela `{}` não está nos scripts",
+                    e.tabela
+                ));
+            }
+            tabelas.push(&e.tabela);
+        }
+        for r in &m.relacoes {
+            let onde = format!("{onde}, relação {}", r.id);
+            for ev in &r.evidencias {
+                c.evidencia(&onde, ev);
+            }
+            if r.evidencias.is_empty() {
+                c.erro(format!("{onde}: sem evidência"));
+            }
+            if !r.opcional
+                && !(tabelas.contains(&r.de.as_str()) && tabelas.contains(&r.para.as_str()))
+            {
+                c.erro(format!(
+                    "{onde}: relação obrigatória entre tabelas que não estão em `entidades`"
+                ));
+            }
+            match (
+                r.origem.as_str(),
+                tem_chave_estrangeira(raiz, &r.de, &r.para),
+            ) {
+                (_, None) => c.erro(format!(
+                    "{onde}: `{}` ou `{}` não está nos scripts",
+                    r.de, r.para
+                )),
+                ("chave_estrangeira", Some(true)) | ("join", Some(false)) => {}
+                ("chave_estrangeira", Some(false)) => c.erro(format!(
+                    "{onde}: origem chave_estrangeira, mas os scripts não declaram a chave"
+                )),
+                ("join", Some(true)) => c.erro(format!(
+                    "{onde}: origem join, mas os scripts declaram a chave estrangeira"
+                )),
+                (outra, _) => c.erro(format!(
+                    "{onde}: origem `{outra}` deve ser chave_estrangeira ou join"
+                )),
+            }
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -476,6 +677,13 @@ fn conferir(caminho: &Path) -> Vec<String> {
         )
         .chain(gabarito.historias.iter().map(|h| &h.id))
         .chain(gabarito.cenarios.iter().map(|c| &c.id))
+        .chain(gabarito.ciclos_vida.iter().map(|c| &c.id))
+        .chain(
+            gabarito
+                .ciclos_vida
+                .iter()
+                .flat_map(|c| c.transicoes.iter().map(|t| &t.id)),
+        )
         .chain(gabarito.cenarios.iter().flat_map(|c| {
             c.limites
                 .iter()
@@ -604,6 +812,7 @@ fn conferir(caminho: &Path) -> Vec<String> {
         for arquivo in &f.arquivos {
             c.arquivo(&onde, arquivo);
         }
+        conferir_modelagem(&mut c, &raiz, f);
     }
 
     for d in &gabarito.demandas {
@@ -823,6 +1032,10 @@ fn conferir(caminho: &Path) -> Vec<String> {
         c.perguntas_esperadas(&onde, &cen.a_confirmar);
     }
 
+    for cv in &gabarito.ciclos_vida {
+        conferir_ciclo_vida(&mut c, cv);
+    }
+
     // Toda regra é exercitada por ao menos um fluxo.
     for regra in &gabarito.regras {
         if !citadas_nos_fluxos.contains(regra.id.as_str()) {
@@ -834,6 +1047,76 @@ fn conferir(caminho: &Path) -> Vec<String> {
     }
 
     c.erros
+}
+
+/// Ciclo de vida (#119): estados únicos com um inicial, transições entre estados
+/// declarados com evidência que grava o valor de destino, e os achados iguais aos
+/// calculados das transições (inalcançável e sem saída).
+fn conferir_ciclo_vida(c: &mut Conferencia, cv: &CicloVida) {
+    let onde = format!("ciclo de vida {}", cv.id);
+    c.texto_preenchido(&onde, "titulo", &cv.titulo);
+    c.texto_preenchido(&onde, "entidade", &cv.entidade);
+    c.texto_preenchido(&onde, "pedido", &cv.pedido);
+    c.evidencia(&format!("{onde}, campo"), &cv.campo);
+    let valores: Vec<&str> = cv.estados.iter().map(|e| e.valor.as_str()).collect();
+    let unicos: HashSet<&str> = valores.iter().copied().collect();
+    if unicos.len() != valores.len() {
+        c.erro(format!("{onde}: estado repetido"));
+    }
+    if cv.estados.iter().filter(|e| e.inicial).count() != 1 {
+        c.erro(format!("{onde}: precisa de exatamente um estado inicial"));
+    }
+    for e in &cv.estados {
+        c.texto_preenchido(&onde, "estados.valor", &e.valor);
+        if e.inicial && e.r#final {
+            c.erro(format!("{onde}: {} é inicial e final", e.valor));
+        }
+        if let Some(ev) = &e.evidencia {
+            c.evidencia(&format!("{onde}, estado {}", e.valor), ev);
+        }
+    }
+    for t in &cv.transicoes {
+        let onde_t = format!("{onde}, {}", t.id);
+        for ponta in [&t.de, &t.para] {
+            if !unicos.contains(ponta.as_str()) {
+                c.erro(format!("{onde_t}: estado `{ponta}` não declarado"));
+            }
+        }
+        c.palavras_chave(&onde_t, &t.palavras_chave);
+        c.evidencia(&onde_t, &t.evidencia);
+        if !t.evidencia.trecho.contains(t.para.as_str())
+            && !t.evidencia.trecho.contains(t.de.as_str())
+        {
+            c.erro(format!(
+                "{onde_t}: o trecho deve citar o valor gravado ({} ou {})",
+                t.para, t.de
+            ));
+        }
+    }
+    // Os achados esperados são exatamente os que as transições implicam.
+    let mut calculados: Vec<(String, String)> = Vec::new();
+    for e in &cv.estados {
+        let chega = cv.transicoes.iter().any(|t| t.para == e.valor);
+        let sai = cv.transicoes.iter().any(|t| t.de == e.valor);
+        if !e.inicial && !chega {
+            calculados.push(("inalcancavel".into(), e.valor.clone()));
+        }
+        if !e.r#final && !sai && chega {
+            calculados.push(("sem_saida".into(), e.valor.clone()));
+        }
+    }
+    let mut esperados: Vec<(String, String)> = cv
+        .achados
+        .iter()
+        .map(|a| (a.tipo.clone(), a.estado.clone()))
+        .collect();
+    calculados.sort();
+    esperados.sort();
+    if calculados != esperados {
+        c.erro(format!(
+            "{onde}: achados {esperados:?} diferem dos calculados das transições {calculados:?}"
+        ));
+    }
 }
 
 /// Início `M:SS` ou `H:MM:SS` em segundos.

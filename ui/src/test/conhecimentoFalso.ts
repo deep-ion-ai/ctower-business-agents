@@ -165,6 +165,7 @@ export function documentoFicticio(caminho: string): DocumentoAberto {
       status: "aprovada",
       campos: [{ chave: "id", valor: "A-0001" }],
       markdown: "# A-0001: Multa por atraso\n\n## Resposta\n\nPassada a carência, a multa é de 2%.\n",
+      versao: "v1",
       ligacoes: [
         { caminho: REGRA, titulo: "Passada a carência…", campo: "origem", sai: false, existe: true },
       ],
@@ -194,6 +195,7 @@ export function documentoFicticio(caminho: string): DocumentoAberto {
       '<script>alert("x")</script>',
       "",
     ].join("\n"),
+    versao: "v1",
     ligacoes: [
       { caminho: ANALISE, titulo: "Multa por atraso", campo: "origem", sai: true, existe: true },
     ],
@@ -311,6 +313,7 @@ export function painelFicticio(parcial: Partial<PainelDemanda> = {}): PainelDema
 
 /** API falsa das telas do início, do projeto e da base, com a vigia controlada pelo teste. */
 export function apiConhecimentoFalsa() {
+  const salvos = new Map<string, DocumentoAberto>();
   const avisos: (() => void)[] = [];
   const parar = vi.fn();
   const revalidacao: ResumoRevalidacao = {
@@ -435,7 +438,17 @@ export function apiConhecimentoFalsa() {
     ),
     mapear: vi.fn((): Promise<MapaVista> => Promise.resolve(mapaRaiz)),
     buscar: vi.fn((): Promise<Busca> => Promise.resolve(buscaFicticia())),
-    abrirDocumento: vi.fn((caminho: string) => Promise.resolve(documentoFicticio(caminho))),
+    abrirDocumento: vi.fn((caminho: string) =>
+      Promise.resolve(salvos.get(caminho) ?? documentoFicticio(caminho)),
+    ),
+    // Grava o texto novo (e sobe a versão) para a próxima abertura do documento.
+    salvarDocumento: vi.fn((caminho: string, markdown: string, versao: string) => {
+      const atual = salvos.get(caminho) ?? documentoFicticio(caminho);
+      if (versao !== atual.versao) return Promise.reject(new Error("conflito: mudou fora do app"));
+      const novo = { ...atual, markdown, versao: `${atual.versao}+` };
+      salvos.set(caminho, novo);
+      return Promise.resolve(novo);
+    }),
     vigiarBase: vi.fn((f: () => void) => {
       avisos.push(f);
       return Promise.resolve(parar);

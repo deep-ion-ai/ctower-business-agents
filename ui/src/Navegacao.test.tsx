@@ -1,8 +1,20 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { Navegacao } from "./Navegacao";
-import { REGRA, PROJETO, apiConhecimentoFalsa } from "./test/conhecimentoFalso";
+import {
+  REGRA,
+  PROJETO,
+  apiConhecimentoFalsa,
+  inicioFicticio,
+} from "./test/conhecimentoFalso";
 import { apiConfiguracoesFalsa } from "./test/configuracoesFalso";
-import { apiAnaliseFalsa, clientesProntos } from "./test/falsos";
+import { act } from "react";
+import {
+  apiAnaliseFalsa,
+  apiTerminalFalsa,
+  clientesProntos,
+  telaFalsa,
+  vistaFicticia,
+} from "./test/falsos";
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(() => Promise.reject(new Error("fora do Tauri"))),
@@ -18,7 +30,192 @@ function montar() {
   return { conhecimento, analise };
 }
 
+/** Navegação aberta numa análise recém-criada, com o terminal embutido falso. */
+function montarComAnalise(analise = apiAnaliseFalsa()) {
+  const terminal = apiTerminalFalsa();
+  render(
+    <Navegacao
+      api={apiConhecimentoFalsa().api}
+      apiAnalise={analise.api}
+      apiTerminal={terminal.api}
+      criarTela={telaFalsa}
+      inicial={{
+        tipo: "analise",
+        projeto: PROJETO,
+        aberta: { id: "A-0001", abertura: { tipo: "nova", promptInicial: "Inicie a A-0001" } },
+      }}
+    />,
+  );
+  return { analise, terminal };
+}
+
+/** Conclui a abertura do terminal pedida em `indice`, com o identificador `id`. */
+async function abrirTerminal(terminal: ReturnType<typeof apiTerminalFalsa>, indice: number, id: number) {
+  await waitFor(() => expect(terminal.aberturas).toHaveLength(indice + 1));
+  await act(async () => terminal.aberturas[indice].resolver(id));
+}
+
 describe("Navegacao", () => {
+  afterEach(() => localStorage.clear());
+
+  it("a análise continua com o agente vivo ao ir a outra área e voltar (#212)", async () => {
+    const { terminal } = montarComAnalise();
+    await abrirTerminal(terminal, 0, 7);
+    expect(terminal.aberturas[0].pedido).toEqual({ promptInicial: "Inicie a A-0001" });
+    const atividades = screen.getByRole("navigation", { name: "Telas" });
+
+    fireEvent.click(within(atividades).getByRole("button", { name: "Base de conhecimento" }));
+    expect(screen.getByRole("search", { name: "Busca na base" })).toBeInTheDocument();
+    // Fora da vez, a análise fica escondida, sem desmontar o terminal.
+    expect(screen.queryByRole("region", { name: "Análise" })).not.toBeInTheDocument();
+    fireEvent.click(within(atividades).getByRole("button", { name: "Início" }));
+    expect(await screen.findByRole("region", { name: "Início" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "A-0001" }));
+    expect(await screen.findByRole("region", { name: "Análise" })).toBeInTheDocument();
+    // Abrir de novo pelo painel lateral só foca a aba: nada de retomada.
+    const painel = document.getElementById("painel-lateral")!;
+    fireEvent.click(
+      await within(within(painel).getByRole("group", { name: "Análises" })).findByRole("button", {
+        name: /A-0001: Multa por atraso/,
+      }),
+    );
+    expect(screen.getByRole("region", { name: "Análise" })).toBeInTheDocument();
+    expect(terminal.api.abrir).toHaveBeenCalledTimes(1);
+    expect(terminal.api.encerrar).not.toHaveBeenCalled();
+  });
+
+  it("duas análises têm agente ao mesmo tempo, cada uma no seu terminal (#212)", async () => {
+    const analise = apiAnaliseFalsa();
+    analise.api.criarAnalise.mockResolvedValueOnce({
+      analise: {
+        id: "A-0002",
+        titulo: "Juros de mora",
+        fluxo: "perguntar",
+        estado: "criada",
+        atualizadaMs: 2,
+      },
+      promptInicial: "Inicie a A-0002",
+    });
+    const { terminal } = montarComAnalise(analise);
+    await abrirTerminal(terminal, 0, 1);
+
+    // "← Análises" leva à lista sem fechar a análise; a nova abre numa aba própria.
+    fireEvent.click(await screen.findByRole("button", { name: "← Análises" }));
+    expect(await screen.findByRole("region", { name: "Pergunta ao sistema" })).toBeInTheDocument();
+    fireEvent.change(await screen.findByRole("textbox", { name: "Pergunta" }), {
+      target: { value: "Como são os juros de mora?" },
+    });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Perguntar" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Perguntar" }));
+    await abrirTerminal(terminal, 1, 2);
+
+    expect(terminal.aberturas[1].pedido).toEqual({ promptInicial: "Inicie a A-0002" });
+    expect(screen.getByRole("tab", { name: "A-0002" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "A-0001" })).toBeInTheDocument();
+    expect(terminal.api.encerrar).not.toHaveBeenCalled();
+
+    // A saída de cada agente vai para o seu terminal, mesmo com a aba escondida.
+    act(() => terminal.aberturas[0].aoEvento({ tipo: "saida", texto: "da A-0001" }));
+    fireEvent.click(screen.getByRole("tab", { name: "A-0001" }));
+    expect(await screen.findByRole("region", { name: "Análise" })).toHaveAccessibleName("Análise");
+    expect(terminal.api.abrir).toHaveBeenCalledTimes(2);
+    expect(terminal.api.encerrar).not.toHaveBeenCalled();
+  });
+
+  it("fechar a aba com o agente trabalhando pede confirmação (#212)", async () => {
+    const { terminal } = montarComAnalise(
+      apiAnaliseFalsa(
+        vistaFicticia({ sessao: { id: "sessao-1", estado: "ativa", cliente: "claude-code" } }),
+      ),
+    );
+    await abrirTerminal(terminal, 0, 3);
+    await screen.findByText("Trabalhando na análise");
+
+    fireEvent.click(screen.getByRole("button", { name: "Fechar A-0001" }));
+    let dialogo = within(await screen.findByRole("dialog", { name: "Fechar a análise" }));
+    expect(
+      dialogo.getByText("O agente ainda está trabalhando. Encerrar a conversa?"),
+    ).toBeInTheDocument();
+    fireEvent.click(dialogo.getByRole("button", { name: "Manter a conversa" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "A-0001" })).toBeInTheDocument();
+    expect(terminal.api.encerrar).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Fechar A-0001" }));
+    dialogo = within(await screen.findByRole("dialog", { name: "Fechar a análise" }));
+    fireEvent.click(dialogo.getByRole("button", { name: "Encerrar a conversa" }));
+    expect(screen.queryByRole("tab", { name: "A-0001" })).not.toBeInTheDocument();
+    await waitFor(() => expect(terminal.api.encerrar).toHaveBeenCalledWith(3));
+  });
+
+  it("fechar a aba de uma análise sem conversa viva não pergunta", async () => {
+    const { terminal } = montarComAnalise();
+    await abrirTerminal(terminal, 0, 4);
+    act(() => terminal.aberturas[0].aoEvento({ tipo: "encerrado", fim: { codigo: 0 } }));
+    expect((await screen.findAllByText(/A sessão terminou/)).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Fechar A-0001" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "A-0001" })).not.toBeInTheDocument();
+  });
+
+  it("“Fechar outras” fecha as abas sem conversa e pergunta antes das análises com conversa viva (#227)", async () => {
+    const { terminal } = montarComAnalise();
+    await abrirTerminal(terminal, 0, 5);
+    const atividades = screen.getByRole("navigation", { name: "Telas" });
+    fireEvent.click(within(atividades).getByRole("button", { name: "Base de conhecimento" }));
+    fireEvent.click(within(atividades).getByRole("button", { name: "Configurações" }));
+    fireEvent.click(within(atividades).getByRole("button", { name: "Início" }));
+    expect(screen.getAllByRole("tab")).toHaveLength(4);
+
+    fireEvent.click(screen.getByRole("button", { name: "Fechar outras" }));
+    const dialogo = within(await screen.findByRole("dialog", { name: "Fechar as outras abas" }));
+    expect(dialogo.getByText(/Uma das outras abas tem uma conversa/)).toBeInTheDocument();
+    // Manter as conversas: só as abas sem conversa fecham.
+    fireEvent.click(dialogo.getByRole("button", { name: "Manter as conversas" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["A-0001", "Início"]);
+    expect(screen.getByRole("tab", { name: "Início" })).toHaveAttribute("aria-selected", "true");
+    expect(terminal.api.encerrar).not.toHaveBeenCalled();
+
+    // Encerrar as conversas: fecha também a análise e encerra o agente dela.
+    fireEvent.click(screen.getByRole("button", { name: "Fechar outras" }));
+    fireEvent.click(
+      within(await screen.findByRole("dialog")).getByRole("button", { name: "Encerrar as conversas" }),
+    );
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Início"]);
+    await waitFor(() => expect(terminal.api.encerrar).toHaveBeenCalledWith(5));
+    expect(screen.queryByRole("button", { name: "Fechar outras" })).not.toBeInTheDocument();
+  });
+
+  it("o explorador se atualiza ao vivo e mantém a ordem, sem reordenar por atividade (#227)", async () => {
+    const conhecimento = apiConhecimentoFalsa();
+    conhecimento.api.inicio.mockResolvedValue(inicioFicticio({ emAndamento: [], recentes: [] }));
+    render(<Navegacao api={conhecimento.api} apiAnalise={apiAnaliseFalsa().api} />);
+    const painel = screen.getByRole("region", { name: "Painel lateral" });
+    const grupo = () => within(painel).getByRole("group", { name: "Análises" });
+    await waitFor(() => expect(conhecimento.api.inicio).toHaveBeenCalled());
+    expect(grupo()).toHaveTextContent("Análises0");
+
+    const base = inicioFicticio();
+    const [impacto, multa] = base.recentes; // A-0002 (mais recente) e A-0001
+    conhecimento.api.inicio.mockResolvedValue(
+      inicioFicticio({ emAndamento: [multa], recentes: [multa] }),
+    );
+    await act(async () => conhecimento.avisar());
+    await waitFor(() => expect(grupo()).toHaveTextContent("Análises1"));
+
+    // A A-0002 aparece e é a de atividade mais recente: não passa na frente da A-0001.
+    conhecimento.api.inicio.mockResolvedValue(
+      inicioFicticio({ emAndamento: [impacto, multa], recentes: [impacto, multa] }),
+    );
+    await act(async () => conhecimento.avisar());
+    await waitFor(() => expect(grupo()).toHaveTextContent("Análises2"));
+    const linhas = within(grupo()).getAllByRole("button");
+    expect(linhas[0]).toHaveTextContent("A-0001");
+    expect(linhas[1]).toHaveTextContent("A-0002");
+  });
+
   it("passa pelo início, pelo projeto, pela base e pelas análises", async () => {
     montar();
     const abas = screen.getByRole("navigation", { name: "Telas" });
@@ -41,6 +238,8 @@ describe("Navegacao", () => {
   it("abre as configurações e relê os projetos quando elas mudam", async () => {
     const conhecimento = apiConhecimentoFalsa();
     const configuracoes = apiConfiguracoesFalsa();
+    // A tela das configurações abre na seção que o analista deixou aberta.
+    localStorage.setItem("cba.configuracoes.secao", "projeto:faturamento-exemplo");
     render(
       <Navegacao
         api={conhecimento.api}
@@ -53,15 +252,19 @@ describe("Navegacao", () => {
     fireEvent.click(within(abas).getByRole("button", { name: "Configurações" }));
     expect(await screen.findByRole("region", { name: "Configurações" })).toBeInTheDocument();
     const lidas = conhecimento.api.situacao.mock.calls.length;
-    fireEvent.click(await screen.findByRole("button", { name: "Descadastrar o projeto" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: /Confirmo o descadastro/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Descadastrar" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "Avançado" }));
+    fireEvent.click(screen.getByRole("button", { name: "Descadastrar…" }));
+    fireEvent.change(screen.getByLabelText(/digite o nome do projeto/), {
+      target: { value: "Faturamento Exemplo" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Descadastrar o projeto" }));
     await waitFor(() =>
       expect(conhecimento.api.situacao.mock.calls.length).toBeGreaterThan(lidas),
     );
   });
 
   it("pede confirmação ao trocar de aba com alterações não salvas no editor de textos", async () => {
+    localStorage.setItem("cba.configuracoes.secao", "modelos");
     render(
       <Navegacao
         api={apiConhecimentoFalsa().api}

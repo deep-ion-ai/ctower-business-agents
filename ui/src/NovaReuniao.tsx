@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { contar } from "./formatacao";
 import { mensagemDe, type AmbienteClaude, type AnaliseCriada } from "./analise";
 import { ROTULO_FLUXO, type ApiConhecimento } from "./conhecimento";
 import type { DemandaVista } from "./demandas";
@@ -288,15 +289,14 @@ function Previa({ previa }: { previa: PreviaTranscript }) {
     <section className="previa-transcript" aria-label="Prévia do transcript">
       <h4>Prévia</h4>
       <p>
-        {ROTULO_FORMATO[previa.formato]} · {previa.falas} fala(s) · {previa.falantes.length}{" "}
-        falante(s)
-        {previa.semFalante > 0 && ` · ${previa.semFalante} fala(s) sem falante`}
+        {ROTULO_FORMATO[previa.formato]} · {contar(previa.falas, "fala", "falas")} · {contar(previa.falantes.length, "falante", "falantes")}
+        {previa.semFalante > 0 && ` · ${contar(previa.semFalante, "fala", "falas")} sem falante`}
       </p>
       {previa.falantes.length > 0 && (
         <ul className="falantes">
           {previa.falantes.map((f) => (
             <li key={f.nome}>
-              {f.nome} <span className="muted">· {f.falas} fala(s)</span>
+              {f.nome} <span className="muted">· {contar(f.falas, "fala", "falas")}</span>
             </li>
           ))}
         </ul>

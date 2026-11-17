@@ -14,13 +14,14 @@ use std::io::{Cursor, Read};
 use std::path::{Path, PathBuf};
 
 use cba_docs::{
-    CodigoEmPasta, FonteDeTrechos, Formato, OpcoesExportacao, exportar, exportar_markdown,
-    exportar_word, gravar_exportacao,
+    CodigoEmPasta, ErroFigura, Figura, Figuras, FonteDeTrechos, Formato, OpcoesExportacao,
+    blocos_mermaid, exportar, exportar_com_links, exportar_markdown, exportar_word,
+    gravar_exportacao,
 };
 use quick_xml::Reader;
 use quick_xml::events::Event;
 
-const DOCUMENTOS: [&str; 12] = [
+const DOCUMENTOS: [&str; 13] = [
     "ata",
     "analise-impacto",
     "analise-impacto-vazia",
@@ -28,6 +29,7 @@ const DOCUMENTOS: [&str; 12] = [
     "cenarios-teste",
     "funcionalidade",
     "funcionalidade-de-analise",
+    "funcionalidade-com-diagrama",
     "historias",
     "pergunta",
     "regra",
@@ -125,6 +127,7 @@ fn opcoes_tiram_perguntas_e_evidencias() {
         evidencias: false,
         perguntas: false,
         trechos: true,
+        ..OpcoesExportacao::default()
     };
     let md = exportar_markdown(&documento("analise-impacto"), &opcoes, Some(&codigo()));
     assert!(!md.contains("[^"), "{md}");
@@ -169,9 +172,15 @@ fn partes(docx: &[u8]) -> BTreeMap<String, String> {
     let mut partes = BTreeMap::new();
     for i in 0..zip.len() {
         let mut arquivo = zip.by_index(i).unwrap();
+        let nome = arquivo.name().unwrap().into_owned();
+        if nome.starts_with("word/media/") {
+            let mut bytes = Vec::new();
+            arquivo.read_to_end(&mut bytes).unwrap();
+            partes.insert(nome, format!("{} bytes", bytes.len()));
+            continue;
+        }
         let mut texto = String::new();
         arquivo.read_to_string(&mut texto).unwrap();
-        let nome = arquivo.name().unwrap().into_owned();
         bem_formado(&nome, &texto);
         partes.insert(nome, texto);
     }
@@ -454,4 +463,169 @@ fn exporta_para_conferencia_manual() {
             .unwrap();
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Diagramas (#118)
+
+/// PNG mínimo (assinatura e IHDR) com o tamanho dado.
+fn png(largura: u32, altura: u32) -> Vec<u8> {
+    let mut p = b"\x89PNG\r\n\x1a\n".to_vec();
+    p.extend_from_slice(&13u32.to_be_bytes());
+    p.extend_from_slice(b"IHDR");
+    p.extend_from_slice(&largura.to_be_bytes());
+    p.extend_from_slice(&altura.to_be_bytes());
+    p.extend_from_slice(&[8, 6, 0, 0, 0, 0, 0, 0, 0]);
+    p
+}
+
+fn word_com(documento: &str, figuras: &Figuras, opcoes: &OpcoesExportacao) -> Vec<u8> {
+    exportar_com_links(documento, Formato::Word, opcoes, None, None, figuras).unwrap()
+}
+
+#[test]
+fn markdown_mantem_o_bloco_mermaid() {
+    let d = documento("funcionalidade-com-diagrama");
+    let md = exportar_markdown(&d, &OpcoesExportacao::default(), None);
+    assert!(md.contains("```mermaid\nflowchart LR\n"), "{md}");
+    assert!(!md.contains("Apêndice: código dos diagramas"));
+    // Exportar Markdown com figuras não muda nada.
+    let mut figuras = Figuras::novas();
+    for b in blocos_mermaid(&d) {
+        figuras
+            .inserir(&b, Figura::nova(png(10, 10), 0, 0).unwrap())
+            .unwrap();
+    }
+    let com = exportar_com_links(
+        &d,
+        Formato::Markdown,
+        &OpcoesExportacao::default(),
+        None,
+        None,
+        &figuras,
+    )
+    .unwrap();
+    assert_eq!(String::from_utf8(com).unwrap(), md);
+}
+
+#[test]
+fn docx_desenha_o_diagrama_como_figura() {
+    let d = documento("funcionalidade-com-diagrama");
+    let blocos = blocos_mermaid(&d);
+    assert_eq!(blocos.len(), 1);
+    assert!(blocos[0].starts_with("flowchart LR\n"));
+    let mut figuras = Figuras::novas();
+    // 1200 px de largura: maior que a página, reduzida para a largura útil.
+    figuras
+        .inserir(&blocos[0], Figura::nova(png(2400, 600), 1200, 300).unwrap())
+        .unwrap();
+    let partes = partes(&word_com(&d, &figuras, &OpcoesExportacao::default()));
+    assert_eq!(
+        partes["word/media/figura1.png"],
+        format!("{} bytes", png(1, 1).len())
+    );
+    assert!(partes["[Content_Types].xml"].contains("Extension=\"png\""));
+    assert!(partes["word/_rels/document.xml.rels"].contains(
+        "Id=\"rId101\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"media/figura1.png\""
+    ));
+    let doc = &partes["word/document.xml"];
+    assert!(doc.contains("<a:blip r:embed=\"rId101\"/>"), "{doc}");
+    // Largura útil: 8504 twips = 5400040 EMU; altura na mesma proporção (1/4).
+    assert!(
+        doc.contains("<wp:extent cx=\"5400040\" cy=\"1350010\"/>"),
+        "{doc}"
+    );
+    let corpo = texto(doc);
+    // O código não aparece no corpo, só no apêndice; a legenda e a tabela ficam.
+    assert!(corpo.contains("Figura 1: Ciclo de vida da fatura"));
+    assert!(corpo.contains("Aberta → Cancelada"));
+    assert!(!corpo.contains("Diagrama não renderizado"));
+    let apendice = corpo
+        .find("Apêndice: código dos diagramas")
+        .expect("apêndice");
+    assert!(corpo[apendice..].contains("flowchart LR"));
+    assert_eq!(corpo.matches("flowchart LR").count(), 1);
+
+    // Sem a opção, sem o apêndice.
+    let sem = OpcoesExportacao {
+        codigo_diagramas: false,
+        ..OpcoesExportacao::default()
+    };
+    let corpo = texto(&partes_de(&word_com(&d, &figuras, &sem)));
+    assert!(!corpo.contains("Apêndice: código dos diagramas"));
+    assert!(!corpo.contains("flowchart LR"));
+}
+
+fn partes_de(docx: &[u8]) -> String {
+    partes(docx).remove("word/document.xml").unwrap()
+}
+
+#[test]
+fn docx_sem_figura_mostra_aviso_e_codigo() {
+    // Exportação sem o app (ou com falha ao desenhar): o diagrama vira aviso e
+    // código, e o resto do documento sai igual.
+    let d = documento("funcionalidade-com-diagrama");
+    let docx = exportar_word(&d, &OpcoesExportacao::default(), None).unwrap();
+    let partes = partes(&docx);
+    assert!(!partes.keys().any(|k| k.starts_with("word/media/")));
+    let doc = &partes["word/document.xml"];
+    assert!(doc.contains("<w:pStyle w:val=\"Aviso\"/>"));
+    let corpo = texto(doc);
+    assert!(corpo.contains("Diagrama não renderizado."), "{corpo}");
+    assert!(corpo.contains("flowchart LR"));
+    assert!(corpo.contains("Figura 1: Ciclo de vida da fatura"));
+    assert!(!corpo.contains("Apêndice: código dos diagramas"));
+}
+
+#[test]
+fn mermaid_invalido_nao_quebra_a_exportacao() {
+    // Bloco editado à mão, que o app não conseguiu desenhar: sem figura para ele.
+    // O outro bloco, válido, sai como figura.
+    let md = "# Doc\n\nAntes.\n\n```mermaid\nflowchart LR\n  a -->\n```\n\n```mermaid\nflowchart TD\n  x --> y\n```\n\nDepois.\n";
+    let mut figuras = Figuras::novas();
+    figuras
+        .inserir(
+            "flowchart TD\n  x --> y",
+            Figura::nova(png(100, 50), 0, 0).unwrap(),
+        )
+        .unwrap();
+    let partes = partes(&word_com(md, &figuras, &OpcoesExportacao::default()));
+    let corpo = texto(&partes["word/document.xml"]);
+    assert!(corpo.contains("Antes."));
+    assert!(corpo.contains("Depois."));
+    assert_eq!(corpo.matches("Diagrama não renderizado.").count(), 1);
+    assert!(corpo.contains("a -->"));
+    assert!(partes.contains_key("word/media/figura1.png"));
+    assert!(!partes.contains_key("word/media/figura2.png"));
+    // O apêndice traz só o diagrama desenhado, com o número dele no documento.
+    let apendice = &corpo[corpo.find("Apêndice: código dos diagramas").unwrap()..];
+    assert!(apendice.contains("Diagrama 2"));
+    assert!(!apendice.contains("Diagrama 1"));
+}
+
+#[test]
+fn figura_que_nao_e_png_e_recusada() {
+    assert_eq!(
+        Figura::nova(
+            b"<svg xmlns=\"http://www.w3.org/2000/svg\"/>".to_vec(),
+            10,
+            10
+        ),
+        Err(ErroFigura::NaoEPng)
+    );
+}
+
+#[test]
+fn docx_com_figura_e_deterministico() {
+    let d = documento("funcionalidade-com-diagrama");
+    let mut figuras = Figuras::novas();
+    figuras
+        .inserir(
+            &blocos_mermaid(&d)[0],
+            Figura::nova(png(300, 100), 0, 0).unwrap(),
+        )
+        .unwrap();
+    let a = word_com(&d, &figuras, &OpcoesExportacao::default());
+    let b = word_com(&d, &figuras, &OpcoesExportacao::default());
+    assert_eq!(a, b);
 }

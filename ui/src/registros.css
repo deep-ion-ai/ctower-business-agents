@@ -1,0 +1,118 @@
+/* Premissas, decisões, riscos e restrições da demanda (#122). Cores só por token de theme.css. */
+
+.registros-cabecalho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  justify-content: space-between;
+}
+
+.registros-novos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.registros-faixa {
+  padding: 10px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--running-bg);
+}
+
+.registros-grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.registros-cartao {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  padding: 4px 16px 12px;
+  min-width: 0;
+}
+
+.registros-cartao h4 {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.registros-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.registros-lista > li {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+
+.registros-lista > li:last-child {
+  border-bottom: none;
+}
+
+.registros-lista > li[data-destaque="sim"] {
+  border-left: 3px solid var(--attention);
+  padding-left: 8px;
+}
+
+.registro-id {
+  color: var(--muted);
+}
+
+.registro-meta {
+  margin-top: 4px;
+  font-size: 13px;
+}
+
+.registro-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.matriz-riscos {
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 12px;
+}
+
+.matriz-riscos th,
+.matriz-riscos td {
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  text-align: center;
+}
+
+.matriz-riscos td[data-nivel="alto"] {
+  background: var(--attention-card);
+}
+
+.form-registro {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 640px;
+  padding: 12px 16px;
+  margin: 12px 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface-3);
+}
+
+.form-registro label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.registros-pasta {
+  font-size: 12px;
+}

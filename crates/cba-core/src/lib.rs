@@ -11,6 +11,8 @@
 //!   app ([`eventos`]).
 //! - [`memoria`]: a memória de trabalho do agente em cada análise, que a retomada
 //!   devolve (#143).
+//! - [`diagramas`]: diagramas registrados pelo agente (nós e arestas com
+//!   evidências), que o app transforma em Mermaid na montagem (#118).
 //! - [`parecer`]: parecer de revisão de um requisito ou história (fluxo
 //!   `revisar`): achados, verificação INVEST e veredito.
 //! - [`qualidade`]: critérios de qualidade de requisitos (características da
@@ -27,6 +29,7 @@ pub mod analises;
 pub mod cenarios;
 pub mod config;
 pub mod dados;
+pub mod diagramas;
 pub mod eventos;
 pub mod historias;
 pub mod log;

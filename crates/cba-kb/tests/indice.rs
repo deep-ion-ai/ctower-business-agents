@@ -86,6 +86,7 @@ fn regra(
             status: StatusRegra::Confirmada,
             evidencias,
             origem: Some(caminho("analises/A-0001.md")),
+            informada: None,
         },
         format!("\n{corpo}\n"),
     )
@@ -508,6 +509,37 @@ fn filtros_e_paginacao() {
     // A sintaxe do FTS5 é só texto: nada de erro de consulta.
     indice.buscar(&Consulta::nova("\"* OR (")).unwrap();
     indice.buscar(&Consulta::nova("NEAR(multa juros)")).unwrap();
+}
+
+#[test]
+fn listar_sem_busca_respeita_filtros_e_paginacao() {
+    let (_dir, base, _projeto, arquivo) = montar_base();
+    let indice = abrir(&arquivo, &base);
+
+    let todos = indice.listar(&Consulta::nova("")).unwrap();
+    assert!(todos.total > 0);
+    assert_eq!(todos.resultados.len(), todos.total.min(20));
+    assert!(todos.resultados.iter().all(|r| r.trecho.is_empty()));
+
+    let regras = indice
+        .listar(&Consulta::nova("").tipos([Tipo::Documento(TipoDocumento::Regra)]))
+        .unwrap();
+    assert!(regras.total > 0 && regras.total < todos.total);
+    assert!(
+        regras
+            .resultados
+            .iter()
+            .all(|r| r.tipo == Some(Tipo::Documento(TipoDocumento::Regra)))
+    );
+
+    let outro = indice
+        .listar(&Consulta::nova("").projeto("inexistente"))
+        .unwrap();
+    assert_eq!(outro.total, 0);
+
+    let segunda = indice.listar(&Consulta::nova("").pagina(1, 1)).unwrap();
+    assert_eq!(segunda.resultados.len(), 1);
+    assert_eq!(segunda.resultados[0].caminho, todos.resultados[1].caminho);
 }
 
 #[test]

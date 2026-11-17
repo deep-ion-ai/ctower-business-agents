@@ -22,6 +22,7 @@ export function EscolhaBase({
   sugerida,
   aoConcluir,
   rotuloContinuar = "Usar esta pasta",
+  compacto = false,
 }: {
   api: Api;
   /** Base já configurada, se houver. */
@@ -29,6 +30,8 @@ export function EscolhaBase({
   sugerida?: string | null;
   aoConcluir: (pasta: string) => void;
   rotuloContinuar?: string;
+  /** Sem o título e a explicação: dentro de um diálogo que já os tem (configurações). */
+  compacto?: boolean;
 }) {
   const [pasta, setPasta] = useState(atual ?? sugerida ?? "");
   const [avaliacao, setAvaliacao] = useState<AvaliacaoBase | null>(null);
@@ -69,12 +72,16 @@ export function EscolhaBase({
 
   return (
     <form className="passo-assistente" onSubmit={salvar} aria-label="Pasta da base de conhecimento">
-      <h2>Onde guardar os documentos?</h2>
-      <p>
-        A base de conhecimento é uma pasta comum com os documentos das análises, em Markdown. Pode
-        ser uma pasta sincronizada (OneDrive, Google Drive) ou um repositório git seu, mas não a
-        pasta do código do projeto.
-      </p>
+      {!compacto && (
+        <>
+          <h2>Onde guardar os documentos?</h2>
+          <p>
+            A base de conhecimento é uma pasta comum com os documentos das análises, em Markdown.
+            Pode ser uma pasta sincronizada (OneDrive, Google Drive) ou um repositório git seu, mas
+            não a pasta do código do projeto.
+          </p>
+        </>
+      )}
       <label>
         Pasta da base (caminho completo){" "}
         <input
@@ -96,6 +103,16 @@ export function EscolhaBase({
       >
         Escolher pasta…
       </button>
+      <div className="acoes">
+        <button
+          type="submit"
+          className="btn btn-primary"
+          disabled={!pasta.trim() || gravando || recusa !== null}
+        >
+          {rotuloContinuar}
+        </button>
+      </div>
+      {/* Avisos e “Usar a sugerida” abaixo do botão: não o deslocam (#219). */}
       {sugerida && pasta.trim() !== sugerida && (
         <p>
           <button type="button" className="link" onClick={() => setPasta(sugerida)}>
@@ -114,15 +131,6 @@ export function EscolhaBase({
           {recusa ?? falha}
         </p>
       )}
-      <div className="acoes">
-        <button
-          type="submit"
-          className="btn btn-primary"
-          disabled={!pasta.trim() || gravando || recusa !== null}
-        >
-          {rotuloContinuar}
-        </button>
-      </div>
     </form>
   );
 }

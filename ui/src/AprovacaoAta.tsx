@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { contar } from "./formatacao";
 import { mensagemDe } from "./analise";
 import { DialogoConfirmacao } from "./DialogoConfirmacao";
 import type { ApiReuniao, AtaAprovada, ProntidaoAta } from "./reunioes";
@@ -92,7 +93,7 @@ export function AprovacaoAta({ api, projeto, analise, versao, aoAprovar }: Props
             </ul>
           )}
           <p className="muted">
-            {prontidao.itens} item(ns) na ata.
+            {contar(prontidao.itens, "item", "itens")} na ata.
             {prontidao.transcriptGuardado
               ? " Ao aprovar, o transcript é apagado."
               : " O transcript já não está guardado."}
@@ -125,7 +126,8 @@ export function AprovacaoAta({ api, projeto, analise, versao, aoAprovar }: Props
           <p>{prontidao.avisoDescarte}</p>
           {prontidao.citacoesConferiveis > 0 && (
             <p className="muted">
-              {prontidao.citacoesConferiveis} citação(ões) deixam de ser conferíveis contra o
+              {contar(prontidao.citacoesConferiveis, "citação", "citações")}{" "}
+              {prontidao.citacoesConferiveis === 1 ? "deixa" : "deixam"} de ser conferíveis contra o
               transcript.
             </p>
           )}
@@ -144,7 +146,7 @@ export function AprovacaoAta({ api, projeto, analise, versao, aoAprovar }: Props
               ? "O transcript foi apagado."
               : "O transcript já tinha sido apagado."}
             {feita.citacoesMarcadas > 0 &&
-              ` ${feita.citacoesMarcadas} citação(ões) marcadas como conferidas em ${feita.data}.`}
+              ` ${contar(feita.citacoesMarcadas, "citação", "citações")} ${feita.citacoesMarcadas === 1 ? "marcada" : "marcadas"} como conferidas em ${feita.data}.`}
           </p>
           <p className="muted">
             As pendências, as dúvidas e os próximos passos já estão no painel da demanda.

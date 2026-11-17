@@ -8,6 +8,7 @@ use cba_repos::Repositorios;
 use serde::{Deserialize, Serialize};
 
 use crate::Erro;
+use crate::ambiente_teste::AmbienteTeste;
 use crate::exclusoes::{Exclusao, Exclusoes, Motivo};
 
 /// Uma pasta local do projeto.
@@ -44,6 +45,10 @@ pub struct Projeto {
     /// nunca o token.
     #[serde(default, skip_serializing_if = "Repositorios::vazio")]
     pub repositorios: Repositorios,
+    /// Ambiente de teste da aplicação (URL, usuários e perfis), para simular o
+    /// uso. Opcional. Nunca guarda a senha, que fica no chaveiro do sistema.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ambiente_teste: Option<AmbienteTeste>,
 }
 
 impl Projeto {
@@ -64,22 +69,7 @@ impl Projeto {
         let mut lista = Vec::new();
         for (i, p) in pastas.into_iter().enumerate() {
             let caminho = canonica(p.as_ref())?;
-            let prefixo = if i == 0 {
-                None
-            } else {
-                let base = caminho
-                    .file_name()
-                    .map(|n| slug(&n.to_string_lossy()))
-                    .filter(|s| !s.is_empty())
-                    .unwrap_or_else(|| "pasta".into());
-                let mut candidato = base.clone();
-                let mut n = 2;
-                while !usados.insert(candidato.clone()) {
-                    candidato = format!("{base}-{n}");
-                    n += 1;
-                }
-                Some(candidato)
-            };
+            let prefixo = (i > 0).then(|| prefixo_novo(&caminho, &mut usados));
             lista.push(Pasta { caminho, prefixo });
         }
         let projeto = Self {
@@ -89,6 +79,7 @@ impl Projeto {
             exclusoes: Vec::new(),
             inclusoes: Vec::new(),
             repositorios: Repositorios::default(),
+            ambiente_teste: None,
         };
         projeto.validar()?;
         Ok(projeto)
@@ -151,7 +142,67 @@ impl Projeto {
         }
         Exclusoes::novas(&self.exclusoes, &self.inclusoes)?;
         self.repositorios.validar().map_err(Erro::Repositorios)?;
+        if let Some(a) = &self.ambiente_teste {
+            a.validar().map_err(Erro::AmbienteTeste)?;
+        }
         Ok(())
+    }
+
+    /// O projeto com outra lista de pastas (#192): adiciona e remove pastas sem
+    /// descadastrar.
+    ///
+    /// As pastas que continuam guardam o prefixo (os caminhos das evidências não
+    /// mudam); as novas entram sempre com prefixo, derivado do nome da pasta e sem
+    /// repetir um prefixo em uso. Cada caminho novo precisa ser absoluto e existir; a
+    /// lista vazia é recusada ([`Erro::UltimaPasta`]), e o resultado passa pela
+    /// [`Projeto::validar`] (sem sobreposição, sem esconder item da raiz).
+    pub fn com_pastas<P: AsRef<Path>>(
+        &self,
+        caminhos: impl IntoIterator<Item = P>,
+    ) -> Result<Self, Erro> {
+        let mut pedidas: Vec<PathBuf> = Vec::new();
+        for p in caminhos {
+            let p = p.as_ref();
+            if !p.is_absolute() {
+                return Err(Erro::CaminhoRelativo(p.to_path_buf()));
+            }
+            // Uma pasta cadastrada que sumiu do disco ainda pode ser mantida (e a
+            // validação aponta que ela não existe) ou removida pelo caminho gravado.
+            let caminho = match self.pastas.iter().find(|x| x.caminho == p) {
+                Some(x) => x.caminho.clone(),
+                None => canonica(p)?,
+            };
+            if !pedidas.contains(&caminho) {
+                pedidas.push(caminho);
+            }
+        }
+        if pedidas.is_empty() {
+            return Err(Erro::UltimaPasta);
+        }
+        let mut pastas: Vec<Pasta> = self
+            .pastas
+            .iter()
+            .filter(|x| pedidas.contains(&x.caminho))
+            .cloned()
+            .collect();
+        let mut usados: HashSet<String> = self
+            .pastas
+            .iter()
+            .filter_map(|x| x.prefixo.clone())
+            .collect();
+        for caminho in pedidas {
+            if pastas.iter().any(|x| x.caminho == caminho) {
+                continue;
+            }
+            let prefixo = Some(prefixo_novo(&caminho, &mut usados));
+            pastas.push(Pasta { caminho, prefixo });
+        }
+        let projeto = Self {
+            pastas,
+            ..self.clone()
+        };
+        projeto.validar()?;
+        Ok(projeto)
     }
 
     /// Exclusões compiladas do projeto (padrão + ajustes do analista).
@@ -301,6 +352,23 @@ fn normalizar(relativo: &str) -> Option<String> {
         .then(|| rel.to_string())
 }
 
+/// Prefixo de uma pasta nova: o nome dela em slug (ou `pasta`), com sufixo numérico
+/// se já estiver em `usados`, onde ele é acrescentado.
+fn prefixo_novo(caminho: &Path, usados: &mut HashSet<String>) -> String {
+    let base = caminho
+        .file_name()
+        .map(|n| slug(&n.to_string_lossy()))
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "pasta".into());
+    let mut candidato = base.clone();
+    let mut n = 2;
+    while !usados.insert(candidato.clone()) {
+        candidato = format!("{base}-{n}");
+        n += 1;
+    }
+    candidato
+}
+
 fn canonica(p: &Path) -> Result<PathBuf, Erro> {
     match dunce::canonicalize(p) {
         Ok(c) => Ok(c),
@@ -405,6 +473,94 @@ mod tests {
             Projeto::novo("x", Vec::<PathBuf>::new()),
             Err(Erro::SemPastas)
         ));
+    }
+
+    #[test]
+    fn com_pastas_adiciona_e_remove_mantendo_os_prefixos() {
+        let tmp = tempfile::tempdir().unwrap();
+        let raiz = tmp.path().join("raiz");
+        let telas = tmp.path().join("telas");
+        let outra = tmp.path().join("outra/telas");
+        let web = tmp.path().join("Web App");
+        for p in [&raiz, &telas, &outra, &web] {
+            fs::create_dir_all(p).unwrap();
+        }
+        let p = Projeto::novo("Faturamento", [&raiz, &telas]).unwrap();
+        let canon = |x: &Path| dunce::canonicalize(x).unwrap();
+
+        // Acrescentar: as que ficam guardam o prefixo; a nova não repete um em uso.
+        let mais = p.com_pastas([&raiz, &telas, &outra, &web]).unwrap();
+        assert_eq!(mais.pastas[0], p.pastas[0]);
+        assert_eq!(mais.pastas[1], p.pastas[1]);
+        assert_eq!(mais.pastas[2].caminho, canon(&outra));
+        assert_eq!(mais.pastas[2].prefixo.as_deref(), Some("telas-2"));
+        assert_eq!(mais.pastas[3].prefixo.as_deref(), Some("web-app"));
+        assert_eq!(
+            (mais.id.as_str(), mais.nome.as_str()),
+            ("faturamento", "Faturamento")
+        );
+
+        // Remover a raiz: a outra continua com o prefixo dela.
+        let menos = mais.com_pastas([&telas]).unwrap();
+        assert_eq!(menos.pastas, vec![p.pastas[1].clone()]);
+
+        // Repetida conta uma vez só.
+        assert_eq!(p.com_pastas([&raiz, &raiz]).unwrap().pastas.len(), 1);
+    }
+
+    #[test]
+    fn com_pastas_recusa_o_que_perderia_dados() {
+        let tmp = tempfile::tempdir().unwrap();
+        let raiz = tmp.path().join("raiz");
+        fs::create_dir_all(raiz.join("db")).unwrap();
+        let db = tmp.path().join("db");
+        fs::create_dir_all(&db).unwrap();
+        fs::write(tmp.path().join("arquivo.txt"), "").unwrap();
+        let p = Projeto::novo("x", [&raiz]).unwrap();
+
+        assert!(matches!(
+            p.com_pastas(Vec::<PathBuf>::new()),
+            Err(Erro::UltimaPasta)
+        ));
+        assert!(matches!(
+            p.com_pastas([Path::new("relativa")]),
+            Err(Erro::CaminhoRelativo(_))
+        ));
+        assert!(matches!(
+            p.com_pastas([raiz.clone(), tmp.path().join("nao-existe")]),
+            Err(Erro::PastaNaoEncontrada(_))
+        ));
+        assert!(matches!(
+            p.com_pastas([raiz.clone(), tmp.path().join("arquivo.txt")]),
+            Err(Erro::NaoEhPasta(_))
+        ));
+        assert!(matches!(
+            p.com_pastas([raiz.clone(), raiz.join("db")]),
+            Err(Erro::PastasSobrepostas(..))
+        ));
+        assert!(matches!(
+            p.com_pastas([&raiz, &db]),
+            Err(Erro::PrefixoConflitante { .. })
+        ));
+    }
+
+    #[test]
+    fn com_pastas_remove_a_que_sumiu_do_disco() {
+        let tmp = tempfile::tempdir().unwrap();
+        let a = tmp.path().join("a");
+        let b = tmp.path().join("b");
+        fs::create_dir_all(&a).unwrap();
+        fs::create_dir_all(&b).unwrap();
+        let p = Projeto::novo("x", [&a, &b]).unwrap();
+        let gravada_b = p.pastas[1].caminho.clone();
+        fs::remove_dir_all(&b).unwrap();
+        // Manter a que sumiu é recusado; tirá-la (pelo caminho gravado) funciona.
+        assert!(matches!(
+            p.com_pastas([&p.pastas[0].caminho, &gravada_b]),
+            Err(Erro::PastaNaoEncontrada(_))
+        ));
+        let so_a = p.com_pastas([&p.pastas[0].caminho]).unwrap();
+        assert_eq!(so_a.pastas, vec![p.pastas[0].clone()]);
     }
 
     #[test]

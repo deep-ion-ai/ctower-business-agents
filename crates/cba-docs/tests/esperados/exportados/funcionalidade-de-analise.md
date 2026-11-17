@@ -22,6 +22,10 @@ _Nada registrado._
 
 _Nada registrado._
 
+## Fluxo do processo
+
+_Fluxo do processo ainda não registrado._
+
 ## Regras de negócio
 
 - **[confirmado]** Multa por atraso vem de parâmetro (RN-FAT-001): Passada a carência, a fatura em atraso recebe multa única de PERC_MULTA_ATRASO por cento (hoje 2%) sobre o valor original, lida da tabela PARAMETRO e arredondada em 2 casas.[^1][^2]
@@ -34,6 +38,10 @@ _Nada registrado._
 ## Dados lidos e gravados
 
 _Nada registrado._
+
+## Modelo de dados conceitual
+
+_Modelo de dados conceitual ainda não registrado._
 
 ## Integrações
 

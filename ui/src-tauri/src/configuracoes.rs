@@ -15,7 +15,9 @@
 //!
 //!   Nos dois casos o índice (`cba_kb::indice`) é reconstruído a partir da base
 //!   nova.
-//! - **Ajustar as exclusões** de um projeto cadastrado, com a prévia do inventário.
+//! - **Ajustar o que é analisado** num projeto cadastrado: pastas (adicionar e remover
+//!   sem descadastrar; #192), exclusões e reinclusões, com a prévia do inventário. O
+//!   inventário novo é feito antes de gravar, e a última pasta não pode sair.
 //! - **Desfazer o ambiente** de um projeto: desliga a proteção contra edição (tira só
 //!   as regras que o app acrescentou) e tira o servidor MCP e, se for o último
 //!   projeto, os hooks. A configuração do Claude volta a ser a de antes.
@@ -77,6 +79,9 @@ pub struct ProjetoConfig {
     pub inclusoes: Vec<String>,
     /// Repositório de código e de issues; só o comando de credencial, nunca o token.
     pub repositorios: cba_repos::Repositorios,
+    /// Ambiente de teste (URL, usuários e perfis); nunca a senha, que fica no
+    /// chaveiro do sistema.
+    pub ambiente_teste: Option<cba_index::AmbienteTeste>,
 }
 
 /// O que a tela de configurações mostra ao abrir.
@@ -115,6 +120,7 @@ pub fn configuracoes(
             exclusoes: s.exclusoes,
             inclusoes: s.inclusoes,
             repositorios: s.repositorios,
+            ambiente_teste: s.ambiente_teste,
         })
         .collect();
     Ok(Configuracoes {
@@ -334,6 +340,90 @@ pub fn avaliar_troca(
     })
 }
 
+/// A pasta da base como as configurações a mostram (#191): o que há nela e quando o
+/// índice foi atualizado pela última vez.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InfoBase {
+    pub caminho: PathBuf,
+    /// A pasta existe no disco.
+    pub existe: bool,
+    /// Arquivos da base (sem a pasta `.git`).
+    pub arquivos: usize,
+    pub bytes: u64,
+    /// A pasta é um repositório git.
+    pub git: bool,
+    /// Última atualização do índice, em segundos desde 1970 (`None` se ainda não há índice).
+    pub indice_atualizado_em: Option<u64>,
+}
+
+/// Conta os arquivos e os bytes da pasta, sem seguir links simbólicos e ignorando
+/// `.git`. O que não puder ser lido fica fora da conta: é só para exibir.
+fn medir_pasta(raiz: &Path) -> (usize, u64) {
+    let (mut arquivos, mut bytes) = (0, 0);
+    let mut pendentes = vec![raiz.to_path_buf()];
+    while let Some(pasta) = pendentes.pop() {
+        let Ok(entradas) = fs::read_dir(&pasta) else {
+            continue;
+        };
+        for entrada in entradas.flatten() {
+            let Ok(tipo) = entrada.file_type() else {
+                continue;
+            };
+            if tipo.is_dir() {
+                if entrada.file_name() != ".git" {
+                    pendentes.push(entrada.path());
+                }
+            } else if tipo.is_file() {
+                arquivos += 1;
+                bytes += entrada.metadata().map(|m| m.len()).unwrap_or(0);
+            }
+        }
+    }
+    (arquivos, bytes)
+}
+
+/// Quando o índice foi atualizado: a modificação mais recente do arquivo do SQLite e
+/// do seu `-wal`, onde as gravações recentes ficam até o checkpoint.
+fn indice_atualizado_em(dados: &DiretorioDados) -> Option<u64> {
+    let arquivo = dados.arquivo_do_indice();
+    let wal = {
+        let mut nome = arquivo.clone().into_os_string();
+        nome.push("-wal");
+        PathBuf::from(nome)
+    };
+    [arquivo, wal]
+        .iter()
+        .filter_map(|a| fs::metadata(a).and_then(|m| m.modified()).ok())
+        .max()
+        .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs())
+}
+
+/// Dados da base configurada; `None` se ainda não há base.
+pub fn info_base(dados: &DiretorioDados) -> Result<Option<InfoBase>, String> {
+    let Some(caminho) = Config::ler(dados)
+        .map_err(|e| format!("configuração do app ilegível: {e}"))?
+        .base
+    else {
+        return Ok(None);
+    };
+    let existe = caminho.is_dir();
+    let (arquivos, bytes) = if existe {
+        medir_pasta(&caminho)
+    } else {
+        (0, 0)
+    };
+    Ok(Some(InfoBase {
+        git: existe && cba_index::detectar_git(&caminho).is_some(),
+        indice_atualizado_em: indice_atualizado_em(dados),
+        caminho,
+        existe,
+        arquivos,
+        bytes,
+    }))
+}
+
 /// Desfaz uma cópia que não chegou ao fim: apaga só o que estava no destino por causa
 /// dela (o destino era novo ou vazio).
 fn limpar_destino(destino: &Path, era_novo: bool) {
@@ -489,13 +579,17 @@ pub fn trocar_base(
 }
 
 // ---------------------------------------------------------------------------
-// Exclusões de um projeto cadastrado
+// O que é analisado num projeto cadastrado: pastas, exclusões e reinclusões
 
-/// Novas exclusões e reinclusões de um projeto.
+/// Novas pastas, exclusões e reinclusões de um projeto (#192).
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AjusteExclusoes {
+pub struct AjusteLeitura {
     pub projeto: String,
+    /// Caminhos absolutos das pastas, as que ficam e as novas. As que ficam guardam o
+    /// prefixo; as novas ganham um. Vazio é recusado: o projeto precisa de uma pasta.
+    #[serde(default)]
+    pub pastas: Vec<String>,
     #[serde(default)]
     pub exclusoes: Vec<String>,
     #[serde(default)]
@@ -509,26 +603,34 @@ fn cadastrado(dados: &DiretorioDados, projeto: &str) -> Result<cba_index::Projet
         .ok_or_else(|| format!("o projeto \"{projeto}\" não está cadastrado"))
 }
 
-fn ajustado(
-    dados: &DiretorioDados,
-    ajuste: &AjusteExclusoes,
-) -> Result<cba_index::Projeto, String> {
-    let mut projeto = cadastrado(dados, &ajuste.projeto)?;
+fn ajustado(dados: &DiretorioDados, ajuste: &AjusteLeitura) -> Result<cba_index::Projeto, String> {
+    let atual = cadastrado(dados, &ajuste.projeto)?;
+    let mut projeto = atual
+        .com_pastas(limpar(&ajuste.pastas).iter().map(PathBuf::from))
+        .map_err(|e| e.to_string())?;
     projeto.exclusoes = limpar(&ajuste.exclusoes);
     projeto.inclusoes = limpar(&ajuste.inclusoes);
     projeto.validar().map_err(|e| e.to_string())?;
+    // Uma pasta nova não pode conter a base de conhecimento (nem estar dentro dela).
+    if projeto.pastas != atual.pastas
+        && let Some(base) = Config::ler(dados).map_err(|e| e.to_string())?.base()
+        && let Some(r) = primeiro_uso::conflito_com_projeto(base, &projeto)
+    {
+        return Err(r);
+    }
     Ok(projeto)
 }
 
-/// O inventário com as exclusões ajustadas, sem gravar.
-pub fn previa_exclusoes(
+/// O inventário com as pastas e as exclusões ajustadas, sem gravar.
+pub fn previa_leitura(
     dados: &DiretorioDados,
-    ajuste: &AjusteExclusoes,
+    ajuste: &AjusteLeitura,
 ) -> Result<PreviaProjeto, String> {
     let projeto = ajustado(dados, ajuste)?;
     let inventario = cba_index::inventariar(&projeto, None).map_err(|e| e.to_string())?;
     Ok(PreviaProjeto {
         pastas: pastas_vista(&inventario),
+        inclusoes_vistas: primeiro_uso::inclusoes_vistas(&inventario, &projeto.inclusoes),
         inventario: resumo_inventario(&inventario),
         id: projeto.id,
         nome: projeto.nome,
@@ -538,17 +640,17 @@ pub fn previa_exclusoes(
     })
 }
 
-/// Grava as exclusões ajustadas e inventaria de novo.
-pub fn salvar_exclusoes(
+/// Grava as pastas e as exclusões ajustadas e refaz o inventário. O inventário novo
+/// é feito antes de gravar: se falhar, o cadastro fica como estava.
+pub fn salvar_leitura(
     dados: &DiretorioDados,
-    ajuste: &AjusteExclusoes,
+    ajuste: &AjusteLeitura,
 ) -> Result<ProjetoCadastrado, String> {
     let projeto = ajustado(dados, ajuste)?;
-    let cadastro = Cadastro::em(dados.projetos());
-    cadastro.salvar(&projeto).map_err(|e| e.to_string())?;
-    let inventario = cadastro
-        .inventariar(&projeto.id)
+    let inventario = Cadastro::em(dados.projetos())
+        .ajustar(&projeto)
         .map_err(|e| e.to_string())?;
+    tracing::info!(projeto = %projeto.id, pastas = projeto.pastas.len(), "leitura do projeto ajustada");
     Ok(ProjetoCadastrado {
         pastas: pastas_vista(&inventario),
         inventario: resumo_inventario(&inventario),
@@ -568,8 +670,11 @@ pub struct AmbienteDesfeito {
     pub protecao_tirada: Vec<String>,
     /// Servidor MCP e hooks tirados.
     pub preparo: Resultado,
-    /// Limitações (pasta do projeto que não existe mais).
+    /// O que ficou e por quê, em linguagem simples (o que o desfazer não devolveu ao
+    /// que era, e a pasta do projeto que não existe mais).
     pub avisos: Vec<String>,
+    /// A configuração do Claude voltou a ser a de antes do preparo (sem avisos).
+    pub igual_ao_antes: bool,
 }
 
 /// Alvo do preparo de um projeto. Se a pasta não existe mais, usa o caminho gravado
@@ -614,11 +719,61 @@ fn desfazer_do_cadastrado(
         protecao::desligar(dados, preparador, &projeto.id).map_err(|e| e.to_string())?;
     let (alvo, aviso) = alvo_do_cadastrado(projeto)?;
     let preparo = preparador.desfazer(&alvo).map_err(|e| e.to_string())?;
+    let mut avisos: Vec<String> = preparo.mantidos.iter().map(explicar_mantido).collect();
+    avisos.extend(aviso);
     Ok(AmbienteDesfeito {
         protecao_tirada,
+        igual_ao_antes: avisos.is_empty(),
         preparo,
-        avisos: aviso.into_iter().collect(),
+        avisos,
     })
+}
+
+/// Lista em português: "a", "a e b", "a, b e c".
+fn em_lista(itens: &[String]) -> String {
+    match itens {
+        [] => String::new(),
+        [um] => um.clone(),
+        [inicio @ .., ultimo] => format!("{} e {ultimo}", inicio.join(", ")),
+    }
+}
+
+/// O que o desfazer deixou como estava, e por quê, para a tela.
+fn explicar_mantido(m: &preparo::Mantido) -> String {
+    use preparo::Mantido;
+    match m {
+        Mantido::HooksEmUso { arquivo, pastas } => format!(
+            "Os avisos automáticos do app (hooks) continuam em {}, porque {} ainda {}.",
+            arquivo.display(),
+            if pastas.len() == 1 {
+                format!("a pasta {}", pastas[0])
+            } else {
+                format!("as pastas {}", em_lista(pastas))
+            },
+            if pastas.len() == 1 { "usa" } else { "usam" },
+        ),
+        Mantido::HooksMudaramDepois { arquivo, eventos } => format!(
+            "{} em {} depois do preparo (por outra instalação do app ou à mão). O app \
+             tirou só o que era dele e deixou o resto como está.",
+            if eventos.len() == 1 {
+                format!("O aviso automático {} foi mudado", eventos[0])
+            } else {
+                format!("Os avisos automáticos {} foram mudados", em_lista(eventos))
+            },
+            arquivo.display(),
+        ),
+        Mantido::ServidorMudouDepois { arquivo, chave } => format!(
+            "O servidor MCP \"cba\" da pasta {chave} foi trocado depois do preparo e ficou \
+             como está em {}.",
+            arquivo.display()
+        ),
+        Mantido::EntradaDoClaude { arquivo, chave } => format!(
+            "A pasta {chave} continua registrada em {} com dados que o próprio Claude Code \
+             gravou ao abrir conversas nela (como o histórico de uso). O app não mexe \
+             nesses dados.",
+            arquivo.display()
+        ),
+    }
 }
 
 /// Desfaz o ambiente do Claude de um projeto: proteção, servidor MCP e (se for o
@@ -653,6 +808,14 @@ pub fn descadastrar(
     Cadastro::em(dados.projetos())
         .remover(&cadastrado.id)
         .map_err(|e| e.to_string())?;
+    // As senhas dos usuários de teste não sobrevivem ao projeto. Falhar aqui não
+    // desfaz o descadastro: só fica registrado.
+    if let Err(e) = crate::ambiente_teste::apagar_senhas(
+        &cadastrado,
+        cba_repos::demanda::Ferramentas::default().chaveiro.as_ref(),
+    ) {
+        tracing::warn!(projeto, erro = %e, "senhas do ambiente de teste não apagadas");
+    }
     let documentos = Config::ler(dados)
         .ok()
         .and_then(|c| c.base.map(|b| b.join(&cadastrado.id)))
@@ -1012,6 +1175,23 @@ pub async fn configuracoes_app() -> Result<Configuracoes, String> {
 }
 
 #[tauri::command]
+pub async fn info_base_app() -> Result<Option<InfoBase>, String> {
+    let dados = dados()?;
+    bloqueante(move || info_base(&dados)).await
+}
+
+/// Abre a pasta da base no gerenciador de arquivos do sistema operacional.
+#[tauri::command]
+pub async fn abrir_base_app(app: tauri::AppHandle) -> Result<PathBuf, String> {
+    let dados = dados()?;
+    let caminho = bloqueante(move || base_configurada(&dados)).await?;
+    app.opener()
+        .open_path(caminho.to_string_lossy(), None::<&str>)
+        .map_err(|e| format!("não foi possível abrir {}: {e}", caminho.display()))?;
+    Ok(caminho)
+}
+
+#[tauri::command]
 pub async fn avaliar_troca_base_app(destino: String) -> Result<AvaliacaoTroca, String> {
     let dados = dados()?;
     bloqueante(move || avaliar_troca(&dados, &Restricoes::padrao(), &destino)).await
@@ -1037,15 +1217,16 @@ pub async fn trocar_base_app(
 }
 
 #[tauri::command]
-pub async fn previa_exclusoes_app(ajuste: AjusteExclusoes) -> Result<PreviaProjeto, String> {
+pub async fn previa_leitura_app(ajuste: AjusteLeitura) -> Result<PreviaProjeto, String> {
     let dados = dados()?;
-    bloqueante(move || previa_exclusoes(&dados, &ajuste)).await
+    bloqueante(move || previa_leitura(&dados, &ajuste)).await
 }
 
+/// Grava pastas, exclusões e reinclusões de um projeto e refaz o inventário (#192).
 #[tauri::command]
-pub async fn salvar_exclusoes_app(ajuste: AjusteExclusoes) -> Result<ProjetoCadastrado, String> {
+pub async fn salvar_leitura_app(ajuste: AjusteLeitura) -> Result<ProjetoCadastrado, String> {
     let dados = dados()?;
-    bloqueante(move || salvar_exclusoes(&dados, &ajuste)).await
+    bloqueante(move || salvar_leitura(&dados, &ajuste)).await
 }
 
 #[tauri::command]

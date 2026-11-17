@@ -19,10 +19,13 @@
 //!   [`historias`] (`registrar_historia` e `registrar_criterio`, do fluxo
 //!   "Histórias e critérios", com as referências conferidas por [`fundamentos`]) e
 //!   [`cenarios`] (`registrar_tabela_decisao` e `registrar_cenario`, do fluxo
-//!   "Cenários de teste").
+//!   "Cenários de teste") e [`diagramas`] (`registrar_diagrama`, os diagramas
+//!   pelos elementos, que o app transforma em Mermaid, #118).
 //! - Consulta, só de leitura e paginada ([`paginacao`]): [`conhecimento`] (busca no
 //!   índice da base), [`mapa`], [`estrutura`], [`banco`] (`schema`) e
-//!   [`referencias`], a partir do mapa estrutural do projeto ([`fontes`]).
+//!   [`referencias`], a partir do mapa estrutural do projeto ([`fontes`]), e
+//!   [`rastreabilidade`] (matriz da demanda e consulta reversa por regra ou
+//!   arquivo, #121, que também exporta a matriz para Excel e Word).
 //! - [`roteiro`] e [`contexto`]: o roteiro do fluxo e o contexto da base que
 //!   `iniciar_analise` e `retomar_analise` devolvem ao agente.
 //! - [`prompts`]: os prompts prontos da tela da análise (aprofundar, resumir,
@@ -54,6 +57,7 @@ pub mod ciclo;
 mod comum;
 pub mod conhecimento;
 pub mod contexto;
+pub mod diagramas;
 pub mod documento;
 pub mod editavel;
 pub mod estrutura;
@@ -63,12 +67,16 @@ pub mod fundamentos;
 pub mod historias;
 pub mod mapa;
 pub mod memoria;
+mod modelo_dados;
 mod paginacao;
 pub mod parecer;
+pub mod pauta;
 pub mod perguntar;
 pub mod prompts;
+pub mod rastreabilidade;
 pub mod referencias;
 mod registro;
+pub mod registros;
 pub mod reuniao;
 pub mod revalidacao;
 pub mod revisao;
@@ -93,6 +101,7 @@ pub fn registro_padrao() -> Registro {
         .registrar(ciclo::retomar_analise())
         .registrar(conhecimento::conhecimento())
         .registrar(referencias::referencias())
+        .registrar(rastreabilidade::rastreabilidade())
         .registrar(mapa::mapa())
         .registrar(estrutura::estrutura())
         .registrar(banco::schema())
@@ -114,6 +123,7 @@ pub fn registro_padrao() -> Registro {
         .registrar(historias::registrar_criterio())
         .registrar(cenarios::registrar_tabela_decisao())
         .registrar(cenarios::registrar_cenario())
+        .registrar(diagramas::registrar_diagrama())
         .registrar(ciclo::concluir_analise());
     registro
 }
@@ -136,6 +146,7 @@ mod tests {
             "retomar_analise",
             "conhecimento",
             "referencias",
+            "rastreabilidade",
             "mapa",
             "estrutura",
             "schema",
@@ -157,6 +168,7 @@ mod tests {
             "registrar_criterio",
             "registrar_tabela_decisao",
             "registrar_cenario",
+            "registrar_diagrama",
             "concluir_analise",
         ] {
             assert!(r.obter(nome).is_some(), "{nome}");
@@ -172,6 +184,7 @@ mod tests {
                 .unwrap()
                 .e_somente_leitura()
         );
+        assert!(!r.obter("registrar_diagrama").unwrap().e_somente_leitura());
         assert!(!r.obter("iniciar_analise").unwrap().e_somente_leitura());
         assert!(!r.obter("concluir_analise").unwrap().e_somente_leitura());
         assert!(!r.obter("propor_papel").unwrap().e_somente_leitura());
@@ -184,6 +197,7 @@ mod tests {
             "retomar_analise",
             "conhecimento",
             "referencias",
+            "rastreabilidade",
             "mapa",
             "estrutura",
             "schema",

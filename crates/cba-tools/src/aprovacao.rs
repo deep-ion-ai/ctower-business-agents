@@ -6,7 +6,9 @@
 //! 1. confere que a análise está concluída (ou já aprovada) e que os ajustes do
 //!    analista ([`OpcoesAprovacao`]) citam afirmações confirmadas;
 //! 2. aprova a análise (concluída → aprovada) e remonta o documento dela;
-//! 3. transforma as afirmações **confirmadas** pelo analista em regras
+//! 3. transforma as afirmações **confirmadas** pelo analista e escolhidas para
+//!    virar regra ([`OpcoesAprovacao::regras`]; sem a escolha, as de fora da
+//!    resposta e dos exemplos) em regras
 //!    (`regras/RN-<SIGLA>-<NNN>.md`), com as evidências e a origem (o documento da
 //!    análise), montadas pelo template de regra;
 //! 4. transforma os termos **aceitos** em entradas do glossário
@@ -90,6 +92,30 @@ pub struct OpcoesAprovacao {
     /// Ajustes por afirmação confirmada, pelo número da afirmação.
     #[serde(default)]
     pub afirmacoes: BTreeMap<u32, AjusteDaRegra>,
+    /// Afirmações confirmadas que viram regra, pelo número. Sem a escolha
+    /// (`None`), viram regra as confirmadas fora das seções de resposta e de
+    /// exemplo ([`vira_regra_por_padrao`]).
+    #[serde(default)]
+    pub regras: Option<BTreeSet<u32>>,
+}
+
+/// Seções cujas afirmações não viram regra sem a escolha do analista: a resposta
+/// direta à pergunta e os exemplos montados sobre as regras.
+pub const SECOES_SEM_REGRA: &[&str] = &["resposta", "exemplo"];
+
+/// Se a afirmação da seção `secao` vira regra quando o analista não escolhe.
+pub fn vira_regra_por_padrao(secao: &str) -> bool {
+    !SECOES_SEM_REGRA.contains(&secao.trim())
+}
+
+impl OpcoesAprovacao {
+    /// Se a afirmação confirmada `a` vira regra com estas escolhas.
+    pub fn vira_regra(&self, a: &Afirmacao) -> bool {
+        match &self.regras {
+            Some(escolhidas) => escolhidas.contains(&a.numero),
+            None => vira_regra_por_padrao(&a.secao),
+        }
+    }
 }
 
 /// Ajuste do analista na regra que uma afirmação confirmada vai virar.
@@ -165,7 +191,7 @@ pub enum ErroAprovacao {
     )]
     NaoConcluida { id: Id, estado: &'static str },
     #[error(
-        "há um ajuste para a afirmação {0}, mas ela não está confirmada pelo analista \
+        "há um ajuste ou uma escolha para a afirmação {0}, mas ela não está confirmada pelo analista \
          nesta análise; só afirmações confirmadas viram regras"
     )]
     AjusteSemAfirmacao(u32),
@@ -313,8 +339,10 @@ impl Chave {
     fn corresponde(&self, f: &FrontmatterRegra, origem: &CaminhoRelativo) -> bool {
         match self {
             Self::Evidencias(_) => Self::de(&f.evidencias, &f.titulo) == *self,
+            // A regra informada por uma pessoa (#123) não é a da afirmação.
             Self::Titulo(t) => {
                 f.evidencias.is_empty()
+                    && f.informada.is_none()
                     && f.origem.as_ref() == Some(origem)
                     && slug(&f.titulo) == *t
             }
@@ -336,7 +364,10 @@ struct RegraPlanejada {
 }
 
 /// Área e sigla a partir do texto informado e das áreas do `projeto.md`.
-fn resolver_area(areas: &[Area], texto: &str) -> Result<(String, String), ErroAprovacao> {
+pub(crate) fn resolver_area(
+    areas: &[Area],
+    texto: &str,
+) -> Result<(String, String), ErroAprovacao> {
     let chave = slug(texto);
     if chave.is_empty() {
         return Err(ErroAprovacao::AreaInvalida(texto.to_owned()));
@@ -366,25 +397,109 @@ pub fn sigla_do_slug(slug: &str) -> String {
         .to_ascii_uppercase()
 }
 
-/// Título da regra derivado do texto da afirmação: a primeira frase, sem o ponto
-/// final, cortada em [`LIMITE_DO_TITULO`] caracteres numa fronteira de palavra.
+/// Título da regra derivado do texto da afirmação, sem markdown: o trecho em
+/// negrito que abre a afirmação (`**Origem dos parâmetros.** As multas…` →
+/// "Origem dos parâmetros") ou, sem ele, a primeira frase. Sai sem o ponto final e,
+/// se passar de [`LIMITE_DO_TITULO`] caracteres, cortado numa fronteira de palavra,
+/// sem reticências.
 pub fn titulo_da_regra(texto: &str) -> String {
     let linha = texto
         .lines()
         .map(str::trim)
         .find(|l| !l.is_empty())
         .unwrap_or("");
-    let frase = linha.find(". ").map_or(linha, |i| &linha[..i]);
-    let frase = frase.trim().trim_end_matches(['.', ':', ';']).trim_end();
-    if frase.chars().count() <= LIMITE_DO_TITULO {
-        return frase.to_owned();
+    let linha = sem_marcador_de_bloco(&sem_notas_e_links(linha));
+    let titulo = match negrito_inicial(&linha) {
+        Some(n) => sem_enfase(n),
+        None => {
+            let limpa = sem_enfase(&linha);
+            let frase = limpa.find(". ").map_or(limpa.as_str(), |i| &limpa[..i]);
+            frase.to_owned()
+        }
+    };
+    let titulo = titulo.trim().trim_end_matches(['.', ':', ';']).trim_end();
+    cortar(titulo)
+}
+
+/// Título informado pelo analista, sem markdown (negrito, código, notas de rodapé,
+/// links). Não é cortado.
+pub fn limpar_titulo(titulo: &str) -> String {
+    let linha = sem_marcador_de_bloco(&sem_notas_e_links(titulo.trim()));
+    sem_enfase(&linha).trim().to_owned()
+}
+
+/// Corta em [`LIMITE_DO_TITULO`] caracteres, numa fronteira de palavra quando dá.
+fn cortar(titulo: &str) -> String {
+    if titulo.chars().count() <= LIMITE_DO_TITULO {
+        return titulo.to_owned();
     }
-    let corte: String = frase.chars().take(LIMITE_DO_TITULO).collect();
+    let corte: String = titulo.chars().take(LIMITE_DO_TITULO).collect();
     let corte = match corte.rfind(' ') {
         Some(i) if i > LIMITE_DO_TITULO / 2 => &corte[..i],
         _ => corte.as_str(),
     };
-    format!("{}…", corte.trim_end_matches([',', ';', ':', ' ']))
+    corte
+        .trim_end_matches([',', ';', ':', '.', ' ', '-', '—', '(', '…'])
+        .to_owned()
+}
+
+/// Sem as notas de rodapé (`[^1]`) e com os links (`[texto](url)`) trocados pelo texto.
+fn sem_notas_e_links(texto: &str) -> String {
+    let mut saida = String::with_capacity(texto.len());
+    let mut resto = texto;
+    while let Some(i) = resto.find('[') {
+        saida.push_str(&resto[..i]);
+        let depois = &resto[i..];
+        let Some(fim) = depois.find(']') else {
+            saida.push_str(depois);
+            return saida;
+        };
+        let dentro = &depois[1..fim];
+        let apos = &depois[fim + 1..];
+        if dentro.starts_with('^') {
+            // Nota de rodapé: some, com o espaço que a separava (se houver).
+            resto = apos;
+        } else if let Some(url) = apos.strip_prefix('(')
+            && let Some(f) = url.find(')')
+        {
+            saida.push_str(dentro);
+            resto = &url[f + 1..];
+        } else {
+            saida.push('[');
+            resto = &depois[1..];
+        }
+    }
+    saida.push_str(resto);
+    saida
+}
+
+/// Sem o marcador de título, citação ou item de lista no começo da linha.
+fn sem_marcador_de_bloco(linha: &str) -> String {
+    let mut l = linha.trim_start();
+    l = l.trim_start_matches('#').trim_start();
+    l = l.trim_start_matches('>').trim_start();
+    for marcador in ["- ", "* ", "+ "] {
+        if let Some(r) = l.strip_prefix(marcador) {
+            l = r.trim_start();
+            break;
+        }
+    }
+    l.to_owned()
+}
+
+/// Conteúdo do negrito que abre a linha (`**Título.** resto` → `Título.`).
+fn negrito_inicial(linha: &str) -> Option<&str> {
+    ["**", "__"].iter().find_map(|m| {
+        let resto = linha.strip_prefix(m)?;
+        let fim = resto.find(m)?;
+        let dentro = resto[..fim].trim();
+        (!dentro.is_empty()).then_some(dentro)
+    })
+}
+
+/// Sem os marcadores de negrito (`**`, `__`) e de código (`` ` ``).
+fn sem_enfase(texto: &str) -> String {
+    texto.replace("**", "").replace("__", "").replace('`', "")
 }
 
 fn evidencia_da_regra(e: &cba_core::analise::Evidencia) -> Evidencia {
@@ -421,6 +536,14 @@ fn planejar_regras(
     {
         return Err(ErroAprovacao::AjusteSemAfirmacao(*n));
     }
+    if let Some(n) = opcoes
+        .regras
+        .iter()
+        .flatten()
+        .find(|n| !confirmadas(analise).any(|a| a.numero == **n))
+    {
+        return Err(ErroAprovacao::AjusteSemAfirmacao(*n));
+    }
     let area_padrao = match nao_vazio(&opcoes.area) {
         Some(a) => resolver_area(areas, a)?,
         None => match areas {
@@ -430,7 +553,7 @@ fn planejar_regras(
     };
 
     let mut plano: Vec<RegraPlanejada> = Vec::new();
-    for a in confirmadas(analise) {
+    for a in confirmadas(analise).filter(|a| opcoes.vira_regra(a)) {
         let ajuste = opcoes.afirmacoes.get(&a.numero);
         let (area, sigla) = match ajuste.and_then(|j| nao_vazio(&j.area)) {
             Some(texto) => resolver_area(areas, texto)?,
@@ -438,7 +561,9 @@ fn planejar_regras(
         };
         let titulo = ajuste
             .and_then(|j| nao_vazio(&j.titulo))
-            .map_or_else(|| titulo_da_regra(&a.texto), str::to_owned);
+            .map(limpar_titulo)
+            .filter(|t| !t.is_empty())
+            .unwrap_or_else(|| titulo_da_regra(&a.texto));
         let mut evidencias: Vec<Evidencia> = Vec::new();
         for e in a.evidencias.iter().map(evidencia_da_regra) {
             if !evidencias.contains(&e) {
@@ -566,6 +691,7 @@ impl Gravacao<'_> {
                     status,
                     evidencias: p.evidencias,
                     origem: f.origem.clone().or_else(|| Some(origem.clone())),
+                    informada: f.informada.clone(),
                 };
                 let (id, area) = (f.id.clone(), f.area.clone());
                 let mut conteudo = Conteudo::da_regra(frontmatter, enunciado);
@@ -592,6 +718,7 @@ impl Gravacao<'_> {
                 status,
                 evidencias: p.evidencias.clone(),
                 origem: Some(origem.clone()),
+                informada: None,
             };
             // Monta antes com o próximo número livre, para recusar (sem gravar) um
             // template que não monta; a reserva sem colisão monta de novo.
@@ -738,9 +865,76 @@ mod tests {
         let longo = "Passada a carência, a fatura em atraso recebe multa única de \
                      PERC_MULTA_ATRASO por cento sobre o valor original";
         let t = titulo_da_regra(longo);
-        assert!(t.ends_with('…'), "{t}");
-        assert!(t.chars().count() <= LIMITE_DO_TITULO + 1, "{t}");
-        assert!(longo.starts_with(t.trim_end_matches('…')), "{t}");
+        assert!(!t.contains('…'), "{t}");
+        assert!(t.chars().count() <= LIMITE_DO_TITULO, "{t}");
+        assert!(longo.starts_with(&t), "{t}");
+        assert!(!t.ends_with(' '), "{t}");
+    }
+
+    #[test]
+    fn titulo_vem_do_negrito_inicial_sem_markdown() {
+        // O caso do teste de uso completo (#214): o título era o texto cru, cortado.
+        assert_eq!(
+            titulo_da_regra(
+                "**Origem dos parâmetros.** As multas são cadastradas no produto de \
+                 crédito e copiadas para o contrato na abertura[^3]."
+            ),
+            "Origem dos parâmetros"
+        );
+        assert_eq!(
+            titulo_da_regra("- __Carência:__ três dias corridos."),
+            "Carência"
+        );
+        // Negrito no meio da frase não vira título: vale a primeira frase, limpa.
+        assert_eq!(
+            titulo_da_regra("A multa é de **2%** sobre o `valor_original`[^1]. Depois, juros."),
+            "A multa é de 2% sobre o valor_original"
+        );
+        assert_eq!(
+            titulo_da_regra("Ver [o contrato](https://x/y.md) e a tabela[^nota]."),
+            "Ver o contrato e a tabela"
+        );
+        assert_eq!(titulo_da_regra("## Resposta: sim"), "Resposta: sim");
+        // Negrito vazio cai na primeira frase.
+        assert_eq!(titulo_da_regra("**** Texto simples."), "Texto simples");
+    }
+
+    #[test]
+    fn titulo_nunca_tem_markdown_nem_reticencias() {
+        let casos = [
+            "**Origem dos parâmetros.** As multas são cadastradas no produto de crédito",
+            "**Um negrito muito longo que passa do limite de oitenta caracteres do título da regra derivada.** Resto.",
+            "Texto longo com nota[^1] e **ênfase** que vai bem além dos oitenta caracteres permitidos no título",
+            "Palavraenormesemespacosnenhumquepassadolimitedeoitentacaracteresdotitulodaregraderivadaaqui",
+            "`codigo`",
+            "",
+        ];
+        for texto in casos {
+            let t = titulo_da_regra(texto);
+            assert!(
+                !t.contains("**") && !t.contains("[^") && !t.contains('`'),
+                "{t}"
+            );
+            assert!(!t.contains('…') && !t.ends_with("..."), "{t}");
+            assert!(t.chars().count() <= LIMITE_DO_TITULO, "{t}");
+        }
+    }
+
+    #[test]
+    fn titulo_do_analista_sai_sem_markdown() {
+        assert_eq!(
+            limpar_titulo("  **Multa** por atraso[^2] "),
+            "Multa por atraso"
+        );
+        assert_eq!(limpar_titulo("Multa de 2%"), "Multa de 2%");
+    }
+
+    #[test]
+    fn respostas_e_exemplos_nao_viram_regra_por_padrao() {
+        assert!(vira_regra_por_padrao("regras_encontradas"));
+        assert!(vira_regra_por_padrao("regras"));
+        assert!(!vira_regra_por_padrao("resposta"));
+        assert!(!vira_regra_por_padrao("exemplo"));
     }
 
     #[test]

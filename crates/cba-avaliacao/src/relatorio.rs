@@ -616,7 +616,12 @@ fn criterios_das_analises(s: &mut String) {
     );
     let _ = writeln!(
         s,
-        "- **Cenários de teste** (`cenarios`): limite esperado lido por um cenário da regra cujo limite tem o mesmo valor, não vem de configuração e cita evidência que toca a esperada (limite de outro valor é listado como divergente); cada valor testado esperado (o limite e o vizinho) presente num cenário da regra; tabela de decisão esperada atendida por uma tabela com as condições mínimas, ligada à regra e com as palavras-chave nas condições; cenário negativo esperado atendido por um cenário da regra com as palavras-chave; tema a confirmar marcado num cenário com pergunta. Falha grave: nenhum cenário, ou cenário sem origem."
+        "- **Ciclo de vida** (`ciclo-vida`, análise de explicar com diagrama de estados): estado esperado encontrado quando um nó tem o valor do código como chave; inicial e finais conferem pela marca de início e fim; transição esperada sustentada quando uma aresta liga os mesmos estados e cita evidência que toca a esperada; achado esperado (inalcançável, sem saída) apontado pelo app no diagrama. Falha grave: nenhum diagrama de estados.\n\
+- **Cenários de teste** (`cenarios`): limite esperado lido por um cenário da regra cujo limite tem o mesmo valor, não vem de configuração e cita evidência que toca a esperada (limite de outro valor é listado como divergente); cada valor testado esperado (o limite e o vizinho) presente num cenário da regra; tabela de decisão esperada atendida por uma tabela com as condições mínimas, ligada à regra e com as palavras-chave nas condições; cenário negativo esperado atendido por um cenário da regra com as palavras-chave; tema a confirmar marcado num cenário com pergunta. Falha grave: nenhum cenário, ou cenário sem origem."
+    );
+    let _ = writeln!(
+        s,
+        "- **Fluxo do processo e modelo de dados** (`explicar`): raia esperada atendida pela raia de algum passo com as palavras-chave; passo do fluxo principal atendido por um nó com as palavras-chave no rótulo ou na descrição, ou com evidência que toca a esperada; decisão esperada, do mesmo jeito, por um nó de decisão; fluxograma coerente com início, fim, decisões com dois caminhos e todos os passos alcançáveis. Entidade esperada achada pela tabela, com o nome de negócio e a ligação ao glossário; relação esperada achada pelas tabelas das pontas, com a origem (chave estrangeira ou join). Falha grave: relação registrada com a origem errada (o documento não distingue a relação inferida)."
     );
     let _ = writeln!(
         s,
@@ -753,7 +758,161 @@ fn analise_md(s: &mut String, e: &Execucao) {
     if let Some(c) = &a.cenarios {
         cenarios_md(s, c);
     }
+    if let Some(c) = &a.ciclo_vida {
+        ciclo_vida_md(s, c);
+    }
+    if let Some(m) = &a.modelagem {
+        modelagem_md(s, m);
+    }
     let _ = writeln!(s, "- Concluída: {}\n", sim_nao(a.concluida));
+}
+
+fn ciclo_vida_md(s: &mut String, c: &crate::ciclo_vida::CicloVidaAvaliado) {
+    let Some(d) = &c.diagrama else {
+        let _ = writeln!(s, "- Ciclo de vida: nenhum diagrama de estados registrado");
+        return;
+    };
+    let faltam = |l: &[crate::ciclo_vida::ElementoAvaliado]| {
+        l.iter()
+            .filter(|e| !e.encontrado)
+            .map(|e| e.esperado.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let _ = writeln!(
+        s,
+        "- Ciclo de vida ({d}): estados {:.0}%, transições sustentadas {:.0}%, achados {:.0}%",
+        c.cobertura_de_estados() * 100.0,
+        c.cobertura_de_transicoes() * 100.0,
+        c.cobertura_de_achados() * 100.0
+    );
+    let ausentes = faltam(&c.estados);
+    if !ausentes.is_empty() {
+        let _ = writeln!(s, "  - Estados ausentes: {ausentes}");
+    }
+    if !c.estados_extras.is_empty() {
+        let _ = writeln!(
+            s,
+            "  - Estados fora do gabarito: {}",
+            c.estados_extras.join(", ")
+        );
+    }
+    if !c.inicial_confere {
+        let _ = writeln!(s, "  - Estado inicial não marcado como início");
+    }
+    if !c.finais_sem_marca.is_empty() {
+        let _ = writeln!(
+            s,
+            "  - Finais sem a marca de fim: {}",
+            c.finais_sem_marca.join(", ")
+        );
+    }
+    for t in c
+        .transicoes
+        .iter()
+        .filter(|t| !(t.encontrada && t.sustentada))
+    {
+        let _ = writeln!(
+            s,
+            "  - {} ({}): {}",
+            t.id,
+            t.transicao,
+            if t.encontrada {
+                "sem evidência que toque a esperada"
+            } else {
+                "não registrada"
+            }
+        );
+    }
+    let achados = faltam(&c.achados);
+    if !achados.is_empty() {
+        let _ = writeln!(s, "  - Achados não apontados: {achados}");
+    }
+}
+
+fn modelagem_md(s: &mut String, m: &crate::modelagem::ModelagemAvaliada) {
+    let itens = |s: &mut String, nome: &str, lista: &[crate::modelagem::ItemAvaliado]| {
+        if lista.is_empty() {
+            return;
+        }
+        let feitos = lista.iter().filter(|i| i.atendido_por.is_some()).count();
+        let _ = writeln!(s, "  - {nome}: {feitos} de {}", lista.len());
+        for i in lista {
+            let _ = writeln!(
+                s,
+                "    - {}: {}",
+                i.id,
+                i.atendido_por.as_deref().unwrap_or("não encontrado")
+            );
+        }
+    };
+    if let Some(p) = &m.processo {
+        let _ = writeln!(
+            s,
+            "- Fluxo do processo: {} ({})",
+            p.diagrama.as_deref().unwrap_or("não registrado"),
+            if p.coerente() {
+                "coerente"
+            } else {
+                "incoerente"
+            }
+        );
+        itens(s, "Raias esperadas", &p.raias);
+        itens(s, "Passos do fluxo principal", &p.principal);
+        itens(s, "Decisões dos alternativos e exceções", &p.decisoes);
+        if !p.decisoes_sem_caminhos.is_empty() {
+            let _ = writeln!(
+                s,
+                "  - Decisões sem dois caminhos: {}",
+                p.decisoes_sem_caminhos.join(", ")
+            );
+        }
+        if !p.inalcancaveis.is_empty() {
+            let _ = writeln!(
+                s,
+                "  - Passos inalcançáveis: {}",
+                p.inalcancaveis.join(", ")
+            );
+        }
+    }
+    if let Some(d) = &m.dados {
+        let _ = writeln!(
+            s,
+            "- Modelo de dados: {}",
+            d.diagrama.as_deref().unwrap_or("não registrado")
+        );
+        for e in &d.entidades {
+            let _ = writeln!(
+                s,
+                "  - {} ({}): {}{}",
+                e.id,
+                e.tabela,
+                e.registrada.as_deref().unwrap_or("não registrada"),
+                match (&e.registrada, e.nome_confere, &e.termo) {
+                    (None, ..) => String::new(),
+                    (_, _, Some(t)) => format!(" (glossário: {t})"),
+                    (_, true, None) => " (nome confere, fora do glossário)".to_owned(),
+                    (_, false, None) => " (nome diverge, fora do glossário)".to_owned(),
+                }
+            );
+        }
+        for r in &d.relacoes {
+            let _ = writeln!(
+                s,
+                "  - {} ({} – {}, esperada {}{}): {}",
+                r.id,
+                r.de,
+                r.para,
+                r.origem_esperada,
+                if r.opcional { ", opcional" } else { "" },
+                match &r.origem_registrada {
+                    None => "não registrada".to_owned(),
+                    Some(o) if r.origem_diverge() => format!("registrada como {o} (diverge)"),
+                    Some(o) => format!("registrada como {o}"),
+                }
+            );
+        }
+    }
 }
 
 fn cenarios_md(s: &mut String, c: &crate::cenarios::CenariosAvaliados) {

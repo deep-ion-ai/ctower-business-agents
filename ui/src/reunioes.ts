@@ -9,12 +9,13 @@ import type { StatusAta, TranscriptGuardado } from "./demandas";
  * dos participantes (#141), a aprovação da ata com o descarte do transcript e os
  * próximos passos que abrem análises (#142).
  */
-export type FormatoTranscript = "vtt" | "docx" | "texto_teams" | "desconhecido";
+export type FormatoTranscript = "vtt" | "docx" | "texto_teams" | "nome_fala" | "desconhecido";
 
 export const ROTULO_FORMATO: Record<FormatoTranscript, string> = {
   vtt: "WebVTT do Teams (.vtt)",
   docx: "Word exportado do Teams (.docx)",
   texto_teams: "Texto copiado do Teams",
+  nome_fala: "Texto no formato \"Nome: fala\"",
   desconhecido: "Formato não reconhecido (texto corrido)",
 };
 

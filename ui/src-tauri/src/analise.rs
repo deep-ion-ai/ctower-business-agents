@@ -11,8 +11,9 @@
 //! preparo do ambiente com consentimento ficam aqui e servem também ao assistente do
 //! primeiro uso ([`crate::primeiro_uso`]), que cuida da base e do cadastro.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use cba_core::ambiente::Ambiente;
 use cba_core::analise::{Analise, Cliente, EstadoAnalise, EstadoSessao, Fluxo};
@@ -27,7 +28,9 @@ use cba_session::preparo::{Alvo, Preparador, Resultado, Verificacao};
 use cba_session::sessoes::Sessoes;
 use cba_session::terminal::pendencias;
 use cba_tools::evidencias::{ArquivoDoProjeto, intervalo};
+use cba_tools::revalidacao::{self, Vistos};
 use serde::Serialize;
+use tauri::State;
 
 /// Linhas mostradas antes e depois do intervalo de uma evidência.
 pub const CONTEXTO_DO_TRECHO: u32 = 8;
@@ -361,6 +364,60 @@ pub struct VistaAnalise {
     pub sessao: Option<SessaoVista>,
     /// Pedido para uma conversa nova continuar a análise.
     pub prompt_retomada: String,
+    /// Código Mermaid de cada diagrama registrado, gerado como na montagem do
+    /// documento, para a prévia desenhar a figura (#118).
+    pub diagramas: Vec<DiagramaVisto>,
+    /// Seções do documento do fluxo, na ordem do template, com o título do `.md`:
+    /// a tela mostra o título, nunca o marcador (#222).
+    pub secoes: Vec<SecaoVista>,
+}
+
+/// Seção do documento da análise: o marcador (`atores_e_telas`), que as
+/// afirmações citam, e o título do documento ("Atores e telas").
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SecaoVista {
+    pub marcador: String,
+    pub titulo: String,
+}
+
+/// Seções do documento do fluxo da análise, na ordem do template padrão.
+pub(crate) fn secoes_do_documento(fluxo: Fluxo) -> Vec<SecaoVista> {
+    cba_docs::modelo(fluxo.tipo_documento())
+        .map(|m| {
+            m.secoes
+                .iter()
+                .map(|s| SecaoVista {
+                    marcador: s.marcador.to_owned(),
+                    titulo: s.titulo.to_owned(),
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Código Mermaid de um diagrama da análise (`D-<numero>`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiagramaVisto {
+    pub numero: u32,
+    pub mermaid: String,
+    /// Achados do ciclo de vida calculados pelo app (#119); vazio fora do
+    /// diagrama de estados.
+    pub achados: Vec<cba_core::diagramas::AchadoDiagrama>,
+}
+
+/// Mermaid de cada diagrama da análise, na ordem de registro.
+pub(crate) fn diagramas_vistos(analise: &Analise) -> Vec<DiagramaVisto> {
+    analise
+        .diagramas
+        .iter()
+        .map(|d| DiagramaVisto {
+            numero: d.numero,
+            mermaid: cba_docs::mermaid(&cba_tools::documento::diagrama(d)),
+            achados: d.achados(),
+        })
+        .collect()
 }
 
 /// Sessão mais recente: o registro dos hooks (#25), que guarda o instante da última
@@ -402,6 +459,8 @@ pub fn carregar_analise(
         documento: ambiente.kb.caminho(&analise.documento),
         sessao: sessao_recente(dados, &analise),
         prompt_retomada: prompt_de_retomada(&id),
+        diagramas: diagramas_vistos(&analise),
+        secoes: secoes_do_documento(analise.fluxo),
         analise,
     })
 }
@@ -466,6 +525,106 @@ pub fn trecho_evidencia(
     })
 }
 
+/// Link de uma evidência na forja do repositório que contém o arquivo (#185).
+#[derive(Debug, Serialize, PartialEq, Eq)]
+pub struct LinkForja {
+    pub url: String,
+    pub forja: cba_repos::ForgeKind,
+}
+
+/// Link do arquivo e das linhas citadas no GitHub ou no GitLab. Vale o `commit` da
+/// evidência; sem ele, a branch cadastrada do repositório. `None` sem repositório de
+/// código cadastrado que contenha o arquivo, ou sem commit nem branch.
+pub fn link_forja_evidencia(
+    dados: &DiretorioDados,
+    projeto: &str,
+    arquivo: &str,
+    inicio: u32,
+    fim: u32,
+    commit: Option<&str>,
+) -> Result<Option<LinkForja>, String> {
+    let cadastrado = Cadastro::em(dados.projetos())
+        .obter(projeto)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("o projeto \"{projeto}\" não está cadastrado"))?;
+    let escopo = cadastrado.escopo().map_err(|e| e.to_string())?;
+    // Pastas canônicas, para comparar com o caminho resolvido pelo escopo.
+    let repos: Vec<cba_repos::RepositorioCodigo> = cadastrado
+        .repositorios
+        .codigo
+        .iter()
+        .cloned()
+        .map(|mut r| {
+            r.pasta = r.pasta.map(|p| dunce::canonicalize(&p).unwrap_or(p));
+            r
+        })
+        .collect();
+    let absoluto = escopo.resolver(arquivo).ok();
+    let Some((repo, _)) =
+        cba_repos::codigo::repositorio_do_arquivo(&repos, absoluto.as_deref(), arquivo)
+    else {
+        return Ok(None);
+    };
+    let referencia = commit
+        .map(str::trim)
+        .filter(|c| !c.is_empty())
+        .unwrap_or_else(|| repo.branch.trim());
+    let url = cba_repos::link::link_evidencia(
+        &repos,
+        absoluto.as_deref(),
+        referencia,
+        arquivo,
+        Some((inicio, fim.max(inicio))),
+    );
+    Ok(url.map(|url| LinkForja {
+        url,
+        forja: repo.forja,
+    }))
+}
+
+// ---------------------------------------------------------------------------
+// Código citado que mudou (#216)
+
+/// O que a última conferência das evidências viu, por análise aberta. A tela da
+/// análise chama [`conferir_evidencias`] a cada poucos segundos; com isto, a
+/// conferência só lê os arquivos citados quando algum deles mudou.
+#[derive(Default)]
+pub struct EvidenciasVistas(Mutex<HashMap<(String, String), Vistos>>);
+
+/// Confere as evidências da análise contra o código atual e marca (ou desmarca) o
+/// que está a revalidar. Pega a edição feita na pasta por qualquer caminho (editor,
+/// `git pull`, agente), que o aviso de alteração da sessão não vê: ele não cobre as
+/// pastas de código-fonte (#130). Quando algo muda, a análise é gravada e a tela
+/// recebe o aviso pelo diário de eventos ([`crate::vigia`]), que relê a análise e
+/// mostra (ou tira) a faixa do código alterado. Devolve se a análise mudou.
+pub fn conferir_evidencias(
+    dados: &DiretorioDados,
+    vistas: &EvidenciasVistas,
+    projeto: &str,
+    analise: &str,
+) -> Result<bool, String> {
+    let ambiente = ambiente(dados, projeto)?;
+    let id = id_da_analise(analise)?;
+    let chave = (projeto.to_owned(), id.to_string());
+    // Fora da trava: uma conferência lenta não segura a de outra análise. Duas da
+    // mesma análise ao mesmo tempo só leem os arquivos uma vez a mais.
+    let mut vistos = vistas
+        .0
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(&chave)
+        .cloned()
+        .unwrap_or_default();
+    let mudanca =
+        revalidacao::revalidar_analise(&ambiente, &id, &mut vistos).map_err(|e| e.to_string())?;
+    vistas
+        .0
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .insert(chave, vistos);
+    Ok(mudanca.is_some())
+}
+
 // ---------------------------------------------------------------------------
 // Comandos
 
@@ -521,6 +680,17 @@ pub async fn carregar_analise_projeto(
 }
 
 #[tauri::command]
+pub async fn conferir_evidencias_analise(
+    vistas: State<'_, Arc<EvidenciasVistas>>,
+    projeto: String,
+    analise: String,
+) -> Result<bool, String> {
+    let dados = dados()?;
+    let vistas = Arc::clone(&vistas);
+    bloqueante(move || conferir_evidencias(&dados, &vistas, &projeto, &analise)).await
+}
+
+#[tauri::command]
 pub async fn trecho_evidencia_projeto(
     projeto: String,
     arquivo: String,
@@ -529,6 +699,21 @@ pub async fn trecho_evidencia_projeto(
 ) -> Result<Trecho, String> {
     let dados = dados()?;
     bloqueante(move || trecho_evidencia(&dados, &projeto, &arquivo, inicio, fim)).await
+}
+
+#[tauri::command]
+pub async fn link_forja_evidencia_projeto(
+    projeto: String,
+    arquivo: String,
+    inicio: u32,
+    fim: u32,
+    commit: Option<String>,
+) -> Result<Option<LinkForja>, String> {
+    let dados = dados()?;
+    bloqueante(move || {
+        link_forja_evidencia(&dados, &projeto, &arquivo, inicio, fim, commit.as_deref())
+    })
+    .await
 }
 
 #[cfg(test)]
@@ -709,6 +894,11 @@ mod tests {
             })
         );
         assert!(vista.prompt_retomada.contains("retomar_analise"));
+        // A tela mostra o título da seção, o mesmo do `.md` (#222).
+        assert!(vista.secoes.contains(&SecaoVista {
+            marcador: "regras_encontradas".into(),
+            titulo: "Regras encontradas".into(),
+        }));
         let documento = std::fs::read_to_string(&vista.documento).unwrap();
         assert!(
             documento.contains("2% sobre o valor original"),
@@ -726,6 +916,58 @@ mod tests {
 
         assert!(carregar_analise(&c.dados, PROJETO, "A-0009").is_err());
         assert!(carregar_analise(&c.dados, PROJETO, "S-0001").is_err());
+    }
+
+    #[test]
+    fn link_da_evidencia_na_forja_do_repositorio() {
+        let c = cenario();
+        // Sem repositório de código cadastrado, não há link.
+        assert!(
+            link_forja_evidencia(
+                &c.dados,
+                PROJETO,
+                "db/03_pkg_cobranca.sql",
+                71,
+                72,
+                Some("abc")
+            )
+            .unwrap()
+            .is_none()
+        );
+
+        let cadastro = Cadastro::em(c.dados.projetos());
+        let mut projeto = cadastro.obter(PROJETO).unwrap().unwrap();
+        projeto.repositorios.codigo = vec![cba_repos::RepositorioCodigo {
+            caminho: "acme/faturamento".into(),
+            branch: "main".into(),
+            ..Default::default()
+        }];
+        cadastro.salvar(&projeto).unwrap();
+
+        let l = link_forja_evidencia(
+            &c.dados,
+            PROJETO,
+            "db/03_pkg_cobranca.sql",
+            71,
+            72,
+            Some("abc"),
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(
+            l.url,
+            "https://github.com/acme/faturamento/blob/abc/db/03_pkg_cobranca.sql#L71-L72"
+        );
+        assert_eq!(serde_json::to_value(&l).unwrap()["forja"], "github");
+        // Sem o commit da evidência, vale a branch cadastrada.
+        let l = link_forja_evidencia(&c.dados, PROJETO, "db/03_pkg_cobranca.sql", 5, 5, None)
+            .unwrap()
+            .unwrap();
+        assert!(
+            l.url.contains("/blob/main/") && l.url.ends_with("#L5"),
+            "{}",
+            l.url
+        );
     }
 
     #[test]
@@ -827,5 +1069,82 @@ mod tests {
         vigias.cancelar(assinatura);
         eprintln!("registro até o estado relido pela tela: pior caso {pior:?}");
         assert!(pior < Duration::from_secs(1), "{pior:?}");
+    }
+
+    /// #216 (T-13 do teste de uso): o analista edita no editor a linha citada por
+    /// uma afirmação, sem sessão nenhuma. A conferência da tela aberta marca a
+    /// afirmação, a tela recebe o aviso pelo diário e relê a análise com a evidência
+    /// a revalidar (a faixa do código alterado); desfazer a edição tira a marca.
+    #[test]
+    fn edicao_na_pasta_fora_da_sessao_chega_a_tela_e_desfazer_tira_a_marca() {
+        let c = crate::teste_base::cenario();
+        let pkg = c.codigo.join(crate::teste_base::PKG);
+        criar_analise(&c.dados, PROJETO, "Como é calculada a multa?", None).unwrap();
+        c.chamar("iniciar_analise", json!({"analise": "A-0001"}));
+        c.chamar(
+            "afirmar",
+            json!({
+                "analise": "A-0001",
+                "secao": "resposta",
+                "texto": "Passada a carência, a multa é de 2% sobre o valor original.",
+                "confianca": "confirmado",
+                "evidencias": [{
+                    "arquivo": crate::teste_base::PKG,
+                    "linha_inicial": 71,
+                    "linha_final": 72,
+                    "trecho": "FN_PARAMETRO('PERC_MULTA_ATRASO') / 100, 2)"
+                }]
+            }),
+        );
+        let vistas = EvidenciasVistas::default();
+        let conferir = || conferir_evidencias(&c.dados, &vistas, PROJETO, "A-0001").unwrap();
+        let estado_da_evidencia = || {
+            let vista = carregar_analise(&c.dados, PROJETO, "A-0001").unwrap();
+            serde_json::to_value(&vista.analise).unwrap()["afirmacoes"][0]["evidencias"][0]
+                ["estado"]
+                .clone()
+        };
+        assert!(!conferir());
+        assert!(!conferir());
+        assert_eq!(estado_da_evidencia(), "valida");
+
+        let vigias = Vigias::em(c.dados.eventos(), INTERVALO);
+        let (tx, rx) = mpsc::channel();
+        let tx = Mutex::new(tx);
+        let assinatura = vigias.assinar(PROJETO, move |aviso| {
+            let _ = tx.lock().unwrap().send(aviso.clone());
+        });
+        let aviso_da_analise = || {
+            let limite = Instant::now() + Duration::from_secs(2);
+            while let Ok(aviso) = rx.recv_timeout(limite.saturating_duration_since(Instant::now()))
+            {
+                if matches!(
+                    &aviso,
+                    Aviso::Mudanca { analise, mudanca: Mudanca::Afirmacao, .. } if analise == "A-0001"
+                ) {
+                    return true;
+                }
+            }
+            false
+        };
+
+        let original = std::fs::read(&pkg).unwrap();
+        c.mudar_o_codigo_da_multa();
+        assert!(conferir());
+        assert!(aviso_da_analise(), "a tela não recebeu o aviso");
+        assert_eq!(estado_da_evidencia(), "a-revalidar");
+        let vista = carregar_analise(&c.dados, PROJETO, "A-0001").unwrap();
+        assert_eq!(
+            vista.analise.afirmacoes[0].estado,
+            EstadoAfirmacao::ARevalidar
+        );
+        // Sem nova edição, nada é gravado de novo.
+        assert!(!conferir());
+
+        std::fs::write(&pkg, original).unwrap();
+        assert!(conferir());
+        assert!(aviso_da_analise(), "a tela não recebeu o aviso da volta");
+        assert_eq!(estado_da_evidencia(), "valida");
+        vigias.cancelar(assinatura);
     }
 }

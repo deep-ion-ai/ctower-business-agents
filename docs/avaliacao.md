@@ -1,6 +1,6 @@
 # Avaliação dos fluxos contra o gabarito
 
-Roteiros, limites e modelos mudam com o tempo. A avaliação mostra se um ajuste piorou a análise (spec, critério de aceite 2): roda os fluxos com o Claude Code real no sistema fictício **Faturamento Exemplo** e compara o que o agente registrou com o gabarito `fixtures/gabaritos/faturamento-exemplo.yaml`. Além dos três fluxos de análise (perguntar, explicar, impacto), avalia o fluxo **Analisar reunião** (`reuniao`) com os transcripts fictícios de `fixtures/reunioes/` e mede o custo de uma reunião longa, de cerca de 2 h ([seção própria](#fluxo-reuniao)), o fluxo **Revisar requisito** (`revisar`) com uma história fictícia com problemas plantados ([seção própria](#fluxo-revisar)) o fluxo **Histórias e critérios** (`historias`) a partir da análise de impacto de uma demanda ([seção própria](#fluxo-historias)) e o fluxo **Cenários de teste** (`cenarios`) a partir das regras ([seção própria](#fluxo-cenarios)).
+Roteiros, limites e modelos mudam com o tempo. A avaliação mostra se um ajuste piorou a análise (spec, critério de aceite 2): roda os fluxos com o Claude Code real no sistema fictício **Faturamento Exemplo** e compara o que o agente registrou com o gabarito `fixtures/gabaritos/faturamento-exemplo.yaml`. Além dos três fluxos de análise (perguntar, explicar, impacto), avalia o fluxo **Analisar reunião** (`reuniao`) com os transcripts fictícios de `fixtures/reunioes/` e mede o custo de uma reunião longa, de cerca de 2 h ([seção própria](#fluxo-reuniao)), o fluxo **Revisar requisito** (`revisar`) com uma história fictícia com problemas plantados ([seção própria](#fluxo-revisar)) o fluxo **Histórias e critérios** (`historias`) a partir da análise de impacto de uma demanda ([seção própria](#fluxo-historias)) o fluxo **Cenários de teste** (`cenarios`) a partir das regras ([seção própria](#fluxo-cenarios)) e o **ciclo de vida** de uma entidade, o diagrama de estados numa análise de explicar ([seção própria](#ciclo-de-vida)).
 
 Ela fica na crate `crates/cba-avaliacao` e tem duas partes:
 
@@ -40,9 +40,9 @@ Opções principais:
 |---|---|---|
 | `--modelo` | `sonnet` | modelo do `claude` |
 | `--orcamento` | `1.5` | `--max-budget-usd` de **cada** execução, em US$ |
-| `--fluxos` | `perguntar,explicar,impacto` | fluxos a rodar; também `revisar`, `historias`, `cenarios`, `reuniao` e `reuniao-longa` |
+| `--fluxos` | `perguntar,explicar,impacto` | fluxos a rodar; também `revisar`, `historias`, `cenarios`, `ciclo-vida`, `reuniao` e `reuniao-longa` |
 | `--repeticoes` | `1` | execuções de cada fluxo (o modelo varia de uma para outra; use 3 ou mais para comparar versões) |
-| `--pergunta`, `--funcionalidade`, `--demanda`, `--revisao`, `--historias`, `--cenarios` | `P-FAT-001`, `F-FAT-002`, `D-FAT-001`, `REV-FAT-001`, `HIS-FAT-001`, `CEN-FAT-001` | item do gabarito de cada fluxo |
+| `--pergunta`, `--funcionalidade`, `--demanda`, `--revisao`, `--historias`, `--cenarios`, `--ciclo-vida` | `P-FAT-001`, `F-FAT-002`, `D-FAT-001`, `REV-FAT-001`, `HIS-FAT-001`, `CEN-FAT-001`, `CV-FAT-001` | item do gabarito de cada fluxo |
 | `--reuniao` | `REU-FAT-001` | reunião do gabarito dos fluxos `reuniao` e `reuniao-longa` |
 | `--orcamento-longa` | `3` | `--max-budget-usd` da reunião longa, em US$ |
 | `--longa-minutos`, `--longa-palavras` | `120`, `25000` | tamanho da reunião longa sintética |
@@ -83,6 +83,7 @@ Para cada execução, o estado da análise é comparado com o item do gabarito:
 - **Abrangência** (impacto). A afirmação mais recente da seção `abrangencia` começa pela estimativa esperada.
 - **Arquivos esperados citados.** Arquivos da funcionalidade ou da demanda que aparecem em evidências válidas.
 - **Nenhum arquivo do projeto alterado.** A cópia é comparada byte a byte com a fixture (menos `.git`).
+- **Fluxo do processo e modelo de dados** (explicar, #120). Quando a funcionalidade do gabarito tem `processo` ou `modelo_dados` (hoje a `F-FAT-003`, cancelamento de fatura; rode com `--funcionalidade F-FAT-003`), o primeiro diagrama `fluxo` da análise é comparado com as raias (atores), os passos do fluxo principal e as decisões dos alternativos e das exceções: o passo atende com as palavras-chave no rótulo ou na descrição de um nó, ou com uma evidência que toca a esperada; a decisão, do mesmo jeito, só por nó de decisão. O fluxograma é coerente com um início, um fim, toda decisão com dois caminhos e todo passo alcançável. O primeiro diagrama `dados` é comparado com as entidades esperadas (pela tabela, com o nome de negócio e a ligação ao glossário) e as relações (pelas tabelas das pontas, com a origem esperada: chave estrangeira ou join). Relação registrada com a origem errada é falha grave: o documento não distingue a relação inferida.
 
 Falha grave: afirmação `confirmado` sem evidência válida, nenhuma afirmação, estado ausente, erro da execução ou arquivo do projeto alterado. As demais medidas são cobertura: não reprovam a execução, mas uma queda entre dois relatórios indica que a mudança piorou a análise.
 
@@ -137,7 +138,7 @@ A execução é a mesma dos três primeiros fluxos: a análise é criada com o t
 
 Falha grave (revisão): achado de correção sem evidência válida, nenhum achado quando o veredito esperado não é `pronta`, estado ausente, erro da execução ou arquivo do projeto alterado. Achados, termos e veredito são cobertura. Para comparar um estado gravado: `cargo run -p cba-avaliacao -- comparar --estado <pasta>/estado.json --item REV-FAT-001`.
 
-O roteiro de revisão é provisório até a primeira execução com o modelo real: por isso ainda não é copiado para a base nem aparece no editor de textos (veja `roteiro::revisado`).
+O roteiro de revisão foi avaliado com o modelo real na #168 ([relatório](avaliacao/2026-11-16-revisar-historias-cenarios-sonnet.md)): nas três repetições, o achado de correção com evidência para a contradição com a RN-FAT-012, os quatro termos vagos e o veredito esperado. A primeira rodada registrou uma vez a omissão do mínimo de 10 caracteres do motivo como `correcao`; o roteiro passou a dizer que o texto que omite uma condição não a contradiz (é `completude`). Por isso entrou em `roteiro::revisado`: é copiado para a base e aparece no editor de textos.
 
 ## Fluxo historias
 
@@ -161,7 +162,7 @@ Antes do `claude`, o preparo cria a análise de origem como o analista a teria d
 
 Falha grave (histórias): nenhuma história, critério sem origem (a ferramenta já recusa; pegaria uma regressão), estado ausente, erro da execução ou arquivo do projeto alterado. Os demais são cobertura. Para comparar um estado gravado: `cargo run -p cba-avaliacao -- comparar --estado <pasta>/estado.json --item HIS-FAT-001`.
 
-O roteiro de histórias também é provisório até a primeira execução com o modelo real.
+O roteiro de histórias foi avaliado com o modelo real na #168 ([relatório](avaliacao/2026-11-16-revisar-historias-cenarios-sonnet.md)), sem ajuste: nas três repetições, as duas histórias esperadas, as três regras citadas pelos critérios, todo critério com valor concreto e com afirmação ou regra de origem, o tema a confirmar e a verificação INVEST de cada história. Está em `roteiro::revisado`. As colunas "Regras" e "Abrangência" do resumo do relatório medem as afirmações da própria análise, e o fluxo de histórias não registra afirmações (cita as da análise de origem): ali o 0% não é falha; a cobertura do fluxo está nas linhas "Regras citadas pelos critérios" de cada execução.
 
 ## Fluxo cenarios
 
@@ -186,7 +187,23 @@ Antes do `claude`, o preparo grava na base as regras do item (`regras/RN-FAT-012
 
 Falha grave (cenários): nenhum cenário, cenário sem origem (a ferramenta já recusa; pegaria uma regressão), estado ausente, erro da execução ou arquivo do projeto alterado. Os demais são cobertura. Para comparar um estado gravado: `cargo run -p cba-avaliacao -- comparar --estado <pasta>/estado.json --item CEN-FAT-001`.
 
-O roteiro de cenários também é provisório até a primeira execução com o modelo real. O teste da crate `cba-fixtures` confere que o valor de cada limite esperado aparece no trecho citado da fixture e que a evidência toca a da regra.
+O roteiro de cenários foi avaliado com o modelo real na #168, com `CEN-FAT-001` ([relatório](avaliacao/2026-11-16-revisar-historias-cenarios-sonnet.md)) e `CEN-FAT-002` ([relatório](avaliacao/2026-11-16-cenarios-fat-002-sonnet.md)). Na primeira rodada, duas de três execuções leram o limite de 10 caracteres da RN-FAT-013 só da tela Delphi (`TAM_MINIMO_MOTIVO = 10`), e não do PL/SQL, que protege o dado em qualquer caminho de entrada; o roteiro passou a pedir o trecho de cada camada que decide a regra, começando pelo banco ou serviço. Depois do ajuste, nas três repetições de cada item: os limites batem com o código da fixture (10 no PL/SQL, 30 no Delphi, 2 no backend), com os valores vizinhos testados; a tabela de decisão da RN-FAT-014; os negativos da RN-FAT-012; e `MAX_PARCELAS` a confirmar, com pergunta. Está em `roteiro::revisado`. Como no fluxo de histórias, as colunas "Regras" do resumo não se aplicam: os cenários citam as regras sem registrar afirmações. O teste da crate `cba-fixtures` confere que o valor de cada limite esperado aparece no trecho citado da fixture e que a evidência toca a da regra.
+
+## Ciclo de vida
+
+O **ciclo de vida** de uma entidade (#119) é o diagrama de estados que o agente registra com `registrar_diagrama` (tipo `estados`) numa análise de explicar, pelo passo "Ciclo de vida" do roteiro `crates/cba-tools/textos/roteiros/explicar.md` ou pelo prompt pronto "Montar o ciclo de vida": um estado por valor do campo de status (a chave é o valor como o código grava), uma transição por rotina que grava o campo, com evento, condição, efeitos e evidência. O app calcula os achados: estado inalcançável, estado sem saída e transição sem condição. O gabarito tem, em `ciclos_vida`, `CV-FAT-001`: a fatura, com os seis valores de `FATURA.STATUS` (o `CHECK` ampliado em `db/04_pkg_situacao.sql`), as cinco transições gravadas pelo PL/SQL e os achados `PROTESTADA` inalcançável e `SUSPENSA` sem saída.
+
+```sh
+cargo run -p cba-avaliacao -- rodar --fluxos ciclo-vida --orcamento 1.5
+```
+
+O preparo cria a análise de explicar com o pedido do gabarito. A comparação usa o diagrama de estados da análise com mais estados do gabarito:
+
+- **Estados.** Cada estado esperado é um nó cuja chave é o valor do código (sem diferença de maiúsculas); o inicial e os finais conferem pela marca de início e fim. Estados a mais são listados.
+- **Transições.** Cada transição esperada é sustentada por uma aresta entre os mesmos estados com evidência que toca a esperada.
+- **Achados.** Cada achado esperado é apontado pelo app no diagrama registrado.
+
+Falha grave (ciclo de vida): nenhum diagrama de estados, estado ausente, erro da execução ou arquivo do projeto alterado. Os demais são cobertura. Para comparar um estado gravado: `cargo run -p cba-avaliacao -- comparar --estado <pasta>/estado.json --item CV-FAT-001`. O roteiro é provisório até a primeira execução com o modelo real; o teste da crate `cba-fixtures` confere que os achados esperados são exatamente os que as transições do gabarito implicam.
 
 ## Ao mudar o gabarito ou a fixture
 
@@ -199,3 +216,5 @@ O roteiro de cenários também é provisório até a primeira execução com o m
 O relatório da primeira execução, com os três fluxos, está em [`docs/avaliacao/2026-11-12-sonnet.md`](avaliacao/2026-11-12-sonnet.md) (e o JSON ao lado).
 
 O da primeira execução do fluxo `reuniao`, com a reunião 1 e a reunião longa (custo de uma reunião de 2 h), está em [`docs/avaliacao/2026-11-14-reuniao-sonnet.md`](avaliacao/2026-11-14-reuniao-sonnet.md).
+
+Os da avaliação dos fluxos `revisar`, `historias` e `cenarios` (#168), com três repetições de cada item e os roteiros já ajustados, estão em [`docs/avaliacao/2026-11-16-revisar-historias-cenarios-sonnet.md`](avaliacao/2026-11-16-revisar-historias-cenarios-sonnet.md) (US$ 2,16) e [`docs/avaliacao/2026-11-16-cenarios-fat-002-sonnet.md`](avaliacao/2026-11-16-cenarios-fat-002-sonnet.md) (US$ 0,90). O commit que aparece neles é o de partida: os roteiros avaliados são os do commit da #168, compilados antes do commit.
