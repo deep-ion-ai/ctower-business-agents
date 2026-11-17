@@ -329,6 +329,10 @@ const ROTULO_TIPO: Record<string, string> = {
   "parecer-revisao": "Parecer de revisão",
   historias: "Histórias e critérios de aceite",
   "cenarios-teste": "Cenários de teste",
+  premissa: "Premissa",
+  decisao: "Decisão",
+  risco: "Risco",
+  restricao: "Restrição",
   projeto: "Projeto",
   "regras-do-projeto": "Regras do projeto",
 };

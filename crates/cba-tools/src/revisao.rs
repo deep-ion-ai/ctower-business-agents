@@ -796,6 +796,8 @@ fn texto_para_exportar(
         Some(a) => ler(a)?,
         None => texto_analise,
     };
+    // Premissas, decisões, riscos e restrições da demanda (#122).
+    let texto = crate::registros::com_registros(amb, analise, texto);
     Ok((texto, commit))
 }
 
