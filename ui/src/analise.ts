@@ -385,6 +385,17 @@ export interface VistaAnalise {
   promptRetomada: string;
   /** Mermaid de cada diagrama (#118); ausente em respostas antigas. */
   diagramas?: DiagramaVisto[];
+  /**
+   * Seções do documento do fluxo, na ordem do template, com o título do `.md` (#222);
+   * ausente em respostas antigas.
+   */
+  secoes?: SecaoDocumento[];
+}
+
+/** Seção do documento: o marcador que as afirmações citam e o título do `.md`. */
+export interface SecaoDocumento {
+  marcador: string;
+  titulo: string;
 }
 
 export interface AnaliseResumo {
@@ -429,8 +440,16 @@ export interface AmbienteClaude {
 
 export interface AlteracaoPreparo {
   arquivo: string;
-  item: { tipo: "servidorMcp"; chave: string } | { tipo: "hook"; evento: string };
-  acao: "adicionado" | "atualizado" | "removido" | "semMudanca";
+  item:
+    | { tipo: "servidorMcp"; chave: string }
+    | { tipo: "confianca"; chave: string }
+    | { tipo: "hook"; evento: string };
+  acao: "adicionado" | "atualizado" | "removido" | "restaurado" | "semMudanca";
+  /**
+   * Executável de outra instalação do app: em "atualizado", para onde a entrada apontava
+   * antes (o plano avisa da troca); em "restaurado", para onde voltou a apontar.
+   */
+  outraInstalacao?: string;
 }
 
 export interface PlanoPreparo {
@@ -510,6 +529,12 @@ export function intervaloDe(linhas: string): { inicio: number; fim: number } {
 }
 
 /** Mensagem de um erro vindo do Rust (texto) ou do JavaScript. */
+/** Rótulo curto do chip de evidência: `Arquivo.java:94-98` (o caminho completo vai no title). */
+export function rotuloDaEvidencia(e: { arquivo: string; linhas: string }): string {
+  const nome = e.arquivo.split(/[\\/]/).pop() || e.arquivo;
+  return `${nome}:${e.linhas}`;
+}
+
 export function mensagemDe(e: unknown): string {
   if (typeof e === "string") return e;
   if (e instanceof Error) return e.message;
@@ -556,6 +581,12 @@ export interface ApiAnalise extends ApiAmbiente {
   trechoEvidencia(projeto: string, arquivo: string, inicio: number, fim: number): Promise<Trecho>;
   /** Passa a receber os avisos do projeto; devolve a função que para. */
   vigiar(projeto: string, aoAviso: (a: AvisoAnalise) => void): Promise<() => void>;
+  /**
+   * Confere as evidências da análise contra o código atual (#216): marca o que
+   * mudou na pasta (editor, `git pull`, agente) e desmarca o que voltou. Quando muda,
+   * o aviso chega pela vigia. Devolve se a análise mudou.
+   */
+  conferirEvidencias(projeto: string, analise: string): Promise<boolean>;
   /** Prompts prontos da análise; lista vazia se o comando não existir (antes da #32). */
   promptsProntos(projeto: string, analise: string): Promise<PromptPronto[]>;
   /**
@@ -584,6 +615,8 @@ export const apiAnaliseTauri: ApiAnalise = {
   carregarAnalise: (projeto, analise) => invoke("carregar_analise_projeto", { projeto, analise }),
   trechoEvidencia: (projeto, arquivo, inicio, fim) =>
     invoke("trecho_evidencia_projeto", { projeto, arquivo, inicio, fim }),
+  conferirEvidencias: (projeto, analise) =>
+    invoke("conferir_evidencias_analise", { projeto, analise }),
   async vigiar(projeto, aoAviso) {
     const canal = new Channel<AvisoAnalise>();
     canal.onmessage = aoAviso;

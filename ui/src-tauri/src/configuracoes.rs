@@ -630,6 +630,7 @@ pub fn previa_leitura(
     let inventario = cba_index::inventariar(&projeto, None).map_err(|e| e.to_string())?;
     Ok(PreviaProjeto {
         pastas: pastas_vista(&inventario),
+        inclusoes_vistas: primeiro_uso::inclusoes_vistas(&inventario, &projeto.inclusoes),
         inventario: resumo_inventario(&inventario),
         id: projeto.id,
         nome: projeto.nome,
@@ -669,8 +670,11 @@ pub struct AmbienteDesfeito {
     pub protecao_tirada: Vec<String>,
     /// Servidor MCP e hooks tirados.
     pub preparo: Resultado,
-    /// Limitações (pasta do projeto que não existe mais).
+    /// O que ficou e por quê, em linguagem simples (o que o desfazer não devolveu ao
+    /// que era, e a pasta do projeto que não existe mais).
     pub avisos: Vec<String>,
+    /// A configuração do Claude voltou a ser a de antes do preparo (sem avisos).
+    pub igual_ao_antes: bool,
 }
 
 /// Alvo do preparo de um projeto. Se a pasta não existe mais, usa o caminho gravado
@@ -715,11 +719,61 @@ fn desfazer_do_cadastrado(
         protecao::desligar(dados, preparador, &projeto.id).map_err(|e| e.to_string())?;
     let (alvo, aviso) = alvo_do_cadastrado(projeto)?;
     let preparo = preparador.desfazer(&alvo).map_err(|e| e.to_string())?;
+    let mut avisos: Vec<String> = preparo.mantidos.iter().map(explicar_mantido).collect();
+    avisos.extend(aviso);
     Ok(AmbienteDesfeito {
         protecao_tirada,
+        igual_ao_antes: avisos.is_empty(),
         preparo,
-        avisos: aviso.into_iter().collect(),
+        avisos,
     })
+}
+
+/// Lista em português: "a", "a e b", "a, b e c".
+fn em_lista(itens: &[String]) -> String {
+    match itens {
+        [] => String::new(),
+        [um] => um.clone(),
+        [inicio @ .., ultimo] => format!("{} e {ultimo}", inicio.join(", ")),
+    }
+}
+
+/// O que o desfazer deixou como estava, e por quê, para a tela.
+fn explicar_mantido(m: &preparo::Mantido) -> String {
+    use preparo::Mantido;
+    match m {
+        Mantido::HooksEmUso { arquivo, pastas } => format!(
+            "Os avisos automáticos do app (hooks) continuam em {}, porque {} ainda {}.",
+            arquivo.display(),
+            if pastas.len() == 1 {
+                format!("a pasta {}", pastas[0])
+            } else {
+                format!("as pastas {}", em_lista(pastas))
+            },
+            if pastas.len() == 1 { "usa" } else { "usam" },
+        ),
+        Mantido::HooksMudaramDepois { arquivo, eventos } => format!(
+            "{} em {} depois do preparo (por outra instalação do app ou à mão). O app \
+             tirou só o que era dele e deixou o resto como está.",
+            if eventos.len() == 1 {
+                format!("O aviso automático {} foi mudado", eventos[0])
+            } else {
+                format!("Os avisos automáticos {} foram mudados", em_lista(eventos))
+            },
+            arquivo.display(),
+        ),
+        Mantido::ServidorMudouDepois { arquivo, chave } => format!(
+            "O servidor MCP \"cba\" da pasta {chave} foi trocado depois do preparo e ficou \
+             como está em {}.",
+            arquivo.display()
+        ),
+        Mantido::EntradaDoClaude { arquivo, chave } => format!(
+            "A pasta {chave} continua registrada em {} com dados que o próprio Claude Code \
+             gravou ao abrir conversas nela (como o histórico de uso). O app não mexe \
+             nesses dados.",
+            arquivo.display()
+        ),
+    }
 }
 
 /// Desfaz o ambiente do Claude de um projeto: proteção, servidor MCP e (se for o

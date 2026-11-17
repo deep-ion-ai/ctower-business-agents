@@ -46,8 +46,8 @@ describe("NovaReuniao", () => {
       expect(reuniao.previaTranscript).toHaveBeenCalledWith({ tipo: "texto", texto: TRANSCRIPT }),
     );
     const previa = await screen.findByRole("region", { name: "Prévia do transcript" });
-    expect(previa).toHaveTextContent("Texto copiado do Teams · 12 fala(s) · 3 falante(s)");
-    expect(previa).toHaveTextContent("Silva, Maria · 5 fala(s)");
+    expect(previa).toHaveTextContent("Texto copiado do Teams · 12 falas · 3 falantes");
+    expect(previa).toHaveTextContent("Silva, Maria · 5 falas");
     expect(within(previa).getByRole("list", { name: "Avisos da leitura" })).toHaveTextContent(
       "2 linha(s) antes da primeira fala foram descartadas.",
     );
@@ -141,7 +141,7 @@ describe("NovaReuniao", () => {
     reuniao.criarReuniao.mockRejectedValueOnce("a demanda D-0001 está encerrada");
     fireEvent.change(within(form).getByLabelText("Transcript"), { target: { value: TRANSCRIPT } });
     fireEvent.click(within(form).getByRole("button", { name: "Ver a prévia" }));
-    await screen.findByText(/12 fala\(s\)/);
+    await screen.findByText(/12 falas/);
     fireEvent.click(within(form).getByRole("button", { name: "Criar a reunião e iniciar a análise" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("a demanda D-0001 está encerrada");
   });

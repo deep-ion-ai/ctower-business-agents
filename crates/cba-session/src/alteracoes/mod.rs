@@ -7,7 +7,11 @@
 //!
 //! As pastas de código-fonte (num repositório git cujo remoto é o repositório de
 //! código cadastrado no projeto) não entram no retrato: o aviso cobre só as demais
-//! pastas do projeto ([`pastas_da_sessao`]; #130).
+//! pastas do projeto ([`pastas_da_sessao`]; #130). Por isso a conferência registra
+//! "arquivos=0" quando só o código mudou. A mudança no código citado por uma análise
+//! é vista pela revalidação das evidências, que a tela da análise aberta chama a cada
+//! poucos segundos (`cba_tools::revalidacao::revalidar_analise`; #216) e que mostra a
+//! faixa "O código citado na análise mudou".
 //!
 //! # Retrato e conferência
 //!

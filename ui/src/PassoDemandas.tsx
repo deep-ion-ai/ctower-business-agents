@@ -11,6 +11,12 @@ import {
   type TipoDemanda,
 } from "./estadoCadastro";
 import {
+  ROTULO_SITUACAO_DEMANDAS,
+  falhou,
+  resumoDoTeste,
+  situacaoDasDemandas,
+} from "./saudeProjeto";
+import {
   MAX_ISSUES_TETO,
   hostDaUrl,
   mapaDeTipos,
@@ -21,13 +27,28 @@ import {
   type SituacaoPasso,
 } from "./repositorios";
 
-type Api = Pick<ApiAssistenteProjeto, "testarJira" | "tokensGuardados">;
+type Api = Pick<
+  ApiAssistenteProjeto,
+  "testarJira" | "testarDemandas" | "tokensGuardados"
+>;
 type Mudar = (f: (d: EstadoDemandas) => EstadoDemandas) => void;
 
 const TIPOS: { id: TipoDemanda; nome: string; descricao: string }[] = [
-  { id: "nenhum", nome: "Nenhum", descricao: "Demandas criadas no próprio app" },
-  { id: "github", nome: "GitHub Issues", descricao: "De um dos repositórios do projeto" },
-  { id: "gitlab", nome: "GitLab Issues", descricao: "De um dos repositórios do projeto" },
+  {
+    id: "nenhum",
+    nome: "Nenhum",
+    descricao: "Demandas criadas no próprio app",
+  },
+  {
+    id: "github",
+    nome: "GitHub Issues",
+    descricao: "De um dos repositórios do projeto",
+  },
+  {
+    id: "gitlab",
+    nome: "GitLab Issues",
+    descricao: "De um dos repositórios do projeto",
+  },
   { id: "jira", nome: "Jira", descricao: "Projeto, sprint ativa ou JQL" },
 ];
 
@@ -74,13 +95,18 @@ export function PassoDemandas({
             <div>
               <p>{codigo.map(rotuloRepositorio).join(" e ")}</p>
               <p className="dica">
-                Vem dos repositórios do passo 1, com os mesmos tokens. Nada para preencher.
+                Vem dos repositórios do passo 1, com os mesmos tokens. Nada para
+                preencher.
               </p>
             </div>
           ) : (
             <div>
-              <p>As pastas do passo 1, sem repositório do GitHub ou do GitLab.</p>
-              <p className="dica">Para usar issues, informe o repositório abaixo.</p>
+              <p>
+                As pastas do passo 1, sem repositório do GitHub ou do GitLab.
+              </p>
+              <p className="dica">
+                Para usar issues, informe o repositório abaixo.
+              </p>
             </div>
           )}
         </div>
@@ -89,7 +115,10 @@ export function PassoDemandas({
       <fieldset className="opcoes-cartao opcoes-demandas">
         <legend className="subtitulo-passo">De onde vêm as demandas?</legend>
         {TIPOS.map((t) => (
-          <label key={t.id} className={demandas.tipo === t.id ? "opcao escolhida" : "opcao"}>
+          <label
+            key={t.id}
+            className={demandas.tipo === t.id ? "opcao escolhida" : "opcao"}
+          >
             <input
               type="radio"
               name="origem-demandas"
@@ -105,6 +134,7 @@ export function PassoDemandas({
 
       {(demandas.tipo === "github" || demandas.tipo === "gitlab") && (
         <IssuesDoRepositorio
+          api={api}
           forja={demandas.tipo}
           codigo={codigo}
           demandas={demandas}
@@ -152,11 +182,13 @@ function Campo({
 }
 
 function IssuesDoRepositorio({
+  api,
   forja,
   codigo,
   demandas,
   mudar,
 }: {
+  api: Api;
   forja: "github" | "gitlab";
   codigo: RepositorioCodigo[];
   demandas: EstadoDemandas;
@@ -165,6 +197,32 @@ function IssuesDoRepositorio({
   const id = useId();
   const opcoes = codigo.filter((r) => r.forja === forja);
   const outro = demandas.repoIssues === OUTRO_REPOSITORIO;
+  const tracker = trackerDoProjeto(demandas, codigo);
+  const [testando, setTestando] = useState(false);
+  const [resultado, setResultado] = useState<IntegracaoProntidao | null>(null);
+  const [falha, setFalha] = useState<string | null>(null);
+  // Trocar o repositório invalida o resultado anterior.
+  const alvo = JSON.stringify(tracker);
+  useEffect(() => {
+    setResultado(null);
+    setFalha(null);
+  }, [alvo]);
+  const testar = () => {
+    if (!tracker) return;
+    setTestando(true);
+    setFalha(null);
+    setResultado(null);
+    api
+      .testarDemandas(tracker, null)
+      .then(setResultado)
+      .catch((e: unknown) => setFalha(mensagemDe(e)))
+      .finally(() => setTestando(false));
+  };
+  const origem = forja === "github" ? "GitHub" : "GitLab";
+  const vazio =
+    forja === "github"
+      ? tracker?.kind === "github" && !tracker.repo
+      : tracker?.kind === "gitlab" && !tracker.path;
   return (
     <div className="cartao-assistente">
       <div className="field">
@@ -206,22 +264,70 @@ function IssuesDoRepositorio({
             rotulo="Host do GitLab"
             valor={demandas.outroGitlab.host}
             exemplo="gitlab.example.com"
-            aoMudar={(host) => mudar((d) => ({ ...d, outroGitlab: { ...d.outroGitlab, host } }))}
+            aoMudar={(host) =>
+              mudar((d) => ({ ...d, outroGitlab: { ...d.outroGitlab, host } }))
+            }
           />
           <Campo
             rotulo="Caminho do projeto no GitLab"
             valor={demandas.outroGitlab.path}
             exemplo="grupo/projeto/app"
             mono
-            aoMudar={(path) => mudar((d) => ({ ...d, outroGitlab: { ...d.outroGitlab, path } }))}
+            aoMudar={(path) =>
+              mudar((d) => ({ ...d, outroGitlab: { ...d.outroGitlab, path } }))
+            }
           />
         </div>
       )}
+      <div className="linha-campo-botao">
+        <button
+          type="button"
+          className="btn"
+          disabled={testando || !tracker || vazio}
+          onClick={testar}
+        >
+          Testar conexão
+        </button>
+        <span className="dica">
+          Confere o token, o repositório e se as issues estão ligadas.
+        </span>
+      </div>
+      <div role="status" aria-live="polite">
+        {testando && (
+          <span className="muted">Testando a conexão com o {origem}…</span>
+        )}
+        {falha && <p className="error-text">{falha}</p>}
+        {resultado && (
+          <>
+            <p className={falhou(resultado) ? "error-text" : "ok-text"}>
+              {resumoDoTeste(
+                resultado,
+                forja === "github" ? "GitHub" : "GitLab",
+              )}{" "}
+              <span className="muted">
+                ({ROTULO_SITUACAO_DEMANDAS[situacaoDasDemandas(resultado)]})
+              </span>
+            </p>
+            {falhou(resultado) && (
+              <p className="dica orientacao">
+                {
+                  resultado.passos.find((p) => p.situacao === "falhou")
+                    ?.orientacao
+                }
+              </p>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
 
-const SIMBOLO: Record<SituacaoPasso, string> = { ok: "✓", falhou: "✗", pulado: "–" };
+const SIMBOLO: Record<SituacaoPasso, string> = {
+  ok: "✓",
+  falhou: "✗",
+  pulado: "–",
+};
 const ROTULO_SITUACAO: Record<SituacaoPasso, string> = {
   ok: "ok",
   falhou: "falhou",
@@ -252,7 +358,9 @@ function Jira({
 
   useEffect(() => {
     if (!host) {
-      mudar((d) => (d.jiraGuardado === null ? d : { ...d, jiraGuardado: null }));
+      mudar((d) =>
+        d.jiraGuardado === null ? d : { ...d, jiraGuardado: null },
+      );
       return;
     }
     let ativo = true;
@@ -309,7 +417,11 @@ function Jira({
           autoComplete="off"
           spellCheck={false}
           value={demandas.tokenJira}
-          placeholder={demandas.jiraGuardado ? "guardado; digite para trocar" : "cole o token"}
+          placeholder={
+            demandas.jiraGuardado
+              ? "guardado; digite para trocar"
+              : "cole o token"
+          }
           aria-describedby={`${idMais}-dica-token`}
           onChange={(e) => {
             const tokenJira = e.target.value;
@@ -319,7 +431,10 @@ function Jira({
         <span id={`${idMais}-dica-token`} className="dica">
           Fica no chaveiro do sistema, como os tokens do GitHub e do GitLab.
           {demandas.jiraGuardado === true && (
-            <span className="ok-text"> Já há um token guardado para {host}.</span>
+            <span className="ok-text">
+              {" "}
+              Já há um token guardado para {host}.
+            </span>
           )}
         </span>
       </div>
@@ -345,10 +460,15 @@ function Jira({
         </span>
       </div>
       <div role="status" aria-live="polite">
-        {testando && <span className="muted">Testando a conexão com o Jira…</span>}
+        {testando && (
+          <span className="muted">Testando a conexão com o Jira…</span>
+        )}
         {falha && <p className="error-text">{falha}</p>}
         {resultado && (
-          <ul className="passos-teste" aria-label={resultado.titulo || "Resultado do teste"}>
+          <ul
+            className="passos-teste"
+            aria-label={resultado.titulo || "Resultado do teste"}
+          >
             {resultado.passos.map((p) => (
               <li key={p.id} data-situacao={p.situacao}>
                 <span className="simbolo" aria-hidden="true">
@@ -356,9 +476,14 @@ function Jira({
                 </span>
                 <span>
                   {p.rotulo}
-                  <span className="sr-only"> ({ROTULO_SITUACAO[p.situacao]})</span>
+                  <span className="sr-only">
+                    {" "}
+                    ({ROTULO_SITUACAO[p.situacao]})
+                  </span>
                   {p.detalhe && <span className="muted">: {p.detalhe}</span>}
-                  {p.orientacao && <span className="dica orientacao">{p.orientacao}</span>}
+                  {p.orientacao && (
+                    <span className="dica orientacao">{p.orientacao}</span>
+                  )}
                 </span>
               </li>
             ))}
@@ -374,18 +499,26 @@ function Jira({
           aria-controls={idMais}
           onClick={() => setMais((m) => !m)}
         >
-          {mais ? "Menos opções" : "Mais opções do Jira (JQL, campos personalizados, tipos de issue)"}
+          {mais
+            ? "Menos opções"
+            : "Mais opções do Jira (JQL, campos personalizados, tipos de issue)"}
         </button>
         <div id={idMais} hidden={!mais} className="mais-opcoes">
           <Campo
-            rotulo={j.active_sprint_only ? "JQL (quando não for só a sprint ativa)" : "JQL"}
+            rotulo={
+              j.active_sprint_only
+                ? "JQL (quando não for só a sprint ativa)"
+                : "JQL"
+            }
             valor={j.jql}
             exemplo="labels = minha-equipe AND updated >= -90d"
             mono
             aoMudar={(v) => campo("jql", v)}
           />
           <div className="field">
-            <label htmlFor={`${idMais}-max`}>Máximo de issues (as mais recentes)</label>
+            <label htmlFor={`${idMais}-max`}>
+              Máximo de issues (as mais recentes)
+            </label>
             <input
               id={`${idMais}-max`}
               type="number"

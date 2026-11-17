@@ -36,6 +36,7 @@ function itensDoPreparo(a: AmbienteDetalhado) {
   const v = a.verificacao;
   const mcp = v ? v.servidorMcp === "ok" : a.pronto;
   const hooks = v ? !v.hooksDesativados && v.hooks.every((h) => h.situacao === "ok") : a.pronto;
+  const confiavel = v ? v.pastaConfiavel : a.pronto;
   return [
     {
       ok: mcp,
@@ -52,6 +53,13 @@ function itensDoPreparo(a: AmbienteDetalhado) {
         : v?.hooksDesativados
           ? "Os hooks estão desativados nas configurações do Claude."
           : "O app não sabe quando o agente termina.",
+    },
+    {
+      ok: confiavel,
+      titulo: confiavel ? "Pasta confiável para o Claude" : "Pasta ainda não confiável para o Claude",
+      texto: confiavel
+        ? "A primeira conversa abre direto, sem perguntas."
+        : "Na primeira conversa, o Claude pergunta em inglês se você confia na pasta.",
     },
   ];
 }
@@ -125,6 +133,7 @@ function PreparoDoAgente({ api, cfg, projeto, estado, aoReverificarAmbiente }: P
                   {v.hooksDesativados && " (desativados nas configurações do Claude)"}
                 </li>
               )}
+              {v && <li>Confiança na pasta: {v.pastaConfiavel ? "marcada" : "ausente"}</li>}
               {v && (
                 <li>
                   Pasta: <span className="caminho">{v.diretorio}</span>

@@ -7,9 +7,10 @@
 //! O token chega ao processo filho só no ambiente; as mensagens passam por
 //! [`cite`], que troca o valor por `***`.
 
+use crate::clone::testar_acesso;
 use crate::demanda::{Ferramentas, PRAZO_CLI};
 use crate::process::{self, RunError, cite};
-use crate::{ForgeKind, Secret};
+use crate::{ForgeKind, RepositorioCodigo, Secret};
 use serde_json::Value;
 use std::path::Path;
 use std::process::Command;
@@ -44,6 +45,95 @@ pub fn verificar_token_host(
         ForgeKind::Github => verificar_github(&f.gh, &host, token),
         ForgeKind::Gitlab => verificar_gitlab(&f.glab, &host, token),
     }
+}
+
+/// Testa o token no repositório pela API da forja (#215): GitHub
+/// `repos/{caminho}`, GitLab `projects/{caminho}`. Recusa o token inválido mesmo
+/// num repositório público, o que o `git ls-remote` com credential helper não faz
+/// (o git só manda a credencial quando o servidor pede).
+pub fn verificar_token_repositorio(
+    repo: &RepositorioCodigo,
+    token: &Secret,
+    f: &Ferramentas,
+) -> Result<(), ErroVerificacao> {
+    let host = repo.host.trim().to_ascii_lowercase();
+    let caminho = repo.caminho.trim().trim_matches('/');
+    if caminho.is_empty() {
+        return Err(ErroVerificacao::Recusado(
+            "informe o caminho do repositório (dono/repo)".into(),
+        ));
+    }
+    if !caminho
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | '/'))
+    {
+        return Err(ErroVerificacao::Recusado(format!(
+            "caminho do repositório inválido: {caminho}"
+        )));
+    }
+    let caminho = caminho.trim_end_matches(".git");
+    let (ferramenta, c) = match repo.forja {
+        ForgeKind::Github => {
+            let mut c = Command::new(&f.gh);
+            c.args(["api", &format!("repos/{caminho}")])
+                .env("GH_HOST", &host)
+                .env("GH_TOKEN", token.expose());
+            ("gh", c)
+        }
+        ForgeKind::Gitlab => {
+            let mut c = Command::new(&f.glab);
+            c.args(["api", &format!("projects/{}", caminho.replace('/', "%2F"))])
+                .env("GITLAB_HOST", &host)
+                .env("GITLAB_TOKEN", token.expose());
+            ("glab", c)
+        }
+    };
+    rodar(ferramenta, c, token)
+        .map(|_| ())
+        .map_err(|e| match e {
+            ErroVerificacao::Recusado(m) => ErroVerificacao::Recusado(explicar_api(&m, repo)),
+            e => e,
+        })
+}
+
+/// Mensagem clara para a recusa da API, com o detalhe (já sem o token).
+fn explicar_api(detalhe: &str, repo: &RepositorioCodigo) -> String {
+    let detalhe = detalhe.strip_prefix("recusou o token: ").unwrap_or(detalhe);
+    let t = detalhe.to_ascii_lowercase();
+    let forja = repo.forja.label();
+    let motivo = if t.contains("401") || t.contains("bad credentials") || t.contains("unauthorized")
+    {
+        format!("a API do {forja} recusou o token (inválido, expirado ou revogado)")
+    } else if t.contains("404") || t.contains("not found") {
+        format!(
+            "a API do {forja} não encontrou {} com este token (o repositório não existe ou o \
+             token não tem acesso a ele)",
+            repo.caminho.trim()
+        )
+    } else if t.contains("403") || t.contains("forbidden") {
+        format!("a API do {forja} negou o acesso: o token não tem permissão de leitura")
+    } else {
+        return format!("API do {forja}: {detalhe}");
+    };
+    format!("{motivo} ({detalhe})")
+}
+
+/// "Testar acesso" de um repositório (#215), no cadastro e na saúde do projeto:
+/// com token, primeiro a API da forja (sem a CLI dela, segue só pelo git, que
+/// também manda o token logo no primeiro pedido); depois o `git ls-remote`, que
+/// confere a URL de clone.
+pub fn testar_acesso_repositorio(
+    f: &Ferramentas,
+    repo: &RepositorioCodigo,
+    token: Option<&Secret>,
+) -> Result<(), String> {
+    if let Some(t) = token {
+        match verificar_token_repositorio(repo, t, f) {
+            Ok(()) | Err(ErroVerificacao::SemFerramenta(_)) => {}
+            Err(ErroVerificacao::Recusado(m)) => return Err(m),
+        }
+    }
+    testar_acesso(&f.git, repo, token)
 }
 
 /// Roda a CLI; devolve o `stdout` ou a mensagem do erro, sem o token.
@@ -255,5 +345,70 @@ esac"#,
         );
         assert_eq!(data(" 2026-11-10T00:00Z"), Some("2026-11-10".into()));
         assert_eq!(data("ontem"), None);
+    }
+
+    #[test]
+    fn testar_acesso_recusa_token_falso_mesmo_com_o_git_aceitando() {
+        let d = tempfile::tempdir().unwrap();
+        let gh = script(
+            d.path(),
+            "gh",
+            r#"[ "$1 $2" = "api repos/o/publico" ] && [ "$GH_HOST" = github.com ] || exit 3
+[ "$GH_TOKEN" = "ghp-bom" ] || { echo "gh: Bad credentials ($GH_TOKEN) (HTTP 401)" >&2; exit 1; }
+echo '{}'"#,
+        );
+        let glab = script(
+            d.path(),
+            "glab",
+            r#"[ "$1 $2" = "api projects/g%2Fsub%2Fapp" ] && [ "$GITLAB_HOST" = gitlab.example.com ] || exit 3
+[ "$GITLAB_TOKEN" = "glpat-bom" ] || { echo "glab: 404 Project Not Found (HTTP 404)" >&2; exit 1; }
+echo '{}'"#,
+        );
+        // Repositório público: o git lê sem precisar do token.
+        let git = script(d.path(), "git", "exit 0");
+        let f = Ferramentas {
+            gh,
+            glab,
+            git,
+            ..Default::default()
+        };
+        let repo = RepositorioCodigo {
+            caminho: "o/publico".into(),
+            ..Default::default()
+        };
+        let e = testar_acesso_repositorio(&f, &repo, Some(&Secret::new("ghp-falso"))).unwrap_err();
+        assert!(e.starts_with("a API do GitHub recusou o token"), "{e}");
+        assert!(!e.contains("ghp-falso"), "{e}");
+        testar_acesso_repositorio(&f, &repo, Some(&Secret::new("ghp-bom"))).unwrap();
+        // Sem token, nada a conferir na API: só o git.
+        testar_acesso_repositorio(&f, &repo, None).unwrap();
+
+        let gl = RepositorioCodigo {
+            forja: ForgeKind::Gitlab,
+            host: "GitLab.example.com".into(),
+            caminho: "g/sub/app".into(),
+            ..Default::default()
+        };
+        let e = testar_acesso_repositorio(&f, &gl, Some(&Secret::new("x"))).unwrap_err();
+        assert!(e.contains("não encontrou g/sub/app"), "{e}");
+        testar_acesso_repositorio(&f, &gl, Some(&Secret::new("glpat-bom"))).unwrap();
+
+        // Caminho com cara de outra rota da API: recusa sem chamar a CLI.
+        let estranho = RepositorioCodigo {
+            caminho: "o/r?x=1".into(),
+            ..Default::default()
+        };
+        assert!(
+            testar_acesso_repositorio(&f, &estranho, Some(&Secret::new("ghp-bom")))
+                .unwrap_err()
+                .contains("inválido")
+        );
+
+        // Sem a CLI da forja, o git decide.
+        let sem = Ferramentas {
+            gh: d.path().join("nada"),
+            ..f.clone()
+        };
+        testar_acesso_repositorio(&sem, &repo, Some(&Secret::new("ghp-falso"))).unwrap();
     }
 }

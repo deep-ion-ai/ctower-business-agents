@@ -15,6 +15,8 @@ use serde::Serialize;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc;
 use std::time::Duration;
 
 /// Prazo do "Testar acesso".
@@ -31,6 +33,14 @@ fn usuario_http(forja: ForgeKind) -> &'static str {
         ForgeKind::Github => "x-access-token",
         ForgeKind::Gitlab => "oauth2",
     }
+}
+
+/// Mensagem do erro de um clone interrompido pelo analista ([`clonar`]).
+pub const CLONE_CANCELADO: &str = "clone cancelado";
+
+/// O erro é o de um clone cancelado?
+pub fn foi_cancelado(erro: &str) -> bool {
+    erro == CLONE_CANCELADO
 }
 
 /// Etapa do clone, para a barra de progresso.
@@ -59,6 +69,47 @@ fn comando_git(git: &Path, forja: ForgeKind, token: Option<&Secret>) -> Command 
             .env("CBA_GIT_TOKEN", t.expose());
     }
     c
+}
+
+/// Base64 (RFC 4648, com `=`) para o cabeçalho `Authorization: Basic`.
+fn base64(dados: &[u8]) -> String {
+    const ALFABETO: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut s = String::with_capacity(dados.len().div_ceil(3) * 4);
+    for bloco in dados.chunks(3) {
+        let b = [
+            bloco[0],
+            *bloco.get(1).unwrap_or(&0),
+            *bloco.get(2).unwrap_or(&0),
+        ];
+        let n = (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]);
+        for i in 0..4 {
+            if i <= bloco.len() {
+                s.push(ALFABETO[((n >> (18 - 6 * i)) & 63) as usize] as char);
+            } else {
+                s.push('=');
+            }
+        }
+    }
+    s
+}
+
+/// Faz o git mandar o token já no primeiro pedido HTTP (#215), por
+/// `http.extraHeader` em `GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n`: só no ambiente
+/// do processo filho, nunca nos argumentos. Sem isso, o git só usa a credencial
+/// quando o servidor responde 401, e num repositório público um token falso
+/// passaria no teste. Acrescenta às entradas que o ambiente já tiver.
+fn enviar_token_de_saida(c: &mut Command, forja: ForgeKind, token: &Secret) {
+    let n = std::env::var("GIT_CONFIG_COUNT")
+        .ok()
+        .and_then(|v| v.trim().parse::<u32>().ok())
+        .unwrap_or(0);
+    let credencial = format!("{}:{}", usuario_http(forja), token.expose());
+    c.env("GIT_CONFIG_COUNT", (n + 1).to_string())
+        .env(format!("GIT_CONFIG_KEY_{n}"), "http.extraHeader")
+        .env(
+            format!("GIT_CONFIG_VALUE_{n}"),
+            format!("Authorization: Basic {}", base64(credencial.as_bytes())),
+        );
 }
 
 /// Confere a URL de clone: preenchida, sem senha ou token embutido e sem cara de
@@ -121,7 +172,10 @@ fn explicar(stderr: &str, token: Option<&Secret>) -> String {
     }
 }
 
-/// Valida o acesso de leitura antes de clonar: `git ls-remote --heads`.
+/// Valida o acesso de leitura antes de clonar: `git ls-remote --heads`. Com
+/// token, ele vai já no primeiro pedido: um token recusado faz o teste falhar
+/// mesmo num repositório público. O teste pela API da forja fica com
+/// [`crate::acessos::testar_acesso_repositorio`].
 pub fn testar_acesso(
     git: &Path,
     repo: &RepositorioCodigo,
@@ -130,6 +184,9 @@ pub fn testar_acesso(
     let url = repo.url_efetiva();
     validar_url(&url)?;
     let mut c = comando_git(git, repo.forja, token);
+    if let Some(t) = token {
+        enviar_token_de_saida(&mut c, repo.forja, t);
+    }
     c.args(["ls-remote", "--heads", "--", &url]);
     let o = process::run(c, PRAZO_TESTE).map_err(|e| match e {
         RunError::NotFound => "git não encontrado: instale o git e deixe-o no PATH".to_string(),
@@ -198,14 +255,56 @@ fn progresso(linha: &str) -> Option<Progresso> {
     })
 }
 
+/// Mata o git do clone e os processos que ele abriu (`git-remote-https`,
+/// `index-pack`), que ficam no mesmo grupo.
+fn matar_clone(filho: &mut std::process::Child) {
+    #[cfg(unix)]
+    // SAFETY: só sinaliza o grupo criado no `spawn` (`process_group(0)`).
+    unsafe {
+        libc::kill(-(filho.id() as libc::pid_t), libc::SIGKILL);
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt as _;
+        let _ = Command::new("taskkill")
+            .args(["/PID", &filho.id().to_string(), "/T", "/F"])
+            .creation_flags(0x0800_0000)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+    }
+    let _ = filho.kill();
+}
+
+/// Apaga o que o clone criou em `destino`. Uma pasta que já existia (vazia) fica,
+/// só sem o que o git pôs nela; uma pasta nova é removida inteira.
+fn limpar_clone(destino: &Path, existia: bool) {
+    if !existia {
+        let _ = std::fs::remove_dir_all(destino);
+        return;
+    }
+    if let Ok(entradas) = std::fs::read_dir(destino) {
+        for e in entradas.flatten() {
+            let p = e.path();
+            if e.file_type().is_ok_and(|t| t.is_dir()) {
+                let _ = std::fs::remove_dir_all(&p);
+            } else {
+                let _ = std::fs::remove_file(&p);
+            }
+        }
+    }
+}
+
 /// Clona `repo` em `base/<nome>` e devolve a pasta. Se a pasta já é um clone
 /// deste repositório, devolve-a sem clonar de novo; se existe com outra coisa,
-/// recusa. Em caso de falha, apaga o que criou.
+/// recusa. Em caso de falha ou de cancelamento (`cancelar` ligado, o erro é
+/// [`CLONE_CANCELADO`]), mata o git e apaga só o que este clone criou.
 pub fn clonar(
     git: &Path,
     repo: &RepositorioCodigo,
     base: &Path,
     token: Option<&Secret>,
+    cancelar: &AtomicBool,
     ao_progredir: &mut dyn FnMut(Progresso),
 ) -> Result<PathBuf, String> {
     let url = repo.url_efetiva();
@@ -216,8 +315,12 @@ pub fn clonar(
             base.display()
         ));
     }
+    if cancelar.load(Ordering::SeqCst) {
+        return Err(CLONE_CANCELADO.into());
+    }
     let destino = base.join(nome_da_pasta(repo));
-    if destino.exists() {
+    let existia = destino.exists();
+    if existia {
         let mesmo = destino.join(".git").exists()
             && cba_remotos(&destino)
                 .iter()
@@ -249,6 +352,12 @@ pub fn clonar(
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt as _;
+        // Grupo próprio: o cancelamento mata o git e os filhos dele.
+        c.process_group(0);
+    }
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt as _;
@@ -261,15 +370,38 @@ pub fn clonar(
         _ => cite(&e.to_string(), token),
     })?;
     let mut stderr = filho.stderr.take().expect("stderr com pipe");
+    // O stderr é lido numa thread, para o laço abaixo poder olhar o cancelamento
+    // enquanto o git não escreve nada.
+    let (tx, rx) = mpsc::channel::<Vec<u8>>();
+    let leitor = std::thread::spawn(move || {
+        let mut buf = [0u8; 4096];
+        loop {
+            match stderr.read(&mut buf) {
+                Ok(0) | Err(_) => break,
+                Ok(n) => {
+                    if tx.send(buf[..n].to_vec()).is_err() {
+                        break;
+                    }
+                }
+            }
+        }
+    });
     let mut linhas: Vec<String> = Vec::new();
     let mut atual = Vec::new();
-    let mut buf = [0u8; 4096];
     loop {
-        let n = match stderr.read(&mut buf) {
-            Ok(0) | Err(_) => break,
-            Ok(n) => n,
+        if cancelar.load(Ordering::SeqCst) {
+            matar_clone(&mut filho);
+            let _ = filho.wait();
+            let _ = leitor.join();
+            limpar_clone(&destino, existia);
+            return Err(CLONE_CANCELADO.into());
+        }
+        let pedaco = match rx.recv_timeout(Duration::from_millis(100)) {
+            Ok(p) => p,
+            Err(mpsc::RecvTimeoutError::Timeout) => continue,
+            Err(mpsc::RecvTimeoutError::Disconnected) => break,
         };
-        for &b in &buf[..n] {
+        for b in pedaco {
             if b == b'\r' || b == b'\n' {
                 let linha = String::from_utf8_lossy(&atual).into_owned();
                 atual.clear();
@@ -286,12 +418,17 @@ pub fn clonar(
             }
         }
     }
+    let _ = leitor.join();
     if !atual.is_empty() {
         linhas.push(String::from_utf8_lossy(&atual).into_owned());
     }
     let status = filho.wait().map_err(|e| cite(&e.to_string(), token))?;
+    if cancelar.load(Ordering::SeqCst) {
+        limpar_clone(&destino, existia);
+        return Err(CLONE_CANCELADO.into());
+    }
     if !status.success() {
-        let _ = std::fs::remove_dir_all(&destino);
+        limpar_clone(&destino, existia);
         return Err(explicar(&linhas.join("\n"), token));
     }
     Ok(destino)
@@ -364,6 +501,23 @@ mod tests {
     }
 
     #[test]
+    fn base64_do_cabecalho() {
+        let casos = [
+            ("", ""),
+            ("f", "Zg=="),
+            ("fo", "Zm8="),
+            ("foo", "Zm9v"),
+            ("foob", "Zm9vYg=="),
+            ("fooba", "Zm9vYmE="),
+            ("foobar", "Zm9vYmFy"),
+            ("oauth2:glpat-x", "b2F1dGgyOmdscGF0LXg="),
+        ];
+        for (de, para) in casos {
+            assert_eq!(base64(de.as_bytes()), para, "{de}");
+        }
+    }
+
+    #[test]
     fn mensagens_claras_sem_token() {
         let t = Secret::new("glpat-segredo");
         let m = explicar(
@@ -433,6 +587,7 @@ mod tests {
                 &repo,
                 &base.join("clones"),
                 Some(&token),
+                &AtomicBool::new(false),
                 &mut |p| etapas.push(p),
             )
             .unwrap();
@@ -449,6 +604,7 @@ mod tests {
                     &repo,
                     &base.join("clones"),
                     None,
+                    &AtomicBool::new(false),
                     &mut |_| {}
                 )
                 .unwrap(),
@@ -466,6 +622,7 @@ mod tests {
                     &outro,
                     &base.join("clones"),
                     None,
+                    &AtomicBool::new(false),
                     &mut |_| {}
                 )
                 .unwrap_err()
@@ -481,6 +638,7 @@ mod tests {
                 &sem_branch,
                 &base.join("outros"),
                 None,
+                &AtomicBool::new(false),
                 &mut |_| {},
             )
             .unwrap_err();
@@ -499,6 +657,122 @@ mod tests {
             );
         }
 
+        /// git falso que começa o clone (cria arquivos na pasta de destino), avisa
+        /// o progresso e fica esperando, como um clone lento, com um processo filho.
+        fn git_lento(dir: &Path) -> PathBuf {
+            script(
+                dir,
+                "git",
+                r#"for a; do destino="$a"; done
+mkdir -p "$destino/.git"
+echo parcial > "$destino/.git/HEAD"
+echo "$$" > "$destino/../pid-do-git"
+printf 'Receiving objects:  10%% (1/10)\r' >&2
+sleep 60
+exit 0"#,
+            )
+        }
+
+        fn repo_de_teste() -> RepositorioCodigo {
+            RepositorioCodigo {
+                forja: ForgeKind::Gitlab,
+                host: "gitlab.example.com".into(),
+                caminho: "g/app".into(),
+                url_clone: "https://gitlab.example.com/g/app.git".into(),
+                ..Default::default()
+            }
+        }
+
+        fn processo_vivo(pid: &str) -> bool {
+            Command::new("kill")
+                .args(["-0", pid.trim()])
+                .stderr(Stdio::null())
+                .status()
+                .is_ok_and(|s| s.success())
+        }
+
+        #[test]
+        fn cancelar_mata_o_git_e_apaga_a_pasta_parcial() {
+            let d = tempfile::tempdir().unwrap();
+            let base = dunce::canonicalize(d.path()).unwrap().join("clones");
+            std::fs::create_dir_all(&base).unwrap();
+            // Outra pasta da base, que o clone não criou: tem de continuar lá.
+            std::fs::create_dir_all(base.join("outro")).unwrap();
+            std::fs::write(base.join("outro/dado.txt"), "meu").unwrap();
+            let git = git_lento(d.path());
+            let repo = repo_de_teste();
+            let cancelar = std::sync::Arc::new(AtomicBool::new(false));
+            let (c2, b2) = (cancelar.clone(), base.clone());
+            let (tx, rx) = mpsc::channel();
+            let t = std::thread::spawn(move || {
+                clonar(&git, &repo, &b2, None, &c2, &mut |p| {
+                    let _ = tx.send(p);
+                })
+            });
+            // Espera o clone começar de verdade e cancela.
+            let p = rx.recv_timeout(Duration::from_secs(20)).unwrap();
+            assert_eq!(p.percentual, Some(10));
+            assert!(base.join("app/.git/HEAD").exists());
+            let pid = std::fs::read_to_string(base.join("pid-do-git")).unwrap();
+            let inicio = std::time::Instant::now();
+            cancelar.store(true, Ordering::SeqCst);
+            let r = t.join().unwrap();
+            assert!(
+                inicio.elapsed() < Duration::from_secs(20),
+                "demorou a parar"
+            );
+            let erro = r.unwrap_err();
+            assert!(foi_cancelado(&erro), "{erro}");
+            assert!(!base.join("app").exists(), "sobrou a pasta parcial");
+            assert!(!processo_vivo(&pid), "o git continua rodando");
+            // O que não era do clone ficou.
+            assert_eq!(
+                std::fs::read_to_string(base.join("outro/dado.txt")).unwrap(),
+                "meu"
+            );
+        }
+
+        #[test]
+        fn cancelar_numa_pasta_vazia_que_ja_existia_a_mantem_vazia() {
+            let d = tempfile::tempdir().unwrap();
+            let base = dunce::canonicalize(d.path()).unwrap().join("clones");
+            std::fs::create_dir_all(base.join("app")).unwrap();
+            let git = git_lento(d.path());
+            let cancelar = std::sync::Arc::new(AtomicBool::new(false));
+            let (c2, b2) = (cancelar.clone(), base.clone());
+            let (tx, rx) = mpsc::channel();
+            let t = std::thread::spawn(move || {
+                clonar(&git, &repo_de_teste(), &b2, None, &c2, &mut |p| {
+                    let _ = tx.send(p);
+                })
+            });
+            rx.recv_timeout(Duration::from_secs(20)).unwrap();
+            cancelar.store(true, Ordering::SeqCst);
+            assert!(foi_cancelado(&t.join().unwrap().unwrap_err()));
+            assert!(base.join("app").is_dir());
+            assert_eq!(std::fs::read_dir(base.join("app")).unwrap().count(), 0);
+        }
+
+        #[test]
+        fn cancelado_antes_de_comecar_nao_mexe_em_nada() {
+            let d = tempfile::tempdir().unwrap();
+            let base = dunce::canonicalize(d.path()).unwrap();
+            // A pasta de destino é de outra coisa: cancelar não pode apagá-la.
+            std::fs::create_dir_all(base.join("app")).unwrap();
+            std::fs::write(base.join("app/meu.txt"), "meu").unwrap();
+            let e = clonar(
+                &git_lento(d.path()),
+                &repo_de_teste(),
+                &base,
+                None,
+                &AtomicBool::new(true),
+                &mut |_| {},
+            )
+            .unwrap_err();
+            assert!(foi_cancelado(&e));
+            assert!(base.join("app/meu.txt").exists());
+        }
+
         #[test]
         fn token_so_no_ambiente_do_git() {
             let d = tempfile::tempdir().unwrap();
@@ -510,6 +784,10 @@ mod tests {
                 r#"case "$*" in *glpat*) echo "token nos argumentos" >&2; exit 9;; esac
 [ "$CBA_GIT_TOKEN" = "glpat-x" ] && [ "$CBA_GIT_USUARIO" = "oauth2" ] || { echo "sem token" >&2; exit 8; }
 [ "$GIT_TERMINAL_PROMPT" = "0" ] || exit 7
+# ls-remote: o token vai logo no primeiro pedido, também só pelo ambiente.
+case "$*" in *ls-remote*)
+  [ "$GIT_CONFIG_KEY_0" = "http.extraHeader" ] && [ "$GIT_CONFIG_VALUE_0" = "Authorization: Basic b2F1dGgyOmdscGF0LXg=" ] || { echo "token não vai de saída" >&2; exit 6; };;
+esac
 exit 0"#,
             );
             let repo = RepositorioCodigo {

@@ -251,6 +251,7 @@ describe("Assistente do primeiro uso", () => {
       expect(aoConcluir).toHaveBeenCalledWith({
         projeto: "faturamento-exemplo",
         pergunta: "Quais tabelas guardam os dados principais e como elas se relacionam?",
+        ambientePronto: true,
       }),
     );
     expect(api.concluir).toHaveBeenCalled();

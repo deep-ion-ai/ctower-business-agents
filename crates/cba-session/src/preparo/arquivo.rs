@@ -100,10 +100,15 @@ pub fn gravar(lido: &Lido, raiz: &Objeto) -> Result<Option<PathBuf>, Erro> {
         .unwrap_or(Path::new("."));
     fs::create_dir_all(pasta).map_err(|e| erro_io(pasta, e))?;
 
-    let mut texto = Json::Objeto(raiz.clone()).para_texto();
+    let original = lido.original.as_deref();
+    let mut texto = Json::Objeto(raiz.clone()).para_texto_com(&recuo(original));
     // Mantém o final do arquivo como estava (com ou sem quebra de linha).
-    if lido.original.as_ref().is_none_or(|b| b.ends_with(b"\n")) {
+    if original.is_none_or(|b| b.ends_with(b"\n")) {
         texto.push('\n');
+    }
+    // E as quebras de linha do Windows, se era assim.
+    if original.is_some_and(|b| b.windows(2).any(|w| w == b"\r\n")) {
+        texto = texto.replace('\n', "\r\n");
     }
 
     let nome = caminho
@@ -151,6 +156,24 @@ pub fn gravar(lido: &Lido, raiz: &Objeto) -> Result<Option<PathBuf>, Erro> {
         let _ = fs::remove_file(&temporario);
     }
     resultado
+}
+
+/// Indentação do arquivo: o espaço em branco no começo da primeira linha recuada
+/// (dois espaços, como o Claude Code grava, se não houver nenhuma).
+fn recuo(original: Option<&[u8]>) -> Vec<u8> {
+    let padrao = b"  ".to_vec();
+    let Some(b) = original else { return padrao };
+    b.split(|c| *c == b'\n')
+        .skip(1)
+        .map(|linha| {
+            linha
+                .iter()
+                .take_while(|c| **c == b' ' || **c == b'\t')
+                .copied()
+                .collect::<Vec<u8>>()
+        })
+        .find(|r| !r.is_empty())
+        .unwrap_or(padrao)
 }
 
 /// Arquivo novo: só o dono lê e grava (Unix). O `.claude.json` guarda dados da conta.

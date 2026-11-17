@@ -55,7 +55,7 @@ const REVALIDAR: Afirmacao = {
 };
 
 describe("Aprovação guiada", () => {
-  it("com pendências: lista com Ir para e Revisar as N pendentes", async () => {
+  it("com pendências: lista com Ir para e Revisar a(s) pendente(s), pela conta única", async () => {
     const aoIrPara = vi.fn();
     const aoRevisar = vi.fn();
     render(
@@ -73,9 +73,135 @@ describe("Aprovação guiada", () => {
     expect(within(lista).getAllByRole("button", { name: /Ir para/ })).toHaveLength(1);
     fireEvent.click(within(lista).getByRole("button", { name: /Ir para/ }));
     expect(aoIrPara).toHaveBeenCalledWith(COM_PENDENCIAS.pendencias[0]);
-    fireEvent.click(screen.getByRole("button", { name: "Revisar as 2 pendentes" }));
+    // A da análise como um todo (não concluída) aparece na lista, mas não conta (#222).
+    fireEvent.click(screen.getByRole("button", { name: "Revisar a pendente" }));
     expect(aoRevisar).toHaveBeenCalledWith(COM_PENDENCIAS.pendencias);
     expect(screen.getByRole("button", { name: "Aprovar…" })).toBeDisabled();
+  });
+
+  it("escolhe o que vira regra: Resposta e Exemplo vêm desmarcados (#214)", async () => {
+    const p: Prontidao = {
+      ...PRONTA,
+      areas: [
+        { id: "cobranca", nome: "Cobrança" },
+        { id: "prazos", nome: "Prazos" },
+      ],
+      areaObrigatoria: true,
+      regras: [
+        {
+          afirmacao: 1,
+          titulo: "Resposta",
+          texto: "**Resposta.** Multa única.",
+          secao: "resposta",
+          secaoTitulo: "Resposta",
+          sugerida: false,
+        },
+        {
+          afirmacao: 2,
+          titulo: "Carência de três dias",
+          texto: "**Carência de três dias.** Sem multa.",
+          secao: "regras_encontradas",
+          secaoTitulo: "Regras encontradas",
+          sugerida: true,
+        },
+        {
+          afirmacao: 3,
+          titulo: "Exemplo",
+          texto: "**Exemplo.** R$ 100 com multa de R$ 2.",
+          secao: "exemplo",
+          secaoTitulo: "Exemplo",
+          sugerida: false,
+        },
+        {
+          afirmacao: 4,
+          titulo: "Multa de 2%",
+          texto: "A multa é de 2%.",
+          secao: "regras_encontradas",
+          secaoTitulo: "Regras encontradas",
+          sugerida: true,
+        },
+      ],
+    };
+    const api = apiRevisao(p);
+    api.aprovar = vi.fn(() =>
+      Promise.resolve({
+        jaAprovada: false,
+        regras: [],
+        termos: [],
+        avisos: [],
+      }),
+    );
+    render(<AprovacaoAnalise api={api} projeto="p" analise="A-0001" versao={1} />);
+
+    const caixa = (n: number) =>
+      screen.findByRole("checkbox", { name: `A afirmação ${n} vira regra` });
+    expect(await caixa(1)).not.toBeChecked();
+    expect(await caixa(2)).toBeChecked();
+    expect(await caixa(3)).not.toBeChecked();
+    expect(await caixa(4)).toBeChecked();
+    expect(
+      screen.getByText(/2 de 4 afirmações confirmadas vão virar regra/),
+    ).toBeInTheDocument();
+    // Só as marcadas mostram título e área; o título sugerido vem preenchido, sem markdown.
+    expect(screen.queryByLabelText("Título da regra da afirmação 1")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Título da regra da afirmação 2")).toHaveValue(
+      "Carência de três dias",
+    );
+    expect(screen.queryByLabelText(/Área da afirmação/)).not.toBeInTheDocument();
+
+    // Desmarca a 4 e troca a área só da 2; a área do topo vale para as demais.
+    fireEvent.click(await caixa(4));
+    fireEvent.click(screen.getByRole("button", { name: "Trocar a área da afirmação 2" }));
+    fireEvent.change(screen.getByLabelText("Área da afirmação 2"), {
+      target: { value: "prazos" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Aprovar e gravar na base" }));
+    expect(api.aprovar).toHaveBeenCalledWith("p", "A-0001", {
+      area: null,
+      afirmacoes: { 2: { area: "prazos", titulo: null } },
+      regras: [2],
+    });
+  });
+
+  it("nada marcado: a área não é pedida e nenhuma regra é enviada", async () => {
+    const p: Prontidao = {
+      ...PRONTA,
+      areas: [
+        { id: "cobranca", nome: "Cobrança" },
+        { id: "prazos", nome: "Prazos" },
+      ],
+      areaObrigatoria: true,
+      regras: [
+        {
+          afirmacao: 1,
+          titulo: "Resposta",
+          texto: "Sim.",
+          secao: "resposta",
+          secaoTitulo: "Resposta",
+          sugerida: false,
+        },
+      ],
+    };
+    const api = apiRevisao(p);
+    api.aprovar = vi.fn(() =>
+      Promise.resolve({
+        jaAprovada: false,
+        regras: [],
+        termos: [],
+        avisos: [],
+      }),
+    );
+    render(<AprovacaoAnalise api={api} projeto="p" analise="A-0001" versao={1} />);
+    const aprovar = await screen.findByRole("button", {
+      name: "Aprovar e gravar na base",
+    });
+    expect(aprovar).toBeEnabled();
+    fireEvent.click(aprovar);
+    expect(api.aprovar).toHaveBeenCalledWith("p", "A-0001", {
+      area: null,
+      afirmacoes: {},
+      regras: [],
+    });
   });
 
   it("sem pendências: Aprovar e gravar na base", async () => {
@@ -157,7 +283,7 @@ describe("Aprovação guiada", () => {
     );
     const barra = await screen.findByRole("banner");
     expect(await within(barra).findByRole("status", { name: "Situação da aprovação" })).toHaveTextContent(
-      "Aguardando sua revisão · 2 pendentes",
+      "Aguardando sua revisão · 1 pendente",
     );
     fireEvent.click(within(barra).getByRole("button", { name: "Aprovar…" }));
     const dialogo = screen.getByRole("dialog", { name: "Aprovar a análise" });

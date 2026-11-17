@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { contar } from "./formatacao";
 import { mensagemDe } from "./analise";
 import {
   ROTULO_STATUS_REGRA,
@@ -8,6 +9,7 @@ import {
   type VisaoProjeto,
 } from "./conhecimento";
 import { ListaDemandas } from "./ListaDemandas";
+import { simbolosEmNegocio } from "./mapaNegocio";
 import type { Tela } from "./Navegacao";
 import type { ProjetoResumo } from "./terminal";
 
@@ -182,7 +184,7 @@ function Projeto({
                 {a.sigla && ` (${a.sigla})`}
               </button>{" "}
               <span className="muted">
-                {a.regras} regra(s) · {a.termos} termo(s)
+                {contar(a.regras, "regra", "regras")} · {contar(a.termos, "termo", "termos")}
                 {!a.declarada && " · fora do projeto.md"}
               </span>
               {a.aRevalidar > 0 && (
@@ -284,13 +286,13 @@ function Projeto({
 function TextoRevalidacao({ resumo }: { resumo: ResumoRevalidacao }) {
   const marcadas = resumo.regras.filter((r) => r.depois === "a-revalidar");
   const restauradas = resumo.regras.filter((r) => r.depois === "confirmada");
-  const partes = [`${resumo.evidencias} evidência(s) conferida(s)`];
+  const partes = [`${contar(resumo.evidencias, "evidência conferida", "evidências conferidas")}`];
   if (resumo.desatualizadas > 0) partes.push(`${resumo.desatualizadas} não confere(m)`);
   if (marcadas.length > 0)
     partes.push(`passaram a revalidar: ${marcadas.map((r) => r.id).join(", ")}`);
   if (restauradas.length > 0)
     partes.push(`voltaram a confirmadas: ${restauradas.map((r) => r.id).join(", ")}`);
-  if (resumo.problemas.length > 0) partes.push(`${resumo.problemas.length} documento(s) com problema`);
+  if (resumo.problemas.length > 0) partes.push(`${contar(resumo.problemas.length, "documento", "documentos")} com problema`);
   return <span className="muted">{partes.join("; ")}.</span>;
 }
 
@@ -329,6 +331,21 @@ function MapaProjeto({ api, projeto }: { api: ApiConhecimento; projeto: string }
       .finally(() => setMapeando(false));
   };
 
+  /**
+   * Entra numa subpasta pulando as cadeias de pasta única (sem arquivo próprio e com
+   * uma só subpasta): `src/main/java/com/x` não pede um clique por pasta (#227).
+   */
+  const entrar = async (caminho: string) => {
+    let atual = caminho;
+    for (let i = 0; i < 64; i++) {
+      const m = await api.mapa(projeto, atual).catch(() => null);
+      const sub = m?.modulo.subpastas;
+      if (!m || m.modulo.arquivosDiretos.length > 0 || sub?.length !== 1) break;
+      atual = sub[0].caminho;
+    }
+    setPasta(atual);
+  };
+
   const trilha = pasta ? pasta.split("/") : [];
 
   return (
@@ -363,24 +380,26 @@ function MapaProjeto({ api, projeto }: { api: ApiConhecimento; projeto: string }
             ))}
           </nav>
           <p>
-            {mapa.modulo.arquivos} arquivo(s)
+            {contar(mapa.modulo.arquivos, "arquivo", "arquivos")}
             {mapa.modulo.linguagens.length > 0 &&
               `: ${mapa.modulo.linguagens.map((l) => `${l.rotulo} ${l.quantidade}`).join(", ")}`}
             {mapa.modulo.falhas > 0 && ` · ${mapa.modulo.falhas} com falha de extração`}
           </p>
           {mapa.modulo.simbolos.length > 0 && (
             <p className="muted">
-              {mapa.modulo.simbolos.map((s) => `${s.rotulo} ${s.quantidade}`).join(" · ")}
+              {simbolosEmNegocio(mapa.modulo.simbolos)
+                .map((s) => `${s.quantidade} ${s.rotulo}`)
+                .join(" · ")}
             </p>
           )}
           {mapa.modulo.subpastas.length > 0 && (
             <ul className="lista-pastas">
               {mapa.modulo.subpastas.map((s) => (
                 <li key={s.caminho}>
-                  <button type="button" className="link" onClick={() => setPasta(s.caminho)}>
+                  <button type="button" className="link" onClick={() => void entrar(s.caminho)}>
                     {s.caminho.split("/").pop()}/
                   </button>{" "}
-                  <span className="muted">{s.arquivos} arquivo(s)</span>
+                  <span className="muted">{contar(s.arquivos, "arquivo", "arquivos")}</span>
                 </li>
               ))}
             </ul>
@@ -401,7 +420,7 @@ function MapaProjeto({ api, projeto }: { api: ApiConhecimento; projeto: string }
                 {mapa.modulo.dependencias.map((d) => (
                   <li key={`${d.de}->${d.para}`}>
                     {d.de || "(raiz)"} → {d.para || "(raiz)"}{" "}
-                    <span className="muted">{d.referencias} referência(s)</span>
+                    <span className="muted">{contar(d.referencias, "referência", "referências")}</span>
                   </li>
                 ))}
               </ul>

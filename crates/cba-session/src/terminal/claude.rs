@@ -206,6 +206,11 @@ pub fn pendencias(v: &Verificacao) -> Vec<String> {
         Situacao::Conflito => lista
             .push("já existe um servidor MCP chamado \"cba\" que não é do app nesta pasta".into()),
     }
+    if !v.pasta_confiavel {
+        lista.push(
+            "a pasta ainda não está marcada como confiável no Claude Code (na primeira conversa, ele perguntaria em inglês se você confia nela)".into(),
+        );
+    }
     if v.hooks.iter().any(|h| h.situacao != Situacao::Ok) {
         lista.push("os hooks do app estão ausentes ou desatualizados".into());
     }

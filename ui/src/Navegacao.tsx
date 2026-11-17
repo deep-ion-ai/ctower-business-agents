@@ -17,7 +17,7 @@ import {
 } from "./conhecimento";
 import { DialogoConfirmacao } from "./DialogoConfirmacao";
 import { ROTULO_SESSAO } from "./DocumentoAoVivo";
-import type { Abertura } from "./PainelAnalise";
+import type { Abertura, EstadoConversa } from "./PainelAnalise";
 import { PainelDemanda } from "./PainelDemanda";
 import { Icon, type IconName } from "./shell/icons";
 import { Titlebar } from "./shell/Titlebar";
@@ -27,7 +27,8 @@ import { TelaBase } from "./TelaBase";
 import { TelaConfiguracoes } from "./TelaConfiguracoes";
 import { TelaInicio } from "./TelaInicio";
 import { TelaProjeto } from "./TelaProjeto";
-import type { ProjetoResumo } from "./terminal";
+import type { ApiTerminal, ProjetoResumo } from "./terminal";
+import type { TelaTerminal } from "./telaXterm";
 
 /** Tela visível e o que ela abre. */
 export type Tela =
@@ -51,6 +52,10 @@ interface Props {
   apiAnalise?: ApiAnalise;
   /** Para testes. */
   apiConfiguracoes?: ApiConfiguracoes;
+  /** Para testes: o terminal embutido das análises. */
+  apiTerminal?: ApiTerminal;
+  /** Para testes. */
+  criarTela?: () => TelaTerminal;
   abrirLink?: AbrirLink;
   /** Abre o assistente do primeiro uso. */
   aoPrimeiroUso?: () => void;
@@ -104,6 +109,12 @@ export function chaveDaTela(t: Tela): string {
   }
 }
 
+/**
+ * Aba que fica montada (escondida) quando outra está à vista: a de uma análise
+ * aberta, cujo terminal roda o agente. Desmontar encerraria o processo (#212).
+ */
+const ficaViva = (a: Aba) => a.tela.tipo === "analise" && !!a.tela.aberta;
+
 const nomeDoArquivo = (caminho: string) =>
   (caminho.split("/").pop() ?? caminho).replace(/\.md$/, "");
 
@@ -112,6 +123,9 @@ const SIDE_MIN = 170;
 const SIDE_MAX = 600;
 const SIDE_KEY = "cba.sideWidth";
 const clampWidth = (w: number) => Math.min(SIDE_MAX, Math.max(SIDE_MIN, Math.round(w)));
+
+/** De quanto em quanto tempo o explorador relê as análises. */
+const INTERVALO_EXPLORADOR = 5000;
 
 const ESTREITA = "(max-width: 900px)";
 const telaEstreita = () => typeof matchMedia === "function" && matchMedia(ESTREITA).matches;
@@ -123,6 +137,23 @@ function larguraGravada(): number {
   } catch {
     return 260;
   }
+}
+
+/**
+ * As análises do explorador, sem repetir e em ordem estável: por projeto e número.
+ * Reordenar por atividade faria o clique no lugar de antes abrir outra análise (#227).
+ */
+export function analisesDoExplorador(inicio: Inicio): AnaliseInicio[] {
+  const vistas = new Map<string, AnaliseInicio>();
+  for (const a of [...inicio.emAndamento, ...inicio.recentes]) {
+    vistas.set(`${a.projeto}/${a.id}`, a);
+  }
+  return [...vistas.values()].sort(
+    (a, b) =>
+      a.projetoNome.localeCompare(b.projetoNome, "pt-BR") ||
+      a.projeto.localeCompare(b.projeto) ||
+      a.id.localeCompare(b.id, "pt-BR", { numeric: true }),
+  );
 }
 
 /** Tom do ponto da análise: âmbar só quando a sessão espera o analista. */
@@ -146,6 +177,8 @@ export function Navegacao({
   api = apiConhecimentoTauri,
   apiAnalise,
   apiConfiguracoes,
+  apiTerminal,
+  criarTela,
   abrirLink,
   aoPrimeiroUso,
   refazerPrimeiroUso,
@@ -170,6 +203,13 @@ export function Navegacao({
   const contador = useRef(0);
 
   const aba = abas.find((a) => a.chave === ativa) ?? null;
+
+  // Com muitas abas a faixa rola: a aba ativa sempre fica à vista.
+  const faixaAbas = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const ativaEl = faixaAbas.current?.querySelector<HTMLElement>('.etab[data-on="true"]');
+    ativaEl?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  }, [ativa, abas.length]);
   const tela = aba?.tela ?? null;
 
   /** Documentos abertos nesta sessão, o mais recente primeiro (painel lateral). */
@@ -189,14 +229,31 @@ export function Navegacao({
     else acao();
   }, []);
 
+  // Conversa de cada aba de análise aberta: fechar a aba com ela viva pede confirmação.
+  const conversas = useRef(new Map<string, EstadoConversa>());
+  const [fechamento, setFechamento] = useState<{ chave: string; trabalhando: boolean } | null>(
+    null,
+  );
+  const [fechamentoOutras, setFechamentoOutras] = useState<{
+    manter: string;
+    vivas: string[];
+    trabalhando: boolean;
+  } | null>(null);
+  const aoMudarConversa = useCallback((chave: string, estado: EstadoConversa) => {
+    if (estado === "nenhuma") conversas.current.delete(chave);
+    else conversas.current.set(chave, estado);
+  }, []);
+
   const navegarAgora = useCallback((t: Tela) => {
     const chave = chaveDaTela(t);
     const vez = ++contador.current;
-    setAbas((atuais) =>
-      atuais.some((a) => a.chave === chave)
-        ? atuais.map((a) => (a.chave === chave ? { chave, tela: t, vez } : a))
-        : [...atuais, { chave, tela: t, vez }],
-    );
+    setAbas((atuais) => {
+      const existente = atuais.find((a) => a.chave === chave);
+      if (!existente) return [...atuais, { chave, tela: t, vez }];
+      // A análise já aberta só ganha o foco: abrir do zero encerraria a conversa (#212).
+      if (ficaViva(existente)) return atuais;
+      return atuais.map((a) => (a.chave === chave ? { chave, tela: t, vez } : a));
+    });
     setAtiva(chave);
     if (t.tipo === "base" && t.documento) lembrarDocumento(t.documento);
     setRecarga((r) => r + 1);
@@ -226,6 +283,29 @@ export function Navegacao({
     };
   }, [api, recarga]);
 
+  // O explorador acompanha o que acontece fora das telas (análise criada, agente que
+  // passou a esperar o analista, base editada): relê o início quando a base muda e,
+  // por garantia, a cada poucos segundos (#227).
+  useEffect(() => {
+    let ativo = true;
+    const ler = () =>
+      api
+        .inicio()
+        .then((i) => ativo && setInicio(i))
+        .catch(() => undefined);
+    const relogio = setInterval(ler, INTERVALO_EXPLORADOR);
+    let parar: (() => void) | null = null;
+    api
+      .vigiarBase(ler)
+      .then((p) => (ativo ? (parar = p) : p()))
+      .catch(() => undefined);
+    return () => {
+      ativo = false;
+      clearInterval(relogio);
+      parar?.();
+    };
+  }, [api]);
+
   /**
    * Barra de atividades: vai à última aba da área (ou abre uma); na área atual,
    * mostra ou esconde o painel lateral.
@@ -249,6 +329,11 @@ export function Navegacao({
   };
 
   const fechar = (chave: string) => {
+    const conversa = conversas.current.get(chave);
+    if (conversa) {
+      setFechamento({ chave, trabalhando: conversa === "trabalhando" });
+      return;
+    }
     if (chave === ativa && pendenteRef.current) {
       sairDaAba(() => fecharAgora(chave));
       return;
@@ -256,7 +341,31 @@ export function Navegacao({
     fecharAgora(chave);
   };
 
+  /** Fecha todas as abas menos `manter`, respeitando as conversas vivas (#212, #227). */
+  const fecharOutras = (manter: string) => {
+    const outras = abas.filter((a) => a.chave !== manter);
+    if (outras.length === 0) return;
+    const vivas = outras.filter((a) => conversas.current.has(a.chave));
+    if (vivas.length > 0) {
+      setFechamentoOutras({
+        manter,
+        vivas: vivas.map((a) => a.chave),
+        trabalhando: vivas.some((a) => conversas.current.get(a.chave) === "trabalhando"),
+      });
+      return;
+    }
+    fecharVarias(manter, outras.map((a) => a.chave));
+  };
+
+  const fecharVarias = (manter: string, chaves: string[]) => {
+    for (const c of chaves) conversas.current.delete(c);
+    const resto = abas.filter((a) => !chaves.includes(a.chave));
+    setAbas(resto);
+    if (chaves.includes(ativa)) setAtiva(resto.some((a) => a.chave === manter) ? manter : (resto[0]?.chave ?? ""));
+  };
+
   const fecharAgora = (chave: string) => {
+    conversas.current.delete(chave);
     const i = abas.findIndex((a) => a.chave === chave);
     const resto = abas.filter((a) => a.chave !== chave);
     setAbas(resto);
@@ -286,14 +395,7 @@ export function Navegacao({
     return ROTULO_AREA[t.tipo];
   };
 
-  const analises = inicio
-    ? [
-        ...inicio.emAndamento,
-        ...inicio.recentes.filter(
-          (r) => !inicio.emAndamento.some((e) => e.id === r.id && e.projeto === r.projeto),
-        ),
-      ]
-    : [];
+  const analises = inicio ? analisesDoExplorador(inicio) : [];
   const aRevalidar = inicio?.projetos.reduce((n, s) => n + s.aRevalidar, 0) ?? 0;
   const aguardando = analises.filter((a) => a.sessao?.estado === "aguardando-analista").length;
 
@@ -432,7 +534,14 @@ export function Navegacao({
             </div>
           )}
           <div className="etabs-bar">
-            <div className="etabs" role="tablist" aria-label="Abas abertas">
+            <div className="etabs" role="tablist" aria-label="Abas abertas"
+              ref={faixaAbas}
+              onWheel={(e) => {
+                // A roda do mouse rola a faixa de abas, que não tem barra à vista.
+                if (faixaAbas.current && Math.abs(e.deltaY) > Math.abs(e.deltaX))
+                  faixaAbas.current.scrollLeft += e.deltaY;
+              }}
+            >
               {abas.map((a) => {
                 const titulo = tituloDaAba(a.tela);
                 return (
@@ -461,6 +570,16 @@ export function Navegacao({
                 );
               })}
             </div>
+            {abas.length > 1 && aba && (
+              <button
+                type="button"
+                className="etabs-outras"
+                title="Fecha todas as abas, menos a que está à vista"
+                onClick={() => sairDaAba(() => fecharOutras(ativa))}
+              >
+                Fechar outras
+              </button>
+            )}
           </div>
           <div className="editor" role="tabpanel" id="area-editor" aria-label="Área de editor">
             <div className="editor-tela">
@@ -500,17 +619,44 @@ export function Navegacao({
                   documentoInicial={aba.tela.documento}
                   navegar={navegar}
                   aoAbrirDocumento={lembrarDocumento}
+                  aoPendencia={aoPendencia}
                 />
               )}
-              {aba?.tela.tipo === "analise" && (
+              {aba?.tela.tipo === "analise" && !ficaViva(aba) && (
                 <TelaAnalise
                   key={aba.vez}
                   api={apiAnalise}
+                  apiTerminal={apiTerminal}
+                  criarTela={criarTela}
                   projetoInicial={aba.tela.projeto}
                   perguntaInicial={aba.tela.pergunta}
-                  aberturaInicial={aba.tela.aberta}
                   aoPrimeiroUso={aoPrimeiroUso}
+                  aoAbrirAnalise={(projeto, id, abertura) =>
+                    navegar({ tipo: "analise", projeto, aberta: { id, abertura } })
+                  }
                 />
+              )}
+              {/* As análises abertas ficam montadas, escondidas fora da vez: o agente
+                  continua trabalhando enquanto o analista está noutra aba (#212). */}
+              {abas.filter(ficaViva).map((a) =>
+                a.tela.tipo === "analise" ? (
+                  <div key={a.chave} className="editor-aba" hidden={a.chave !== ativa}>
+                    <TelaAnalise
+                      key={a.vez}
+                      api={apiAnalise}
+                      apiTerminal={apiTerminal}
+                      criarTela={criarTela}
+                      projetoInicial={a.tela.projeto}
+                      aberturaInicial={a.tela.aberta}
+                      aoPrimeiroUso={aoPrimeiroUso}
+                      aoAbrirAnalise={(projeto, id, abertura) =>
+                        navegar({ tipo: "analise", projeto, aberta: { id, abertura } })
+                      }
+                      aoVoltar={(projeto) => navegar({ tipo: "analise", projeto })}
+                      aoMudarConversa={(estado) => aoMudarConversa(a.chave, estado)}
+                    />
+                  </div>
+                ) : null,
               )}
               {aba?.tela.tipo === "demanda" && (
                 <PainelDemanda
@@ -564,8 +710,97 @@ export function Navegacao({
           }
         >
           <p>
-            O editor de textos das configurações tem alterações que não foram salvas. Sair agora as
+            Há um editor com alterações que não foram salvas. Sair agora as
             descarta.
+          </p>
+        </DialogoConfirmacao>
+      )}
+
+      {fechamento && (
+        <DialogoConfirmacao
+          titulo="Fechar a análise"
+          aoCancelar={() => setFechamento(null)}
+          acoes={
+            <>
+              <button
+                type="button"
+                className="btn btn-primary"
+                autoFocus
+                onClick={() => setFechamento(null)}
+              >
+                Manter a conversa
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  const { chave } = fechamento;
+                  setFechamento(null);
+                  fecharAgora(chave);
+                }}
+              >
+                Encerrar a conversa
+              </button>
+            </>
+          }
+        >
+          <p>
+            {fechamento.trabalhando
+              ? "O agente ainda está trabalhando. Encerrar a conversa?"
+              : "A conversa com o agente continua aberta nesta análise. Encerrar a conversa?"}
+          </p>
+          <p className="muted">
+            Fechar a aba encerra o Claude Code desta análise. Dá para retomar a conversa depois,
+            pela própria análise.
+          </p>
+        </DialogoConfirmacao>
+      )}
+
+      {fechamentoOutras && (
+        <DialogoConfirmacao
+          titulo="Fechar as outras abas"
+          aoCancelar={() => setFechamentoOutras(null)}
+          acoes={
+            <>
+              <button
+                type="button"
+                className="btn btn-primary"
+                autoFocus
+                onClick={() => {
+                  // Mantém as análises com conversa: fecha só o que não tem processo vivo.
+                  const { manter, vivas } = fechamentoOutras;
+                  setFechamentoOutras(null);
+                  fecharVarias(
+                    manter,
+                    abas.filter((a) => a.chave !== manter && !vivas.includes(a.chave)).map((a) => a.chave),
+                  );
+                }}
+              >
+                Manter as conversas
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  const { manter } = fechamentoOutras;
+                  setFechamentoOutras(null);
+                  fecharVarias(manter, abas.filter((a) => a.chave !== manter).map((a) => a.chave));
+                }}
+              >
+                Encerrar as conversas
+              </button>
+            </>
+          }
+        >
+          <p>
+            {fechamentoOutras.vivas.length === 1
+              ? "Uma das outras abas tem uma conversa com o agente aberta."
+              : `${fechamentoOutras.vivas.length} das outras abas têm uma conversa com o agente aberta.`}
+            {fechamentoOutras.trabalhando && " O agente ainda está trabalhando."}
+          </p>
+          <p className="muted">
+            Fechar uma aba de análise encerra o Claude Code dela. Dá para retomar a conversa
+            depois, pela própria análise. “Manter as conversas” fecha só as abas sem conversa.
           </p>
         </DialogoConfirmacao>
       )}

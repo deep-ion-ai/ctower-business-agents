@@ -118,7 +118,18 @@ impl Json {
 
     /// Texto com indentação de dois espaços, como o Claude Code grava.
     pub fn para_texto(&self) -> String {
-        serde_json::to_string_pretty(self).unwrap_or_default()
+        self.para_texto_com(b"  ")
+    }
+
+    /// Texto com a indentação `recuo` (a do arquivo lido, para não reformatá-lo).
+    pub fn para_texto_com(&self, recuo: &[u8]) -> String {
+        let mut saida = Vec::new();
+        let formato = serde_json::ser::PrettyFormatter::with_indent(recuo);
+        let mut ser = serde_json::Serializer::with_formatter(&mut saida, formato);
+        if self.serialize(&mut ser).is_err() {
+            return String::new();
+        }
+        String::from_utf8(saida).unwrap_or_default()
     }
 }
 
@@ -234,6 +245,8 @@ mod tests {
 }"#;
         let json: Json = serde_json::from_str(texto).unwrap();
         assert_eq!(json.para_texto(), texto);
+        let quatro = texto.replace("  ", "    ");
+        assert_eq!(json.para_texto_com(b"    "), quatro);
     }
 
     #[test]

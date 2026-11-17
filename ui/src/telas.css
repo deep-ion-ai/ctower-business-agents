@@ -52,6 +52,11 @@
   color: var(--muted);
 }
 
+.tela-inicio > .proximo-passo-inicio {
+  border-color: var(--attention);
+  align-items: flex-start;
+}
+
 .page ul,
 .page ol {
   margin: 0;
@@ -453,9 +458,35 @@
   grid-column: 1 / -1;
 }
 
+/* Lista e documento rolam cada um no seu painel (#220), sem arrastar o outro. */
+.base-colunas > .resultados-base,
+.base-colunas > .documento-aberto {
+  position: sticky;
+  top: 0;
+  max-height: calc(100vh - 11rem);
+  overflow: auto;
+}
+
+/* Editando, o documento ocupa a largura toda e a lista sai do caminho. */
+.base-colunas[data-editando] > .resultados-base {
+  display: none;
+}
+
+.documento-aberto .editor-documento {
+  height: calc(100vh - 14rem);
+  min-height: 24rem;
+  padding: 0;
+}
+
 @media (max-width: 1100px) {
   .base-colunas {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .base-colunas > .resultados-base,
+  .base-colunas > .documento-aberto {
+    position: static;
+    max-height: none;
   }
 }
 
@@ -587,15 +618,34 @@
 
 .painel-titulo-linha {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  /* Altura fixa: os selos não quebram em 2 linhas (#219). */
+  height: 24px;
+  overflow: hidden;
+}
+
+.painel-titulo-linha .badge {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.painel-titulo-linha .painel-titulo {
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 .painel-titulo {
   margin: 0;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   align-items: baseline;
   gap: 10px;
   font-size: 15px;
@@ -613,7 +663,9 @@
 
 .painel-subtitulo {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  height: 18px;
+  overflow: hidden;
   align-items: center;
   gap: 4px 12px;
   font-size: 12px;
@@ -621,6 +673,10 @@
 
 .painel-subtitulo .selo-sessao {
   margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .painel-acoes {
@@ -1306,6 +1362,18 @@
   margin: 8px 0;
 }
 
+/* Troca dos avisos de outra instalação do app (#213). */
+.aviso-outra-instalacao {
+  margin: 8px 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.aviso-outra-instalacao p {
+  margin: 0 0 6px;
+}
+
 /* Revisão, aprovação e exportação da análise (#37). */
 
 .form-revisao textarea {
@@ -1808,6 +1876,27 @@
   height: auto;
   margin: 0 auto;
 }
+.diagrama-figura[data-zoom] svg {
+  max-width: none;
+  width: calc(100% * var(--zoom));
+}
+.diagrama-zoom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.diagrama[data-tela-cheia] {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  margin: 0;
+  padding: 12px;
+  background: var(--bg, var(--surface));
+}
+.diagrama[data-tela-cheia] .diagrama-figura {
+  flex: 1;
+  overflow: auto;
+}
 .diagrama-figura[data-clicavel] [data-id],
 .diagrama-figura[data-clicavel] g.node {
   cursor: pointer;
@@ -2286,4 +2375,69 @@
 
 .form-resposta .acoes-revisao {
   margin-top: 6px;
+}
+
+/* Aprovação (#214): uma caixa por afirmação para dizer se ela vira regra. */
+.regras-previstas {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 8px 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.regra-prevista {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.regra-escolha {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.regra-texto {
+  display: -webkit-box;
+  margin: 4px 0 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  white-space: pre-line;
+}
+
+.regra-campos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-top: 6px;
+}
+
+.regra-campos > label {
+  display: flex;
+  flex: 1 1 18rem;
+  align-items: center;
+  gap: 6px;
+}
+
+.regra-campos > label > input {
+  flex: 1;
+  min-width: 0;
+}
+
+.detalhe-tecnico {
+  margin-top: 4px;
+  font-weight: 400;
+}
+
+.detalhe-tecnico pre {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
 }

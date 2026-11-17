@@ -11,7 +11,8 @@ import type {
  * das abas, o selo do cabeçalho e o nº de pendências do menu saem daqui, para os
  * quatro dizerem a mesma coisa.
  */
-export type AbaProjeto = "geral" | "codigo" | "leitura" | "teste" | "agente" | "avancado";
+export type AbaProjeto =
+  "geral" | "codigo" | "leitura" | "teste" | "agente" | "avancado";
 
 export const ABAS_DO_PROJETO: { id: AbaProjeto; rotulo: string }[] = [
   { id: "geral", rotulo: "Visão geral" },
@@ -33,6 +34,8 @@ export interface ItemSaude {
   /** Rótulo do botão que leva à aba certa. */
   acao: string;
   aba: AbaProjeto;
+  /** O conserto é o token global do host: o botão leva a Configurações › Acessos. */
+  acessos?: boolean;
 }
 
 /** `undefined`: ainda não conferido; `null`: a conferência falhou. */
@@ -58,10 +61,93 @@ export function falhou(i: IntegracaoProntidao | undefined): boolean {
 }
 
 /** O primeiro passo que falhou, com o detalhe (`Acesso de leitura: recusado`). */
-export function primeiraFalha(i: IntegracaoProntidao | undefined): string | null {
+export function primeiraFalha(
+  i: IntegracaoProntidao | undefined,
+): string | null {
   const p = i?.passos.find((x) => x.situacao === "falhou");
   if (!p) return null;
   return p.detalhe ? `${p.rotulo}: ${p.detalhe}` : p.rotulo;
+}
+
+/** Por que o teste de conexão das demandas falhou (ou `ok`). */
+export type SituacaoDemandas =
+  "ok" | "sem-acesso" | "issues-desligadas" | "nao-encontrado" | "falhou";
+
+/**
+ * Classifica o resultado do teste das demandas pelo passo que falhou: issues desligadas
+ * e repositório não encontrado vêm do passo `issues` (o detalhe distingue os casos).
+ */
+export function situacaoDasDemandas(i: IntegracaoProntidao): SituacaoDemandas {
+  const p = passoQueFalhou(i);
+  if (!p) return "ok";
+  const detalhe = (p.detalhe ?? "").toLowerCase();
+  if (p.id === "issues") {
+    if (detalhe.includes("desligadas")) return "issues-desligadas";
+    if (detalhe.includes("não encontrado")) return "nao-encontrado";
+    return "sem-acesso";
+  }
+  if (p.id === "credencial" || p.id === "token" || p.id === "acesso")
+    return "sem-acesso";
+  return "falhou";
+}
+
+export const ROTULO_SITUACAO_DEMANDAS: Record<SituacaoDemandas, string> = {
+  ok: "conectado",
+  "sem-acesso": "sem acesso",
+  "issues-desligadas": "issues desligadas",
+  "nao-encontrado": "repositório não encontrado",
+  falhou: "com problema",
+};
+
+/** Frase do retorno do teste, em português. */
+export function resumoDoTeste(i: IntegracaoProntidao, origem: string): string {
+  const s = situacaoDasDemandas(i);
+  if (s === "ok") return `Conexão com ${origem} funcionando.`;
+  const motivo = passoQueFalhou(i)?.detalhe;
+  const base: Record<Exclude<SituacaoDemandas, "ok">, string> = {
+    "sem-acesso": `Sem acesso a ${origem}.`,
+    "issues-desligadas": `As issues estão desligadas nesse repositório.`,
+    "nao-encontrado": `Repositório não encontrado em ${origem}.`,
+    falhou: `Não foi possível conectar a ${origem}.`,
+  };
+  return motivo
+    ? `${base[s]} ${motivo.charAt(0).toUpperCase()}${motivo.slice(1)}.`
+    : base[s];
+}
+
+/** `17/11/2026 14:05`. */
+export function dataDoTeste(ms: number): string {
+  return new Date(ms).toLocaleString("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
+}
+
+/** O primeiro passo que falhou. */
+function passoQueFalhou(i: IntegracaoProntidao | undefined) {
+  return i?.passos.find((p) => p.situacao === "falhou");
+}
+
+/**
+ * O passo que falhou é do token: a credencial, o token recusado pela API da forja
+ * (`token`, #215) ou o acesso com ele.
+ */
+export function falhaDoToken(i: IntegracaoProntidao | undefined): boolean {
+  const id = passoQueFalhou(i)?.id;
+  return id === "credencial" || id === "token" || id === "acesso";
+}
+
+/** O problema é o próprio token (falta ou a API da forja o recusou), não a URL. */
+function semTokenValido(i: IntegracaoProntidao | undefined): boolean {
+  const id = passoQueFalhou(i)?.id;
+  return id === "credencial" || id === "token";
+}
+
+/** As demandas usam o token global do host (o de Configurações › Acessos). */
+function demandasComTokenDoHost(t: TrackerConfig): boolean {
+  return (
+    t.kind === "github" || (t.kind === "gitlab" && !t.credential_cmd.trim())
+  );
 }
 
 /**
@@ -91,20 +177,28 @@ export function descreverDemandas(t: TrackerConfig | null): string | null {
   return `GitLab Issues ${t.path}`.trim();
 }
 
-const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+const plural = (n: number, um: string, varios: string) =>
+  `${n} ${n === 1 ? um : varios}`;
 
 /** “2 pastas · 1 repositório de código · demandas do Jira FAT”. */
 export function resumoDoProjeto(projeto: ProjetoConfig): string {
   const partes = [
     plural(projeto.pastas.length, "pasta", "pastas"),
-    plural(projeto.repositorios.codigo.length, "repositório de código", "repositórios de código"),
+    plural(
+      projeto.repositorios.codigo.length,
+      "repositório de código",
+      "repositórios de código",
+    ),
   ];
   const demandas = descreverDemandas(projeto.repositorios.tracker);
   partes.push(demandas ? `demandas do ${demandas}` : "sem demandas conectadas");
   return partes.join(" · ");
 }
 
-export function itensDeSaude(projeto: ProjetoConfig, estado: EstadoDoProjeto): ItemSaude[] {
+export function itensDeSaude(
+  projeto: ProjetoConfig,
+  estado: EstadoDoProjeto,
+): ItemSaude[] {
   const { ambiente, prontidao } = estado;
   const codigo = projeto.repositorios.codigo;
 
@@ -114,7 +208,8 @@ export function itensDeSaude(projeto: ProjetoConfig, estado: EstadoDoProjeto): I
       id: "codigo",
       estado: "neutro",
       titulo: "Nenhum repositório de código",
-      texto: "Opcional: com o repositório, o app sabe de onde vem o código e qual branch usar.",
+      texto:
+        "Opcional: com o repositório, o app sabe de onde vem o código e qual branch usar.",
       acao: "Adicionar",
       aba: "codigo",
     };
@@ -129,8 +224,18 @@ export function itensDeSaude(projeto: ProjetoConfig, estado: EstadoDoProjeto): I
     };
   } else {
     const comFalha = codigo
-      .map((c, i) => ({ c, falha: primeiraFalha(integracaoDoRepositorio(prontidao, i)) }))
+      .map((c, i) => {
+        const integ = integracaoDoRepositorio(prontidao, i);
+        return { c, integ, falha: primeiraFalha(integ) };
+      })
       .filter((x) => x.falha !== null);
+    // Token global do host ausente ou recusado pela API da forja: a pendência leva a
+    // Acessos, mesmo que o repositório seja público (#215).
+    const doHost = comFalha.find(
+      (x) => x.c.token === "global" && semTokenValido(x.integ),
+    );
+    const recusadoNoHost =
+      doHost && passoQueFalhou(doHost.integ)?.id === "token" ? doHost : null;
     itemCodigo =
       prontidao === null
         ? {
@@ -141,26 +246,37 @@ export function itensDeSaude(projeto: ProjetoConfig, estado: EstadoDoProjeto): I
             acao: "Ver repositórios",
             aba: "codigo",
           }
-        : comFalha.length > 0
+        : recusadoNoHost
           ? {
               id: "codigo",
               estado: "problema",
-              titulo:
-                comFalha.length === 1
-                  ? "Um repositório está sem acesso"
-                  : `${comFalha.length} repositórios estão sem acesso`,
-              texto: `${comFalha[0].c.caminho}: ${comFalha[0].falha}.`,
-              acao: "Resolver",
+              titulo: `O token de ${recusadoNoHost.c.host} foi recusado`,
+              texto: `${recusadoNoHost.c.caminho}: ${recusadoNoHost.falha}.`,
+              acao: "Abrir Acessos",
               aba: "codigo",
+              acessos: true,
             }
-          : {
-              id: "codigo",
-              estado: "ok",
-              titulo: "Código acessível",
-              texto: `${plural(codigo.length, "repositório conferido", "repositórios conferidos")} ao abrir.`,
-              acao: "Ver repositórios",
-              aba: "codigo",
-            };
+          : comFalha.length > 0
+            ? {
+                id: "codigo",
+                estado: "problema",
+                titulo:
+                  comFalha.length === 1
+                    ? "Um repositório está sem acesso"
+                    : `${comFalha.length} repositórios estão sem acesso`,
+                texto: `${comFalha[0].c.caminho}: ${comFalha[0].falha}.`,
+                acao: doHost ? "Abrir Acessos" : "Resolver",
+                aba: "codigo",
+                acessos: !!doHost,
+              }
+            : {
+                id: "codigo",
+                estado: "ok",
+                titulo: "Código acessível",
+                texto: `${plural(codigo.length, "repositório conferido", "repositórios conferidos")} ao abrir.`,
+                acao: "Ver repositórios",
+                aba: "codigo",
+              };
   }
 
   const tracker = projeto.repositorios.tracker;
@@ -180,7 +296,9 @@ export function itensDeSaude(projeto: ProjetoConfig, estado: EstadoDoProjeto): I
           estado: "problema",
           titulo: "As demandas não estão acessíveis",
           texto: `${descreverDemandas(tracker)}: ${primeiraFalha(integ)}.`,
-          acao: "Resolver",
+          ...(demandasComTokenDoHost(tracker) && semTokenValido(integ)
+            ? { acao: "Abrir Acessos", acessos: true }
+            : { acao: "Resolver" }),
           aba: "codigo",
         }
       : {
@@ -243,7 +361,8 @@ export function itensDeSaude(projeto: ProjetoConfig, estado: EstadoDoProjeto): I
               id: "agente",
               estado: "ok",
               titulo: "Agente preparado",
-              texto: "Ferramentas do app conectadas ao Claude e avisos automáticos ligados.",
+              texto:
+                "Ferramentas do app conectadas ao Claude e avisos automáticos ligados.",
               acao: "Ver",
               aba: "agente",
             }
@@ -251,7 +370,8 @@ export function itensDeSaude(projeto: ProjetoConfig, estado: EstadoDoProjeto): I
               id: "agente",
               estado: "problema",
               titulo: "Agente ainda não preparado",
-              texto: "Sem o preparo, o agente não consegue registrar afirmações no documento.",
+              texto:
+                "Sem o preparo, o agente não consegue registrar afirmações no documento.",
               acao: "Preparar",
               aba: "agente",
             };
@@ -268,11 +388,14 @@ export function pendenciasDoProjeto(
   estado: EstadoDoProjeto,
 ): number | null {
   if (!estado.ambiente) return null;
-  return itensDeSaude(projeto, estado).filter((i) => i.estado === "problema").length;
+  return itensDeSaude(projeto, estado).filter((i) => i.estado === "problema")
+    .length;
 }
 
 /** Marca de cada aba: o nº de pendências na Visão geral, “!” nas abas com problema. */
-export function marcasDasAbas(itens: ItemSaude[]): Partial<Record<AbaProjeto, string>> {
+export function marcasDasAbas(
+  itens: ItemSaude[],
+): Partial<Record<AbaProjeto, string>> {
   const problemas = itens.filter((i) => i.estado === "problema");
   const marcas: Partial<Record<AbaProjeto, string>> = {};
   if (problemas.length > 0) marcas.geral = String(problemas.length);

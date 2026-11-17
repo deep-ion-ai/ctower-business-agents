@@ -105,7 +105,10 @@ export interface AjusteLeitura {
 export interface AmbienteDesfeito {
   protecaoTirada: string[];
   preparo: PlanoPreparo;
+  /** O que ficou e por quê (o que não voltou a ser como antes). */
   avisos: string[];
+  /** A configuração do Claude voltou a ser a de antes do preparo. */
+  igualAoAntes: boolean;
 }
 
 export interface Descadastro {
@@ -173,6 +176,8 @@ export interface VerificacaoAmbiente {
   diretorio: string;
   chave: string;
   servidorMcp: Situacao;
+  /** O Claude Code confia na pasta: a primeira conversa abre sem o diálogo (#218). */
+  pastaConfiavel: boolean;
   hooks: { evento: string; situacao: Situacao }[];
   hooksDesativados: boolean;
   pronto: boolean;

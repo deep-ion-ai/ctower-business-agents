@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { contar } from "./formatacao";
 import { mensagemDe } from "./analise";
 import type {
   ApiConfiguracoes,
@@ -401,7 +402,7 @@ function ConfirmarTroca({
           </fieldset>
           {avaliacao.sessoesAbertas > 0 && (
             <p className="attention-text" role="status">
-              Há {avaliacao.sessoesAbertas} conversa(s) com o Claude que podem estar abertas. Feche
+              Há {contar(avaliacao.sessoesAbertas, "conversa", "conversas")} com o Claude que podem estar abertas. Feche
               as conversas antes de trocar a base, para nada ser gravado na pasta antiga.
             </p>
           )}

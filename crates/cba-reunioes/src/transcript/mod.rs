@@ -19,6 +19,11 @@
 //! - **Texto copiado da tela** ([`Formato::TextoTeams`]): linhas de cabeçalho
 //!   `Nome  0:03`, `Nome 00:00:03` ou `Nome   1:02:03` seguidas das linhas da
 //!   fala. Ver as regras de reconhecimento do cabeçalho no módulo `linhas`.
+//! - **"Nome: fala"** ([`Formato::NomeFala`]): uma fala por linha, com ou sem
+//!   horário antes do nome (`[00:01:02] Nome: fala`, `00:01 Nome: fala`), como
+//!   sai ao copiar de um chat. Só vale quando a maioria das linhas tem esse
+//!   formato; a heurística contra falso positivo ("Obs: ...", `http:`) está no
+//!   módulo `nome_fala`. Fica depois do texto do Teams na detecção.
 //!
 //! Formato não reconhecido vira uma única fala sem falante e sem horário, com
 //! o texto corrido, e o aviso [`Aviso::FormatoDesconhecido`]. Entrada vazia
@@ -32,6 +37,7 @@
 
 mod docx;
 mod linhas;
+mod nome_fala;
 mod texto;
 mod vtt;
 
@@ -107,6 +113,8 @@ pub enum Formato {
     Docx,
     /// Texto copiado da tela do Teams (ou outro texto no mesmo layout).
     TextoTeams,
+    /// Uma fala por linha no formato "Nome: fala", com ou sem horário.
+    NomeFala,
     /// Nada reconhecido: texto corrido, entrada vazia ou arquivo ilegível.
     Desconhecido,
 }
@@ -322,6 +330,22 @@ fn analisar_texto_com(texto: &str, extensao: Option<&str>) -> Transcript {
             };
             Transcript::novo(Formato::TextoTeams, lido.falas, avisos)
         }
+        Formato::NomeFala => {
+            let linhas: Vec<&str> = texto.lines().collect();
+            match nome_fala::ler(&linhas) {
+                Some(lido) => {
+                    let avisos = if lido.linhas_antes > 0 {
+                        vec![Aviso::TextoAntesDaPrimeiraFala {
+                            linhas: lido.linhas_antes,
+                        }]
+                    } else {
+                        Vec::new()
+                    };
+                    Transcript::novo(Formato::NomeFala, lido.falas, avisos)
+                }
+                None => texto_corrido(&texto),
+            }
+        }
         Formato::Docx | Formato::Desconhecido => texto_corrido(&texto),
     }
 }
@@ -381,10 +405,12 @@ fn texto_detectado(texto: &str, extensao: Option<&str>) -> Formato {
         return Formato::Vtt;
     }
     let linhas: Vec<&str> = texto.lines().collect();
-    if linhas::ler(&linhas).falas.is_empty() {
-        Formato::Desconhecido
-    } else {
+    if !linhas::ler(&linhas).falas.is_empty() {
         Formato::TextoTeams
+    } else if nome_fala::ler(&linhas).is_some() {
+        Formato::NomeFala
+    } else {
+        Formato::Desconhecido
     }
 }
 

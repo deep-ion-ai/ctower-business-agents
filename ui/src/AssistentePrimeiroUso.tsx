@@ -29,6 +29,8 @@ export interface FimPrimeiroUso {
   projeto: string;
   /** Pergunta escolhida para a primeira análise (vazia se o analista não quiser). */
   pergunta: string;
+  /** O ambiente do Claude está preparado: a análise já pode começar (#227). */
+  ambientePronto?: boolean;
 }
 
 /**
@@ -65,7 +67,7 @@ export function AssistentePrimeiroUso({
             className={i === indice ? "atual" : i < indice ? "feita" : undefined}
             aria-current={i === indice ? "step" : undefined}
           >
-            {e.rotulo}
+            {e.rotulo}{" "}
           </li>
         ))}
       </ol>
@@ -227,7 +229,13 @@ function Pronto({
     setFalha(null);
     api
       .concluir()
-      .then(() => aoConcluir({ projeto: projeto.id, pergunta: comPergunta ? pergunta.trim() : "" }))
+      .then(() =>
+        aoConcluir({
+          projeto: projeto.id,
+          pergunta: comPergunta ? pergunta.trim() : "",
+          ambientePronto,
+        }),
+      )
       .catch((e: unknown) => {
         setFalha(mensagemDe(e));
         setGravando(false);

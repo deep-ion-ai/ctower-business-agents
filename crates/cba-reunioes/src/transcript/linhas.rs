@@ -132,7 +132,7 @@ fn cabecalho(linha: &str) -> Option<(&str, Horario)> {
 
 /// Horário `M:SS`, `MM:SS` ou `H:MM:SS` (sem fração). Devolve também se tem as
 /// horas.
-fn horario_curto(texto: &str) -> Option<(Horario, bool)> {
+pub(super) fn horario_curto(texto: &str) -> Option<(Horario, bool)> {
     let partes: Vec<&str> = texto.split(':').collect();
     let numero = |p: &str, min: usize, max: usize| -> Option<u64> {
         if p.len() < min || p.len() > max || !p.bytes().all(|b| b.is_ascii_digit()) {

@@ -42,6 +42,7 @@ import { ConversaAgente, type SituacaoAgente } from "./ConversaAgente";
 import { PainelLateral, type Aba } from "./PainelLateral";
 import { useTerminalVisivel } from "./preferenciaTerminal";
 import { PromptsProntos } from "./PromptsProntos";
+import { contarPendencias } from "./resumoRevisao";
 import { apiRevisaoTauri, type ApiRevisao, type DecisaoRevisao, type Pendencia } from "./revisao";
 import { AtaAoVivo } from "./AtaAoVivo";
 import { apiReuniaoTauri, type ApiReuniao } from "./reunioes";
@@ -58,6 +59,12 @@ export type Abertura =
   | { tipo: "nova"; promptInicial: string }
   /** Análise existente: o analista escolhe retomar a conversa ou começar outra. */
   | { tipo: "reabrir" };
+
+/**
+ * A conversa do terminal embutido, para quem fecha a análise: sem processo vivo,
+ * viva à espera do analista ou com o agente trabalhando (#212).
+ */
+export type EstadoConversa = "nenhuma" | "aberta" | "trabalhando";
 
 /** Onde a conversa está, quando não está no terminal embutido. */
 type Fora = { cliente: "claudeDesktop" | "terminalDoAnalista"; aviso: string };
@@ -140,6 +147,8 @@ interface Props {
   aoAbrirAnalise?: (id: string, abertura: Abertura) => void;
   /** Abre um link no navegador do sistema (o da evidência na forja); para testes. */
   abrirUrl?: (url: string) => Promise<void>;
+  /** Avisa quando a conversa do terminal embutido abre, trabalha ou termina. */
+  aoMudarConversa?: (estado: EstadoConversa) => void;
 }
 
 const AVISO_DESKTOP =
@@ -183,6 +192,7 @@ export function PainelAnalise({
   apiReuniao = apiReuniaoTauri,
   aoAbrirAnalise,
   abrirUrl = openUrl,
+  aoMudarConversa,
 }: Props) {
   const { vista, erro, recarregar } = useAnaliseAoVivo(api, projeto, analise);
   const [revisando, setRevisando] = useState(false);
@@ -229,6 +239,19 @@ export function PainelAnalise({
     vista?.analise.versao ?? 0,
     !!vista && vista.analise.fluxo !== "reuniao",
   );
+
+  // Quem fecha a análise (a aba da navegação) pergunta antes de encerrar a conversa.
+  const estadoConversa: EstadoConversa = !vivo
+    ? "nenhuma"
+    : vista?.sessao?.estado === "ativa"
+      ? "trabalhando"
+      : "aberta";
+  const avisarConversa = useRef(aoMudarConversa);
+  avisarConversa.current = aoMudarConversa;
+  useEffect(() => {
+    avisarConversa.current?.(estadoConversa);
+  }, [estadoConversa]);
+  useEffect(() => () => avisarConversa.current?.("nenhuma"), []);
 
   const fecharMenu = useCallback(() => setMenu(null), []);
   const alternar = (m: Menu) => () => setMenu((atual) => (atual === m ? null : m));
@@ -540,7 +563,9 @@ export function PainelAnalise({
 
   const aprovada = vista?.analise.estado === "aprovada";
   const deAta = vista?.analise.fluxo === "reuniao";
-  const pendentes = !deAta && !aprovada && prontidao ? prontidao.pendencias.length : null;
+  // A mesma conta da faixa e do diálogo de aprovação (#222).
+  const pendencias = !deAta && !aprovada && prontidao ? prontidao.pendencias : null;
+  const pendentes = pendencias ? contarPendencias(pendencias) : null;
   const agenteTrabalhando = !aprovada && vista?.sessao?.estado === "ativa";
   const pronta = pendentes === 0 && !!prontidao?.podeAprovar;
   const rotuloAprovar = aprovada
@@ -588,6 +613,7 @@ export function PainelAnalise({
             {vista && (
               <span
                 className="badge"
+                title={ROTULO_ANALISE[vista.analise.estado]}
                 data-tone={vista.analise.estado === "aprovada" ? "done" : undefined}
               >
                 {ROTULO_ANALISE[vista.analise.estado]}
@@ -598,6 +624,7 @@ export function PainelAnalise({
                 className="badge selo-aprovacao"
                 role="status"
                 aria-label="Situação da aprovação"
+                title={selo}
                 data-tone={pronta ? "done" : agenteTrabalhando ? "running" : "attention"}
               >
                 {selo}
@@ -737,6 +764,7 @@ export function PainelAnalise({
               aoFecharEvidencia={fecharTrecho}
               origemTrecho={origemTrecho}
               revisao={revisao}
+              pendencias={pendencias}
             />
           )}
         </section>

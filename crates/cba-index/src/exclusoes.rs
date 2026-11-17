@@ -290,6 +290,27 @@ impl Exclusoes {
         self.avaliar(relativo, false)
     }
 
+    /// Alguma reinclusão cobre o caminho de um arquivo (ele mesmo ou uma pasta
+    /// acima)? Serve para contar o que uma reinclusão faz entrar.
+    pub fn reincluido(&self, relativo: &str) -> bool {
+        let relativo = relativo.trim_matches('/');
+        let casa = |rel: &str, pasta: bool| {
+            self.conjunto_inclusoes
+                .matches(rel)
+                .into_iter()
+                .any(|i| pasta || !self.inclusoes[i].so_pasta)
+        };
+        let mut fim = 0;
+        while let Some(pos) = relativo[fim..].find('/') {
+            fim += pos;
+            if casa(&relativo[..fim], true) {
+                return true;
+            }
+            fim += 1;
+        }
+        casa(relativo, false)
+    }
+
     /// Padrões do analista e regras padrão, para mostrar na interface.
     pub fn regras(&self) -> BTreeMap<Motivo, Vec<&str>> {
         let mut mapa: BTreeMap<Motivo, Vec<&str>> = BTreeMap::new();
@@ -353,6 +374,16 @@ mod tests {
 
     fn motivo(e: &Exclusoes, caminho: &str) -> Option<Motivo> {
         e.avaliar_caminho(caminho).map(|x| x.motivo)
+    }
+
+    #[test]
+    fn reinclusao_cobre_o_arquivo_ou_a_pasta_acima() {
+        let e = Exclusoes::novas(&[], &["/docs/*.png".into(), "/vendor".into()]).unwrap();
+        assert!(e.reincluido("docs/logo.png"));
+        assert!(!e.reincluido("docs/sub/logo.png"));
+        assert!(!e.reincluido("docs/logo.jpg"));
+        assert!(e.reincluido("vendor/lib/a.php"));
+        assert!(!e.reincluido("src/a.php"));
     }
 
     #[test]

@@ -203,12 +203,6 @@ export function NovaHistorias({
         </select>
       </label>
       {analises?.length === 0 && !demandaFixa && <p className="muted">{textos.vazio}</p>}
-      {escolhida && escolhida.estado !== "aprovada" && (
-        <p className="muted" role="note">
-          A análise {escolhida.id} ainda não foi aprovada: o agente prefere as afirmações que você
-          já confirmou e trata as demais como a confirmar.
-        </p>
-      )}
       <label>
         {textos.pedido}
         <textarea
@@ -230,6 +224,13 @@ export function NovaHistorias({
           Cancelar
         </button>
       </div>
+      {/* Abaixo dos botões: o aviso não empurra “Gerar” (#219). */}
+      {escolhida && escolhida.estado !== "aprovada" && (
+        <p className="muted" role="note">
+          A análise {escolhida.id} ainda não foi aprovada: o agente prefere as afirmações que você
+          já confirmou e trata as demais como a confirmar.
+        </p>
+      )}
       {ambiente && !pronto && (
         <p className="muted">{textos.preparar}</p>
       )}

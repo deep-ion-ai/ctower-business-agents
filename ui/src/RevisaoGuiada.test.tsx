@@ -89,26 +89,27 @@ const tecla = (key: string, init: KeyboardEventInit = {}, alvo: Element = docume
   fireEvent.keyDown(alvo, { key, ...init });
 
 describe("resumoRevisao", () => {
-  it("conta decididas (confirmada, incorreta, aprofundar) e pendentes (sem decisão, a revalidar)", () => {
+  it("conta decididas (confirmada, incorreta) e pendentes (sem decisão, a aprofundar, a revalidar), pela regra da aprovação", () => {
     expect(resumir(AFIRMACOES)).toEqual({
       total: 6,
       confirmadas: 1,
       incorretas: 1,
       aprofundar: 1,
-      pendentes: 3,
-      decididas: 3,
+      pendentes: 4,
+      decididas: 2,
     });
   });
 
   it("cada filtro bate com o estado das afirmações", () => {
     expect(contagemPorFiltro(AFIRMACOES)).toEqual({
       todos: 6,
-      pendentes: 3,
+      pendentes: 4,
       confirmadas: 1,
       incorretas: 1,
       aprofundar: 1,
     });
     expect(passaNoFiltro(AFIRMACOES[5], "pendentes")).toBe(true);
+    expect(passaNoFiltro(AFIRMACOES[4], "pendentes")).toBe(true);
     expect(passaNoFiltro(AFIRMACOES[2], "pendentes")).toBe(false);
   });
 });
@@ -117,9 +118,9 @@ describe("Faixa de revisão", () => {
   it("mostra N de M decididos, a barra dividida e os atalhos", () => {
     montar();
     const faixa = screen.getByRole("region", { name: "Progresso da revisão" });
-    expect(within(faixa).getByRole("status")).toHaveTextContent("3 de 6 decididos");
+    expect(within(faixa).getByRole("status")).toHaveTextContent("2 de 6 decididos");
     const barra = within(faixa).getByRole("progressbar", { name: "Afirmações decididas" });
-    expect(barra).toHaveAttribute("aria-valuenow", "3");
+    expect(barra).toHaveAttribute("aria-valuenow", "2");
     expect(barra).toHaveAttribute("aria-valuemax", "6");
     expect(barra.querySelectorAll("[data-segmento]")).toHaveLength(4);
     expect(barra.querySelector('[data-segmento="confirmadas"]')).toHaveStyle({ flexGrow: "1" });
@@ -132,9 +133,9 @@ describe("Faixa de revisão", () => {
     montar();
     fireEvent.click(within(cartao(2)).getByRole("button", { name: "Confirmar" }));
     await waitFor(() =>
-      expect(screen.getByRole("status", { name: "" })).toHaveTextContent("4 de 6 decididos"),
+      expect(screen.getByRole("status", { name: "" })).toHaveTextContent("3 de 6 decididos"),
     );
-    expect(screen.getByRole("button", { name: /^Pendentes/ })).toHaveTextContent("2");
+    expect(screen.getByRole("button", { name: /^A decidir/ })).toHaveTextContent("3");
     expect(screen.getByRole("button", { name: /^Confirmadas/ })).toHaveTextContent("2");
   });
 
@@ -154,17 +155,18 @@ describe("Faixa de revisão", () => {
 });
 
 describe("Filtros", () => {
-  it("Pendentes mostra só as sem decisão e a revalidar; os outros filtram por resultado", () => {
+  it("A decidir mostra as sem decisão, a aprofundar e a revalidar; os outros filtram por resultado", () => {
     montar();
     expect(screen.getByRole("button", { name: /^Todos/ })).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(screen.getByRole("button", { name: /^Pendentes/ }));
-    expect(screen.getByRole("button", { name: /^Pendentes/ })).toHaveAttribute(
+    fireEvent.click(screen.getByRole("button", { name: /^A decidir/ }));
+    expect(screen.getByRole("button", { name: /^A decidir/ })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
     expect(screen.getAllByTestId(/^afirmacao-/).map((e) => e.dataset.testid)).toEqual([
       "afirmacao-1",
       "afirmacao-2",
+      "afirmacao-5",
       "afirmacao-6",
     ]);
 
@@ -185,12 +187,12 @@ describe("Filtros", () => {
     expect(screen.getByText("Nenhuma afirmação desta seção neste filtro.")).toBeInTheDocument();
   });
 
-  it("a afirmação decidida sai do filtro Pendentes na hora", async () => {
+  it("a afirmação decidida sai do filtro A decidir na hora", async () => {
     montar();
-    fireEvent.click(screen.getByRole("button", { name: /^Pendentes/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^A decidir/ }));
     fireEvent.click(within(cartao(2)).getByRole("button", { name: "Confirmar" }));
     await waitFor(() => expect(screen.queryByTestId("afirmacao-2")).not.toBeInTheDocument());
-    expect(screen.getByRole("button", { name: /^Pendentes/ })).toHaveTextContent("2");
+    expect(screen.getByRole("button", { name: /^A decidir/ })).toHaveTextContent("3");
   });
 });
 
@@ -268,7 +270,7 @@ describe("Cartão de afirmação", () => {
 
   it("evidências viram chips arquivo:linhas que abrem o código", () => {
     const { aoAbrirEvidencia } = montar();
-    fireEvent.click(within(cartao(1)).getByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
+    fireEvent.click(within(cartao(1)).getByRole("button", { name: "03_pkg_cobranca.sql:71-72" }));
     expect(aoAbrirEvidencia).toHaveBeenCalledWith(
       AFIRMACAO_MULTA.evidencias[0],
       "afirmacao-1",
@@ -324,9 +326,11 @@ describe("Atalhos de teclado", () => {
     // No começo, K fica onde está.
     tecla("k");
     expect(cartao(1)).toHaveFocus();
-    // Respeitam o filtro: só as pendentes.
-    fireEvent.click(screen.getByRole("button", { name: /^Pendentes/ }));
+    // Respeitam o filtro: só as a decidir (1, 2, 5 e 6).
+    fireEvent.click(screen.getByRole("button", { name: /^A decidir/ }));
     tecla("j");
+    tecla("j");
+    expect(cartao(5)).toHaveFocus();
     tecla("j");
     expect(cartao(6)).toHaveFocus();
     tecla("j");

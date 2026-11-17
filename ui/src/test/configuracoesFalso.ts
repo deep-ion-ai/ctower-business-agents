@@ -2,6 +2,7 @@ import type { SituacaoProtecao } from "../analise";
 import {
   CONFLITO,
   type AjusteLeitura,
+  type AmbienteDesfeito,
   type AmbienteDetalhado,
   type ApiConfiguracoes,
   type AvaliacaoTroca,
@@ -297,6 +298,7 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
           }),
         ),
     ),
+    cancelarClone: vi.fn((): Promise<boolean> => Promise.resolve(false)),
     // Ambiente de teste: o cadastro e o "chaveiro" das senhas, como o app faz.
     ambienteTeste: vi.fn(
       (projeto: string): Promise<SituacaoAmbienteTeste> =>
@@ -366,6 +368,7 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
             diretorio: CODIGO,
             chave: CODIGO,
             servidorMcp: "ok",
+            pastaConfiavel: true,
             hooks: [
               { evento: "SessionStart", situacao: "ok" },
               { evento: "Stop", situacao: "ok" },
@@ -412,6 +415,7 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
           })),
           exclusoes: a.exclusoes,
           inclusoes: a.inclusoes,
+          inclusoesVistas: [],
           jaCadastrado: false,
           inventario: inventarioFicticio(),
         }),
@@ -429,12 +433,14 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
         inventario: inventarioFicticio(),
       }),
     ),
-    desfazerAmbiente: vi.fn((_s: string) =>
-      Promise.resolve({
-        protecaoTirada: [],
-        preparo: { diretorio: CODIGO, alteracoes: [], gravado: true },
-        avisos: [],
-      }),
+    desfazerAmbiente: vi.fn(
+      (_s: string): Promise<AmbienteDesfeito> =>
+        Promise.resolve({
+          protecaoTirada: [],
+          preparo: { diretorio: CODIGO, alteracoes: [], gravado: true },
+          avisos: [],
+          igualAoAntes: true,
+        }),
     ),
     descadastrar: vi.fn((_s: string) =>
       Promise.resolve({
@@ -442,6 +448,7 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
           protecaoTirada: [],
           preparo: { diretorio: CODIGO, alteracoes: [], gravado: true },
           avisos: [],
+          igualAoAntes: true,
         },
         documentos: `${BASE}/faturamento-exemplo`,
       }),

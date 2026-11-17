@@ -40,6 +40,8 @@ pub fn rodar() {
         .manage(sessoes.clone())
         .manage(vigias)
         .manage(Arc::new(base::VigiaBase::default()))
+        .manage(Arc::new(clones::CloneEmAndamento::default()))
+        .manage(Arc::new(analise::EvidenciasVistas::default()))
         .invoke_handler(tauri::generate_handler![
             estado_clientes,
             terminal::listar_projetos,
@@ -54,6 +56,7 @@ pub fn rodar() {
             primeiro_uso::avaliar_base_app,
             primeiro_uso::configurar_base_app,
             primeiro_uso::previa_projeto_app,
+            primeiro_uso::nome_projeto_em_uso_app,
             primeiro_uso::cadastrar_projeto_app,
             primeiro_uso::concluir_primeiro_uso_app,
             analise::verificar_ambiente_projeto,
@@ -63,6 +66,7 @@ pub fn rodar() {
             analise::criar_analise_pergunta,
             analise::carregar_analise_projeto,
             analise::trecho_evidencia_projeto,
+            analise::conferir_evidencias_analise,
             analise::link_forja_evidencia_projeto,
             conversa::opcoes_conversa_analise,
             conversa::abrir_conversa_por_link,
@@ -98,6 +102,7 @@ pub fn rodar() {
             reunioes::analisar_proximo_passo_app,
             base::buscar_base,
             base::abrir_documento_base,
+            base::salvar_documento_base,
             base::vigiar_base,
             base::parar_vigia_base,
             repositorios::salvar_repositorios_app,
@@ -110,7 +115,9 @@ pub fn rodar() {
             clones::tokens_guardados_app,
             clones::testar_acesso_app,
             clones::clonar_repositorios_app,
+            clones::cancelar_clone_app,
             clones::testar_jira_app,
+            clones::testar_demandas_app,
             acessos::hosts_acessos_app,
             acessos::adicionar_host_acesso_app,
             acessos::remover_host_acesso_app,

@@ -1,3 +1,4 @@
+import { numero } from "./formatacao";
 import { tamanhoLegivel, type ResumoInventario } from "./primeiroUso";
 
 /** O que será analisado (por linguagem) e o que fica fora (por motivo e item a item). */
@@ -10,12 +11,12 @@ export function ResumoDoInventario({
   aoReincluir?: (caminho: string) => void;
   ocupado?: boolean;
 }) {
-  const omitidos = inventario.ignorados - inventario.itensIgnorados.length;
+  const omitidos = inventario.totalItensIgnorados - inventario.itensIgnorados.length;
   return (
     <div className="resumo-inventario">
       <div role="group" aria-label="O que será analisado">
         <h3>
-          Será analisado: {inventario.analisados} arquivos (
+          Será analisado: {numero(inventario.analisados)} arquivos (
           {tamanhoLegivel(inventario.bytesAnalisados)})
         </h3>
         <table>
@@ -30,7 +31,7 @@ export function ResumoDoInventario({
         </table>
       </div>
       <div role="group" aria-label="O que fica fora">
-        <h3>Fica fora: {inventario.ignorados} itens</h3>
+        <h3>Fica fora: {inventario.ignorados} arquivos</h3>
         {inventario.porMotivo.length > 0 && (
           <table>
             <tbody>

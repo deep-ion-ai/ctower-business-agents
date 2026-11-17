@@ -240,7 +240,7 @@ describe("Revisão, aprovação e exportação", () => {
     await waitFor(() =>
       expect(within(aprovacao).queryByRole("list", { name: "Pendências" })).not.toBeInTheDocument(),
     );
-    expect(within(aprovacao).getByText(/1 incorreta\(s\) ficam registradas e não viram regra/)).toBeInTheDocument();
+    expect(within(aprovacao).getByText(/1 incorreta fica registrada e não vira regra/)).toBeInTheDocument();
     const aprovar = within(aprovacao).getByRole("button", { name: /^Aprovar(…| e gravar na base)$/ });
     expect(aprovar).toBeDisabled();
     expect(within(aprovacao).getByText(/escolha a das regras/)).toBeInTheDocument();
@@ -256,6 +256,7 @@ describe("Revisão, aprovação e exportação", () => {
       expect(c.revisao.aprovar).toHaveBeenCalledWith("faturamento-exemplo", "A-0001", {
         area: "cobranca",
         afirmacoes: { 1: { area: null, titulo: "Multa por atraso" } },
+        regras: [1],
       }),
     );
     const resultado = await screen.findByRole("status", { name: "Resultado da aprovação" });
@@ -295,7 +296,7 @@ describe("Revisão, aprovação e exportação", () => {
     expect(screen.getByText(/texto editado pelo analista/)).toBeInTheDocument();
     expect(
       within(afirmacao(1).closest("li")!).getByRole("button", {
-        name: "db/03_pkg_cobranca.sql:71-72",
+        name: "03_pkg_cobranca.sql:71-72",
       }),
     ).toBeInTheDocument();
   });
