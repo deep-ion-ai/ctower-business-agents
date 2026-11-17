@@ -365,6 +365,24 @@ describe("reduzirProgressoClone", () => {
     expect(inicial.every((p) => p.situacao === "aguardando")).toBe(true);
   });
 
+  it("o cancelamento volta o repositório a “aguardando”, sem erro", () => {
+    const andando = reduzirProgressoClone([], {
+      tipo: "progresso",
+      indice: 0,
+      etapa: "Recebendo objetos",
+      percentual: 40,
+    });
+    const r = reduzirProgressoClone(andando, { tipo: "cancelado", indice: 0 });
+    expect(r[0]).toEqual({
+      situacao: "aguardando",
+      etapa: null,
+      percentual: null,
+      pasta: null,
+      erro: null,
+    });
+    expect(andando[0]!.situacao).toBe("clonando");
+  });
+
   it("estende a lista num índice além dela e ignora índice inválido", () => {
     const r = reduzirProgressoClone([], { tipo: "inicio", indice: 1 });
     expect(r.map((p) => p.situacao)).toEqual(["aguardando", "clonando"]);

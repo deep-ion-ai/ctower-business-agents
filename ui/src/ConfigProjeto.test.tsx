@@ -702,7 +702,7 @@ describe("ConfigProjeto", () => {
         }),
       );
       expect(await painel.findByText("14 arquivos")).toBeInTheDocument();
-      expect(painel.getByText("1 itens")).toBeInTheDocument();
+      expect(painel.getByText("1 arquivo")).toBeInTheDocument();
       expect(painel.getByText(/1 arquivo parece ter segredo/)).toHaveClass(
         "attention-text",
       );

@@ -298,6 +298,7 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
           }),
         ),
     ),
+    cancelarClone: vi.fn((): Promise<boolean> => Promise.resolve(false)),
     // Ambiente de teste: o cadastro e o "chaveiro" das senhas, como o app faz.
     ambienteTeste: vi.fn(
       (projeto: string): Promise<SituacaoAmbienteTeste> =>
@@ -414,6 +415,7 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
           })),
           exclusoes: a.exclusoes,
           inclusoes: a.inclusoes,
+          inclusoesVistas: [],
           jaCadastrado: false,
           inventario: inventarioFicticio(),
         }),

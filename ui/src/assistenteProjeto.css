@@ -422,6 +422,14 @@ fieldset.sem-borda {
   gap: 10px;
 }
 
+/* Cancelar o clone em andamento. */
+.acoes-clone {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 /* Tokens globais. */
 .lista-tokens {
   list-style: none;
@@ -576,6 +584,12 @@ fieldset.sem-borda {
   justify-content: space-between;
   gap: 10px;
   overflow-wrap: anywhere;
+}
+
+/* Lista de grupos de itens fora: rola dentro do cartão em vez de esticar o passo. */
+.ajustes-leitura .lista-incluiveis {
+  max-height: 320px;
+  overflow-y: auto;
 }
 
 .ajustes-leitura {

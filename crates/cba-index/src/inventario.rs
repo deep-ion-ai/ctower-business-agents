@@ -50,6 +50,10 @@ pub struct Ignorado {
     /// Pasta inteira (o conteúdo não é listado).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub pasta: bool,
+    /// Arquivos que o item cobre: 1 para um arquivo; numa pasta ignorada, os
+    /// arquivos dentro dela (as contagens da interface são sempre em arquivos).
+    #[serde(default = "um", skip_serializing_if = "eh_um")]
+    pub arquivos: usize,
     pub motivo: Motivo,
     /// Padrão que excluiu, se a exclusão veio de um padrão.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -63,6 +67,14 @@ pub struct Ignorado {
     pub tamanho: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub modificado: Option<u64>,
+}
+
+fn um() -> usize {
+    1
+}
+
+fn eh_um(n: &usize) -> bool {
+    *n == 1
 }
 
 /// Pasta do projeto no momento do inventário, com o estado do git.
@@ -100,7 +112,8 @@ pub struct Inventario {
     pub estatisticas: Estatisticas,
 }
 
-/// Resumo para a interface: contagem por tipo, analisado e ignorado.
+/// Resumo para a interface: contagem por tipo, analisado e ignorado. Tudo em
+/// arquivos: uma pasta ignorada conta os arquivos que ela tem.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Resumo {
     pub analisados: usize,
@@ -133,7 +146,7 @@ impl Inventario {
     pub fn resumo(&self) -> Resumo {
         let mut r = Resumo {
             analisados: self.arquivos.len(),
-            ignorados: self.ignorados.len(),
+            ignorados: self.ignorados.iter().map(|i| i.arquivos).sum(),
             ..Resumo::default()
         };
         for a in &self.arquivos {
@@ -141,7 +154,7 @@ impl Inventario {
             *r.por_linguagem.entry(a.linguagem).or_default() += 1;
         }
         for i in &self.ignorados {
-            *r.ignorados_por_motivo.entry(i.motivo).or_default() += 1;
+            *r.ignorados_por_motivo.entry(i.motivo).or_default() += i.arquivos;
         }
         r
     }
@@ -234,6 +247,7 @@ fn varrer(
     let ignorar = |caminho: String, pasta: bool, motivo, regra, detalhe| Ignorado {
         caminho,
         pasta,
+        arquivos: 1,
         motivo,
         regra,
         detalhe,
@@ -283,10 +297,12 @@ fn varrer(
             continue;
         }
         if let Some(e) = exclusoes.avaliar(&rel, tipo.is_dir()) {
+            let mut item = ignorar(rel, tipo.is_dir(), e.motivo, e.regra, None);
             if tipo.is_dir() {
                 it.skip_current_dir();
+                item.arquivos = contar_arquivos(entrada.path());
             }
-            ignorados.push(ignorar(rel, tipo.is_dir(), e.motivo, e.regra, None));
+            ignorados.push(item);
             continue;
         }
         if tipo.is_file() {
@@ -296,6 +312,19 @@ fn varrer(
             });
         }
     }
+}
+
+/// Arquivos (e links) dentro de uma pasta, em qualquer profundidade; no mínimo 1,
+/// para a pasta vazia ou ilegível não sumir da conta.
+fn contar_arquivos(pasta: &Path) -> usize {
+    WalkDir::new(pasta)
+        .follow_links(false)
+        .min_depth(1)
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|e| !e.file_type().is_dir())
+        .count()
+        .max(1)
 }
 
 fn relativo(raiz: &Path, prefixo: Option<&str>, caminho: &Path) -> Option<String> {
@@ -383,6 +412,7 @@ fn processar(c: &Candidato, cache: &Cache, buf: &mut [u8]) -> Resultado {
             Ignorado {
                 caminho: c.relativo.clone(),
                 pasta: false,
+                arquivos: 1,
                 motivo: Motivo::Ilegivel,
                 regra: None,
                 detalhe: Some(detalhe),
@@ -437,6 +467,7 @@ fn processar(c: &Candidato, cache: &Cache, buf: &mut [u8]) -> Resultado {
             Ignorado {
                 caminho: c.relativo.clone(),
                 pasta: false,
+                arquivos: 1,
                 motivo: Motivo::Binario,
                 regra: None,
                 detalhe: Some("conteúdo binário".into()),
