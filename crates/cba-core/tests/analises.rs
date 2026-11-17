@@ -250,6 +250,68 @@ fn varias_threads_nao_perdem_registros() {
     assert_eq!(numeros, (1..=40).collect::<Vec<_>>());
 }
 
+/// A pauta de perguntas (#123) fecha a mesma pergunta em várias análises: ou em
+/// todas, ou em nenhuma, sob uma trava só.
+#[test]
+fn alterar_varias_grava_todas_ou_nenhuma() {
+    let dir = tempfile::tempdir().unwrap();
+    let dados = preparar(dir.path());
+    let amb = Ambiente::do_diretorio(&fixture(), &dados).unwrap();
+    let a1 = amb.analises.criar(nova("Multa por atraso")).unwrap().id;
+    let a2 = amb.analises.criar(nova("Juros por atraso")).unwrap().id;
+    for id in [&a1, &a2] {
+        amb.analises
+            .alterar(id, Mudanca::Pergunta, |a, agora| {
+                a.registrar_pergunta("Vale para PJ?", None, None, agora)
+            })
+            .unwrap();
+    }
+    // A segunda pergunta não existe em A-0002: nada é gravado.
+    let erro = amb
+        .analises
+        .alterar_varias(&[a1.clone(), a2.clone()], Mudanca::Pergunta, |a, _| {
+            let n = if a.id == a1 { 1 } else { 9 };
+            a.decidir_pergunta(
+                n,
+                cba_core::analise::EstadoPergunta::Respondida {
+                    resposta: "Sim".into(),
+                },
+            )
+        })
+        .unwrap_err();
+    assert!(matches!(erro, Erro::Modelo(_)), "{erro}");
+    let antes = amb.analises.carregar(&a1).unwrap();
+    assert_eq!(
+        antes.perguntas[0].estado,
+        cba_core::analise::EstadoPergunta::Aberta
+    );
+
+    let gravadas = amb
+        .analises
+        .alterar_varias(
+            &[a1.clone(), a2.clone(), a1.clone()],
+            Mudanca::Pergunta,
+            |a, _| {
+                a.decidir_pergunta(
+                    1,
+                    cba_core::analise::EstadoPergunta::Respondida {
+                        resposta: "Sim".into(),
+                    },
+                )
+            },
+        )
+        .unwrap();
+    assert_eq!(gravadas.len(), 2);
+    for id in [&a1, &a2] {
+        let a = amb.analises.carregar(id).unwrap();
+        assert!(matches!(
+            a.perguntas[0].estado,
+            cba_core::analise::EstadoPergunta::Respondida { .. }
+        ));
+        assert_eq!(a.versao, antes.versao + 1);
+    }
+}
+
 /// Dois (ou mais) processos — como duas sessões com `cba mcp` — criando análises e
 /// registrando na mesma análise ao mesmo tempo: nada se perde nem se corrompe.
 #[test]

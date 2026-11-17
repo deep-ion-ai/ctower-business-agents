@@ -123,6 +123,13 @@ pub(super) fn extrair(projeto: &Projeto, relativo: &CaminhoRelativo, bytes: Vec<
         r.ligacoes
             .push((projeto.na_base(&arquivo).as_str().to_owned(), "demanda"));
     }
+    // Nos registros da demanda (#122), `pessoa: <slug>` aponta para o catálogo.
+    if let Some(pessoa) = texto_do_campo(mapa, "pessoa").filter(|p| crate::e_slug(p))
+        && let Ok(arquivo) = CaminhoRelativo::novo(&format!("{}/{pessoa}.md", layout::PESSOAS))
+    {
+        r.ligacoes
+            .push((projeto.na_base(&arquivo).as_str().to_owned(), "pessoa"));
+    }
     if let Some(valor) = mapa.get("evidencias") {
         r.evidencias = serde_norway::from_value(valor.clone()).unwrap_or_default();
     }
@@ -166,6 +173,10 @@ fn validar(tipo: TipoDocumento, relativo: &CaminhoRelativo, texto: &str) -> Resu
         TipoDocumento::Demanda => com::<FrontmatterDemanda>(texto),
         TipoDocumento::Pessoa => com::<FrontmatterPessoa>(texto),
         TipoDocumento::Ata => com::<FrontmatterAta>(texto),
+        TipoDocumento::Premissa
+        | TipoDocumento::Decisao
+        | TipoDocumento::Risco
+        | TipoDocumento::Restricao => com::<crate::registros::FrontmatterRegistro>(texto),
     }
 }
 

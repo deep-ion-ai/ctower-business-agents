@@ -339,8 +339,10 @@ impl Chave {
     fn corresponde(&self, f: &FrontmatterRegra, origem: &CaminhoRelativo) -> bool {
         match self {
             Self::Evidencias(_) => Self::de(&f.evidencias, &f.titulo) == *self,
+            // A regra informada por uma pessoa (#123) não é a da afirmação.
             Self::Titulo(t) => {
                 f.evidencias.is_empty()
+                    && f.informada.is_none()
                     && f.origem.as_ref() == Some(origem)
                     && slug(&f.titulo) == *t
             }
@@ -362,7 +364,10 @@ struct RegraPlanejada {
 }
 
 /// Área e sigla a partir do texto informado e das áreas do `projeto.md`.
-fn resolver_area(areas: &[Area], texto: &str) -> Result<(String, String), ErroAprovacao> {
+pub(crate) fn resolver_area(
+    areas: &[Area],
+    texto: &str,
+) -> Result<(String, String), ErroAprovacao> {
     let chave = slug(texto);
     if chave.is_empty() {
         return Err(ErroAprovacao::AreaInvalida(texto.to_owned()));
@@ -686,6 +691,7 @@ impl Gravacao<'_> {
                     status,
                     evidencias: p.evidencias,
                     origem: f.origem.clone().or_else(|| Some(origem.clone())),
+                    informada: f.informada.clone(),
                 };
                 let (id, area) = (f.id.clone(), f.area.clone());
                 let mut conteudo = Conteudo::da_regra(frontmatter, enunciado);
@@ -712,6 +718,7 @@ impl Gravacao<'_> {
                 status,
                 evidencias: p.evidencias.clone(),
                 origem: Some(origem.clone()),
+                informada: None,
             };
             // Monta antes com o próximo número livre, para recusar (sem gravar) um
             // template que não monta; a reserva sem colisão monta de novo.

@@ -433,11 +433,19 @@ impl Montavel for FrontmatterRegra {
             StatusRegra::ARevalidar => "a revalidar",
             StatusRegra::Obsoleta => "obsoleta",
         };
+        // A regra informada por uma pessoa (#123) mostra a exceção no status.
+        let status = match &self.informada {
+            Some(i) => format!(
+                "{status}, informada por {} (sem evidência no código)",
+                i.informacao.descricao()
+            ),
+            None => status.to_owned(),
+        };
         vec![
             ("id", self.id.to_string()),
             ("titulo", self.titulo.clone()),
             ("area", self.area.clone()),
-            ("status", status.into()),
+            ("status", status),
             ("origem", origem(caminho, self.origem.as_ref())),
         ]
     }

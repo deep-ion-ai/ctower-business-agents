@@ -21,6 +21,7 @@
 use std::fmt;
 
 use cba_kb::frontmatter::{Data, FrontmatterAta, Horario, StatusAta};
+use cba_kb::informada::{Destinatario, RespostaInformada};
 use cba_kb::{
     ArquivosDaReuniao, CaminhoRelativo, IdDemanda, IdReuniao, Projeto, TipoDocumento, e_slug,
 };
@@ -283,6 +284,13 @@ pub struct ItemAta {
     /// notas de rodapé.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub evidencias: Vec<Citacao>,
+    /// A quem a dúvida se dirige, escolhido na pauta de perguntas (#123).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub destinatario: Option<Destinatario>,
+    /// Resposta da dúvida, registrada depois da reunião pela pauta de perguntas
+    /// (#123). Com ela, a dúvida deixa de estar em aberto.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resposta: Option<RespostaInformada>,
 }
 
 /// Item a registrar; o identificador é dado por [`EstadoAta::adicionar_item`].
@@ -329,6 +337,10 @@ pub enum ErroAta {
     TipoDoItem { id: IdItemAta, tipo: TipoItem },
     #[error("o item {0} aparece mais de uma vez")]
     ItemRepetido(IdItemAta),
+    #[error("o item {0} não é uma dúvida; só dúvidas recebem resposta pela pauta")]
+    NaoEDuvida(IdItemAta),
+    #[error("a dúvida {0} já foi respondida")]
+    DuvidaRespondida(IdItemAta),
     #[error("{arquivo}: o estado é da reunião {estado}, não de {esperada}")]
     ReuniaoDiferente {
         arquivo: CaminhoRelativo,
@@ -450,8 +462,52 @@ impl EstadoAta {
             referencias: novo.referencias,
             citacoes: novo.citacoes,
             evidencias: novo.evidencias,
+            destinatario: None,
+            resposta: None,
         });
         Ok(id)
+    }
+
+    /// Dúvida da ata pelo identificador, se for uma dúvida.
+    fn duvida_mut(&mut self, id: IdItemAta) -> Result<&mut ItemAta, ErroAta> {
+        let item = self.item_mut(id).ok_or(ErroAta::ItemInexistente(id))?;
+        if item.tipo != TipoItem::Duvida {
+            return Err(ErroAta::NaoEDuvida(id));
+        }
+        Ok(item)
+    }
+
+    /// Registra a resposta de uma dúvida em aberto (a pauta de perguntas, #123).
+    /// Vale também na ata aprovada: a resposta vem depois da reunião e não muda o
+    /// que foi dito nela. A dúvida já respondida recusa.
+    pub fn responder_duvida(
+        &mut self,
+        id: IdItemAta,
+        resposta: RespostaInformada,
+    ) -> Result<(), ErroAta> {
+        if resposta.texto.trim().is_empty() {
+            return Err(ErroAta::TextoVazio);
+        }
+        let item = self.duvida_mut(id)?;
+        if item.resposta.is_some() {
+            return Err(ErroAta::DuvidaRespondida(id));
+        }
+        item.resposta = Some(resposta);
+        Ok(())
+    }
+
+    /// Define (ou tira) o destinatário de uma dúvida em aberto (#123).
+    pub fn definir_destinatario(
+        &mut self,
+        id: IdItemAta,
+        destinatario: Option<Destinatario>,
+    ) -> Result<(), ErroAta> {
+        let item = self.duvida_mut(id)?;
+        if item.resposta.is_some() {
+            return Err(ErroAta::DuvidaRespondida(id));
+        }
+        item.destinatario = destinatario;
+        Ok(())
     }
 
     pub fn item(&self, id: IdItemAta) -> Option<&ItemAta> {
@@ -751,6 +807,13 @@ fn linha_do_item(item: &ItemAta) -> String {
     } else {
         linha.push_str(&format!(" — _{}_", falas.join("; ")));
     }
+    if let Some(r) = &item.resposta {
+        linha.push_str(&format!(
+            "\n**Resposta** (informada por {}, depois da reunião): {}",
+            r.informacao.descricao(),
+            r.texto.trim()
+        ));
+    }
     let mut saida = String::new();
     for (i, l) in linha.lines().enumerate() {
         if i > 0 {
@@ -823,6 +886,53 @@ mod tests {
             e.adicionar_item(NovoItem::novo(TipoItem::Duvida, "  ")),
             Err(ErroAta::TextoVazio)
         ));
+    }
+
+    #[test]
+    fn duvida_respondida_depois_da_reuniao_aparece_na_ata() {
+        let mut e = EstadoAta::nova(
+            IdReuniao::novo(1),
+            "faturamento-exemplo",
+            IdDemanda::novo(1),
+            d(12),
+        );
+        let dv = e
+            .adicionar_item(NovoItem::novo(TipoItem::Duvida, "Vale para PJ?"))
+            .unwrap();
+        let dec = e
+            .adicionar_item(NovoItem::novo(TipoItem::Decisao, "Parcelar"))
+            .unwrap();
+        let resposta = RespostaInformada {
+            texto: "Sim, só para PJ.".into(),
+            informacao: cba_kb::informada::Informacao {
+                por: "Maria Silva".into(),
+                pessoa: None,
+                em: d(17),
+                fonte: "e-mail".into(),
+            },
+        };
+        assert!(matches!(
+            e.responder_duvida(dec, resposta.clone()),
+            Err(ErroAta::NaoEDuvida(_))
+        ));
+        let papel = Destinatario::Papel { papel: "PO".into() };
+        e.definir_destinatario(dv, Some(papel.clone())).unwrap();
+        assert_eq!(e.item(dv).unwrap().destinatario, Some(papel));
+        e.responder_duvida(dv, resposta.clone()).unwrap();
+        assert!(matches!(
+            e.responder_duvida(dv, resposta),
+            Err(ErroAta::DuvidaRespondida(_))
+        ));
+        assert!(matches!(
+            e.definir_destinatario(dv, None),
+            Err(ErroAta::DuvidaRespondida(_))
+        ));
+        let linha = linha_do_item(e.item(dv).unwrap());
+        assert!(
+            linha.contains("**Resposta** (informada por Maria Silva em 2026-11-17 (e-mail)"),
+            "{linha}"
+        );
+        assert!(linha.contains("Sim, só para PJ."));
     }
 
     #[test]

@@ -23,7 +23,9 @@
 //!   pelos elementos, que o app transforma em Mermaid, #118).
 //! - Consulta, só de leitura e paginada ([`paginacao`]): [`conhecimento`] (busca no
 //!   índice da base), [`mapa`], [`estrutura`], [`banco`] (`schema`) e
-//!   [`referencias`], a partir do mapa estrutural do projeto ([`fontes`]).
+//!   [`referencias`], a partir do mapa estrutural do projeto ([`fontes`]), e
+//!   [`rastreabilidade`] (matriz da demanda e consulta reversa por regra ou
+//!   arquivo, #121, que também exporta a matriz para Excel e Word).
 //! - [`roteiro`] e [`contexto`]: o roteiro do fluxo e o contexto da base que
 //!   `iniciar_analise` e `retomar_analise` devolvem ao agente.
 //! - [`prompts`]: os prompts prontos da tela da análise (aprofundar, resumir,
@@ -68,10 +70,13 @@ pub mod memoria;
 mod modelo_dados;
 mod paginacao;
 pub mod parecer;
+pub mod pauta;
 pub mod perguntar;
 pub mod prompts;
+pub mod rastreabilidade;
 pub mod referencias;
 mod registro;
+pub mod registros;
 pub mod reuniao;
 pub mod revalidacao;
 pub mod revisao;
@@ -96,6 +101,7 @@ pub fn registro_padrao() -> Registro {
         .registrar(ciclo::retomar_analise())
         .registrar(conhecimento::conhecimento())
         .registrar(referencias::referencias())
+        .registrar(rastreabilidade::rastreabilidade())
         .registrar(mapa::mapa())
         .registrar(estrutura::estrutura())
         .registrar(banco::schema())
@@ -140,6 +146,7 @@ mod tests {
             "retomar_analise",
             "conhecimento",
             "referencias",
+            "rastreabilidade",
             "mapa",
             "estrutura",
             "schema",
@@ -190,6 +197,7 @@ mod tests {
             "retomar_analise",
             "conhecimento",
             "referencias",
+            "rastreabilidade",
             "mapa",
             "estrutura",
             "schema",
