@@ -14,6 +14,8 @@ import type { Tela } from "./Navegacao";
 import { NovaAnalise } from "./NovaAnalise";
 import { NovaHistorias } from "./NovaHistorias";
 import { MatrizRastreabilidade } from "./MatrizRastreabilidade";
+import { PautaPerguntas } from "./PautaPerguntas";
+import type { ApiPauta } from "./pauta";
 import { NovaReuniao } from "./NovaReuniao";
 import { BotoesProximoPasso } from "./ProximoPasso";
 import { RegistrosDemanda } from "./RegistrosDemanda";
@@ -54,6 +56,7 @@ export function PainelDemanda({
   apiReuniao,
   apiRegistros,
   apiRastreabilidade,
+  apiPauta,
 }: {
   api: ApiConhecimento;
   projeto: string;
@@ -65,6 +68,8 @@ export function PainelDemanda({
   apiRegistros?: ApiRegistros;
   /** Matriz de rastreabilidade (#121); para testes. */
   apiRastreabilidade?: ApiRastreabilidade;
+  /** Pauta de perguntas pendentes (#123); para testes. */
+  apiPauta?: ApiPauta;
 }) {
   const [painel, setPainel] = useState<Painel | null>(null);
   const [falha, setFalha] = useState<string | null>(null);
@@ -284,6 +289,15 @@ export function PainelDemanda({
               )
             : undefined
         }
+      />
+
+      <PautaPerguntas
+        projeto={projeto}
+        demanda={d.id}
+        api={apiPauta}
+        atualizacao={painel}
+        abrirAnalise={abrirAnalise}
+        abrirDocumento={abrirDocumento}
       />
 
       <RegistrosDemanda
