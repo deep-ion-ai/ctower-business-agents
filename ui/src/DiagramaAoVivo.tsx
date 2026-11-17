@@ -32,6 +32,25 @@ function inferida(a: ArestaDiagrama): boolean {
   return a.relacao?.origem === "join" || a.confianca !== "confirmado";
 }
 
+/** Texto inicial da pergunta de uma relação ou transição inferida, citando o elemento. */
+export function textoDaPergunta(
+  tipo: Diagrama["tipo"],
+  de: string,
+  para: string,
+  a: ArestaDiagrama,
+): string {
+  if (tipo === "dados") {
+    const card = a.relacao
+      ? `${MULTIPLICIDADE[a.relacao.de]}:${MULTIPLICIDADE[a.relacao.para]}`
+      : "cardinalidade a confirmar";
+    return `A relação entre ${de} e ${para} foi inferida do código, sem chave estrangeira. Ela vale sempre (${card})?`;
+  }
+  const quando = a.rotulo ? ` (${a.rotulo})` : "";
+  if (tipo === "estados")
+    return `A transição de ${de} para ${para}${quando} foi inferida do código, sem confirmação. Ela acontece mesmo no negócio?`;
+  return `O caminho de ${de} para ${para}${quando} foi inferido do código, sem confirmação. Ele é assim no negócio?`;
+}
+
 const PAPEL: Record<string, string> = {
   inicio: "início",
   fim: "fim",
@@ -85,8 +104,13 @@ function ItemAchado({
       .then(() => setEditando(false))
       .catch(() => undefined);
   return (
-    <li className="achado-diagrama" data-tipo={achado.tipo} data-testid={`achado-${achado.id}`}>
-      <strong>{TIPO_ACHADO[achado.tipo] ?? achado.tipo}:</strong> {achado.texto} {botoes}
+    <li
+      className="achado-diagrama"
+      data-tipo={achado.tipo}
+      data-testid={`achado-${achado.id}`}
+    >
+      <strong>{TIPO_ACHADO[achado.tipo] ?? achado.tipo}:</strong> {achado.texto}{" "}
+      {botoes}
       {pergunta ? (
         <span className="badge" data-tone="done">
           virou a pergunta {pergunta.numero}
@@ -102,12 +126,25 @@ function ItemAchado({
             }}
           >
             <label htmlFor={id}>Pergunta para o solicitante</label>
-            <textarea id={id} value={texto} rows={3} onChange={(e) => setTexto(e.target.value)} />
+            <textarea
+              id={id}
+              value={texto}
+              rows={3}
+              onChange={(e) => setTexto(e.target.value)}
+            />
             <div>
-              <button className="btn" type="submit" disabled={revisao.ocupado || !texto.trim()}>
+              <button
+                className="btn"
+                type="submit"
+                disabled={revisao.ocupado || !texto.trim()}
+              >
                 Registrar pergunta
               </button>{" "}
-              <button className="btn" type="button" onClick={() => setEditando(false)}>
+              <button
+                className="btn"
+                type="button"
+                onClick={() => setEditando(false)}
+              >
                 Cancelar
               </button>
             </div>
@@ -167,7 +204,8 @@ export function DiagramaAoVivo({
   const [selecionada, setSelecionada] = useState<Linha | null>(null);
   const nomes = NOMES[diagrama.tipo] ?? NOMES.fluxo;
   const arestas = diagrama.arestas ?? [];
-  const rotuloDe = (c: string) => diagrama.nos.find((n) => n.chave === c)?.rotulo ?? c;
+  const rotuloDe = (c: string) =>
+    diagrama.nos.find((n) => n.chave === c)?.rotulo ?? c;
   // Condição e efeitos (#119) só ganham coluna quando alguma transição os tem.
   const comGuarda = arestas.some((a) => a.condicao || a.efeitos);
   const dados = diagrama.tipo === "dados";
@@ -183,7 +221,8 @@ export function DiagramaAoVivo({
   const selecionar = (linha: Linha, evidencias: Evidencia[] | undefined) => {
     setSelecionada(linha);
     const primeira = evidencias?.[0];
-    if (primeira && evidenciaAberta !== chave(primeira)) aoAbrirEvidencia(primeira);
+    if (primeira && evidenciaAberta !== chave(primeira))
+      aoAbrirEvidencia(primeira);
   };
 
   const aoClicar = (el: ElementoDoDiagrama) => {
@@ -219,7 +258,10 @@ export function DiagramaAoVivo({
     });
 
   return (
-    <div className="diagrama-ao-vivo" data-testid={`diagrama-${diagrama.numero}`}>
+    <div
+      className="diagrama-ao-vivo"
+      data-testid={`diagrama-${diagrama.numero}`}
+    >
       <p className="legenda-diagrama">
         <strong>D-{diagrama.numero}</strong> · {diagrama.titulo}{" "}
         <span className="muted">
@@ -228,9 +270,17 @@ export function DiagramaAoVivo({
         </span>
       </p>
       {mermaid && (
-        <DiagramaMermaid codigo={mermaid} titulo={diagrama.titulo} aoClicar={aoClicar} />
+        <DiagramaMermaid
+          codigo={mermaid}
+          titulo={diagrama.titulo}
+          aoClicar={aoClicar}
+          ampliavel
+        />
       )}
-      <table className="tabela-diagrama" aria-label={`Elementos de ${diagrama.titulo}`}>
+      <table
+        className="tabela-diagrama"
+        aria-label={`Elementos de ${diagrama.titulo}`}
+      >
         <thead>
           <tr>
             <th scope="col">Elemento</th>
@@ -257,18 +307,27 @@ export function DiagramaAoVivo({
             >
               <td>
                 {nomes.no} <strong>{n.rotulo}</strong>
-                {n.papel && PAPEL[n.papel] && <span className="muted"> ({PAPEL[n.papel]})</span>}
+                {n.papel && PAPEL[n.papel] && (
+                  <span className="muted"> ({PAPEL[n.papel]})</span>
+                )}
               </td>
               <td>
                 {n.entidade ? (
                   <>
                     <code>{n.entidade.tabela}</code>{" "}
                     {n.entidade.termo ? (
-                      <span className="badge" data-tone="done" title="Termo do glossário">
+                      <span
+                        className="badge"
+                        data-tone="done"
+                        title="Termo do glossário"
+                      >
                         glossário: {n.entidade.termo}
                       </span>
                     ) : (
-                      <span className="badge" title="A tabela não tem termo no glossário">
+                      <span
+                        className="badge"
+                        title="A tabela não tem termo no glossário"
+                      >
                         fora do glossário
                       </span>
                     )}
@@ -282,7 +341,10 @@ export function DiagramaAoVivo({
               <td>
                 {n.descricao}
                 {n.entidade?.atributos && n.entidade.atributos.length > 0 && (
-                  <ul className="atributos-entidade" aria-label={`Atributos de ${n.rotulo}`}>
+                  <ul
+                    className="atributos-entidade"
+                    aria-label={`Atributos de ${n.rotulo}`}
+                  >
                     {n.entidade.atributos.map((a) => (
                       <li key={a.coluna}>
                         {a.nome} <code>{a.coluna}</code>
@@ -304,15 +366,22 @@ export function DiagramaAoVivo({
             >
               <td>
                 {rotuloDe(a.de)} → {rotuloDe(a.para)}
-                {dados && a.rotulo && <span className="muted"> ({a.rotulo})</span>}
+                {dados && a.rotulo && (
+                  <span className="muted"> ({a.rotulo})</span>
+                )}
               </td>
               <td>
                 {a.relacao ? (
                   <>
-                    {MULTIPLICIDADE[a.relacao.de]}:{MULTIPLICIDADE[a.relacao.para]}{" "}
+                    {MULTIPLICIDADE[a.relacao.de]}:
+                    {MULTIPLICIDADE[a.relacao.para]}{" "}
                     <span
                       className="badge"
-                      data-tone={a.relacao.origem === "chave_estrangeira" ? "done" : undefined}
+                      data-tone={
+                        a.relacao.origem === "chave_estrangeira"
+                          ? "done"
+                          : undefined
+                      }
                     >
                       {a.relacao.origem === "chave_estrangeira"
                         ? "chave estrangeira"
@@ -327,11 +396,21 @@ export function DiagramaAoVivo({
               {comGuarda && <td>{a.efeitos}</td>}
               <td>
                 {a.descricao}
-                {dados && inferida(a) && (
+                {inferida(a) && (
                   <div className="virar-pergunta">
                     <VirarPergunta
-                      origem={{ tipo: "aresta", diagrama: diagrama.numero, de: a.de, para: a.para }}
-                      textoInicial={`A relação entre ${rotuloDe(a.de)} e ${rotuloDe(a.para)} foi inferida do código, sem chave estrangeira. Ela vale sempre (${a.relacao ? `${MULTIPLICIDADE[a.relacao.de]}:${MULTIPLICIDADE[a.relacao.para]}` : "cardinalidade a confirmar"})?`}
+                      origem={{
+                        tipo: "aresta",
+                        diagrama: diagrama.numero,
+                        de: a.de,
+                        para: a.para,
+                      }}
+                      textoInicial={textoDaPergunta(
+                        diagrama.tipo,
+                        rotuloDe(a.de),
+                        rotuloDe(a.para),
+                        a,
+                      )}
                       perguntas={perguntas}
                       revisao={revisao}
                     />
@@ -339,7 +418,10 @@ export function DiagramaAoVivo({
                 )}
               </td>
               <td>
-                <span className="badge" data-tone={a.confianca === "confirmado" ? "done" : undefined}>
+                <span
+                  className="badge"
+                  data-tone={a.confianca === "confirmado" ? "done" : undefined}
+                >
                   {CONFIANCA[a.confianca] ?? a.confianca}
                 </span>
               </td>
@@ -349,10 +431,15 @@ export function DiagramaAoVivo({
         </tbody>
       </table>
       {achados.length > 0 && (
-        <div className="achados-diagrama" aria-label={`Achados de ${diagrama.titulo}`}>
+        <div
+          className="achados-diagrama"
+          aria-label={`Achados de ${diagrama.titulo}`}
+        >
           <p>
             <strong>Achados do ciclo de vida</strong>{" "}
-            <span className="muted">· calculados pelo app a partir das transições registradas</span>
+            <span className="muted">
+              · calculados pelo app a partir das transições registradas
+            </span>
           </p>
           <ul>
             {achados.map((achado) => (
