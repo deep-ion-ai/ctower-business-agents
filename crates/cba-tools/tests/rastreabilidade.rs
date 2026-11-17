@@ -87,6 +87,7 @@ impl Caso {
                             commit: None,
                         }],
                         origem: None,
+                        informada: None,
                     },
                     format!("\n# {id}\n"),
                 ),

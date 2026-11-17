@@ -54,6 +54,7 @@ mod erro;
 pub mod frontmatter;
 mod id;
 pub mod indice;
+pub mod informada;
 pub mod layout;
 mod papeis;
 mod pessoas;

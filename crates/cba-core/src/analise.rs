@@ -23,6 +23,7 @@
 //! partir de 1, único dentro da análise e nunca reaproveitado.
 
 use cba_kb::frontmatter::{Linhas, StatusAnalise, StatusSugestao, TipoDocumento};
+use cba_kb::informada::{Destinatario, Informacao};
 use cba_kb::{CaminhoRelativo, Id, IdCenario, IdHistoria, IdReuniao};
 use serde::{Deserialize, Serialize};
 
@@ -266,6 +267,13 @@ pub struct Pergunta {
     /// Evidências do item de origem.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub evidencias: Vec<Evidencia>,
+    /// A quem a pergunta se dirige, escolhido pelo analista na pauta de perguntas
+    /// (#123). Sem ele, a pergunta fica no grupo "sem destinatário".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub destinatario: Option<Destinatario>,
+    /// Quem informou a resposta, quando e de onde, se ela veio pela pauta (#123).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub informada: Option<Informacao>,
 }
 
 /// Item da análise que o analista transformou em pergunta ("Virar pergunta",
@@ -860,6 +868,8 @@ impl Analise {
             registrada_ms: agora_ms,
             origem: None,
             evidencias: Vec::new(),
+            destinatario: None,
+            informada: None,
         });
         Ok(numero)
     }
@@ -922,6 +932,8 @@ impl Analise {
             registrada_ms: agora_ms,
             origem: Some(origem),
             evidencias,
+            destinatario: None,
+            informada: None,
         });
         Ok(numero)
     }
@@ -957,6 +969,53 @@ impl Analise {
             });
         }
         p.estado = estado;
+        Ok(())
+    }
+
+    /// Responde uma pergunta aberta com a resposta informada por uma pessoa (a
+    /// pauta de perguntas, #123): a pergunta fica respondida, com quem informou,
+    /// quando e a fonte. Vale também em análise aprovada, como
+    /// [`Analise::decidir_pergunta`]: a resposta não muda o que foi aprovado.
+    pub fn responder_pergunta(
+        &mut self,
+        numero: u32,
+        resposta: &str,
+        informada: Informacao,
+    ) -> Result<(), ErroModelo> {
+        exigir("por", &informada.por)?;
+        self.decidir_pergunta(
+            numero,
+            EstadoPergunta::Respondida {
+                resposta: resposta.trim().to_owned(),
+            },
+        )?;
+        if let Some(p) = self.perguntas.iter_mut().find(|p| p.numero == numero) {
+            p.informada = Some(informada);
+        }
+        Ok(())
+    }
+
+    /// Define (ou tira, com `None`) o destinatário de uma pergunta aberta (#123).
+    pub fn definir_destinatario(
+        &mut self,
+        numero: u32,
+        destinatario: Option<Destinatario>,
+    ) -> Result<(), ErroModelo> {
+        let p = self
+            .perguntas
+            .iter_mut()
+            .find(|p| p.numero == numero)
+            .ok_or(ErroModelo::ItemDesconhecido {
+                tipo: "pergunta",
+                numero,
+            })?;
+        if p.estado != EstadoPergunta::Aberta {
+            return Err(ErroModelo::ItemDecidido {
+                tipo: "a pergunta",
+                numero,
+            });
+        }
+        p.destinatario = destinatario;
         Ok(())
     }
 
@@ -1528,6 +1587,57 @@ mod tests {
         assert_eq!(a.sessoes[0].estado, EstadoSessao::Ativa);
         assert_eq!(a.sessoes[0].cliente, Cliente::ClaudeCode);
         assert_eq!(a.sessao_ativa().unwrap().id, "s1");
+    }
+
+    #[test]
+    fn resposta_da_pauta_fecha_a_pergunta_com_quem_informou() {
+        let mut a = analise();
+        a.registrar_pergunta("Vale para PJ?", None, None, 3)
+            .unwrap();
+        a.registrar_pergunta("E para PF?", None, None, 4).unwrap();
+        let papel = Destinatario::Papel { papel: "PO".into() };
+        a.definir_destinatario(1, Some(papel.clone())).unwrap();
+        assert_eq!(a.perguntas[0].destinatario, Some(papel));
+        let info = Informacao {
+            por: "Maria Silva".into(),
+            pessoa: Some("maria-silva".into()),
+            em: cba_kb::frontmatter::Data::nova(2026, 11, 17).unwrap(),
+            fonte: "e-mail".into(),
+        };
+        assert_eq!(
+            a.responder_pergunta(
+                1,
+                "Sim",
+                Informacao {
+                    por: " ".into(),
+                    ..info.clone()
+                }
+            ),
+            Err(ErroModelo::CampoVazio("por"))
+        );
+        a.responder_pergunta(1, " Sim, vale. ", info.clone())
+            .unwrap();
+        let p = &a.perguntas[0];
+        assert_eq!(
+            p.estado,
+            EstadoPergunta::Respondida {
+                resposta: "Sim, vale.".into()
+            }
+        );
+        assert_eq!(p.informada, Some(info.clone()));
+        assert!(matches!(
+            a.responder_pergunta(1, "de novo", info.clone()),
+            Err(ErroModelo::ItemDecidido { .. })
+        ));
+        assert!(matches!(
+            a.definir_destinatario(1, None),
+            Err(ErroModelo::ItemDecidido { .. })
+        ));
+        // Campos novos não aparecem no JSON das perguntas sem eles.
+        let json = serde_json::to_value(&a).unwrap();
+        assert!(json["perguntas"][1].get("destinatario").is_none());
+        assert!(json["perguntas"][1].get("informada").is_none());
+        assert_eq!(json["perguntas"][0]["informada"]["por"], "Maria Silva");
     }
 
     #[test]

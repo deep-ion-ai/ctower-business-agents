@@ -180,6 +180,7 @@ pub fn gravar_regra(
                 })
                 .collect(),
             origem,
+            informada: None,
         },
         format!(
             "\n# {id} · {}\n\n{}\n",
