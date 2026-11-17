@@ -141,6 +141,20 @@ pub fn testar_jira(
     }
 }
 
+/// "Testar conexão" das demandas (GitHub, GitLab ou Jira), com o valor da tela
+/// (ainda não salvo). Jira aceita o token digitado; GitHub e GitLab usam o token
+/// global do host (ou o comando de credencial).
+pub fn testar_demandas(
+    f: &Ferramentas,
+    tracker: &cba_repos::TrackerConfig,
+    token: Option<&str>,
+) -> cba_repos::prontidao::Integracao {
+    match tracker {
+        cba_repos::TrackerConfig::Jira(j) => testar_jira(f, j, token),
+        t => cba_repos::prontidao::prontidao_tracker(t, f),
+    }
+}
+
 /// Evento do clone para a tela, por repositório (`indice` na lista pedida).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase", tag = "tipo")]
@@ -303,6 +317,21 @@ pub async fn testar_jira_app(
         Ok(testar_jira(
             &Ferramentas::default(),
             &jira,
+            token.as_deref(),
+        ))
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn testar_demandas_app(
+    tracker: cba_repos::TrackerConfig,
+    token: Option<String>,
+) -> Result<cba_repos::prontidao::Integracao, String> {
+    bloqueante(move || {
+        Ok(testar_demandas(
+            &Ferramentas::default(),
+            &tracker,
             token.as_deref(),
         ))
     })

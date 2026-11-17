@@ -395,6 +395,8 @@ export interface ApiRepositorios {
    * ainda não guardado), usa ele; senão, o comando de credencial ou o do chaveiro.
    */
   testarJira(jira: JiraConfig, token: string | null): Promise<IntegracaoProntidao>;
+  /** Testa as demandas (GitHub, GitLab ou Jira) com o valor da tela, ainda não salvo. */
+  testarDemandas(tracker: TrackerConfig, token: string | null): Promise<IntegracaoProntidao>;
 }
 
 export const apiRepositoriosTauri: ApiRepositorios = {
@@ -416,4 +418,5 @@ export const apiRepositoriosTauri: ApiRepositorios = {
     return invoke<ResultadoClone[]>("clonar_repositorios_app", { repositorios, pastaBase, canal });
   },
   testarJira: (jira, token) => invoke("testar_jira_app", { jira, token }),
+  testarDemandas: (tracker, token) => invoke("testar_demandas_app", { tracker, token }),
 };

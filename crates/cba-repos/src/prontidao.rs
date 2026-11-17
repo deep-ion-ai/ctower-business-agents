@@ -381,11 +381,7 @@ fn issues_ligadas_github(
     let o = run(c, PRAZO_CLI).map_err(|e| cite(&e.to_string(), token))?;
     if !o.status.success() {
         let err = cite(&String::from_utf8_lossy(&o.stderr), token);
-        return Err(if err.is_empty() {
-            format!("o GitHub não devolveu {repo}")
-        } else {
-            err
-        });
+        return Err(motivo_da_falha_do_github(repo, &err));
     }
     let v: serde_json::Value = serde_json::from_slice(&o.stdout)
         .map_err(|_| format!("resposta inesperada do GitHub para {repo}"))?;
@@ -393,6 +389,23 @@ fn issues_ligadas_github(
         return Err(format!("as issues estão desligadas em {repo}"));
     }
     Ok(Some(repo.to_string()))
+}
+
+/// A falha do `gh api repos/{repo}` em português: repositório que não existe (ou
+/// que o token não enxerga), token sem acesso ou o texto do próprio `gh`.
+fn motivo_da_falha_do_github(repo: &str, erro: &str) -> String {
+    let e = erro.to_lowercase();
+    if e.contains("404") || e.contains("not found") {
+        format!(
+            "repositório {repo} não encontrado (ele não existe ou o token não tem acesso a ele)"
+        )
+    } else if e.contains("401") || e.contains("403") || e.contains("bad credentials") {
+        format!("sem acesso ao repositório {repo} com o token atual")
+    } else if erro.trim().is_empty() {
+        format!("o GitHub não devolveu {repo}")
+    } else {
+        erro.to_string()
+    }
 }
 
 /// Repositório de código: git instalado, token (chaveiro, comando ou nenhum),
@@ -477,6 +490,16 @@ fn prontidao_codigo(repo: &RepositorioCodigo, f: &Ferramentas) -> Integracao {
 fn proprio_no_chaveiro(repo: &RepositorioCodigo, f: &Ferramentas) -> bool {
     repo.token != OrigemToken::Comando
         && matches!(f.chaveiro.ler(&conta_propria(repo)), Ok(Some(_)))
+}
+
+/// Prontidão só das demandas (o "Testar conexão" do cadastro e da página do
+/// projeto): a mesma integração que [`conferir`] traz por último.
+pub fn prontidao_tracker(t: &TrackerConfig, f: &Ferramentas) -> Integracao {
+    match t {
+        TrackerConfig::Github(g) => prontidao_gh(g, f, "Issues (GitHub)"),
+        TrackerConfig::Gitlab(g) => prontidao_glab(g, f, "Issues (GitLab)"),
+        TrackerConfig::Jira(j) => prontidao_jira(j, f),
+    }
 }
 
 /// Confere as integrações cadastradas do projeto.
@@ -757,6 +780,15 @@ echo '{"login":"ana"}'"#,
                 .unwrap()
                 .contains("só pelo git")
         );
+    }
+
+    #[test]
+    fn motivo_da_falha_do_github_em_portugues() {
+        let m = motivo_da_falha_do_github("o/x", "gh: Not Found (HTTP 404)");
+        assert!(m.contains("não encontrado"), "{m}");
+        let m = motivo_da_falha_do_github("o/x", "gh: Forbidden (HTTP 403)");
+        assert!(m.contains("sem acesso"), "{m}");
+        assert!(motivo_da_falha_do_github("o/x", "").contains("não devolveu"));
     }
 
     #[test]

@@ -31,6 +31,7 @@ import type {
   RepoDetectado,
   RepositorioCodigo,
   ResultadoClone,
+  TrackerConfig,
 } from "../repositorios";
 import type { ApiTerminal, EventoTerminal, PedidoClaude, Tamanho } from "../terminal";
 import type { TelaTerminal } from "../telaXterm";
@@ -313,6 +314,10 @@ export function apiPrimeiroUsoFalsa() {
         ),
     ),
     detectarRepositorios: vi.fn((_pasta: string): Promise<RepoDetectado[]> => Promise.resolve([])),
+    testarDemandas: vi.fn(
+      (_tracker: TrackerConfig, _token: string | null): Promise<IntegracaoProntidao> =>
+        Promise.resolve({ titulo: "Issues", passos: [] }),
+    ),
     testarJira: vi.fn(
       (_jira: JiraConfig, _token: string | null): Promise<IntegracaoProntidao> =>
         Promise.resolve({ titulo: "Jira", passos: [] }),

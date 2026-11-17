@@ -111,6 +111,7 @@ pub fn rodar() {
             clones::testar_acesso_app,
             clones::clonar_repositorios_app,
             clones::testar_jira_app,
+            clones::testar_demandas_app,
             acessos::hosts_acessos_app,
             acessos::adicionar_host_acesso_app,
             acessos::remover_host_acesso_app,
