@@ -688,7 +688,10 @@ impl Analise {
     }
 
     /// Liga uma sessão à análise, ou reativa uma já ligada (retomada). Uma sessão
-    /// encerrada que volta (`claude --resume`) também é reativada.
+    /// encerrada que volta (`claude --resume`) também é reativada. Como em
+    /// [`Analise::iniciar`], só a criada passa a em andamento: ligar uma sessão (ler a
+    /// análise de origem das histórias, retomar a conversa) não reabre a concluída;
+    /// quem a reabre é um registro novo (#222).
     pub fn iniciar_sessao(
         &mut self,
         id: &str,
@@ -696,7 +699,7 @@ impl Analise {
         agora_ms: u64,
     ) -> Result<(), ErroModelo> {
         exigir("sessao", id)?;
-        self.aceitar_registro()?;
+        self.iniciar()?;
         match self.sessoes.iter_mut().find(|s| s.id == id) {
             Some(s) => {
                 s.estado = EstadoSessao::Ativa;
@@ -1528,6 +1531,20 @@ mod tests {
         assert_eq!(a.sessoes[0].estado, EstadoSessao::Ativa);
         assert_eq!(a.sessoes[0].cliente, Cliente::ClaudeCode);
         assert_eq!(a.sessao_ativa().unwrap().id, "s1");
+    }
+
+    #[test]
+    fn ligar_sessao_nao_reabre_a_concluida() {
+        let mut a = analise();
+        a.iniciar_sessao("s1", Cliente::ClaudeCode, 5).unwrap();
+        a.concluir().unwrap();
+        // A sessão das histórias lê a análise de origem; a retomada religa a conversa.
+        a.iniciar_sessao("s2", Cliente::ClaudeCode, 6).unwrap();
+        a.iniciar_sessao("s1", Cliente::ClaudeCode, 7).unwrap();
+        assert_eq!(a.estado, EstadoAnalise::Concluida);
+        // Um registro novo, sim, reabre a rodada.
+        a.registrar_pergunta("Outra?", None, None, 8).unwrap();
+        assert_eq!(a.estado, EstadoAnalise::EmAndamento);
     }
 
     #[test]

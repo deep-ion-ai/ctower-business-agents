@@ -42,6 +42,7 @@ import { ConversaAgente, type SituacaoAgente } from "./ConversaAgente";
 import { PainelLateral, type Aba } from "./PainelLateral";
 import { useTerminalVisivel } from "./preferenciaTerminal";
 import { PromptsProntos } from "./PromptsProntos";
+import { contarPendencias } from "./resumoRevisao";
 import { apiRevisaoTauri, type ApiRevisao, type DecisaoRevisao, type Pendencia } from "./revisao";
 import { AtaAoVivo } from "./AtaAoVivo";
 import { apiReuniaoTauri, type ApiReuniao } from "./reunioes";
@@ -562,7 +563,9 @@ export function PainelAnalise({
 
   const aprovada = vista?.analise.estado === "aprovada";
   const deAta = vista?.analise.fluxo === "reuniao";
-  const pendentes = !deAta && !aprovada && prontidao ? prontidao.pendencias.length : null;
+  // A mesma conta da faixa e do diálogo de aprovação (#222).
+  const pendencias = !deAta && !aprovada && prontidao ? prontidao.pendencias : null;
+  const pendentes = pendencias ? contarPendencias(pendencias) : null;
   const agenteTrabalhando = !aprovada && vista?.sessao?.estado === "ativa";
   const pronta = pendentes === 0 && !!prontidao?.podeAprovar;
   const rotuloAprovar = aprovada
@@ -759,6 +762,7 @@ export function PainelAnalise({
               aoFecharEvidencia={fecharTrecho}
               origemTrecho={origemTrecho}
               revisao={revisao}
+              pendencias={pendencias}
             />
           )}
         </section>

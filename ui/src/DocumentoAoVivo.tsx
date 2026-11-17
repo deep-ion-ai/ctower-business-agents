@@ -7,6 +7,7 @@ import type {
   Evidencia,
   Diagrama,
   Pergunta,
+  SecaoDocumento,
   SessaoVista,
   VistaAnalise,
 } from "./analise";
@@ -30,6 +31,8 @@ import {
   resumir,
   type FiltroRevisao,
 } from "./resumoRevisao";
+import type { Pendencia } from "./revisao";
+import { ordenarSecoes, tituloDaSecao } from "./secoesAnalise";
 import { SumarioAnalise, type ItemSumario } from "./SumarioAnalise";
 import { useAtalhosRevisao } from "./useAtalhosRevisao";
 import { Icon } from "./shell/icons";
@@ -49,24 +52,6 @@ export const ROTULO_ANALISE: Record<EstadoAnalise, string> = {
   concluida: "concluída, aguardando revisão",
   aprovada: "aprovada",
 };
-
-/**
- * Seções do documento "pergunta ao sistema" (`cba_docs::MODELOS`), na ordem do
- * template; seções de outros fluxos aparecem depois, com o nome do marcador.
- */
-const SECOES_CONHECIDAS: [string, string][] = [
-  ["resposta", "Resposta"],
-  ["regras_encontradas", "Regras encontradas"],
-  ["exemplo", "Exemplo"],
-  ["contexto_no_codigo", "O que a base e o código dizem"],
-];
-const TITULO_SECAO = Object.fromEntries([
-  ...SECOES_CONHECIDAS,
-  // Diagramas do documento negocial (#120): só o título; a ordem é a do registro.
-  ["fluxo_processo", "Fluxo do processo"],
-  ["modelo_dados", "Modelo de dados conceitual"],
-]) as Record<string, string>;
-const ORDEM_SECAO = new Map(SECOES_CONHECIDAS.map(([s], i) => [s, i]));
 
 export function SeloSessao({ sessao }: { sessao: SessaoVista | null }) {
   if (!sessao) {
@@ -141,6 +126,11 @@ interface Props {
   revisao?: Revisao;
   /** Sem o cabeçalho (id, título, estado e sessão), quando a barra da tela já os mostra. */
   semCabecalho?: boolean;
+  /**
+   * Pendências da aprovação (a prontidão): a faixa mostra quantas são, pela mesma
+   * conta do cabeçalho e do diálogo de aprovação (#222).
+   */
+  pendencias?: Pendencia[] | null;
 }
 
 /** Ícone que mostra ou esconde as evidências no código de uma afirmação ou sugestão. */
@@ -184,6 +174,7 @@ export function DocumentoAoVivo({
   origemTrecho,
   revisao,
   semCabecalho = false,
+  pendencias,
 }: Props) {
   const { analise } = vista;
   const deCenarios = analise.fluxo === "cenarios";
@@ -196,7 +187,9 @@ export function DocumentoAoVivo({
   const secoes = agrupar(
     analise.afirmacoes,
     diagramas.map((d) => d.secao),
+    vista.secoes,
   );
+  const titulo = (secao: string) => tituloDaSecao(secao, vista.secoes);
   const perguntas = [...analise.perguntas].sort(
     (a, b) =>
       Number(a.estado !== "aberta") - Number(b.estado !== "aberta") ||
@@ -306,7 +299,7 @@ export function DocumentoAoVivo({
     : [
         ...secoes.map(([secao, afs]) => ({
           id: `secao-${secao}`,
-          titulo: TITULO_SECAO[secao] ?? secao,
+          titulo: titulo(secao),
           pendencias: afs.filter(pendente).length,
           vazia: afs.length === 0,
         })),
@@ -350,6 +343,7 @@ export function DocumentoAoVivo({
           contagem={contagem}
           filtro={filtro}
           aoFiltrar={setFiltro}
+          pendencias={pendencias ?? undefined}
         />
       )}
 
@@ -394,7 +388,7 @@ export function DocumentoAoVivo({
                 return (
                   <div key={secao} className="secao">
                     <h4 id={`secao-${secao}`} tabIndex={-1}>
-                      {TITULO_SECAO[secao] ?? secao}
+                      {titulo(secao)}
                     </h4>
                     {diagramas
                       .filter((d) => d.secao === secao)
@@ -649,6 +643,7 @@ function CartaoPergunta({
 function agrupar(
   afirmacoes: Afirmacao[],
   outras: string[] = [],
+  secoes?: SecaoDocumento[],
 ): [string, Afirmacao[]][] {
   const grupos = new Map<string, Afirmacao[]>();
   for (const s of outras) grupos.set(s, []);
@@ -657,6 +652,6 @@ function agrupar(
     lista.push(a);
     grupos.set(a.secao, lista);
   }
-  const ordem = (s: string) => ORDEM_SECAO.get(s) ?? ORDEM_SECAO.size;
-  return [...grupos].sort(([a], [b]) => ordem(a) - ordem(b));
+  // Na ordem do template, como no `.md`.
+  return ordenarSecoes([...grupos], secoes);
 }

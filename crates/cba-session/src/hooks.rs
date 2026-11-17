@@ -32,7 +32,7 @@
 //!
 //! | Evento | Estado da sessão |
 //! |---|---|
-//! | `SessionStart` | ativa (reabre uma encerrada: `claude --resume`) |
+//! | `SessionStart` | concluída, à espera da mensagem (reabre uma encerrada: `claude --resume`) |
 //! | `UserPromptSubmit`, `PreToolUse` | ativa |
 //! | `Notification` de permissão, de pergunta ao analista ou sem tipo | aguardando o analista |
 //! | `Notification` de outros tipos (`idle_prompt`, `auth_success`...) | sem mudança |
@@ -45,7 +45,8 @@
 //! com o argumento `analise` (`A-NNNN`), normalmente `iniciar_analise` ou
 //! `retomar_analise`, liga a sessão àquela análise: o registro passa a citá-la e a
 //! análise ganha a sessão ([`cba_core::analise::Analise::iniciar_sessao`]), com o
-//! `session_id` guardado para a retomada (#28). Daí em diante, cada mudança de
+//! `session_id` guardado para a retomada (#28). A leitura da análise de origem da
+//! análise ligada (as histórias leem a origem) não religa a sessão. Daí em diante, cada mudança de
 //! estado vai também para a análise, que notifica o app pelo diário de eventos.
 //!
 //! # Aviso de alteração (#29)
@@ -316,7 +317,10 @@ fn texto_de<'a>(dados: &'a Value, campo: &str) -> Option<&'a str> {
 /// Estado a que o evento leva a sessão, se algum.
 fn destino(evento: &str, dados: &Value) -> Option<EstadoSessao> {
     match evento {
-        "SessionStart" | "UserPromptSubmit" | "PreToolUse" => Some(EstadoSessao::Ativa),
+        // O processo abriu (ou voltou, `claude --resume`) e espera a mensagem: o
+        // trabalho começa no `UserPromptSubmit` (#222).
+        "SessionStart" => Some(EstadoSessao::Concluida),
+        "UserPromptSubmit" | "PreToolUse" => Some(EstadoSessao::Ativa),
         "Notification" => match texto_de(dados, "notification_type") {
             None => Some(EstadoSessao::AguardandoAnalista),
             Some(t) if NOTIFICACOES_DE_ESPERA.contains(&t) => {
@@ -340,6 +344,23 @@ const FERRAMENTAS_QUE_ESCREVEM: &[&str] = &[
     "Bash",
     "PowerShell",
 ];
+
+/// Se `alvo` é a análise de origem da análise a que a sessão `id` já está ligada:
+/// as histórias leem a análise de origem (`retomar_analise`) sem passar a trabalhar
+/// nela, e religar a sessão levaria o estado dela para a origem (#222). Na dúvida
+/// (sem registro, sem a análise ligada), não é.
+fn origem_da_ligada(sessoes: &Sessoes, id: &str, alvo: &Id, dados: &DiretorioDados) -> bool {
+    let Ok(Some(registro)) = sessoes.obter(id) else {
+        return false;
+    };
+    let Some(ligada) = registro.analise.filter(|a| a != alvo) else {
+        return false;
+    };
+    analises_do_projeto(dados, &registro.projeto)
+        .ok()
+        .and_then(|analises| analises.carregar(&ligada).ok())
+        .is_some_and(|a| a.origem.as_ref() == Some(alvo))
+}
 
 /// Análise citada por uma ferramenta do servidor `cba` no `PreToolUse`.
 fn analise_da_ferramenta(dados: &Value) -> Option<Id> {
@@ -388,7 +409,8 @@ fn receber(evento: &str, dados: &Value, contexto: &Contexto) -> Desfecho {
     let destino = destino(evento, dados);
     let ligar = (evento == "PreToolUse")
         .then(|| analise_da_ferramenta(dados))
-        .flatten();
+        .flatten()
+        .filter(|a| !origem_da_ligada(&sessoes, id, a, dados_app));
     let origem = (evento == "SessionStart")
         .then(|| texto_de(dados, "source").map(str::to_owned))
         .flatten();

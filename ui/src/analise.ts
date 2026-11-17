@@ -385,6 +385,17 @@ export interface VistaAnalise {
   promptRetomada: string;
   /** Mermaid de cada diagrama (#118); ausente em respostas antigas. */
   diagramas?: DiagramaVisto[];
+  /**
+   * Seções do documento do fluxo, na ordem do template, com o título do `.md` (#222);
+   * ausente em respostas antigas.
+   */
+  secoes?: SecaoDocumento[];
+}
+
+/** Seção do documento: o marcador que as afirmações citam e o título do `.md`. */
+export interface SecaoDocumento {
+  marcador: string;
+  titulo: string;
 }
 
 export interface AnaliseResumo {
