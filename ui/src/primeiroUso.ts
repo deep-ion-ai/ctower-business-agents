@@ -115,6 +115,7 @@ export type ApiRepositoriosDoCadastro = Pick<
   | "clonarRepositorios"
   | "detectarRepositorios"
   | "testarJira"
+  | "testarDemandas"
 >;
 
 /** Operações do primeiro uso. A interface usa {@link apiPrimeiroUsoTauri}; os testes, uma falsa. */
@@ -162,6 +163,7 @@ export const apiPrimeiroUsoTauri: ApiPrimeiroUso = {
   clonarRepositorios: apiRepositoriosTauri.clonarRepositorios,
   detectarRepositorios: apiRepositoriosTauri.detectarRepositorios,
   testarJira: apiRepositoriosTauri.testarJira,
+  testarDemandas: apiRepositoriosTauri.testarDemandas,
 };
 
 /**

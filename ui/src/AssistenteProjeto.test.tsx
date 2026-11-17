@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { AssistenteProjeto } from "./AssistenteProjeto";
 import type { RepoDetectado, ResultadoClone } from "./repositorios";
 import { PASTA_CLONES, apiConfiguracoesFalsa } from "./test/configuracoesFalso";
@@ -67,19 +74,26 @@ async function ateOPasso2() {
 async function ateOPasso3() {
   await ateOPasso2();
   fireEvent.click(botao("Continuar"));
-  await screen.findByRole("heading", { level: 2, name: "Conectar as demandas (opcional)" });
+  await screen.findByRole("heading", {
+    level: 2,
+    name: "Conectar as demandas (opcional)",
+  });
 }
 
 describe("Assistente de projeto: caminho comum", () => {
   it("cadastra com uma escolha de pasta e Continuar até o fim", async () => {
     const { api, aoConcluir } = montar();
     // A pasta existente já vem escolhida como origem.
-    expect(screen.getByRole("radio", { name: /Usar uma pasta que já tenho/ })).toBeChecked();
+    expect(
+      screen.getByRole("radio", { name: /Usar uma pasta que já tenho/ }),
+    ).toBeChecked();
     await escolherPasta();
     fireEvent.click(botao("Continuar"));
     await screen.findByRole("region", { name: "Prévia do inventário" });
     fireEvent.click(botao("Continuar"));
-    await screen.findByRole("heading", { name: "Conectar as demandas (opcional)" });
+    await screen.findByRole("heading", {
+      name: "Conectar as demandas (opcional)",
+    });
     fireEvent.click(botao("Continuar"));
     await screen.findByRole("heading", { name: "Tudo certo?" });
     fireEvent.click(botao("Cadastrar o projeto"));
@@ -92,27 +106,38 @@ describe("Assistente de projeto: caminho comum", () => {
         repositorios: { codigo: [], tracker: null },
       }),
     );
-    expect(await screen.findByRole("heading", { name: "“Faturamento Exemplo” está cadastrado" }))
-      .toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", {
+        name: "“Faturamento Exemplo” está cadastrado",
+      }),
+    ).toBeInTheDocument();
     expect(api.escolherPasta).toHaveBeenCalledTimes(1);
     expect(api.salvarToken).not.toHaveBeenCalled();
     fireEvent.click(botao("Fazer depois"));
-    expect(aoConcluir).toHaveBeenCalledWith(expect.objectContaining({ id: "faturamento-exemplo" }));
+    expect(aoConcluir).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "faturamento-exemplo" }),
+    );
   });
 
   it("mostra as etapas: a atual marcada, as feitas clicáveis e as futuras não", async () => {
     montar();
-    const etapas = within(screen.getByRole("navigation", { name: "Etapas do cadastro" }));
-    expect(etapas.getByRole("button", { name: /Código/ })).toHaveAttribute("aria-current", "step");
-    expect(etapas.getByRole("button", { name: /O que será lido/ })).toBeDisabled();
+    const etapas = within(
+      screen.getByRole("navigation", { name: "Etapas do cadastro" }),
+    );
+    expect(etapas.getByRole("button", { name: /Código/ })).toHaveAttribute(
+      "aria-current",
+      "step",
+    );
+    expect(
+      etapas.getByRole("button", { name: /O que será lido/ }),
+    ).toBeDisabled();
     await ateOPasso2();
     const codigo = etapas.getByRole("button", { name: /Código/ });
     expect(codigo).toBeEnabled();
     expect(codigo).not.toHaveAttribute("aria-current");
-    expect(etapas.getByRole("button", { name: /O que será lido/ })).toHaveAttribute(
-      "aria-current",
-      "step",
-    );
+    expect(
+      etapas.getByRole("button", { name: /O que será lido/ }),
+    ).toHaveAttribute("aria-current", "step");
     expect(etapas.getByRole("button", { name: /Demandas/ })).toBeDisabled();
     // O foco vai para o título do passo novo.
     expect(titulo("É isto que a IA vai ler")).toHaveFocus();
@@ -133,16 +158,27 @@ describe("Assistente de projeto: passo 1, pasta existente", () => {
     const api = apiConfiguracoesFalsa();
     api.detectarRepositorios.mockResolvedValue(DETECTADOS);
     montar(api);
-    expect(screen.getByText(/Pode ser a pasta de um repositório ou uma pasta com vários clones/))
-      .toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Pode ser a pasta de um repositório ou uma pasta com vários clones/,
+      ),
+    ).toBeInTheDocument();
     await escolherPasta();
     expect(api.detectarRepositorios).toHaveBeenCalledWith(PASTA);
-    expect(await screen.findByText(/Encontrei 2 repositórios git dentro dela/)).toBeInTheDocument();
-    const lista = within(screen.getByRole("list", { name: "Repositórios git encontrados" }));
+    expect(
+      await screen.findByText(/Encontrei 2 repositórios git dentro dela/),
+    ).toBeInTheDocument();
+    const lista = within(
+      screen.getByRole("list", { name: "Repositórios git encontrados" }),
+    );
     expect(lista.getByText("faturamento-api/")).toBeInTheDocument();
-    expect(lista.getByText("GitLab · gitlab.empresa.com.br")).toBeInTheDocument();
+    expect(
+      lista.getByText("GitLab · gitlab.empresa.com.br"),
+    ).toBeInTheDocument();
     expect(lista.getByText(/branch develop/)).toBeInTheDocument();
-    expect(screen.getByLabelText("Nome do projeto")).toHaveValue("Faturamento Exemplo");
+    expect(screen.getByLabelText("Nome do projeto")).toHaveValue(
+      "Faturamento Exemplo",
+    );
 
     fireEvent.click(botao("Continuar"));
     await waitFor(() =>
@@ -159,7 +195,10 @@ describe("Assistente de projeto: passo 1, pasta existente", () => {
                 pasta: `${PASTA}/faturamento-api`,
                 token: "global",
               }),
-              expect.objectContaining({ forja: "gitlab", caminho: "fin/faturamento-web" }),
+              expect.objectContaining({
+                forja: "gitlab",
+                caminho: "fin/faturamento-web",
+              }),
             ],
             tracker: null,
           },
@@ -171,11 +210,17 @@ describe("Assistente de projeto: passo 1, pasta existente", () => {
   it("não segue sem a pasta nem sem o nome", async () => {
     montar();
     fireEvent.click(botao("Continuar"));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Escolha a pasta do código");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Escolha a pasta do código",
+    );
     await escolherPasta();
-    fireEvent.change(screen.getByLabelText("Nome do projeto"), { target: { value: " " } });
+    fireEvent.change(screen.getByLabelText("Nome do projeto"), {
+      target: { value: " " },
+    });
     fireEvent.click(botao("Continuar"));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Dê um nome ao projeto");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Dê um nome ao projeto",
+    );
     expect(titulo("De onde vem o código do projeto?")).toBeInTheDocument();
   });
 });
@@ -188,8 +233,9 @@ describe("Assistente de projeto: passo 1, clonar", () => {
   it("monta os repositórios pelas URLs, guarda os tokens e clona com progresso", async () => {
     const api = apiConfiguracoesFalsa();
     let concluir: (r: ResultadoClone[]) => void = () => undefined;
-    let avisar: (e: Parameters<Parameters<Api["clonarRepositorios"]>[2]>[0]) => void = () =>
-      undefined;
+    let avisar: (
+      e: Parameters<Parameters<Api["clonarRepositorios"]>[2]>[0],
+    ) => void = () => undefined;
     api.clonarRepositorios.mockImplementationOnce(
       (repos, base, aoEvento) =>
         new Promise((resolver) => {
@@ -197,21 +243,30 @@ describe("Assistente de projeto: passo 1, clonar", () => {
           concluir = () =>
             resolver(
               repos.map((r) => ({
-                repositorio: { ...r, pasta: `${base}/${r.caminho.split("/").pop()}` },
+                repositorio: {
+                  ...r,
+                  pasta: `${base}/${r.caminho.split("/").pop()}`,
+                },
                 erro: null,
               })),
             );
         }),
     );
     montar(api);
-    fireEvent.click(screen.getByRole("radio", { name: /Clonar do GitHub ou GitLab/ }));
+    fireEvent.click(
+      screen.getByRole("radio", { name: /Clonar do GitHub ou GitLab/ }),
+    );
     expect(botao("Clonar e continuar")).toBeInTheDocument();
     expect(await screen.findByDisplayValue(PASTA_CLONES)).toBeInTheDocument();
 
     fireEvent.change(url(1), {
-      target: { value: "https://gitlab.empresa.com.br/fin/faturamento-web.git" },
+      target: {
+        value: "https://gitlab.empresa.com.br/fin/faturamento-web.git",
+      },
     });
-    expect(screen.getByText("GitLab · gitlab.empresa.com.br")).toBeInTheDocument();
+    expect(
+      screen.getByText("GitLab · gitlab.empresa.com.br"),
+    ).toBeInTheDocument();
     expect(screen.getByText("faturamento-web")).toBeInTheDocument();
 
     // Colar várias URLs, uma por linha, acrescenta um repositório por URL.
@@ -219,7 +274,8 @@ describe("Assistente de projeto: passo 1, clonar", () => {
     expect(url(2)).toHaveFocus();
     fireEvent.paste(url(2), {
       clipboardData: {
-        getData: () => "git@github.com:acme/faturamento-api.git\nhttps://github.com/acme/docs\n",
+        getData: () =>
+          "git@github.com:acme/faturamento-api.git\nhttps://github.com/acme/docs\n",
       },
     });
     expect(url(2)).toHaveValue("git@github.com:acme/faturamento-api.git");
@@ -229,10 +285,15 @@ describe("Assistente de projeto: passo 1, clonar", () => {
     });
 
     // Tokens globais: uma linha por host.
-    fireEvent.change(await screen.findByLabelText("Token global de gitlab.empresa.com.br"), {
-      target: { value: "glpat-123" },
-    });
-    expect(screen.getByLabelText("Token global de github.com")).toBeInTheDocument();
+    fireEvent.change(
+      await screen.findByLabelText("Token global de gitlab.empresa.com.br"),
+      {
+        target: { value: "glpat-123" },
+      },
+    );
+    expect(
+      screen.getByLabelText("Token global de github.com"),
+    ).toBeInTheDocument();
     expect(screen.getByText(/Escopo mínimo/)).toBeInTheDocument();
     fireEvent.click(botao("Salvar o token de gitlab.empresa.com.br"));
     await waitFor(() =>
@@ -241,15 +302,23 @@ describe("Assistente de projeto: passo 1, clonar", () => {
         "glpat-123",
       ),
     );
-    expect(await screen.findByRole("button", { name: "Trocar o token de gitlab.empresa.com.br" }))
-      .toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", {
+        name: "Trocar o token de gitlab.empresa.com.br",
+      }),
+    ).toBeInTheDocument();
 
     // O repositório 3 tem um token só dele.
-    const repo3 = within(screen.getByRole("listitem", { name: "Repositório 3" }));
+    const repo3 = within(
+      screen.getByRole("listitem", { name: "Repositório 3" }),
+    );
     fireEvent.click(repo3.getByRole("radio", { name: "Só deste repositório" }));
-    fireEvent.change(repo3.getByLabelText("Token de acesso deste repositório (PAT)"), {
-      target: { value: "ghp_proprio" },
-    });
+    fireEvent.change(
+      repo3.getByLabelText("Token de acesso deste repositório (PAT)"),
+      {
+        target: { value: "ghp_proprio" },
+      },
+    );
     fireEvent.click(repo3.getByRole("button", { name: "Testar acesso" }));
     await waitFor(() =>
       expect(api.testarAcesso).toHaveBeenCalledWith(
@@ -260,7 +329,9 @@ describe("Assistente de projeto: passo 1, clonar", () => {
     expect(await repo3.findByText("Acesso OK.")).toBeInTheDocument();
 
     // O nome vem do primeiro repositório (a pasta dos clones é a padrão).
-    expect(screen.getByLabelText("Nome do projeto")).toHaveValue("Faturamento Web");
+    expect(screen.getByLabelText("Nome do projeto")).toHaveValue(
+      "Faturamento Web",
+    );
 
     fireEvent.click(botao("Clonar e continuar"));
     await waitFor(() => expect(api.clonarRepositorios).toHaveBeenCalled());
@@ -279,13 +350,24 @@ describe("Assistente de projeto: passo 1, clonar", () => {
 
     act(() => {
       avisar({ tipo: "inicio", indice: 0 });
-      avisar({ tipo: "progresso", indice: 0, etapa: "Recebendo objetos", percentual: 40 });
+      avisar({
+        tipo: "progresso",
+        indice: 0,
+        etapa: "Recebendo objetos",
+        percentual: 40,
+      });
     });
-    const barra = await screen.findByRole("progressbar", { name: "Clone de faturamento-web" });
+    const barra = await screen.findByRole("progressbar", {
+      name: "Clone de faturamento-web",
+    });
     expect(barra).toHaveAttribute("aria-valuenow", "40");
     expect(screen.getByText("Recebendo objetos · 40%")).toBeInTheDocument();
     await act(async () => {
-      avisar({ tipo: "concluido", indice: 0, pasta: `${PASTA_CLONES}/faturamento-web` });
+      avisar({
+        tipo: "concluido",
+        indice: 0,
+        pasta: `${PASTA_CLONES}/faturamento-web`,
+      });
       concluir([]);
     });
 
@@ -306,54 +388,79 @@ describe("Assistente de projeto: passo 1, clonar", () => {
 
     // De volta ao passo 1: o resumo do clone.
     fireEvent.click(botao("Voltar"));
-    const resumo = within(await screen.findByRole("group", { name: "Repositórios clonados" }));
+    const resumo = within(
+      await screen.findByRole("group", { name: "Repositórios clonados" }),
+    );
     expect(resumo.getByText(/3 repositórios clonados em/)).toBeInTheDocument();
     expect(resumo.getByText("faturamento-web/")).toBeInTheDocument();
-    expect(resumo.getByText(/branch develop · token global de gitlab.empresa.com.br/))
-      .toBeInTheDocument();
+    expect(
+      resumo.getByText(
+        /branch develop · token global de gitlab.empresa.com.br/,
+      ),
+    ).toBeInTheDocument();
     expect(resumo.getByText(/token próprio/)).toBeInTheDocument();
     expect(botao("Continuar")).toBeInTheDocument();
-    fireEvent.click(resumo.getByRole("button", { name: "Alterar repositórios" }));
-    expect(url(1)).toHaveValue("https://gitlab.empresa.com.br/fin/faturamento-web.git");
+    fireEvent.click(
+      resumo.getByRole("button", { name: "Alterar repositórios" }),
+    );
+    expect(url(1)).toHaveValue(
+      "https://gitlab.empresa.com.br/fin/faturamento-web.git",
+    );
   });
 
   it("mostra o erro de um repositório e tenta de novo só ele", async () => {
     const api = apiConfiguracoesFalsa();
     api.clonarRepositorios.mockImplementationOnce((repos, base, aoEvento) => {
       aoEvento({ tipo: "inicio", indice: 0 });
-      aoEvento({ tipo: "concluido", indice: 0, pasta: `${base}/faturamento-web` });
+      aoEvento({
+        tipo: "concluido",
+        indice: 0,
+        pasta: `${base}/faturamento-web`,
+      });
       aoEvento({ tipo: "inicio", indice: 1 });
       aoEvento({ tipo: "falhou", indice: 1, erro: "acesso negado" });
       return Promise.resolve([
-        { repositorio: { ...repos[0]!, pasta: `${base}/faturamento-web` }, erro: null },
+        {
+          repositorio: { ...repos[0]!, pasta: `${base}/faturamento-web` },
+          erro: null,
+        },
         { repositorio: repos[1]!, erro: "acesso negado" },
       ]);
     });
     montar(api);
-    fireEvent.click(screen.getByRole("radio", { name: /Clonar do GitHub ou GitLab/ }));
+    fireEvent.click(
+      screen.getByRole("radio", { name: /Clonar do GitHub ou GitLab/ }),
+    );
     await screen.findByDisplayValue(PASTA_CLONES);
     fireEvent.change(url(1), {
-      target: { value: "https://gitlab.empresa.com.br/fin/faturamento-web.git" },
+      target: {
+        value: "https://gitlab.empresa.com.br/fin/faturamento-web.git",
+      },
     });
     fireEvent.click(botao("+ Adicionar repositório"));
-    fireEvent.change(url(2), { target: { value: "git@github.com:acme/faturamento-api.git" } });
+    fireEvent.change(url(2), {
+      target: { value: "git@github.com:acme/faturamento-api.git" },
+    });
     fireEvent.click(botao("Clonar e continuar"));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Não deu para clonar faturamento-api: acesso negado",
     );
     expect(titulo("De onde vem o código do projeto?")).toBeInTheDocument();
-    expect(screen.getByRole("progressbar", { name: "Clone de faturamento-web" })).toHaveAttribute(
-      "aria-valuenow",
-      "100",
-    );
+    expect(
+      screen.getByRole("progressbar", { name: "Clone de faturamento-web" }),
+    ).toHaveAttribute("aria-valuenow", "100");
 
     fireEvent.click(botao("Tentar de novo o clone de faturamento-api"));
-    await waitFor(() => expect(api.clonarRepositorios).toHaveBeenCalledTimes(2));
-    expect(api.clonarRepositorios.mock.calls[1]![0].map((r) => r.caminho)).toEqual([
-      "acme/faturamento-api",
-    ]);
-    expect(await screen.findByText(/2 repositórios clonados em/)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(api.clonarRepositorios).toHaveBeenCalledTimes(2),
+    );
+    expect(
+      api.clonarRepositorios.mock.calls[1]![0].map((r) => r.caminho),
+    ).toEqual(["acme/faturamento-api"]);
+    expect(
+      await screen.findByText(/2 repositórios clonados em/),
+    ).toBeInTheDocument();
     fireEvent.click(botao("Continuar"));
     await screen.findByRole("heading", { name: "É isto que a IA vai ler" });
   });
@@ -361,7 +468,9 @@ describe("Assistente de projeto: passo 1, clonar", () => {
   it("recusa URL que não é de clone e a troca do token por um comando", async () => {
     const api = apiConfiguracoesFalsa();
     montar(api);
-    fireEvent.click(screen.getByRole("radio", { name: /Clonar do GitHub ou GitLab/ }));
+    fireEvent.click(
+      screen.getByRole("radio", { name: /Clonar do GitHub ou GitLab/ }),
+    );
     await screen.findByDisplayValue(PASTA_CLONES);
     fireEvent.click(botao("Clonar e continuar"));
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -374,17 +483,24 @@ describe("Assistente de projeto: passo 1, clonar", () => {
       "Repositório 1: não reconheci a URL de clone",
     );
 
-    fireEvent.change(url(1), { target: { value: "https://gitlab.empresa.com.br/fin/web.git" } });
+    fireEvent.change(url(1), {
+      target: { value: "https://gitlab.empresa.com.br/fin/web.git" },
+    });
     fireEvent.click(
       await screen.findByRole("button", {
         name: "Prefiro um comando que imprime o token de gitlab.empresa.com.br",
       }),
     );
     fireEvent.click(botao("Clonar e continuar"));
-    expect(await screen.findByRole("alert")).toHaveTextContent("informe o comando");
-    fireEvent.change(screen.getByLabelText("Comando que imprime o token de web"), {
-      target: { value: "pass show gitlab | head -1" },
-    });
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "informe o comando",
+    );
+    fireEvent.change(
+      screen.getByLabelText("Comando que imprime o token de web"),
+      {
+        target: { value: "pass show gitlab | head -1" },
+      },
+    );
     fireEvent.click(botao("Clonar e continuar"));
     await waitFor(() =>
       expect(api.clonarRepositorios).toHaveBeenCalledWith(
@@ -438,16 +554,28 @@ describe("Assistente de projeto: passo 2, o que será lido", () => {
     await ateOPasso2();
     // Nenhum botão de "ver prévia": ela veio sozinha.
     expect(api.previaProjeto).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole("button", { name: /Ver o que será analisado/ })).toBeNull();
-    const previa = within(screen.getByRole("region", { name: "Prévia do inventário" }));
+    expect(
+      screen.queryByRole("button", { name: /Ver o que será analisado/ }),
+    ).toBeNull();
+    const previa = within(
+      screen.getByRole("region", { name: "Prévia do inventário" }),
+    );
     expect(previa.getByText("1.284")).toBeInTheDocument();
-    expect(previa.getByText(/arquivos serão analisados · 46,9 KB/)).toBeInTheDocument();
+    expect(
+      previa.getByText(/arquivos serão analisados · 46,9 KB/),
+    ).toBeInTheDocument();
     expect(previa.getByText("SQL")).toBeInTheDocument();
     expect(previa.getByText("Dependências")).toBeInTheDocument();
-    const segredos = within(previa.getByRole("group", { name: "Podem conter segredos" }));
-    expect(segredos.getByText(/ficou fora por parecer ter senhas ou tokens/)).toBeInTheDocument();
+    const segredos = within(
+      previa.getByRole("group", { name: "Podem conter segredos" }),
+    );
+    expect(
+      segredos.getByText(/ficou fora por parecer ter senhas ou tokens/),
+    ).toBeInTheDocument();
 
-    fireEvent.click(segredos.getByRole("button", { name: "Incluir .env na análise" }));
+    fireEvent.click(
+      segredos.getByRole("button", { name: "Incluir .env na análise" }),
+    );
     await waitFor(() =>
       expect(api.previaProjeto).toHaveBeenLastCalledWith(
         expect.objectContaining({ inclusoes: ["/.env"] }),
@@ -462,25 +590,34 @@ describe("Assistente de projeto: passo 2, o que será lido", () => {
     expect(ajustar).toHaveAttribute("aria-expanded", "true");
     expect(botao("Incluir docs/manual.pdf na análise")).toBeInTheDocument();
     expect(
-      within(screen.getByRole("group", { name: "Reincluídos" })).getByText("/.env"),
+      within(screen.getByRole("group", { name: "Reincluídos" })).getByText(
+        "/.env",
+      ),
     ).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText(/Excluir também/), {
       target: { value: "cobol/\n\n*.log" },
     });
     await waitFor(() =>
       expect(api.previaProjeto).toHaveBeenLastCalledWith(
-        expect.objectContaining({ exclusoes: ["cobol/", "*.log"], inclusoes: ["/.env"] }),
+        expect.objectContaining({
+          exclusoes: ["cobol/", "*.log"],
+          inclusoes: ["/.env"],
+        }),
       ),
     );
     await waitFor(() => expect(botao("Continuar")).toBeEnabled());
     fireEvent.click(botao("Continuar"));
-    await screen.findByRole("heading", { name: "Conectar as demandas (opcional)" });
+    await screen.findByRole("heading", {
+      name: "Conectar as demandas (opcional)",
+    });
   });
 
   it("não segue com um projeto de mesmo nome e mostra a recusa da prévia", async () => {
     const api = apiConfiguracoesFalsa();
     api.previaProjeto
-      .mockRejectedValueOnce("pasta não encontrada: /codigo/faturamento-exemplo")
+      .mockRejectedValueOnce(
+        "pasta não encontrada: /codigo/faturamento-exemplo",
+      )
       .mockImplementation((p) =>
         Promise.resolve({
           id: "faturamento-exemplo",
@@ -495,9 +632,13 @@ describe("Assistente de projeto: passo 2, o que será lido", () => {
     montar(api);
     await escolherPasta();
     fireEvent.click(botao("Continuar"));
-    expect(await screen.findByRole("alert")).toHaveTextContent("pasta não encontrada");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "pasta não encontrada",
+    );
     fireEvent.click(botao("Tentar de novo"));
-    expect(await screen.findByText(/Já existe um projeto cadastrado/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Já existe um projeto cadastrado/),
+    ).toBeInTheDocument();
     fireEvent.click(botao("Continuar"));
     expect(titulo("É isto que a IA vai ler")).toBeInTheDocument();
   });
@@ -512,7 +653,9 @@ describe("Assistente de projeto: passo 3, demandas", () => {
     fireEvent.click(screen.getByRole("radio", { name: /Jira/ }));
     fireEvent.click(botao("Pular esta etapa"));
     await screen.findByRole("heading", { name: "Tudo certo?" });
-    expect(screen.getByText("Nenhuma (demandas criadas no app)")).toBeInTheDocument();
+    expect(
+      screen.getByText("Nenhuma (demandas criadas no app)"),
+    ).toBeInTheDocument();
   });
 
   it("usa as issues do GitHub de um repositório do passo 1", async () => {
@@ -525,18 +668,25 @@ describe("Assistente de projeto: passo 3, demandas", () => {
     await screen.findByRole("region", { name: "Prévia do inventário" });
     fireEvent.click(botao("Continuar"));
     expect(
-      await screen.findByText("GitHub · acme/faturamento-api e GitLab · fin/faturamento-web"),
+      await screen.findByText(
+        "GitHub · acme/faturamento-api e GitLab · fin/faturamento-web",
+      ),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Vem dos repositórios do passo 1, com os mesmos tokens/))
-      .toBeInTheDocument();
+    expect(
+      screen.getByText(/Vem dos repositórios do passo 1, com os mesmos tokens/),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("radio", { name: /GitHub Issues/ }));
     const select = screen.getByLabelText("Repositório das issues");
     expect(select).toHaveValue("github.com/acme/faturamento-api");
-    expect(screen.getByText("Usa o mesmo token do repositório escolhido.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Usa o mesmo token do repositório escolhido."),
+    ).toBeInTheDocument();
     fireEvent.click(botao("Continuar"));
     await screen.findByRole("heading", { name: "Tudo certo?" });
-    expect(screen.getByText("GitHub Issues · acme/faturamento-api")).toBeInTheDocument();
+    expect(
+      screen.getByText("GitHub Issues · acme/faturamento-api"),
+    ).toBeInTheDocument();
     fireEvent.click(botao("Cadastrar o projeto"));
     await waitFor(() =>
       expect(api.cadastrarProjeto).toHaveBeenCalledWith(
@@ -549,6 +699,55 @@ describe("Assistente de projeto: passo 3, demandas", () => {
     );
   });
 
+  it("Testar conexão no passo Demandas: issues desligadas e depois ok", async () => {
+    const api = apiConfiguracoesFalsa();
+    api.detectarRepositorios.mockResolvedValue(DETECTADOS);
+    const passo = (situacao: "ok" | "falhou", detalhe: string | null) => ({
+      titulo: "Issues (GitHub)",
+      passos: [
+        {
+          id: "issues",
+          rotulo: "Repositório com as issues ligadas",
+          situacao,
+          detalhe,
+          orientacao:
+            situacao === "falhou" ? "Ligue as Issues do repositório." : null,
+        },
+      ],
+    });
+    api.testarDemandas
+      .mockResolvedValueOnce(
+        passo("falhou", "as issues estão desligadas em acme/faturamento-api"),
+      )
+      .mockResolvedValueOnce(passo("ok", null));
+    montar(api);
+    await escolherPasta();
+    await screen.findByText(/Encontrei 2 repositórios/);
+    fireEvent.click(botao("Continuar"));
+    await screen.findByRole("region", { name: "Prévia do inventário" });
+    fireEvent.click(botao("Continuar"));
+    fireEvent.click(
+      await screen.findByRole("radio", { name: /GitHub Issues/ }),
+    );
+    fireEvent.click(botao("Testar conexão"));
+    await waitFor(() =>
+      expect(api.testarDemandas).toHaveBeenCalledWith(
+        { kind: "github", repo: "acme/faturamento-api" },
+        null,
+      ),
+    );
+    expect(
+      await screen.findByText(/As issues estão desligadas nesse repositório/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Ligue as Issues do repositório."),
+    ).toBeInTheDocument();
+    fireEvent.click(botao("Testar conexão"));
+    expect(
+      await screen.findByText(/Conexão com GitHub funcionando/),
+    ).toBeInTheDocument();
+  });
+
   it("usa as issues do GitLab com o mesmo token do repositório (comando vazio)", async () => {
     const api = apiConfiguracoesFalsa();
     api.detectarRepositorios.mockResolvedValue(DETECTADOS);
@@ -558,7 +757,9 @@ describe("Assistente de projeto: passo 3, demandas", () => {
     fireEvent.click(botao("Continuar"));
     await screen.findByRole("region", { name: "Prévia do inventário" });
     fireEvent.click(botao("Continuar"));
-    fireEvent.click(await screen.findByRole("radio", { name: /GitLab Issues/ }));
+    fireEvent.click(
+      await screen.findByRole("radio", { name: /GitLab Issues/ }),
+    );
     fireEvent.click(botao("Continuar"));
     await screen.findByRole("heading", { name: "Tudo certo?" });
     fireEvent.click(botao("Cadastrar o projeto"));
@@ -570,7 +771,8 @@ describe("Assistente de projeto: passo 3, demandas", () => {
               kind: "gitlab",
               host: "gitlab.empresa.com.br",
               path: "fin/faturamento-web",
-              clone_url: "https://gitlab.empresa.com.br/fin/faturamento-web.git",
+              clone_url:
+                "https://gitlab.empresa.com.br/fin/faturamento-web.git",
               credential_cmd: "",
             },
           }),
@@ -584,7 +786,13 @@ describe("Assistente de projeto: passo 3, demandas", () => {
     api.testarJira.mockResolvedValue({
       titulo: "Jira",
       passos: [
-        { id: "acesso", rotulo: "Acesso ao Jira", situacao: "ok", detalhe: null, orientacao: null },
+        {
+          id: "acesso",
+          rotulo: "Acesso ao Jira",
+          situacao: "ok",
+          detalhe: null,
+          orientacao: null,
+        },
         {
           id: "sprint",
           rotulo: "Campo da sprint",
@@ -600,16 +808,24 @@ describe("Assistente de projeto: passo 3, demandas", () => {
     fireEvent.change(screen.getByLabelText("Endereço do Jira"), {
       target: { value: "https://jira.empresa.com.br" },
     });
-    fireEvent.change(screen.getByLabelText("Chave do projeto"), { target: { value: "fat" } });
+    fireEvent.change(screen.getByLabelText("Chave do projeto"), {
+      target: { value: "fat" },
+    });
     expect(screen.getByLabelText("Chave do projeto")).toHaveValue("FAT");
-    expect(screen.getByLabelText("Usar só as issues da sprint ativa")).toBeChecked();
+    expect(
+      screen.getByLabelText("Usar só as issues da sprint ativa"),
+    ).toBeChecked();
 
     // Sem token, não segue.
     await waitFor(() => expect(api.tokensGuardados).toHaveBeenCalled());
     fireEvent.click(botao("Continuar"));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Informe o token do Jira");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Informe o token do Jira",
+    );
 
-    fireEvent.change(screen.getByLabelText("Token do Jira"), { target: { value: "segredo" } });
+    fireEvent.change(screen.getByLabelText("Token do Jira"), {
+      target: { value: "segredo" },
+    });
     expect(screen.getByText(/Fica no chaveiro do sistema/)).toBeInTheDocument();
     fireEvent.click(botao("Testar conexão"));
     await waitFor(() =>
@@ -624,7 +840,9 @@ describe("Assistente de projeto: passo 3, demandas", () => {
       ),
     );
     expect(await screen.findByText("Acesso ao Jira")).toBeInTheDocument();
-    expect(screen.getByText("Informe o campo em Mais opções.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Informe o campo em Mais opções."),
+    ).toBeInTheDocument();
 
     // JQL e campos ficam em "Mais opções".
     expect(screen.getByLabelText("Campo do Epic Link")).not.toBeVisible();
@@ -637,7 +855,9 @@ describe("Assistente de projeto: passo 3, demandas", () => {
 
     fireEvent.click(botao("Continuar"));
     await screen.findByRole("heading", { name: "Tudo certo?" });
-    expect(screen.getByText("Jira · projeto FAT, sprint ativa")).toBeInTheDocument();
+    expect(
+      screen.getByText("Jira · projeto FAT, sprint ativa"),
+    ).toBeInTheDocument();
     expect(api.salvarToken).not.toHaveBeenCalled();
     fireEvent.click(botao("Cadastrar o projeto"));
     await waitFor(() => expect(api.cadastrarProjeto).toHaveBeenCalled());
@@ -645,7 +865,9 @@ describe("Assistente de projeto: passo 3, demandas", () => {
       { host: "jira.empresa.com.br", caminho: null },
       "segredo",
     );
-    expect(api.cadastrarProjeto.mock.calls[0]![0].repositorios?.tracker).toEqual(
+    expect(
+      api.cadastrarProjeto.mock.calls[0]![0].repositorios?.tracker,
+    ).toEqual(
       expect.objectContaining({
         kind: "jira",
         project_key: "FAT",
@@ -663,12 +885,18 @@ describe("Assistente de projeto: passo 4, revisar", () => {
     await ateOPasso3();
     fireEvent.click(botao("Continuar"));
     await screen.findByRole("heading", { name: "Tudo certo?" });
-    expect(screen.getByText("Código", { selector: "dt" }).nextSibling).toHaveTextContent("Pasta existente");
-    expect(screen.getByText("Nome", { selector: "dt" }).nextSibling).toHaveTextContent("Faturamento Exemplo");
-    expect(screen.getByText("O que será lido", { selector: "dt" }).nextSibling).toHaveTextContent(
-      "14 arquivos (46,9 KB) · 1 item fora",
-    );
-    expect(screen.getByText(/O app só lê as pastas do código/)).toBeInTheDocument();
+    expect(
+      screen.getByText("Código", { selector: "dt" }).nextSibling,
+    ).toHaveTextContent("Pasta existente");
+    expect(
+      screen.getByText("Nome", { selector: "dt" }).nextSibling,
+    ).toHaveTextContent("Faturamento Exemplo");
+    expect(
+      screen.getByText("O que será lido", { selector: "dt" }).nextSibling,
+    ).toHaveTextContent("14 arquivos (46,9 KB) · 1 item fora");
+    expect(
+      screen.getByText(/O app só lê as pastas do código/),
+    ).toBeInTheDocument();
 
     fireEvent.click(botao("Editar nome"));
     expect(titulo("De onde vem o código do projeto?")).toHaveFocus();
@@ -683,14 +911,18 @@ describe("Assistente de projeto: passo 4, revisar", () => {
     );
     await screen.findByRole("region", { name: "Prévia do inventário" });
     fireEvent.click(botao("Continuar"));
-    await screen.findByRole("heading", { name: "Conectar as demandas (opcional)" });
+    await screen.findByRole("heading", {
+      name: "Conectar as demandas (opcional)",
+    });
     fireEvent.click(botao("Continuar"));
     await screen.findByRole("heading", { name: "Tudo certo?" });
     fireEvent.click(botao("Editar o que será lido"));
     expect(titulo("É isto que a IA vai ler")).toBeInTheDocument();
     fireEvent.click(botao("Continuar"));
     fireEvent.click(await screen.findByRole("button", { name: "Continuar" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Cadastrar o projeto" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Cadastrar o projeto" }),
+    );
     await waitFor(() =>
       expect(api.cadastrarProjeto).toHaveBeenCalledWith(
         expect.objectContaining({ nome: "Faturamento Novo", pastas: [PASTA] }),
@@ -704,7 +936,9 @@ describe("Assistente de projeto: passo 4, revisar", () => {
     montar(api);
     await ateOPasso3();
     fireEvent.click(botao("Continuar"));
-    fireEvent.click(await screen.findByRole("button", { name: "Cadastrar o projeto" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Cadastrar o projeto" }),
+    );
     expect(await screen.findByRole("alert")).toHaveTextContent("a pasta sumiu");
     expect(titulo("Tudo certo?")).toBeInTheDocument();
   });
@@ -715,15 +949,22 @@ describe("Assistente de projeto: passo 5, concluído", () => {
     const { aoPrepararAmbiente, aoConcluir } = montar();
     await ateOPasso3();
     fireEvent.click(botao("Continuar"));
-    fireEvent.click(await screen.findByRole("button", { name: "Cadastrar o projeto" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Cadastrar o projeto" }),
+    );
     const concluido = await screen.findByRole("heading", {
       name: "“Faturamento Exemplo” está cadastrado",
     });
     expect(concluido).toHaveFocus();
-    expect(screen.getByText(/14 arquivos inventariados em 1 pasta/)).toBeInTheDocument();
-    expect(screen.getByText(/Falta um passo: deixar o Claude conversar com o app/))
-      .toBeInTheDocument();
-    expect(screen.queryByRole("navigation", { name: "Etapas do cadastro" })).toBeNull();
+    expect(
+      screen.getByText(/14 arquivos inventariados em 1 pasta/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Falta um passo: deixar o Claude conversar com o app/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("navigation", { name: "Etapas do cadastro" }),
+    ).toBeNull();
     fireEvent.click(botao("Preparar o ambiente do Claude"));
     expect(aoPrepararAmbiente).toHaveBeenCalledWith(
       expect.objectContaining({ nome: "Faturamento Exemplo" }),
