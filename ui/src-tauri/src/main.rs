@@ -45,6 +45,7 @@ mod inicio;
 mod primeiro_uso;
 mod projeto;
 mod prompts;
+mod rastreabilidade;
 mod registros;
 mod repositorios;
 mod reunioes;

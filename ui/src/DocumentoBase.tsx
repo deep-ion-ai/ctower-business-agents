@@ -6,6 +6,7 @@ import {
   type DocumentoAberto,
   type LigacaoVista,
 } from "./conhecimento";
+import { ConsultaReversa } from "./ConsultaReversa";
 import { OPCOES_MARKDOWN_BASE } from "./markdownOpcoes";
 
 /** Campos do frontmatter que já aparecem no cabeçalho. */
@@ -39,6 +40,8 @@ export function DocumentoBase({
   const campos = documento.campos.filter((c) => !NO_CABECALHO.has(c.chave));
   const saem = documento.ligacoes.filter((l) => l.sai);
   const chegam = documento.ligacoes.filter((l) => !l.sai);
+  // Consulta reversa na tela da regra (#121).
+  const regra = documento.campos.find((c) => c.chave === "id")?.valor;
 
   const Link = ({ href, children }: { href?: string; children?: ReactNode }) => {
     if (href?.startsWith("#")) return <a href={href}>{children}</a>;
@@ -118,6 +121,15 @@ export function DocumentoBase({
             <Ligacoes titulo="Citado por" ligacoes={chegam} aoAbrir={aoAbrirDocumento} />
           )}
         </nav>
+      )}
+
+      {documento.tipo === "regra" && documento.projeto && regra && (
+        <ConsultaReversa
+          projeto={documento.projeto}
+          regra={regra}
+          aoAbrirDocumento={aoAbrirDocumento}
+          aoAbrirAnalise={aoAbrirAnalise}
+        />
       )}
 
       <div className="markdown">

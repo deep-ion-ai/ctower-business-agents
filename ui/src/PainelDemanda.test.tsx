@@ -8,6 +8,7 @@ import {
   demandasFicticias,
   painelFicticio,
 } from "./test/conhecimentoFalso";
+import { apiRastreabilidadeFalsa } from "./test/rastreabilidadeFalsa";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(), Channel: vi.fn() }));
 
@@ -123,6 +124,25 @@ describe("PainelDemanda", () => {
     falsa.api.painelDemanda.mockRejectedValueOnce("a demanda D-0001 não existe");
     montar(falsa);
     expect(await screen.findByRole("alert")).toHaveTextContent("a demanda D-0001 não existe");
+  });
+
+  it("mostra a matriz de rastreabilidade da demanda (#121)", async () => {
+    const falsa = apiConhecimentoFalsa();
+    const rastreabilidade = apiRastreabilidadeFalsa();
+    render(
+      <PainelDemanda
+        api={falsa.api}
+        projeto={PROJETO}
+        demanda="D-0001"
+        navegar={vi.fn()}
+        apiRastreabilidade={rastreabilidade}
+      />,
+    );
+    const secao = await screen.findByRole("region", { name: "Rastreabilidade" });
+    expect(
+      await within(secao).findByRole("table", { name: "Matriz por história" }),
+    ).toHaveTextContent("HU-0001");
+    expect(rastreabilidade.matriz).toHaveBeenCalledWith(PROJETO, "D-0001");
   });
 });
 
