@@ -10,11 +10,24 @@ export interface ItemSumario {
   vazia?: boolean;
 }
 
-/** Leva à seção do documento: rola e foca o título. */
+/** Folga entre a faixa fixa e o título da seção, em pixels. */
+const FOLGA = 8;
+
+/**
+ * Leva à seção do documento: rola e foca o título. A faixa de revisão fica fixa no
+ * topo do documento: a rolagem desconta a altura dela, para o título não ficar por
+ * baixo (#222).
+ */
 export function irParaSecao(id: string) {
   const el = document.getElementById(id);
-  el?.scrollIntoView?.({ block: "start", behavior: "smooth" });
-  el?.focus({ preventScroll: true });
+  if (!el) return;
+  const faixa = el
+    .closest(".documento-ao-vivo")
+    ?.querySelector<HTMLElement>(".faixa-revisao");
+  const altura = faixa?.getBoundingClientRect().height ?? 0;
+  el.style.scrollMarginTop = altura > 0 ? `${Math.ceil(altura) + FOLGA}px` : "";
+  el.scrollIntoView?.({ block: "start", behavior: "smooth" });
+  el.focus({ preventScroll: true });
 }
 
 /**

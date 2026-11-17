@@ -9,6 +9,7 @@ import type {
   Prontidao,
   RegraPrevista,
 } from "./revisao";
+import { contarPendencias } from "./resumoRevisao";
 
 /** O que o analista mudou na regra de uma afirmação; `titulo` nulo é o sugerido. */
 interface Ajuste {
@@ -135,6 +136,8 @@ export function AprovacaoAnalise({
   const faltaArea = prontidao.areaObrigatoria && escolhidas.length > 0 && !area && !todasComArea;
   const aprovada = prontidao.estado === "aprovada";
   const podeGravar = prontidao.pendencias.length === 0;
+  // A mesma conta do cabeçalho e da faixa (#222).
+  const pendentes = contarPendencias(prontidao.pendencias);
 
   const aprovar = () => {
     const opcoes: OpcoesAprovacao = {
@@ -191,13 +194,13 @@ export function AprovacaoAnalise({
               </li>
             ))}
           </ul>
-          {aoRevisarPendentes && (
+          {aoRevisarPendentes && pendentes > 0 && (
             <button
               className="btn"
               type="button"
               onClick={() => aoRevisarPendentes(prontidao.pendencias)}
             >
-              Revisar as {prontidao.pendencias.length} pendentes
+              {pendentes === 1 ? "Revisar a pendente" : `Revisar as ${pendentes} pendentes`}
             </button>
           )}
         </div>

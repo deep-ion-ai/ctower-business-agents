@@ -364,6 +364,33 @@ pub struct VistaAnalise {
     /// Código Mermaid de cada diagrama registrado, gerado como na montagem do
     /// documento, para a prévia desenhar a figura (#118).
     pub diagramas: Vec<DiagramaVisto>,
+    /// Seções do documento do fluxo, na ordem do template, com o título do `.md`:
+    /// a tela mostra o título, nunca o marcador (#222).
+    pub secoes: Vec<SecaoVista>,
+}
+
+/// Seção do documento da análise: o marcador (`atores_e_telas`), que as
+/// afirmações citam, e o título do documento ("Atores e telas").
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SecaoVista {
+    pub marcador: String,
+    pub titulo: String,
+}
+
+/// Seções do documento do fluxo da análise, na ordem do template padrão.
+pub(crate) fn secoes_do_documento(fluxo: Fluxo) -> Vec<SecaoVista> {
+    cba_docs::modelo(fluxo.tipo_documento())
+        .map(|m| {
+            m.secoes
+                .iter()
+                .map(|s| SecaoVista {
+                    marcador: s.marcador.to_owned(),
+                    titulo: s.titulo.to_owned(),
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// Código Mermaid de um diagrama da análise (`D-<numero>`).
@@ -430,6 +457,7 @@ pub fn carregar_analise(
         sessao: sessao_recente(dados, &analise),
         prompt_retomada: prompt_de_retomada(&id),
         diagramas: diagramas_vistos(&analise),
+        secoes: secoes_do_documento(analise.fluxo),
         analise,
     })
 }
@@ -809,6 +837,11 @@ mod tests {
             })
         );
         assert!(vista.prompt_retomada.contains("retomar_analise"));
+        // A tela mostra o título da seção, o mesmo do `.md` (#222).
+        assert!(vista.secoes.contains(&SecaoVista {
+            marcador: "regras_encontradas".into(),
+            titulo: "Regras encontradas".into(),
+        }));
         let documento = std::fs::read_to_string(&vista.documento).unwrap();
         assert!(
             documento.contains("2% sobre o valor original"),
