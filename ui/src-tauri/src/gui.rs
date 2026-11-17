@@ -137,6 +137,7 @@ pub fn rodar() {
             configuracoes::validar_texto_editavel,
             configuracoes::salvar_texto_editavel,
             configuracoes::restaurar_texto_padrao,
+            configuracoes::previa_exportacao_texto,
             revisao::revisar_analise_projeto,
             revisao::prontidao_aprovacao_projeto,
             revisao::aprovar_analise_projeto,

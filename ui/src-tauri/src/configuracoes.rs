@@ -850,6 +850,8 @@ pub enum GrupoTexto {
     Template,
     Roteiro,
     Prompt,
+    /// Template HTML e tokens CSS da exportação (#166).
+    Exportacao,
     RegrasDoProjeto,
 }
 
@@ -877,6 +879,7 @@ fn catalogo(dados: &DiretorioDados) -> Result<Vec<ItemCatalogo>, String> {
                 Grupo::Template => GrupoTexto::Template,
                 Grupo::Roteiro => GrupoTexto::Roteiro,
                 Grupo::Prompt => GrupoTexto::Prompt,
+                Grupo::Exportacao => GrupoTexto::Exportacao,
             };
             (
                 grupo,
@@ -1036,6 +1039,7 @@ fn validar_item(item: &ItemCatalogo, texto: &str) -> Vec<AvisoTexto> {
         GrupoTexto::Template => Grupo::Template,
         GrupoTexto::Roteiro => Grupo::Roteiro,
         GrupoTexto::Prompt => Grupo::Prompt,
+        GrupoTexto::Exportacao => Grupo::Exportacao,
         // As regras do projeto são texto livre, sem variáveis.
         GrupoTexto::RegrasDoProjeto => return Vec::new(),
     };
@@ -1063,6 +1067,7 @@ fn ler_item(base: &Path, item: ItemCatalogo) -> Result<LeituraTexto, String> {
         GrupoTexto::Template => variaveis(Grupo::Template, &id),
         GrupoTexto::Roteiro => variaveis(Grupo::Roteiro, &id),
         GrupoTexto::Prompt => variaveis(Grupo::Prompt, &id),
+        GrupoTexto::Exportacao => variaveis(Grupo::Exportacao, &id),
         GrupoTexto::RegrasDoProjeto => Vec::new(),
     }
     .into_iter()
@@ -1126,6 +1131,53 @@ pub fn salvar_texto(
         estado: estado_do_texto(&caminho, item.4),
         versao: versao_do_arquivo(&caminho)?,
         avisos: validar_item(&item, texto),
+    })
+}
+
+/// Prévia da exportação em HTML (#166): um documento de exemplo exportado com o
+/// template e os tokens da base, com `texto` no lugar do arquivo em edição.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PreviaExportacao {
+    pub html: String,
+    /// Avisos ao montar (arquivos ilegíveis da base, problemas do template).
+    pub avisos: Vec<String>,
+}
+
+/// Prévia de um arquivo da exportação em HTML com o texto em edição. Só aceita
+/// os arquivos do grupo da exportação.
+pub fn previa_exportacao(
+    dados: &DiretorioDados,
+    arquivo: &str,
+    texto: &str,
+) -> Result<PreviaExportacao, String> {
+    let base = base_configurada(dados)?;
+    let (grupo, id, _, relativo, _) = catalogado(dados, arquivo)?;
+    let editado = cba_docs::ArquivoHtml::de_id(&id)
+        .filter(|_| grupo == GrupoTexto::Exportacao)
+        .ok_or_else(|| format!("{arquivo} não é um arquivo da exportação em HTML"))?;
+    let base = cba_kb::Base::abrir(&base).map_err(|e| e.to_string())?;
+    let (modelo, avisos) = cba_docs::ModeloHtml::da_base(&base);
+    // Os avisos do arquivo em edição valem pelo texto da tela, não pelo disco.
+    let mut avisos: Vec<String> = avisos
+        .into_iter()
+        .filter(|a| match a {
+            cba_docs::AvisoHtml::Ilegivel { arquivo, .. } => *arquivo != relativo,
+            _ => editado != cba_docs::ArquivoHtml::Documento,
+        })
+        .map(|a| a.to_string())
+        .collect();
+    let modelo = modelo.com(editado, normalizar(texto), cba_docs::Origem::Base(relativo));
+    let previa = cba_docs::previa_html(&modelo);
+    for a in previa.avisos {
+        let a = a.to_string();
+        if !avisos.contains(&a) {
+            avisos.push(a);
+        }
+    }
+    Ok(PreviaExportacao {
+        html: previa.html,
+        avisos,
     })
 }
 
@@ -1284,6 +1336,15 @@ pub async fn salvar_texto_editavel(
 ) -> Result<SalvoTexto, String> {
     let dados = dados()?;
     bloqueante(move || salvar_texto(&dados, &arquivo, &texto, &versao_lida)).await
+}
+
+#[tauri::command]
+pub async fn previa_exportacao_texto(
+    arquivo: String,
+    texto: String,
+) -> Result<PreviaExportacao, String> {
+    let dados = dados()?;
+    bloqueante(move || previa_exportacao(&dados, &arquivo, &texto)).await
 }
 
 #[tauri::command]

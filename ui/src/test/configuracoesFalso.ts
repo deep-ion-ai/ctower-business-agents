@@ -11,6 +11,7 @@ import {
   type EstadoTexto,
   type InfoBase,
   type LeituraTexto,
+  type PreviaExportacao,
   type ModoTroca,
   type SalvoTexto,
   type TextoEditavel,
@@ -96,6 +97,13 @@ export const TEXTOS: TextoEditavel[] = [
     rotulo: "Regras do projeto Faturamento Exemplo",
     arquivo: "faturamento-exemplo/regras-do-projeto.md",
     estado: "igualAoPadrao",
+  },
+  {
+    grupo: "exportacao",
+    id: "tokens",
+    rotulo: "Tokens CSS da exportação",
+    arquivo: "_templates/exportacao/tokens.css",
+    estado: "padrao",
   },
 ];
 
@@ -194,7 +202,7 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
       texto: arquivos.get(arquivo)!.texto ?? padraoFalso(t),
       padrao: padraoFalso(t),
       estado: estadoDe(t),
-      variaveis: t.grupo === "regrasDoProjeto" ? [] : VARIAVEIS_FALSAS,
+      variaveis: t.grupo === "regrasDoProjeto" || t.grupo === "exportacao" ? [] : VARIAVEIS_FALSAS,
       versao: versaoDe(arquivo),
     };
   };
@@ -489,6 +497,13 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
       });
       return Promise.resolve(leitura(arquivo));
     }),
+    previaExportacao: vi.fn(
+      (_arquivo: string, texto: string): Promise<PreviaExportacao> =>
+        Promise.resolve({
+          html: `<!doctype html><style>${texto}</style><h1>Documento de exemplo</h1>`,
+          avisos: texto.includes("{{") ? ["variável desconhecida"] : [],
+        }),
+    ),
     situacaoProtecao: vi.fn((_s: string) => Promise.resolve(protecao(false))),
     mudarProtecao: vi.fn((_s: string, ligada: boolean) => Promise.resolve(protecao(ligada))),
   } satisfies ApiConfiguracoes;

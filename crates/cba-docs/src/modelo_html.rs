@@ -32,6 +32,7 @@ pub const PASTA_EXPORTACAO: &str = "exportacao";
 const PADRAO_DOCUMENTO: &str = include_str!("../exportacao/documento.html");
 const PADRAO_TOKENS: &str = include_str!("../exportacao/tokens.css");
 const PADRAO_ESTILO: &str = include_str!("../exportacao/estilo.css");
+const EXEMPLO: &str = include_str!("../exportacao/exemplo.md");
 /// Folha de estilo padrão do documento: usa só os tokens.
 pub const FOLHA_PADRAO: &str = include_str!("../exportacao/folha.css");
 
@@ -277,6 +278,42 @@ impl ModeloHtml {
             _ => None,
         })
     }
+}
+
+/// Trechos fixos do documento de exemplo, para o apêndice da prévia.
+struct TrechosDeExemplo;
+
+impl crate::FonteDeTrechos for TrechosDeExemplo {
+    fn trecho(
+        &self,
+        arquivo: &CaminhoRelativo,
+        linhas: cba_kb::frontmatter::Linhas,
+    ) -> Option<String> {
+        let todas = match arquivo.as_str() {
+            "db/parametros.sql" => {
+                "-- Parâmetros do faturamento\nCREATE TABLE parametro (nome VARCHAR(40), valor NUMBER);\nINSERT INTO parametro VALUES ('MAX_PARCELAS', 6);\nINSERT INTO parametro VALUES ('VALOR_MINIMO', 100);"
+            }
+            _ => return None,
+        };
+        let todas: Vec<&str> = todas.lines().collect();
+        let inicio = linhas.inicio as usize;
+        let fim = (linhas.fim as usize).min(todas.len());
+        (inicio >= 1 && inicio <= fim).then(|| todas[inicio - 1..fim].join("\n"))
+    }
+}
+
+/// Prévia do editor: um documento de exemplo exportado com `modelo`, com os
+/// avisos do template.
+pub fn previa_html(modelo: &ModeloHtml) -> crate::HtmlExportado {
+    crate::exportar_html(
+        EXEMPLO,
+        &crate::OpcoesExportacao::default(),
+        Some(&TrechosDeExemplo),
+        None,
+        &crate::Figuras::default(),
+        modelo,
+        &hoje(),
+    )
 }
 
 /// Avisos do template HTML, sem montar nada: variável desconhecida e
@@ -614,6 +651,26 @@ mod tests {
         let sem = Metadados::do_documento("sem frontmatter", "texto", "d");
         assert_eq!(sem.titulo, "");
         assert_eq!(sem.tipo, "");
+    }
+
+    #[test]
+    fn previa_com_o_exemplo() {
+        let p = previa_html(&ModeloHtml::padrao());
+        assert!(p.avisos.is_empty());
+        assert!(
+            p.html
+                .contains("<title>A-0000 · Documento de exemplo</title>")
+        );
+        assert!(p.html.contains("selo-a-confirmar"));
+        assert!(p.html.contains("Apêndice: trechos citados"));
+        assert!(p.html.contains("MAX_PARCELAS"));
+        assert!(p.html.contains("Trecho indisponível"));
+        let m = ModeloHtml::padrao().com(
+            ArquivoHtml::Tokens,
+            ":root { --cor-destaque: #c00; }".into(),
+            Origem::Padrao,
+        );
+        assert!(previa_html(&m).html.contains("--cor-destaque: #c00;"));
     }
 
     #[test]

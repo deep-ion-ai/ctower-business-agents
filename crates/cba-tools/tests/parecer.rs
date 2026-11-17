@@ -526,3 +526,49 @@ fn parecer_exporta_para_markdown_e_word() {
     assert!(docx.extension().is_some_and(|e| e == "docx"));
     assert!(std::fs::metadata(&docx).unwrap().len() > 0);
 }
+
+#[test]
+fn parecer_exporta_para_html_com_o_template_da_base() {
+    use cba_tools::revisao::{Formato, OpcoesExportacao, exportar_analise_com_avisos};
+    let c = cenario();
+    let a = c.criar(Fluxo::Revisar, HISTORIA);
+    c.chamar("registrar_achado", correcao(&a.id)).unwrap();
+    let destino = tempfile::tempdir().unwrap();
+    let exportar = || {
+        exportar_analise_com_avisos(
+            &c.amb,
+            &a.id,
+            &destino.path().join("parecer"),
+            Formato::Html,
+            &OpcoesExportacao::default(),
+            &cba_docs::Figuras::default(),
+        )
+        .unwrap()
+    };
+    // Sem cópia na base: o padrão, sem avisos.
+    let e = exportar();
+    assert!(e.caminho.extension().is_some_and(|x| x == "html"));
+    assert!(e.avisos.is_empty(), "{:?}", e.avisos);
+    let html = std::fs::read_to_string(&e.caminho).unwrap();
+    assert!(html.starts_with("<!doctype html>"), "{html}");
+    assert!(html.contains("<h2>Veredito</h2>"), "{html}");
+    assert!(
+        html.contains("IF V_VL_PAGO &gt; 0 THEN"),
+        "apêndice: {html}"
+    );
+    assert!(!html.contains("<script"));
+
+    // Com o template da base, com uma variável desconhecida: aviso, e exporta.
+    c.amb
+        .base
+        .gravar_texto(
+            &cba_docs::ArquivoHtml::Documento.arquivo(),
+            "<html><body><p>{{marca}}</p>{{conteudo}}</body></html>",
+        )
+        .unwrap();
+    let e = exportar();
+    assert_eq!(e.avisos.len(), 1, "{:?}", e.avisos);
+    assert!(e.avisos[0].contains("{{marca}}"), "{:?}", e.avisos);
+    let html = std::fs::read_to_string(&e.caminho).unwrap();
+    assert!(html.starts_with("<html><body><p>{{marca}}</p>"), "{html}");
+}

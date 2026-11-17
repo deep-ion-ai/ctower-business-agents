@@ -441,6 +441,7 @@ describe("TelaConfiguracoes", () => {
         "Editar",
       );
       expect(grupo("Prompts prontos").getByText("cópia sem mudanças")).toBeInTheDocument();
+      expect(grupo("Exportação em HTML").getByText(/Cores, fontes, tamanhos/)).toBeInTheDocument();
       // As regras do projeto ficam na página do projeto, não aqui.
       expect(screen.queryByText(/Regras do projeto Faturamento Exemplo/)).not.toBeInTheDocument();
     });
@@ -700,6 +701,36 @@ describe("TelaConfiguracoes", () => {
     function linhaDaTabela(rotulo: string) {
       return within(screen.getByText(rotulo).closest("li")!);
     }
+
+    it("tokens da exportação em HTML: prévia do documento exportado, sem barra de Markdown (#166)", async () => {
+      const TOKENS = TEXTOS.find((t) => t.grupo === "exportacao")!;
+      const { api, campo } = await editar(undefined, TOKENS.rotulo);
+      expect(screen.queryByRole("toolbar")).not.toBeInTheDocument();
+      expect(screen.getByText("Este texto é livre: não tem variáveis nem marcadores.")).toBeInTheDocument();
+      const quadro = (await screen.findByTitle(
+        "Prévia do documento exportado em HTML",
+        undefined,
+        { timeout: 3000 },
+      )) as HTMLIFrameElement;
+      // Isolado: sem script nem navegação.
+      expect(quadro.getAttribute("sandbox")).toBe("");
+      fireEvent.change(campo, { target: { value: ":root { --cor-destaque: #c00; }" } });
+      await waitFor(
+        () =>
+          expect(api.previaExportacao).toHaveBeenLastCalledWith(
+            TOKENS.arquivo,
+            ":root { --cor-destaque: #c00; }",
+          ),
+        { timeout: 3000 },
+      );
+      await waitFor(() =>
+        expect(quadro.getAttribute("srcdoc")).toContain("--cor-destaque: #c00;"),
+      );
+      fireEvent.change(campo, { target: { value: "{{x}}" } });
+      expect(
+        await screen.findByRole("list", { name: "Avisos da prévia" }, { timeout: 3000 }),
+      ).toHaveTextContent("variável desconhecida");
+    });
 
     it("abre o editor com rótulo, caminho, texto e prévia com nota e chips", async () => {
       const { campo } = await editar();

@@ -69,7 +69,7 @@ pub use modelo::{
 };
 pub use modelo_html::{
     ArquivoHtml, AvisoHtml, FOLHA_PADRAO, ModeloHtml, PASTA_EXPORTACAO, VARIAVEIS_HTML,
-    rotulo_do_tipo, validar_template_html,
+    previa_html, rotulo_do_tipo, validar_template_html,
 };
 pub use montagem::{ErroMontagem, Montado};
 pub use template::{Aviso, Origem, Template, Templates, arquivo_do_template};
