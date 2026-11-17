@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
-import { mensagemDe } from "./analise";
+import { apiAnaliseTauri, mensagemDe, type ApiAnalise } from "./analise";
 import { AssistentePrimeiroUso, type FimPrimeiroUso } from "./AssistentePrimeiroUso";
 import { apiPrimeiroUsoTauri, type ApiPrimeiroUso, type Situacao } from "./primeiroUso";
-import { Navegacao } from "./Navegacao";
+import { Navegacao, type Tela } from "./Navegacao";
 import { Titlebar } from "./shell/Titlebar";
 
 export const PRODUTO = "Ctower Business Agents";
@@ -15,12 +15,19 @@ export const PRODUTO = "Ctower Business Agents";
  * projeto, a base de conhecimento e as análises ({@link Navegacao}). Ao concluir o
  * assistente, abre a análise com a pergunta sugerida.
  */
-export function App({ api = apiPrimeiroUsoTauri }: { api?: ApiPrimeiroUso }) {
+export function App({
+  api = apiPrimeiroUsoTauri,
+  apiAnalise = apiAnaliseTauri,
+}: {
+  api?: ApiPrimeiroUso;
+  /** Cria a primeira análise ao concluir o assistente; para testes. */
+  apiAnalise?: Pick<ApiAnalise, "criarAnalise">;
+}) {
   const [versao, setVersao] = useState<string | null>(null);
   const [situacao, setSituacao] = useState<Situacao | null>(null);
   const [falha, setFalha] = useState<string | null>(null);
   const [assistente, setAssistente] = useState(false);
-  const [inicio, setInicio] = useState<FimPrimeiroUso | null>(null);
+  const [inicio, setInicio] = useState<{ projeto: string; tela: Tela } | null>(null);
 
   useEffect(() => {
     let ativo = true;
@@ -58,8 +65,26 @@ export function App({ api = apiPrimeiroUsoTauri }: { api?: ApiPrimeiroUso }) {
       .catch((e: unknown) => setFalha(mensagemDe(e)));
   };
 
-  const concluir = (fim: FimPrimeiroUso) => {
-    setInicio(fim);
+  const concluir = async (fim: FimPrimeiroUso) => {
+    let tela: Tela = { tipo: "analise", projeto: fim.projeto, pergunta: fim.pergunta };
+    // “Fazer a primeira análise” inicia a análise (#227). Sem o ambiente preparado (ou se
+    // a criação falhar), a tela da análise abre com a pergunta preenchida e pede o preparo.
+    if (fim.pergunta && fim.ambientePronto) {
+      try {
+        const criada = await apiAnalise.criarAnalise(fim.projeto, fim.pergunta);
+        tela = {
+          tipo: "analise",
+          projeto: fim.projeto,
+          aberta: {
+            id: criada.analise.id,
+            abertura: { tipo: "nova", promptInicial: criada.promptInicial },
+          },
+        };
+      } catch {
+        // Fica a tela com a pergunta preenchida.
+      }
+    }
+    setInicio({ projeto: fim.projeto, tela });
     setAssistente(false);
     carregar();
   };
@@ -74,9 +99,7 @@ export function App({ api = apiPrimeiroUsoTauri }: { api?: ApiPrimeiroUso }) {
     return (
       <Navegacao
         key={inicio?.projeto ?? ""}
-        inicial={
-          inicio ? { tipo: "analise", projeto: inicio.projeto, pergunta: inicio.pergunta } : undefined
-        }
+        inicial={inicio?.tela}
         abrirLink={api.abrirLink}
         aoPrimeiroUso={reabrir}
         refazerPrimeiroUso={situacao ? reabrir : undefined}

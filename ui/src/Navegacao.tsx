@@ -124,6 +124,9 @@ const SIDE_MAX = 600;
 const SIDE_KEY = "cba.sideWidth";
 const clampWidth = (w: number) => Math.min(SIDE_MAX, Math.max(SIDE_MIN, Math.round(w)));
 
+/** De quanto em quanto tempo o explorador relê as análises. */
+const INTERVALO_EXPLORADOR = 5000;
+
 const ESTREITA = "(max-width: 900px)";
 const telaEstreita = () => typeof matchMedia === "function" && matchMedia(ESTREITA).matches;
 
@@ -134,6 +137,23 @@ function larguraGravada(): number {
   } catch {
     return 260;
   }
+}
+
+/**
+ * As análises do explorador, sem repetir e em ordem estável: por projeto e número.
+ * Reordenar por atividade faria o clique no lugar de antes abrir outra análise (#227).
+ */
+export function analisesDoExplorador(inicio: Inicio): AnaliseInicio[] {
+  const vistas = new Map<string, AnaliseInicio>();
+  for (const a of [...inicio.emAndamento, ...inicio.recentes]) {
+    vistas.set(`${a.projeto}/${a.id}`, a);
+  }
+  return [...vistas.values()].sort(
+    (a, b) =>
+      a.projetoNome.localeCompare(b.projetoNome, "pt-BR") ||
+      a.projeto.localeCompare(b.projeto) ||
+      a.id.localeCompare(b.id, "pt-BR", { numeric: true }),
+  );
 }
 
 /** Tom do ponto da análise: âmbar só quando a sessão espera o analista. */
@@ -183,6 +203,13 @@ export function Navegacao({
   const contador = useRef(0);
 
   const aba = abas.find((a) => a.chave === ativa) ?? null;
+
+  // Com muitas abas a faixa rola: a aba ativa sempre fica à vista.
+  const faixaAbas = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const ativaEl = faixaAbas.current?.querySelector<HTMLElement>('.etab[data-on="true"]');
+    ativaEl?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  }, [ativa, abas.length]);
   const tela = aba?.tela ?? null;
 
   /** Documentos abertos nesta sessão, o mais recente primeiro (painel lateral). */
@@ -207,6 +234,11 @@ export function Navegacao({
   const [fechamento, setFechamento] = useState<{ chave: string; trabalhando: boolean } | null>(
     null,
   );
+  const [fechamentoOutras, setFechamentoOutras] = useState<{
+    manter: string;
+    vivas: string[];
+    trabalhando: boolean;
+  } | null>(null);
   const aoMudarConversa = useCallback((chave: string, estado: EstadoConversa) => {
     if (estado === "nenhuma") conversas.current.delete(chave);
     else conversas.current.set(chave, estado);
@@ -251,6 +283,29 @@ export function Navegacao({
     };
   }, [api, recarga]);
 
+  // O explorador acompanha o que acontece fora das telas (análise criada, agente que
+  // passou a esperar o analista, base editada): relê o início quando a base muda e,
+  // por garantia, a cada poucos segundos (#227).
+  useEffect(() => {
+    let ativo = true;
+    const ler = () =>
+      api
+        .inicio()
+        .then((i) => ativo && setInicio(i))
+        .catch(() => undefined);
+    const relogio = setInterval(ler, INTERVALO_EXPLORADOR);
+    let parar: (() => void) | null = null;
+    api
+      .vigiarBase(ler)
+      .then((p) => (ativo ? (parar = p) : p()))
+      .catch(() => undefined);
+    return () => {
+      ativo = false;
+      clearInterval(relogio);
+      parar?.();
+    };
+  }, [api]);
+
   /**
    * Barra de atividades: vai à última aba da área (ou abre uma); na área atual,
    * mostra ou esconde o painel lateral.
@@ -286,6 +341,29 @@ export function Navegacao({
     fecharAgora(chave);
   };
 
+  /** Fecha todas as abas menos `manter`, respeitando as conversas vivas (#212, #227). */
+  const fecharOutras = (manter: string) => {
+    const outras = abas.filter((a) => a.chave !== manter);
+    if (outras.length === 0) return;
+    const vivas = outras.filter((a) => conversas.current.has(a.chave));
+    if (vivas.length > 0) {
+      setFechamentoOutras({
+        manter,
+        vivas: vivas.map((a) => a.chave),
+        trabalhando: vivas.some((a) => conversas.current.get(a.chave) === "trabalhando"),
+      });
+      return;
+    }
+    fecharVarias(manter, outras.map((a) => a.chave));
+  };
+
+  const fecharVarias = (manter: string, chaves: string[]) => {
+    for (const c of chaves) conversas.current.delete(c);
+    const resto = abas.filter((a) => !chaves.includes(a.chave));
+    setAbas(resto);
+    if (chaves.includes(ativa)) setAtiva(resto.some((a) => a.chave === manter) ? manter : (resto[0]?.chave ?? ""));
+  };
+
   const fecharAgora = (chave: string) => {
     conversas.current.delete(chave);
     const i = abas.findIndex((a) => a.chave === chave);
@@ -317,14 +395,7 @@ export function Navegacao({
     return ROTULO_AREA[t.tipo];
   };
 
-  const analises = inicio
-    ? [
-        ...inicio.emAndamento,
-        ...inicio.recentes.filter(
-          (r) => !inicio.emAndamento.some((e) => e.id === r.id && e.projeto === r.projeto),
-        ),
-      ]
-    : [];
+  const analises = inicio ? analisesDoExplorador(inicio) : [];
   const aRevalidar = inicio?.projetos.reduce((n, s) => n + s.aRevalidar, 0) ?? 0;
   const aguardando = analises.filter((a) => a.sessao?.estado === "aguardando-analista").length;
 
@@ -463,7 +534,14 @@ export function Navegacao({
             </div>
           )}
           <div className="etabs-bar">
-            <div className="etabs" role="tablist" aria-label="Abas abertas">
+            <div className="etabs" role="tablist" aria-label="Abas abertas"
+              ref={faixaAbas}
+              onWheel={(e) => {
+                // A roda do mouse rola a faixa de abas, que não tem barra à vista.
+                if (faixaAbas.current && Math.abs(e.deltaY) > Math.abs(e.deltaX))
+                  faixaAbas.current.scrollLeft += e.deltaY;
+              }}
+            >
               {abas.map((a) => {
                 const titulo = tituloDaAba(a.tela);
                 return (
@@ -492,6 +570,16 @@ export function Navegacao({
                 );
               })}
             </div>
+            {abas.length > 1 && aba && (
+              <button
+                type="button"
+                className="etabs-outras"
+                title="Fecha todas as abas, menos a que está à vista"
+                onClick={() => sairDaAba(() => fecharOutras(ativa))}
+              >
+                Fechar outras
+              </button>
+            )}
           </div>
           <div className="editor" role="tabpanel" id="area-editor" aria-label="Área de editor">
             <div className="editor-tela">
@@ -664,6 +752,55 @@ export function Navegacao({
           <p className="muted">
             Fechar a aba encerra o Claude Code desta análise. Dá para retomar a conversa depois,
             pela própria análise.
+          </p>
+        </DialogoConfirmacao>
+      )}
+
+      {fechamentoOutras && (
+        <DialogoConfirmacao
+          titulo="Fechar as outras abas"
+          aoCancelar={() => setFechamentoOutras(null)}
+          acoes={
+            <>
+              <button
+                type="button"
+                className="btn btn-primary"
+                autoFocus
+                onClick={() => {
+                  // Mantém as análises com conversa: fecha só o que não tem processo vivo.
+                  const { manter, vivas } = fechamentoOutras;
+                  setFechamentoOutras(null);
+                  fecharVarias(
+                    manter,
+                    abas.filter((a) => a.chave !== manter && !vivas.includes(a.chave)).map((a) => a.chave),
+                  );
+                }}
+              >
+                Manter as conversas
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  const { manter } = fechamentoOutras;
+                  setFechamentoOutras(null);
+                  fecharVarias(manter, abas.filter((a) => a.chave !== manter).map((a) => a.chave));
+                }}
+              >
+                Encerrar as conversas
+              </button>
+            </>
+          }
+        >
+          <p>
+            {fechamentoOutras.vivas.length === 1
+              ? "Uma das outras abas tem uma conversa com o agente aberta."
+              : `${fechamentoOutras.vivas.length} das outras abas têm uma conversa com o agente aberta.`}
+            {fechamentoOutras.trabalhando && " O agente ainda está trabalhando."}
+          </p>
+          <p className="muted">
+            Fechar uma aba de análise encerra o Claude Code dela. Dá para retomar a conversa
+            depois, pela própria análise. “Manter as conversas” fecha só as abas sem conversa.
           </p>
         </DialogoConfirmacao>
       )}

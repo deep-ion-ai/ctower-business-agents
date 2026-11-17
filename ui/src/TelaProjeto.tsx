@@ -8,6 +8,7 @@ import {
   type VisaoProjeto,
 } from "./conhecimento";
 import { ListaDemandas } from "./ListaDemandas";
+import { simbolosEmNegocio } from "./mapaNegocio";
 import type { Tela } from "./Navegacao";
 import type { ProjetoResumo } from "./terminal";
 
@@ -329,6 +330,21 @@ function MapaProjeto({ api, projeto }: { api: ApiConhecimento; projeto: string }
       .finally(() => setMapeando(false));
   };
 
+  /**
+   * Entra numa subpasta pulando as cadeias de pasta única (sem arquivo próprio e com
+   * uma só subpasta): `src/main/java/com/x` não pede um clique por pasta (#227).
+   */
+  const entrar = async (caminho: string) => {
+    let atual = caminho;
+    for (let i = 0; i < 64; i++) {
+      const m = await api.mapa(projeto, atual).catch(() => null);
+      const sub = m?.modulo.subpastas;
+      if (!m || m.modulo.arquivosDiretos.length > 0 || sub?.length !== 1) break;
+      atual = sub[0].caminho;
+    }
+    setPasta(atual);
+  };
+
   const trilha = pasta ? pasta.split("/") : [];
 
   return (
@@ -370,14 +386,16 @@ function MapaProjeto({ api, projeto }: { api: ApiConhecimento; projeto: string }
           </p>
           {mapa.modulo.simbolos.length > 0 && (
             <p className="muted">
-              {mapa.modulo.simbolos.map((s) => `${s.rotulo} ${s.quantidade}`).join(" · ")}
+              {simbolosEmNegocio(mapa.modulo.simbolos)
+                .map((s) => `${s.quantidade} ${s.rotulo}`)
+                .join(" · ")}
             </p>
           )}
           {mapa.modulo.subpastas.length > 0 && (
             <ul className="lista-pastas">
               {mapa.modulo.subpastas.map((s) => (
                 <li key={s.caminho}>
-                  <button type="button" className="link" onClick={() => setPasta(s.caminho)}>
+                  <button type="button" className="link" onClick={() => void entrar(s.caminho)}>
                     {s.caminho.split("/").pop()}/
                   </button>{" "}
                   <span className="muted">{s.arquivos} arquivo(s)</span>

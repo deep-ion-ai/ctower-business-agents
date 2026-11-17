@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { App, PRODUTO } from "./App";
-import { apiPrimeiroUsoFalsa, situacaoInicial } from "./test/falsos";
+import { criarTelaXterm } from "./telaXterm";
+import { apiAnaliseFalsa, apiPrimeiroUsoFalsa, situacaoInicial, telaFalsa } from "./test/falsos";
 
 vi.mock("@tauri-apps/api/app", () => ({
   getVersion: vi.fn(() => Promise.resolve("1.2.3")),
@@ -44,8 +45,11 @@ describe("App", () => {
     expect(await screen.findByRole("region", { name: "Pergunta ao sistema" })).toBeInTheDocument();
   });
 
-  it("no primeiro uso, abre o assistente e, ao concluir, vai para a análise", async () => {
+  it("no primeiro uso, abre o assistente e, ao concluir, inicia a primeira análise (#227)", async () => {
     const api = apiPrimeiroUsoFalsa();
+    const analise = apiAnaliseFalsa();
+    // A análise abre o terminal do agente.
+    vi.mocked(criarTelaXterm).mockReturnValue(telaFalsa());
     api.situacao.mockResolvedValueOnce(situacaoInicial()).mockResolvedValue(
       situacaoInicial({
         base: "/base",
@@ -53,7 +57,7 @@ describe("App", () => {
         primeiroUsoConcluido: true,
       }),
     );
-    render(<App api={api} />);
+    render(<App api={api} apiAnalise={analise.api} />);
     expect(await screen.findByRole("region", { name: "Primeiro uso" })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Pergunta ao sistema" })).not.toBeInTheDocument();
 
@@ -75,7 +79,13 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
     fireEvent.click(await screen.findByRole("button", { name: "Fazer a primeira análise" }));
 
-    expect(await screen.findByRole("region", { name: "Pergunta ao sistema" })).toBeInTheDocument();
+    // A análise é criada e aberta: não sobra a tela da pergunta para o analista preencher.
+    expect(await screen.findByRole("tab", { name: "A-0001" })).toBeInTheDocument();
+    expect(analise.api.criarAnalise).toHaveBeenCalledWith(
+      "faturamento-exemplo",
+      expect.stringContaining("regras de negócio"),
+    );
+    expect(screen.queryByRole("region", { name: "Pergunta ao sistema" })).not.toBeInTheDocument();
     await waitFor(() =>
       expect(screen.queryByRole("region", { name: "Primeiro uso" })).not.toBeInTheDocument(),
     );

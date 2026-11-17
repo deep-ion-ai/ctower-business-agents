@@ -52,6 +52,11 @@
   color: var(--muted);
 }
 
+.tela-inicio > .proximo-passo-inicio {
+  border-color: var(--attention);
+  align-items: flex-start;
+}
+
 .page ul,
 .page ol {
   margin: 0;

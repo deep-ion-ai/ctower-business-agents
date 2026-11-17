@@ -727,13 +727,15 @@ describe("ConfigProjeto", () => {
         montar();
       api.escolherPasta.mockResolvedValue("/codigo/telas");
       const painel = aba("O que é analisado");
-      const pastas = within(
-        painel.getByRole("region", { name: "Pastas do projeto" }),
-      );
-      expect(
-        pastas.getByRole("button", { name: `Remover a pasta ${CODIGO}` }),
-      ).toBeDisabled();
+      const pastas = within(painel.getByRole("region", { name: "Pastas do projeto" }));
+      const remover = pastas.getByRole("button", { name: `Remover a pasta ${CODIGO}` });
+      expect(remover).toHaveAttribute("aria-disabled", "true");
       expect(pastas.getByText("raiz (sem prefixo)")).toBeInTheDocument();
+      // A recusa não é silenciosa: o clique explica por quê (#227).
+      expect(pastas.queryByRole("alert")).not.toBeInTheDocument();
+      fireEvent.click(remover);
+      expect(pastas.getByRole("alert")).toHaveTextContent(/única pasta do projeto/);
+      expect(painel.queryByRole("region", { name: "Alterações não salvas" })).not.toBeInTheDocument();
 
       fireEvent.click(
         pastas.getByRole("button", { name: "+ Adicionar pasta" }),
