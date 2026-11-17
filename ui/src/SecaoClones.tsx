@@ -55,9 +55,9 @@ function PastaClones({ api }: { api: Api }) {
   };
 
   return (
-    <div role="group" aria-label="Pasta dos clones">
+    <div role="group" aria-label="Pasta dos clones" className="secao-clones">
       <div className="field">
-        <label>
+        <label className="campo-largo">
           Pasta dos clones
           <input
             type="text"

@@ -630,6 +630,7 @@ pub fn previa_leitura(
     let inventario = cba_index::inventariar(&projeto, None).map_err(|e| e.to_string())?;
     Ok(PreviaProjeto {
         pastas: pastas_vista(&inventario),
+        inclusoes_vistas: primeiro_uso::inclusoes_vistas(&inventario, &projeto.inclusoes),
         inventario: resumo_inventario(&inventario),
         id: projeto.id,
         nome: projeto.nome,

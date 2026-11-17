@@ -6,13 +6,16 @@
 //! acesso; não volta para a tela, não vai para o cadastro nem para o log.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use cba_core::dados::DiretorioDados;
 use cba_repos::acessos::testar_acesso_repositorio;
 use cba_repos::chaveiro::{
     Chaveiro, conta_comando_global, conta_global, conta_propria, token_do_repositorio,
 };
-use cba_repos::clone::{Progresso, clonar};
+use cba_repos::clone::{Progresso, clonar, foi_cancelado};
 use cba_repos::demanda::Ferramentas;
 use cba_repos::{RepositorioCodigo, Secret};
 use serde::{Deserialize, Serialize};
@@ -141,6 +144,20 @@ pub fn testar_jira(
     }
 }
 
+/// "Testar conexão" das demandas (GitHub, GitLab ou Jira), com o valor da tela
+/// (ainda não salvo). Jira aceita o token digitado; GitHub e GitLab usam o token
+/// global do host (ou o comando de credencial).
+pub fn testar_demandas(
+    f: &Ferramentas,
+    tracker: &cba_repos::TrackerConfig,
+    token: Option<&str>,
+) -> cba_repos::prontidao::Integracao {
+    match tracker {
+        cba_repos::TrackerConfig::Jira(j) => testar_jira(f, j, token),
+        t => cba_repos::prontidao::prontidao_tracker(t, f),
+    }
+}
+
 /// Evento do clone para a tela, por repositório (`indice` na lista pedida).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase", tag = "tipo")]
@@ -161,6 +178,10 @@ pub enum EventoClone {
         indice: usize,
         erro: String,
     },
+    /// O analista cancelou: a pasta parcial foi apagada.
+    Cancelado {
+        indice: usize,
+    },
 }
 
 /// Resultado de um repositório: a pasta do clone (o repositório com `pasta`
@@ -170,14 +191,50 @@ pub enum EventoClone {
 pub struct ResultadoClone {
     pub repositorio: RepositorioCodigo,
     pub erro: Option<String>,
+    /// Interrompido pelo analista (não é uma falha do clone).
+    pub cancelado: bool,
+}
+
+/// O clone em andamento, para o "Cancelar" da tela alcançá-lo.
+#[derive(Default)]
+pub struct CloneEmAndamento(Mutex<Option<Arc<AtomicBool>>>);
+
+impl CloneEmAndamento {
+    /// Registra um clone novo; recusa se já há um em andamento.
+    fn iniciar(&self) -> Result<Arc<AtomicBool>, String> {
+        let mut g = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        if g.is_some() {
+            return Err("já há um clone em andamento".into());
+        }
+        let flag = Arc::new(AtomicBool::new(false));
+        *g = Some(flag.clone());
+        Ok(flag)
+    }
+
+    fn terminar(&self) {
+        *self.0.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    }
+
+    /// Pede o cancelamento do clone em andamento; `false` se não há nenhum.
+    pub fn cancelar(&self) -> bool {
+        match self.0.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
+            Some(f) => {
+                f.store(true, Ordering::SeqCst);
+                true
+            }
+            None => false,
+        }
+    }
 }
 
 /// Clona cada repositório em `base/<nome>`, um de cada vez; a falha de um não
-/// impede os outros.
+/// impede os outros. Cancelar interrompe o que está clonando (apagando a pasta
+/// parcial) e não começa os que faltam; os já clonados ficam.
 pub fn clonar_todos(
     f: &Ferramentas,
     repos: &[RepositorioCodigo],
     base: &Path,
+    cancelar: &AtomicBool,
     avisar: &mut dyn FnMut(EventoClone),
 ) -> Vec<ResultadoClone> {
     let mut nomes = std::collections::HashSet::new();
@@ -197,13 +254,20 @@ pub fn clonar_todos(
                 }
                 let token =
                     token_do_repositorio(repo, f.chaveiro.as_ref()).map_err(|e| e.to_string())?;
-                clonar(&f.git, repo, base, token.as_ref(), &mut |p: Progresso| {
-                    avisar(EventoClone::Progresso {
-                        indice,
-                        etapa: p.etapa,
-                        percentual: p.percentual,
-                    })
-                })
+                clonar(
+                    &f.git,
+                    repo,
+                    base,
+                    token.as_ref(),
+                    cancelar,
+                    &mut |p: Progresso| {
+                        avisar(EventoClone::Progresso {
+                            indice,
+                            etapa: p.etapa,
+                            percentual: p.percentual,
+                        })
+                    },
+                )
             })();
             match feito {
                 Ok(pasta) => {
@@ -218,6 +282,16 @@ pub fn clonar_todos(
                             ..repo.clone()
                         },
                         erro: None,
+                        cancelado: false,
+                    }
+                }
+                Err(erro) if foi_cancelado(&erro) => {
+                    tracing::info!(repositorio = %repo.rotulo(), "clone cancelado");
+                    avisar(EventoClone::Cancelado { indice });
+                    ResultadoClone {
+                        repositorio: repo.clone(),
+                        erro: Some("clone cancelado".into()),
+                        cancelado: true,
                     }
                 }
                 Err(erro) => {
@@ -229,6 +303,7 @@ pub fn clonar_todos(
                     ResultadoClone {
                         repositorio: repo.clone(),
                         erro: Some(erro),
+                        cancelado: false,
                     }
                 }
             }
@@ -310,7 +385,28 @@ pub async fn testar_jira_app(
 }
 
 #[tauri::command]
+pub async fn testar_demandas_app(
+    tracker: cba_repos::TrackerConfig,
+    token: Option<String>,
+) -> Result<cba_repos::prontidao::Integracao, String> {
+    bloqueante(move || {
+        Ok(testar_demandas(
+            &Ferramentas::default(),
+            &tracker,
+            token.as_deref(),
+        ))
+    })
+    .await
+}
+
+#[tauri::command]
+pub fn cancelar_clone_app(andamento: tauri::State<'_, Arc<CloneEmAndamento>>) -> bool {
+    andamento.cancelar()
+}
+
+#[tauri::command]
 pub async fn clonar_repositorios_app(
+    andamento: tauri::State<'_, Arc<CloneEmAndamento>>,
     repositorios: Vec<RepositorioCodigo>,
     pasta_base: String,
     canal: Channel<EventoClone>,
@@ -322,17 +418,22 @@ pub async fn clonar_repositorios_app(
             base.display()
         ));
     }
-    bloqueante(move || {
+    let cancelar = andamento.iniciar()?;
+    let a = andamento.inner().clone();
+    let r = bloqueante(move || {
         Ok(clonar_todos(
             &Ferramentas::default(),
             &repositorios,
             &base,
+            &cancelar,
             &mut |e| {
                 let _ = canal.send(e);
             },
         ))
     })
-    .await
+    .await;
+    a.terminar();
+    r
 }
 
 #[cfg(all(test, unix))]
@@ -447,9 +548,13 @@ mod tests {
         };
         let mut eventos = Vec::new();
         let base = raiz.join("clones");
-        let r = clonar_todos(&f, &[legado, web, quebrado], &base, &mut |e| {
-            eventos.push(e)
-        });
+        let r = clonar_todos(
+            &f,
+            &[legado, web, quebrado],
+            &base,
+            &AtomicBool::new(false),
+            &mut |e| eventos.push(e),
+        );
         assert_eq!(
             r[0].repositorio.pasta.as_deref(),
             Some(base.join("legado").as_path())
@@ -472,6 +577,56 @@ mod tests {
         }
         let tudo = format!("{eventos:?}{r:?}{}", serde_json::to_string(&r).unwrap());
         assert!(!tudo.contains("glpat") && !tudo.contains("ghp-"), "{tudo}");
+    }
+
+    #[test]
+    fn cancelar_interrompe_o_clone_e_nao_comeca_os_que_faltam() {
+        let d = tempfile::tempdir().unwrap();
+        let raiz = dunce::canonicalize(d.path()).unwrap();
+        let base = raiz.join("clones");
+        let repo = |nome: &str| RepositorioCodigo {
+            caminho: format!("o/{nome}"),
+            url_clone: origem(&raiz, nome),
+            ..Default::default()
+        };
+        let primeiro = repo("primeiro");
+        let segundo = repo("segundo");
+        let terceiro = repo("terceiro");
+        let f = Ferramentas {
+            chaveiro: Arc::new(ChaveiroMemoria::default()),
+            ..Default::default()
+        };
+        // Pede o cancelamento assim que o segundo começa: o primeiro já ficou pronto.
+        let cancelar = AtomicBool::new(false);
+        let mut eventos = Vec::new();
+        let r = clonar_todos(
+            &f,
+            &[primeiro, segundo, terceiro],
+            &base,
+            &cancelar,
+            &mut |e| {
+                if e == (EventoClone::Inicio { indice: 1 }) {
+                    cancelar.store(true, Ordering::SeqCst);
+                }
+                eventos.push(e)
+            },
+        );
+        assert!(r[0].erro.is_none() && !r[0].cancelado);
+        assert!(r[1].cancelado && r[2].cancelado);
+        assert!(r[1].repositorio.pasta.is_none());
+        assert!(eventos.contains(&EventoClone::Cancelado { indice: 1 }));
+        assert!(eventos.contains(&EventoClone::Cancelado { indice: 2 }));
+        // O pronto fica; o que foi cancelado não deixa pasta.
+        assert!(base.join("primeiro/leia-me.md").exists());
+        assert!(!base.join("segundo").exists() && !base.join("terceiro").exists());
+        // Só um clone por vez, e o cancelamento só vale com um em andamento.
+        let andamento = CloneEmAndamento::default();
+        assert!(!andamento.cancelar());
+        let flag = andamento.iniciar().unwrap();
+        assert!(andamento.iniciar().is_err());
+        assert!(andamento.cancelar() && flag.load(Ordering::SeqCst));
+        andamento.terminar();
+        assert!(andamento.iniciar().is_ok());
     }
 
     #[test]

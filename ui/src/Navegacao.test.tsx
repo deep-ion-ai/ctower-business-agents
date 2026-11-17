@@ -1,6 +1,11 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { Navegacao } from "./Navegacao";
-import { REGRA, PROJETO, apiConhecimentoFalsa } from "./test/conhecimentoFalso";
+import {
+  REGRA,
+  PROJETO,
+  apiConhecimentoFalsa,
+  inicioFicticio,
+} from "./test/conhecimentoFalso";
 import { apiConfiguracoesFalsa } from "./test/configuracoesFalso";
 import { act } from "react";
 import {
@@ -152,6 +157,63 @@ describe("Navegacao", () => {
     fireEvent.click(screen.getByRole("button", { name: "Fechar A-0001" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "A-0001" })).not.toBeInTheDocument();
+  });
+
+  it("“Fechar outras” fecha as abas sem conversa e pergunta antes das análises com conversa viva (#227)", async () => {
+    const { terminal } = montarComAnalise();
+    await abrirTerminal(terminal, 0, 5);
+    const atividades = screen.getByRole("navigation", { name: "Telas" });
+    fireEvent.click(within(atividades).getByRole("button", { name: "Base de conhecimento" }));
+    fireEvent.click(within(atividades).getByRole("button", { name: "Configurações" }));
+    fireEvent.click(within(atividades).getByRole("button", { name: "Início" }));
+    expect(screen.getAllByRole("tab")).toHaveLength(4);
+
+    fireEvent.click(screen.getByRole("button", { name: "Fechar outras" }));
+    const dialogo = within(await screen.findByRole("dialog", { name: "Fechar as outras abas" }));
+    expect(dialogo.getByText(/Uma das outras abas tem uma conversa/)).toBeInTheDocument();
+    // Manter as conversas: só as abas sem conversa fecham.
+    fireEvent.click(dialogo.getByRole("button", { name: "Manter as conversas" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["A-0001", "Início"]);
+    expect(screen.getByRole("tab", { name: "Início" })).toHaveAttribute("aria-selected", "true");
+    expect(terminal.api.encerrar).not.toHaveBeenCalled();
+
+    // Encerrar as conversas: fecha também a análise e encerra o agente dela.
+    fireEvent.click(screen.getByRole("button", { name: "Fechar outras" }));
+    fireEvent.click(
+      within(await screen.findByRole("dialog")).getByRole("button", { name: "Encerrar as conversas" }),
+    );
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Início"]);
+    await waitFor(() => expect(terminal.api.encerrar).toHaveBeenCalledWith(5));
+    expect(screen.queryByRole("button", { name: "Fechar outras" })).not.toBeInTheDocument();
+  });
+
+  it("o explorador se atualiza ao vivo e mantém a ordem, sem reordenar por atividade (#227)", async () => {
+    const conhecimento = apiConhecimentoFalsa();
+    conhecimento.api.inicio.mockResolvedValue(inicioFicticio({ emAndamento: [], recentes: [] }));
+    render(<Navegacao api={conhecimento.api} apiAnalise={apiAnaliseFalsa().api} />);
+    const painel = screen.getByRole("region", { name: "Painel lateral" });
+    const grupo = () => within(painel).getByRole("group", { name: "Análises" });
+    await waitFor(() => expect(conhecimento.api.inicio).toHaveBeenCalled());
+    expect(grupo()).toHaveTextContent("Análises0");
+
+    const base = inicioFicticio();
+    const [impacto, multa] = base.recentes; // A-0002 (mais recente) e A-0001
+    conhecimento.api.inicio.mockResolvedValue(
+      inicioFicticio({ emAndamento: [multa], recentes: [multa] }),
+    );
+    await act(async () => conhecimento.avisar());
+    await waitFor(() => expect(grupo()).toHaveTextContent("Análises1"));
+
+    // A A-0002 aparece e é a de atividade mais recente: não passa na frente da A-0001.
+    conhecimento.api.inicio.mockResolvedValue(
+      inicioFicticio({ emAndamento: [impacto, multa], recentes: [impacto, multa] }),
+    );
+    await act(async () => conhecimento.avisar());
+    await waitFor(() => expect(grupo()).toHaveTextContent("Análises2"));
+    const linhas = within(grupo()).getAllByRole("button");
+    expect(linhas[0]).toHaveTextContent("A-0001");
+    expect(linhas[1]).toHaveTextContent("A-0002");
   });
 
   it("passa pelo início, pelo projeto, pela base e pelas análises", async () => {

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { mensagemDe } from "./analise";
+import { plural } from "./estadoCadastro";
 import type { PropsConfigProjeto } from "./ConfigProjeto";
+import { numero } from "./formatacao";
 import { padraoDoCaminho, tamanhoLegivel, type PreviaProjeto } from "./primeiroUso";
 
 interface Rascunho {
@@ -18,6 +20,9 @@ function doProjeto(p: PropsConfigProjeto["projeto"]): Rascunho {
 }
 
 const igual = (a: Rascunho, b: Rascunho) => JSON.stringify(a) === JSON.stringify(b);
+
+const MSG_ULTIMA_PASTA =
+  "Não dá para remover a única pasta do projeto: o agente precisa de ao menos uma pasta para ler. Adicione outra pasta antes, ou descadastre o projeto em Avançado.";
 
 /**
  * Aba “O que é analisado” (#192): o resumo “Será analisado” / “Fica fora” (por
@@ -40,6 +45,7 @@ export function AbaLeitura({
   const [salvando, setSalvando] = useState(false);
   const [falha, setFalha] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [avisoPasta, setAvisoPasta] = useState<string | null>(null);
   const [novaExclusao, setNovaExclusao] = useState("");
   const [verFora, setVerFora] = useState(false);
   const pendente = !igual(rascunho, salvo);
@@ -69,6 +75,7 @@ export function AbaLeitura({
 
   const mudar = (r: Partial<Rascunho>) => {
     setAviso(null);
+    setAvisoPasta(null);
     setRascunho((atual) => ({ ...atual, ...r }));
   };
 
@@ -125,7 +132,7 @@ export function AbaLeitura({
         <div className="cartao-config resumo-cartao" role="group" aria-label="Será analisado">
           <span className="muted">Será analisado</span>
           <strong className="resumo-numero">
-            {inv ? `${inv.analisados} arquivos` : "…"}
+            {inv ? `${numero(inv.analisados)} arquivos` : "…"}
             {inv && <span className="muted"> · {tamanhoLegivel(inv.bytesAnalisados)}</span>}
           </strong>
           {inv && inv.porLinguagem.length > 0 && (
@@ -136,7 +143,7 @@ export function AbaLeitura({
         </div>
         <div className="cartao-config resumo-cartao" role="group" aria-label="Fica fora">
           <span className="muted">Fica fora</span>
-          <strong className="resumo-numero">{inv ? `${inv.ignorados} itens` : "…"}</strong>
+          <strong className="resumo-numero">{inv ? plural(inv.ignorados, "arquivo", "arquivos") : "…"}</strong>
           {inv && inv.porMotivo.length > 0 && (
             <span className="muted">
               {inv.porMotivo.map((m, i) => (
@@ -153,7 +160,7 @@ export function AbaLeitura({
             <span className="attention-text">
               {segredos === 1
                 ? "1 arquivo parece ter segredo e fica fora da análise."
-                : `${segredos} arquivos parecem ter segredos e ficam fora da análise.`}
+                : `${numero(segredos)} arquivos parecem ter segredos e ficam fora da análise.`}
             </span>
           )}
           {inv && inv.itensIgnorados.length > 0 && (
@@ -199,9 +206,9 @@ export function AbaLeitura({
               </li>
             ))}
           </ul>
-          {inv.ignorados > inv.itensIgnorados.length && (
+          {inv.totalItensIgnorados > inv.itensIgnorados.length && (
             <p className="muted linha-config">
-              E mais {inv.ignorados - inv.itensIgnorados.length} itens.
+              E mais {inv.totalItensIgnorados - inv.itensIgnorados.length} itens.
             </p>
           )}
         </section>
@@ -232,9 +239,16 @@ export function AbaLeitura({
                   className="btn btn-sm"
                   type="button"
                   aria-label={`Remover a pasta ${caminho}`}
-                  disabled={ultima}
+                  aria-disabled={ultima || undefined}
                   title={ultima ? "O projeto precisa de ao menos uma pasta" : undefined}
-                  onClick={() => mudar({ pastas: rascunho.pastas.filter((p) => p !== caminho) })}
+                  onClick={() => {
+                    // Recusa explicada: um botão desabilitado não diz por quê (#227).
+                    if (ultima) {
+                      setAvisoPasta(MSG_ULTIMA_PASTA);
+                      return;
+                    }
+                    mudar({ pastas: rascunho.pastas.filter((p) => p !== caminho) });
+                  }}
                 >
                   Remover
                 </button>
@@ -242,6 +256,11 @@ export function AbaLeitura({
             );
           })}
         </ul>
+        {avisoPasta && (
+          <p className="attention-text linha-config" role="alert">
+            {avisoPasta}
+          </p>
+        )}
         <p className="muted linha-config">
           Remover uma pasta não apaga nada no computador: ela só deixa de ser lida. As pastas que
           ficam guardam o prefixo, e as evidências das análises continuam apontando para o mesmo

@@ -66,7 +66,7 @@ function revisaoFalsa(): Revisao & { aoDecidir: ReturnType<typeof vi.fn> } {
 describe("HistoriasAoVivo", () => {
   it("mostra a narrativa, o INVEST, os critérios Gherkin e as origens", () => {
     render(<HistoriasAoVivo historias={historias()} origem="A-0001" revisao={revisaoFalsa()} />);
-    expect(screen.getByText(/2 história\(s\) · 2 critério\(s\) · 1 a confirmar · origem A-0001/));
+    expect(screen.getByText(/2 histórias · 2 critérios · 1 a confirmar · origem A-0001/));
     const hu1 = screen.getByRole("region", { name: /HU-0001/ });
     expect(hu1).toHaveTextContent("Como atendente do faturamento, quero parcelar");
     expect(within(hu1).getByText("RN-FAT-008")).toHaveAttribute("title", "Quantidade de parcelas");

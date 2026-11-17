@@ -20,7 +20,7 @@ import {
  */
 export type ApiAssistenteProjeto = Pick<
   ApiPrimeiroUso,
-  "previaProjeto" | "cadastrarProjeto" | "escolherPasta"
+  "previaProjeto" | "cadastrarProjeto" | "escolherPasta" | "nomeEmUso"
 > &
   ApiRepositoriosDoCadastro;
 
@@ -52,7 +52,7 @@ export interface EstadoCodigo {
   detectados: RepoDetectado[] | null;
   clones: RepoClone[];
   pastaBase: string;
-  /** A pasta dos clones das preferências (para não sugerir o nome por ela). */
+  /** A pasta dos clones das preferências; `null` até carregar (ela só preenche a pasta base). */
   pastaPadrao: string | null;
   /** Lista de clones aberta para edição; senão, o resumo (quando todos foram clonados). */
   editandoClones: boolean;
@@ -146,14 +146,12 @@ export function codigoDoProjeto(e: EstadoCodigo): RepositorioCodigo[] {
 }
 
 /**
- * Nome sugerido: o da pasta escolhida; no clone, o da pasta dos clones quando o analista
- * a mudou para o projeto (a padrão das preferências serve a todos os projetos) ou, senão,
- * o do primeiro repositório.
+ * Nome sugerido: o da pasta escolhida ou, no clone, o do primeiro repositório. Nunca
+ * o da pasta dos clones: ela guarda vários repositórios (`Clones`) e não diz nada do
+ * projeto.
  */
 export function sugestaoDeNome(e: EstadoCodigo): string {
   if (e.origem === "pasta") return e.pasta ? nomeSugerido(nomeDaPasta(e.pasta)) : "";
-  const base = e.pastaBase.trim();
-  if (base && base !== (e.pastaPadrao ?? "").trim()) return nomeSugerido(nomeDaPasta(base));
   const primeiro = clonesPreenchidos(e).find((c) => c.repo.caminho);
   return primeiro ? nomeSugerido(pastaDoClone(primeiro.repo)) : "";
 }
@@ -253,12 +251,7 @@ export function linhas(texto: string): string[] {
     .filter(Boolean);
 }
 
-/** `1.284` (pt-BR). */
-export function numero(n: number): string {
-  return n.toLocaleString("pt-BR");
-}
+export { numero } from "./formatacao";
 
-/** `1 repositório`, `2 repositórios`. */
-export function plural(n: number, um: string, varios: string): string {
-  return `${numero(n)} ${n === 1 ? um : varios}`;
-}
+/** `1 repositório`, `2 repositórios` (alias de `contar`, em `formatacao.ts`). */
+export { contar as plural } from "./formatacao";

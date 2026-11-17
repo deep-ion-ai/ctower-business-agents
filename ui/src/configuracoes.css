@@ -1404,3 +1404,28 @@ button.chip-variavel:hover {
   margin: 0;
   padding-left: 18px;
 }
+
+/* Campos de texto da página do projeto ocupam a largura do cartão (o repositório das issues cortava o texto). */
+.cartao-config .field > label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cartao-config .field > label > input[type="text"] {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Pasta dos clones: o caminho completo precisa caber no campo. */
+.secao-clones .campo-largo {
+  display: block;
+}
+
+.secao-clones input.caminho {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 48rem;
+  margin-top: 4px;
+}

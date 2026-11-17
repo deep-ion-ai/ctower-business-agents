@@ -55,7 +55,7 @@ const REVALIDAR: Afirmacao = {
 };
 
 describe("Aprovação guiada", () => {
-  it("com pendências: lista com Ir para e Revisar as N pendentes", async () => {
+  it("com pendências: lista com Ir para e Revisar a(s) pendente(s), pela conta única", async () => {
     const aoIrPara = vi.fn();
     const aoRevisar = vi.fn();
     render(
@@ -73,7 +73,8 @@ describe("Aprovação guiada", () => {
     expect(within(lista).getAllByRole("button", { name: /Ir para/ })).toHaveLength(1);
     fireEvent.click(within(lista).getByRole("button", { name: /Ir para/ }));
     expect(aoIrPara).toHaveBeenCalledWith(COM_PENDENCIAS.pendencias[0]);
-    fireEvent.click(screen.getByRole("button", { name: "Revisar as 2 pendentes" }));
+    // A da análise como um todo (não concluída) aparece na lista, mas não conta (#222).
+    fireEvent.click(screen.getByRole("button", { name: "Revisar a pendente" }));
     expect(aoRevisar).toHaveBeenCalledWith(COM_PENDENCIAS.pendencias);
     expect(screen.getByRole("button", { name: "Aprovar…" })).toBeDisabled();
   });
@@ -139,7 +140,7 @@ describe("Aprovação guiada", () => {
     expect(await caixa(3)).not.toBeChecked();
     expect(await caixa(4)).toBeChecked();
     expect(
-      screen.getByText(/2 de 4 afirmação\(ões\) confirmada\(s\) vão virar regra/),
+      screen.getByText(/2 de 4 afirmações confirmadas vão virar regra/),
     ).toBeInTheDocument();
     // Só as marcadas mostram título e área; o título sugerido vem preenchido, sem markdown.
     expect(screen.queryByLabelText("Título da regra da afirmação 1")).not.toBeInTheDocument();
@@ -282,7 +283,7 @@ describe("Aprovação guiada", () => {
     );
     const barra = await screen.findByRole("banner");
     expect(await within(barra).findByRole("status", { name: "Situação da aprovação" })).toHaveTextContent(
-      "Aguardando sua revisão · 2 pendentes",
+      "Aguardando sua revisão · 1 pendente",
     );
     fireEvent.click(within(barra).getByRole("button", { name: "Aprovar…" }));
     const dialogo = screen.getByRole("dialog", { name: "Aprovar a análise" });

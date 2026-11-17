@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { Afirmacao, Confianca, Evidencia } from "./analise";
+import { rotuloDaEvidencia, type Afirmacao, type Confianca, type Evidencia } from "./analise";
 import { AcoesAfirmacao, type ComandoAfirmacao, type Revisao } from "./AcoesRevisao";
 import { TextoAfirmacao } from "./TextoAfirmacao";
 
@@ -111,10 +111,10 @@ export function CartaoAfirmacao({
                   type="button"
                   className="btn btn-sm evidencia chip-evidencia"
                   aria-pressed={evidenciaAberta === chave}
-                  title={e.trecho}
+                  title={e.trecho ? `${e.arquivo}:${e.linhas}\n${e.trecho}` : `${e.arquivo}:${e.linhas}`}
                   onClick={() => aoAbrirEvidencia(e)}
                 >
-                  {chave}
+                  {rotuloDaEvidencia(e)}
                 </button>
                 {e.estado === "a-revalidar" && <span className="muted"> a revalidar</span>}
               </li>

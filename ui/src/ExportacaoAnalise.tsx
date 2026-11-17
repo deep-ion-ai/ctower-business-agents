@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent } from "react";
+import { useEffect, useState, type ChangeEvent } from "react";
 import { mensagemDe } from "./analise";
 import { pngDoMermaid, type FiguraPng } from "./mermaid";
 import type { ApiRevisao, FiguraPedida, FormatoExportacao, OpcoesExportacao } from "./revisao";
@@ -22,6 +22,32 @@ const NOME_DO_FORMATO: Record<FormatoExportacao, string> = {
   markdown: "Markdown",
   csv: "CSV",
 };
+
+const FORMATOS: FormatoExportacao[] = ["word", "html", "markdown", "csv"];
+const CHAVE_PREFERENCIA = "cba.exportacao";
+const PADRAO: { formato: FormatoExportacao; opcoes: OpcoesExportacao } = {
+  formato: "word",
+  opcoes: { evidencias: true, perguntas: true, trechos: true, codigo_diagramas: true },
+};
+
+/** Última escolha de formato e opções do Exportar; qualquer falha cai no padrão. */
+function lerPreferencia(): typeof PADRAO {
+  try {
+    const bruto = JSON.parse(localStorage.getItem(CHAVE_PREFERENCIA) ?? "null") as {
+      formato?: unknown;
+      opcoes?: Record<string, unknown>;
+    } | null;
+    if (!bruto || typeof bruto !== "object") return PADRAO;
+    const opcoes = { ...PADRAO.opcoes };
+    for (const k of Object.keys(opcoes) as (keyof OpcoesExportacao)[]) {
+      if (typeof bruto.opcoes?.[k] === "boolean") opcoes[k] = bruto.opcoes[k] as boolean;
+    }
+    const formato = FORMATOS.find((f) => f === bruto.formato) ?? PADRAO.formato;
+    return { formato, opcoes };
+  } catch {
+    return PADRAO;
+  }
+}
 
 /**
  * Figuras dos diagramas do documento para o Word e o HTML (#118, #166). Um diagrama
@@ -63,13 +89,18 @@ export function ExportacaoAnalise({
   csv = false,
   desenharPng = pngDoMermaid,
 }: Props) {
-  const [formato, setFormato] = useState<FormatoExportacao>("word");
-  const [opcoes, setOpcoes] = useState<OpcoesExportacao>({
-    evidencias: true,
-    perguntas: true,
-    trechos: true,
-    codigo_diagramas: true,
-  });
+  const [lembrado] = useState(lerPreferencia);
+  const [formato, setFormato] = useState<FormatoExportacao>(
+    lembrado.formato === "csv" && !csv ? "word" : lembrado.formato,
+  );
+  const [opcoes, setOpcoes] = useState<OpcoesExportacao>(lembrado.opcoes);
+  useEffect(() => {
+    try {
+      localStorage.setItem(CHAVE_PREFERENCIA, JSON.stringify({ formato, opcoes }));
+    } catch {
+      // Sem armazenamento (janela privada, dados bloqueados): a escolha só vale nesta tela.
+    }
+  }, [formato, opcoes]);
   const [aviso, setAviso] = useState<string | null>(null);
   const [avisosTemplate, setAvisosTemplate] = useState<string[]>([]);
   const [ocupado, setOcupado] = useState(false);

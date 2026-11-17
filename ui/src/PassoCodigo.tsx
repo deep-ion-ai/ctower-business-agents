@@ -17,6 +17,7 @@ import {
   type OrigemCodigo,
   type RepoClone,
 } from "./estadoCadastro";
+import { useTokensGuardados } from "./useTokensGuardados";
 import {
   REPOSITORIO_CODIGO_VAZIO,
   repositorioDaUrl,
@@ -60,13 +61,24 @@ export function PassoCodigo({
   codigo,
   mudar,
   clonando,
+  cancelando,
+  nomeEmUso,
+  aviso,
   aoTentarDeNovo,
+  aoCancelarClone,
 }: {
   api: Api;
   codigo: EstadoCodigo;
   mudar: Mudar;
   clonando: boolean;
+  /** O cancelamento do clone foi pedido e o git está sendo interrompido. */
+  cancelando: boolean;
+  /** Já existe um projeto com o nome do campo. */
+  nomeEmUso: boolean;
+  /** Recado do último clone (cancelado, por exemplo). */
+  aviso: string | null;
   aoTentarDeNovo: (chave: number) => void;
+  aoCancelarClone: () => void;
 }) {
   const carregarPastaPadrao = codigo.pastaPadrao === null;
   useEffect(() => {
@@ -104,35 +116,56 @@ export function PassoCodigo({
         ))}
       </fieldset>
       {codigo.origem === "pasta" ? (
-        <PastaExistente api={api} codigo={codigo} mudar={mudar} />
+        <PastaExistente api={api} codigo={codigo} mudar={mudar} nomeEmUso={nomeEmUso} />
       ) : (
         <Clonar
           api={api}
           codigo={codigo}
           mudar={mudar}
           clonando={clonando}
+          cancelando={cancelando}
+          nomeEmUso={nomeEmUso}
+          aviso={aviso}
           aoTentarDeNovo={aoTentarDeNovo}
+          aoCancelarClone={aoCancelarClone}
         />
       )}
     </>
   );
 }
 
-function CampoNome({ codigo, mudar, dica }: { codigo: EstadoCodigo; mudar: Mudar; dica: string }) {
+function CampoNome({
+  codigo,
+  mudar,
+  dica,
+  nomeEmUso,
+}: {
+  codigo: EstadoCodigo;
+  mudar: Mudar;
+  dica: string;
+  nomeEmUso: boolean;
+}) {
+  const nome = codigo.nomeTocado ? codigo.nome : sugestaoDeNome(codigo);
   return (
     <div className="field">
       <label htmlFor="nome-projeto">Nome do projeto</label>
       <input
         id="nome-projeto"
         type="text"
-        value={codigo.nomeTocado ? codigo.nome : sugestaoDeNome(codigo)}
+        value={nome}
         placeholder="Ex.: Faturamento"
-        aria-describedby="dica-nome-projeto"
+        aria-describedby={nomeEmUso ? "erro-nome-projeto dica-nome-projeto" : "dica-nome-projeto"}
+        aria-invalid={nomeEmUso || undefined}
         onChange={(ev) => {
           const nome = ev.target.value;
           mudar((e) => ({ ...e, nome, nomeTocado: true }));
         }}
       />
+      {nomeEmUso && (
+        <span id="erro-nome-projeto" className="error-text" role="alert">
+          Já existe um projeto cadastrado com o nome “{nome.trim()}”. Use outro nome.
+        </span>
+      )}
       <span id="dica-nome-projeto" className="dica">
         {dica}
       </span>
@@ -143,7 +176,17 @@ function CampoNome({ codigo, mudar, dica }: { codigo: EstadoCodigo; mudar: Mudar
 // ---------------------------------------------------------------------------
 // Pasta existente
 
-function PastaExistente({ api, codigo, mudar }: { api: Api; codigo: EstadoCodigo; mudar: Mudar }) {
+function PastaExistente({
+  api,
+  codigo,
+  mudar,
+  nomeEmUso,
+}: {
+  api: Api;
+  codigo: EstadoCodigo;
+  mudar: Mudar;
+  nomeEmUso: boolean;
+}) {
   const [falha, setFalha] = useState<string | null>(null);
 
   const escolher = () => {
@@ -241,7 +284,12 @@ function PastaExistente({ api, codigo, mudar }: { api: Api; codigo: EstadoCodigo
           {falha}
         </p>
       )}
-      <CampoNome codigo={codigo} mudar={mudar} dica="Sugerido pelo nome da pasta. É como o projeto aparece no app." />
+      <CampoNome
+        codigo={codigo}
+        mudar={mudar}
+        nomeEmUso={nomeEmUso}
+        dica="Sugerido pelo nome da pasta. É como o projeto aparece no app."
+      />
     </div>
   );
 }
@@ -249,9 +297,13 @@ function PastaExistente({ api, codigo, mudar }: { api: Api; codigo: EstadoCodigo
 // ---------------------------------------------------------------------------
 // Clonar
 
-function textoToken(r: RepositorioCodigo): string {
+/** Como o token do repositório aparece: o global só se há token guardado para o host. */
+function textoToken(r: RepositorioCodigo, guardados: Record<string, boolean | null | undefined>) {
   if (r.token === "proprio") return "token próprio";
   if (r.token === "comando") return "token por comando";
+  const g = guardados[r.host.trim().toLowerCase()];
+  if (g === false) return "sem token";
+  if (g === undefined) return "verificando o token…";
   return `token global de ${r.host}`;
 }
 
@@ -260,18 +312,29 @@ function Clonar({
   codigo,
   mudar,
   clonando,
+  cancelando,
+  nomeEmUso,
+  aviso,
   aoTentarDeNovo,
+  aoCancelarClone,
 }: {
   api: Api;
   codigo: EstadoCodigo;
   mudar: Mudar;
   clonando: boolean;
+  cancelando: boolean;
+  nomeEmUso: boolean;
+  aviso: string | null;
   aoTentarDeNovo: (chave: number) => void;
+  aoCancelarClone: () => void;
 }) {
   const [focar, setFocar] = useState<number | null>(null);
   const preenchidos = clonesPreenchidos(codigo);
-  const dicaNome =
-    "Sugerido pela pasta dos clones (ou pelo primeiro repositório). É como o projeto aparece no app.";
+  const guardados = useTokensGuardados(
+    api,
+    hostsDistintos(preenchidos.map((c) => c.repo).filter((r) => r.caminho && r.token === "global")),
+  );
+  const dicaNome = "Sugerido pelo primeiro repositório. É como o projeto aparece no app.";
 
   if (todosClonados(codigo) && !codigo.editandoClones) {
     return (
@@ -302,13 +365,13 @@ function Clonar({
                 </span>
                 <span className="muted">
                   {c.repo.branch ? `branch ${c.repo.branch}` : "branch padrão"} ·{" "}
-                  {textoToken(c.repo)}
+                  {textoToken(c.repo, guardados)}
                 </span>
               </li>
             ))}
           </ul>
         </div>
-        <CampoNome codigo={codigo} mudar={mudar} dica={dicaNome} />
+        <CampoNome codigo={codigo} mudar={mudar} dica={dicaNome} nomeEmUso={nomeEmUso} />
       </div>
     );
   }
@@ -410,7 +473,23 @@ function Clonar({
 
       <TokensGlobais api={api} codigo={codigo} mudar={mudar} desabilitado={clonando} />
 
-      <CampoNome codigo={codigo} mudar={mudar} dica={dicaNome} />
+      {clonando && (
+        <div className="acoes-clone">
+          <button type="button" className="btn" disabled={cancelando} onClick={aoCancelarClone}>
+            {cancelando ? "Cancelando…" : "Cancelar clone"}
+          </button>
+          <span className="dica">
+            Interrompe o git e apaga a pasta que este clone criou. O que já estava pronto fica.
+          </span>
+        </div>
+      )}
+      {aviso && !clonando && (
+        <p role="status" className="muted">
+          {aviso}
+        </p>
+      )}
+
+      <CampoNome codigo={codigo} mudar={mudar} dica={dicaNome} nomeEmUso={nomeEmUso} />
     </div>
   );
 }

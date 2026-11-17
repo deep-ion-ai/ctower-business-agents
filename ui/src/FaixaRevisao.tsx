@@ -1,4 +1,6 @@
+import type { Pendencia } from "./revisao";
 import {
+  contarPendencias,
   FILTROS,
   type FiltroRevisao,
   type ResumoRevisao,
@@ -9,6 +11,23 @@ interface Props {
   contagem: Record<FiltroRevisao, number>;
   filtro: FiltroRevisao;
   aoFiltrar: (f: FiltroRevisao) => void;
+  /** Pendências da aprovação: o número é o mesmo do cabeçalho ({@link contarPendencias}). */
+  pendencias?: readonly Pendencia[];
+}
+
+/** "26 pendentes", com o que entra na conta além das afirmações (termos, por exemplo). */
+function TextoPendentes({ pendencias }: { pendencias: readonly Pendencia[] }) {
+  const n = contarPendencias(pendencias);
+  const termos = pendencias.filter((p) => p.tipo === "termo").length;
+  const detalhe =
+    termos > 0 ? ` (inclui ${termos} ${termos === 1 ? "termo" : "termos"} do glossário)` : "";
+  return (
+    <span className="faixa-revisao-pendentes">
+      {" · "}
+      <strong>{n}</strong> {n === 1 ? "pendente" : "pendentes"}
+      {detalhe && <span className="muted">{detalhe}</span>}
+    </span>
+  );
 }
 
 /** Atalhos de teclado da revisão (dica visível na faixa). */
@@ -30,8 +49,10 @@ const SEGMENTOS = [
  * Faixa de revisão (#184): quantas afirmações já têm decisão, a barra de progresso
  * dividida por resultado, os filtros e a dica dos atalhos.
  */
-export function FaixaRevisao({ resumo, contagem, filtro, aoFiltrar }: Props) {
+export function FaixaRevisao({ resumo, contagem, filtro, aoFiltrar, pendencias }: Props) {
   const { total, decididas } = resumo;
+  // As a aprofundar já têm o próprio segmento na barra.
+  const semDecisao = resumo.pendentes - resumo.aprofundar;
   return (
     <section className="faixa-revisao" aria-label="Progresso da revisão">
       <div className="faixa-revisao-linha">
@@ -40,6 +61,7 @@ export function FaixaRevisao({ resumo, contagem, filtro, aoFiltrar }: Props) {
             {decididas} de {total}
           </strong>{" "}
           {total === 1 ? "decidido" : "decididos"}
+          {pendencias && <TextoPendentes pendencias={pendencias} />}
         </p>
         <div
           className="faixa-revisao-barra"
@@ -48,7 +70,7 @@ export function FaixaRevisao({ resumo, contagem, filtro, aoFiltrar }: Props) {
           aria-valuemin={0}
           aria-valuemax={total}
           aria-valuenow={decididas}
-          aria-valuetext={`${decididas} de ${total} decididas: ${resumo.confirmadas} confirmadas, ${resumo.incorretas} incorretas, ${resumo.aprofundar} a aprofundar`}
+          aria-valuetext={`${decididas} de ${total} decididas: ${resumo.confirmadas} confirmadas, ${resumo.incorretas} incorretas; ${resumo.aprofundar} a aprofundar`}
         >
           {SEGMENTOS.map(({ chave, rotulo }) =>
             resumo[chave] > 0 ? (
@@ -61,12 +83,12 @@ export function FaixaRevisao({ resumo, contagem, filtro, aoFiltrar }: Props) {
               />
             ) : null,
           )}
-          {resumo.pendentes > 0 && (
+          {semDecisao > 0 && (
             <span
               className="faixa-revisao-segmento"
               data-segmento="pendentes"
-              title={`${resumo.pendentes} pendentes`}
-              style={{ flexGrow: resumo.pendentes }}
+              title={`${semDecisao} sem decisão`}
+              style={{ flexGrow: semDecisao }}
             />
           )}
         </div>

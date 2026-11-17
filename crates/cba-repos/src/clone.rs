@@ -15,6 +15,8 @@ use serde::Serialize;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc;
 use std::time::Duration;
 
 /// Prazo do "Testar acesso".
@@ -31,6 +33,14 @@ fn usuario_http(forja: ForgeKind) -> &'static str {
         ForgeKind::Github => "x-access-token",
         ForgeKind::Gitlab => "oauth2",
     }
+}
+
+/// Mensagem do erro de um clone interrompido pelo analista ([`clonar`]).
+pub const CLONE_CANCELADO: &str = "clone cancelado";
+
+/// O erro é o de um clone cancelado?
+pub fn foi_cancelado(erro: &str) -> bool {
+    erro == CLONE_CANCELADO
 }
 
 /// Etapa do clone, para a barra de progresso.
@@ -245,14 +255,56 @@ fn progresso(linha: &str) -> Option<Progresso> {
     })
 }
 
+/// Mata o git do clone e os processos que ele abriu (`git-remote-https`,
+/// `index-pack`), que ficam no mesmo grupo.
+fn matar_clone(filho: &mut std::process::Child) {
+    #[cfg(unix)]
+    // SAFETY: só sinaliza o grupo criado no `spawn` (`process_group(0)`).
+    unsafe {
+        libc::kill(-(filho.id() as libc::pid_t), libc::SIGKILL);
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt as _;
+        let _ = Command::new("taskkill")
+            .args(["/PID", &filho.id().to_string(), "/T", "/F"])
+            .creation_flags(0x0800_0000)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+    }
+    let _ = filho.kill();
+}
+
+/// Apaga o que o clone criou em `destino`. Uma pasta que já existia (vazia) fica,
+/// só sem o que o git pôs nela; uma pasta nova é removida inteira.
+fn limpar_clone(destino: &Path, existia: bool) {
+    if !existia {
+        let _ = std::fs::remove_dir_all(destino);
+        return;
+    }
+    if let Ok(entradas) = std::fs::read_dir(destino) {
+        for e in entradas.flatten() {
+            let p = e.path();
+            if e.file_type().is_ok_and(|t| t.is_dir()) {
+                let _ = std::fs::remove_dir_all(&p);
+            } else {
+                let _ = std::fs::remove_file(&p);
+            }
+        }
+    }
+}
+
 /// Clona `repo` em `base/<nome>` e devolve a pasta. Se a pasta já é um clone
 /// deste repositório, devolve-a sem clonar de novo; se existe com outra coisa,
-/// recusa. Em caso de falha, apaga o que criou.
+/// recusa. Em caso de falha ou de cancelamento (`cancelar` ligado, o erro é
+/// [`CLONE_CANCELADO`]), mata o git e apaga só o que este clone criou.
 pub fn clonar(
     git: &Path,
     repo: &RepositorioCodigo,
     base: &Path,
     token: Option<&Secret>,
+    cancelar: &AtomicBool,
     ao_progredir: &mut dyn FnMut(Progresso),
 ) -> Result<PathBuf, String> {
     let url = repo.url_efetiva();
@@ -263,8 +315,12 @@ pub fn clonar(
             base.display()
         ));
     }
+    if cancelar.load(Ordering::SeqCst) {
+        return Err(CLONE_CANCELADO.into());
+    }
     let destino = base.join(nome_da_pasta(repo));
-    if destino.exists() {
+    let existia = destino.exists();
+    if existia {
         let mesmo = destino.join(".git").exists()
             && cba_remotos(&destino)
                 .iter()
@@ -296,6 +352,12 @@ pub fn clonar(
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt as _;
+        // Grupo próprio: o cancelamento mata o git e os filhos dele.
+        c.process_group(0);
+    }
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt as _;
@@ -308,15 +370,38 @@ pub fn clonar(
         _ => cite(&e.to_string(), token),
     })?;
     let mut stderr = filho.stderr.take().expect("stderr com pipe");
+    // O stderr é lido numa thread, para o laço abaixo poder olhar o cancelamento
+    // enquanto o git não escreve nada.
+    let (tx, rx) = mpsc::channel::<Vec<u8>>();
+    let leitor = std::thread::spawn(move || {
+        let mut buf = [0u8; 4096];
+        loop {
+            match stderr.read(&mut buf) {
+                Ok(0) | Err(_) => break,
+                Ok(n) => {
+                    if tx.send(buf[..n].to_vec()).is_err() {
+                        break;
+                    }
+                }
+            }
+        }
+    });
     let mut linhas: Vec<String> = Vec::new();
     let mut atual = Vec::new();
-    let mut buf = [0u8; 4096];
     loop {
-        let n = match stderr.read(&mut buf) {
-            Ok(0) | Err(_) => break,
-            Ok(n) => n,
+        if cancelar.load(Ordering::SeqCst) {
+            matar_clone(&mut filho);
+            let _ = filho.wait();
+            let _ = leitor.join();
+            limpar_clone(&destino, existia);
+            return Err(CLONE_CANCELADO.into());
+        }
+        let pedaco = match rx.recv_timeout(Duration::from_millis(100)) {
+            Ok(p) => p,
+            Err(mpsc::RecvTimeoutError::Timeout) => continue,
+            Err(mpsc::RecvTimeoutError::Disconnected) => break,
         };
-        for &b in &buf[..n] {
+        for b in pedaco {
             if b == b'\r' || b == b'\n' {
                 let linha = String::from_utf8_lossy(&atual).into_owned();
                 atual.clear();
@@ -333,12 +418,17 @@ pub fn clonar(
             }
         }
     }
+    let _ = leitor.join();
     if !atual.is_empty() {
         linhas.push(String::from_utf8_lossy(&atual).into_owned());
     }
     let status = filho.wait().map_err(|e| cite(&e.to_string(), token))?;
+    if cancelar.load(Ordering::SeqCst) {
+        limpar_clone(&destino, existia);
+        return Err(CLONE_CANCELADO.into());
+    }
     if !status.success() {
-        let _ = std::fs::remove_dir_all(&destino);
+        limpar_clone(&destino, existia);
         return Err(explicar(&linhas.join("\n"), token));
     }
     Ok(destino)
@@ -497,6 +587,7 @@ mod tests {
                 &repo,
                 &base.join("clones"),
                 Some(&token),
+                &AtomicBool::new(false),
                 &mut |p| etapas.push(p),
             )
             .unwrap();
@@ -513,6 +604,7 @@ mod tests {
                     &repo,
                     &base.join("clones"),
                     None,
+                    &AtomicBool::new(false),
                     &mut |_| {}
                 )
                 .unwrap(),
@@ -530,6 +622,7 @@ mod tests {
                     &outro,
                     &base.join("clones"),
                     None,
+                    &AtomicBool::new(false),
                     &mut |_| {}
                 )
                 .unwrap_err()
@@ -545,6 +638,7 @@ mod tests {
                 &sem_branch,
                 &base.join("outros"),
                 None,
+                &AtomicBool::new(false),
                 &mut |_| {},
             )
             .unwrap_err();
@@ -561,6 +655,122 @@ mod tests {
                 )
                 .is_err()
             );
+        }
+
+        /// git falso que começa o clone (cria arquivos na pasta de destino), avisa
+        /// o progresso e fica esperando, como um clone lento, com um processo filho.
+        fn git_lento(dir: &Path) -> PathBuf {
+            script(
+                dir,
+                "git",
+                r#"for a; do destino="$a"; done
+mkdir -p "$destino/.git"
+echo parcial > "$destino/.git/HEAD"
+echo "$$" > "$destino/../pid-do-git"
+printf 'Receiving objects:  10%% (1/10)\r' >&2
+sleep 60
+exit 0"#,
+            )
+        }
+
+        fn repo_de_teste() -> RepositorioCodigo {
+            RepositorioCodigo {
+                forja: ForgeKind::Gitlab,
+                host: "gitlab.example.com".into(),
+                caminho: "g/app".into(),
+                url_clone: "https://gitlab.example.com/g/app.git".into(),
+                ..Default::default()
+            }
+        }
+
+        fn processo_vivo(pid: &str) -> bool {
+            Command::new("kill")
+                .args(["-0", pid.trim()])
+                .stderr(Stdio::null())
+                .status()
+                .is_ok_and(|s| s.success())
+        }
+
+        #[test]
+        fn cancelar_mata_o_git_e_apaga_a_pasta_parcial() {
+            let d = tempfile::tempdir().unwrap();
+            let base = dunce::canonicalize(d.path()).unwrap().join("clones");
+            std::fs::create_dir_all(&base).unwrap();
+            // Outra pasta da base, que o clone não criou: tem de continuar lá.
+            std::fs::create_dir_all(base.join("outro")).unwrap();
+            std::fs::write(base.join("outro/dado.txt"), "meu").unwrap();
+            let git = git_lento(d.path());
+            let repo = repo_de_teste();
+            let cancelar = std::sync::Arc::new(AtomicBool::new(false));
+            let (c2, b2) = (cancelar.clone(), base.clone());
+            let (tx, rx) = mpsc::channel();
+            let t = std::thread::spawn(move || {
+                clonar(&git, &repo, &b2, None, &c2, &mut |p| {
+                    let _ = tx.send(p);
+                })
+            });
+            // Espera o clone começar de verdade e cancela.
+            let p = rx.recv_timeout(Duration::from_secs(20)).unwrap();
+            assert_eq!(p.percentual, Some(10));
+            assert!(base.join("app/.git/HEAD").exists());
+            let pid = std::fs::read_to_string(base.join("pid-do-git")).unwrap();
+            let inicio = std::time::Instant::now();
+            cancelar.store(true, Ordering::SeqCst);
+            let r = t.join().unwrap();
+            assert!(
+                inicio.elapsed() < Duration::from_secs(20),
+                "demorou a parar"
+            );
+            let erro = r.unwrap_err();
+            assert!(foi_cancelado(&erro), "{erro}");
+            assert!(!base.join("app").exists(), "sobrou a pasta parcial");
+            assert!(!processo_vivo(&pid), "o git continua rodando");
+            // O que não era do clone ficou.
+            assert_eq!(
+                std::fs::read_to_string(base.join("outro/dado.txt")).unwrap(),
+                "meu"
+            );
+        }
+
+        #[test]
+        fn cancelar_numa_pasta_vazia_que_ja_existia_a_mantem_vazia() {
+            let d = tempfile::tempdir().unwrap();
+            let base = dunce::canonicalize(d.path()).unwrap().join("clones");
+            std::fs::create_dir_all(base.join("app")).unwrap();
+            let git = git_lento(d.path());
+            let cancelar = std::sync::Arc::new(AtomicBool::new(false));
+            let (c2, b2) = (cancelar.clone(), base.clone());
+            let (tx, rx) = mpsc::channel();
+            let t = std::thread::spawn(move || {
+                clonar(&git, &repo_de_teste(), &b2, None, &c2, &mut |p| {
+                    let _ = tx.send(p);
+                })
+            });
+            rx.recv_timeout(Duration::from_secs(20)).unwrap();
+            cancelar.store(true, Ordering::SeqCst);
+            assert!(foi_cancelado(&t.join().unwrap().unwrap_err()));
+            assert!(base.join("app").is_dir());
+            assert_eq!(std::fs::read_dir(base.join("app")).unwrap().count(), 0);
+        }
+
+        #[test]
+        fn cancelado_antes_de_comecar_nao_mexe_em_nada() {
+            let d = tempfile::tempdir().unwrap();
+            let base = dunce::canonicalize(d.path()).unwrap();
+            // A pasta de destino é de outra coisa: cancelar não pode apagá-la.
+            std::fs::create_dir_all(base.join("app")).unwrap();
+            std::fs::write(base.join("app/meu.txt"), "meu").unwrap();
+            let e = clonar(
+                &git_lento(d.path()),
+                &repo_de_teste(),
+                &base,
+                None,
+                &AtomicBool::new(true),
+                &mut |_| {},
+            )
+            .unwrap_err();
+            assert!(foi_cancelado(&e));
+            assert!(base.join("app/meu.txt").exists());
         }
 
         #[test]

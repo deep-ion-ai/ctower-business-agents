@@ -1,4 +1,4 @@
-import { formatar, formatoDoAtalho, type Formato } from "./formatacao";
+import { contar, formatar, numero, formatoDoAtalho, type Formato } from "./formatacao";
 
 /** Aplica a edição como o editor faria e devolve o texto e a seleção resultantes. */
 function aplicar(formato: Formato, valor: string, ini: number, fim = ini) {
@@ -109,5 +109,16 @@ describe("formatoDoAtalho", () => {
     expect(formatoDoAtalho({ ...base, ctrlKey: true, shiftKey: true, key: "b" })).toBeNull();
     expect(formatoDoAtalho({ ...base, ctrlKey: true, altKey: true, key: "b" })).toBeNull();
     expect(formatoDoAtalho({ ...base, ctrlKey: true, key: "s" })).toBeNull();
+  });
+});
+
+describe("numero e contar (Faturamento Exemplo)", () => {
+  it("separa milhares em pt-BR", () => {
+    expect(numero(4916)).toBe("4.916");
+  });
+  it("usa o plural certo, sem parênteses", () => {
+    expect(contar(1, "pergunta")).toBe("1 pergunta");
+    expect(contar(3, "pergunta")).toBe("3 perguntas");
+    expect(contar(2, "item", "itens")).toBe("2 itens");
   });
 });

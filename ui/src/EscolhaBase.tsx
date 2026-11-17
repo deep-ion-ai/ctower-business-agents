@@ -103,6 +103,16 @@ export function EscolhaBase({
       >
         Escolher pasta…
       </button>
+      <div className="acoes">
+        <button
+          type="submit"
+          className="btn btn-primary"
+          disabled={!pasta.trim() || gravando || recusa !== null}
+        >
+          {rotuloContinuar}
+        </button>
+      </div>
+      {/* Avisos e “Usar a sugerida” abaixo do botão: não o deslocam (#219). */}
       {sugerida && pasta.trim() !== sugerida && (
         <p>
           <button type="button" className="link" onClick={() => setPasta(sugerida)}>
@@ -121,15 +131,6 @@ export function EscolhaBase({
           {recusa ?? falha}
         </p>
       )}
-      <div className="acoes">
-        <button
-          type="submit"
-          className="btn btn-primary"
-          disabled={!pasta.trim() || gravando || recusa !== null}
-        >
-          {rotuloContinuar}
-        </button>
-      </div>
     </form>
   );
 }

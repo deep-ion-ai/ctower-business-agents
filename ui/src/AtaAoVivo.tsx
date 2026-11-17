@@ -1,4 +1,5 @@
 import Markdown from "markdown-to-jsx";
+import { contar } from "./formatacao";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { OPCOES_MARKDOWN_BASE } from "./markdownOpcoes";
 import { mensagemDe, type AnaliseCriada, type AvisoAnalise } from "./analise";
@@ -126,7 +127,7 @@ export function AtaAoVivo({
           <span className="badge" data-tone={aprovada ? "done" : "attention"}>
             ata {ROTULO_STATUS_ATA[ata.status]}
           </span>{" "}
-          · {ata.itens.length} item(ns) registrado(s)
+          · {contar(ata.itens.length, "item", "itens")} {ata.itens.length === 1 ? "registrado" : "registrados"}
         </p>
         {ata.transcript && <AvisoTranscriptGuardado guardado={ata.transcript} />}
       </header>

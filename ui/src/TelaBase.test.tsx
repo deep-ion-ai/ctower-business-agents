@@ -37,7 +37,7 @@ describe("TelaBase", () => {
       tipos: [],
       deslocamento: 0,
     });
-    expect(within(resultados).getByText(/2 documento\(s\) para "multa"/)).toBeInTheDocument();
+    expect(within(resultados).getByText(/2 documentos para "multa"/)).toBeInTheDocument();
     expect(
       within(resultados).getByRole("button", { name: /RN-COB-001: Passada a carência/ }),
     ).toBeInTheDocument();

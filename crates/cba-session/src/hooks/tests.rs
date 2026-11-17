@@ -293,7 +293,8 @@ fn ciclo_completo_de_uma_sessao_ligada_a_analise() {
     let c = Cenario::novo();
     let id = c.analise.to_string();
 
-    // Início: registrada, ainda sem análise; o agente recebe os limites.
+    // Início: registrada, ainda sem análise, à espera da mensagem (o processo abrir
+    // não é o agente trabalhar, #222); o agente recebe os limites.
     let r = c.enviar(
         "SessionStart",
         json!({"source": "startup"}),
@@ -303,7 +304,7 @@ fn ciclo_completo_de_uma_sessao_ligada_a_analise() {
     assert!(contexto_de(&r).contains("registrar_sugestao"));
     let reg = c.registro().unwrap();
     assert_eq!(reg.projeto, "faturamento-exemplo");
-    assert_eq!(reg.estado, EstadoSessao::Ativa);
+    assert_eq!(reg.estado, EstadoSessao::Concluida);
     assert_eq!(reg.analise, None);
     assert_eq!(reg.origem.as_deref(), Some("startup"));
     assert_eq!(
@@ -312,7 +313,15 @@ fn ciclo_completo_de_uma_sessao_ligada_a_analise() {
     );
     assert_eq!(c.estado_na_analise(), None);
 
-    // Ferramenta comum: nada muda, nada é gravado.
+    // O pedido do analista põe o agente a trabalhar.
+    c.enviar(
+        "UserPromptSubmit",
+        json!({"prompt": "Inicie a análise"}),
+        &c.codigo,
+    );
+    assert_eq!(c.registro().unwrap().estado, EstadoSessao::Ativa);
+
+    // Ferramenta comum numa sessão ativa: nada muda, nada é gravado.
     let antes = fs::read(c.sessoes().arquivo(SESSAO).unwrap()).unwrap();
     c.enviar(
         "PreToolUse",
@@ -385,15 +394,16 @@ fn ciclo_completo_de_uma_sessao_ligada_a_analise() {
     assert!(reg.fim_ms.is_some());
     assert_eq!(c.estado_na_analise(), Some(EstadoSessao::Encerrada));
 
-    // Evento atrasado não reabre; retomada (`claude --resume`) reabre.
+    // Evento atrasado não reabre; retomada (`claude --resume`) reabre, à espera da
+    // mensagem do analista: o Claude parado no prompt não está trabalhando (#222).
     c.enviar("Stop", json!({}), &c.codigo);
     assert_eq!(c.registro().unwrap().estado, EstadoSessao::Encerrada);
     c.enviar("SessionStart", json!({"source": "resume"}), &c.fora);
     let reg = c.registro().unwrap();
-    assert_eq!(reg.estado, EstadoSessao::Ativa);
+    assert_eq!(reg.estado, EstadoSessao::Concluida);
     assert_eq!(reg.origem.as_deref(), Some("resume"));
     assert_eq!(reg.fim_ms, None);
-    assert_eq!(c.estado_na_analise(), Some(EstadoSessao::Ativa));
+    assert_eq!(c.estado_na_analise(), Some(EstadoSessao::Concluida));
     let a = c.analises.carregar(&c.analise).unwrap();
     assert_eq!(a.sessoes.len(), 1);
 
@@ -441,6 +451,51 @@ fn trocar_de_analise_conclui_a_anterior() {
     assert_eq!(c.estado_na_analise(), Some(EstadoSessao::Concluida));
     let b = c.analises.carregar(&outra).unwrap();
     assert_eq!(b.sessoes[0].estado, EstadoSessao::Ativa);
+}
+
+#[test]
+fn ler_a_origem_das_historias_nao_religa_a_sessao() {
+    let c = Cenario::novo();
+    // A análise de origem foi concluída; as histórias partem dela.
+    c.analises
+        .alterar(&c.analise, Mudanca::Estado, |a, _| {
+            a.iniciar()?;
+            a.concluir()
+        })
+        .unwrap();
+    let historias = c
+        .analises
+        .criar(NovaAnalise {
+            fluxo: Fluxo::Historias,
+            titulo: "Histórias".into(),
+            entrada: "Histórias a partir da análise".into(),
+            analista: None,
+            base: None,
+        })
+        .unwrap()
+        .id;
+    c.analises
+        .alterar(&historias, Mudanca::Estado, |a, _| {
+            a.origem = Some(c.analise.clone());
+            Ok(())
+        })
+        .unwrap();
+    c.enviar(
+        "PreToolUse",
+        json!({"tool_name": "mcp__cba__iniciar_analise", "tool_input": {"analise": historias.to_string()}}),
+        &c.codigo,
+    );
+    c.enviar(
+        "PreToolUse",
+        json!({"tool_name": "mcp__cba__retomar_analise", "tool_input": {"analise": c.analise.to_string()}}),
+        &c.codigo,
+    );
+    assert_eq!(c.registro().unwrap().analise, Some(historias.clone()));
+    let h = c.analises.carregar(&historias).unwrap();
+    assert_eq!(h.sessoes[0].estado, EstadoSessao::Ativa);
+    let origem = c.analises.carregar(&c.analise).unwrap();
+    assert_eq!(origem.estado, EstadoAnalise::Concluida);
+    assert!(origem.sessoes.is_empty());
 }
 
 #[test]

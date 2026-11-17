@@ -273,3 +273,13 @@ export const BOTOES_FORMATO: readonly BotaoFormato[] = [
   { formato: "citacao", rotulo: "Citação", simbolo: "”" },
   { formato: "tabela", rotulo: "Tabela", simbolo: "▦" },
 ];
+
+/** Número em pt-BR, com separador de milhar (`4916` → `4.916`). */
+export function numero(n: number): string {
+  return n.toLocaleString("pt-BR");
+}
+
+/** Quantidade com o substantivo no singular ou no plural, sem parênteses: `1 pergunta`, `3 perguntas`. */
+export function contar(n: number, singular: string, plural: string = `${singular}s`): string {
+  return `${numero(n)} ${n === 1 ? singular : plural}`;
+}

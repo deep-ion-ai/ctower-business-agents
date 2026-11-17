@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import { contar } from "./formatacao";
 import { mensagemDe } from "./analise";
 import type {
   ApiRevisao,
@@ -9,6 +10,7 @@ import type {
   Prontidao,
   RegraPrevista,
 } from "./revisao";
+import { contarPendencias } from "./resumoRevisao";
 
 /** O que o analista mudou na regra de uma afirmação; `titulo` nulo é o sugerido. */
 interface Ajuste {
@@ -135,6 +137,8 @@ export function AprovacaoAnalise({
   const faltaArea = prontidao.areaObrigatoria && escolhidas.length > 0 && !area && !todasComArea;
   const aprovada = prontidao.estado === "aprovada";
   const podeGravar = prontidao.pendencias.length === 0;
+  // A mesma conta do cabeçalho e da faixa (#222).
+  const pendentes = contarPendencias(prontidao.pendencias);
 
   const aprovar = () => {
     const opcoes: OpcoesAprovacao = {
@@ -191,13 +195,13 @@ export function AprovacaoAnalise({
               </li>
             ))}
           </ul>
-          {aoRevisarPendentes && (
+          {aoRevisarPendentes && pendentes > 0 && (
             <button
               className="btn"
               type="button"
               onClick={() => aoRevisarPendentes(prontidao.pendencias)}
             >
-              Revisar as {prontidao.pendencias.length} pendentes
+              {pendentes === 1 ? "Revisar a pendente" : `Revisar as ${pendentes} pendentes`}
             </button>
           )}
         </div>
@@ -214,9 +218,9 @@ export function AprovacaoAnalise({
           <p className="muted">
             {prontidao.regras.length === 0
               ? "Nenhuma afirmação confirmada: a aprovação não cria regras."
-              : `${escolhidas.length} de ${prontidao.regras.length} afirmação(ões) confirmada(s) vão virar regra.`}
+              : `${escolhidas.length} de ${contar(prontidao.regras.length, "afirmação confirmada", "afirmações confirmadas")} vão virar regra.`}
             {prontidao.incorretas.length > 0 &&
-              ` ${prontidao.incorretas.length} incorreta(s) ficam registradas e não viram regra.`}
+              ` ${contar(prontidao.incorretas.length, "incorreta", "incorretas")} ${prontidao.incorretas.length === 1 ? "fica registrada e não vira regra." : "ficam registradas e não viram regra."}`}
             {prontidao.termosAceitos.length > 0 &&
               ` Termos para o glossário: ${prontidao.termosAceitos.join(", ")}.`}
           </p>

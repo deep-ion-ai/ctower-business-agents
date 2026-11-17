@@ -15,6 +15,82 @@ function montar(falsa = apiConhecimentoFalsa()) {
 }
 
 describe("TelaInicio", () => {
+  const concluida = {
+    ...inicioFicticio().recentes[1],
+    id: "A-0003",
+    titulo: "Juros de mora",
+    estado: "concluida" as const,
+    atualizadaMs: 3,
+  };
+
+  it("sugere revisar e aprovar a análise concluída, que sai de “Em andamento” (#227)", async () => {
+    const falsa = apiConhecimentoFalsa();
+    const base = inicioFicticio();
+    const andamento = { ...base.emAndamento[0], sessao: null };
+    falsa.api.inicio.mockResolvedValue(
+      inicioFicticio({
+        projetos: [{ ...base.projetos[0], aRevalidar: 0 }],
+        emAndamento: [concluida, andamento],
+        recentes: [concluida, andamento],
+      }),
+    );
+    const { navegar } = montar(falsa);
+    const passo = await screen.findByRole("region", { name: "Próximo passo" });
+    expect(within(passo).getByText("Revisar e aprovar a A-0003")).toBeInTheDocument();
+    fireEvent.click(within(passo).getByRole("button", { name: "Revisar a análise" }));
+    expect(navegar).toHaveBeenCalledWith({
+      tipo: "analise",
+      projeto: PROJETO,
+      aberta: { id: "A-0003", abertura: { tipo: "reabrir" } },
+    });
+
+    const andamentoLista = screen.getByRole("region", { name: "Em andamento" });
+    expect(within(andamentoLista).getAllByRole("listitem")).toHaveLength(1);
+    expect(within(andamentoLista).getByText(/A-0002/)).toBeInTheDocument();
+    expect(within(andamentoLista).queryByText(/A-0003/)).not.toBeInTheDocument();
+    const revisao = screen.getByRole("region", { name: "Aguardando revisão" });
+    expect(within(revisao).getByText(/A-0003: Juros de mora/)).toBeInTheDocument();
+  });
+
+  it("sugere responder ao agente que aguarda, antes de qualquer outro passo (#227)", async () => {
+    montar();
+    const passo = await screen.findByRole("region", { name: "Próximo passo" });
+    expect(within(passo).getByText("O agente aguarda você na A-0002")).toBeInTheDocument();
+  });
+
+  it("sugere preparar o ambiente quando o Claude do projeto não está preparado (#227)", async () => {
+    const falsa = apiConhecimentoFalsa();
+    const base = inicioFicticio();
+    falsa.api.inicio.mockResolvedValue(
+      inicioFicticio({
+        projetos: [{ ...base.projetos[0], aRevalidar: 0 }],
+        emAndamento: [],
+        recentes: [base.recentes[1]],
+      }),
+    );
+    falsa.api.verificarAmbiente.mockResolvedValue({ pronto: false, pendencias: ["mcp"] });
+    const { navegar } = montar(falsa);
+    const passo = await screen.findByRole("region", { name: "Próximo passo" });
+    fireEvent.click(await within(passo).findByRole("button", { name: "Preparar" }));
+    expect(navegar).toHaveBeenCalledWith({ tipo: "configuracoes" });
+  });
+
+  it("num projeto sem análise, sugere a primeira análise e abre a pergunta (#227)", async () => {
+    const falsa = apiConhecimentoFalsa();
+    const base = inicioFicticio();
+    falsa.api.inicio.mockResolvedValue(
+      inicioFicticio({
+        projetos: [{ ...base.projetos[0], aRevalidar: 0, analises: 0 }],
+        emAndamento: [],
+        recentes: [],
+      }),
+    );
+    montar(falsa);
+    const passo = await screen.findByRole("region", { name: "Próximo passo" });
+    fireEvent.click(within(passo).getByRole("button", { name: "Fazer uma pergunta" }));
+    expect(await screen.findByRole("form", { name: "Perguntar ao sistema" })).toBeInTheDocument();
+  });
+
   it("“Novo projeto” abre o assistente numa modal; Esc e Cancelar fecham", async () => {
     const falsa = apiConhecimentoFalsa();
     const apiProjeto = apiConfiguracoesFalsa();
@@ -49,7 +125,7 @@ describe("TelaInicio", () => {
     expect(within(recentes).getByText(/aprovada/)).toBeInTheDocument();
 
     const projetos = screen.getByRole("region", { name: "Projetos" });
-    expect(within(projetos).getByText(/1 regra\(s\) · 1 termo\(s\)/)).toBeInTheDocument();
+    expect(within(projetos).getByText(/1 regra · 1 termo/)).toBeInTheDocument();
     expect(within(projetos).getByText("1 a revalidar")).toHaveAttribute("data-tone", "attention");
 
     const clientes = screen.getByRole("region", { name: "Clientes de IA" });
@@ -159,7 +235,7 @@ describe("TelaInicio", () => {
 
   it("pede o preparo do ambiente antes de criar a análise", async () => {
     const falsa = apiConhecimentoFalsa();
-    falsa.api.verificarAmbiente.mockResolvedValueOnce({
+    falsa.api.verificarAmbiente.mockResolvedValue({
       pronto: false,
       pendencias: ["o servidor MCP do app não está registrado para esta pasta"],
     });

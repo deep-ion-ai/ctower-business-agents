@@ -545,9 +545,11 @@ pub fn prontidao(amb: &Ambiente, id: &Id) -> Result<Prontidao, ErroRevisao> {
         .filter(|p| p.estado == EstadoPergunta::Aberta)
         .count();
     if abertas > 0 {
-        avisos.push(format!(
-            "{abertas} pergunta(s) em aberto vão no documento para o solicitante"
-        ));
+        avisos.push(if abertas == 1 {
+            "1 pergunta em aberto vai no documento para o solicitante".to_string()
+        } else {
+            format!("{abertas} perguntas em aberto vão no documento para o solicitante")
+        });
     }
     let propostas = analise
         .sugestoes

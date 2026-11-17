@@ -447,6 +447,24 @@ mod tests {
     }
 
     #[test]
+    fn transcript_nome_fala_cita_o_falante_certo() {
+        let t = crate::analisar_texto(
+            "Marina: Bom dia, vamos falar do cancelamento.\n\
+             Rafael: A trava dos 30 dias fica na retaguarda.\n\
+             Camila: Decidimos manter a trava e registrar o motivo.\n",
+        );
+        let ok = conferir_citacao(
+            &t.falas,
+            &PedidoCitacao::por_indice(3, "manter a trava e registrar o motivo"),
+        )
+        .unwrap();
+        assert_eq!(ok.citacao.falante, "Camila");
+        let ok =
+            conferir_citacao(&t.falas, &PedidoCitacao::por_indice(2, "trava dos 30 dias")).unwrap();
+        assert_eq!(ok.citacao.falante, "Rafael");
+    }
+
+    #[test]
     fn pedido_em_json() {
         let p: PedidoCitacao =
             serde_json::from_str(r#"{"indice": 4, "inicio": "00:01:11", "trecho": "Isso."}"#)

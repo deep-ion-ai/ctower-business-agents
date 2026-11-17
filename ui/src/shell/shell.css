@@ -397,10 +397,35 @@
   min-width: 0;
   display: flex;
   overflow-x: auto;
+  /* Com muitas abas, a faixa rola sem a barra grossa (#227). */
+  scrollbar-width: none;
+}
+
+.etabs::-webkit-scrollbar {
+  display: none;
+}
+
+.etabs-outras {
+  flex: none;
+  padding: 0 12px;
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.etabs-outras:hover {
+  color: var(--text);
 }
 
 .etab {
-  flex: none;
+  /* Encolhe antes de rolar: 11 abas cabem em vez de virar uma barra. */
+  flex: 0 1 auto;
+  min-width: 84px;
+  max-width: 100%;
   display: flex;
   align-items: center;
   padding-right: 6px;
@@ -416,6 +441,7 @@
 
 .etab-main {
   height: 100%;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -435,6 +461,7 @@
 
 .etab-title {
   max-width: 240px;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }

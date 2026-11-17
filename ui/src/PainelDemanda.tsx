@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { contar } from "./formatacao";
 import { mensagemDe, type AnaliseCriada, type EstadoAnalise, type Fluxo } from "./analise";
 import { ROTULO_FLUXO, type ApiConhecimento } from "./conhecimento";
 import {
@@ -305,7 +306,7 @@ function EventoDaLinha({
             ata {ROTULO_STATUS_ATA[item.status]}
           </span>{" "}
           <span className="muted">
-            {item.participantes} participante(s) · {item.itens} item(ns)
+            {contar(item.participantes, "participante", "participantes")} · {contar(item.itens, "item", "itens")}
           </span>
           {item.documento && (
             <>
