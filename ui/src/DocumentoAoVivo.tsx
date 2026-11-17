@@ -60,6 +60,7 @@ export function SeloSessao({ sessao }: { sessao: SessaoVista | null }) {
         className="selo-sessao sem-sessao"
         role="status"
         aria-label="Estado da sessão"
+        title="Nenhuma sessão ligada ainda: ela aparece quando o agente chama a primeira ferramenta."
       >
         Nenhuma sessão ligada ainda: ela aparece quando o agente chama a
         primeira ferramenta.
@@ -72,6 +73,7 @@ export function SeloSessao({ sessao }: { sessao: SessaoVista | null }) {
       role="status"
       aria-label="Estado da sessão"
       data-estado={sessao.estado}
+      title={ROTULO_SESSAO[sessao.estado]}
     >
       {ROTULO_SESSAO[sessao.estado]}
     </p>

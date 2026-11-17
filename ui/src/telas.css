@@ -618,15 +618,34 @@
 
 .painel-titulo-linha {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  /* Altura fixa: os selos não quebram em 2 linhas (#219). */
+  height: 24px;
+  overflow: hidden;
+}
+
+.painel-titulo-linha .badge {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.painel-titulo-linha .painel-titulo {
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 .painel-titulo {
   margin: 0;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   align-items: baseline;
   gap: 10px;
   font-size: 15px;
@@ -644,7 +663,9 @@
 
 .painel-subtitulo {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  height: 18px;
+  overflow: hidden;
   align-items: center;
   gap: 4px 12px;
   font-size: 12px;
@@ -652,6 +673,10 @@
 
 .painel-subtitulo .selo-sessao {
   margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .painel-acoes {
