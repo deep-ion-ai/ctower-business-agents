@@ -531,6 +531,7 @@ export function Navegacao({
                   documentoInicial={aba.tela.documento}
                   navegar={navegar}
                   aoAbrirDocumento={lembrarDocumento}
+                  aoPendencia={aoPendencia}
                 />
               )}
               {aba?.tela.tipo === "analise" && !ficaViva(aba) && (
@@ -621,7 +622,7 @@ export function Navegacao({
           }
         >
           <p>
-            O editor de textos das configurações tem alterações que não foram salvas. Sair agora as
+            Há um editor com alterações que não foram salvas. Sair agora as
             descarta.
           </p>
         </DialogoConfirmacao>

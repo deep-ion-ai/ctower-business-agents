@@ -453,9 +453,35 @@
   grid-column: 1 / -1;
 }
 
+/* Lista e documento rolam cada um no seu painel (#220), sem arrastar o outro. */
+.base-colunas > .resultados-base,
+.base-colunas > .documento-aberto {
+  position: sticky;
+  top: 0;
+  max-height: calc(100vh - 11rem);
+  overflow: auto;
+}
+
+/* Editando, o documento ocupa a largura toda e a lista sai do caminho. */
+.base-colunas[data-editando] > .resultados-base {
+  display: none;
+}
+
+.documento-aberto .editor-documento {
+  height: calc(100vh - 14rem);
+  min-height: 24rem;
+  padding: 0;
+}
+
 @media (max-width: 1100px) {
   .base-colunas {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .base-colunas > .resultados-base,
+  .base-colunas > .documento-aberto {
+    position: static;
+    max-height: none;
   }
 }
 

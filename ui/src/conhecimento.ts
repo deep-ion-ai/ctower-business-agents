@@ -157,6 +157,9 @@ export interface LigacaoVista {
   existe: boolean;
 }
 
+/** Início do erro de `salvarDocumento` quando o arquivo mudou fora do app. */
+export const CONFLITO_DOCUMENTO = "conflito:";
+
 export interface DocumentoAberto {
   caminho: string;
   projeto: string | null;
@@ -166,6 +169,8 @@ export interface DocumentoAberto {
   campos: { chave: string; valor: string }[];
   /** Corpo em Markdown, sem o frontmatter. */
   markdown: string;
+  /** Marca da versão do arquivo, para {@link ApiConhecimento.salvarDocumento}. */
+  versao: string;
   ligacoes: LigacaoVista[];
   /** A análise que o documento representa, para abrir na tela da análise. */
   analise: { projeto: string; id: string } | null;
@@ -220,6 +225,12 @@ export interface ApiConhecimento extends ApiAmbiente {
     filtros?: { projeto?: string; tipos?: FiltroTipo[]; deslocamento?: number },
   ): Promise<Busca>;
   abrirDocumento(caminho: string): Promise<DocumentoAberto>;
+  /**
+   * Grava o corpo Markdown do documento (o frontmatter fica como está) e atualiza o
+   * índice. Recusa com erro iniciado por {@link CONFLITO_DOCUMENTO} se o arquivo mudou
+   * desde a abertura (`versao`). Devolve o documento relido.
+   */
+  salvarDocumento(caminho: string, markdown: string, versao: string): Promise<DocumentoAberto>;
   /** Avisa quando a base muda fora do app; devolve a função que para. */
   vigiarBase(aoMudar: () => void): Promise<() => void>;
   /** Demandas do projeto, as abertas primeiro. */
@@ -272,6 +283,8 @@ export const apiConhecimentoTauri: ApiConhecimento = {
       deslocamento: filtros.deslocamento ?? null,
     }),
   abrirDocumento: (caminho) => invoke("abrir_documento_base", { caminho }),
+  salvarDocumento: (caminho, markdown, versao) =>
+    invoke("salvar_documento_base", { caminho, markdown, versao }),
   async vigiarBase(aoMudar) {
     const canal = new Channel<unknown>();
     canal.onmessage = () => aoMudar();

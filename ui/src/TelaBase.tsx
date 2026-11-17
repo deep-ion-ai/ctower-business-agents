@@ -9,6 +9,7 @@ import {
   type FiltroTipo,
 } from "./conhecimento";
 import { DocumentoBase } from "./DocumentoBase";
+import { EditorDocumento } from "./EditorDocumento";
 import type { Tela } from "./Navegacao";
 import type { ProjetoResumo } from "./terminal";
 
@@ -32,6 +33,7 @@ export function TelaBase({
   documentoInicial,
   navegar,
   aoAbrirDocumento,
+  aoPendencia,
 }: {
   api: ApiConhecimento;
   projetos: ProjetoResumo[];
@@ -39,17 +41,24 @@ export function TelaBase({
   navegar: (t: Tela) => void;
   /** Avisa o shell do documento aberto, para listá-lo no painel lateral (#85). */
   aoAbrirDocumento?: (caminho: string) => void;
+  /** Avisa o shell de haver (ou não) alterações sem salvar no editor do documento (#220). */
+  aoPendencia?: (pendente: boolean) => void;
 }) {
   const [texto, setTexto] = useState("");
   const [projeto, setProjeto] = useState("");
   const [tipos, setTipos] = useState<FiltroTipo[]>([]);
   const [busca, setBusca] = useState<Busca | null>(null);
-  const [consulta, setConsulta] = useState<{ texto: string; deslocamento: number } | null>(null);
+  // Sem texto, a Base já abre com a lista dos documentos, em vez de vazia até a busca.
+  const [consulta, setConsulta] = useState<{ texto: string; deslocamento: number } | null>({
+    texto: "",
+    deslocamento: 0,
+  });
   const [falha, setFalha] = useState<string | null>(null);
   const [historico, setHistorico] = useState<string[]>(documentoInicial ? [documentoInicial] : []);
   const [documento, setDocumento] = useState<DocumentoAberto | null>(null);
   const [falhaDocumento, setFalhaDocumento] = useState<string | null>(null);
   const [rodada, setRodada] = useState(0);
+  const [editando, setEditando] = useState(false);
   const aberto = historico[historico.length - 1];
   const topo = useRef<HTMLDivElement>(null);
 
@@ -73,6 +82,9 @@ export function TelaBase({
       ativo = false;
     };
   }, [api, consulta, projeto, tipos, rodada]);
+
+  // Outro documento (ou nenhum): sai do modo de edição.
+  useEffect(() => setEditando(false), [aberto]);
 
   // Documento aberto.
   useEffect(() => {
@@ -112,7 +124,6 @@ export function TelaBase({
 
   const buscar = (ev: FormEvent) => {
     ev.preventDefault();
-    if (!texto.trim()) return;
     setConsulta({ texto: texto.trim(), deslocamento: 0 });
   };
 
@@ -120,6 +131,12 @@ export function TelaBase({
     setTipos((atual) => (atual.includes(t) ? atual.filter((x) => x !== t) : [...atual, t]));
 
   const abrir = useCallback((caminho: string) => setHistorico((h) => [...h, caminho]), []);
+  /** Depois de gravar: a prévia mostra o texto novo e a lista refaz a busca no índice. */
+  const aoSalvo = (d: DocumentoAberto) => {
+    setDocumento(d);
+    setRodada((r) => r + 1);
+  };
+
   const voltar = () => setHistorico((h) => h.slice(0, -1));
 
   return (
@@ -133,7 +150,7 @@ export function TelaBase({
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
         />
-        <button type="submit" className="btn" disabled={!texto.trim()}>
+        <button type="submit" className="btn">
           Buscar
         </button>
         <label>
@@ -167,11 +184,15 @@ export function TelaBase({
         </p>
       )}
 
-      <div className="base-colunas">
+      <div className="base-colunas" data-editando={editando || undefined}>
         {busca && consulta && (
           <section aria-label="Resultados" className="resultados-base">
             <p className="muted" role="status">
-              {busca.total === 0
+              {consulta.texto === ""
+                ? busca.total === 0
+                  ? "A base ainda não tem documentos."
+                  : `${busca.total} documento(s) na base.`
+                : busca.total === 0
                 ? `Nada encontrado para "${consulta.texto}".`
                 : `${busca.total} documento(s) para "${consulta.texto}"${
                     busca.qualquerPalavra
@@ -240,7 +261,7 @@ export function TelaBase({
 
         {aberto && (
           <div className="documento-aberto" ref={topo}>
-            <div className="acoes">
+            <div className="acoes" hidden={editando}>
               {historico.length > 1 && (
                 <button className="btn" type="button" onClick={voltar}>
                   Voltar
@@ -255,8 +276,24 @@ export function TelaBase({
                 Não foi possível abrir {aberto}: {falhaDocumento}
               </p>
             )}
-            {documento && !falhaDocumento && (
+            {documento && !falhaDocumento && editando && (
+              <EditorDocumento
+                key={documento.caminho}
+                documento={documento}
+                salvar={(markdown, versao) => api.salvarDocumento(documento.caminho, markdown, versao)}
+                reler={() => api.abrirDocumento(documento.caminho)}
+                aoSalvo={aoSalvo}
+                aoSair={() => {
+                  setEditando(false);
+                  // O que está no arquivo agora (o salvo, ou o de fora do app).
+                  setRodada((r) => r + 1);
+                }}
+                aoPendencia={aoPendencia}
+              />
+            )}
+            {documento && !falhaDocumento && !editando && (
               <DocumentoBase
+                aoEditar={() => setEditando(true)}
                 documento={documento}
                 aoAbrirDocumento={abrir}
                 aoAbrirAnalise={(s, id) =>

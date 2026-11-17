@@ -29,6 +29,7 @@ use cba_kb::indice::{Consulta, Indice, Modo, Resultado, Sincronizacao, Tipo, Vig
 use cba_kb::yaml::Value;
 use cba_kb::{Base, CaminhoRelativo, Documento, layout};
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 use tauri::State;
 use tauri::ipc::Channel;
 
@@ -119,17 +120,28 @@ pub fn buscar(
     deslocamento: usize,
 ) -> Result<Busca, String> {
     let texto = texto.trim();
-    if texto.is_empty() {
-        return Ok(Busca {
-            resultados: Vec::new(),
-            total: 0,
-            deslocamento: 0,
-            qualquer_palavra: false,
-        });
-    }
     let base = base_configurada(dados)?;
     let indice = indice(dados, &base)?;
     let tipos: Vec<Tipo> = tipos.iter().flat_map(|t| tipos_do_filtro(t)).collect();
+    if texto.is_empty() {
+        // Sem texto, a Base lista os documentos (respeitando projeto e tipos), em vez
+        // de abrir vazia até a primeira busca.
+        let mut c = Consulta::nova("")
+            .tipos(tipos.iter().copied())
+            .pagina(POR_PAGINA, deslocamento);
+        if let Some(s) = projeto.map(str::trim).filter(|s| !s.is_empty()) {
+            c = c.projeto(s);
+        }
+        let pagina = indice
+            .listar(&c)
+            .map_err(|e| format!("lista da base: {e}"))?;
+        return Ok(Busca {
+            resultados: pagina.resultados.iter().map(Encontrado::from).collect(),
+            total: pagina.total,
+            deslocamento,
+            qualquer_palavra: false,
+        });
+    }
     let consulta = |modo| {
         let mut c = Consulta::nova(texto)
             .modo(modo)
@@ -206,6 +218,8 @@ pub struct DocumentoAberto {
     pub campos: Vec<Campo>,
     /// Corpo em Markdown, sem o frontmatter.
     pub markdown: String,
+    /// Marca da versão do arquivo (hash do conteúdo), para `salvar_documento`.
+    pub versao: String,
     pub ligacoes: Vec<LigacaoVista>,
     pub analise: Option<AnaliseDoDocumento>,
     /// Frontmatter ilegível (o corpo aparece mesmo assim).
@@ -245,9 +259,9 @@ fn separar(texto: &str) -> (Option<&str>, &str) {
     (None, sem_bom)
 }
 
-/// Lê um documento `.md` da base, com as ligações do índice.
-pub fn abrir_documento(dados: &DiretorioDados, caminho: &str) -> Result<DocumentoAberto, String> {
-    let base = base_configurada(dados)?;
+/// Valida o caminho de um documento `.md` da base e o resolve: relativo, sem sair da
+/// base (nem por link simbólico) e fora de `_templates`.
+fn documento_da_base(base: &Base, caminho: &str) -> Result<CaminhoRelativo, String> {
     let rel = CaminhoRelativo::novo(caminho).map_err(|e| format!("`{caminho}`: {e}"))?;
     if !rel.as_str().ends_with(&format!(".{}", layout::EXTENSAO)) {
         return Err(format!("`{rel}` não é um documento Markdown da base"));
@@ -261,6 +275,21 @@ pub fn abrir_documento(dados: &DiretorioDados, caminho: &str) -> Result<Document
     if !real.starts_with(&raiz) {
         return Err(format!("`{rel}` aponta para fora da base"));
     }
+    Ok(rel)
+}
+
+/// Hash do conteúdo do arquivo: a marca de versão que detecta edição fora do app.
+fn versao_do_texto(texto: &str) -> String {
+    Sha256::digest(texto.as_bytes())
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
+
+/// Lê um documento `.md` da base, com as ligações do índice.
+pub fn abrir_documento(dados: &DiretorioDados, caminho: &str) -> Result<DocumentoAberto, String> {
+    let base = base_configurada(dados)?;
+    let rel = documento_da_base(&base, caminho)?;
     let texto = base.ler_texto(&rel).map_err(|e| e.to_string())?;
 
     let (yaml, corpo) = separar(&texto);
@@ -323,10 +352,51 @@ pub fn abrir_documento(dados: &DiretorioDados, caminho: &str) -> Result<Document
         titulo,
         campos,
         markdown: corpo.to_owned(),
+        versao: versao_do_texto(&texto),
         ligacoes,
         analise,
         problema,
     })
+}
+
+/// Prefixo de erro de [`salvar_documento`] quando o arquivo mudou desde a abertura.
+pub const CONFLITO: &str = "conflito:";
+
+/// Grava o corpo Markdown de um documento da base, mantendo o frontmatter como está
+/// (byte a byte), e atualiza o índice na hora. Recusa com [`CONFLITO`] se o arquivo
+/// mudou desde que foi aberto (`versao_lida`, de [`DocumentoAberto::versao`]).
+/// Devolve o documento relido, já com a nova versão.
+pub fn salvar_documento(
+    dados: &DiretorioDados,
+    caminho: &str,
+    markdown: &str,
+    versao_lida: &str,
+) -> Result<DocumentoAberto, String> {
+    let base = base_configurada(dados)?;
+    let rel = documento_da_base(&base, caminho)?;
+    let atual = base.ler_texto(&rel).map_err(|e| e.to_string())?;
+    if versao_do_texto(&atual) != versao_lida {
+        return Err(format!(
+            "{CONFLITO} `{rel}` mudou desde que foi aberto (editado fora do app?); \
+             recarregue para ver a versão atual"
+        ));
+    }
+    let (_, corpo_atual) = separar(&atual);
+    let cabecalho = &atual[..atual.len() - corpo_atual.len()];
+    // O arquivo mantém as quebras de linha que já tinha.
+    let crlf = atual.contains("\r\n");
+    let mut corpo = markdown.replace("\r\n", "\n");
+    if !corpo.is_empty() && !corpo.ends_with('\n') {
+        corpo.push('\n');
+    }
+    if crlf {
+        corpo = corpo.replace('\n', "\r\n");
+    }
+    base.gravar_texto(&rel, &format!("{cabecalho}{corpo}"))
+        .map_err(|e| e.to_string())?;
+    // Reindexa agora: a busca seguinte já encontra o texto novo.
+    indice(dados, &base)?;
+    abrir_documento(dados, caminho)
 }
 
 /// Ligações do índice, com o título do outro documento. Falha do índice só deixa a
@@ -473,6 +543,16 @@ pub async fn buscar_base(
 pub async fn abrir_documento_base(caminho: String) -> Result<DocumentoAberto, String> {
     let dados = dados()?;
     bloqueante(move || abrir_documento(&dados, &caminho)).await
+}
+
+#[tauri::command]
+pub async fn salvar_documento_base(
+    caminho: String,
+    markdown: String,
+    versao: String,
+) -> Result<DocumentoAberto, String> {
+    let dados = dados()?;
+    bloqueante(move || salvar_documento(&dados, &caminho, &markdown, &versao)).await
 }
 
 /// Avisa a tela quando a base mudou fora do app (a vigia sincronizou algo).
