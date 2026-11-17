@@ -5,8 +5,9 @@ use rusqlite::{Transaction, params};
 use super::extracao::Registro;
 
 /// Versão do esquema, em `PRAGMA user_version`. Mudou o esquema, suba o número: o
-/// índice é recriado e reconstruído a partir da base.
-pub(super) const VERSAO: i64 = 1;
+/// índice é recriado e reconstruído a partir da base. A versão 2 trouxe as tabelas
+/// da rastreabilidade (`super::rastro`).
+pub(super) const VERSAO: i64 = 2;
 
 /// Tabelas do índice.
 ///
