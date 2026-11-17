@@ -299,12 +299,15 @@ export type EventoClone =
   | { tipo: "inicio"; indice: number }
   | { tipo: "progresso"; indice: number; etapa: string; percentual: number | null }
   | { tipo: "concluido"; indice: number; pasta: string }
-  | { tipo: "falhou"; indice: number; erro: string };
+  | { tipo: "falhou"; indice: number; erro: string }
+  | { tipo: "cancelado"; indice: number };
 
 /** Resultado do clone de um repositório: com a `pasta` preenchida, ou o erro. */
 export interface ResultadoClone {
   repositorio: RepositorioCodigo;
   erro: string | null;
+  /** Interrompido pelo analista (não é uma falha); a pasta parcial foi apagada. */
+  cancelado?: boolean;
 }
 
 export type SituacaoClone = "aguardando" | "clonando" | "concluido" | "falhou";
@@ -361,6 +364,9 @@ export function reduzirProgressoClone(
     case "falhou":
       novo[e.indice] = { ...atual, situacao: "falhou", erro: e.erro };
       break;
+    case "cancelado":
+      novo[e.indice] = { ...PROGRESSO_CLONE_INICIAL };
+      break;
   }
   return novo;
 }
@@ -391,6 +397,12 @@ export interface ApiRepositorios {
     aoEvento: (e: EventoClone) => void,
   ): Promise<ResultadoClone[]>;
   /**
+   * Cancela o clone em andamento: mata o git e apaga só a pasta que o próprio clone
+   * criou. `clonarRepositorios` termina com `cancelado` nos que não foram até o fim.
+   * Devolve `false` se não havia clone em andamento.
+   */
+  cancelarClone(): Promise<boolean>;
+  /**
    * Testa a conexão com o Jira (acesso, projeto e campos). Com `token` (digitado e
    * ainda não guardado), usa ele; senão, o comando de credencial ou o do chaveiro.
    */
@@ -417,6 +429,7 @@ export const apiRepositoriosTauri: ApiRepositorios = {
     // O canal não é desligado ao fim: um evento pode chegar depois da resposta.
     return invoke<ResultadoClone[]>("clonar_repositorios_app", { repositorios, pastaBase, canal });
   },
+  cancelarClone: () => invoke("cancelar_clone_app"),
   testarJira: (jira, token) => invoke("testar_jira_app", { jira, token }),
   testarDemandas: (tracker, token) => invoke("testar_demandas_app", { tracker, token }),
 };

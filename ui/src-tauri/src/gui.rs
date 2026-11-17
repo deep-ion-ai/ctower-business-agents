@@ -40,6 +40,7 @@ pub fn rodar() {
         .manage(sessoes.clone())
         .manage(vigias)
         .manage(Arc::new(base::VigiaBase::default()))
+        .manage(Arc::new(clones::CloneEmAndamento::default()))
         .invoke_handler(tauri::generate_handler![
             estado_clientes,
             terminal::listar_projetos,
@@ -54,6 +55,7 @@ pub fn rodar() {
             primeiro_uso::avaliar_base_app,
             primeiro_uso::configurar_base_app,
             primeiro_uso::previa_projeto_app,
+            primeiro_uso::nome_projeto_em_uso_app,
             primeiro_uso::cadastrar_projeto_app,
             primeiro_uso::concluir_primeiro_uso_app,
             analise::verificar_ambiente_projeto,
@@ -111,6 +113,7 @@ pub fn rodar() {
             clones::tokens_guardados_app,
             clones::testar_acesso_app,
             clones::clonar_repositorios_app,
+            clones::cancelar_clone_app,
             clones::testar_jira_app,
             clones::testar_demandas_app,
             acessos::hosts_acessos_app,

@@ -6,6 +6,7 @@ import {
   clonesPreenchidos,
   codigoDoProjeto,
   codigoInicial,
+  hostsDistintos,
   linhas,
   nomeDaPasta,
   nomeDoProjeto,
@@ -21,6 +22,7 @@ import {
 import { PassoCodigo } from "./PassoCodigo";
 import { PassoDemandas } from "./PassoDemandas";
 import { PassoLeitura } from "./PassoLeitura";
+import { useTokensGuardados } from "./useTokensGuardados";
 import {
   padraoDoCaminho,
   tamanhoLegivel,
@@ -35,6 +37,7 @@ import {
   reduzirProgressoClone,
   validarRepositorios,
   type EventoClone,
+  type RepositorioCodigo,
 } from "./repositorios";
 import "./assistenteProjeto.css";
 
@@ -106,8 +109,15 @@ export function AssistenteProjeto({
   const [cadastrando, setCadastrando] = useState(false);
   const [cadastrado, setCadastrado] = useState<ProjetoCadastrado | null>(null);
   const [falha, setFalha] = useState<string | null>(null);
+  /** Veio do Revisar por um “Editar”: dá para voltar direto a ele. */
+  const [vindoDoRevisar, setVindoDoRevisar] = useState(false);
+  const [cancelando, setCancelando] = useState(false);
+  const [avisoClone, setAvisoClone] = useState<string | null>(null);
+  /** O último nome conferido na base e se já está em uso. */
+  const [nomeConferido, setNomeConferido] = useState<{ nome: string; emUso: boolean } | null>(null);
   const titulo = useRef<HTMLHeadingElement>(null);
   const montado = useRef(false);
+  const cancelouClone = useRef(false);
 
   const repositoriosCodigo = codigoDoProjeto(codigo);
   const pedido: PedidoProjeto = {
@@ -120,7 +130,11 @@ export function AssistenteProjeto({
   const chave = chaveDoPedido(pedido);
   const previaAtual = previa !== null && previa.chave === chave;
   const falhaAtual = falhaPrevia !== null && falhaPrevia.chave === chave ? falhaPrevia.texto : null;
-  const lendo = passo === 2 && !previaAtual && falhaAtual === null;
+  // No Revisar, depois de um “Editar”, a prévia pode estar desatualizada e é refeita.
+  const precisaPrevia = passo === 2 || passo === 4;
+  const lendo = precisaPrevia && !previaAtual && falhaAtual === null;
+  const nomeAtual = pedido.nome;
+  const nomeEmUso = nomeConferido?.nome === nomeAtual && nomeConferido.emUso;
 
   // O foco vai para o título do passo novo (não ao abrir o assistente).
   useEffect(() => {
@@ -131,9 +145,25 @@ export function AssistenteProjeto({
     titulo.current?.focus();
   }, [passo]);
 
-  // Prévia automática ao entrar no passo 2 e sempre que o pedido muda.
+  // Nome já em uso: confere no passo 1 (com a digitação assentada), antes da prévia.
   useEffect(() => {
-    if (passo !== 2 || previaAtual || falhaAtual !== null) return;
+    if (passo !== 1 || !nomeAtual) return;
+    let ativo = true;
+    const t = setTimeout(() => {
+      Promise.resolve()
+        .then(() => api.nomeEmUso(nomeAtual))
+        .then((emUso) => ativo && setNomeConferido({ nome: nomeAtual, emUso }))
+        .catch(() => undefined);
+    }, 300);
+    return () => {
+      ativo = false;
+      clearTimeout(t);
+    };
+  }, [api, passo, nomeAtual]);
+
+  // Prévia automática ao entrar no passo 2 (ou no Revisar) e sempre que o pedido muda.
+  useEffect(() => {
+    if (!precisaPrevia || previaAtual || falhaAtual !== null) return;
     let ativo = true;
     const p = pedido;
     const t = setTimeout(
@@ -154,11 +184,19 @@ export function AssistenteProjeto({
       clearTimeout(t);
     };
     // O pedido muda junto com a chave.
-  }, [api, passo, chave, tentativaPrevia]);
+  }, [api, precisaPrevia, chave, tentativaPrevia]);
 
   const irPara = (n: Passo) => {
     setFalha(null);
+    setAvisoClone(null);
+    if (n === 4) setVindoDoRevisar(false);
     setPasso(n);
+  };
+
+  /** “Editar” no Revisar: leva ao passo e deixa um atalho para voltar. */
+  const editarDoRevisar = (n: Passo) => {
+    irPara(n);
+    setVindoDoRevisar(true);
   };
 
   // ---- Passo 1: validação e clone ----
@@ -182,9 +220,13 @@ export function AssistenteProjeto({
     return null;
   };
 
-  const clonar = async (chaves: number[], avancar: boolean) => {
+  /** Clona os repositórios e, se todos ficarem prontos, vai a `destino` (se houver). */
+  const clonar = async (chaves: number[], destino: Passo | null) => {
     const alvos = codigo.clones.filter((c) => chaves.includes(c.chave));
     if (alvos.length === 0) return;
+    cancelouClone.current = false;
+    setCancelando(false);
+    setAvisoClone(null);
     setClonando(true);
     setFalha(null);
     try {
@@ -196,6 +238,13 @@ export function AssistenteProjeto({
     } catch (e) {
       setFalha(`Não deu para guardar o token no chaveiro: ${mensagemDe(e)}`);
       setClonando(false);
+      return;
+    }
+    if (cancelouClone.current) {
+      // Cancelou enquanto o token ia para o chaveiro: nada chegou a ser clonado.
+      setAvisoClone("Clone cancelado.");
+      setClonando(false);
+      setCancelando(false);
       return;
     }
     const ordem = alvos.map((c) => c.chave);
@@ -234,7 +283,12 @@ export function AssistenteProjeto({
       const outrosProntos = clonesPreenchidos(codigo).every(
         (c) => ordem.includes(c.chave) || c.repo.pasta !== null,
       );
+      const cancelados = resultados.some((r) => r.cancelado);
+      if (cancelados) {
+        setAvisoClone("Clone cancelado. A pasta que ele tinha começado foi apagada.");
+      }
       const tudoOk =
+        !cancelados &&
         outrosProntos &&
         resultados.length === ordem.length &&
         resultados.every((r) => !r.erro && r.repositorio.pasta);
@@ -245,6 +299,7 @@ export function AssistenteProjeto({
           const j = ordem.indexOf(c.chave);
           const r = j >= 0 ? resultados[j] : undefined;
           if (!r) return c;
+          if (r.cancelado) return { ...c, progresso: null };
           if (r.erro || !r.repositorio.pasta) {
             return {
               ...c,
@@ -267,7 +322,7 @@ export function AssistenteProjeto({
           };
         }),
       }));
-      if (tudoOk && avancar) irPara(2);
+      if (tudoOk && destino !== null) irPara(destino);
     } catch (e) {
       setFalha(mensagemDe(e));
       setCodigo((est) => ({
@@ -280,30 +335,50 @@ export function AssistenteProjeto({
       }));
     } finally {
       setClonando(false);
+      setCancelando(false);
     }
   };
 
-  const avancarCodigo = () => {
+  const cancelarClone = () => {
+    cancelouClone.current = true;
+    setCancelando(true);
+    // O clone devolve os resultados (com `cancelado`) quando o git para.
+    void Promise.resolve(api.cancelarClone()).catch(() => undefined);
+  };
+
+  /** Passo 1 → `destino` (o passo 2, ou o Revisar quando se veio de lá). */
+  const avancarCodigo = (destino: Passo = 2) => {
     const invalido = validarCodigo();
     if (invalido) {
       setFalha(invalido);
       return;
     }
-    if (codigo.origem === "clonar" && !todosClonados(codigo)) {
-      void clonar(
-        clonesPreenchidos(codigo)
-          .filter((c) => c.repo.pasta === null)
-          .map((c) => c.chave),
-        true,
-      );
-      return;
-    }
-    irPara(2);
+    const nome = nomeDoProjeto(codigo);
+    setFalha(null);
+    void Promise.resolve(api.nomeEmUso(nome))
+      .catch(() => false)
+      .then((emUso) => {
+        setNomeConferido({ nome, emUso });
+        if (emUso) {
+          document.getElementById("nome-projeto")?.focus();
+          return;
+        }
+        if (codigo.origem === "clonar" && !todosClonados(codigo)) {
+          void clonar(
+            clonesPreenchidos(codigo)
+              .filter((c) => c.repo.pasta === null)
+              .map((c) => c.chave),
+            destino,
+          );
+          return;
+        }
+        irPara(destino);
+      });
   };
 
   // ---- Passo 2 ----
 
-  const avancarLeitura = () => {
+  const avancarLeitura = (destino: Passo = 3) => {
     if (!previaAtual) {
       setFalha(falhaAtual ?? "Espere a prévia terminar.");
       return;
@@ -312,13 +387,13 @@ export function AssistenteProjeto({
       setFalha(`Já existe um projeto cadastrado com o nome “${previa.dados.nome}”. Volte ao passo 1 e use outro nome.`);
       return;
     }
-    irPara(3);
+    irPara(destino);
   };
 
-  const incluir = (caminho: string) => {
-    const padrao = padraoDoCaminho(caminho);
-    setInclusoes((l) => (l.includes(padrao) ? l : [...l, padrao]));
-  };
+  const incluirPadroes = (padroes: string[]) =>
+    setInclusoes((l) => [...l, ...padroes.filter((p) => !l.includes(p))]);
+
+  const incluir = (caminho: string) => incluirPadroes([padraoDoCaminho(caminho)]);
 
   // ---- Passo 3 ----
 
@@ -340,6 +415,33 @@ export function AssistenteProjeto({
   const avancarDemandas = () => {
     const invalido = validarDemandas();
     if (invalido) {
+      setFalha(invalido);
+      return;
+    }
+    irPara(4);
+  };
+
+  /** “Voltar ao Revisar” depois de um “Editar”: confere o passo atual e o das demandas. */
+  const voltarAoRevisar = () => {
+    if (clonando || cadastrando) return;
+    if (passo === 1) {
+      avancarCodigo(4);
+      return;
+    }
+    if (passo === 2) {
+      if (!previaAtual) {
+        setFalha(falhaAtual ?? "Espere a prévia terminar.");
+        return;
+      }
+      if (previa.dados.jaCadastrado) {
+        setFalha(`Já existe um projeto cadastrado com o nome “${previa.dados.nome}”. Volte ao passo 1 e use outro nome.`);
+        return;
+      }
+    }
+    // O que mudou antes pode ter deixado as demandas sem sentido (um repositório que saiu).
+    const invalido = validarDemandas();
+    if (invalido) {
+      irPara(3);
       setFalha(invalido);
       return;
     }
@@ -450,7 +552,11 @@ export function AssistenteProjeto({
             codigo={codigo}
             mudar={setCodigo}
             clonando={clonando}
-            aoTentarDeNovo={(c) => void clonar([c], false)}
+            cancelando={cancelando}
+            nomeEmUso={nomeEmUso}
+            aviso={avisoClone}
+            aoTentarDeNovo={(c) => void clonar([c], null)}
+            aoCancelarClone={cancelarClone}
           />
         )}
         {passo === 2 && (
@@ -462,6 +568,7 @@ export function AssistenteProjeto({
             inclusoes={inclusoes}
             aoMudarExclusoes={setExclusoes}
             aoIncluir={incluir}
+            aoIncluirGrupo={incluirPadroes}
             aoTirarInclusao={(x) => setInclusoes((l) => l.filter((y) => y !== x))}
             aoTentarDeNovo={() => {
               setFalhaPrevia(null);
@@ -477,13 +584,20 @@ export function AssistenteProjeto({
             mudar={setDemandas}
           />
         )}
-        {passo === 4 && previa && (
+        {passo === 4 && (
           <Revisao
+            api={api}
             codigo={codigo}
             pedido={pedido}
-            previa={previa.dados}
+            previa={previaAtual ? previa.dados : null}
+            lendo={lendo}
+            falhaPrevia={falhaAtual}
             demandas={demandas}
-            aoEditar={irPara}
+            aoEditar={editarDoRevisar}
+            aoTentarDeNovo={() => {
+              setFalhaPrevia(null);
+              setTentativaPrevia((t) => t + 1);
+            }}
           />
         )}
 
@@ -517,6 +631,16 @@ export function AssistenteProjeto({
             Voltar
           </button>
         )}
+        {vindoDoRevisar && passo < 4 && (
+          <button
+            type="button"
+            className="btn"
+            disabled={clonando || cadastrando || (passo === 2 && lendo)}
+            onClick={voltarAoRevisar}
+          >
+            Voltar ao Revisar
+          </button>
+        )}
         {passo === 3 && (
           <button
             type="button"
@@ -532,13 +656,31 @@ export function AssistenteProjeto({
         <button
           type="submit"
           className="btn btn-primary"
-          disabled={clonando || cadastrando || (passo === 2 && lendo)}
+          disabled={
+            clonando ||
+            cadastrando ||
+            (passo === 2 && lendo) ||
+            (passo === 4 && (!previaAtual || previa.dados.jaCadastrado))
+          }
         >
           {textoPrimario}
         </button>
       </div>
     </form>
   );
+}
+
+/** O token de um repositório: o global só aparece como tal se há token guardado para o host. */
+function textoToken(
+  r: Pick<RepositorioCodigo, "token" | "forja" | "host">,
+  guardados: Record<string, boolean | null | undefined>,
+): string {
+  if (r.token === "proprio") return "próprio";
+  if (r.token === "comando") return "por comando";
+  const g = guardados[r.host.trim().toLowerCase()];
+  if (g === false) return "sem token";
+  if (g === undefined) return "verificando…";
+  return `global do ${ROTULO_FORJA[r.forja]}`;
 }
 
 function textoDemandas(d: EstadoDemandas, pedido: PedidoProjeto): string {
@@ -550,20 +692,33 @@ function textoDemandas(d: EstadoDemandas, pedido: PedidoProjeto): string {
 }
 
 function Revisao({
+  api,
   codigo,
   pedido,
   previa,
+  lendo,
+  falhaPrevia,
   demandas,
   aoEditar,
+  aoTentarDeNovo,
 }: {
+  api: Pick<ApiAssistenteProjeto, "tokensGuardados">;
   codigo: EstadoCodigo;
   pedido: PedidoProjeto;
-  previa: PreviaProjeto;
+  /** `null` enquanto a prévia do que mudou não ficou pronta. */
+  previa: PreviaProjeto | null;
+  lendo: boolean;
+  falhaPrevia: string | null;
   demandas: EstadoDemandas;
   aoEditar: (passo: Passo) => void;
+  aoTentarDeNovo: () => void;
 }) {
   const repos = pedido.repositorios?.codigo ?? [];
-  const inv = previa.inventario;
+  const inv = previa?.inventario;
+  const guardados = useTokensGuardados(
+    api,
+    hostsDistintos(repos.filter((r) => r.token === "global")),
+  );
   const textoCodigo =
     codigo.origem === "clonar"
       ? `${plural(repos.length, "repositório clonado", "repositórios clonados")} em ${codigo.pastaBase}`
@@ -590,7 +745,9 @@ function Revisao({
     { rotulo: "Nome", valor: pedido.nome, passo: 1 },
     {
       rotulo: "O que será lido",
-      valor: `${plural(inv.analisados, "arquivo", "arquivos")} (${tamanhoLegivel(inv.bytesAnalisados)}) · ${plural(inv.ignorados, "item", "itens")} fora`,
+      valor: inv
+        ? `${plural(inv.analisados, "arquivo", "arquivos")} (${tamanhoLegivel(inv.bytesAnalisados)}) · ${plural(inv.ignorados, "arquivo", "arquivos")} fora`
+        : "lendo as pastas…",
       passo: 2,
     },
     { rotulo: "Demandas", valor: textoDemandas(demandas, pedido), passo: 3 },
@@ -598,18 +755,7 @@ function Revisao({
   if (codigo.origem === "clonar" && repos.length > 0) {
     linhasResumo.splice(1, 0, {
       rotulo: "Tokens",
-      valor: repos
-        .map(
-          (r) =>
-            `${nomeDaPasta(r.caminho)}: ${
-              r.token === "proprio"
-                ? "próprio"
-                : r.token === "comando"
-                  ? "por comando"
-                  : `global do ${ROTULO_FORJA[r.forja]}`
-            }`,
-        )
-        .join(" · "),
+      valor: repos.map((r) => `${nomeDaPasta(r.caminho)}: ${textoToken(r, guardados)}`).join(" · "),
       passo: 1,
     });
   }
@@ -631,6 +777,26 @@ function Revisao({
           </div>
         ))}
       </dl>
+      {lendo && (
+        <p role="status" className="progresso">
+          <progress aria-label="Lendo as pastas do projeto" /> Lendo as pastas do projeto…
+        </p>
+      )}
+      {falhaPrevia && !lendo && (
+        <div className="falha-previa">
+          <p className="error-text" role="alert">
+            {falhaPrevia}
+          </p>
+          <button type="button" className="btn btn-sm" onClick={aoTentarDeNovo}>
+            Tentar de novo
+          </button>
+        </div>
+      )}
+      {previa?.jaCadastrado && (
+        <p className="error-text" role="alert">
+          Já existe um projeto cadastrado com o nome “{previa.nome}”. Edite o nome no passo 1.
+        </p>
+      )}
       <p className="dica nota-seguranca">
         O app só lê as pastas do código. Os tokens ficam no chaveiro do sistema.
       </p>

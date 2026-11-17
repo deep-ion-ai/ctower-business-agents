@@ -528,6 +528,7 @@ describe("Assistente de projeto: passo 2, o que será lido", () => {
         pastas: [],
         exclusoes: p.exclusoes,
         inclusoes: p.inclusoes,
+        inclusoesVistas: [],
         jaCadastrado: false,
         inventario: inventarioFicticio({
           analisados: 1284,
@@ -541,9 +542,24 @@ describe("Assistente de projeto: passo 2, o que será lido", () => {
             {
               caminho: "docs/manual.pdf",
               pasta: false,
+              arquivos: 1,
               motivo: "binario",
               rotulo: "binário",
               regra: null,
+              ajustavel: true,
+            },
+          ],
+          gruposIgnorados: [
+            ...inventarioFicticio().gruposIgnorados,
+            {
+              pasta: "docs",
+              tipo: "pdf",
+              motivo: "binario",
+              rotulo: "binário",
+              itens: 1,
+              arquivos: 1,
+              exemplos: ["docs/manual.pdf"],
+              padroes: ["/docs/manual.pdf"],
               ajustavel: true,
             },
           ],
@@ -625,6 +641,7 @@ describe("Assistente de projeto: passo 2, o que será lido", () => {
           pastas: [],
           exclusoes: [],
           inclusoes: [],
+          inclusoesVistas: [],
           jaCadastrado: true,
           inventario: inventarioFicticio(),
         }),
@@ -893,7 +910,7 @@ describe("Assistente de projeto: passo 4, revisar", () => {
     ).toHaveTextContent("Faturamento Exemplo");
     expect(
       screen.getByText("O que será lido", { selector: "dt" }).nextSibling,
-    ).toHaveTextContent("14 arquivos (46,9 KB) · 1 item fora");
+    ).toHaveTextContent("14 arquivos (46,9 KB) · 1 arquivo fora");
     expect(
       screen.getByText(/O app só lê as pastas do código/),
     ).toBeInTheDocument();
@@ -970,5 +987,323 @@ describe("Assistente de projeto: passo 5, concluído", () => {
       expect.objectContaining({ nome: "Faturamento Exemplo" }),
     );
     expect(aoConcluir).not.toHaveBeenCalled();
+  });
+});
+
+describe("Assistente de projeto: ajustes do teste de uso (#224)", () => {
+  function url(n: number) {
+    return screen.getByLabelText(`URL do repositório ${n}`);
+  }
+
+  async function escolherClonar(api: Api) {
+    fireEvent.click(
+      screen.getByRole("radio", { name: /Clonar do GitHub ou GitLab/ }),
+    );
+    await screen.findByDisplayValue(PASTA_CLONES);
+    return api;
+  }
+
+  it("sugere o nome pelo primeiro repositório, não pela pasta dos clones", async () => {
+    const api = apiConfiguracoesFalsa();
+    montar(api);
+    await escolherClonar(api);
+    // O analista escolhe uma pasta chamada "Clones" (a pasta-mãe).
+    fireEvent.change(screen.getByLabelText("Pasta dos repositórios"), {
+      target: { value: "/Users/analista/Clones" },
+    });
+    expect(screen.getByLabelText("Nome do projeto")).toHaveValue("");
+    fireEvent.change(url(1), {
+      target: { value: "https://github.com/acme/faturamento-exemplo.git" },
+    });
+    expect(screen.getByLabelText("Nome do projeto")).toHaveValue(
+      "Faturamento Exemplo",
+    );
+    await act(async () => undefined);
+  });
+
+  it("recusa o nome repetido no próprio campo, no passo 1", async () => {
+    const api = apiConfiguracoesFalsa();
+    api.nomeEmUso.mockImplementation((nome) =>
+      Promise.resolve(nome === "Faturamento Exemplo"),
+    );
+    montar(api);
+    await escolherPasta();
+    const aviso = await screen.findByText(
+      /Já existe um projeto cadastrado com o nome “Faturamento Exemplo”/,
+    );
+    expect(aviso).toBeInTheDocument();
+    expect(screen.getByLabelText("Nome do projeto")).toBeInvalid();
+    fireEvent.click(botao("Continuar"));
+    await waitFor(() => expect(api.nomeEmUso).toHaveBeenCalledTimes(2));
+    expect(titulo("De onde vem o código do projeto?")).toBeInTheDocument();
+    expect(screen.getByLabelText("Nome do projeto")).toHaveFocus();
+    expect(api.previaProjeto).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("Nome do projeto"), {
+      target: { value: "Faturamento Novo" },
+    });
+    await waitFor(() =>
+      expect(
+        screen.queryByText(/Já existe um projeto cadastrado/),
+      ).not.toBeInTheDocument(),
+    );
+    fireEvent.click(botao("Continuar"));
+    await screen.findByRole("region", { name: "Prévia do inventário" });
+  });
+
+  it("Cancelar interrompe o clone e deixa tentar de novo, sem mostrar falha", async () => {
+    const api = apiConfiguracoesFalsa();
+    let terminar: (r: ResultadoClone[]) => void = () => undefined;
+    api.clonarRepositorios.mockImplementationOnce(
+      (repos) =>
+        new Promise((resolver) => {
+          terminar = resolver;
+          void repos;
+        }),
+    );
+    api.cancelarClone.mockImplementation(() => {
+      terminar([
+        {
+          repositorio: {
+            forja: "github",
+            host: "github.com",
+            caminho: "acme/faturamento-api",
+          } as never,
+          erro: "clone cancelado",
+          cancelado: true,
+        },
+      ]);
+      return Promise.resolve(true);
+    });
+    montar(api);
+    await escolherClonar(api);
+    fireEvent.change(url(1), {
+      target: { value: "https://github.com/acme/faturamento-api.git" },
+    });
+    // Sem clone em andamento não há o que cancelar.
+    expect(
+      screen.queryByRole("button", { name: "Cancelar clone" }),
+    ).toBeNull();
+    fireEvent.click(botao("Clonar e continuar"));
+    await waitFor(() => expect(api.clonarRepositorios).toHaveBeenCalled());
+    const cancelar = await screen.findByRole("button", {
+      name: "Cancelar clone",
+    });
+    fireEvent.click(cancelar);
+    expect(api.cancelarClone).toHaveBeenCalledTimes(1);
+    expect(
+      await screen.findByText(/Clone cancelado\. A pasta que ele tinha começado/),
+    ).toBeInTheDocument();
+    // Não é falha: sem alerta, sem barra, e dá para clonar de novo.
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByRole("progressbar")).toBeNull();
+    expect(titulo("De onde vem o código do projeto?")).toBeInTheDocument();
+    expect(botao("Clonar e continuar")).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: /Cancelar clone|Cancelando/ }),
+    ).toBeNull();
+  });
+
+  it("Voltar ao Revisar depois de Editar, sem refazer os passos 2 e 3", async () => {
+    const api = apiConfiguracoesFalsa();
+    montar(api);
+    await ateOPasso3();
+    fireEvent.click(botao("Continuar"));
+    await screen.findByRole("heading", { name: "Tudo certo?" });
+    // O atalho só existe depois de um "Editar".
+    expect(screen.queryByRole("button", { name: "Voltar ao Revisar" })).toBeNull();
+
+    fireEvent.click(botao("Editar nome"));
+    expect(titulo("De onde vem o código do projeto?")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Nome do projeto"), {
+      target: { value: "Faturamento Novo" },
+    });
+    fireEvent.click(botao("Voltar ao Revisar"));
+    await screen.findByRole("heading", { name: "Tudo certo?" });
+    // Já com o nome novo e a prévia refeita para ele.
+    expect(
+      screen.getByText("Nome", { selector: "dt" }).nextSibling,
+    ).toHaveTextContent("Faturamento Novo");
+    await waitFor(() =>
+      expect(api.previaProjeto).toHaveBeenLastCalledWith(
+        expect.objectContaining({ nome: "Faturamento Novo" }),
+      ),
+    );
+    await waitFor(() => expect(botao("Cadastrar o projeto")).toBeEnabled());
+    expect(screen.queryByRole("button", { name: "Voltar ao Revisar" })).toBeNull();
+
+    // De novo, agora pelo passo 2.
+    fireEvent.click(botao("Editar o que será lido"));
+    expect(titulo("É isto que a IA vai ler")).toBeInTheDocument();
+    await screen.findByRole("region", { name: "Prévia do inventário" });
+    fireEvent.click(botao("Voltar ao Revisar"));
+    await screen.findByRole("heading", { name: "Tudo certo?" });
+    fireEvent.click(botao("Cadastrar o projeto"));
+    await waitFor(() =>
+      expect(api.cadastrarProjeto).toHaveBeenCalledWith(
+        expect.objectContaining({ nome: "Faturamento Novo" }),
+      ),
+    );
+  });
+
+  it("no clone, o Revisar e o resumo mostram “sem token” sem token global", async () => {
+    const api = apiConfiguracoesFalsa();
+    api.tokensGuardados.mockImplementation((alvos) =>
+      Promise.resolve(alvos.map((a) => a.host === "gitlab.empresa.com.br")),
+    );
+    montar(api);
+    await escolherClonar(api);
+    fireEvent.change(url(1), {
+      target: { value: "https://gitlab.empresa.com.br/fin/faturamento-web.git" },
+    });
+    fireEvent.click(botao("+ Adicionar repositório"));
+    fireEvent.change(url(2), {
+      target: { value: "git@github.com:acme/faturamento-api.git" },
+    });
+    fireEvent.click(botao("Clonar e continuar"));
+    await screen.findByRole("heading", { name: "É isto que a IA vai ler" });
+    fireEvent.click(botao("Continuar"));
+    await screen.findByRole("heading", { name: "Conectar as demandas (opcional)" });
+    fireEvent.click(botao("Continuar"));
+    await screen.findByRole("heading", { name: "Tudo certo?" });
+    const tokens = screen.getByText("Tokens", { selector: "dt" }).nextSibling;
+    await waitFor(() =>
+      expect(tokens).toHaveTextContent(
+        "faturamento-web: global do GitLab · faturamento-api: sem token",
+      ),
+    );
+
+    // O resumo do passo 1 diz o mesmo.
+    fireEvent.click(botao("Editar código"));
+    const resumo = within(
+      await screen.findByRole("group", { name: "Repositórios clonados" }),
+    );
+    await waitFor(() =>
+      expect(resumo.getByText(/branch padrão · sem token/)).toBeInTheDocument(),
+    );
+    expect(
+      resumo.getByText(/token global de gitlab.empresa.com.br/),
+    ).toBeInTheDocument();
+  });
+
+  it("agrupa o que fica fora por pasta e tipo, com busca, e mostra o efeito da reinclusão", async () => {
+    const api = apiConfiguracoesFalsa();
+    const icones = Array.from({ length: 40 }, (_, i) => ({
+      pasta: `client/icons/pacote-${i}`,
+      tipo: "png",
+      motivo: "binario",
+      rotulo: "binário",
+      itens: 25,
+      arquivos: 25,
+      exemplos: [`client/icons/pacote-${i}/a.png`],
+      padroes: [`/client/icons/pacote-${i}/*.png`],
+      ajustavel: true,
+    }));
+    const outros = [
+      {
+        pasta: "docs",
+        tipo: "pdf",
+        motivo: "binario",
+        rotulo: "binário",
+        itens: 12,
+        arquivos: 12,
+        exemplos: ["docs/a.pdf"],
+        padroes: ["/docs/*.pdf"],
+        ajustavel: true,
+      },
+      {
+        pasta: "",
+        tipo: "pasta",
+        motivo: "usuario",
+        rotulo: "excluído pelo analista",
+        itens: 1,
+        arquivos: 18,
+        exemplos: ["test"],
+        padroes: ["/test"],
+        ajustavel: true,
+      },
+    ];
+    api.previaProjeto.mockImplementation((p) =>
+      Promise.resolve({
+        id: "faturamento-exemplo",
+        nome: p.nome,
+        pastas: [],
+        exclusoes: p.exclusoes,
+        inclusoes: p.inclusoes,
+        // A pasta "test" tem 18 arquivos; os PNG continuam binários pelo conteúdo.
+        inclusoesVistas: p.inclusoes.map((padrao) => ({
+          padrao,
+          entram: padrao === "/test" ? 18 : 0,
+          continuamFora: padrao === "/test" ? 0 : 25,
+        })),
+        jaCadastrado: false,
+        inventario: inventarioFicticio({
+          ignorados: 1000 + 12 + 18,
+          totalItensIgnorados: 1000 + 12 + 1,
+          gruposIgnorados: [...icones, ...outros],
+          porMotivo: [
+            { chave: "binario", rotulo: "binário", quantidade: 1012 },
+            { chave: "usuario", rotulo: "excluído pelo analista", quantidade: 18 },
+          ],
+        }),
+      }),
+    );
+    montar(api);
+    await ateOPasso2();
+    const previa = within(
+      screen.getByRole("region", { name: "Prévia do inventário" }),
+    );
+    // Tudo em arquivos: a pasta excluída conta os 18 arquivos dela.
+    expect(previa.getByText(/arquivos ficam fora/)).toBeInTheDocument();
+    expect(previa.getByText("1.030")).toBeInTheDocument();
+    expect(previa.getByText("18")).toBeInTheDocument();
+
+    fireEvent.click(botao("Ajustar o que fica fora · avançado"));
+    const lista = within(
+      screen.getByRole("group", { name: "Itens fora que você pode incluir" }),
+    );
+    // 42 grupos em vez de 1.000 itens soltos (e nada de "E mais N itens").
+    expect(lista.getByText("42 grupos (por pasta e tipo).")).toBeInTheDocument();
+    expect(lista.getByText("25 arquivos .png em client/icons/pacote-3/")).toBeInTheDocument();
+    expect(lista.queryByText(/E mais/)).toBeNull();
+
+    // A busca acha por pasta ou tipo.
+    fireEvent.change(lista.getByLabelText("Buscar por pasta ou tipo"), {
+      target: { value: "pdf" },
+    });
+    expect(lista.getByText("12 arquivos .pdf em docs/")).toBeInTheDocument();
+    expect(lista.getAllByRole("listitem")).toHaveLength(1);
+    fireEvent.change(lista.getByLabelText("Buscar por pasta ou tipo"), {
+      target: { value: "nada disso" },
+    });
+    expect(lista.getByText("Nada encontrado com essa busca.")).toBeInTheDocument();
+    fireEvent.change(lista.getByLabelText("Buscar por pasta ou tipo"), {
+      target: { value: "" },
+    });
+
+    // Incluir um grupo manda os padrões dele; o efeito aparece em "Incluídos por você".
+    fireEvent.click(
+      lista.getByRole("button", { name: "Incluir test/ na análise" }),
+    );
+    const incluirPng = lista.getByRole("button", {
+      name: "Incluir 25 arquivos .png em client/icons/pacote-0/ na análise",
+    });
+    // Enquanto a prévia é refeita, os botões esperam.
+    await waitFor(() => expect(incluirPng).toBeEnabled());
+    fireEvent.click(incluirPng);
+    await waitFor(() =>
+      expect(api.previaProjeto).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          inclusoes: ["/test", "/client/icons/pacote-0/*.png"],
+        }),
+      ),
+    );
+    const incluidos = within(screen.getByRole("group", { name: "Reincluídos" }));
+    expect(
+      await incluidos.findByText(/18 arquivos entram na análise/),
+    ).toBeInTheDocument();
+    expect(
+      incluidos.getByText(/continua fora: 25 arquivos têm conteúdo binário/),
+    ).toBeInTheDocument();
   });
 });

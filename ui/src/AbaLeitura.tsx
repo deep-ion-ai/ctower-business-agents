@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { mensagemDe } from "./analise";
+import { plural } from "./estadoCadastro";
 import type { PropsConfigProjeto } from "./ConfigProjeto";
 import { padraoDoCaminho, tamanhoLegivel, type PreviaProjeto } from "./primeiroUso";
 
@@ -141,7 +142,7 @@ export function AbaLeitura({
         </div>
         <div className="cartao-config resumo-cartao" role="group" aria-label="Fica fora">
           <span className="muted">Fica fora</span>
-          <strong className="resumo-numero">{inv ? `${inv.ignorados} itens` : "…"}</strong>
+          <strong className="resumo-numero">{inv ? plural(inv.ignorados, "arquivo", "arquivos") : "…"}</strong>
           {inv && inv.porMotivo.length > 0 && (
             <span className="muted">
               {inv.porMotivo.map((m, i) => (
@@ -204,9 +205,9 @@ export function AbaLeitura({
               </li>
             ))}
           </ul>
-          {inv.ignorados > inv.itensIgnorados.length && (
+          {inv.totalItensIgnorados > inv.itensIgnorados.length && (
             <p className="muted linha-config">
-              E mais {inv.ignorados - inv.itensIgnorados.length} itens.
+              E mais {inv.totalItensIgnorados - inv.itensIgnorados.length} itens.
             </p>
           )}
         </section>
