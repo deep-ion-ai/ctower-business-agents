@@ -72,6 +72,7 @@ pub mod perguntar;
 pub mod prompts;
 pub mod referencias;
 mod registro;
+pub mod registros;
 pub mod reuniao;
 pub mod revalidacao;
 pub mod revisao;

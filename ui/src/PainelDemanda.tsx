@@ -16,6 +16,8 @@ import { NovaAnalise } from "./NovaAnalise";
 import { NovaHistorias } from "./NovaHistorias";
 import { NovaReuniao } from "./NovaReuniao";
 import { BotoesProximoPasso } from "./ProximoPasso";
+import { RegistrosDemanda } from "./RegistrosDemanda";
+import type { ApiRegistros } from "./registros";
 import { apiReuniaoTauri, type ApiReuniao } from "./reunioes";
 
 const FLUXOS: Fluxo[] = [
@@ -49,6 +51,7 @@ export function PainelDemanda({
   demanda,
   navegar,
   apiReuniao,
+  apiRegistros,
 }: {
   api: ApiConhecimento;
   projeto: string;
@@ -56,6 +59,8 @@ export function PainelDemanda({
   navegar: (t: Tela) => void;
   /** Nova reunião (#141) e próximos passos (#142); para testes. */
   apiReuniao?: ApiReuniao;
+  /** Premissas, decisões, riscos e restrições (#122); para testes. */
+  apiRegistros?: ApiRegistros;
 }) {
   const [painel, setPainel] = useState<Painel | null>(null);
   const [falha, setFalha] = useState<string | null>(null);
@@ -267,6 +272,14 @@ export function PainelDemanda({
               )
             : undefined
         }
+      />
+
+      <RegistrosDemanda
+        projeto={projeto}
+        demanda={d.id}
+        api={apiRegistros}
+        atualizacao={painel}
+        abrirDocumento={abrirDocumento}
       />
 
       {painel.problemas.length > 0 && (

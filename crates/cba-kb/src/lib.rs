@@ -20,6 +20,8 @@
 //!     pessoas/<slug>.md            # catálogo de pessoas: nome, apelidos e papéis
 //!     demandas/D-NNNN-<slug>/reunioes/R-NNNN.md            # ata
 //!     demandas/D-NNNN-<slug>/reunioes/R-NNNN.estado.json   # estado da ata
+//!     demandas/D-NNNN-<slug>/registros/PR-NNNN.md          # premissa, decisão (DE),
+//!                                                          # risco (RI), restrição (RE)
 //! ```
 //!
 //! O que esta crate oferece:
@@ -55,6 +57,7 @@ pub mod indice;
 pub mod layout;
 mod papeis;
 mod pessoas;
+pub mod registros;
 mod reunioes;
 
 pub use base::{Base, PADRAO_REGRAS_DO_PROJETO, Projeto};
@@ -68,6 +71,10 @@ pub use papeis::{AvisoPapeis, OrigemPapeis, PADRAO_PAPEIS, Papeis, Papel};
 pub use pessoas::{
     Casamento, CatalogoDePessoas, NovaPessoa, PapelSugerido, Participante, PessoaLida,
     normalizar_nome, normalizar_texto, sem_dominio,
+};
+pub use registros::{
+    Categoria, DadosRegistro, FrontmatterRegistro, IdRegistro, NovoRegistro, RegistroLido,
+    ValidacaoDePremissa,
 };
 pub use reunioes::ArquivosDaReuniao;
 
