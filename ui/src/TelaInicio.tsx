@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { contar } from "./formatacao";
 import { mensagemDe, type AnaliseCriada, type Fluxo } from "./analise";
 import type { ApiAssistenteProjeto } from "./AssistenteProjeto";
 import { ClientesIA, type AbrirLink } from "./ClientesIA";
@@ -264,7 +265,7 @@ export function TelaInicio({
                     <span className="error-text">{s.erro}</span>
                   ) : (
                     <span className="muted">
-                      {s.analises} análise(s) · {s.regras} regra(s) · {s.termos} termo(s)
+                      {contar(s.analises, "análise", "análises")} · {contar(s.regras, "regra", "regras")} · {contar(s.termos, "termo", "termos")}
                     </span>
                   )}
                   {s.aRevalidar > 0 && (

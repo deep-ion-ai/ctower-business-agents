@@ -12,6 +12,7 @@ import {
   type SituacaoToken,
 } from "./acessos";
 import { mensagemDe } from "./analise";
+import { ErroTecnico } from "./erroTecnico";
 import type { Configuracoes } from "./configuracoes";
 import { DialogoConfirmacao } from "./DialogoConfirmacao";
 import type { AlvoToken, ApiRepositorios, ForgeKind } from "./repositorios";
@@ -109,7 +110,7 @@ export function SecaoAcessos({
       </div>
       {falha && (
         <p className="error-text" role="alert">
-          {falha}
+          <ErroTecnico mensagem={falha} />
         </p>
       )}
 
@@ -179,7 +180,7 @@ export function SecaoAcessos({
         <summary>Prefiro um comando que imprime o token (pass, 1Password, gopass…)</summary>
         <p className="muted">
           Em vez de guardar o token, o app roda o comando quando precisa e usa a primeira linha que
-          ele imprime. No host: “Trocar token” › “Comando que imprime o token”. No repositório: no
+          ele imprime. No host: “Informar token” (ou “Trocar token”, se já houver um) › “Comando que imprime o token”. No repositório: no
           cadastro dele, na página do projeto, escolha “Comando que imprime o token”. Exemplo:{" "}
           <code className="mono">pass show github/pat | head -1</code>.
         </p>
@@ -443,7 +444,7 @@ function LinhaRepositorio({
       </div>
       {falha && (
         <p className="error-text acessos-aviso" role="alert">
-          {falha}
+          <ErroTecnico mensagem={falha} />
         </p>
       )}
     </li>
@@ -612,7 +613,7 @@ function FormAdicionarHost({
       />
       {falha && (
         <p className="error-text" role="alert">
-          {falha}
+          <ErroTecnico mensagem={falha} />
         </p>
       )}
     </div>

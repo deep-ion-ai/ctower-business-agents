@@ -30,7 +30,7 @@ describe("TelaBase: editar o documento (#220)", () => {
     const { api } = montar();
     const resultados = await screen.findByRole("region", { name: "Resultados" });
     expect(api.buscar).toHaveBeenCalledWith("", { projeto: undefined, tipos: [], deslocamento: 0 });
-    expect(within(resultados).getByText(/documento\(s\) na base/)).toBeInTheDocument();
+    expect(within(resultados).getByText(/documentos na base/)).toBeInTheDocument();
   });
 
   it("edita, mostra a prévia, salva e a busca refeita enxerga o texto novo", async () => {

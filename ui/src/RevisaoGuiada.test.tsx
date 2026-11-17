@@ -270,7 +270,7 @@ describe("Cartão de afirmação", () => {
 
   it("evidências viram chips arquivo:linhas que abrem o código", () => {
     const { aoAbrirEvidencia } = montar();
-    fireEvent.click(within(cartao(1)).getByRole("button", { name: "db/03_pkg_cobranca.sql:71-72" }));
+    fireEvent.click(within(cartao(1)).getByRole("button", { name: "03_pkg_cobranca.sql:71-72" }));
     expect(aoAbrirEvidencia).toHaveBeenCalledWith(
       AFIRMACAO_MULTA.evidencias[0],
       "afirmacao-1",

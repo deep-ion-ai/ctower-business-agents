@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { contar } from "./formatacao";
 import { mensagemDe } from "./analise";
 import {
   partesDoTrecho,
@@ -191,10 +192,10 @@ export function TelaBase({
               {consulta.texto === ""
                 ? busca.total === 0
                   ? "A base ainda não tem documentos."
-                  : `${busca.total} documento(s) na base.`
+                  : `${contar(busca.total, "documento", "documentos")} na base.`
                 : busca.total === 0
                 ? `Nada encontrado para "${consulta.texto}".`
-                : `${busca.total} documento(s) para "${consulta.texto}"${
+                : `${contar(busca.total, "documento", "documentos")} para "${consulta.texto}"${
                     busca.qualquerPalavra
                       ? " (nenhum tinha todas as palavras; estes têm ao menos uma)"
                       : ""

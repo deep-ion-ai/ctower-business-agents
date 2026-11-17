@@ -67,7 +67,7 @@ export function AssistentePrimeiroUso({
             className={i === indice ? "atual" : i < indice ? "feita" : undefined}
             aria-current={i === indice ? "step" : undefined}
           >
-            {e.rotulo}
+            {e.rotulo}{" "}
           </li>
         ))}
       </ol>

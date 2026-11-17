@@ -1398,3 +1398,16 @@ button.chip-variavel:hover {
   width: 100%;
   box-sizing: border-box;
 }
+
+/* Pasta dos clones: o caminho completo precisa caber no campo. */
+.secao-clones .campo-largo {
+  display: block;
+}
+
+.secao-clones input.caminho {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 48rem;
+  margin-top: 4px;
+}

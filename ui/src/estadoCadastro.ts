@@ -251,12 +251,7 @@ export function linhas(texto: string): string[] {
     .filter(Boolean);
 }
 
-/** `1.284` (pt-BR). */
-export function numero(n: number): string {
-  return n.toLocaleString("pt-BR");
-}
+export { numero } from "./formatacao";
 
-/** `1 repositório`, `2 repositórios`. */
-export function plural(n: number, um: string, varios: string): string {
-  return `${numero(n)} ${n === 1 ? um : varios}`;
-}
+/** `1 repositório`, `2 repositórios` (alias de `contar`, em `formatacao.ts`). */
+export { contar as plural } from "./formatacao";

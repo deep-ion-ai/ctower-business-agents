@@ -75,7 +75,7 @@ describe("TelaProjeto", () => {
     const mapa = await screen.findByRole("region", { name: "Mapa do projeto" });
     expect(await within(mapa).findByText(/ainda não foi gerado/)).toBeInTheDocument();
     fireEvent.click(within(mapa).getByRole("button", { name: "Mapear agora" }));
-    expect(await within(mapa).findByText(/14 arquivo\(s\): SQL 3/)).toBeInTheDocument();
+    expect(await within(mapa).findByText(/14 arquivos: SQL 3/)).toBeInTheDocument();
     expect(falsa.api.mapear).toHaveBeenCalledWith(PROJETO);
     expect(within(mapa).getByText(/backend → db/)).toBeInTheDocument();
 

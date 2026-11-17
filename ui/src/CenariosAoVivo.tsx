@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { contar } from "./formatacao";
 import type {
   Cenario,
   EvidenciaRegistrada,
@@ -397,7 +398,7 @@ export function CenariosAoVivo({
     <section aria-label="Cenários de teste" className="historias-ao-vivo cenarios-ao-vivo">
       <h3>Cenários de teste</h3>
       <p className="muted">
-        {tabelas.length} tabela(s) de decisão · {vigentes.length} cenário(s)
+        {contar(tabelas.length, "tabela", "tabelas")} de decisão · {contar(vigentes.length, "cenário", "cenários")}
         {aConfirmar > 0 && ` · ${aConfirmar} a confirmar`}
         {origem && ` · origem ${origem}`}
       </p>

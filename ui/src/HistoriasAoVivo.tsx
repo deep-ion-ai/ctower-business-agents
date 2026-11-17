@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { contar } from "./formatacao";
 import type {
   Criterio,
   Fundamento,
@@ -501,7 +502,7 @@ export function HistoriasAoVivo({
     <section aria-label="Histórias" className="historias-ao-vivo">
       <h3>Histórias</h3>
       <p className="muted">
-        {historias.length} história(s) · {criterios.length} critério(s)
+        {contar(historias.length, "história", "histórias")} · {contar(criterios.length, "critério", "critérios")}
         {aConfirmar > 0 && ` · ${aConfirmar} a confirmar`}
         {origem && ` · origem ${origem}`}
       </p>

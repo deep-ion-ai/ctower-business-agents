@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { mensagemDe } from "./analise";
+import { ErroTecnico } from "./erroTecnico";
 import { Icon } from "./shell/icons";
 import {
   GITHUB_VAZIO,
@@ -365,7 +366,7 @@ function TokenDoRepositorio({ api, valor }: { api: ApiToken; valor: RepositorioC
       </div>
       <p aria-live="polite" role="status">
         {ocupado === "teste" && <span className="muted">Testando o acesso…</span>}
-        {aviso && <span className={aviso.ok ? "ok-text" : "error-text"}>{aviso.texto}</span>}
+        {aviso && <span className={aviso.ok ? "ok-text" : "error-text"}><ErroTecnico mensagem={aviso.texto} /></span>}
       </p>
     </div>
   );
