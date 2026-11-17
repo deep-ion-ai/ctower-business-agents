@@ -11,8 +11,9 @@
 //! preparo do ambiente com consentimento ficam aqui e servem também ao assistente do
 //! primeiro uso ([`crate::primeiro_uso`]), que cuida da base e do cadastro.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use cba_core::ambiente::Ambiente;
 use cba_core::analise::{Analise, Cliente, EstadoAnalise, EstadoSessao, Fluxo};
@@ -27,7 +28,9 @@ use cba_session::preparo::{Alvo, Preparador, Resultado, Verificacao};
 use cba_session::sessoes::Sessoes;
 use cba_session::terminal::pendencias;
 use cba_tools::evidencias::{ArquivoDoProjeto, intervalo};
+use cba_tools::revalidacao::{self, Vistos};
 use serde::Serialize;
+use tauri::State;
 
 /// Linhas mostradas antes e depois do intervalo de uma evidência.
 pub const CONTEXTO_DO_TRECHO: u32 = 8;
@@ -580,6 +583,49 @@ pub fn link_forja_evidencia(
 }
 
 // ---------------------------------------------------------------------------
+// Código citado que mudou (#216)
+
+/// O que a última conferência das evidências viu, por análise aberta. A tela da
+/// análise chama [`conferir_evidencias`] a cada poucos segundos; com isto, a
+/// conferência só lê os arquivos citados quando algum deles mudou.
+#[derive(Default)]
+pub struct EvidenciasVistas(Mutex<HashMap<(String, String), Vistos>>);
+
+/// Confere as evidências da análise contra o código atual e marca (ou desmarca) o
+/// que está a revalidar. Pega a edição feita na pasta por qualquer caminho (editor,
+/// `git pull`, agente), que o aviso de alteração da sessão não vê: ele não cobre as
+/// pastas de código-fonte (#130). Quando algo muda, a análise é gravada e a tela
+/// recebe o aviso pelo diário de eventos ([`crate::vigia`]), que relê a análise e
+/// mostra (ou tira) a faixa do código alterado. Devolve se a análise mudou.
+pub fn conferir_evidencias(
+    dados: &DiretorioDados,
+    vistas: &EvidenciasVistas,
+    projeto: &str,
+    analise: &str,
+) -> Result<bool, String> {
+    let ambiente = ambiente(dados, projeto)?;
+    let id = id_da_analise(analise)?;
+    let chave = (projeto.to_owned(), id.to_string());
+    // Fora da trava: uma conferência lenta não segura a de outra análise. Duas da
+    // mesma análise ao mesmo tempo só leem os arquivos uma vez a mais.
+    let mut vistos = vistas
+        .0
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(&chave)
+        .cloned()
+        .unwrap_or_default();
+    let mudanca =
+        revalidacao::revalidar_analise(&ambiente, &id, &mut vistos).map_err(|e| e.to_string())?;
+    vistas
+        .0
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .insert(chave, vistos);
+    Ok(mudanca.is_some())
+}
+
+// ---------------------------------------------------------------------------
 // Comandos
 
 #[tauri::command]
@@ -631,6 +677,17 @@ pub async fn carregar_analise_projeto(
 ) -> Result<VistaAnalise, String> {
     let dados = dados()?;
     bloqueante(move || carregar_analise(&dados, &projeto, &analise)).await
+}
+
+#[tauri::command]
+pub async fn conferir_evidencias_analise(
+    vistas: State<'_, Arc<EvidenciasVistas>>,
+    projeto: String,
+    analise: String,
+) -> Result<bool, String> {
+    let dados = dados()?;
+    let vistas = Arc::clone(&vistas);
+    bloqueante(move || conferir_evidencias(&dados, &vistas, &projeto, &analise)).await
 }
 
 #[tauri::command]
@@ -1012,5 +1069,82 @@ mod tests {
         vigias.cancelar(assinatura);
         eprintln!("registro até o estado relido pela tela: pior caso {pior:?}");
         assert!(pior < Duration::from_secs(1), "{pior:?}");
+    }
+
+    /// #216 (T-13 do teste de uso): o analista edita no editor a linha citada por
+    /// uma afirmação, sem sessão nenhuma. A conferência da tela aberta marca a
+    /// afirmação, a tela recebe o aviso pelo diário e relê a análise com a evidência
+    /// a revalidar (a faixa do código alterado); desfazer a edição tira a marca.
+    #[test]
+    fn edicao_na_pasta_fora_da_sessao_chega_a_tela_e_desfazer_tira_a_marca() {
+        let c = crate::teste_base::cenario();
+        let pkg = c.codigo.join(crate::teste_base::PKG);
+        criar_analise(&c.dados, PROJETO, "Como é calculada a multa?", None).unwrap();
+        c.chamar("iniciar_analise", json!({"analise": "A-0001"}));
+        c.chamar(
+            "afirmar",
+            json!({
+                "analise": "A-0001",
+                "secao": "resposta",
+                "texto": "Passada a carência, a multa é de 2% sobre o valor original.",
+                "confianca": "confirmado",
+                "evidencias": [{
+                    "arquivo": crate::teste_base::PKG,
+                    "linha_inicial": 71,
+                    "linha_final": 72,
+                    "trecho": "FN_PARAMETRO('PERC_MULTA_ATRASO') / 100, 2)"
+                }]
+            }),
+        );
+        let vistas = EvidenciasVistas::default();
+        let conferir = || conferir_evidencias(&c.dados, &vistas, PROJETO, "A-0001").unwrap();
+        let estado_da_evidencia = || {
+            let vista = carregar_analise(&c.dados, PROJETO, "A-0001").unwrap();
+            serde_json::to_value(&vista.analise).unwrap()["afirmacoes"][0]["evidencias"][0]
+                ["estado"]
+                .clone()
+        };
+        assert!(!conferir());
+        assert!(!conferir());
+        assert_eq!(estado_da_evidencia(), "valida");
+
+        let vigias = Vigias::em(c.dados.eventos(), INTERVALO);
+        let (tx, rx) = mpsc::channel();
+        let tx = Mutex::new(tx);
+        let assinatura = vigias.assinar(PROJETO, move |aviso| {
+            let _ = tx.lock().unwrap().send(aviso.clone());
+        });
+        let aviso_da_analise = || {
+            let limite = Instant::now() + Duration::from_secs(2);
+            while let Ok(aviso) = rx.recv_timeout(limite.saturating_duration_since(Instant::now()))
+            {
+                if matches!(
+                    &aviso,
+                    Aviso::Mudanca { analise, mudanca: Mudanca::Afirmacao, .. } if analise == "A-0001"
+                ) {
+                    return true;
+                }
+            }
+            false
+        };
+
+        let original = std::fs::read(&pkg).unwrap();
+        c.mudar_o_codigo_da_multa();
+        assert!(conferir());
+        assert!(aviso_da_analise(), "a tela não recebeu o aviso");
+        assert_eq!(estado_da_evidencia(), "a-revalidar");
+        let vista = carregar_analise(&c.dados, PROJETO, "A-0001").unwrap();
+        assert_eq!(
+            vista.analise.afirmacoes[0].estado,
+            EstadoAfirmacao::ARevalidar
+        );
+        // Sem nova edição, nada é gravado de novo.
+        assert!(!conferir());
+
+        std::fs::write(&pkg, original).unwrap();
+        assert!(conferir());
+        assert!(aviso_da_analise(), "a tela não recebeu o aviso da volta");
+        assert_eq!(estado_da_evidencia(), "valida");
+        vigias.cancelar(assinatura);
     }
 }

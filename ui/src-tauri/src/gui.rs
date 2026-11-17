@@ -41,6 +41,7 @@ pub fn rodar() {
         .manage(vigias)
         .manage(Arc::new(base::VigiaBase::default()))
         .manage(Arc::new(clones::CloneEmAndamento::default()))
+        .manage(Arc::new(analise::EvidenciasVistas::default()))
         .invoke_handler(tauri::generate_handler![
             estado_clientes,
             terminal::listar_projetos,
@@ -65,6 +66,7 @@ pub fn rodar() {
             analise::criar_analise_pergunta,
             analise::carregar_analise_projeto,
             analise::trecho_evidencia_projeto,
+            analise::conferir_evidencias_analise,
             analise::link_forja_evidencia_projeto,
             conversa::opcoes_conversa_analise,
             conversa::abrir_conversa_por_link,
