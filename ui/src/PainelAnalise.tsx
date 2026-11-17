@@ -613,6 +613,7 @@ export function PainelAnalise({
             {vista && (
               <span
                 className="badge"
+                title={ROTULO_ANALISE[vista.analise.estado]}
                 data-tone={vista.analise.estado === "aprovada" ? "done" : undefined}
               >
                 {ROTULO_ANALISE[vista.analise.estado]}
@@ -623,6 +624,7 @@ export function PainelAnalise({
                 className="badge selo-aprovacao"
                 role="status"
                 aria-label="Situação da aprovação"
+                title={selo}
                 data-tone={pronta ? "done" : agenteTrabalhando ? "running" : "attention"}
               >
                 {selo}
