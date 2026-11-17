@@ -86,6 +86,7 @@ fn regra(
             status: StatusRegra::Confirmada,
             evidencias,
             origem: Some(caminho("analises/A-0001.md")),
+            informada: None,
         },
         format!("\n{corpo}\n"),
     )

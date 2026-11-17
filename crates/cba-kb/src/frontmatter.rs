@@ -578,6 +578,11 @@ pub struct FrontmatterRegra {
     /// (`analises/A-0193.md`).
     #[serde(default)]
     pub origem: Option<CaminhoRelativo>,
+    /// Regra informada por uma pessoa, em resposta a perguntas da pauta (#123):
+    /// não tem evidência de código e fica marcada como tal
+    /// ([`crate::informada`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub informada: Option<crate::informada::RegraInformada>,
 }
 
 impl Frontmatter for FrontmatterRegra {

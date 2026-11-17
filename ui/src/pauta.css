@@ -1,0 +1,96 @@
+/* Pauta de perguntas pendentes (#123). Cores só por token de theme.css. */
+
+.pauta-cabecalho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.pauta-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.pauta-grupo h4 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.pauta-itens {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.pauta-itens > li {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  padding: 8px 14px;
+  min-width: 0;
+}
+
+.pauta-itens > li[data-antiga] {
+  border-color: var(--border-strong);
+  background: var(--running-bg);
+}
+
+.pauta-texto {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.pauta-contexto,
+.pauta-origens {
+  overflow-wrap: anywhere;
+}
+
+.pauta-origens {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+
+.pauta-item-acoes,
+.pauta-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 12px;
+}
+
+.pauta-resposta {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.pauta-resposta label {
+  display: grid;
+  gap: 4px;
+}
+
+.pauta-resposta .pauta-opcao {
+  display: block;
+}
+
+.pauta-detalhe {
+  display: grid;
+  gap: 6px;
+  margin: 4px 0 8px 22px;
+}
+
+.pauta-aviso-regra {
+  margin: 0;
+  padding: 6px 10px;
+  border-left: 3px solid var(--border-strong);
+  background: var(--running-bg);
+}

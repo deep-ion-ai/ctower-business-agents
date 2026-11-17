@@ -70,6 +70,7 @@ pub mod memoria;
 mod modelo_dados;
 mod paginacao;
 pub mod parecer;
+pub mod pauta;
 pub mod perguntar;
 pub mod prompts;
 pub mod rastreabilidade;

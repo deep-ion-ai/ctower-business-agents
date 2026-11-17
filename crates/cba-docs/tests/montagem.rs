@@ -475,6 +475,7 @@ fn conteudo_regra(g: &Gabarito) -> Conteudo<FrontmatterRegra> {
         status: StatusRegra::Confirmada,
         evidencias,
         origem: Some(c("analises/A-0001.md")),
+        informada: None,
     };
     Conteudo::da_regra(fm, &r.enunciado)
 }

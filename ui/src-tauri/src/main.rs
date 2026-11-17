@@ -42,6 +42,7 @@ mod conversa;
 mod demandas;
 mod gui;
 mod inicio;
+mod pauta;
 mod primeiro_uso;
 mod projeto;
 mod prompts;
