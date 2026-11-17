@@ -13,10 +13,12 @@ import { ROTULO_SESSAO } from "./DocumentoAoVivo";
 import type { Tela } from "./Navegacao";
 import { NovaAnalise } from "./NovaAnalise";
 import { NovaHistorias } from "./NovaHistorias";
+import { MatrizRastreabilidade } from "./MatrizRastreabilidade";
 import { NovaReuniao } from "./NovaReuniao";
 import { BotoesProximoPasso } from "./ProximoPasso";
 import { RegistrosDemanda } from "./RegistrosDemanda";
 import type { ApiRegistros } from "./registros";
+import type { ApiRastreabilidade } from "./rastreabilidade";
 import { apiReuniaoTauri, type ApiReuniao } from "./reunioes";
 
 const FLUXOS: Fluxo[] = [
@@ -51,6 +53,7 @@ export function PainelDemanda({
   navegar,
   apiReuniao,
   apiRegistros,
+  apiRastreabilidade,
 }: {
   api: ApiConhecimento;
   projeto: string;
@@ -60,6 +63,8 @@ export function PainelDemanda({
   apiReuniao?: ApiReuniao;
   /** Premissas, decisões, riscos e restrições (#122); para testes. */
   apiRegistros?: ApiRegistros;
+  /** Matriz de rastreabilidade (#121); para testes. */
+  apiRastreabilidade?: ApiRastreabilidade;
 }) {
   const [painel, setPainel] = useState<Painel | null>(null);
   const [falha, setFalha] = useState<string | null>(null);
@@ -243,6 +248,14 @@ export function PainelDemanda({
           </ol>
         )}
       </section>
+
+      <MatrizRastreabilidade
+        projeto={projeto}
+        demanda={d.id}
+        navegar={navegar}
+        api={apiRastreabilidade}
+        atualizacao={painel}
+      />
 
       <ItensDasAtas
         titulo="Pendências"

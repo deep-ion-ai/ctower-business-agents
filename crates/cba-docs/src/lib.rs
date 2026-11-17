@@ -2,7 +2,7 @@
 //!
 //! Templates por tipo de documento e montagem dos documentos (spec, seção 7.3).
 //! Exportação para Markdown e Word: [`exportar_markdown`], [`exportar_word`] e
-//! [`gravar_exportacao`] (módulo `exportacao`).
+//! [`gravar_exportacao`] (módulo `exportacao`). Planilha do Excel: [`xlsx`].
 //!
 //! O agente registra dados estruturados pelas ferramentas MCP, e o app monta cada
 //! documento a partir do template do tipo:
@@ -36,6 +36,7 @@ mod exportacao;
 mod figura;
 mod modelo;
 mod montagem;
+mod planilha;
 mod template;
 mod word;
 
@@ -65,6 +66,7 @@ pub use modelo::{
     Secao, TABELAS_DECISAO, VALORES_LIMITE, modelo,
 };
 pub use montagem::{ErroMontagem, Montado};
+pub use planilha::{Aba, xlsx};
 pub use template::{Aviso, Origem, Template, Templates, arquivo_do_template};
 
 /// Nome da crate, para diagnóstico.

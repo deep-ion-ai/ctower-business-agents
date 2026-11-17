@@ -32,10 +32,17 @@
 //! título, área, status, frontmatter em JSON e hash), `regra`, `termo` e `analise`
 //! como linhas de `documento` do tipo correspondente, as evidências das regras e as
 //! ligações entre documentos (`origem`, `analise`, `demanda`).
+//!
+//! Rastreabilidade (#121): o índice lê também o estado de cada análise
+//! (`analises/A-NNNN.estado.json`) e guarda histórias, critérios, cenários e
+//! afirmações com o que citam, para a matriz da demanda ([`Indice::matriz`]) e a
+//! consulta reversa por regra ou arquivo ([`Indice::dependentes`]). Veja o módulo
+//! `rastro`.
 
 mod busca;
 mod esquema;
 mod extracao;
+mod rastro;
 mod vigia;
 
 use std::collections::HashMap;
@@ -55,6 +62,10 @@ use crate::frontmatter::TipoDocumento;
 use crate::id::IdDemanda;
 
 pub use busca::{Consulta, Modo, Pagina, Resultado};
+pub use rastro::{
+    Alerta, AlvoReverso, AnaliseRastro, CenarioRastro, CriterioRastro, DemandaRastro, Dependentes,
+    EvidenciaRastro, Lacuna, LinhaHistoria, LinhaRegra, Matriz, RegraRastro,
+};
 pub use vigia::Vigia;
 
 /// Nome do arquivo do índice, dentro da pasta de índice do diretório de dados
@@ -312,7 +323,9 @@ impl Indice {
         let versao: i64 = tx.query_row("PRAGMA user_version", [], |l| l.get(0))?;
         if versao != esquema::VERSAO {
             tx.execute_batch(esquema::APAGAR)?;
+            tx.execute_batch(rastro::APAGAR)?;
             tx.execute_batch(esquema::CRIAR)?;
+            tx.execute_batch(rastro::CRIAR)?;
             tx.pragma_update(None, "user_version", esquema::VERSAO)?;
         }
         let guardada: Option<String> = tx
@@ -322,6 +335,7 @@ impl Indice {
             .optional()?;
         if guardada.as_deref() != Some(raiz.as_str()) {
             tx.execute_batch(esquema::LIMPAR)?;
+            tx.execute_batch(rastro::LIMPAR)?;
             tx.execute(
                 "INSERT OR REPLACE INTO meta (chave, valor) VALUES ('base', ?1)",
                 [&raiz],
@@ -354,16 +368,18 @@ impl Indice {
 
     fn sincronizar_com(&mut self, do_zero: bool) -> ResultadoIndice<Sincronizacao> {
         let encontrados = self.listar_base()?;
+        let estados = rastro::listar(&self.base)?;
         if !do_zero {
             // Primeiro sem trava: se nada mudou, não grava nada.
             let guardados = guardados(&self.conexao)?;
             let nada_mudou = encontrados.len() == guardados.len()
                 && encontrados
                     .iter()
-                    .all(|e| guardados.get(&e.caminho).is_some_and(|g| g.igual(e)));
+                    .all(|e| guardados.get(&e.caminho).is_some_and(|g| g.igual(e)))
+                && rastro::nada_mudou(&self.conexao, &estados)?;
             if nada_mudou {
                 return Ok(Sincronizacao {
-                    inalterados: encontrados.len(),
+                    inalterados: encontrados.len() + estados.len(),
                     ..Default::default()
                 });
             }
@@ -374,6 +390,7 @@ impl Indice {
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
         if do_zero {
             tx.execute_batch(esquema::LIMPAR)?;
+            tx.execute_batch(rastro::LIMPAR)?;
         }
         // De novo dentro da transação: outro processo pode ter acabado de gravar.
         let mut guardados = guardados(&tx)?;
@@ -441,6 +458,7 @@ impl Indice {
             esquema::remover(&tx, g.id)?;
             resumo.removidos += 1;
         }
+        rastro::sincronizar(&tx, &estados, &mut resumo, agora)?;
         tx.commit()?;
         if resumo.mudou() {
             tracing::debug!(?resumo, "índice da base sincronizado");
