@@ -1820,6 +1820,27 @@
   height: auto;
   margin: 0 auto;
 }
+.diagrama-figura[data-zoom] svg {
+  max-width: none;
+  width: calc(100% * var(--zoom));
+}
+.diagrama-zoom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.diagrama[data-tela-cheia] {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  margin: 0;
+  padding: 12px;
+  background: var(--bg, var(--surface));
+}
+.diagrama[data-tela-cheia] .diagrama-figura {
+  flex: 1;
+  overflow: auto;
+}
 .diagrama-figura[data-clicavel] [data-id],
 .diagrama-figura[data-clicavel] g.node {
   cursor: pointer;

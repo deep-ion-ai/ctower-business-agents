@@ -5,6 +5,7 @@ import type {
   EstadoAnalise,
   EstadoSessao,
   Evidencia,
+  Diagrama,
   Pergunta,
   SessaoVista,
   VistaAnalise,
@@ -70,8 +71,13 @@ const ORDEM_SECAO = new Map(SECOES_CONHECIDAS.map(([s], i) => [s, i]));
 export function SeloSessao({ sessao }: { sessao: SessaoVista | null }) {
   if (!sessao) {
     return (
-      <p className="selo-sessao sem-sessao" role="status" aria-label="Estado da sessão">
-        Nenhuma sessão ligada ainda: ela aparece quando o agente chama a primeira ferramenta.
+      <p
+        className="selo-sessao sem-sessao"
+        role="status"
+        aria-label="Estado da sessão"
+      >
+        Nenhuma sessão ligada ainda: ela aparece quando o agente chama a
+        primeira ferramenta.
       </p>
     );
   }
@@ -93,23 +99,27 @@ export function chaveEvidencia(e: Evidencia): string {
 
 /** Onde uma evidência foi escolhida: o trecho abre logo abaixo dela (#130). */
 export type OrigemEvidencia =
-  | `afirmacao-${number}`
-  | `sugestao-${number}`
-  | `diagrama-${number}`;
+  `afirmacao-${number}` | `sugestao-${number}` | `diagrama-${number}`;
 
 /**
  * As evidências de uma origem, sem repetir: é por elas que a aba Código navega
  * (anterior e próxima) a partir da evidência aberta (#185).
  */
-export function evidenciasDaOrigem(analise: Analise, origem: OrigemEvidencia): Evidencia[] {
+export function evidenciasDaOrigem(
+  analise: Analise,
+  origem: OrigemEvidencia,
+): Evidencia[] {
   const [tipo, n] = origem.split("-");
   const numero = Number(n);
   let lista: Evidencia[];
   if (tipo === "afirmacao") {
-    lista = analise.afirmacoes.find((a) => a.numero === numero)?.evidencias ?? [];
+    lista =
+      analise.afirmacoes.find((a) => a.numero === numero)?.evidencias ?? [];
   } else if (tipo === "diagrama") {
     const d = (analise.diagramas ?? []).find((x) => x.numero === numero);
-    lista = [...(d?.nos ?? []), ...(d?.arestas ?? [])].flatMap((el) => el.evidencias ?? []);
+    lista = [...(d?.nos ?? []), ...(d?.arestas ?? [])].flatMap(
+      (el) => el.evidencias ?? [],
+    );
   } else {
     const e = analise.sugestoes.find((s) => s.numero === numero)?.evidencia;
     lista = e ? [e] : [];
@@ -188,12 +198,17 @@ export function DocumentoAoVivo({
     diagramas.map((d) => d.secao),
   );
   const perguntas = [...analise.perguntas].sort(
-    (a, b) => Number(a.estado !== "aberta") - Number(b.estado !== "aberta") || a.numero - b.numero,
+    (a, b) =>
+      Number(a.estado !== "aberta") - Number(b.estado !== "aberta") ||
+      a.numero - b.numero,
   );
   const sugestoes = analise.sugestoes.filter((s) => s.estado !== "recusada");
   // As evidências das sugestões ficam recolhidas: o analista abre o código quando quer (#130).
-  const [comCodigo, setComCodigo] = useState<ReadonlySet<OrigemEvidencia>>(new Set());
-  const codigoVisivel = (o: OrigemEvidencia) => comCodigo.has(o) || origemTrecho === o;
+  const [comCodigo, setComCodigo] = useState<ReadonlySet<OrigemEvidencia>>(
+    new Set(),
+  );
+  const codigoVisivel = (o: OrigemEvidencia) =>
+    comCodigo.has(o) || origemTrecho === o;
   const alternarCodigo = (o: OrigemEvidencia) => {
     setComCodigo((atual) => {
       const novo = new Set(atual);
@@ -203,7 +218,9 @@ export function DocumentoAoVivo({
     });
     // Fechar o código fecha também o trecho aberto dali.
     if (codigoVisivel(o) && origemTrecho === o && evidenciaAberta) {
-      const ev = evidenciasDaOrigem(analise, o).find((e) => chaveEvidencia(e) === evidenciaAberta);
+      const ev = evidenciasDaOrigem(analise, o).find(
+        (e) => chaveEvidencia(e) === evidenciaAberta,
+      );
       if (aoFecharEvidencia) aoFecharEvidencia();
       else if (ev) aoAbrirEvidencia(ev, o);
     }
@@ -213,11 +230,19 @@ export function DocumentoAoVivo({
   const [filtro, setFiltro] = useState<FiltroRevisao>("todos");
   const [atual, setAtual] = useState<number | null>(null);
   const [comando, setComando] = useState<ComandoAfirmacao | null>(null);
-  const resumo = useMemo(() => resumir(analise.afirmacoes), [analise.afirmacoes]);
-  const contagem = useMemo(() => contagemPorFiltro(analise.afirmacoes), [analise.afirmacoes]);
+  const resumo = useMemo(
+    () => resumir(analise.afirmacoes),
+    [analise.afirmacoes],
+  );
+  const contagem = useMemo(
+    () => contagemPorFiltro(analise.afirmacoes),
+    [analise.afirmacoes],
+  );
   const comFaixa = !!rev && !deHistorias && resumo.total > 0;
   // As afirmações que o filtro mostra, na ordem do documento: por elas J e K andam.
-  const visiveis = secoes.flatMap(([, afs]) => afs.filter((a) => passaNoFiltro(a, filtro)));
+  const visiveis = secoes.flatMap(([, afs]) =>
+    afs.filter((a) => passaNoFiltro(a, filtro)),
+  );
   const posicaoAtual = visiveis.findIndex((a) => a.numero === atual);
   const afirmacaoAtual = posicaoAtual >= 0 ? visiveis[posicaoAtual] : undefined;
 
@@ -225,29 +250,49 @@ export function DocumentoAoVivo({
   const corpo = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (atual === null) return;
-    const el = corpo.current?.querySelector<HTMLElement>(`[data-testid="afirmacao-${atual}"]`);
+    const el = corpo.current?.querySelector<HTMLElement>(
+      `[data-testid="afirmacao-${atual}"]`,
+    );
     if (!el || el.contains(document.activeElement)) return;
     el.scrollIntoView?.({ block: "nearest" });
     el.focus({ preventScroll: true });
   }, [atual]);
 
-  const ir = (numero: number | undefined) => numero !== undefined && setAtual(numero);
+  const ir = (numero: number | undefined) =>
+    numero !== undefined && setAtual(numero);
   useAtalhosRevisao(comFaixa, {
-    aoProxima: () => ir(visiveis[posicaoAtual < 0 ? 0 : Math.min(posicaoAtual + 1, visiveis.length - 1)]?.numero),
+    aoProxima: () =>
+      ir(
+        visiveis[
+          posicaoAtual < 0 ? 0 : Math.min(posicaoAtual + 1, visiveis.length - 1)
+        ]?.numero,
+      ),
     aoAnterior: () => ir(visiveis[Math.max(posicaoAtual - 1, 0)]?.numero),
     aoConfirmar: () => {
-      if (!rev || rev.ocupado || !afirmacaoAtual || afirmacaoAtual.estado === "confirmada") return;
+      if (
+        !rev ||
+        rev.ocupado ||
+        !afirmacaoAtual ||
+        afirmacaoAtual.estado === "confirmada"
+      )
+        return;
       const proxima = visiveis[posicaoAtual + 1] ?? visiveis[posicaoAtual - 1];
       rev
-        .aoDecidir({ tipo: "afirmacao", numero: afirmacaoAtual.numero, estado: "confirmada" })
+        .aoDecidir({
+          tipo: "afirmacao",
+          numero: afirmacaoAtual.numero,
+          estado: "confirmada",
+        })
         // Decidida a afirmação, segue para a próxima do filtro.
         .then(() => ir(proxima?.numero))
         .catch(() => undefined);
     },
     aoIncorreta: () =>
-      afirmacaoAtual && setComando({ numero: afirmacaoAtual.numero, tipo: "incorreta" }),
+      afirmacaoAtual &&
+      setComando({ numero: afirmacaoAtual.numero, tipo: "incorreta" }),
     aoAprofundar: () =>
-      afirmacaoAtual && setComando({ numero: afirmacaoAtual.numero, tipo: "aprofundar" }),
+      afirmacaoAtual &&
+      setComando({ numero: afirmacaoAtual.numero, tipo: "aprofundar" }),
   });
 
   const abertas = perguntas.filter((p) => p.estado === "aberta").length;
@@ -265,7 +310,12 @@ export function DocumentoAoVivo({
           pendencias: afs.filter(pendente).length,
           vazia: afs.length === 0,
         })),
-        { id: ID_PERGUNTAS, titulo: "Perguntas", pendencias: abertas, vazia: perguntas.length === 0 },
+        {
+          id: ID_PERGUNTAS,
+          titulo: "Perguntas",
+          pendencias: abertas,
+          vazia: perguntas.length === 0,
+        },
         ...(comPropostas
           ? [
               {
@@ -295,10 +345,19 @@ export function DocumentoAoVivo({
       )}
 
       {comFaixa && (
-        <FaixaRevisao resumo={resumo} contagem={contagem} filtro={filtro} aoFiltrar={setFiltro} />
+        <FaixaRevisao
+          resumo={resumo}
+          contagem={contagem}
+          filtro={filtro}
+          aoFiltrar={setFiltro}
+        />
       )}
 
-      <div className="documento-corpo" data-com-sumario={comSumario || undefined} ref={corpo}>
+      <div
+        className="documento-corpo"
+        data-com-sumario={comSumario || undefined}
+        ref={corpo}
+      >
         {comSumario && <SumarioAnalise itens={itensSumario} />}
         <div className="documento-conteudo">
           {/* Na revisão, o texto revisado já aparece no parecer, com as marcas. */}
@@ -325,9 +384,13 @@ export function DocumentoAoVivo({
           ) : (
             <section aria-label="Afirmações">
               <h3>Afirmações</h3>
-              {secoes.length === 0 && <p className="muted">Nenhuma afirmação registrada ainda.</p>}
+              {secoes.length === 0 && (
+                <p className="muted">Nenhuma afirmação registrada ainda.</p>
+              )}
               {secoes.map(([secao, afirmacoes]) => {
-                const mostradas = afirmacoes.filter((a) => passaNoFiltro(a, filtro));
+                const mostradas = afirmacoes.filter((a) =>
+                  passaNoFiltro(a, filtro),
+                );
                 return (
                   <div key={secao} className="secao">
                     <h4 id={`secao-${secao}`} tabIndex={-1}>
@@ -344,13 +407,17 @@ export function DocumentoAoVivo({
                           perguntas={analise.perguntas}
                           revisao={rev}
                           evidenciaAberta={evidenciaAberta}
-                          aoAbrirEvidencia={(e) => aoAbrirEvidencia(e, `diagrama-${d.numero}`)}
+                          aoAbrirEvidencia={(e) =>
+                            aoAbrirEvidencia(e, `diagrama-${d.numero}`)
+                          }
                           trecho={trecho}
                           trechoAberto={origemTrecho === `diagrama-${d.numero}`}
                         />
                       ))}
                     {afirmacoes.length > 0 && mostradas.length === 0 && (
-                      <p className="muted">Nenhuma afirmação desta seção neste filtro.</p>
+                      <p className="muted">
+                        Nenhuma afirmação desta seção neste filtro.
+                      </p>
                     )}
                     {mostradas.length > 0 && (
                       <ol className="afirmacoes cartoes">
@@ -362,9 +429,15 @@ export function DocumentoAoVivo({
                             atual={a.numero === atual}
                             comando={comando}
                             evidenciaAberta={evidenciaAberta}
-                            aoAbrirEvidencia={(e) => aoAbrirEvidencia(e, `afirmacao-${a.numero}`)}
+                            aoAbrirEvidencia={(e) =>
+                              aoAbrirEvidencia(e, `afirmacao-${a.numero}`)
+                            }
                             aoFocar={() => setAtual(a.numero)}
-                            trecho={origemTrecho === `afirmacao-${a.numero}` ? trecho : undefined}
+                            trecho={
+                              origemTrecho === `afirmacao-${a.numero}`
+                                ? trecho
+                                : undefined
+                            }
                           />
                         ))}
                       </ol>
@@ -384,7 +457,12 @@ export function DocumentoAoVivo({
             ) : (
               <ol className="perguntas cartoes">
                 {perguntas.map((p) => (
-                  <CartaoPergunta key={p.numero} pergunta={p} revisao={rev} />
+                  <CartaoPergunta
+                    key={p.numero}
+                    pergunta={p}
+                    revisao={rev}
+                    diagramas={diagramas}
+                  />
                 ))}
               </ol>
             )}
@@ -401,7 +479,10 @@ export function DocumentoAoVivo({
               ) : (
                 <ol className="propostas cartoes">
                   {analise.termos.map((t) => (
-                    <li key={`termo-${t.numero}`} className={`termo cartao estado-${t.estado}`}>
+                    <li
+                      key={`termo-${t.numero}`}
+                      className={`termo cartao estado-${t.estado}`}
+                    >
                       <div className="cartao-cabeca">
                         <span className="badge">termo do glossário</span>
                         {t.estado !== "proposto" && (
@@ -428,7 +509,10 @@ export function DocumentoAoVivo({
                     </li>
                   ))}
                   {sugestoes.map((s) => (
-                    <li key={`sugestao-${s.numero}`} className="sugestao cartao">
+                    <li
+                      key={`sugestao-${s.numero}`}
+                      className="sugestao cartao"
+                    >
                       <div className="cartao-cabeca">
                         <span className="badge">alteração sugerida</span>
                         {s.estado === "aceita" && (
@@ -446,16 +530,24 @@ export function DocumentoAoVivo({
                         <BotaoCodigo
                           quantidade={1}
                           aberto={codigoVisivel(`sugestao-${s.numero}`)}
-                          aoAlternar={() => alternarCodigo(`sugestao-${s.numero}`)}
+                          aoAlternar={() =>
+                            alternarCodigo(`sugestao-${s.numero}`)
+                          }
                         />
                       )}
                       {s.evidencia && codigoVisivel(`sugestao-${s.numero}`) && (
                         <button
                           type="button"
                           className="btn btn-sm evidencia"
-                          aria-pressed={evidenciaAberta === chaveEvidencia(s.evidencia)}
+                          aria-pressed={
+                            evidenciaAberta === chaveEvidencia(s.evidencia)
+                          }
                           onClick={() =>
-                            s.evidencia && aoAbrirEvidencia(s.evidencia, `sugestao-${s.numero}`)
+                            s.evidencia &&
+                            aoAbrirEvidencia(
+                              s.evidencia,
+                              `sugestao-${s.numero}`,
+                            )
                           }
                         >
                           {chaveEvidencia(s.evidencia)}
@@ -487,9 +579,27 @@ export function DocumentoAoVivo({
 }
 
 /** Cartão de uma pergunta para o negócio (#184), com a resposta no próprio cartão. */
-function CartaoPergunta({ pergunta: p, revisao }: { pergunta: Pergunta; revisao?: Revisao }) {
+function CartaoPergunta({
+  pergunta: p,
+  revisao,
+  diagramas = [],
+}: {
+  pergunta: Pergunta;
+  revisao?: Revisao;
+  diagramas?: Diagrama[];
+}) {
+  const origem = p.origem;
+  const diagrama =
+    origem?.tipo === "aresta"
+      ? diagramas.find((d) => d.numero === origem.diagrama)
+      : undefined;
+  const rotulo = (c: string) =>
+    diagrama?.nos.find((n) => n.chave === c)?.rotulo ?? c;
   return (
-    <li className={`pergunta cartao estado-${p.estado}`} data-testid={`pergunta-${p.numero}`}>
+    <li
+      className={`pergunta cartao estado-${p.estado}`}
+      data-testid={`pergunta-${p.numero}`}
+    >
       <div className="cartao-cabeca">
         <span className="cartao-numero" title={`Pergunta ${p.numero}`}>
           {p.numero}
@@ -514,6 +624,13 @@ function CartaoPergunta({ pergunta: p, revisao }: { pergunta: Pergunta; revisao?
           {(p.evidencias ?? []).map((e) => ` · ${chaveEvidencia(e)}`).join("")}
         </span>
       )}
+      {origem?.tipo === "aresta" && (
+        <span className="muted origem-pergunta">
+          {diagrama?.tipo === "dados" ? "da relação" : "da transição"}{" "}
+          {rotulo(origem.de)} → {rotulo(origem.para)} do D-{origem.diagrama}
+          {(p.evidencias ?? []).map((e) => ` · ${chaveEvidencia(e)}`).join("")}
+        </span>
+      )}
       {p.estado === "respondida" && (
         <p className="muted resposta-pergunta">
           Resposta: {p.resposta}
@@ -529,7 +646,10 @@ function CartaoPergunta({ pergunta: p, revisao }: { pergunta: Pergunta; revisao?
  * Afirmações por seção, na ordem em que cada seção apareceu; `outras` são seções que
  * têm só diagramas (entram com a lista de afirmações vazia).
  */
-function agrupar(afirmacoes: Afirmacao[], outras: string[] = []): [string, Afirmacao[]][] {
+function agrupar(
+  afirmacoes: Afirmacao[],
+  outras: string[] = [],
+): [string, Afirmacao[]][] {
   const grupos = new Map<string, Afirmacao[]>();
   for (const s of outras) grupos.set(s, []);
   for (const a of [...afirmacoes].sort((x, y) => x.numero - y.numero)) {

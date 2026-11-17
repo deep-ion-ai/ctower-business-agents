@@ -1,5 +1,10 @@
 import { memo, useEffect, useState, type MouseEvent } from "react";
-import { desenharMermaid, elementoDoId, temaDaTela, type ElementoDoDiagrama } from "./mermaid";
+import {
+  desenharMermaid,
+  elementoDoId,
+  temaDaTela,
+  type ElementoDoDiagrama,
+} from "./mermaid";
 
 type Estado =
   | { tipo: "carregando" }
@@ -26,14 +31,19 @@ export const DiagramaMermaid = memo(function DiagramaMermaid({
   codigo,
   titulo,
   aoClicar,
+  ampliavel,
 }: {
   codigo: string;
   /** Nome acessível da figura. */
   titulo?: string;
   aoClicar?: (elemento: ElementoDoDiagrama) => void;
+  /** Oferece "Tela cheia" (diagrama grande, texto pequeno no painel). */
+  ampliavel?: boolean;
 }) {
   const [estado, setEstado] = useState<Estado>({ tipo: "carregando" });
   const [verCodigo, setVerCodigo] = useState(false);
+  const [cheia, setCheia] = useState(false);
+  const [zoom, setZoom] = useState(1);
   const tema = temaDaTela();
 
   useEffect(() => {
@@ -41,7 +51,8 @@ export const DiagramaMermaid = memo(function DiagramaMermaid({
     setEstado({ tipo: "carregando" });
     desenharMermaid(codigo, tema).then(
       (svg) => vivo && setEstado({ tipo: "pronto", svg }),
-      (e: unknown) => vivo && setEstado({ tipo: "erro", mensagem: mensagemDoErro(e) }),
+      (e: unknown) =>
+        vivo && setEstado({ tipo: "erro", mensagem: mensagemDoErro(e) }),
     );
     return () => {
       vivo = false;
@@ -52,9 +63,12 @@ export const DiagramaMermaid = memo(function DiagramaMermaid({
     return (
       <div className="aviso-diagrama" role="alert">
         <p>
-          <strong>Diagrama não renderizado.</strong> O código Mermaid tem um erro e foi mantido
-          como texto; o restante do documento não foi afetado.
-          {estado.mensagem && <span className="muted"> ({estado.mensagem})</span>}
+          <strong>Diagrama não renderizado.</strong> O código Mermaid tem um
+          erro e foi mantido como texto; o restante do documento não foi
+          afetado.
+          {estado.mensagem && (
+            <span className="muted"> ({estado.mensagem})</span>
+          )}
         </p>
         <pre>
           <code>{codigo}</code>
@@ -66,12 +80,57 @@ export const DiagramaMermaid = memo(function DiagramaMermaid({
   const clicar = (e: MouseEvent<HTMLDivElement>) => {
     if (!aoClicar) return;
     const alvo = (e.target as Element).closest?.("[data-id], g.node");
-    const elemento = elementoDoId(alvo?.getAttribute("data-id") ?? alvo?.getAttribute("id"));
+    const elemento = elementoDoId(
+      alvo?.getAttribute("data-id") ?? alvo?.getAttribute("id"),
+    );
     if (elemento) aoClicar(elemento);
   };
 
   return (
-    <figure className="diagrama" aria-label={titulo ?? "Diagrama"}>
+    <figure
+      className="diagrama"
+      data-tela-cheia={cheia || undefined}
+      aria-label={titulo ?? "Diagrama"}
+    >
+      {ampliavel && estado.tipo === "pronto" && (
+        <div
+          className="diagrama-zoom"
+          role="group"
+          aria-label="Zoom do diagrama"
+        >
+          <button
+            type="button"
+            className="btn btn-sm"
+            aria-label="Diminuir"
+            disabled={zoom <= 0.5}
+            onClick={() =>
+              setZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))
+            }
+          >
+            −
+          </button>
+          <span className="muted" aria-live="polite">
+            {Math.round(zoom * 100)}%
+          </span>
+          <button
+            type="button"
+            className="btn btn-sm"
+            aria-label="Ampliar"
+            disabled={zoom >= 4}
+            onClick={() => setZoom((z) => Math.min(4, +(z + 0.25).toFixed(2)))}
+          >
+            +
+          </button>
+          <button
+            type="button"
+            className="btn btn-sm"
+            aria-pressed={cheia}
+            onClick={() => setCheia((c) => !c)}
+          >
+            {cheia ? "Sair da tela cheia" : "Tela cheia"}
+          </button>
+        </div>
+      )}
       {estado.tipo === "carregando" ? (
         <pre className="diagrama-carregando" aria-busy="true">
           <code>{codigo}</code>
@@ -80,6 +139,8 @@ export const DiagramaMermaid = memo(function DiagramaMermaid({
         <div
           className="diagrama-figura"
           data-clicavel={aoClicar ? "true" : undefined}
+          style={zoom === 1 ? undefined : { ["--zoom" as string]: zoom }}
+          data-zoom={zoom === 1 ? undefined : zoom}
           onClick={clicar}
           dangerouslySetInnerHTML={{ __html: estado.svg }}
         />
