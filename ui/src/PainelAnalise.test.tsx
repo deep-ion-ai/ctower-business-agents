@@ -10,6 +10,7 @@ import { PainelAnalise, type Abertura } from "./PainelAnalise";
 import type { VistaAnalise } from "./analise";
 import type { ApiRevisao, Prontidao } from "./revisao";
 import type { OpcoesConversa } from "./conversa";
+import { INTERVALO_DAS_EVIDENCIAS_MS } from "./useAnaliseAoVivo";
 import {
   AFIRMACAO_MULTA,
   apiAnaliseFalsa,
@@ -145,6 +146,57 @@ describe("PainelAnalise", () => {
     await screen.findByText("Nenhuma afirmação registrada ainda.");
     unmount();
     expect(parar).toHaveBeenCalled();
+  });
+
+  it("confere as evidências a cada poucos segundos e mostra e tira a faixa do código alterado", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const revalidar = {
+        ...AFIRMACAO_MULTA,
+        estado: "a-revalidar" as const,
+        evidencias: [{ ...AFIRMACAO_MULTA.evidencias[0], estado: "a-revalidar" as const }],
+      };
+      const { api, unmount } = montar(
+        { tipo: "reabrir" },
+        vistaFicticia({}, { versao: 1, afirmacoes: [AFIRMACAO_MULTA] }),
+      );
+      expect(await screen.findByText(AFIRMACAO_MULTA.texto)).toBeInTheDocument();
+      expect(api.conferirEvidencias).toHaveBeenCalledWith("faturamento-exemplo", "A-0001");
+      expect(screen.queryByRole("region", { name: "Código alterado" })).not.toBeInTheDocument();
+
+      // O analista edita o arquivo citado: a próxima conferência marca a afirmação.
+      api.carregarAnalise.mockResolvedValue(
+        vistaFicticia({}, { versao: 2, afirmacoes: [revalidar] }),
+      );
+      api.conferirEvidencias.mockResolvedValue(true);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(INTERVALO_DAS_EVIDENCIAS_MS);
+      });
+      const faixa = await screen.findByRole("region", { name: "Código alterado" });
+      expect(within(faixa).getByText("db/03_pkg_cobranca.sql")).toBeInTheDocument();
+      expect(within(faixa).getByText(/afirmação 1/)).toBeInTheDocument();
+
+      // Desfeita a edição, a marca sai e a faixa some.
+      api.carregarAnalise.mockResolvedValue(
+        vistaFicticia({}, { versao: 3, afirmacoes: [AFIRMACAO_MULTA] }),
+      );
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(INTERVALO_DAS_EVIDENCIAS_MS);
+      });
+      await waitFor(() =>
+        expect(screen.queryByRole("region", { name: "Código alterado" })).not.toBeInTheDocument(),
+      );
+
+      // Fora da tela, não confere mais.
+      unmount();
+      const chamadas = api.conferirEvidencias.mock.calls.length;
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3 * INTERVALO_DAS_EVIDENCIAS_MS);
+      });
+      expect(api.conferirEvidencias).toHaveBeenCalledTimes(chamadas);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("abre o trecho da evidência com as linhas citadas destacadas", async () => {

@@ -575,6 +575,12 @@ export interface ApiAnalise extends ApiAmbiente {
   trechoEvidencia(projeto: string, arquivo: string, inicio: number, fim: number): Promise<Trecho>;
   /** Passa a receber os avisos do projeto; devolve a função que para. */
   vigiar(projeto: string, aoAviso: (a: AvisoAnalise) => void): Promise<() => void>;
+  /**
+   * Confere as evidências da análise contra o código atual (#216): marca o que
+   * mudou na pasta (editor, `git pull`, agente) e desmarca o que voltou. Quando muda,
+   * o aviso chega pela vigia. Devolve se a análise mudou.
+   */
+  conferirEvidencias(projeto: string, analise: string): Promise<boolean>;
   /** Prompts prontos da análise; lista vazia se o comando não existir (antes da #32). */
   promptsProntos(projeto: string, analise: string): Promise<PromptPronto[]>;
   /**
@@ -603,6 +609,8 @@ export const apiAnaliseTauri: ApiAnalise = {
   carregarAnalise: (projeto, analise) => invoke("carregar_analise_projeto", { projeto, analise }),
   trechoEvidencia: (projeto, arquivo, inicio, fim) =>
     invoke("trecho_evidencia_projeto", { projeto, arquivo, inicio, fim }),
+  conferirEvidencias: (projeto, analise) =>
+    invoke("conferir_evidencias_analise", { projeto, analise }),
   async vigiar(projeto, aoAviso) {
     const canal = new Channel<AvisoAnalise>();
     canal.onmessage = aoAviso;

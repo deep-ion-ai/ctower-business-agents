@@ -138,6 +138,7 @@ export function apiAnaliseFalsa(vista: VistaAnalise = vistaFicticia()) {
       return Promise.resolve(parar);
     }),
     promptsProntos: vi.fn((): Promise<PromptPronto[]> => Promise.resolve([])),
+    conferirEvidencias: vi.fn((): Promise<boolean> => Promise.resolve(false)),
     linkForja: vi.fn((): Promise<LinkForja | null> => Promise.resolve(null)),
   } satisfies ApiAnalise;
   const avisar = (a: AvisoAnalise) => avisos.forEach((f) => f(a));
