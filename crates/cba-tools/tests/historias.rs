@@ -182,6 +182,7 @@ impl Cenario {
                             commit: None,
                         }],
                         origem: None,
+                        informada: None,
                     },
                     "\n# RN-FAT-008\n",
                 ),

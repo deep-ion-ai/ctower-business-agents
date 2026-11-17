@@ -146,6 +146,7 @@ impl Cenario {
                     })
                     .collect(),
                 origem: None,
+                informada: None,
             },
             "# Regra de exemplo\n",
         );

@@ -293,6 +293,8 @@ pub fn painel_demanda(
             for item in &estado.itens {
                 let destino = match item.tipo {
                     TipoItem::Pendencia => &mut pendencias,
+                    // Respondida pela pauta de perguntas (#123): não está mais em aberto.
+                    TipoItem::Duvida if item.resposta.is_some() => continue,
                     TipoItem::Duvida => &mut duvidas,
                     TipoItem::ProximoPasso => &mut proximos_passos,
                     _ => continue,

@@ -7,7 +7,8 @@ use std::sync::Arc;
 
 use crate::{
     acessos, alteracoes, ambiente_teste, analise, base, clones, configuracoes, conversa, demandas,
-    inicio, primeiro_uso, projeto, prompts, repositorios, reunioes, revisao, terminal, vigia,
+    inicio, pauta, primeiro_uso, projeto, prompts, rastreabilidade, registros, repositorios,
+    reunioes, revisao, terminal, vigia,
 };
 
 pub fn rodar() {
@@ -93,6 +94,19 @@ pub fn rodar() {
             demandas::encerrar_demanda_app,
             demandas::reabrir_demanda_app,
             demandas::painel_demanda_app,
+            registros::registros_demanda_app,
+            registros::criar_registro_app,
+            registros::editar_registro_app,
+            registros::validar_premissa_app,
+            registros::aceitar_proposta_app,
+            registros::recusar_proposta_app,
+            pauta::pauta_perguntas_app,
+            pauta::definir_destinatario_app,
+            pauta::registrar_resposta_app,
+            pauta::exportar_pauta_app,
+            rastreabilidade::matriz_demanda_app,
+            rastreabilidade::dependentes_base_app,
+            rastreabilidade::exportar_matriz_app,
             reunioes::previa_transcript_app,
             reunioes::criar_reuniao_app,
             reunioes::ata_reuniao_app,

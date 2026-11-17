@@ -138,6 +138,7 @@ fn gravar_regra_e_termo_do_gabarito(amb: &Ambiente, id: &str) {
                     status: StatusRegra::Confirmada,
                     evidencias,
                     origem: None,
+                    informada: None,
                 },
                 format!("\n{}\n", texto(&regra["enunciado"])),
             ),

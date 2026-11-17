@@ -430,6 +430,10 @@ pub fn rotulo_do_tipo(tipo: TipoDocumento) -> &'static str {
         T::ParecerRevisao => "Parecer de revisão",
         T::Historias => "Histórias e critérios de aceite",
         T::CenariosTeste => "Cenários de teste",
+        T::Premissa => "Premissa",
+        T::Decisao => "Decisão",
+        T::Risco => "Risco",
+        T::Restricao => "Restrição",
     }
 }
 
