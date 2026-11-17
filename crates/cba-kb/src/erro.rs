@@ -84,6 +84,10 @@ pub enum Erro {
     /// A reunião não tem estado em nenhuma demanda do projeto.
     #[error("reunião {id} não encontrada no projeto `{projeto}`")]
     ReuniaoInexistente { projeto: String, id: IdReuniao },
+    /// O registro (premissa, decisão, risco ou restrição) não existe em nenhuma
+    /// demanda do projeto.
+    #[error("registro {id} não encontrado no projeto `{projeto}`")]
+    RegistroInexistente { projeto: String, id: String },
     #[error(transparent)]
     Caminho(#[from] CaminhoInvalido),
     #[error(transparent)]
