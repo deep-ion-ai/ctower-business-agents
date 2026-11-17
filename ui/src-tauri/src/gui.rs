@@ -98,6 +98,7 @@ pub fn rodar() {
             reunioes::analisar_proximo_passo_app,
             base::buscar_base,
             base::abrir_documento_base,
+            base::salvar_documento_base,
             base::vigiar_base,
             base::parar_vigia_base,
             repositorios::salvar_repositorios_app,

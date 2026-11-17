@@ -43,7 +43,12 @@ fn busca_encontra_a_regra_e_a_analise_de_origem() {
     assert!(b.qualquer_palavra);
     assert!(b.total >= 2);
 
-    assert_eq!(buscar(&c.dados, "  ", None, &[], 0).unwrap().total, 0);
+    // Sem texto, lista os documentos (a Base abre com a lista, não vazia).
+    let lista = buscar(&c.dados, "  ", None, &[], 0).unwrap();
+    assert!(lista.total >= 2, "{lista:?}");
+    assert!(lista.resultados.iter().all(|r| r.trecho.is_empty()));
+    let so_termos = buscar(&c.dados, "", Some(PROJETO), &["termo".into()], 0).unwrap();
+    assert!(so_termos.total >= 1 && so_termos.total < lista.total);
     assert_eq!(
         buscar(&c.dados, "multa", Some("outro"), &[], 0)
             .unwrap()
@@ -98,6 +103,54 @@ fn abre_a_regra_com_a_ligacao_para_a_analise_de_origem() {
     let r = abrir_documento(&c.dados, &format!("{PROJETO}/regras-do-projeto.md")).unwrap();
     assert_eq!(r.titulo, "Regras do projeto");
     assert!(r.campos.is_empty());
+}
+
+/// Critério de aceite da #220: editar a regra, salvar e buscar o termo novo a encontra,
+/// com o frontmatter intacto.
+#[test]
+fn salvar_documento_mantem_o_frontmatter_e_reindexa() {
+    let c = cenario();
+    let aprovacao = c.aprovar_analise_da_multa();
+    let regra = format!("{PROJETO}/{}", aprovacao.regras[0].arquivo);
+    let antes = abrir_documento(&c.dados, &regra).unwrap();
+    assert!(buscar(&c.dados, "zebrafish", None, &[], 0).unwrap().total == 0);
+
+    let novo = format!(
+        "{}\nO termo zebrafish agora faz parte da regra.[^1][^2]",
+        antes.markdown
+    );
+    let salvo = salvar_documento(&c.dados, &regra, &novo, &antes.versao).unwrap();
+    assert!(salvo.markdown.contains("zebrafish"));
+    assert_ne!(salvo.versao, antes.versao);
+    assert_eq!(salvo.campos, antes.campos);
+    assert_eq!(salvo.titulo, antes.titulo);
+
+    let disco = std::fs::read_to_string(c.dir.path().join("base").join(&regra)).unwrap();
+    assert!(disco.starts_with("---\n"), "{disco}");
+    assert!(disco.ends_with("[^2]\n"), "{disco}");
+
+    let b = buscar(&c.dados, "zebrafish", None, &[], 0).unwrap();
+    assert_eq!(caminhos(&b), [regra.as_str()]);
+}
+
+#[test]
+fn salvar_documento_recusa_quando_o_arquivo_mudou_fora_do_app() {
+    let c = cenario();
+    let aprovacao = c.aprovar_analise_da_multa();
+    let regra = format!("{PROJETO}/{}", aprovacao.regras[0].arquivo);
+    let aberto = abrir_documento(&c.dados, &regra).unwrap();
+    let arquivo = c.dir.path().join("base").join(&regra);
+    let texto = std::fs::read_to_string(&arquivo).unwrap();
+    std::fs::write(&arquivo, format!("{texto}\nmexido por fora\n")).unwrap();
+
+    let erro = salvar_documento(&c.dados, &regra, "meu texto", &aberto.versao).unwrap_err();
+    assert!(erro.starts_with(CONFLITO), "{erro}");
+    assert!(
+        std::fs::read_to_string(&arquivo)
+            .unwrap()
+            .contains("mexido por fora")
+    );
+    assert!(salvar_documento(&c.dados, "_templates/x.md", "x", "v").is_err());
 }
 
 #[test]
