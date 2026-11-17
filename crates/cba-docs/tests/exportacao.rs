@@ -3,7 +3,9 @@
 //! trechos citados.
 //!
 //! O Markdown exportado é comparado com `tests/esperados/exportados/`. O `.docx`
-//! é conferido abrindo o zip e lendo o XML, sem depender do Word.
+//! é conferido abrindo o zip e lendo o XML, sem depender do Word. O HTML da
+//! análise de impacto e da ata também é comparado com o texto esperado
+//! (`exportados/*.html`).
 //!
 //! Para atualizar os textos esperados: `CBA_ATUALIZAR_ESPERADOS=1 cargo test -p
 //! cba-docs`, e revise o diff.
@@ -14,10 +16,11 @@ use std::io::{Cursor, Read};
 use std::path::{Path, PathBuf};
 
 use cba_docs::{
-    CodigoEmPasta, ErroFigura, Figura, Figuras, FonteDeTrechos, Formato, OpcoesExportacao,
-    blocos_mermaid, exportar, exportar_com_links, exportar_markdown, exportar_word,
-    gravar_exportacao,
+    ArquivoHtml, AvisoHtml, CodigoEmPasta, ErroFigura, Figura, Figuras, FonteDeTrechos, Formato,
+    LinksDeEvidencia, ModeloHtml, OpcoesExportacao, Origem, blocos_mermaid, exportar,
+    exportar_com_links, exportar_html, exportar_markdown, exportar_word, gravar_exportacao,
 };
+use cba_kb::Base;
 use quick_xml::Reader;
 use quick_xml::events::Event;
 
@@ -424,7 +427,7 @@ fn docx_e_deterministico() {
 fn grava_nos_dois_formatos() {
     let pasta = tempfile::tempdir().unwrap();
     let d = documento("sugestao");
-    for formato in [Formato::Markdown, Formato::Word] {
+    for formato in [Formato::Markdown, Formato::Word, Formato::Html] {
         let destino = pasta.path().join(format!("S-0001.{}", formato.extensao()));
         gravar_exportacao(
             &destino,
@@ -443,7 +446,7 @@ fn grava_nos_dois_formatos() {
     assert!(opcoes.evidencias && opcoes.trechos && !opcoes.perguntas);
 }
 
-/// Com `CBA_EXPORTAR_EM=<pasta>`, grava a exportação de cada documento nos dois
+/// Com `CBA_EXPORTAR_EM=<pasta>`, grava a exportação de cada documento nos três
 /// formatos, para abrir no Word e no LibreOffice (critério de aceite da #10).
 #[test]
 fn exporta_para_conferencia_manual() {
@@ -452,7 +455,7 @@ fn exporta_para_conferencia_manual() {
     };
     let pasta = PathBuf::from(pasta);
     for nome in DOCUMENTOS {
-        for formato in [Formato::Markdown, Formato::Word] {
+        for formato in [Formato::Markdown, Formato::Word, Formato::Html] {
             gravar_exportacao(
                 &pasta.join(format!("{nome}.{}", formato.extensao())),
                 &documento(nome),
@@ -628,4 +631,371 @@ fn docx_com_figura_e_deterministico() {
     let a = word_com(&d, &figuras, &OpcoesExportacao::default());
     let b = word_com(&d, &figuras, &OpcoesExportacao::default());
     assert_eq!(a, b);
+}
+
+// ---------------------------------------------------------------------------
+// HTML (#166)
+
+const DATA: &str = "2026-11-17";
+
+struct Forja;
+
+impl LinksDeEvidencia for Forja {
+    fn link(
+        &self,
+        arquivo: &str,
+        linhas: cba_kb::frontmatter::Linhas,
+        commit: Option<&str>,
+    ) -> Option<String> {
+        Some(format!(
+            "https://forja.exemplo/blob/{}/{arquivo}#L{}-L{}",
+            commit?, linhas.inicio, linhas.fim
+        ))
+    }
+}
+
+fn html(nome: &str, opcoes: &OpcoesExportacao) -> String {
+    let r = exportar_html(
+        &documento(nome),
+        opcoes,
+        Some(&codigo()),
+        Some((&Forja, Some("1a2b3c4d"))),
+        &Figuras::default(),
+        &ModeloHtml::padrao(),
+        DATA,
+    );
+    assert!(r.avisos.is_empty(), "{nome}: {:?}", r.avisos);
+    r.html
+}
+
+/// Tags do HTML (o que vai de `<` a `>`). Como todo texto do documento sai
+/// escapado, um `<` real só abre tag.
+fn tags(html: &str) -> Vec<String> {
+    html.split('<')
+        .skip(1)
+        .filter_map(|t| t.split_once('>').map(|(tag, _)| tag.to_ascii_lowercase()))
+        .collect()
+}
+
+/// Confere que o HTML não tem script, recurso externo nem HTML cru.
+fn autocontido(nome: &str, html: &str) {
+    let permitidas = [
+        "!doctype",
+        "html",
+        "head",
+        "meta",
+        "title",
+        "style",
+        "body",
+        "header",
+        "main",
+        "footer",
+        "section",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "p",
+        "a",
+        "strong",
+        "em",
+        "del",
+        "sup",
+        "sub",
+        "code",
+        "pre",
+        "ul",
+        "ol",
+        "li",
+        "blockquote",
+        "table",
+        "thead",
+        "tbody",
+        "tr",
+        "th",
+        "td",
+        "hr",
+        "br",
+        "span",
+        "div",
+        "figure",
+        "img",
+    ];
+    for tag in tags(html) {
+        let tag = tag.trim_start_matches('/');
+        let nome_da_tag = tag.split_whitespace().next().unwrap_or("");
+        assert!(permitidas.contains(&nome_da_tag), "{nome}: tag <{tag}>");
+        let atributos = &tag[nome_da_tag.len()..];
+        for atributo in atributos.split_whitespace() {
+            assert!(!atributo.starts_with("on"), "{nome}: evento em <{tag}>");
+        }
+        if let Some((_, src)) = atributos.split_once("src=\"") {
+            assert!(
+                src.starts_with("data:image/png;base64,"),
+                "{nome}: src externo"
+            );
+        }
+        if let Some((_, href)) = atributos.split_once("href=\"") {
+            assert!(
+                ["#", "https://", "http://", "mailto:"]
+                    .iter()
+                    .any(|p| href.starts_with(p)),
+                "{nome}: href {href}"
+            );
+        }
+    }
+    let css = html.to_ascii_lowercase();
+    assert!(
+        !css.contains("@import") && !css.contains("url("),
+        "{nome}: recurso no CSS"
+    );
+}
+
+#[test]
+fn html_exportado_da_analise_e_da_ata() {
+    for nome in ["analise-impacto", "ata"] {
+        let h = html(nome, &OpcoesExportacao::default());
+        conferir(
+            &pasta_do_crate().join(format!("tests/esperados/exportados/{nome}.html")),
+            &h,
+        );
+        autocontido(nome, &h);
+        assert!(
+            h.starts_with("<!doctype html>\n"),
+            "{nome}: comentário do template saiu"
+        );
+        assert!(!h.contains("{{"), "{nome}");
+    }
+}
+
+#[test]
+fn html_de_cada_documento_e_autocontido() {
+    for nome in DOCUMENTOS {
+        let h = html(nome, &OpcoesExportacao::default());
+        autocontido(nome, &h);
+        // Sem frontmatter nem links para a base.
+        assert!(!h.contains("\ntipo: "), "{nome}");
+        assert!(!h.contains(".md\""), "{nome}");
+    }
+}
+
+#[test]
+fn html_da_analise_tem_cabecalho_selos_notas_e_apendice() {
+    let h = html("analise-impacto", &OpcoesExportacao::default());
+    assert!(h.contains("<title>A-0002 · Parcelamento da fatura para pessoa jurídica</title>"));
+    assert!(h.contains("Análise de impacto · faturamento-exemplo"));
+    assert!(h.contains("Status: rascunho · Exportado em 2026-11-17"));
+    assert!(h.contains("<strong class=\"selo selo-confirmado\">[confirmado]</strong>"));
+    assert!(h.contains("<strong class=\"selo selo-a-confirmar\">[a confirmar]</strong>"));
+    // 10 citações, cada uma com id e link para a nota; cada nota volta para
+    // todas as suas citações.
+    assert_eq!(h.matches("<sup class=\"ref-nota\">").count(), 10);
+    for k in 1..=6 {
+        assert!(
+            h.contains(&format!("<div class=\"nota\" id=\"nota-{k}\">")),
+            "nota {k}"
+        );
+        let citacoes = h
+            .matches(&format!("href=\"#nota-{k}\" id=\"ref-{k}-"))
+            .count();
+        assert!(citacoes >= 1, "nota {k} sem citação");
+        for i in 1..=citacoes {
+            assert!(h.contains(&format!("id=\"ref-{k}-{i}\"")));
+            assert!(
+                h.contains(&format!("href=\"#ref-{k}-{i}\"")),
+                "volta {k}-{i}"
+            );
+        }
+    }
+    // Citação da nota com link para a forja.
+    assert!(h.contains(
+        "<a href=\"https://forja.exemplo/blob/1a2b3c4d/db/02_parametros.sql#L15-L16\"><code>db/02_parametros.sql:15-16</code></a>"
+    ), "{h}");
+    // Apêndice numa seção própria, com o código numerado.
+    assert!(h.contains("<section class=\"apendice\">\n<h2>Apêndice: trechos citados</h2>"));
+    assert!(h.contains("<pre><code class=\"language-sql\">15 | "));
+    // Link para a sugestão vira texto.
+    assert!(h.contains("S-0001 · Limitar a tela ao parâmetro MAX_PARCELAS"));
+    // Estilo de impressão.
+    assert!(h.contains("@media print"));
+}
+
+#[test]
+fn html_respeita_as_opcoes() {
+    let sem = OpcoesExportacao {
+        evidencias: false,
+        perguntas: false,
+        ..OpcoesExportacao::default()
+    };
+    let h = html("analise-impacto", &sem);
+    assert!(!h.contains("<sup class=\"ref-nota\""));
+    assert!(!h.contains("<div class=\"nota\""));
+    assert!(!h.contains("<h2>Evidências</h2>"));
+    assert!(!h.contains("<h2>Perguntas"));
+    assert!(!h.contains("Apêndice"));
+    assert!(h.contains("<h2>Riscos</h2>"));
+
+    let sem_trechos = OpcoesExportacao {
+        trechos: false,
+        ..OpcoesExportacao::default()
+    };
+    let h = html("analise-impacto", &sem_trechos);
+    assert!(h.contains("<h2>Evidências</h2>"));
+    assert!(!h.contains("Apêndice: trechos citados"));
+}
+
+#[test]
+fn html_escapa_o_html_do_documento() {
+    let doc = "---\ntipo: termo\nid: T-1\nprojeto: x<script>\n---\n\n# Termo <script>alert(1)</script>\n\nTexto com <b>negrito</b> e <script>alert('x')</script>.\n\n<script src=\"https://mal.exemplo/x.js\"></script>\n\n<img src=\"https://mal.exemplo/a.png\" onerror=\"alert(1)\">\n\n[clique](javascript:alert(1)) e ![logo](https://mal.exemplo/logo.png)\n";
+    let r = exportar_html(
+        doc,
+        &OpcoesExportacao::default(),
+        None,
+        None,
+        &Figuras::default(),
+        &ModeloHtml::padrao(),
+        DATA,
+    );
+    let h = &r.html;
+    autocontido("documento com HTML", h);
+    assert!(!h.contains("<b>"));
+    assert!(h.contains("&lt;b&gt;negrito&lt;/b&gt;"));
+    assert!(h.contains("&lt;script&gt;alert(&#39;x&#39;)&lt;/script&gt;"));
+    assert!(h.contains("<title>Termo &lt;script&gt;alert(1)&lt;/script&gt;</title>"));
+    assert!(h.contains("· x&lt;script&gt;"));
+    assert!(!h.contains("javascript:"));
+}
+
+#[test]
+fn html_com_figura_embutida_e_apendice_dos_diagramas() {
+    let d = documento("funcionalidade-com-diagrama");
+    let mut figuras = Figuras::novas();
+    figuras
+        .inserir(
+            &blocos_mermaid(&d)[0],
+            Figura::nova(png(300, 100), 0, 0).unwrap(),
+        )
+        .unwrap();
+    let r = exportar_html(
+        &d,
+        &OpcoesExportacao::default(),
+        None,
+        None,
+        &figuras,
+        &ModeloHtml::padrao(),
+        DATA,
+    );
+    autocontido("figura", &r.html);
+    assert!(r.html.contains(
+        "<figure class=\"diagrama\"><img alt=\"Diagrama 1\" width=\"300\" height=\"100\" src=\"data:image/png;base64,iVBORw0KGgo"
+    ));
+    assert!(r.html.contains("Apêndice: código dos diagramas"));
+    // Sem figura: aviso e código.
+    let sem = exportar_html(
+        &d,
+        &OpcoesExportacao::default(),
+        None,
+        None,
+        &Figuras::default(),
+        &ModeloHtml::padrao(),
+        DATA,
+    );
+    assert!(
+        sem.html
+            .contains("<p class=\"aviso\"><strong>Diagrama não renderizado.</strong>")
+    );
+    assert!(
+        sem.html
+            .contains("<pre><code class=\"language-mermaid\">flowchart LR")
+    );
+    assert!(!sem.html.contains("<img"));
+}
+
+#[test]
+fn html_usa_o_template_e_os_tokens_da_base() {
+    let dir = tempfile::tempdir().unwrap();
+    let base = Base::criar(dir.path().join("Base")).unwrap();
+
+    // Sem cópia na base: o padrão, sem avisos.
+    let (modelo, avisos) = ModeloHtml::da_base(&base);
+    assert!(avisos.is_empty());
+    assert_eq!(modelo, ModeloHtml::padrao());
+
+    // Com cópia: template e tokens da base.
+    base.gravar_texto(
+        &ArquivoHtml::Documento.arquivo(),
+        "<!-- instrução -->\n<html><head><style>{{css}}</style></head><body><h1>{{titulo}}</h1>{{inventada}}\n{{conteudo}}</body></html>\n",
+    )
+    .unwrap();
+    base.gravar_texto(
+        &ArquivoHtml::Tokens.arquivo(),
+        ":root { --cor-destaque: #c00; }\n",
+    )
+    .unwrap();
+    let (modelo, avisos) = ModeloHtml::da_base(&base);
+    let origem = Origem::Base(ArquivoHtml::Documento.arquivo());
+    assert_eq!(
+        avisos,
+        vec![AvisoHtml::VariavelDesconhecida {
+            origem: origem.clone(),
+            variavel: "inventada".into(),
+            linha: 2,
+        }]
+    );
+    let r = exportar_html(
+        &documento("regra"),
+        &OpcoesExportacao::default(),
+        None,
+        None,
+        &Figuras::default(),
+        &modelo,
+        DATA,
+    );
+    assert!(
+        r.html
+            .starts_with("<html><head><style>:root { --cor-destaque: #c00; }\n")
+    );
+    assert!(r.html.contains("{{inventada}}"));
+    assert!(!r.html.contains("instrução"));
+    assert_eq!(r.avisos.len(), 1);
+
+    // Template sem `{{conteudo}}`: o documento vai para o fim, com aviso.
+    base.gravar_texto(
+        &ArquivoHtml::Documento.arquivo(),
+        "<body><h1>{{titulo}}</h1></body>",
+    )
+    .unwrap();
+    let (modelo, avisos) = ModeloHtml::da_base(&base);
+    assert_eq!(avisos, vec![AvisoHtml::ConteudoAusente { origem }]);
+    let r = exportar_html(
+        &documento("regra"),
+        &OpcoesExportacao::default(),
+        None,
+        None,
+        &Figuras::default(),
+        &modelo,
+        DATA,
+    );
+    assert!(r.html.contains("<main class=\"documento\">"));
+    assert!(r.html.ends_with("</main>\n</body>"));
+
+    // Cópia ilegível: aviso e o padrão.
+    fs::write(
+        base.caminho(&ArquivoHtml::Tokens.arquivo()),
+        [0xff, 0xfe, 0x00],
+    )
+    .unwrap();
+    let (modelo, avisos) = ModeloHtml::da_base(&base);
+    assert!(
+        avisos
+            .iter()
+            .any(|a| matches!(a, AvisoHtml::Ilegivel { .. })),
+        "{avisos:?}"
+    );
+    assert_eq!(
+        modelo.texto(ArquivoHtml::Tokens),
+        ArquivoHtml::Tokens.padrao()
+    );
 }

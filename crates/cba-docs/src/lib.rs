@@ -1,8 +1,9 @@
 //! Documentos das análises.
 //!
 //! Templates por tipo de documento e montagem dos documentos (spec, seção 7.3).
-//! Exportação para Markdown e Word: [`exportar_markdown`], [`exportar_word`] e
-//! [`gravar_exportacao`] (módulo `exportacao`).
+//! Exportação para Markdown, Word e HTML: [`exportar_markdown`],
+//! [`exportar_word`], [`exportar_html`] (com o template e os tokens CSS de
+//! [`ModeloHtml`]) e [`gravar_exportacao`] (módulo `exportacao`).
 //!
 //! O agente registra dados estruturados pelas ferramentas MCP, e o app monta cada
 //! documento a partir do template do tipo:
@@ -34,7 +35,9 @@ mod conteudo;
 mod diagrama;
 mod exportacao;
 mod figura;
+mod html;
 mod modelo;
+mod modelo_html;
 mod montagem;
 mod template;
 mod word;
@@ -53,9 +56,9 @@ pub use diagrama::{
     Multiplicidade, NoDiagrama, OrigemRelacao, PapelNo, RelacaoDiagrama, TipoDiagrama, mermaid,
 };
 pub use exportacao::{
-    CodigoEmPasta, ErroExportacao, FonteDeTrechos, Formato, LinksDeEvidencia, OpcoesExportacao,
-    exportar, exportar_com_links, exportar_markdown, exportar_markdown_com_links, exportar_word,
-    gravar_exportacao, gravar_exportacao_com_links,
+    CodigoEmPasta, ErroExportacao, FonteDeTrechos, Formato, HtmlExportado, LinksDeEvidencia,
+    OpcoesExportacao, exportar, exportar_com_links, exportar_html, exportar_markdown,
+    exportar_markdown_com_links, exportar_word, gravar_exportacao, gravar_exportacao_com_links,
 };
 pub use figura::{
     ErroFigura, Figura, Figuras, MAXIMO_DE_FIGURAS, TAMANHO_MAXIMO_DA_FIGURA, blocos_mermaid,
@@ -63,6 +66,10 @@ pub use figura::{
 pub use modelo::{
     CENARIOS, FLUXO_PROCESSO, HISTORIAS, MODELO_DADOS, MODELOS, Modelo, Montavel, RASTREABILIDADE,
     Secao, TABELAS_DECISAO, VALORES_LIMITE, modelo,
+};
+pub use modelo_html::{
+    ArquivoHtml, AvisoHtml, FOLHA_PADRAO, ModeloHtml, PASTA_EXPORTACAO, VARIAVEIS_HTML,
+    rotulo_do_tipo, validar_template_html,
 };
 pub use montagem::{ErroMontagem, Montado};
 pub use template::{Aviso, Origem, Template, Templates, arquivo_do_template};
