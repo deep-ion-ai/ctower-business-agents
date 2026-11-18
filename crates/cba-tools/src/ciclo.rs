@@ -65,7 +65,7 @@ fn titulo_da_entrada(entrada: &str) -> String {
 }
 
 /// Branch e commit da primeira pasta do projeto, quando ela está num repositório.
-fn versao_do_codigo(ambiente: &Ambiente) -> Option<VersaoCodigo> {
+pub(crate) fn versao_do_codigo(ambiente: &Ambiente) -> Option<VersaoCodigo> {
     let git = detectar_git(&ambiente.escopo.pastas().first()?.caminho)?;
     Some(VersaoCodigo {
         branch: git.branch,
@@ -103,6 +103,8 @@ fn contagem(analise: &Analise) -> Value {
         "historias": analise.historias_no_documento().count(),
         "tabelas": analise.tabelas_no_documento().count(),
         "cenarios": analise.cenarios_no_documento().count(),
+        "funcionalidades": analise.funcionalidades_no_documento().count(),
+        "pontos_justificados": analise.pontos_justificados.len(),
     })
 }
 
@@ -157,6 +159,12 @@ struct ArgsIniciar {
     reuniao: Option<String>,
     #[serde(default)]
     origem: Option<String>,
+    #[serde(default)]
+    pasta: Option<String>,
+    #[serde(default)]
+    area: Option<String>,
+    #[serde(default)]
+    funcionalidade: Option<String>,
 }
 
 /// Ligações pedidas em `iniciar_analise`: a demanda (gravada em `demanda.id` no
@@ -372,16 +380,19 @@ pub fn iniciar_analise() -> Ferramenta {
          `origem` (a análise A-NNNN de onde vêm as afirmações) ou `demanda`. Para \
          derivar cenários de teste das regras, passe `fluxo: \"cenarios\"` e `origem` \
          (uma análise do código ou de histórias), `demanda` ou `entrada` com as regras. \
-         `demanda` (D-NNNN, opcional) liga a análise a uma demanda do projeto. Siga o \
-         roteiro devolvido.",
+         Para mapear as funcionalidades do projeto a partir do código, passe `fluxo: \
+         \"mapear\"` (e, se quiser, `pasta` ou `area`). Para explicar uma \
+         funcionalidade do catálogo, passe `fluxo: \"explicar\"` e `funcionalidade` \
+         (F-<SIGLA>-NNN). `demanda` (D-NNNN, opcional) liga a análise a uma demanda do \
+         projeto. Siga o roteiro devolvido.",
         json!({
             "type": "object",
             "properties": {
                 "analise": comum::schema_da_analise(),
                 "fluxo": {
                     "type": "string",
-                    "enum": ["perguntar", "explicar", "impacto", "reuniao", "revisar", "historias", "cenarios"],
-                    "description": "Só para criar: perguntar (pergunta ao sistema), explicar (explicar funcionalidade, documento negocial), impacto (análise de impacto de uma demanda), reuniao (montar a ata de uma reunião a partir do transcript; exige `reuniao`), revisar (revisar a qualidade de um requisito ou história contra a base e o código; a entrada é o texto revisado) historias (histórias com critérios de aceite; exige `origem` ou `demanda`) ou cenarios (cenários de teste derivados das regras: tabela de decisão, partição de equivalência e valores-limite; exige `origem`, `demanda` ou `entrada`)."
+                    "enum": ["perguntar", "explicar", "impacto", "reuniao", "revisar", "historias", "cenarios", "mapear"],
+                    "description": "Só para criar: perguntar (pergunta ao sistema), explicar (explicar funcionalidade, documento negocial), impacto (análise de impacto de uma demanda), reuniao (montar a ata de uma reunião a partir do transcript; exige `reuniao`), revisar (revisar a qualidade de um requisito ou história contra a base e o código; a entrada é o texto revisado) historias (histórias com critérios de aceite; exige `origem` ou `demanda`) ou cenarios (cenários de teste derivados das regras: tabela de decisão, partição de equivalência e valores-limite; exige `origem`, `demanda` ou `entrada`) ou mapear (mapa das funcionalidades do projeto a partir do código; `pasta` e `area` opcionais limitam o escopo)."
                 },
                 "entrada": {
                     "type": "string",
@@ -405,7 +416,22 @@ pub fn iniciar_analise() -> Ferramenta {
                     "minLength": 1,
                     "description": "Opcional: a demanda do projeto (D-NNNN) a que a análise pertence. Grava a ligação na análise."
                 },
-                "reuniao": reuniao::schema_da_reuniao()
+                "reuniao": reuniao::schema_da_reuniao(),
+                "pasta": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Só para criar, no fluxo mapear: a pasta do projeto a mapear (\"db\", \"backend/src\"). Sem ela, o projeto inteiro."
+                },
+                "area": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Só para criar, no fluxo mapear: a área a mapear (de preferência uma do projeto.md)."
+                },
+                "funcionalidade": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Só para criar, no fluxo explicar: a funcionalidade do catálogo (F-<SIGLA>-NNN) a explicar. A entrada vem do catálogo, e o documento negocial aprovado fica ligado a ela."
+                }
             },
             "additionalProperties": false
         }),
@@ -423,6 +449,16 @@ pub fn iniciar_analise() -> Ferramenta {
                     .map(reuniao::id_da_reuniao)
                     .transpose()?,
             };
+            if (args.pasta.is_some() || args.area.is_some()) && args.fluxo != Some(Fluxo::Mapear) {
+                return Err(ErroFerramenta::Argumentos(
+                    "`pasta` e `area` só valem para criar uma análise do fluxo `mapear`".into(),
+                ));
+            }
+            if args.funcionalidade.is_some() && args.fluxo != Some(Fluxo::Explicar) {
+                return Err(ErroFerramenta::Argumentos(
+                    "`funcionalidade` só vale para criar uma análise do fluxo `explicar`".into(),
+                ));
+            }
             if args.origem.is_some()
                 && !matches!(args.fluxo, Some(Fluxo::Historias | Fluxo::Cenarios))
             {
@@ -485,6 +521,33 @@ pub fn iniciar_analise() -> Ferramenta {
                         Some(demanda_do_frontmatter(&lida)),
                     )?;
                     ligacao.demanda = None;
+                    (analise.id, true)
+                }
+                (None, Some(Fluxo::Mapear), entrada) => {
+                    if ligacao.reuniao.is_some() {
+                        return Err(ErroFerramenta::Argumentos(
+                            "`reuniao` só vale no fluxo `reuniao`".into(),
+                        ));
+                    }
+                    let analise = crate::mapear::criar_analise_de_mapeamento(
+                        ambiente,
+                        args.pasta.clone(),
+                        args.area.clone(),
+                        entrada,
+                        args.titulo,
+                    )?;
+                    (analise.id, true)
+                }
+                (None, Some(Fluxo::Explicar), _) if args.funcionalidade.is_some() => {
+                    let fid = cba_kb::IdFuncionalidade::analisar(
+                        args.funcionalidade.as_deref().unwrap_or_default().trim(),
+                    )
+                    .map_err(|_| {
+                        ErroFerramenta::Argumentos(
+                            "`funcionalidade`: use F-<SIGLA>-NNN, como F-FAT-001".into(),
+                        )
+                    })?;
+                    let analise = crate::mapear::criar_explicacao(ambiente, &fid)?;
                     (analise.id, true)
                 }
                 (None, Some(Fluxo::Historias), entrada) => {
@@ -739,7 +802,15 @@ fn iniciar(
     let contexto = Contexto::da_analise(ambiente, analise);
     let documento = documento(ambiente, analise);
     let (roteiros, a) = Roteiros::da_base(&ambiente.base);
-    let (roteiro, b) = roteiros.montar(analise, &documento, &contexto.markdown());
+    let mut contexto_md = contexto.markdown();
+    if analise.fluxo == Fluxo::Mapear {
+        contexto_md = format!(
+            "{}\n\n### Catálogo de funcionalidades\n\n{}",
+            contexto_md.trim_end(),
+            crate::mapear::catalogo_para_o_contexto(ambiente)
+        );
+    }
+    let (roteiro, b) = roteiros.montar(analise, &documento, &contexto_md);
     avisos.extend(a.iter().chain(&b).map(aviso_do_roteiro));
 
     let mut texto = String::new();
@@ -754,18 +825,20 @@ fn iniciar(
         + analise.perguntas.len()
         + analise.historias.len()
         + analise.tabelas.len()
-        + analise.cenarios.len();
+        + analise.cenarios.len()
+        + analise.funcionalidades.len();
     if registros > 0 {
         let _ = writeln!(
             texto,
             "Esta análise já tem registros ({} afirmações, {} perguntas abertas, {} \
-             histórias, {} tabelas de decisão, {} cenários). Chame `retomar_analise` para vê-los antes de continuar e não \
+             histórias, {} tabelas de decisão, {} cenários, {} funcionalidades). Chame `retomar_analise` para vê-los antes de continuar e não \
              registre de novo o que já está lá.\n",
             afirmacoes_validas(analise).count(),
             perguntas_abertas(analise).count(),
             analise.historias_no_documento().count(),
             analise.tabelas_no_documento().count(),
-            analise.cenarios_no_documento().count()
+            analise.cenarios_no_documento().count(),
+            analise.funcionalidades_no_documento().count()
         );
     }
     texto.push_str(&roteiro);
@@ -976,6 +1049,10 @@ fn retomar(ambiente: &Ambiente, analise: &Analise, memoria: &Memoria) -> Saida {
     if let Some((texto, _)) = &cenarios {
         t.push_str(texto);
     }
+    let mapa = (fluxo == Fluxo::Mapear).then(|| crate::mapear::para_retomar(ambiente, analise));
+    if let Some((texto, _)) = &mapa {
+        t.push_str(texto);
+    }
     let _ = writeln!(t, "## Afirmações");
     let _ = writeln!(t);
     if analise.afirmacoes.is_empty() {
@@ -1173,6 +1250,7 @@ fn retomar(ambiente: &Ambiente, analise: &Analise, memoria: &Memoria) -> Saida {
             "origem": analise.origem,
             "historias": historias.map(|(_, dados)| dados),
             "cenarios": cenarios.map(|(_, dados)| dados),
+            "funcionalidades": mapa.map(|(_, dados)| dados),
             "afirmacoes": afirmacoes,
             "perguntas": perguntas,
             "sugestoes": sugestoes,
@@ -1382,6 +1460,8 @@ fn concluir(ambiente: &Ambiente, id: &Id) -> Result<Saida, ErroFerramenta> {
         conferir_historias(&atual)?;
     } else if fluxo == Fluxo::Cenarios {
         conferir_cenarios(&atual)?;
+    } else if fluxo == Fluxo::Mapear {
+        crate::mapear::conferir_para_concluir(ambiente, &atual)?;
     } else if afirmacoes_validas(&atual).next().is_none() {
         return Err(ErroFerramenta::Recusa(format!(
             "a análise {id} ainda não tem afirmações. Registre o que apurou com `afirmar` \
@@ -1504,6 +1584,8 @@ fn concluir(ambiente: &Ambiente, id: &Id) -> Result<Saida, ErroFerramenta> {
                 "as histórias (HU-NNNN e título) com o número de critérios, os critérios a confirmar, os alertas INVEST e as quebras propostas",
             Fluxo::Cenarios =>
                 "as tabelas de decisão, o número de cenários por técnica, os limites lidos do código e os cenários a confirmar",
+            Fluxo::Mapear =>
+                "as áreas com o número de funcionalidades de cada uma, as funcionalidades novas e as que já estavam no catálogo, os pontos justificados sem funcionalidade e as perguntas em aberto",
         }
     );
     if !abertas.is_empty() {

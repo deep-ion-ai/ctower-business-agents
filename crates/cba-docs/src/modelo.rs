@@ -2,9 +2,9 @@
 //! campos tirados do frontmatter ([`Montavel`]).
 
 use cba_kb::frontmatter::{
-    Abrangencia, Frontmatter, FrontmatterAnalise, FrontmatterAta, FrontmatterFuncionalidade,
-    FrontmatterRegra, FrontmatterSugestao, FrontmatterTermo, StatusAnalise, StatusAta, StatusRegra,
-    StatusSugestao,
+    Abrangencia, Frontmatter, FrontmatterAnalise, FrontmatterAta, FrontmatterCatalogo,
+    FrontmatterFuncionalidade, FrontmatterRegra, FrontmatterSugestao, FrontmatterTermo,
+    StatusAnalise, StatusAta, StatusRegra, StatusSugestao,
 };
 use cba_kb::{CaminhoRelativo, TipoDocumento, layout};
 
@@ -63,6 +63,11 @@ pub const CENARIOS: &str = "cenarios";
 /// (#120), registrados com `registrar_diagrama`.
 pub const FLUXO_PROCESSO: &str = "fluxo_processo";
 pub const MODELO_DADOS: &str = "modelo_dados";
+/// Seções do mapa de funcionalidades (#208), montadas a partir do estado da
+/// análise, e do catálogo, montadas a partir do estado do catálogo.
+pub const FUNCIONALIDADES_MAPEADAS: &str = "funcionalidades_mapeadas";
+pub const NAO_MAPEADOS: &str = "nao_mapeados";
+pub const INDICE_CATALOGO: &str = "indice";
 
 const fn s(marcador: &'static str, titulo: &'static str) -> Secao {
     Secao { marcador, titulo }
@@ -101,7 +106,7 @@ const CAMPOS_FUNCIONALIDADE_OU_ANALISE: &[&str] = &[
 ];
 
 /// Tipos que têm template, na ordem da spec (seção 7.3).
-pub const MODELOS: [Modelo; 12] = [
+pub const MODELOS: [Modelo; 14] = [
     Modelo {
         tipo: TipoDocumento::AnaliseImpacto,
         secoes: &[
@@ -293,6 +298,43 @@ pub const MODELOS: [Modelo; 12] = [
         ],
         padrao: include_str!("../templates/cenarios-teste.md"),
     },
+    Modelo {
+        tipo: TipoDocumento::MapaFuncionalidades,
+        secoes: &[
+            s("pedido", "Escopo"),
+            s(FUNCIONALIDADES_MAPEADAS, "Funcionalidades"),
+            s(NAO_MAPEADOS, "Pontos de entrada sem funcionalidade"),
+            s(PERGUNTAS, "Perguntas em aberto"),
+            EVIDENCIAS_SECAO,
+        ],
+        campos: &[
+            "id",
+            "titulo",
+            "projeto",
+            "status",
+            "criado",
+            "analista",
+            "versao_do_codigo",
+        ],
+        padrao: include_str!("../templates/mapa-funcionalidades.md"),
+    },
+    Modelo {
+        tipo: TipoDocumento::CatalogoFuncionalidades,
+        secoes: &[
+            s(INDICE_CATALOGO, "Índice"),
+            s(FUNCIONALIDADES_MAPEADAS, "Funcionalidades"),
+            EVIDENCIAS_SECAO,
+        ],
+        campos: &[
+            "titulo",
+            "projeto",
+            "status",
+            "total",
+            "atualizado",
+            "origem",
+        ],
+        padrao: include_str!("../templates/catalogo-funcionalidades.md"),
+    },
 ];
 
 /// Modelo do tipo, se o tipo tiver template (`projeto` e `memoria-area` não têm).
@@ -322,6 +364,9 @@ pub(crate) fn texto_vazio(marcador: &str) -> &'static str {
         CENARIOS => "_Nenhum cenário de teste registrado._",
         FLUXO_PROCESSO => "_Fluxo do processo ainda não registrado._",
         MODELO_DADOS => "_Modelo de dados conceitual ainda não registrado._",
+        FUNCIONALIDADES_MAPEADAS => "_Nenhuma funcionalidade registrada._",
+        NAO_MAPEADOS => "_Todos os pontos de entrada têm funcionalidade._",
+        INDICE_CATALOGO => "_Catálogo vazio._",
         _ => "_Nada registrado._",
     }
 }
@@ -417,6 +462,29 @@ impl Montavel for FrontmatterFuncionalidade {
             ("area", self.area.clone()),
             ("tema", self.tema.clone()),
             ("status", status_analise(self.status).into()),
+            ("origem", origem(caminho, self.origem.as_ref())),
+        ]
+    }
+}
+
+impl Montavel for FrontmatterCatalogo {
+    fn tipo(&self) -> TipoDocumento {
+        self.tipo
+    }
+
+    fn campos(&self, caminho: &CaminhoRelativo) -> Vec<(&'static str, String)> {
+        vec![
+            ("titulo", self.titulo.clone()),
+            ("projeto", self.projeto.clone()),
+            ("status", status_analise(self.status).into()),
+            ("total", self.funcionalidades.to_string()),
+            (
+                "atualizado",
+                self.atualizado
+                    .as_ref()
+                    .map(ToString::to_string)
+                    .unwrap_or_else(|| NAO_INFORMADO.into()),
+            ),
             ("origem", origem(caminho, self.origem.as_ref())),
         ]
     }

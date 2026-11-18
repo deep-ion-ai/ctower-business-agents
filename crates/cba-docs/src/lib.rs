@@ -62,8 +62,9 @@ pub use figura::{
     ErroFigura, Figura, Figuras, MAXIMO_DE_FIGURAS, TAMANHO_MAXIMO_DA_FIGURA, blocos_mermaid,
 };
 pub use modelo::{
-    CENARIOS, FLUXO_PROCESSO, HISTORIAS, MODELO_DADOS, MODELOS, Modelo, Montavel, RASTREABILIDADE,
-    Secao, TABELAS_DECISAO, VALORES_LIMITE, modelo,
+    CENARIOS, FLUXO_PROCESSO, FUNCIONALIDADES_MAPEADAS, HISTORIAS, INDICE_CATALOGO, MODELO_DADOS,
+    MODELOS, Modelo, Montavel, NAO_MAPEADOS, RASTREABILIDADE, Secao, TABELAS_DECISAO,
+    VALORES_LIMITE, modelo,
 };
 pub use montagem::{ErroMontagem, Montado};
 pub use planilha::{Aba, xlsx};

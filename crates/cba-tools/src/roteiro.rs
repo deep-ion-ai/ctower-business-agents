@@ -21,7 +21,7 @@ use crate::documento::secoes_de_afirmacao;
 use crate::editavel::{self, Aviso, Padrao, Texto};
 
 /// Os fluxos, na ordem em que aparecem para o analista.
-pub const FLUXOS: [Fluxo; 7] = [
+pub const FLUXOS: [Fluxo; 8] = [
     Fluxo::Perguntar,
     Fluxo::Explicar,
     Fluxo::Impacto,
@@ -29,6 +29,7 @@ pub const FLUXOS: [Fluxo; 7] = [
     Fluxo::Revisar,
     Fluxo::Historias,
     Fluxo::Cenarios,
+    Fluxo::Mapear,
 ];
 
 /// Pasta dos roteiros dentro de `_templates/`.
@@ -60,6 +61,7 @@ pub fn nome_do_fluxo(fluxo: Fluxo) -> &'static str {
         Fluxo::Revisar => "revisão de qualidade de um requisito ou história",
         Fluxo::Historias => "histórias de usuário com critérios de aceite",
         Fluxo::Cenarios => "cenários de teste derivados das regras",
+        Fluxo::Mapear => "mapa das funcionalidades do projeto a partir do código",
     }
 }
 
@@ -74,6 +76,7 @@ pub fn nome_do_arquivo(fluxo: Fluxo) -> &'static str {
         Fluxo::Revisar => "revisar",
         Fluxo::Historias => "historias",
         Fluxo::Cenarios => "cenarios",
+        Fluxo::Mapear => "mapear",
     }
 }
 
@@ -82,8 +85,8 @@ pub fn nome_do_arquivo(fluxo: Fluxo) -> &'static str {
 /// (#32): perguntar no M1, explicar e impacto no M2; o de reunião, na #140; os de
 /// revisão (#116), histórias (#115) e cenários (#117), na #168, depois da
 /// avaliação com o modelo real (`cba-avaliacao rodar --fluxos
-/// revisar,historias,cenarios`). Hoje todos os fluxos estão revisados; um fluxo
-/// novo entra aqui só depois de ter o roteiro avaliado.
+/// revisar,historias,cenarios`). O de mapear (#208) é provisório: entra aqui
+/// depois de avaliado com o modelo real (`cba-avaliacao rodar --fluxos mapear`).
 pub fn revisado(fluxo: Fluxo) -> bool {
     matches!(
         fluxo,
@@ -106,6 +109,7 @@ pub(crate) fn padrao(fluxo: Fluxo) -> Padrao {
         Fluxo::Revisar => include_str!("../textos/roteiros/revisar.md"),
         Fluxo::Historias => include_str!("../textos/roteiros/historias.md"),
         Fluxo::Cenarios => include_str!("../textos/roteiros/cenarios.md"),
+        Fluxo::Mapear => include_str!("../textos/roteiros/mapear.md"),
     };
     Padrao {
         pasta: PASTA,
@@ -211,6 +215,9 @@ pub fn secoes_obrigatorias(fluxo: Fluxo) -> &'static [&'static str] {
         Fluxo::Historias => &[],
         // Os cenários têm ferramentas próprias; `concluir_analise` confere os cenários.
         Fluxo::Cenarios => &[],
+        // As funcionalidades têm ferramentas próprias; `concluir_analise` confere a
+        // completude dos pontos de entrada.
+        Fluxo::Mapear => &[],
     }
 }
 
@@ -268,7 +275,7 @@ fn titulo_ao_fim(variavel: &str) -> &'static str {
 /// Os roteiros dos fluxos.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Roteiros {
-    por_fluxo: [Texto; 7],
+    por_fluxo: [Texto; 8],
 }
 
 fn indice(fluxo: Fluxo) -> usize {
@@ -280,6 +287,7 @@ fn indice(fluxo: Fluxo) -> usize {
         Fluxo::Revisar => 4,
         Fluxo::Historias => 5,
         Fluxo::Cenarios => 6,
+        Fluxo::Mapear => 7,
     }
 }
 
@@ -643,9 +651,15 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let base = Base::criar(dir.path()).unwrap();
         let criados = Roteiros::copiar_padrao(&base).unwrap();
-        // Todos os roteiros estão revisados (os de revisão, histórias e
-        // cenários, na #168) e vão para a base.
-        assert!(FLUXOS.into_iter().all(revisado));
+        // Os roteiros revisados (os de revisão, histórias e cenários, na #168) vão
+        // para a base; o de mapear (#208) é provisório até a avaliação.
+        assert!(
+            FLUXOS
+                .into_iter()
+                .filter(|f| *f != Fluxo::Mapear)
+                .all(revisado)
+        );
+        assert!(!revisado(Fluxo::Mapear));
         assert_eq!(
             criados,
             [

@@ -10,7 +10,7 @@
 
 mod comum;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
@@ -38,6 +38,39 @@ struct Gabarito {
     cenarios: Vec<Cenarios>,
     #[serde(default)]
     ciclos_vida: Vec<CicloVida>,
+    #[serde(default)]
+    mapeamentos: Vec<Mapeamento>,
+}
+
+/// Catálogo esperado do fluxo "Mapear funcionalidades" (#208).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Mapeamento {
+    id: String,
+    titulo: String,
+    pontos_de_entrada: Vec<PontoEsperado>,
+    funcionalidades: Vec<FuncionalidadeMapeada>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PontoEsperado {
+    chave: String,
+    funcionalidades: Vec<String>,
+    /// Lido pela avaliação (cba-avaliacao); aqui só o formato conta.
+    #[serde(default)]
+    #[allow(dead_code)]
+    justificavel: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FuncionalidadeMapeada {
+    id: String,
+    #[serde(default)]
+    nome: Option<String>,
+    area: String,
+    palavras_chave: Vec<Vec<String>>,
 }
 
 /// Ciclo de vida esperado de uma entidade com campo de status (#119).
@@ -678,6 +711,7 @@ fn conferir(caminho: &Path) -> Vec<String> {
         .chain(gabarito.historias.iter().map(|h| &h.id))
         .chain(gabarito.cenarios.iter().map(|c| &c.id))
         .chain(gabarito.ciclos_vida.iter().map(|c| &c.id))
+        .chain(gabarito.mapeamentos.iter().map(|m| &m.id))
         .chain(
             gabarito
                 .ciclos_vida
@@ -1036,6 +1070,15 @@ fn conferir(caminho: &Path) -> Vec<String> {
         conferir_ciclo_vida(&mut c, cv);
     }
 
+    let do_explicar: BTreeSet<&str> = gabarito
+        .funcionalidades
+        .iter()
+        .map(|f| f.id.as_str())
+        .collect();
+    for m in &gabarito.mapeamentos {
+        conferir_mapeamento(&mut c, &raiz, m, &do_explicar);
+    }
+
     // Toda regra é exercitada por ao menos um fluxo.
     for regra in &gabarito.regras {
         if !citadas_nos_fluxos.contains(regra.id.as_str()) {
@@ -1047,6 +1090,71 @@ fn conferir(caminho: &Path) -> Vec<String> {
     }
 
     c.erros
+}
+
+/// Mapeamento (#208): cada ponto de entrada existe na fixture (o arquivo e o
+/// nome) e aponta para funcionalidades do mapeamento; cada funcionalidade tem um
+/// ponto, área e palavras-chave e, se não é do fluxo explicar, nome.
+fn conferir_mapeamento(
+    c: &mut Conferencia,
+    raiz: &Path,
+    m: &Mapeamento,
+    do_explicar: &BTreeSet<&str>,
+) {
+    let onde = format!("mapeamento {}", m.id);
+    c.texto_preenchido(&onde, "titulo", &m.titulo);
+    let ids: BTreeSet<&str> = m.funcionalidades.iter().map(|f| f.id.as_str()).collect();
+    if ids.len() != m.funcionalidades.len() {
+        c.erro(format!("{onde}: funcionalidade repetida"));
+    }
+    let mut chaves = BTreeSet::new();
+    for p in &m.pontos_de_entrada {
+        let onde = format!("{onde}, ponto {}", p.chave);
+        if !chaves.insert(p.chave.as_str()) {
+            c.erro(format!("{onde}: ponto repetido"));
+        }
+        let Some((arquivo, nome)) = p.chave.split_once('#') else {
+            c.erro(format!("{onde}: chave fora do formato <arquivo>#<nome>"));
+            continue;
+        };
+        let simples = nome.rsplit('.').next().unwrap_or(nome).to_uppercase();
+        match fs::read(raiz.join(arquivo)) {
+            Ok(bytes) => {
+                if !String::from_utf8_lossy(&bytes)
+                    .to_uppercase()
+                    .contains(&simples)
+                {
+                    c.erro(format!("{onde}: `{simples}` não aparece em `{arquivo}`"));
+                }
+            }
+            Err(_) => c.erro(format!("{onde}: arquivo `{arquivo}` não existe na fixture")),
+        }
+        if p.funcionalidades.is_empty() {
+            c.erro(format!("{onde}: sem funcionalidade esperada"));
+        }
+        for f in &p.funcionalidades {
+            if !ids.contains(f.as_str()) {
+                c.erro(format!("{onde}: funcionalidade {f} fora do mapeamento"));
+            }
+        }
+    }
+    for f in &m.funcionalidades {
+        let onde = format!("{onde}, {}", f.id);
+        c.texto_preenchido(&onde, "area", &f.area);
+        c.palavras_chave(&onde, &f.palavras_chave);
+        if !do_explicar.contains(f.id.as_str())
+            && f.nome.as_deref().is_none_or(|n| n.trim().is_empty())
+        {
+            c.erro(format!("{onde}: funcionalidade nova sem `nome`"));
+        }
+        if !m
+            .pontos_de_entrada
+            .iter()
+            .any(|p| p.funcionalidades.iter().any(|x| x == &f.id))
+        {
+            c.erro(format!("{onde}: nenhum ponto de entrada esperado"));
+        }
+    }
 }
 
 /// Ciclo de vida (#119): estados únicos com um inicial, transições entre estados

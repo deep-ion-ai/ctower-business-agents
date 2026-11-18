@@ -543,6 +543,7 @@ pub fn nome_do_fluxo(fluxo: cba_core::analise::Fluxo) -> &'static str {
         Fluxo::Revisar => "revisar",
         Fluxo::Historias => "historias",
         Fluxo::Cenarios => "cenarios",
+        Fluxo::Mapear => "mapear",
     }
 }
 

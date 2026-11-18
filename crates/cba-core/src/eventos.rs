@@ -66,6 +66,9 @@ pub enum Mudanca {
     Parecer,
     /// Diagrama registrado ou substituído.
     Diagrama,
+    /// Funcionalidade registrada, decidida, editada, juntada ou dividida, ou ponto
+    /// de entrada justificado (fluxo `mapear`, #208).
+    Funcionalidade,
 }
 
 /// Uma linha do diário.

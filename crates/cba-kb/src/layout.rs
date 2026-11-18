@@ -51,6 +51,11 @@ pub const PASTAS_DO_PROJETO: [&str; 6] = [
     SUGESTOES,
 ];
 
+/// Catálogo de funcionalidades do projeto (#208), em `funcionalidades/`.
+pub const ARQUIVO_CATALOGO: &str = "catalogo.md";
+/// Estado do catálogo, ao lado dele: a fonte de verdade dos identificadores.
+pub const ARQUIVO_ESTADO_CATALOGO: &str = "catalogo.estado.json";
+
 /// Extensão dos documentos.
 pub const EXTENSAO: &str = "md";
 
@@ -105,6 +110,16 @@ pub fn e_memoria_da_analise(nome: &str) -> bool {
     nome.ends_with(SUFIXO_MEMORIA_DA_ANALISE)
 }
 
+/// `funcionalidades/catalogo.md`.
+pub fn catalogo() -> CaminhoRelativo {
+    caminho(format!("{FUNCIONALIDADES}/{ARQUIVO_CATALOGO}")).expect("nome fixo válido")
+}
+
+/// `funcionalidades/catalogo.estado.json`.
+pub fn estado_do_catalogo() -> CaminhoRelativo {
+    caminho(format!("{FUNCIONALIDADES}/{ARQUIVO_ESTADO_CATALOGO}")).expect("nome fixo válido")
+}
+
 /// `funcionalidades/<slug da área>/<slug do tema>/`, pasta dos documentos de uma
 /// funcionalidade.
 pub fn funcionalidade(area: &str, tema: &str) -> Result<CaminhoRelativo, CaminhoInvalido> {
@@ -139,6 +154,11 @@ mod tests {
             "funcionalidades/cobranca/cancelamento-de-fatura"
         );
         assert!(termo("??").is_err());
+        assert_eq!(catalogo().as_str(), "funcionalidades/catalogo.md");
+        assert_eq!(
+            estado_do_catalogo().as_str(),
+            "funcionalidades/catalogo.estado.json"
+        );
         let id = crate::Id::analisar("A-0007").unwrap();
         assert_eq!(
             memoria_da_analise(&id).as_str(),

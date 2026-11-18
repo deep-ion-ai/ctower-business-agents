@@ -172,6 +172,14 @@ pub struct Aprovacao {
     pub ja_aprovada: bool,
     pub regras: Vec<RegraAprovada>,
     pub termos: Vec<TermoAprovado>,
+    /// No fluxo `mapear` (#208): o que a aprovação fez no catálogo de
+    /// funcionalidades.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub catalogo: Option<crate::mapear::AprovacaoDoMapa>,
+    /// Numa explicação ligada a uma funcionalidade do catálogo: o documento
+    /// negocial gravado em `funcionalidades/<area>/<tema>/`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub documento_negocial: Option<CaminhoRelativo>,
     /// Problemas que não impediram a aprovação (template com marcador
     /// desconhecido, documento da análise não remontado, índice não sincronizado).
     pub avisos: Vec<String>,
@@ -230,7 +238,18 @@ pub fn aprovar_analise(
     let base = Base::abrir(raiz)?;
     let kb = base.projeto(projeto)?;
     let analises = Analises::new(kb, Arc::new(DiarioEventos::em(dados.eventos())));
-    let mut aprovacao = aprovar(&base, &analises, id, opcoes)?;
+    // No mapeamento, as chaves dos pontos de entrada do mapa atual dizem quais
+    // funcionalidades do catálogo perderam o ponto de entrada.
+    let pontos_do_mapa = (analises.carregar(id)?.fluxo == cba_core::analise::Fluxo::Mapear)
+        .then(|| {
+            cba_index::Cadastro::em(dados.projetos())
+                .mapa(projeto)
+                .ok()
+                .flatten()
+                .map(|m| crate::mapear::chaves_do_mapa(&m))
+        })
+        .flatten();
+    let mut aprovacao = aprovar_com_mapa(&base, &analises, id, opcoes, pontos_do_mapa.as_ref())?;
     let sincronizado =
         Indice::abrir(dados.arquivo_do_indice(), &base).and_then(|mut i| i.sincronizar());
     if let Err(e) = sincronizado {
@@ -250,6 +269,18 @@ pub fn aprovar(
     analises: &Analises,
     id: &Id,
     opcoes: &OpcoesAprovacao,
+) -> Result<Aprovacao, ErroAprovacao> {
+    aprovar_com_mapa(base, analises, id, opcoes, None)
+}
+
+/// Como [`aprovar`], com as chaves dos pontos de entrada do mapa atual (para o
+/// catálogo de funcionalidades saber quais perderam o ponto de entrada).
+pub fn aprovar_com_mapa(
+    base: &Base,
+    analises: &Analises,
+    id: &Id,
+    opcoes: &OpcoesAprovacao,
+    pontos_do_mapa: Option<&BTreeSet<String>>,
 ) -> Result<Aprovacao, ErroAprovacao> {
     let kb = analises.projeto();
     let atual = analises.carregar(id)?;
@@ -300,12 +331,43 @@ pub fn aprovar(
     let plano = planejar_regras(&analise, &areas, opcoes)?;
     let regras = gravacao.regras(plano, &origem)?;
     let termos = gravacao.termos(&analise, &areas, opcoes, &origem)?;
+    let mut avisos = gravacao.avisos;
+    let catalogo = if analise.fluxo == cba_core::analise::Fluxo::Mapear {
+        match crate::mapear::fundir_no_catalogo(base, kb, &analise, pontos_do_mapa) {
+            Ok(mut c) => {
+                avisos.append(&mut c.avisos);
+                Some(c)
+            }
+            Err(e) => {
+                tracing::warn!("catálogo de funcionalidades não atualizado");
+                avisos.push(format!(
+                    "o catálogo de funcionalidades não foi atualizado ({e}); aprove de novo \
+                     para tentar outra vez"
+                ));
+                None
+            }
+        }
+    } else {
+        None
+    };
+    let documento_negocial = match crate::mapear::ligar_explicacao(base, kb, &analise) {
+        Ok(d) => d,
+        Err(e) => {
+            tracing::warn!("documento negocial não ligado ao catálogo");
+            avisos.push(format!(
+                "o documento negocial não foi ligado ao catálogo de funcionalidades ({e})"
+            ));
+            None
+        }
+    };
     Ok(Aprovacao {
         analise,
         ja_aprovada,
         regras,
         termos,
-        avisos: gravacao.avisos,
+        catalogo,
+        documento_negocial,
+        avisos,
     })
 }
 

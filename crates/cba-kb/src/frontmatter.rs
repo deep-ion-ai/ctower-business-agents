@@ -70,10 +70,19 @@ pub enum TipoDocumento {
     Risco,
     /// Restrição de uma demanda (#122), em `registros/RE-NNNN.md`.
     Restricao,
+    /// Mapeamento das funcionalidades do projeto a partir do código (fluxo
+    /// `mapear`, #208), em `analises/`: as funcionalidades achadas na rodada, com os
+    /// pontos de entrada e o tratamento dos não mapeados.
+    MapaFuncionalidades,
+    /// Catálogo de funcionalidades do projeto (#208), em
+    /// `funcionalidades/catalogo.md`, montado do estado ao lado
+    /// (`catalogo.estado.json`). Cada funcionalidade tem identificador estável
+    /// (`F-<SIGLA>-NNN`).
+    CatalogoFuncionalidades,
 }
 
 impl TipoDocumento {
-    pub const TODOS: [TipoDocumento; 20] = [
+    pub const TODOS: [TipoDocumento; 22] = [
         Self::Projeto,
         Self::AnaliseImpacto,
         Self::Pergunta,
@@ -94,6 +103,8 @@ impl TipoDocumento {
         Self::Decisao,
         Self::Risco,
         Self::Restricao,
+        Self::MapaFuncionalidades,
+        Self::CatalogoFuncionalidades,
     ];
 
     /// Valor no frontmatter (`analise-impacto`).
@@ -119,6 +130,8 @@ impl TipoDocumento {
             Self::Decisao => "decisao",
             Self::Risco => "risco",
             Self::Restricao => "restricao",
+            Self::MapaFuncionalidades => "mapa-funcionalidades",
+            Self::CatalogoFuncionalidades => "catalogo-funcionalidades",
         }
     }
 
@@ -545,6 +558,7 @@ impl Frontmatter for FrontmatterAnalise {
         TipoDocumento::ParecerRevisao,
         TipoDocumento::Historias,
         TipoDocumento::CenariosTeste,
+        TipoDocumento::MapaFuncionalidades,
     ];
 
     fn validar(&self) -> Result<(), ErroCampo> {
@@ -659,6 +673,30 @@ pub struct FrontmatterFuncionalidade {
 impl Frontmatter for FrontmatterFuncionalidade {
     const TIPOS: &'static [TipoDocumento] =
         &[TipoDocumento::Funcionalidade, TipoDocumento::CasoDeUso];
+}
+
+/// Catálogo de funcionalidades do projeto, em `funcionalidades/catalogo.md`
+/// (#208). O corpo é montado do estado (`catalogo.estado.json`) pelo template
+/// `catalogo-funcionalidades`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FrontmatterCatalogo {
+    pub tipo: TipoDocumento,
+    pub titulo: String,
+    /// Slug do projeto.
+    pub projeto: String,
+    pub status: StatusAnalise,
+    /// Funcionalidades no catálogo.
+    #[serde(default)]
+    pub funcionalidades: u32,
+    #[serde(default)]
+    pub atualizado: Option<Data>,
+    /// Última análise de mapeamento aprovada, relativa à raiz do projeto.
+    #[serde(default)]
+    pub origem: Option<CaminhoRelativo>,
+}
+
+impl Frontmatter for FrontmatterCatalogo {
+    const TIPOS: &'static [TipoDocumento] = &[TipoDocumento::CatalogoFuncionalidades];
 }
 
 /// Memória de uma área, em `areas/<area>/memoria.md`.
