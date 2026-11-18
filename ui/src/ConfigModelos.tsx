@@ -25,6 +25,12 @@ const GRUPOS: { grupo: GrupoTexto; titulo: string; descricao: string }[] = [
     titulo: "Prompts prontos",
     descricao: "Os pedidos dos botões da tela da análise.",
   },
+  {
+    grupo: "exportacao",
+    titulo: "Exportação em HTML",
+    descricao:
+      "O template e a identidade visual (cores, fontes, tamanhos) do documento exportado em HTML.",
+  },
 ];
 
 /** Para que serve cada texto, por grupo e rótulo do catálogo; sem entrada, vale a do grupo. */
@@ -55,6 +61,11 @@ const DESCRICAO_DO_TEXTO: Partial<Record<GrupoTexto, Record<string, string>>> = 
     "Revisar requisito": "Como o agente revisa um requisito antes do desenvolvimento.",
     "Histórias e critérios": "Como o agente escreve histórias e critérios de aceite.",
     "Cenários de teste": "Como o agente propõe os cenários de teste.",
+  },
+  exportacao: {
+    "Template HTML da exportação": "A estrutura da página: cabeçalho, documento e rodapé.",
+    "Tokens CSS da exportação": "Cores, fontes, tamanhos e margens de impressão do documento.",
+    "Estilo adicional da exportação": "Regras CSS extras, para ir além dos tokens. Opcional.",
   },
   prompt: {
     Aprofundar: "Pede ao agente mais detalhe sobre o ponto em foco.",

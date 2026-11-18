@@ -94,7 +94,7 @@ export interface AprovacaoFeita {
 }
 
 /** Formato da exportação; `csv` (uma linha por cenário) só nos cenários de teste (#117). */
-export type FormatoExportacao = "markdown" | "word" | "csv";
+export type FormatoExportacao = "markdown" | "word" | "html" | "csv";
 
 export interface OpcoesExportacao {
   /** Notas de rodapé e seção de evidências. */
@@ -103,11 +103,11 @@ export interface OpcoesExportacao {
   perguntas: boolean;
   /** Apêndice com os trechos de código citados. */
   trechos: boolean;
-  /** Word: apêndice com o código Mermaid dos diagramas desenhados (#118). */
+  /** Word e HTML: apêndice com o código Mermaid dos diagramas desenhados (#118). */
   codigo_diagramas: boolean;
 }
 
-/** Figura de um diagrama renderizada pela tela, para o Word (#118). */
+/** Figura de um diagrama renderizada pela tela, para o Word e o HTML (#118, #166). */
 export interface FiguraPedida {
   /** Código do bloco Mermaid, como {@link ApiRevisao.diagramasExportacao} devolveu. */
   codigo: string;
@@ -122,21 +122,31 @@ export interface PedidoExportacao {
   destino: string;
   formato: FormatoExportacao;
   opcoes: OpcoesExportacao;
-  /** Word: as figuras dos diagramas; bloco sem figura sai como aviso e código. */
+  /** Word e HTML: as figuras dos diagramas; bloco sem figura sai como aviso e código. */
   figuras?: FiguraPedida[];
 }
 
 export const EXTENSAO: Record<FormatoExportacao, string> = {
   markdown: "md",
   word: "docx",
+  html: "html",
   csv: "csv",
 };
 
 const FILTRO: Record<FormatoExportacao, { name: string; extensions: string[] }> = {
   markdown: { name: "Markdown", extensions: ["md"] },
   word: { name: "Documento do Word", extensions: ["docx"] },
+  html: { name: "Página HTML", extensions: ["html", "htm"] },
   csv: { name: "CSV (planilha, ferramentas de teste)", extensions: ["csv"] },
 };
+
+/** Resultado da exportação (`ExportacaoFeita`). */
+export interface ExportacaoFeita {
+  /** Caminho gravado, com a extensão do formato. */
+  caminho: string;
+  /** HTML: avisos do template e dos tokens da base (não impedem a exportação). */
+  avisos: string[];
+}
 
 /** Operações da revisão. A interface usa {@link apiRevisaoTauri}; os testes, uma falsa. */
 export interface ApiRevisao {
@@ -145,11 +155,11 @@ export interface ApiRevisao {
   aprovar(projeto: string, analise: string, opcoes: OpcoesAprovacao): Promise<AprovacaoFeita>;
   /** Diálogo de salvar do projeto; `null` se o analista cancelar. */
   escolherDestino(nome: string, formato: FormatoExportacao): Promise<string | null>;
-  /** Exporta e devolve o caminho gravado. */
-  exportar(projeto: string, analise: string, pedido: PedidoExportacao): Promise<string>;
+  /** Exporta e devolve o caminho gravado e os avisos do template HTML da base. */
+  exportar(projeto: string, analise: string, pedido: PedidoExportacao): Promise<ExportacaoFeita>;
   /**
    * Código dos blocos Mermaid do documento que a exportação vai ler (#118), para a tela
-   * desenhar as figuras do Word. Sem ela, o Word sai com aviso e código no lugar.
+   * desenhar as figuras do Word e do HTML. Sem ela, o Word sai com aviso e código no lugar.
    */
   diagramasExportacao?(projeto: string, analise: string): Promise<string[]>;
 }

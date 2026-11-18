@@ -179,9 +179,8 @@ describe("diagramas Mermaid (#118)", () => {
   });
 
   it("exportação em Word leva as figuras desenhadas e avisa das que falharam", async () => {
-    const exportar = vi.fn(
-      (_p: string, _a: string, pedido: { destino: string }) =>
-        Promise.resolve(pedido.destino),
+    const exportar = vi.fn((_p: string, _a: string, pedido: { destino: string }) =>
+      Promise.resolve({ caminho: pedido.destino, avisos: [] as string[] }),
     );
     const api = {
       revisar: vi.fn(),
@@ -240,13 +239,53 @@ describe("diagramas Mermaid (#118)", () => {
     // Markdown mantém o bloco: nada é desenhado.
     desenharPng.mockClear();
     fireEvent.click(screen.getByLabelText("Markdown (.md)"));
-    expect(
-      screen.getByLabelText("Código dos diagramas (anexo do Word)"),
-    ).toBeDisabled();
+    expect(screen.getByLabelText("Código dos diagramas (anexo do Word e do HTML)")).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Exportar…" }));
     await waitFor(() => expect(exportar).toHaveBeenCalledTimes(2));
     expect(exportar.mock.lastCall?.[2]).not.toHaveProperty("figuras");
     expect(desenharPng).not.toHaveBeenCalled();
+  });
+
+  it("exportação em HTML leva as figuras e mostra os avisos do template (#166)", async () => {
+    const exportar = vi.fn((_p: string, _a: string, pedido: { destino: string }) =>
+      Promise.resolve({
+        caminho: pedido.destino,
+        avisos: ["_templates/exportacao/documento.html, linha 3: variável desconhecida `{{marca}}`"],
+      }),
+    );
+    const api = {
+      revisar: vi.fn(),
+      prontidao: vi.fn(),
+      aprovar: vi.fn(),
+      escolherDestino: vi.fn(() => Promise.resolve<string | null>("/home/analista/A-0001.html")),
+      exportar,
+      diagramasExportacao: vi.fn(() => Promise.resolve([CODIGO])),
+    } satisfies ApiRevisao;
+    render(
+      <ExportacaoAnalise
+        api={api}
+        projeto="faturamento-exemplo"
+        analise="A-0001"
+        aprovada
+        desenharPng={() =>
+          Promise.resolve({ png: new Uint8Array([137, 80, 78, 71]), largura: 200, altura: 80 })
+        }
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("HTML (.html, abre no navegador)"));
+    expect(screen.getByLabelText("Código dos diagramas (anexo do Word e do HTML)")).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Exportar…" }));
+    await waitFor(() =>
+      expect(exportar).toHaveBeenCalledWith("faturamento-exemplo", "A-0001", {
+        destino: "/home/analista/A-0001.html",
+        formato: "html",
+        opcoes: { evidencias: true, perguntas: true, trechos: true, codigo_diagramas: true },
+        figuras: [{ codigo: CODIGO, png: [137, 80, 78, 71], largura: 200, altura: 80 }],
+      }),
+    );
+    expect(api.escolherDestino).toHaveBeenCalledWith("A-0001", "html");
+    expect(await screen.findByText(/variável desconhecida `\{\{marca\}\}`/)).toBeInTheDocument();
+    expect(screen.getByText("/home/analista/A-0001.html")).toBeInTheDocument();
   });
 
   it("ciclo de vida: condição e efeitos, achados e Virar pergunta (#119)", async () => {

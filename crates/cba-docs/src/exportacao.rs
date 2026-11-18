@@ -14,6 +14,11 @@
 //!   evidências como notas de rodapé do Word e o apêndice com os trechos. O
 //!   `.docx` é gerado por [`crate::word`], sem dependências nativas.
 //!
+//! - **HTML** ([`exportar_html`], #166): o mesmo conteúdo num arquivo único,
+//!   com o CSS embutido e sem script nem recurso externo, montado pelo template
+//!   e pelos tokens CSS da base ([`ModeloHtml`]). O corpo é gerado por
+//!   [`crate::html`], que escapa todo HTML vindo do documento.
+//!
 //! Diagramas (#118): no Markdown, o bloco ` ```mermaid ` fica como está. No
 //! Word, cada bloco vira a figura renderizada pelo app ([`Figuras`], em
 //! [`exportar_com_links`]); sem figura, um aviso e o código. Com a opção
@@ -33,6 +38,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::conteudo::{Citacao, bloco_de_codigo};
 use crate::figura::{Figuras, blocos_mermaid};
+use crate::modelo_html::{AvisoHtml, Metadados, ModeloHtml};
 use crate::montagem::normalizar;
 
 /// O que entra na exportação. Por padrão, tudo.
@@ -47,8 +53,8 @@ pub struct OpcoesExportacao {
     /// Apêndice com os trechos de código citados nas evidências. Só sai quando
     /// há uma [`FonteDeTrechos`] e `evidencias` está ligado.
     pub trechos: bool,
-    /// No Word, apêndice com o código Mermaid de cada diagrama desenhado como
-    /// figura. No Markdown o código já está no lugar do diagrama.
+    /// No Word e no HTML, apêndice com o código Mermaid de cada diagrama
+    /// desenhado como figura. No Markdown o código já está no lugar do diagrama.
     pub codigo_diagramas: bool,
 }
 
@@ -69,6 +75,8 @@ impl Default for OpcoesExportacao {
 pub enum Formato {
     Markdown,
     Word,
+    /// Arquivo HTML único, autocontido (#166).
+    Html,
 }
 
 impl Formato {
@@ -77,6 +85,7 @@ impl Formato {
         match self {
             Self::Markdown => "md",
             Self::Word => "docx",
+            Self::Html => "html",
         }
     }
 }
@@ -243,8 +252,9 @@ pub fn exportar(
 }
 
 /// Como [`exportar`], com os links das evidências no forge (ver
-/// [`exportar_markdown_com_links`]) e, no Word, as figuras dos diagramas
-/// renderizadas pelo app.
+/// [`exportar_markdown_com_links`]) e, no Word e no HTML, as figuras dos
+/// diagramas renderizadas pelo app. O HTML sai com o template e os tokens
+/// padrão e a data de hoje; para os da base, use [`exportar_html`].
 pub fn exportar_com_links(
     documento: &str,
     formato: Formato,
@@ -264,10 +274,56 @@ pub fn exportar_com_links(
             };
             Ok(crate::word::docx(&markdown, figuras)?)
         }
+        Formato::Html => Ok(exportar_html(
+            documento,
+            opcoes,
+            codigo,
+            links,
+            figuras,
+            &ModeloHtml::padrao(),
+            &crate::modelo_html::hoje(),
+        )
+        .html
+        .into_bytes()),
     }
 }
 
-/// Título do apêndice com o código dos diagramas (Word).
+/// Documento exportado em HTML e os avisos do template.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HtmlExportado {
+    pub html: String,
+    /// Avisos do template ao montar (variável desconhecida, `{{conteudo}}`
+    /// ausente). Os de arquivo ilegível vêm de [`ModeloHtml::da_base`].
+    pub avisos: Vec<AvisoHtml>,
+}
+
+/// Documento em HTML autocontido (#166): o conteúdo de
+/// [`exportar_markdown_com_links`] no template `modelo`, com `data_exportacao`
+/// (AAAA-MM-DD) na variável do template. Com `opcoes.codigo_diagramas`, o
+/// código de cada diagrama desenhado como figura vai num apêndice, como no
+/// Word.
+pub fn exportar_html(
+    documento: &str,
+    opcoes: &OpcoesExportacao,
+    codigo: Option<&dyn FonteDeTrechos>,
+    links: Option<(&dyn LinksDeEvidencia, Option<&str>)>,
+    figuras: &Figuras,
+    modelo: &ModeloHtml,
+    data_exportacao: &str,
+) -> HtmlExportado {
+    let markdown = exportar_markdown_com_links(documento, opcoes, codigo, links);
+    let markdown = if opcoes.codigo_diagramas {
+        com_codigo_dos_diagramas(&markdown, figuras)
+    } else {
+        markdown
+    };
+    let meta = Metadados::do_documento(documento, &markdown, data_exportacao);
+    let corpo = crate::html::corpo(&markdown, figuras);
+    let (html, avisos) = modelo.montar(&meta, &corpo);
+    HtmlExportado { html, avisos }
+}
+
+/// Título do apêndice com o código dos diagramas (Word e HTML).
 pub(crate) const TITULO_CODIGO_DIAGRAMAS: &str = "Apêndice: código dos diagramas";
 
 /// Acrescenta o apêndice com o código Mermaid de cada diagrama que tem figura

@@ -885,4 +885,23 @@ fn exportar_a_analise_da_reuniao_leva_a_ata() {
     let docx = exportar(&c.dados, PROJETO, &analise, &pedido("ata", Formato::Word)).unwrap();
     assert_eq!(docx, pasta.join("ata.docx"));
     assert!(std::fs::metadata(&docx).unwrap().len() > 0);
+
+    // A ata também sai em HTML (#166).
+    let feita = crate::revisao::exportar_com_avisos(
+        &c.dados,
+        PROJETO,
+        &analise,
+        &pedido("ata", Formato::Html),
+    )
+    .unwrap();
+    assert_eq!(feita.caminho, pasta.join("ata.html"));
+    assert!(feita.avisos.is_empty(), "{:?}", feita.avisos);
+    let html = std::fs::read_to_string(&feita.caminho).unwrap();
+    assert!(html.contains("<title>R-0001"), "{html}");
+    assert!(html.contains("Ata de reunião"), "{html}");
+    assert!(
+        html.contains("Trava do supervisor em todos os canais."),
+        "{html}"
+    );
+    assert!(!html.contains("<script"), "{html}");
 }

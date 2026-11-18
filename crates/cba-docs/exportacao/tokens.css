@@ -1,0 +1,43 @@
+/*
+  Tokens da exportação em HTML: a identidade visual do documento.
+
+  A folha de estilo do documento usa só estas variáveis. Para trocar cores,
+  fontes e tamanhos, mude os valores abaixo. Para ir além (regras novas),
+  use estilo.css.
+
+  Fontes: use fontes instaladas no computador de quem abre o arquivo; o
+  documento não carrega fontes da internet.
+*/
+:root {
+  /* Cores */
+  --cor-texto: #1f2328;
+  --cor-texto-suave: #59636e;
+  --cor-fundo: #f6f7f9;
+  --cor-papel: #ffffff;
+  --cor-destaque: #0b5cad;
+  --cor-borda: #d0d7de;
+  --cor-atencao: #9a6700;
+  --cor-atencao-fundo: #fff8c5;
+  --cor-confirmado: #1a7f37;
+  --cor-codigo-texto: #1f2328;
+  --cor-codigo-fundo: #f3f4f6;
+
+  /* Fontes */
+  --fonte-texto: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --fonte-titulo: var(--fonte-texto);
+  --fonte-codigo: "Cascadia Mono", Consolas, "SF Mono", Menlo, "Liberation Mono", monospace;
+
+  /* Tamanhos */
+  --tamanho-texto: 16px;
+  --tamanho-codigo: 0.875em;
+  --tamanho-titulo-1: 1.9em;
+  --tamanho-titulo-2: 1.4em;
+  --tamanho-titulo-3: 1.15em;
+  --altura-linha: 1.55;
+
+  /* Página */
+  --largura-maxima: 52rem;
+  --espaco: 1rem;
+  --raio: 6px;
+  --margem-impressao: 18mm;
+}

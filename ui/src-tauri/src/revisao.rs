@@ -134,8 +134,8 @@ pub struct PedidoExportacao {
     pub formato: cba_tools::revisao::Formato,
     #[serde(default)]
     pub opcoes: cba_tools::revisao::OpcoesExportacao,
-    /// Figuras dos diagramas renderizadas pela tela (Word), pelo código Mermaid
-    /// do bloco. Bloco sem figura sai como aviso e código.
+    /// Figuras dos diagramas renderizadas pela tela (Word e HTML), pelo código
+    /// Mermaid do bloco. Bloco sem figura sai como aviso e código.
     #[serde(default)]
     pub figuras: Vec<FiguraPedida>,
 }
@@ -176,15 +176,35 @@ pub fn diagramas_exportacao(
     revisao::diagramas_para_exportar(&amb, &id(analise)?).map_err(|e| e.to_string())
 }
 
+/// Exportação feita, para a tela: o caminho gravado e os avisos do template
+/// HTML da base (que não impedem a exportação).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportacaoFeita {
+    pub caminho: String,
+    pub avisos: Vec<String>,
+}
+
 /// Exporta o documento e devolve o caminho gravado.
+#[cfg(test)]
 pub fn exportar(
     dados: &DiretorioDados,
     projeto: &str,
     analise: &str,
     pedido: &PedidoExportacao,
 ) -> Result<PathBuf, String> {
+    exportar_com_avisos(dados, projeto, analise, pedido).map(|e| e.caminho)
+}
+
+/// Exporta o documento e devolve o caminho gravado e os avisos.
+pub fn exportar_com_avisos(
+    dados: &DiretorioDados,
+    projeto: &str,
+    analise: &str,
+    pedido: &PedidoExportacao,
+) -> Result<revisao::Exportado, String> {
     let amb = ambiente(dados, projeto)?;
-    revisao::exportar_analise(
+    revisao::exportar_analise_com_avisos(
         &amb,
         &id(analise)?,
         &pedido.destino,
@@ -232,10 +252,13 @@ pub async fn exportar_analise_projeto(
     projeto: String,
     analise: String,
     pedido: PedidoExportacao,
-) -> Result<String, String> {
+) -> Result<ExportacaoFeita, String> {
     let dados = dados()?;
     bloqueante(move || {
-        exportar(&dados, &projeto, &analise, &pedido).map(|p| p.display().to_string())
+        exportar_com_avisos(&dados, &projeto, &analise, &pedido).map(|e| ExportacaoFeita {
+            caminho: e.caminho.display().to_string(),
+            avisos: e.avisos,
+        })
     })
     .await
 }
