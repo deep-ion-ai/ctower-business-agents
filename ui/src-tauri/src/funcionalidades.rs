@@ -260,6 +260,35 @@ pub async fn completude_mapa_analise(
     bloqueante(move || completude_do_mapa(&dados, &projeto, &analise)).await
 }
 
+/// Exporta o catálogo do projeto em Markdown ou Word, com tudo (evidências e
+/// trechos citados).
+pub fn exportar_catalogo(
+    dados: &DiretorioDados,
+    projeto: &str,
+    destino: &str,
+    formato: cba_tools::revisao::Formato,
+) -> Result<String, String> {
+    let ambiente = ambiente(dados, projeto)?;
+    cba_tools::revisao::exportar_catalogo(
+        &ambiente,
+        std::path::Path::new(destino),
+        formato,
+        &Default::default(),
+    )
+    .map(|p| p.display().to_string())
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn exportar_catalogo_projeto(
+    projeto: String,
+    destino: String,
+    formato: cba_tools::revisao::Formato,
+) -> Result<String, String> {
+    let dados = dados()?;
+    bloqueante(move || exportar_catalogo(&dados, &projeto, &destino, formato)).await
+}
+
 #[cfg(test)]
 #[path = "funcionalidades_testes.rs"]
 mod tests;

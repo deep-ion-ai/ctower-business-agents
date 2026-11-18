@@ -44,6 +44,9 @@ pub struct Gabarito {
     /// Ciclos de vida esperados de entidades com campo de status (#119).
     #[serde(default)]
     pub ciclos_vida: Vec<CicloVida>,
+    /// Catálogo de funcionalidades esperado (fluxo `mapear`, #208).
+    #[serde(default)]
+    pub mapeamentos: Vec<Mapeamento>,
     /// Pasta do gabarito, para resolver `raiz`. Preenchida por [`Gabarito::carregar`].
     #[serde(skip)]
     pub pasta: PathBuf,
@@ -346,6 +349,42 @@ pub struct NegativoEsperado {
     pub palavras_chave: Vec<Vec<String>>,
 }
 
+/// Mapeamento das funcionalidades do projeto (fluxo `mapear`, #208).
+#[derive(Debug, Clone, Deserialize)]
+pub struct Mapeamento {
+    pub id: String,
+    pub titulo: String,
+    #[serde(flatten)]
+    pub esperado: MapeamentoEsperado,
+}
+
+/// O catálogo esperado: os pontos de entrada do mapa e as funcionalidades.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MapeamentoEsperado {
+    pub pontos_de_entrada: Vec<PontoEsperado>,
+    pub funcionalidades: Vec<FuncionalidadeMapeadaEsperada>,
+}
+
+/// Ponto de entrada do mapa e as funcionalidades a que ele pode ir.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PontoEsperado {
+    pub chave: String,
+    pub funcionalidades: Vec<String>,
+    /// Pode ficar sem funcionalidade, justificado como utilitário.
+    #[serde(default)]
+    pub justificavel: bool,
+}
+
+/// Funcionalidade esperada no catálogo.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FuncionalidadeMapeadaEsperada {
+    pub id: String,
+    #[serde(default)]
+    pub nome: Option<String>,
+    pub area: String,
+    pub palavras_chave: Vec<Vec<String>>,
+}
+
 /// Ciclo de vida de uma entidade (#119): a análise de explicar com o `pedido`,
 /// que deve registrar o diagrama de estados esperado.
 #[derive(Debug, Clone, Deserialize)]
@@ -489,6 +528,9 @@ pub struct Item {
     /// Fluxo do processo e modelo de dados esperados, só no fluxo explicar (#120).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub modelagem: Option<ModelagemEsperada>,
+    /// Catálogo esperado, só no fluxo mapear (#208).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mapeamento: Option<MapeamentoEsperado>,
 }
 
 /// Erro ao ler o gabarito ou ao achar um item.
@@ -580,6 +622,7 @@ impl Gabarito {
                 cenarios: None,
                 ciclo_vida: None,
                 modelagem: None,
+                mapeamento: None,
             });
         }
         if let Some(f) = self.funcionalidades.iter().find(|f| f.id == id) {
@@ -603,6 +646,7 @@ impl Gabarito {
                         modelo_dados: f.modelo_dados.clone(),
                     }
                 }),
+                mapeamento: None,
             });
         }
         if let Some(d) = self.demandas.iter().find(|d| d.id == id) {
@@ -621,6 +665,7 @@ impl Gabarito {
                 cenarios: None,
                 ciclo_vida: None,
                 modelagem: None,
+                mapeamento: None,
             });
         }
         if let Some(r) = self.revisoes.iter().find(|r| r.id == id) {
@@ -640,6 +685,7 @@ impl Gabarito {
                 cenarios: None,
                 ciclo_vida: None,
                 modelagem: None,
+                mapeamento: None,
             });
         }
         if let Some(h) = self.historias.iter().find(|h| h.id == id) {
@@ -659,6 +705,7 @@ impl Gabarito {
                 cenarios: None,
                 ciclo_vida: None,
                 modelagem: None,
+                mapeamento: None,
             });
         }
         if let Some(c) = self.cenarios.iter().find(|c| c.id == id) {
@@ -677,6 +724,7 @@ impl Gabarito {
                 cenarios: Some(c.esperado.clone()),
                 ciclo_vida: None,
                 modelagem: None,
+                mapeamento: None,
             });
         }
         if let Some(c) = self.ciclos_vida.iter().find(|c| c.id == id) {
@@ -695,11 +743,31 @@ impl Gabarito {
                 cenarios: None,
                 ciclo_vida: Some(c.esperado.clone()),
                 modelagem: None,
+                mapeamento: None,
+            });
+        }
+        if let Some(m) = self.mapeamentos.iter().find(|m| m.id == id) {
+            return Ok(Item {
+                id: m.id.clone(),
+                fluxo: Fluxo::Mapear,
+                titulo: m.titulo.clone(),
+                entrada: String::new(),
+                regras: Vec::new(),
+                arquivos: Vec::new(),
+                perguntas_esperadas: Vec::new(),
+                verificacao_da_premissa: None,
+                abrangencia: None,
+                revisao: None,
+                historias: None,
+                cenarios: None,
+                ciclo_vida: None,
+                modelagem: None,
+                mapeamento: Some(m.esperado.clone()),
             });
         }
         Err(Erro(format!(
             "o item `{id}` não existe no gabarito (use o id de uma pergunta, funcionalidade, \
-             demanda, revisão, histórias, cenários ou ciclo de vida)"
+             demanda, revisão, histórias, cenários, ciclo de vida ou mapeamento)"
         )))
     }
 }

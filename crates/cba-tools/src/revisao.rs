@@ -954,6 +954,47 @@ pub fn exportar_analise(
     Ok(destino)
 }
 
+/// Exporta o catálogo de funcionalidades do projeto (`funcionalidades/catalogo.md`,
+/// #208) em Markdown ou Word, com os trechos citados como na exportação de uma
+/// análise. Devolve o caminho gravado.
+pub fn exportar_catalogo(
+    amb: &Ambiente,
+    destino: &Path,
+    formato: Formato,
+    opcoes: &OpcoesExportacao,
+) -> Result<PathBuf, ErroRevisao> {
+    if formato == Formato::Csv {
+        return Err(ErroRevisao::Destino(
+            "o catálogo exporta em Markdown ou Word".into(),
+        ));
+    }
+    let catalogo = cba_kb::layout::catalogo();
+    if !amb.kb.existe(&catalogo) {
+        return Err(ErroRevisao::Destino(
+            "o projeto ainda não tem catálogo de funcionalidades: aprove um mapeamento antes"
+                .into(),
+        ));
+    }
+    let destino = destino_da_exportacao(&amb.escopo, destino, formato)?;
+    let texto =
+        std::fs::read_to_string(amb.kb.caminho(&catalogo)).map_err(ErroRevisao::Documento)?;
+    let formato = match formato {
+        Formato::Word => cba_docs::Formato::Word,
+        _ => cba_docs::Formato::Markdown,
+    };
+    let fonte = TrechosDoProjeto(&amb.escopo);
+    cba_docs::gravar_exportacao_com_links(
+        &destino,
+        &texto,
+        formato,
+        opcoes,
+        Some(&fonte),
+        None,
+        &cba_docs::Figuras::default(),
+    )?;
+    Ok(destino)
+}
+
 /// Texto que a exportação lê (o documento da análise ou, na de uma reunião, a
 /// ata já montada) e o commit da análise (o `base.commit` do frontmatter, para a
 /// nota sem commit próprio).

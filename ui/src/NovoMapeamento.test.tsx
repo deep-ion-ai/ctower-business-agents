@@ -4,6 +4,7 @@ import type { ApiFuncionalidades } from "./funcionalidades";
 import { apiConhecimentoFalsa } from "./test/conhecimentoFalso";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(), Channel: vi.fn() }));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 
 describe("NovoMapeamento", () => {
   it("cria a análise com a pasta, a área e a orientação", async () => {
@@ -22,6 +23,8 @@ describe("NovoMapeamento", () => {
       explicar: vi.fn(),
       completude: vi.fn(),
       criarMapeamento: vi.fn().mockResolvedValue(criada),
+      escolherDestino: vi.fn(),
+      exportar: vi.fn(),
     };
     const aoCriar = vi.fn();
     render(

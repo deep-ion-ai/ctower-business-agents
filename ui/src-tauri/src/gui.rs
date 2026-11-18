@@ -89,6 +89,7 @@ pub fn rodar() {
             funcionalidades::catalogo_funcionalidades_projeto,
             funcionalidades::explicar_funcionalidade_app,
             funcionalidades::completude_mapa_analise,
+            funcionalidades::exportar_catalogo_projeto,
             projeto::visao_projeto_app,
             projeto::revalidar_projeto_app,
             projeto::mapa_projeto_app,

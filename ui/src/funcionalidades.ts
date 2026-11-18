@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { save } from "@tauri-apps/plugin-dialog";
 import type { AnaliseCriada, TipoEntrada } from "./analise";
 
 /**
@@ -65,6 +66,10 @@ export interface ApiFuncionalidades {
     area: string | null,
     entrada: string | null,
   ) => Promise<AnaliseCriada>;
+  /** Diálogo de salvar; `null` se o analista cancelar. */
+  escolherDestino: (formato: "markdown" | "word") => Promise<string | null>;
+  /** Exporta o catálogo e devolve o caminho gravado. */
+  exportar: (projeto: string, destino: string, formato: "markdown" | "word") => Promise<string>;
 }
 
 export const apiFuncionalidadesTauri: ApiFuncionalidades = {
@@ -74,4 +79,16 @@ export const apiFuncionalidadesTauri: ApiFuncionalidades = {
   completude: (projeto, analise) => invoke("completude_mapa_analise", { projeto, analise }),
   criarMapeamento: (projeto, pasta, area, entrada) =>
     invoke("criar_analise_de_mapeamento_app", { projeto, pasta, area, entrada }),
+  escolherDestino: (formato) =>
+    save({
+      title: "Exportar o catálogo de funcionalidades",
+      defaultPath: formato === "word" ? "catalogo-funcionalidades.docx" : "catalogo-funcionalidades.md",
+      filters: [
+        formato === "word"
+          ? { name: "Documento do Word", extensions: ["docx"] }
+          : { name: "Markdown", extensions: ["md"] },
+      ],
+    }),
+  exportar: (projeto, destino, formato) =>
+    invoke("exportar_catalogo_projeto", { projeto, destino, formato }),
 };

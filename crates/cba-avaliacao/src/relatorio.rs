@@ -625,6 +625,10 @@ fn criterios_das_analises(s: &mut String) {
     );
     let _ = writeln!(
         s,
+        "- **Mapa de funcionalidades** (`mapear`): funcionalidade esperada encontrada quando uma funcionalidade registrada (não descartada nem juntada) tem as palavras-chave no nome ou na descrição e ao menos um ponto de entrada esperado dela; área confere pelo slug. Ponto de entrada esperado bem tratado quando está na funcionalidade que casou com uma das esperadas para ele, ou justificado quando o gabarito o aceita como utilitário. Falha grave: nenhuma funcionalidade, ponto de entrada do gabarito sem tratamento ou evidência de ponto de entrada que não confere."
+    );
+    let _ = writeln!(
+        s,
         "- **Histórias e critérios** (`historias`): história esperada atendida por uma história com as palavras-chave no título e na narrativa; regra esperada citada por um critério, pelo id ou por uma afirmação cuja evidência toca a regra; critério com valor concreto (um número); tema a confirmar marcado num critério com pergunta; quebra proposta quando a abrangência pede. Falha grave: nenhuma história, ou critério sem origem."
     );
 }
@@ -764,7 +768,50 @@ fn analise_md(s: &mut String, e: &Execucao) {
     if let Some(m) = &a.modelagem {
         modelagem_md(s, m);
     }
+    if let Some(m) = &a.mapeamento {
+        mapeamento_md(s, m);
+    }
     let _ = writeln!(s, "- Concluída: {}\n", sim_nao(a.concluida));
+}
+
+fn mapeamento_md(s: &mut String, m: &crate::mapeamento::MapeamentoAvaliado) {
+    let _ = writeln!(
+        s,
+        "- Mapa de funcionalidades: {} registradas; funcionalidades esperadas {:.0}%, pontos de entrada bem tratados {:.0}%",
+        m.funcionalidades_registradas,
+        m.cobertura_de_funcionalidades() * 100.0,
+        m.cobertura_de_pontos() * 100.0
+    );
+    for f in &m.funcionalidades {
+        match &f.registrada {
+            None => {
+                let _ = writeln!(s, "  - {} ({}): não encontrada", f.esperada, f.nome);
+            }
+            Some(r) if !f.area_confere => {
+                let _ = writeln!(
+                    s,
+                    "  - {} ({}): encontrada como {r}, em outra área",
+                    f.esperada, f.nome
+                );
+            }
+            Some(_) => {}
+        }
+    }
+    for p in m.pontos.iter().filter(|p| !p.bem_tratado) {
+        let _ = writeln!(
+            s,
+            "  - `{}`: {}{}",
+            p.chave,
+            p.tratamento.replace('_', " "),
+            p.funcionalidade
+                .as_ref()
+                .map(|f| format!(" em {f}, fora das esperadas"))
+                .unwrap_or_default()
+        );
+    }
+    for e in &m.evidencias_invalidas {
+        let _ = writeln!(s, "  - Evidência inválida: {e}");
+    }
 }
 
 fn ciclo_vida_md(s: &mut String, c: &crate::ciclo_vida::CicloVidaAvaliado) {

@@ -329,6 +329,15 @@ pub fn executar(
     let preparado = (|| {
         let p = preparar_projeto(&raiz, &projeto)?;
         let analise = match &item.historias {
+            // Mapeamento: a análise do projeto inteiro, como pela nova análise do app.
+            None if item.mapeamento.is_some() => cba_tools::mapear::criar_analise_de_mapeamento(
+                &p.ambiente,
+                None,
+                None,
+                None,
+                Some(item.titulo.clone()),
+            )
+            .map_err(erro("criação da análise de mapeamento"))?,
             // Cenários: as regras pedidas gravadas na base e a análise de cenários
             // criada a partir do pedido, como pela nova análise do app.
             None if item.cenarios.is_some() => {

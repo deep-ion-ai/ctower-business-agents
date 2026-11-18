@@ -112,6 +112,21 @@ fn mapeia_aprova_lista_e_abre_a_explicacao() {
     let json = serde_json::to_value(&catalogo).unwrap();
     assert_eq!(json["areas"][0]["funcionalidades"][0]["situacao"], "nova");
 
+    // Exporta o catálogo, fora das pastas do projeto.
+    let destino = c.dir.path().join("saida").join("catalogo");
+    std::fs::create_dir_all(destino.parent().unwrap()).unwrap();
+    let gravado = exportar_catalogo(
+        &c.dados,
+        PROJETO,
+        destino.to_str().unwrap(),
+        cba_tools::revisao::Formato::Markdown,
+    )
+    .unwrap();
+    assert!(gravado.ends_with("catalogo.md"), "{gravado}");
+    let md = std::fs::read_to_string(&gravado).unwrap();
+    assert!(md.contains("F-CAN-001"), "{md}");
+    assert!(!md.starts_with("---"), "a exportação tira o frontmatter");
+
     let explicacao = explicar_funcionalidade(&c.dados, PROJETO, "F-CAN-001").unwrap();
     assert_eq!(explicacao.analise.fluxo, Fluxo::Explicar);
     assert!(

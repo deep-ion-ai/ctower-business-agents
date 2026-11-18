@@ -3,6 +3,7 @@ import { ListaFuncionalidades } from "./ListaFuncionalidades";
 import type { ApiFuncionalidades, Catalogo } from "./funcionalidades";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(), Channel: vi.fn() }));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 
 const CATALOGO: Catalogo = {
   total: 2,
@@ -61,6 +62,8 @@ function api(catalogo: Catalogo = CATALOGO): ApiFuncionalidades {
     }),
     completude: vi.fn(),
     criarMapeamento: vi.fn(),
+    escolherDestino: vi.fn().mockResolvedValue("/tmp/catalogo.docx"),
+    exportar: vi.fn().mockResolvedValue("/tmp/catalogo.docx"),
   };
 }
 
@@ -103,6 +106,14 @@ describe("ListaFuncionalidades", () => {
       }),
     );
     expect(screen.getByRole("button", { name: "Explicar de novo" })).toBeInTheDocument();
+  });
+
+  it("exporta o catálogo em Word", async () => {
+    const falsa = api();
+    render(<ListaFuncionalidades projeto="faturamento-exemplo" navegar={vi.fn()} api={falsa} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Word" }));
+    expect(await screen.findByText(/Catálogo exportado em \/tmp\/catalogo.docx/)).toBeInTheDocument();
+    expect(falsa.exportar).toHaveBeenCalledWith("faturamento-exemplo", "/tmp/catalogo.docx", "word");
   });
 
   it("sem catálogo, diz como mapear", async () => {

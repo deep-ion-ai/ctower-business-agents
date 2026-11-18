@@ -125,6 +125,15 @@ O agente consulta a base e o mapa, lê os trechos que decidem o comportamento e 
 
 O resultado é um documento negocial da funcionalidade: objetivo, atores e telas, fluxo principal, fluxos alternativos, exceções, regras de negócio (cada uma com evidência), dados lidos e gravados, integrações e perguntas em aberto.
 
+### 4.4.1 Mapear funcionalidades
+
+Num sistema que o analista ainda não conhece, falta saber quais funcionalidades existem antes de explicar uma. O fluxo `mapear` (#208) parte dos **pontos de entrada** que o app acha no mapa estrutural, sem IA (`cba_index::Mapa::pontos_de_entrada`: telas, endpoints, lotes, rotinas de banco públicas, serviços e integrações, com a chave estável `<arquivo>#<nome qualificado>`), e o agente os agrupa em **funcionalidades com nome de negócio** (um objetivo do usuário, com um ou mais pontos de entrada), por **área** (as do `projeto.md` ou propostas pelo agente). Cada funcionalidade tem descrição, atores, pontos de entrada com evidência, dados lidos e gravados e relacionadas, e um identificador estável `F-<SIGLA>-NNN` (a sigla da área, como nas regras). O escopo é o projeto inteiro, uma pasta ou uma área; projetos grandes podem ser mapeados por partes.
+
+- **Completude, sem IA:** `concluir_analise` cruza os pontos do escopo com os atribuídos e os justificados e recusa enquanto sobrar algum, listando quais. O agente atribui, cria uma funcionalidade ou justifica (código morto, utilitário, outro motivo).
+- **Catálogo:** a aprovação funde as funcionalidades aceitas em `funcionalidades/catalogo.md` (estado em `catalogo.estado.json`). Rodar o fluxo de novo mantém os identificadores das que continuam existindo (pelo `id` informado ou por um ponto de entrada em comum), marca as novas e as que perderam o ponto de entrada, e retira as descartadas ou juntadas sem reaproveitar o número.
+- **Revisão:** o analista aceita, edita (nome, área, descrição), junta, divide ou descarta cada funcionalidade; toda funcionalidade precisa de decisão para aprovar.
+- **Explicar:** a lista "Funcionalidades" da tela do projeto mostra o catálogo por área, com a situação (só mapeada ou documentada) e a ação "Explicar", que abre o fluxo `explicar` com a funcionalidade preenchida. Aprovada a explicação, o documento negocial vai para `funcionalidades/<area>/<tema>/negocial.md` e fica ligado ao item.
+
 ### 4.5 Analisar impacto de uma demanda
 
 Exemplo de demanda: "Permitir parcelamento da fatura em até 3 vezes para clientes pessoa jurídica."
@@ -199,6 +208,9 @@ Operam só dentro das pastas cadastradas do projeto, respeitam a lista de exclus
 | `registrar_sugestao` | Registra uma sugestão de alteração: arquivo, trecho atual, trecho proposto, motivo, impacto. |
 | `propor_termo` | Propõe uma entrada para o glossário (termo de negócio, sinônimos, onde vive no código). |
 | `registrar_diagrama` | Registra um diagrama pelos elementos (#118): `tipo` (`estados`, ciclo de vida de uma entidade; `fluxo`, passos de um processo; ou `dados`, modelo de dados conceitual, #120), título, `secao` (as mesmas de `afirmar`), nós (chave, rótulo, papel `etapa`/`inicio`/`fim`/`decisao`, descrição e evidências; no fluxo, a `raia` do ator; no modelo de dados, a `tabela` e os `atributos` de negócio) e arestas (de, para, rótulo, descrição, condição, efeitos, confiança e evidências; no modelo de dados, a `cardinalidade` das pontas e a `origem`, `chave_estrangeira` ou `join`); no tipo `estados`, a resposta traz os achados do ciclo de vida calculados pelo app (#119). O agente não escreve Mermaid: o app gera o diagrama na montagem. No modelo de dados, a chave estrangeira é conferida contra os scripts do banco (sem ela, o registro é recusado: a relação é `join`, sempre inferida) e cada entidade é ligada ao termo do glossário que vive na tabela. `substituir` troca um diagrama já registrado. Histórias e cenários recusam. |
+| `pontos_de_entrada` | Só leitura (#208): os pontos de entrada do mapa no escopo da análise de mapeamento, com o tratamento de cada um (atribuído, justificado, sem tratamento). |
+| `registrar_funcionalidade` | Registra uma funcionalidade no fluxo `mapear` (#208): nome de negócio, área, descrição, atores, pontos de entrada (cada um com evidência conferida), dados lidos e gravados, relacionadas. Sem ponto de entrada com evidência válida, recusa. O identificador `F-<SIGLA>-NNN` é o do catálogo quando a funcionalidade já existe. |
+| `tratar_ponto_de_entrada` | Atribui um ponto do mapa a uma funcionalidade já registrada ou justifica por que fica sem funcionalidade (código morto, utilitário, outro). |
 | `memorizar` | Grava numa seção da memória da análise (`onde_parou`, `contexto`, `investigado`, `descartado`, `hipoteses`, `codigo`, `combinados`, `pendencias`), acrescentando um item ou substituindo a seção (o caminho para resumir). Limite de 24.000 caracteres na memória inteira: passar dele é recusado com a orientação de resumir. Análise aprovada recusa. |
 | `concluir_analise` | Fecha a rodada: confere as pendências (sem afirmações ou seção obrigatória do fluxo vazia recusam; evidência que não confere mais com o código e afirmação inferida sem evidência voltam como pendência para o analista), o app monta o documento e devolve o caminho, que o agente cita na resposta, com as perguntas em aberto. |
 
@@ -281,7 +293,9 @@ Para clientes que não são o Claude Desktop nem o Claude Code, o app terá um l
     glossario/<termo>.md             # negócio → código
     regras/RN-<AREA>-<NNN>.md        # uma regra por arquivo
     areas/<area>/memoria.md          # memória de uma área funcional
-    funcionalidades/<area>/<tema>/   # documento negocial, casos de uso, rastreabilidade
+    funcionalidades/catalogo.md      # catálogo de funcionalidades (F-<SIGLA>-NNN), montado do estado
+    funcionalidades/catalogo.estado.json  # estado do catálogo: a fonte dos identificadores
+    funcionalidades/<area>/<tema>/   # documento negocial (negocial.md), casos de uso, rastreabilidade
     analises/<id>.md                 # análises de impacto, perguntas, explicações
     analises/<id>.estado.json        # estado da análise: sessões, afirmações, evidências, perguntas, sugestões
     analises/<id>.memoria.md         # memória de trabalho do agente (fora do índice), devolvida na retomada
@@ -343,6 +357,8 @@ O agente registra dados estruturados pelas ferramentas MCP, e o app monta cada d
 | Regra de negócio | identificador estável · enunciado · área · evidências com hash · origem |
 | Termo do glossário | termo · sinônimos · definição de negócio · onde vive no código (entidades, tabelas, telas, serviços, documentos) |
 | Sugestão de alteração | contexto · trecho atual · trecho proposto · motivo · impacto · exemplo |
+| Mapa de funcionalidades (#208) | escopo · funcionalidades por área · pontos de entrada sem funcionalidade · perguntas · evidências |
+| Catálogo de funcionalidades (#208) | índice por área · funcionalidades · evidências |
 
 - **Templates editáveis:** ficam em `<base>/_templates/` como Markdown com marcadores. O app traz um conjunto padrão; cada organização pode ajustar ao seu (por exemplo, um padrão de documento negocial já adotado).
   - Um arquivo por tipo, com o nome do campo `tipo` (`_templates/analise-impacto.md`). Sem o arquivo, vale o padrão embutido; o app copia o padrão para a base sem sobrescrever o que foi editado.

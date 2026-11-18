@@ -64,6 +64,17 @@ export function ListaFuncionalidades({
 
   const abrir = (documento: string) => navegar({ tipo: "base", documento });
 
+  const [exportado, setExportado] = useState<string | null>(null);
+  const exportar = (formato: "markdown" | "word") => {
+    setFalha(null);
+    setExportado(null);
+    api
+      .escolherDestino(formato)
+      .then((destino) => (destino ? api.exportar(projeto, destino, formato) : null))
+      .then((gravado) => gravado && setExportado(gravado))
+      .catch((e: unknown) => setFalha(mensagemDe(e)));
+  };
+
   return (
     <section aria-label="Funcionalidades" className="lista-funcionalidades">
       <h3>Funcionalidades</h3>
@@ -88,8 +99,21 @@ export function ListaFuncionalidades({
               <button type="button" className="link" onClick={() => abrir(catalogo.documento!)}>
                 abrir o catálogo
               </button>
+              {" · exportar em "}
+              <button type="button" className="link" onClick={() => exportar("markdown")}>
+                Markdown
+              </button>
+              {" ou "}
+              <button type="button" className="link" onClick={() => exportar("word")}>
+                Word
+              </button>
             </>
           )}
+        </p>
+      )}
+      {exportado && (
+        <p role="status" className="muted">
+          Catálogo exportado em {exportado}.
         </p>
       )}
       {catalogo?.areas.map((a) => (

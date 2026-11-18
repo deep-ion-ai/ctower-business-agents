@@ -33,7 +33,7 @@ USO
       --modelo <m>            modelo do claude (padrão: sonnet)
       --orcamento <usd>       --max-budget-usd de cada execução (padrão: 1.5)
       --fluxos <lista>        perguntar,explicar,impacto,revisar,historias,cenarios,
-                              ciclo-vida,reuniao,reuniao-longa
+                              ciclo-vida,mapear,reuniao,reuniao-longa
                               (padrão: perguntar,explicar,impacto)
       --repeticoes <n>        execuções de cada fluxo (padrão: 1)
       --pergunta <id>         item do fluxo perguntar (padrão: P-FAT-001)
@@ -43,6 +43,7 @@ USO
       --historias <id>        item do fluxo historias (padrão: HIS-FAT-001)
       --cenarios <id>         item do fluxo cenarios (padrão: CEN-FAT-001)
       --ciclo-vida <id>       item do ciclo de vida, no fluxo explicar (padrão: CV-FAT-001)
+      --mapeamento <id>       item do fluxo mapear (padrão: MAP-FAT-001)
       --reuniao <id>          reunião dos fluxos reuniao e reuniao-longa (padrão: REU-FAT-001)
       --orcamento-longa <usd> --max-budget-usd da reunião longa (padrão: 3)
       --longa-minutos <n>     duração da reunião longa sintética (padrão: 120)
@@ -312,6 +313,7 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
         "--historias",
         "--cenarios",
         "--ciclo-vida",
+        "--mapeamento",
         "--saida",
         "--cba",
         "--claude",
@@ -376,6 +378,7 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
             "historias" => ("--historias", "HIS-FAT-001", Fluxo::Historias),
             "cenarios" => ("--cenarios", "CEN-FAT-001", Fluxo::Cenarios),
             "ciclo-vida" => ("--ciclo-vida", "CV-FAT-001", Fluxo::Explicar),
+            "mapear" => ("--mapeamento", "MAP-FAT-001", Fluxo::Mapear),
             "reuniao" => {
                 reunioes.0 = true;
                 continue;
@@ -387,7 +390,7 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
             outro => {
                 return Err(format!(
                     "fluxo desconhecido: {outro} (use perguntar, explicar, impacto, revisar, historias, cenarios, \
-                     ciclo-vida, reuniao ou reuniao-longa)"
+                     ciclo-vida, mapear, reuniao ou reuniao-longa)"
                 ));
             }
         };
