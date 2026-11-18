@@ -299,6 +299,7 @@ fn mapeia_conclui_aprova_e_mantem_os_ids() {
     assert!(pendente.is_err());
     c.aceitar_todas(&a);
     let aprovacao = revisao::aprovar_revisada(&c.amb, &a, &OpcoesAprovacao::default()).unwrap();
+    assert!(aprovacao.avisos.is_empty(), "{:?}", aprovacao.avisos);
     let fusao = &aprovacao.catalogo.as_ref().unwrap().fusao;
     assert_eq!(fusao.novas.len(), 6);
 
@@ -306,6 +307,24 @@ fn mapeia_conclui_aprova_e_mantem_os_ids() {
     assert_eq!(catalogo.funcionalidades.len(), 6);
     let md = std::fs::read_to_string(c.amb.kb.caminho(&layout::catalogo())).unwrap();
     assert!(md.contains("tipo: catalogo-funcionalidades"), "{md}");
+    // O catálogo entra no índice da base, com frontmatter válido, e na busca.
+    let mut indice =
+        cba_kb::indice::Indice::abrir(c.amb.dados.arquivo_do_indice(), &c.amb.base).unwrap();
+    indice.sincronizar().unwrap();
+    let achados = indice
+        .buscar(&cba_kb::indice::Consulta::nova("Parcelar fatura"))
+        .unwrap();
+    let catalogo = achados
+        .resultados
+        .iter()
+        .find(|r| r.caminho.as_str().ends_with("funcionalidades/catalogo.md"))
+        .unwrap_or_else(|| panic!("{achados:?}"));
+    assert_eq!(
+        catalogo.tipo,
+        Some(cba_kb::indice::Tipo::Documento(
+            cba_kb::TipoDocumento::CatalogoFuncionalidades
+        ))
+    );
     assert!(
         md.contains("| F-CAN-001 | Cancelar fatura | só mapeada · nova | 2 |"),
         "{md}"
