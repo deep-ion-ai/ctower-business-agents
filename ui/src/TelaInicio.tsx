@@ -16,6 +16,7 @@ import { NovaAnalise } from "./NovaAnalise";
 import { NovaHistorias } from "./NovaHistorias";
 import { ModalNovoProjeto } from "./ModalNovoProjeto";
 import { NovaReuniao } from "./NovaReuniao";
+import { NovoMapeamento } from "./NovoMapeamento";
 import {
   aguardaRevisao,
   emAndamento,
@@ -33,6 +34,7 @@ const FLUXOS: Fluxo[] = [
   "revisar",
   "historias",
   "cenarios",
+  "mapear",
 ];
 
 const ESTADO: Record<AnaliseInicio["estado"], string> = {
@@ -204,10 +206,19 @@ export function TelaInicio({
             aoCriar={abrirCriada}
           />
         )}
+        {fluxo === "mapear" && inicio && !semProjeto && (
+          <NovoMapeamento
+            api={api}
+            projetos={inicio.projetos}
+            aoCancelar={() => setFluxo(null)}
+            aoCriar={abrirCriada}
+          />
+        )}
         {fluxo &&
           fluxo !== "reuniao" &&
           fluxo !== "historias" &&
-          fluxo !== "cenarios" && inicio && !semProjeto && (
+          fluxo !== "cenarios" &&
+          fluxo !== "mapear" && inicio && !semProjeto && (
           <NovaAnalise
             key={fluxo}
             api={api}

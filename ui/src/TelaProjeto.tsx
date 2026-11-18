@@ -9,6 +9,8 @@ import {
   type VisaoProjeto,
 } from "./conhecimento";
 import { ListaDemandas } from "./ListaDemandas";
+import { ListaFuncionalidades } from "./ListaFuncionalidades";
+import type { ApiFuncionalidades } from "./funcionalidades";
 import { simbolosEmNegocio } from "./mapaNegocio";
 import type { Tela } from "./Navegacao";
 import type { ProjetoResumo } from "./terminal";
@@ -25,11 +27,14 @@ type Revalidacao =
  */
 export function TelaProjeto({
   api,
+  apiFuncionalidades,
   projetos,
   projetoInicial,
   navegar,
 }: {
   api: ApiConhecimento;
+  /** Catálogo de funcionalidades (#208); para testes. */
+  apiFuncionalidades?: ApiFuncionalidades;
   projetos: ProjetoResumo[];
   projetoInicial?: string;
   navegar: (t: Tela) => void;
@@ -54,17 +59,27 @@ export function TelaProjeto({
       {projetos.length === 0 && !projetoInicial && (
         <p className="muted">Nenhum projeto cadastrado.</p>
       )}
-      {projeto && <Projeto key={projeto} api={api} projeto={projeto} navegar={navegar} />}
+      {projeto && (
+        <Projeto
+          key={projeto}
+          api={api}
+          apiFuncionalidades={apiFuncionalidades}
+          projeto={projeto}
+          navegar={navegar}
+        />
+      )}
     </section>
   );
 }
 
 function Projeto({
   api,
+  apiFuncionalidades,
   projeto,
   navegar,
 }: {
   api: ApiConhecimento;
+  apiFuncionalidades?: ApiFuncionalidades;
   projeto: string;
   navegar: (t: Tela) => void;
 }) {
@@ -159,6 +174,8 @@ function Projeto({
       </div>
 
       <ListaDemandas api={api} projeto={projeto} navegar={navegar} />
+
+      <ListaFuncionalidades projeto={projeto} navegar={navegar} api={apiFuncionalidades} />
 
       {aRevalidar > 0 && (
         <p className="aviso-revalidar" role="alert">

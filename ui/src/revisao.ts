@@ -35,7 +35,25 @@ export type DecisaoRevisao =
   | ({ tipo: "editar-cenario"; cenario: string; titulo: string } & Gherkin)
   | { tipo: "tabela"; numero: number; situacao: SituacaoItem }
   /** "Virar pergunta" (#119, #120): pergunta do analista a partir de um item da análise, com o texto editado e as evidências do item. */
-  | { tipo: "virar-pergunta"; texto: string; origem: OrigemPergunta };
+  | { tipo: "virar-pergunta"; texto: string; origem: OrigemPergunta }
+  /** Mapa de funcionalidades (#208): aceitar, descartar, desfazer, editar, juntar e dividir. */
+  | { tipo: "funcionalidade"; funcionalidade: string; decisao: "aceitar" | "descartar" | "desfazer" }
+  | {
+      tipo: "editar-funcionalidade";
+      funcionalidade: string;
+      nome: string;
+      area: string;
+      descricao: string;
+    }
+  | { tipo: "juntar-funcionalidades"; origem: string; destino: string }
+  | {
+      tipo: "dividir-funcionalidade";
+      funcionalidade: string;
+      /** Índices (a partir de 0) dos pontos de entrada que vão para a nova. */
+      pontos: number[];
+      nome: string;
+      descricao: string;
+    };
 
 export interface Area {
   id: string;
@@ -44,7 +62,15 @@ export interface Area {
 }
 
 export interface Pendencia {
-  tipo: "analise" | "afirmacao" | "termo" | "historia" | "criterio" | "tabela" | "cenario";
+  tipo:
+    | "analise"
+    | "afirmacao"
+    | "termo"
+    | "historia"
+    | "criterio"
+    | "tabela"
+    | "cenario"
+    | "funcionalidade";
   numero: number | null;
   motivo: string;
 }
@@ -90,6 +116,15 @@ export interface AprovacaoFeita {
   jaAprovada: boolean;
   regras: { id: string; arquivo: string; area: string; afirmacoes: number[]; acao: Acao }[];
   termos: { termo: string; arquivo: string; acao: Acao }[];
+  /** Mapa de funcionalidades (#208): o que a aprovação fez no catálogo. */
+  catalogo?: {
+    novas: string[];
+    atualizadas: string[];
+    retiradas: string[];
+    semPontoDeEntrada: string[];
+  } | null;
+  /** Explicação ligada a uma funcionalidade: o documento negocial gravado. */
+  documentoNegocial?: string | null;
   avisos: string[];
 }
 

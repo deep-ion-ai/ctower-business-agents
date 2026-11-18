@@ -593,7 +593,9 @@ export function PainelAnalise({
           ? "Aprovar as histórias"
           : vista?.analise.fluxo === "cenarios"
             ? "Aprovar os cenários"
-            : "Aprovar a análise";
+            : vista?.analise.fluxo === "mapear"
+              ? "Aprovar o mapa"
+              : "Aprovar a análise";
 
   return (
     <div className="painel-analise">

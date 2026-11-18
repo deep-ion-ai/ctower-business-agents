@@ -2441,3 +2441,51 @@
   overflow-wrap: anywhere;
   font-size: 12px;
 }
+
+/* Mapa e catálogo de funcionalidades (#208). */
+.funcionalidades-ao-vivo .funcionalidade {
+  margin: 12px 0;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.funcionalidades-ao-vivo .funcionalidade.situacao-descartada,
+.funcionalidades-ao-vivo .funcionalidade.situacao-juntada {
+  opacity: 0.6;
+}
+.funcionalidades-ao-vivo .pontos-entrada {
+  margin: 6px 0;
+  padding-left: 18px;
+}
+.funcionalidades-ao-vivo .pontos-entrada li,
+.pontos-sem-funcionalidade li {
+  overflow-wrap: anywhere;
+}
+.form-funcionalidade {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0;
+}
+.form-funcionalidade fieldset {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+.form-funcionalidade .opcao {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-wrap: anywhere;
+}
+.lista-funcionalidades .funcionalidade-catalogo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.lista-funcionalidades .funcionalidade-catalogo .btn {
+  margin-left: auto;
+}

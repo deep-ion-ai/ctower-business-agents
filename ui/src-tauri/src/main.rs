@@ -40,6 +40,7 @@ mod configuracoes;
 mod console;
 mod conversa;
 mod demandas;
+mod funcionalidades;
 mod gui;
 mod inicio;
 mod pauta;

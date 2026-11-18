@@ -23,6 +23,8 @@ import { CartaoAfirmacao, ROTULO_CONFIANCA } from "./CartaoAfirmacao";
 import { CenariosAoVivo } from "./CenariosAoVivo";
 import { DiagramaAoVivo } from "./DiagramaAoVivo";
 import { HistoriasAoVivo } from "./HistoriasAoVivo";
+import { FuncionalidadesAoVivo } from "./FuncionalidadesAoVivo";
+import { apiFuncionalidadesTauri, type Completude } from "./funcionalidades";
 import { FaixaRevisao } from "./FaixaRevisao";
 import {
   contagemPorFiltro,
@@ -133,6 +135,11 @@ interface Props {
    * conta do cabeçalho e do diálogo de aprovação (#222).
    */
   pendencias?: Pendencia[] | null;
+  /**
+   * Pontos de entrada do escopo sem tratamento (fluxo `mapear`, #208). Sem ela,
+   * lê pelo comando do app.
+   */
+  carregarCompletude?: () => Promise<Completude>;
 }
 
 /** Ícone que mostra ou esconde as evidências no código de uma afirmação ou sugestão. */
@@ -177,11 +184,22 @@ export function DocumentoAoVivo({
   revisao,
   semCabecalho = false,
   pendencias,
+  carregarCompletude,
 }: Props) {
   const { analise } = vista;
   const deCenarios = analise.fluxo === "cenarios";
-  // Histórias e cenários têm registros próprios, no lugar das afirmações.
-  const deHistorias = analise.fluxo === "historias" || deCenarios;
+  const deMapa = analise.fluxo === "mapear";
+  // Histórias, cenários e o mapa de funcionalidades têm registros próprios, no
+  // lugar das afirmações.
+  const deHistorias = analise.fluxo === "historias" || deCenarios || deMapa;
+  const completude = useMemo(
+    () =>
+      carregarCompletude ??
+      (deMapa
+        ? () => apiFuncionalidadesTauri.completude(analise.projeto, analise.id)
+        : undefined),
+    [carregarCompletude, deMapa, analise.projeto, analise.id],
+  );
   // Aprovada, a revisão fecha: as regras já foram para a base.
   const rev = analise.estado === "aprovada" ? undefined : revisao;
   const diagramas = analise.diagramas ?? [];
@@ -358,13 +376,22 @@ export function DocumentoAoVivo({
         <div className="documento-conteudo">
           {/* Na revisão, o texto revisado já aparece no parecer, com as marcas. */}
           {analise.fluxo !== "revisar" && (
-            <section aria-label={deHistorias ? "Pedido" : "Pergunta"}>
-              <h3>{deHistorias ? "Pedido" : "Pergunta"}</h3>
+            <section aria-label={deMapa ? "Escopo" : deHistorias ? "Pedido" : "Pergunta"}>
+              <h3>{deMapa ? "Escopo" : deHistorias ? "Pedido" : "Pergunta"}</h3>
               <blockquote>{analise.entrada}</blockquote>
             </section>
           )}
 
-          {deCenarios ? (
+          {deMapa ? (
+            <FuncionalidadesAoVivo
+              funcionalidades={analise.funcionalidades ?? []}
+              justificados={analise.pontos_justificados ?? []}
+              escopo={analise.escopo}
+              versao={analise.versao}
+              carregarCompletude={completude}
+              revisao={rev}
+            />
+          ) : deCenarios ? (
             <CenariosAoVivo
               tabelas={analise.tabelas ?? []}
               cenarios={analise.cenarios ?? []}

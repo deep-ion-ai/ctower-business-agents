@@ -318,6 +318,7 @@ export const ROTULO_FLUXO: Record<Fluxo, string> = {
   revisar: "Revisar requisito",
   historias: "Histórias e critérios",
   cenarios: "Cenários de teste",
+  mapear: "Mapear funcionalidades",
 };
 
 export const ROTULO_STATUS_REGRA: Record<StatusRegra, string> = {
