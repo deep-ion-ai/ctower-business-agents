@@ -2,6 +2,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import type { Gherkin, Narrativa, OrigemPergunta, SituacaoItem, VistaAnalise } from "./analise";
 
+/** Critério, cenário ou tabela (`cba_core::requisito::ItemRequisito`). */
+export type ItemRequisito =
+  | { tipo: "criterio"; historia: string; numero: number }
+  | { tipo: "cenario"; cenario: string }
+  | { tipo: "tabela"; numero: number };
+
 /**
  * Revisão, aprovação e exportação da análise (#37): espelho de
  * `cba_tools::revisao` e dos comandos de `ui/src-tauri/src/revisao.rs`.
@@ -34,6 +40,8 @@ export type DecisaoRevisao =
   | { tipo: "cenario"; cenario: string; situacao: SituacaoItem }
   | ({ tipo: "editar-cenario"; cenario: string; titulo: string } & Gherkin)
   | { tipo: "tabela"; numero: number; situacao: SituacaoItem }
+  /** Marcar um critério, cenário ou tabela "a revalidar" ou, sem `a_revalidar`, tirar a marca (#169). */
+  | { tipo: "revalidar"; item: ItemRequisito; a_revalidar: boolean }
   /** "Virar pergunta" (#119, #120): pergunta do analista a partir de um item da análise, com o texto editado e as evidências do item. */
   | { tipo: "virar-pergunta"; texto: string; origem: OrigemPergunta };
 

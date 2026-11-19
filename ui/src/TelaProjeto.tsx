@@ -303,6 +303,12 @@ function TextoRevalidacao({ resumo }: { resumo: ResumoRevalidacao }) {
     partes.push(`passaram a revalidar: ${marcadas.map((r) => r.id).join(", ")}`);
   if (restauradas.length > 0)
     partes.push(`voltaram a confirmadas: ${restauradas.map((r) => r.id).join(", ")}`);
+  const historias = resumo.historiasAfetadas ?? 0;
+  const cenarios = (resumo.cenariosAfetados ?? 0) + (resumo.tabelasAfetadas ?? 0);
+  if (historias > 0)
+    partes.push(`${contar(historias, "história", "histórias")} com critério a revalidar`);
+  if (cenarios > 0)
+    partes.push(`${contar(cenarios, "cenário ou tabela", "cenários e tabelas")} a revalidar`);
   if (resumo.problemas.length > 0) partes.push(`${contar(resumo.problemas.length, "documento", "documentos")} com problema`);
   return <span className="muted">{partes.join("; ")}.</span>;
 }

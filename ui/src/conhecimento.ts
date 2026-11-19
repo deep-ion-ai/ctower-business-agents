@@ -97,6 +97,12 @@ export interface ResumoRevalidacao {
     depois: StatusRegra;
   }[];
   analises: string[];
+  /** Histórias com critério de aceite a revalidar (#169). */
+  historiasAfetadas?: number;
+  /** Cenários de teste a revalidar (#169). */
+  cenariosAfetados?: number;
+  /** Tabelas de decisão a revalidar (#169). */
+  tabelasAfetadas?: number;
   problemas: ProblemaVista[];
   mudou: boolean;
   duracaoMs: number;

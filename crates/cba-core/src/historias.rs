@@ -31,7 +31,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::analise::{Analise, ErroModelo, EstadoAnalise, Fluxo};
 use crate::qualidade::CriterioInvest;
-use crate::requisito::{Fundamento, RefItem, SituacaoItem, sem_repetidos};
+use crate::requisito::{Fundamento, RefItem, Revalidacao, SituacaoItem, sem_repetidos};
 
 /// Título e narrativa da história: "Como <papel>, quero <objetivo>, para
 /// <benefício>".
@@ -139,6 +139,10 @@ pub struct Criterio {
     pub pergunta: Option<RefItem>,
     #[serde(default)]
     pub situacao: SituacaoItem,
+    /// Marca "a revalidar": evidência de um fundamento que deixou de conferir com o
+    /// código, ou marca do analista (#169).
+    #[serde(flatten)]
+    pub revalidacao: Revalidacao,
     #[serde(default)]
     pub sessao: Option<String>,
     pub registrado_ms: u64,
@@ -293,6 +297,7 @@ impl NovoCriterio {
             fundamentos,
             pergunta: self.pergunta,
             situacao: SituacaoItem::Pendente,
+            revalidacao: Revalidacao::default(),
             sessao: self.sessao,
             registrado_ms: agora_ms,
         })
@@ -755,5 +760,81 @@ mod tests {
         assert!(json.contains("\"origem\":\"A-0001\""), "{json}");
         let lida: Analise = serde_json::from_str(&json).unwrap();
         assert_eq!(lida, a);
+    }
+
+    #[test]
+    fn revalidacao_marca_o_criterio_pelo_fundamento_e_desfaz() {
+        use crate::requisito::ItemRequisito;
+        use cba_kb::CaminhoRelativo;
+        use cba_kb::frontmatter::{Evidencia, Linhas};
+        let ev = |hash: &str| Evidencia {
+            arquivo: CaminhoRelativo::novo("db/03_pkg_cobranca.sql").unwrap(),
+            linhas: Linhas::novo(10, 12).unwrap(),
+            hash: hash.into(),
+            commit: None,
+        };
+        let com_evidencia = Fundamento::Regra {
+            id: Id::analisar("RN-FAT-007").unwrap(),
+            titulo: "Limite de parcelas".into(),
+            evidencias: vec![ev("abc"), ev("def")],
+        };
+        let mut a = analise();
+        let id = a
+            .registrar_historia(
+                nova(vec![criterio(vec![com_evidencia]), criterio(vec![regra()])]),
+                IdHistoria::novo(1),
+                1,
+            )
+            .unwrap();
+        a.decidir_historia(id, DecisaoHistoria::Aceitar).unwrap();
+
+        let r = a.revalidar(|e| Some(e.hash != "abc"));
+        assert_eq!(
+            r.itens_marcados,
+            [ItemRequisito::Criterio {
+                historia: id,
+                numero: 1
+            }]
+        );
+        assert_eq!(r.fundamentos_marcados, 1);
+        let c = &a.historia(id).unwrap().criterios[0];
+        assert!(c.revalidacao.a_revalidar());
+        assert_eq!(c.revalidacao.fundamentos_a_revalidar, ["RN-FAT-007"]);
+        assert_eq!(c.situacao, SituacaoItem::Aceito);
+        // Sem saber (None), fica como está; outra evidência do mesmo fundamento
+        // não conta de novo.
+        assert!(!a.revalidar(|_| None).mudou());
+        assert!(!a.revalidar(|_| Some(false)).mudou());
+
+        // O analista reviu e tirou a marca: a mesma evidência que continua sem
+        // conferir não marca de novo.
+        let item = ItemRequisito::Criterio {
+            historia: id,
+            numero: 1,
+        };
+        a.marcar_item_a_revalidar(&item, false).unwrap();
+        assert!(!a.revalidar(|e| Some(e.hash != "abc")).mudou());
+        assert!(
+            !a.historia(id).unwrap().criterios[0]
+                .revalidacao
+                .a_revalidar()
+        );
+
+        // Volta a conferir e deixa de conferir de novo: marca outra vez; e volta.
+        let r = a.revalidar(|_| Some(true));
+        assert_eq!(r.fundamentos_restaurados, 1);
+        assert!(r.itens_restaurados.is_empty());
+        a.revalidar(|e| Some(e.hash != "def"));
+        assert!(
+            a.historia(id).unwrap().criterios[0]
+                .revalidacao
+                .a_revalidar()
+        );
+        let r = a.revalidar(|_| Some(true));
+        assert_eq!(r.itens_restaurados, [item]);
+        assert_eq!(
+            a.historia(id).unwrap().criterios[0].revalidacao,
+            Revalidacao::default()
+        );
     }
 }
