@@ -331,6 +331,26 @@ describe("TelaMapa", () => {
     expect(within(cartao).queryByRole("list", { name: "Pontos de entrada de F-COB-001" })).toBeNull();
   });
 
+  it("árvore lateral navega entre áreas e funcionalidades", async () => {
+    abrir(apiFalsa());
+    const arvore = await screen.findByRole("navigation", { name: "Árvore de funcionalidades" });
+    expect(within(arvore).getByRole("button", { name: /Cobrança 1 · 1 a revisar/ })).toBeInTheDocument();
+    const cancelar = within(arvore).getByRole("button", { name: /F-CAN-001 Cancelar fatura/ });
+    // Escondida pelo filtro: escolher na árvore limpa o filtro e marca o cartão.
+    fireEvent.click(screen.getByRole("button", { name: "A revisar" }));
+    expect(screen.queryByRole("region", { name: "F-CAN-001: Cancelar fatura" })).toBeNull();
+    expect(cancelar).toHaveClass("fora-do-filtro");
+    fireEvent.click(cancelar);
+    const cartao = await screen.findByRole("region", { name: "F-CAN-001: Cancelar fatura" });
+    expect(cartao).toHaveAttribute("aria-current", "true");
+    expect(cancelar).toHaveAttribute("aria-current", "true");
+    // Recolher a área esconde as funcionalidades dela na árvore.
+    const area = within(arvore).getByRole("button", { name: /Cancelamento/ });
+    fireEvent.click(area);
+    expect(area).toHaveAttribute("aria-expanded", "false");
+    expect(within(arvore).queryByRole("button", { name: /F-CAN-001/ })).toBeNull();
+  });
+
   it("mapa vazio convida a mapear", async () => {
     abrir(
       apiFalsa({

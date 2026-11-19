@@ -238,10 +238,13 @@ function CartaoFuncionalidade({
   aoExplicar,
   aoAbrirExplicacao,
   aoAbrirDocumento,
+  selecionada = false,
 }: {
   f: Funcionalidade;
   outras: Funcionalidade[];
   revisao: Revisao;
+  /** Escolhida na árvore lateral. */
+  selecionada?: boolean;
   /** Mostra o trecho de código citado em cada ponto de entrada. */
   evidencias?: boolean;
   aoExplicar?: (f: Funcionalidade) => void;
@@ -258,7 +261,12 @@ function CartaoFuncionalidade({
       .then(() => setForm(null))
       .catch(() => undefined);
   return (
-    <section className={`funcionalidade situacao-${s}`} aria-label={`${f.id}: ${f.nome}`}>
+    <section
+      id={idDoCartao(f.id)}
+      className={`funcionalidade situacao-${s}${selecionada ? " selecionada" : ""}`}
+      aria-label={`${f.id}: ${f.nome}`}
+      aria-current={selecionada ? "true" : undefined}
+    >
       <header className="historia-cabecalho">
         <span className="painel-id">{f.id}</span>
         <strong>{f.nome}</strong>
@@ -440,6 +448,80 @@ function CartaoFuncionalidade({
   );
 }
 
+const idDoCartao = (id: string) => `funcionalidade-${id}`;
+
+/**
+ * Árvore lateral: as áreas e, em cada uma, as funcionalidades, com a situação.
+ * Escolher uma rola até o cartão dela; as que o filtro ou a busca escondem ficam
+ * esmaecidas e, escolhidas, limpam o filtro.
+ */
+function ArvoreDoMapa({
+  mapa,
+  visivel,
+  selecionada,
+  aoEscolher,
+}: {
+  mapa: MapaFuncionalidades;
+  visivel: (f: Funcionalidade) => boolean;
+  selecionada: string | null;
+  aoEscolher: (f: Funcionalidade) => void;
+}) {
+  const [fechadas, setFechadas] = useState<ReadonlySet<string>>(new Set());
+  const alternar = (area: string) =>
+    setFechadas((atual) => {
+      const novo = new Set(atual);
+      if (novo.has(area)) novo.delete(area);
+      else novo.add(area);
+      return novo;
+    });
+  return (
+    <nav className="arvore-mapa" aria-label="Árvore de funcionalidades">
+      <ul>
+        {mapa.areas.map((a) => {
+          const aberta = !fechadas.has(a.area);
+          const pendentes = a.funcionalidades.filter((f) => f.situacao === "pendente").length;
+          return (
+            <li key={a.area}>
+              <button
+                type="button"
+                className="arvore-area"
+                aria-expanded={aberta}
+                onClick={() => alternar(a.area)}
+              >
+                <span aria-hidden="true">{aberta ? "▾" : "▸"}</span> {a.nome}{" "}
+                <span className="muted">
+                  {a.funcionalidades.length}
+                  {pendentes > 0 ? ` · ${pendentes} a revisar` : ""}
+                </span>
+              </button>
+              {aberta && (
+                <ul aria-label={a.nome}>
+                  {a.funcionalidades.map((f) => (
+                    <li key={f.id}>
+                      <button
+                        type="button"
+                        className={`arvore-funcionalidade situacao-${f.situacao}${visivel(f) ? "" : " fora-do-filtro"}`}
+                        aria-current={selecionada === f.id ? "true" : undefined}
+                        title={`${f.id} · ${f.nome} (${SITUACAO[f.situacao]})`}
+                        onClick={() => aoEscolher(f)}
+                      >
+                        <span className="arvore-marca" aria-hidden="true">
+                          {f.situacao === "aceita" ? "✓" : "•"}
+                        </span>
+                        <span className="painel-id">{f.id}</span> {f.nome}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}
+
 /** Sessão de mapeamento: o recorte e a orientação, depois o terminal do Claude. */
 function SessaoDeMapeamento({
   projeto,
@@ -596,6 +678,24 @@ function MapaDoProjeto({
   const [busca, setBusca] = useState("");
   const [todosSemTratamento, setTodosSemTratamento] = useState(false);
   const [evidencias, setEvidencias] = useState(false);
+  const [selecionada, setSelecionada] = useState<string | null>(null);
+  const [rolarPara, setRolarPara] = useState<string | null>(null);
+  useEffect(() => {
+    if (!rolarPara) return;
+    document.getElementById(idDoCartao(rolarPara))?.scrollIntoView?.({
+      behavior: "smooth",
+      block: "start",
+    });
+    setRolarPara(null);
+  }, [rolarPara]);
+  const escolher = (f: Funcionalidade) => {
+    if (!passa(f, filtro, busca)) {
+      setFiltro("todas");
+      setBusca("");
+    }
+    setSelecionada(f.id);
+    setRolarPara(f.id);
+  };
 
   const revisao: Revisao = {
     ocupado,
@@ -648,6 +748,14 @@ function MapaDoProjeto({
 
   return (
     <div className={sessao ? "mapa-colunas com-sessao" : "mapa-colunas"}>
+      {mapa && mapa.total > 0 && (
+        <ArvoreDoMapa
+          mapa={mapa}
+          visivel={(f) => passa(f, filtro, busca)}
+          selecionada={selecionada}
+          aoEscolher={escolher}
+        />
+      )}
       <div className="mapa-revisao">
         <header className="mapa-cabecalho">
           <p className="muted" aria-label="Resumo do mapa">
@@ -747,6 +855,7 @@ function MapaDoProjeto({
                       outras={abertas.filter((o) => o.id !== f.id)}
                       revisao={revisao}
                       evidencias={evidencias}
+                      selecionada={selecionada === f.id}
                       aoExplicar={explicar}
                       aoAbrirExplicacao={abrirExplicacao}
                       aoAbrirDocumento={abrirDocumento}
