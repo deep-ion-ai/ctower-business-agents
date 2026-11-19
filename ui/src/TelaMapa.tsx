@@ -385,7 +385,7 @@ function SessaoDeMapeamento({
       </header>
       {pedido === null ? (
         <form
-          className="form-funcionalidade"
+          className="form-mapeamento"
           aria-label="Começar o mapeamento"
           onSubmit={(e) => {
             e.preventDefault();
@@ -401,28 +401,37 @@ function SessaoDeMapeamento({
             registra cada uma neste mapa, que você revisa aqui. Uma sessão nova continua o mapa de
             onde parou. Em projetos grandes, vá por pasta ou área.
           </p>
-          <label>
-            Pasta (opcional)
-            <input
-              value={pasta}
-              placeholder="db, backend/src…"
-              onChange={(e) => setPasta(e.target.value)}
-            />
-          </label>
-          <label>
-            Área (opcional)
-            <input value={area} placeholder="Cobrança" onChange={(e) => setArea(e.target.value)} />
-          </label>
-          <label>
+          <div className="field-pair">
+            <label className="field">
+              Pasta (opcional)
+              <input
+                type="text"
+                value={pasta}
+                placeholder="db, backend/src…"
+                onChange={(e) => setPasta(e.target.value)}
+              />
+            </label>
+            <label className="field">
+              Área (opcional)
+              <input
+                type="text"
+                value={area}
+                placeholder="Cobrança"
+                onChange={(e) => setArea(e.target.value)}
+              />
+            </label>
+          </div>
+          <label className="field">
             Orientação ao agente (opcional)
             <textarea
-              rows={3}
+              rows={4}
               value={orientacao}
+              placeholder="Ex.: comece pelo faturamento; ignore os utilitários de log."
               onChange={(e) => setOrientacao(e.target.value)}
             />
           </label>
           {erro && <p className="erro">{erro}</p>}
-          <div className="acoes">
+          <div className="acoes-form-mapeamento">
             <button type="submit" className="btn btn-primary">
               Começar
             </button>
