@@ -83,6 +83,14 @@ describe("VincularIssues", () => {
     const { api, aoVincular } = abrir();
     fireEvent.click(screen.getByRole("button", { name: "Buscar issues" }));
     await screen.findByLabelText("Resumo da leitura");
+    (api.vincular as ReturnType<typeof vi.fn>).mockResolvedValue({
+      demandas: [{ origem: "github", chave: "#41", demanda: "D-0001" }],
+      criadas: ["D-0001"],
+      reaproveitadas: [],
+      vinculosNovos: 1,
+      vinculosExistentes: 0,
+      avisos: [],
+    });
     fireEvent.click(screen.getByRole("button", { name: "Confirmar 1 issue" }));
     await waitFor(() => expect(api.vincular).toHaveBeenCalledTimes(1));
     const [, itens] = (api.vincular as ReturnType<typeof vi.fn>).mock.calls[0];
@@ -91,8 +99,10 @@ describe("VincularIssues", () => {
     expect(itens[0].issue.chave).toBe("#41");
     expect(itens[0].issue.sugestoes).toBeUndefined();
     await waitFor(() => expect(aoVincular).toHaveBeenCalled());
-    expect(await screen.findByRole("status")).toHaveTextContent("0 vínculo(s) novo(s)");
-    expect(api.issues).toHaveBeenCalledTimes(2);
+    expect(await screen.findByRole("status")).toHaveTextContent("1 vínculo(s) novo(s)");
+    // Marca a issue como confirmada sem reler o rastreador.
+    expect(api.issues).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText("✓ Confirmada")).toBeInTheDocument();
   });
 
   it("troca a funcionalidade, descarta e desfaz", async () => {

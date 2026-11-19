@@ -10,7 +10,7 @@
 use cba_core::ambiente::Ambiente;
 use cba_core::funcionalidades::MapaFuncionalidades;
 use cba_kb::{IdDemanda, IdFuncionalidade, NovaDemanda};
-use cba_repos::listagem::IssueListada;
+use cba_repos::listagem::{IssueListada, OrigemIssue};
 
 use crate::ErroFerramenta;
 use crate::mapear::{Alterado, alterar_no_projeto};
@@ -33,6 +33,16 @@ pub struct ResultadoDoLote {
     pub vinculos_novos: usize,
     /// Vínculos que já existiam.
     pub vinculos_existentes: usize,
+    /// A demanda da base de cada issue confirmada, na ordem do lote.
+    pub por_issue: Vec<DemandaDaIssue>,
+}
+
+/// Demanda da base que representa uma issue confirmada.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DemandaDaIssue {
+    pub origem: OrigemIssue,
+    pub chave: String,
+    pub demanda: IdDemanda,
 }
 
 fn interno(e: impl ToString) -> ErroFerramenta {
@@ -98,6 +108,11 @@ pub fn confirmar_vinculos(
                 nova.id
             }
         };
+        resultado.por_issue.push(DemandaDaIssue {
+            origem: item.issue.origem,
+            chave: item.issue.chave.clone(),
+            demanda: id,
+        });
         ligacoes.push((id, &item.funcionalidades));
     }
     let mut vinculos_novos = 0;

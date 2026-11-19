@@ -120,6 +120,7 @@ export function apiFalsa(
       funcionalidades: [],
     }),
     vincular: vi.fn().mockResolvedValue({
+      demandas: [],
       criadas: [],
       reaproveitadas: [],
       vinculosNovos: 0,

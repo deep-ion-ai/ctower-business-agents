@@ -98,9 +98,13 @@ fn le_sugere_confirma_e_repetir_nao_duplica() {
             funcionalidades: vec!["F-FAT-001".into()],
         }]
     };
+    let t = std::time::Instant::now();
     let r = confirmar_lote(&c.dados, PROJETO, itens()).unwrap();
+    let _ = t;
     assert_eq!((r.criadas.len(), r.vinculos_novos), (1, 1));
+    let t = std::time::Instant::now();
     let r2 = confirmar_lote(&c.dados, PROJETO, itens()).unwrap();
+    let _ = t;
     assert!(r2.criadas.is_empty());
     assert_eq!((r2.vinculos_novos, r2.vinculos_existentes), (0, 1));
     assert_eq!(amb.kb.demandas().unwrap().len(), 1);

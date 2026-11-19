@@ -122,7 +122,20 @@ export function VincularIssues({
       .then((r) => {
         setResultado(r);
         aoVincular();
-        return ler();
+        // Sem reler o rastreador (uma chamada de rede lenta): a própria resposta diz
+        // a demanda de cada issue, e a tela marca as confirmadas.
+        const demanda = new Map(r.demandas.map((d) => [`${d.origem}:${d.chave}`, d.demanda]));
+        const gravadas = new Map(lote.map((i) => [chaveDe(i), escolha(i).funcionalidades]));
+        setVista((v) =>
+          v && {
+            ...v,
+            issues: v.issues.map((i) => {
+              const f = gravadas.get(chaveDe(i));
+              const d = demanda.get(chaveDe(i));
+              return f && d ? { ...i, demanda: d, ligadaA: [...new Set([...i.ligadaA, ...f])] } : i;
+            }),
+          },
+        );
       })
       .catch((e: unknown) => setFalha(mensagemDe(e)))
       .finally(() => setGravando(false));
@@ -249,7 +262,9 @@ export function VincularIssues({
               disabled={gravando || aGravar.length === 0}
               onClick={() => confirmar(aGravar)}
             >
-              Confirmar {aGravar.length} {aGravar.length === 1 ? "issue" : "issues"}
+              {gravando
+                ? "Confirmando…"
+                : `Confirmar ${aGravar.length} ${aGravar.length === 1 ? "issue" : "issues"}`}
             </button>
             <button
               type="button"

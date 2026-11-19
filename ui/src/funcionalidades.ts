@@ -227,6 +227,8 @@ export interface ItemConfirmado {
 }
 
 export interface ResultadoDoLote {
+  /** A demanda da base de cada issue confirmada. */
+  demandas: { origem: "github" | "jira"; chave: string; demanda: string }[];
   criadas: string[];
   reaproveitadas: string[];
   vinculosNovos: number;

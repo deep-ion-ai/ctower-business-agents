@@ -87,9 +87,20 @@ pub struct ItemConfirmado {
     pub funcionalidades: Vec<String>,
 }
 
+/// Demanda da base que ficou em cada issue confirmada (a tela se atualiza com ela,
+/// sem reler o rastreador).
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DemandaConfirmada {
+    pub origem: OrigemIssue,
+    pub chave: String,
+    pub demanda: String,
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ResultadoDoLote {
+    pub demandas: Vec<DemandaConfirmada>,
     pub criadas: Vec<String>,
     pub reaproveitadas: Vec<String>,
     pub vinculos_novos: usize,
@@ -219,6 +230,15 @@ pub fn confirmar_lote(
     }
     let r = alterado.resultado;
     Ok(ResultadoDoLote {
+        demandas: r
+            .por_issue
+            .iter()
+            .map(|d| DemandaConfirmada {
+                origem: d.origem,
+                chave: d.chave.clone(),
+                demanda: d.demanda.to_string(),
+            })
+            .collect(),
         criadas: r.criadas.iter().map(ToString::to_string).collect(),
         reaproveitadas: r.reaproveitadas.iter().map(ToString::to_string).collect(),
         vinculos_novos: r.vinculos_novos,
