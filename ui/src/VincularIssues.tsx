@@ -11,7 +11,7 @@ import type {
 const MESES_PADRAO = 6;
 
 type FiltroEstado = "todas" | "aberta" | "fechada";
-type FiltroVinculo = "todas" | "sugeridas" | "sem";
+type FiltroVinculo = "todas" | "pendentes" | "confirmadas" | "sugeridas" | "sem";
 
 /** O que o analista decidiu de uma issue: funcionalidades escolhidas ou descarte. */
 interface Escolha {
@@ -21,8 +21,15 @@ interface Escolha {
 
 const chaveDe = (i: IssueDoRastreador) => `${i.origem}:${i.chave}`;
 
-/** Sugestão inicial: só a melhor (a lista toda continua à vista para trocar). */
+/** Já confirmada: a demanda da base está ligada a alguma funcionalidade. */
+const confirmada = (i: IssueDoRastreador) => i.ligadaA.length > 0;
+
+/**
+ * Escolha inicial: o que já foi confirmado; senão, só a melhor sugestão (a lista toda
+ * continua à vista para trocar).
+ */
 function inicial(i: IssueDoRastreador): Escolha {
+  if (confirmada(i)) return { funcionalidades: [...i.ligadaA], descartada: false };
   return { funcionalidades: i.sugestoes[0] ? [i.sugestoes[0].funcionalidade] : [], descartada: false };
 }
 
@@ -86,16 +93,18 @@ export function VincularIssues({
   const visiveis = (vista?.issues ?? []).filter((i) => {
     if (estado !== "todas" && i.estado !== estado) return false;
     if (rotulo && !i.rotulos.includes(rotulo)) return false;
+    if (vinculo === "confirmadas" && !confirmada(i)) return false;
+    if (vinculo === "pendentes" && confirmada(i)) return false;
     if (vinculo === "sugeridas" && i.sugestoes.length === 0) return false;
     if (vinculo === "sem" && i.sugestoes.length > 0) return false;
     const q = busca.trim().toLowerCase();
     return !q || `${i.chave} ${i.titulo}`.toLowerCase().includes(q);
   });
 
-  /** Issues que a confirmação grava: com funcionalidade escolhida e não descartadas. */
+  /** Issues que a confirmação grava: com funcionalidade escolhida ainda não ligada. */
   const aGravar = (vista?.issues ?? []).filter((i) => {
     const e = escolha(i);
-    return !e.descartada && e.funcionalidades.length > 0;
+    return !e.descartada && e.funcionalidades.some((f) => !i.ligadaA.includes(f));
   });
 
   const confirmar = (lote: IssueDoRastreador[]) => {
@@ -181,8 +190,11 @@ export function VincularIssues({
         <>
           <p className="muted" aria-label="Resumo da leitura">
             {vista.issues.length} issue(s) criadas desde {vista.desde} ·{" "}
-            {vista.issues.filter((i) => i.sugestoes.length > 0).length} com sugestão ·{" "}
-            {vista.issues.filter((i) => i.sugestoes.length === 0).length} sem funcionalidade
+            {vista.issues.filter(confirmada).length} confirmada(s) ·{" "}
+            {vista.issues.filter((i) => !confirmada(i) && i.sugestoes.length > 0).length} com
+            sugestão ·{" "}
+            {vista.issues.filter((i) => !confirmada(i) && i.sugestoes.length === 0).length} sem
+            funcionalidade
           </p>
           {vista.excedeuTeto && (
             <p className="aviso">
@@ -207,6 +219,8 @@ export function VincularIssues({
               Vínculo{" "}
               <select value={vinculo} onChange={(e) => setVinculo(e.target.value as FiltroVinculo)}>
                 <option value="todas">Todas</option>
+                <option value="pendentes">A confirmar</option>
+                <option value="confirmadas">Confirmadas</option>
                 <option value="sugeridas">Com sugestão</option>
                 <option value="sem">Sem funcionalidade</option>
               </select>
@@ -294,22 +308,38 @@ function LinhaDaIssue({
         ? atual.funcionalidades.filter((f) => f !== id)
         : [...atual.funcionalidades, id],
     }));
+  const ok = i.ligadaA.length > 0;
+  const novas = e.funcionalidades.some((f) => !i.ligadaA.includes(f));
   const livres = funcionalidades.filter((f) => !exibidas.includes(f.id));
   return (
-    <li className={e.descartada ? "vincular-issue descartada" : "vincular-issue"}>
+    <li
+      className={
+        e.descartada
+          ? "vincular-issue descartada"
+          : ok
+            ? "vincular-issue confirmada"
+            : "vincular-issue"
+      }
+    >
       <div className="vincular-titulo">
         <a href={i.url} target="_blank" rel="noreferrer">
           {i.chave}
         </a>{" "}
         <strong>{i.titulo}</strong>{" "}
+        {ok && (
+          <span className="vincular-selo" title={`Demanda ${i.demanda}`}>
+            ✓ Confirmada
+          </span>
+        )}{" "}
         <span className="muted">
           {i.origem === "github" ? "GitHub" : "Jira"} · {i.estado === "aberta" ? "aberta" : "fechada"}
           {i.rotulos.length > 0 && ` · ${i.rotulos.join(", ")}`}
         </span>
       </div>
-      {i.ligadaA.length > 0 && (
+      {ok && (
         <p className="muted">
-          Já ligada a {i.ligadaA.map(nomeDe).join(", ")} (demanda {i.demanda}).
+          Ligada a {i.ligadaA.map(nomeDe).join(", ")} · demanda {i.demanda}.
+          {novas && " Há funcionalidades marcadas ainda não confirmadas."}
         </p>
       )}
       {e.descartada ? (
@@ -367,10 +397,10 @@ function LinhaDaIssue({
             <button
               type="button"
               className="btn"
-              disabled={desabilitado || e.funcionalidades.length === 0}
+              disabled={desabilitado || !novas}
               onClick={aoConfirmar}
             >
-              Confirmar
+              {ok ? "Confirmar as novas" : "Confirmar"}
             </button>
             <button
               type="button"

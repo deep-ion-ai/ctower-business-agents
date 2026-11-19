@@ -58,7 +58,7 @@ describe("VincularIssues", () => {
     expect(screen.getByLabelText("Meses")).toHaveValue(6);
     fireEvent.click(screen.getByRole("button", { name: "Buscar issues" }));
     expect(await screen.findByLabelText("Resumo da leitura")).toHaveTextContent(
-      "2 issue(s) criadas desde 2026-05-19 · 1 com sugestão · 1 sem funcionalidade",
+      "2 issue(s) criadas desde 2026-05-19 · 0 confirmada(s) · 1 com sugestão · 1 sem funcionalidade",
     );
     expect(api.issues).toHaveBeenCalledWith("p", 6, null);
     expect(screen.getByText(/mais issues que o limite/)).toBeInTheDocument();
@@ -119,5 +119,35 @@ describe("VincularIssues", () => {
     render(<VincularIssues projeto="p" api={api} aoVoltar={vi.fn()} aoVincular={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "Buscar issues" }));
     expect(await screen.findByText(/repositório de issues/)).toBeInTheDocument();
+  });
+
+  it("marca como confirmada a issue já ligada e a tira do lote", async () => {
+    const api = apiFalsa();
+    const [a, b] = VISTA.issues;
+    (api.issues as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...VISTA,
+      issues: [{ ...a, demanda: "D-0001", ligadaA: ["F-FAT-001"] }, b],
+    });
+    render(<VincularIssues projeto="p" api={api} aoVoltar={vi.fn()} aoVincular={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Buscar issues" }));
+    expect(await screen.findByLabelText("Resumo da leitura")).toHaveTextContent(
+      "1 confirmada(s) · 0 com sugestão · 1 sem funcionalidade",
+    );
+    expect(screen.getByText("✓ Confirmada")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirmar 0 issues" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Confirmar as novas" })).toBeDisabled();
+    // Acrescentar outra funcionalidade libera só as novas.
+    fireEvent.change(screen.getByLabelText("Outra funcionalidade para #41"), {
+      target: { value: "F-FAT-002" },
+    });
+    expect(screen.getByRole("button", { name: "Confirmar as novas" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Confirmar 1 issue" })).toBeInTheDocument();
+    // Filtros por situação.
+    fireEvent.change(screen.getByLabelText(/Vínculo/), { target: { value: "confirmadas" } });
+    const lista = screen.getByRole("list", { name: "Issues" });
+    expect(within(lista).getByText("Parcelamento erra as parcelas")).toBeInTheDocument();
+    expect(within(lista).queryByText("Trocar a cor do botão")).toBeNull();
+    fireEvent.change(screen.getByLabelText(/Vínculo/), { target: { value: "pendentes" } });
+    expect(within(lista).queryByText("Parcelamento erra as parcelas")).toBeNull();
   });
 });

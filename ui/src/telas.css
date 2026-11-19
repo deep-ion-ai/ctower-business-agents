@@ -3071,3 +3071,16 @@ button.indicador:hover {
   display: grid;
   gap: 2px;
 }
+.vincular-issue.confirmada {
+  border-color: var(--ok, #2e7d32);
+  background: color-mix(in srgb, var(--ok, #2e7d32) 7%, transparent);
+}
+.vincular-selo {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--ok, #2e7d32);
+  border: 1px solid var(--ok, #2e7d32);
+}
