@@ -16,7 +16,9 @@ use cba_core::funcionalidades::{
 use cba_index::PontoEntrada;
 use cba_kb::{Id, IdFuncionalidade, layout};
 use cba_tools::aprovacao::OpcoesAprovacao;
-use cba_tools::mapear::{RevisaoDoMapa, revisar_mapa};
+use cba_tools::mapear::{
+    Casamento, PontosCasaveis, RevisaoDoMapa, localizar_ponto, normalizar_rota, revisar_mapa,
+};
 use cba_tools::revisao::{self, Decisao};
 use cba_tools::{ErroChamada, ErroFerramenta, registro_padrao};
 use serde_json::{Value, json};
@@ -493,4 +495,305 @@ fn explicacao_do_mapa_grava_o_documento_negocial_ligado() {
     assert_eq!(item.situacao, SituacaoFuncionalidade::Aceita);
     let md = std::fs::read_to_string(c.amb.kb.caminho(&layout::mapa_de_funcionalidades())).unwrap();
     assert!(md.contains("aceita · documentada"), "{md}");
+}
+
+fn endpoint(nome: &str, metodo: &str, rota: &str, linha: u32) -> PontoEntrada {
+    let arquivo = "backend/src/main/java/exemplo/faturamento/FaturaController.java";
+    PontoEntrada {
+        chave: PontoEntrada::chave_de(arquivo, nome),
+        tipo: cba_index::TipoEntrada::Endpoint,
+        nome: nome.into(),
+        arquivo: arquivo.into(),
+        linhas: cba_index::Linhas::new(linha, linha + 3),
+        detalhe: Some(format!("endpoint {metodo} {rota}")),
+    }
+}
+
+#[test]
+fn casa_endpoint_com_outro_nome_de_parametro_e_sugere_parecidos() {
+    let pontos = vec![
+        endpoint(
+            "exemplo.FaturaController.buscar./api/faturas/{}",
+            "GET",
+            "/api/faturas/{id}",
+            10,
+        ),
+        endpoint(
+            "exemplo.FaturaController.remover./api/faturas/{}",
+            "DELETE",
+            "/api/faturas/{id}",
+            20,
+        ),
+        endpoint(
+            "exemplo.FaturaController.parcelar./api/faturas/{}/parcelamento",
+            "POST",
+            "/api/faturas/{id}/parcelamento",
+            30,
+        ),
+        PontoEntrada {
+            chave: "db/03_pkg_cobranca.sql#PKG_COBRANCA.PRC_CANCELAR_FATURA".into(),
+            tipo: cba_index::TipoEntrada::RotinaBanco,
+            nome: "PKG_COBRANCA.PRC_CANCELAR_FATURA".into(),
+            arquivo: "db/03_pkg_cobranca.sql".into(),
+            linhas: cba_index::Linhas::new(99, 120),
+            detalhe: None,
+        },
+    ];
+    let casaveis = PontosCasaveis::novos(&pontos);
+    let nome = |citado: &str| match casaveis.casar(citado) {
+        Casamento::Um(p) => p.nome.clone(),
+        outro => panic!("{citado}: {outro:?}"),
+    };
+
+    assert_eq!(
+        normalizar_rota("/API/Faturas/{idFatura:[0-9]{1,9}}/"),
+        "/api/faturas/{}"
+    );
+    assert_eq!(
+        normalizar_rota("/api/faturas/:idFatura/parcelamento"),
+        "/api/faturas/{}/parcelamento"
+    );
+
+    // A rota com o método, outro nome de parâmetro, `:x`, `{x:regex}`, barra
+    // final e maiúsculas.
+    assert!(nome("GET /api/faturas/{idFatura}").contains("buscar"));
+    assert!(nome("delete /API/faturas/{id:[0-9]+}/").contains("remover"));
+    assert!(nome("/api/faturas/:idFatura/parcelamento").contains("parcelar"));
+    // A chave e o nome com outro nome de parâmetro.
+    assert!(
+        nome(
+            "backend/src/main/java/exemplo/faturamento/FaturaController.java#exemplo.FaturaController.buscar./api/faturas/{idFatura}"
+        )
+        .contains("buscar")
+    );
+    assert!(
+        nome("FaturaController.parcelar./api/faturas/{numero}/parcelamento").contains("parcelar")
+    );
+    assert!(nome("pkg_cobranca.prc_cancelar_fatura").contains("PRC_CANCELAR_FATURA"));
+
+    // Sem o método, a rota é de dois endpoints: recusa com os candidatos.
+    let ambiguo = match localizar_ponto(&casaveis, "/api/faturas/{idFatura}") {
+        Err(ErroFerramenta::Recusa(m)) => m,
+        outro => panic!("{outro:?}"),
+    };
+    assert!(ambiguo.contains("casa com 2 pontos"), "{ambiguo}");
+    assert!(ambiguo.contains("buscar./api/faturas/{}"), "{ambiguo}");
+    assert!(ambiguo.contains("remover./api/faturas/{}"), "{ambiguo}");
+    // O método errado não casa.
+    assert!(matches!(
+        casaveis.casar("PUT /api/faturas/{id}"),
+        Casamento::Nenhum(_)
+    ));
+
+    // Não achado: as chaves parecidas, as do arquivo citado primeiro.
+    let m = match localizar_ponto(
+        &casaveis,
+        "db/03_pkg_cobranca.sql#PKG_COBRANCA.PRC_ESTORNAR_FATURA",
+    ) {
+        Err(ErroFerramenta::Recusa(m)) => m,
+        outro => panic!("{outro:?}"),
+    };
+    assert!(m.contains("Chaves parecidas"), "{m}");
+    let primeira = m.lines().find(|l| l.starts_with("- `")).unwrap();
+    assert!(primeira.contains("PRC_CANCELAR_FATURA"), "{m}");
+    let Casamento::Nenhum(parecidos) =
+        casaveis.casar("exemplo.FaturaController.cancelar./api/faturas/{id}/cancelamento")
+    else {
+        panic!("esperava nenhum");
+    };
+    // Os endpoints do controlador vêm antes da rotina que só tem "cancelar".
+    assert_eq!(parecidos.len(), 4);
+    assert!(
+        parecidos[..3]
+            .iter()
+            .all(|p| p.nome.contains("FaturaController"))
+    );
+    assert!(parecidos[3].nome.contains("PRC_CANCELAR_FATURA"));
+}
+
+#[test]
+fn trata_pontos_em_lote_numa_gravacao_so() {
+    let c = cenario();
+    c.funcionalidade(
+        "Cancelar fatura",
+        "Cancelamento",
+        &["#FrmCancelamento"],
+        None,
+    );
+    let versao = c.mapa().versao;
+    let arquivo = "db/03_pkg_cobranca.sql";
+    let no_arquivo = c.pontos.iter().filter(|p| p.arquivo == arquivo).count();
+    assert_eq!(no_arquivo, 5);
+
+    let r = c.ok(
+        "tratar_ponto_de_entrada",
+        json!({
+            "pontos": [
+                // Pelo nome, em minúsculas: aplicado.
+                {
+                    "ponto": "pkg_cobranca.prc_cancelar_fatura",
+                    "tratamento": "atribuir",
+                    "funcionalidade": "F-CAN-001"
+                },
+                // Não existe: recusado com sugestões.
+                {
+                    "ponto": "db/04_pkg_situacao.sql#PKG_SITUACAO.PRC_SUSPENDER",
+                    "tratamento": "justificar",
+                    "motivo": "outro",
+                    "justificativa": "Não é usado."
+                },
+                // Funcionalidade que não existe: recusado ao aplicar.
+                {
+                    "ponto": "PKG_SITUACAO.PRC_SUSPENDER_COBRANCA",
+                    "tratamento": "atribuir",
+                    "funcionalidade": "F-COB-009"
+                },
+                // O mesmo ponto de novo: recusado.
+                {
+                    "ponto": "db/03_pkg_cobranca.sql#PKG_COBRANCA.PRC_CANCELAR_FATURA",
+                    "tratamento": "justificar",
+                    "motivo": "outro",
+                    "justificativa": "Repetido."
+                },
+                // Justificado: aplicado.
+                {
+                    "ponto": "PKG_SITUACAO.PRC_QUITAR_PARCELA",
+                    "tratamento": "justificar",
+                    "motivo": "codigo_morto",
+                    "justificativa": "Ninguém chama."
+                }
+            ],
+            "justificar_padrao": [
+                {
+                    "arquivo": arquivo,
+                    "motivo": "utilitario",
+                    "justificativa": "Rotinas de apoio do cálculo de encargos."
+                },
+                {
+                    "prefixo": "db/99_nada.sql",
+                    "motivo": "utilitario",
+                    "justificativa": "Nada."
+                }
+            ]
+        }),
+    );
+    let itens = r["pontos"].as_array().unwrap();
+    let resultados: Vec<&str> = itens
+        .iter()
+        .map(|i| i["resultado"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        resultados,
+        ["aplicado", "recusado", "recusado", "recusado", "aplicado"],
+        "{r:#}"
+    );
+    assert_eq!(
+        itens[0]["chave"],
+        "db/03_pkg_cobranca.sql#PKG_COBRANCA.PRC_CANCELAR_FATURA"
+    );
+    assert!(
+        itens[1]["recusa"]
+            .as_str()
+            .unwrap()
+            .contains("PKG_SITUACAO.PRC_SUSPENDER_COBRANCA"),
+        "{r:#}"
+    );
+    assert!(
+        itens[2]["recusa"]
+            .as_str()
+            .unwrap()
+            .contains("não existe no mapa"),
+        "{r:#}"
+    );
+    assert!(
+        itens[3]["recusa"].as_str().unwrap().contains("pontos[0]"),
+        "{r:#}"
+    );
+    let padroes = r["justificar_padrao"].as_array().unwrap();
+    assert_eq!(padroes[0]["pontos"], 5);
+    assert_eq!(padroes[0]["aplicados"], 4);
+    assert_eq!(padroes[0]["ja_tratados"], 1);
+    assert!(
+        padroes[1]["recusa"]
+            .as_str()
+            .unwrap()
+            .contains("nenhum ponto")
+    );
+    assert_eq!(r["aplicados"], 6);
+    assert_eq!(r["recusados"], 4);
+
+    // Uma gravação só, com tudo o que foi aplicado.
+    let mapa = c.mapa();
+    assert_eq!(mapa.versao, versao + 1);
+    assert_eq!(
+        mapa.dona_do_ponto("db/03_pkg_cobranca.sql#PKG_COBRANCA.PRC_CANCELAR_FATURA")
+            .map(|f| f.id.to_string())
+            .as_deref(),
+        Some("F-CAN-001")
+    );
+    assert_eq!(mapa.pontos_justificados.len(), 5);
+    let md = std::fs::read_to_string(c.amb.kb.caminho(&layout::mapa_de_funcionalidades())).unwrap();
+    assert!(md.contains("`PKG_COBRANCA.FN_PARAMETRO`"), "{md}");
+    assert!(md.contains("`PKG_SITUACAO.PRC_QUITAR_PARCELA`"), "{md}");
+    assert_eq!(
+        r["pontos_sem_tratamento_no_projeto"],
+        c.pontos.len() - 2 - 5
+    );
+
+    // Nada aplicável: não grava.
+    let r = c.ok(
+        "tratar_ponto_de_entrada",
+        json!({
+            "pontos": [{
+                "ponto": "PKG_COBRANCA.PRC_CANCELAR_FATURA",
+                "tratamento": "justificar",
+                "motivo": "outro",
+                "justificativa": "Já está numa funcionalidade."
+            }]
+        }),
+    );
+    assert_eq!(r["aplicados"], 0);
+    assert!(
+        r["pontos"][0]["recusa"]
+            .as_str()
+            .unwrap()
+            .contains("já está na funcionalidade F-CAN-001"),
+        "{r:#}"
+    );
+    assert_eq!(c.mapa().versao, versao + 1);
+
+    // Um item só continua como antes; a recusa sugere chaves parecidas.
+    let m = c.recusa(
+        "tratar_ponto_de_entrada",
+        json!({
+            "ponto": "db/04_pkg_situacao.sql#PKG_SITUACAO.PRC_SUSPENDER",
+            "tratamento": "justificar",
+            "motivo": "outro",
+            "justificativa": "X."
+        }),
+    );
+    assert!(m.contains("Chaves parecidas"), "{m}");
+    assert!(m.contains("PRC_SUSPENDER_COBRANCA"), "{m}");
+    let r = c.ok(
+        "tratar_ponto_de_entrada",
+        json!({
+            "ponto": "pkg_situacao.prc_suspender_cobranca",
+            "tratamento": "justificar",
+            "motivo": "outro",
+            "justificativa": "Suspensão desativada."
+        }),
+    );
+    assert_eq!(
+        r["ponto"],
+        "db/04_pkg_situacao.sql#PKG_SITUACAO.PRC_SUSPENDER_COBRANCA"
+    );
+    let m = c.recusa(
+        "tratar_ponto_de_entrada",
+        json!({
+            "ponto": "PKG_SITUACAO.PRC_LOG",
+            "tratamento": "justificar",
+            "pontos": [{ "ponto": "PKG_SITUACAO.PRC_LOG", "tratamento": "justificar" }]
+        }),
+    );
+    assert!(m.contains("não os dois"), "{m}");
 }
