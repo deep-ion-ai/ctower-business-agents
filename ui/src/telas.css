@@ -2574,6 +2574,18 @@
 .arvore-funcionalidade.situacao-aceita .arvore-marca {
   color: var(--accent);
 }
+.pagina-funcionalidade h3 {
+  margin: 4px 0 8px;
+}
+.pagina-funcionalidade .funcionalidade {
+  margin-top: 0;
+}
+.pagina-trilha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
 .funcionalidades-ao-vivo .funcionalidade.selecionada {
   border-color: var(--accent);
   scroll-margin-top: 8px;

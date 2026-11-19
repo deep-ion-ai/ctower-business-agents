@@ -331,19 +331,31 @@ describe("TelaMapa", () => {
     expect(within(cartao).queryByRole("list", { name: "Pontos de entrada de F-COB-001" })).toBeNull();
   });
 
-  it("árvore lateral navega entre áreas e funcionalidades", async () => {
+  it("árvore lateral abre a página só da funcionalidade escolhida", async () => {
     abrir(apiFalsa());
     const arvore = await screen.findByRole("navigation", { name: "Árvore de funcionalidades" });
     expect(within(arvore).getByRole("button", { name: /Cobrança 1 · 1 a revisar/ })).toBeInTheDocument();
-    const cancelar = within(arvore).getByRole("button", { name: /F-CAN-001 Cancelar fatura/ });
-    // Escondida pelo filtro: escolher na árvore limpa o filtro e marca o cartão.
     fireEvent.click(screen.getByRole("button", { name: "A revisar" }));
-    expect(screen.queryByRole("region", { name: "F-CAN-001: Cancelar fatura" })).toBeNull();
+    const cancelar = within(arvore).getByRole("button", { name: /F-CAN-001 Cancelar fatura/ });
     expect(cancelar).toHaveClass("fora-do-filtro");
+
     fireEvent.click(cancelar);
-    const cartao = await screen.findByRole("region", { name: "F-CAN-001: Cancelar fatura" });
-    expect(cartao).toHaveAttribute("aria-current", "true");
+    const pagina = screen.getByRole("article", { name: "Página de F-CAN-001" });
+    expect(within(pagina).getByRole("heading", { name: "F-CAN-001 · Cancelar fatura" })).toBeInTheDocument();
+    expect(within(pagina).getByRole("region", { name: "F-CAN-001: Cancelar fatura" })).toBeInTheDocument();
+    // Só ela: nem as outras, nem a lista, nem os pontos sem tratamento.
+    expect(screen.queryByRole("region", { name: "F-COB-001: Calcular encargos" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Funcionalidades" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Pontos de entrada sem funcionalidade" })).toBeNull();
     expect(cancelar).toHaveAttribute("aria-current", "true");
+
+    // A árvore troca de página; "Todas as funcionalidades" volta à lista.
+    fireEvent.click(within(arvore).getByRole("button", { name: /F-COB-001 Calcular encargos/ }));
+    expect(screen.getByRole("article", { name: "Página de F-COB-001" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "← Todas as funcionalidades" }));
+    expect(screen.queryByRole("article")).toBeNull();
+    expect(screen.getByRole("region", { name: "Funcionalidades" })).toBeInTheDocument();
+
     // Recolher a área esconde as funcionalidades dela na árvore.
     const area = within(arvore).getByRole("button", { name: /Cancelamento/ });
     fireEvent.click(area);

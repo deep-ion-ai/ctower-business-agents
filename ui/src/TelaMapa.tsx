@@ -451,6 +451,45 @@ function CartaoFuncionalidade({
 const idDoCartao = (id: string) => `funcionalidade-${id}`;
 
 /**
+ * Página de uma funcionalidade, aberta pela árvore: ocupa a área toda da revisão
+ * (o conteúdo da funcionalidade vai crescer aqui).
+ */
+function PaginaFuncionalidade({
+  f,
+  aoVoltar,
+  ...cartao
+}: {
+  f: Funcionalidade;
+  outras: Funcionalidade[];
+  revisao: Revisao;
+  evidencias: boolean;
+  aoVoltar: () => void;
+  aoExplicar: (f: Funcionalidade) => void;
+  aoAbrirExplicacao: (analise: string) => void;
+  aoAbrirDocumento: (documento: string) => void;
+}) {
+  return (
+    <article className="pagina-funcionalidade" aria-label={`Página de ${f.id}`}>
+      <nav className="pagina-trilha" aria-label="Trilha">
+        <button type="button" className="btn btn-link" onClick={aoVoltar}>
+          ← Todas as funcionalidades
+        </button>
+        <span className="muted">
+          {" "}
+          / {f.areaNome} / {f.id}
+        </span>
+      </nav>
+      <h3>
+        {f.id} · {f.nome}
+      </h3>
+      <div className="funcionalidades-ao-vivo">
+        <CartaoFuncionalidade key={f.id} f={f} {...cartao} />
+      </div>
+    </article>
+  );
+}
+
+/**
  * Árvore lateral: as áreas e, em cada uma, as funcionalidades, com a situação.
  * Escolher uma rola até o cartão dela; as que o filtro ou a busca escondem ficam
  * esmaecidas e, escolhidas, limpam o filtro.
@@ -678,24 +717,9 @@ function MapaDoProjeto({
   const [busca, setBusca] = useState("");
   const [todosSemTratamento, setTodosSemTratamento] = useState(false);
   const [evidencias, setEvidencias] = useState(false);
+  /** Funcionalidade aberta na página própria (escolhida na árvore). */
   const [selecionada, setSelecionada] = useState<string | null>(null);
-  const [rolarPara, setRolarPara] = useState<string | null>(null);
-  useEffect(() => {
-    if (!rolarPara) return;
-    document.getElementById(idDoCartao(rolarPara))?.scrollIntoView?.({
-      behavior: "smooth",
-      block: "start",
-    });
-    setRolarPara(null);
-  }, [rolarPara]);
-  const escolher = (f: Funcionalidade) => {
-    if (!passa(f, filtro, busca)) {
-      setFiltro("todas");
-      setBusca("");
-    }
-    setSelecionada(f.id);
-    setRolarPara(f.id);
-  };
+  const escolher = (f: Funcionalidade) => setSelecionada(f.id);
 
   const revisao: Revisao = {
     ocupado,
@@ -743,6 +767,10 @@ function MapaDoProjeto({
   };
 
   const abertas = mapa?.areas.flatMap((a) => a.funcionalidades) ?? [];
+  const pagina =
+    (selecionada &&
+      [...abertas, ...(mapa?.fechadas ?? [])].find((f) => f.id === selecionada)) ||
+    null;
   const semTratamento = mapa?.completude?.semTratamento ?? [];
   const mostrados = todosSemTratamento ? semTratamento : semTratamento.slice(0, MOSTRADOS);
 
@@ -817,6 +845,19 @@ function MapaDoProjeto({
           </p>
         )}
 
+        {pagina ? (
+          <PaginaFuncionalidade
+            f={pagina}
+            outras={abertas.filter((o) => o.id !== pagina.id)}
+            revisao={revisao}
+            evidencias={evidencias}
+            aoVoltar={() => setSelecionada(null)}
+            aoExplicar={explicar}
+            aoAbrirExplicacao={abrirExplicacao}
+            aoAbrirDocumento={abrirDocumento}
+          />
+        ) : (
+          <>
         {mapa && mapa.total > 0 && (
           <section aria-label="Funcionalidades" className="funcionalidades-ao-vivo">
             <div className="mapa-filtros" role="group" aria-label="Filtro">
@@ -855,7 +896,6 @@ function MapaDoProjeto({
                       outras={abertas.filter((o) => o.id !== f.id)}
                       revisao={revisao}
                       evidencias={evidencias}
-                      selecionada={selecionada === f.id}
                       aoExplicar={explicar}
                       aoAbrirExplicacao={abrirExplicacao}
                       aoAbrirDocumento={abrirDocumento}
@@ -947,6 +987,8 @@ function MapaDoProjeto({
               </details>
             )}
           </section>
+        )}
+          </>
         )}
       </div>
       {sessao && (
