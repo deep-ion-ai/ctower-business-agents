@@ -85,7 +85,7 @@ function CartaoDemanda({
         </span>
         {d.criado && <span className="muted">desde {d.criado}</span>}
       </header>
-      <ol className="etapas" aria-label={`Etapas de ${d.id}`}>
+      <ol className="pf-etapas" aria-label={`Etapas de ${d.id}`}>
         <Etapa nome="Impacto" etapa={d.impacto} />
         <Etapa nome="Histórias" etapa={d.historias} />
         <Etapa nome="Cenários" etapa={d.cenarios} />
@@ -385,7 +385,7 @@ export function PainelFuncionalidade({
       </nav>
 
       <header className="painel-cabecalho">
-        <div className="painel-titulo">
+        <div className="pf-titulo">
           <div className="linha-cabecalho">
             <span className="painel-id">{f.id}</span>
             <span className="badge" data-tone={s === "aceita" ? "done" : undefined}>
@@ -590,12 +590,12 @@ export function PainelFuncionalidade({
           </nav>
 
           {aba === "visao" && (
-            <div className="painel-colunas">
+            <div className="pf-colunas">
               <div className="painel-principal">
                 {passos.some((x) => !x.feito) && (
                   <section className="cartao-painel" aria-label="Próximos passos">
                     <h3>Próximos passos</h3>
-                    <ol className="passos">
+                    <ol className="pf-passos">
                       {passos.map((x) => (
                         <li key={x.nome} className={x.feito ? "passo-feito" : undefined}>
                           <span>
@@ -666,7 +666,7 @@ export function PainelFuncionalidade({
                   {p.analises.length === 0 ? (
                     <p className="muted">Nenhuma ainda.</p>
                   ) : (
-                    <ul className="lista-analises" aria-label="Análises recentes">
+                    <ul className="painel-lista" aria-label="Análises recentes">
                       {p.analises.slice(0, 5).map((a) => (
                         <li key={a.id}>
                           <button type="button" className="linha-analise" onClick={() => abrirAnalise(a.id)}>
@@ -692,7 +692,7 @@ export function PainelFuncionalidade({
                   {p.demandas.length === 0 ? (
                     <p className="muted">Nenhuma demanda ligada.</p>
                   ) : (
-                    <ul className="lista-analises">
+                    <ul className="painel-lista">
                       {p.demandas.map((d) => (
                         <li key={d.id}>
                           <button
@@ -718,7 +718,7 @@ export function PainelFuncionalidade({
                   {p.regras.length === 0 ? (
                     <p className="muted">Nenhuma regra da base toca esta funcionalidade ainda.</p>
                   ) : (
-                    <ul className="lista-analises" aria-label="Regras">
+                    <ul className="painel-lista" aria-label="Regras">
                       {p.regras.map((r) => (
                         <li key={r.id} className="linha-regra">
                           <div className="cabecalho-regra">
@@ -745,7 +745,7 @@ export function PainelFuncionalidade({
                 </section>
               </div>
 
-              <aside className="painel-lateral" aria-label="Contexto">
+              <aside className="painel-contexto" aria-label="Contexto">
                 <section className="cartao-painel" aria-label="Pendências">
                   <h3>Pendências</h3>
                   {p.perguntas.length === 0 && p.aRevisar.length === 0 && aRevalidar.length === 0 && (
@@ -767,7 +767,7 @@ export function PainelFuncionalidade({
                 <section className="cartao-painel" aria-label="Pontos de entrada">
                   <h3>Pontos de entrada</h3>
                   {evidencias ? (
-                    <ul className="lista-simples">
+                    <ul className="painel-lista-simples">
                       {f.pontos.map((x, i) => (
                         <li key={x.chave ?? `${x.nome}-${i}`}>
                           <code>{x.nome}</code>
@@ -816,7 +816,7 @@ export function PainelFuncionalidade({
 
                 <section className="cartao-painel" aria-label="Atividade recente">
                   <h3>Atividade recente</h3>
-                  <ul className="lista-simples">
+                  <ul className="painel-lista-simples">
                     {p.atividade.map((x, i) => (
                       <li key={`${x.quandoMs}-${i}`} className="atividade">
                         <span className="muted">{dia(x.quandoMs)}</span> {x.texto}
