@@ -214,7 +214,9 @@ pub fn listar_github(
     })
 }
 
-/// JQL da listagem: projeto + criação + o `jql` do cadastro (sem `ORDER BY`).
+/// JQL da listagem: projeto + criação + o `jql` do cadastro (sem `ORDER BY`: o
+/// `jira issue list` acrescenta o próprio, por `created` decrescente, e um segundo
+/// faria a consulta falhar).
 fn jql_da_listagem(j: &JiraConfig, desde: &str) -> String {
     let mut jql = format!(
         "project = {} AND created >= \"{desde}\"",
@@ -230,7 +232,6 @@ fn jql_da_listagem(j: &JiraConfig, desde: &str) -> String {
     if !extra.is_empty() {
         jql.push_str(&format!(" AND ({extra})"));
     }
-    jql.push_str(" ORDER BY created DESC");
     jql
 }
 
@@ -400,7 +401,7 @@ echo '[{"number":3,"title":"C","body":"c","url":"u3","createdAt":"2026-10-01T00:
 [ "$1 $2 $3" = "issue list --jql" ] || exit 2
 echo "$4" | grep -q '^project = PROJ AND created >= "2025-11-' || exit 3
 echo "$4" | grep -q 'AND (labels = fatura)' || exit 4
-echo "$4" | grep -q 'ORDER BY created DESC$' || exit 5
+echo "$4" | grep -qi 'order by' && exit 5
 [ "$5 $6 $7" = "--raw --paginate 0:11" ] || exit 6
 echo '[{"key":"PROJ-9","fields":{"summary":"S","description":"h3. T","created":"2026-01-01T00:00:00.000+0000","labels":["x"],"resolution":null,"status":{"statusCategory":{"key":"new"}}}},{"key":"PROJ-8","fields":{"summary":"S2","description":"","created":"2026-01-02","resolution":{"name":"Done"}}}]'"#,
         );
