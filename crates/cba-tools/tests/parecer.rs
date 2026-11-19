@@ -71,6 +71,7 @@ fn cenario() -> Cenario {
                         evidencias: Vec::new(),
                         origem: None,
                         informada: None,
+                        historico: Vec::new(),
                     },
                     "Só fatura ABERTA e sem nenhum valor pago pode ser cancelada.\n",
                 ),

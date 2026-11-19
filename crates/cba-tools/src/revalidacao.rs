@@ -688,7 +688,9 @@ fn fundamentos_a_revalidar(a: &Analise) -> HashSet<(ItemRequisito, String)> {
 }
 
 /// Evidências dos fundamentos dos critérios, cenários e tabelas, com a origem.
-fn evidencias_dos_fundamentos(a: &Analise) -> Vec<(Origem, &cba_kb::frontmatter::Evidencia)> {
+pub(crate) fn evidencias_dos_fundamentos(
+    a: &Analise,
+) -> Vec<(Origem, &cba_kb::frontmatter::Evidencia)> {
     let mut saida = Vec::new();
     for (item, _, fundamentos) in itens_da_analise(a) {
         for f in fundamentos {
@@ -883,7 +885,7 @@ fn chave(origem: &Origem, e: &Evidencia) -> (String, String, u32, u32, String) {
 }
 
 /// Evidências de uma análise com a origem: afirmações, termos e sugestões.
-fn evidencias_da_analise(a: &Analise) -> impl Iterator<Item = (Origem, &Evidencia)> {
+pub(crate) fn evidencias_da_analise(a: &Analise) -> impl Iterator<Item = (Origem, &Evidencia)> {
     let id = &a.id;
     let afirmacoes = a.afirmacoes.iter().flat_map(move |af| {
         af.evidencias.iter().map(move |e| {
@@ -954,7 +956,7 @@ fn evidencias_da_analise(a: &Analise) -> impl Iterator<Item = (Origem, &Evidenci
 
 /// Regras do projeto (`regras/*.md`), menos as obsoletas. As ilegíveis vão para os
 /// problemas.
-fn ler_regras(
+pub(crate) fn ler_regras(
     kb: &cba_kb::Projeto,
     problemas: &mut Vec<Problema>,
 ) -> Result<Vec<(CaminhoRelativo, Documento<FrontmatterRegra>)>, Erro> {

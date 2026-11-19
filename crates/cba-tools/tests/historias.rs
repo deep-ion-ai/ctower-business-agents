@@ -183,6 +183,7 @@ impl Cenario {
                         }],
                         origem: None,
                         informada: None,
+                        historico: Vec::new(),
                     },
                     "\n# RN-FAT-008\n",
                 ),

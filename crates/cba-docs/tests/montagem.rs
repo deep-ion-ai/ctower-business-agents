@@ -484,6 +484,7 @@ fn conteudo_regra(g: &Gabarito) -> Conteudo<FrontmatterRegra> {
         evidencias,
         origem: Some(c("analises/A-0001.md")),
         informada: None,
+        historico: Vec::new(),
     };
     Conteudo::da_regra(fm, &r.enunciado)
 }

@@ -139,6 +139,7 @@ fn gravar_regra_e_termo_do_gabarito(amb: &Ambiente, id: &str) {
                     evidencias,
                     origem: None,
                     informada: None,
+                    historico: Vec::new(),
                 },
                 format!("\n{}\n", texto(&regra["enunciado"])),
             ),

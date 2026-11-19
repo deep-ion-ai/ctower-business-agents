@@ -589,6 +589,26 @@ pub struct FrontmatterRegra {
     /// ([`crate::informada`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub informada: Option<crate::informada::RegraInformada>,
+    /// Versões anteriores da regra, da mais antiga para a mais recente (#124):
+    /// quando o analista confirma o texto atualizado depois de uma mudança no
+    /// código, a regra mantém o identificador e a versão que valia vem para cá.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub historico: Vec<VersaoDaRegra>,
+}
+
+/// Versão anterior de uma regra, guardada no `historico` dela (#124).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VersaoDaRegra {
+    /// Dia em que a versão foi substituída.
+    pub ate: Data,
+    pub titulo: String,
+    /// Enunciado que valia, em Markdown.
+    pub enunciado: String,
+    #[serde(default)]
+    pub evidencias: Vec<Evidencia>,
+    /// Por que mudou (a explicação confirmada pelo analista).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub motivo: Option<String>,
 }
 
 impl Frontmatter for FrontmatterRegra {
