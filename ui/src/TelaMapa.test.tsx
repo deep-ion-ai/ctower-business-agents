@@ -301,13 +301,17 @@ describe("TelaMapa", () => {
     const cartao = await screen.findByRole("region", { name: "F-COB-001: Calcular encargos" });
     const opcao = screen.getByRole("checkbox", { name: "Mostrar evidências de código" });
     expect(opcao).not.toBeChecked();
-    expect(within(cartao).queryByLabelText(/^Evidência de/)).toBeNull();
+    // Desligada: nem os pontos de entrada (arquivo e linha) nem os trechos, só a contagem.
+    expect(within(cartao).queryByRole("list", { name: "Pontos de entrada de F-COB-001" })).toBeNull();
+    expect(cartao).not.toHaveTextContent("db/03_pkg_cobranca.sql");
+    expect(cartao).toHaveTextContent("2 pontos de entrada");
     fireEvent.click(opcao);
+    const pontos = within(cartao).getByRole("list", { name: "Pontos de entrada de F-COB-001" });
+    expect(pontos).toHaveTextContent("PKG_COBRANCA.FN_CALCULAR_MULTA · rotina de banco · db/03_pkg_cobranca.sql:10");
     const ev = within(cartao).getByLabelText("Evidência de PKG_COBRANCA.FN_CALCULAR_MULTA");
-    expect(ev).toHaveTextContent("db/03_pkg_cobranca.sql:10");
     expect(ev).toHaveTextContent("FUNCTION FN_CALCULAR_MULTA");
     fireEvent.click(opcao);
-    expect(within(cartao).queryByLabelText(/^Evidência de/)).toBeNull();
+    expect(within(cartao).queryByRole("list", { name: "Pontos de entrada de F-COB-001" })).toBeNull();
   });
 
   it("mapa vazio convida a mapear", async () => {

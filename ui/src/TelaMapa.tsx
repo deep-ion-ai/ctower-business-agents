@@ -277,29 +277,30 @@ function CartaoFuncionalidade({
           <strong>Atores:</strong> {f.atores.join(", ")}
         </p>
       )}
-      <ul className="pontos-entrada" aria-label={`Pontos de entrada de ${f.id}`}>
-        {f.pontos.map((p, i) => (
-          <li key={p.chave ?? `${p.nome}-${i}`}>
-            <code>{p.nome}</code>
-            {p.tipo && <span className="muted"> · {NOME_TIPO_ENTRADA[p.tipo]}</span>}
-            <span className="muted">
-              {" "}
-              · {p.arquivo}:{p.linhaInicial}
-            </span>
-            {p.foraDaLista && <span className="chip">fora da lista do mapa</span>}
-            {evidencias && (
+      {evidencias ? (
+        <ul className="pontos-entrada" aria-label={`Pontos de entrada de ${f.id}`}>
+          {f.pontos.map((p, i) => (
+            <li key={p.chave ?? `${p.nome}-${i}`}>
+              <code>{p.nome}</code>
+              {p.tipo && <span className="muted"> · {NOME_TIPO_ENTRADA[p.tipo]}</span>}
+              <span className="muted">
+                {" "}
+                · {p.arquivo}:{p.linhaInicial}
+                {p.linhaFinal !== p.linhaInicial ? `-${p.linhaFinal}` : ""}
+              </span>
+              {p.foraDaLista && <span className="chip">fora da lista do mapa</span>}
               <pre className="evidencia-ponto" aria-label={`Evidência de ${p.nome}`}>
-                <span className="muted">
-                  {p.arquivo}:{p.linhaInicial}
-                  {p.linhaFinal !== p.linhaInicial ? `-${p.linhaFinal}` : ""}
-                </span>
-                {"\n"}
                 <code>{p.trecho}</code>
               </pre>
-            )}
-          </li>
-        ))}
-      </ul>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="muted">
+          {contar(f.pontos.length, "ponto de entrada", "pontos de entrada")}
+          {f.pontos.some((p) => p.foraDaLista) && " (algum fora da lista do mapa)"}
+        </p>
+      )}
       {(f.dadosLidos.length > 0 || f.dadosGravados.length > 0) && (
         <p className="muted">
           {f.dadosLidos.length > 0 && (
