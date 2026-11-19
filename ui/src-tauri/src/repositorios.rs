@@ -15,7 +15,10 @@ use cba_repos::prontidao::{Prontidao, conferir};
 
 use crate::analise::{AnaliseCriada, criar_analise_com_demanda};
 
-fn cadastrado(dados: &DiretorioDados, projeto: &str) -> Result<cba_index::Projeto, String> {
+pub(crate) fn cadastrado(
+    dados: &DiretorioDados,
+    projeto: &str,
+) -> Result<cba_index::Projeto, String> {
     Cadastro::em(dados.projetos())
         .obter(projeto)
         .map_err(|e| e.to_string())?

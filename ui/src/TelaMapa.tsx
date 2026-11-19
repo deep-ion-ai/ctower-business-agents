@@ -22,6 +22,7 @@ import {
 import type { Tela } from "./Navegacao";
 import type { ApiConhecimento } from "./conhecimento";
 import { PainelFuncionalidade } from "./PainelFuncionalidade";
+import { VincularIssues } from "./VincularIssues";
 import { TerminalClaude } from "./TerminalClaude";
 import type { ApiTerminal, ProjetoResumo } from "./terminal";
 import type { TelaTerminal } from "./telaXterm";
@@ -497,6 +498,7 @@ function MapaDoProjeto({
   const [falha, setFalha] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [sessao, setSessao] = useState(false);
+  const [vinculando, setVinculando] = useState(false);
   const [filtro, setFiltro] = useState<Filtro>("todas");
   const [busca, setBusca] = useState("");
   const [todosSemTratamento, setTodosSemTratamento] = useState(false);
@@ -615,6 +617,11 @@ function MapaDoProjeto({
                 </button>
               </>
             )}
+            {mapa && mapa.total > 0 && (
+              <button type="button" className="btn" onClick={() => setVinculando(true)}>
+                Vincular demandas
+              </button>
+            )}
             <button type="button" className="btn" onClick={recarregar}>
               Atualizar
             </button>
@@ -632,7 +639,14 @@ function MapaDoProjeto({
           </p>
         )}
 
-        {pagina ? (
+        {vinculando ? (
+          <VincularIssues
+            projeto={projeto}
+            api={api}
+            aoVoltar={() => setVinculando(false)}
+            aoVincular={recarregar}
+          />
+        ) : pagina ? (
           <PainelFuncionalidade
             projeto={projeto}
             f={pagina}

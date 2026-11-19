@@ -3024,3 +3024,50 @@ button.indicador:hover {
 .enunciado-regra ol {
   padding-left: 20px;
 }
+
+/* Vincular demandas (#270): issues do rastreador × funcionalidades do mapa. */
+.vincular-cabecalho {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.vincular-cabecalho h3 {
+  margin: 0;
+}
+.vincular-periodo,
+.vincular-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0;
+}
+.vincular-periodo input[type="number"] {
+  width: 5em;
+}
+.vincular-lista,
+.vincular-sugestoes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.vincular-lista {
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+}
+.vincular-issue {
+  border: 1px solid var(--border, #d0d0d0);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 6px;
+  overflow-wrap: anywhere;
+}
+.vincular-issue.descartada {
+  opacity: 0.6;
+}
+.vincular-sugestoes {
+  display: grid;
+  gap: 2px;
+}

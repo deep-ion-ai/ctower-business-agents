@@ -113,6 +113,19 @@ export function apiFalsa(
   painel: (id: string) => PainelFuncionalidade = painelDe,
 ) {
   const api: ApiMapa = {
+    issues: vi.fn().mockResolvedValue({
+      issues: [],
+      excedeuTeto: false,
+      desde: "2026-05-19",
+      funcionalidades: [],
+    }),
+    vincular: vi.fn().mockResolvedValue({
+      criadas: [],
+      reaproveitadas: [],
+      vinculosNovos: 0,
+      vinculosExistentes: 0,
+      avisos: [],
+    }),
     mapa: vi.fn().mockResolvedValue(mapa),
     revisar: vi.fn().mockResolvedValue({ ...mapa, pendentes: 0 }),
     pedido: vi.fn().mockResolvedValue("Mapeie as funcionalidades do projeto pelo ctower"),

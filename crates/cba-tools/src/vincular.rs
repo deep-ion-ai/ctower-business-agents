@@ -40,7 +40,10 @@ fn interno(e: impl ToString) -> ErroFerramenta {
 }
 
 /// Demanda da base com a `chave` (ou o endereço) da issue, se houver.
-fn demanda_da_issue(existentes: &[cba_kb::DemandaLida], issue: &IssueListada) -> Option<IdDemanda> {
+pub fn demanda_da_issue(
+    existentes: &[cba_kb::DemandaLida],
+    issue: &IssueListada,
+) -> Option<IdDemanda> {
     existentes
         .iter()
         .find(|d| {
