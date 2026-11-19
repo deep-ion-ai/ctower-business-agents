@@ -57,6 +57,7 @@ pub mod aprovacao_ata;
 pub mod banco;
 pub mod cenarios;
 pub mod ciclo;
+pub mod cobertura;
 mod comum;
 pub mod conhecimento;
 pub mod contexto;

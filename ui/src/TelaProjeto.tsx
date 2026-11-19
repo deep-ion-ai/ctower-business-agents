@@ -8,6 +8,8 @@ import {
   type ResumoRevalidacao,
   type VisaoProjeto,
 } from "./conhecimento";
+import type { ApiCobertura } from "./cobertura";
+import { CoberturaProjeto } from "./CoberturaProjeto";
 import { ListaDemandas } from "./ListaDemandas";
 import { simbolosEmNegocio } from "./mapaNegocio";
 import type { Tela } from "./Navegacao";
@@ -276,6 +278,15 @@ function Projeto({
             ))}
           </ul>
         </section>
+      )}
+
+      {api.cobertura && (
+        <CoberturaProjeto
+          api={api as ApiCobertura}
+          projeto={projeto}
+          navegar={navegar}
+          versao={visao}
+        />
       )}
 
       <MapaProjeto api={api} projeto={projeto} />
