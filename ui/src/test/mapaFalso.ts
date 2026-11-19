@@ -196,13 +196,15 @@ export function painelDe(id: string): PainelFuncionalidade {
     regras: [
       {
         id: "RN-CAN-001",
-        titulo: "Só fatura aberta pode ser cancelada.",
+        titulo: "Só fatura aberta",
+        enunciado: "Só fatura com situação aberta pode ser cancelada pelo atendente.",
         status: "confirmada",
         caminho: "faturamento-exemplo/regras/RN-CAN-001.md",
       },
       {
         id: "RN-CAN-003",
         titulo: "Cancelar estorna as parcelas.",
+        enunciado: "Cancelar estorna as parcelas **ainda não pagas**:\n- as vencidas;\n- as a vencer.",
         status: "a-revalidar",
         caminho: "faturamento-exemplo/regras/RN-CAN-003.md",
       },

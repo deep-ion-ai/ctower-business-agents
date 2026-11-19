@@ -1,7 +1,9 @@
+import Markdown from "markdown-to-jsx";
 import { useEffect, useRef, useState } from "react";
 import { mensagemDe, type Fluxo } from "./analise";
 import { apiConhecimentoTauri, type ApiConhecimento } from "./conhecimento";
 import { contar } from "./formatacao";
+import { OPCOES_MARKDOWN_BASE } from "./markdownOpcoes";
 import {
   ESTADO_ANALISE,
   FormDividir,
@@ -716,20 +718,23 @@ export function PainelFuncionalidade({
                   {p.regras.length === 0 ? (
                     <p className="muted">Nenhuma regra da base toca esta funcionalidade ainda.</p>
                   ) : (
-                    <ul className="lista-analises">
+                    <ul className="lista-analises" aria-label="Regras">
                       {p.regras.map((r) => (
-                        <li key={r.id}>
+                        <li key={r.id} className="linha-regra">
                           <button
                             type="button"
-                            className="linha-analise"
+                            className="btn btn-link mono"
+                            title="Abrir a regra na base"
                             onClick={() => navegar({ tipo: "base", documento: r.caminho })}
                           >
-                            <span className="mono">{r.id}</span>
-                            <span className="titulo-analise">{r.titulo}</span>
-                            <span className={r.status === "a-revalidar" ? "atencao" : "muted"}>
-                              {r.status === "a-revalidar" ? "a revalidar" : r.status}
-                            </span>
+                            {r.id}
                           </button>
+                          <div className="enunciado-regra">
+                            <Markdown options={OPCOES_MARKDOWN_BASE}>{r.enunciado}</Markdown>
+                          </div>
+                          <span className={r.status === "a-revalidar" ? "atencao" : "muted"}>
+                            {r.status === "a-revalidar" ? "a revalidar" : r.status}
+                          </span>
                         </li>
                       ))}
                     </ul>

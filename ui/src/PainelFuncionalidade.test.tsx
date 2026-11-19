@@ -71,6 +71,20 @@ describe("PainelFuncionalidade", () => {
       }),
     );
     expect(aoEscolher).toHaveBeenCalledWith("F-COB-001");
+    // O enunciado completo da regra, não o título.
+    expect(screen.getByRole("list", { name: "Regras" })).toHaveTextContent(
+      "Só fatura com situação aberta pode ser cancelada pelo atendente.",
+    );
+    // Markdown do enunciado renderizado (negrito e lista), sem os asteriscos.
+    const regras = screen.getByRole("list", { name: "Regras" });
+    expect(within(regras).getByText("ainda não pagas").tagName).toBe("STRONG");
+    expect(regras).not.toHaveTextContent("**");
+    expect(within(regras).getByText("as vencidas;")).toBeInTheDocument();
+    fireEvent.click(within(regras).getByRole("button", { name: "RN-CAN-003" }));
+    expect(navegar).toHaveBeenCalledWith({
+      tipo: "base",
+      documento: "faturamento-exemplo/regras/RN-CAN-003.md",
+    });
     // Aceita e documentada, com demanda: sem próximos passos.
     expect(screen.queryByRole("region", { name: "Próximos passos" })).toBeNull();
   });

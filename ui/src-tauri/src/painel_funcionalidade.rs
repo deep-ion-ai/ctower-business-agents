@@ -93,6 +93,9 @@ pub struct DemandaNoPainel {
 pub struct RegraNoPainel {
     pub id: String,
     pub titulo: String,
+    /// O enunciado completo (a seção "Enunciado" do documento, sem as notas);
+    /// sem ela, o título.
+    pub enunciado: String,
     pub status: StatusRegra,
     /// Documento da regra, relativo à raiz da base.
     pub caminho: String,
@@ -161,6 +164,36 @@ fn destinatario(d: &Destinatario) -> String {
         Destinatario::Pessoa { pessoa } => pessoa.clone(),
         Destinatario::Papel { papel } => papel.clone(),
     }
+}
+
+/// Texto da seção "Enunciado" do documento da regra, sem as chamadas e as
+/// definições das notas de rodapé.
+fn enunciado(corpo: &str) -> Option<String> {
+    let mut dentro = false;
+    let mut linhas: Vec<&str> = Vec::new();
+    for l in corpo.lines() {
+        let t = l.trim_start();
+        if t.starts_with("## ") {
+            if dentro {
+                break;
+            }
+            dentro = t[3..].trim().eq_ignore_ascii_case("enunciado");
+            continue;
+        }
+        if dentro && !t.starts_with("[^") {
+            linhas.push(l);
+        }
+    }
+    let mut texto = linhas.join("\n");
+    // Chamadas de nota (`[^1]`, `[^ev-2]`).
+    while let Some(i) = texto.find("[^") {
+        match texto[i..].find(']') {
+            Some(j) => texto.replace_range(i..i + j + 1, ""),
+            None => break,
+        }
+    }
+    let texto = texto.trim().to_owned();
+    (!texto.is_empty()).then_some(texto)
 }
 
 /// A análise cita nas evidências (afirmações e perguntas) um dos arquivos.
@@ -315,6 +348,7 @@ pub fn painel(
         let Ok(doc) = amb.kb.ler::<FrontmatterRegra>(&rel) else {
             continue;
         };
+        let enunciado = enunciado(&doc.corpo);
         let r = doc.frontmatter;
         let pelo_codigo = r
             .evidencias
@@ -324,6 +358,7 @@ pub fn painel(
         if pelo_codigo || da_explicacao {
             regras.push(RegraNoPainel {
                 id: r.id.to_string(),
+                enunciado: enunciado.unwrap_or_else(|| r.titulo.clone()),
                 titulo: r.titulo,
                 status: r.status,
                 caminho: amb.kb.na_base(&rel).to_string(),
@@ -593,6 +628,19 @@ pub async fn criar_analise_da_funcionalidade_app(
         )
     })
     .await
+}
+
+#[cfg(test)]
+mod enunciado_testes {
+    #[test]
+    fn le_a_secao_sem_as_notas() {
+        let corpo = "# RN-X · 1\n\n- **Status:** confirmada\n\n## Enunciado\n\nSó fatura aberta pode ser cancelada.[^1]\n\nO motivo é obrigatório.[^ev-2]\n\n[^1]: `db/a.sql`, linhas 1-2\n\n## Evidências\n\nx\n";
+        assert_eq!(
+            super::enunciado(corpo).as_deref(),
+            Some("Só fatura aberta pode ser cancelada.\n\nO motivo é obrigatório.")
+        );
+        assert_eq!(super::enunciado("# Sem seção\n"), None);
+    }
 }
 
 #[cfg(test)]

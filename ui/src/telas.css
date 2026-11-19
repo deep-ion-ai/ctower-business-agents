@@ -2848,7 +2848,7 @@ button.indicador:hover {
 }
 .linha-analise {
   display: grid;
-  grid-template-columns: 80px auto minmax(0, 1fr) auto auto;
+  grid-template-columns: max-content auto minmax(0, 1fr) auto auto;
   gap: 10px;
   align-items: center;
   width: 100%;
@@ -2983,4 +2983,33 @@ button.indicador:hover {
 .perguntas-painel {
   margin: 0;
   padding-left: 18px;
+}
+.linha-analise > .mono {
+  white-space: nowrap;
+}
+.linha-regra {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  border-top: 1px solid var(--border);
+  padding: 8px 4px;
+}
+.linha-regra > .btn-link {
+  white-space: nowrap;
+  padding: 0;
+}
+.enunciado-regra {
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+.enunciado-regra > :first-child {
+  margin-top: 0;
+}
+.enunciado-regra > :last-child {
+  margin-bottom: 0;
+}
+.enunciado-regra ul,
+.enunciado-regra ol {
+  padding-left: 20px;
 }

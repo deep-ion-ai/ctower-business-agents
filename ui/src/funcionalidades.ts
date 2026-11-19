@@ -169,6 +169,8 @@ export interface DemandaNoPainel {
 export interface RegraNoPainel {
   id: string;
   titulo: string;
+  /** Enunciado completo (a seção "Enunciado" do documento). */
+  enunciado: string;
   status: StatusRegra;
   caminho: string;
 }
