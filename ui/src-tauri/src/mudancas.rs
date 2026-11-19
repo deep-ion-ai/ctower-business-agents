@@ -82,13 +82,30 @@ pub async fn mudancas_projeto_app(
     em_segundo_plano(move |d| relatorio_do_projeto(&d, &projeto, de, ate)).await
 }
 
+/// Grava a nota de mudanças em `destino` (escolhido no diálogo de salvar) e
+/// devolve o caminho gravado.
+pub fn exportar_nota(
+    dados: &DiretorioDados,
+    projeto: &str,
+    de: Option<String>,
+    ate: Option<String>,
+    destino: &str,
+) -> Result<String, String> {
+    let nota = nota_do_projeto(dados, projeto, de, ate)?;
+    let caminho = std::path::Path::new(destino);
+    cba_kb::arquivo::gravar(caminho, nota.as_bytes())
+        .map_err(|e| format!("não foi possível gravar a nota em {destino}: {e}"))?;
+    Ok(caminho.display().to_string())
+}
+
 #[tauri::command]
-pub async fn nota_de_mudancas_app(
+pub async fn exportar_nota_de_mudancas_app(
     projeto: String,
     de: Option<String>,
     ate: Option<String>,
+    destino: String,
 ) -> Result<String, String> {
-    em_segundo_plano(move |d| nota_do_projeto(&d, &projeto, de, ate)).await
+    em_segundo_plano(move |d| exportar_nota(&d, &projeto, de, ate, &destino)).await
 }
 
 #[tauri::command]

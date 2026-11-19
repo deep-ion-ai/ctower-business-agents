@@ -87,7 +87,7 @@ pub fn rodar() {
             inicio::criar_analise_de_cenarios_app,
             cobertura::cobertura_projeto_app,
             mudancas::mudancas_projeto_app,
-            mudancas::nota_de_mudancas_app,
+            mudancas::exportar_nota_de_mudancas_app,
             mudancas::pedido_de_explicacao_app,
             mudancas::propostas_de_mudanca_app,
             mudancas::confirmar_proposta_de_mudanca_app,

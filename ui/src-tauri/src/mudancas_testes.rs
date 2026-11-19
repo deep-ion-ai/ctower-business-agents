@@ -52,6 +52,9 @@ fn relatorio_nota_e_confirmacao_da_proposta() {
     );
     let nota = nota_do_projeto(&c.dados, PROJETO, None, None).unwrap();
     assert!(nota.contains("## Regras com mudança no código"), "{nota}");
+    let destino = c.dir.path().join("nota.md");
+    let gravado = exportar_nota(&c.dados, PROJETO, None, None, destino.to_str().unwrap()).unwrap();
+    assert_eq!(std::fs::read_to_string(gravado).unwrap(), nota);
     assert!(pedido_de_explicacao_app(None, None).contains("relatorio_de_mudancas"));
 
     // O agente propõe; o analista confirma no app.
