@@ -156,6 +156,9 @@ fn dica_da_secao(fluxo: Fluxo, marcador: &str) -> &'static str {
         (Fluxo::Impacto, "documentos_e_telas") => {
             "relatórios, documentos emitidos e telas afetados; itens repetidos agrupados, com a contagem"
         }
+        (Fluxo::Impacto, "dados_pessoais_e_rnf") => {
+            "dados pessoais e sensíveis (LGPD) que a demanda toca, um campo por afirmação (tabela e coluna, categoria, finalidade aparente e onde aparece), e o efeito em auditoria e logs, desempenho (lotes, volume, janela) e segurança e acesso (perfis e permissões), sempre com evidência; o que o código não mostra vira pergunta"
+        }
         (Fluxo::Impacto, "riscos") => {
             "riscos, como dados antigos, integrações no formato atual, relatórios que agrupam pelos dados alterados, regras repetidas em outra camada e outros públicos afetados pela mesma mudança"
         }

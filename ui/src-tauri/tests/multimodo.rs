@@ -904,6 +904,12 @@ fn mcp_analise_de_impacto_do_inicio_ao_documento_na_base() {
             tela.clone(),
         ),
         (
+            "dados_pessoais_e_rnf",
+            "Nenhum dado pessoal é tocado: o limite de parcelas vem do parâmetro MAX_PARCELAS, sem campo do cliente.".into(),
+            "inferido",
+            json!([parcelas[2]]),
+        ),
+        (
             "riscos",
             "Reduzir MAX_PARCELAS para 3 afeta também órgão público, porque o parâmetro é único.".into(),
             "inferido",
@@ -961,6 +967,7 @@ fn mcp_analise_de_impacto_do_inicio_ao_documento_na_base() {
             "Dados",
             "Integrações",
             "Documentos e telas",
+            "Dados pessoais e requisitos não funcionais",
             "Riscos",
             "Abrangência",
             "Perguntas para o solicitante",

@@ -26,6 +26,7 @@ pub mod ata;
 pub mod cenarios;
 pub mod ciclo_vida;
 pub mod comparacao;
+pub mod dados_pessoais;
 pub mod execucao;
 pub mod gabarito;
 pub mod historias;

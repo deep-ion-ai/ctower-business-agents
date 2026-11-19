@@ -27,7 +27,10 @@
 //! - **arquivos citados:** quais arquivos esperados do item aparecem em evidências
 //!   válidas;
 //! - **diagramas do documento negocial** (explicar, #120): o fluxo do processo e o
-//!   modelo de dados conceitual ([`crate::modelagem`]).
+//!   modelo de dados conceitual ([`crate::modelagem`]);
+//! - **dados pessoais e requisitos não funcionais** (impacto, #126): os campos
+//!   pessoais apontados com evidência, os falsos positivos e os aspectos de
+//!   auditoria, desempenho e acesso ([`crate::dados_pessoais`]).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -40,6 +43,7 @@ use serde::Serialize;
 
 use crate::cenarios::{CenariosAvaliados, avaliar_cenarios};
 use crate::ciclo_vida::{CicloVidaAvaliado, avaliar_ciclo_vida};
+use crate::dados_pessoais::{DadosPessoaisAvaliados, avaliar_dados_pessoais};
 use crate::gabarito::{Gabarito, Item, Regra, Veredito};
 use crate::historias::{HistoriasAvaliadas, avaliar_historias};
 use crate::modelagem::{ModelagemAvaliada, avaliar_modelagem};
@@ -97,6 +101,10 @@ pub struct Avaliacao {
     /// `explicar`, [`crate::modelagem`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub modelagem: Option<ModelagemAvaliada>,
+    /// Dados pessoais e requisitos não funcionais (impacto, #126,
+    /// [`crate::dados_pessoais`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dados_pessoais: Option<DadosPessoaisAvaliados>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -524,6 +532,10 @@ pub fn avaliar(analise: &Analise, item: &Item, gabarito: &Gabarito, escopo: &Esc
             .modelagem
             .as_ref()
             .map(|m| avaliar_modelagem(analise, m)),
+        dados_pessoais: item
+            .dados_pessoais
+            .as_ref()
+            .map(|d| avaliar_dados_pessoais(analise, d, &validas_por_afirmacao)),
     }
 }
 

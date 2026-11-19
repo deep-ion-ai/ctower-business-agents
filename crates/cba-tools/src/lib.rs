@@ -25,7 +25,8 @@
 //!   `tratar_ponto_de_entrada` e `concluir_mapeamento`: o mapa de funcionalidades
 //!   do projeto, #208, fora das análises).
 //! - Consulta, só de leitura e paginada ([`paginacao`]): [`conhecimento`] (busca no
-//!   índice da base), [`mapa`], [`estrutura`], [`banco`] (`schema`) e
+//!   índice da base), [`mapa`], [`estrutura`], [`banco`] (`schema`, com os indícios
+//!   de dado pessoal de [`dados_pessoais`]) e
 //!   [`referencias`], a partir do mapa estrutural do projeto ([`fontes`]), e
 //!   [`rastreabilidade`] (matriz da demanda e consulta reversa por regra ou
 //!   arquivo, #121, que também exporta a matriz para Excel e Word).
@@ -61,6 +62,7 @@ pub mod cobertura;
 mod comum;
 pub mod conhecimento;
 pub mod contexto;
+pub mod dados_pessoais;
 pub mod diagramas;
 pub mod documento;
 pub mod editavel;
