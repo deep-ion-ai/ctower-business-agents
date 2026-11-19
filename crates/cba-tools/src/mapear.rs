@@ -476,8 +476,26 @@ pub fn entrada_da_explicacao(f: &Funcionalidade) -> String {
     t
 }
 
+/// Análises do fluxo `explicar` ligadas a cada funcionalidade do mapa (a mais
+/// recente de cada uma), lidas das próprias análises ([`Analise::funcionalidade`]).
+pub fn explicacoes(
+    analises: &cba_core::analises::Analises,
+) -> std::collections::BTreeMap<IdFuncionalidade, Analise> {
+    let mut mapa = std::collections::BTreeMap::new();
+    for a in analises.listar().unwrap_or_default() {
+        if a.fluxo != Fluxo::Explicar {
+            continue;
+        }
+        if let Some(f) = a.funcionalidade.clone() {
+            // `listar` vem em ordem de identificador: a última vence.
+            mapa.insert(f, a);
+        }
+    }
+    mapa
+}
+
 /// Cria uma análise do fluxo `explicar` para uma funcionalidade do mapa, ligada a
-/// ela ([`Analise::funcionalidade`]).
+/// ela ([`Analise::funcionalidade`]). Recusa se a funcionalidade já tem uma.
 pub fn criar_explicacao(
     ambiente: &Ambiente,
     id: &IdFuncionalidade,
@@ -488,6 +506,12 @@ pub fn criar_explicacao(
             "a funcionalidade {id} não está no mapa de funcionalidades do projeto"
         ))
     })?;
+    if let Some(a) = explicacoes(&ambiente.analises).get(id) {
+        return Err(ErroFerramenta::Recusa(format!(
+            "a funcionalidade {id} já tem a explicação {}; continue nela",
+            a.id
+        )));
+    }
     let analise = ambiente.analises.criar_com_demanda(
         NovaAnalise {
             fluxo: Fluxo::Explicar,

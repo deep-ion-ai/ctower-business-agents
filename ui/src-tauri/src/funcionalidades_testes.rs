@@ -109,6 +109,15 @@ fn mapa_revisao_explicacao_e_exportacao() {
             .titulo
             .starts_with("F-CAN-001 · Cancelar fatura emitida")
     );
+    // Ligada à funcionalidade: a tela mostra a análise, e uma segunda é recusada.
+    let mapa = mapa_funcionalidades(&c.dados, PROJETO).unwrap();
+    let ligada = mapa.areas[0].funcionalidades[0]
+        .explicacao
+        .as_ref()
+        .unwrap();
+    assert_eq!(ligada.id, explicacao.analise.id);
+    let erro = explicar_funcionalidade(&c.dados, PROJETO, "F-CAN-001").unwrap_err();
+    assert!(erro.contains(&explicacao.analise.id), "{erro}");
     let erro = explicar_funcionalidade(&c.dados, PROJETO, "F-CAN-009").unwrap_err();
     assert!(erro.contains("F-CAN-009"), "{erro}");
 

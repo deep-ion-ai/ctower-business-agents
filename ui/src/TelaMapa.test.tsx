@@ -73,6 +73,13 @@ const MAPA: MapaFuncionalidades = {
           areaNome: "Cancelamento",
           situacao: "aceita",
           documento: "faturamento-exemplo/funcionalidades/cancelamento/cancelar-fatura/negocial.md",
+          explicacao: {
+            id: "A-0002",
+            titulo: "F-CAN-001 · Cancelar fatura",
+            fluxo: "explicar",
+            estado: "aprovada",
+            atualizadaMs: 1,
+          },
         }),
       ],
     },
@@ -247,6 +254,14 @@ describe("TelaMapa", () => {
       tipo: "base",
       documento: "faturamento-exemplo/funcionalidades/cancelamento/cancelar-fatura/negocial.md",
     });
+    // Já explicada: "Explicar" desabilitado e o link para a análise.
+    expect(within(cartao).getByRole("button", { name: "Explicar" })).toBeDisabled();
+    fireEvent.click(within(cartao).getByRole("button", { name: "Explicação A-0002 (aprovada)" }));
+    expect(navegar).toHaveBeenCalledWith({
+      tipo: "analise",
+      projeto: "faturamento-exemplo",
+      aberta: { id: "A-0002", abertura: { tipo: "reabrir" } },
+    });
     const cobranca = screen.getByRole("region", { name: "F-COB-001: Calcular encargos" });
     fireEvent.click(within(cobranca).getByRole("button", { name: "Explicar" }));
     await waitFor(() =>
@@ -266,6 +281,8 @@ describe("TelaMapa", () => {
     analise.avisar({ tipo: "mudanca", analise: "A-0001", mudanca: "afirmacao", versao: 2 });
     analise.avisar({ tipo: "mudanca", analise: "mapa", mudanca: "funcionalidade", versao: 4 });
     await waitFor(() => expect(api.mapa).toHaveBeenCalledTimes(2));
+    analise.avisar({ tipo: "mudanca", analise: "A-0003", mudanca: "criada", versao: 1 });
+    await waitFor(() => expect(api.mapa).toHaveBeenCalledTimes(3));
   });
 
   it("começa a sessão de mapeamento com o recorte e a orientação", async () => {

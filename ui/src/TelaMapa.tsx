@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { apiAnaliseTauri, mensagemDe, type ApiAnalise } from "./analise";
+import { apiAnaliseTauri, mensagemDe, type ApiAnalise, type EstadoAnalise } from "./analise";
 import { contar } from "./formatacao";
 import {
   apiMapaTauri,
@@ -21,6 +21,13 @@ const SITUACAO: Record<SituacaoFuncionalidade, string> = {
   aceita: "aceita",
   descartada: "descartada",
   juntada: "juntada",
+};
+
+const ESTADO_ANALISE: Record<EstadoAnalise, string> = {
+  criada: "criada",
+  "em-andamento": "em andamento",
+  concluida: "concluída",
+  aprovada: "aprovada",
 };
 
 /** Pontos sem tratamento mostrados de uma vez (projetos grandes têm milhares). */
@@ -229,6 +236,7 @@ function CartaoFuncionalidade({
   revisao,
   evidencias = false,
   aoExplicar,
+  aoAbrirExplicacao,
   aoAbrirDocumento,
 }: {
   f: Funcionalidade;
@@ -237,6 +245,7 @@ function CartaoFuncionalidade({
   /** Mostra o trecho de código citado em cada ponto de entrada. */
   evidencias?: boolean;
   aoExplicar?: (f: Funcionalidade) => void;
+  aoAbrirExplicacao?: (analise: string) => void;
   aoAbrirDocumento?: (documento: string) => void;
 }) {
   const [form, setForm] = useState<Form>(null);
@@ -253,7 +262,11 @@ function CartaoFuncionalidade({
       <header className="historia-cabecalho">
         <span className="painel-id">{f.id}</span>
         <strong>{f.nome}</strong>
-        {f.documento && <span className="chip">documentada</span>}
+        {f.documento ? (
+          <span className="chip">documentada</span>
+        ) : (
+          f.explicacao && <span className="chip">em explicação</span>
+        )}
         {f.semPontoDeEntrada && <span className="chip">sem ponto de entrada no código</span>}
         <span className="badge" data-tone={s === "aceita" ? "done" : undefined}>
           {s === "juntada" && f.juntadaEm ? `juntada em ${f.juntadaEm}` : SITUACAO[s]}
@@ -397,8 +410,23 @@ function CartaoFuncionalidade({
             </button>
           )}
           {aberta && aoExplicar && (
-            <button type="button" className="btn" disabled={ocupado} onClick={() => aoExplicar(f)}>
+            <button
+              type="button"
+              className="btn"
+              disabled={ocupado || !!f.explicacao}
+              title={f.explicacao ? `Já explicada na análise ${f.explicacao.id}` : undefined}
+              onClick={() => aoExplicar(f)}
+            >
               Explicar
+            </button>
+          )}
+          {f.explicacao && aoAbrirExplicacao && (
+            <button
+              type="button"
+              className="btn"
+              onClick={() => aoAbrirExplicacao(f.explicacao!.id)}
+            >
+              Explicação {f.explicacao.id} ({ESTADO_ANALISE[f.explicacao.estado]})
             </button>
           )}
           {f.documento && aoAbrirDocumento && (
@@ -523,6 +551,8 @@ function useMapa(api: ApiMapa, vigiar: ApiAnalise["vigiar"], projeto: string) {
         vigiar(projeto, (aviso) => {
           if (aviso.tipo === "reinicio") carregar();
           else if (aviso.analise === "mapa" && aviso.mudanca === "funcionalidade") carregar();
+          // Explicação criada ou aprovada: o vínculo e o documento negocial mudam.
+          else if (aviso.mudanca === "criada" || aviso.mudanca === "estado") carregar();
         }),
       )
       .then((f) => {
@@ -600,6 +630,8 @@ function MapaDoProjeto({
       .catch((e: unknown) => setFalha(mensagemDe(e)));
   };
   const abrirDocumento = (documento: string) => navegar({ tipo: "base", documento });
+  const abrirExplicacao = (id: string) =>
+    navegar({ tipo: "analise", projeto, aberta: { id, abertura: { tipo: "reabrir" } } });
   const exportar = (formato: "markdown" | "word") => {
     setFalha(null);
     setAviso(null);
@@ -716,6 +748,7 @@ function MapaDoProjeto({
                       revisao={revisao}
                       evidencias={evidencias}
                       aoExplicar={explicar}
+                      aoAbrirExplicacao={abrirExplicacao}
                       aoAbrirDocumento={abrirDocumento}
                     />
                   ))}

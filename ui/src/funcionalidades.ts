@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
-import type { AnaliseCriada } from "./analise";
+import type { AnaliseCriada, AnaliseResumo } from "./analise";
 
 /**
  * Mapa de funcionalidades do projeto (#208): um cadastro do projeto, fora das
@@ -58,8 +58,8 @@ export interface Funcionalidade {
   editada: boolean;
   /** Documento negocial aprovado, relativo à raiz da base. */
   documento: string | null;
-  /** Análise de explicação ligada, se houver. */
-  explicacao: string | null;
+  /** Análise de explicação ligada (a mais recente), se houver. */
+  explicacao: AnaliseResumo | null;
   /** Nenhum ponto de entrada dela existe mais no código. */
   semPontoDeEntrada: boolean;
 }

@@ -5,7 +5,9 @@
 //! terminal, abrir a explicação de uma funcionalidade e exportar o documento.
 //! O mapa é um cadastro do projeto, não uma análise.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
+
+use cba_core::analise::Analise;
 
 use cba_core::dados::DiretorioDados;
 use cba_core::funcionalidades::{
@@ -62,7 +64,7 @@ impl From<&PontoAtribuido> for PontoDaFuncionalidade {
 }
 
 /// Funcionalidade do mapa, como a tela mostra.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FuncionalidadeVista {
     pub id: String,
@@ -83,13 +85,13 @@ pub struct FuncionalidadeVista {
     /// Documento negocial aprovado, relativo à raiz da base (para abrir na Base).
     pub documento: Option<String>,
     /// Análise de explicação ligada (a mais recente), se houver.
-    pub explicacao: Option<String>,
+    pub explicacao: Option<AnaliseResumo>,
     /// Nenhum ponto de entrada dela existe mais no mapa estrutural.
     pub sem_ponto_de_entrada: bool,
 }
 
 /// Área do mapa, com as funcionalidades dela.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AreaVista {
     pub area: String,
@@ -142,7 +144,7 @@ pub struct CompletudeVista {
 }
 
 /// O mapa de funcionalidades do projeto.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MapaVista {
     pub areas: Vec<AreaVista>,
@@ -165,6 +167,7 @@ fn vista_da(
     f: &Funcionalidade,
     kb: &cba_kb::Projeto,
     chaves: Option<&BTreeSet<String>>,
+    explicacoes: &BTreeMap<IdFuncionalidade, Analise>,
 ) -> FuncionalidadeVista {
     FuncionalidadeVista {
         id: f.id.to_string(),
@@ -181,16 +184,18 @@ fn vista_da(
         juntada_em: f.juntada_em.as_ref().map(ToString::to_string),
         editada: f.editada,
         documento: f.documento.as_ref().map(|d| kb.na_base(d).to_string()),
-        explicacao: f.explicacao.as_ref().map(ToString::to_string),
+        explicacao: explicacoes.get(&f.id).map(AnaliseResumo::from),
         sem_ponto_de_entrada: chaves.is_some_and(|c| mapear::sem_ponto_de_entrada(f, c)),
     }
 }
 
 fn vista(
     mapa: &MapaFuncionalidades,
-    kb: &cba_kb::Projeto,
+    ambiente: &cba_core::ambiente::Ambiente,
     estrutural: Result<Vec<PontoEntrada>, String>,
 ) -> MapaVista {
+    let kb = &ambiente.kb;
+    let explicacoes = mapear::explicacoes(&ambiente.analises);
     let (completude, erro_completude, chaves) = match estrutural {
         Ok(pontos) => {
             let chaves: BTreeSet<String> = pontos.iter().map(|p| p.chave.clone()).collect();
@@ -212,7 +217,7 @@ fn vista(
     };
     let mut areas: Vec<AreaVista> = Vec::new();
     for f in mapa.ordenadas() {
-        let v = vista_da(f, kb, chaves.as_ref());
+        let v = vista_da(f, kb, chaves.as_ref(), &explicacoes);
         match areas.last_mut() {
             Some(a) if a.area == f.area => a.funcionalidades.push(v),
             _ => areas.push(AreaVista {
@@ -227,7 +232,7 @@ fn vista(
         .funcionalidades
         .iter()
         .filter(|f| !f.aberta())
-        .map(|f| vista_da(f, kb, None))
+        .map(|f| vista_da(f, kb, None, &explicacoes))
         .collect();
     MapaVista {
         fechadas,
@@ -261,7 +266,7 @@ pub fn mapa_funcionalidades(dados: &DiretorioDados, projeto: &str) -> Result<Map
     let mapa = MapaFuncionalidades::carregar(&ambiente.kb).map_err(|e| e.to_string())?;
     Ok(vista(
         &mapa,
-        &ambiente.kb,
+        &ambiente,
         mapear::pontos_do_projeto(&ambiente),
     ))
 }
@@ -279,7 +284,7 @@ pub fn revisar_mapa(
     }
     Ok(vista(
         &alterado.mapa,
-        &ambiente.kb,
+        &ambiente,
         mapear::pontos_do_projeto(&ambiente),
     ))
 }
