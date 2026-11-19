@@ -88,6 +88,7 @@ pub mod roteiro;
 pub mod schema;
 pub mod sugestao;
 pub mod termo;
+pub mod vincular;
 
 pub use registro::{
     ErroChamada, ErroFerramenta, Executar, Ferramenta, Registro, Saida, ler_argumentos,

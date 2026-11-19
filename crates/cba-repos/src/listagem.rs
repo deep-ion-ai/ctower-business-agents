@@ -336,7 +336,11 @@ mod tests {
                 .unwrap(),
             "2025-01-02"
         );
-        assert!(Periodo::Desde("ontem".into()).data_a_partir_de(hoje()).is_err());
+        assert!(
+            Periodo::Desde("ontem".into())
+                .data_a_partir_de(hoje())
+                .is_err()
+        );
         let (a, m, d) = hoje();
         assert!(a >= 2025 && (1..=12).contains(&m) && (1..=31).contains(&d));
     }
