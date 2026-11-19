@@ -58,6 +58,7 @@ pub mod clone;
 pub mod codigo;
 mod credential;
 pub mod demanda;
+pub mod listagem;
 pub mod link;
 pub mod process;
 pub mod prontidao;
