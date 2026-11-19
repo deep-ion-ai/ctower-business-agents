@@ -1,5 +1,7 @@
 //! Textos do produto editáveis na base: os roteiros dos fluxos ([`crate::roteiro`])
-//! e os prompts prontos ([`crate::prompts`]).
+//! e os prompts prontos ([`crate::prompts`]). O catálogo ([`textos_editaveis`])
+//! inclui também os templates dos documentos e os arquivos da exportação em HTML
+//! (`cba_docs::ModeloHtml`, #166), que têm regras próprias em `cba-docs`.
 //!
 //! Seguem o padrão dos templates dos documentos (`cba_docs::Templates`):
 //!
@@ -162,6 +164,8 @@ pub enum Grupo {
     Roteiro,
     /// Prompt pronto (`_templates/prompts/<id>.md`).
     Prompt,
+    /// Template HTML e tokens CSS da exportação (`_templates/exportacao/`, #166).
+    Exportacao,
 }
 
 /// Um texto que o analista pode editar na base, com o padrão embutido no app.
@@ -178,33 +182,6 @@ pub struct TextoEditavel {
     pub padrao: &'static str,
 }
 
-fn rotulo_do_template(tipo: cba_kb::frontmatter::TipoDocumento) -> &'static str {
-    use cba_kb::frontmatter::TipoDocumento as T;
-    match tipo {
-        T::AnaliseImpacto => "Análise de impacto",
-        T::Pergunta => "Pergunta ao sistema",
-        T::Funcionalidade => "Documento negocial da funcionalidade",
-        T::CasoDeUso => "Caso de uso",
-        T::Regra => "Regra de negócio",
-        T::Termo => "Termo do glossário",
-        T::Sugestao => "Sugestão de alteração",
-        T::Projeto => "Projeto",
-        T::MemoriaArea => "Memória da área",
-        T::Demanda => "Demanda",
-        T::Pessoa => "Pessoa",
-        T::Ata => "Ata de reunião",
-        T::AnaliseReuniao => "Análise de reunião",
-        T::ParecerRevisao => "Parecer de revisão",
-        T::Historias => "Histórias e critérios de aceite",
-        T::CenariosTeste => "Cenários de teste",
-        T::Premissa => "Premissa",
-        T::Decisao => "Decisão",
-        T::Risco => "Risco",
-        T::Restricao => "Restrição",
-        T::MapaFuncionalidades => "Mapa de funcionalidades",
-    }
-}
-
 fn rotulo_do_roteiro(fluxo: cba_core::analise::Fluxo) -> &'static str {
     use cba_core::analise::Fluxo;
     match fluxo {
@@ -219,7 +196,7 @@ fn rotulo_do_roteiro(fluxo: cba_core::analise::Fluxo) -> &'static str {
 }
 
 /// Todos os textos editáveis na base: os templates dos documentos, os roteiros dos
-/// fluxos e os prompts prontos, nessa ordem. Um arquivo da base com o mesmo caminho
+/// fluxos, os prompts prontos e os arquivos da exportação em HTML, nessa ordem. Um arquivo da base com o mesmo caminho
 /// sobrepõe o padrão.
 pub fn textos_editaveis() -> Vec<TextoEditavel> {
     let mut lista: Vec<TextoEditavel> = cba_docs::MODELOS
@@ -227,7 +204,7 @@ pub fn textos_editaveis() -> Vec<TextoEditavel> {
         .map(|m| TextoEditavel {
             grupo: Grupo::Template,
             id: m.tipo.como_str(),
-            rotulo: rotulo_do_template(m.tipo),
+            rotulo: cba_docs::rotulo_do_tipo(m.tipo),
             arquivo: cba_docs::arquivo_do_template(m.tipo),
             padrao: m.padrao,
         })
@@ -258,6 +235,13 @@ pub fn textos_editaveis() -> Vec<TextoEditavel> {
             arquivo: p.arquivo(),
             padrao: p.texto,
         }
+    }));
+    lista.extend(cba_docs::ArquivoHtml::TODOS.iter().map(|a| TextoEditavel {
+        grupo: Grupo::Exportacao,
+        id: a.id(),
+        rotulo: a.rotulo(),
+        arquivo: a.arquivo(),
+        padrao: a.padrao(),
     }));
     lista
 }
@@ -312,6 +296,16 @@ pub fn variaveis(grupo: Grupo, id: &str) -> Vec<Variavel> {
     let nomes: &[&str] = match grupo {
         Grupo::Roteiro => &crate::roteiro::VARIAVEIS[..],
         Grupo::Prompt => &crate::prompts::VARIAVEIS[..],
+        // Só o template HTML tem variáveis; os arquivos CSS são livres.
+        Grupo::Exportacao => {
+            if cba_docs::ArquivoHtml::de_id(id) != Some(cba_docs::ArquivoHtml::Documento) {
+                return Vec::new();
+            }
+            return cba_docs::VARIAVEIS_HTML
+                .iter()
+                .map(|(n, d)| variavel(n, d))
+                .collect();
+        }
         Grupo::Template => {
             return modelo_do_template(id)
                 .map(|m| {
@@ -335,8 +329,8 @@ pub fn variaveis(grupo: Grupo, id: &str) -> Vec<Variavel> {
 }
 
 /// Valida o texto de um editor, sem gravar, com as mesmas regras de quando o agente
-/// o carrega: variável desconhecida e variável essencial ausente (roteiros e
-/// prompts), marcador desconhecido (templates). `arquivo` é o caminho do texto na
+/// o carrega: variável desconhecida e variável essencial ausente (roteiros,
+/// prompts e template HTML da exportação), marcador desconhecido (templates). `arquivo` é o caminho do texto na
 /// base, para as mensagens.
 pub fn validar(grupo: Grupo, id: &str, arquivo: &CaminhoRelativo, texto: &str) -> Vec<Problema> {
     let (nomes, essenciais): (&[&str], &[&str]) = match grupo {
@@ -348,6 +342,32 @@ pub fn validar(grupo: Grupo, id: &str, arquivo: &CaminhoRelativo, texto: &str) -
             &crate::prompts::VARIAVEIS[..],
             &crate::prompts::ESSENCIAIS[..],
         ),
+        Grupo::Exportacao => {
+            if cba_docs::ArquivoHtml::de_id(id) != Some(cba_docs::ArquivoHtml::Documento) {
+                return Vec::new();
+            }
+            let origem = cba_docs::Origem::Base(arquivo.clone());
+            return cba_docs::validar_template_html(texto, origem)
+                .into_iter()
+                .filter_map(|a| match &a {
+                    cba_docs::AvisoHtml::VariavelDesconhecida {
+                        variavel, linha, ..
+                    } => Some(Problema {
+                        linha: Some(*linha),
+                        variavel: variavel.clone(),
+                        ausente: false,
+                        mensagem: a.to_string(),
+                    }),
+                    cba_docs::AvisoHtml::ConteudoAusente { .. } => Some(Problema {
+                        linha: None,
+                        variavel: "conteudo".into(),
+                        ausente: true,
+                        mensagem: a.to_string(),
+                    }),
+                    cba_docs::AvisoHtml::Ilegivel { .. } => None,
+                })
+                .collect();
+        }
         Grupo::Template => {
             let Some(tipo) = modelo_do_template(id).map(|m| m.tipo) else {
                 return Vec::new();
@@ -512,6 +532,7 @@ mod tests {
         assert_eq!(de(Grupo::Template), cba_docs::MODELOS.len());
         assert_eq!(de(Grupo::Roteiro), crate::roteiro::FLUXOS.len());
         assert_eq!(de(Grupo::Prompt), crate::prompts::DEFINICOES.len());
+        assert_eq!(de(Grupo::Exportacao), 3);
         let arquivos: std::collections::BTreeSet<&str> =
             lista.iter().map(|t| t.arquivo.as_str()).collect();
         assert_eq!(arquivos.len(), lista.len(), "caminhos distintos");
@@ -522,7 +543,44 @@ mod tests {
         assert!(arquivos.contains("_templates/roteiros/historias.md"));
         assert!(arquivos.contains("_templates/roteiros/cenarios.md"));
         assert!(arquivos.contains("_templates/prompts/aprofundar.md"));
+        assert!(arquivos.contains("_templates/exportacao/documento.html"));
+        assert!(arquivos.contains("_templates/exportacao/tokens.css"));
+        assert!(arquivos.contains("_templates/exportacao/estilo.css"));
         assert!(lista.iter().all(|t| !t.padrao.trim().is_empty()));
+    }
+
+    #[test]
+    fn template_html_tem_variaveis_e_validacao() {
+        let nomes: Vec<String> = variaveis(Grupo::Exportacao, "documento")
+            .into_iter()
+            .map(|v| v.nome)
+            .collect();
+        for n in ["titulo", "css", "conteudo", "data_exportacao"] {
+            assert!(nomes.iter().any(|v| v == n), "{n}");
+        }
+        assert!(variaveis(Grupo::Exportacao, "tokens").is_empty());
+        let arquivo = cba_docs::ArquivoHtml::Documento.arquivo();
+        let problemas = validar(
+            Grupo::Exportacao,
+            "documento",
+            &arquivo,
+            "<!--\nnota\n-->\n<h1>{{titulo}}</h1>\n{{inventada}}\n",
+        );
+        assert_eq!(problemas.len(), 2, "{problemas:?}");
+        assert_eq!(problemas[0].linha, Some(5));
+        assert_eq!(problemas[0].variavel, "inventada");
+        assert!(problemas[1].ausente);
+        assert_eq!(problemas[1].variavel, "conteudo");
+        assert!(validar(Grupo::Exportacao, "tokens", &arquivo, "{{x}}").is_empty());
+        assert!(
+            validar(
+                Grupo::Exportacao,
+                "documento",
+                &arquivo,
+                cba_docs::ArquivoHtml::Documento.padrao()
+            )
+            .is_empty()
+        );
     }
 
     fn texto(t: &str) -> Texto {

@@ -638,6 +638,24 @@
   background: var(--surface);
 }
 
+.previa-exportacao {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* A prévia é um documento para terceiros: sai sempre clara, como o arquivo. */
+.previa-exportacao-quadro {
+  flex: 1;
+  min-height: 320px;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+}
+
 .editor-texto-campo {
   flex: 1;
   min-height: 0;

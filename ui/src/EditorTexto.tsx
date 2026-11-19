@@ -14,6 +14,7 @@ import { BarraFormatacao } from "./BarraFormatacao";
 import { DialogoConfirmacao } from "./DialogoConfirmacao";
 import { formatoDoAtalho, type Formato } from "./formatacao";
 import { aplicarFormatoNoCampo, inserirNoCursor, irParaLinha } from "./inserirNoCursor";
+import { PreviaExportacao } from "./PreviaExportacao";
 import { PreviaMarkdown } from "./PreviaMarkdown";
 
 /** Espera depois da última tecla antes de pedir a validação. */
@@ -24,7 +25,9 @@ type Dialogo = "voltar" | "descartar" | "restaurar" | "conflito" | "fechar";
 /**
  * Editor de um texto editável da base (#104), em tela cheia sobre as configurações:
  * `textarea` monoespaçado à esquerda, prévia à direita (abas em janela estreita) e um
- * painel recolhível com as variáveis aceitas e os avisos da validação.
+ * painel recolhível com as variáveis aceitas e os avisos da validação. Nos arquivos
+ * da exportação em HTML (#166), que não são Markdown, a prévia é o documento de
+ * exemplo exportado e a barra de formatação não aparece.
  *
  * Quem usa decide o que fazer ao sair (`aoSair`) e é avisado de cada mudança no
  * arquivo (`aoAlterado`, para a tabela reler o estado) e de haver ou não alterações
@@ -314,6 +317,7 @@ export function EditorTexto({
 
   const aceitos = leitura.variaveis.map((v) => v.nome);
   const semCopia = estado === "padrao";
+  const exportacao = leitura.grupo === "exportacao";
 
   return (
     <section className="editor-texto" aria-label={`Editor de ${leitura.rotulo}`}>
@@ -406,11 +410,13 @@ export function EditorTexto({
 
       <div className="editor-texto-corpo" data-aba={aba}>
         <div className="editor-texto-col" data-coluna="editar">
-          <BarraFormatacao
-            aoFormatar={formatar}
-            aoAjuda={() => setAjuda(true)}
-            botaoAjuda={botaoAjuda}
-          />
+          {!exportacao && (
+            <BarraFormatacao
+              aoFormatar={formatar}
+              aoAjuda={() => setAjuda(true)}
+              botaoAjuda={botaoAjuda}
+            />
+          )}
           <textarea
             ref={campo}
             className="editor-texto-campo"
@@ -418,6 +424,7 @@ export function EditorTexto({
             spellCheck={false}
             value={texto}
             onKeyDown={(e) => {
+              if (exportacao) return;
               const f = formatoDoAtalho(e);
               if (!f) return;
               e.preventDefault();
@@ -430,7 +437,11 @@ export function EditorTexto({
           />
         </div>
         <div className="editor-texto-col" data-coluna="previa" role="region" aria-label="Prévia">
-          <PreviaMarkdown texto={textoDaPrevia} aceitos={aceitos} />
+          {exportacao ? (
+            <PreviaExportacao api={api} arquivo={arquivo} texto={textoDaPrevia} />
+          ) : (
+            <PreviaMarkdown texto={textoDaPrevia} aceitos={aceitos} />
+          )}
         </div>
         {painel && (
           <aside

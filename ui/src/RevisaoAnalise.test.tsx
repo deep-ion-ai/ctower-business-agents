@@ -148,7 +148,9 @@ function cenarioRevisao(areas = AREAS, maisPerguntas: Analise["perguntas"] = [])
     escolherDestino: vi.fn((nome: string, formato: "markdown" | "word") =>
       Promise.resolve<string | null>(`/home/analista/${nome}.${formato === "word" ? "docx" : "md"}`),
     ),
-    exportar: vi.fn((_s: string, _a: string, p: { destino: string }) => Promise.resolve(p.destino)),
+    exportar: vi.fn((_s: string, _a: string, p: { destino: string }) =>
+      Promise.resolve({ caminho: p.destino, avisos: [] as string[] }),
+    ),
   } satisfies ApiRevisao;
 
   const analise = apiAnaliseFalsa(vista());

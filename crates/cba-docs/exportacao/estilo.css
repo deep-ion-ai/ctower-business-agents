@@ -1,0 +1,9 @@
+/*
+  Estilo adicional da exportação em HTML.
+
+  Opcional: as regras daqui vêm depois da folha padrão e podem mudar o que os
+  tokens não alcançam. Prefira usar as variáveis de tokens.css, por exemplo:
+
+  .selo-a-confirmar { text-transform: uppercase; }
+  h2 { border-bottom-style: dashed; }
+*/

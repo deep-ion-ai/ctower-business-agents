@@ -632,6 +632,7 @@ fn textos_mostram_quando_a_base_sobrepoe_o_padrao() {
     assert_eq!(de(GrupoTexto::Roteiro), 7);
     assert_eq!(de(GrupoTexto::Prompt), 9);
     assert_eq!(de(GrupoTexto::RegrasDoProjeto), 1);
+    assert_eq!(de(GrupoTexto::Exportacao), 3);
     let json = serde_json::to_value(&lista).unwrap();
     assert!(json[0]["grupo"].is_string() && json[0]["estado"].is_string());
 
@@ -883,4 +884,68 @@ fn restaurar_remove_a_copia_e_regras_voltam_ao_padrao() {
     assert!(base.join(&regras).is_file(), "as regras precisam existir");
     assert_eq!(l.estado, EstadoTexto::IgualAoPadrao);
     assert_eq!(estado(&regras), EstadoTexto::IgualAoPadrao);
+}
+
+// ---------------------------------------------------------------------------
+// Exportação em HTML (#166)
+
+const TEMPLATE_HTML: &str = "_templates/exportacao/documento.html";
+const TOKENS_HTML: &str = "_templates/exportacao/tokens.css";
+
+#[test]
+fn editor_da_exportacao_html_lista_variaveis_valida_e_mostra_a_previa() {
+    let c = cenario();
+    let base = base_atual(&c.dados);
+
+    let l = ler_texto(&c.dados, TEMPLATE_HTML).unwrap();
+    assert_eq!(l.grupo, GrupoTexto::Exportacao);
+    assert_eq!(l.estado, EstadoTexto::Padrao);
+    assert!(l.variaveis.iter().any(|v| v.nome == "conteudo"));
+    assert!(
+        ler_texto(&c.dados, TOKENS_HTML)
+            .unwrap()
+            .variaveis
+            .is_empty()
+    );
+    let json = serde_json::to_value(&l).unwrap();
+    assert_eq!(json["grupo"], "exportacao");
+
+    let avisos =
+        validar_texto(&c.dados, TEMPLATE_HTML, "<h1>{{titulo}}</h1>\n{{marca}}\n").unwrap();
+    assert_eq!(avisos.len(), 2, "{avisos:?}");
+    assert_eq!(avisos[0].linha, Some(2));
+    assert!(avisos[1].ausente && avisos[1].variavel == "conteudo");
+
+    // Prévia com o texto em edição, sem gravar.
+    let p = previa_exportacao(&c.dados, TOKENS_HTML, ":root { --cor-destaque: #123456; }").unwrap();
+    assert!(p.html.contains("--cor-destaque: #123456;"));
+    assert!(p.html.contains("Documento de exemplo"));
+    assert!(p.avisos.is_empty(), "{:?}", p.avisos);
+    assert!(!base.join(TOKENS_HTML).exists(), "a prévia não grava");
+
+    let p = previa_exportacao(&c.dados, TEMPLATE_HTML, "<body>{{marca}}</body>").unwrap();
+    assert_eq!(p.avisos.len(), 2, "{:?}", p.avisos);
+    assert!(p.html.contains("<main class=\"documento\">"));
+
+    // O template salvo na base com problema não repete o aviso na prévia dos
+    // tokens só quando é o arquivo em edição.
+    salvar_texto(
+        &c.dados,
+        TEMPLATE_HTML,
+        "<body>{{marca}}{{conteudo}}</body>",
+        "ausente",
+    )
+    .unwrap();
+    let p = previa_exportacao(&c.dados, TOKENS_HTML, ":root {}").unwrap();
+    assert_eq!(p.avisos.len(), 1, "{:?}", p.avisos);
+    let p = previa_exportacao(&c.dados, TEMPLATE_HTML, "<body>{{conteudo}}</body>").unwrap();
+    assert!(p.avisos.is_empty(), "{:?}", p.avisos);
+
+    // Restaurar o padrão remove a cópia.
+    restaurar_texto(&c.dados, TEMPLATE_HTML).unwrap();
+    assert!(!base.join(TEMPLATE_HTML).exists());
+
+    // Só os arquivos da exportação têm prévia.
+    assert!(previa_exportacao(&c.dados, ROTEIRO, "x").is_err());
+    assert!(previa_exportacao(&c.dados, "../fora.html", "x").is_err());
 }

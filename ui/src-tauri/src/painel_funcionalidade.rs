@@ -173,11 +173,11 @@ fn enunciado(corpo: &str) -> Option<String> {
     let mut linhas: Vec<&str> = Vec::new();
     for l in corpo.lines() {
         let t = l.trim_start();
-        if t.starts_with("## ") {
+        if let Some(titulo) = t.strip_prefix("## ") {
             if dentro {
                 break;
             }
-            dentro = t[3..].trim().eq_ignore_ascii_case("enunciado");
+            dentro = titulo.trim().eq_ignore_ascii_case("enunciado");
             continue;
         }
         if dentro && !t.starts_with("[^") {

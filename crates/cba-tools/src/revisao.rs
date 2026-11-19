@@ -18,8 +18,9 @@
 //!   `projeto.md` para a escolha.
 //! - [`aprovar_revisada`] confere a prontidão e a área e chama a aprovação
 //!   ([`crate::aprovacao::aprovar_analise`]).
-//! - [`exportar_analise`] exporta o documento para Markdown ou Word
-//!   (`cba_docs::gravar_exportacao`), com os trechos citados lidos pelo escopo do
+//! - [`exportar_analise`] exporta o documento para Markdown, Word ou HTML
+//!   (`cba_docs::gravar_exportacao`; o HTML com o template e os tokens CSS da
+//!   base, `cba_docs::ModeloHtml`, #166), com os trechos citados lidos pelo escopo do
 //!   projeto (as exclusões valem também aqui), fora das pastas do projeto; os
 //!   cenários de teste também em CSV, uma linha por cenário
 //!   ([`crate::cenarios::csv`]). No Word, os diagramas saem como as figuras que o
@@ -67,13 +68,15 @@ use crate::documento;
 use crate::evidencias::ArquivoDoProjeto;
 use crate::roteiro;
 
-/// Formato da exportação: o documento em Markdown ou Word ou, só nos cenários de
-/// teste, a lista de cenários em CSV.
+/// Formato da exportação: o documento em Markdown, Word ou HTML ou, só nos
+/// cenários de teste, a lista de cenários em CSV.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Formato {
     Markdown,
     Word,
+    /// Arquivo HTML único, com o template e os tokens CSS da base (#166).
+    Html,
     /// Uma linha por cenário de teste (fluxo `cenarios`), para importar em
     /// ferramentas de teste.
     Csv,
@@ -85,6 +88,7 @@ impl Formato {
         match self {
             Self::Markdown => "md",
             Self::Word => "docx",
+            Self::Html => "html",
             Self::Csv => "csv",
         }
     }
@@ -730,9 +734,8 @@ pub fn destino_da_exportacao(
 }
 
 /// Exporta o documento da análise para `destino` e devolve o caminho gravado.
-///
-/// Na análise de uma reunião, o documento dela só aponta para a ata; o que se
-/// exporta é a ata (`R-NNNN.md`), quando ela já foi montada na base.
+/// Os avisos do template HTML ficam de fora; para eles, use
+/// [`exportar_analise_com_avisos`].
 pub fn exportar_analise(
     amb: &Ambiente,
     id: &Id,
@@ -741,25 +744,51 @@ pub fn exportar_analise(
     opcoes: &OpcoesExportacao,
     figuras: &cba_docs::Figuras,
 ) -> Result<PathBuf, ErroRevisao> {
+    exportar_analise_com_avisos(amb, id, destino, formato, opcoes, figuras).map(|e| e.caminho)
+}
+
+/// Resultado de uma exportação.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Exportado {
+    /// Caminho gravado, com a extensão do formato.
+    pub caminho: PathBuf,
+    /// No HTML, os avisos do template e dos tokens da base (arquivo ilegível,
+    /// variável desconhecida, `{{conteudo}}` ausente). Não impedem a exportação.
+    pub avisos: Vec<String>,
+}
+
+/// Exporta o documento da análise para `destino`.
+///
+/// Na análise de uma reunião, o documento dela só aponta para a ata; o que se
+/// exporta é a ata (`R-NNNN.md`), quando ela já foi montada na base.
+pub fn exportar_analise_com_avisos(
+    amb: &Ambiente,
+    id: &Id,
+    destino: &Path,
+    formato: Formato,
+    opcoes: &OpcoesExportacao,
+    figuras: &cba_docs::Figuras,
+) -> Result<Exportado, ErroRevisao> {
     let analise = amb.analises.carregar(id)?;
     if formato == Formato::Csv && analise.fluxo != Fluxo::Cenarios {
         return Err(ErroRevisao::CsvSemCenarios(analise.id));
     }
     let destino = destino_da_exportacao(&amb.escopo, destino, formato)?;
-    if formato == Formato::Csv {
-        let csv = crate::cenarios::csv(&analise);
-        cba_kb::arquivo::gravar(&destino, csv.as_bytes()).map_err(|erro| {
+    let gravar = |bytes: &[u8]| {
+        cba_kb::arquivo::gravar(&destino, bytes).map_err(|erro| {
             ErroRevisao::Exportacao(cba_docs::ErroExportacao::Gravar {
                 caminho: destino.clone(),
                 erro,
             })
-        })?;
-        return Ok(destino);
-    }
-    let formato = match formato {
-        Formato::Word => cba_docs::Formato::Word,
-        _ => cba_docs::Formato::Markdown,
+        })
     };
+    if formato == Formato::Csv {
+        gravar(crate::cenarios::csv(&analise).as_bytes())?;
+        return Ok(Exportado {
+            caminho: destino,
+            avisos: Vec::new(),
+        });
+    }
     let (texto, commit) = texto_para_exportar(amb, &analise)?;
     let fonte = TrechosDoProjeto(&amb.escopo);
     // Pastas canônicas, para comparar com o caminho resolvido pelo escopo.
@@ -781,6 +810,33 @@ pub fn exportar_analise(
     let links = forge
         .as_ref()
         .map(|f| (f as &dyn cba_docs::LinksDeEvidencia, commit.as_deref()));
+    if formato == Formato::Html {
+        let (modelo, mut avisos) = cba_docs::ModeloHtml::da_base(&amb.base);
+        let exportado = cba_docs::exportar_html(
+            &texto,
+            opcoes,
+            Some(&fonte),
+            links,
+            figuras,
+            &modelo,
+            &cba_core::tempo::hoje().to_string(),
+        );
+        // Os avisos do template já vieram de `da_base`.
+        for aviso in exportado.avisos {
+            if !avisos.contains(&aviso) {
+                avisos.push(aviso);
+            }
+        }
+        gravar(exportado.html.as_bytes())?;
+        return Ok(Exportado {
+            caminho: destino,
+            avisos: avisos.iter().map(ToString::to_string).collect(),
+        });
+    }
+    let formato = match formato {
+        Formato::Word => cba_docs::Formato::Word,
+        _ => cba_docs::Formato::Markdown,
+    };
     cba_docs::gravar_exportacao_com_links(
         &destino,
         &texto,
@@ -790,7 +846,10 @@ pub fn exportar_analise(
         links,
         figuras,
     )?;
-    Ok(destino)
+    Ok(Exportado {
+        caminho: destino,
+        avisos: Vec::new(),
+    })
 }
 
 /// Exporta o mapa de funcionalidades do projeto (`funcionalidades/mapa.md`, #208)
