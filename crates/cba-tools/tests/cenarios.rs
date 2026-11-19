@@ -152,6 +152,7 @@ impl Caso {
                         }],
                         origem: None,
                         informada: None,
+                        historico: Vec::new(),
                     },
                     format!("\n# {id}\n"),
                 ),

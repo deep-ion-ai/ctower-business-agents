@@ -11,6 +11,7 @@ import {
 import type { ApiCobertura } from "./cobertura";
 import { CoberturaProjeto } from "./CoberturaProjeto";
 import { ListaDemandas } from "./ListaDemandas";
+import { MudancasCodigo } from "./MudancasCodigo";
 import { simbolosEmNegocio } from "./mapaNegocio";
 import type { Tela } from "./Navegacao";
 import type { ProjetoResumo } from "./terminal";
@@ -74,6 +75,7 @@ function Projeto({
   const [falha, setFalha] = useState<string | null>(null);
   const [revalidacao, setRevalidacao] = useState<Revalidacao>({ tipo: "conferindo" });
   const [area, setArea] = useState<string | null>(null);
+  const [mudancas, setMudancas] = useState(false);
 
   const carregar = useCallback(() => {
     api
@@ -158,7 +160,16 @@ function Projeto({
         >
           Conferir de novo
         </button>
+        {api.mudancas && !mudancas && (
+          <button className="btn" type="button" onClick={() => setMudancas(true)}>
+            O que mudou no código
+          </button>
+        )}
       </div>
+
+      {api.mudancas && mudancas && (
+        <MudancasCodigo api={api.mudancas} projeto={projeto} aoFechar={() => setMudancas(false)} />
+      )}
 
       <ListaDemandas api={api} projeto={projeto} navegar={navegar} />
 

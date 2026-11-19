@@ -155,6 +155,7 @@ impl Cenario {
                     .collect(),
                 origem: None,
                 informada: None,
+                historico: Vec::new(),
             },
             "# Regra de exemplo\n",
         );

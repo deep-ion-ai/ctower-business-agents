@@ -181,6 +181,7 @@ pub fn gravar_regra(
                 .collect(),
             origem,
             informada: None,
+            historico: Vec::new(),
         },
         format!(
             "\n# {id} · {}\n\n{}\n",

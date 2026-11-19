@@ -44,6 +44,7 @@ mod demandas;
 mod funcionalidades;
 mod gui;
 mod inicio;
+mod mudancas;
 mod painel_funcionalidade;
 mod pauta;
 mod primeiro_uso;
