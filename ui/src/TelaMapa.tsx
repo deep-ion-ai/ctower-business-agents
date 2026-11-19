@@ -20,9 +20,10 @@ import {
   type RevisaoDoMapa,
 } from "./funcionalidades";
 import type { Tela } from "./Navegacao";
+import type { EstadoConversa } from "./PainelAnalise";
 import type { ApiConhecimento } from "./conhecimento";
 import { PainelFuncionalidade } from "./PainelFuncionalidade";
-import { TerminalClaude } from "./TerminalClaude";
+import { TerminalClaude, type EstadoTerminal } from "./TerminalClaude";
 import type { ApiTerminal, ProjetoResumo } from "./terminal";
 import type { TelaTerminal } from "./telaXterm";
 
@@ -350,12 +351,14 @@ function SessaoDeMapeamento({
   apiTerminal,
   criarTela,
   aoFechar,
+  aoMudarConversa,
 }: {
   projeto: string;
   api: ApiMapa;
   apiTerminal?: ApiTerminal;
   criarTela?: () => TelaTerminal;
   aoFechar: () => void;
+  aoMudarConversa?: (estado: EstadoConversa) => void;
 }) {
   const [pasta, setPasta] = useState("");
   const [area, setArea] = useState("");
@@ -363,6 +366,15 @@ function SessaoDeMapeamento({
   const [pedido, setPedido] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const vazio = (t: string) => (t.trim() ? t.trim() : null);
+  // Quem fecha a aba do mapa (a navegação) pergunta antes de encerrar o Claude vivo (#257).
+  const [terminal, setTerminal] = useState<EstadoTerminal | null>(null);
+  const estadoConversa: EstadoConversa = terminal?.fase === "aberto" ? "aberta" : "nenhuma";
+  const avisarConversa = useRef(aoMudarConversa);
+  avisarConversa.current = aoMudarConversa;
+  useEffect(() => {
+    avisarConversa.current?.(estadoConversa);
+  }, [estadoConversa]);
+  useEffect(() => () => avisarConversa.current?.("nenhuma"), []);
   return (
     <section className="sessao-mapeamento" aria-label="Sessão de mapeamento">
       <header className="sessao-cabecalho">
@@ -423,6 +435,7 @@ function SessaoDeMapeamento({
             pedido={{ promptInicial: pedido }}
             api={apiTerminal}
             criarTela={criarTela}
+            aoMudarEstado={setTerminal}
           />
         </div>
       )}
@@ -483,6 +496,7 @@ function MapaDoProjeto({
   apiTerminal,
   criarTela,
   navegar,
+  aoMudarConversa,
 }: {
   projeto: string;
   api: ApiMapa;
@@ -491,6 +505,7 @@ function MapaDoProjeto({
   apiTerminal?: ApiTerminal;
   criarTela?: () => TelaTerminal;
   navegar: (t: Tela) => void;
+  aoMudarConversa?: (estado: EstadoConversa) => void;
 }) {
   const { mapa, setMapa, erro, recarregar } = useMapa(api, vigiar, projeto);
   const [ocupado, setOcupado] = useState(false);
@@ -788,6 +803,7 @@ function MapaDoProjeto({
           apiTerminal={apiTerminal}
           criarTela={criarTela}
           aoFechar={() => setSessao(false)}
+          aoMudarConversa={aoMudarConversa}
         />
       )}
     </div>
@@ -810,6 +826,7 @@ export function TelaMapa({
   apiTerminal,
   criarTela,
   navegar,
+  aoMudarConversa,
 }: {
   projetos: ProjetoResumo[];
   projetoInicial?: string;
@@ -821,6 +838,8 @@ export function TelaMapa({
   apiTerminal?: ApiTerminal;
   criarTela?: () => TelaTerminal;
   navegar: (t: Tela) => void;
+  /** Estado da sessão de mapeamento, para a aba pedir confirmação ao fechar (#257). */
+  aoMudarConversa?: (estado: EstadoConversa) => void;
 }) {
   const [escolhido, setEscolhido] = useState(projetoInicial ?? "");
   const projeto = escolhido || projetos[0]?.id || "";
@@ -856,6 +875,7 @@ export function TelaMapa({
           apiTerminal={apiTerminal}
           criarTela={criarTela}
           navegar={navegar}
+          aoMudarConversa={aoMudarConversa}
         />
       )}
     </section>

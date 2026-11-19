@@ -237,7 +237,7 @@ export function Navegacao({
 
   // Conversa de cada aba de análise aberta: fechar a aba com ela viva pede confirmação.
   const conversas = useRef(new Map<string, EstadoConversa>());
-  const [fechamento, setFechamento] = useState<{ chave: string; trabalhando: boolean } | null>(
+  const [fechamento, setFechamento] = useState<{ chave: string; trabalhando: boolean; mapa: boolean } | null>(
     null,
   );
   const [fechamentoOutras, setFechamentoOutras] = useState<{
@@ -337,7 +337,11 @@ export function Navegacao({
   const fechar = (chave: string) => {
     const conversa = conversas.current.get(chave);
     if (conversa) {
-      setFechamento({ chave, trabalhando: conversa === "trabalhando" });
+      setFechamento({
+        chave,
+        trabalhando: conversa === "trabalhando",
+        mapa: abas.find((a) => a.chave === chave)?.tela.tipo === "mapa",
+      });
       return;
     }
     if (chave === ativa && pendenteRef.current) {
@@ -672,6 +676,7 @@ export function Navegacao({
                       apiTerminal={apiTerminal}
                       criarTela={criarTela}
                       navegar={navegar}
+                      aoMudarConversa={(estado) => aoMudarConversa(a.chave, estado)}
                     />
                   </div>
                 ) : null,
@@ -736,7 +741,7 @@ export function Navegacao({
 
       {fechamento && (
         <DialogoConfirmacao
-          titulo="Fechar a análise"
+          titulo={fechamento.mapa ? "Fechar o mapa" : "Fechar a análise"}
           aoCancelar={() => setFechamento(null)}
           acoes={
             <>
@@ -765,11 +770,14 @@ export function Navegacao({
           <p>
             {fechamento.trabalhando
               ? "O agente ainda está trabalhando. Encerrar a conversa?"
-              : "A conversa com o agente continua aberta nesta análise. Encerrar a conversa?"}
+              : fechamento.mapa
+                ? "A sessão de mapeamento com o Claude continua aberta. Encerrar a sessão?"
+                : "A conversa com o agente continua aberta nesta análise. Encerrar a conversa?"}
           </p>
           <p className="muted">
-            Fechar a aba encerra o Claude Code desta análise. Dá para retomar a conversa depois,
-            pela própria análise.
+            {fechamento.mapa
+              ? "A sessão de mapeamento com o Claude será encerrada. Uma sessão nova continua o mapa de onde parou."
+              : "Fechar a aba encerra o Claude Code desta análise. Dá para retomar a conversa depois, pela própria análise."}
           </p>
         </DialogoConfirmacao>
       )}
@@ -817,8 +825,9 @@ export function Navegacao({
             {fechamentoOutras.trabalhando && " O agente ainda está trabalhando."}
           </p>
           <p className="muted">
-            Fechar uma aba de análise encerra o Claude Code dela. Dá para retomar a conversa
-            depois, pela própria análise. “Manter as conversas” fecha só as abas sem conversa.
+            Fechar uma aba encerra o Claude Code dela: nas análises, dá para retomar a conversa
+            depois, pela própria análise; no mapa, a sessão de mapeamento será encerrada.
+            “Manter as conversas” fecha só as abas sem conversa.
           </p>
         </DialogoConfirmacao>
       )}

@@ -33,7 +33,12 @@ function analiseFalsa() {
 
 const PROJETOS = [{ id: "faturamento-exemplo", nome: "Faturamento Exemplo", pastas: [] }];
 
-function abrir(api: ApiMapa, analise = analiseFalsa(), apiTerminal?: ApiTerminal) {
+function abrir(
+  api: ApiMapa,
+  analise = analiseFalsa(),
+  apiTerminal?: ApiTerminal,
+  aoMudarConversa?: (estado: "nenhuma" | "aberta" | "trabalhando") => void,
+) {
   const navegar = vi.fn();
   render(
     <TelaMapa
@@ -43,6 +48,7 @@ function abrir(api: ApiMapa, analise = analiseFalsa(), apiTerminal?: ApiTerminal
       apiTerminal={apiTerminal}
       criarTela={() => telaFalsa() as never}
       navegar={navegar}
+      aoMudarConversa={aoMudarConversa}
     />,
   );
   return { navegar, analise };
@@ -190,6 +196,28 @@ describe("TelaMapa", () => {
       promptInicial: "Mapeie as funcionalidades do projeto pelo ctower",
     });
     expect(screen.getByRole("button", { name: "Encerrar a sessão" })).toBeInTheDocument();
+  });
+
+  it("informa o estado da sessão de mapeamento para a aba pedir confirmação ao fechar (#257)", async () => {
+    const api = apiFalsa();
+    const apiTerminal = {
+      abrir: vi.fn().mockResolvedValue(7),
+      escrever: vi.fn().mockResolvedValue(undefined),
+      redimensionar: vi.fn().mockResolvedValue(undefined),
+      encerrar: vi.fn().mockResolvedValue(undefined),
+      enviarPrompt: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ApiTerminal;
+    const aoMudarConversa = vi.fn();
+    abrir(api, analiseFalsa(), apiTerminal, aoMudarConversa);
+    await screen.findByRole("region", { name: "F-COB-001: Calcular encargos" });
+    // Sem sessão, nada de conversa viva.
+    expect(aoMudarConversa).not.toHaveBeenCalledWith("aberta");
+    fireEvent.click(screen.getByRole("button", { name: "Mapear com o Claude" }));
+    fireEvent.click(screen.getByRole("button", { name: "Começar" }));
+    await waitFor(() => expect(aoMudarConversa).toHaveBeenLastCalledWith("aberta"));
+    // Encerrar a sessão devolve a aba ao estado sem conversa.
+    fireEvent.click(screen.getByRole("button", { name: "Encerrar a sessão" }));
+    await waitFor(() => expect(aoMudarConversa).toHaveBeenLastCalledWith("nenhuma"));
   });
 
   it("mostra as evidências de código só quando o analista pede", async () => {
