@@ -23,6 +23,13 @@
 # - `verificacao_da_premissa` (demandas) diz como o agente deve julgar a
 #   suposição do solicitante, na seção "Demanda como entendida": `veredito`
 #   (`nao_confere` ou `confere_em_parte`) e `palavras_chave`, no mesmo formato.
+# - `dados_pessoais` (demandas, #126) descreve a seção "Dados pessoais e
+#   requisitos não funcionais" esperada: os `campos` com dado pessoal que a
+#   demanda toca (`campo` TABELA.COLUNA, `categoria`, `palavras_chave` e as
+#   `evidencias` da definição ou do conteúdo da coluna), as colunas
+#   `nao_pessoais` (apontá-las como dado pessoal é falso positivo) e os
+#   `aspectos` não funcionais (auditoria, desempenho, acesso) com as
+#   `palavras_chave` que uma afirmação da seção ou uma pergunta deve ter.
 # - `reunioes` (fluxo "Analisar reunião", #137) descreve a ata esperada de cada
 #   transcript de fixtures/reunioes/: o papel de cada participante (`nome` como
 #   aparece no transcript, `papel` do catálogo padrão e, se houver, outros
@@ -372,6 +379,24 @@ regras:
         linha_final: 41
         trecho: "WS-VALOR-MIN-COBRANCA   PIC 9(05)V99   VALUE 10.00."
 
+  - id: RN-FAT-016
+    titulo: Arquivo de cobrança sai sem dados do cliente
+    area: cobranca
+    enunciado: >-
+      O lote mensal de cobrança lê o arquivo de faturas vencidas (id da
+      fatura, tipo de cliente, isenção, valor original e dias de atraso) e
+      grava no arquivo de cobrança só o id da fatura e os valores (original,
+      multa, juros e total), sem nenhum dado do cliente.
+    evidencias:
+      - arquivo: cobol/CALCOBR.cbl
+        linha_inicial: 21
+        linha_final: 26
+        trecho: "01  REG-FATURA."
+      - arquivo: cobol/CALCOBR.cbl
+        linha_inicial: 29
+        linha_final: 34
+        trecho: "01  REG-COBRANCA."
+
 # Divergências deliberadas entre camadas, que um analista deve apontar.
 inconsistencias:
   - id: INC-FAT-001
@@ -690,6 +715,90 @@ demandas:
       - frontend/src/telas/parcelamento-form.ts
       - db/01_tabelas.sql
       - db/02_parametros.sql
+
+  # Demanda que toca a tabela de clientes (#126): dados pessoais e requisitos
+  # não funcionais na análise de impacto.
+  - id: D-FAT-004
+    texto: >-
+      Incluir o nome, o CPF e o e-mail do cliente no arquivo de cobrança gerado
+      pelo lote mensal, para a empresa de cobrança terceirizada enviar os avisos
+      de atraso. É só acrescentar os campos no arquivo.
+    premissa: >-
+      Não basta acrescentar os campos: o lote de cobrança COBOL lê um arquivo
+      de faturas vencidas que só traz o id da fatura, o tipo de cliente, a
+      isenção, o valor e os dias de atraso, sem o cliente; a extração que gera
+      esse arquivo não está no projeto. O "CPF" é a coluna DOCUMENTO, que guarda
+      CPF só para pessoa física (CNPJ para PJ e órgão público), e o e-mail fica
+      em outra tabela (CLIENTE_CONTATO), opcional, com o indicador
+      ACEITA_AVISO. Nome, CPF e e-mail são dados pessoais que passam a sair para
+      um terceiro; o lote não registra log do que envia.
+    abrangencia_esperada: grande
+    regras: [RN-FAT-016]
+    verificacao_da_premissa:
+      veredito: confere_em_parte
+      palavras_chave: [[arquivo, cobranca, calcobr*, lote], [fatvenc, "arquivo de faturas", entrada, extra*, layout, reg-fatura, "nao traz", "sem o cliente", id_cliente]]
+    dados_pessoais:
+      campos:
+        - campo: CLIENTE.NOME
+          categoria: nome
+          palavras_chave: [[nome]]
+          evidencias:
+            - arquivo: db/01_tabelas.sql
+              linha_inicial: 9
+              linha_final: 9
+              trecho: "NOME              VARCHAR2(120)"
+        - campo: CLIENTE.DOCUMENTO
+          categoria: documento de identificação (CPF de pessoa física)
+          palavras_chave: [[documento, cpf]]
+          evidencias:
+            - arquivo: db/01_tabelas.sql
+              linha_inicial: 10
+              linha_final: 10
+              trecho: "DOCUMENTO         VARCHAR2(18)"
+            - arquivo: db/02_parametros.sql
+              linha_inicial: 23
+              linha_final: 23
+              trecho: "'000.000.000-00', 'PF'"
+        - campo: CLIENTE_CONTATO.EMAIL
+          categoria: contato
+          palavras_chave: [[email, "e-mail"]]
+          evidencias:
+            - arquivo: db/05_cliente_contato.sql
+              linha_inicial: 8
+              linha_final: 8
+              trecho: "EMAIL             VARCHAR2(120)"
+      # Colunas que a demanda toca ou que estão ao lado dos campos pessoais, mas
+      # não guardam dado pessoal: apontá-las como dado pessoal é falso positivo.
+      nao_pessoais:
+        - campo: CLIENTE.TIPO_CLIENTE
+          palavras_chave: [[tipo_cliente]]
+        - campo: CLIENTE.ISENTO_ENCARGOS
+          palavras_chave: [[isento_encargos]]
+        - campo: CLIENTE_CONTATO.ACEITA_AVISO
+          palavras_chave: [[aceita_aviso]]
+      aspectos:
+        - aspecto: auditoria
+          tema: O lote não registra em log o que envia ao terceiro (só exibe contadores).
+          palavras_chave: [[log*, auditor*, rastr*, registr*, trilha*], [lote, calcobr*, arquivo, envi*, compartilh*, terceir*]]
+        - aspecto: desempenho
+          tema: O lote mensal passa a ler o cliente e o contato de cada fatura vencida.
+          palavras_chave: [[lote, calcobr*, mensal, extra*, fatvenc], [volume, janela, desempenho, tempo, join*, leitura*, quantidade]]
+        - aspecto: acesso
+          tema: Quem recebe e acessa o arquivo com dados pessoais fora do projeto.
+          palavras_chave: [[acesso, perfil*, permiss*, quem, controle], [arquivo, terceir*, empresa, cobranca]]
+    perguntas_esperadas:
+      - tema: Há contrato ou base legal (LGPD) para compartilhar nome, CPF e e-mail com a empresa terceirizada?
+        palavras_chave: [[terceir*, "empresa de cobranca", compartilh*, envi*], [lgpd, contrato, "base legal", consentimento, autoriz*, finalidade, "dados pessoais"]]
+      - tema: Para pessoa jurídica e órgão público, o documento é CNPJ; vai também no arquivo?
+        palavras_chave: [[cnpj, pj, "pessoa juridica", pub, "orgao publico"]]
+      - tema: Cliente sem e-mail cadastrado ou que não aceita avisos (ACEITA_AVISO) entra no arquivo?
+        palavras_chave: [[email, "e-mail", aceita_aviso, aviso*], [sem, vazio, nulo, null, ausente, opcional, aceit*, consentimento, "nao aceita"]]
+      - tema: Onde é gerado o arquivo de faturas vencidas que o lote lê, e qual o volume e a janela do lote?
+        palavras_chave: [[fatvenc, extra*, "arquivo de faturas", entrada, volume, janela], [onde, quem, fora, sistema, job, gera*, quant*, horario, tempo, quantos]]
+    arquivos_impactados:
+      - cobol/CALCOBR.cbl
+      - db/01_tabelas.sql
+      - db/05_cliente_contato.sql
 
 # Arquivos que as ferramentas devem excluir da análise (spec 4.1, passo 4).
 exclusoes:

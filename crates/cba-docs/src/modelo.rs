@@ -63,6 +63,10 @@ pub const CENARIOS: &str = "cenarios";
 /// (#120), registrados com `registrar_diagrama`.
 pub const FLUXO_PROCESSO: &str = "fluxo_processo";
 pub const MODELO_DADOS: &str = "modelo_dados";
+/// Seção da análise de impacto com os dados pessoais (LGPD) e os requisitos não
+/// funcionais (auditoria, desempenho, segurança e acesso) afetados pela demanda
+/// (#126).
+pub const DADOS_PESSOAIS_E_RNF: &str = "dados_pessoais_e_rnf";
 /// Seções do mapa de funcionalidades (#208), montadas a partir do estado da
 /// análise, e do catálogo, montadas a partir do estado do catálogo.
 pub const FUNCIONALIDADES_MAPEADAS: &str = "funcionalidades_mapeadas";
@@ -117,6 +121,10 @@ pub const MODELOS: [Modelo; 13] = [
             s("dados", "Dados"),
             s("integracoes", "Integrações"),
             s("documentos_e_telas", "Documentos e telas"),
+            s(
+                DADOS_PESSOAIS_E_RNF,
+                "Dados pessoais e requisitos não funcionais",
+            ),
             s("riscos", "Riscos"),
             s("abrangencia", "Abrangência"),
             s(PERGUNTAS, "Perguntas para o solicitante"),

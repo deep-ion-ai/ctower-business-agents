@@ -392,6 +392,179 @@ fn veredito_pelo_marcador_ou_pelo_texto() {
     assert_eq!(veredito_do_texto("Sem veredito."), None);
 }
 
+const TABELAS: &str = "db/01_tabelas.sql";
+const CONTATO: &str = "db/05_cliente_contato.sql";
+const LOTE: &str = "cobol/CALCOBR.cbl";
+
+/// Uma análise de impacto da D-FAT-004 (#126) com a seção de dados pessoais e
+/// requisitos não funcionais como o gabarito espera.
+fn impacto_com_dados_pessoais() -> Analise {
+    let mut a = analise_vazia("impacto", "Incluir o nome, o CPF e o e-mail ...");
+    afirmar(
+        &mut a,
+        "demanda_como_entendida",
+        "Premissa do solicitante: é só acrescentar os campos no arquivo. Verificação: não confere. \
+         O lote lê o arquivo de faturas vencidas (FATVENC), que não traz o cliente.",
+        Confianca::Confirmado,
+        vec![ev(LOTE, 21, 26, "01  REG-FATURA.")],
+    );
+    afirmar(
+        &mut a,
+        "dados_pessoais_e_rnf",
+        "Campo CLIENTE.NOME: nome (dado pessoal). Finalidade aparente: identificar o cliente. \
+         Onde aparece: passa a sair no arquivo de cobrança.",
+        Confianca::Confirmado,
+        vec![ev(TABELAS, 9, 9, "NOME")],
+    );
+    afirmar(
+        &mut a,
+        "dados_pessoais_e_rnf",
+        "Campo CLIENTE.DOCUMENTO: CPF quando TIPO_CLIENTE = 'PF' (dado pessoal); CNPJ para PJ.",
+        Confianca::Confirmado,
+        vec![
+            ev(TABELAS, 10, 12, "DOCUMENTO"),
+            ev("db/02_parametros.sql", 23, 23, "'000.000.000-00'"),
+        ],
+    );
+    afirmar(
+        &mut a,
+        "dados_pessoais_e_rnf",
+        "Campo CLIENTE_CONTATO.EMAIL: e-mail (contato), opcional.",
+        Confianca::Confirmado,
+        vec![ev(CONTATO, 8, 8, "EMAIL")],
+    );
+    afirmar(
+        &mut a,
+        "dados_pessoais_e_rnf",
+        "Auditoria: o lote CALCOBR não grava log do que envia; só exibe os contadores.",
+        Confianca::Confirmado,
+        vec![ev(LOTE, 56, 58, "DISPLAY 'CALCOBR - LIDAS....: '")],
+    );
+    afirmar(
+        &mut a,
+        "dados_pessoais_e_rnf",
+        "A coluna ISENTO_ENCARGOS também é dado pessoal.",
+        Confianca::Inferido,
+        vec![ev(TABELAS, 14, 14, "ISENTO_ENCARGOS")],
+    );
+    perguntar(
+        &mut a,
+        "Qual o volume de faturas vencidas por mês e a janela do lote mensal, agora com a leitura do cliente?",
+    );
+    perguntar(
+        &mut a,
+        "Quem tem acesso ao arquivo enviado à empresa terceirizada, e com que controle?",
+    );
+    a
+}
+
+#[test]
+fn dados_pessoais_campos_aspectos_e_falso_positivo() {
+    let av = avaliar_item(&impacto_com_dados_pessoais(), "D-FAT-004");
+    assert!(av.falhas().is_empty(), "{:?}", av.falhas());
+    let d = av.dados_pessoais.as_ref().unwrap();
+    assert_eq!(d.afirmacoes, 5);
+    let apontados: Vec<(&str, Option<u32>)> = d
+        .campos
+        .iter()
+        .map(|c| (c.campo.as_str(), c.apontado_por))
+        .collect();
+    assert_eq!(
+        apontados,
+        [
+            ("CLIENTE.NOME", Some(2)),
+            ("CLIENTE.DOCUMENTO", Some(3)),
+            ("CLIENTE_CONTATO.EMAIL", Some(4)),
+        ]
+    );
+    // TIPO_CLIENTE aparece na afirmação do CPF, que aponta um campo esperado: não
+    // é falso positivo. ISENTO_ENCARGOS, sozinho, é.
+    assert_eq!(d.falsos_positivos.len(), 1, "{:?}", d.falsos_positivos);
+    assert_eq!(d.falsos_positivos[0].campo, "CLIENTE.ISENTO_ENCARGOS");
+    assert_eq!(d.falsos_positivos[0].afirmacoes, [6]);
+    let aspectos: Vec<(&str, Option<u32>, Option<u32>)> = d
+        .aspectos
+        .iter()
+        .map(|a| (a.aspecto.as_str(), a.afirmacao, a.pergunta))
+        .collect();
+    assert_eq!(
+        aspectos,
+        [
+            ("auditoria", Some(5), None),
+            ("desempenho", None, Some(1)),
+            ("acesso", None, Some(2)),
+        ]
+    );
+    assert_eq!(d.aspectos_atendidos(), 3);
+    assert!(regra(&av, "RN-FAT-016"));
+}
+
+#[test]
+fn campo_pessoal_exige_evidencia_que_toca_a_coluna() {
+    let mut a = analise_vazia("impacto", "Incluir o nome ...");
+    // Cita o nome, mas a evidência é de outra tabela; e o e-mail sem evidência.
+    afirmar(
+        &mut a,
+        "dados_pessoais_e_rnf",
+        "Campo CLIENTE.NOME: nome do cliente.",
+        Confianca::Inferido,
+        vec![ev(TABELAS, 22, 22, "ID_CLIENTE")],
+    );
+    afirmar(
+        &mut a,
+        "dados_pessoais_e_rnf",
+        "Campo CLIENTE_CONTATO.EMAIL: e-mail.",
+        Confianca::AConfirmar,
+        vec![],
+    );
+    // Em outra seção, não conta.
+    afirmar(
+        &mut a,
+        "dados",
+        "Campo CLIENTE.DOCUMENTO: CPF.",
+        Confianca::Confirmado,
+        vec![ev(TABELAS, 10, 10, "DOCUMENTO")],
+    );
+    let av = avaliar_item(&a, "D-FAT-004");
+    let d = av.dados_pessoais.as_ref().unwrap();
+    assert_eq!(d.campos_apontados(), 0, "{:?}", d.campos);
+    assert_eq!(d.aspectos_atendidos(), 0);
+    // Os outros itens de impacto não avaliam a seção.
+    assert!(
+        avaliar_item(&impacto_bom(), "D-FAT-001")
+            .dados_pessoais
+            .is_none()
+    );
+
+    let execucao = Execucao {
+        fluxo: "impacto".into(),
+        item: "D-FAT-004".into(),
+        repeticao: 1,
+        avaliacao: Some(avaliar_item(&impacto_com_dados_pessoais(), "D-FAT-004")),
+        ata: None,
+        transcript: None,
+        mapa: None,
+        arquivos_alterados: vec![],
+        claude: None,
+        erro: None,
+    };
+    let dir = tempfile::tempdir().unwrap();
+    Relatorio::novo(None, vec![execucao])
+        .gravar(dir.path())
+        .unwrap();
+    let md = std::fs::read_to_string(dir.path().join("relatorio.md")).unwrap();
+    assert!(
+        md.contains("campos pessoais apontados 3 de 3; aspectos tratados 3 de 3"),
+        "{md}"
+    );
+    assert!(md.contains("  - CLIENTE.NOME (nome): afirmação 2"), "{md}");
+    assert!(md.contains("  - desempenho ("), "{md}");
+    assert!(
+        md.contains("Possível falso positivo: CLIENTE.ISENTO_ENCARGOS (afirmações 6)"),
+        "{md}"
+    );
+}
+
 #[test]
 fn itens_padrao_existem_com_o_fluxo_certo_e_perguntas_esperadas() {
     let g = gabarito();

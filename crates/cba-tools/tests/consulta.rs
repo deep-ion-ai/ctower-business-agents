@@ -479,6 +479,78 @@ fn schema_da_tabela_de_faturas() {
     assert!(m.contains("não é tabela nem visão"), "{m}");
 }
 
+/// Indícios de dado pessoal pelo nome e pelo tipo da coluna (#126): os campos
+/// pessoais dos clientes, nenhum nas colunas de negócio.
+#[test]
+fn schema_aponta_indicios_de_dado_pessoal() {
+    let c = cenario();
+    let indicios = |tabela: &str| -> Vec<(String, String)> {
+        let (_, dados) = c.chamar("schema", json!({ "tabela": tabela, "limite": 50 }));
+        dados["colunas"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|col| !col["dado_pessoal"].is_null())
+            .map(|col| {
+                (
+                    col["nome"].as_str().unwrap().to_owned(),
+                    col["dado_pessoal"]["categoria"]
+                        .as_str()
+                        .unwrap()
+                        .to_owned(),
+                )
+            })
+            .collect()
+    };
+    let par = |a: &str, b: &str| (a.to_owned(), b.to_owned());
+    assert_eq!(
+        indicios("CLIENTE"),
+        [
+            par("NOME", "nome"),
+            par("DOCUMENTO", "documento (CPF ou CNPJ)")
+        ]
+    );
+    assert_eq!(
+        indicios("CLIENTE_CONTATO"),
+        [
+            par("EMAIL", "contato"),
+            par("TELEFONE", "contato"),
+            par("LOGRADOURO", "endereço"),
+            par("CEP", "endereço"),
+            par("DT_NASCIMENTO", "data de nascimento"),
+            par(
+                "OBS_ATENDIMENTO",
+                "texto livre (pode conter dado pessoal ou sensível)"
+            ),
+        ]
+    );
+    for tabela in ["FATURA", "PARCELA", "PARAMETRO", "LOG_FATURA"] {
+        assert_eq!(indicios(tabela), [], "{tabela}");
+    }
+
+    let (texto, _) = c.chamar("schema", json!({ "tabela": "CLIENTE" }));
+    assert!(
+        texto.contains("- NOME VARCHAR2(120)") && texto.contains("[indício de dado pessoal: nome]"),
+        "{texto}"
+    );
+    assert!(
+        texto.contains("2 coluna(s) com indício de dado pessoal"),
+        "{texto}"
+    );
+    let (texto, todas) = c.chamar("schema", json!({ "limite": 50 }));
+    assert!(
+        texto.contains("tabela CLIENTE_CONTATO (db/05_cliente_contato.sql:6–22), 9 colunas (6 com indício de dado pessoal)"),
+        "{texto}"
+    );
+    let fatura = todas["objetos"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|o| o["nome"] == "FATURA")
+        .unwrap();
+    assert_eq!(fatura["colunas_com_dado_pessoal"], 0);
+}
+
 #[test]
 fn mapa_do_projeto_e_de_um_modulo() {
     let c = cenario();
@@ -498,11 +570,11 @@ fn mapa_do_projeto_e_de_um_modulo() {
         .iter()
         .find(|e| e["caminho"] == "db")
         .unwrap();
-    assert_eq!(db["arquivos"], 4);
+    assert_eq!(db["arquivos"], 5);
 
     let (texto, modulo) = c.chamar("mapa", json!({ "modulo": "db/" }));
     assert_eq!(modulo["modulo"], "db");
-    assert_eq!(modulo["arquivos"], 4);
+    assert_eq!(modulo["arquivos"], 5);
     assert!(texto.contains("- db/03_pkg_cobranca.sql — sql"), "{texto}");
 
     let m = c.recusa("mapa", json!({ "modulo": "nao-existe" }));

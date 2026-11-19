@@ -189,9 +189,15 @@ figure.diagrama { margin: var(--espaco) 0; text-align: center; }
 </ul>
 </section>
 <section>
+<h2>Dados pessoais e requisitos não funcionais</h2>
+<ul>
+<li><strong class="selo selo-inferido">[inferido]</strong> Nenhum dado pessoal é tocado: o limite de parcelas vem de um parâmetro, sem campo do cliente.<sup class="ref-nota"><a href="#nota-3" id="ref-3-3">[3]</a></sup><sup class="ref-nota"><a href="#nota-4" id="ref-4-3">[4]</a></sup><sup class="ref-nota"><a href="#nota-5" id="ref-5-3">[5]</a></sup></li>
+</ul>
+</section>
+<section>
 <h2>Riscos</h2>
 <ul>
-<li><strong class="selo selo-confirmado">[confirmado]</strong> Tela oferece até 12 parcelas; backend aceita até 6 (INC-FAT-001): A tela de parcelamento valida e oferece de 2 a 12 parcelas (constante fixa no código), enquanto o backend aceita no máximo MAX_PARCELAS (hoje 6). Pedidos de 7 a 12 parcelas passam pela tela e são recusados pelo backend.<sup class="ref-nota"><a href="#nota-6" id="ref-6-1">[6]</a></sup><sup class="ref-nota"><a href="#nota-3" id="ref-3-3">[3]</a></sup></li>
+<li><strong class="selo selo-confirmado">[confirmado]</strong> Tela oferece até 12 parcelas; backend aceita até 6 (INC-FAT-001): A tela de parcelamento valida e oferece de 2 a 12 parcelas (constante fixa no código), enquanto o backend aceita no máximo MAX_PARCELAS (hoje 6). Pedidos de 7 a 12 parcelas passam pela tela e são recusados pelo backend.<sup class="ref-nota"><a href="#nota-6" id="ref-6-1">[6]</a></sup><sup class="ref-nota"><a href="#nota-3" id="ref-3-4">[3]</a></sup></li>
 </ul>
 </section>
 <section>
@@ -220,11 +226,11 @@ Hoje o backend recusa acima de 6.</li>
 <div class="nota" id="nota-2"><span class="nota-rotulo">[2]</span><div class="nota-corpo"><p><a href="https://forja.exemplo/blob/1a2b3c4d/frontend/src/telas/parcelamento-form.ts#L25-L30"><code>frontend/src/telas/parcelamento-form.ts:25-30</code></a></p>
 </div><a class="nota-voltar" href="#ref-2-1" title="Voltar à citação" aria-label="Voltar à citação">↩</a></div>
 <div class="nota" id="nota-3"><span class="nota-rotulo">[3]</span><div class="nota-corpo"><p><a href="https://forja.exemplo/blob/1a2b3c4d/backend/src/main/java/exemplo/faturamento/ParcelamentoService.java#L34-L35"><code>backend/src/main/java/exemplo/faturamento/ParcelamentoService.java:34-35</code></a></p>
-</div><a class="nota-voltar" href="#ref-3-1" title="Voltar à citação 1" aria-label="Voltar à citação 1">↩</a><a class="nota-voltar" href="#ref-3-2" title="Voltar à citação 2" aria-label="Voltar à citação 2">↩</a><a class="nota-voltar" href="#ref-3-3" title="Voltar à citação 3" aria-label="Voltar à citação 3">↩</a></div>
+</div><a class="nota-voltar" href="#ref-3-1" title="Voltar à citação 1" aria-label="Voltar à citação 1">↩</a><a class="nota-voltar" href="#ref-3-2" title="Voltar à citação 2" aria-label="Voltar à citação 2">↩</a><a class="nota-voltar" href="#ref-3-3" title="Voltar à citação 3" aria-label="Voltar à citação 3">↩</a><a class="nota-voltar" href="#ref-3-4" title="Voltar à citação 4" aria-label="Voltar à citação 4">↩</a></div>
 <div class="nota" id="nota-4"><span class="nota-rotulo">[4]</span><div class="nota-corpo"><p><a href="https://forja.exemplo/blob/1a2b3c4d/backend/src/main/java/exemplo/faturamento/ParcelamentoService.java#L14-L14"><code>backend/src/main/java/exemplo/faturamento/ParcelamentoService.java:14</code></a></p>
-</div><a class="nota-voltar" href="#ref-4-1" title="Voltar à citação 1" aria-label="Voltar à citação 1">↩</a><a class="nota-voltar" href="#ref-4-2" title="Voltar à citação 2" aria-label="Voltar à citação 2">↩</a></div>
+</div><a class="nota-voltar" href="#ref-4-1" title="Voltar à citação 1" aria-label="Voltar à citação 1">↩</a><a class="nota-voltar" href="#ref-4-2" title="Voltar à citação 2" aria-label="Voltar à citação 2">↩</a><a class="nota-voltar" href="#ref-4-3" title="Voltar à citação 3" aria-label="Voltar à citação 3">↩</a></div>
 <div class="nota" id="nota-5"><span class="nota-rotulo">[5]</span><div class="nota-corpo"><p><a href="https://forja.exemplo/blob/1a2b3c4d/db/02_parametros.sql#L15-L16"><code>db/02_parametros.sql:15-16</code></a></p>
-</div><a class="nota-voltar" href="#ref-5-1" title="Voltar à citação 1" aria-label="Voltar à citação 1">↩</a><a class="nota-voltar" href="#ref-5-2" title="Voltar à citação 2" aria-label="Voltar à citação 2">↩</a></div>
+</div><a class="nota-voltar" href="#ref-5-1" title="Voltar à citação 1" aria-label="Voltar à citação 1">↩</a><a class="nota-voltar" href="#ref-5-2" title="Voltar à citação 2" aria-label="Voltar à citação 2">↩</a><a class="nota-voltar" href="#ref-5-3" title="Voltar à citação 3" aria-label="Voltar à citação 3">↩</a></div>
 <div class="nota" id="nota-6"><span class="nota-rotulo">[6]</span><div class="nota-corpo"><p><a href="https://forja.exemplo/blob/1a2b3c4d/frontend/src/telas/parcelamento-form.ts#L19-L19"><code>frontend/src/telas/parcelamento-form.ts:19</code></a></p>
 </div><a class="nota-voltar" href="#ref-6-1" title="Voltar à citação" aria-label="Voltar à citação">↩</a></div>
 </section>

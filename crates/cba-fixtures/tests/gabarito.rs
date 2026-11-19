@@ -506,6 +506,8 @@ struct Demanda {
     arquivos_impactados: Vec<String>,
     #[serde(default)]
     perguntas_esperadas: Vec<PerguntaEsperada>,
+    #[serde(default)]
+    dados_pessoais: Option<DadosPessoais>,
 }
 
 /// Pergunta que o agente deve fazer ao solicitante (avaliação dos fluxos, #33).
@@ -522,6 +524,97 @@ struct PerguntaEsperada {
 struct VerificacaoDaPremissa {
     veredito: String,
     palavras_chave: Vec<Vec<String>>,
+}
+
+/// Seção "Dados pessoais e requisitos não funcionais" esperada (#126).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DadosPessoais {
+    campos: Vec<CampoPessoal>,
+    #[serde(default)]
+    nao_pessoais: Vec<CampoNaoPessoal>,
+    #[serde(default)]
+    aspectos: Vec<AspectoEsperado>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CampoPessoal {
+    campo: String,
+    categoria: String,
+    palavras_chave: Vec<Vec<String>>,
+    evidencias: Vec<Evidencia>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CampoNaoPessoal {
+    campo: String,
+    palavras_chave: Vec<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AspectoEsperado {
+    aspecto: String,
+    tema: String,
+    palavras_chave: Vec<Vec<String>>,
+}
+
+/// A coluna `TABELA.COLUNA` está no `CREATE TABLE` da tabela nos scripts.
+fn coluna_nos_scripts(raiz: &Path, campo: &str) -> bool {
+    let Some((tabela, coluna)) = campo.split_once('.') else {
+        return false;
+    };
+    bloco_da_tabela(raiz, tabela).is_some_and(|bloco| {
+        bloco
+            .lines()
+            .any(|l| l.split_whitespace().next() == Some(coluna))
+    })
+}
+
+fn conferir_dados_pessoais(c: &mut Conferencia, raiz: &Path, onde: &str, d: &DadosPessoais) {
+    if d.campos.is_empty() {
+        c.erro(format!("{onde}: dados_pessoais sem campos"));
+    }
+    let mut vistos = HashSet::new();
+    for campo in &d.campos {
+        let onde = format!("{onde}, campo {}", campo.campo);
+        if !vistos.insert(campo.campo.as_str()) {
+            c.erro(format!("{onde}: campo repetido"));
+        }
+        if !coluna_nos_scripts(raiz, &campo.campo) {
+            c.erro(format!("{onde}: coluna não está nos scripts"));
+        }
+        c.texto_preenchido(&onde, "categoria", &campo.categoria);
+        c.palavras_chave(&onde, &campo.palavras_chave);
+        if campo.evidencias.is_empty() {
+            c.erro(format!("{onde}: sem evidências"));
+        }
+        for ev in &campo.evidencias {
+            c.evidencia(&onde, ev);
+        }
+    }
+    for campo in &d.nao_pessoais {
+        let onde = format!("{onde}, não pessoal {}", campo.campo);
+        if !vistos.insert(campo.campo.as_str()) {
+            c.erro(format!("{onde}: campo repetido ou também pessoal"));
+        }
+        if !coluna_nos_scripts(raiz, &campo.campo) {
+            c.erro(format!("{onde}: coluna não está nos scripts"));
+        }
+        c.palavras_chave(&onde, &campo.palavras_chave);
+    }
+    for a in &d.aspectos {
+        let onde = format!("{onde}, aspecto {}", a.aspecto);
+        if !["dados_pessoais", "auditoria", "desempenho", "acesso"].contains(&a.aspecto.as_str()) {
+            c.erro(format!(
+                "{onde}: aspecto deve ser dados_pessoais, auditoria, desempenho ou acesso"
+            ));
+        }
+        c.texto_preenchido(&onde, "tema", &a.tema);
+        c.palavras_chave(&onde, &a.palavras_chave);
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -872,6 +965,9 @@ fn conferir(caminho: &Path) -> Vec<String> {
                 &format!("{onde}, verificação da premissa"),
                 &v.palavras_chave,
             );
+        }
+        if let Some(dp) = &d.dados_pessoais {
+            conferir_dados_pessoais(&mut c, &raiz, &onde, dp);
         }
         if d.arquivos_impactados.is_empty() {
             c.erro(format!("{onde}: nenhum arquivo impactado"));
