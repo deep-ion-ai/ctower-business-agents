@@ -70,19 +70,14 @@ pub enum TipoDocumento {
     Risco,
     /// Restrição de uma demanda (#122), em `registros/RE-NNNN.md`.
     Restricao,
-    /// Mapeamento das funcionalidades do projeto a partir do código (fluxo
-    /// `mapear`, #208), em `analises/`: as funcionalidades achadas na rodada, com os
-    /// pontos de entrada e o tratamento dos não mapeados.
+    /// Mapa de funcionalidades do projeto (#208), em `funcionalidades/mapa.md`,
+    /// montado do estado ao lado (`mapa.estado.json`). Cada funcionalidade tem
+    /// identificador estável (`F-<SIGLA>-NNN`).
     MapaFuncionalidades,
-    /// Catálogo de funcionalidades do projeto (#208), em
-    /// `funcionalidades/catalogo.md`, montado do estado ao lado
-    /// (`catalogo.estado.json`). Cada funcionalidade tem identificador estável
-    /// (`F-<SIGLA>-NNN`).
-    CatalogoFuncionalidades,
 }
 
 impl TipoDocumento {
-    pub const TODOS: [TipoDocumento; 22] = [
+    pub const TODOS: [TipoDocumento; 21] = [
         Self::Projeto,
         Self::AnaliseImpacto,
         Self::Pergunta,
@@ -104,7 +99,6 @@ impl TipoDocumento {
         Self::Risco,
         Self::Restricao,
         Self::MapaFuncionalidades,
-        Self::CatalogoFuncionalidades,
     ];
 
     /// Valor no frontmatter (`analise-impacto`).
@@ -131,7 +125,6 @@ impl TipoDocumento {
             Self::Risco => "risco",
             Self::Restricao => "restricao",
             Self::MapaFuncionalidades => "mapa-funcionalidades",
-            Self::CatalogoFuncionalidades => "catalogo-funcionalidades",
         }
     }
 
@@ -558,7 +551,6 @@ impl Frontmatter for FrontmatterAnalise {
         TipoDocumento::ParecerRevisao,
         TipoDocumento::Historias,
         TipoDocumento::CenariosTeste,
-        TipoDocumento::MapaFuncionalidades,
     ];
 
     fn validar(&self) -> Result<(), ErroCampo> {
@@ -675,28 +667,28 @@ impl Frontmatter for FrontmatterFuncionalidade {
         &[TipoDocumento::Funcionalidade, TipoDocumento::CasoDeUso];
 }
 
-/// Catálogo de funcionalidades do projeto, em `funcionalidades/catalogo.md`
-/// (#208). O corpo é montado do estado (`catalogo.estado.json`) pelo template
-/// `catalogo-funcionalidades`.
+/// Mapa de funcionalidades do projeto, em `funcionalidades/mapa.md` (#208). O
+/// corpo é montado do estado (`mapa.estado.json`) pelo template
+/// `mapa-funcionalidades`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct FrontmatterCatalogo {
+pub struct FrontmatterMapa {
     pub tipo: TipoDocumento,
     pub titulo: String,
     /// Slug do projeto.
     pub projeto: String,
     pub status: StatusAnalise,
-    /// Funcionalidades no catálogo.
+    /// Funcionalidades no mapa (sem as descartadas e as juntadas).
     #[serde(default)]
     pub funcionalidades: u32,
+    /// Funcionalidades ainda sem decisão do analista.
+    #[serde(default)]
+    pub pendentes: u32,
     #[serde(default)]
     pub atualizado: Option<Data>,
-    /// Última análise de mapeamento aprovada, relativa à raiz do projeto.
-    #[serde(default)]
-    pub origem: Option<CaminhoRelativo>,
 }
 
-impl Frontmatter for FrontmatterCatalogo {
-    const TIPOS: &'static [TipoDocumento] = &[TipoDocumento::CatalogoFuncionalidades];
+impl Frontmatter for FrontmatterMapa {
+    const TIPOS: &'static [TipoDocumento] = &[TipoDocumento::MapaFuncionalidades];
 }
 
 /// Memória de uma área, em `areas/<area>/memoria.md`.

@@ -80,13 +80,13 @@
 #   scripts, ou `join`, sem chave estrangeira, que precisa sair como inferida).
 #   Relação `opcional` não conta na cobertura, mas, se registrada, precisa ter a
 #   origem esperada.
-# - `mapeamentos` (fluxo "Mapear funcionalidades", #208) traz o catálogo
+# - `mapeamentos` (mapa de funcionalidades do projeto, #208) traz o mapa
 #   esperado do projeto inteiro: os `pontos_de_entrada` que o app acha no mapa
 #   estrutural (cba_index::Mapa::pontos_de_entrada, pela chave
 #   `<arquivo>#<nome qualificado>`), cada um com as `funcionalidades` a que pode
 #   ser atribuído (ids deste gabarito) e, se for ajudante, `justificavel: true`
 #   (pode ficar como utilitário, sem funcionalidade); e as `funcionalidades`
-#   esperadas no catálogo: as de `funcionalidades` (pelo id) e as que só o
+#   esperadas no mapa: as de `funcionalidades` (pelo id) e as que só o
 #   mapeamento cobre, com o `nome`, a `area` e as `palavras_chave` no nome ou na
 #   descrição. Uma funcionalidade registrada atende quando tem as palavras-chave
 #   e ao menos um ponto de entrada esperado dela.
@@ -1072,10 +1072,10 @@ ciclos_vida:
       - tipo: sem_saida
         estado: SUSPENSA
 
-# Fluxo "Mapear funcionalidades" (#208): catálogo do projeto inteiro.
+# Mapa de funcionalidades (#208) do projeto inteiro.
 mapeamentos:
   - id: MAP-FAT-001
-    titulo: Catálogo de funcionalidades do Faturamento Exemplo
+    titulo: Mapa de funcionalidades do Faturamento Exemplo
     pontos_de_entrada:
       - chave: backend/src/main/java/exemplo/faturamento/EncargosService.java#exemplo.faturamento.EncargosService.calcular
         funcionalidades: [F-FAT-001]

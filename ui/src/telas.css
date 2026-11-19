@@ -2480,12 +2480,80 @@
   gap: 6px;
   overflow-wrap: anywhere;
 }
-.lista-funcionalidades .funcionalidade-catalogo {
+.funcionalidades-fechadas .funcionalidade {
+  opacity: 0.6;
+}
+
+/* Tela do mapa de funcionalidades (#208): revisão à esquerda, sessão do Claude à direita. */
+.tela-mapa-titulo {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 12px;
 }
-.lista-funcionalidades .funcionalidade-catalogo .btn {
-  margin-left: auto;
+.tela-mapa-titulo h2 {
+  margin: 0;
+}
+.mapa-colunas {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.mapa-colunas.com-sessao {
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 45%);
+}
+@media (max-width: 900px) {
+  .mapa-colunas.com-sessao {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.mapa-cabecalho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.mapa-cabecalho .acoes,
+.mapa-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.mapa-filtros .btn[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.mapa-filtros input[type="search"] {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+.sessao-mapeamento {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.sessao-cabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.sessao-cabecalho h3 {
+  margin: 0;
+}
+.terminal-mapeamento {
+  height: 70vh;
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+}
+.terminal-mapeamento > * {
+  flex: 1;
+  min-height: 0;
 }

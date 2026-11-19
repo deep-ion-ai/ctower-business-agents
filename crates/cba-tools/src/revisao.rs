@@ -51,9 +51,6 @@ use cba_core::analise::{
 use cba_core::analises;
 use cba_core::cenarios::TextoCenario;
 use cba_core::eventos::Mudanca;
-use cba_core::funcionalidades::{
-    DecisaoFuncionalidade, EdicaoFuncionalidade, SituacaoFuncionalidade,
-};
 use cba_core::historias::{DecisaoHistoria, Gherkin, Narrativa, SituacaoHistoria};
 use cba_core::parecer::EstadoAchado;
 use cba_core::requisito::SituacaoItem;
@@ -62,7 +59,7 @@ use cba_docs::FonteDeTrechos;
 pub use cba_docs::OpcoesExportacao;
 use cba_index::Escopo;
 use cba_kb::frontmatter::{Area, Linhas, StatusSugestao};
-use cba_kb::{CaminhoRelativo, Id, IdCenario, IdFuncionalidade, IdHistoria};
+use cba_kb::{CaminhoRelativo, Id, IdCenario, IdHistoria};
 use serde::{Deserialize, Serialize};
 
 use crate::aprovacao::{self, Aprovacao, ErroAprovacao, OpcoesAprovacao, titulo_da_regra};
@@ -175,36 +172,6 @@ pub enum Decisao {
         texto: String,
         origem: OrigemPergunta,
     },
-    /// Aceitar, descartar ou desfazer a decisão sobre uma funcionalidade (fluxo
-    /// `mapear`, #208).
-    Funcionalidade {
-        funcionalidade: IdFuncionalidade,
-        decisao: DecisaoFuncionalidade,
-    },
-    /// Novo nome, área e descrição de uma funcionalidade; o identificador fica. A
-    /// área é procurada nas do `projeto.md` (como no registro).
-    EditarFuncionalidade {
-        funcionalidade: IdFuncionalidade,
-        nome: String,
-        area: String,
-        /// Nome da área, preenchido pela revisão a partir de `area`.
-        #[serde(default)]
-        area_nome: Option<String>,
-        descricao: String,
-    },
-    /// Junta `origem` em `destino` (fluxo `mapear`).
-    JuntarFuncionalidades {
-        origem: IdFuncionalidade,
-        destino: IdFuncionalidade,
-    },
-    /// Leva os pontos de entrada escolhidos (índices a partir de 0) para uma
-    /// funcionalidade nova, com identificador reservado na revisão (fluxo `mapear`).
-    DividirFuncionalidade {
-        funcionalidade: IdFuncionalidade,
-        pontos: Vec<usize>,
-        nome: String,
-        descricao: String,
-    },
 }
 
 impl Decisao {
@@ -224,10 +191,6 @@ impl Decisao {
             Self::Cenario { .. } | Self::EditarCenario { .. } | Self::Tabela { .. } => {
                 Mudanca::Cenario
             }
-            Self::Funcionalidade { .. }
-            | Self::EditarFuncionalidade { .. }
-            | Self::JuntarFuncionalidades { .. }
-            | Self::DividirFuncionalidade { .. } => Mudanca::Funcionalidade,
         }
     }
 
@@ -264,41 +227,6 @@ impl Decisao {
             Self::Tabela { numero, situacao } => a.decidir_tabela(numero, situacao),
             Self::VirarPergunta { texto, origem } => {
                 a.virar_pergunta(&texto, origem, agora_ms).map(|_| ())
-            }
-            Self::Funcionalidade {
-                funcionalidade,
-                decisao,
-            } => a.decidir_funcionalidade(&funcionalidade, decisao),
-            Self::EditarFuncionalidade {
-                funcionalidade,
-                nome,
-                area,
-                area_nome,
-                descricao,
-            } => a.editar_funcionalidade(
-                &funcionalidade,
-                EdicaoFuncionalidade {
-                    nome,
-                    area_nome: area_nome.unwrap_or_else(|| area.clone()),
-                    area,
-                    descricao,
-                },
-            ),
-            Self::JuntarFuncionalidades { origem, destino } => {
-                a.juntar_funcionalidades(&origem, &destino)
-            }
-            Self::DividirFuncionalidade {
-                funcionalidade,
-                pontos,
-                nome,
-                descricao,
-            } => {
-                // O identificador novo é reservado em `revisar`, sob a trava; aqui
-                // só chega a divisão já com ele (veja `revisar`).
-                let _ = (funcionalidade, pontos, nome, descricao);
-                Err(ErroModelo::DivisaoInvalida(
-                    "a divisão precisa do identificador reservado pela revisão".into(),
-                ))
             }
         }
     }
@@ -370,67 +298,7 @@ pub fn revisar(amb: &Ambiente, id: &Id, decisao: Decisao) -> Result<Analise, Err
         } => return Err(ErroRevisao::TermoReaberto),
         _ => {}
     }
-    let decisao = match decisao {
-        Decisao::EditarFuncionalidade {
-            funcionalidade,
-            nome,
-            area,
-            descricao,
-            ..
-        } => {
-            let areas = amb
-                .kb
-                .ler_projeto()
-                .map(|d| d.frontmatter.areas)
-                .unwrap_or_default();
-            let resolvida = crate::mapear::resolver_area(&areas, &area).ok_or(
-                ErroRevisao::Analise(analises::Erro::Modelo(ErroModelo::CampoVazio("area"))),
-            )?;
-            Decisao::EditarFuncionalidade {
-                funcionalidade,
-                nome,
-                area: resolvida.slug,
-                area_nome: Some(resolvida.nome),
-                descricao,
-            }
-        }
-        outra => outra,
-    };
     let mudanca = decisao.mudanca();
-    if let Decisao::DividirFuncionalidade {
-        funcionalidade,
-        pontos,
-        nome,
-        descricao,
-    } = decisao
-    {
-        let catalogo = cba_core::catalogo::Catalogo::carregar(&amb.kb).unwrap_or_default();
-        let (_, analise) = amb.analises.alterar_e(
-            id,
-            mudanca,
-            |a, agora| {
-                if a.estado == EstadoAnalise::Aprovada {
-                    return Err(ErroModelo::AnaliseAprovada(a.id.clone()));
-                }
-                let sigla = funcionalidade.sigla().to_owned();
-                let maior = amb
-                    .analises
-                    .maior_numero(&a.id, |x| x.maior_funcionalidade(&sigla))
-                    .max(a.maior_funcionalidade(&sigla))
-                    .max(catalogo.maior_numero(&sigla));
-                let novo = IdFuncionalidade::novo(&sigla, maior + 1)
-                    .map_err(|_| ErroModelo::CampoVazio("area"))?;
-                a.dividir_funcionalidade(&funcionalidade, &pontos, &nome, &descricao, novo, agora)
-                    .map(|_| ())
-            },
-            |a| {
-                if documento::remontar(&amb.base, &amb.kb, a).is_err() {
-                    tracing::warn!("documento da análise não remontado depois da revisão");
-                }
-            },
-        )?;
-        return Ok(analise);
-    }
     let (_, analise) = amb.analises.alterar_e(
         id,
         mudanca,
@@ -526,8 +394,6 @@ pub fn pendencias(analise: &Analise) -> Vec<Pendencia> {
         lista.extend(pendencias_das_historias(analise));
     } else if analise.fluxo == Fluxo::Cenarios {
         lista.extend(pendencias_dos_cenarios(analise));
-    } else if analise.fluxo == Fluxo::Mapear {
-        lista.extend(pendencias_das_funcionalidades(analise));
     } else if analise.afirmacoes.is_empty() {
         lista.push(Pendencia {
             tipo: "analise",
@@ -611,33 +477,6 @@ pub fn pendencias_das_historias(analise: &Analise) -> Vec<Pendencia> {
                 }
             }
             (SituacaoHistoria::Descartada | SituacaoHistoria::Quebrada, _) => {}
-        }
-    }
-    lista
-}
-
-/// Pendências do mapa de funcionalidades (fluxo `mapear`): ao menos uma
-/// funcionalidade, e cada uma com uma decisão do analista (aceita, descartada ou
-/// juntada a outra).
-pub fn pendencias_das_funcionalidades(analise: &Analise) -> Vec<Pendencia> {
-    let mut lista = Vec::new();
-    if analise.funcionalidades_no_documento().next().is_none() {
-        lista.push(Pendencia {
-            tipo: "analise",
-            numero: None,
-            motivo: "não há funcionalidades registradas".into(),
-        });
-    }
-    for f in &analise.funcionalidades {
-        if f.situacao == SituacaoFuncionalidade::Pendente {
-            lista.push(Pendencia {
-                tipo: "funcionalidade",
-                numero: Some(f.id.numero()),
-                motivo: format!(
-                    "{} · {}: sem decisão: aceite, edite, junte, divida ou descarte",
-                    f.id, f.nome
-                ),
-            });
         }
     }
     lista
@@ -954,10 +793,10 @@ pub fn exportar_analise(
     Ok(destino)
 }
 
-/// Exporta o catálogo de funcionalidades do projeto (`funcionalidades/catalogo.md`,
-/// #208) em Markdown ou Word, com os trechos citados como na exportação de uma
-/// análise. Devolve o caminho gravado.
-pub fn exportar_catalogo(
+/// Exporta o mapa de funcionalidades do projeto (`funcionalidades/mapa.md`, #208)
+/// em Markdown ou Word, com os trechos citados como na exportação de uma análise.
+/// Devolve o caminho gravado.
+pub fn exportar_mapa(
     amb: &Ambiente,
     destino: &Path,
     formato: Formato,
@@ -965,14 +804,13 @@ pub fn exportar_catalogo(
 ) -> Result<PathBuf, ErroRevisao> {
     if formato == Formato::Csv {
         return Err(ErroRevisao::Destino(
-            "o catálogo exporta em Markdown ou Word".into(),
+            "o mapa de funcionalidades exporta em Markdown ou Word".into(),
         ));
     }
-    let catalogo = cba_kb::layout::catalogo();
+    let catalogo = cba_kb::layout::mapa_de_funcionalidades();
     if !amb.kb.existe(&catalogo) {
         return Err(ErroRevisao::Destino(
-            "o projeto ainda não tem catálogo de funcionalidades: aprove um mapeamento antes"
-                .into(),
+            "o projeto ainda não tem mapa de funcionalidades: mapeie antes de exportar".into(),
         ));
     }
     let destino = destino_da_exportacao(&amb.escopo, destino, formato)?;

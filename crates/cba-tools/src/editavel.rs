@@ -202,7 +202,6 @@ fn rotulo_do_template(tipo: cba_kb::frontmatter::TipoDocumento) -> &'static str 
         T::Risco => "Risco",
         T::Restricao => "Restrição",
         T::MapaFuncionalidades => "Mapa de funcionalidades",
-        T::CatalogoFuncionalidades => "Catálogo de funcionalidades",
     }
 }
 
@@ -216,7 +215,6 @@ fn rotulo_do_roteiro(fluxo: cba_core::analise::Fluxo) -> &'static str {
         Fluxo::Revisar => "Revisar requisito",
         Fluxo::Historias => "Histórias e critérios",
         Fluxo::Cenarios => "Cenários de teste",
-        Fluxo::Mapear => "Mapear funcionalidades",
     }
 }
 
@@ -512,13 +510,7 @@ mod tests {
         let lista = textos_editaveis();
         let de = |g: Grupo| lista.iter().filter(|t| t.grupo == g).count();
         assert_eq!(de(Grupo::Template), cba_docs::MODELOS.len());
-        assert_eq!(
-            de(Grupo::Roteiro),
-            crate::roteiro::FLUXOS
-                .into_iter()
-                .filter(|f| crate::roteiro::revisado(*f))
-                .count()
-        );
+        assert_eq!(de(Grupo::Roteiro), crate::roteiro::FLUXOS.len());
         assert_eq!(de(Grupo::Prompt), crate::prompts::DEFINICOES.len());
         let arquivos: std::collections::BTreeSet<&str> =
             lista.iter().map(|t| t.arquivo.as_str()).collect();

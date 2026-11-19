@@ -82,21 +82,9 @@ pub struct AprovacaoVista {
     pub ja_aprovada: bool,
     pub regras: Vec<RegraVista>,
     pub termos: Vec<TermoVista>,
-    /// Mapa de funcionalidades (#208): o que entrou, mudou ou saiu do catálogo.
-    pub catalogo: Option<CatalogoAprovado>,
     /// Explicação ligada a uma funcionalidade: o documento negocial gravado.
     pub documento_negocial: Option<String>,
     pub avisos: Vec<String>,
-}
-
-/// O que a aprovação do mapa fez no catálogo de funcionalidades.
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CatalogoAprovado {
-    pub novas: Vec<String>,
-    pub atualizadas: Vec<String>,
-    pub retiradas: Vec<String>,
-    pub sem_ponto_de_entrada: Vec<String>,
 }
 
 pub fn aprovar(
@@ -135,17 +123,6 @@ pub fn aprovar(
                 acao: t.acao,
             })
             .collect(),
-        catalogo: feita.catalogo.map(|c| {
-            let textos = |v: Vec<cba_kb::IdFuncionalidade>| {
-                v.into_iter().map(|i| i.to_string()).collect::<Vec<_>>()
-            };
-            CatalogoAprovado {
-                novas: textos(c.fusao.novas),
-                atualizadas: textos(c.fusao.atualizadas),
-                retiradas: textos(c.fusao.retiradas),
-                sem_ponto_de_entrada: textos(c.fusao.sem_ponto_de_entrada),
-            }
-        }),
         documento_negocial: feita.documento_negocial.map(|d| d.to_string()),
         avisos: feita.avisos,
     })

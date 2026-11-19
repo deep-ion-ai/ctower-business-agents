@@ -3,18 +3,17 @@
 //! parcial aponta o ponto sem tratamento (falha grave) e a justificativa de um
 //! ponto que deveria estar numa funcionalidade.
 
-use cba_avaliacao::comparacao::avaliar;
 use cba_avaliacao::execucao::escopo;
 use cba_avaliacao::gabarito::Gabarito;
 use cba_avaliacao::gabarito_padrao;
-use cba_core::analise::{Analise, Fluxo};
+use cba_avaliacao::mapeamento::avaliar_mapeamento;
 use cba_core::funcionalidades::{
-    DecisaoFuncionalidade, MotivoSemFuncionalidade, NovaFuncionalidade, PontoAtribuido,
-    PontoJustificado,
+    DecisaoFuncionalidade, MapaFuncionalidades, MotivoSemFuncionalidade, NovaFuncionalidade,
+    PontoAtribuido, PontoJustificado,
 };
 use cba_index::{Escopo, PontoEntrada};
+use cba_kb::IdFuncionalidade;
 use cba_kb::frontmatter::Linhas;
-use cba_kb::{IdFuncionalidade, Serie};
 use cba_tools::evidencias::ArquivoDoProjeto;
 
 fn gabarito() -> Gabarito {
@@ -56,9 +55,15 @@ fn atribuido(escopo: &Escopo, pontos: &[PontoEntrada], sufixo: &str) -> PontoAtr
     }
 }
 
-fn registrar(a: &mut Analise, n: u32, nome: &str, area: &str, pontos: Vec<PontoAtribuido>) {
+fn registrar(
+    a: &mut MapaFuncionalidades,
+    n: u32,
+    nome: &str,
+    area: &str,
+    pontos: Vec<PontoAtribuido>,
+) {
     let id = IdFuncionalidade::novo("FAT", n).unwrap();
-    a.registrar_funcionalidade(
+    a.registrar(
         NovaFuncionalidade {
             nome: nome.into(),
             area: area.into(),
@@ -69,18 +74,16 @@ fn registrar(a: &mut Analise, n: u32, nome: &str, area: &str, pontos: Vec<PontoA
             dados_lidos: vec![],
             dados_gravados: vec![],
             relacionadas: vec![],
-            do_catalogo: false,
             sessao: None,
         },
         id.clone(),
         1,
     )
     .unwrap();
-    a.decidir_funcionalidade(&id, DecisaoFuncionalidade::Aceitar)
-        .unwrap();
+    a.decidir(&id, DecisaoFuncionalidade::Aceitar, 1).unwrap();
 }
 
-fn justificar(a: &mut Analise, pontos: &[PontoEntrada], sufixo: &str) {
+fn justificar(a: &mut MapaFuncionalidades, pontos: &[PontoEntrada], sufixo: &str) {
     let p = pontos.iter().find(|p| p.chave.ends_with(sufixo)).unwrap();
     a.justificar_ponto(PontoJustificado {
         chave: p.chave.clone(),
@@ -97,18 +100,11 @@ fn justificar(a: &mut Analise, pontos: &[PontoEntrada], sufixo: &str) {
 
 /// O mapa da fixture como o gabarito espera; `com_suspensao` decide se o ponto
 /// da suspensão entra.
-fn mapa(g: &Gabarito, com_suspensao: bool) -> Analise {
+fn mapa(g: &Gabarito, com_suspensao: bool) -> MapaFuncionalidades {
     let escopo = escopo(g).unwrap();
     let pontos = pontos(g);
     let p = |s: &str| atribuido(&escopo, &pontos, s);
-    let mut a = Analise::nova(
-        Serie::Analise.id(1),
-        "faturamento-exemplo",
-        Fluxo::Mapear,
-        "Mapa",
-        "",
-        1,
-    );
+    let mut a = MapaFuncionalidades::default();
     registrar(
         &mut a,
         1,
@@ -170,12 +166,10 @@ fn mapa(g: &Gabarito, com_suspensao: bool) -> Analise {
 #[test]
 fn mapa_completo_cobre_tudo() {
     let g = gabarito();
-    let item = g.item("MAP-FAT-001").unwrap();
-    assert_eq!(item.fluxo, Fluxo::Mapear);
+    let esperado = &g.mapeamento("MAP-FAT-001").unwrap().esperado;
     let a = mapa(&g, true);
-    let av = avaliar(&a, &item, &g, &escopo(&g).unwrap());
-    let m = av.mapeamento.as_ref().unwrap();
-    assert!(av.falhas().is_empty(), "{:?}", av.falhas());
+    let m = avaliar_mapeamento(&a, esperado, &escopo(&g).unwrap());
+    assert!(m.falhas().is_empty(), "{:?}", m.falhas());
     assert_eq!(m.cobertura_de_funcionalidades(), 1.0, "{m:#?}");
     assert_eq!(m.cobertura_de_pontos(), 1.0, "{m:#?}");
     assert!(m.funcionalidades.iter().all(|f| f.area_confere), "{m:#?}");
@@ -185,7 +179,7 @@ fn mapa_completo_cobre_tudo() {
 #[test]
 fn mapa_parcial_aponta_o_que_falta() {
     let g = gabarito();
-    let item = g.item("MAP-FAT-001").unwrap();
+    let esperado = &g.mapeamento("MAP-FAT-001").unwrap().esperado;
     let mut a = mapa(&g, false);
     // A rotina de cálculo da multa deveria estar numa funcionalidade, não
     // justificada: o mapa a tira da F-FAT-001 e a justifica.
@@ -199,15 +193,14 @@ fn mapa_parcial_aponta_o_que_falta() {
         .retain(|p| !p.chave.as_deref().unwrap().ends_with("FN_CALCULAR_MULTA"));
     justificar(&mut a, &pontos, "FN_CALCULAR_MULTA");
 
-    let av = avaliar(&a, &item, &g, &escopo(&g).unwrap());
-    let falhas = av.falhas();
+    let m = avaliar_mapeamento(&a, esperado, &escopo(&g).unwrap());
+    let falhas = m.falhas();
     assert!(
         falhas
             .iter()
             .any(|f| f.contains("sem tratamento") && f.contains("PRC_SUSPENDER_COBRANCA")),
         "{falhas:?}"
     );
-    let m = av.mapeamento.unwrap();
     let suspensao = m
         .funcionalidades
         .iter()

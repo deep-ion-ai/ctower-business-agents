@@ -120,6 +120,9 @@ pub struct Execucao {
     /// Fluxo `reuniao`: tamanho do transcript analisado.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transcript: Option<TamanhoTranscript>,
+    /// Mapeamento de funcionalidades (#208): comparação do mapa com o gabarito.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mapa: Option<crate::mapeamento::MapeamentoAvaliado>,
     /// Arquivos do projeto criados, removidos ou alterados na cópia.
     pub arquivos_alterados: Vec<Diferenca>,
     pub claude: Option<SaidaClaude>,
@@ -134,18 +137,21 @@ impl Execucao {
         if let Some(e) = &self.erro {
             f.push(e.clone());
         }
-        match (&self.avaliacao, &self.ata) {
-            (Some(a), _) => f.extend(a.falhas()),
-            (None, Some(a)) => f.extend(a.falhas()),
-            (None, None) if self.erro.is_none() => f.push(
+        match (&self.avaliacao, &self.ata, &self.mapa) {
+            (Some(a), ..) => f.extend(a.falhas()),
+            (None, Some(a), _) => f.extend(a.falhas()),
+            (None, None, Some(m)) => f.extend(m.falhas()),
+            (None, None, None) if self.erro.is_none() => f.push(
                 if self.e_reuniao() {
                     "sem estado da ata"
+                } else if self.fluxo == "mapear" {
+                    "sem estado do mapa"
                 } else {
                     "sem estado da análise"
                 }
                 .to_owned(),
             ),
-            (None, None) => {}
+            (None, None, None) => {}
         }
         if !self.arquivos_alterados.is_empty() {
             f.push(format!(
@@ -586,6 +592,11 @@ fn execucao_md(s: &mut String, e: &Execucao) {
         ata_md(s, a);
         return;
     }
+    if let Some(m) = &e.mapa {
+        mapeamento_md(s, m);
+        let _ = writeln!(s);
+        return;
+    }
     analise_md(s, e);
 }
 
@@ -625,7 +636,7 @@ fn criterios_das_analises(s: &mut String) {
     );
     let _ = writeln!(
         s,
-        "- **Mapa de funcionalidades** (`mapear`): funcionalidade esperada encontrada quando uma funcionalidade registrada (não descartada nem juntada) tem as palavras-chave no nome ou na descrição e ao menos um ponto de entrada esperado dela; área confere pelo slug. Ponto de entrada esperado bem tratado quando está na funcionalidade que casou com uma das esperadas para ele, ou justificado quando o gabarito o aceita como utilitário. Falha grave: nenhuma funcionalidade, ponto de entrada do gabarito sem tratamento ou evidência de ponto de entrada que não confere."
+        "- **Mapa de funcionalidades** (`mapear`, sem análise: o agente começa por `iniciar_mapeamento` e o mapa do projeto é comparado): funcionalidade esperada encontrada quando uma funcionalidade registrada (não descartada nem juntada) tem as palavras-chave no nome ou na descrição e ao menos um ponto de entrada esperado dela; área confere pelo slug. Ponto de entrada esperado bem tratado quando está na funcionalidade que casou com uma das esperadas para ele, ou justificado quando o gabarito o aceita como utilitário. Falha grave: nenhuma funcionalidade, ponto de entrada do gabarito sem tratamento ou evidência de ponto de entrada que não confere."
     );
     let _ = writeln!(
         s,
@@ -767,9 +778,6 @@ fn analise_md(s: &mut String, e: &Execucao) {
     }
     if let Some(m) = &a.modelagem {
         modelagem_md(s, m);
-    }
-    if let Some(m) = &a.mapeamento {
-        mapeamento_md(s, m);
     }
     let _ = writeln!(s, "- Concluída: {}\n", sim_nao(a.concluida));
 }
@@ -1414,6 +1422,7 @@ mod tests {
             avaliacao: None,
             ata: None,
             transcript: None,
+            mapa: None,
             arquivos_alterados: vec![Diferenca::Alterado("db/a.sql".into())],
             claude: Some(SaidaClaude {
                 custo_usd: Some(0.5),

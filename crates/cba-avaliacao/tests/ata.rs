@@ -362,6 +362,7 @@ fn relatorio_da_reuniao_sem_texto_de_fala() {
         avaliacao: None,
         ata: Some(a),
         transcript: Some(TamanhoTranscript::de(&f)),
+        mapa: None,
         arquivos_alterados: vec![],
         claude: None,
         erro: None,

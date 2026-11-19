@@ -42,7 +42,7 @@ struct Gabarito {
     mapeamentos: Vec<Mapeamento>,
 }
 
-/// Catálogo esperado do fluxo "Mapear funcionalidades" (#208).
+/// Mapa de funcionalidades esperado (#208).
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Mapeamento {

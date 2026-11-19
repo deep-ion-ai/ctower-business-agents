@@ -13,7 +13,8 @@ use std::time::Duration;
 use cba_avaliacao::ata::{Transcripts, avaliar_ata};
 use cba_avaliacao::comparacao::{avaliar, nome_do_fluxo};
 use cba_avaliacao::execucao::{
-    Opcoes, escopo, executar, executar_reuniao, falas_da_reuniao, versao_do_claude,
+    Opcoes, escopo, executar, executar_mapeamento, executar_reuniao, falas_da_reuniao,
+    versao_do_claude,
 };
 use cba_avaliacao::gabarito::{Gabarito, Item, Reuniao};
 use cba_avaliacao::longa::{self, OpcoesLonga, TamanhoTranscript};
@@ -199,6 +200,7 @@ fn comparar(resto: &[String]) -> Result<bool, String> {
             avaliacao: Some(avaliacao),
             ata: None,
             transcript: None,
+            mapa: None,
             arquivos_alterados: Vec::new(),
             claude: None,
             erro: None,
@@ -256,6 +258,7 @@ fn comparar_ata(args: &Args) -> Result<bool, String> {
             avaliacao: None,
             ata: Some(ata),
             transcript: Some(TamanhoTranscript::de(&lido)),
+            mapa: None,
             arquivos_alterados: Vec::new(),
             claude: None,
             erro: None,
@@ -363,6 +366,8 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
     let mut itens: Vec<Item> = Vec::new();
     // Fluxo `reuniao`: (normal, longa).
     let mut reunioes = (false, false);
+    // Mapeamento de funcionalidades (#208), fora das análises.
+    let mut mapeamento = None;
     for fluxo in args
         .valor("--fluxos")
         .unwrap_or("perguntar,explicar,impacto")
@@ -378,7 +383,11 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
             "historias" => ("--historias", "HIS-FAT-001", Fluxo::Historias),
             "cenarios" => ("--cenarios", "CEN-FAT-001", Fluxo::Cenarios),
             "ciclo-vida" => ("--ciclo-vida", "CV-FAT-001", Fluxo::Explicar),
-            "mapear" => ("--mapeamento", "MAP-FAT-001", Fluxo::Mapear),
+            "mapear" => {
+                let id = args.valor("--mapeamento").unwrap_or("MAP-FAT-001");
+                mapeamento = Some(gabarito.mapeamento(id).map_err(|e| e.to_string())?);
+                continue;
+            }
             "reuniao" => {
                 reunioes.0 = true;
                 continue;
@@ -401,7 +410,7 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
         }
         itens.push(item);
     }
-    if itens.is_empty() && reunioes == (false, false) {
+    if itens.is_empty() && reunioes == (false, false) && mapeamento.is_none() {
         return Err("nenhum fluxo escolhido".into());
     }
 
@@ -435,7 +444,8 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
         tempo_limite: Duration::from_secs(tempo_limite),
         manter: args.chave("--manter"),
     };
-    let normais = (itens.len() as u32 + u32::from(reunioes.0)) * repeticoes;
+    let normais =
+        (itens.len() as u32 + u32::from(reunioes.0) + u32::from(mapeamento.is_some())) * repeticoes;
     let longas = u32::from(reunioes.1) * repeticoes;
     let total = normais + longas;
     eprintln!(
@@ -466,6 +476,35 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
             let falhas = e.falhas();
             eprintln!(
                 "  regras {regras}, custo US$ {custo}{}",
+                if falhas.is_empty() {
+                    String::new()
+                } else {
+                    format!(", falhas: {}", falhas.join("; "))
+                }
+            );
+            execucoes.push(e);
+        }
+    }
+    if let Some(m) = mapeamento {
+        for r in 1..=repeticoes {
+            eprintln!("- mapear {} (repetição {r})...", m.id);
+            let pasta = saida.join(format!("mapear-{}-{r}", m.id));
+            let e = executar_mapeamento(&gabarito, m, r, &opcoes, &pasta);
+            let custo = e
+                .claude
+                .as_ref()
+                .and_then(|c| c.custo_usd)
+                .map_or("?".to_owned(), |c| format!("{c:.2}"));
+            let resultado = e.mapa.as_ref().map_or("-".to_owned(), |m| {
+                format!(
+                    "funcionalidades {:.0}%, pontos {:.0}%",
+                    m.cobertura_de_funcionalidades() * 100.0,
+                    m.cobertura_de_pontos() * 100.0
+                )
+            });
+            let falhas = e.falhas();
+            eprintln!(
+                "  {resultado}, custo US$ {custo}{}",
                 if falhas.is_empty() {
                     String::new()
                 } else {

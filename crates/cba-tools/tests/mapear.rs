@@ -1,19 +1,22 @@
-//! Fluxo "Mapear funcionalidades" (#208) com o sistema fictício "Faturamento
-//! Exemplo": funcionalidade sem ponto de entrada válido é recusada, a conclusão
-//! lista os pontos sem tratamento, a aprovação monta o catálogo e uma segunda
-//! rodada mantém os identificadores; a explicação aberta a partir do catálogo
-//! grava o documento negocial ligado ao item.
+//! Mapa de funcionalidades (#208) com o sistema fictício "Faturamento Exemplo":
+//! funcionalidade sem ponto de entrada válido é recusada, a conclusão lista os
+//! pontos sem tratamento, o documento `funcionalidades/mapa.md` entra no índice,
+//! uma segunda sessão mantém os identificadores e a explicação aberta a partir
+//! do mapa grava o documento negocial ligado à funcionalidade. Nada disso cria
+//! análise.
 
 use std::path::{Path, PathBuf};
 
 use cba_core::ambiente::Ambiente;
-use cba_core::catalogo::{Catalogo, SituacaoNoCatalogo};
 use cba_core::config::Config;
 use cba_core::dados::DiretorioDados;
-use cba_core::funcionalidades::DecisaoFuncionalidade;
+use cba_core::funcionalidades::{
+    DecisaoFuncionalidade, MapaFuncionalidades, SituacaoFuncionalidade,
+};
 use cba_index::PontoEntrada;
 use cba_kb::{Id, IdFuncionalidade, layout};
 use cba_tools::aprovacao::OpcoesAprovacao;
+use cba_tools::mapear::{RevisaoDoMapa, revisar_mapa};
 use cba_tools::revisao::{self, Decisao};
 use cba_tools::{ErroChamada, ErroFerramenta, registro_padrao};
 use serde_json::{Value, json};
@@ -97,16 +100,8 @@ impl Cenario {
         })
     }
 
-    fn funcionalidade(
-        &self,
-        analise: &Id,
-        nome: &str,
-        area: &str,
-        pontos: &[&str],
-        id: Option<&str>,
-    ) -> Value {
+    fn funcionalidade(&self, nome: &str, area: &str, pontos: &[&str], id: Option<&str>) -> Value {
         let mut args = json!({
-            "analise": analise,
             "nome": nome,
             "area": area,
             "descricao": format!("{nome}, para o atendimento."),
@@ -120,23 +115,22 @@ impl Cenario {
         self.ok("registrar_funcionalidade", args)
     }
 
-    fn iniciar_mapeamento(&self) -> Id {
-        let r = self.ok("iniciar_analise", json!({ "fluxo": "mapear" }));
-        Id::analisar(r["analise"].as_str().unwrap()).unwrap()
+    fn mapa(&self) -> MapaFuncionalidades {
+        MapaFuncionalidades::carregar(&self.amb.kb).unwrap()
     }
 
-    fn aceitar_todas(&self, id: &Id) {
-        let a = self.amb.analises.carregar(id).unwrap();
-        for f in a.funcionalidades_no_documento() {
-            revisao::revisar(
-                &self.amb,
-                id,
-                Decisao::Funcionalidade {
-                    funcionalidade: f.id.clone(),
-                    decisao: DecisaoFuncionalidade::Aceitar,
-                },
-            )
-            .unwrap();
+    fn revisar(&self, r: RevisaoDoMapa) -> Option<IdFuncionalidade> {
+        revisar_mapa(&self.amb.base, &self.amb.kb, &self.amb.dados, r)
+            .unwrap()
+            .resultado
+    }
+
+    fn aceitar_todas(&self) {
+        for f in self.mapa().abertas() {
+            self.revisar(RevisaoDoMapa::Decidir {
+                funcionalidade: f.id.clone(),
+                decisao: DecisaoFuncionalidade::Aceitar,
+            });
         }
     }
 }
@@ -147,9 +141,8 @@ fn f(id: &str) -> IdFuncionalidade {
 
 /// Registra o mapa da fixture como o gabarito espera, deixando o ponto
 /// `PRC_SUSPENDER_COBRANCA` de fora.
-fn mapear_quase_tudo(c: &Cenario, a: &Id) {
+fn mapear_quase_tudo(c: &Cenario) {
     c.funcionalidade(
-        a,
         "Calcular encargos por atraso",
         "Cobrança",
         &[
@@ -161,7 +154,6 @@ fn mapear_quase_tudo(c: &Cenario, a: &Id) {
         None,
     );
     c.funcionalidade(
-        a,
         "Parcelar fatura",
         "Parcelamento",
         &[
@@ -173,21 +165,18 @@ fn mapear_quase_tudo(c: &Cenario, a: &Id) {
         None,
     );
     c.funcionalidade(
-        a,
         "Cancelar fatura",
         "Cancelamento",
         &["#FrmCancelamento", "PKG_COBRANCA.PRC_CANCELAR_FATURA"],
         None,
     );
     c.funcionalidade(
-        a,
         "Gerar lote mensal de cobrança",
         "Cobrança",
         &["#CALCOBR"],
         None,
     );
     c.funcionalidade(
-        a,
         "Registrar pagamento",
         "Cobrança",
         &[
@@ -199,7 +188,6 @@ fn mapear_quase_tudo(c: &Cenario, a: &Id) {
     c.ok(
         "tratar_ponto_de_entrada",
         json!({
-            "analise": a,
             "ponto": "db/03_pkg_cobranca.sql#PKG_COBRANCA.FN_PARAMETRO",
             "tratamento": "justificar",
             "motivo": "utilitario",
@@ -209,15 +197,32 @@ fn mapear_quase_tudo(c: &Cenario, a: &Id) {
 }
 
 #[test]
-fn mapeia_conclui_aprova_e_mantem_os_ids() {
+fn mapeia_conclui_revisa_e_mantem_os_ids() {
     let c = cenario();
-    let a = c.iniciar_mapeamento();
+    let roteiro = registro_padrao()
+        .chamar(
+            "iniciar_mapeamento",
+            Ok(&c.amb),
+            Some(json!({ "pasta": "db" })),
+        )
+        .unwrap()
+        .texto;
+    assert!(roteiro.contains("Mapear a pasta `db`."), "{roteiro}");
+    assert!(
+        roteiro.contains("`pontos_de_entrada` (pasta: \"db\")"),
+        "{roteiro}"
+    );
+    assert!(
+        roteiro.contains("9 pontos de entrada, 9 ainda sem"),
+        "{roteiro}"
+    );
+    assert!(!roteiro.contains("{{"), "{roteiro}");
 
     // Sem ponto de entrada, ou com evidência que não confere: recusada.
     let m = c.recusa(
         "registrar_funcionalidade",
         json!({
-            "analise": a, "nome": "X", "area": "Cobrança", "descricao": "X.",
+            "nome": "X", "area": "Cobrança", "descricao": "X.",
             "pontos_de_entrada": []
         }),
     );
@@ -225,7 +230,7 @@ fn mapeia_conclui_aprova_e_mantem_os_ids() {
     let m = c.recusa(
         "registrar_funcionalidade",
         json!({
-            "analise": a, "nome": "X", "area": "Cobrança", "descricao": "X.",
+            "nome": "X", "area": "Cobrança", "descricao": "X.",
             "pontos_de_entrada": [{
                 "ponto": "PKG_COBRANCA.PRC_CANCELAR_FATURA",
                 "evidencia": {
@@ -237,18 +242,20 @@ fn mapeia_conclui_aprova_e_mantem_os_ids() {
         }),
     );
     assert!(m.contains("evidência recusada"), "{m}");
-    assert!(
-        c.amb
-            .analises
-            .carregar(&a)
-            .unwrap()
-            .funcionalidades
-            .is_empty()
+    let m = c.recusa(
+        "registrar_funcionalidade",
+        json!({
+            "id": "F-COB-009", "nome": "X", "area": "Cobrança", "descricao": "X.",
+            "pontos_de_entrada": [c.ponto("PKG_COBRANCA.PRC_CANCELAR_FATURA")]
+        }),
     );
+    assert!(m.contains("não existe no mapa"), "{m}");
+    assert!(c.mapa().funcionalidades.is_empty());
+    assert_eq!(c.mapa().versao, 0, "recusa não grava");
 
-    mapear_quase_tudo(&c, &a);
-    let estado = c.amb.analises.carregar(&a).unwrap();
-    let ids: Vec<String> = estado
+    mapear_quase_tudo(&c);
+    let mapa = c.mapa();
+    let ids: Vec<String> = mapa
         .funcionalidades
         .iter()
         .map(|f| f.id.to_string())
@@ -264,107 +271,105 @@ fn mapeia_conclui_aprova_e_mantem_os_ids() {
         ]
     );
     assert!(
-        estado
-            .funcionalidades
+        mapa.funcionalidades
             .iter()
             .all(|f| f.pontos.iter().all(|p| p.chave.is_some()))
     );
+    assert!(
+        c.amb.analises.listar().unwrap().is_empty(),
+        "o mapa não cria análise"
+    );
 
     // Falta um ponto: a conclusão lista e recusa.
-    let m = c.recusa("concluir_analise", json!({ "analise": a }));
+    let m = c.recusa("concluir_mapeamento", json!({}));
     assert!(m.contains("PKG_SITUACAO.PRC_SUSPENDER_COBRANCA"), "{m}");
-    assert!(
-        m.contains("1 ponto(s) de entrada sem funcionalidade"),
-        "{m}"
-    );
-    let sem = c.ok(
-        "pontos_de_entrada",
-        json!({ "analise": a, "so_sem_tratamento": true }),
-    );
+    assert!(m.contains("1 ponto(s) de entrada"), "{m}");
+    let sem = c.ok("pontos_de_entrada", json!({ "so_sem_tratamento": true }));
     assert_eq!(sem["sem_tratamento"], 1);
     assert_eq!(sem["total"], 15);
+    // No recorte da área Parcelamento, nada falta.
+    let r = c.ok("concluir_mapeamento", json!({ "area": "Parcelamento" }));
+    assert_eq!(r["pontos_de_entrada"], 4);
 
     c.funcionalidade(
-        &a,
         "Suspender a cobrança por contestação",
         "Cobrança",
         &["PKG_SITUACAO.PRC_SUSPENDER_COBRANCA"],
         None,
     );
-    let r = c.ok("concluir_analise", json!({ "analise": a }));
-    assert_eq!(r["registros"]["funcionalidades"], 6);
+    let r = c.ok("concluir_mapeamento", json!({}));
+    assert_eq!(r["funcionalidades"], 6);
+    assert_eq!(r["a_revisar"], 6);
 
-    // Aprovar exige decisão em cada funcionalidade.
-    let pendente = revisao::aprovar_revisada(&c.amb, &a, &OpcoesAprovacao::default());
-    assert!(pendente.is_err());
-    c.aceitar_todas(&a);
-    let aprovacao = revisao::aprovar_revisada(&c.amb, &a, &OpcoesAprovacao::default()).unwrap();
-    assert!(aprovacao.avisos.is_empty(), "{:?}", aprovacao.avisos);
-    let fusao = &aprovacao.catalogo.as_ref().unwrap().fusao;
-    assert_eq!(fusao.novas.len(), 6);
-
-    let catalogo = Catalogo::carregar(&c.amb.kb).unwrap();
-    assert_eq!(catalogo.funcionalidades.len(), 6);
-    let md = std::fs::read_to_string(c.amb.kb.caminho(&layout::catalogo())).unwrap();
-    assert!(md.contains("tipo: catalogo-funcionalidades"), "{md}");
-    // O catálogo entra no índice da base, com frontmatter válido, e na busca.
+    // O documento do mapa é remontado a cada registro, entra no índice e na busca.
+    let caminho = layout::mapa_de_funcionalidades();
+    let md = std::fs::read_to_string(c.amb.kb.caminho(&caminho)).unwrap();
+    assert!(md.contains("tipo: mapa-funcionalidades"), "{md}");
+    assert!(
+        md.contains("| F-CAN-001 | Cancelar fatura | a revisar | 2 |"),
+        "{md}"
+    );
+    assert!(
+        md.contains("| `PKG_COBRANCA.FN_PARAMETRO` | rotina de banco"),
+        "{md}"
+    );
+    c.aceitar_todas();
+    let md = std::fs::read_to_string(c.amb.kb.caminho(&caminho)).unwrap();
+    assert!(
+        md.contains("| F-CAN-001 | Cancelar fatura | aceita | 2 |"),
+        "{md}"
+    );
+    assert!(md.contains("status: aprovada"), "{md}");
     let mut indice =
         cba_kb::indice::Indice::abrir(c.amb.dados.arquivo_do_indice(), &c.amb.base).unwrap();
     indice.sincronizar().unwrap();
     let achados = indice
         .buscar(&cba_kb::indice::Consulta::nova("Parcelar fatura"))
         .unwrap();
-    let catalogo = achados
+    let doc = achados
         .resultados
         .iter()
-        .find(|r| r.caminho.as_str().ends_with("funcionalidades/catalogo.md"))
+        .find(|r| r.caminho.as_str().ends_with("funcionalidades/mapa.md"))
         .unwrap_or_else(|| panic!("{achados:?}"));
     assert_eq!(
-        catalogo.tipo,
+        doc.tipo,
         Some(cba_kb::indice::Tipo::Documento(
-            cba_kb::TipoDocumento::CatalogoFuncionalidades
+            cba_kb::TipoDocumento::MapaFuncionalidades
         ))
     );
-    assert!(
-        md.contains("| F-CAN-001 | Cancelar fatura | só mapeada · nova | 2 |"),
-        "{md}"
-    );
-    assert!(md.contains("#### F-PAR-001 · Parcelar fatura"), "{md}");
-    let documento = std::fs::read_to_string(c.amb.kb.caminho(&estado.documento)).unwrap();
-    assert!(
-        documento.contains("| `PKG_COBRANCA.FN_PARAMETRO` | rotina de banco"),
-        "{documento}"
-    );
 
-    // Segunda rodada: sem `id`, o ponto em comum devolve o identificador do
-    // catálogo; com `id`, o nome muda e o identificador fica.
-    let b = c.iniciar_mapeamento();
+    // Segunda sessão: sem `id`, o ponto em comum devolve o identificador; com
+    // `id`, o nome muda e o identificador fica. A funcionalidade volta a revisar.
     let r = c.funcionalidade(
-        &b,
         "Cancelar uma fatura emitida",
         "Cancelamento",
-        &["#FrmCancelamento"],
+        &["#FrmCancelamento", "PKG_COBRANCA.PRC_CANCELAR_FATURA"],
         None,
     );
     assert_eq!(r["funcionalidade"], "F-CAN-001");
-    assert_eq!(r["do_catalogo"], true);
+    assert_eq!(r["substituida"], true);
+    assert_eq!(
+        c.mapa().funcionalidade(&f("F-CAN-001")).unwrap().situacao,
+        SituacaoFuncionalidade::Pendente
+    );
     let r = c.funcionalidade(
-        &b,
         "Parcelamento da fatura",
         "Parcelamento",
-        &["ParcelamentoService.parcelar"],
+        &[
+            "ParcelamentoService.parcelar",
+            "PKG_SITUACAO.PRC_EFETIVAR_PARCELAMENTO",
+            "#opcoesDeParcelas",
+            "#enviarParcelamento",
+        ],
         Some("F-PAR-001"),
     );
     assert_eq!(r["funcionalidade"], "F-PAR-001");
-    // Um ponto que o catálogo já atribui devolve o identificador dele.
-    let r = c.funcionalidade(&b, "Lote de cobrança", "Cobrança", &["#CALCOBR"], None);
-    assert_eq!(r["funcionalidade"], "F-COB-002");
     // Funcionalidade nova continua a numeração da sigla; um ponto fora da lista
     // do mapa entra só com a evidência.
     let r = c.ok(
         "registrar_funcionalidade",
         json!({
-            "analise": b, "nome": "Limitar encargos por tipo de cliente", "area": "Cobrança",
+            "nome": "Limitar encargos por tipo de cliente", "area": "Cobrança",
             "descricao": "Aplica o teto de encargos.",
             "pontos_de_entrada": [{
                 "ponto": "regra de teto chamada pelo cálculo",
@@ -378,31 +383,47 @@ fn mapeia_conclui_aprova_e_mantem_os_ids() {
     );
     assert_eq!(r["funcionalidade"], "F-COB-005");
     assert_eq!(r["pontos_de_entrada"][0]["no_mapa"], false);
-    let retomada = c.ok("retomar_analise", json!({ "analise": b }));
-    assert_eq!(
-        retomada["funcionalidades"]["catalogo"]
-            .as_array()
-            .unwrap()
-            .len(),
-        6
+
+    // Revisão: dividir, juntar, descartar; o número descartado não volta.
+    let novo = c
+        .revisar(RevisaoDoMapa::Dividir {
+            funcionalidade: f("F-PAR-001"),
+            pontos: vec![2, 3],
+            nome: "Simular parcelas".into(),
+            descricao: "Mostra as opções.".into(),
+        })
+        .unwrap();
+    assert_eq!(novo, f("F-PAR-002"));
+    c.revisar(RevisaoDoMapa::Juntar {
+        origem: f("F-PAR-002"),
+        destino: f("F-PAR-001"),
+    });
+    c.revisar(RevisaoDoMapa::Decidir {
+        funcionalidade: f("F-COB-005"),
+        decisao: DecisaoFuncionalidade::Descartar,
+    });
+    let r = c.ok(
+        "registrar_funcionalidade",
+        json!({
+            "nome": "Outra regra", "area": "Cobrança", "descricao": "D.",
+            "pontos_de_entrada": [{
+                "ponto": "outra regra",
+                "evidencia": {
+                    "arquivo": "backend/src/main/java/exemplo/faturamento/TetoEncargosRegra.java",
+                    "linha_inicial": 10, "linha_final": 10,
+                    "trecho": "public final class TetoEncargosRegra"
+                }
+            }]
+        }),
     );
+    assert_eq!(r["funcionalidade"], "F-COB-006");
 }
 
 #[test]
-fn explicacao_do_catalogo_grava_o_documento_negocial_ligado() {
+fn explicacao_do_mapa_grava_o_documento_negocial_ligado() {
     let c = cenario();
-    let a = c.iniciar_mapeamento();
-    mapear_quase_tudo(&c, &a);
-    c.funcionalidade(
-        &a,
-        "Suspender a cobrança",
-        "Cobrança",
-        &["PKG_SITUACAO.PRC_SUSPENDER_COBRANCA"],
-        None,
-    );
-    c.ok("concluir_analise", json!({ "analise": a }));
-    c.aceitar_todas(&a);
-    revisao::aprovar_revisada(&c.amb, &a, &OpcoesAprovacao::default()).unwrap();
+    mapear_quase_tudo(&c);
+    c.aceitar_todas();
 
     let r = c.ok(
         "iniciar_analise",
@@ -465,11 +486,11 @@ fn explicacao_do_catalogo_grava_o_documento_negocial_ligado() {
     let texto = std::fs::read_to_string(c.amb.kb.caminho(&negocial)).unwrap();
     assert!(texto.contains("tipo: funcionalidade"), "{texto}");
     assert!(texto.contains("Só fatura aberta"), "{texto}");
-    let catalogo = Catalogo::carregar(&c.amb.kb).unwrap();
-    let item = catalogo.item(&f("F-CAN-001")).unwrap();
+    let mapa = c.mapa();
+    let item = mapa.funcionalidade(&f("F-CAN-001")).unwrap();
     assert_eq!(item.documento.as_ref(), Some(&negocial));
     assert_eq!(item.explicacao.as_ref(), Some(&e));
-    assert_eq!(item.situacao, SituacaoNoCatalogo::Nova);
-    let md = std::fs::read_to_string(c.amb.kb.caminho(&layout::catalogo())).unwrap();
-    assert!(md.contains("documentada"), "{md}");
+    assert_eq!(item.situacao, SituacaoFuncionalidade::Aceita);
+    let md = std::fs::read_to_string(c.amb.kb.caminho(&layout::mapa_de_funcionalidades())).unwrap();
+    assert!(md.contains("aceita · documentada"), "{md}");
 }

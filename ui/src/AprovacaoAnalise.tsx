@@ -336,24 +336,8 @@ export function AprovacaoAnalise({
               ))}
             </ul>
           )}
-          {feita.catalogo && (
-            <ul aria-label="Catálogo de funcionalidades">
-              {feita.catalogo.novas.length > 0 && (
-                <li>Novas no catálogo: {feita.catalogo.novas.join(", ")}</li>
-              )}
-              {feita.catalogo.atualizadas.length > 0 && (
-                <li>Atualizadas: {feita.catalogo.atualizadas.join(", ")}</li>
-              )}
-              {feita.catalogo.retiradas.length > 0 && (
-                <li>Retiradas: {feita.catalogo.retiradas.join(", ")}</li>
-              )}
-              {feita.catalogo.semPontoDeEntrada.length > 0 && (
-                <li>Sem ponto de entrada no código: {feita.catalogo.semPontoDeEntrada.join(", ")}</li>
-              )}
-            </ul>
-          )}
           {feita.documentoNegocial && (
-            <p>Documento negocial: {feita.documentoNegocial}</p>
+            <p>Documento negocial no mapa de funcionalidades: {feita.documentoNegocial}</p>
           )}
           {feita.avisos.map((a) => (
             <p key={a} className="muted">

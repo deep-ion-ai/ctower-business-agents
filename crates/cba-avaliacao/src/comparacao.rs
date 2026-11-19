@@ -42,7 +42,6 @@ use crate::cenarios::{CenariosAvaliados, avaliar_cenarios};
 use crate::ciclo_vida::{CicloVidaAvaliado, avaliar_ciclo_vida};
 use crate::gabarito::{Gabarito, Item, Regra, Veredito};
 use crate::historias::{HistoriasAvaliadas, avaliar_historias};
-use crate::mapeamento::{MapeamentoAvaliado, avaliar_mapeamento};
 use crate::modelagem::{ModelagemAvaliada, avaliar_modelagem};
 use crate::parecer::{ParecerAvaliado, avaliar_parecer};
 use crate::texto;
@@ -98,9 +97,6 @@ pub struct Avaliacao {
     /// `explicar`, [`crate::modelagem`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub modelagem: Option<ModelagemAvaliada>,
-    /// Mapa de funcionalidades (fluxo `mapear`, [`crate::mapeamento`]).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mapeamento: Option<MapeamentoAvaliado>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -161,11 +157,6 @@ impl Avaliacao {
         let mut f = Vec::new();
         if let Some(c) = &self.ciclo_vida {
             f.extend(c.falhas());
-        }
-        // No mapa, o conteúdo são as funcionalidades e os pontos de entrada.
-        if let Some(m) = &self.mapeamento {
-            f.extend(m.falhas());
-            return f;
         }
         // No parecer de revisão, o conteúdo são os achados; as afirmações são opcionais.
         match (&self.parecer, &self.historias, &self.cenarios) {
@@ -533,10 +524,6 @@ pub fn avaliar(analise: &Analise, item: &Item, gabarito: &Gabarito, escopo: &Esc
             .modelagem
             .as_ref()
             .map(|m| avaliar_modelagem(analise, m)),
-        mapeamento: item
-            .mapeamento
-            .as_ref()
-            .map(|m| avaliar_mapeamento(analise, m, escopo)),
     }
 }
 
@@ -556,7 +543,6 @@ pub fn nome_do_fluxo(fluxo: cba_core::analise::Fluxo) -> &'static str {
         Fluxo::Revisar => "revisar",
         Fluxo::Historias => "historias",
         Fluxo::Cenarios => "cenarios",
-        Fluxo::Mapear => "mapear",
     }
 }
 

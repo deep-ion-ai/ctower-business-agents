@@ -205,21 +205,21 @@ O preparo cria a análise de explicar com o pedido do gabarito. A comparação u
 
 Falha grave (ciclo de vida): nenhum diagrama de estados, estado ausente, erro da execução ou arquivo do projeto alterado. Os demais são cobertura. Para comparar um estado gravado: `cargo run -p cba-avaliacao -- comparar --estado <pasta>/estado.json --item CV-FAT-001`. O roteiro é provisório até a primeira execução com o modelo real; o teste da crate `cba-fixtures` confere que os achados esperados são exatamente os que as transições do gabarito implicam.
 
-## Fluxo mapear
+## Mapa de funcionalidades
 
-O fluxo **Mapear funcionalidades** (#208) monta o catálogo do projeto a partir dos pontos de entrada que o app acha no mapa estrutural. O gabarito tem, em `mapeamentos`, `MAP-FAT-001`: os 15 pontos de entrada da fixture (o teste da crate `cba-index` confere que são exatamente os que `Mapa::pontos_de_entrada` acha), cada um com as funcionalidades a que pode ir e, para os ajudantes (`PKG_COBRANCA.FN_PARAMETRO`, `FN_DIAS_ATRASO`), `justificavel: true`; e as seis funcionalidades esperadas: as quatro de `funcionalidades` (encargos, parcelamento, cancelamento e lote mensal) e as que só o mapeamento cobre (registro de pagamento e suspensão da cobrança, de `db/04_pkg_situacao.sql`).
+O **mapa de funcionalidades** (#208) é um cadastro do projeto, não uma análise: o agente o monta a partir dos pontos de entrada que o app acha no mapa estrutural. O gabarito tem, em `mapeamentos`, `MAP-FAT-001`: os 15 pontos de entrada da fixture (o teste da crate `cba-index` confere que são exatamente os que `Mapa::pontos_de_entrada` acha), cada um com as funcionalidades a que pode ir e, para os ajudantes (`PKG_COBRANCA.FN_PARAMETRO`, `FN_DIAS_ATRASO`), `justificavel: true`; e as seis funcionalidades esperadas: as quatro de `funcionalidades` (encargos, parcelamento, cancelamento e lote mensal) e as que só o mapeamento cobre (registro de pagamento e suspensão da cobrança, de `db/04_pkg_situacao.sql`).
 
 ```sh
 cargo run -p cba-avaliacao -- rodar --fluxos mapear --orcamento 1.5
 ```
 
-O preparo cria a análise de mapeamento do projeto inteiro, como pela nova análise do app. A comparação:
+O preparo não cria análise: o pedido ao `claude` é o mesmo da tela "Mapa de funcionalidades" do app (`cba_tools::mapear::pedido_de_mapeamento`), o agente começa por `iniciar_mapeamento`, e a comparação lê o mapa do projeto (`funcionalidades/mapa.estado.json`, guardado na pasta da execução com o `mapa.md`). A comparação:
 
 - **Funcionalidades.** Cada funcionalidade esperada é atendida por uma registrada (não descartada nem juntada) com as palavras-chave no nome ou na descrição e ao menos um ponto de entrada esperado dela; a área confere pelo slug.
 - **Pontos de entrada.** Cada ponto esperado é bem tratado quando está na funcionalidade que casou com uma das esperadas para ele, ou justificado quando o gabarito o aceita como utilitário.
 - **Evidências.** As evidências dos pontos de entrada são conferidas contra o código.
 
-Falha grave (mapear): nenhuma funcionalidade, ponto de entrada do gabarito sem tratamento, evidência de ponto de entrada que não confere, estado ausente, erro da execução ou arquivo do projeto alterado. Os demais são cobertura. Para comparar um estado gravado: `cargo run -p cba-avaliacao -- comparar --estado <pasta>/estado.json --item MAP-FAT-001`. O roteiro (`crates/cba-tools/textos/roteiros/mapear.md`) é provisório até a primeira execução com o modelo real: fica fora de `roteiro::revisado` e não é copiado para a base.
+Falha grave (mapear): nenhuma funcionalidade, ponto de entrada do gabarito sem tratamento, evidência de ponto de entrada que não confere, mapa vazio, erro da execução ou arquivo do projeto alterado. Os demais são cobertura. O roteiro (`crates/cba-tools/textos/roteiros/mapear.md`, devolvido por `iniciar_mapeamento`) é provisório até a primeira execução com o modelo real.
 
 ## Ao mudar o gabarito ou a fixture
 

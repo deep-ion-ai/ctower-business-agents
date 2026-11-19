@@ -1,4 +1,4 @@
-//! Comparação do mapa de funcionalidades (fluxo `mapear`, #208) com o gabarito.
+//! Comparação do mapa de funcionalidades do projeto (#208) com o gabarito.
 //!
 //! - **Funcionalidade** esperada: uma funcionalidade registrada (não descartada
 //!   nem juntada) com as palavras-chave no nome ou na descrição e ao menos um
@@ -14,8 +14,7 @@
 
 use std::collections::BTreeMap;
 
-use cba_core::analise::Analise;
-use cba_core::funcionalidades::Funcionalidade;
+use cba_core::funcionalidades::{Funcionalidade, MapaFuncionalidades};
 use cba_index::Escopo;
 use serde::Serialize;
 
@@ -104,13 +103,13 @@ fn texto_da(f: &Funcionalidade) -> String {
     format!("{} {}", f.nome, f.descricao)
 }
 
-/// Compara as funcionalidades da análise com o mapeamento esperado.
+/// Compara as funcionalidades do mapa com o mapeamento esperado.
 pub fn avaliar_mapeamento(
-    analise: &Analise,
+    mapa: &MapaFuncionalidades,
     esperado: &MapeamentoEsperado,
     escopo: &Escopo,
 ) -> MapeamentoAvaliado {
-    let abertas: Vec<&Funcionalidade> = analise.funcionalidades_no_documento().collect();
+    let abertas: Vec<&Funcionalidade> = mapa.abertas().collect();
     // Pontos esperados de cada funcionalidade do gabarito.
     let mut pontos_de: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
     for p in &esperado.pontos_de_entrada {
@@ -146,11 +145,8 @@ pub fn avaliar_mapeamento(
         .pontos_de_entrada
         .iter()
         .map(|p| {
-            let dona = analise.dona_do_ponto(&p.chave);
-            let justificado = analise
-                .pontos_justificados
-                .iter()
-                .any(|j| j.chave == p.chave);
+            let dona = mapa.dona_do_ponto(&p.chave);
+            let justificado = mapa.justificativa(&p.chave).is_some();
             let (tratamento, bem) = match dona {
                 Some(f) => (
                     "atribuido",

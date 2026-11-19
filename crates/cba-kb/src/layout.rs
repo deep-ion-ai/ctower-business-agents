@@ -51,10 +51,16 @@ pub const PASTAS_DO_PROJETO: [&str; 6] = [
     SUGESTOES,
 ];
 
-/// Catálogo de funcionalidades do projeto (#208), em `funcionalidades/`.
-pub const ARQUIVO_CATALOGO: &str = "catalogo.md";
-/// Estado do catálogo, ao lado dele: a fonte de verdade dos identificadores.
-pub const ARQUIVO_ESTADO_CATALOGO: &str = "catalogo.estado.json";
+/// Mapa de funcionalidades do projeto (#208), em `funcionalidades/`.
+pub const ARQUIVO_MAPA: &str = "mapa.md";
+/// Estado do mapa, ao lado dele: a fonte de verdade das funcionalidades e dos
+/// identificadores.
+pub const ARQUIVO_ESTADO_MAPA: &str = "mapa.estado.json";
+/// Trava das alterações do estado do mapa (app e servidor MCP).
+pub const ARQUIVO_TRAVA_MAPA: &str = ".mapa.trava";
+/// Estado do catálogo da primeira versão do #208, quando o mapa era aprovado por
+/// análise: só lido, para importar.
+pub const ARQUIVO_ESTADO_CATALOGO_LEGADO: &str = "catalogo.estado.json";
 
 /// Extensão dos documentos.
 pub const EXTENSAO: &str = "md";
@@ -110,14 +116,27 @@ pub fn e_memoria_da_analise(nome: &str) -> bool {
     nome.ends_with(SUFIXO_MEMORIA_DA_ANALISE)
 }
 
-/// `funcionalidades/catalogo.md`.
-pub fn catalogo() -> CaminhoRelativo {
-    caminho(format!("{FUNCIONALIDADES}/{ARQUIVO_CATALOGO}")).expect("nome fixo válido")
+/// `funcionalidades/mapa.md`.
+pub fn mapa_de_funcionalidades() -> CaminhoRelativo {
+    caminho(format!("{FUNCIONALIDADES}/{ARQUIVO_MAPA}")).expect("nome fixo válido")
 }
 
-/// `funcionalidades/catalogo.estado.json`.
-pub fn estado_do_catalogo() -> CaminhoRelativo {
-    caminho(format!("{FUNCIONALIDADES}/{ARQUIVO_ESTADO_CATALOGO}")).expect("nome fixo válido")
+/// `funcionalidades/mapa.estado.json`.
+pub fn estado_do_mapa() -> CaminhoRelativo {
+    caminho(format!("{FUNCIONALIDADES}/{ARQUIVO_ESTADO_MAPA}")).expect("nome fixo válido")
+}
+
+/// `funcionalidades/.mapa.trava`.
+pub fn trava_do_mapa() -> CaminhoRelativo {
+    caminho(format!("{FUNCIONALIDADES}/{ARQUIVO_TRAVA_MAPA}")).expect("nome fixo válido")
+}
+
+/// `funcionalidades/catalogo.estado.json` (legado, só para importar).
+pub fn estado_do_catalogo_legado() -> CaminhoRelativo {
+    caminho(format!(
+        "{FUNCIONALIDADES}/{ARQUIVO_ESTADO_CATALOGO_LEGADO}"
+    ))
+    .expect("nome fixo válido")
 }
 
 /// `funcionalidades/<slug da área>/<slug do tema>/`, pasta dos documentos de uma
@@ -154,10 +173,13 @@ mod tests {
             "funcionalidades/cobranca/cancelamento-de-fatura"
         );
         assert!(termo("??").is_err());
-        assert_eq!(catalogo().as_str(), "funcionalidades/catalogo.md");
         assert_eq!(
-            estado_do_catalogo().as_str(),
-            "funcionalidades/catalogo.estado.json"
+            mapa_de_funcionalidades().as_str(),
+            "funcionalidades/mapa.md"
+        );
+        assert_eq!(
+            estado_do_mapa().as_str(),
+            "funcionalidades/mapa.estado.json"
         );
         let id = crate::Id::analisar("A-0007").unwrap();
         assert_eq!(

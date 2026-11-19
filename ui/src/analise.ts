@@ -13,8 +13,7 @@ export type Fluxo =
   | "reuniao"
   | "revisar"
   | "historias"
-  | "cenarios"
-  | "mapear";
+  | "cenarios";
 export type EstadoAnalise = "criada" | "em-andamento" | "concluida" | "aprovada";
 export type EstadoSessao = "ativa" | "aguardando-analista" | "concluida" | "encerrada";
 export type Cliente = "claude-code" | "claude-desktop" | "desconhecido";
@@ -105,77 +104,6 @@ export interface TermoProposto {
   estado: "proposto" | "aceito" | "recusado";
 }
 
-/** Natureza de um ponto de entrada (`cba_index::TipoEntrada`). */
-export type TipoEntrada =
-  | "tela"
-  | "endpoint"
-  | "lote"
-  | "rotina_banco"
-  | "servico"
-  | "integracao";
-
-export const NOME_TIPO_ENTRADA: Record<TipoEntrada, string> = {
-  tela: "tela",
-  endpoint: "endpoint",
-  lote: "lote",
-  rotina_banco: "rotina de banco",
-  servico: "serviço",
-  integracao: "integração",
-};
-
-/** Ponto de entrada atribuído a uma funcionalidade (`cba_core::funcionalidades`). */
-export interface PontoAtribuido {
-  /** `<arquivo>#<nome qualificado>`; ausente quando o ponto está fora da lista do mapa. */
-  chave?: string | null;
-  tipo?: TipoEntrada | null;
-  nome: string;
-  evidencia: Evidencia;
-}
-
-export type SituacaoFuncionalidade = "pendente" | "aceita" | "descartada" | "juntada";
-
-export interface Funcionalidade {
-  id: string;
-  nome: string;
-  area: string;
-  area_nome: string;
-  descricao: string;
-  atores?: string[];
-  pontos: PontoAtribuido[];
-  dados_lidos?: string[];
-  dados_gravados?: string[];
-  relacionadas?: string[];
-  situacao?: SituacaoFuncionalidade;
-  juntada_em?: string | null;
-  /** O identificador veio do catálogo: a funcionalidade já existia. */
-  do_catalogo?: boolean;
-  editada?: boolean;
-  registrada_ms: number;
-}
-
-export type MotivoSemFuncionalidade = "codigo_morto" | "utilitario" | "outro";
-
-export const NOME_MOTIVO: Record<MotivoSemFuncionalidade, string> = {
-  codigo_morto: "código morto",
-  utilitario: "utilitário",
-  outro: "outro motivo",
-};
-
-export interface PontoJustificado {
-  chave: string;
-  tipo: TipoEntrada;
-  nome: string;
-  arquivo: string;
-  motivo: MotivoSemFuncionalidade;
-  justificativa: string;
-  registrado_ms: number;
-}
-
-export interface EscopoMapa {
-  pasta?: string | null;
-  area?: string | null;
-}
-
 export interface Sessao {
   id: string;
   cliente: Cliente;
@@ -210,18 +138,12 @@ export interface Analise {
   tabelas?: TabelaDecisao[];
   /** Cenários de teste (fluxo `cenarios`, #117). */
   cenarios?: Cenario[];
-  /** Escopo do mapeamento (fluxo `mapear`, #208); sem ele, o projeto inteiro. */
-  escopo?: EscopoMapa | null;
-  /** Funcionalidades mapeadas (fluxo `mapear`, #208). */
-  funcionalidades?: Funcionalidade[];
-  /** Pontos de entrada sem funcionalidade, justificados (fluxo `mapear`). */
-  pontos_justificados?: PontoJustificado[];
-  /** Funcionalidade do catálogo que esta explicação documenta (`F-FAT-001`). */
-  funcionalidade?: string | null;
   /** Parecer de revisão (fluxo `revisar`, `cba_core::parecer::Parecer`). */
   parecer?: Parecer | null;
   /** Diagramas registrados pelo agente (#118). */
   diagramas?: Diagrama[];
+  /** Funcionalidade do mapa que esta explicação documenta (`F-FAT-001`, #208). */
+  funcionalidade?: string | null;
 }
 
 /** Papel de um nó do diagrama (`cba_core::diagramas::PapelNo`). */

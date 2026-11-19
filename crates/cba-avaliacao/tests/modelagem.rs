@@ -268,6 +268,7 @@ fn fluxograma_e_modelo_como_o_gabarito() {
             avaliacao: Some(av),
             ata: None,
             transcript: None,
+            mapa: None,
             arquivos_alterados: vec![],
             claude: None,
             erro: None,

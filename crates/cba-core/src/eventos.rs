@@ -66,10 +66,15 @@ pub enum Mudanca {
     Parecer,
     /// Diagrama registrado ou substituído.
     Diagrama,
-    /// Funcionalidade registrada, decidida, editada, juntada ou dividida, ou ponto
-    /// de entrada justificado (fluxo `mapear`, #208).
+    /// Mapa de funcionalidades do projeto alterado (#208): funcionalidade
+    /// registrada, decidida, editada, juntada ou dividida, ou ponto de entrada
+    /// justificado. O campo `analise` do evento traz [`ALVO_MAPA`] e a `versao` é a
+    /// do mapa: a tela relê o estado (`funcionalidades/mapa.estado.json`).
     Funcionalidade,
 }
+
+/// Valor do campo `analise` dos eventos do mapa de funcionalidades.
+pub const ALVO_MAPA: &str = "mapa";
 
 /// Uma linha do diário.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

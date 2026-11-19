@@ -1,12 +1,20 @@
-//! Comandos Tauri do mapa de funcionalidades (#208): criar a análise de
-//! mapeamento, ler o catálogo do projeto (a lista "Funcionalidades" da tela do
-//! projeto), abrir a explicação de uma funcionalidade do catálogo e conferir a
-//! completude dos pontos de entrada de uma análise de mapeamento.
+//! Comandos Tauri do mapa de funcionalidades (#208), a tela "Mapa de
+//! funcionalidades" do menu lateral: ler o mapa do projeto (funcionalidades por
+//! área, pontos justificados e a completude contra o mapa estrutural), aplicar a
+//! revisão do analista, montar o pedido que abre a sessão de mapeamento no
+//! terminal, abrir a explicação de uma funcionalidade e exportar o documento.
+//! O mapa é um cadastro do projeto, não uma análise.
 
-use cba_core::catalogo::{Catalogo, ItemCatalogo, SituacaoNoCatalogo};
+use std::collections::BTreeSet;
+
 use cba_core::dados::DiretorioDados;
+use cba_core::funcionalidades::{
+    Funcionalidade, MapaFuncionalidades, MotivoSemFuncionalidade, PontoAtribuido,
+    SituacaoFuncionalidade,
+};
 use cba_index::{PontoEntrada, TipoEntrada};
 use cba_kb::{IdFuncionalidade, layout};
+use cba_tools::mapear::{self, RevisaoDoMapa};
 use serde::Serialize;
 
 use crate::analise::{AnaliseCriada, AnaliseResumo, ambiente, prompt_de_inicio};
@@ -23,86 +31,64 @@ async fn bloqueante<T: Send + 'static>(
         .map_err(|e| format!("falha interna: {e}"))?
 }
 
-fn preenchido(t: Option<&str>) -> Option<String> {
-    t.map(str::trim)
-        .filter(|t| !t.is_empty())
-        .map(str::to_owned)
+/// Ponto de entrada de uma funcionalidade.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PontoDaFuncionalidade {
+    pub nome: String,
+    pub chave: Option<String>,
+    pub tipo: Option<TipoEntrada>,
+    pub arquivo: String,
+    pub linha_inicial: u32,
+    pub linha_final: u32,
+    pub trecho: String,
+    /// O ponto não está na lista que o app acha (só a evidência o sustenta).
+    pub fora_da_lista: bool,
 }
 
-/// Cria a análise de mapeamento (fluxo `mapear`) do projeto inteiro, de uma pasta
-/// ou de uma área, com a orientação opcional do analista.
-pub fn criar_analise_de_mapeamento(
-    dados: &DiretorioDados,
-    projeto: &str,
-    pasta: Option<&str>,
-    area: Option<&str>,
-    entrada: Option<&str>,
-) -> Result<AnaliseCriada, String> {
-    let ambiente = ambiente(dados, projeto)?;
-    let analise = cba_tools::mapear::criar_analise_de_mapeamento(
-        &ambiente,
-        preenchido(pasta),
-        preenchido(area),
-        preenchido(entrada),
-        None,
-    )
-    .map_err(|e| e.to_string())?;
-    Ok(AnaliseCriada {
-        prompt_inicial: prompt_de_inicio(&analise.id),
-        analise: AnaliseResumo::from(&analise),
-    })
+impl From<&PontoAtribuido> for PontoDaFuncionalidade {
+    fn from(p: &PontoAtribuido) -> Self {
+        Self {
+            nome: p.nome.clone(),
+            chave: p.chave.clone(),
+            tipo: p.tipo,
+            arquivo: p.evidencia.arquivo.to_string(),
+            linha_inicial: p.evidencia.linhas.inicio,
+            linha_final: p.evidencia.linhas.fim,
+            trecho: p.evidencia.trecho.clone(),
+            fora_da_lista: p.chave.is_none(),
+        }
+    }
 }
 
-/// Cria a explicação (fluxo `explicar`) de uma funcionalidade do catálogo, com a
-/// entrada preenchida e ligada ao item.
-pub fn explicar_funcionalidade(
-    dados: &DiretorioDados,
-    projeto: &str,
-    funcionalidade: &str,
-) -> Result<AnaliseCriada, String> {
-    let ambiente = ambiente(dados, projeto)?;
-    let id = IdFuncionalidade::analisar(funcionalidade.trim())
-        .map_err(|_| format!("\"{funcionalidade}\" não é uma funcionalidade (F-<SIGLA>-NNN)"))?;
-    let analise = cba_tools::mapear::criar_explicacao(&ambiente, &id).map_err(|e| e.to_string())?;
-    Ok(AnaliseCriada {
-        prompt_inicial: prompt_de_inicio(&analise.id),
-        analise: AnaliseResumo::from(&analise),
-    })
-}
-
-/// Funcionalidade na lista da tela do projeto.
+/// Funcionalidade do mapa, como a tela mostra.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FuncionalidadeVista {
     pub id: String,
     pub nome: String,
+    pub area: String,
+    pub area_nome: String,
     pub descricao: String,
     pub atores: Vec<String>,
-    /// Nomes dos pontos de entrada.
-    pub pontos: Vec<String>,
-    pub situacao: SituacaoNoCatalogo,
+    pub pontos: Vec<PontoDaFuncionalidade>,
+    pub dados_lidos: Vec<String>,
+    pub dados_gravados: Vec<String>,
+    pub relacionadas: Vec<String>,
+    /// `pendente` (a revisar), `aceita`, `descartada` ou `juntada`.
+    pub situacao: SituacaoFuncionalidade,
+    /// Na juntada: a funcionalidade que a recebeu.
+    pub juntada_em: Option<String>,
+    pub editada: bool,
     /// Documento negocial aprovado, relativo à raiz da base (para abrir na Base).
     pub documento: Option<String>,
     /// Análise de explicação ligada (a mais recente), se houver.
     pub explicacao: Option<String>,
+    /// Nenhum ponto de entrada dela existe mais no mapa estrutural.
+    pub sem_ponto_de_entrada: bool,
 }
 
-impl From<&ItemCatalogo> for FuncionalidadeVista {
-    fn from(i: &ItemCatalogo) -> Self {
-        Self {
-            id: i.id.to_string(),
-            nome: i.nome.clone(),
-            descricao: i.descricao.clone(),
-            atores: i.atores.clone(),
-            pontos: i.pontos.iter().map(|p| p.nome.clone()).collect(),
-            situacao: i.situacao,
-            documento: i.documento.as_ref().map(ToString::to_string),
-            explicacao: i.explicacao.as_ref().map(ToString::to_string),
-        }
-    }
-}
-
-/// Área do catálogo, com as funcionalidades dela.
+/// Área do mapa, com as funcionalidades dela.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AreaVista {
@@ -111,60 +97,7 @@ pub struct AreaVista {
     pub funcionalidades: Vec<FuncionalidadeVista>,
 }
 
-/// O catálogo de funcionalidades do projeto, por área.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CatalogoVista {
-    pub areas: Vec<AreaVista>,
-    pub total: usize,
-    pub documentadas: usize,
-    /// Documento do catálogo (`funcionalidades/catalogo.md`), relativo à base,
-    /// quando existe.
-    pub documento: Option<String>,
-    /// Última análise de mapeamento aprovada.
-    pub origem: Option<String>,
-}
-
-pub fn catalogo_funcionalidades(
-    dados: &DiretorioDados,
-    projeto: &str,
-) -> Result<CatalogoVista, String> {
-    let ambiente = ambiente(dados, projeto)?;
-    let catalogo = Catalogo::carregar(&ambiente.kb).map_err(|e| e.to_string())?;
-    let mut areas: Vec<AreaVista> = Vec::new();
-    for item in catalogo.ordenadas() {
-        let mut vista = FuncionalidadeVista::from(item);
-        vista.documento = item
-            .documento
-            .as_ref()
-            .map(|d| ambiente.kb.na_base(d).to_string());
-        match areas.last_mut() {
-            Some(a) if a.area == item.area => a.funcionalidades.push(vista),
-            _ => areas.push(AreaVista {
-                area: item.area.clone(),
-                nome: item.area_nome.clone(),
-                funcionalidades: vec![vista],
-            }),
-        }
-    }
-    let documento = layout::catalogo();
-    Ok(CatalogoVista {
-        total: catalogo.funcionalidades.len(),
-        documentadas: catalogo
-            .funcionalidades
-            .iter()
-            .filter(|i| i.documentada())
-            .count(),
-        documento: ambiente
-            .kb
-            .existe(&documento)
-            .then(|| ambiente.kb.na_base(&documento).to_string()),
-        origem: catalogo.origem.as_ref().map(ToString::to_string),
-        areas,
-    })
-}
-
-/// Ponto de entrada sem tratamento, para a tela da análise.
+/// Ponto do mapa estrutural (sem tratamento, na completude).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PontoVista {
@@ -187,8 +120,20 @@ impl From<PontoEntrada> for PontoVista {
     }
 }
 
-/// Completude de uma análise de mapeamento: os pontos do escopo e os que ainda
-/// não têm funcionalidade nem justificativa.
+/// Ponto justificado sem funcionalidade.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JustificadoVista {
+    pub chave: String,
+    pub tipo: TipoEntrada,
+    pub nome: String,
+    pub arquivo: String,
+    pub motivo: MotivoSemFuncionalidade,
+    pub justificativa: String,
+}
+
+/// Pontos do mapa estrutural e os que ainda não têm funcionalidade nem
+/// justificativa.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CompletudeVista {
@@ -196,50 +141,211 @@ pub struct CompletudeVista {
     pub sem_tratamento: Vec<PontoVista>,
 }
 
-pub fn completude_do_mapa(
+/// O mapa de funcionalidades do projeto.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MapaVista {
+    pub areas: Vec<AreaVista>,
+    /// Descartadas e juntadas (o identificador não volta; a descartada pode
+    /// voltar a revisar).
+    pub fechadas: Vec<FuncionalidadeVista>,
+    pub total: usize,
+    pub pendentes: usize,
+    pub documentadas: usize,
+    pub justificados: Vec<JustificadoVista>,
+    /// Sem ela, o mapa estrutural do projeto não pôde ser lido (`erro_completude`).
+    pub completude: Option<CompletudeVista>,
+    pub erro_completude: Option<String>,
+    /// `funcionalidades/mapa.md`, relativo à base, quando existe.
+    pub documento: Option<String>,
+    pub versao: u64,
+}
+
+fn vista_da(
+    f: &Funcionalidade,
+    kb: &cba_kb::Projeto,
+    chaves: Option<&BTreeSet<String>>,
+) -> FuncionalidadeVista {
+    FuncionalidadeVista {
+        id: f.id.to_string(),
+        nome: f.nome.clone(),
+        area: f.area.clone(),
+        area_nome: f.area_nome.clone(),
+        descricao: f.descricao.clone(),
+        atores: f.atores.clone(),
+        pontos: f.pontos.iter().map(PontoDaFuncionalidade::from).collect(),
+        dados_lidos: f.dados_lidos.clone(),
+        dados_gravados: f.dados_gravados.clone(),
+        relacionadas: f.relacionadas.iter().map(ToString::to_string).collect(),
+        situacao: f.situacao,
+        juntada_em: f.juntada_em.as_ref().map(ToString::to_string),
+        editada: f.editada,
+        documento: f.documento.as_ref().map(|d| kb.na_base(d).to_string()),
+        explicacao: f.explicacao.as_ref().map(ToString::to_string),
+        sem_ponto_de_entrada: chaves.is_some_and(|c| mapear::sem_ponto_de_entrada(f, c)),
+    }
+}
+
+fn vista(
+    mapa: &MapaFuncionalidades,
+    kb: &cba_kb::Projeto,
+    estrutural: Result<Vec<PontoEntrada>, String>,
+) -> MapaVista {
+    let (completude, erro_completude, chaves) = match estrutural {
+        Ok(pontos) => {
+            let chaves: BTreeSet<String> = pontos.iter().map(|p| p.chave.clone()).collect();
+            let faltam = mapear::nao_mapeados(mapa, &pontos)
+                .into_iter()
+                .cloned()
+                .map(PontoVista::from)
+                .collect();
+            (
+                Some(CompletudeVista {
+                    total: pontos.len(),
+                    sem_tratamento: faltam,
+                }),
+                None,
+                Some(chaves),
+            )
+        }
+        Err(e) => (None, Some(e), None),
+    };
+    let mut areas: Vec<AreaVista> = Vec::new();
+    for f in mapa.ordenadas() {
+        let v = vista_da(f, kb, chaves.as_ref());
+        match areas.last_mut() {
+            Some(a) if a.area == f.area => a.funcionalidades.push(v),
+            _ => areas.push(AreaVista {
+                area: f.area.clone(),
+                nome: f.area_nome.clone(),
+                funcionalidades: vec![v],
+            }),
+        }
+    }
+    let documento = layout::mapa_de_funcionalidades();
+    let fechadas = mapa
+        .funcionalidades
+        .iter()
+        .filter(|f| !f.aberta())
+        .map(|f| vista_da(f, kb, None))
+        .collect();
+    MapaVista {
+        fechadas,
+        total: mapa.abertas().count(),
+        pendentes: mapa.pendentes(),
+        documentadas: mapa.abertas().filter(|f| f.documento.is_some()).count(),
+        justificados: mapa
+            .pontos_justificados
+            .iter()
+            .map(|j| JustificadoVista {
+                chave: j.chave.clone(),
+                tipo: j.tipo,
+                nome: j.nome.clone(),
+                arquivo: j.arquivo.clone(),
+                motivo: j.motivo,
+                justificativa: j.justificativa.clone(),
+            })
+            .collect(),
+        completude,
+        erro_completude,
+        documento: kb
+            .existe(&documento)
+            .then(|| kb.na_base(&documento).to_string()),
+        versao: mapa.versao,
+        areas,
+    }
+}
+
+pub fn mapa_funcionalidades(dados: &DiretorioDados, projeto: &str) -> Result<MapaVista, String> {
+    let ambiente = ambiente(dados, projeto)?;
+    let mapa = MapaFuncionalidades::carregar(&ambiente.kb).map_err(|e| e.to_string())?;
+    Ok(vista(
+        &mapa,
+        &ambiente.kb,
+        mapear::pontos_do_projeto(&ambiente),
+    ))
+}
+
+pub fn revisar_mapa(
     dados: &DiretorioDados,
     projeto: &str,
-    analise: &str,
-) -> Result<CompletudeVista, String> {
+    revisao: RevisaoDoMapa,
+) -> Result<MapaVista, String> {
     let ambiente = ambiente(dados, projeto)?;
-    let id = cba_kb::Id::analisar(analise.trim())
-        .map_err(|_| format!("\"{analise}\" não é uma análise (A-NNNN)"))?;
-    let analise = ambiente.analises.carregar(&id).map_err(|e| e.to_string())?;
-    let (escopo, faltam) =
-        cba_tools::mapear::completude(&ambiente, &analise).map_err(|e| e.to_string())?;
-    Ok(CompletudeVista {
-        total: escopo.len(),
-        sem_tratamento: faltam.into_iter().map(PontoVista::from).collect(),
+    let alterado = mapear::revisar_mapa(&ambiente.base, &ambiente.kb, dados, revisao)
+        .map_err(|e| e.to_string())?;
+    for a in &alterado.avisos {
+        tracing::warn!(aviso = %a, "revisão do mapa");
+    }
+    Ok(vista(
+        &alterado.mapa,
+        &ambiente.kb,
+        mapear::pontos_do_projeto(&ambiente),
+    ))
+}
+
+/// Cria a explicação (fluxo `explicar`) de uma funcionalidade do mapa, com a
+/// entrada preenchida e ligada a ela.
+pub fn explicar_funcionalidade(
+    dados: &DiretorioDados,
+    projeto: &str,
+    funcionalidade: &str,
+) -> Result<AnaliseCriada, String> {
+    let ambiente = ambiente(dados, projeto)?;
+    let id = IdFuncionalidade::analisar(funcionalidade.trim())
+        .map_err(|_| format!("\"{funcionalidade}\" não é uma funcionalidade (F-<SIGLA>-NNN)"))?;
+    let analise = mapear::criar_explicacao(&ambiente, &id).map_err(|e| e.to_string())?;
+    Ok(AnaliseCriada {
+        prompt_inicial: prompt_de_inicio(&analise.id),
+        analise: AnaliseResumo::from(&analise),
     })
+}
+
+/// Exporta o documento do mapa em Markdown ou Word, com tudo (evidências e
+/// trechos citados).
+pub fn exportar_mapa(
+    dados: &DiretorioDados,
+    projeto: &str,
+    destino: &str,
+    formato: cba_tools::revisao::Formato,
+) -> Result<String, String> {
+    let ambiente = ambiente(dados, projeto)?;
+    cba_tools::revisao::exportar_mapa(
+        &ambiente,
+        std::path::Path::new(destino),
+        formato,
+        &Default::default(),
+    )
+    .map(|p| p.display().to_string())
+    .map_err(|e| e.to_string())
 }
 
 // ---------------------------------------------------------------------------
 // Comandos
 
 #[tauri::command]
-pub async fn criar_analise_de_mapeamento_app(
-    projeto: String,
-    pasta: Option<String>,
-    area: Option<String>,
-    entrada: Option<String>,
-) -> Result<AnaliseCriada, String> {
+pub async fn mapa_funcionalidades_projeto(projeto: String) -> Result<MapaVista, String> {
     let dados = dados()?;
-    bloqueante(move || {
-        criar_analise_de_mapeamento(
-            &dados,
-            &projeto,
-            pasta.as_deref(),
-            area.as_deref(),
-            entrada.as_deref(),
-        )
-    })
-    .await
+    bloqueante(move || mapa_funcionalidades(&dados, &projeto)).await
 }
 
 #[tauri::command]
-pub async fn catalogo_funcionalidades_projeto(projeto: String) -> Result<CatalogoVista, String> {
+pub async fn revisar_mapa_projeto(
+    projeto: String,
+    revisao: RevisaoDoMapa,
+) -> Result<MapaVista, String> {
     let dados = dados()?;
-    bloqueante(move || catalogo_funcionalidades(&dados, &projeto)).await
+    bloqueante(move || revisar_mapa(&dados, &projeto, revisao)).await
+}
+
+/// Pedido que abre a sessão de mapeamento no terminal do Claude.
+#[tauri::command]
+pub fn pedido_de_mapeamento(
+    pasta: Option<String>,
+    area: Option<String>,
+    orientacao: Option<String>,
+) -> String {
+    mapear::pedido_de_mapeamento(pasta.as_deref(), area.as_deref(), orientacao.as_deref())
 }
 
 #[tauri::command]
@@ -252,41 +358,13 @@ pub async fn explicar_funcionalidade_app(
 }
 
 #[tauri::command]
-pub async fn completude_mapa_analise(
-    projeto: String,
-    analise: String,
-) -> Result<CompletudeVista, String> {
-    let dados = dados()?;
-    bloqueante(move || completude_do_mapa(&dados, &projeto, &analise)).await
-}
-
-/// Exporta o catálogo do projeto em Markdown ou Word, com tudo (evidências e
-/// trechos citados).
-pub fn exportar_catalogo(
-    dados: &DiretorioDados,
-    projeto: &str,
-    destino: &str,
-    formato: cba_tools::revisao::Formato,
-) -> Result<String, String> {
-    let ambiente = ambiente(dados, projeto)?;
-    cba_tools::revisao::exportar_catalogo(
-        &ambiente,
-        std::path::Path::new(destino),
-        formato,
-        &Default::default(),
-    )
-    .map(|p| p.display().to_string())
-    .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub async fn exportar_catalogo_projeto(
+pub async fn exportar_mapa_projeto(
     projeto: String,
     destino: String,
     formato: cba_tools::revisao::Formato,
 ) -> Result<String, String> {
     let dados = dados()?;
-    bloqueante(move || exportar_catalogo(&dados, &projeto, &destino, formato)).await
+    bloqueante(move || exportar_mapa(&dados, &projeto, &destino, formato)).await
 }
 
 #[cfg(test)]

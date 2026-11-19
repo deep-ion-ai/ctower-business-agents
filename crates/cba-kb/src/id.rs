@@ -339,7 +339,7 @@ id_sequencial!(
 /// (#208). A sigla é a da área, como nas regras (`RN-<SIGLA>-NNN`): de 1 a 10
 /// caracteres `A-Z0-9`. A numeração é por sigla, sequencial por projeto e nunca
 /// reaproveitada. A funcionalidade vive no estado do catálogo
-/// (`funcionalidades/catalogo.estado.json`) e nas análises do fluxo `mapear`;
+/// (`funcionalidades/mapa.estado.json`);
 /// rodar o mapeamento de novo mantém o identificador das que continuam
 /// existindo.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]

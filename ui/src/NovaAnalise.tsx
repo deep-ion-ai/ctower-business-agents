@@ -29,8 +29,6 @@ const ENTRADA: Record<Fluxo, { rotulo: string; exemplo: string }> = {
   // Histórias e cenários têm formulário próprio (NovaHistorias), com a análise de origem.
   historias: { rotulo: "Pedido", exemplo: "" },
   cenarios: { rotulo: "Pedido", exemplo: "" },
-  // O mapeamento tem formulário próprio (NovoMapeamento), com a pasta e a área.
-  mapear: { rotulo: "Orientação", exemplo: "" },
 };
 
 /**

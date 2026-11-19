@@ -1,54 +1,57 @@
-//! Fluxo "Mapear funcionalidades" (#208): o inventário das funcionalidades do
-//! projeto em linguagem de negócio, a partir do código.
+//! Mapa de funcionalidades do projeto (#208): o inventário das funcionalidades em
+//! linguagem de negócio, a partir do código. É um cadastro do projeto
+//! ([`MapaFuncionalidades`], em `funcionalidades/mapa.estado.json`), não uma
+//! análise: as ferramentas não recebem `analise`, e cada sessão de mapeamento
+//! continua o mesmo mapa.
 //!
+//! - `iniciar_mapeamento` (só leitura): o roteiro, o recorte (projeto, pasta ou
+//!   área), as áreas do projeto e o que o mapa já tem.
 //! - `pontos_de_entrada` (só leitura): os pontos de entrada do mapa estrutural no
-//!   escopo da análise ([`cba_index::Mapa::pontos_de_entrada`]), com o que já foi
-//!   feito com cada um (atribuído, justificado ou sem tratamento).
+//!   recorte ([`cba_index::Mapa::pontos_de_entrada`]), com o que já foi feito com
+//!   cada um (atribuído, justificado ou sem tratamento).
 //! - `registrar_funcionalidade`: uma funcionalidade com nome de negócio, área,
 //!   descrição, atores, pontos de entrada (cada um com evidência conferida contra
 //!   o código), dados lidos e gravados e relacionadas. Sem ponto de entrada com
-//!   evidência válida, é recusada. O identificador (`F-<SIGLA>-NNN`) é o do
-//!   catálogo quando a funcionalidade já existe nele (pelo `id` informado ou por
-//!   um ponto de entrada em comum); senão, o próximo da sigla da área.
+//!   evidência válida, é recusada. O identificador (`F-<SIGLA>-NNN`) é o
+//!   informado, o da funcionalidade que já tem um dos pontos ou o próximo da
+//!   sigla da área.
 //! - `tratar_ponto_de_entrada`: atribui um ponto do mapa a uma funcionalidade já
 //!   registrada ou o justifica (código morto, utilitário, outro motivo).
+//! - `concluir_mapeamento` (só leitura): **completude, sem IA**: cruza os pontos
+//!   do recorte com os atribuídos e os justificados ([`nao_mapeados`]) e recusa
+//!   enquanto sobrar algum.
 //!
-//! **Completude, sem IA:** `concluir_analise` cruza os pontos do mapa no escopo
-//! com os atribuídos e os justificados ([`nao_mapeados`]) e recusa enquanto
-//! sobrar algum.
-//!
-//! **Catálogo:** a aprovação funde as funcionalidades aceitas no catálogo
-//! ([`cba_core::catalogo::Catalogo::fundir`]) e remonta
-//! `funcionalidades/catalogo.md` ([`gravar_catalogo`]). A aprovação de uma
-//! explicação ligada a uma funcionalidade grava o documento negocial em
-//! `funcionalidades/<area>/<tema>/negocial.md` e o liga ao item
+//! A cada alteração, `funcionalidades/mapa.md` é remontado ([`gravar_documento`])
+//! e o app é avisado ([`Mudanca::Funcionalidade`], alvo [`ALVO_MAPA`]). A revisão
+//! (aceitar, descartar, editar, juntar, dividir) é do analista, no app. A
+//! aprovação de uma explicação ligada a uma funcionalidade grava o documento
+//! negocial em `funcionalidades/<area>/<tema>/negocial.md` e o liga a ela
 //! ([`ligar_explicacao`]).
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
 
 use cba_core::ambiente::Ambiente;
-use cba_core::analise::{Analise, ErroModelo, Fluxo};
+use cba_core::analise::{Analise, Fluxo};
 use cba_core::analises::NovaAnalise;
-use cba_core::catalogo::{Catalogo, ItemCatalogo};
-use cba_core::eventos::Mudanca;
+use cba_core::eventos::{ALVO_MAPA, DiarioEventos, Evento, Mudanca, Notificador};
 use cba_core::funcionalidades::{
-    EscopoMapa, Funcionalidade, MotivoSemFuncionalidade, NovaFuncionalidade, PontoAtribuido,
-    PontoJustificado, SituacaoFuncionalidade,
+    ErroAlteracaoMapa, ErroMapa, EscopoMapa, Funcionalidade, MapaFuncionalidades,
+    MotivoSemFuncionalidade, NovaFuncionalidade, PontoAtribuido, PontoJustificado,
+    SituacaoFuncionalidade,
 };
 use cba_docs::{
     Citacao, Conteudo, FUNCIONALIDADES_MAPEADAS, INDICE_CATALOGO, NAO_MAPEADOS, Templates, Texto,
 };
 use cba_index::{Mapa, PontoEntrada};
 use cba_kb::frontmatter::{
-    Area, FrontmatterCatalogo, FrontmatterFuncionalidade, StatusAnalise, TipoDocumento,
+    Area, FrontmatterFuncionalidade, FrontmatterMapa, StatusAnalise, TipoDocumento,
 };
-use cba_kb::{Base, CaminhoRelativo, Documento, Id, IdFuncionalidade, layout, slug};
+use cba_kb::{Base, CaminhoRelativo, Documento, IdFuncionalidade, layout, slug};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::aprovacao::sigla_do_slug;
-use crate::comum;
 use crate::documento::citacao;
 use crate::evidencias::{self, ArquivoDoProjeto, EvidenciaCitada};
 use crate::fontes;
@@ -57,6 +60,9 @@ use crate::registro::{ErroFerramenta, Ferramenta, Saida, ler_argumentos};
 
 /// Arquivo do documento negocial dentro da pasta da funcionalidade.
 pub const ARQUIVO_NEGOCIAL: &str = "negocial.md";
+
+/// Roteiro do mapeamento, devolvido por `iniciar_mapeamento`.
+const ROTEIRO: &str = include_str!("../textos/roteiros/mapear.md");
 
 fn em_uma_linha(texto: &str) -> String {
     texto.split_whitespace().collect::<Vec<_>>().join(" ")
@@ -100,48 +106,245 @@ pub fn resolver_area(areas: &[Area], texto: &str) -> Option<AreaResolvida> {
     )
 }
 
-fn areas_do_projeto(ambiente: &Ambiente) -> Vec<Area> {
-    ambiente
-        .kb
-        .ler_projeto()
+pub fn areas_do_projeto(kb: &cba_kb::Projeto) -> Vec<Area> {
+    kb.ler_projeto()
         .map(|d| d.frontmatter.areas)
         .unwrap_or_default()
 }
 
 // ---------------------------------------------------------------------------
-// Catálogo e pontos de entrada
+// Estado
 
-fn catalogo(ambiente: &Ambiente) -> Result<Catalogo, ErroFerramenta> {
-    Catalogo::carregar(&ambiente.kb).map_err(|e| ErroFerramenta::Interno(e.to_string()))
+/// O mapa do projeto.
+pub fn mapa(ambiente: &Ambiente) -> Result<MapaFuncionalidades, ErroFerramenta> {
+    MapaFuncionalidades::carregar(&ambiente.kb).map_err(|e| ErroFerramenta::Interno(e.to_string()))
 }
 
-fn exigir_fluxo(analise: &Analise) -> Result<(), ErroFerramenta> {
-    if analise.fluxo == Fluxo::Mapear {
-        Ok(())
-    } else {
-        Err(comum::recusa(ErroModelo::ForaDoFluxoDeMapear(
-            analise.id.clone(),
-        )))
+fn erro_da_alteracao(e: ErroAlteracaoMapa) -> ErroFerramenta {
+    match e {
+        ErroAlteracaoMapa::Recusa(r) => ErroFerramenta::Recusa(r.to_string()),
+        ErroAlteracaoMapa::Arquivo(a) => ErroFerramenta::Interno(a.to_string()),
     }
 }
 
-/// Pontos de entrada do mapa no escopo da análise. No escopo de uma área, contam
-/// os pontos que o catálogo já põe nela e os que a análise atribuiu ou justificou.
+/// Mapa alterado: o estado gravado, o resultado e, se o documento não pôde ser
+/// remontado, o aviso.
+pub struct Alterado<T> {
+    pub mapa: MapaFuncionalidades,
+    pub resultado: T,
+    pub avisos: Vec<String>,
+}
+
+/// Avisa o app de que o mapa mudou (a tela relê o estado). Só identificadores.
+pub fn notificar(dados: &cba_core::dados::DiretorioDados, projeto: &str, versao: u64) {
+    let evento = Evento {
+        quando_ms: cba_core::tempo::agora_ms(),
+        projeto: projeto.to_owned(),
+        analise: ALVO_MAPA.to_owned(),
+        mudanca: Mudanca::Funcionalidade,
+        versao,
+        processo: std::process::id(),
+    };
+    if let Err(e) = DiarioEventos::em(dados.eventos()).notificar(&evento) {
+        tracing::warn!(erro = %e.kind(), "diário de eventos: falha ao notificar o mapa");
+    }
+}
+
+/// Altera o mapa sob a trava, remonta o documento e avisa o app.
+pub fn alterar_no_projeto<T>(
+    base: &Base,
+    kb: &cba_kb::Projeto,
+    dados: &cba_core::dados::DiretorioDados,
+    f: impl FnOnce(&mut MapaFuncionalidades, u64) -> Result<T, ErroMapa>,
+) -> Result<Alterado<T>, ErroAlteracaoMapa> {
+    let (mapa, resultado) = MapaFuncionalidades::alterar(kb, f)?;
+    let avisos = match gravar_documento(base, kb, &mapa) {
+        Ok(a) => a,
+        Err(e) => {
+            tracing::warn!("documento do mapa não remontado");
+            vec![format!("o documento do mapa não foi remontado ({e})")]
+        }
+    };
+    notificar(dados, kb.nome(), mapa.versao);
+    Ok(Alterado {
+        mapa,
+        resultado,
+        avisos,
+    })
+}
+
+fn alterar<T>(
+    ambiente: &Ambiente,
+    f: impl FnOnce(&mut MapaFuncionalidades, u64) -> Result<T, ErroMapa>,
+) -> Result<Alterado<T>, ErroFerramenta> {
+    alterar_no_projeto(&ambiente.base, &ambiente.kb, &ambiente.dados, f).map_err(erro_da_alteracao)
+}
+
+/// Pedido que abre uma sessão de mapeamento no Claude Code (a tela "Mapa de
+/// funcionalidades" do app e a avaliação usam o mesmo).
+pub fn pedido_de_mapeamento(
+    pasta: Option<&str>,
+    area: Option<&str>,
+    orientacao: Option<&str>,
+) -> String {
+    let limpo = |t: Option<&str>| {
+        t.map(str::trim)
+            .filter(|t| !t.is_empty())
+            .map(str::to_owned)
+    };
+    let mut argumentos = Vec::new();
+    if let Some(p) = limpo(pasta) {
+        argumentos.push(format!("pasta \"{p}\""));
+    }
+    if let Some(a) = limpo(area) {
+        argumentos.push(format!("area \"{a}\""));
+    }
+    let mut t = String::from(
+        "Mapeie as funcionalidades do projeto pelo ctower: chame a ferramenta \
+         iniciar_mapeamento do cba",
+    );
+    if !argumentos.is_empty() {
+        let _ = write!(t, " com {}", argumentos.join(" e "));
+    }
+    t.push_str(" e siga o roteiro devolvido.");
+    if let Some(o) = limpo(orientacao) {
+        let _ = write!(
+            t,
+            " Passe em `orientacao` o pedido do analista: {}",
+            em_uma_linha(&o)
+        );
+    }
+    t
+}
+
+// ---------------------------------------------------------------------------
+// Revisão do analista
+
+/// Decisão do analista sobre o mapa, na tela "Mapa de funcionalidades".
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(tag = "tipo", rename_all = "kebab-case")]
+pub enum RevisaoDoMapa {
+    /// Aceitar, descartar ou desfazer a decisão.
+    Decidir {
+        funcionalidade: IdFuncionalidade,
+        decisao: cba_core::funcionalidades::DecisaoFuncionalidade,
+    },
+    /// Novo nome, área e descrição; o identificador fica. A área é procurada nas
+    /// do `projeto.md`, como no registro.
+    Editar {
+        funcionalidade: IdFuncionalidade,
+        nome: String,
+        area: String,
+        descricao: String,
+    },
+    /// Junta `origem` em `destino`.
+    Juntar {
+        origem: IdFuncionalidade,
+        destino: IdFuncionalidade,
+    },
+    /// Leva os pontos escolhidos (índices a partir de 0) para uma funcionalidade
+    /// nova.
+    Dividir {
+        funcionalidade: IdFuncionalidade,
+        pontos: Vec<usize>,
+        nome: String,
+        descricao: String,
+    },
+    /// Tira a justificativa de um ponto (volta a ficar sem tratamento).
+    DesfazerJustificativa { ponto: String },
+}
+
+/// Aplica a decisão do analista. Devolve o mapa gravado e, na divisão, o
+/// identificador da funcionalidade nova.
+pub fn revisar_mapa(
+    base: &Base,
+    kb: &cba_kb::Projeto,
+    dados: &cba_core::dados::DiretorioDados,
+    revisao: RevisaoDoMapa,
+) -> Result<Alterado<Option<IdFuncionalidade>>, ErroAlteracaoMapa> {
+    let areas = areas_do_projeto(kb);
+    alterar_no_projeto(base, kb, dados, |m, agora| match revisao {
+        RevisaoDoMapa::Decidir {
+            funcionalidade,
+            decisao,
+        } => m.decidir(&funcionalidade, decisao, agora).map(|_| None),
+        RevisaoDoMapa::Editar {
+            funcionalidade,
+            nome,
+            area,
+            descricao,
+        } => {
+            let resolvida = resolver_area(&areas, &area).ok_or(ErroMapa::CampoVazio("area"))?;
+            m.editar(
+                &funcionalidade,
+                cba_core::funcionalidades::EdicaoFuncionalidade {
+                    nome,
+                    area: resolvida.slug,
+                    area_nome: resolvida.nome,
+                    descricao,
+                },
+                agora,
+            )
+            .map(|_| None)
+        }
+        RevisaoDoMapa::Juntar { origem, destino } => {
+            m.juntar(&origem, &destino, agora).map(|_| None)
+        }
+        RevisaoDoMapa::Dividir {
+            funcionalidade,
+            pontos,
+            nome,
+            descricao,
+        } => m
+            .dividir(&funcionalidade, &pontos, &nome, &descricao, agora)
+            .map(Some),
+        RevisaoDoMapa::DesfazerJustificativa { ponto } => {
+            m.desfazer_justificativa(&ponto);
+            Ok(None)
+        }
+    })
+}
+
+// ---------------------------------------------------------------------------
+// Recorte e completude
+
+/// Recorte a partir da pasta e da área informadas (a área é resolvida contra o
+/// `projeto.md`).
+pub fn escopo(
+    kb: &cba_kb::Projeto,
+    pasta: Option<&str>,
+    area: Option<&str>,
+) -> Result<EscopoMapa, ErroFerramenta> {
+    let pasta = pasta.map(crate::mapa::normalizar).filter(|p| !p.is_empty());
+    let area = match area.map(str::trim).filter(|a| !a.is_empty()) {
+        None => None,
+        Some(a) => Some(
+            resolver_area(&areas_do_projeto(kb), a)
+                .ok_or_else(|| {
+                    ErroFerramenta::Argumentos(format!(
+                        "`area`: `{a}` não tem letras nem dígitos para formar a área"
+                    ))
+                })?
+                .slug,
+        ),
+    };
+    Ok(EscopoMapa { pasta, area })
+}
+
+/// Pontos de entrada do mapa estrutural no recorte. No recorte de uma área, contam
+/// os pontos atribuídos às funcionalidades dela e os justificados que estão na
+/// pasta (a área de um ponto só existe depois que ele foi agrupado).
 pub fn no_escopo(
-    analise: &Analise,
+    mapa: &MapaFuncionalidades,
     pontos: &[PontoEntrada],
-    catalogo: &Catalogo,
+    escopo: &EscopoMapa,
 ) -> Vec<PontoEntrada> {
-    let escopo = analise.escopo.clone().unwrap_or_default();
     let da_area: BTreeSet<&str> = match &escopo.area {
         None => BTreeSet::new(),
-        Some(area) => catalogo
-            .funcionalidades
-            .iter()
+        Some(area) => mapa
+            .abertas()
             .filter(|f| &f.area == area)
-            .flat_map(|f| f.pontos.iter().filter_map(|p| p.chave.as_deref()))
-            .chain(analise.pontos_atribuidos())
-            .chain(analise.pontos_justificados.iter().map(|j| j.chave.as_str()))
+            .flat_map(Funcionalidade::chaves)
             .collect(),
     };
     pontos
@@ -152,35 +355,54 @@ pub fn no_escopo(
         .collect()
 }
 
-/// Pontos do escopo sem funcionalidade aberta nem justificativa.
-pub fn nao_mapeados<'a>(analise: &Analise, pontos: &'a [PontoEntrada]) -> Vec<&'a PontoEntrada> {
-    let atribuidos = analise.pontos_atribuidos();
-    let justificados: BTreeSet<&str> = analise
-        .pontos_justificados
-        .iter()
-        .map(|j| j.chave.as_str())
-        .collect();
+/// Pontos sem funcionalidade aberta nem justificativa.
+pub fn nao_mapeados<'a>(
+    mapa: &MapaFuncionalidades,
+    pontos: &'a [PontoEntrada],
+) -> Vec<&'a PontoEntrada> {
+    let atribuidos = mapa.pontos_atribuidos();
     pontos
         .iter()
         .filter(|p| {
-            !atribuidos.contains(p.chave.as_str()) && !justificados.contains(p.chave.as_str())
+            !atribuidos.contains(p.chave.as_str()) && mapa.justificativa(&p.chave).is_none()
         })
         .collect()
 }
 
-/// Pontos do escopo e os não mapeados, a partir do mapa atual do projeto.
+/// Pontos do recorte e os não mapeados, a partir do mapa estrutural atual.
 pub fn completude(
     ambiente: &Ambiente,
-    analise: &Analise,
+    escopo: &EscopoMapa,
 ) -> Result<(Vec<PontoEntrada>, Vec<PontoEntrada>), ErroFerramenta> {
-    let mapa = fontes::mapa(ambiente)?;
-    let catalogo = catalogo(ambiente)?;
-    let escopo = no_escopo(analise, &mapa.mapa.pontos_de_entrada(), &catalogo);
-    let faltam = nao_mapeados(analise, &escopo)
+    let estrutural = fontes::mapa(ambiente)?;
+    let m = mapa(ambiente)?;
+    let no = no_escopo(&m, &estrutural.mapa.pontos_de_entrada(), escopo);
+    let faltam = nao_mapeados(&m, &no).into_iter().cloned().collect();
+    Ok((no, faltam))
+}
+
+/// Pontos de entrada do mapa estrutural do projeto (o gravado ou, sem ele, um
+/// gerado agora), para o app.
+pub fn pontos_do_projeto(ambiente: &Ambiente) -> Result<Vec<PontoEntrada>, String> {
+    fontes::mapa(ambiente)
+        .map(|m| m.mapa.pontos_de_entrada())
+        .map_err(|e| e.to_string())
+}
+
+/// Chaves dos pontos de entrada do mapa estrutural atual.
+pub fn chaves_do_mapa(mapa: &Mapa) -> BTreeSet<String> {
+    mapa.pontos_de_entrada()
         .into_iter()
-        .cloned()
-        .collect();
-    Ok((escopo, faltam))
+        .map(|p| p.chave)
+        .collect()
+}
+
+/// A funcionalidade perdeu todos os pontos de entrada que o mapa estrutural acha
+/// (e não tem ponto de fora da lista).
+pub fn sem_ponto_de_entrada(f: &Funcionalidade, chaves: &BTreeSet<String>) -> bool {
+    f.pontos
+        .iter()
+        .all(|p| p.chave.as_ref().is_some_and(|c| !chaves.contains(c)))
 }
 
 fn linha_do_ponto(p: &PontoEntrada) -> String {
@@ -229,81 +451,21 @@ fn casar_ponto<'a>(
 }
 
 // ---------------------------------------------------------------------------
-// Criação da análise
+// Explicação de uma funcionalidade
 
-/// Cria uma análise do fluxo `mapear` com o escopo (pasta e área opcionais) e,
-/// se o analista escreveu, a orientação dele. Usada por `iniciar_analise` e pela
-/// tela de nova análise do app.
-pub fn criar_analise_de_mapeamento(
-    ambiente: &Ambiente,
-    pasta: Option<String>,
-    area: Option<String>,
-    entrada: Option<String>,
-    titulo: Option<String>,
-) -> Result<Analise, ErroFerramenta> {
-    let pasta = pasta
-        .map(|p| crate::mapa::normalizar(&p))
-        .filter(|p| !p.is_empty());
-    let area = match area.filter(|a| !a.trim().is_empty()) {
-        None => None,
-        Some(a) => Some(
-            resolver_area(&areas_do_projeto(ambiente), &a)
-                .ok_or_else(|| {
-                    ErroFerramenta::Argumentos(format!(
-                        "`area`: `{a}` não tem letras nem dígitos para formar a área"
-                    ))
-                })?
-                .slug,
-        ),
-    };
-    let escopo = EscopoMapa { pasta, area };
-    let mut texto = format!("Mapear as funcionalidades de {}.", escopo.descricao());
-    if let Some(e) = entrada.filter(|e| !e.trim().is_empty()) {
-        let _ = write!(texto, "\n\n{}", e.trim());
-    }
-    let titulo = match titulo {
-        Some(t) if !t.trim().is_empty() => t,
-        _ => {
-            if escopo.e_projeto() {
-                "Mapa de funcionalidades".to_owned()
-            } else {
-                format!("Mapa de funcionalidades · {}", escopo.descricao())
-            }
-        }
-    };
-    let analise = ambiente.analises.criar_com_demanda(
-        NovaAnalise {
-            fluxo: Fluxo::Mapear,
-            titulo,
-            entrada: texto,
-            analista: None,
-            base: crate::ciclo::versao_do_codigo(ambiente),
-        },
-        None,
-    )?;
-    if escopo.e_projeto() {
-        return Ok(analise);
-    }
-    let registrado = comum::alterar(ambiente, &analise.id, Mudanca::Funcionalidade, |a, _| {
-        a.escopo = Some(escopo);
-        Ok(())
-    })?;
-    Ok(registrado.analise)
-}
-
-/// Entrada de uma explicação aberta a partir do catálogo: o nome, a descrição e
-/// os pontos de entrada da funcionalidade.
-pub fn entrada_da_explicacao(item: &ItemCatalogo) -> String {
+/// Entrada de uma explicação aberta a partir do mapa: o nome, a descrição e os
+/// pontos de entrada da funcionalidade.
+pub fn entrada_da_explicacao(f: &Funcionalidade) -> String {
     let mut t = format!(
         "Explicar a funcionalidade {} · {} (área {}).\n\n{}",
-        item.id,
-        item.nome,
-        item.area_nome,
-        em_uma_linha(&item.descricao)
+        f.id,
+        f.nome,
+        f.area_nome,
+        em_uma_linha(&f.descricao)
     );
-    if !item.pontos.is_empty() {
+    if !f.pontos.is_empty() {
         t.push_str("\n\nPontos de entrada:");
-        for p in &item.pontos {
+        for p in &f.pontos {
             let _ = write!(
                 t,
                 "\n- {} (`{}`, linhas {}-{})",
@@ -314,77 +476,123 @@ pub fn entrada_da_explicacao(item: &ItemCatalogo) -> String {
     t
 }
 
-/// Cria uma análise do fluxo `explicar` para uma funcionalidade do catálogo,
-/// ligada a ela ([`Analise::funcionalidade`]).
+/// Cria uma análise do fluxo `explicar` para uma funcionalidade do mapa, ligada a
+/// ela ([`Analise::funcionalidade`]).
 pub fn criar_explicacao(
     ambiente: &Ambiente,
     id: &IdFuncionalidade,
 ) -> Result<Analise, ErroFerramenta> {
-    let catalogo = catalogo(ambiente)?;
-    let item = catalogo.item(id).ok_or_else(|| {
+    let m = mapa(ambiente)?;
+    let f = m.funcionalidade(id).filter(|f| f.aberta()).ok_or_else(|| {
         ErroFerramenta::Recusa(format!(
-            "a funcionalidade {id} não está no catálogo do projeto; aprove o mapeamento \
-             antes de explicá-la"
+            "a funcionalidade {id} não está no mapa de funcionalidades do projeto"
         ))
     })?;
     let analise = ambiente.analises.criar_com_demanda(
         NovaAnalise {
             fluxo: Fluxo::Explicar,
-            titulo: format!("{} · {}", item.id, item.nome),
-            entrada: entrada_da_explicacao(item),
+            titulo: format!("{} · {}", f.id, f.nome),
+            entrada: entrada_da_explicacao(f),
             analista: None,
             base: crate::ciclo::versao_do_codigo(ambiente),
         },
         None,
     )?;
     let id = id.clone();
-    let registrado = comum::alterar(ambiente, &analise.id, Mudanca::Estado, |a, _| {
+    let registrado = crate::comum::alterar(ambiente, &analise.id, Mudanca::Estado, |a, _| {
         a.funcionalidade = Some(id);
         Ok(())
     })?;
     Ok(registrado.analise)
 }
 
+/// Aprovada uma explicação ligada a uma funcionalidade do mapa, grava o documento
+/// negocial em `funcionalidades/<area>/<tema>/negocial.md` (o corpo do documento
+/// da análise, com o frontmatter de funcionalidade) e liga a funcionalidade a ele.
+/// Devolve o caminho gravado.
+pub fn ligar_explicacao(
+    base: &Base,
+    kb: &cba_kb::Projeto,
+    analise: &Analise,
+) -> Result<Option<CaminhoRelativo>, String> {
+    let Some(id) = &analise.funcionalidade else {
+        return Ok(None);
+    };
+    let m = MapaFuncionalidades::carregar(kb).map_err(|e| e.to_string())?;
+    let Some(f) = m.funcionalidade(id).filter(|f| f.aberta()).cloned() else {
+        return Err(format!(
+            "a funcionalidade {id} não está mais no mapa; o documento negocial ficou só na \
+             análise"
+        ));
+    };
+    let pasta = layout::funcionalidade(&f.area, &f.nome).map_err(|e| e.to_string())?;
+    let destino = pasta.juntar(ARQUIVO_NEGOCIAL).map_err(|e| e.to_string())?;
+    let corpo = kb
+        .ler::<cba_kb::frontmatter::FrontmatterAnalise>(&analise.documento)
+        .map_err(|e| e.to_string())?
+        .corpo;
+    let doc = Documento::novo(
+        FrontmatterFuncionalidade {
+            tipo: TipoDocumento::Funcionalidade,
+            titulo: f.nome.clone(),
+            area: f.area.clone(),
+            tema: slug(&f.nome),
+            status: StatusAnalise::Aprovada,
+            origem: Some(analise.documento.clone()),
+        },
+        corpo,
+    );
+    kb.gravar(&destino, &doc).map_err(|e| e.to_string())?;
+    let (gravado, _) = MapaFuncionalidades::alterar(kb, |m, _| {
+        m.ligar_documento(id, &analise.id, destino.clone());
+        Ok(())
+    })
+    .map_err(|e| e.to_string())?;
+    gravar_documento(base, kb, &gravado)?;
+    Ok(Some(destino))
+}
+
 // ---------------------------------------------------------------------------
-// Documento da análise
+// Documento do mapa
 
 fn rotulo_situacao(f: &Funcionalidade) -> &'static str {
     match f.situacao {
-        SituacaoFuncionalidade::Pendente => "sem decisão",
+        SituacaoFuncionalidade::Pendente => "a revisar",
         SituacaoFuncionalidade::Aceita => "aceita",
         SituacaoFuncionalidade::Descartada => "descartada",
         SituacaoFuncionalidade::Juntada => "juntada",
     }
 }
 
-/// Bloco de uma funcionalidade (do mapa ou do catálogo), com os pontos de entrada
-/// como notas.
-#[allow(clippy::too_many_arguments)]
-fn bloco(
-    secao: &str,
-    id: &IdFuncionalidade,
-    nome: &str,
-    descricao: &str,
-    atores: &[String],
-    pontos: &[PontoAtribuido],
-    lidos: &[String],
-    gravados: &[String],
-    relacionadas: &[IdFuncionalidade],
-    extra: &str,
-) -> Texto {
-    let mut t = format!(
-        "#### {id} · {}\n\n{}",
-        em_uma_linha(nome),
-        em_uma_linha(descricao)
-    );
-    if !extra.is_empty() {
-        let _ = write!(t, "\n\n{extra}");
+fn situacao_no_documento(f: &Funcionalidade) -> String {
+    if f.documento.is_some() {
+        format!("{} · documentada", rotulo_situacao(f))
+    } else {
+        rotulo_situacao(f).to_owned()
     }
-    if !atores.is_empty() {
-        let _ = write!(t, "\n\n**Atores:** {}", atores.join(", "));
+}
+
+/// Bloco de uma funcionalidade, com os pontos de entrada como notas.
+fn bloco(f: &Funcionalidade, caminho: &CaminhoRelativo) -> Texto {
+    let mut t = format!(
+        "#### {} · {}\n\n{}\n\n**Situação:** {}",
+        f.id,
+        em_uma_linha(&f.nome),
+        em_uma_linha(&f.descricao),
+        situacao_no_documento(f)
+    );
+    if let Some(d) = &f.documento {
+        let _ = write!(
+            t,
+            " · documento negocial: {}",
+            cba_docs::link(d.as_str(), caminho, d)
+        );
+    }
+    if !f.atores.is_empty() {
+        let _ = write!(t, "\n\n**Atores:** {}", f.atores.join(", "));
     }
     t.push_str("\n\n**Pontos de entrada:**\n");
-    for p in pontos {
+    for p in &f.pontos {
         let tipo = p
             .tipo
             .map(|t| format!(" ({})", t.nome()))
@@ -396,18 +604,18 @@ fn bloco(
         };
         let _ = write!(t, "\n- `{}`{tipo}{fora}", p.nome);
     }
-    if !lidos.is_empty() {
-        let _ = write!(t, "\n\n**Dados lidos:** {}", lidos.join(", "));
+    if !f.dados_lidos.is_empty() {
+        let _ = write!(t, "\n\n**Dados lidos:** {}", f.dados_lidos.join(", "));
     }
-    if !gravados.is_empty() {
-        let _ = write!(t, "\n\n**Dados gravados:** {}", gravados.join(", "));
+    if !f.dados_gravados.is_empty() {
+        let _ = write!(t, "\n\n**Dados gravados:** {}", f.dados_gravados.join(", "));
     }
-    if !relacionadas.is_empty() {
-        let r: Vec<String> = relacionadas.iter().map(ToString::to_string).collect();
+    if !f.relacionadas.is_empty() {
+        let r: Vec<String> = f.relacionadas.iter().map(ToString::to_string).collect();
         let _ = write!(t, "\n\n**Relacionadas:** {}", r.join(", "));
     }
     let mut citacoes: Vec<Citacao> = Vec::new();
-    for p in pontos {
+    for p in &f.pontos {
         let c = citacao(&p.evidencia);
         if !citacoes
             .iter()
@@ -417,49 +625,63 @@ fn bloco(
         }
     }
     Texto {
-        secao: secao.into(),
+        secao: FUNCIONALIDADES_MAPEADAS.into(),
         texto: t,
         citacoes,
     }
 }
 
-/// Textos das seções `funcionalidades_mapeadas` (por área) e `nao_mapeados` (os
-/// pontos justificados) do documento da análise.
-pub fn textos(analise: &Analise) -> Vec<Texto> {
+/// Textos das seções do documento do mapa: o índice por área, as funcionalidades
+/// e os pontos justificados.
+pub fn textos(mapa: &MapaFuncionalidades, caminho: &CaminhoRelativo) -> Vec<Texto> {
     let mut textos = Vec::new();
-    let mut abertas: Vec<&Funcionalidade> = analise.funcionalidades_no_documento().collect();
-    abertas.sort_by(|a, b| (&a.area_nome, &a.id).cmp(&(&b.area_nome, &b.id)));
-    let mut area_atual: Option<&str> = None;
-    for f in abertas {
-        if area_atual != Some(f.area_nome.as_str()) {
-            textos.push(Texto::novo(
-                FUNCIONALIDADES_MAPEADAS,
-                format!("### {}", f.area_nome),
-            ));
-            area_atual = Some(f.area_nome.as_str());
+    let itens = mapa.ordenadas();
+    if !itens.is_empty() {
+        let mut indice = String::new();
+        let mut area_atual: Option<&str> = None;
+        for f in &itens {
+            if area_atual != Some(f.area_nome.as_str()) {
+                if area_atual.is_some() {
+                    indice.push_str("\n\n");
+                }
+                let _ = write!(
+                    indice,
+                    "### {}\n\n| Funcionalidade | Nome | Situação | Pontos de entrada |\n|---|---|---|---|",
+                    f.area_nome
+                );
+                area_atual = Some(f.area_nome.as_str());
+            }
+            let nome = match &f.documento {
+                Some(d) => cba_docs::link(&f.nome, caminho, d),
+                None => f.nome.clone(),
+            };
+            let _ = write!(
+                indice,
+                "\n| {} | {} | {} | {} |",
+                f.id,
+                nome.replace('|', "\\|"),
+                situacao_no_documento(f),
+                f.pontos.len()
+            );
         }
-        let mut extra = format!("**Situação:** {}", rotulo_situacao(f));
-        if f.do_catalogo {
-            extra.push_str(" · já no catálogo");
+        textos.push(Texto::novo(INDICE_CATALOGO, indice));
+        let mut area_atual: Option<&str> = None;
+        for f in itens {
+            if area_atual != Some(f.area_nome.as_str()) {
+                textos.push(Texto::novo(
+                    FUNCIONALIDADES_MAPEADAS,
+                    format!("### {}", f.area_nome),
+                ));
+                area_atual = Some(f.area_nome.as_str());
+            }
+            textos.push(bloco(f, caminho));
         }
-        textos.push(bloco(
-            FUNCIONALIDADES_MAPEADAS,
-            &f.id,
-            &f.nome,
-            &f.descricao,
-            &f.atores,
-            &f.pontos,
-            &f.dados_lidos,
-            &f.dados_gravados,
-            &f.relacionadas,
-            &extra,
-        ));
     }
-    if !analise.pontos_justificados.is_empty() {
+    if !mapa.pontos_justificados.is_empty() {
         let mut t = String::from(
             "| Ponto de entrada | Tipo | Arquivo | Motivo | Justificativa |\n|---|---|---|---|---|",
         );
-        for j in &analise.pontos_justificados {
+        for j in &mapa.pontos_justificados {
             let _ = write!(
                 t,
                 "\n| `{}` | {} | `{}` | {} | {} |",
@@ -475,109 +697,33 @@ pub fn textos(analise: &Analise) -> Vec<Texto> {
     textos
 }
 
-// ---------------------------------------------------------------------------
-// Documento do catálogo
-
-fn situacao_no_catalogo(item: &ItemCatalogo) -> String {
-    let doc = if item.documentada() {
-        "documentada"
-    } else {
-        "só mapeada"
-    };
-    format!("{doc} · {}", item.situacao.nome())
-}
-
-/// Textos das seções do catálogo: o índice por área e as funcionalidades.
-pub fn textos_do_catalogo(catalogo: &Catalogo, caminho: &CaminhoRelativo) -> Vec<Texto> {
-    let mut textos = Vec::new();
-    let itens = catalogo.ordenadas();
-    if itens.is_empty() {
-        return textos;
-    }
-    let mut indice = String::new();
-    let mut area_atual: Option<&str> = None;
-    for item in &itens {
-        if area_atual != Some(item.area_nome.as_str()) {
-            if area_atual.is_some() {
-                indice.push_str("\n\n");
-            }
-            let _ = write!(
-                indice,
-                "### {}\n\n| Funcionalidade | Nome | Situação | Pontos de entrada |\n|---|---|---|---|",
-                item.area_nome
-            );
-            area_atual = Some(item.area_nome.as_str());
-        }
-        let nome = match &item.documento {
-            Some(d) => cba_docs::link(&item.nome, caminho, d),
-            None => item.nome.clone(),
-        };
-        let _ = write!(
-            indice,
-            "\n| {} | {} | {} | {} |",
-            item.id,
-            nome.replace('|', "\\|"),
-            situacao_no_catalogo(item),
-            item.pontos.len()
-        );
-    }
-    textos.push(Texto::novo(INDICE_CATALOGO, indice));
-    let mut area_atual: Option<&str> = None;
-    for item in itens {
-        if area_atual != Some(item.area_nome.as_str()) {
-            textos.push(Texto::novo(
-                FUNCIONALIDADES_MAPEADAS,
-                format!("### {}", item.area_nome),
-            ));
-            area_atual = Some(item.area_nome.as_str());
-        }
-        let mut extra = format!("**Situação:** {}", situacao_no_catalogo(item));
-        if let Some(d) = &item.documento {
-            let _ = write!(
-                extra,
-                " · documento negocial: {}",
-                cba_docs::link(d.as_str(), caminho, d)
-            );
-        }
-        textos.push(bloco(
-            FUNCIONALIDADES_MAPEADAS,
-            &item.id,
-            &item.nome,
-            &item.descricao,
-            &item.atores,
-            &item.pontos,
-            &item.dados_lidos,
-            &item.dados_gravados,
-            &item.relacionadas,
-            &extra,
-        ));
-    }
-    textos
-}
-
-/// Grava o estado do catálogo e remonta `funcionalidades/catalogo.md`.
-pub fn gravar_catalogo(
+/// Remonta `funcionalidades/mapa.md` a partir do estado. Devolve os avisos.
+pub fn gravar_documento(
     base: &Base,
     kb: &cba_kb::Projeto,
-    catalogo: &Catalogo,
+    mapa: &MapaFuncionalidades,
 ) -> Result<Vec<String>, String> {
-    catalogo.gravar(kb).map_err(|e| e.to_string())?;
-    let caminho = layout::catalogo();
+    let caminho = layout::mapa_de_funcionalidades();
     let projeto = kb
         .ler_projeto()
         .map(|d| (d.frontmatter.id, d.frontmatter.nome))
         .map_err(|e| e.to_string())?;
-    let frontmatter = FrontmatterCatalogo {
-        tipo: TipoDocumento::CatalogoFuncionalidades,
-        titulo: format!("Catálogo de funcionalidades · {}", projeto.1),
+    let pendentes = mapa.pendentes();
+    let frontmatter = FrontmatterMapa {
+        tipo: TipoDocumento::MapaFuncionalidades,
+        titulo: format!("Mapa de funcionalidades · {}", projeto.1),
         projeto: projeto.0,
-        status: StatusAnalise::Aprovada,
-        funcionalidades: catalogo.funcionalidades.len() as u32,
+        status: if pendentes == 0 {
+            StatusAnalise::Aprovada
+        } else {
+            StatusAnalise::EmRevisao
+        },
+        funcionalidades: mapa.abertas().count() as u32,
+        pendentes: pendentes as u32,
         atualizado: Some(cba_core::tempo::hoje()),
-        origem: catalogo.origem.as_ref().map(Id::arquivo),
     };
     let mut conteudo = Conteudo::novo(frontmatter, caminho.clone());
-    conteudo.textos = textos_do_catalogo(catalogo, &caminho);
+    conteudo.textos = textos(mapa, &caminho);
     let (templates, avisos) = Templates::da_base(base);
     let mut saida: Vec<String> = avisos.iter().map(ToString::to_string).collect();
     saida.extend(
@@ -590,95 +736,294 @@ pub fn gravar_catalogo(
     Ok(saida)
 }
 
-/// O que a aprovação de uma análise de mapeamento fez no catálogo.
-#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, Deserialize)]
-pub struct AprovacaoDoMapa {
-    pub fusao: cba_core::catalogo::Fusao,
-    pub catalogo: Option<CaminhoRelativo>,
-    pub avisos: Vec<String>,
+// ---------------------------------------------------------------------------
+// Ferramentas
+
+#[derive(Debug, Default, Deserialize)]
+struct ArgsRecorte {
+    #[serde(default)]
+    pasta: Option<String>,
+    #[serde(default)]
+    area: Option<String>,
 }
 
-/// Funde a análise de mapeamento aprovada no catálogo. `pontos_do_mapa` são as
-/// chaves dos pontos de entrada do mapa atual (sem mapa, os itens fora da análise
-/// ficam como estão).
-pub fn fundir_no_catalogo(
-    base: &Base,
-    kb: &cba_kb::Projeto,
-    analise: &Analise,
-    pontos_do_mapa: Option<&BTreeSet<String>>,
-) -> Result<AprovacaoDoMapa, String> {
-    let mut cat = Catalogo::carregar(kb).map_err(|e| e.to_string())?;
-    let mut avisos = Vec::new();
-    let todos: BTreeSet<String>;
-    let chaves = match pontos_do_mapa {
-        Some(c) => c,
-        None => {
-            avisos.push(
-                "o mapa do projeto não foi lido: as funcionalidades que a análise não \
-                 registrou ficam como estavam no catálogo"
-                    .to_owned(),
-            );
-            todos = cat
-                .funcionalidades
-                .iter()
-                .flat_map(|f| f.pontos.iter().filter_map(|p| p.chave.clone()))
-                .collect();
-            &todos
-        }
-    };
-    let fusao = cat.fundir(analise, chaves, cba_core::tempo::agora_ms());
-    avisos.extend(gravar_catalogo(base, kb, &cat)?);
-    Ok(AprovacaoDoMapa {
-        fusao,
-        catalogo: Some(layout::catalogo()),
-        avisos,
+impl ArgsRecorte {
+    fn escopo(&self, ambiente: &Ambiente) -> Result<EscopoMapa, ErroFerramenta> {
+        escopo(&ambiente.kb, self.pasta.as_deref(), self.area.as_deref())
+    }
+}
+
+fn propriedades_do_recorte() -> serde_json::Map<String, Value> {
+    let mut m = serde_json::Map::new();
+    m.insert(
+        "pasta".into(),
+        json!({
+            "type": "string",
+            "minLength": 1,
+            "description": "Opcional: só os pontos desta pasta do projeto (\"db\", \"backend/src\")."
+        }),
+    );
+    m.insert(
+        "area".into(),
+        json!({
+            "type": "string",
+            "minLength": 1,
+            "description": "Opcional: só os pontos já agrupados em funcionalidades desta área."
+        }),
+    );
+    m
+}
+
+fn schema_do_recorte(mut extra: serde_json::Map<String, Value>) -> Value {
+    let mut props = propriedades_do_recorte();
+    props.append(&mut extra);
+    json!({
+        "type": "object",
+        "properties": props,
+        "additionalProperties": false
     })
 }
 
-/// Aprovada uma explicação ligada a uma funcionalidade do catálogo, grava o
-/// documento negocial em `funcionalidades/<area>/<tema>/negocial.md` (o corpo do
-/// documento da análise, com o frontmatter de funcionalidade) e liga o item a ele.
-/// Devolve o caminho gravado.
-pub fn ligar_explicacao(
-    base: &Base,
-    kb: &cba_kb::Projeto,
-    analise: &Analise,
-) -> Result<Option<CaminhoRelativo>, String> {
-    let Some(id) = &analise.funcionalidade else {
-        return Ok(None);
-    };
-    let mut cat = Catalogo::carregar(kb).map_err(|e| e.to_string())?;
-    let Some(item) = cat.item(id).cloned() else {
-        return Err(format!(
-            "a funcionalidade {id} não está mais no catálogo; o documento negocial ficou só \
-             na análise"
-        ));
-    };
-    let pasta = layout::funcionalidade(&item.area, &item.nome).map_err(|e| e.to_string())?;
-    let destino = pasta.juntar(ARQUIVO_NEGOCIAL).map_err(|e| e.to_string())?;
-    let corpo = kb
-        .ler::<cba_kb::frontmatter::FrontmatterAnalise>(&analise.documento)
-        .map_err(|e| e.to_string())?
-        .corpo;
-    let doc = Documento::novo(
-        FrontmatterFuncionalidade {
-            tipo: TipoDocumento::Funcionalidade,
-            titulo: item.nome.clone(),
-            area: item.area.clone(),
-            tema: slug(&item.nome),
-            status: StatusAnalise::Aprovada,
-            origem: Some(analise.documento.clone()),
-        },
-        corpo,
-    );
-    kb.gravar(&destino, &doc).map_err(|e| e.to_string())?;
-    cat.ligar_documento(id, &analise.id, destino.clone());
-    gravar_catalogo(base, kb, &cat)?;
-    Ok(Some(destino))
+/// Resumo do mapa para o contexto do roteiro.
+fn contexto(ambiente: &Ambiente, m: &MapaFuncionalidades, escopo: &EscopoMapa) -> String {
+    let mut t = String::new();
+    let areas = areas_do_projeto(&ambiente.kb);
+    if areas.is_empty() {
+        t.push_str(
+            "### Áreas do projeto\n\nO `projeto.md` não declara áreas: proponha áreas de \
+             negócio.\n\n",
+        );
+    } else {
+        t.push_str("### Áreas do projeto\n\n");
+        for a in &areas {
+            let _ = writeln!(t, "- {} (`{}`)", a.nome, a.id);
+        }
+        t.push('\n');
+    }
+    match completude(ambiente, escopo) {
+        Ok((no, faltam)) => {
+            let _ = writeln!(
+                t,
+                "### Pontos de entrada no recorte\n\n{} pontos de entrada, {} ainda sem \
+                 funcionalidade nem justificativa.\n",
+                no.len(),
+                faltam.len()
+            );
+        }
+        Err(e) => {
+            let _ = writeln!(
+                t,
+                "### Pontos de entrada no recorte\n\nO mapa estrutural não foi lido ({e}); \
+                 peça ao analista para atualizar o mapa do projeto no app.\n"
+            );
+        }
+    }
+    let itens = m.ordenadas();
+    if itens.is_empty() {
+        t.push_str(
+            "### Mapa atual\n\nO mapa ainda está vazio: todas as funcionalidades são novas.",
+        );
+    } else {
+        let _ = writeln!(
+            t,
+            "### Mapa atual\n\n{} funcionalidades ({} a revisar pelo analista), {} pontos \
+             justificados. Para atualizar uma, registre com `id`.\n",
+            itens.len(),
+            m.pendentes(),
+            m.pontos_justificados.len()
+        );
+        for f in itens {
+            let pontos: Vec<&str> = f.pontos.iter().map(|p| p.nome.as_str()).collect();
+            let _ = writeln!(
+                t,
+                "- {} · {} (área {}, {}): {}",
+                f.id,
+                f.nome,
+                f.area_nome,
+                rotulo_situacao(f),
+                pontos.join(", ")
+            );
+        }
+    }
+    t
 }
 
-// ---------------------------------------------------------------------------
-// Ferramentas
+/// `iniciar_mapeamento`: o roteiro e o contexto do mapa.
+pub fn iniciar_mapeamento() -> Ferramenta {
+    Ferramenta::nova(
+        "iniciar_mapeamento",
+        "Iniciar mapeamento de funcionalidades",
+        "Começa (ou continua) o mapeamento das funcionalidades do projeto a partir do \
+         código e devolve o roteiro: como agrupar os pontos de entrada em \
+         funcionalidades de negócio, as áreas do projeto e o que o mapa já tem. O mapa \
+         é um cadastro do projeto, não uma análise: não há A-NNNN. `pasta` ou `area` \
+         (opcionais) limitam o recorte desta sessão; `orientacao` traz o pedido do \
+         analista. Siga o roteiro devolvido.",
+        {
+            let mut extra = serde_json::Map::new();
+            extra.insert(
+                "orientacao".into(),
+                json!({
+                    "type": "string",
+                    "maxLength": 4000,
+                    "description": "Opcional: a orientação do analista para esta sessão."
+                }),
+            );
+            schema_do_recorte(extra)
+        },
+        |ambiente, args| {
+            #[derive(Deserialize)]
+            struct Args {
+                #[serde(flatten)]
+                recorte: ArgsRecorte,
+                #[serde(default)]
+                orientacao: Option<String>,
+            }
+            let args: Args = ler_argumentos(args)?;
+            let escopo = args.recorte.escopo(ambiente)?;
+            let m = mapa(ambiente)?;
+            let mut argumentos = Vec::new();
+            if let Some(p) = &escopo.pasta {
+                argumentos.push(format!("pasta: \"{p}\""));
+            }
+            if let Some(a) = &escopo.area {
+                argumentos.push(format!("area: \"{a}\""));
+            }
+            let argumentos = if argumentos.is_empty() {
+                String::new()
+            } else {
+                format!(" ({})", argumentos.join(", "))
+            };
+            let orientacao = match args.orientacao.as_deref().map(str::trim) {
+                Some(o) if !o.is_empty() => format!("Orientação do analista:\n\n{o}"),
+                _ => "O analista não deixou orientação.".to_owned(),
+            };
+            let texto = ROTEIRO
+                .replace(
+                    "{{documento}}",
+                    ambiente
+                        .kb
+                        .na_base(&layout::mapa_de_funcionalidades())
+                        .as_str(),
+                )
+                .replace("{{escopo}}", &escopo.descricao())
+                .replace("{{orientacao}}", &orientacao)
+                .replace("{{argumentos}}", &argumentos)
+                .replace("{{contexto}}", &contexto(ambiente, &m, &escopo));
+            Ok(Saida::texto(texto))
+        },
+    )
+    .somente_leitura()
+}
+
+/// `pontos_de_entrada`: os pontos do mapa no recorte e o tratamento de cada um.
+pub fn pontos_de_entrada() -> Ferramenta {
+    Ferramenta::nova(
+        "pontos_de_entrada",
+        "Pontos de entrada",
+        "Lista os pontos de entrada do projeto, calculados do mapa estrutural: telas, \
+         endpoints, lotes, rotinas de banco públicas, serviços e integrações, cada um \
+         com a chave, o tipo, o arquivo e as linhas, e o que já foi feito com ele no \
+         mapa de funcionalidades (atribuído a uma funcionalidade, justificado ou sem \
+         tratamento). `pasta` e `area` limitam o recorte. Use para planejar o \
+         agrupamento e, antes de concluir, com `so_sem_tratamento`, para ver o que \
+         falta. Resposta paginada.",
+        com_paginacao({
+            let mut extra = serde_json::Map::new();
+            extra.insert(
+                "so_sem_tratamento".into(),
+                json!({
+                    "type": "boolean",
+                    "description": "Só os pontos sem funcionalidade nem justificativa."
+                }),
+            );
+            schema_do_recorte(extra)
+        }),
+        |ambiente, args| {
+            #[derive(Deserialize)]
+            struct Args {
+                #[serde(flatten)]
+                recorte: ArgsRecorte,
+                #[serde(default)]
+                so_sem_tratamento: bool,
+                #[serde(flatten)]
+                pagina: ArgsPagina,
+            }
+            let args: Args = ler_argumentos(args)?;
+            let escopo = args.recorte.escopo(ambiente)?;
+            let carregado = fontes::mapa(ambiente)?;
+            let m = mapa(ambiente)?;
+            let no = no_escopo(&m, &carregado.mapa.pontos_de_entrada(), &escopo);
+            let faltam: BTreeSet<String> = nao_mapeados(&m, &no)
+                .into_iter()
+                .map(|p| p.chave.clone())
+                .collect();
+            let itens: Vec<Item> = no
+                .iter()
+                .filter(|p| !args.so_sem_tratamento || faltam.contains(&p.chave))
+                .map(|p| {
+                    let dona = m.dona_do_ponto(&p.chave);
+                    let (situacao, detalhe) = if let Some(f) = dona {
+                        ("atribuido", format!("→ {} · {}", f.id, f.nome))
+                    } else if let Some(j) = m.justificativa(&p.chave) {
+                        (
+                            "justificado",
+                            format!("→ {}: {}", j.motivo.nome(), j.justificativa),
+                        )
+                    } else {
+                        ("sem_tratamento", "sem tratamento".to_owned())
+                    };
+                    Item {
+                        linha: format!(
+                            "- `{}` [{}] linhas {}-{}{} {}",
+                            p.chave,
+                            p.tipo.nome(),
+                            p.linhas.inicio,
+                            p.linhas.fim,
+                            p.detalhe
+                                .as_deref()
+                                .map(|d| format!(" ({})", em_uma_linha(d)))
+                                .unwrap_or_default(),
+                            detalhe
+                        ),
+                        dados: json!({
+                            "chave": p.chave,
+                            "tipo": p.tipo,
+                            "nome": p.nome,
+                            "arquivo": p.arquivo,
+                            "linha_inicial": p.linhas.inicio,
+                            "linha_final": p.linhas.fim,
+                            "detalhe": p.detalhe,
+                            "situacao": situacao,
+                            "funcionalidade": dona.map(|f| f.id.clone()),
+                        }),
+                    }
+                })
+                .collect();
+            let pagina = Pagina::da_lista(itens, args.pagina);
+            let mut texto = format!(
+                "Pontos de entrada em {}: {} no recorte, {} sem tratamento.\n{}\n\n",
+                escopo.descricao(),
+                no.len(),
+                faltam.len(),
+                carregado.nota()
+            );
+            texto.push_str(&pagina.linhas());
+            let _ = writeln!(texto, "\n{}", pagina.rodape());
+            Ok(Saida {
+                texto,
+                dados: Some(json!({
+                    "total": no.len(),
+                    "sem_tratamento": faltam.len(),
+                    "pontos": pagina.dados(),
+                    "pagina": pagina.json(),
+                    "mapa": carregado.json(),
+                })),
+            })
+        },
+    )
+    .somente_leitura()
+}
 
 #[derive(Debug, Deserialize)]
 struct PontoCitado {
@@ -689,7 +1034,6 @@ struct PontoCitado {
 
 #[derive(Debug, Deserialize)]
 struct ArgsRegistrar {
-    analise: String,
     #[serde(default)]
     id: Option<String>,
     nome: String,
@@ -741,155 +1085,24 @@ fn schema_do_ponto() -> Value {
     })
 }
 
-/// `pontos_de_entrada`: os pontos do mapa no escopo da análise e o tratamento de
-/// cada um.
-pub fn pontos_de_entrada() -> Ferramenta {
-    Ferramenta::nova(
-        "pontos_de_entrada",
-        "Pontos de entrada",
-        "Lista os pontos de entrada do projeto no escopo da análise de mapeamento, \
-         calculados do mapa estrutural: telas, endpoints, lotes, rotinas de banco \
-         públicas, serviços e integrações, cada um com a chave, o tipo, o arquivo e as \
-         linhas, e o que já foi feito com ele (atribuído a uma funcionalidade, \
-         justificado ou sem tratamento). Use para planejar o agrupamento em \
-         funcionalidades e, antes de concluir, com `so_sem_tratamento`, para ver o que \
-         falta. Resposta paginada.",
-        com_paginacao(json!({
-            "type": "object",
-            "properties": {
-                "analise": comum::schema_da_analise(),
-                "so_sem_tratamento": {
-                    "type": "boolean",
-                    "description": "Só os pontos sem funcionalidade nem justificativa."
-                }
-            },
-            "required": ["analise"],
-            "additionalProperties": false
-        })),
-        |ambiente, args| {
-            #[derive(Deserialize)]
-            struct Args {
-                analise: String,
-                #[serde(default)]
-                so_sem_tratamento: bool,
-                #[serde(flatten)]
-                pagina: ArgsPagina,
-            }
-            let args: Args = ler_argumentos(args)?;
-            let id = comum::id_da_analise(&args.analise)?;
-            let analise = ambiente.analises.carregar(&id)?;
-            exigir_fluxo(&analise)?;
-            let carregado = fontes::mapa(ambiente)?;
-            let cat = catalogo(ambiente)?;
-            let escopo = no_escopo(&analise, &carregado.mapa.pontos_de_entrada(), &cat);
-            let faltam: BTreeSet<String> = nao_mapeados(&analise, &escopo)
-                .into_iter()
-                .map(|p| p.chave.clone())
-                .collect();
-            let itens: Vec<Item> = escopo
-                .iter()
-                .filter(|p| !args.so_sem_tratamento || faltam.contains(&p.chave))
-                .map(|p| {
-                    let (situacao, detalhe) = if let Some(f) = analise.dona_do_ponto(&p.chave) {
-                        ("atribuido", format!("→ {} · {}", f.id, f.nome))
-                    } else if let Some(j) = analise
-                        .pontos_justificados
-                        .iter()
-                        .find(|j| j.chave == p.chave)
-                    {
-                        (
-                            "justificado",
-                            format!("→ {}: {}", j.motivo.nome(), j.justificativa),
-                        )
-                    } else {
-                        let no_catalogo = cat
-                            .por_chave(&p.chave)
-                            .map(|i| format!("sem tratamento (no catálogo: {} · {})", i.id, i.nome))
-                            .unwrap_or_else(|| "sem tratamento".into());
-                        ("sem_tratamento", no_catalogo)
-                    };
-                    Item {
-                        linha: format!(
-                            "- `{}` [{}] linhas {}-{}{} {}",
-                            p.chave,
-                            p.tipo.nome(),
-                            p.linhas.inicio,
-                            p.linhas.fim,
-                            p.detalhe
-                                .as_deref()
-                                .map(|d| format!(" ({})", em_uma_linha(d)))
-                                .unwrap_or_default(),
-                            detalhe
-                        ),
-                        dados: json!({
-                            "chave": p.chave,
-                            "tipo": p.tipo,
-                            "nome": p.nome,
-                            "arquivo": p.arquivo,
-                            "linha_inicial": p.linhas.inicio,
-                            "linha_final": p.linhas.fim,
-                            "detalhe": p.detalhe,
-                            "situacao": situacao,
-                            "funcionalidade": analise.dona_do_ponto(&p.chave).map(|f| f.id.clone()),
-                            "no_catalogo": cat.por_chave(&p.chave).map(|i| i.id.clone()),
-                        }),
-                    }
-                })
-                .collect();
-            let pagina = Pagina::da_lista(itens, args.pagina);
-            let escopo_txt = analise.escopo.clone().unwrap_or_default().descricao();
-            let mut texto = format!(
-                "Pontos de entrada de {escopo_txt}: {} no total, {} sem tratamento.\n{}\n\n",
-                escopo.len(),
-                faltam.len(),
-                carregado.nota()
-            );
-            texto.push_str(&pagina.linhas());
-            let _ = writeln!(texto, "\n{}", pagina.rodape());
-            Ok(Saida {
-                texto,
-                dados: Some(json!({
-                    "total": escopo.len(),
-                    "sem_tratamento": faltam.len(),
-                    "pontos": pagina.dados(),
-                    "pagina": pagina.json(),
-                    "mapa": carregado.json(),
-                })),
-            })
-        },
-    )
-    .somente_leitura()
-}
-
-/// Identificador para registrar: o informado (do catálogo ou desta análise), o
-/// do item do catálogo que tem um dos pontos ou nenhum (reservar um novo).
+/// Identificador para registrar: o informado (precisa existir no mapa), o da
+/// funcionalidade aberta que já tem um dos pontos ou nenhum (reservar um novo).
 fn escolher_id(
-    analise: &Analise,
-    cat: &Catalogo,
+    m: &MapaFuncionalidades,
     informado: Option<IdFuncionalidade>,
     pontos: &[PontoAtribuido],
-) -> Result<Option<(IdFuncionalidade, bool)>, ErroFerramenta> {
+) -> Result<Option<IdFuncionalidade>, ErroMapa> {
     if let Some(id) = informado {
-        let no_catalogo = cat.item(&id).is_some();
-        if !no_catalogo && analise.funcionalidade(&id).is_none() {
-            return Err(ErroFerramenta::Recusa(format!(
-                "a funcionalidade {id} não existe no catálogo nem nesta análise; para uma \
-                 funcionalidade nova, omita `id` (o identificador é reservado no registro)"
-            )));
+        if m.funcionalidade(&id).is_none() {
+            return Err(ErroMapa::Desconhecida(id));
         }
-        return Ok(Some((id, no_catalogo)));
+        return Ok(Some(id));
     }
-    for chave in pontos.iter().filter_map(|p| p.chave.as_deref()) {
-        if let Some(item) = cat.por_chave(chave) {
-            let livre = analise
-                .funcionalidade(&item.id)
-                .is_none_or(|f| !f.aberta() || f.chaves().any(|c| c == chave));
-            if livre {
-                return Ok(Some((item.id.clone(), true)));
-            }
-        }
-    }
-    Ok(None)
+    Ok(pontos
+        .iter()
+        .filter_map(|p| p.chave.as_deref())
+        .find_map(|c| m.dona_do_ponto(c))
+        .map(|f| f.id.clone()))
 }
 
 /// `registrar_funcionalidade`: uma funcionalidade com os pontos de entrada.
@@ -897,25 +1110,24 @@ pub fn registrar_funcionalidade() -> Ferramenta {
     Ferramenta::nova(
         "registrar_funcionalidade",
         "Registrar funcionalidade",
-        "Registra uma funcionalidade de negócio na análise de mapeamento: `nome` de \
-         negócio (\"Parcelar fatura\", não `PKG_FAT.PRC_PARCELA`), `area` (de preferência \
-         uma área do projeto.md), `descricao` em uma ou duas frases, `atores`, \
-         `pontos_de_entrada` (cada um com o `ponto`, como `pontos_de_entrada` mostra, e a \
-         `evidencia` do trecho que o define), `dados_lidos`, `dados_gravados` e \
-         `relacionadas` (F-<SIGLA>-NNN). Uma funcionalidade é um objetivo do usuário e \
-         pode ter vários pontos de entrada; um ponto fica numa funcionalidade só. Sem \
-         ponto de entrada com evidência válida, é recusada. O identificador é o do \
-         catálogo quando a funcionalidade já existe (informe `id` ou cite um ponto que o \
-         catálogo já atribui a ela); senão, um novo F-<SIGLA>-NNN é reservado. \
-         Registrar de novo com o mesmo `id` substitui a versão anterior.",
+        "Registra uma funcionalidade de negócio no mapa de funcionalidades do projeto: \
+         `nome` de negócio (\"Parcelar fatura\", não `PKG_FAT.PRC_PARCELA`), `area` (de \
+         preferência uma área do projeto.md), `descricao` em uma ou duas frases, \
+         `atores`, `pontos_de_entrada` (cada um com o `ponto`, como `pontos_de_entrada` \
+         mostra, e a `evidencia` do trecho que o define), `dados_lidos`, \
+         `dados_gravados` e `relacionadas` (F-<SIGLA>-NNN). Uma funcionalidade é um \
+         objetivo do usuário e pode ter vários pontos de entrada; um ponto fica numa \
+         funcionalidade só. Sem ponto de entrada com evidência válida, é recusada. \
+         Para atualizar uma funcionalidade do mapa, informe `id` (ou cite um ponto que \
+         já é dela): a nova versão substitui a anterior, com os pontos, e volta para a \
+         revisão do analista. Sem `id`, um novo F-<SIGLA>-NNN é reservado.",
         json!({
             "type": "object",
             "properties": {
-                "analise": comum::schema_da_analise(),
                 "id": {
                     "type": "string",
                     "minLength": 1,
-                    "description": "F-<SIGLA>-NNN de uma funcionalidade do catálogo ou desta análise, para atualizá-la. Omita para uma funcionalidade nova."
+                    "description": "F-<SIGLA>-NNN de uma funcionalidade do mapa, para atualizá-la. Omita para uma funcionalidade nova."
                 },
                 "nome": { "type": "string", "minLength": 1, "maxLength": 200, "description": "Nome de negócio, com verbo quando couber (\"Cancelar fatura\")." },
                 "area": { "type": "string", "minLength": 1, "maxLength": 100, "description": "Área de negócio (\"Cobrança\"). Use as áreas do projeto.md quando houver; senão, proponha uma." },
@@ -937,14 +1149,11 @@ pub fn registrar_funcionalidade() -> Ferramenta {
                     "description": "Funcionalidades relacionadas (F-<SIGLA>-NNN)."
                 }
             },
-            "required": ["analise", "nome", "area", "descricao", "pontos_de_entrada"],
+            "required": ["nome", "area", "descricao", "pontos_de_entrada"],
             "additionalProperties": false
         }),
         |ambiente, args| {
             let args: ArgsRegistrar = ler_argumentos(args)?;
-            let id = comum::id_da_analise(&args.analise)?;
-            let atual = ambiente.analises.carregar(&id)?;
-            exigir_fluxo(&atual)?;
             let informado = args
                 .id
                 .as_deref()
@@ -955,24 +1164,22 @@ pub fn registrar_funcionalidade() -> Ferramenta {
                 .iter()
                 .map(|t| id_da_funcionalidade(t, "relacionadas"))
                 .collect::<Result<Vec<_>, _>>()?;
-            let area = resolver_area(&areas_do_projeto(ambiente), &args.area).ok_or_else(|| {
-                ErroFerramenta::Argumentos(format!(
-                    "`area`: `{}` não tem letras nem dígitos para formar a área",
-                    args.area
-                ))
-            })?;
+            let area =
+                resolver_area(&areas_do_projeto(&ambiente.kb), &args.area).ok_or_else(|| {
+                    ErroFerramenta::Argumentos(format!(
+                        "`area`: `{}` não tem letras nem dígitos para formar a área",
+                        args.area
+                    ))
+                })?;
             if args.pontos_de_entrada.is_empty() {
-                return Err(comum::recusa(ErroModelo::FuncionalidadeSemPontoDeEntrada));
+                return Err(ErroFerramenta::Recusa(
+                    ErroMapa::SemPontoDeEntrada.to_string(),
+                ));
             }
-            let citadas: Vec<EvidenciaCitada> = args
-                .pontos_de_entrada
-                .iter()
-                .map(|p| p.evidencia.clone())
-                .collect();
             let mut recusas = Vec::new();
             let mut evidencias_ok = Vec::new();
-            for (i, c) in citadas.iter().enumerate() {
-                match evidencias::validar(&ambiente.escopo, c) {
+            for (i, p) in args.pontos_de_entrada.iter().enumerate() {
+                match evidencias::validar(&ambiente.escopo, &p.evidencia) {
                     Ok(e) => evidencias_ok.push(e),
                     Err(r) => recusas.push(format!("- pontos_de_entrada[{i}].evidencia ({r})")),
                 }
@@ -983,7 +1190,7 @@ pub fn registrar_funcionalidade() -> Ferramenta {
                      foi registrada. Toda funcionalidade precisa de pontos de entrada com \
                      evidência válida. Corrija e chame de novo:\n{}",
                     recusas.len(),
-                    citadas.len(),
+                    args.pontos_de_entrada.len(),
                     recusas.join("\n")
                 )));
             }
@@ -1020,8 +1227,6 @@ pub fn registrar_funcionalidade() -> Ferramenta {
                     }
                 })
                 .collect();
-            let cat = catalogo(ambiente)?;
-            let escolhido = escolher_id(&atual, &cat, informado, &pontos)?;
             let nova = NovaFuncionalidade {
                 nome: args.nome,
                 area: area.slug.clone(),
@@ -1032,44 +1237,33 @@ pub fn registrar_funcionalidade() -> Ferramenta {
                 dados_lidos: args.dados_lidos,
                 dados_gravados: args.dados_gravados,
                 relacionadas: relacionadas.clone(),
-                do_catalogo: escolhido.as_ref().is_some_and(|(_, c)| *c),
                 sessao: None,
             };
             let sigla = area.sigla.clone();
-            let registrado = comum::alterar(ambiente, &id, Mudanca::Funcionalidade, |a, agora| {
-                let fid = match escolhido {
-                    Some((fid, _)) => fid,
-                    None => {
-                        let maior = ambiente
-                            .analises
-                            .maior_numero(&a.id, |x| x.maior_funcionalidade(&sigla))
-                            .max(a.maior_funcionalidade(&sigla))
-                            .max(cat.maior_numero(&sigla));
-                        IdFuncionalidade::novo(&sigla, maior + 1)
-                            .map_err(|_| ErroModelo::CampoVazio("area"))?
-                    }
+            let alterado = alterar(ambiente, |m, agora| {
+                let fid = match escolher_id(m, informado, &nova.pontos)? {
+                    Some(fid) => fid,
+                    None => m.proximo_id(&sigla)?,
                 };
-                let substituida = a.registrar_funcionalidade(nova, fid.clone(), agora)?;
+                let substituida = m.registrar(nova, fid.clone(), agora)?;
                 Ok((fid, substituida))
             })?;
-            let (fid, substituida) = registrado.resultado.clone();
-            let f = registrado
-                .analise
+            let (fid, substituida) = alterado.resultado.clone();
+            let m = &alterado.mapa;
+            let f = m
                 .funcionalidade(&fid)
                 .ok_or_else(|| ErroFerramenta::Interno(format!("{fid} não foi gravada")))?;
             let desconhecidas: Vec<String> = relacionadas
                 .iter()
-                .filter(|r| registrado.analise.funcionalidade(r).is_none() && cat.item(r).is_none())
+                .filter(|r| m.funcionalidade(r).is_none())
                 .map(ToString::to_string)
                 .collect();
-            let restantes = carregado.as_ref().map(|c| {
-                let escopo = no_escopo(&registrado.analise, &c.mapa.pontos_de_entrada(), &cat);
-                nao_mapeados(&registrado.analise, &escopo).len()
-            });
+            let restantes = carregado
+                .as_ref()
+                .map(|c| nao_mapeados(m, &c.mapa.pontos_de_entrada()).len());
             let mut dados = json!({
                 "funcionalidade": fid,
                 "substituida": substituida,
-                "do_catalogo": f.do_catalogo,
                 "area": { "slug": f.area, "nome": f.area_nome },
                 "pontos_de_entrada": f.pontos.iter().map(|p| json!({
                     "ponto": p.nome,
@@ -1077,16 +1271,19 @@ pub fn registrar_funcionalidade() -> Ferramenta {
                     "tipo": p.tipo,
                     "no_mapa": p.chave.is_some(),
                 })).collect::<Vec<_>>(),
-                "pontos_sem_tratamento": restantes,
+                "pontos_sem_tratamento_no_projeto": restantes,
+                "documento": ambiente.kb.na_base(&layout::mapa_de_funcionalidades()),
             });
             if !desconhecidas.is_empty() {
                 dados["aviso_relacionadas"] = json!(format!(
-                    "relacionadas ainda não registradas nem no catálogo: {}; registre-as \
-                     ou corrija",
+                    "relacionadas ainda não registradas no mapa: {}; registre-as ou corrija",
                     desconhecidas.join(", ")
                 ));
             }
-            Ok(comum::resposta(ambiente, &registrado, dados))
+            if !alterado.avisos.is_empty() {
+                dados["avisos"] = json!(alterado.avisos);
+            }
+            Ok(Saida::json(dados))
         },
     )
 }
@@ -1096,16 +1293,15 @@ pub fn tratar_ponto_de_entrada() -> Ferramenta {
     Ferramenta::nova(
         "tratar_ponto_de_entrada",
         "Tratar ponto de entrada",
-        "Trata um ponto de entrada do mapa que está sem funcionalidade: `atribuir` à \
-         funcionalidade `funcionalidade` (F-<SIGLA>-NNN, já registrada nesta análise; a \
-         evidência é a declaração do ponto no código) ou justificar por que fica sem \
-         funcionalidade, com `motivo` (`codigo_morto`, `utilitario` ou `outro`) e \
-         `justificativa`. Antes de concluir, todo ponto do escopo precisa estar numa \
-         funcionalidade ou justificado.",
+        "Trata um ponto de entrada do mapa estrutural que está sem funcionalidade: \
+         `atribuir` à funcionalidade `funcionalidade` (F-<SIGLA>-NNN, já registrada no \
+         mapa; a evidência é a declaração do ponto no código) ou justificar por que \
+         fica sem funcionalidade, com `motivo` (`codigo_morto`, `utilitario` ou \
+         `outro`) e `justificativa`. Antes de concluir, todo ponto do recorte precisa \
+         estar numa funcionalidade ou justificado.",
         json!({
             "type": "object",
             "properties": {
-                "analise": comum::schema_da_analise(),
                 "ponto": {
                     "type": "string",
                     "minLength": 1,
@@ -1116,13 +1312,12 @@ pub fn tratar_ponto_de_entrada() -> Ferramenta {
                 "motivo": { "type": "string", "enum": ["codigo_morto", "utilitario", "outro"], "description": "No `justificar`." },
                 "justificativa": { "type": "string", "minLength": 1, "maxLength": 1000, "description": "No `justificar`: por que o ponto fica sem funcionalidade (\"lê parâmetros para as rotinas de cobrança\")." }
             },
-            "required": ["analise", "ponto", "tratamento"],
+            "required": ["ponto", "tratamento"],
             "additionalProperties": false
         }),
         |ambiente, args| {
             #[derive(Deserialize)]
             struct Args {
-                analise: String,
                 ponto: String,
                 tratamento: String,
                 #[serde(default)]
@@ -1133,9 +1328,6 @@ pub fn tratar_ponto_de_entrada() -> Ferramenta {
                 justificativa: Option<String>,
             }
             let args: Args = ler_argumentos(args)?;
-            let id = comum::id_da_analise(&args.analise)?;
-            let atual = ambiente.analises.carregar(&id)?;
-            exigir_fluxo(&atual)?;
             let carregado = fontes::mapa(ambiente)?;
             let todos = carregado.mapa.pontos_de_entrada();
             let chave = args.ponto.trim();
@@ -1146,7 +1338,7 @@ pub fn tratar_ponto_de_entrada() -> Ferramenta {
                      funcionalidade por `registrar_funcionalidade`, com a evidência"
                 ))
             })?;
-            let registrado = match args.tratamento.as_str() {
+            let alterado = match args.tratamento.as_str() {
                 "atribuir" => {
                     let fid = id_da_funcionalidade(
                         args.funcionalidade.as_deref().ok_or_else(|| {
@@ -1163,8 +1355,8 @@ pub fn tratar_ponto_de_entrada() -> Ferramenta {
                         nome: ponto.nome.clone(),
                         evidencia,
                     };
-                    comum::alterar(ambiente, &id, Mudanca::Funcionalidade, |a, _| {
-                        a.atribuir_ponto(&fid, atribuido)
+                    alterar(ambiente, |m, agora| {
+                        m.atribuir_ponto(&fid, atribuido, agora)
                     })?
                 }
                 "justificar" => {
@@ -1175,19 +1367,18 @@ pub fn tratar_ponto_de_entrada() -> Ferramenta {
                                 .into(),
                         )
                     })?;
-                    let justificativa = args.justificativa.unwrap_or_default();
                     let justificado = PontoJustificado {
                         chave: ponto.chave.clone(),
                         tipo: ponto.tipo,
                         nome: ponto.nome.clone(),
                         arquivo: ponto.arquivo.clone(),
                         motivo,
-                        justificativa,
+                        justificativa: args.justificativa.unwrap_or_default(),
                         sessao: None,
                         registrado_ms: 0,
                     };
-                    comum::alterar(ambiente, &id, Mudanca::Funcionalidade, |a, agora| {
-                        a.justificar_ponto(PontoJustificado {
+                    alterar(ambiente, |m, agora| {
+                        m.justificar_ponto(PontoJustificado {
                             registrado_ms: agora,
                             ..justificado
                         })
@@ -1199,18 +1390,16 @@ pub fn tratar_ponto_de_entrada() -> Ferramenta {
                     )));
                 }
             };
-            let cat = catalogo(ambiente)?;
-            let escopo = no_escopo(&registrado.analise, &todos, &cat);
-            let restantes = nao_mapeados(&registrado.analise, &escopo).len();
-            Ok(comum::resposta(
-                ambiente,
-                &registrado,
-                json!({
-                    "ponto": ponto.chave,
-                    "tratamento": args.tratamento,
-                    "pontos_sem_tratamento": restantes,
-                }),
-            ))
+            let restantes = nao_mapeados(&alterado.mapa, &todos).len();
+            let mut dados = json!({
+                "ponto": ponto.chave,
+                "tratamento": args.tratamento,
+                "pontos_sem_tratamento_no_projeto": restantes,
+            });
+            if !alterado.avisos.is_empty() {
+                dados["avisos"] = json!(alterado.avisos);
+            }
+            Ok(Saida::json(dados))
         },
     )
 }
@@ -1250,170 +1439,77 @@ fn evidencia_da_declaracao(
     )))
 }
 
-/// No fluxo `mapear`: ao menos uma funcionalidade e nenhum ponto do escopo sem
-/// tratamento.
-pub fn conferir_para_concluir(
-    ambiente: &Ambiente,
-    analise: &Analise,
-) -> Result<(), ErroFerramenta> {
-    let id = &analise.id;
-    if analise.funcionalidades_no_documento().next().is_none() {
-        return Err(ErroFerramenta::Recusa(format!(
-            "a análise {id} ainda não tem funcionalidades. Veja os pontos de entrada com \
-             `pontos_de_entrada`, agrupe-os em funcionalidades de negócio com \
-             `registrar_funcionalidade` e chame `concluir_analise` de novo"
-        )));
-    }
-    let (_, faltam) = completude(ambiente, analise)?;
-    if faltam.is_empty() {
-        return Ok(());
-    }
-    const MOSTRADOS: usize = 30;
-    let mut t = format!(
-        "{} ponto(s) de entrada sem funcionalidade nem justificativa. Para cada um, \
-         atribua a uma funcionalidade (`tratar_ponto_de_entrada` com `atribuir`, ou \
-         `registrar_funcionalidade`), crie uma funcionalidade nova ou justifique \
-         (`tratar_ponto_de_entrada` com `justificar`: código morto, utilitário ou outro \
-         motivo), e chame `concluir_analise` de novo:",
-        faltam.len()
-    );
-    for p in faltam.iter().take(MOSTRADOS) {
-        let _ = write!(t, "\n- {} · chave `{}`", linha_do_ponto(p), p.chave);
-    }
-    if faltam.len() > MOSTRADOS {
-        let _ = write!(
-            t,
-            "\n- … e mais {}; veja todos com `pontos_de_entrada` (so_sem_tratamento: true)",
-            faltam.len() - MOSTRADOS
-        );
-    }
-    Err(ErroFerramenta::Recusa(t))
-}
-
-/// Resumo para `retomar_analise`: o escopo, as funcionalidades, os pontos
-/// justificados e o catálogo atual (para manter os identificadores).
-pub fn para_retomar(ambiente: &Ambiente, analise: &Analise) -> (String, Value) {
-    let mut t = String::from("## Funcionalidades\n\n");
-    let escopo = analise.escopo.clone().unwrap_or_default();
-    let _ = writeln!(t, "Escopo: {}.\n", escopo.descricao());
-    if analise.funcionalidades.is_empty() {
-        t.push_str("Nenhuma funcionalidade registrada.\n\n");
-    }
-    for f in &analise.funcionalidades {
-        let _ = writeln!(
-            t,
-            "### {} · {} [{}{}] (área {})\n\n{}",
-            f.id,
-            f.nome,
-            rotulo_situacao(f),
-            f.juntada_em
-                .as_ref()
-                .map(|j| format!(" em {j}"))
-                .unwrap_or_default(),
-            f.area_nome,
-            f.descricao
-        );
-        for p in &f.pontos {
-            let _ = writeln!(
-                t,
-                "- {} (`{}`:{}){}",
-                p.nome,
-                p.evidencia.arquivo,
-                p.evidencia.linhas.inicio,
-                if p.chave.is_none() {
-                    " · fora da lista do mapa"
-                } else {
-                    ""
+/// `concluir_mapeamento`: confere a completude do recorte.
+pub fn concluir_mapeamento() -> Ferramenta {
+    Ferramenta::nova(
+        "concluir_mapeamento",
+        "Concluir mapeamento",
+        "Confere, sem IA, se todos os pontos de entrada do recorte (`pasta` e `area` \
+         opcionais) estão numa funcionalidade ou justificados. Recusa e lista os que \
+         faltam; quando não falta nenhum, devolve o resumo do mapa para você relatar ao \
+         analista, que revisa as funcionalidades na tela \"Mapa de funcionalidades\" do \
+         app.",
+        schema_do_recorte(serde_json::Map::new()),
+        |ambiente, args| {
+            let args: ArgsRecorte = ler_argumentos(args)?;
+            let escopo = args.escopo(ambiente)?;
+            let m = mapa(ambiente)?;
+            if m.abertas().next().is_none() {
+                return Err(ErroFerramenta::Recusa(
+                    "o mapa ainda não tem funcionalidades. Veja os pontos de entrada com \
+                     `pontos_de_entrada`, agrupe-os em funcionalidades de negócio com \
+                     `registrar_funcionalidade` e chame `concluir_mapeamento` de novo"
+                        .into(),
+                ));
+            }
+            let (no, faltam) = completude(ambiente, &escopo)?;
+            if !faltam.is_empty() {
+                const MOSTRADOS: usize = 30;
+                let mut t = format!(
+                    "{} ponto(s) de entrada de {} sem funcionalidade nem justificativa. \
+                     Para cada um, atribua a uma funcionalidade (`tratar_ponto_de_entrada` \
+                     com `atribuir`, ou `registrar_funcionalidade`), crie uma \
+                     funcionalidade nova ou justifique (`tratar_ponto_de_entrada` com \
+                     `justificar`: código morto, utilitário ou outro motivo), e chame \
+                     `concluir_mapeamento` de novo:",
+                    faltam.len(),
+                    escopo.descricao()
+                );
+                for p in faltam.iter().take(MOSTRADOS) {
+                    let _ = write!(t, "\n- {} · chave `{}`", linha_do_ponto(p), p.chave);
                 }
-            );
-        }
-        t.push('\n');
-    }
-    if !analise.pontos_justificados.is_empty() {
-        t.push_str("### Pontos justificados\n\n");
-        for j in &analise.pontos_justificados {
-            let _ = writeln!(
-                t,
-                "- `{}`: {} · {}",
-                j.chave,
-                j.motivo.nome(),
-                j.justificativa
-            );
-        }
-        t.push('\n');
-    }
-    let cat = Catalogo::carregar(&ambiente.kb).unwrap_or_default();
-    if !cat.funcionalidades.is_empty() {
-        let _ = writeln!(
-            t,
-            "### Catálogo atual ({} funcionalidades)\n\nMantenha os identificadores: \
-             registre com `id` as que continuam existindo.\n",
-            cat.funcionalidades.len()
-        );
-        for i in cat.ordenadas() {
-            let _ = writeln!(
-                t,
-                "- {} · {} (área {}, {})",
-                i.id,
-                i.nome,
-                i.area_nome,
-                i.situacao.nome()
-            );
-        }
-        t.push('\n');
-    }
-    let dados = json!({
-        "escopo": escopo,
-        "funcionalidades": analise.funcionalidades.iter().map(|f| json!({
-            "id": f.id,
-            "nome": f.nome,
-            "area": f.area,
-            "situacao": f.situacao,
-            "juntada_em": f.juntada_em,
-            "pontos": f.pontos.iter().map(|p| json!({"nome": p.nome, "chave": p.chave})).collect::<Vec<_>>(),
-        })).collect::<Vec<_>>(),
-        "pontos_justificados": analise.pontos_justificados.iter().map(|j| json!({
-            "chave": j.chave, "motivo": j.motivo, "justificativa": j.justificativa
-        })).collect::<Vec<_>>(),
-        "catalogo": cat.ordenadas().iter().map(|i| json!({
-            "id": i.id, "nome": i.nome, "area": i.area, "situacao": i.situacao,
-        })).collect::<Vec<_>>(),
-    });
-    (t, dados)
-}
-
-/// O catálogo atual em Markdown, para o contexto do roteiro.
-pub fn catalogo_para_o_contexto(ambiente: &Ambiente) -> String {
-    let cat = Catalogo::carregar(&ambiente.kb).unwrap_or_default();
-    if cat.funcionalidades.is_empty() {
-        return "O catálogo do projeto ainda está vazio: todas as funcionalidades são novas."
-            .into();
-    }
-    let mut t = format!(
-        "O catálogo do projeto tem {} funcionalidades. Mantenha os identificadores das que \
-         continuam existindo (registre com `id`):\n",
-        cat.funcionalidades.len()
-    );
-    for i in cat.ordenadas() {
-        let pontos: Vec<&str> = i.pontos.iter().map(|p| p.nome.as_str()).collect();
-        let _ = write!(
-            t,
-            "\n- {} · {} (área {}): {}",
-            i.id,
-            i.nome,
-            i.area_nome,
-            pontos.join(", ")
-        );
-    }
-    t
-}
-
-/// Mapa usado na aprovação: as chaves dos pontos de entrada atuais.
-pub fn chaves_do_mapa(mapa: &Mapa) -> BTreeSet<String> {
-    mapa.pontos_de_entrada()
-        .into_iter()
-        .map(|p| p.chave)
-        .collect()
+                if faltam.len() > MOSTRADOS {
+                    let _ = write!(
+                        t,
+                        "\n- … e mais {}; veja todos com `pontos_de_entrada` \
+                         (so_sem_tratamento: true)",
+                        faltam.len() - MOSTRADOS
+                    );
+                }
+                return Err(ErroFerramenta::Recusa(t));
+            }
+            let mut areas: Vec<(String, usize)> = Vec::new();
+            for f in m.ordenadas() {
+                match areas.last_mut() {
+                    Some((a, n)) if a == &f.area_nome => *n += 1,
+                    _ => areas.push((f.area_nome.clone(), 1)),
+                }
+            }
+            Ok(Saida::json(json!({
+                "recorte": escopo.descricao(),
+                "pontos_de_entrada": no.len(),
+                "funcionalidades": m.abertas().count(),
+                "a_revisar": m.pendentes(),
+                "pontos_justificados": m.pontos_justificados.len(),
+                "areas": areas.iter().map(|(a, n)| json!({"area": a, "funcionalidades": n})).collect::<Vec<_>>(),
+                "documento": ambiente.kb.na_base(&layout::mapa_de_funcionalidades()),
+                "proximo_passo": "Relate ao analista no chat, como pede o roteiro. A revisão \
+                    das funcionalidades é feita por ele na tela \"Mapa de funcionalidades\" \
+                    do app.",
+            })))
+        },
+    )
+    .somente_leitura()
 }
 
 #[cfg(test)]
@@ -1475,6 +1571,21 @@ mod tests {
     }
 
     #[test]
+    fn pedido_com_recorte_e_orientacao() {
+        assert_eq!(
+            pedido_de_mapeamento(None, None, None),
+            "Mapeie as funcionalidades do projeto pelo ctower: chame a ferramenta \
+             iniciar_mapeamento do cba e siga o roteiro devolvido."
+        );
+        let p = pedido_de_mapeamento(Some("db"), Some(" "), Some("Comece\npelo banco."));
+        assert!(
+            p.contains("iniciar_mapeamento do cba com pasta \"db\" e siga"),
+            "{p}"
+        );
+        assert!(p.ends_with("pedido do analista: Comece pelo banco."), "{p}");
+    }
+
+    #[test]
     fn areas_do_projeto_e_propostas() {
         let areas = vec![Area {
             id: "cobranca".into(),
@@ -1495,22 +1606,14 @@ mod tests {
     }
 
     #[test]
-    fn escopo_e_nao_mapeados() {
-        use cba_core::funcionalidades::NovaFuncionalidade;
+    fn recorte_e_nao_mapeados() {
         let pontos = vec![
             pe("db/a.sql#A", TipoEntrada::RotinaBanco, 1, 2),
             pe("db/a.sql#B", TipoEntrada::RotinaBanco, 3, 4),
             pe("front/t.ts#T", TipoEntrada::Tela, 1, 9),
         ];
-        let mut a = Analise::nova(
-            cba_kb::Serie::Analise.id(1),
-            "p",
-            Fluxo::Mapear,
-            "Mapa",
-            "",
-            1,
-        );
-        a.registrar_funcionalidade(
+        let mut m = MapaFuncionalidades::default();
+        m.registrar(
             NovaFuncionalidade {
                 nome: "A".into(),
                 area: "cobranca".into(),
@@ -1526,40 +1629,43 @@ mod tests {
                 dados_lidos: vec![],
                 dados_gravados: vec![],
                 relacionadas: vec![],
-                do_catalogo: false,
                 sessao: None,
             },
             IdFuncionalidade::novo("COB", 1).unwrap(),
             1,
         )
         .unwrap();
-        let cat = Catalogo::default();
-        let todos = no_escopo(&a, &pontos, &cat);
-        assert_eq!(todos.len(), 3);
-        let faltam: Vec<&str> = nao_mapeados(&a, &todos)
+        let todo = EscopoMapa::default();
+        let no = no_escopo(&m, &pontos, &todo);
+        assert_eq!(no.len(), 3);
+        let faltam: Vec<&str> = nao_mapeados(&m, &no)
             .iter()
             .map(|p| p.chave.as_str())
             .collect();
         assert_eq!(faltam, ["db/a.sql#B", "front/t.ts#T"]);
-        a.escopo = Some(EscopoMapa {
+        let db = EscopoMapa {
             pasta: Some("db".into()),
             area: None,
-        });
-        assert_eq!(no_escopo(&a, &pontos, &cat).len(), 2);
-        a.escopo = Some(EscopoMapa {
+        };
+        assert_eq!(no_escopo(&m, &pontos, &db).len(), 2);
+        let area = EscopoMapa {
             pasta: None,
             area: Some("cobranca".into()),
-        });
-        // Na área, só o que a análise atribuiu (o catálogo está vazio).
-        assert_eq!(no_escopo(&a, &pontos, &cat).len(), 1);
+        };
+        assert_eq!(no_escopo(&m, &pontos, &area).len(), 1);
 
-        let textos = textos(&a);
-        assert_eq!(textos[0].texto, "### Cobrança");
+        let chaves: BTreeSet<String> = ["db/a.sql#B".to_owned()].into();
+        assert!(sem_ponto_de_entrada(&m.funcionalidades[0], &chaves));
+
+        let caminho = layout::mapa_de_funcionalidades();
+        let textos = textos(&m, &caminho);
         assert!(
-            textos[1].texto.starts_with("#### F-COB-001 · A"),
-            "{}",
-            textos[1].texto
+            textos[0]
+                .texto
+                .contains("| F-COB-001 | A | a revisar | 1 |")
         );
-        assert_eq!(textos[1].citacoes.len(), 1);
+        assert_eq!(textos[1].texto, "### Cobrança");
+        assert!(textos[2].texto.starts_with("#### F-COB-001 · A"));
+        assert_eq!(textos[2].citacoes.len(), 1);
     }
 }

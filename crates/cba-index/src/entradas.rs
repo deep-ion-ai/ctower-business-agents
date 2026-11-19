@@ -1,8 +1,8 @@
 //! Pontos de entrada do sistema, calculados do mapa estrutural sem IA (#208).
 //!
-//! O fluxo "Mapear funcionalidades" agrupa os pontos de entrada em
+//! O mapa de funcionalidades do projeto agrupa os pontos de entrada em
 //! funcionalidades de negócio. Esta lista é a referência da completude: ao
-//! concluir, todo ponto que o agente não atribuiu a uma funcionalidade precisa ser
+//! concluir o mapeamento, todo ponto que o agente não atribuiu a uma funcionalidade precisa ser
 //! tratado (justificado como código morto, utilitário ou outro motivo).
 //!
 //! # O que conta como ponto de entrada

@@ -29,7 +29,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::cenarios::{Cenario, TabelaDecisao};
 use crate::diagramas::Diagrama;
-use crate::funcionalidades::{EscopoMapa, Funcionalidade, PontoJustificado};
 use crate::historias::Historia;
 use crate::parecer::{
     Achado, AvaliacaoInvest, EstadoAchado, NovoAchado, Parecer, Veredito, VereditoRegistrado,
@@ -64,11 +63,6 @@ pub enum Fluxo {
     /// As tabelas de decisão e os cenários ficam em [`Analise::tabelas`] e
     /// [`Analise::cenarios`] ([`crate::cenarios`]).
     Cenarios,
-    /// Mapeamento das funcionalidades do projeto a partir do código (#208): as
-    /// funcionalidades ficam em [`Analise::funcionalidades`]
-    /// ([`crate::funcionalidades`]) e, aprovadas, entram no catálogo
-    /// ([`crate::catalogo`]).
-    Mapear,
 }
 
 impl Fluxo {
@@ -82,7 +76,6 @@ impl Fluxo {
             Self::Revisar => TipoDocumento::ParecerRevisao,
             Self::Historias => TipoDocumento::Historias,
             Self::Cenarios => TipoDocumento::CenariosTeste,
-            Self::Mapear => TipoDocumento::MapaFuncionalidades,
         }
     }
 }
@@ -482,18 +475,7 @@ pub struct Analise {
     /// Mermaid na montagem do documento.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub diagramas: Vec<Diagrama>,
-    /// Escopo do mapeamento (fluxo `mapear`): pasta ou área; sem ele, o projeto
-    /// inteiro.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub escopo: Option<EscopoMapa>,
-    /// Funcionalidades mapeadas (fluxo `mapear`, [`crate::funcionalidades`]).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub funcionalidades: Vec<Funcionalidade>,
-    /// Pontos de entrada do mapa sem funcionalidade, justificados (fluxo
-    /// `mapear`).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub pontos_justificados: Vec<PontoJustificado>,
-    /// Funcionalidade do catálogo que esta análise explica (fluxo `explicar`
+    /// Funcionalidade do mapa que esta análise explica (fluxo `explicar`
     /// aberto pela lista de funcionalidades, #208). Aprovada, o documento negocial
     /// vai para `funcionalidades/<area>/<tema>/` e fica ligado ao item.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -614,38 +596,6 @@ pub enum ErroModelo {
     OrigemJaPerguntada { origem: String, numero: u32 },
     #[error("o {0} não existe mais nesta análise")]
     OrigemDesconhecida(String),
-    #[error(
-        "a análise {0} não é do fluxo `mapear`; funcionalidades e pontos de entrada são \
-         registrados numa análise de mapeamento (iniciar_analise com fluxo `mapear`)"
-    )]
-    ForaDoFluxoDeMapear(Id),
-    #[error(
-        "toda funcionalidade precisa de ao menos um ponto de entrada (tela, endpoint, \
-         lote, rotina de banco, serviço ou integração) com evidência do código; cite em \
-         `pontos_de_entrada` o ponto e o trecho que o define"
-    )]
-    FuncionalidadeSemPontoDeEntrada,
-    #[error(
-        "a funcionalidade {0} não existe nesta análise; confira o identificador (F-<SIGLA>-NNN)"
-    )]
-    FuncionalidadeDesconhecida(IdFuncionalidade),
-    #[error(
-        "a funcionalidade {0} foi descartada ou juntada a outra e não muda mais; registre \
-         uma funcionalidade nova, se preciso"
-    )]
-    FuncionalidadeFechada(IdFuncionalidade),
-    #[error(
-        "o ponto de entrada `{chave}` já está na funcionalidade {funcionalidade}; um ponto \
-         fica numa funcionalidade só (cite-a em `relacionadas`, se for o caso)"
-    )]
-    PontoJaAtribuido {
-        chave: String,
-        funcionalidade: IdFuncionalidade,
-    },
-    #[error("divisão recusada: {0}")]
-    DivisaoInvalida(String),
-    #[error("junção recusada: {0}")]
-    JuncaoInvalida(String),
 }
 
 fn exigir(campo: &'static str, valor: &str) -> Result<(), ErroModelo> {
@@ -695,9 +645,6 @@ impl Analise {
             tabelas: Vec::new(),
             cenarios: Vec::new(),
             diagramas: Vec::new(),
-            escopo: None,
-            funcionalidades: Vec::new(),
-            pontos_justificados: Vec::new(),
             funcionalidade: None,
         }
     }
