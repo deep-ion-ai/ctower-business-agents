@@ -5,12 +5,14 @@ import type {
   EvidenciaRegistrada,
   Fundamento,
   Gherkin,
+  MarcaRevalidacao,
   SituacaoItem,
   TabelaDecisao,
   Tecnica,
 } from "./analise";
 import type { Revisao } from "./AcoesRevisao";
-import type { DecisaoRevisao } from "./revisao";
+import type { DecisaoRevisao, ItemRequisito } from "./revisao";
+import { BotaoRevalidar, ChipFundamento, SeloRevalidar, aRevalidar } from "./MarcaRevalidar";
 
 export const ROTULO_TECNICA: Record<Tecnica, string> = {
   tabela_de_decisao: "tabela de decisão",
@@ -39,14 +41,32 @@ function local(e: EvidenciaRegistrada): string {
   return `${e.arquivo}:${!b || a === b ? a : e.linhas}`;
 }
 
-function Origens({ fundamentos }: { fundamentos: Fundamento[] }) {
+/** Evidência do limite ou de uma condição; em destaque quando não confere mais (#169). */
+function CodigoEvidencia({ e, className }: { e: EvidenciaRegistrada; className?: string }) {
+  const mudou = e.estado === "a-revalidar";
+  return (
+    <code
+      className={className}
+      data-tone={mudou ? "attention" : undefined}
+      title={mudou ? `${e.trecho ?? ""} (o código citado mudou)`.trim() : e.trecho}
+    >
+      {local(e)}
+    </code>
+  );
+}
+
+function Origens({ fundamentos, marca }: { fundamentos: Fundamento[]; marca: MarcaRevalidacao }) {
   return (
     <p className="origens">
       Origem:{" "}
       {fundamentos.map((f) => (
-        <span key={rotuloFundamento(f)} className="chip" title={textoFundamento(f)}>
-          {rotuloFundamento(f)}
-        </span>
+        <ChipFundamento
+          key={rotuloFundamento(f)}
+          marca={marca}
+          fundamento={f}
+          rotulo={rotuloFundamento(f)}
+          texto={textoFundamento(f)}
+        />
       ))}
     </p>
   );
@@ -59,12 +79,16 @@ function BotoesSituacao({
   revisao,
   decidir,
   extra,
+  marca,
+  item,
 }: {
   rotulo: string;
   situacao: SituacaoItem;
   revisao: Revisao;
   decidir: (s: SituacaoItem) => void;
   extra?: ReactNode;
+  marca: MarcaRevalidacao;
+  item: ItemRequisito;
 }) {
   const ocupado = revisao.ocupado;
   return (
@@ -90,6 +114,12 @@ function BotoesSituacao({
           Desfazer
         </button>
       )}
+      <BotaoRevalidar
+        marca={marca}
+        item={item}
+        ocupado={ocupado}
+        aoDecidir={(d) => revisao.aoDecidir(d).catch(() => undefined)}
+      />
     </div>
   );
 }
@@ -118,6 +148,7 @@ function CartaoTabela({
         <span className="badge" data-tone={t.situacao === "aceito" ? "done" : undefined}>
           {SITUACAO[t.situacao]}
         </span>
+        <SeloRevalidar marca={t} />
       </header>
       <div className="tabela-rolagem">
         <table aria-label={`Tabela de decisão ${rotulo}`}>
@@ -137,9 +168,7 @@ function CartaoTabela({
                 <th scope="row">
                   <strong>C{i + 1}</strong> {cond.texto}
                   {cond.evidencias?.map((e) => (
-                    <code key={local(e)} className="evidencia-condicao" title={e.trecho}>
-                      {local(e)}
-                    </code>
+                    <CodigoEvidencia key={local(e)} e={e} className="evidencia-condicao" />
                   ))}
                 </th>
                 {t.colunas.map((c) => (
@@ -182,10 +211,12 @@ function CartaoTabela({
           ))}
         </ul>
       )}
-      <Origens fundamentos={t.fundamentos} />
+      <Origens fundamentos={t.fundamentos} marca={t} />
       {revisao && (
         <BotoesSituacao
           rotulo={rotulo}
+          marca={t}
+          item={{ tipo: "tabela", numero: t.numero }}
           situacao={t.situacao}
           revisao={revisao}
           decidir={(situacao) =>
@@ -235,9 +266,7 @@ function TabelaLimites({ cenarios }: { cenarios: Cenario[] }) {
                   <td>{c.entao}</td>
                   <td>
                     {l.evidencias.map((e) => (
-                      <code key={local(e)} title={e.trecho}>
-                        {local(e)}
-                      </code>
+                      <CodigoEvidencia key={local(e)} e={e} />
                     ))}
                   </td>
                 </tr>
@@ -322,6 +351,7 @@ function CartaoCenario({ cenario, revisao }: { cenario: Cenario; revisao?: Revis
             a confirmar: pergunta {c.pergunta}
           </span>
         )}
+        <SeloRevalidar marca={c} />
         {c.situacao !== "pendente" && <span className="muted">{SITUACAO[c.situacao]}</span>}
         {c.original && <span className="muted editada">(editado pelo analista)</span>}
       </div>
@@ -349,10 +379,12 @@ function CartaoCenario({ cenario, revisao }: { cenario: Cenario; revisao?: Revis
           <dd>{c.entao}</dd>
         </dl>
       )}
-      <Origens fundamentos={c.fundamentos} />
+      <Origens fundamentos={c.fundamentos} marca={c} />
       {revisao && !editando && (
         <BotoesSituacao
           rotulo={c.id}
+          marca={c}
+          item={{ tipo: "cenario", cenario: c.id }}
           situacao={c.situacao}
           revisao={revisao}
           decidir={(situacao) => void decidir({ tipo: "cenario", cenario: c.id, situacao })}
@@ -394,12 +426,16 @@ export function CenariosAoVivo({
 }) {
   const vigentes = cenarios.filter((c) => c.situacao !== "descartado");
   const aConfirmar = vigentes.filter((c) => c.pergunta).length;
+  const revalidar =
+    vigentes.filter(aRevalidar).length +
+    tabelas.filter((t) => t.situacao !== "descartado" && aRevalidar(t)).length;
   return (
     <section aria-label="Cenários de teste" className="historias-ao-vivo cenarios-ao-vivo">
       <h3>Cenários de teste</h3>
       <p className="muted">
         {contar(tabelas.length, "tabela", "tabelas")} de decisão · {contar(vigentes.length, "cenário", "cenários")}
         {aConfirmar > 0 && ` · ${aConfirmar} a confirmar`}
+        {revalidar > 0 && ` · ${revalidar} a revalidar`}
         {origem && ` · origem ${origem}`}
       </p>
       {tabelas.length === 0 && cenarios.length === 0 && (

@@ -100,8 +100,11 @@ fn cenarios_da_coluna(analise: &Analise, tabela: u32, coluna: u32) -> Vec<String
 }
 
 fn textos_da_tabela(analise: &Analise, t: &TabelaDecisao, caminho: &CaminhoRelativo) -> Vec<Texto> {
+    let marca = crate::revalidacao::marca_no_documento(&t.revalidacao)
+        .map(|m| format!(" · {m}"))
+        .unwrap_or_default();
     let mut cab = format!(
-        "### {} · {}\n\n**Situação:** {}\n\n_Origem:_\n\n{}",
+        "### {} · {}\n\n**Situação:** {}{marca}\n\n_Origem:_\n\n{}",
         t.rotulo(),
         em_uma_linha(&t.titulo),
         situacao(t.situacao),
@@ -245,6 +248,9 @@ fn texto_do_cenario(c: &Cenario, caminho: &CaminhoRelativo) -> Texto {
         c.tecnica.rotulo(),
         situacao(c.situacao)
     );
+    if let Some(marca) = crate::revalidacao::marca_no_documento(&c.revalidacao) {
+        t.push_str(&format!(" · {marca}"));
+    }
     if let Some(r) = c.coluna {
         t.push_str(&format!(" · **Coluna:** {r}"));
     }

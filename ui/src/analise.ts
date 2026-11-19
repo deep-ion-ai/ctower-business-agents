@@ -270,6 +270,19 @@ export type Fundamento =
   | { tipo: "regra"; id: string; titulo: string; evidencias?: unknown[] };
 
 export type SituacaoItem = "pendente" | "aceito" | "descartado";
+
+/**
+ * Marca "a revalidar" de um critério, cenário ou tabela (#169), ao lado da
+ * decisão do analista (`cba_core::requisito::Revalidacao`). Com
+ * `antes_de_revalidar`, a marca é da revalidação (o código citado mudou) e sai
+ * sozinha quando tudo volta a conferir; sem, é do analista.
+ */
+export interface MarcaRevalidacao {
+  estado?: "valido" | "a-revalidar";
+  antes_de_revalidar?: "valido" | "a-revalidar" | null;
+  /** Fundamentos (`A-0001/2`, `RN-FAT-007`) com evidência que não confere mais. */
+  fundamentos_a_revalidar?: string[];
+}
 export type SituacaoHistoria = "pendente" | "aceita" | "descartada" | "quebrada";
 export type LetraInvest =
   "independente" | "negociavel" | "valiosa" | "estimavel" | "pequena" | "testavel";
@@ -288,7 +301,7 @@ export interface Narrativa {
 }
 
 /** Critério de aceite (`cba_core::historias::Criterio`), `CA-<numero>`. */
-export interface Criterio extends Gherkin {
+export interface Criterio extends Gherkin, MarcaRevalidacao {
   numero: number;
   original?: Gherkin | null;
   fundamentos: Fundamento[];
@@ -325,10 +338,11 @@ export interface EvidenciaRegistrada {
   arquivo: string;
   linhas: string;
   trecho?: string;
+  estado?: "valida" | "a-revalidar";
 }
 
 /** Tabela de decisão (`cba_core::cenarios::TabelaDecisao`), `TD-<numero>`. */
-export interface TabelaDecisao {
+export interface TabelaDecisao extends MarcaRevalidacao {
   numero: number;
   titulo: string;
   condicoes: { texto: string; evidencias?: EvidenciaRegistrada[] }[];
@@ -355,7 +369,7 @@ export interface LimiteCenario {
 }
 
 /** Cenário de teste (`cba_core::cenarios::Cenario`), `CT-NNNN`. */
-export interface Cenario extends Gherkin {
+export interface Cenario extends Gherkin, MarcaRevalidacao {
   id: string;
   tecnica: Tecnica;
   titulo: string;

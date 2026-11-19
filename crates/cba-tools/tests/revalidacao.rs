@@ -10,13 +10,21 @@ use cba_core::analise::{
     Analise, Confianca, EstadoAfirmacao, EstadoEvidencia, Evidencia, Fluxo, NovaAfirmacao,
 };
 use cba_core::analises::NovaAnalise;
+use cba_core::cenarios::{
+    Condicao, Limite, NovaColuna, NovaTabela, NovoCenario, Tecnica, TextoCenario, ValorCondicao,
+};
 use cba_core::config::Config;
 use cba_core::dados::DiretorioDados;
 use cba_core::eventos::Mudanca;
+use cba_core::historias::{DecisaoHistoria, Gherkin, Narrativa, NovaHistoria, NovoCriterio};
+use cba_core::requisito::{Fundamento, ItemRequisito, SituacaoItem};
 use cba_kb::frontmatter::{FrontmatterRegra, Linhas, StatusRegra, TipoDocumento};
 use cba_kb::{CaminhoRelativo, Documento, Id};
+use cba_kb::{IdCenario, IdHistoria};
 use cba_tools::evidencias::{EvidenciaCitada, hash_das_linhas, validar};
-use cba_tools::revalidacao::{Origem, Relatorio, Vistos, revalidar_analise, revalidar_projeto};
+use cba_tools::revalidacao::{
+    MudancaDeAnalise, Origem, Relatorio, Vistos, revalidar_analise, revalidar_projeto,
+};
 
 const COMMIT_1: &str = "1111111111111111111111111111111111111111";
 const COMMIT_2: &str = "2222222222222222222222222222222222222222";
@@ -529,4 +537,328 @@ fn mil_evidencias_em_menos_de_cinco_segundos() {
     for t in [tempo_frio, tempo_quente, tempo_alterado] {
         assert!(t.as_secs_f64() < 5.0, "{t:?}");
     }
+}
+
+// ---------------------------------------------------------------------------
+// Histórias e cenários de teste (#169)
+
+fn fundamento(regra: &str, evidencias: &[Evidencia]) -> Fundamento {
+    Fundamento::Regra {
+        id: Id::analisar(regra).unwrap(),
+        titulo: "Regra de exemplo".into(),
+        evidencias: evidencias
+            .iter()
+            .map(|e| cba_kb::frontmatter::Evidencia {
+                arquivo: e.arquivo.clone(),
+                linhas: e.linhas,
+                hash: e.hash.clone(),
+                commit: e.commit.clone(),
+            })
+            .collect(),
+    }
+}
+
+fn passos() -> Gherkin {
+    Gherkin {
+        dado: "uma fatura de R$ 1.000,00 vencida há 10 dias".into(),
+        quando: "o sistema calcula a multa".into(),
+        entao: "a multa é de R$ 20,00".into(),
+    }
+}
+
+fn cenario_de_limite(evidencia: &Evidencia, fundamentos: Vec<Fundamento>) -> NovoCenario {
+    NovoCenario {
+        tecnica: Tecnica::ValorLimite,
+        texto: TextoCenario {
+            titulo: "Multa sobre o valor original".into(),
+            passos: passos(),
+        },
+        valor: Some("R$ 1.000,00".into()),
+        limite: Some(Limite {
+            grandeza: "divisor do percentual de multa".into(),
+            valor: "100".into(),
+            evidencias: vec![evidencia.clone()],
+            configuracao: None,
+        }),
+        coluna: None,
+        historia: None,
+        fundamentos,
+        pergunta: None,
+        sessao: None,
+    }
+}
+
+impl Cenario {
+    fn analise_de(&self, fluxo: Fluxo, titulo: &str) -> Id {
+        self.amb
+            .analises
+            .criar(NovaAnalise {
+                fluxo,
+                titulo: titulo.into(),
+                entrada: "Multa por atraso".into(),
+                analista: None,
+                base: None,
+            })
+            .unwrap()
+            .id
+    }
+
+    fn documento(&self, id: &Id) -> String {
+        let a = self.carregar(id);
+        fs::read_to_string(self.amb.kb.caminho(&a.documento)).unwrap()
+    }
+}
+
+fn mudanca_de<'a>(r: &'a Relatorio, id: &Id) -> &'a MudancaDeAnalise {
+    r.analises.iter().find(|m| m.id == *id).unwrap()
+}
+
+#[test]
+fn revalidacao_marca_e_desfaz_criterios_cenarios_e_tabelas() {
+    let c = cenario();
+    let multa = c.evidencia(PKG, 71, 72, "FN_PARAMETRO('PERC_MULTA_ATRASO') / 100, 2)");
+    let carencia = c.evidencia(
+        PKG,
+        67,
+        69,
+        "IF V_DIAS <= FN_PARAMETRO('DIAS_CARENCIA') THEN",
+    );
+    let java = c.evidencia(JAVA, 28, 29, "PKG_COBRANCA.FN_CALCULAR_JUROS");
+
+    // Histórias: o critério 1 cita a regra da multa; o 2, a dos juros.
+    let hist = c.analise_de(Fluxo::Historias, "Histórias da multa");
+    let hu = IdHistoria::novo(1);
+    c.amb
+        .analises
+        .alterar(&hist, Mudanca::Historia, |a, agora| {
+            let criterio = |f: Fundamento| NovoCriterio {
+                passos: passos(),
+                fundamentos: vec![f],
+                pergunta: None,
+                sessao: None,
+            };
+            a.registrar_historia(
+                NovaHistoria {
+                    narrativa: Narrativa {
+                        titulo: "Calcular a multa por atraso".into(),
+                        como: "atendente de cobrança".into(),
+                        quero: "ver a multa de uma fatura vencida".into(),
+                        para: "informar o cliente".into(),
+                    },
+                    criterios: vec![
+                        criterio(fundamento("RN-COB-001", std::slice::from_ref(&multa))),
+                        criterio(fundamento("RN-COB-002", std::slice::from_ref(&java))),
+                    ],
+                    invest: vec![],
+                    quebra: None,
+                    fatia_de: None,
+                    sessao: None,
+                },
+                hu,
+                agora,
+            )?;
+            a.decidir_historia(hu, DecisaoHistoria::Aceitar)
+        })
+        .unwrap();
+
+    // Cenários: CT-0001 com o limite na linha da multa; TD-1 com a condição da
+    // carência; CT-0002 sem nada que mude.
+    let cen = c.analise_de(Fluxo::Cenarios, "Cenários da multa");
+    let (ct1, ct2) = (IdCenario::novo(1), IdCenario::novo(2));
+    c.amb
+        .analises
+        .alterar(&cen, Mudanca::Cenario, |a, agora| {
+            let juros = fundamento("RN-COB-002", std::slice::from_ref(&java));
+            let coluna = |valores: [ValorCondicao; 2], acao: u32| NovaColuna {
+                valores: valores.to_vec(),
+                acoes: vec![acao],
+                impossivel: None,
+            };
+            a.registrar_tabela(
+                NovaTabela {
+                    titulo: "Multa conforme a carência".into(),
+                    condicoes: vec![
+                        Condicao {
+                            texto: "atraso dentro da carência".into(),
+                            evidencias: vec![carencia.clone()],
+                        },
+                        Condicao {
+                            texto: "cliente isento".into(),
+                            evidencias: vec![],
+                        },
+                    ],
+                    acoes: vec!["sem multa".into(), "cobra multa".into()],
+                    colunas: vec![
+                        coluna([ValorCondicao::Sim, ValorCondicao::Indiferente], 1),
+                        coluna([ValorCondicao::Nao, ValorCondicao::Sim], 1),
+                        coluna([ValorCondicao::Nao, ValorCondicao::Nao], 2),
+                    ],
+                    fundamentos: vec![juros.clone()],
+                    sessao: None,
+                },
+                agora,
+            )?;
+            a.registrar_cenario(cenario_de_limite(&multa, vec![juros.clone()]), ct1, agora)?;
+            let mut negativo = cenario_de_limite(&multa, vec![juros]);
+            negativo.tecnica = Tecnica::Negativo;
+            negativo.limite = None;
+            a.registrar_cenario(negativo, ct2, agora)?;
+            a.decidir_cenario(ct1, SituacaoItem::Aceito)
+        })
+        .unwrap();
+
+    let inicial = c.revalidar();
+    assert!(!inicial.mudou(), "{inicial:#?}");
+    // Fundamentos (2 + 1 + 2) + condição (1) + limite (1).
+    assert_eq!(inicial.evidencias, 7);
+    let pkg_original = fs::read(c.arquivo(PKG)).unwrap();
+
+    // A multa muda (limite de CT-0001 e fundamento de CA-1) e a carência também
+    // (condição de TD-1).
+    c.trocar_linha(
+        PKG,
+        72,
+        "        RETURN ROUND(V_FATURA.VL_ORIGINAL * 3 / 100, 2);",
+    );
+    c.trocar_linha(
+        PKG,
+        67,
+        "        IF V_DIAS < FN_PARAMETRO('DIAS_CARENCIA') THEN",
+    );
+    let r = c.revalidar();
+    assert!(r.mudou());
+    let criterio_1 = ItemRequisito::Criterio {
+        historia: hu,
+        numero: 1,
+    };
+    assert_eq!(
+        mudanca_de(&r, &hist).itens_marcados,
+        std::slice::from_ref(&criterio_1)
+    );
+    assert_eq!(
+        mudanca_de(&r, &cen).itens_marcados,
+        [
+            ItemRequisito::Tabela { numero: 1 },
+            ItemRequisito::Cenario { cenario: ct1 }
+        ]
+    );
+    // O relatório conta as histórias e os cenários afetados.
+    assert_eq!(r.historias_afetadas, 1);
+    assert_eq!(r.cenarios_afetados, 1);
+    assert_eq!(r.tabelas_afetadas, 1);
+    assert!(r.itens_a_revalidar.iter().all(|i| i.novo));
+    assert!(r.desatualizadas.iter().any(|e| matches!(
+        &e.origem,
+        Origem::Criterio { fundamento, .. } if fundamento == "RN-COB-001"
+    ) && e.nova));
+    assert!(r.desatualizadas.iter().any(|e| matches!(
+        &e.origem,
+        Origem::Cenario { cenario, fundamento: None, .. } if *cenario == ct1
+    )));
+    assert!(r.desatualizadas.iter().any(|e| matches!(
+        &e.origem,
+        Origem::Tabela {
+            condicao: Some(1),
+            ..
+        }
+    )));
+
+    let h = c.carregar(&hist);
+    let crit = &h.historias[0].criterios;
+    assert!(crit[0].revalidacao.a_revalidar());
+    assert_eq!(crit[0].revalidacao.fundamentos_a_revalidar, ["RN-COB-001"]);
+    assert_eq!(crit[0].situacao, SituacaoItem::Aceito);
+    assert!(!crit[1].revalidacao.a_revalidar());
+    let a = c.carregar(&cen);
+    assert!(a.cenario(ct1).unwrap().revalidacao.a_revalidar());
+    assert_eq!(a.cenario(ct1).unwrap().situacao, SituacaoItem::Aceito);
+    assert!(!a.cenario(ct2).unwrap().revalidacao.a_revalidar());
+    assert!(a.tabela(1).unwrap().revalidacao.a_revalidar());
+    // A marca aparece no documento montado.
+    assert!(
+        c.documento(&hist).contains("[a revalidar]"),
+        "{}",
+        c.documento(&hist)
+    );
+    assert!(c.documento(&cen).contains("[a revalidar]"));
+
+    // Sem mudança: nada novo.
+    let r = c.revalidar();
+    assert!(!r.mudou(), "{r:#?}");
+    assert_eq!(r.itens_a_revalidar.len(), 3);
+    assert!(r.itens_a_revalidar.iter().all(|i| !i.novo));
+
+    // O analista marca CT-0002 (que nada tem a ver com a mudança).
+    c.amb
+        .analises
+        .alterar(&cen, Mudanca::Cenario, |a, _| {
+            a.marcar_item_a_revalidar(&ItemRequisito::Cenario { cenario: ct2 }, true)
+        })
+        .unwrap();
+
+    // Desfazer a alteração restaura o estado anterior; a marca do analista fica.
+    fs::write(c.arquivo(PKG), &pkg_original).unwrap();
+    let r = c.revalidar();
+    assert_eq!(mudanca_de(&r, &hist).itens_restaurados, [criterio_1]);
+    assert_eq!(mudanca_de(&r, &cen).itens_restaurados.len(), 2);
+    assert!(r.itens_a_revalidar.is_empty());
+    assert_eq!((r.historias_afetadas, r.cenarios_afetados), (0, 0));
+    let h = c.carregar(&hist);
+    assert!(
+        h.historias[0]
+            .criterios
+            .iter()
+            .all(|x| !x.revalidacao.a_revalidar())
+    );
+    assert_eq!(h.historias[0].criterios[0].situacao, SituacaoItem::Aceito);
+    let a = c.carregar(&cen);
+    assert!(!a.cenario(ct1).unwrap().revalidacao.a_revalidar());
+    assert!(!a.tabela(1).unwrap().revalidacao.a_revalidar());
+    assert!(a.cenario(ct2).unwrap().revalidacao.do_analista());
+    assert_eq!(
+        a.cenario(ct1).unwrap().limite.as_ref().unwrap().evidencias[0].estado,
+        EstadoEvidencia::Valida
+    );
+    assert!(!c.documento(&hist).contains("[a revalidar]"));
+    assert!(c.documento(&cen).contains("marcado pelo analista"));
+}
+
+#[test]
+fn revalidar_analise_marca_o_cenario_ao_vivo() {
+    let c = cenario();
+    let multa = c.evidencia(PKG, 71, 72, "FN_PARAMETRO('PERC_MULTA_ATRASO') / 100, 2)");
+    let cen = c.analise_de(Fluxo::Cenarios, "Cenários da multa");
+    let ct = IdCenario::novo(1);
+    c.amb
+        .analises
+        .alterar(&cen, Mudanca::Cenario, |a, agora| {
+            a.registrar_cenario(
+                cenario_de_limite(&multa, vec![fundamento("RN-COB-001", &[])]),
+                ct,
+                agora,
+            )
+        })
+        .unwrap();
+    let mut vistos = Vistos::default();
+    assert!(
+        revalidar_analise(&c.amb, &cen, &mut vistos)
+            .unwrap()
+            .is_none()
+    );
+    c.trocar_linha(
+        PKG,
+        72,
+        "        RETURN ROUND(V_FATURA.VL_ORIGINAL * 3 / 100, 2);",
+    );
+    let m = revalidar_analise(&c.amb, &cen, &mut vistos)
+        .unwrap()
+        .unwrap();
+    assert_eq!(m.itens_marcados, [ItemRequisito::Cenario { cenario: ct }]);
+    assert!(
+        c.carregar(&cen)
+            .cenario(ct)
+            .unwrap()
+            .revalidacao
+            .a_revalidar()
+    );
 }
