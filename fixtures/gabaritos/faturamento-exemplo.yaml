@@ -794,7 +794,7 @@ demandas:
       - tema: Cliente sem e-mail cadastrado ou que não aceita avisos (ACEITA_AVISO) entra no arquivo?
         palavras_chave: [[email, "e-mail", aceita_aviso, aviso*], [sem, vazio, nulo, null, ausente, opcional, aceit*, consentimento, "nao aceita"]]
       - tema: Onde é gerado o arquivo de faturas vencidas que o lote lê, e qual o volume e a janela do lote?
-        palavras_chave: [[fatvenc, extra*, "arquivo de faturas", entrada, volume, janela], [onde, quem, fora, sistema, job, gera*, quant*, horario, tempo, quantos]]
+        palavras_chave: [[fatvenc, extra*, "arquivo de faturas", entrada, volume, janela], [onde, quem, fora, externo, job, gera*, quant*, horario, tempo, quantos]]
     arquivos_impactados:
       - cobol/CALCOBR.cbl
       - db/01_tabelas.sql

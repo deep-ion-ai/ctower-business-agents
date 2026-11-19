@@ -867,7 +867,8 @@ fn template_de_impacto_sem_a_secao_de_dados_pessoais_recebe_a_secao_no_fim() {
     let (_dir, base, _) = base_com_projeto();
     let padrao = cba_docs::modelo(TipoDocumento::AnaliseImpacto)
         .unwrap()
-        .padrao;
+        .padrao
+        .replace("\r\n", "\n");
     let antigo = padrao.replace(
         "## Dados pessoais e requisitos não funcionais\n\n{{dados_pessoais_e_rnf}}\n\n",
         "",
