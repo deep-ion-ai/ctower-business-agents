@@ -721,20 +721,23 @@ export function PainelFuncionalidade({
                     <ul className="lista-analises" aria-label="Regras">
                       {p.regras.map((r) => (
                         <li key={r.id} className="linha-regra">
-                          <button
-                            type="button"
-                            className="btn btn-link mono"
-                            title="Abrir a regra na base"
-                            onClick={() => navegar({ tipo: "base", documento: r.caminho })}
-                          >
-                            {r.id}
-                          </button>
+                          <div className="cabecalho-regra">
+                            <button
+                              type="button"
+                              className="btn btn-link mono"
+                              title="Abrir a regra na base"
+                              onClick={() => navegar({ tipo: "base", documento: r.caminho })}
+                            >
+                              {r.id}
+                            </button>
+                            <strong className="titulo-regra">{r.titulo}</strong>
+                            <span className={r.status === "a-revalidar" ? "atencao" : "muted"}>
+                              {r.status === "a-revalidar" ? "a revalidar" : r.status}
+                            </span>
+                          </div>
                           <div className="enunciado-regra">
                             <Markdown options={OPCOES_MARKDOWN_BASE}>{r.enunciado}</Markdown>
                           </div>
-                          <span className={r.status === "a-revalidar" ? "atencao" : "muted"}>
-                            {r.status === "a-revalidar" ? "a revalidar" : r.status}
-                          </span>
                         </li>
                       ))}
                     </ul>

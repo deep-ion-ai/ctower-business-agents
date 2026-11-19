@@ -78,6 +78,8 @@ describe("PainelFuncionalidade", () => {
     // Markdown do enunciado renderizado (negrito e lista), sem os asteriscos.
     const regras = screen.getByRole("list", { name: "Regras" });
     expect(within(regras).getByText("ainda não pagas").tagName).toBe("STRONG");
+    // Linha 1: ID e título; linha 2: enunciado.
+    expect(within(regras).getByText("Só fatura aberta")).toHaveClass("titulo-regra");
     expect(regras).not.toHaveTextContent("**");
     expect(within(regras).getByText("as vencidas;")).toBeInTheDocument();
     fireEvent.click(within(regras).getByRole("button", { name: "RN-CAN-003" }));

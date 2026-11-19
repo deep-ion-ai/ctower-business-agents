@@ -2988,16 +2988,26 @@ button.indicador:hover {
   white-space: nowrap;
 }
 .linha-regra {
-  display: grid;
-  grid-template-columns: max-content minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: start;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   border-top: 1px solid var(--border);
   padding: 8px 4px;
 }
-.linha-regra > .btn-link {
+.cabecalho-regra {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: baseline;
+}
+.cabecalho-regra .btn-link {
   white-space: nowrap;
   padding: 0;
+}
+.titulo-regra {
+  flex: 1 1 240px;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .enunciado-regra {
   overflow-wrap: anywhere;
