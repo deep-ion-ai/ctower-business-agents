@@ -39,7 +39,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::analise::{Analise, ErroModelo, EstadoAnalise, Evidencia, Fluxo};
 use crate::historias::Gherkin;
-use crate::requisito::{Fundamento, RefItem, SituacaoItem, sem_repetidos};
+use crate::requisito::{Fundamento, RefItem, Revalidacao, SituacaoItem, sem_repetidos};
 
 /// Condições no máximo numa tabela de decisão (2^6 = 64 combinações).
 pub const MAXIMO_DE_CONDICOES: usize = 6;
@@ -190,6 +190,10 @@ pub struct TabelaDecisao {
     pub fundamentos: Vec<Fundamento>,
     #[serde(default)]
     pub situacao: SituacaoItem,
+    /// Marca "a revalidar": evidência de uma condição ou de um fundamento que
+    /// deixou de conferir com o código, ou marca do analista (#169).
+    #[serde(flatten)]
+    pub revalidacao: Revalidacao,
     #[serde(default)]
     pub sessao: Option<String>,
     pub registrada_ms: u64,
@@ -420,6 +424,10 @@ pub struct Cenario {
     pub pergunta: Option<RefItem>,
     #[serde(default)]
     pub situacao: SituacaoItem,
+    /// Marca "a revalidar": evidência do limite ou de um fundamento que deixou de
+    /// conferir com o código, ou marca do analista (#169).
+    #[serde(flatten)]
+    pub revalidacao: Revalidacao,
     #[serde(default)]
     pub sessao: Option<String>,
     pub registrado_ms: u64,
@@ -666,6 +674,7 @@ impl Analise {
             colunas,
             fundamentos,
             situacao: SituacaoItem::Pendente,
+            revalidacao: Revalidacao::default(),
             sessao: nova.sessao,
             registrada_ms: agora_ms,
         };
@@ -750,6 +759,7 @@ impl Analise {
             fundamentos,
             pergunta: novo.pergunta,
             situacao: SituacaoItem::Pendente,
+            revalidacao: Revalidacao::default(),
             sessao: novo.sessao,
             registrado_ms: agora_ms,
         });
@@ -1156,5 +1166,76 @@ mod tests {
         assert!(json.contains("\"tecnica\":\"valor_limite\""), "{json}");
         let lida: Analise = serde_json::from_str(&json).unwrap();
         assert_eq!(lida, a);
+    }
+
+    #[test]
+    fn revalidacao_marca_o_cenario_e_a_tabela_e_desfaz() {
+        use crate::requisito::{EstadoItem, ItemRequisito};
+        let mut a = analise();
+        let mut t = tabela(vec![
+            col("S/S", &[1], None),
+            col("S/N", &[2], None),
+            col("N/-", &[1], None),
+        ]);
+        t.condicoes[0].evidencias = vec![Evidencia {
+            hash: "cond".into(),
+            ..evidencia("V_DIAS > 30")
+        }];
+        a.registrar_tabela(t, 1).unwrap();
+        let id = a
+            .registrar_cenario(
+                cenario(
+                    Tecnica::ValorLimite,
+                    Some(limite("LENGTH(TRIM(P_MOTIVO)) < 10", None)),
+                ),
+                IdCenario::novo(1),
+                2,
+            )
+            .unwrap();
+        a.decidir_cenario(id, SituacaoItem::Aceito).unwrap();
+
+        // O trecho do limite (hash "abc") mudou.
+        let r = a.revalidar(|e| Some(e.hash != "abc"));
+        assert_eq!(r.itens_marcados, [ItemRequisito::Cenario { cenario: id }]);
+        assert_eq!(r.evidencias_marcadas, 1);
+        let c = a.cenario(id).unwrap();
+        assert_eq!(c.revalidacao.estado, EstadoItem::ARevalidar);
+        assert_eq!(c.revalidacao.antes_de_revalidar, Some(EstadoItem::Valido));
+        // A decisão do analista fica como estava.
+        assert_eq!(c.situacao, SituacaoItem::Aceito);
+        assert!(!a.tabela(1).unwrap().revalidacao.a_revalidar());
+
+        // A condição da tabela também.
+        let r = a.revalidar(|e| Some(e.hash != "abc" && e.hash != "cond"));
+        assert_eq!(r.itens_marcados, [ItemRequisito::Tabela { numero: 1 }]);
+        assert!(r.itens_restaurados.is_empty());
+
+        // Tudo confere de novo: os dois voltam.
+        let r = a.revalidar(|_| Some(true));
+        assert_eq!(r.itens_restaurados.len(), 2);
+        assert_eq!(a.cenario(id).unwrap().revalidacao, Revalidacao::default());
+        assert_eq!(a.tabela(1).unwrap().revalidacao, Revalidacao::default());
+        assert_eq!(
+            a.cenario(id).unwrap().limite.as_ref().unwrap().evidencias[0].estado,
+            EstadoEvidencia::Valida
+        );
+
+        // A marca do analista não é desfeita.
+        a.marcar_item_a_revalidar(&ItemRequisito::Cenario { cenario: id }, true)
+            .unwrap();
+        assert!(!a.revalidar(|_| Some(true)).mudou());
+        assert!(a.cenario(id).unwrap().revalidacao.do_analista());
+        let json = serde_json::to_value(a.cenario(id).unwrap()).unwrap();
+        assert_eq!(json["estado"], "a-revalidar");
+        assert!(json.get("antes_de_revalidar").is_none());
+        assert!(
+            a.marcar_item_a_revalidar(
+                &ItemRequisito::Cenario {
+                    cenario: IdCenario::novo(9)
+                },
+                true
+            )
+            .is_err()
+        );
     }
 }

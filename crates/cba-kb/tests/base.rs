@@ -282,6 +282,7 @@ fn regras_do_gabarito_vao_e_voltam() {
                 .collect(),
             origem: Some(CaminhoRelativo::novo("analises/A-0001.md").unwrap()),
             informada: None,
+            historico: Vec::new(),
         };
         let documento = Documento::novo(frontmatter, format!("\n{}\n", regra.enunciado));
         projeto.criar(&id.arquivo(), &documento).unwrap();

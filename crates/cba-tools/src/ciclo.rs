@@ -1281,12 +1281,12 @@ pub fn concluir_analise() -> Ferramenta {
 /// Chave de uma evidência para a conferência: arquivo, intervalo e hash gravado.
 type Chave = (String, u32, u32, String);
 
-fn chave(e: &cba_core::analise::Evidencia) -> Chave {
+fn chave(e: cba_core::analise::TrechoCitado<'_>) -> Chave {
     (
         e.arquivo.to_string(),
         e.linhas.inicio,
         e.linhas.fim,
-        e.hash.clone(),
+        e.hash.to_owned(),
     )
 }
 
@@ -1315,7 +1315,7 @@ fn conferir_evidencias(ambiente: &Ambiente, analise: &Analise) -> HashMap<Chave,
             .as_deref()
             .and_then(|t| hash_das_linhas(t, e.linhas))
             .is_some_and(|h| h == e.hash);
-        resultado.insert(chave(e), confere);
+        resultado.insert(chave(e.into()), confere);
     }
     resultado
 }

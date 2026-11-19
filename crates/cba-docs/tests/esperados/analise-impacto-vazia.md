@@ -48,6 +48,10 @@ _Nada registrado._
 
 _Nada registrado._
 
+## Dados pessoais e requisitos não funcionais
+
+_Nada registrado._
+
 ## Riscos
 
 _Nada registrado._

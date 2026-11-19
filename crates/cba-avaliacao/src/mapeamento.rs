@@ -1,12 +1,16 @@
 //! Comparação do mapa de funcionalidades do projeto (#208) com o gabarito.
 //!
-//! - **Funcionalidade** esperada: uma funcionalidade registrada (não descartada
-//!   nem juntada) com as palavras-chave no nome ou na descrição e ao menos um
-//!   ponto de entrada esperado dela. A área confere quando o slug é o esperado.
+//! - **Funcionalidade** esperada: atendida por uma funcionalidade registrada
+//!   (não descartada nem juntada) com as palavras-chave no nome ou na descrição
+//!   e ao menos um ponto de entrada esperado dela. Entre as que atendem, a que
+//!   casou é a com mais pontos esperados só dela, depois com mais pontos
+//!   esperados dela (no empate, a primeira). A área confere quando o slug é o
+//!   esperado.
 //! - **Ponto de entrada** esperado: **tratado** quando está numa funcionalidade
-//!   ou justificado; **bem tratado** quando a funcionalidade em que está casou
-//!   com uma das esperadas para ele ou, se justificado, quando o gabarito o
-//!   aceita como utilitário (`justificavel`).
+//!   ou justificado; **bem tratado** quando a funcionalidade em que está atende
+//!   uma das esperadas para ele (o analista pode dividir uma funcionalidade:
+//!   cada parte que atende continua certa) ou, se justificado, quando o
+//!   gabarito o aceita como utilitário (`justificavel`).
 //! - **Evidências** dos pontos de entrada conferidas contra o código.
 //!
 //! Falhas graves: nenhuma funcionalidade registrada; ponto de entrada do
@@ -120,19 +124,40 @@ pub fn avaliar_mapeamento(
                 .push(p.chave.as_str());
         }
     }
-    let mut casadas: BTreeMap<&str, String> = BTreeMap::new();
+    // Funcionalidades registradas que atendem cada esperada.
+    let mut atendem: BTreeMap<&str, Vec<String>> = BTreeMap::new();
     let funcionalidades = esperado
         .funcionalidades
         .iter()
         .map(|e| {
             let pontos = pontos_de.get(e.id.as_str()).cloned().unwrap_or_default();
-            let registrada = abertas.iter().find(|f| {
-                texto::atende(&texto_da(f), &e.palavras_chave)
-                    && f.chaves().any(|c| pontos.contains(&c))
-            });
-            if let Some(r) = registrada {
-                casadas.insert(e.id.as_str(), r.id.to_string());
-            }
+            // Pontos esperados só desta funcionalidade, que a identificam melhor.
+            let exclusivos: Vec<&str> = esperado
+                .pontos_de_entrada
+                .iter()
+                .filter(|p| p.funcionalidades == [e.id.as_str()])
+                .map(|p| p.chave.as_str())
+                .collect();
+            let esperados_em =
+                |f: &Funcionalidade| f.chaves().filter(|c| pontos.contains(c)).count();
+            let exclusivos_em =
+                |f: &Funcionalidade| f.chaves().filter(|c| exclusivos.contains(c)).count();
+            let candidatas: Vec<&Funcionalidade> = abertas
+                .iter()
+                .copied()
+                .filter(|f| texto::atende(&texto_da(f), &e.palavras_chave) && esperados_em(f) > 0)
+                .collect();
+            // A com mais pontos esperados só dela, depois com mais pontos
+            // esperados dela; no empate, a primeira registrada.
+            let registrada = candidatas
+                .iter()
+                .copied()
+                .rev()
+                .max_by_key(|f| (exclusivos_em(f), esperados_em(f)));
+            atendem.insert(
+                e.id.as_str(),
+                candidatas.iter().map(|f| f.id.to_string()).collect(),
+            );
             FuncionalidadeAvaliada {
                 esperada: e.id.clone(),
                 nome: e.nome.clone().unwrap_or_else(|| e.id.clone()),
@@ -150,9 +175,11 @@ pub fn avaliar_mapeamento(
             let (tratamento, bem) = match dona {
                 Some(f) => (
                     "atribuido",
-                    p.funcionalidades
-                        .iter()
-                        .any(|e| casadas.get(e.as_str()) == Some(&f.id.to_string())),
+                    p.funcionalidades.iter().any(|e| {
+                        atendem
+                            .get(e.as_str())
+                            .is_some_and(|ids| ids.contains(&f.id.to_string()))
+                    }),
                 ),
                 None if justificado => ("justificado", p.justificavel),
                 None => ("sem_tratamento", false),

@@ -623,6 +623,10 @@ fn criterios_das_analises(s: &mut String) {
     );
     let _ = writeln!(
         s,
+        "- **Dados pessoais e requisitos não funcionais** (impacto): campo pessoal esperado apontado por uma afirmação da seção com as palavras-chave do campo e evidência válida que toca a esperada (definição ou conteúdo da coluna); aspecto não funcional (auditoria, desempenho, acesso) tratado por uma afirmação da seção ou por uma pergunta com as palavras-chave; possível falso positivo quando uma afirmação da seção cita uma coluna não pessoal do gabarito sem apontar nenhum campo esperado (para revisão, não é falha grave)."
+    );
+    let _ = writeln!(
+        s,
         "- **Revisão de requisito** (`revisar`): achado esperado atendido por um achado da característica esperada, com as palavras-chave e, se o esperado cita regras, com evidência válida que toca a regra; termo vago apontado por um achado de ambiguidade ou verificabilidade cujo trecho o contém; veredito igual ao esperado. Falha grave: achado de correção sem evidência válida, ou nenhum achado quando o esperado não é `pronta`."
     );
     let _ = writeln!(
@@ -636,7 +640,7 @@ fn criterios_das_analises(s: &mut String) {
     );
     let _ = writeln!(
         s,
-        "- **Mapa de funcionalidades** (`mapear`, sem análise: o agente começa por `iniciar_mapeamento` e o mapa do projeto é comparado): funcionalidade esperada encontrada quando uma funcionalidade registrada (não descartada nem juntada) tem as palavras-chave no nome ou na descrição e ao menos um ponto de entrada esperado dela; área confere pelo slug. Ponto de entrada esperado bem tratado quando está na funcionalidade que casou com uma das esperadas para ele, ou justificado quando o gabarito o aceita como utilitário. Falha grave: nenhuma funcionalidade, ponto de entrada do gabarito sem tratamento ou evidência de ponto de entrada que não confere."
+        "- **Mapa de funcionalidades** (`mapear`, sem análise: o agente começa por `iniciar_mapeamento` e o mapa do projeto é comparado): funcionalidade esperada encontrada quando uma funcionalidade registrada (não descartada nem juntada) tem as palavras-chave no nome ou na descrição e ao menos um ponto de entrada esperado dela; área confere pelo slug. Ponto de entrada esperado bem tratado quando está numa funcionalidade que atende uma das esperadas para ele (cada parte de uma funcionalidade dividida conta), ou justificado quando o gabarito o aceita como utilitário. Falha grave: nenhuma funcionalidade, ponto de entrada do gabarito sem tratamento ou evidência de ponto de entrada que não confere."
     );
     let _ = writeln!(
         s,
@@ -779,7 +783,48 @@ fn analise_md(s: &mut String, e: &Execucao) {
     if let Some(m) = &a.modelagem {
         modelagem_md(s, m);
     }
+    if let Some(d) = &a.dados_pessoais {
+        dados_pessoais_md(s, d);
+    }
     let _ = writeln!(s, "- Concluída: {}\n", sim_nao(a.concluida));
+}
+
+fn dados_pessoais_md(s: &mut String, d: &crate::dados_pessoais::DadosPessoaisAvaliados) {
+    let _ = writeln!(
+        s,
+        "- Dados pessoais e requisitos não funcionais: {} afirmação(ões) na seção; campos pessoais apontados {} de {}; aspectos tratados {} de {}",
+        d.afirmacoes,
+        d.campos_apontados(),
+        d.campos.len(),
+        d.aspectos_atendidos(),
+        d.aspectos.len()
+    );
+    for c in &d.campos {
+        let _ = writeln!(
+            s,
+            "  - {} ({}): {}",
+            c.campo,
+            c.categoria,
+            c.apontado_por
+                .map_or("não apontado".to_owned(), |n| format!("afirmação {n}"))
+        );
+    }
+    for a in &d.aspectos {
+        let como = match (a.afirmacao, a.pergunta) {
+            (Some(n), _) => format!("afirmação {n}"),
+            (None, Some(n)) => format!("pergunta {n}"),
+            (None, None) => "não tratado".to_owned(),
+        };
+        let _ = writeln!(s, "  - {} ({}): {como}", a.aspecto, a.tema);
+    }
+    for f in &d.falsos_positivos {
+        let _ = writeln!(
+            s,
+            "  - Possível falso positivo: {} (afirmações {})",
+            f.campo,
+            crate::comparacao::lista_de_numeros(&f.afirmacoes)
+        );
+    }
 }
 
 fn mapeamento_md(s: &mut String, m: &crate::mapeamento::MapeamentoAvaliado) {

@@ -11,6 +11,7 @@ use cba_index::{Achado, Mapa, TipoReferencia};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
+use crate::dados_pessoais;
 use crate::fontes;
 use crate::paginacao::{ArgsPagina, Item, Pagina, com_paginacao, curto, nome};
 use crate::registro::{ErroFerramenta, Ferramenta, Saida, ler_argumentos};
@@ -33,9 +34,12 @@ pub fn schema() -> Ferramenta {
         "Schema do banco",
         "Consulta o modelo de dados extraído dos scripts de banco do projeto. Sem \
          `tabela`: lista tabelas, visões, sequências, índices e sinônimos, com arquivo, \
-         linhas e quantidade de colunas. Com `tabela`: as colunas (tipo e comentário), \
-         as chaves estrangeiras de e para a tabela e quantas vezes ela é lida e gravada \
-         no código. Resposta paginada.",
+         linhas, quantidade de colunas e quantas têm indício de dado pessoal. Com \
+         `tabela`: as colunas (tipo e comentário), as chaves estrangeiras de e para a \
+         tabela e quantas vezes ela é lida e gravada no código. Colunas cujo nome e \
+         tipo sugerem dado pessoal ou sensível (LGPD) vêm marcadas com a categoria: é \
+         um indício por nome, sem IA; confirme no código antes de afirmar. Resposta \
+         paginada.",
         com_paginacao(json!({
             "type": "object",
             "properties": {
@@ -82,7 +86,12 @@ fn de_todas(mapa: &Mapa, args: ArgsPagina) -> (String, Value) {
         .iter()
         .map(|a| {
             *por_tipo.entry(nome(&a.simbolo.tipo)).or_default() += 1;
-            let colunas = mapa.filhos(a.id).len();
+            let filhos = mapa.filhos(a.id);
+            let colunas = filhos.len();
+            let pessoais = filhos
+                .iter()
+                .filter(|c| indicio_da_coluna(&a.simbolo.qualificado, c).is_some())
+                .count();
             let mut linha = format!(
                 "- {} {} ({})",
                 nome(&a.simbolo.tipo),
@@ -91,6 +100,9 @@ fn de_todas(mapa: &Mapa, args: ArgsPagina) -> (String, Value) {
             );
             if colunas > 0 {
                 let _ = write!(linha, ", {colunas} colunas");
+            }
+            if pessoais > 0 {
+                let _ = write!(linha, " ({pessoais} com indício de dado pessoal)");
             }
             if let Some(c) = &a.simbolo.comentario {
                 let _ = write!(linha, " — {}", curto(c));
@@ -104,6 +116,7 @@ fn de_todas(mapa: &Mapa, args: ArgsPagina) -> (String, Value) {
                     "linha_inicial": a.simbolo.linhas.inicio,
                     "linha_final": a.simbolo.linhas.fim,
                     "colunas": colunas,
+                    "colunas_com_dado_pessoal": pessoais,
                     "comentario": a.simbolo.comentario.as_deref().map(curto),
                 }),
             }
@@ -158,6 +171,7 @@ fn da_tabela(
     let mut cabecalho = String::new();
     let mut dados_objetos = Vec::new();
     let mut itens = Vec::new();
+    let mut pessoais = 0usize;
     let varios = objetos.len() > 1;
     for o in &objetos {
         let s = o.simbolo;
@@ -254,6 +268,16 @@ fn da_tabela(
             if let Some(cm) = &cs.comentario {
                 let _ = write!(linha, " — {}", curto(cm));
             }
+            let pessoal = indicio_da_coluna(&s.qualificado, &c);
+            if let Some(i) = &pessoal {
+                pessoais += 1;
+                let _ = write!(
+                    linha,
+                    " [indício de dado pessoal{}: {}]",
+                    if i.sensivel { " sensível" } else { "" },
+                    i.categoria
+                );
+            }
             itens.push(Item {
                 linha,
                 dados: json!({
@@ -263,11 +287,19 @@ fn da_tabela(
                     "detalhe": cs.detalhe.as_deref().map(curto),
                     "linha": cs.linhas.inicio,
                     "comentario": cs.comentario.as_deref().map(curto),
+                    "dado_pessoal": pessoal,
                 }),
             });
         }
     }
 
+    if pessoais > 0 {
+        let _ = writeln!(
+            cabecalho,
+            "  {pessoais} coluna(s) com indício de dado pessoal, pelo nome e pelo tipo: \
+             confirme no código o que a coluna guarda e de quem antes de afirmar."
+        );
+    }
     let pagina = Pagina::da_lista(itens, args);
     let mut texto = cabecalho;
     if pagina.total == 0 {
@@ -284,6 +316,18 @@ fn da_tabela(
         "pagina": pagina.json(),
     });
     Ok((texto, dados))
+}
+
+/// Indício de dado pessoal de uma coluna (nome sem o esquema da tabela).
+fn indicio_da_coluna(tabela: &str, coluna: &Achado<'_>) -> Option<dados_pessoais::Indicio> {
+    let tabela = tabela.rsplit('.').next().unwrap_or(tabela);
+    let s = coluna.simbolo;
+    dados_pessoais::indicio(
+        tabela,
+        &s.nome,
+        s.detalhe.as_deref(),
+        s.comentario.as_deref(),
+    )
 }
 
 fn nao_encontrada(mapa: &Mapa, tabela: &str, achados: &[Achado<'_>]) -> ErroFerramenta {

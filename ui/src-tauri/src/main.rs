@@ -35,6 +35,7 @@ mod analise;
 mod base;
 mod cli;
 mod clones;
+mod cobertura;
 mod configuracoes;
 #[cfg(windows)]
 mod console;
@@ -43,6 +44,7 @@ mod demandas;
 mod funcionalidades;
 mod gui;
 mod inicio;
+mod mudancas;
 mod painel_funcionalidade;
 mod pauta;
 mod primeiro_uso;

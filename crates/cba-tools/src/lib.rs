@@ -23,9 +23,12 @@
 //!   pelos elementos, que o app transforma em Mermaid, #118) e [`mapear`]
 //!   (`iniciar_mapeamento`, `pontos_de_entrada`, `registrar_funcionalidade`,
 //!   `tratar_ponto_de_entrada` e `concluir_mapeamento`: o mapa de funcionalidades
-//!   do projeto, #208, fora das análises).
+//!   do projeto, #208, fora das análises) e [`mudancas`]
+//!   (`relatorio_de_mudancas` e `propor_atualizacao_de_regra`: o que mudou no
+//!   código desde a última análise e a explicação por regra, #124).
 //! - Consulta, só de leitura e paginada ([`paginacao`]): [`conhecimento`] (busca no
-//!   índice da base), [`mapa`], [`estrutura`], [`banco`] (`schema`) e
+//!   índice da base), [`mapa`], [`estrutura`], [`banco`] (`schema`, com os indícios
+//!   de dado pessoal de [`dados_pessoais`]) e
 //!   [`referencias`], a partir do mapa estrutural do projeto ([`fontes`]), e
 //!   [`rastreabilidade`] (matriz da demanda e consulta reversa por regra ou
 //!   arquivo, #121, que também exporta a matriz para Excel e Word).
@@ -57,9 +60,11 @@ pub mod aprovacao_ata;
 pub mod banco;
 pub mod cenarios;
 pub mod ciclo;
+pub mod cobertura;
 mod comum;
 pub mod conhecimento;
 pub mod contexto;
+pub mod dados_pessoais;
 pub mod diagramas;
 pub mod documento;
 pub mod editavel;
@@ -72,6 +77,7 @@ pub mod mapa;
 pub mod mapear;
 pub mod memoria;
 mod modelo_dados;
+pub mod mudancas;
 mod paginacao;
 pub mod parecer;
 pub mod pauta;
@@ -133,6 +139,8 @@ pub fn registro_padrao() -> Registro {
         .registrar(mapear::registrar_funcionalidade())
         .registrar(mapear::tratar_ponto_de_entrada())
         .registrar(mapear::concluir_mapeamento())
+        .registrar(mudancas::relatorio_de_mudancas())
+        .registrar(mudancas::propor_atualizacao_de_regra())
         .registrar(ciclo::concluir_analise());
     registro
 }
@@ -183,6 +191,8 @@ mod tests {
             "registrar_funcionalidade",
             "tratar_ponto_de_entrada",
             "concluir_mapeamento",
+            "relatorio_de_mudancas",
+            "propor_atualizacao_de_regra",
             "concluir_analise",
         ] {
             assert!(r.obter(nome).is_some(), "{nome}");
@@ -209,6 +219,11 @@ mod tests {
                 .unwrap()
                 .e_somente_leitura()
         );
+        assert!(
+            !r.obter("propor_atualizacao_de_regra")
+                .unwrap()
+                .e_somente_leitura()
+        );
         assert!(!r.obter("iniciar_analise").unwrap().e_somente_leitura());
         assert!(!r.obter("concluir_analise").unwrap().e_somente_leitura());
         assert!(!r.obter("propor_papel").unwrap().e_somente_leitura());
@@ -231,6 +246,7 @@ mod tests {
             "iniciar_mapeamento",
             "pontos_de_entrada",
             "concluir_mapeamento",
+            "relatorio_de_mudancas",
         ] {
             assert!(r.obter(consulta).unwrap().e_somente_leitura(), "{consulta}");
         }

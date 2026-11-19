@@ -203,6 +203,47 @@ pub struct Demanda {
     pub arquivos_impactados: Vec<String>,
     #[serde(default)]
     pub perguntas_esperadas: Vec<PerguntaEsperada>,
+    /// Seção "Dados pessoais e requisitos não funcionais" esperada (#126).
+    #[serde(default)]
+    pub dados_pessoais: Option<DadosPessoaisEsperados>,
+}
+
+/// O que a seção "Dados pessoais e requisitos não funcionais" da análise de
+/// impacto deve ter (#126).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DadosPessoaisEsperados {
+    /// Campos com dado pessoal que a demanda toca.
+    pub campos: Vec<CampoPessoal>,
+    /// Colunas que não guardam dado pessoal: apontá-las é falso positivo.
+    #[serde(default)]
+    pub nao_pessoais: Vec<CampoNaoPessoal>,
+    /// Aspectos não funcionais (auditoria, desempenho, acesso).
+    #[serde(default)]
+    pub aspectos: Vec<AspectoEsperado>,
+}
+
+/// Campo com dado pessoal (`CLIENTE.NOME`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CampoPessoal {
+    pub campo: String,
+    pub categoria: String,
+    pub palavras_chave: Vec<Vec<String>>,
+    pub evidencias: Vec<EvidenciaEsperada>,
+}
+
+/// Coluna que não guarda dado pessoal.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CampoNaoPessoal {
+    pub campo: String,
+    pub palavras_chave: Vec<Vec<String>>,
+}
+
+/// Aspecto não funcional que a análise deve tratar, por afirmação ou pergunta.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AspectoEsperado {
+    pub aspecto: String,
+    pub tema: String,
+    pub palavras_chave: Vec<Vec<String>>,
 }
 
 /// Requisito ou história fictícios e o parecer esperado (fluxo `revisar`).
@@ -528,6 +569,10 @@ pub struct Item {
     /// Fluxo do processo e modelo de dados esperados, só no fluxo explicar (#120).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub modelagem: Option<ModelagemEsperada>,
+    /// Dados pessoais e requisitos não funcionais esperados, só no fluxo impacto
+    /// (#126).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dados_pessoais: Option<DadosPessoaisEsperados>,
 }
 
 /// Erro ao ler o gabarito ou ao achar um item.
@@ -629,6 +674,7 @@ impl Gabarito {
                 cenarios: None,
                 ciclo_vida: None,
                 modelagem: None,
+                dados_pessoais: None,
             });
         }
         if let Some(f) = self.funcionalidades.iter().find(|f| f.id == id) {
@@ -652,6 +698,7 @@ impl Gabarito {
                         modelo_dados: f.modelo_dados.clone(),
                     }
                 }),
+                dados_pessoais: None,
             });
         }
         if let Some(d) = self.demandas.iter().find(|d| d.id == id) {
@@ -670,6 +717,7 @@ impl Gabarito {
                 cenarios: None,
                 ciclo_vida: None,
                 modelagem: None,
+                dados_pessoais: d.dados_pessoais.clone(),
             });
         }
         if let Some(r) = self.revisoes.iter().find(|r| r.id == id) {
@@ -689,6 +737,7 @@ impl Gabarito {
                 cenarios: None,
                 ciclo_vida: None,
                 modelagem: None,
+                dados_pessoais: None,
             });
         }
         if let Some(h) = self.historias.iter().find(|h| h.id == id) {
@@ -708,6 +757,7 @@ impl Gabarito {
                 cenarios: None,
                 ciclo_vida: None,
                 modelagem: None,
+                dados_pessoais: None,
             });
         }
         if let Some(c) = self.cenarios.iter().find(|c| c.id == id) {
@@ -726,6 +776,7 @@ impl Gabarito {
                 cenarios: Some(c.esperado.clone()),
                 ciclo_vida: None,
                 modelagem: None,
+                dados_pessoais: None,
             });
         }
         if let Some(c) = self.ciclos_vida.iter().find(|c| c.id == id) {
@@ -744,6 +795,7 @@ impl Gabarito {
                 cenarios: None,
                 ciclo_vida: Some(c.esperado.clone()),
                 modelagem: None,
+                dados_pessoais: None,
             });
         }
         Err(Erro(format!(

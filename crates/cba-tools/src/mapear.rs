@@ -16,7 +16,12 @@
 //!   informado, o da funcionalidade que já tem um dos pontos ou o próximo da
 //!   sigla da área.
 //! - `tratar_ponto_de_entrada`: atribui um ponto do mapa a uma funcionalidade já
-//!   registrada ou o justifica (código morto, utilitário, outro motivo).
+//!   registrada ou o justifica (código morto, utilitário, outro motivo), um por
+//!   vez ou em lote (`pontos` e `justificar_padrao`, por arquivo ou prefixo de
+//!   chave), numa única alteração do mapa e com o resultado de cada item. O
+//!   ponto citado casa com tolerância ([`PontosCasaveis`]): a rota de um endpoint
+//!   vale com outro nome de parâmetro; ambíguo ou não achado, a recusa lista os
+//!   candidatos ou as chaves parecidas.
 //! - `concluir_mapeamento` (só leitura): **completude, sem IA**: cruza os pontos
 //!   do recorte com os atribuídos e os justificados ([`nao_mapeados`]) e recusa
 //!   enquanto sobrar algum.
@@ -433,36 +438,288 @@ fn linha_do_ponto(p: &PontoEntrada) -> String {
     )
 }
 
-/// Ponto do mapa que o agente citou: pela chave, pelo nome (único, de preferência
-/// no arquivo da evidência) ou pela evidência dentro das linhas do símbolo.
-fn casar_ponto<'a>(
+// ---------------------------------------------------------------------------
+// Casamento do ponto citado
+
+/// Métodos HTTP aceitos no começo de uma rota citada (`GET /api/faturas/{id}`).
+const METODOS_HTTP: &[&str] = &["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"];
+
+/// Quantas chaves parecidas a recusa sugere.
+const SUGESTOES: usize = 5;
+
+/// Quantos candidatos a recusa por ambiguidade lista.
+const CANDIDATOS_LISTADOS: usize = 10;
+
+/// Forma de comparar chaves, nomes e rotas: os parâmetros de rota (`{id}`,
+/// `{id:[0-9]+}`, `:id`) viram `{}`, a barra final sai e tudo fica em
+/// minúsculas.
+pub fn normalizar_rota(texto: &str) -> String {
+    let mut saida = String::with_capacity(texto.len());
+    let mut chaves = 0usize;
+    let mut inicio_de_segmento = true;
+    let mut letras = texto.trim().chars().peekable();
+    while let Some(c) = letras.next() {
+        if chaves > 0 {
+            match c {
+                '{' => chaves += 1,
+                '}' => {
+                    chaves -= 1;
+                    if chaves == 0 {
+                        saida.push_str("{}");
+                    }
+                }
+                _ => {}
+            }
+            continue;
+        }
+        match c {
+            '{' => {
+                chaves = 1;
+                inicio_de_segmento = false;
+            }
+            ':' if inicio_de_segmento => {
+                while letras.next_if(|p| *p != '/').is_some() {}
+                saida.push_str("{}");
+                inicio_de_segmento = false;
+            }
+            '/' => {
+                saida.push('/');
+                inicio_de_segmento = true;
+            }
+            _ => {
+                saida.extend(c.to_lowercase());
+                inicio_de_segmento = false;
+            }
+        }
+    }
+    if chaves > 0 {
+        saida.push_str("{}");
+    }
+    while saida.len() > 1 && saida.ends_with('/') {
+        saida.pop();
+    }
+    saida
+}
+
+/// Separa o método HTTP do começo do texto citado, se houver.
+fn separar_metodo(citado: &str) -> (Option<String>, &str) {
+    if let Some((m, resto)) = citado.split_once(char::is_whitespace) {
+        let m = m.to_uppercase();
+        if METODOS_HTTP.contains(&m.as_str()) {
+            return (Some(m), resto.trim());
+        }
+    }
+    (None, citado)
+}
+
+/// Método e rota de um endpoint, pelo detalhe que o mapa estrutural dá a ele
+/// (`endpoint GET /api/faturas/{id}`).
+fn rota_do_endpoint(p: &PontoEntrada) -> Option<(String, &str)> {
+    let (metodo, rota) = p
+        .detalhe
+        .as_deref()?
+        .strip_prefix("endpoint ")?
+        .trim()
+        .split_once(char::is_whitespace)?;
+    Some((metodo.to_uppercase(), rota.trim()))
+}
+
+/// Pontos de entrada do mapa prontos para casar com o que o agente cita: as
+/// chaves, os nomes e as rotas já normalizados (uma vez por chamada, não por
+/// item do lote).
+pub struct PontosCasaveis<'a> {
     pontos: &'a [PontoEntrada],
+    chaves: Vec<String>,
+    nomes: Vec<String>,
+    rotas: Vec<Option<(String, String)>>,
+}
+
+/// Resultado de procurar o ponto citado entre os do mapa.
+#[derive(Debug)]
+pub enum Casamento<'a> {
+    Um(&'a PontoEntrada),
+    /// Mais de um ponto casa: o agente precisa escolher pela chave.
+    Varios(Vec<&'a PontoEntrada>),
+    /// Nenhum casa; vêm as chaves parecidas, as do mesmo arquivo primeiro.
+    Nenhum(Vec<&'a PontoEntrada>),
+}
+
+impl<'a> PontosCasaveis<'a> {
+    pub fn novos(pontos: &'a [PontoEntrada]) -> Self {
+        Self {
+            pontos,
+            chaves: pontos.iter().map(|p| normalizar_rota(&p.chave)).collect(),
+            nomes: pontos.iter().map(|p| normalizar_rota(&p.nome)).collect(),
+            rotas: pontos
+                .iter()
+                .map(|p| rota_do_endpoint(p).map(|(m, r)| (m, normalizar_rota(r))))
+                .collect(),
+        }
+    }
+
+    /// Pontos que casam com o texto citado, do critério mais estrito ao mais
+    /// solto (vale o primeiro que achar algum): a chave exata; a chave
+    /// normalizada; a rota do endpoint (com o método, quando citado); o nome
+    /// (inteiro ou o final dele, depois de um `.`).
+    pub fn candidatos(&self, citado: &str) -> Vec<&'a PontoEntrada> {
+        let citado = citado.trim();
+        if citado.is_empty() {
+            return Vec::new();
+        }
+        if let Some(p) = self.pontos.iter().find(|p| p.chave == citado) {
+            return vec![p];
+        }
+        let (metodo, resto) = separar_metodo(citado);
+        let alvo = normalizar_rota(resto);
+        let metodo_confere = |i: usize| match (&metodo, &self.rotas[i]) {
+            (None, _) => true,
+            (Some(m), Some((mp, _))) => m == mp,
+            (Some(_), None) => false,
+        };
+        let filtrar = |criterio: &dyn Fn(usize) -> bool| -> Vec<&'a PontoEntrada> {
+            (0..self.pontos.len())
+                .filter(|&i| metodo_confere(i) && criterio(i))
+                .map(|i| &self.pontos[i])
+                .collect()
+        };
+        let pela_chave = filtrar(&|i| self.chaves[i] == alvo);
+        if !pela_chave.is_empty() {
+            return pela_chave;
+        }
+        if alvo.starts_with('/') {
+            let pela_rota = filtrar(&|i| self.rotas[i].as_ref().is_some_and(|(_, r)| *r == alvo));
+            if !pela_rota.is_empty() {
+                return pela_rota;
+            }
+        }
+        let sufixo = format!(".{alvo}");
+        filtrar(&|i| self.nomes[i] == alvo || self.nomes[i].ends_with(&sufixo))
+    }
+
+    /// O ponto citado, os candidatos (se ambíguo) ou as chaves parecidas.
+    pub fn casar(&self, citado: &str) -> Casamento<'a> {
+        let mut candidatos = self.candidatos(citado);
+        match candidatos.len() {
+            1 => Casamento::Um(candidatos.remove(0)),
+            0 => Casamento::Nenhum(self.parecidos(citado)),
+            _ => Casamento::Varios(candidatos),
+        }
+    }
+
+    /// Até [`SUGESTOES`] chaves parecidas com o texto citado: as do arquivo
+    /// citado (o que vem antes do `#`) primeiro, depois as que têm mais pedaços
+    /// do texto.
+    fn parecidos(&self, citado: &str) -> Vec<&'a PontoEntrada> {
+        let (_, resto) = separar_metodo(citado.trim());
+        let arquivo = resto.split_once('#').map(|(a, _)| a.trim());
+        let alvo = normalizar_rota(resto);
+        let pedacos: BTreeSet<&str> = alvo
+            .split(|c: char| !c.is_alphanumeric() && c != '_')
+            .filter(|p| p.chars().count() >= 3)
+            .collect();
+        let mut achados: Vec<(bool, usize, usize, usize)> = (0..self.pontos.len())
+            .filter_map(|i| {
+                let mesmo_arquivo = arquivo.is_some_and(|a| self.pontos[i].arquivo == a);
+                let comuns = pedacos
+                    .iter()
+                    .filter(|p| self.chaves[i].contains(*p))
+                    .count();
+                (mesmo_arquivo || comuns > 0).then(|| {
+                    (
+                        mesmo_arquivo,
+                        comuns,
+                        self.chaves[i].len().abs_diff(alvo.len()),
+                        i,
+                    )
+                })
+            })
+            .collect();
+        achados.sort_by(|a, b| {
+            b.0.cmp(&a.0)
+                .then(b.1.cmp(&a.1))
+                .then(a.2.cmp(&b.2))
+                .then(a.3.cmp(&b.3))
+        });
+        achados
+            .into_iter()
+            .take(SUGESTOES)
+            .map(|(_, _, _, i)| &self.pontos[i])
+            .collect()
+    }
+}
+
+fn lista_de_chaves(pontos: &[&PontoEntrada]) -> String {
+    pontos
+        .iter()
+        .map(|p| match &p.detalhe {
+            Some(d) => format!("\n- `{}` ({})", p.chave, em_uma_linha(d)),
+            None => format!("\n- `{}` ({})", p.chave, p.tipo.nome()),
+        })
+        .collect()
+}
+
+/// O ponto do mapa que o agente citou em `tratar_ponto_de_entrada`; recusa
+/// listando os candidatos (ambíguo) ou as chaves parecidas (não achado).
+pub fn localizar_ponto<'a>(
+    casaveis: &PontosCasaveis<'a>,
+    citado: &str,
+) -> Result<&'a PontoEntrada, ErroFerramenta> {
+    let c = citado.trim();
+    match casaveis.casar(c) {
+        Casamento::Um(p) => Ok(p),
+        Casamento::Varios(v) => {
+            let mostrados: Vec<&PontoEntrada> =
+                v.iter().take(CANDIDATOS_LISTADOS).copied().collect();
+            let mut t = format!(
+                "o ponto `{c}` casa com {} pontos de entrada do mapa; repita com a chave \
+                 de um deles:{}",
+                v.len(),
+                lista_de_chaves(&mostrados)
+            );
+            if v.len() > CANDIDATOS_LISTADOS {
+                let _ = write!(t, "\n- … e mais {}", v.len() - CANDIDATOS_LISTADOS);
+            }
+            Err(ErroFerramenta::Recusa(t))
+        }
+        Casamento::Nenhum(parecidos) => {
+            let mut t = format!(
+                "o ponto `{c}` não está entre os pontos de entrada do mapa; use a chave como \
+                 `pontos_de_entrada` mostra."
+            );
+            if !parecidos.is_empty() {
+                let _ = writeln!(t, " Chaves parecidas:{}", lista_de_chaves(&parecidos));
+            }
+            t.push_str(
+                " Um ponto fora da lista entra numa funcionalidade por \
+                 `registrar_funcionalidade`, com a evidência",
+            );
+            Err(ErroFerramenta::Recusa(t))
+        }
+    }
+}
+
+/// Ponto do mapa que o agente citou em `registrar_funcionalidade`: pelos
+/// [`PontosCasaveis::candidatos`] (um só, de preferência no arquivo da
+/// evidência) ou pela evidência dentro das linhas do símbolo.
+fn casar_ponto<'a>(
+    casaveis: &PontosCasaveis<'a>,
     citado: Option<&str>,
     evidencia: &cba_core::analise::Evidencia,
 ) -> Option<&'a PontoEntrada> {
     let arquivo = evidencia.arquivo.as_str();
-    if let Some(c) = citado.map(str::trim).filter(|c| !c.is_empty()) {
-        if let Some(p) = pontos.iter().find(|p| p.chave == c) {
-            return Some(p);
-        }
-        let up = c.to_uppercase();
-        let pelo_nome: Vec<&PontoEntrada> = pontos
-            .iter()
-            .filter(|p| {
-                let n = p.nome.to_uppercase();
-                n == up || n.ends_with(&format!(".{up}"))
-            })
-            .collect();
+    if let Some(c) = citado {
+        let candidatos = casaveis.candidatos(c);
         let no_arquivo: Vec<&&PontoEntrada> =
-            pelo_nome.iter().filter(|p| p.arquivo == arquivo).collect();
-        match (no_arquivo.as_slice(), pelo_nome.as_slice()) {
+            candidatos.iter().filter(|p| p.arquivo == arquivo).collect();
+        match (no_arquivo.as_slice(), candidatos.as_slice()) {
             ([um], _) => return Some(um),
             ([], [um]) => return Some(um),
             _ => {}
         }
     }
     let (i, f) = (evidencia.linhas.inicio, evidencia.linhas.fim);
-    pontos
+    casaveis
+        .pontos
         .iter()
         .filter(|p| p.arquivo == arquivo && p.linhas.inicio <= f && i <= p.linhas.fim)
         .min_by_key(|p| p.linhas.fim - p.linhas.inicio)
@@ -1246,12 +1503,13 @@ pub fn registrar_funcionalidade() -> Ferramenta {
                 .as_ref()
                 .map(|c| c.mapa.pontos_de_entrada())
                 .unwrap_or_default();
+            let casaveis = PontosCasaveis::novos(&todos);
             let pontos: Vec<PontoAtribuido> = args
                 .pontos_de_entrada
                 .iter()
                 .zip(evidencias_ok)
                 .map(|(citado, evidencia)| {
-                    match casar_ponto(&todos, citado.ponto.as_deref(), &evidencia) {
+                    match casar_ponto(&casaveis, citado.ponto.as_deref(), &evidencia) {
                         Some(p) => PontoAtribuido {
                             chave: Some(p.chave.clone()),
                             tipo: Some(p.tipo),
@@ -1335,116 +1593,538 @@ pub fn registrar_funcionalidade() -> Ferramenta {
     )
 }
 
-/// `tratar_ponto_de_entrada`: atribui a uma funcionalidade ou justifica.
+/// Quantos itens um lote de `tratar_ponto_de_entrada` aceita.
+const ITENS_POR_LOTE: usize = 500;
+
+/// Um item de `tratar_ponto_de_entrada`: atribuir o ponto a uma funcionalidade ou
+/// justificá-lo. É a forma de um item só (no nível de cima) e a de cada item de
+/// `pontos`.
+#[derive(Debug, Clone, Deserialize)]
+struct ItemTratamento {
+    ponto: String,
+    tratamento: String,
+    #[serde(default)]
+    funcionalidade: Option<String>,
+    #[serde(default)]
+    motivo: Option<MotivoSemFuncionalidade>,
+    #[serde(default)]
+    justificativa: Option<String>,
+}
+
+/// Justificativa de todos os pontos sem tratamento de um arquivo ou de um prefixo
+/// de chave, com o mesmo motivo.
+#[derive(Debug, Clone, Deserialize)]
+struct PadraoJustificativa {
+    #[serde(default)]
+    arquivo: Option<String>,
+    #[serde(default)]
+    prefixo: Option<String>,
+    motivo: MotivoSemFuncionalidade,
+    justificativa: String,
+}
+
+impl PadraoJustificativa {
+    fn descricao(&self) -> String {
+        match (&self.arquivo, &self.prefixo) {
+            (Some(a), Some(p)) => format!("arquivo `{}` e prefixo `{}`", a.trim(), p.trim()),
+            (Some(a), None) => format!("arquivo `{}`", a.trim()),
+            (None, Some(p)) => format!("prefixo `{}`", p.trim()),
+            (None, None) => "padrão vazio".to_owned(),
+        }
+    }
+
+    fn casa(&self, p: &PontoEntrada) -> bool {
+        let arquivo = self
+            .arquivo
+            .as_deref()
+            .map(|a| a.trim().trim_start_matches("./").replace('\\', "/"));
+        arquivo.is_none_or(|a| p.arquivo == a)
+            && self
+                .prefixo
+                .as_deref()
+                .is_none_or(|x| p.chave.starts_with(x.trim()))
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct ArgsTratar {
+    #[serde(default)]
+    ponto: Option<String>,
+    #[serde(default)]
+    tratamento: Option<String>,
+    #[serde(default)]
+    funcionalidade: Option<String>,
+    #[serde(default)]
+    motivo: Option<MotivoSemFuncionalidade>,
+    #[serde(default)]
+    justificativa: Option<String>,
+    #[serde(default)]
+    pontos: Vec<ItemTratamento>,
+    #[serde(default)]
+    justificar_padrao: Vec<PadraoJustificativa>,
+}
+
+/// O que fazer com um ponto, já conferido fora da trava.
+#[derive(Debug, Clone)]
+enum Operacao {
+    Atribuir(IdFuncionalidade, PontoAtribuido),
+    Justificar(PontoJustificado),
+}
+
+/// Item pronto para aplicar no mapa.
+#[derive(Debug)]
+struct Preparado {
+    /// Índice do resultado a que pertence (o item de `pontos` ou o padrão).
+    origem: usize,
+    chave: String,
+    operacao: Operacao,
+}
+
+/// Resultado de um item de `pontos` (ou do item único) ou de um padrão.
+#[derive(Debug, Default)]
+struct Resultado {
+    item: String,
+    citado: String,
+    chave: Option<String>,
+    tratamento: String,
+    funcionalidade: Option<String>,
+    /// Recusa do item inteiro (antes de aplicar ou ao aplicar).
+    recusa: Option<String>,
+    /// Só nos padrões: pontos que casam, aplicados, já tratados e recusas por
+    /// ponto.
+    padrao: Option<String>,
+    casados: usize,
+    aplicados: usize,
+    ja_tratados: usize,
+    recusas: Vec<(String, String)>,
+}
+
+impl Resultado {
+    fn json(&self) -> Value {
+        if let Some(padrao) = &self.padrao {
+            let mut v = json!({
+                "item": self.item,
+                "padrao": padrao,
+                "pontos": self.casados,
+                "aplicados": self.aplicados,
+                "ja_tratados": self.ja_tratados,
+            });
+            if let Some(r) = &self.recusa {
+                v["recusa"] = json!(r);
+            }
+            if !self.recusas.is_empty() {
+                v["recusas"] = json!(
+                    self.recusas
+                        .iter()
+                        .map(|(c, r)| json!({ "chave": c, "recusa": r }))
+                        .collect::<Vec<_>>()
+                );
+            }
+            return v;
+        }
+        let mut v = json!({
+            "item": self.item,
+            "ponto": self.citado,
+            "chave": self.chave,
+            "tratamento": self.tratamento,
+            "resultado": if self.recusa.is_some() { "recusado" } else { "aplicado" },
+        });
+        if let Some(f) = &self.funcionalidade {
+            v["funcionalidade"] = json!(f);
+        }
+        if let Some(r) = &self.recusa {
+            v["recusa"] = json!(r);
+        }
+        v
+    }
+}
+
+fn mensagem(e: &ErroFerramenta) -> String {
+    match e {
+        ErroFerramenta::Recusa(m) | ErroFerramenta::Argumentos(m) => m.clone(),
+        outro => outro.to_string(),
+    }
+}
+
+/// Arquivos do projeto já abertos neste lote (a evidência de vários pontos do
+/// mesmo arquivo lê o arquivo uma vez).
+type ArquivosAbertos = std::collections::HashMap<String, Result<ArquivoDoProjeto, String>>;
+
+/// Confere um item fora da trava: acha o ponto (casamento tolerante), lê o
+/// identificador e, no `atribuir`, confere a declaração do ponto no código.
+fn preparar(
+    ambiente: &Ambiente,
+    casaveis: &PontosCasaveis<'_>,
+    abertos: &mut ArquivosAbertos,
+    item: &ItemTratamento,
+) -> Result<(String, Operacao, Option<String>), ErroFerramenta> {
+    let ponto = localizar_ponto(casaveis, &item.ponto)?;
+    match item.tratamento.as_str() {
+        "atribuir" => {
+            let fid = id_da_funcionalidade(
+                item.funcionalidade.as_deref().ok_or_else(|| {
+                    ErroFerramenta::Argumentos(
+                        "no `atribuir`, informe `funcionalidade` (F-<SIGLA>-NNN)".into(),
+                    )
+                })?,
+                "funcionalidade",
+            )?;
+            let evidencia = evidencia_da_declaracao(ambiente, abertos, ponto)?;
+            let atribuido = PontoAtribuido {
+                chave: Some(ponto.chave.clone()),
+                tipo: Some(ponto.tipo),
+                nome: ponto.nome.clone(),
+                evidencia,
+            };
+            let texto = fid.to_string();
+            Ok((
+                ponto.chave.clone(),
+                Operacao::Atribuir(fid, atribuido),
+                Some(texto),
+            ))
+        }
+        "justificar" => {
+            let motivo = item.motivo.ok_or_else(|| {
+                ErroFerramenta::Argumentos(
+                    "no `justificar`, informe `motivo` (codigo_morto, utilitario ou outro) e \
+                     `justificativa`"
+                        .into(),
+                )
+            })?;
+            Ok((
+                ponto.chave.clone(),
+                Operacao::Justificar(justificado(
+                    ponto,
+                    motivo,
+                    item.justificativa.clone().unwrap_or_default(),
+                )),
+                None,
+            ))
+        }
+        outro => Err(ErroFerramenta::Argumentos(format!(
+            "`tratamento`: `{outro}` não é atribuir nem justificar"
+        ))),
+    }
+}
+
+fn justificado(
+    ponto: &PontoEntrada,
+    motivo: MotivoSemFuncionalidade,
+    justificativa: String,
+) -> PontoJustificado {
+    PontoJustificado {
+        chave: ponto.chave.clone(),
+        tipo: ponto.tipo,
+        nome: ponto.nome.clone(),
+        arquivo: ponto.arquivo.clone(),
+        motivo,
+        justificativa,
+        sessao: None,
+        registrado_ms: 0,
+    }
+}
+
+/// Aplica os itens no mapa, um a um; o item recusado não muda o mapa (as
+/// operações de [`MapaFuncionalidades`] conferem antes de alterar) e não impede
+/// os outros. Devolve a recusa de cada item preparado.
+fn aplicar_lote(
+    m: &mut MapaFuncionalidades,
+    preparados: &[Preparado],
+    agora: u64,
+) -> Vec<Option<String>> {
+    preparados
+        .iter()
+        .map(|p| {
+            let feito = match &p.operacao {
+                Operacao::Atribuir(fid, ponto) => m.atribuir_ponto(fid, ponto.clone(), agora),
+                Operacao::Justificar(j) => m.justificar_ponto(PontoJustificado {
+                    registrado_ms: agora,
+                    ..j.clone()
+                }),
+            };
+            feito.err().map(|e| e.to_string())
+        })
+        .collect()
+}
+
+/// `tratar_ponto_de_entrada`: atribui a uma funcionalidade ou justifica, um ponto
+/// ou um lote.
 pub fn tratar_ponto_de_entrada() -> Ferramenta {
+    let item = json!({
+        "type": "object",
+        "properties": {
+            "ponto": {
+                "type": "string",
+                "minLength": 1,
+                "description": "O ponto como `pontos_de_entrada` mostra: a chave (`db/03_pkg.sql#PKG.FN_X`), o nome ou, num endpoint, a rota com ou sem o método (`GET /api/faturas/{id}`; o nome do parâmetro, `{x}` ou `:x`, a barra final e as maiúsculas não contam)."
+            },
+            "tratamento": { "type": "string", "enum": ["atribuir", "justificar"] },
+            "funcionalidade": { "type": "string", "minLength": 1, "description": "No `atribuir`: F-<SIGLA>-NNN." },
+            "motivo": { "type": "string", "enum": ["codigo_morto", "utilitario", "outro"], "description": "No `justificar`." },
+            "justificativa": { "type": "string", "minLength": 1, "maxLength": 1000, "description": "No `justificar`: por que o ponto fica sem funcionalidade (\"lê parâmetros para as rotinas de cobrança\")." }
+        },
+        "required": ["ponto", "tratamento"],
+        "additionalProperties": false
+    });
+    let mut propriedades = item["properties"].clone();
+    propriedades["pontos"] = json!({
+        "type": "array",
+        "minItems": 1,
+        "maxItems": ITENS_POR_LOTE,
+        "items": item,
+        "description": "Lote: vários pontos numa chamada, cada um com a forma de um item só. Os válidos são aplicados mesmo que outros sejam recusados; a resposta diz o que houve com cada um."
+    });
+    propriedades["justificar_padrao"] = json!({
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 20,
+        "items": {
+            "type": "object",
+            "properties": {
+                "arquivo": { "type": "string", "minLength": 1, "description": "Todos os pontos deste arquivo (`backend/src/util/Formatos.java`)." },
+                "prefixo": { "type": "string", "minLength": 1, "description": "Todos os pontos cuja chave começa assim (`backend/src/util/`, `db/03_pkg.sql#PKG_UTIL.`)." },
+                "motivo": { "type": "string", "enum": ["codigo_morto", "utilitario", "outro"] },
+                "justificativa": { "type": "string", "minLength": 1, "maxLength": 1000 }
+            },
+            "required": ["motivo", "justificativa"],
+            "additionalProperties": false
+        },
+        "description": "Justifica de uma vez, com o mesmo motivo, os pontos ainda sem tratamento de um arquivo ou de um prefixo de chave (informe `arquivo`, `prefixo` ou os dois). Os já atribuídos ou justificados ficam como estão."
+    });
     Ferramenta::nova(
         "tratar_ponto_de_entrada",
         "Tratar ponto de entrada",
-        "Trata um ponto de entrada do mapa estrutural que está sem funcionalidade: \
+        "Trata pontos de entrada do mapa estrutural que estão sem funcionalidade: \
          `atribuir` à funcionalidade `funcionalidade` (F-<SIGLA>-NNN, já registrada no \
          mapa; a evidência é a declaração do ponto no código) ou justificar por que \
          fica sem funcionalidade, com `motivo` (`codigo_morto`, `utilitario` ou \
-         `outro`) e `justificativa`. Antes de concluir, todo ponto do recorte precisa \
-         estar numa funcionalidade ou justificado.",
+         `outro`) e `justificativa`. Um ponto por vez (`ponto`, `tratamento` e os \
+         campos dele) ou em lote: `pontos` (lista de itens com a mesma forma) e \
+         `justificar_padrao` (todos os pontos sem tratamento de um arquivo ou de um \
+         prefixo de chave, com o mesmo motivo), numa única gravação do mapa; os \
+         itens válidos são aplicados mesmo que outros sejam recusados, e a resposta \
+         diz o que houve com cada um. O ponto casa pela chave, pelo nome ou, num \
+         endpoint, pela rota (o nome do parâmetro não conta); ambíguo ou não achado, \
+         a recusa lista os candidatos ou as chaves parecidas. Antes de concluir, todo \
+         ponto do recorte precisa estar numa funcionalidade ou justificado.",
         json!({
             "type": "object",
-            "properties": {
-                "ponto": {
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "Chave do ponto, como `pontos_de_entrada` mostra (`db/03_pkg.sql#PKG.FN_X`)."
-                },
-                "tratamento": { "type": "string", "enum": ["atribuir", "justificar"] },
-                "funcionalidade": { "type": "string", "minLength": 1, "description": "No `atribuir`: F-<SIGLA>-NNN." },
-                "motivo": { "type": "string", "enum": ["codigo_morto", "utilitario", "outro"], "description": "No `justificar`." },
-                "justificativa": { "type": "string", "minLength": 1, "maxLength": 1000, "description": "No `justificar`: por que o ponto fica sem funcionalidade (\"lê parâmetros para as rotinas de cobrança\")." }
-            },
-            "required": ["ponto", "tratamento"],
+            "properties": propriedades,
             "additionalProperties": false
         }),
         |ambiente, args| {
-            #[derive(Deserialize)]
-            struct Args {
-                ponto: String,
-                tratamento: String,
-                #[serde(default)]
-                funcionalidade: Option<String>,
-                #[serde(default)]
-                motivo: Option<MotivoSemFuncionalidade>,
-                #[serde(default)]
-                justificativa: Option<String>,
-            }
-            let args: Args = ler_argumentos(args)?;
-            let carregado = fontes::mapa(ambiente)?;
-            let todos = carregado.mapa.pontos_de_entrada();
-            let chave = args.ponto.trim();
-            let ponto = todos.iter().find(|p| p.chave == chave).ok_or_else(|| {
-                ErroFerramenta::Recusa(format!(
-                    "o ponto `{chave}` não está entre os pontos de entrada do mapa; use a chave \
-                     como `pontos_de_entrada` mostra. Um ponto fora da lista entra numa \
-                     funcionalidade por `registrar_funcionalidade`, com a evidência"
-                ))
-            })?;
-            let alterado = match args.tratamento.as_str() {
-                "atribuir" => {
-                    let fid = id_da_funcionalidade(
-                        args.funcionalidade.as_deref().ok_or_else(|| {
+            let args: ArgsTratar = ler_argumentos(args)?;
+            let lote = !args.pontos.is_empty() || !args.justificar_padrao.is_empty();
+            let itens: Vec<(String, ItemTratamento)> = match (&args.ponto, lote) {
+                (Some(_), true) => {
+                    return Err(ErroFerramenta::Argumentos(
+                        "informe um ponto (`ponto` e `tratamento`) ou um lote (`pontos`, \
+                         `justificar_padrao`), não os dois"
+                            .into(),
+                    ));
+                }
+                (Some(ponto), false) => vec![(
+                    "ponto".to_owned(),
+                    ItemTratamento {
+                        ponto: ponto.clone(),
+                        tratamento: args.tratamento.clone().ok_or_else(|| {
                             ErroFerramenta::Argumentos(
-                                "no `atribuir`, informe `funcionalidade` (F-<SIGLA>-NNN)".into(),
+                                "informe `tratamento` (atribuir ou justificar)".into(),
                             )
                         })?,
-                        "funcionalidade",
-                    )?;
-                    let evidencia = evidencia_da_declaracao(ambiente, ponto)?;
-                    let atribuido = PontoAtribuido {
-                        chave: Some(ponto.chave.clone()),
-                        tipo: Some(ponto.tipo),
-                        nome: ponto.nome.clone(),
-                        evidencia,
-                    };
-                    alterar(ambiente, |m, agora| {
-                        m.atribuir_ponto(&fid, atribuido, agora)
-                    })?
-                }
-                "justificar" => {
-                    let motivo = args.motivo.ok_or_else(|| {
-                        ErroFerramenta::Argumentos(
-                            "no `justificar`, informe `motivo` (codigo_morto, utilitario ou \
-                             outro) e `justificativa`"
+                        funcionalidade: args.funcionalidade.clone(),
+                        motivo: args.motivo,
+                        justificativa: args.justificativa.clone(),
+                    },
+                )],
+                (None, true) => {
+                    if args.tratamento.is_some()
+                        || args.funcionalidade.is_some()
+                        || args.motivo.is_some()
+                        || args.justificativa.is_some()
+                    {
+                        return Err(ErroFerramenta::Argumentos(
+                            "no lote, `tratamento`, `funcionalidade`, `motivo` e \
+                             `justificativa` vão dentro de cada item de `pontos`"
                                 .into(),
-                        )
-                    })?;
-                    let justificado = PontoJustificado {
-                        chave: ponto.chave.clone(),
-                        tipo: ponto.tipo,
-                        nome: ponto.nome.clone(),
-                        arquivo: ponto.arquivo.clone(),
-                        motivo,
-                        justificativa: args.justificativa.unwrap_or_default(),
-                        sessao: None,
-                        registrado_ms: 0,
-                    };
-                    alterar(ambiente, |m, agora| {
-                        m.justificar_ponto(PontoJustificado {
-                            registrado_ms: agora,
-                            ..justificado
-                        })
-                    })?
+                        ));
+                    }
+                    if args.pontos.len() > ITENS_POR_LOTE {
+                        return Err(ErroFerramenta::Argumentos(format!(
+                            "`pontos`: até {ITENS_POR_LOTE} itens por chamada; divida o lote"
+                        )));
+                    }
+                    args.pontos
+                        .iter()
+                        .enumerate()
+                        .map(|(i, p)| (format!("pontos[{i}]"), p.clone()))
+                        .collect()
                 }
-                outro => {
-                    return Err(ErroFerramenta::Argumentos(format!(
-                        "`tratamento`: `{outro}` não é atribuir nem justificar"
-                    )));
+                (None, false) => {
+                    return Err(ErroFerramenta::Argumentos(
+                        "informe `ponto` e `tratamento` (um ponto) ou `pontos` e \
+                         `justificar_padrao` (lote)"
+                            .into(),
+                    ));
                 }
             };
-            let restantes = nao_mapeados(&alterado.mapa, &todos).len();
+
+            let carregado = fontes::mapa(ambiente)?;
+            let todos = carregado.mapa.pontos_de_entrada();
+            let casaveis = PontosCasaveis::novos(&todos);
+            let previa = mapa(ambiente)?;
+            let mut abertos = ArquivosAbertos::new();
+            let mut resultados: Vec<Resultado> = Vec::new();
+            let mut preparados: Vec<Preparado> = Vec::new();
+            // Chave → item que já a trata neste lote.
+            let mut usadas: std::collections::HashMap<String, String> =
+                std::collections::HashMap::new();
+            for (rotulo, item) in &itens {
+                let mut r = Resultado {
+                    item: rotulo.clone(),
+                    citado: item.ponto.clone(),
+                    tratamento: item.tratamento.clone(),
+                    ..Default::default()
+                };
+                match preparar(ambiente, &casaveis, &mut abertos, item) {
+                    // Um item só: a recusa volta como antes, com o tipo do erro.
+                    Err(e) if !lote => return Err(e),
+                    Err(e) => r.recusa = Some(mensagem(&e)),
+                    Ok((chave, operacao, funcionalidade)) => {
+                        r.chave = Some(chave.clone());
+                        r.funcionalidade = funcionalidade;
+                        if let Some(outro) = usadas.get(&chave) {
+                            r.recusa = Some(format!(
+                                "o ponto `{chave}` já é tratado pelo item `{outro}` deste \
+                                 lote; trate cada ponto uma vez"
+                            ));
+                        } else {
+                            usadas.insert(chave.clone(), rotulo.clone());
+                            preparados.push(Preparado {
+                                origem: resultados.len(),
+                                chave,
+                                operacao,
+                            });
+                        }
+                    }
+                }
+                resultados.push(r);
+            }
+            for (i, padrao) in args.justificar_padrao.iter().enumerate() {
+                let mut r = Resultado {
+                    item: format!("justificar_padrao[{i}]"),
+                    tratamento: "justificar".into(),
+                    padrao: Some(padrao.descricao()),
+                    ..Default::default()
+                };
+                let vazio = |t: &Option<String>| t.as_deref().is_none_or(|t| t.trim().is_empty());
+                if vazio(&padrao.arquivo) && vazio(&padrao.prefixo) {
+                    r.recusa = Some("informe `arquivo` ou `prefixo`".into());
+                } else {
+                    let casados: Vec<&PontoEntrada> =
+                        todos.iter().filter(|p| padrao.casa(p)).collect();
+                    r.casados = casados.len();
+                    if casados.is_empty() {
+                        r.recusa = Some(format!(
+                            "nenhum ponto de entrada do mapa casa com {}; confira com \
+                             `pontos_de_entrada`",
+                            padrao.descricao()
+                        ));
+                    }
+                    for p in casados {
+                        let tratado = usadas.contains_key(&p.chave)
+                            || previa.dona_do_ponto(&p.chave).is_some()
+                            || previa.justificativa(&p.chave).is_some();
+                        if tratado {
+                            r.ja_tratados += 1;
+                            continue;
+                        }
+                        usadas.insert(p.chave.clone(), r.item.clone());
+                        preparados.push(Preparado {
+                            origem: resultados.len(),
+                            chave: p.chave.clone(),
+                            operacao: Operacao::Justificar(justificado(
+                                p,
+                                padrao.motivo,
+                                padrao.justificativa.clone(),
+                            )),
+                        });
+                    }
+                }
+                resultados.push(r);
+            }
+
+            // Prévia sobre a cópia do mapa: se nada seria aplicado, não grava.
+            // Senão, uma alteração só (uma trava, um `mapa.md`, um evento), em que
+            // as recusas valem as da alteração de fato.
+            let na_previa = aplicar_lote(&mut previa.clone(), &preparados, 0);
+            let (recusas, mapa_final, avisos) = if na_previa.iter().all(Option::is_some) {
+                (na_previa, previa, Vec::new())
+            } else {
+                let alterado =
+                    alterar(ambiente, |m, agora| Ok(aplicar_lote(m, &preparados, agora)))?;
+                (alterado.resultado, alterado.mapa, alterado.avisos)
+            };
+            for (p, recusa) in preparados.iter().zip(recusas) {
+                let r = &mut resultados[p.origem];
+                match (recusa, r.padrao.is_some()) {
+                    (None, true) => r.aplicados += 1,
+                    (None, false) => {}
+                    (Some(e), true) => r.recusas.push((p.chave.clone(), e)),
+                    (Some(e), false) => r.recusa = Some(e),
+                }
+            }
+            let restantes = nao_mapeados(&mapa_final, &todos).len();
+
+            if !lote {
+                let r = &resultados[0];
+                if let Some(e) = &r.recusa {
+                    return Err(ErroFerramenta::Recusa(e.clone()));
+                }
+                let mut dados = json!({
+                    "ponto": r.chave,
+                    "tratamento": r.tratamento,
+                    "pontos_sem_tratamento_no_projeto": restantes,
+                });
+                if !avisos.is_empty() {
+                    dados["avisos"] = json!(avisos);
+                }
+                return Ok(Saida::json(dados));
+            }
+            let aplicados: usize = resultados
+                .iter()
+                .map(|r| match &r.padrao {
+                    Some(_) => r.aplicados,
+                    None => usize::from(r.recusa.is_none()),
+                })
+                .sum();
+            let recusados: usize = resultados
+                .iter()
+                .map(|r| match &r.padrao {
+                    Some(_) => r.recusas.len() + usize::from(r.recusa.is_some()),
+                    None => usize::from(r.recusa.is_some()),
+                })
+                .sum();
+            let (pontos, padroes): (Vec<&Resultado>, Vec<&Resultado>) =
+                resultados.iter().partition(|r| r.padrao.is_none());
             let mut dados = json!({
-                "ponto": ponto.chave,
-                "tratamento": args.tratamento,
+                "aplicados": aplicados,
+                "recusados": recusados,
+                "pontos": pontos.iter().map(|r| r.json()).collect::<Vec<_>>(),
                 "pontos_sem_tratamento_no_projeto": restantes,
             });
-            if !alterado.avisos.is_empty() {
-                dados["avisos"] = json!(alterado.avisos);
+            if !padroes.is_empty() {
+                dados["justificar_padrao"] =
+                    json!(padroes.iter().map(|r| r.json()).collect::<Vec<_>>());
+            }
+            if recusados > 0 {
+                dados["proximo_passo"] = json!(
+                    "Os itens recusados não mudaram o mapa; corrija-os pelo motivo de cada \
+                     um e mande só eles de novo."
+                );
+            }
+            if !avisos.is_empty() {
+                dados["avisos"] = json!(avisos);
             }
             Ok(Saida::json(dados))
         },
@@ -1455,14 +2135,21 @@ pub fn tratar_ponto_de_entrada() -> Ferramenta {
 /// símbolo.
 fn evidencia_da_declaracao(
     ambiente: &Ambiente,
+    abertos: &mut ArquivosAbertos,
     ponto: &PontoEntrada,
 ) -> Result<cba_core::analise::Evidencia, ErroFerramenta> {
-    let arquivo = ArquivoDoProjeto::abrir(&ambiente.escopo, &ponto.arquivo).map_err(|m| {
-        ErroFerramenta::Recusa(format!(
-            "o arquivo `{}` não pôde ser lido: {m}",
-            ponto.arquivo
-        ))
-    })?;
+    let arquivo = abertos
+        .entry(ponto.arquivo.clone())
+        .or_insert_with(|| {
+            ArquivoDoProjeto::abrir(&ambiente.escopo, &ponto.arquivo).map_err(|m| m.to_string())
+        })
+        .as_ref()
+        .map_err(|m| {
+            ErroFerramenta::Recusa(format!(
+                "o arquivo `{}` não pôde ser lido: {m}",
+                ponto.arquivo
+            ))
+        })?;
     let linhas: Vec<&str> = arquivo.texto.lines().collect();
     let (inicio, fim) = (ponto.linhas.inicio as usize, ponto.linhas.fim as usize);
     for n in inicio..=fim.min(linhas.len()) {
@@ -1595,6 +2282,7 @@ mod tests {
             pe("db/a.sql#PKG.PRC_B", TipoEntrada::RotinaBanco, 22, 30),
             pe("db/b.sql#OUTRO.PRC_A", TipoEntrada::RotinaBanco, 1, 5),
         ];
+        let pontos = PontosCasaveis::novos(&pontos);
         let e = ev("db/a.sql", 12, 12);
         assert_eq!(
             casar_ponto(&pontos, Some("db/a.sql#PKG.PRC_B"), &e)

@@ -15,7 +15,13 @@
 //!   frontmatter passa a `a-revalidar`;
 //! - quando o hash volta a conferir, a marca é desfeita: a evidência da análise
 //!   volta a válida, a afirmação ao estado anterior e a regra a `confirmada`;
-//! - o [`Relatorio`] diz o que mudou, com o commit gravado na evidência e o atual.
+//! - nas análises de histórias e de cenários (#169), o critério de aceite (pelas
+//!   evidências dos fundamentos), o cenário de teste (pelas do limite e dos
+//!   fundamentos) e a tabela de decisão (pelas das condições e dos fundamentos)
+//!   ficam a revalidar e voltam ao estado anterior do mesmo jeito; a marca do
+//!   analista fica. O documento dessas análises é remontado (menos o da aprovada);
+//! - o [`Relatorio`] diz o que mudou, com o commit gravado na evidência e o atual,
+//!   e conta as histórias, os cenários e as tabelas afetados.
 //!
 //! Com a tela de uma análise aberta, o app chama [`revalidar_analise`] a cada poucos
 //! segundos: só as evidências daquela análise, e só lendo os arquivos citados
@@ -44,19 +50,22 @@
 //! no meio do caminho fica como está até a próxima revalidação. A regra é relida
 //! antes de gravar, e só o `status` muda.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::time::{Instant, UNIX_EPOCH};
 
 use cba_core::ambiente::Ambiente;
-use cba_core::analise::{Analise, EstadoEvidencia, Evidencia};
+use cba_core::analise::{
+    Analise, EstadoAnalise, EstadoEvidencia, Evidencia, Fluxo, Revalidada, TrechoCitado,
+};
 use cba_core::dados::DiretorioDados;
 use cba_core::eventos::Mudanca;
+use cba_core::requisito::{Fundamento, ItemRequisito, Revalidacao};
 use cba_index::{Cadastro, Escopo, Inventario, detectar_git};
 use cba_kb::frontmatter::{FrontmatterRegra, Linhas, StatusRegra};
-use cba_kb::{CaminhoRelativo, Documento, Id, layout};
+use cba_kb::{CaminhoRelativo, Documento, Id, IdCenario, IdHistoria, layout};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -143,6 +152,33 @@ pub enum Origem {
     Termo { analise: Id, numero: u32 },
     /// Trecho atual de uma sugestão registrada numa análise.
     Sugestao { analise: Id, numero: u32 },
+    /// Evidência de um fundamento (afirmação ou regra citada) de um critério de
+    /// aceite (#169).
+    Criterio {
+        analise: Id,
+        historia: IdHistoria,
+        numero: u32,
+        /// Rótulo do fundamento (`A-0193/4`, `RN-FAT-007`).
+        fundamento: String,
+    },
+    /// Evidência do limite (sem `fundamento`) ou de um fundamento de um cenário de
+    /// teste (#169).
+    Cenario {
+        analise: Id,
+        cenario: IdCenario,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        fundamento: Option<String>,
+    },
+    /// Evidência de uma condição (`condicao`, a partir de 1) ou de um fundamento de
+    /// uma tabela de decisão (#169).
+    Tabela {
+        analise: Id,
+        numero: u32,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        condicao: Option<u32>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        fundamento: Option<String>,
+    },
 }
 
 /// Evidência no relatório.
@@ -182,6 +218,20 @@ pub struct MudancaDeAnalise {
     pub afirmacoes_marcadas: Vec<u32>,
     /// Afirmações que voltaram ao estado anterior.
     pub afirmacoes_restauradas: Vec<u32>,
+    /// Critérios, cenários e tabelas que passaram a a revalidar (#169).
+    pub itens_marcados: Vec<ItemRequisito>,
+    /// Critérios, cenários e tabelas que voltaram ao estado anterior.
+    pub itens_restaurados: Vec<ItemRequisito>,
+}
+
+/// Critério, cenário ou tabela a revalidar porque uma evidência deixou de conferir
+/// (#169). A marca do analista não entra: não vem do código.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ItemNoRelatorio {
+    pub analise: Id,
+    pub item: ItemRequisito,
+    /// Marcado nesta revalidação.
+    pub novo: bool,
 }
 
 /// Documento que não pôde ser revalidado.
@@ -212,6 +262,15 @@ pub struct Relatorio {
     pub regras: Vec<MudancaDeRegra>,
     /// Análises alteradas.
     pub analises: Vec<MudancaDeAnalise>,
+    /// Critérios, cenários e tabelas a revalidar pela revalidação, os novos marcados
+    /// com `novo` (#169).
+    pub itens_a_revalidar: Vec<ItemNoRelatorio>,
+    /// Histórias com algum critério em `itens_a_revalidar`.
+    pub historias_afetadas: usize,
+    /// Cenários de teste em `itens_a_revalidar`.
+    pub cenarios_afetados: usize,
+    /// Tabelas de decisão em `itens_a_revalidar`.
+    pub tabelas_afetadas: usize,
     pub problemas: Vec<Problema>,
 }
 
@@ -280,6 +339,10 @@ pub fn revalidar(
             citar(&e.1.arquivo, e.1.linhas);
             relatorio.evidencias += 1;
         }
+        for (_, e) in evidencias_dos_fundamentos(a) {
+            citar(&e.arquivo, e.linhas);
+            relatorio.evidencias += 1;
+        }
     }
 
     let mut conferidor = Conferidor::novo(&ambiente.escopo, inventario, cache);
@@ -294,8 +357,8 @@ pub fn revalidar(
     let situacao = |arquivo: &CaminhoRelativo, linhas: Linhas| {
         atual.get(&(arquivo.as_str().to_owned(), (linhas.inicio, linhas.fim)))
     };
-    let confere = |e: &Evidencia| {
-        situacao(&e.arquivo, e.linhas).map(|s| s.as_ref().is_ok_and(|h| *h == e.hash))
+    let confere = |e: TrechoCitado<'_>| {
+        situacao(e.arquivo, e.linhas).map(|s| s.as_ref().is_ok_and(|h| h == e.hash))
     };
     let motivo = |arquivo: &CaminhoRelativo, linhas: Linhas, hash: &str| {
         Some(match situacao(arquivo, linhas)? {
@@ -356,16 +419,13 @@ pub fn revalidar(
     // Análises.
     for lida in analises {
         let mut previa = lida.clone();
+        let mut fundamentos_antes = None;
+        let mut marcados_agora = Vec::new();
         let (analise, estados_antes) = if previa.revalidar(confere).mudou() {
-            let (antes, gravada) =
-                ambiente
-                    .analises
-                    .alterar(&lida.id, Mudanca::Afirmacao, |a, _| {
-                        let antes = a.clone();
-                        a.revalidar(confere);
-                        Ok(antes)
-                    })?;
+            let (antes, gravada) = gravar_revalidacao(ambiente, &lida.id, lida.fluxo, &confere)?;
             let mudanca = mudanca_de_analise(&antes, &gravada);
+            marcados_agora.clone_from(&mudanca.itens_marcados);
+            fundamentos_antes = Some(fundamentos_a_revalidar(&antes));
             let estados_antes: HashMap<_, _> = evidencias_da_analise(&antes)
                 .map(|(o, e)| (chave(&o, e), e.estado))
                 .collect();
@@ -409,7 +469,42 @@ pub fn revalidar(
                 nova,
             });
         }
+        // Evidências dos fundamentos que não conferem (#169): a cópia não tem estado
+        // próprio; vale o fundamento marcado no item.
+        let marcados = fundamentos_a_revalidar(&analise);
+        for (origem, e) in evidencias_dos_fundamentos(&analise) {
+            let chave = chave_do_fundamento(&origem);
+            if !chave.as_ref().is_some_and(|c| marcados.contains(c)) {
+                continue;
+            }
+            let Some(m) = motivo(&e.arquivo, e.linhas, &e.hash) else {
+                continue;
+            };
+            let nova = match (&fundamentos_antes, &chave) {
+                (Some(antes), Some(c)) => !antes.contains(c),
+                _ => false,
+            };
+            relatorio.desatualizadas.push(EvidenciaNoRelatorio {
+                origem,
+                arquivo: e.arquivo.clone(),
+                linhas: e.linhas,
+                motivo: Some(m),
+                commit_antigo: e.commit.clone(),
+                commit_atual: commits.de(&e.arquivo),
+                nova,
+            });
+        }
+        for (item, r, _) in itens_da_analise(&analise) {
+            if r.a_revalidar() && !r.do_analista() {
+                relatorio.itens_a_revalidar.push(ItemNoRelatorio {
+                    analise: analise.id.clone(),
+                    novo: marcados_agora.contains(&item),
+                    item,
+                });
+            }
+        }
     }
+    contar_itens(&mut relatorio);
 
     relatorio.duracao_ms = u64::try_from(inicio.elapsed().as_millis()).unwrap_or(u64::MAX);
     tracing::info!(
@@ -417,6 +512,7 @@ pub fn revalidar(
         desatualizadas = relatorio.desatualizadas.len(),
         regras = relatorio.regras.len(),
         analises = relatorio.analises.len(),
+        itens = relatorio.itens_a_revalidar.len(),
         lidos = relatorio.arquivos_lidos,
         reaproveitados = relatorio.arquivos_reaproveitados,
         duracao_ms = relatorio.duracao_ms,
@@ -432,6 +528,8 @@ fn mudanca_de_analise(antes: &Analise, gravada: &Analise) -> MudancaDeAnalise {
         titulo: gravada.titulo.clone(),
         afirmacoes_marcadas: Vec::new(),
         afirmacoes_restauradas: Vec::new(),
+        itens_marcados: Vec::new(),
+        itens_restaurados: Vec::new(),
     };
     for (de, para) in antes.afirmacoes.iter().zip(&gravada.afirmacoes) {
         if de.estado != para.estado {
@@ -442,7 +540,204 @@ fn mudanca_de_analise(antes: &Analise, gravada: &Analise) -> MudancaDeAnalise {
             }
         }
     }
+    for ((item, de, _), (_, para, _)) in itens_da_analise(antes)
+        .into_iter()
+        .zip(itens_da_analise(gravada))
+    {
+        if de.estado != para.estado {
+            if para.antes_de_revalidar.is_some() {
+                mudanca.itens_marcados.push(item);
+            } else {
+                mudanca.itens_restaurados.push(item);
+            }
+        }
+    }
     mudanca
+}
+
+/// Grava a revalidação da análise sob a trava dela e remonta o documento das
+/// análises de histórias e de cenários (a marca dos itens aparece nele), menos o da
+/// aprovada. Devolve o estado de antes e o gravado.
+fn gravar_revalidacao(
+    ambiente: &Ambiente,
+    id: &Id,
+    fluxo: Fluxo,
+    confere: &impl Fn(TrechoCitado<'_>) -> Option<bool>,
+) -> Result<(Analise, Analise), Erro> {
+    let mudanca = match fluxo {
+        Fluxo::Historias => Mudanca::Historia,
+        Fluxo::Cenarios => Mudanca::Cenario,
+        _ => Mudanca::Afirmacao,
+    };
+    let (antes, gravada) = ambiente.analises.alterar_e(
+        id,
+        mudanca,
+        |a, _| {
+            let antes = a.clone();
+            let _: Revalidada = a.revalidar(confere);
+            Ok(antes)
+        },
+        |a| {
+            if matches!(a.fluxo, Fluxo::Historias | Fluxo::Cenarios)
+                && a.estado != EstadoAnalise::Aprovada
+                && crate::documento::remontar(&ambiente.base, &ambiente.kb, a).is_err()
+            {
+                // O estado é a fonte de verdade; o documento se refaz no próximo
+                // registro ou decisão.
+                tracing::warn!("documento da análise não remontado depois da revalidação");
+            }
+        },
+    )?;
+    Ok((antes, gravada))
+}
+
+/// Critérios, cenários e tabelas da análise, com a marca e os fundamentos.
+fn itens_da_analise(a: &Analise) -> Vec<(ItemRequisito, &Revalidacao, &[Fundamento])> {
+    let mut itens = Vec::new();
+    for h in &a.historias {
+        for c in &h.criterios {
+            itens.push((
+                ItemRequisito::Criterio {
+                    historia: h.id,
+                    numero: c.numero,
+                },
+                &c.revalidacao,
+                c.fundamentos.as_slice(),
+            ));
+        }
+    }
+    for t in &a.tabelas {
+        itens.push((
+            ItemRequisito::Tabela { numero: t.numero },
+            &t.revalidacao,
+            t.fundamentos.as_slice(),
+        ));
+    }
+    for c in &a.cenarios {
+        itens.push((
+            ItemRequisito::Cenario { cenario: c.id },
+            &c.revalidacao,
+            c.fundamentos.as_slice(),
+        ));
+    }
+    itens
+}
+
+/// Origem de uma evidência do fundamento `rotulo` de um item.
+fn origem_do_fundamento(analise: &Id, item: &ItemRequisito, rotulo: String) -> Origem {
+    match item {
+        ItemRequisito::Criterio { historia, numero } => Origem::Criterio {
+            analise: analise.clone(),
+            historia: *historia,
+            numero: *numero,
+            fundamento: rotulo,
+        },
+        ItemRequisito::Cenario { cenario } => Origem::Cenario {
+            analise: analise.clone(),
+            cenario: *cenario,
+            fundamento: Some(rotulo),
+        },
+        ItemRequisito::Tabela { numero } => Origem::Tabela {
+            analise: analise.clone(),
+            numero: *numero,
+            condicao: None,
+            fundamento: Some(rotulo),
+        },
+    }
+}
+
+/// Item e fundamento de uma origem de evidência de fundamento.
+fn chave_do_fundamento(origem: &Origem) -> Option<(ItemRequisito, String)> {
+    match origem {
+        Origem::Criterio {
+            historia,
+            numero,
+            fundamento,
+            ..
+        } => Some((
+            ItemRequisito::Criterio {
+                historia: *historia,
+                numero: *numero,
+            },
+            fundamento.clone(),
+        )),
+        Origem::Cenario {
+            cenario,
+            fundamento: Some(f),
+            ..
+        } => Some((ItemRequisito::Cenario { cenario: *cenario }, f.clone())),
+        Origem::Tabela {
+            numero,
+            fundamento: Some(f),
+            ..
+        } => Some((ItemRequisito::Tabela { numero: *numero }, f.clone())),
+        _ => None,
+    }
+}
+
+/// Fundamentos marcados em cada item da análise.
+fn fundamentos_a_revalidar(a: &Analise) -> HashSet<(ItemRequisito, String)> {
+    itens_da_analise(a)
+        .into_iter()
+        .flat_map(|(item, r, _)| {
+            r.fundamentos_a_revalidar
+                .iter()
+                .map(move |f| (item.clone(), f.clone()))
+        })
+        .collect()
+}
+
+/// Evidências dos fundamentos dos critérios, cenários e tabelas, com a origem.
+pub(crate) fn evidencias_dos_fundamentos(
+    a: &Analise,
+) -> Vec<(Origem, &cba_kb::frontmatter::Evidencia)> {
+    let mut saida = Vec::new();
+    for (item, _, fundamentos) in itens_da_analise(a) {
+        for f in fundamentos {
+            for e in f.evidencias() {
+                saida.push((origem_do_fundamento(&a.id, &item, f.rotulo()), e));
+            }
+        }
+    }
+    saida
+}
+
+/// Conta as histórias, os cenários e as tabelas em `itens_a_revalidar`.
+fn contar_itens(relatorio: &mut Relatorio) {
+    let mut historias = HashSet::new();
+    let (mut cenarios, mut tabelas) = (0, 0);
+    for i in &relatorio.itens_a_revalidar {
+        match &i.item {
+            ItemRequisito::Criterio { historia, .. } => {
+                historias.insert((i.analise.clone(), *historia));
+            }
+            ItemRequisito::Cenario { .. } => cenarios += 1,
+            ItemRequisito::Tabela { .. } => tabelas += 1,
+        }
+    }
+    relatorio.historias_afetadas = historias.len();
+    relatorio.cenarios_afetados = cenarios;
+    relatorio.tabelas_afetadas = tabelas;
+}
+
+/// Marca "a revalidar" de um critério, cenário ou tabela no documento montado
+/// (#169), ou `None` sem marca.
+pub fn marca_no_documento(r: &Revalidacao) -> Option<String> {
+    if !r.a_revalidar() {
+        return None;
+    }
+    let mut t = "**[a revalidar]** ".to_owned();
+    if r.do_analista() {
+        t.push_str("_marcado pelo analista para rever_");
+    } else if r.fundamentos_a_revalidar.is_empty() {
+        t.push_str("_o código citado mudou desde o registro_");
+    } else {
+        t.push_str(&format!(
+            "_o código citado mudou desde o registro ({})_",
+            r.fundamentos_a_revalidar.join(", ")
+        ));
+    }
+    Some(t)
 }
 
 /// Tamanho e data de modificação (ns) de um arquivo; `None` se não existe ou não
@@ -488,7 +783,14 @@ pub fn revalidar_analise(
 ) -> Result<Option<MudancaDeAnalise>, Erro> {
     let lida = ambiente.analises.carregar(id)?;
     let mut citados: BTreeMap<String, BTreeSet<(u32, u32)>> = BTreeMap::new();
-    for (_, e) in evidencias_da_analise(&lida) {
+    let trechos = evidencias_da_analise(&lida)
+        .map(|(_, e)| TrechoCitado::from(e))
+        .chain(
+            evidencias_dos_fundamentos(&lida)
+                .into_iter()
+                .map(|(_, e)| TrechoCitado::from(e)),
+        );
+    for e in trechos {
         citados
             .entry(e.arquivo.as_str().to_owned())
             .or_default()
@@ -513,13 +815,13 @@ pub fn revalidar_analise(
         conferidor.conferir(arquivo, intervalos);
     }
     let atual = conferidor.atual;
-    let confere = |e: &Evidencia| {
+    let confere = |e: TrechoCitado<'_>| {
         atual
             .get(&(
                 e.arquivo.as_str().to_owned(),
                 (e.linhas.inicio, e.linhas.fim),
             ))
-            .map(|s| s.as_ref().is_ok_and(|h| *h == e.hash))
+            .map(|s| s.as_ref().is_ok_and(|h| h == e.hash))
     };
 
     let mut previa = lida.clone();
@@ -527,15 +829,13 @@ pub fn revalidar_analise(
         *vistos = agora;
         return Ok(None);
     }
-    let (antes, gravada) = ambiente.analises.alterar(id, Mudanca::Afirmacao, |a, _| {
-        let antes = a.clone();
-        a.revalidar(confere);
-        Ok(antes)
-    })?;
+    let (antes, gravada) = gravar_revalidacao(ambiente, id, lida.fluxo, &confere)?;
     let mudanca = mudanca_de_analise(&antes, &gravada);
     tracing::info!(
         marcadas = mudanca.afirmacoes_marcadas.len(),
         restauradas = mudanca.afirmacoes_restauradas.len(),
+        itens_marcados = mudanca.itens_marcados.len(),
+        itens_restaurados = mudanca.itens_restaurados.len(),
         "evidências da análise revalidadas"
     );
     // A gravação mudou a versão; os arquivos são os mesmos já conferidos.
@@ -553,6 +853,27 @@ fn chave(origem: &Origem, e: &Evidencia) -> (String, String, u32, u32, String) {
         Origem::Afirmacao { numero, .. } => format!("afirmacao {numero}"),
         Origem::Termo { numero, .. } => format!("termo {numero}"),
         Origem::Sugestao { numero, .. } => format!("sugestao {numero}"),
+        Origem::Criterio {
+            historia,
+            numero,
+            fundamento,
+            ..
+        } => format!("criterio {historia}/{numero} {fundamento}"),
+        Origem::Cenario {
+            cenario,
+            fundamento,
+            ..
+        } => format!("cenario {cenario} {}", fundamento.as_deref().unwrap_or("")),
+        Origem::Tabela {
+            numero,
+            condicao,
+            fundamento,
+            ..
+        } => format!(
+            "tabela {numero} {} {}",
+            condicao.unwrap_or(0),
+            fundamento.as_deref().unwrap_or("")
+        ),
     };
     (
         origem,
@@ -564,7 +885,7 @@ fn chave(origem: &Origem, e: &Evidencia) -> (String, String, u32, u32, String) {
 }
 
 /// Evidências de uma análise com a origem: afirmações, termos e sugestões.
-fn evidencias_da_analise(a: &Analise) -> impl Iterator<Item = (Origem, &Evidencia)> {
+pub(crate) fn evidencias_da_analise(a: &Analise) -> impl Iterator<Item = (Origem, &Evidencia)> {
     let id = &a.id;
     let afirmacoes = a.afirmacoes.iter().flat_map(move |af| {
         af.evidencias.iter().map(move |e| {
@@ -599,12 +920,43 @@ fn evidencias_da_analise(a: &Analise) -> impl Iterator<Item = (Origem, &Evidenci
             )
         })
     });
-    afirmacoes.chain(termos).chain(sugestoes)
+    let condicoes = a.tabelas.iter().flat_map(move |t| {
+        t.condicoes.iter().zip(1..).flat_map(move |(c, n)| {
+            c.evidencias.iter().map(move |e| {
+                (
+                    Origem::Tabela {
+                        analise: id.clone(),
+                        numero: t.numero,
+                        condicao: Some(n),
+                        fundamento: None,
+                    },
+                    e,
+                )
+            })
+        })
+    });
+    let limites = a.cenarios.iter().flat_map(move |c| {
+        c.limite.iter().flat_map(|l| &l.evidencias).map(move |e| {
+            (
+                Origem::Cenario {
+                    analise: id.clone(),
+                    cenario: c.id,
+                    fundamento: None,
+                },
+                e,
+            )
+        })
+    });
+    afirmacoes
+        .chain(termos)
+        .chain(sugestoes)
+        .chain(condicoes)
+        .chain(limites)
 }
 
 /// Regras do projeto (`regras/*.md`), menos as obsoletas. As ilegíveis vão para os
 /// problemas.
-fn ler_regras(
+pub(crate) fn ler_regras(
     kb: &cba_kb::Projeto,
     problemas: &mut Vec<Problema>,
 ) -> Result<Vec<(CaminhoRelativo, Documento<FrontmatterRegra>)>, Erro> {

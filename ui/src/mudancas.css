@@ -1,0 +1,56 @@
+/* O que mudou no código (#124). */
+.mudancas-codigo {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.mudancas-codigo header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mudancas-codigo h3,
+.mudancas-codigo h4 {
+  margin: 0;
+}
+
+.mudancas-intervalo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.mudancas-intervalo label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mudancas-regra {
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+
+.mudancas-proposta textarea {
+  width: 100%;
+}
+
+.mudancas-terminal {
+  height: 60vh;
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+}
+
+.mudancas-terminal > * {
+  flex: 1;
+  min-height: 0;
+}
