@@ -2530,6 +2530,21 @@
   flex: 1 1 160px;
   min-width: 0;
 }
+.opcao-evidencias {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.evidencia-ponto {
+  margin: 4px 0 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 0.85em;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .sessao-mapeamento {
   position: sticky;
   top: 0;

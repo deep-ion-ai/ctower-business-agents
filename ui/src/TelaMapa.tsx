@@ -227,12 +227,15 @@ function CartaoFuncionalidade({
   f,
   outras,
   revisao,
+  evidencias = false,
   aoExplicar,
   aoAbrirDocumento,
 }: {
   f: Funcionalidade;
   outras: Funcionalidade[];
   revisao: Revisao;
+  /** Mostra o trecho de código citado em cada ponto de entrada. */
+  evidencias?: boolean;
   aoExplicar?: (f: Funcionalidade) => void;
   aoAbrirDocumento?: (documento: string) => void;
 }) {
@@ -284,6 +287,16 @@ function CartaoFuncionalidade({
               · {p.arquivo}:{p.linhaInicial}
             </span>
             {p.foraDaLista && <span className="chip">fora da lista do mapa</span>}
+            {evidencias && (
+              <pre className="evidencia-ponto" aria-label={`Evidência de ${p.nome}`}>
+                <span className="muted">
+                  {p.arquivo}:{p.linhaInicial}
+                  {p.linhaFinal !== p.linhaInicial ? `-${p.linhaFinal}` : ""}
+                </span>
+                {"\n"}
+                <code>{p.trecho}</code>
+              </pre>
+            )}
           </li>
         ))}
       </ul>
@@ -551,6 +564,7 @@ function MapaDoProjeto({
   const [filtro, setFiltro] = useState<Filtro>("todas");
   const [busca, setBusca] = useState("");
   const [todosSemTratamento, setTodosSemTratamento] = useState(false);
+  const [evidencias, setEvidencias] = useState(false);
 
   const revisao: Revisao = {
     ocupado,
@@ -619,6 +633,14 @@ function MapaDoProjeto({
               : "Carregando…"}
           </p>
           <div className="acoes">
+            <label className="opcao-evidencias">
+              <input
+                type="checkbox"
+                checked={evidencias}
+                onChange={(e) => setEvidencias(e.target.checked)}
+              />
+              Mostrar evidências de código
+            </label>
             {!sessao && (
               <button type="button" className="btn btn-primary" onClick={() => setSessao(true)}>
                 Mapear com o Claude
@@ -691,6 +713,7 @@ function MapaDoProjeto({
                       f={f}
                       outras={abertas.filter((o) => o.id !== f.id)}
                       revisao={revisao}
+                      evidencias={evidencias}
                       aoExplicar={explicar}
                       aoAbrirDocumento={abrirDocumento}
                     />
@@ -704,7 +727,13 @@ function MapaDoProjeto({
                   {contar(mapa.fechadas.length, "descartada ou juntada", "descartadas ou juntadas")}
                 </summary>
                 {mapa.fechadas.map((f) => (
-                  <CartaoFuncionalidade key={f.id} f={f} outras={[]} revisao={revisao} />
+                  <CartaoFuncionalidade
+                    key={f.id}
+                    f={f}
+                    outras={[]}
+                    revisao={revisao}
+                    evidencias={evidencias}
+                  />
                 ))}
               </details>
             )}

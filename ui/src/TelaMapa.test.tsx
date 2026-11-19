@@ -296,6 +296,20 @@ describe("TelaMapa", () => {
     expect(screen.getByRole("button", { name: "Encerrar a sessão" })).toBeInTheDocument();
   });
 
+  it("mostra as evidências de código só quando o analista pede", async () => {
+    abrir(apiFalsa());
+    const cartao = await screen.findByRole("region", { name: "F-COB-001: Calcular encargos" });
+    const opcao = screen.getByRole("checkbox", { name: "Mostrar evidências de código" });
+    expect(opcao).not.toBeChecked();
+    expect(within(cartao).queryByLabelText(/^Evidência de/)).toBeNull();
+    fireEvent.click(opcao);
+    const ev = within(cartao).getByLabelText("Evidência de PKG_COBRANCA.FN_CALCULAR_MULTA");
+    expect(ev).toHaveTextContent("db/03_pkg_cobranca.sql:10");
+    expect(ev).toHaveTextContent("FUNCTION FN_CALCULAR_MULTA");
+    fireEvent.click(opcao);
+    expect(within(cartao).queryByLabelText(/^Evidência de/)).toBeNull();
+  });
+
   it("mapa vazio convida a mapear", async () => {
     abrir(
       apiFalsa({
