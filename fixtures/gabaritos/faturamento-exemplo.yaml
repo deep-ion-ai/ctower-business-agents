@@ -80,6 +80,16 @@
 #   scripts, ou `join`, sem chave estrangeira, que precisa sair como inferida).
 #   Relação `opcional` não conta na cobertura, mas, se registrada, precisa ter a
 #   origem esperada.
+# - `mapeamentos` (mapa de funcionalidades do projeto, #208) traz o mapa
+#   esperado do projeto inteiro: os `pontos_de_entrada` que o app acha no mapa
+#   estrutural (cba_index::Mapa::pontos_de_entrada, pela chave
+#   `<arquivo>#<nome qualificado>`), cada um com as `funcionalidades` a que pode
+#   ser atribuído (ids deste gabarito) e, se for ajudante, `justificavel: true`
+#   (pode ficar como utilitário, sem funcionalidade); e as `funcionalidades`
+#   esperadas no mapa: as de `funcionalidades` (pelo id) e as que só o
+#   mapeamento cobre, com o `nome`, a `area` e as `palavras_chave` no nome ou na
+#   descrição. Uma funcionalidade registrada atende quando tem as palavras-chave
+#   e ao menos um ponto de entrada esperado dela.
 # - A avaliação dos fluxos (crate cba-avaliacao, docs/avaliacao.md) usa este
 #   arquivo como referência.
 
@@ -1061,3 +1071,62 @@ ciclos_vida:
         estado: PROTESTADA
       - tipo: sem_saida
         estado: SUSPENSA
+
+# Mapa de funcionalidades (#208) do projeto inteiro.
+mapeamentos:
+  - id: MAP-FAT-001
+    titulo: Mapa de funcionalidades do Faturamento Exemplo
+    pontos_de_entrada:
+      - chave: backend/src/main/java/exemplo/faturamento/EncargosService.java#exemplo.faturamento.EncargosService.calcular
+        funcionalidades: [F-FAT-001]
+      - chave: backend/src/main/java/exemplo/faturamento/ParcelamentoService.java#exemplo.faturamento.ParcelamentoService.parcelar
+        funcionalidades: [F-FAT-002]
+      - chave: cobol/CALCOBR.cbl#CALCOBR
+        funcionalidades: [F-FAT-004]
+      - chave: db/03_pkg_cobranca.sql#PKG_COBRANCA.FN_PARAMETRO
+        funcionalidades: [F-FAT-001, F-FAT-002, F-FAT-003, F-FAT-004]
+        justificavel: true
+      - chave: db/03_pkg_cobranca.sql#PKG_COBRANCA.FN_DIAS_ATRASO
+        funcionalidades: [F-FAT-001]
+        justificavel: true
+      - chave: db/03_pkg_cobranca.sql#PKG_COBRANCA.FN_CALCULAR_MULTA
+        funcionalidades: [F-FAT-001]
+      - chave: db/03_pkg_cobranca.sql#PKG_COBRANCA.FN_CALCULAR_JUROS
+        funcionalidades: [F-FAT-001]
+      - chave: db/03_pkg_cobranca.sql#PKG_COBRANCA.PRC_CANCELAR_FATURA
+        funcionalidades: [F-FAT-003]
+      - chave: db/04_pkg_situacao.sql#PKG_SITUACAO.PRC_REGISTRAR_PAGAMENTO
+        funcionalidades: [F-FAT-005]
+      - chave: db/04_pkg_situacao.sql#PKG_SITUACAO.PRC_EFETIVAR_PARCELAMENTO
+        funcionalidades: [F-FAT-002]
+      - chave: db/04_pkg_situacao.sql#PKG_SITUACAO.PRC_QUITAR_PARCELA
+        funcionalidades: [F-FAT-005, F-FAT-002]
+      - chave: db/04_pkg_situacao.sql#PKG_SITUACAO.PRC_SUSPENDER_COBRANCA
+        funcionalidades: [F-FAT-006]
+      - chave: delphi/UFrmCancelamento.dfm#FrmCancelamento
+        funcionalidades: [F-FAT-003]
+      - chave: frontend/src/telas/parcelamento-form.ts#opcoesDeParcelas
+        funcionalidades: [F-FAT-002]
+      - chave: frontend/src/telas/parcelamento-form.ts#enviarParcelamento
+        funcionalidades: [F-FAT-002]
+    funcionalidades:
+      - id: F-FAT-001
+        area: cobranca
+        palavras_chave: [[encargo*, multa, juros, atraso]]
+      - id: F-FAT-002
+        area: parcelamento
+        palavras_chave: [[parcel*]]
+      - id: F-FAT-003
+        area: cancelamento
+        palavras_chave: [[cancel*]]
+      - id: F-FAT-004
+        area: cobranca
+        palavras_chave: [[lote, arquivo, mensal, cobranca, batch, remessa]]
+      - id: F-FAT-005
+        nome: Registro de pagamento
+        area: cobranca
+        palavras_chave: [[pag*, quit*, baixa]]
+      - id: F-FAT-006
+        nome: Suspensão da cobrança por contestação
+        area: cobranca
+        palavras_chave: [[suspen*, contesta*]]

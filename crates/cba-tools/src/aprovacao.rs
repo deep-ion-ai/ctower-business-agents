@@ -172,6 +172,10 @@ pub struct Aprovacao {
     pub ja_aprovada: bool,
     pub regras: Vec<RegraAprovada>,
     pub termos: Vec<TermoAprovado>,
+    /// Numa explicação ligada a uma funcionalidade do mapa (#208): o documento
+    /// negocial gravado em `funcionalidades/<area>/<tema>/`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub documento_negocial: Option<CaminhoRelativo>,
     /// Problemas que não impediram a aprovação (template com marcador
     /// desconhecido, documento da análise não remontado, índice não sincronizado).
     pub avisos: Vec<String>,
@@ -300,12 +304,24 @@ pub fn aprovar(
     let plano = planejar_regras(&analise, &areas, opcoes)?;
     let regras = gravacao.regras(plano, &origem)?;
     let termos = gravacao.termos(&analise, &areas, opcoes, &origem)?;
+    let mut avisos = gravacao.avisos;
+    let documento_negocial = match crate::mapear::ligar_explicacao(base, kb, &analise) {
+        Ok(d) => d,
+        Err(e) => {
+            tracing::warn!("documento negocial não ligado ao mapa de funcionalidades");
+            avisos.push(format!(
+                "o documento negocial não foi ligado ao mapa de funcionalidades ({e})"
+            ));
+            None
+        }
+    };
     Ok(Aprovacao {
         analise,
         ja_aprovada,
         regras,
         termos,
-        avisos: gravacao.avisos,
+        documento_negocial,
+        avisos,
     })
 }
 

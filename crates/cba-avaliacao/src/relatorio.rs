@@ -120,6 +120,9 @@ pub struct Execucao {
     /// Fluxo `reuniao`: tamanho do transcript analisado.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transcript: Option<TamanhoTranscript>,
+    /// Mapeamento de funcionalidades (#208): comparação do mapa com o gabarito.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mapa: Option<crate::mapeamento::MapeamentoAvaliado>,
     /// Arquivos do projeto criados, removidos ou alterados na cópia.
     pub arquivos_alterados: Vec<Diferenca>,
     pub claude: Option<SaidaClaude>,
@@ -134,18 +137,21 @@ impl Execucao {
         if let Some(e) = &self.erro {
             f.push(e.clone());
         }
-        match (&self.avaliacao, &self.ata) {
-            (Some(a), _) => f.extend(a.falhas()),
-            (None, Some(a)) => f.extend(a.falhas()),
-            (None, None) if self.erro.is_none() => f.push(
+        match (&self.avaliacao, &self.ata, &self.mapa) {
+            (Some(a), ..) => f.extend(a.falhas()),
+            (None, Some(a), _) => f.extend(a.falhas()),
+            (None, None, Some(m)) => f.extend(m.falhas()),
+            (None, None, None) if self.erro.is_none() => f.push(
                 if self.e_reuniao() {
                     "sem estado da ata"
+                } else if self.fluxo == "mapear" {
+                    "sem estado do mapa"
                 } else {
                     "sem estado da análise"
                 }
                 .to_owned(),
             ),
-            (None, None) => {}
+            (None, None, None) => {}
         }
         if !self.arquivos_alterados.is_empty() {
             f.push(format!(
@@ -586,6 +592,11 @@ fn execucao_md(s: &mut String, e: &Execucao) {
         ata_md(s, a);
         return;
     }
+    if let Some(m) = &e.mapa {
+        mapeamento_md(s, m);
+        let _ = writeln!(s);
+        return;
+    }
     analise_md(s, e);
 }
 
@@ -622,6 +633,10 @@ fn criterios_das_analises(s: &mut String) {
     let _ = writeln!(
         s,
         "- **Fluxo do processo e modelo de dados** (`explicar`): raia esperada atendida pela raia de algum passo com as palavras-chave; passo do fluxo principal atendido por um nó com as palavras-chave no rótulo ou na descrição, ou com evidência que toca a esperada; decisão esperada, do mesmo jeito, por um nó de decisão; fluxograma coerente com início, fim, decisões com dois caminhos e todos os passos alcançáveis. Entidade esperada achada pela tabela, com o nome de negócio e a ligação ao glossário; relação esperada achada pelas tabelas das pontas, com a origem (chave estrangeira ou join). Falha grave: relação registrada com a origem errada (o documento não distingue a relação inferida)."
+    );
+    let _ = writeln!(
+        s,
+        "- **Mapa de funcionalidades** (`mapear`, sem análise: o agente começa por `iniciar_mapeamento` e o mapa do projeto é comparado): funcionalidade esperada encontrada quando uma funcionalidade registrada (não descartada nem juntada) tem as palavras-chave no nome ou na descrição e ao menos um ponto de entrada esperado dela; área confere pelo slug. Ponto de entrada esperado bem tratado quando está na funcionalidade que casou com uma das esperadas para ele, ou justificado quando o gabarito o aceita como utilitário. Falha grave: nenhuma funcionalidade, ponto de entrada do gabarito sem tratamento ou evidência de ponto de entrada que não confere."
     );
     let _ = writeln!(
         s,
@@ -765,6 +780,46 @@ fn analise_md(s: &mut String, e: &Execucao) {
         modelagem_md(s, m);
     }
     let _ = writeln!(s, "- Concluída: {}\n", sim_nao(a.concluida));
+}
+
+fn mapeamento_md(s: &mut String, m: &crate::mapeamento::MapeamentoAvaliado) {
+    let _ = writeln!(
+        s,
+        "- Mapa de funcionalidades: {} registradas; funcionalidades esperadas {:.0}%, pontos de entrada bem tratados {:.0}%",
+        m.funcionalidades_registradas,
+        m.cobertura_de_funcionalidades() * 100.0,
+        m.cobertura_de_pontos() * 100.0
+    );
+    for f in &m.funcionalidades {
+        match &f.registrada {
+            None => {
+                let _ = writeln!(s, "  - {} ({}): não encontrada", f.esperada, f.nome);
+            }
+            Some(r) if !f.area_confere => {
+                let _ = writeln!(
+                    s,
+                    "  - {} ({}): encontrada como {r}, em outra área",
+                    f.esperada, f.nome
+                );
+            }
+            Some(_) => {}
+        }
+    }
+    for p in m.pontos.iter().filter(|p| !p.bem_tratado) {
+        let _ = writeln!(
+            s,
+            "  - `{}`: {}{}",
+            p.chave,
+            p.tratamento.replace('_', " "),
+            p.funcionalidade
+                .as_ref()
+                .map(|f| format!(" em {f}, fora das esperadas"))
+                .unwrap_or_default()
+        );
+    }
+    for e in &m.evidencias_invalidas {
+        let _ = writeln!(s, "  - Evidência inválida: {e}");
+    }
 }
 
 fn ciclo_vida_md(s: &mut String, c: &crate::ciclo_vida::CicloVidaAvaliado) {
@@ -1367,6 +1422,7 @@ mod tests {
             avaliacao: None,
             ata: None,
             transcript: None,
+            mapa: None,
             arquivos_alterados: vec![Diferenca::Alterado("db/a.sql".into())],
             claude: Some(SaidaClaude {
                 custo_usd: Some(0.5),

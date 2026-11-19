@@ -24,7 +24,7 @@
 
 use cba_kb::frontmatter::{Linhas, StatusAnalise, StatusSugestao, TipoDocumento};
 use cba_kb::informada::{Destinatario, Informacao};
-use cba_kb::{CaminhoRelativo, Id, IdCenario, IdHistoria, IdReuniao};
+use cba_kb::{CaminhoRelativo, Id, IdCenario, IdFuncionalidade, IdHistoria, IdReuniao};
 use serde::{Deserialize, Serialize};
 
 use crate::cenarios::{Cenario, TabelaDecisao};
@@ -475,6 +475,12 @@ pub struct Analise {
     /// Mermaid na montagem do documento.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub diagramas: Vec<Diagrama>,
+    /// Funcionalidade do mapa a que a análise se refere (aberta pelo painel da
+    /// funcionalidade). No fluxo `explicar`, a que ela explica (fluxo `explicar`
+    /// aberto pela lista de funcionalidades, #208). Aprovada, o documento negocial
+    /// vai para `funcionalidades/<area>/<tema>/` e fica ligado ao item.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub funcionalidade: Option<IdFuncionalidade>,
 }
 
 /// Operação recusada pelo modelo. As mensagens se dirigem a quem chamou (o agente
@@ -640,6 +646,7 @@ impl Analise {
             tabelas: Vec::new(),
             cenarios: Vec::new(),
             diagramas: Vec::new(),
+            funcionalidade: None,
         }
     }
 

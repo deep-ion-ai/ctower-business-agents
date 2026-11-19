@@ -336,6 +336,9 @@ export function AprovacaoAnalise({
               ))}
             </ul>
           )}
+          {feita.documentoNegocial && (
+            <p>Documento negocial no mapa de funcionalidades: {feita.documentoNegocial}</p>
+          )}
           {feita.avisos.map((a) => (
             <p key={a} className="muted">
               {a}

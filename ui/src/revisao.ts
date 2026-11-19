@@ -90,6 +90,8 @@ export interface AprovacaoFeita {
   jaAprovada: boolean;
   regras: { id: string; arquivo: string; area: string; afirmacoes: number[]; acao: Acao }[];
   termos: { termo: string; arquivo: string; acao: Acao }[];
+  /** Explicação ligada a uma funcionalidade do mapa (#208): o documento negocial gravado. */
+  documentoNegocial?: string | null;
   avisos: string[];
 }
 

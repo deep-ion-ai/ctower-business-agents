@@ -13,6 +13,8 @@
 //!   devolve (#143).
 //! - [`diagramas`]: diagramas registrados pelo agente (nós e arestas com
 //!   evidências), que o app transforma em Mermaid na montagem (#118).
+//! - [`funcionalidades`]: o mapa de funcionalidades do projeto (#208), um
+//!   cadastro do projeto fora das análises, com identificadores estáveis.
 //! - [`parecer`]: parecer de revisão de um requisito ou história (fluxo
 //!   `revisar`): achados, verificação INVEST e veredito.
 //! - [`qualidade`]: critérios de qualidade de requisitos (características da
@@ -31,6 +33,7 @@ pub mod config;
 pub mod dados;
 pub mod diagramas;
 pub mod eventos;
+pub mod funcionalidades;
 pub mod historias;
 pub mod log;
 pub mod memoria;

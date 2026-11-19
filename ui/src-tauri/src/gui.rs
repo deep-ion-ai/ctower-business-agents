@@ -7,8 +7,8 @@ use std::sync::Arc;
 
 use crate::{
     acessos, alteracoes, ambiente_teste, analise, base, clones, configuracoes, conversa, demandas,
-    inicio, pauta, primeiro_uso, projeto, prompts, rastreabilidade, registros, repositorios,
-    reunioes, revisao, terminal, vigia,
+    funcionalidades, inicio, painel_funcionalidade, pauta, primeiro_uso, projeto, prompts,
+    rastreabilidade, registros, repositorios, reunioes, revisao, terminal, vigia,
 };
 
 pub fn rodar() {
@@ -85,6 +85,13 @@ pub fn rodar() {
             inicio::criar_analise_fluxo,
             inicio::criar_analise_de_historias_app,
             inicio::criar_analise_de_cenarios_app,
+            funcionalidades::mapa_funcionalidades_projeto,
+            funcionalidades::revisar_mapa_projeto,
+            funcionalidades::pedido_de_mapeamento,
+            funcionalidades::explicar_funcionalidade_app,
+            funcionalidades::exportar_mapa_projeto,
+            painel_funcionalidade::painel_funcionalidade_app,
+            painel_funcionalidade::criar_analise_da_funcionalidade_app,
             projeto::visao_projeto_app,
             projeto::revalidar_projeto_app,
             projeto::mapa_projeto_app,

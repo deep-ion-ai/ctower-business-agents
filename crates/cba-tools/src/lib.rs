@@ -20,7 +20,10 @@
 //!   "Histórias e critérios", com as referências conferidas por [`fundamentos`]) e
 //!   [`cenarios`] (`registrar_tabela_decisao` e `registrar_cenario`, do fluxo
 //!   "Cenários de teste") e [`diagramas`] (`registrar_diagrama`, os diagramas
-//!   pelos elementos, que o app transforma em Mermaid, #118).
+//!   pelos elementos, que o app transforma em Mermaid, #118) e [`mapear`]
+//!   (`iniciar_mapeamento`, `pontos_de_entrada`, `registrar_funcionalidade`,
+//!   `tratar_ponto_de_entrada` e `concluir_mapeamento`: o mapa de funcionalidades
+//!   do projeto, #208, fora das análises).
 //! - Consulta, só de leitura e paginada ([`paginacao`]): [`conhecimento`] (busca no
 //!   índice da base), [`mapa`], [`estrutura`], [`banco`] (`schema`) e
 //!   [`referencias`], a partir do mapa estrutural do projeto ([`fontes`]), e
@@ -66,6 +69,7 @@ mod fontes;
 pub mod fundamentos;
 pub mod historias;
 pub mod mapa;
+pub mod mapear;
 pub mod memoria;
 mod modelo_dados;
 mod paginacao;
@@ -124,6 +128,11 @@ pub fn registro_padrao() -> Registro {
         .registrar(cenarios::registrar_tabela_decisao())
         .registrar(cenarios::registrar_cenario())
         .registrar(diagramas::registrar_diagrama())
+        .registrar(mapear::iniciar_mapeamento())
+        .registrar(mapear::pontos_de_entrada())
+        .registrar(mapear::registrar_funcionalidade())
+        .registrar(mapear::tratar_ponto_de_entrada())
+        .registrar(mapear::concluir_mapeamento())
         .registrar(ciclo::concluir_analise());
     registro
 }
@@ -169,6 +178,11 @@ mod tests {
             "registrar_tabela_decisao",
             "registrar_cenario",
             "registrar_diagrama",
+            "iniciar_mapeamento",
+            "pontos_de_entrada",
+            "registrar_funcionalidade",
+            "tratar_ponto_de_entrada",
+            "concluir_mapeamento",
             "concluir_analise",
         ] {
             assert!(r.obter(nome).is_some(), "{nome}");
@@ -185,6 +199,16 @@ mod tests {
                 .e_somente_leitura()
         );
         assert!(!r.obter("registrar_diagrama").unwrap().e_somente_leitura());
+        assert!(
+            !r.obter("registrar_funcionalidade")
+                .unwrap()
+                .e_somente_leitura()
+        );
+        assert!(
+            !r.obter("tratar_ponto_de_entrada")
+                .unwrap()
+                .e_somente_leitura()
+        );
         assert!(!r.obter("iniciar_analise").unwrap().e_somente_leitura());
         assert!(!r.obter("concluir_analise").unwrap().e_somente_leitura());
         assert!(!r.obter("propor_papel").unwrap().e_somente_leitura());
@@ -204,6 +228,9 @@ mod tests {
             "ler_transcript",
             "sugerir_demanda",
             "verificar_termos_vagos",
+            "iniciar_mapeamento",
+            "pontos_de_entrada",
+            "concluir_mapeamento",
         ] {
             assert!(r.obter(consulta).unwrap().e_somente_leitura(), "{consulta}");
         }

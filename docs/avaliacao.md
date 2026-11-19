@@ -1,6 +1,6 @@
 # Avaliação dos fluxos contra o gabarito
 
-Roteiros, limites e modelos mudam com o tempo. A avaliação mostra se um ajuste piorou a análise (spec, critério de aceite 2): roda os fluxos com o Claude Code real no sistema fictício **Faturamento Exemplo** e compara o que o agente registrou com o gabarito `fixtures/gabaritos/faturamento-exemplo.yaml`. Além dos três fluxos de análise (perguntar, explicar, impacto), avalia o fluxo **Analisar reunião** (`reuniao`) com os transcripts fictícios de `fixtures/reunioes/` e mede o custo de uma reunião longa, de cerca de 2 h ([seção própria](#fluxo-reuniao)), o fluxo **Revisar requisito** (`revisar`) com uma história fictícia com problemas plantados ([seção própria](#fluxo-revisar)) o fluxo **Histórias e critérios** (`historias`) a partir da análise de impacto de uma demanda ([seção própria](#fluxo-historias)) o fluxo **Cenários de teste** (`cenarios`) a partir das regras ([seção própria](#fluxo-cenarios)) e o **ciclo de vida** de uma entidade, o diagrama de estados numa análise de explicar ([seção própria](#ciclo-de-vida)).
+Roteiros, limites e modelos mudam com o tempo. A avaliação mostra se um ajuste piorou a análise (spec, critério de aceite 2): roda os fluxos com o Claude Code real no sistema fictício **Faturamento Exemplo** e compara o que o agente registrou com o gabarito `fixtures/gabaritos/faturamento-exemplo.yaml`. Além dos três fluxos de análise (perguntar, explicar, impacto), avalia o fluxo **Analisar reunião** (`reuniao`) com os transcripts fictícios de `fixtures/reunioes/` e mede o custo de uma reunião longa, de cerca de 2 h ([seção própria](#fluxo-reuniao)), o fluxo **Revisar requisito** (`revisar`) com uma história fictícia com problemas plantados ([seção própria](#fluxo-revisar)) o fluxo **Histórias e critérios** (`historias`) a partir da análise de impacto de uma demanda ([seção própria](#fluxo-historias)) o fluxo **Cenários de teste** (`cenarios`) a partir das regras ([seção própria](#fluxo-cenarios)) o **ciclo de vida** de uma entidade, o diagrama de estados numa análise de explicar ([seção própria](#ciclo-de-vida)), e o fluxo **Mapear funcionalidades** (`mapear`), o catálogo do projeto a partir do código ([seção própria](#fluxo-mapear)).
 
 Ela fica na crate `crates/cba-avaliacao` e tem duas partes:
 
@@ -40,9 +40,9 @@ Opções principais:
 |---|---|---|
 | `--modelo` | `sonnet` | modelo do `claude` |
 | `--orcamento` | `1.5` | `--max-budget-usd` de **cada** execução, em US$ |
-| `--fluxos` | `perguntar,explicar,impacto` | fluxos a rodar; também `revisar`, `historias`, `cenarios`, `ciclo-vida`, `reuniao` e `reuniao-longa` |
+| `--fluxos` | `perguntar,explicar,impacto` | fluxos a rodar; também `revisar`, `historias`, `cenarios`, `ciclo-vida`, `mapear`, `reuniao` e `reuniao-longa` |
 | `--repeticoes` | `1` | execuções de cada fluxo (o modelo varia de uma para outra; use 3 ou mais para comparar versões) |
-| `--pergunta`, `--funcionalidade`, `--demanda`, `--revisao`, `--historias`, `--cenarios`, `--ciclo-vida` | `P-FAT-001`, `F-FAT-002`, `D-FAT-001`, `REV-FAT-001`, `HIS-FAT-001`, `CEN-FAT-001`, `CV-FAT-001` | item do gabarito de cada fluxo |
+| `--pergunta`, `--funcionalidade`, `--demanda`, `--revisao`, `--historias`, `--cenarios`, `--ciclo-vida`, `--mapeamento` | `P-FAT-001`, `F-FAT-002`, `D-FAT-001`, `REV-FAT-001`, `HIS-FAT-001`, `CEN-FAT-001`, `CV-FAT-001`, `MAP-FAT-001` | item do gabarito de cada fluxo |
 | `--reuniao` | `REU-FAT-001` | reunião do gabarito dos fluxos `reuniao` e `reuniao-longa` |
 | `--orcamento-longa` | `3` | `--max-budget-usd` da reunião longa, em US$ |
 | `--longa-minutos`, `--longa-palavras` | `120`, `25000` | tamanho da reunião longa sintética |
@@ -204,6 +204,22 @@ O preparo cria a análise de explicar com o pedido do gabarito. A comparação u
 - **Achados.** Cada achado esperado é apontado pelo app no diagrama registrado.
 
 Falha grave (ciclo de vida): nenhum diagrama de estados, estado ausente, erro da execução ou arquivo do projeto alterado. Os demais são cobertura. Para comparar um estado gravado: `cargo run -p cba-avaliacao -- comparar --estado <pasta>/estado.json --item CV-FAT-001`. O roteiro é provisório até a primeira execução com o modelo real; o teste da crate `cba-fixtures` confere que os achados esperados são exatamente os que as transições do gabarito implicam.
+
+## Mapa de funcionalidades
+
+O **mapa de funcionalidades** (#208) é um cadastro do projeto, não uma análise: o agente o monta a partir dos pontos de entrada que o app acha no mapa estrutural. O gabarito tem, em `mapeamentos`, `MAP-FAT-001`: os 15 pontos de entrada da fixture (o teste da crate `cba-index` confere que são exatamente os que `Mapa::pontos_de_entrada` acha), cada um com as funcionalidades a que pode ir e, para os ajudantes (`PKG_COBRANCA.FN_PARAMETRO`, `FN_DIAS_ATRASO`), `justificavel: true`; e as seis funcionalidades esperadas: as quatro de `funcionalidades` (encargos, parcelamento, cancelamento e lote mensal) e as que só o mapeamento cobre (registro de pagamento e suspensão da cobrança, de `db/04_pkg_situacao.sql`).
+
+```sh
+cargo run -p cba-avaliacao -- rodar --fluxos mapear --orcamento 1.5
+```
+
+O preparo não cria análise: o pedido ao `claude` é o mesmo da tela "Mapa de funcionalidades" do app (`cba_tools::mapear::pedido_de_mapeamento`), o agente começa por `iniciar_mapeamento`, e a comparação lê o mapa do projeto (`funcionalidades/mapa.estado.json`, guardado na pasta da execução com o `mapa.md`). A comparação:
+
+- **Funcionalidades.** Cada funcionalidade esperada é atendida por uma registrada (não descartada nem juntada) com as palavras-chave no nome ou na descrição e ao menos um ponto de entrada esperado dela; a área confere pelo slug.
+- **Pontos de entrada.** Cada ponto esperado é bem tratado quando está na funcionalidade que casou com uma das esperadas para ele, ou justificado quando o gabarito o aceita como utilitário.
+- **Evidências.** As evidências dos pontos de entrada são conferidas contra o código.
+
+Falha grave (mapear): nenhuma funcionalidade, ponto de entrada do gabarito sem tratamento, evidência de ponto de entrada que não confere, mapa vazio, erro da execução ou arquivo do projeto alterado. Os demais são cobertura. O roteiro (`crates/cba-tools/textos/roteiros/mapear.md`, devolvido por `iniciar_mapeamento`) é provisório até a primeira execução com o modelo real.
 
 ## Ao mudar o gabarito ou a fixture
 

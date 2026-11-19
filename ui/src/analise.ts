@@ -142,6 +142,8 @@ export interface Analise {
   parecer?: Parecer | null;
   /** Diagramas registrados pelo agente (#118). */
   diagramas?: Diagrama[];
+  /** Funcionalidade do mapa que esta explicação documenta (`F-FAT-001`, #208). */
+  funcionalidade?: string | null;
 }
 
 /** Papel de um nó do diagrama (`cba_core::diagramas::PapelNo`). */

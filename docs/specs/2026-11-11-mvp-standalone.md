@@ -125,6 +125,17 @@ O agente consulta a base e o mapa, lê os trechos que decidem o comportamento e 
 
 O resultado é um documento negocial da funcionalidade: objetivo, atores e telas, fluxo principal, fluxos alternativos, exceções, regras de negócio (cada uma com evidência), dados lidos e gravados, integrações e perguntas em aberto.
 
+### 4.4.1 Mapa de funcionalidades
+
+Num sistema que o analista ainda não conhece, falta saber quais funcionalidades existem antes de explicar uma. O **mapa de funcionalidades** (#208) é um item próprio do menu lateral e um cadastro do projeto, **não uma análise**: não tem A-NNNN, revisão de análise nem aprovação. Ele parte dos **pontos de entrada** que o app acha no mapa estrutural, sem IA (`cba_index::Mapa::pontos_de_entrada`: telas, endpoints, lotes, rotinas de banco públicas, serviços e integrações, com a chave estável `<arquivo>#<nome qualificado>`), e o agente os agrupa em **funcionalidades com nome de negócio** (um objetivo do usuário, com um ou mais pontos de entrada), por **área** (as do `projeto.md` ou propostas pelo agente). Cada funcionalidade tem descrição, atores, pontos de entrada com evidência, dados lidos e gravados e relacionadas, e um identificador estável `F-<SIGLA>-NNN` (a sigla da área, como nas regras).
+
+- **Estado:** `funcionalidades/mapa.estado.json`, alterado sob trava pelo app e pelo servidor MCP; o documento `funcionalidades/mapa.md` é remontado a cada mudança (índice por área, funcionalidades com a situação, pontos justificados) e entra no índice e na busca. Como o mapa é persistente, uma sessão nova continua o mesmo mapa e os identificadores nunca são reaproveitados (descartadas e juntadas guardam o número).
+- **Sessão de mapeamento:** a tela abre o terminal do Claude com o pedido de `iniciar_mapeamento` (o recorte opcional, pasta ou área, e a orientação do analista). Projetos grandes são mapeados por partes.
+- **Completude, sem IA:** `concluir_mapeamento` cruza os pontos do recorte com os atribuídos e os justificados e recusa enquanto sobrar algum, listando quais. O agente atribui, cria uma funcionalidade ou justifica (código morto, utilitário, outro motivo).
+- **Revisão:** na tela, o analista aceita, edita (nome, área, descrição), junta, divide ou descarta cada funcionalidade, e pode desfazer uma justificativa. Registrar de novo uma funcionalidade (pelo `id` ou por um ponto de entrada dela) a substitui e a devolve para revisão; a tela marca as que perderam todos os pontos de entrada no código.
+- **Explicar:** cada funcionalidade tem a ação "Explicar", que abre o fluxo `explicar` com ela preenchida. Aprovada a explicação, o documento negocial vai para `funcionalidades/<area>/<tema>/negocial.md` e fica ligado à funcionalidade.
+- **Dados da primeira versão:** sem `mapa.estado.json`, o app importa o `catalogo.estado.json` e as análises do antigo fluxo `mapear` ainda não aprovadas.
+
 ### 4.5 Analisar impacto de uma demanda
 
 Exemplo de demanda: "Permitir parcelamento da fatura em até 3 vezes para clientes pessoa jurídica."
@@ -199,6 +210,11 @@ Operam só dentro das pastas cadastradas do projeto, respeitam a lista de exclus
 | `registrar_sugestao` | Registra uma sugestão de alteração: arquivo, trecho atual, trecho proposto, motivo, impacto. |
 | `propor_termo` | Propõe uma entrada para o glossário (termo de negócio, sinônimos, onde vive no código). |
 | `registrar_diagrama` | Registra um diagrama pelos elementos (#118): `tipo` (`estados`, ciclo de vida de uma entidade; `fluxo`, passos de um processo; ou `dados`, modelo de dados conceitual, #120), título, `secao` (as mesmas de `afirmar`), nós (chave, rótulo, papel `etapa`/`inicio`/`fim`/`decisao`, descrição e evidências; no fluxo, a `raia` do ator; no modelo de dados, a `tabela` e os `atributos` de negócio) e arestas (de, para, rótulo, descrição, condição, efeitos, confiança e evidências; no modelo de dados, a `cardinalidade` das pontas e a `origem`, `chave_estrangeira` ou `join`); no tipo `estados`, a resposta traz os achados do ciclo de vida calculados pelo app (#119). O agente não escreve Mermaid: o app gera o diagrama na montagem. No modelo de dados, a chave estrangeira é conferida contra os scripts do banco (sem ela, o registro é recusado: a relação é `join`, sempre inferida) e cada entidade é ligada ao termo do glossário que vive na tabela. `substituir` troca um diagrama já registrado. Histórias e cenários recusam. |
+| `iniciar_mapeamento` | Só leitura (#208): o roteiro do mapeamento, as áreas do projeto, os pontos do recorte (`pasta`, `area`) e o que o mapa de funcionalidades já tem. Não recebe `analise`. |
+| `pontos_de_entrada` | Só leitura (#208): os pontos de entrada do mapa estrutural no recorte, com o tratamento de cada um no mapa de funcionalidades (atribuído, justificado, sem tratamento). |
+| `registrar_funcionalidade` | Registra uma funcionalidade no mapa de funcionalidades do projeto (#208): nome de negócio, área, descrição, atores, pontos de entrada (cada um com evidência conferida), dados lidos e gravados, relacionadas. Sem ponto de entrada com evidência válida, recusa. Com `id` (ou um ponto que já é dela), substitui a funcionalidade e a devolve para revisão; sem, reserva o próximo `F-<SIGLA>-NNN`. |
+| `tratar_ponto_de_entrada` | Atribui um ponto do mapa a uma funcionalidade já registrada ou justifica por que fica sem funcionalidade (código morto, utilitário, outro). |
+| `concluir_mapeamento` | Só leitura (#208): confere que todo ponto de entrada do recorte está numa funcionalidade ou justificado; recusa listando os que faltam. |
 | `memorizar` | Grava numa seção da memória da análise (`onde_parou`, `contexto`, `investigado`, `descartado`, `hipoteses`, `codigo`, `combinados`, `pendencias`), acrescentando um item ou substituindo a seção (o caminho para resumir). Limite de 24.000 caracteres na memória inteira: passar dele é recusado com a orientação de resumir. Análise aprovada recusa. |
 | `concluir_analise` | Fecha a rodada: confere as pendências (sem afirmações ou seção obrigatória do fluxo vazia recusam; evidência que não confere mais com o código e afirmação inferida sem evidência voltam como pendência para o analista), o app monta o documento e devolve o caminho, que o agente cita na resposta, com as perguntas em aberto. |
 
@@ -281,7 +297,9 @@ Para clientes que não são o Claude Desktop nem o Claude Code, o app terá um l
     glossario/<termo>.md             # negócio → código
     regras/RN-<AREA>-<NNN>.md        # uma regra por arquivo
     areas/<area>/memoria.md          # memória de uma área funcional
-    funcionalidades/<area>/<tema>/   # documento negocial, casos de uso, rastreabilidade
+    funcionalidades/mapa.md          # mapa de funcionalidades (F-<SIGLA>-NNN), montado do estado
+    funcionalidades/mapa.estado.json # estado do mapa: as funcionalidades e os identificadores
+    funcionalidades/<area>/<tema>/   # documento negocial (negocial.md), casos de uso, rastreabilidade
     analises/<id>.md                 # análises de impacto, perguntas, explicações
     analises/<id>.estado.json        # estado da análise: sessões, afirmações, evidências, perguntas, sugestões
     analises/<id>.memoria.md         # memória de trabalho do agente (fora do índice), devolvida na retomada
@@ -343,6 +361,7 @@ O agente registra dados estruturados pelas ferramentas MCP, e o app monta cada d
 | Regra de negócio | identificador estável · enunciado · área · evidências com hash · origem |
 | Termo do glossário | termo · sinônimos · definição de negócio · onde vive no código (entidades, tabelas, telas, serviços, documentos) |
 | Sugestão de alteração | contexto · trecho atual · trecho proposto · motivo · impacto · exemplo |
+| Mapa de funcionalidades (#208) | índice por área · funcionalidades · pontos de entrada sem funcionalidade · evidências |
 
 - **Templates editáveis:** ficam em `<base>/_templates/` como Markdown com marcadores. O app traz um conjunto padrão; cada organização pode ajustar ao seu (por exemplo, um padrão de documento negocial já adotado).
   - Um arquivo por tipo, com o nome do campo `tipo` (`_templates/analise-impacto.md`). Sem o arquivo, vale o padrão embutido; o app copia o padrão para a base sem sobrescrever o que foi editado.

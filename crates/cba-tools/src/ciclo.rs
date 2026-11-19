@@ -65,7 +65,7 @@ fn titulo_da_entrada(entrada: &str) -> String {
 }
 
 /// Branch e commit da primeira pasta do projeto, quando ela está num repositório.
-fn versao_do_codigo(ambiente: &Ambiente) -> Option<VersaoCodigo> {
+pub(crate) fn versao_do_codigo(ambiente: &Ambiente) -> Option<VersaoCodigo> {
     let git = detectar_git(&ambiente.escopo.pastas().first()?.caminho)?;
     Some(VersaoCodigo {
         branch: git.branch,
@@ -157,6 +157,8 @@ struct ArgsIniciar {
     reuniao: Option<String>,
     #[serde(default)]
     origem: Option<String>,
+    #[serde(default)]
+    funcionalidade: Option<String>,
 }
 
 /// Ligações pedidas em `iniciar_analise`: a demanda (gravada em `demanda.id` no
@@ -372,8 +374,9 @@ pub fn iniciar_analise() -> Ferramenta {
          `origem` (a análise A-NNNN de onde vêm as afirmações) ou `demanda`. Para \
          derivar cenários de teste das regras, passe `fluxo: \"cenarios\"` e `origem` \
          (uma análise do código ou de histórias), `demanda` ou `entrada` com as regras. \
-         `demanda` (D-NNNN, opcional) liga a análise a uma demanda do projeto. Siga o \
-         roteiro devolvido.",
+         Para explicar uma funcionalidade do mapa de funcionalidades, passe `fluxo: \
+         \"explicar\"` e `funcionalidade` (F-<SIGLA>-NNN). `demanda` (D-NNNN, opcional) \
+         liga a análise a uma demanda do projeto. Siga o roteiro devolvido.",
         json!({
             "type": "object",
             "properties": {
@@ -405,7 +408,12 @@ pub fn iniciar_analise() -> Ferramenta {
                     "minLength": 1,
                     "description": "Opcional: a demanda do projeto (D-NNNN) a que a análise pertence. Grava a ligação na análise."
                 },
-                "reuniao": reuniao::schema_da_reuniao()
+                "reuniao": reuniao::schema_da_reuniao(),
+                "funcionalidade": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Só para criar, no fluxo explicar: a funcionalidade do mapa (F-<SIGLA>-NNN) a explicar. A entrada vem do mapa, e o documento negocial aprovado fica ligado a ela."
+                }
             },
             "additionalProperties": false
         }),
@@ -423,6 +431,11 @@ pub fn iniciar_analise() -> Ferramenta {
                     .map(reuniao::id_da_reuniao)
                     .transpose()?,
             };
+            if args.funcionalidade.is_some() && args.fluxo != Some(Fluxo::Explicar) {
+                return Err(ErroFerramenta::Argumentos(
+                    "`funcionalidade` só vale para criar uma análise do fluxo `explicar`".into(),
+                ));
+            }
             if args.origem.is_some()
                 && !matches!(args.fluxo, Some(Fluxo::Historias | Fluxo::Cenarios))
             {
@@ -485,6 +498,18 @@ pub fn iniciar_analise() -> Ferramenta {
                         Some(demanda_do_frontmatter(&lida)),
                     )?;
                     ligacao.demanda = None;
+                    (analise.id, true)
+                }
+                (None, Some(Fluxo::Explicar), _) if args.funcionalidade.is_some() => {
+                    let fid = cba_kb::IdFuncionalidade::analisar(
+                        args.funcionalidade.as_deref().unwrap_or_default().trim(),
+                    )
+                    .map_err(|_| {
+                        ErroFerramenta::Argumentos(
+                            "`funcionalidade`: use F-<SIGLA>-NNN, como F-FAT-001".into(),
+                        )
+                    })?;
+                    let analise = crate::mapear::criar_explicacao(ambiente, &fid)?;
                     (analise.id, true)
                 }
                 (None, Some(Fluxo::Historias), entrada) => {

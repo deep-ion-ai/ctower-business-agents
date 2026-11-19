@@ -70,10 +70,14 @@ pub enum TipoDocumento {
     Risco,
     /// Restrição de uma demanda (#122), em `registros/RE-NNNN.md`.
     Restricao,
+    /// Mapa de funcionalidades do projeto (#208), em `funcionalidades/mapa.md`,
+    /// montado do estado ao lado (`mapa.estado.json`). Cada funcionalidade tem
+    /// identificador estável (`F-<SIGLA>-NNN`).
+    MapaFuncionalidades,
 }
 
 impl TipoDocumento {
-    pub const TODOS: [TipoDocumento; 20] = [
+    pub const TODOS: [TipoDocumento; 21] = [
         Self::Projeto,
         Self::AnaliseImpacto,
         Self::Pergunta,
@@ -94,6 +98,7 @@ impl TipoDocumento {
         Self::Decisao,
         Self::Risco,
         Self::Restricao,
+        Self::MapaFuncionalidades,
     ];
 
     /// Valor no frontmatter (`analise-impacto`).
@@ -119,6 +124,7 @@ impl TipoDocumento {
             Self::Decisao => "decisao",
             Self::Risco => "risco",
             Self::Restricao => "restricao",
+            Self::MapaFuncionalidades => "mapa-funcionalidades",
         }
     }
 
@@ -659,6 +665,30 @@ pub struct FrontmatterFuncionalidade {
 impl Frontmatter for FrontmatterFuncionalidade {
     const TIPOS: &'static [TipoDocumento] =
         &[TipoDocumento::Funcionalidade, TipoDocumento::CasoDeUso];
+}
+
+/// Mapa de funcionalidades do projeto, em `funcionalidades/mapa.md` (#208). O
+/// corpo é montado do estado (`mapa.estado.json`) pelo template
+/// `mapa-funcionalidades`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FrontmatterMapa {
+    pub tipo: TipoDocumento,
+    pub titulo: String,
+    /// Slug do projeto.
+    pub projeto: String,
+    pub status: StatusAnalise,
+    /// Funcionalidades no mapa (sem as descartadas e as juntadas).
+    #[serde(default)]
+    pub funcionalidades: u32,
+    /// Funcionalidades ainda sem decisão do analista.
+    #[serde(default)]
+    pub pendentes: u32,
+    #[serde(default)]
+    pub atualizado: Option<Data>,
+}
+
+impl Frontmatter for FrontmatterMapa {
+    const TIPOS: &'static [TipoDocumento] = &[TipoDocumento::MapaFuncionalidades];
 }
 
 /// Memória de uma área, em `areas/<area>/memoria.md`.

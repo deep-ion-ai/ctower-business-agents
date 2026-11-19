@@ -119,7 +119,8 @@ impl Tipo {
     }
 
     /// Tipos das análises (`analises/`): análise de impacto, pergunta,
-    /// funcionalidade, análise de reunião, parecer de revisão, histórias e cenários de teste.
+    /// funcionalidade, análise de reunião, parecer de revisão, histórias e cenários de
+    /// teste.
     pub const ANALISES: [Tipo; 7] = [
         Tipo::Documento(TipoDocumento::AnaliseImpacto),
         Tipo::Documento(TipoDocumento::Pergunta),

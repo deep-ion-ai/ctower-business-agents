@@ -309,6 +309,7 @@ pub fn executar(
         avaliacao: None,
         ata: None,
         transcript: None,
+        mapa: None,
         arquivos_alterados: Vec::new(),
         claude: None,
         erro: None,
@@ -428,6 +429,101 @@ pub fn executar(
     execucao
 }
 
+/// Roda o mapeamento das funcionalidades (#208) uma vez e compara o mapa do
+/// projeto com o gabarito. O mapa não é uma análise: o agente começa por
+/// `iniciar_mapeamento`, e o estado lido é `funcionalidades/mapa.estado.json`.
+/// O estado e o documento do mapa ficam em `pasta_saida`.
+pub fn executar_mapeamento(
+    gabarito: &Gabarito,
+    mapeamento: &crate::gabarito::Mapeamento,
+    repeticao: u32,
+    opcoes: &Opcoes,
+    pasta_saida: &Path,
+) -> Execucao {
+    let mut execucao = Execucao {
+        fluxo: "mapear".to_owned(),
+        item: mapeamento.id.clone(),
+        repeticao,
+        avaliacao: None,
+        ata: None,
+        transcript: None,
+        mapa: None,
+        arquivos_alterados: Vec::new(),
+        claude: None,
+        erro: None,
+    };
+    if let Err(e) = fs::create_dir_all(pasta_saida) {
+        execucao.erro = Some(format!("pasta de saída: {e}"));
+        return execucao;
+    }
+    let (temporaria, raiz) = match temporaria() {
+        Ok(t) => t,
+        Err(e) => {
+            execucao.erro = Some(e);
+            return execucao;
+        }
+    };
+    let projeto = gabarito.raiz_do_projeto();
+    let preparado = (|| {
+        let p = preparar_projeto(&raiz, &projeto)?;
+        let (mcp, settings) = preparar_claude(&raiz, &p, &opcoes.cba)?;
+        Ok::<_, String>(Preparado {
+            projeto: p,
+            pedido: cba_tools::mapear::pedido_de_mapeamento(None, None, None),
+            mcp,
+            settings,
+        })
+    })();
+    let preparado = match preparado {
+        Ok(p) => p,
+        Err(e) => {
+            execucao.erro = Some(e);
+            return execucao;
+        }
+    };
+    match rodar_claude(&preparado, opcoes, pasta_saida) {
+        Ok(saida) => execucao.claude = Some(SaidaClaude::do_json(&saida)),
+        Err(e) => execucao.erro = Some(e),
+    }
+    match pastas::diferencas(&projeto, &preparado.projeto.codigo) {
+        Ok(d) => execucao.arquivos_alterados = d,
+        Err(e) => execucao.erro = Some(format!("comparação da cópia: {e}")),
+    }
+    let kb = &preparado.projeto.ambiente.kb;
+    for (relativo, nome) in [
+        (cba_kb::layout::estado_do_mapa(), "mapa.estado.json"),
+        (cba_kb::layout::mapa_de_funcionalidades(), "mapa.md"),
+    ] {
+        if let Ok(bytes) = fs::read(kb.caminho(&relativo)) {
+            let _ = fs::write(pasta_saida.join(nome), bytes);
+        }
+    }
+    match cba_core::funcionalidades::MapaFuncionalidades::carregar(kb) {
+        Ok(mapa) if mapa.versao > 0 => match escopo(gabarito) {
+            Ok(escopo) => {
+                execucao.mapa = Some(crate::mapeamento::avaliar_mapeamento(
+                    &mapa,
+                    &mapeamento.esperado,
+                    &escopo,
+                ))
+            }
+            Err(e) => execucao.erro = Some(e),
+        },
+        Ok(_) => {
+            execucao
+                .erro
+                .get_or_insert("o agente não registrou nada no mapa".to_owned());
+        }
+        Err(e) => {
+            execucao
+                .erro
+                .get_or_insert(format!("estado do mapa ilegível: {e}"));
+        }
+    }
+    manter_se_pedido(temporaria, opcoes, pasta_saida);
+    execucao
+}
+
 /// Falas do transcript da reunião do gabarito, lidas pelo mesmo parser do app.
 pub fn falas_da_reuniao(gabarito: &Gabarito, reuniao: &Reuniao) -> Result<Transcript, String> {
     let caminho = gabarito.transcript(reuniao);
@@ -467,6 +563,7 @@ pub fn executar_reuniao(
         avaliacao: None,
         ata: None,
         transcript: None,
+        mapa: None,
         arquivos_alterados: Vec::new(),
         claude: None,
         erro: None,

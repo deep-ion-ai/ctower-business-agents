@@ -82,6 +82,8 @@ pub struct AprovacaoVista {
     pub ja_aprovada: bool,
     pub regras: Vec<RegraVista>,
     pub termos: Vec<TermoVista>,
+    /// Explicação ligada a uma funcionalidade: o documento negocial gravado.
+    pub documento_negocial: Option<String>,
     pub avisos: Vec<String>,
 }
 
@@ -121,6 +123,7 @@ pub fn aprovar(
                 acao: t.acao,
             })
             .collect(),
+        documento_negocial: feita.documento_negocial.map(|d| d.to_string()),
         avisos: feita.avisos,
     })
 }

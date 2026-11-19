@@ -378,3 +378,30 @@ fn cem_mil_arquivos_em_menos_de_um_minuto() {
     eprintln!("100 mil arquivos: {primeiro:?} (primeiro), {segundo:?} (sem mudanças)");
     assert!(primeiro < Duration::from_secs(60), "{primeiro:?}");
 }
+
+/// Os pontos de entrada da fixture são os do gabarito do mapeamento (#208).
+#[test]
+fn pontos_de_entrada_da_fixture_sao_os_do_gabarito() {
+    let tmp = tempfile::tempdir().unwrap();
+    let cadastro = Cadastro::em(tmp.path().join("projetos"));
+    let projeto = Projeto::novo(
+        "Faturamento Exemplo",
+        [fixtures().join("faturamento-exemplo")],
+    )
+    .unwrap();
+    cadastro.cadastrar(&projeto).unwrap();
+    cadastro.inventariar(&projeto.id).unwrap();
+    let mapa = cadastro.mapear(&projeto.id).unwrap();
+    let achados: BTreeSet<String> = mapa
+        .pontos_de_entrada()
+        .into_iter()
+        .map(|p| p.chave)
+        .collect();
+    let esperados: BTreeSet<String> = gabarito()["mapeamentos"][0]["pontos_de_entrada"]
+        .as_sequence()
+        .unwrap()
+        .iter()
+        .map(|p| p["chave"].as_str().unwrap().to_owned())
+        .collect();
+    assert_eq!(achados, esperados);
+}

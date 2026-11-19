@@ -26,6 +26,7 @@ import type { ApiConfiguracoes } from "./configuracoes";
 import { TelaBase } from "./TelaBase";
 import { TelaConfiguracoes } from "./TelaConfiguracoes";
 import { TelaInicio } from "./TelaInicio";
+import { TelaMapa } from "./TelaMapa";
 import { TelaProjeto } from "./TelaProjeto";
 import type { ApiTerminal, ProjetoResumo } from "./terminal";
 import type { TelaTerminal } from "./telaXterm";
@@ -42,7 +43,9 @@ export type Tela =
       aberta?: { id: string; abertura: Abertura };
     }
   | { tipo: "configuracoes" }
-  | { tipo: "demanda"; projeto: string; demanda: string };
+  | { tipo: "demanda"; projeto: string; demanda: string }
+  /** Mapa de funcionalidades do projeto (#208): fora das análises. */
+  | { tipo: "mapa"; projeto?: string };
 
 interface Props {
   /** Tela ao abrir (ex.: a análise sugerida no fim do primeiro uso). */
@@ -72,6 +75,7 @@ const AREAS: { tipo: Tela["tipo"]; rotulo: string; icone: IconName }[] = [
   { tipo: "projeto", rotulo: "Projeto", icone: "project" },
   { tipo: "base", rotulo: "Base de conhecimento", icone: "book" },
   { tipo: "analise", rotulo: "Análises", icone: "analysis" },
+  { tipo: "mapa", rotulo: "Mapa de funcionalidades", icone: "features" },
   { tipo: "configuracoes", rotulo: "Configurações", icone: "settings" },
 ];
 
@@ -111,9 +115,11 @@ export function chaveDaTela(t: Tela): string {
 
 /**
  * Aba que fica montada (escondida) quando outra está à vista: a de uma análise
- * aberta, cujo terminal roda o agente. Desmontar encerraria o processo (#212).
+ * aberta e a do mapa de funcionalidades, cujo terminal roda o agente. Desmontar
+ * encerraria o processo (#212).
  */
-const ficaViva = (a: Aba) => a.tela.tipo === "analise" && !!a.tela.aberta;
+const ficaViva = (a: Aba) =>
+  (a.tela.tipo === "analise" && !!a.tela.aberta) || a.tela.tipo === "mapa";
 
 const nomeDoArquivo = (caminho: string) =>
   (caminho.split("/").pop() ?? caminho).replace(/\.md$/, "");
@@ -654,6 +660,18 @@ export function Navegacao({
                       }
                       aoVoltar={(projeto) => navegar({ tipo: "analise", projeto })}
                       aoMudarConversa={(estado) => aoMudarConversa(a.chave, estado)}
+                    />
+                  </div>
+                ) : a.tela.tipo === "mapa" ? (
+                  <div key={a.chave} className="editor-aba" hidden={a.chave !== ativa}>
+                    <TelaMapa
+                      key={a.vez}
+                      projetos={projetos}
+                      projetoInicial={a.tela.projeto}
+                      apiAnalise={apiAnalise}
+                      apiTerminal={apiTerminal}
+                      criarTela={criarTela}
+                      navegar={navegar}
                     />
                   </div>
                 ) : null,

@@ -44,6 +44,9 @@ pub struct Gabarito {
     /// Ciclos de vida esperados de entidades com campo de status (#119).
     #[serde(default)]
     pub ciclos_vida: Vec<CicloVida>,
+    /// Mapa de funcionalidades esperado (#208).
+    #[serde(default)]
+    pub mapeamentos: Vec<Mapeamento>,
     /// Pasta do gabarito, para resolver `raiz`. Preenchida por [`Gabarito::carregar`].
     #[serde(skip)]
     pub pasta: PathBuf,
@@ -346,6 +349,42 @@ pub struct NegativoEsperado {
     pub palavras_chave: Vec<Vec<String>>,
 }
 
+/// Mapeamento das funcionalidades do projeto (#208): o mapa esperado.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Mapeamento {
+    pub id: String,
+    pub titulo: String,
+    #[serde(flatten)]
+    pub esperado: MapeamentoEsperado,
+}
+
+/// O mapa esperado: os pontos de entrada e as funcionalidades.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MapeamentoEsperado {
+    pub pontos_de_entrada: Vec<PontoEsperado>,
+    pub funcionalidades: Vec<FuncionalidadeMapeadaEsperada>,
+}
+
+/// Ponto de entrada do mapa e as funcionalidades a que ele pode ir.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PontoEsperado {
+    pub chave: String,
+    pub funcionalidades: Vec<String>,
+    /// Pode ficar sem funcionalidade, justificado como utilitário.
+    #[serde(default)]
+    pub justificavel: bool,
+}
+
+/// Funcionalidade esperada no catálogo.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FuncionalidadeMapeadaEsperada {
+    pub id: String,
+    #[serde(default)]
+    pub nome: Option<String>,
+    pub area: String,
+    pub palavras_chave: Vec<Vec<String>>,
+}
+
 /// Ciclo de vida de uma entidade (#119): a análise de explicar com o `pedido`,
 /// que deve registrar o diagrama de estados esperado.
 #[derive(Debug, Clone, Deserialize)]
@@ -533,6 +572,16 @@ impl Gabarito {
     }
 
     /// Reunião pelo id (`REU-*`).
+    /// Mapeamento das funcionalidades (#208), avaliado à parte das análises.
+    pub fn mapeamento(&self, id: &str) -> Result<&Mapeamento, Erro> {
+        self.mapeamentos.iter().find(|m| m.id == id).ok_or_else(|| {
+            Erro(format!(
+                "o mapeamento `{id}` não existe no gabarito (use o id de um mapeamento, como \
+                 MAP-FAT-001)"
+            ))
+        })
+    }
+
     pub fn reuniao(&self, id: &str) -> Result<&Reuniao, Erro> {
         self.reunioes.iter().find(|r| r.id == id).ok_or_else(|| {
             Erro(format!(

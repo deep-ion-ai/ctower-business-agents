@@ -428,6 +428,7 @@ fn relatorio_resume_por_fluxo_em_json_e_markdown() {
         avaliacao,
         ata: None,
         transcript: None,
+        mapa: None,
         arquivos_alterados: vec![],
         claude: None,
         erro: None,

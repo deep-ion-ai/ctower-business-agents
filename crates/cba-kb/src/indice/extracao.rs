@@ -10,8 +10,9 @@ use crate::caminho::CaminhoRelativo;
 use crate::documento::Documento;
 use crate::frontmatter::{
     self, Frontmatter, FrontmatterAnalise, FrontmatterAta, FrontmatterDemanda,
-    FrontmatterFuncionalidade, FrontmatterLivre, FrontmatterMemoria, FrontmatterPessoa,
-    FrontmatterProjeto, FrontmatterRegra, FrontmatterSugestao, FrontmatterTermo, TipoDocumento,
+    FrontmatterFuncionalidade, FrontmatterLivre, FrontmatterMapa, FrontmatterMemoria,
+    FrontmatterPessoa, FrontmatterProjeto, FrontmatterRegra, FrontmatterSugestao, FrontmatterTermo,
+    TipoDocumento,
 };
 use crate::id::{Id, IdDemanda};
 use crate::layout;
@@ -158,6 +159,7 @@ fn validar(tipo: TipoDocumento, relativo: &CaminhoRelativo, texto: &str) -> Resu
         | TipoDocumento::AnaliseReuniao
         | TipoDocumento::ParecerRevisao => com::<FrontmatterAnalise>(texto),
         TipoDocumento::Historias | TipoDocumento::CenariosTeste => com::<FrontmatterAnalise>(texto),
+        TipoDocumento::MapaFuncionalidades => com::<FrontmatterMapa>(texto),
         // Explicação de funcionalidade: análise em `analises/`, documento negocial
         // em `funcionalidades/`.
         TipoDocumento::Funcionalidade if relativo.partes().next() == Some(layout::ANALISES) => {
