@@ -35,6 +35,7 @@ mod analise;
 mod base;
 mod cli;
 mod clones;
+mod cobertura;
 mod configuracoes;
 #[cfg(windows)]
 mod console;

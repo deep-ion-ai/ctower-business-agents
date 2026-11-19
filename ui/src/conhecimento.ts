@@ -1,4 +1,5 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
+import { apiCoberturaTauri, type ApiCobertura } from "./cobertura";
 import {
   apiAnaliseTauri,
   type AnaliseCriada,
@@ -239,9 +240,12 @@ export interface ApiConhecimento extends ApiAmbiente {
   encerrarDemanda(projeto: string, demanda: string): Promise<DemandaVista>;
   reabrirDemanda(projeto: string, demanda: string): Promise<DemandaVista>;
   painelDemanda(projeto: string, demanda: string): Promise<PainelDemanda>;
+  /** Cobertura da base por área e pasta (#125); sem ela, a tela não mostra a seção. */
+  cobertura?: ApiCobertura["cobertura"];
 }
 
 export const apiConhecimentoTauri: ApiConhecimento = {
+  cobertura: apiCoberturaTauri.cobertura,
   situacao: () => invoke("situacao_app"),
   inicio: () => invoke("inicio_app"),
   criarAnalise: (projeto, fluxo, entrada, titulo, demanda) =>

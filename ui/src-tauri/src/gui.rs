@@ -6,9 +6,9 @@ use cba_session::clientes::{self, EstadoClientes};
 use std::sync::Arc;
 
 use crate::{
-    acessos, alteracoes, ambiente_teste, analise, base, clones, configuracoes, conversa, demandas,
-    funcionalidades, inicio, painel_funcionalidade, pauta, primeiro_uso, projeto, prompts,
-    rastreabilidade, registros, repositorios, reunioes, revisao, terminal, vigia,
+    acessos, alteracoes, ambiente_teste, analise, base, clones, cobertura, configuracoes, conversa,
+    demandas, funcionalidades, inicio, painel_funcionalidade, pauta, primeiro_uso, projeto,
+    prompts, rastreabilidade, registros, repositorios, reunioes, revisao, terminal, vigia,
 };
 
 pub fn rodar() {
@@ -85,6 +85,7 @@ pub fn rodar() {
             inicio::criar_analise_fluxo,
             inicio::criar_analise_de_historias_app,
             inicio::criar_analise_de_cenarios_app,
+            cobertura::cobertura_projeto_app,
             funcionalidades::mapa_funcionalidades_projeto,
             funcionalidades::revisar_mapa_projeto,
             funcionalidades::pedido_de_mapeamento,

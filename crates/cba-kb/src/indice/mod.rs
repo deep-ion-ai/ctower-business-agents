@@ -222,6 +222,20 @@ pub struct EvidenciaIndexada {
     pub commit: Option<String>,
 }
 
+/// Documento do projeto, como o índice o guarda (para a cobertura da base, #125).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DocumentoIndexado {
+    /// Caminho relativo à base.
+    pub caminho: CaminhoRelativo,
+    pub tipo: Option<Tipo>,
+    pub identificador: Option<String>,
+    pub titulo: String,
+    pub area: Option<String>,
+    pub status: Option<String>,
+    /// Última modificação do arquivo, em nanossegundos desde 1970 (UTC).
+    pub modificado_ns: i64,
+}
+
 /// Índice aberto: uma conexão com o arquivo SQLite.
 #[derive(Debug)]
 pub struct Indice {
@@ -556,6 +570,41 @@ impl Indice {
                     identificador,
                     titulo,
                     status,
+                });
+            }
+        }
+        Ok(saida)
+    }
+
+    /// Documentos de um projeto da base (sem o corpo), em ordem de caminho.
+    pub fn documentos_do_projeto(&self, projeto: &str) -> ResultadoIndice<Vec<DocumentoIndexado>> {
+        let mut consulta = self.conexao.prepare(
+            "SELECT caminho, tipo, identificador, titulo, area, status, modificado_ns \
+             FROM documento WHERE projeto = ?1 ORDER BY caminho",
+        )?;
+        let linhas = consulta.query_map([projeto], |l| {
+            Ok((
+                l.get::<_, String>(0)?,
+                l.get::<_, Option<String>>(1)?,
+                l.get::<_, Option<String>>(2)?,
+                l.get::<_, String>(3)?,
+                l.get::<_, Option<String>>(4)?,
+                l.get::<_, Option<String>>(5)?,
+                l.get::<_, i64>(6)?,
+            ))
+        })?;
+        let mut saida = Vec::new();
+        for linha in linhas {
+            let (caminho, tipo, identificador, titulo, area, status, modificado_ns) = linha?;
+            if let Ok(caminho) = CaminhoRelativo::novo(&caminho) {
+                saida.push(DocumentoIndexado {
+                    caminho,
+                    tipo: tipo.as_deref().and_then(Tipo::de_str),
+                    identificador,
+                    titulo,
+                    area,
+                    status,
+                    modificado_ns,
                 });
             }
         }
