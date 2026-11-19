@@ -16,6 +16,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub const MESES_PADRAO: u32 = 6;
 /// Teto padrão de issues por leitura (GitHub; o Jira usa o `max_issues` do cadastro).
 pub const TETO_PADRAO: usize = 200;
+/// Mais que isso por chamada o `jira issue list --paginate` recusa.
+const PAGINA_JIRA: usize = 100;
 
 /// Desde quando as issues foram criadas.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -243,21 +245,35 @@ pub fn listar_jira(
         .unwrap_or(j.max_issues.clamp(1, crate::tracker::MAX_ISSUES_CEILING) as usize)
         .max(1);
     let token = token_jira(j, f)?;
-    let mut c = Command::new(&f.jira);
-    c.args([
-        "issue",
-        "list",
-        "--jql",
-        &jql_da_listagem(j, &desde),
-        "--raw",
-        "--paginate",
-        &format!("0:{}", teto + 1),
-    ])
-    .env("JIRA_API_TOKEN", token.expose());
-    if !j.config_file.trim().is_empty() {
-        c.env("JIRA_CONFIG_FILE", j.config_file.trim());
+    let jql = jql_da_listagem(j, &desde);
+    // O jira-cli aceita no máximo 100 por chamada (`--paginate <de>:<limite>`):
+    // lê em blocos até ter teto + 1 (o a mais mostra que o período passou do teto).
+    let querido = teto + 1;
+    let mut brutas: Vec<Value> = Vec::new();
+    while brutas.len() < querido {
+        let limite = (querido - brutas.len()).min(PAGINA_JIRA);
+        let mut c = Command::new(&f.jira);
+        c.args([
+            "issue",
+            "list",
+            "--jql",
+            &jql,
+            "--raw",
+            "--paginate",
+            &format!("{}:{limite}", brutas.len()),
+        ])
+        .env("JIRA_API_TOKEN", token.expose());
+        if !j.config_file.trim().is_empty() {
+            c.env("JIRA_CONFIG_FILE", j.config_file.trim());
+        }
+        let pagina = lista(rodar_json("jira", c, &token)?, "jira")?;
+        let n = pagina.len();
+        brutas.extend(pagina);
+        if n < limite {
+            break;
+        }
     }
-    let v = rodar_json("jira", c, &token)?;
+    let v = Value::Array(brutas);
     let mut issues: Vec<IssueListada> = lista(v, "jira")?
         .iter()
         .map(|i| {
@@ -422,6 +438,43 @@ echo '[{"key":"PROJ-9","fields":{"summary":"S","description":"h3. T","created":"
         let l = listar_jira(&j, &Periodo::default(), Some(1), &f2).unwrap();
         assert!(l.excedeu_teto);
         assert_eq!(l.issues.len(), 1);
+    }
+
+    #[test]
+    fn jira_pagina_em_blocos_de_ate_100() {
+        let d = tempfile::tempdir().unwrap();
+        // Recusa limite fora de 1..=100, como o jira-cli; devolve 100 e depois 50.
+        let jira = script(
+            d.path(),
+            "jira",
+            r#"p="$7"; de="${p%%:*}"; lim="${p##*:}"
+[ "$lim" -ge 1 ] && [ "$lim" -le 100 ] || { echo "invalid argument for paginate" >&2; exit 1; }
+n=$((150 - de)); [ "$n" -gt "$lim" ] && n=$lim
+i=0; out=""
+while [ "$i" -lt "$n" ]; do
+  [ -n "$out" ] && out="$out,"
+  out="$out{\"key\":\"PROJ-$((de + i + 1))\",\"fields\":{}}"
+  i=$((i + 1))
+done
+echo "[$out]""#,
+        );
+        let f = Ferramentas {
+            jira,
+            ..Default::default()
+        };
+        let j = JiraConfig {
+            url: "https://jira.example.com".into(),
+            project_key: "PROJ".into(),
+            credential_cmd: "echo tok".into(),
+            ..Default::default()
+        };
+        let l = listar_jira(&j, &Periodo::default(), Some(120), &f).unwrap();
+        assert_eq!(l.issues.len(), 120);
+        assert!(l.excedeu_teto);
+        assert_eq!(l.issues[119].chave, "PROJ-120");
+        let l = listar_jira(&j, &Periodo::default(), Some(200), &f).unwrap();
+        assert_eq!(l.issues.len(), 150);
+        assert!(!l.excedeu_teto);
     }
 
     #[test]
