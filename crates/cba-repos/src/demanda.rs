@@ -249,10 +249,54 @@ pub fn buscar_jira(j: &JiraConfig, ref_: &str, f: &Ferramentas) -> Result<Demand
     let v = rodar_json("jira", c, &token)?;
     Ok(Demanda {
         titulo: texto(&v, &["fields", "summary"]).to_string(),
-        descricao: texto(&v, &["fields", "description"]).to_string(),
+        descricao: wiki_para_markdown(texto(&v, &["fields", "description"])),
         url: j.issue_url(&chave),
         chave,
     })
+}
+
+/// Converte o markup wiki do Jira (API v2) em Markdown: títulos `hN.`, `*negrito*`,
+/// `_itálico_`, listas `*`/`#`, `{{código}}`, `{code}`, `[texto|url]` e `----`.
+/// Cobre o que as demandas usam no dia a dia; o que não reconhece fica como veio.
+pub fn wiki_para_markdown(wiki: &str) -> String {
+    use regex::Regex;
+    let titulo = Regex::new(r"^h([1-6])\.\s+(.*)$").unwrap();
+    let lista = Regex::new(r"^([*#-]+)\s+(.*)$").unwrap();
+    let negrito = Regex::new(r"(^|[\s(])\*([^*\s][^*]*?)\*($|[\s).,;:])").unwrap();
+    let italico = Regex::new(r"(^|[\s(])_([^_\s][^_]*?)_($|[\s).,;:])").unwrap();
+    let mono = Regex::new(r"\{\{(.+?)\}\}").unwrap();
+    let link = Regex::new(r"\[([^\]|]+)\|([^\]]+)\]").unwrap();
+    let inline = |l: &str| -> String {
+        let l = mono.replace_all(l, "`$1`");
+        let l = link.replace_all(&l, "[$1]($2)");
+        let l = negrito.replace_all(&l, "$1**$2**$3");
+        let l = negrito.replace_all(&l, "$1**$2**$3");
+        let l = italico.replace_all(&l, "$1*$2*$3");
+        italico.replace_all(&l, "$1*$2*$3").into_owned()
+    };
+    let mut out = Vec::new();
+    let mut em_codigo = false;
+    for linha in wiki.replace("\r\n", "\n").lines() {
+        if linha.trim_start().starts_with("{code") || linha.trim() == "{noformat}" {
+            out.push("```".to_string());
+            em_codigo = !em_codigo;
+        } else if em_codigo {
+            out.push(linha.to_string());
+        } else if linha.trim() == "----" {
+            out.push("---".to_string());
+        } else if let Some(c) = titulo.captures(linha) {
+            let n: usize = c[1].parse().unwrap_or(1);
+            out.push(format!("{} {}", "#".repeat(n), inline(&c[2])));
+        } else if let Some(c) = lista.captures(linha) {
+            let marca = &c[1];
+            let nivel = marca.len() - 1;
+            let sinal = if marca.ends_with('#') { "1." } else { "-" };
+            out.push(format!("{}{} {}", "  ".repeat(nivel), sinal, inline(&c[2])));
+        } else {
+            out.push(inline(linha));
+        }
+    }
+    out.join("\n")
 }
 
 /// Busca a issue no rastreador do projeto.
@@ -317,6 +361,16 @@ echo "{\"key\":\"$3\",\"fields\":{\"summary\":\"Cancelar nota\",\"description\":
             buscar_jira(&j, "OUTRO-1", &f),
             Err(DemandaErro::Referencia(_))
         ));
+    }
+
+    #[test]
+    fn wiki_do_jira_vira_markdown() {
+        let w = "h3. Descrição\r\n\r\nTexto com *negrito* e _itálico_ e {{cod}}.\r\n*1. Item*\r\n* um\r\n** dois\r\n# passo\r\n[site|http://x.y]\r\n{code}\r\na *b*\r\n{code}";
+        let m = wiki_para_markdown(w);
+        assert_eq!(
+            m,
+            "### Descrição\n\nTexto com **negrito** e *itálico* e `cod`.\n**1. Item**\n- um\n  - dois\n1. passo\n[site](http://x.y)\n```\na *b*\n```"
+        );
     }
 
     #[test]

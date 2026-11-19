@@ -15,6 +15,7 @@ zeroize = "1"
 # Tokens no chaveiro do sistema (#179): Keychain no macOS, Gerenciador de
 # Credenciais no Windows, keyutils no Linux.
 keyring = { version = "3", features = ["apple-native", "windows-native", "linux-native"] }
+regex = "1.13.1"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

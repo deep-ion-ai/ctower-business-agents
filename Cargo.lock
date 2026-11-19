@@ -578,6 +578,7 @@ dependencies = [
  "dunce",
  "keyring",
  "libc",
+ "regex",
  "serde",
  "serde_json",
  "tempfile",
