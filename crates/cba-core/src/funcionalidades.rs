@@ -26,7 +26,7 @@ use std::fs::{self, OpenOptions};
 use std::io;
 
 use cba_index::TipoEntrada;
-use cba_kb::{CaminhoRelativo, Id, IdFuncionalidade, layout};
+use cba_kb::{CaminhoRelativo, Id, IdDemanda, IdFuncionalidade, layout};
 use serde::{Deserialize, Serialize};
 
 use crate::analise::Evidencia;
@@ -111,6 +111,10 @@ pub struct Funcionalidade {
     /// Análise do fluxo `explicar` ligada à funcionalidade (a mais recente).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub explicacao: Option<Id>,
+    /// Demandas ligadas pelo analista no painel da funcionalidade (as das
+    /// análises ligadas a ela entram sem estar aqui).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub demandas: Vec<IdDemanda>,
     #[serde(default)]
     pub sessao: Option<String>,
     /// Primeiro registro.
@@ -500,6 +504,7 @@ impl MapaFuncionalidades {
             editada: false,
             documento: None,
             explicacao: None,
+            demandas: Vec::new(),
             sessao: nova.sessao,
             registrada_ms: agora_ms,
             atualizada_ms: agora_ms,
@@ -512,6 +517,7 @@ impl MapaFuncionalidades {
                 let anterior = std::mem::replace(f, funcionalidade);
                 f.documento = anterior.documento;
                 f.explicacao = anterior.explicacao;
+                f.demandas = anterior.demandas;
                 f.registrada_ms = anterior.registrada_ms;
                 Ok(true)
             }
@@ -666,6 +672,11 @@ impl MapaFuncionalidades {
             d.documento = o.documento;
             d.explicacao = o.explicacao;
         }
+        for dem in o.demandas {
+            if !d.demandas.contains(&dem) {
+                d.demandas.push(dem);
+            }
+        }
         let o = self.funcionalidade_mut(origem)?;
         o.situacao = SituacaoFuncionalidade::Juntada;
         o.juntada_em = Some(destino.clone());
@@ -740,12 +751,28 @@ impl MapaFuncionalidades {
             editada: true,
             documento: None,
             explicacao: None,
+            demandas: Vec::new(),
             sessao: None,
             registrada_ms: agora_ms,
             atualizada_ms: agora_ms,
         };
         self.funcionalidades.push(nova);
         Ok(novo_id)
+    }
+
+    /// Liga (ou desliga, com `ligar` falso) uma demanda à funcionalidade.
+    pub fn ligar_demanda(
+        &mut self,
+        id: &IdFuncionalidade,
+        demanda: IdDemanda,
+        ligar: bool,
+    ) -> Result<(), ErroMapa> {
+        let f = self.aberta_mut(id)?;
+        f.demandas.retain(|d| *d != demanda);
+        if ligar {
+            f.demandas.push(demanda);
+        }
+        Ok(())
     }
 
     /// Liga o documento negocial aprovado de uma explicação à funcionalidade.
@@ -923,6 +950,7 @@ mod legado {
                     editada: false,
                     documento: i.documento,
                     explicacao: i.explicacao,
+                    demandas: Vec::new(),
                     sessao: None,
                     registrada_ms: i.atualizada_ms,
                     atualizada_ms: i.atualizada_ms,
@@ -1141,6 +1169,13 @@ mod tests {
                 .relacionadas
                 .contains(&f(4))
         );
+
+        let d = IdDemanda::analisar("D-0004").unwrap();
+        m.ligar_demanda(&f(1), d, true).unwrap();
+        m.ligar_demanda(&f(1), d, true).unwrap();
+        assert_eq!(m.funcionalidade(&f(1)).unwrap().demandas, vec![d]);
+        m.ligar_demanda(&f(1), d, false).unwrap();
+        assert!(m.funcionalidade(&f(1)).unwrap().demandas.is_empty());
 
         m.editar(
             &f(1),

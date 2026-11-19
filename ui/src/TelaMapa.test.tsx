@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ApiAnalise, AvisoAnalise } from "./analise";
-import type { ApiMapa, Funcionalidade, MapaFuncionalidades } from "./funcionalidades";
+import type { ApiMapa } from "./funcionalidades";
+import { apiFalsa, MAPA } from "./test/mapaFalso";
 import { TelaMapa } from "./TelaMapa";
 import type { ApiTerminal } from "./terminal";
 
@@ -17,128 +18,6 @@ function telaFalsa() {
     focar: vi.fn(),
     descartar: vi.fn(),
   };
-}
-
-function funcionalidade(f: Partial<Funcionalidade> & Pick<Funcionalidade, "id" | "nome">): Funcionalidade {
-  return {
-    area: "cobranca",
-    areaNome: "Cobrança",
-    descricao: `${f.nome}.`,
-    atores: [],
-    pontos: [
-      {
-        nome: "PKG_COBRANCA.FN_CALCULAR_MULTA",
-        chave: "db/03_pkg_cobranca.sql#PKG_COBRANCA.FN_CALCULAR_MULTA",
-        tipo: "rotina_banco",
-        arquivo: "db/03_pkg_cobranca.sql",
-        linhaInicial: 10,
-        linhaFinal: 10,
-        trecho: "FUNCTION FN_CALCULAR_MULTA",
-        foraDaLista: false,
-      },
-      {
-        nome: "EncargosService.calcular",
-        chave: "backend/E.java#EncargosService.calcular",
-        tipo: "servico",
-        arquivo: "backend/E.java",
-        linhaInicial: 5,
-        linhaFinal: 5,
-        trecho: "public void calcular()",
-        foraDaLista: false,
-      },
-    ],
-    dadosLidos: [],
-    dadosGravados: [],
-    relacionadas: [],
-    situacao: "pendente",
-    juntadaEm: null,
-    editada: false,
-    documento: null,
-    explicacao: null,
-    semPontoDeEntrada: false,
-    ...f,
-  };
-}
-
-const MAPA: MapaFuncionalidades = {
-  areas: [
-    {
-      area: "cancelamento",
-      nome: "Cancelamento",
-      funcionalidades: [
-        funcionalidade({
-          id: "F-CAN-001",
-          nome: "Cancelar fatura",
-          area: "cancelamento",
-          areaNome: "Cancelamento",
-          situacao: "aceita",
-          documento: "faturamento-exemplo/funcionalidades/cancelamento/cancelar-fatura/negocial.md",
-          explicacao: {
-            id: "A-0002",
-            titulo: "F-CAN-001 · Cancelar fatura",
-            fluxo: "explicar",
-            estado: "aprovada",
-            atualizadaMs: 1,
-          },
-        }),
-      ],
-    },
-    {
-      area: "cobranca",
-      nome: "Cobrança",
-      funcionalidades: [funcionalidade({ id: "F-COB-001", nome: "Calcular encargos" })],
-    },
-  ],
-  fechadas: [],
-  total: 2,
-  pendentes: 1,
-  documentadas: 1,
-  justificados: [
-    {
-      chave: "db/03_pkg_cobranca.sql#PKG_COBRANCA.FN_PARAMETRO",
-      tipo: "rotina_banco",
-      nome: "PKG_COBRANCA.FN_PARAMETRO",
-      arquivo: "db/03_pkg_cobranca.sql",
-      motivo: "utilitario",
-      justificativa: "Lê parâmetros.",
-    },
-  ],
-  completude: {
-    total: 15,
-    semTratamento: [
-      {
-        chave: "db/04_pkg_situacao.sql#PKG_SITUACAO.PRC_SUSPENDER_COBRANCA",
-        tipo: "rotina_banco",
-        nome: "PKG_SITUACAO.PRC_SUSPENDER_COBRANCA",
-        arquivo: "db/04_pkg_situacao.sql",
-        linha: 40,
-      },
-    ],
-  },
-  erroCompletude: null,
-  documento: "faturamento-exemplo/funcionalidades/mapa.md",
-  versao: 3,
-};
-
-function apiFalsa(mapa: MapaFuncionalidades = MAPA) {
-  const api: ApiMapa = {
-    mapa: vi.fn().mockResolvedValue(mapa),
-    revisar: vi.fn().mockResolvedValue({ ...mapa, pendentes: 0 }),
-    pedido: vi.fn().mockResolvedValue("Mapeie as funcionalidades do projeto pelo ctower"),
-    explicar: vi.fn().mockResolvedValue({
-      analise: {
-        id: "A-0003",
-        titulo: "F-COB-001 · Calcular encargos",
-        fluxo: "explicar",
-        estado: "criada",
-        atualizadaMs: 1,
-      },
-      promptInicial: "Inicie a análise A-0003",
-    }),
-    escolherDestino: vi.fn().mockResolvedValue("/tmp/mapa.md"),
-    exportar: vi.fn().mockResolvedValue("/tmp/mapa.md"),
-  };
-  return api;
 }
 
 function analiseFalsa() {
@@ -341,8 +220,8 @@ describe("TelaMapa", () => {
 
     fireEvent.click(cancelar);
     const pagina = screen.getByRole("article", { name: "Página de F-CAN-001" });
-    expect(within(pagina).getByRole("heading", { name: "F-CAN-001 · Cancelar fatura" })).toBeInTheDocument();
-    expect(within(pagina).getByRole("region", { name: "F-CAN-001: Cancelar fatura" })).toBeInTheDocument();
+    expect(within(pagina).getByRole("heading", { name: "Cancelar fatura" })).toBeInTheDocument();
+    expect(await within(pagina).findByRole("region", { name: "Indicadores" })).toBeInTheDocument();
     // Só ela: nem as outras, nem a lista, nem os pontos sem tratamento.
     expect(screen.queryByRole("region", { name: "F-COB-001: Calcular encargos" })).toBeNull();
     expect(screen.queryByRole("region", { name: "Funcionalidades" })).toBeNull();

@@ -252,6 +252,17 @@ pub enum RevisaoDoMapa {
     },
     /// Tira a justificativa de um ponto (volta a ficar sem tratamento).
     DesfazerJustificativa { ponto: String },
+    /// Liga (ou desliga) uma demanda à funcionalidade, no painel dela.
+    LigarDemanda {
+        funcionalidade: IdFuncionalidade,
+        demanda: cba_kb::IdDemanda,
+        #[serde(default = "verdadeiro")]
+        ligar: bool,
+    },
+}
+
+fn verdadeiro() -> bool {
+    true
 }
 
 /// Aplica a decisão do analista. Devolve o mapa gravado e, na divisão, o
@@ -302,6 +313,13 @@ pub fn revisar_mapa(
             m.desfazer_justificativa(&ponto);
             Ok(None)
         }
+        RevisaoDoMapa::LigarDemanda {
+            funcionalidade,
+            demanda,
+            ligar,
+        } => m
+            .ligar_demanda(&funcionalidade, demanda, ligar)
+            .map(|_| None),
     })
 }
 
@@ -542,6 +560,11 @@ pub fn ligar_explicacao(
     let Some(id) = &analise.funcionalidade else {
         return Ok(None);
     };
+    // Outros fluxos abertos pelo painel também guardam a funcionalidade; só a
+    // explicação vira o documento negocial dela.
+    if analise.fluxo != Fluxo::Explicar {
+        return Ok(None);
+    }
     let m = MapaFuncionalidades::carregar(kb).map_err(|e| e.to_string())?;
     let Some(f) = m.funcionalidade(id).filter(|f| f.aberta()).cloned() else {
         return Err(format!(

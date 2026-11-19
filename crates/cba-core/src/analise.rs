@@ -475,7 +475,8 @@ pub struct Analise {
     /// Mermaid na montagem do documento.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub diagramas: Vec<Diagrama>,
-    /// Funcionalidade do mapa que esta análise explica (fluxo `explicar`
+    /// Funcionalidade do mapa a que a análise se refere (aberta pelo painel da
+    /// funcionalidade). No fluxo `explicar`, a que ela explica (fluxo `explicar`
     /// aberto pela lista de funcionalidades, #208). Aprovada, o documento negocial
     /// vai para `funcionalidades/<area>/<tema>/` e fica ligado ao item.
     #[serde(default, skip_serializing_if = "Option::is_none")]

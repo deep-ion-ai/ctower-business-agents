@@ -163,7 +163,7 @@ pub struct MapaVista {
     pub versao: u64,
 }
 
-fn vista_da(
+pub(crate) fn vista_da(
     f: &Funcionalidade,
     kb: &cba_kb::Projeto,
     chaves: Option<&BTreeSet<String>>,

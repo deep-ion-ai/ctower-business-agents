@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
-import type { AnaliseCriada, AnaliseResumo } from "./analise";
+import type { AnaliseCriada, AnaliseResumo, EstadoAnalise, Fluxo } from "./analise";
+import type { StatusRegra } from "./conhecimento";
 
 /**
  * Mapa de funcionalidades do projeto (#208): um cadastro do projeto, fora das
@@ -121,7 +122,68 @@ export type RevisaoDoMapa =
       nome: string;
       descricao: string;
     }
-  | { tipo: "desfazer-justificativa"; ponto: string };
+  | { tipo: "desfazer-justificativa"; ponto: string }
+  | { tipo: "ligar-demanda"; funcionalidade: string; demanda: string; ligar: boolean };
+
+/** Painel da funcionalidade (`painel_funcionalidade.rs`). */
+export type Ligacao = "explica" | "funcionalidade" | "demanda" | "codigo";
+
+export const NOME_LIGACAO: Record<Ligacao, string> = {
+  explica: "explica esta",
+  funcionalidade: "aberta aqui",
+  demanda: "pela demanda",
+  codigo: "pelo código",
+};
+
+export interface AnaliseNoPainel extends AnaliseResumo {
+  ligacao: Ligacao;
+  demanda: string | null;
+  perguntasAbertas: number;
+}
+
+export interface PerguntaNoPainel {
+  analise: string;
+  numero: number;
+  texto: string;
+  destinatario: string | null;
+  demanda: string | null;
+}
+
+export interface EtapaDemanda {
+  analise: string;
+  estado: EstadoAnalise;
+}
+
+export interface DemandaNoPainel {
+  id: string;
+  titulo: string;
+  aberta: boolean;
+  criado: string;
+  ligadaNoPainel: boolean;
+  impacto: EtapaDemanda | null;
+  historias: EtapaDemanda | null;
+  cenarios: EtapaDemanda | null;
+  perguntas: PerguntaNoPainel[];
+}
+
+export interface RegraNoPainel {
+  id: string;
+  titulo: string;
+  status: StatusRegra;
+  caminho: string;
+}
+
+export interface PainelFuncionalidade {
+  funcionalidade: Funcionalidade;
+  analises: AnaliseNoPainel[];
+  demandas: DemandaNoPainel[];
+  regras: RegraNoPainel[];
+  perguntas: PerguntaNoPainel[];
+  aRevisar: string[];
+  relacionadas: { id: string; nome: string }[];
+  atividade: { quandoMs: number; texto: string }[];
+  demandasDoProjeto: { id: string; titulo: string }[];
+}
 
 export interface ApiMapa {
   mapa: (projeto: string) => Promise<MapaFuncionalidades>;
@@ -129,6 +191,15 @@ export interface ApiMapa {
   /** Pedido que abre a sessão de mapeamento no terminal do Claude. */
   pedido: (pasta: string | null, area: string | null, orientacao: string | null) => Promise<string>;
   explicar: (projeto: string, funcionalidade: string) => Promise<AnaliseCriada>;
+  painel: (projeto: string, funcionalidade: string) => Promise<PainelFuncionalidade>;
+  /** Análise de um fluxo aberta pelo painel, com a funcionalidade guardada nela. */
+  criarAnalise: (
+    projeto: string,
+    funcionalidade: string,
+    fluxo: Fluxo,
+    texto: string | null,
+    demanda: string | null,
+  ) => Promise<AnaliseCriada>;
   /** Diálogo de salvar; `null` se o analista cancelar. */
   escolherDestino: (formato: "markdown" | "word") => Promise<string | null>;
   /** Exporta o documento do mapa e devolve o caminho gravado. */
@@ -141,6 +212,16 @@ export const apiMapaTauri: ApiMapa = {
   pedido: (pasta, area, orientacao) => invoke("pedido_de_mapeamento", { pasta, area, orientacao }),
   explicar: (projeto, funcionalidade) =>
     invoke("explicar_funcionalidade_app", { projeto, funcionalidade }),
+  painel: (projeto, funcionalidade) =>
+    invoke("painel_funcionalidade_app", { projeto, funcionalidade }),
+  criarAnalise: (projeto, funcionalidade, fluxo, texto, demanda) =>
+    invoke("criar_analise_da_funcionalidade_app", {
+      projeto,
+      funcionalidade,
+      fluxo,
+      texto,
+      demanda,
+    }),
   escolherDestino: (formato) =>
     save({
       title: "Exportar o mapa de funcionalidades",
