@@ -61,6 +61,7 @@ mod terminal;
 #[cfg(test)]
 mod teste_base;
 mod vigia;
+mod vincular_issues;
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();

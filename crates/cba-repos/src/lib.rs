@@ -61,6 +61,7 @@ pub mod demanda;
 pub mod docs;
 pub mod escrita;
 pub mod link;
+pub mod listagem;
 pub mod process;
 pub mod prontidao;
 mod secret;

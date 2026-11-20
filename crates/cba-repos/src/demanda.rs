@@ -140,7 +140,7 @@ pub enum DemandaErro {
 }
 
 /// Roda a CLI com o token só no ambiente do filho; devolve o JSON do `stdout`.
-fn rodar_json(
+pub(crate) fn rodar_json(
     ferramenta: &'static str,
     cmd: Command,
     token: &Secret,
@@ -164,7 +164,7 @@ fn rodar_json(
     })
 }
 
-fn texto<'a>(v: &'a Value, caminho: &[&str]) -> &'a str {
+pub(crate) fn texto<'a>(v: &'a Value, caminho: &[&str]) -> &'a str {
     let mut cur = v;
     for k in caminho {
         cur = &cur[*k];

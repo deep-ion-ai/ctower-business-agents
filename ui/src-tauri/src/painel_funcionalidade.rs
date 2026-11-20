@@ -80,6 +80,10 @@ pub struct DemandaNoPainel {
     pub titulo: String,
     pub aberta: bool,
     pub criado: String,
+    /// Chave no rastreador (`#41`, `PROJ-9`), quando a demanda veio de uma issue.
+    pub chave: Option<String>,
+    /// Endereço da issue no rastreador.
+    pub origem: Option<String>,
     /// Ligada pelo analista no painel (pode ser desligada).
     pub ligada_no_painel: bool,
     pub impacto: Option<EtapaVista>,
@@ -321,6 +325,8 @@ pub fn painel(
                 criado: lida
                     .map(|l| l.documento.frontmatter.criado.to_string())
                     .unwrap_or_default(),
+                chave: lida.and_then(|l| l.documento.frontmatter.chave.clone()),
+                origem: lida.and_then(|l| l.documento.frontmatter.origem.clone()),
                 ligada_no_painel: f.demandas.contains(d),
                 impacto: etapa(&com_demanda, *d, Fluxo::Impacto),
                 historias: etapa(&com_demanda, *d, Fluxo::Historias),

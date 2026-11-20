@@ -113,6 +113,22 @@ export function apiFalsa(
   painel: (id: string) => PainelFuncionalidade = painelDe,
 ) {
   const api: ApiMapa = {
+    issues: vi.fn().mockResolvedValue({
+      issues: [],
+      excedeuTeto: false,
+      desde: "2026-05-19",
+      funcionalidades: [],
+    }),
+    vincular: vi.fn().mockResolvedValue({
+      demandas: [],
+      criadas: [],
+      reaproveitadas: [],
+      vinculosNovos: 0,
+      vinculosExistentes: 0,
+      avisos: [],
+    }),
+    pedidoVinculoIa: vi.fn().mockResolvedValue("Proponha a funcionalidade das issues abaixo pelo ctower"),
+    justificar: vi.fn().mockResolvedValue(undefined),
     mapa: vi.fn().mockResolvedValue(mapa),
     revisar: vi.fn().mockResolvedValue({ ...mapa, pendentes: 0 }),
     pedido: vi.fn().mockResolvedValue("Mapeie as funcionalidades do projeto pelo ctower"),
@@ -178,6 +194,8 @@ export function painelDe(id: string): PainelFuncionalidade {
         titulo: "Permitir cancelamento parcial",
         aberta: true,
         criado: "2026-11-14",
+        chave: "#41",
+        origem: "https://github.com/acme/faturamento/issues/41",
         ligadaNoPainel: true,
         impacto: { analise: "A-0019", estado: "em-andamento" },
         historias: null,
