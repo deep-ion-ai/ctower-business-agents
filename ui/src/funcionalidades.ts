@@ -262,7 +262,7 @@ export interface ApiMapa {
     justificativa: JustificativaDeIssue | null,
   ) => Promise<void>;
   /** Pedido que abre a sessão do Claude para propor o vínculo das issues. */
-  pedidoVinculoIa: (issues: IssueParaConfirmar[]) => Promise<string>;
+  pedidoVinculoIa: (projeto: string, issues: IssueParaConfirmar[]) => Promise<string>;
   mapa: (projeto: string) => Promise<MapaFuncionalidades>;
   revisar: (projeto: string, revisao: RevisaoDoMapa) => Promise<MapaFuncionalidades>;
   /** Pedido que abre a sessão de mapeamento no terminal do Claude. */
@@ -286,7 +286,7 @@ export interface ApiMapa {
 export const apiMapaTauri: ApiMapa = {
   issues: (projeto, meses, desde) => invoke("issues_para_vincular_app", { projeto, meses, desde }),
   vincular: (projeto, itens) => invoke("confirmar_vinculos_app", { projeto, itens }),
-  pedidoVinculoIa: (issues) => invoke("pedido_vinculo_ia_app", { issues }),
+  pedidoVinculoIa: (projeto, issues) => invoke("pedido_vinculo_ia_app", { projeto, issues }),
   justificar: (projeto, issue, justificativa) =>
     invoke("justificar_issue_app", { projeto, issue, justificativa }),
   mapa: (projeto) => invoke("mapa_funcionalidades_projeto", { projeto }),

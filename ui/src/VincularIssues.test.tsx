@@ -220,7 +220,7 @@ describe("VincularIssues", () => {
     await screen.findByLabelText("Resumo da leitura");
     fireEvent.click(screen.getByRole("button", { name: "Sugerir com IA (1)" }));
     expect(await screen.findByRole("region", { name: "Sugestão com IA" })).toBeInTheDocument();
-    const enviadas = (api.pedidoVinculoIa as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    const enviadas = (api.pedidoVinculoIa as ReturnType<typeof vi.fn>).mock.calls[0][1];
     expect(enviadas.map((x: { chave: string }) => x.chave)).toEqual(["#42"]);
     // O agente propôs: a releitura traz a sugestão da IA com a evidência.
     const comProposta = structuredClone(VISTA);

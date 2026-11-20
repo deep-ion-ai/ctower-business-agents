@@ -384,7 +384,11 @@ pub async fn confirmar_vinculos_app(
 }
 
 /// Pedido para a sessão do Claude propor o vínculo das issues sem sugestão clara.
-pub fn pedido_de_vinculo_ia(itens: Vec<IssueEntrada>) -> Result<String, String> {
+pub fn pedido_de_vinculo_ia(
+    dados: &DiretorioDados,
+    projeto: &str,
+    itens: Vec<IssueEntrada>,
+) -> Result<String, String> {
     if itens.is_empty() {
         return Err("não há issues sem sugestão para o agente propor".into());
     }
@@ -402,12 +406,20 @@ pub fn pedido_de_vinculo_ia(itens: Vec<IssueEntrada>) -> Result<String, String> 
             arquivos: Vec::new(),
         })
         .collect();
-    Ok(cba_tools::vincular::pedido_de_vinculo_com_ia(&issues))
+    let ambiente = ambiente(dados, projeto)?;
+    let mapa = MapaFuncionalidades::carregar(&ambiente.kb).map_err(|e| e.to_string())?;
+    Ok(cba_tools::vincular::pedido_de_vinculo_com_ia(
+        &mapa, &issues,
+    ))
 }
 
 #[tauri::command]
-pub fn pedido_vinculo_ia_app(issues: Vec<IssueEntrada>) -> Result<String, String> {
-    pedido_de_vinculo_ia(issues)
+pub async fn pedido_vinculo_ia_app(
+    projeto: String,
+    issues: Vec<IssueEntrada>,
+) -> Result<String, String> {
+    let dados = dados()?;
+    bloqueante(move || pedido_de_vinculo_ia(&dados, &projeto, issues)).await
 }
 
 #[tauri::command]

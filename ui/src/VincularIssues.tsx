@@ -162,6 +162,7 @@ export function VincularIssues({
     setFalha(null);
     api
       .pedidoVinculoIa(
+        projeto,
         semSugestao.map((i) => {
           const { sugestoes: _s, demanda: _d, ligadaA: _l, justificativa: _j, ...issue } = i;
           return issue;

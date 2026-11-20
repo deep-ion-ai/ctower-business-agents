@@ -164,9 +164,12 @@ fn le_sugere_confirma_e_repetir_nao_duplica() {
     let mapa = MapaFuncionalidades::carregar(&amb.kb).unwrap();
     assert!(mapa.propostas_de_issue.is_empty());
     // Pedido ao agente: lista as issues e cita a ferramenta.
-    let pedido = pedido_de_vinculo_ia(vec![entrada.clone()]).unwrap();
+    let pedido = pedido_de_vinculo_ia(&c.dados, PROJETO, vec![entrada.clone()]).unwrap();
     assert!(pedido.contains("propor_vinculo_de_issue") && pedido.contains("`#42`"));
-    assert!(pedido_de_vinculo_ia(vec![]).is_err());
+    // As funcionalidades abertas vão no próprio pedido.
+    assert!(pedido.contains("F-FAT-001 · Parcelar fatura"), "{pedido}");
+    assert!(pedido.contains("F-FAT-002 · Cancelar nota"));
+    assert!(pedido_de_vinculo_ia(&c.dados, PROJETO, vec![]).is_err());
 
     // Funcionalidade inválida recusa o lote.
     let mut ruim = itens();

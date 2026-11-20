@@ -207,29 +207,57 @@ pub fn justificar_issue(
 
 /// Pedido que abre a sessão do Claude para propor o vínculo das issues sem
 /// sugestão clara (#270). A resposta do agente são chamadas de
-/// `propor_vinculo_de_issue`; quem confirma é o analista na tela.
-pub fn pedido_de_vinculo_com_ia(issues: &[IssueListada]) -> String {
+/// `propor_vinculo_de_issue`; quem confirma é o analista na tela. As
+/// funcionalidades abertas vão no próprio pedido: as ferramentas de consulta
+/// leem o mapa estrutural do código, não o mapa de funcionalidades.
+pub fn pedido_de_vinculo_com_ia(mapa: &MapaFuncionalidades, issues: &[IssueListada]) -> String {
+    use std::fmt::Write as _;
+    let linha = |t: &str, max: usize| -> String {
+        t.split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .chars()
+            .take(max)
+            .collect()
+    };
     let mut t = String::from(
-        "Proponha a funcionalidade das issues abaixo pelo ctower. Consulte o mapa de \
-         funcionalidades (ferramentas `mapa`, `pontos_de_entrada` e `conhecimento` do cba) e, \
-         para cada issue com relação clara com uma ou mais funcionalidades abertas, chame \
-         `propor_vinculo_de_issue` com `origem`, `chave`, as funcionalidades e a evidência \
-         (o ponto de entrada ou o trecho da issue que sustenta o vínculo). Não invente: a \
-         issue sem relação clara fica sem chamada. Não confirme nada, o analista confirma na \
-         tela \"Vincular demandas\".\n\nIssues:\n",
+        "Proponha a funcionalidade das issues abaixo pelo ctower. Compare cada issue com as \
+         funcionalidades abertas do mapa (listadas abaixo) e, quando a issue tratar do \
+         comportamento, da tela, da rotina ou do dado de uma ou mais delas, chame \
+         `propor_vinculo_de_issue` com `origem`, `chave`, os IDs das funcionalidades e a \
+         evidência (o ponto de entrada ou o trecho da issue que sustenta o vínculo). Se \
+         precisar, confirme no código com `pontos_de_entrada` e `conhecimento` do cba. \
+         Relação razoável vale uma proposta: o analista confirma ou descarta na tela \
+         \"Vincular demandas\", então é melhor propor com a evidência do que deixar passar. \
+         Só deixe sem chamada a issue que não tem nada a ver com nenhuma funcionalidade \
+         (e diga em uma frase por quê).\n\nFuncionalidades abertas:\n",
     );
+    for f in mapa.ordenadas() {
+        let pontos: Vec<&str> = f.pontos.iter().take(6).map(|p| p.nome.as_str()).collect();
+        let _ = write!(
+            t,
+            "\n- {} · {} ({}): {}",
+            f.id,
+            f.nome.trim(),
+            f.area_nome,
+            linha(&f.descricao, 300)
+        );
+        if !f.atores.is_empty() {
+            let _ = write!(t, " Atores: {}.", f.atores.join(", "));
+        }
+        if !pontos.is_empty() {
+            let _ = write!(t, " Pontos: {}.", pontos.join(", "));
+        }
+    }
+    t.push_str("\n\nIssues:\n");
     for i in issues {
-        let descricao: String = i.descricao.split_whitespace().collect::<Vec<_>>().join(" ");
-        let descricao: String = descricao.chars().take(600).collect();
-        let _ = std::fmt::Write::write_fmt(
-            &mut t,
-            format_args!(
-                "\n- origem `{}`, chave `{}`: {}\n  {}\n",
-                i.origem.nome(),
-                i.chave,
-                i.titulo.trim(),
-                descricao
-            ),
+        let _ = write!(
+            t,
+            "\n- origem `{}`, chave `{}`: {}\n  {}\n",
+            i.origem.nome(),
+            i.chave,
+            i.titulo.trim(),
+            linha(&i.descricao, 800)
         );
     }
     t
