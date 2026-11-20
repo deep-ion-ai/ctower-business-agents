@@ -178,6 +178,32 @@ A documentação publicada volta para a base como fonte externa rotulada
   vira regra nem termo e fica fora da busca padrão do índice (`Externos::Excluir`); a tela da base
   o mostra com o rótulo da origem e o filtro "Externos". Remover o destino apaga `externos/`.
 
+## Documentação publicada nas análises (#278)
+
+Os agentes consultam a documentação publicada como pista, sob demanda, sem que ela substitua a
+evidência de código:
+
+- **`conhecimento`:** o parâmetro `externos` escolhe a fonte: `excluir` (padrão, só a base
+  própria), `incluir` (as duas) ou `somente`. Sem pedir, a resposta diz quantos documentos da
+  documentação publicada casam com o termo (`externos_disponiveis`). Cada documento externo vem
+  rotulado `[doc. publicada]`, com o repositório, o commit e a confiança, e nos dados com
+  `fonte: "externa"` e a `origem`; os da base própria têm `fonte: "base"`. Os limites são os de
+  sempre (20 itens por página, até 6.000 caracteres). O filtro `tipos` vale para a base própria; a
+  documentação publicada vem inteira quando pedida.
+- **Peso no ranking:** com `incluir`, a relevância (BM25) de um documento externo é multiplicada
+  por 0,5 (`cba_kb::indice::PESO_DOS_EXTERNOS`): com relevância parecida, a base própria vem antes.
+- **Contexto de `iniciar_analise`:** as listas de regras, termos, memórias e análises continuam só
+  com a base própria. À parte, no máximo 3 documentos da documentação publicada
+  (`LIMITE_DE_EXTERNOS`), só o título, a origem e o caminho, com o total encontrado e o lembrete de
+  que são pista; o resto o agente pede com `conhecimento`.
+- **Evidência é código:** `afirmar` (e as demais ferramentas que conferem evidência) recusa a pasta
+  de docs do projeto e a cópia em `externos/` com um motivo próprio, que manda citar o código que o
+  documento descreve. `confirmado` continua exigindo ao menos uma evidência de código.
+- **Roteiros:** perguntar, explicar, impacto e revisar orientam a consultar a documentação
+  publicada, a confirmar no código, a tratar divergência como pergunta e a dizer ao analista,
+  no chat, as fontes externas usadas (repositório e commit); o de reunião cita a fonte na ligação
+  com o código.
+
 ## Regras que não mudam depois do cadastro
 
 Cada repositório de código já cadastrado (forja, host e caminho) não pode ser removido nem trocado;

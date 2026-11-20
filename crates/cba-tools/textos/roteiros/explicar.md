@@ -28,7 +28,7 @@ Produzir o documento negocial da funcionalidade a partir do código, em linguage
 
 ## Como conduzir
 
-1. **Consulte a base primeiro.** O contexto no fim deste roteiro traz regras já confirmadas, termos do glossário e análises anteriores relacionados; para outros conceitos da funcionalidade, use `conhecimento`. Regra confirmada não precisa ser redescoberta: confira se a evidência dela ainda vale e use-a.
+1. **Consulte a base primeiro.** O contexto no fim deste roteiro traz regras já confirmadas, termos do glossário e análises anteriores relacionados; para outros conceitos da funcionalidade, use `conhecimento`. Regra confirmada não precisa ser redescoberta: confira se a evidência dela ainda vale e use-a. **Documentação publicada:** o contexto menciona, quando há, documentos do repositório de docs (marcados [doc. publicada], com o repositório, o commit e a confiança); para outros, use `conhecimento` com `externos: "incluir"` ou `"somente"`. Ela é pista, não prova: use-a para achar o código e confirme no código antes de afirmar. A evidência é sempre o trecho do código, nunca o documento, que é recusado como evidência. Quando a documentação publicada ajudar, diga isso ao analista; se ela divergir do código, vale o código, e a divergência vira pergunta.
 2. **Delimite a funcionalidade.** Se o pedido for amplo ou ambíguo, siga a leitura mais provável, diga em `objetivo` o que ficou dentro e o que ficou fora, e registre a outra leitura como pergunta.
 3. **Ache os pontos de entrada.** Comece pelo mapa do projeto: `mapa` dá a visão das pastas, `estrutura` lista as rotinas, classes e telas de um arquivo com as linhas, `referencias` diz onde uma rotina, tabela ou campo é usado (e, com `sentido: "o_que_usa"`, o que ele usa) e `schema` mostra tabelas, colunas e relacionamentos. Procure as telas, os serviços, os lotes e as rotinas de banco que iniciam a funcionalidade; cada um é um ator ou um gatilho.
 4. **Siga o caminho do começo ao fim.** A partir de cada ponto de entrada, leia com as suas ferramentas de leitura e busca o que é chamado em seguida, camada por camada (tela, serviço, banco, lotes), até o dado gravado ou a resposta devolvida. O caminho sem desvios é o fluxo principal; cada `if` que muda o caminho por uma condição do negócio é um fluxo alternativo; cada recusa, erro ou bloqueio é uma exceção. Quando a mesma regra aparece em mais de uma camada (a tela e o serviço, por exemplo), registre uma regra só, com as evidências de cada camada, e aponte se os valores divergem.
@@ -61,6 +61,7 @@ O chat não é o documento. Depois de `concluir_analise`, dê ao analista só:
 - as regras principais, numeradas e curtas;
 - as divergências entre camadas, se houver;
 - as perguntas em aberto;
+- as fontes externas usadas (documentação publicada, com o repositório e o commit), se houver;
 - o caminho do documento devolvido por `concluir_analise`, onde está o detalhe com as evidências.
 
 ## Contexto da base

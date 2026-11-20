@@ -36,7 +36,7 @@ Responder à pergunta a partir do código do projeto, em linguagem de negócio, 
 
 ## Como conduzir
 
-1. **Consulte a base primeiro.** O contexto no fim deste roteiro traz regras já confirmadas, termos do glossário e análises anteriores relacionados; para outros conceitos da pergunta, use `conhecimento`. Regra confirmada não precisa ser redescoberta: confira se a evidência dela ainda vale e use-a. Os termos do glossário dizem onde cada conceito de negócio vive no código.
+1. **Consulte a base primeiro.** O contexto no fim deste roteiro traz regras já confirmadas, termos do glossário e análises anteriores relacionados; para outros conceitos da pergunta, use `conhecimento`. Regra confirmada não precisa ser redescoberta: confira se a evidência dela ainda vale e use-a. Os termos do glossário dizem onde cada conceito de negócio vive no código. **Documentação publicada:** o contexto menciona, quando há, documentos do repositório de docs (marcados [doc. publicada], com o repositório, o commit e a confiança); para outros, use `conhecimento` com `externos: "incluir"` ou `"somente"`. Ela é pista, não prova: use-a para achar o código e confirme no código antes de afirmar. A evidência é sempre o trecho do código, nunca o documento, que é recusado como evidência. Quando a documentação publicada ajudar, diga isso ao analista; se ela divergir do código, vale o código, e a divergência vira pergunta.
 2. **Entenda o que foi perguntado.** Identifique os conceitos de negócio da pergunta (por exemplo "multa", "atraso", "fatura") e o que o analista quer saber: um valor, uma condição, uma sequência de passos, quem decide. Se a pergunta for ambígua, siga a leitura mais provável e registre a outra como pergunta em aberto.
 3. **Localize no código o que decide o comportamento.** Comece pelo mapa do projeto: `referencias` diz onde uma rotina, tabela ou campo é usado (e, com `sentido: "o_que_usa"`, o que ele usa), `estrutura` lista as rotinas de um arquivo com as linhas, `schema` mostra tabelas, colunas e relacionamentos e `mapa` dá a visão das pastas. Depois use as suas ferramentas de leitura e busca nas pastas do projeto: procure os termos de negócio e seus sinônimos em nomes de rotinas, tabelas, colunas, parâmetros e telas. Leia o trecho que calcula ou decide, não só o que o chama. Siga os valores até a origem (constante, parâmetro em tabela, configuração).
 4. **Registre cada regra com `afirmar`** (analise: "{{id}}"), uma regra ou fato por chamada, com valores e condições ("Passada a carência de 5 dias, a multa é de 2% sobre o valor original"):
@@ -60,6 +60,7 @@ O chat não é o documento. Depois de `concluir_analise`, dê ao analista só:
 - as regras numeradas, curtas;
 - o exemplo com números;
 - as perguntas em aberto;
+- as fontes externas usadas (documentação publicada, com o repositório e o commit), se houver;
 - o caminho do documento devolvido por `concluir_analise`, onde está o detalhe com as evidências.
 
 ## Contexto da base

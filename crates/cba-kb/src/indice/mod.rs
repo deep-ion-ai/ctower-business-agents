@@ -68,7 +68,7 @@ use crate::caminho::CaminhoRelativo;
 use crate::frontmatter::{Confianca, TipoDocumento};
 use crate::id::IdDemanda;
 
-pub use busca::{Consulta, Externos, Modo, Pagina, Resultado};
+pub use busca::{Consulta, Externos, Modo, PESO_DOS_EXTERNOS, Pagina, Resultado};
 pub use rastro::{
     Alerta, AlvoReverso, AnaliseRastro, CenarioRastro, CriterioRastro, DemandaRastro, Dependentes,
     EvidenciaRastro, Lacuna, LinhaHistoria, LinhaRegra, Matriz, RegraRastro,
