@@ -14,15 +14,12 @@ export interface FuncionalidadeEscolhivel {
  */
 export function EscolherFuncionalidades({
   titulo,
-  demanda,
   funcionalidades,
   jaEscolhidas,
   aoAdicionar,
   aoFechar,
 }: {
   titulo: string;
-  /** Título da demanda (issue) que recebe as funcionalidades. */
-  demanda?: string;
   funcionalidades: FuncionalidadeEscolhivel[];
   jaEscolhidas: string[];
   aoAdicionar: (ids: string[]) => void;
@@ -62,9 +59,6 @@ export function EscolherFuncionalidades({
         </>
       }
     >
-      {demanda && (
-        <p className="escolher-demanda">{demanda}</p>
-      )}
       <input
         type="search"
         autoFocus

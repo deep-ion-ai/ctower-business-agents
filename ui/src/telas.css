@@ -3098,10 +3098,6 @@ button.indicador:hover {
 }
 .dialogo-escolher h3 {
   margin: 0;
-}
-.escolher-demanda {
-  margin: 0;
-  font-weight: 600;
   overflow-wrap: anywhere;
 }
 .dialogo-escolher input[type="search"] {
