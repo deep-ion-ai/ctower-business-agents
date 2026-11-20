@@ -1424,9 +1424,11 @@ esac"#,
                 c.no_remoto(&["ls-tree", "-r", "--name-only", BRANCH]),
                 "docs/negocio/emissao.md\ndocs/negocio/regras/cancelamento.md\nleia-me.md"
             );
+            // Só o assunto: o autor depende do git global da máquina (o runner do
+            // macOS tem `user.name`).
             assert_eq!(
-                c.no_remoto(&["log", "-1", "--format=%an|%s", BRANCH]),
-                "ctower-business-agents|docs: publica a documentação do Faturamento Exemplo"
+                c.no_remoto(&["log", "-1", "--format=%s", BRANCH]),
+                "docs: publica a documentação do Faturamento Exemplo"
             );
             // As protegidas não mudaram.
             assert_eq!(c.no_remoto(&["rev-parse", "main"]), base);
