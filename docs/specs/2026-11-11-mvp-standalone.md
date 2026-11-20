@@ -199,7 +199,7 @@ Operam só dentro das pastas cadastradas do projeto, respeitam a lista de exclus
 | `iniciar_analise` | Devolve o roteiro do fluxo, a entrada e o contexto da base (regras, termos e memória da área relacionados). Recebe a análise criada pelo app (`analise`) ou, quando o analista pede direto no chat, cria uma a partir de `fluxo` e `entrada`. |
 | `retomar_analise` | Devolve o estado de uma análise: entrada, afirmações, evidências, perguntas, sugestões e a memória da análise. |
 | `listar_analises` | Lista as análises do projeto (identificador, título, fluxo, estado, documento), para achar a que o analista citou pelo assunto. |
-| `conhecimento` | Busca na base: regras confirmadas, glossário, análises anteriores. |
+| `conhecimento` | Busca na base: regras confirmadas, glossário, análises anteriores; sob demanda (`externos`), também a documentação publicada, rotulada e com peso menor (pista, não evidência; veja `docs/repositorios.md`). |
 | `mapa` | Retorna o mapa do projeto ou de um módulo. |
 | `estrutura` | Lista rotinas, procedures, classes e telas de um arquivo. |
 | `schema` | Consulta tabelas, colunas e relacionamentos extraídos dos scripts de banco. |

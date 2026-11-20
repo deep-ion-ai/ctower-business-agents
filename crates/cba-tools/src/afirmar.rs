@@ -47,6 +47,9 @@ pub fn afirmar() -> Ferramenta {
          arquivo precisa estar nas pastas do projeto e fora das exclusões, o intervalo \
          precisa existir e o trecho citado precisa aparecer nessas linhas. Evidência que \
          não confere é recusada com o motivo e a correção; corrija e chame de novo. \
+         Evidência é sempre código: a documentação publicada (resultado [doc. publicada] \
+         de `conhecimento`, a cópia em `externos/` ou a pasta de docs) é pista para \
+         achar o código, não prova, e é recusada como evidência. \
          Confiança: `confirmado` (evidência direta; exige ao menos uma evidência), \
          `inferido` (dedução a partir das evidências listadas) ou `a_confirmar` (sem \
          evidência suficiente; cria também uma pergunta para o solicitante). Registre \
@@ -76,7 +79,7 @@ pub fn afirmar() -> Ferramenta {
                     "type": "array",
                     "maxItems": LIMITE_DE_EVIDENCIAS,
                     "items": evidencias::schema_da_evidencia(),
-                    "description": "Trechos do código que sustentam a afirmação."
+                    "description": "Trechos do código que sustentam a afirmação. Documentação (a publicada ou a cópia em `externos/`) não serve: cite o código que ela descreve."
                 },
                 "pergunta": {
                     "type": "string",

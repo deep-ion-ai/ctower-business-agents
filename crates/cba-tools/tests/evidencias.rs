@@ -256,3 +256,71 @@ fn arquivo_binario_e_recusado_e_windows_1252_e_lido() {
     let e = validar(&escopo, &citada("UCobranca.pas", 1, 1, "// Cobrança")).unwrap();
     assert_eq!(e.trecho, "// Cobrança");
 }
+
+/// #278: documentação publicada é pista, não prova. A pasta de docs dentro do
+/// projeto e a cópia em `externos/` na base são recusadas com motivo próprio;
+/// uma pasta `externos` do próprio código continua valendo.
+#[test]
+fn documentacao_publicada_nao_e_evidencia() {
+    let dir = tempfile::tempdir().unwrap();
+    let raiz = dunce::canonicalize(dir.path()).unwrap().join("faturamento");
+    std::fs::create_dir_all(raiz.join("docs/negocio")).unwrap();
+    std::fs::create_dir_all(raiz.join("externos")).unwrap();
+    std::fs::write(
+        raiz.join("docs/negocio/carencia.md"),
+        "# Carência\n\nA carência é de 3 dias.\n",
+    )
+    .unwrap();
+    std::fs::write(
+        raiz.join("externos/integracao.sql"),
+        "SELECT DT_VENCIMENTO FROM FATURA;\n",
+    )
+    .unwrap();
+    let mut p = Projeto::novo("Faturamento Exemplo", [&raiz]).unwrap();
+    let codigo = cba_repos::RepositorioCodigo {
+        caminho: "exemplo/faturamento".into(),
+        pasta: Some(raiz.clone()),
+        ..Default::default()
+    };
+    p.repositorios.codigo = vec![codigo.clone()];
+    p.repositorios.docs = Some(cba_repos::DestinoDocs::Subpasta {
+        codigo: codigo.chave(),
+        subpasta: "docs/negocio".into(),
+    });
+    let escopo = p.escopo().unwrap();
+
+    let r = validar(
+        &escopo,
+        &citada("docs/negocio/carencia.md", 3, 3, "A carência é de 3 dias."),
+    )
+    .unwrap_err();
+    assert_eq!(r.motivo, Motivo::Documentacao, "{r}");
+    let texto = r.to_string();
+    assert!(texto.contains("pista, não prova"), "{texto}");
+    assert!(texto.contains("cite o trecho do código"), "{texto}");
+
+    // A cópia na base fica fora do projeto: o caminho a denuncia.
+    for arquivo in [
+        "faturamento-exemplo/externos/github-exemplo-faturamento-docs/carencia.md",
+        "externos\\github-exemplo-faturamento-docs\\carencia.md",
+    ] {
+        let r = validar(&escopo, &citada(arquivo, 3, 3, "A carência")).unwrap_err();
+        assert_eq!(r.motivo, Motivo::Documentacao, "{arquivo}: {r}");
+    }
+
+    // Código numa pasta chamada `externos` é código.
+    assert!(
+        validar(
+            &escopo,
+            &citada("externos/integracao.sql", 1, 1, "SELECT DT_VENCIMENTO")
+        )
+        .is_ok()
+    );
+    // E um caminho errado comum continua com o motivo de sempre.
+    assert_eq!(
+        validar(&escopo, &citada("db/nao-existe.sql", 1, 1, "x"))
+            .unwrap_err()
+            .motivo,
+        Motivo::Caminho(Recusa::NaoEncontrado)
+    );
+}

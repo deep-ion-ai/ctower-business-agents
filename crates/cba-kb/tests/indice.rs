@@ -839,3 +839,52 @@ fn documentacao_externa_rotulada_fora_da_busca_padrao() {
         [format!("{pasta}/processos/segunda-via.md")]
     );
 }
+
+#[test]
+fn documentacao_externa_pesa_menos_no_ranking() {
+    use cba_kb::indice::{Externos, PESO_DOS_EXTERNOS};
+
+    let (_dir, base, projeto, arquivo) = montar_base();
+    projeto
+        .criar(
+            &layout::termo("Arquivo bancário").unwrap(),
+            &termo(
+                "Arquivo bancário",
+                &["remessa"],
+                "Arquivo de remessa enviado ao banco com os boletos do dia.",
+            ),
+        )
+        .unwrap();
+    // O documento externo fala mais da remessa: sem o peso, viria antes.
+    importar_externos(
+        &projeto,
+        "c0ffee1",
+        &[(
+            "processos/remessa.md",
+            "# Remessa bancária\n\nA remessa bancária é o arquivo de remessa enviado ao \
+             banco. A remessa sai todo dia.\n",
+        )],
+    );
+    let indice = abrir(&arquivo, &base);
+    let pagina = indice
+        .buscar(&Consulta::nova("remessa").externos(Externos::Incluir))
+        .unwrap();
+    let [propria, externa] = pagina.resultados.as_slice() else {
+        panic!("{:?}", pagina.resultados);
+    };
+    assert!(!propria.e_externo(), "{propria:?}");
+    assert!(externa.e_externo(), "{externa:?}");
+    assert!(externa.relevancia < propria.relevancia);
+    assert!(
+        externa.relevancia / PESO_DOS_EXTERNOS > propria.relevancia,
+        "{} {}",
+        externa.relevancia,
+        propria.relevancia
+    );
+    // Só os externos: a mesma relevância com o peso.
+    let so = indice
+        .buscar(&Consulta::nova("remessa").externos(Externos::Somente))
+        .unwrap();
+    assert_eq!(so.resultados.len(), 1);
+    assert!((so.resultados[0].relevancia - externa.relevancia).abs() < 1e-9);
+}

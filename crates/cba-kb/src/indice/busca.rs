@@ -27,6 +27,12 @@ pub enum Modo {
     Qualquer,
 }
 
+/// Peso da documentação externa no ranking (#278): a relevância (BM25) de um
+/// documento externo é multiplicada por este fator, para que, com relevância
+/// parecida, a base própria (apurada e validada contra o código) venha antes.
+/// Um documento externo bem mais relevante ainda pode passar à frente.
+pub const PESO_DOS_EXTERNOS: f64 = 0.5;
+
 /// O que fazer com a documentação externa (`externos/`, #277).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Externos {
@@ -129,7 +135,8 @@ pub struct Resultado {
     /// Trecho com as palavras encontradas entre `**`, em Markdown.
     pub trecho: String,
     /// Relevância (BM25; maior é melhor). O título pesa mais que as chaves
-    /// (identificador, termo, sinônimos, área), e estas mais que o corpo.
+    /// (identificador, termo, sinônimos, área), e estas mais que o corpo. Num
+    /// documento externo, já multiplicada por [`PESO_DOS_EXTERNOS`].
     pub relevancia: f64,
     /// Documento externo (`externos/`, #277): a origem, se o frontmatter da cópia
     /// pôde ser lido. `Some` só nos externos.
@@ -256,7 +263,9 @@ impl Indice {
         let sql = format!(
             "SELECT d.caminho, d.projeto, d.tipo, d.identificador, d.titulo, d.area, d.status, \
                     snippet(busca, -1, '**', '**', '…', 16), \
-                    bm25(busca, 10.0, 5.0, 1.0) AS r, {COLUNAS_DA_ORIGEM} \
+                    bm25(busca, 10.0, 5.0, 1.0) \
+                        * (CASE WHEN d.externo = 1 THEN {PESO_DOS_EXTERNOS:?} ELSE 1.0 END) AS r, \
+                    {COLUNAS_DA_ORIGEM} \
              FROM busca JOIN documento d ON d.id = busca.rowid \
              LEFT JOIN origem_externa o ON o.documento = d.id \
              WHERE {filtro} \
