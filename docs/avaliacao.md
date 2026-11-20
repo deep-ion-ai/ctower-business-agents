@@ -231,6 +231,36 @@ O roteiro foi avaliado com o modelo real na #258 ([relatório](avaliacao/2026-11
 
 Números de referência (rodada final, três execuções): nenhuma falha grave; 7 funcionalidades registradas por execução; funcionalidades esperadas 100% (6 de 6) e pontos de entrada bem tratados 100% (15 de 15) nas três; área conferindo em 4 de 6 (o agente põe o cancelamento em Cobrança, e o gabarito em Cancelamento; e o pagamento numa área Pagamento, e o gabarito em Cobrança: escolhas defensáveis, só cobertura); US$ 0,27 a 0,28, 21 turnos e cerca de 50 s por execução (US$ 0,82 no total). Antes dos ajustes: funcionalidades 100%, pontos 93% nas três (pela comparação antiga), US$ 0,26 e 48 a 50 s por execução. Como o mapeamento não cria análise, as colunas de regras, evidências e "Concluídas" do resumo não se aplicam (a conclusão aparece como a ausência de ponto sem tratamento). O mapa usa o roteiro embutido no app (não há cópia na base), então não entra em `roteiro::revisado`, que é dos fluxos de análise.
 
+## Ciclo de publicação
+
+O **ciclo de publicação** (`publicacao`, #279) avalia a publicação da documentação aprovada e a volta dela para as análises ([Documentação publicada](repositorios.md#documentação-publicada-273)). O gabarito tem, em `publicacoes`, `PUB-FAT-001`: o item `analise` (P-FAT-001, a multa) é analisado, aprovado e publicado; o item `reanalise` (P-FAT-003, juros na carência) é analisado de novo com a documentação publicada.
+
+```sh
+cargo run -p cba-avaliacao -- rodar --fluxos publicacao --orcamento 1.5
+```
+
+### Preparo
+
+Numa pasta temporária, sem forja real e sem tocar no git, no chaveiro nem no `gh` de quem roda:
+
+1. **Analisar:** a análise do item `analise` é criada numa base A e o `claude` roda como nos outros fluxos.
+2. **Aprovar:** as afirmações `confirmado` com todas as evidências válidas são confirmadas, como o analista faria na revisão, e a análise é aprovada pela aprovação do app (as confirmadas viram regras). Análise não concluída pelo agente para o ciclo.
+3. **Publicar:** o destino é um repositório próprio de docs, um repositório bare local (`file://`) com um `leia-me.md` escrito à mão, clonado como o analista faria. A publicação é a do app (`cba_tools::publicacao`), com a branch `docs/cba-<projeto>`. O PR vai para uma **forja falsa**: o próprio executável da avaliação, copiado como `gh`, responde às rotas que a publicação usa (procurar e abrir o PR) e devolve um link fictício; o token é fictício, num chaveiro em memória. Depois, o PR é dado como mesclado: a branch base do bare avança até a branch da publicação.
+4. **Sincronizar:** numa base B nova (outro analista, outro clone do mesmo repositório de docs, o mesmo código), com o mesmo destino no cadastro. A base A não serviria: a sincronização não copia o que a própria base publicou.
+5. **Analisar de novo:** a análise do item `reanalise` é criada na base B e o `claude` roda nela.
+
+As duas execuções do `claude` usam `--output-format stream-json --verbose`, e a transcrição fica na pasta da execução (`claude-1.jsonl` e `claude-2.jsonl`), com os estados (`estado-1.json` e `estado.json`), os documentos (`documento-1.md` e `documento.md`) e a árvore publicada (`publicados.txt`). O teto do ciclo é o orçamento das duas execuções (2 x `--orcamento`); a estimativa do início já conta as duas.
+
+### Critérios
+
+- **Segunda análise:** comparada com o item `reanalise` do gabarito como nos outros fluxos (regras, evidências válidas, perguntas esperadas), na tabela de cobertura.
+- **Documentação publicada usada:** pela transcrição, `conhecimento` chamado com `externos` (`incluir` ou `somente`) e com algum documento da documentação publicada na resposta (o rótulo `[doc. publicada]` no texto ou `"fonte": "externa"` nos dados, que é o que o Claude Code entrega ao agente), ou um arquivo de `externos/` lido. Os títulos no contexto de `iniciar_analise` e a contagem `externos_disponiveis` não contam.
+- **Fonte citada:** a resposta final do agente traz o nome do repositório de docs ou o commit sincronizado (7 caracteres). Cobertura, não falha grave.
+
+Falha grave (ciclo): primeira análise não aprovada, nada publicado, nada sincronizado na base nova, documentação publicada não usada na segunda análise, erro de uma etapa ou arquivo do projeto alterado, além das falhas graves da segunda análise. O teste `crates/cba-avaliacao/tests/publicacao.rs` roda no CI as etapas sem modelo (aprovar, publicar com a forja falsa, mesclar, sincronizar numa base nova e consultar com `conhecimento`; no Unix, com o git de verdade) e a leitura da transcrição.
+
+O cenário foi avaliado com o modelo real na #279 ([relatório](avaliacao/2026-11-20-publicacao-sonnet.md)). Na primeira rodada, o agente viu só os títulos da documentação publicada no contexto e não a consultou; os roteiros de perguntar, explicar, impacto e revisar e o contexto de `iniciar_analise` passaram a pedir a consulta antes de explorar o código. Na rodada final, três execuções sem falha grave: a documentação publicada consultada e a fonte citada nas três, as regras do P-FAT-003 encontradas (2 de 2), US$ 0,42 a 0,47 por ciclo. Os demais fluxos com os roteiros novos foram conferidos numa execução cada ([relatório](avaliacao/2026-11-20-roteiros-278-sonnet.md)).
+
 ## Ao mudar o gabarito ou a fixture
 
 - O teste da crate `cba-fixtures` confere o gabarito, inclusive o formato de `perguntas_esperadas` e `verificacao_da_premissa`, nas revisões, que os termos vagos esperados são exatamente os que a lista de referência acha no texto e que as regras dos achados existem, e, nas reuniões, que o transcript existe, que os participantes são os falantes dele e que as falas citadas pelos itens existem.
@@ -246,3 +276,5 @@ O da primeira execução do fluxo `reuniao`, com a reunião 1 e a reunião longa
 Os da avaliação dos fluxos `revisar`, `historias` e `cenarios` (#168), com três repetições de cada item e os roteiros já ajustados, estão em [`docs/avaliacao/2026-11-16-revisar-historias-cenarios-sonnet.md`](avaliacao/2026-11-16-revisar-historias-cenarios-sonnet.md) (US$ 2,16) e [`docs/avaliacao/2026-11-16-cenarios-fat-002-sonnet.md`](avaliacao/2026-11-16-cenarios-fat-002-sonnet.md) (US$ 0,90). O commit que aparece neles é o de partida: os roteiros avaliados são os do commit da #168, compilados antes do commit.
 
 O da avaliação do fluxo `mapear` (#258), com três repetições e o roteiro já ajustado, está em [`docs/avaliacao/2026-11-19-mapear-sonnet.md`](avaliacao/2026-11-19-mapear-sonnet.md) (US$ 0,82). Como na #168, o commit que aparece nele é o de partida, com o roteiro e a comparação da #258 compilados antes do commit.
+
+Os da #279 estão em [`docs/avaliacao/2026-11-20-publicacao-sonnet.md`](avaliacao/2026-11-20-publicacao-sonnet.md) (ciclo de publicação, três repetições, US$ 1,37 na rodada final e US$ 3,08 com as rodadas de ajuste) e [`docs/avaliacao/2026-11-20-roteiros-278-sonnet.md`](avaliacao/2026-11-20-roteiros-278-sonnet.md) (perguntar, explicar, impacto, revisar e reunião com os roteiros da #278 e da #279, US$ 1,53).
