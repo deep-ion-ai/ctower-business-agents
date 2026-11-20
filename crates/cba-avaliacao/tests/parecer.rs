@@ -145,6 +145,7 @@ fn parecer_bom_atende_o_gabarito() {
             ata: None,
             transcript: None,
             mapa: None,
+            publicacao: None,
             arquivos_alterados: Vec::new(),
             claude: None,
             erro: None,

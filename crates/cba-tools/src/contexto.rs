@@ -355,10 +355,11 @@ impl Contexto {
         }
         let _ = writeln!(
             t,
-            "Documentação publicada relacionada ({} no repositório de docs; {} abaixo). É \
-             pista, não prova: leia o documento para achar o código, confirme no código \
-             antes de afirmar e diga ao analista quando usar essa fonte. Para mais, use \
-             `conhecimento` com externos: \"somente\".",
+            "Documentação publicada relacionada ({} no repositório de docs; {} abaixo, só o \
+             título). Consulte-a antes de explorar o código, com `conhecimento` e externos: \
+             \"incluir\" (ou \"somente\", para ver mais dela). É pista, não prova: use-a \
+             para achar o código, confirme no código antes de afirmar e diga ao analista \
+             quando usar essa fonte.",
             self.total_de_externos,
             self.externos.len()
         );

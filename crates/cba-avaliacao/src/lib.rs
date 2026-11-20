@@ -35,6 +35,7 @@ pub mod mapeamento;
 pub mod modelagem;
 pub mod parecer;
 pub mod pastas;
+pub mod publicacao;
 pub mod relatorio;
 pub mod texto;
 

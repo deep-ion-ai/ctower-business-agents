@@ -269,6 +269,7 @@ fn fluxograma_e_modelo_como_o_gabarito() {
             ata: None,
             transcript: None,
             mapa: None,
+            publicacao: None,
             arquivos_alterados: vec![],
             claude: None,
             erro: None,

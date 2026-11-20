@@ -40,6 +40,21 @@ struct Gabarito {
     ciclos_vida: Vec<CicloVida>,
     #[serde(default)]
     mapeamentos: Vec<Mapeamento>,
+    #[serde(default)]
+    publicacoes: Vec<Publicacao>,
+}
+
+/// Ciclo de publicação da documentação (#279).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Publicacao {
+    id: String,
+    titulo: String,
+    analise: String,
+    reanalise: String,
+    repositorio: String,
+    #[serde(default)]
+    subpasta: String,
 }
 
 /// Mapa de funcionalidades esperado (#208).
@@ -805,6 +820,7 @@ fn conferir(caminho: &Path) -> Vec<String> {
         .chain(gabarito.cenarios.iter().map(|c| &c.id))
         .chain(gabarito.ciclos_vida.iter().map(|c| &c.id))
         .chain(gabarito.mapeamentos.iter().map(|m| &m.id))
+        .chain(gabarito.publicacoes.iter().map(|p| &p.id))
         .chain(
             gabarito
                 .ciclos_vida
@@ -1174,6 +1190,9 @@ fn conferir(caminho: &Path) -> Vec<String> {
     for m in &gabarito.mapeamentos {
         conferir_mapeamento(&mut c, &raiz, m, &do_explicar);
     }
+    for p in &gabarito.publicacoes {
+        conferir_publicacao(&mut c, &gabarito, p);
+    }
 
     // Toda regra é exercitada por ao menos um fluxo.
     for regra in &gabarito.regras {
@@ -1186,6 +1205,36 @@ fn conferir(caminho: &Path) -> Vec<String> {
     }
 
     c.erros
+}
+
+/// Ciclo de publicação (#279): os dois itens são de análise (pergunta,
+/// funcionalidade ou demanda) e diferentes, o repositório é `dono/repo` e a
+/// subpasta é relativa.
+fn conferir_publicacao(c: &mut Conferencia, gabarito: &Gabarito, p: &Publicacao) {
+    let onde = format!("publicação {}", p.id);
+    c.texto_preenchido(&onde, "titulo", &p.titulo);
+    let de_analise = |id: &str| {
+        gabarito.perguntas.iter().any(|x| x.id == id)
+            || gabarito.funcionalidades.iter().any(|x| x.id == id)
+            || gabarito.demandas.iter().any(|x| x.id == id)
+    };
+    for (campo, id) in [("analise", &p.analise), ("reanalise", &p.reanalise)] {
+        if !de_analise(id) {
+            c.erro(format!(
+                "{onde}: `{campo}` {id} não é pergunta, funcionalidade nem demanda"
+            ));
+        }
+    }
+    if p.analise == p.reanalise {
+        c.erro(format!("{onde}: `analise` e `reanalise` são o mesmo item"));
+    }
+    let partes: Vec<&str> = p.repositorio.split('/').collect();
+    if partes.len() != 2 || partes.iter().any(|x| x.trim().is_empty()) {
+        c.erro(format!("{onde}: `repositorio` precisa ser dono/repo"));
+    }
+    if p.subpasta.starts_with('/') || p.subpasta.split('/').any(|x| x == "..") {
+        c.erro(format!("{onde}: `subpasta` precisa ser relativa, sem `..`"));
+    }
 }
 
 /// Mapeamento (#208): cada ponto de entrada existe na fixture (o arquivo e o

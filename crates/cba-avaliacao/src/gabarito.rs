@@ -47,6 +47,10 @@ pub struct Gabarito {
     /// Mapa de funcionalidades esperado (#208).
     #[serde(default)]
     pub mapeamentos: Vec<Mapeamento>,
+    /// Ciclo de publicação da documentação (#279): analisar, aprovar, publicar e
+    /// analisar de novo com a documentação publicada.
+    #[serde(default)]
+    pub publicacoes: Vec<Publicacao>,
     /// Pasta do gabarito, para resolver `raiz`. Preenchida por [`Gabarito::carregar`].
     #[serde(skip)]
     pub pasta: PathBuf,
@@ -390,6 +394,27 @@ pub struct NegativoEsperado {
     pub palavras_chave: Vec<Vec<String>>,
 }
 
+/// Ciclo de publicação da documentação (#279): o item `analise` é analisado,
+/// aprovado e publicado num repositório de docs; o item `reanalise` é analisado
+/// de novo numa base nova, que só conhece a documentação publicada (sincronizada
+/// do repositório), para conferir que o agente a consulta.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Publicacao {
+    pub id: String,
+    pub titulo: String,
+    /// Item do gabarito (pergunta, funcionalidade ou demanda) analisado, aprovado
+    /// e publicado.
+    pub analise: String,
+    /// Item analisado de novo com a documentação publicada; comparado com o
+    /// gabarito como nos outros fluxos.
+    pub reanalise: String,
+    /// Caminho do repositório de docs (`dono/repo`), para os rótulos e o PR.
+    pub repositorio: String,
+    /// Pasta da documentação dentro do repositório (vazia: a raiz).
+    #[serde(default)]
+    pub subpasta: String,
+}
+
 /// Mapeamento das funcionalidades do projeto (#208): o mapa esperado.
 #[derive(Debug, Clone, Deserialize)]
 pub struct Mapeamento {
@@ -623,6 +648,16 @@ impl Gabarito {
             Erro(format!(
                 "o mapeamento `{id}` não existe no gabarito (use o id de um mapeamento, como \
                  MAP-FAT-001)"
+            ))
+        })
+    }
+
+    /// Ciclo de publicação da documentação (#279).
+    pub fn publicacao(&self, id: &str) -> Result<&Publicacao, Erro> {
+        self.publicacoes.iter().find(|p| p.id == id).ok_or_else(|| {
+            Erro(format!(
+                "o ciclo de publicação `{id}` não existe no gabarito (use o id de um ciclo, como \
+                 PUB-FAT-001)"
             ))
         })
     }
