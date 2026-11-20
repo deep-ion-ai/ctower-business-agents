@@ -136,9 +136,37 @@ fn le_sugere_confirma_e_repetir_nao_duplica() {
     let v = issues_para_vincular(&c.dados, PROJETO, None, None, &f).unwrap();
     assert_eq!(v.issues[1].justificativa, motivo("Só visual"));
     assert!(v.issues[0].justificativa.is_none());
-    justificar(&c.dados, PROJETO, entrada, None).unwrap();
+    justificar(&c.dados, PROJETO, entrada.clone(), None).unwrap();
     let v = issues_para_vincular(&c.dados, PROJETO, None, None, &f).unwrap();
     assert!(v.issues[1].justificativa.is_none());
+
+    // Proposta do agente: aparece como sugestão com a evidência e some ao confirmar.
+    MapaFuncionalidades::alterar(&amb.kb, |m, agora| {
+        m.propor_issue(cba_core::funcionalidades::PropostaDeIssue {
+            origem: "github".into(),
+            chave: "#42".into(),
+            funcionalidades: vec![IdFuncionalidade::analisar("F-FAT-002").unwrap()],
+            evidencia: "o botão de cancelar nota".into(),
+            registrado_ms: agora,
+        })
+    })
+    .unwrap();
+    let v = issues_para_vincular(&c.dados, PROJETO, None, None, &f).unwrap();
+    let s = &v.issues[1].sugestoes[0];
+    assert!(s.ia);
+    assert_eq!(s.funcionalidade, "F-FAT-002");
+    assert!(s.evidencias[0].starts_with("IA: o botão"));
+    let mut ia = itens();
+    ia[0].issue.chave = "#42".into();
+    ia[0].funcionalidades = vec!["F-FAT-002".into()];
+    confirmar_lote(&c.dados, PROJETO, ia).unwrap();
+    assert!(amb.kb.demandas().unwrap().len() >= 2);
+    let mapa = MapaFuncionalidades::carregar(&amb.kb).unwrap();
+    assert!(mapa.propostas_de_issue.is_empty());
+    // Pedido ao agente: lista as issues e cita a ferramenta.
+    let pedido = pedido_de_vinculo_ia(vec![entrada.clone()]).unwrap();
+    assert!(pedido.contains("propor_vinculo_de_issue") && pedido.contains("`#42`"));
+    assert!(pedido_de_vinculo_ia(vec![]).is_err());
 
     // Funcionalidade inválida recusa o lote.
     let mut ruim = itens();

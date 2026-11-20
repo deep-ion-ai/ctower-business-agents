@@ -1368,6 +1368,77 @@ pub fn registrar_funcionalidade() -> Ferramenta {
     )
 }
 
+/// `propor_vinculo_de_issue`: o agente propõe a funcionalidade de uma issue (#270).
+pub fn propor_vinculo_de_issue() -> Ferramenta {
+    Ferramenta::nova(
+        "propor_vinculo_de_issue",
+        "Propor vínculo de issue",
+        "Propõe a(s) funcionalidade(s) do mapa a que uma issue do rastreador pertence, com a \
+         evidência (ponto de entrada ou trecho da issue que sustenta o vínculo). É só uma \
+         proposta: o analista confirma na tela \"Vincular demandas\". Não chame para a issue \
+         sem relação clara com o mapa.",
+        json!({
+            "type": "object",
+            "properties": {
+                "origem": { "type": "string", "enum": ["github", "jira"] },
+                "chave": { "type": "string", "minLength": 1, "description": "`#41` ou `PROJ-9`, como o pedido mostra." },
+                "funcionalidades": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": { "type": "string", "minLength": 1 },
+                    "description": "F-<SIGLA>-NNN já registradas e abertas no mapa."
+                },
+                "evidencia": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000,
+                    "description": "Por que: o ponto de entrada (`PKG.FN_X`) ou o trecho da issue que a liga à funcionalidade."
+                }
+            },
+            "required": ["origem", "chave", "funcionalidades", "evidencia"],
+            "additionalProperties": false
+        }),
+        |ambiente, args| {
+            #[derive(Deserialize)]
+            struct Args {
+                origem: String,
+                chave: String,
+                funcionalidades: Vec<String>,
+                evidencia: String,
+            }
+            let args: Args = ler_argumentos(args)?;
+            if args.origem != "github" && args.origem != "jira" {
+                return Err(ErroFerramenta::Argumentos(
+                    "`origem`: use `github` ou `jira`".into(),
+                ));
+            }
+            let ids = args
+                .funcionalidades
+                .iter()
+                .map(|f| id_da_funcionalidade(f, "funcionalidades"))
+                .collect::<Result<Vec<_>, _>>()?;
+            let proposta = cba_core::funcionalidades::PropostaDeIssue {
+                origem: args.origem,
+                chave: args.chave.trim().to_owned(),
+                funcionalidades: ids,
+                evidencia: args.evidencia,
+                registrado_ms: 0,
+            };
+            let alterado = alterar(ambiente, |m, agora| {
+                m.propor_issue(cba_core::funcionalidades::PropostaDeIssue {
+                    registrado_ms: agora,
+                    ..proposta.clone()
+                })
+            })?;
+            Ok(Saida::json(json!({
+                "issue": proposta.chave,
+                "funcionalidades": proposta.funcionalidades.iter().map(ToString::to_string).collect::<Vec<_>>(),
+                "avisos": alterado.avisos,
+            })))
+        },
+    )
+}
+
 /// `tratar_ponto_de_entrada`: atribui a uma funcionalidade ou justifica.
 pub fn tratar_ponto_de_entrada() -> Ferramenta {
     Ferramenta::nova(

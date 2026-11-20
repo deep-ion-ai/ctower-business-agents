@@ -133,6 +133,7 @@ pub fn registro_padrao() -> Registro {
         .registrar(mapear::pontos_de_entrada())
         .registrar(mapear::registrar_funcionalidade())
         .registrar(mapear::tratar_ponto_de_entrada())
+        .registrar(mapear::propor_vinculo_de_issue())
         .registrar(mapear::concluir_mapeamento())
         .registrar(ciclo::concluir_analise());
     registro
@@ -183,6 +184,7 @@ mod tests {
             "pontos_de_entrada",
             "registrar_funcionalidade",
             "tratar_ponto_de_entrada",
+            "propor_vinculo_de_issue",
             "concluir_mapeamento",
             "concluir_analise",
         ] {
@@ -207,6 +209,11 @@ mod tests {
         );
         assert!(
             !r.obter("tratar_ponto_de_entrada")
+                .unwrap()
+                .e_somente_leitura()
+        );
+        assert!(
+            !r.obter("propor_vinculo_de_issue")
                 .unwrap()
                 .e_somente_leitura()
         );

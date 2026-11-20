@@ -24,6 +24,8 @@ pub struct SugestaoVista {
     pub nome: String,
     pub pontuacao: u32,
     pub evidencias: Vec<String>,
+    /// Veio de uma proposta do agente (a pontuação é 0), não do texto.
+    pub ia: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -158,8 +160,42 @@ pub fn issues_para_vincular(
                 nome: s.nome,
                 pontuacao: s.pontuacao,
                 evidencias: s.evidencias,
+                ia: false,
             })
             .collect();
+            let mut sugestoes: Vec<SugestaoVista> = sugestoes;
+            // Propostas do agente: entram na frente, com a evidência dele.
+            if let Some(p) = mapa
+                .propostas_de_issue
+                .iter()
+                .find(|p| p.chave == i.chave && p.origem == i.origem.nome())
+            {
+                for id in p.funcionalidades.iter().rev() {
+                    let Some(f) = mapa.funcionalidade(id).filter(|f| f.aberta()) else {
+                        continue;
+                    };
+                    let texto = format!("IA: {}", p.evidencia);
+                    match sugestoes
+                        .iter_mut()
+                        .find(|s| s.funcionalidade == id.to_string())
+                    {
+                        Some(s) => {
+                            s.evidencias.insert(0, texto);
+                            s.ia = true;
+                        }
+                        None => sugestoes.insert(
+                            0,
+                            SugestaoVista {
+                                funcionalidade: id.to_string(),
+                                nome: f.nome.clone(),
+                                pontuacao: 0,
+                                evidencias: vec![texto],
+                                ia: true,
+                            },
+                        ),
+                    }
+                }
+            }
             let (i_chave, i_origem) = (i.chave.clone(), i.origem.nome());
             let existente = demanda_da_issue(&demandas, &i);
             let ligada_a = existente
@@ -345,6 +381,33 @@ pub async fn confirmar_vinculos_app(
 ) -> Result<ResultadoDoLote, String> {
     let dados = dados()?;
     bloqueante(move || confirmar_lote(&dados, &projeto, itens)).await
+}
+
+/// Pedido para a sessão do Claude propor o vínculo das issues sem sugestão clara.
+pub fn pedido_de_vinculo_ia(itens: Vec<IssueEntrada>) -> Result<String, String> {
+    if itens.is_empty() {
+        return Err("não há issues sem sugestão para o agente propor".into());
+    }
+    let issues: Vec<IssueListada> = itens
+        .into_iter()
+        .map(|i| IssueListada {
+            origem: i.origem,
+            chave: i.chave,
+            titulo: i.titulo,
+            descricao: i.descricao,
+            url: i.url,
+            criada_em: i.criada_em,
+            estado: i.estado,
+            rotulos: i.rotulos,
+            arquivos: Vec::new(),
+        })
+        .collect();
+    Ok(cba_tools::vincular::pedido_de_vinculo_com_ia(&issues))
+}
+
+#[tauri::command]
+pub fn pedido_vinculo_ia_app(issues: Vec<IssueEntrada>) -> Result<String, String> {
+    pedido_de_vinculo_ia(issues)
 }
 
 #[tauri::command]

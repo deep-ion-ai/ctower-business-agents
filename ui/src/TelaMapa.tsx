@@ -645,6 +645,8 @@ function MapaDoProjeto({
             api={api}
             aoVoltar={() => setVinculando(false)}
             aoVincular={recarregar}
+            apiTerminal={apiTerminal}
+            criarTela={criarTela}
           />
         ) : pagina ? (
           <PainelFuncionalidade

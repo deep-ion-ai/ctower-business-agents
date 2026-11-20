@@ -122,9 +122,10 @@ pub fn confirmar_vinculos(
         &ambiente.kb,
         &ambiente.dados,
         |m: &mut MapaFuncionalidades, agora| {
-            // Issue que ganha funcionalidade deixa de estar justificada.
+            // Issue que ganha funcionalidade deixa de estar justificada e de ter proposta.
             for item in lote.iter().filter(|i| !i.funcionalidades.is_empty()) {
                 m.desfazer_justificativa_da_issue(item.issue.origem.nome(), &item.issue.chave);
+                m.limpar_proposta_da_issue(item.issue.origem.nome(), &item.issue.chave);
             }
             for (id, funcionalidades) in &ligacoes {
                 for f in *funcionalidades {
@@ -202,4 +203,34 @@ pub fn justificar_issue(
         resultado: (),
         avisos: alterado.avisos,
     })
+}
+
+/// Pedido que abre a sessão do Claude para propor o vínculo das issues sem
+/// sugestão clara (#270). A resposta do agente são chamadas de
+/// `propor_vinculo_de_issue`; quem confirma é o analista na tela.
+pub fn pedido_de_vinculo_com_ia(issues: &[IssueListada]) -> String {
+    let mut t = String::from(
+        "Proponha a funcionalidade das issues abaixo pelo ctower. Consulte o mapa de \
+         funcionalidades (ferramentas `mapa`, `pontos_de_entrada` e `conhecimento` do cba) e, \
+         para cada issue com relação clara com uma ou mais funcionalidades abertas, chame \
+         `propor_vinculo_de_issue` com `origem`, `chave`, as funcionalidades e a evidência \
+         (o ponto de entrada ou o trecho da issue que sustenta o vínculo). Não invente: a \
+         issue sem relação clara fica sem chamada. Não confirme nada, o analista confirma na \
+         tela \"Vincular demandas\".\n\nIssues:\n",
+    );
+    for i in issues {
+        let descricao: String = i.descricao.split_whitespace().collect::<Vec<_>>().join(" ");
+        let descricao: String = descricao.chars().take(600).collect();
+        let _ = std::fmt::Write::write_fmt(
+            &mut t,
+            format_args!(
+                "\n- origem `{}`, chave `{}`: {}\n  {}\n",
+                i.origem.nome(),
+                i.chave,
+                i.titulo.trim(),
+                descricao
+            ),
+        );
+    }
+    t
 }

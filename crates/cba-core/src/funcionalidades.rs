@@ -223,6 +223,19 @@ pub struct IssueJustificada {
     pub registrado_ms: u64,
 }
 
+/// Vínculo de uma issue que o agente propôs, com a evidência. É só proposta: a
+/// confirmação é do analista, na tela "Vincular demandas" (#270).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PropostaDeIssue {
+    /// `github` ou `jira`.
+    pub origem: String,
+    pub chave: String,
+    pub funcionalidades: Vec<IdFuncionalidade>,
+    /// Ponto de entrada ou trecho da issue que sustenta o vínculo.
+    pub evidencia: String,
+    pub registrado_ms: u64,
+}
+
 /// Recorte de um mapeamento: o projeto todo, uma pasta ou uma área.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EscopoMapa {
@@ -385,6 +398,9 @@ pub struct MapaFuncionalidades {
     /// Issues do rastreador sem funcionalidade, justificadas pelo analista (#270).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub issues_justificadas: Vec<IssueJustificada>,
+    /// Vínculos de issues propostos pelo agente, à espera do analista (#270).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub propostas_de_issue: Vec<PropostaDeIssue>,
     /// Identificadores que saíram do catálogo da primeira versão (não são
     /// reaproveitados).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -403,6 +419,7 @@ impl Default for MapaFuncionalidades {
             funcionalidades: Vec::new(),
             pontos_justificados: Vec::new(),
             issues_justificadas: Vec::new(),
+            propostas_de_issue: Vec::new(),
             retirados: Vec::new(),
             versao: 0,
             atualizado_ms: 0,
@@ -617,6 +634,43 @@ impl MapaFuncionalidades {
             None => self.pontos_justificados.push(ponto),
         }
         Ok(())
+    }
+
+    /// Registra (ou substitui) a proposta do agente para uma issue. As
+    /// funcionalidades precisam existir e estar abertas.
+    pub fn propor_issue(&mut self, proposta: PropostaDeIssue) -> Result<(), ErroMapa> {
+        let evidencia = exigir("evidencia", &proposta.evidencia)?;
+        if proposta.funcionalidades.is_empty() {
+            return Err(ErroMapa::CampoVazio("funcionalidades"));
+        }
+        for id in &proposta.funcionalidades {
+            match self.funcionalidade(id) {
+                None => return Err(ErroMapa::Desconhecida(id.clone())),
+                Some(f) if !f.aberta() => return Err(ErroMapa::Fechada(id.clone())),
+                Some(_) => {}
+            }
+        }
+        let proposta = PropostaDeIssue {
+            evidencia,
+            ..proposta
+        };
+        match self
+            .propostas_de_issue
+            .iter_mut()
+            .find(|p| p.chave == proposta.chave && p.origem == proposta.origem)
+        {
+            Some(p) => *p = proposta,
+            None => self.propostas_de_issue.push(proposta),
+        }
+        Ok(())
+    }
+
+    /// Tira a proposta de uma issue (confirmada ou recusada). Devolve se havia.
+    pub fn limpar_proposta_da_issue(&mut self, origem: &str, chave: &str) -> bool {
+        let antes = self.propostas_de_issue.len();
+        self.propostas_de_issue
+            .retain(|p| !(p.chave == chave && p.origem == origem));
+        antes != self.propostas_de_issue.len()
     }
 
     /// Justifica uma issue sem funcionalidade (substitui a anterior da mesma

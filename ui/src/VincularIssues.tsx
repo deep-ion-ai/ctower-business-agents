@@ -1,5 +1,8 @@
 import { useMemo, useState } from "react";
 import { mensagemDe } from "./analise";
+import { TerminalClaude } from "./TerminalClaude";
+import type { ApiTerminal } from "./terminal";
+import type { TelaTerminal } from "./telaXterm";
 import type {
   ApiMapa,
   IssueDoRastreador,
@@ -46,9 +49,13 @@ export function VincularIssues({
   api,
   aoVoltar,
   aoVincular,
+  apiTerminal,
+  criarTela,
 }: {
   projeto: string;
   api: ApiMapa;
+  apiTerminal?: ApiTerminal;
+  criarTela?: () => TelaTerminal;
   aoVoltar: () => void;
   /** Depois de gravar, para a tela reler o mapa. */
   aoVincular: () => void;
@@ -65,6 +72,8 @@ export function VincularIssues({
   const [vinculo, setVinculo] = useState<FiltroVinculo>("todas");
   const [rotulo, setRotulo] = useState("");
   const [busca, setBusca] = useState("");
+  /** Pedido da sessão do Claude que propõe o vínculo das issues sem sugestão. */
+  const [sessaoIa, setSessaoIa] = useState<string | null>(null);
 
   const ler = () => {
     const n = Number(meses);
@@ -145,6 +154,23 @@ export function VincularIssues({
       .finally(() => setGravando(false));
   };
 
+  /** Issues sem sugestão e sem justificativa, que o agente pode tentar vincular. */
+  const semSugestao = (vista?.issues ?? []).filter(
+    (i) => !confirmada(i) && i.sugestoes.length === 0 && !i.justificativa,
+  );
+  const sugerirComIa = () => {
+    setFalha(null);
+    api
+      .pedidoVinculoIa(
+        semSugestao.map((i) => {
+          const { sugestoes: _s, demanda: _d, ligadaA: _l, justificativa: _j, ...issue } = i;
+          return issue;
+        }),
+      )
+      .then(setSessaoIa)
+      .catch((e: unknown) => setFalha(mensagemDe(e)));
+  };
+
   const justificar = (i: IssueDoRastreador, j: JustificativaDeIssue | null) => {
     setFalha(null);
     const { sugestoes: _s, demanda: _d, ligadaA: _l, justificativa: _j, ...issue } = i;
@@ -157,6 +183,39 @@ export function VincularIssues({
       )
       .catch((e: unknown) => setFalha(mensagemDe(e)));
   };
+
+  if (sessaoIa !== null) {
+    return (
+      <section className="vincular-issues" aria-label="Sugestão com IA">
+        <header className="vincular-cabecalho">
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              setSessaoIa(null);
+              // As propostas do agente aparecem como sugestão ao reler.
+              void ler();
+            }}
+          >
+            Encerrar a sessão e ver as propostas
+          </button>
+          <h3>Sugerir vínculos com o Claude</h3>
+        </header>
+        <p className="muted">
+          O agente consulta o mapa e propõe a funcionalidade das {semSugestao.length} issues sem
+          sugestão, com a evidência. Ele não confirma nada: você confirma na lista.
+        </p>
+        <div className="terminal-mapeamento">
+          <TerminalClaude
+            projeto={projeto}
+            pedido={{ promptInicial: sessaoIa }}
+            api={apiTerminal}
+            criarTela={criarTela}
+          />
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="vincular-issues" aria-label="Vincular demandas">
@@ -286,6 +345,14 @@ export function VincularIssues({
             <button
               type="button"
               className="btn"
+              disabled={semSugestao.length === 0 || vista.funcionalidades.length === 0}
+              onClick={sugerirComIa}
+            >
+              Sugerir com IA ({semSugestao.length})
+            </button>
+            <button
+              type="button"
+              className="btn"
               onClick={() =>
                 setEscolhas(Object.fromEntries((vista?.issues ?? []).map((i) => [chaveDe(i), inicial(i)])))
               }
@@ -410,7 +477,8 @@ function LinhaDaIssue({
                   {s && (
                     <span className="muted" title={s.evidencias.join("; ")}>
                       {" "}
-                      — {s.pontuacao} pontos ({s.evidencias.slice(0, 3).join("; ")})
+                      — {s.ia && <span className="badge">IA</span>}{" "}
+                      {s.pontuacao > 0 && `${s.pontuacao} pontos `}({s.evidencias.slice(0, 3).join("; ")})
                     </span>
                   )}
                 </li>

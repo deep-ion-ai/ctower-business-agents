@@ -1,9 +1,11 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { VistaDeIssues } from "./funcionalidades";
+import type { ApiTerminal } from "./terminal";
 import { apiFalsa } from "./test/mapaFalso";
 import { VincularIssues } from "./VincularIssues";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(), Channel: vi.fn() }));
+vi.mock("./telaXterm", () => ({ criarTelaXterm: vi.fn() }));
 
 const VISTA: VistaDeIssues = {
   desde: "2026-05-19",
@@ -23,7 +25,7 @@ const VISTA: VistaDeIssues = {
       estado: "aberta",
       rotulos: ["bug"],
       sugestoes: [
-        { funcionalidade: "F-FAT-001", nome: "Parcelar fatura", pontuacao: 9, evidencias: ["parcel… (nome)"] },
+        { funcionalidade: "F-FAT-001", nome: "Parcelar fatura", pontuacao: 9, evidencias: ["parcel… (nome)"], ia: false },
       ],
       demanda: null,
       ligadaA: [],
@@ -46,11 +48,37 @@ const VISTA: VistaDeIssues = {
   ],
 };
 
+const telaFalsa = () => ({
+  abrirEm: vi.fn(),
+  escrever: vi.fn(),
+  aoDigitar: vi.fn(),
+  ajustar: vi.fn(() => ({ linhas: 24, colunas: 80 })),
+  limpar: vi.fn(),
+  focar: vi.fn(),
+  descartar: vi.fn(),
+});
+const apiTerminal = {
+  abrir: vi.fn().mockResolvedValue(7),
+  escrever: vi.fn().mockResolvedValue(undefined),
+  redimensionar: vi.fn().mockResolvedValue(undefined),
+  encerrar: vi.fn().mockResolvedValue(undefined),
+  enviarPrompt: vi.fn().mockResolvedValue(undefined),
+} as unknown as ApiTerminal;
+
 function abrir() {
   const api = apiFalsa();
   (api.issues as ReturnType<typeof vi.fn>).mockResolvedValue(VISTA);
   const aoVincular = vi.fn();
-  render(<VincularIssues projeto="p" api={api} aoVoltar={vi.fn()} aoVincular={aoVincular} />);
+  render(
+    <VincularIssues
+      projeto="p"
+      api={api}
+      aoVoltar={vi.fn()}
+      aoVincular={aoVincular}
+      apiTerminal={apiTerminal}
+      criarTela={() => telaFalsa() as never}
+    />,
+  );
   return { api, aoVincular };
 }
 
@@ -184,5 +212,25 @@ describe("VincularIssues", () => {
     fireEvent.click(screen.getByRole("button", { name: "Desfazer justificativa" }));
     await waitFor(() => expect(screen.queryByText(/Só visual/)).toBeNull());
     expect(api.justificar).toHaveBeenLastCalledWith("p", expect.anything(), null);
+  });
+
+  it("sugere com IA as issues sem sugestão e mostra a proposta do agente ao reler", async () => {
+    const { api } = abrir();
+    fireEvent.click(screen.getByRole("button", { name: "Buscar issues" }));
+    await screen.findByLabelText("Resumo da leitura");
+    fireEvent.click(screen.getByRole("button", { name: "Sugerir com IA (1)" }));
+    expect(await screen.findByRole("region", { name: "Sugestão com IA" })).toBeInTheDocument();
+    const enviadas = (api.pedidoVinculoIa as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(enviadas.map((x: { chave: string }) => x.chave)).toEqual(["#42"]);
+    // O agente propôs: a releitura traz a sugestão da IA com a evidência.
+    const comProposta = structuredClone(VISTA);
+    comProposta.issues[1].sugestoes = [
+      { funcionalidade: "F-FAT-002", nome: "Cancelar nota", pontuacao: 0, evidencias: ["IA: botão de cancelar"], ia: true },
+    ];
+    (api.issues as ReturnType<typeof vi.fn>).mockResolvedValue(comProposta);
+    fireEvent.click(screen.getByRole("button", { name: "Encerrar a sessão e ver as propostas" }));
+    expect(await screen.findByLabelText("Funcionalidades de #42")).toHaveTextContent("IA");
+    expect(screen.getByLabelText("Funcionalidades de #42")).toHaveTextContent("botão de cancelar");
+    expect(screen.getByRole("checkbox", { name: /F-FAT-002/ })).toBeChecked();
   });
 });
