@@ -1,6 +1,6 @@
 # Avaliação dos fluxos contra o gabarito
 
-Roteiros, limites e modelos mudam com o tempo. A avaliação mostra se um ajuste piorou a análise (spec, critério de aceite 2): roda os fluxos com o Claude Code real no sistema fictício **Faturamento Exemplo** e compara o que o agente registrou com o gabarito `fixtures/gabaritos/faturamento-exemplo.yaml`. Além dos três fluxos de análise (perguntar, explicar, impacto), avalia o fluxo **Analisar reunião** (`reuniao`) com os transcripts fictícios de `fixtures/reunioes/` e mede o custo de uma reunião longa, de cerca de 2 h ([seção própria](#fluxo-reuniao)), o fluxo **Revisar requisito** (`revisar`) com uma história fictícia com problemas plantados ([seção própria](#fluxo-revisar)) o fluxo **Histórias e critérios** (`historias`) a partir da análise de impacto de uma demanda ([seção própria](#fluxo-historias)) o fluxo **Cenários de teste** (`cenarios`) a partir das regras ([seção própria](#fluxo-cenarios)) o **ciclo de vida** de uma entidade, o diagrama de estados numa análise de explicar ([seção própria](#ciclo-de-vida)), e o fluxo **Mapear funcionalidades** (`mapear`), o catálogo do projeto a partir do código ([seção própria](#fluxo-mapear)).
+Roteiros, limites e modelos mudam com o tempo. A avaliação mostra se um ajuste piorou a análise (spec, critério de aceite 2): roda os fluxos com o Claude Code real no sistema fictício **Faturamento Exemplo** e compara o que o agente registrou com o gabarito `fixtures/gabaritos/faturamento-exemplo.yaml`. Além dos três fluxos de análise (perguntar, explicar, impacto), avalia o fluxo **Analisar reunião** (`reuniao`) com os transcripts fictícios de `fixtures/reunioes/` e mede o custo de uma reunião longa, de cerca de 2 h ([seção própria](#fluxo-reuniao)), o fluxo **Revisar requisito** (`revisar`) com uma história fictícia com problemas plantados ([seção própria](#fluxo-revisar)) o fluxo **Histórias e critérios** (`historias`) a partir da análise de impacto de uma demanda ([seção própria](#fluxo-historias)) o fluxo **Cenários de teste** (`cenarios`) a partir das regras ([seção própria](#fluxo-cenarios)) o **ciclo de vida** de uma entidade, o diagrama de estados numa análise de explicar ([seção própria](#ciclo-de-vida)), o fluxo **Mapear funcionalidades** (`mapear`), o catálogo do projeto a partir do código ([seção própria](#fluxo-mapear)), e o **ciclo de publicação** (`publicacao`): analisar, aprovar, publicar a documentação num repositório e analisar de novo com ela ([seção própria](#ciclo-de-publicação)).
 
 Ela fica na crate `crates/cba-avaliacao` e tem duas partes:
 
@@ -40,10 +40,11 @@ Opções principais:
 |---|---|---|
 | `--modelo` | `sonnet` | modelo do `claude` |
 | `--orcamento` | `1.5` | `--max-budget-usd` de **cada** execução, em US$ |
-| `--fluxos` | `perguntar,explicar,impacto` | fluxos a rodar; também `revisar`, `historias`, `cenarios`, `ciclo-vida`, `mapear`, `reuniao` e `reuniao-longa` |
+| `--fluxos` | `perguntar,explicar,impacto` | fluxos a rodar; também `revisar`, `historias`, `cenarios`, `ciclo-vida`, `mapear`, `publicacao`, `reuniao` e `reuniao-longa` |
 | `--repeticoes` | `1` | execuções de cada fluxo (o modelo varia de uma para outra; use 3 ou mais para comparar versões) |
 | `--pergunta`, `--funcionalidade`, `--demanda`, `--revisao`, `--historias`, `--cenarios`, `--ciclo-vida`, `--mapeamento` | `P-FAT-001`, `F-FAT-002`, `D-FAT-001`, `REV-FAT-001`, `HIS-FAT-001`, `CEN-FAT-001`, `CV-FAT-001`, `MAP-FAT-001` | item do gabarito de cada fluxo |
 | `--reuniao` | `REU-FAT-001` | reunião do gabarito dos fluxos `reuniao` e `reuniao-longa` |
+| `--publicacao` | `PUB-FAT-001` | ciclo de publicação do gabarito (fluxo `publicacao`, duas execuções do `claude`) |
 | `--orcamento-longa` | `3` | `--max-budget-usd` da reunião longa, em US$ |
 | `--longa-minutos`, `--longa-palavras` | `120`, `25000` | tamanho da reunião longa sintética |
 | `--saida` | `target/avaliacao/<data-hora>` | pasta do relatório |

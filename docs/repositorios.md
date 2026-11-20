@@ -1,8 +1,12 @@
-# Repositórios do projeto (código e issues)
+# Repositórios do projeto (código, issues e documentação)
 
 Cada projeto pode ter, opcionalmente, **onde fica o código** (um ou vários repositórios, no GitHub
-e no GitLab) e **onde ficam as issues** (GitHub Issues, GitLab Issues ou Jira), em qualquer
-combinação. Sem eles o app funciona como antes, só com as pastas locais.
+e no GitLab), **onde ficam as issues** (GitHub Issues, GitLab Issues ou Jira) e **onde a
+documentação aprovada é publicada** (uma pasta num repositório de código ou um repositório próprio),
+em qualquer combinação. Sem eles o app funciona como antes, só com as pastas locais.
+
+O passo a passo do analista para publicar e reaproveitar a documentação está no
+[guia da publicação](guia-publicacao.md); esta página descreve o comportamento.
 
 ## Repositórios de código
 
@@ -65,26 +69,74 @@ não há token guardado. Guardar um token apaga o comando do host, e vice-versa.
 validade) e os hosts acrescentados à mão ficam nas preferências do app; o token, nunca. Trocar ou
 remover o token apaga o último teste daquele token.
 
-## Clone inicial
+## Clone e atualização
 
 O app clona os repositórios (HTTPS ou SSH) numa pasta base configurável (preferências do app; padrão
 `Documentos/ctower-business-repos`), uma subpasta por repositório, com progresso e erro claro por
-repositório. Depois do clone, o app só atualiza o clone e escreve nele para publicar a documentação
-(veja [Escrita no repositório](#escrita-no-repositório-275)); o resto (pull do código) fica com o
-analista.
+repositório. "Testar acesso" roda `git ls-remote --heads` com o token digitado (ou o guardado) e
+confirma a permissão de leitura antes de clonar.
 
 O token não vai para a URL, para os argumentos nem para o `.git/config`: o `git` recebe com `-c` um
-credential helper que vale só para aquela execução e lê o token de uma variável de ambiente. URL de
-clone com senha ou token embutido é recusada. Nenhuma execução pede nada no terminal
-(`GIT_TERMINAL_PROMPT=0`, SSH em `BatchMode`); no SSH valem as chaves do analista.
+credential helper que vale só para aquela execução e lê o token de uma variável de ambiente
+(`CBA_GIT_TOKEN`). URL de clone com senha ou token embutido é recusada. Nenhuma execução pede nada
+no terminal (`GIT_TERMINAL_PROMPT=0`, SSH em `BatchMode`); no SSH valem as chaves do analista.
 
-"Testar acesso" roda `git ls-remote --heads` com o token digitado (ou o guardado) e confirma a
-permissão de leitura antes de clonar.
+Depois do clone, o app só mexe no clone do destino da documentação: atualiza para sincronizar e
+escreve numa branch própria para publicar ([Documentação publicada](#documentação-publicada-273)).
+Atualizar o código (pull) fica com o analista. A atualização (`cba_repos::escrita::atualizar_clone`)
+busca o remoto e avança a branch base local só por fast-forward: com a base no checkout, atualiza a
+pasta e recusa alterações não comitadas em arquivos rastreados; base local e remota divergentes são
+conflito, resolvido pelo analista.
 
-## Destino da documentação (#274)
+## Regras que não mudam depois do cadastro
 
-O projeto pode cadastrar onde a documentação aprovada é publicada (`repositorios.docs`, opcional;
-projetos antigos abrem sem ele), na aba "Código e demandas":
+Cada repositório de código já cadastrado (forja, host e caminho) não pode ser removido nem trocado;
+outros podem ser acrescentados. No de issues, o tipo e, no GitLab, o host e o caminho. O que ainda
+não foi cadastrado pode ser acrescentado depois. O destino da documentação pode ser trocado ou
+removido a qualquer momento.
+
+## Prontidão
+
+Em Configurações, cada projeto mostra os passos de cada integração e a orientação de quem falhou.
+Repositório de código: `git` instalado, token disponível e acesso de leitura (`git ls-remote`).
+Jira: `jira` instalado, configuração presente, `server` igual à URL, comando de credencial, `jira me`
+e `jira serverinfo`. GitLab de issues: `glab version`, token e `glab api version`. GitHub de issues:
+`gh` e token (chaveiro ou `gh auth token`). Destino da documentação, por último: no repositório
+próprio, os passos de um repositório de código; na subpasta, que o repositório de código continua
+cadastrado e que a subpasta, se já existe, é uma pasta. O resultado aparece na saúde do projeto. A
+prontidão não bloqueia o app.
+
+## Uso nas análises
+
+- **Análise a partir de uma issue:** o campo “Issue do projeto” (`PROJ-123`, `45`) busca título e
+  descrição como entrada. O link vai em `demanda.origem` e a chave em `demanda.chave`.
+- **Evidências exportadas:** cada nota vira um link para o arquivo e as linhas no commit da
+  evidência (ou, na falta dele, o `base.commit` da análise), no repositório cuja pasta contém o
+  arquivo (a mais funda, se um estiver dentro do outro); o caminho no link é relativo à pasta do
+  repositório. Repositório sem pasta (cadastro antigo) vale para o projeto inteiro. Sem commit ou sem
+  repositório, a nota fica como texto.
+- **Documentação publicada:** consultada pelos agentes sob demanda, como pista
+  ([Consulta pelos agentes](#consulta-pelos-agentes-278)).
+
+Escrever no rastreador (comentário ou anexo na issue) fica para a fase 2.
+
+## Documentação publicada (#273)
+
+A exportação grava um arquivo avulso (Markdown, Word, HTML ou CSV) para mandar a alguém. A
+publicação versiona a base aprovada do projeto num repositório git, revisada por PR/MR, e a traz de
+volta para as análises seguintes, de qualquer analista do projeto. O ciclo:
+
+1. **Destino** cadastrado no projeto (#274).
+2. **Publicar** os documentos aprovados numa branch própria, com PR/MR (#275, #276).
+3. **Revisar e mesclar** o PR/MR, fora do app, como qualquer mudança no repositório.
+4. **Sincronizar** o repositório de docs com a base, como fonte externa só leitura (#277).
+5. **Consultar:** os agentes pedem a documentação publicada quando ela ajuda, e a evidência
+   continua sendo o código (#278).
+
+### Destino (#274)
+
+O destino fica em `repositorios.docs` (opcional; projetos antigos abrem sem ele), no cartão "Onde a
+documentação é publicada" da aba "Código e demandas":
 
 - **Pasta num repositório de código** (`modo: subpasta`): `codigo` é o `host/caminho` (minúsculas)
   de um repositório de código já cadastrado e `subpasta` a pasta dentro dele (`docs/negocio`),
@@ -94,20 +146,18 @@ projetos antigos abrem sem ele), na aba "Código e demandas":
   subpasta opcional. Não pode ser um dos repositórios de código. O clone usa a mesma pasta base dos
   outros.
 
-A validação não usa a rede. O destino pode ser trocado ou removido a qualquer momento; ao mudar, o
-inventário é refeito. A prontidão traz o destino por último: no repositório próprio, os passos de
-um repositório de código; na subpasta, que o repositório de código continua cadastrado e que a
-subpasta, se já existe, é uma pasta. O resultado aparece na saúde do projeto.
+A validação não usa a rede. Ao trocar o destino, o inventário é refeito; ao removê-lo, a cópia em
+`externos/` é apagada.
 
 A pasta da documentação não é código-fonte: fica fora do inventário e das evidências (motivo
 "documentação publicada", que uma reinclusão não desfaz) e do aviso de alteração. O clone do
 repositório próprio conta como repositório cadastrado para o aviso, e nenhuma pasta do projeto pode
 ficar dentro da pasta da documentação.
 
-## Escrita no repositório (#275)
+### Escrita no repositório (#275)
 
-A publicação grava arquivos numa branch própria e abre um PR (GitHub, `gh api`) ou MR (GitLab,
-`glab api`), devolvendo o link (`cba_repos::escrita::publicar`):
+`cba_repos::escrita::publicar` grava os arquivos numa branch própria e abre um PR (GitHub,
+`gh api`) ou MR (GitLab, `glab api`), devolvendo o link:
 
 - **Branches protegidas:** `develop`, `main`, `master` e a própria branch base nunca são branch de
   escrita (sem diferenciar maiúsculas); o push é sem `--force` e só avança a branch.
@@ -122,27 +172,24 @@ A publicação grava arquivos numa branch própria e abre um PR (GitHub, `gh api
   publicação, o push é recusado e o erro pede para publicar de novo.
 - **Sem mudanças efetivas** (o conteúdo já está na branch do PR/MR aberto ou na base), não há
   commit, push nem PR/MR novo, e o resultado diz isso.
-- **Credencial:** a mesma do clone. O `git` recebe o token pelo credential helper de `-c` e
-  `CBA_GIT_TOKEN`; as CLIs, por `GH_TOKEN`/`GITLAB_TOKEN`. Nada na URL, nos argumentos nem no
-  `.git/config`, e as mensagens trocam o token por `***`. Falta de permissão de escrita (no push ou
-  na API) e CLI ausente têm erro próprio.
+- **Credencial:** a do clone; o token precisa de permissão de escrita no repositório e de abrir
+  PR/MR. As CLIs recebem o token só no ambiente (`GH_TOKEN`/`GITLAB_TOKEN`), e as mensagens trocam
+  o token por `***`. Falta de permissão de escrita (no push ou na API) e CLI ausente têm erro
+  próprio.
 
-`cba_repos::escrita::atualizar_clone` busca o remoto e avança a branch base local só por
-fast-forward: com a base no checkout, atualiza a pasta e recusa alterações não comitadas em
-arquivos rastreados; base local e remota divergentes são conflito, resolvido pelo analista.
+### Publicar os documentos aprovados (#276)
 
-## Publicar os documentos aprovados (#276)
-
-O botão "Publicar", ao lado do "Exportar" na tela da análise, publica a base aprovada do projeto no
-destino da documentação (`cba_tools::publicacao`), nos dois modos:
+O botão "Publicar", ao lado do "Exportar" na tela da análise, publica a base aprovada do projeto
+inteiro (não só a análise aberta) no destino (`cba_tools::publicacao`), nos dois modos:
 
 - **Só o aprovado:** análises, documentos de funcionalidade e mapa com `status: aprovada`, regras
   `confirmada`, termos do glossário e sugestões `aceita`. Demandas, atas, análises de reunião,
   registros da demanda, pessoas, memórias e o `projeto.md` ficam de fora. Os `.md` vão como estão
   (com frontmatter), no layout da base, sob a subpasta do destino.
 - **Prévia antes de confirmar:** o que muda na branch base do destino (novos, alterados e
-  removidos), lido do remoto depois de um fetch, sem tocar no checkout (`cba_repos::escrita::ler_remoto`).
-  Antes do botão, o aviso pede a conferência de segredos e dados pessoais.
+  removidos), lido do remoto depois de um fetch, sem tocar no checkout
+  (`cba_repos::escrita::ler_remoto`). Antes do botão, o aviso pede a conferência de segredos e
+  dados pessoais.
 - **Manifesto:** a pasta publicada leva `.cba-publicacao.json`, com o projeto e a lista do que o app
   publicou. Só os arquivos listados nele (na base ou na branch da publicação) são removidos quando
   deixam de estar aprovados. Um arquivo que já está na pasta sem ter sido publicado pelo app nunca é
@@ -151,16 +198,16 @@ destino da documentação (`cba_tools::publicacao`), nos dois modos:
 - **Branch e PR/MR:** `docs/cba-<projeto>`, pela escrita acima, com o link do PR/MR no resultado.
   Sem mudança na base nem publicação pendente, não há commit nem PR/MR.
 
-## Sincronização do repositório de docs (#277)
+### Sincronização (#277)
 
-A documentação publicada volta para a base como fonte externa rotulada
-(`cba_tools::docs_externos::sincronizar`):
+`cba_tools::docs_externos::sincronizar` traz a documentação publicada de volta para a base como fonte
+externa rotulada:
 
 - **Quando:** pelo botão "Sincronizar agora" no cartão do destino e, em segundo plano, ao iniciar
   uma análise (se a última tentativa tem mais de 10 minutos). A análise nunca espera: se a cópia
   tem mais de 24 horas, nunca foi sincronizada ou a última tentativa falhou (rede, credencial,
   clone), o agente recebe um aviso, e as cópias anteriores continuam valendo.
-- **O quê:** `atualizar_clone` e os `.md` da subpasta lidos do commit da branch base do remoto
+- **O quê:** a atualização do clone e os `.md` da subpasta lidos do commit da branch base do remoto
   (`git ls-tree`/`cat-file`, sem checkout), copiados para `<projeto>/externos/<repositório>/` na
   base com o tipo `doc-externo`: frontmatter gerado com a origem (repositório, caminho, commit,
   branch), a confiança (`publicada` para documento com `tipo` do app, `externa` para o resto) e o
@@ -170,15 +217,16 @@ A documentação publicada volta para a base como fonte externa rotulada
 - **Por que copiar:** o índice continua sendo o espelho reconstruível da base (sem rede nem clone),
   o conteúdo é o do commit mesmo com o clone noutra branch, e o que entra já está tratado.
 - **Não duplica a base:** um `.md` com `tipo` e `id` (ou `termo`) de um documento desta base (o que
-  ela mesma publicou) não é copiado.
+  ela mesma publicou) não é copiado. Por isso a documentação publicada faz diferença nas bases dos
+  outros analistas do projeto, ou numa base nova; na base de quem publicou, os documentos já estão.
 - **Segredos e dados pessoais:** caminhos com padrão de segredo do inventário e arquivos com chave
   privada ficam de fora; credencial em URL, tokens conhecidos, valor de campo de senha, CPF válido
   e e-mail são mascarados. O que foi pulado ou mascarado aparece no cartão.
 - **Só leitura e sem efeito na base:** o documento externo não se edita nem se aprova no app, não
   vira regra nem termo e fica fora da busca padrão do índice (`Externos::Excluir`); a tela da base
-  o mostra com o rótulo da origem e o filtro "Externos". Remover o destino apaga `externos/`.
+  o mostra com o rótulo da origem e o filtro "Externos".
 
-## Documentação publicada nas análises (#278)
+### Consulta pelos agentes (#278)
 
 Os agentes consultam a documentação publicada como pista, sob demanda, sem que ela substitua a
 evidência de código:
@@ -204,28 +252,10 @@ evidência de código:
   no chat, as fontes externas usadas (repositório e commit); o de reunião cita a fonte na ligação
   com o código.
 
-## Regras que não mudam depois do cadastro
+### Avaliação do ciclo (#279)
 
-Cada repositório de código já cadastrado (forja, host e caminho) não pode ser removido nem trocado;
-outros podem ser acrescentados. No de issues, o tipo e, no GitLab, o host e o caminho. O que ainda
-não foi cadastrado pode ser acrescentado depois.
-
-## Prontidão
-
-Em Configurações, cada projeto mostra os passos de cada integração e a orientação de quem falhou.
-Repositório de código: `git` instalado, token disponível e acesso de leitura (`git ls-remote`).
-Jira: `jira` instalado, configuração presente, `server` igual à URL, comando de credencial, `jira me`
-e `jira serverinfo`. GitLab de issues: `glab version`, token e `glab api version`. GitHub de issues:
-`gh` e token (chaveiro ou `gh auth token`). A prontidão não bloqueia o app.
-
-## Uso nas análises
-
-- **Análise a partir de uma issue:** o campo “Issue do projeto” (`PROJ-123`, `45`) busca título e
-  descrição como entrada. O link vai em `demanda.origem` e a chave em `demanda.chave`.
-- **Evidências exportadas:** cada nota vira um link para o arquivo e as linhas no commit da
-  evidência (ou, na falta dele, o `base.commit` da análise), no repositório cuja pasta contém o
-  arquivo (a mais funda, se um estiver dentro do outro); o caminho no link é relativo à pasta do
-  repositório. Repositório sem pasta (cadastro antigo) vale para o projeto inteiro. Sem commit ou sem
-  repositório, a nota fica como texto.
-
-Escrever no rastreador fica para a fase 2.
+O cenário `publicacao` da avaliação (`cargo run -p cba-avaliacao -- rodar --fluxos publicacao`)
+roda o ciclo inteiro no Faturamento Exemplo: analisa, aprova, publica num repositório bare local
+(PR numa forja falsa, dado como mesclado), sincroniza numa base nova e analisa de novo, conferindo
+que o agente consultou a documentação publicada. Veja
+[Ciclo de publicação](avaliacao.md#ciclo-de-publicação), na avaliação.
