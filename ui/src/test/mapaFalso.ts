@@ -127,6 +127,7 @@ export function apiFalsa(
       vinculosExistentes: 0,
       avisos: [],
     }),
+    justificar: vi.fn().mockResolvedValue(undefined),
     mapa: vi.fn().mockResolvedValue(mapa),
     revisar: vi.fn().mockResolvedValue({ ...mapa, pendentes: 0 }),
     pedido: vi.fn().mockResolvedValue("Mapeie as funcionalidades do projeto pelo ctower"),

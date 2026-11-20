@@ -3,6 +3,8 @@ import { mensagemDe } from "./analise";
 import type {
   ApiMapa,
   IssueDoRastreador,
+  JustificativaDeIssue,
+  MotivoDeIssue,
   ResultadoDoLote,
   VistaDeIssues,
 } from "./funcionalidades";
@@ -115,7 +117,7 @@ export function VincularIssues({
       .vincular(
         projeto,
         lote.map((i) => {
-          const { sugestoes: _s, demanda: _d, ligadaA: _l, ...issue } = i;
+          const { sugestoes: _s, demanda: _d, ligadaA: _l, justificativa: _j, ...issue } = i;
           return { issue, funcionalidades: escolha(i).funcionalidades };
         }),
       )
@@ -132,13 +134,28 @@ export function VincularIssues({
             issues: v.issues.map((i) => {
               const f = gravadas.get(chaveDe(i));
               const d = demanda.get(chaveDe(i));
-              return f && d ? { ...i, demanda: d, ligadaA: [...new Set([...i.ligadaA, ...f])] } : i;
+              return f && d
+                ? { ...i, demanda: d, ligadaA: [...new Set([...i.ligadaA, ...f])], justificativa: null }
+                : i;
             }),
           },
         );
       })
       .catch((e: unknown) => setFalha(mensagemDe(e)))
       .finally(() => setGravando(false));
+  };
+
+  const justificar = (i: IssueDoRastreador, j: JustificativaDeIssue | null) => {
+    setFalha(null);
+    const { sugestoes: _s, demanda: _d, ligadaA: _l, justificativa: _j, ...issue } = i;
+    return api
+      .justificar(projeto, issue, j)
+      .then(() =>
+        setVista((v) =>
+          v && { ...v, issues: v.issues.map((x) => (chaveDe(x) === chaveDe(i) ? { ...x, justificativa: j } : x)) },
+        ),
+      )
+      .catch((e: unknown) => setFalha(mensagemDe(e)));
   };
 
   return (
@@ -287,6 +304,7 @@ export function VincularIssues({
                 desabilitado={gravando}
                 aoMudar={(f) => mudar(i, f)}
                 aoConfirmar={() => confirmar([i])}
+                aoJustificar={(j) => justificar(i, j)}
               />
             ))}
             {visiveis.length === 0 && <li className="empty">Nenhuma issue com esses filtros.</li>}
@@ -304,6 +322,7 @@ function LinhaDaIssue({
   desabilitado,
   aoMudar,
   aoConfirmar,
+  aoJustificar,
 }: {
   issue: IssueDoRastreador;
   escolha: Escolha;
@@ -311,7 +330,11 @@ function LinhaDaIssue({
   desabilitado: boolean;
   aoMudar: (f: (e: Escolha) => Escolha) => void;
   aoConfirmar: () => void;
+  aoJustificar: (j: JustificativaDeIssue | null) => Promise<void>;
 }) {
+  const [justificando, setJustificando] = useState(false);
+  const [motivo, setMotivo] = useState<MotivoDeIssue>("fora_do_escopo");
+  const [texto, setTexto] = useState("");
   const nomeDe = (id: string) => funcionalidades.find((f) => f.id === id)?.nome ?? id;
   const sugeridas = new Set(i.sugestoes.map((s) => s.funcionalidade));
   // Sugeridas e as que o analista acrescentou.
@@ -425,8 +448,67 @@ function LinhaDaIssue({
               Descartar
             </button>
           </div>
+          {!ok && i.justificativa && (
+            <p className="muted">
+              Sem funcionalidade — {MOTIVOS[i.justificativa.motivo]}: {i.justificativa.texto}{" "}
+              <button type="button" className="btn" onClick={() => void aoJustificar(null)}>
+                Desfazer justificativa
+              </button>
+            </p>
+          )}
+          {!ok && !i.justificativa && !justificando && (
+            <div className="acoes">
+              <button type="button" className="btn" onClick={() => setJustificando(true)}>
+                Justificar sem funcionalidade
+              </button>
+            </div>
+          )}
+          {!ok && !i.justificativa && justificando && (
+            <div className="acoes vincular-justificar">
+              <select
+                aria-label={`Motivo de ${i.chave}`}
+                value={motivo}
+                onChange={(ev) => setMotivo(ev.target.value as MotivoDeIssue)}
+              >
+                {Object.entries(MOTIVOS).map(([v, nome]) => (
+                  <option key={v} value={v}>
+                    {nome}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="text"
+                aria-label={`Justificativa de ${i.chave}`}
+                placeholder="Por que fica sem funcionalidade"
+                value={texto}
+                onChange={(ev) => setTexto(ev.target.value)}
+              />
+              <button
+                type="button"
+                className="btn"
+                disabled={texto.trim() === ""}
+                onClick={() =>
+                  void aoJustificar({ motivo, texto: texto.trim() }).then(() => {
+                    setJustificando(false);
+                    setTexto("");
+                  })
+                }
+              >
+                Salvar justificativa
+              </button>
+              <button type="button" className="btn" onClick={() => setJustificando(false)}>
+                Cancelar
+              </button>
+            </div>
+          )}
         </>
       )}
     </li>
   );
 }
+
+const MOTIVOS: Record<MotivoDeIssue, string> = {
+  fora_do_escopo: "fora do escopo",
+  infraestrutura: "infraestrutura",
+  outro: "outro motivo",
+};

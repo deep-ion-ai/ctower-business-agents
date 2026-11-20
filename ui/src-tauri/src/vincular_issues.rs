@@ -6,7 +6,7 @@
 //! e a liga à funcionalidade, com uma única gravação do mapa por lote.
 
 use cba_core::dados::DiretorioDados;
-use cba_core::funcionalidades::MapaFuncionalidades;
+use cba_core::funcionalidades::{MapaFuncionalidades, MotivoIssue};
 use cba_core::vinculos::{TextoDaIssue, sugerir};
 use cba_kb::IdFuncionalidade;
 use cba_repos::demanda::Ferramentas;
@@ -42,6 +42,15 @@ pub struct IssueVista {
     pub demanda: Option<String>,
     /// Funcionalidades a que essa demanda já está ligada.
     pub ligada_a: Vec<String>,
+    /// Por que a issue fica sem funcionalidade, se o analista justificou.
+    pub justificativa: Option<JustificativaVista>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct JustificativaVista {
+    pub motivo: MotivoIssue,
+    pub texto: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -151,6 +160,7 @@ pub fn issues_para_vincular(
                 evidencias: s.evidencias,
             })
             .collect();
+            let (i_chave, i_origem) = (i.chave.clone(), i.origem.nome());
             let existente = demanda_da_issue(&demandas, &i);
             let ligada_a = existente
                 .map(|d| {
@@ -172,6 +182,14 @@ pub fn issues_para_vincular(
                 sugestoes,
                 demanda: existente.map(|d| d.to_string()),
                 ligada_a,
+                justificativa: mapa
+                    .issues_justificadas
+                    .iter()
+                    .find(|j| j.chave == i_chave && j.origem == i_origem)
+                    .map(|j| JustificativaVista {
+                        motivo: j.motivo,
+                        texto: j.justificativa.clone(),
+                    }),
             }
         })
         .collect();
@@ -248,6 +266,47 @@ pub fn confirmar_lote(
     })
 }
 
+/// Justifica a issue sem funcionalidade (`justificativa` com motivo e texto) ou
+/// tira a justificativa (`None`).
+pub fn justificar(
+    dados: &DiretorioDados,
+    projeto: &str,
+    issue: IssueEntrada,
+    justificativa: Option<JustificativaVista>,
+) -> Result<(), String> {
+    let ambiente = ambiente(dados, projeto)?;
+    let issue = IssueListada {
+        origem: issue.origem,
+        chave: issue.chave,
+        titulo: issue.titulo,
+        descricao: issue.descricao,
+        url: issue.url,
+        criada_em: issue.criada_em,
+        estado: issue.estado,
+        rotulos: issue.rotulos,
+        arquivos: Vec::new(),
+    };
+    let alterado = justificar_na_base(&ambiente, &issue, &justificativa)?;
+    for a in &alterado {
+        tracing::warn!(aviso = %a, "justificativa de issue");
+    }
+    Ok(())
+}
+
+fn justificar_na_base(
+    ambiente: &cba_core::ambiente::Ambiente,
+    issue: &IssueListada,
+    justificativa: &Option<JustificativaVista>,
+) -> Result<Vec<String>, String> {
+    cba_tools::vincular::justificar_issue(
+        ambiente,
+        issue,
+        justificativa.as_ref().map(|j| (j.motivo, j.texto.as_str())),
+    )
+    .map(|a| a.avisos)
+    .map_err(|e| e.to_string())
+}
+
 fn dados() -> Result<DiretorioDados, String> {
     DiretorioDados::padrao().map_err(|e| format!("diretório de dados do app inacessível: {e}"))
 }
@@ -286,6 +345,16 @@ pub async fn confirmar_vinculos_app(
 ) -> Result<ResultadoDoLote, String> {
     let dados = dados()?;
     bloqueante(move || confirmar_lote(&dados, &projeto, itens)).await
+}
+
+#[tauri::command]
+pub async fn justificar_issue_app(
+    projeto: String,
+    issue: IssueEntrada,
+    justificativa: Option<JustificativaVista>,
+) -> Result<(), String> {
+    let dados = dados()?;
+    bloqueante(move || justificar(&dados, &projeto, issue, justificativa)).await
 }
 
 #[cfg(all(test, unix))]

@@ -122,6 +122,10 @@ pub fn confirmar_vinculos(
         &ambiente.kb,
         &ambiente.dados,
         |m: &mut MapaFuncionalidades, agora| {
+            // Issue que ganha funcionalidade deixa de estar justificada.
+            for item in lote.iter().filter(|i| !i.funcionalidades.is_empty()) {
+                m.desfazer_justificativa_da_issue(item.issue.origem.nome(), &item.issue.chave);
+            }
             for (id, funcionalidades) in &ligacoes {
                 for f in *funcionalidades {
                     let ja = m.funcionalidade(f).is_some_and(|x| x.demandas.contains(id));
@@ -150,6 +154,52 @@ pub fn confirmar_vinculos(
     Ok(Alterado {
         mapa: std::mem::take(&mut alterado.mapa),
         resultado,
+        avisos: alterado.avisos,
+    })
+}
+
+/// Justifica uma issue que fica sem funcionalidade (fora do escopo,
+/// infraestrutura etc.) ou, com `justificativa` vazia e `None`, tira a
+/// justificativa. Uma gravação do mapa.
+pub fn justificar_issue(
+    ambiente: &Ambiente,
+    issue: &IssueListada,
+    justificativa: Option<(cba_core::funcionalidades::MotivoIssue, &str)>,
+) -> Result<Alterado<()>, ErroFerramenta> {
+    let origem = issue.origem.nome();
+    let mut alterado = alterar_no_projeto(
+        &ambiente.base,
+        &ambiente.kb,
+        &ambiente.dados,
+        |m: &mut MapaFuncionalidades, agora| {
+            match justificativa {
+                Some((motivo, texto)) => {
+                    m.justificar_issue(cba_core::funcionalidades::IssueJustificada {
+                        origem: origem.to_owned(),
+                        chave: issue.chave.clone(),
+                        url: issue.url.clone(),
+                        titulo: issue.titulo.clone(),
+                        motivo,
+                        justificativa: texto.to_owned(),
+                        registrado_ms: agora,
+                    })?;
+                }
+                None => {
+                    m.desfazer_justificativa_da_issue(origem, &issue.chave);
+                }
+            }
+            Ok(())
+        },
+    )
+    .map_err(|e| match e {
+        cba_core::funcionalidades::ErroAlteracaoMapa::Recusa(r) => {
+            ErroFerramenta::Recusa(r.to_string())
+        }
+        e => interno(e),
+    })?;
+    Ok(Alterado {
+        mapa: std::mem::take(&mut alterado.mapa),
+        resultado: (),
         avisos: alterado.avisos,
     })
 }

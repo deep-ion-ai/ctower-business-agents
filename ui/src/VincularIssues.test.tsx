@@ -27,6 +27,7 @@ const VISTA: VistaDeIssues = {
       ],
       demanda: null,
       ligadaA: [],
+      justificativa: null,
     },
     {
       origem: "github",
@@ -40,6 +41,7 @@ const VISTA: VistaDeIssues = {
       sugestoes: [],
       demanda: null,
       ligadaA: [],
+      justificativa: null,
     },
   ],
 };
@@ -159,5 +161,28 @@ describe("VincularIssues", () => {
     expect(within(lista).queryByText("Trocar a cor do botão")).toBeNull();
     fireEvent.change(screen.getByLabelText(/Vínculo/), { target: { value: "pendentes" } });
     expect(within(lista).queryByText("Parcelamento erra as parcelas")).toBeNull();
+  });
+
+  it("justifica a issue sem funcionalidade e desfaz", async () => {
+    const { api } = abrir();
+    fireEvent.click(screen.getByRole("button", { name: "Buscar issues" }));
+    await screen.findByLabelText("Resumo da leitura");
+    // Só a #41 tem sugestão, mas as duas aceitam justificativa: usa a #42.
+    const botoes = screen.getAllByRole("button", { name: "Justificar sem funcionalidade" });
+    fireEvent.click(botoes[botoes.length - 1]);
+    const salvar = screen.getByRole("button", { name: "Salvar justificativa" });
+    expect(salvar).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Motivo de #42"), { target: { value: "infraestrutura" } });
+    fireEvent.change(screen.getByLabelText("Justificativa de #42"), { target: { value: "Só visual" } });
+    fireEvent.click(salvar);
+    expect(await screen.findByText(/infraestrutura: Só visual/)).toBeInTheDocument();
+    expect(api.justificar).toHaveBeenCalledWith(
+      "p",
+      expect.objectContaining({ chave: "#42" }),
+      { motivo: "infraestrutura", texto: "Só visual" },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Desfazer justificativa" }));
+    await waitFor(() => expect(screen.queryByText(/Só visual/)).toBeNull());
+    expect(api.justificar).toHaveBeenLastCalledWith("p", expect.anything(), null);
   });
 });

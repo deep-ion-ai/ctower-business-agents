@@ -114,6 +114,32 @@ fn le_sugere_confirma_e_repetir_nao_duplica() {
     assert_eq!(v.issues[0].ligada_a, vec!["F-FAT-001"]);
     assert_eq!(v.issues[0].demanda.as_deref(), Some(r.criadas[0].as_str()));
 
+    // Justificar a issue sem funcionalidade (e desfazer).
+    let entrada = IssueEntrada {
+        origem: OrigemIssue::Github,
+        chave: "#42".into(),
+        titulo: "Trocar a cor do botão".into(),
+        descricao: String::new(),
+        url: "https://github.com/o/r/issues/42".into(),
+        criada_em: String::new(),
+        estado: "fechada".into(),
+        rotulos: vec![],
+    };
+    let motivo = |texto: &str| {
+        Some(JustificativaVista {
+            motivo: MotivoIssue::ForaDoEscopo,
+            texto: texto.into(),
+        })
+    };
+    assert!(justificar(&c.dados, PROJETO, entrada.clone(), motivo("  ")).is_err());
+    justificar(&c.dados, PROJETO, entrada.clone(), motivo("Só visual")).unwrap();
+    let v = issues_para_vincular(&c.dados, PROJETO, None, None, &f).unwrap();
+    assert_eq!(v.issues[1].justificativa, motivo("Só visual"));
+    assert!(v.issues[0].justificativa.is_none());
+    justificar(&c.dados, PROJETO, entrada, None).unwrap();
+    let v = issues_para_vincular(&c.dados, PROJETO, None, None, &f).unwrap();
+    assert!(v.issues[1].justificativa.is_none());
+
     // Funcionalidade inválida recusa o lote.
     let mut ruim = itens();
     ruim[0].funcionalidades = vec!["x".into()];

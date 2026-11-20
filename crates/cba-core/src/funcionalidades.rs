@@ -189,6 +189,40 @@ pub struct PontoJustificado {
     pub registrado_ms: u64,
 }
 
+/// Por que uma issue do rastreador fica sem funcionalidade (#270).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MotivoIssue {
+    ForaDoEscopo,
+    Infraestrutura,
+    Outro,
+}
+
+impl MotivoIssue {
+    pub fn nome(self) -> &'static str {
+        match self {
+            Self::ForaDoEscopo => "fora do escopo",
+            Self::Infraestrutura => "infraestrutura",
+            Self::Outro => "outro motivo",
+        }
+    }
+}
+
+/// Issue do rastreador que fica sem funcionalidade, com a justificativa.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IssueJustificada {
+    /// `github` ou `jira`.
+    pub origem: String,
+    /// `#41` ou `PROJ-9`.
+    pub chave: String,
+    #[serde(default)]
+    pub url: String,
+    pub titulo: String,
+    pub motivo: MotivoIssue,
+    pub justificativa: String,
+    pub registrado_ms: u64,
+}
+
 /// Recorte de um mapeamento: o projeto todo, uma pasta ou uma área.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EscopoMapa {
@@ -348,6 +382,9 @@ pub struct MapaFuncionalidades {
     pub funcionalidades: Vec<Funcionalidade>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub pontos_justificados: Vec<PontoJustificado>,
+    /// Issues do rastreador sem funcionalidade, justificadas pelo analista (#270).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub issues_justificadas: Vec<IssueJustificada>,
     /// Identificadores que saíram do catálogo da primeira versão (não são
     /// reaproveitados).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -365,6 +402,7 @@ impl Default for MapaFuncionalidades {
             formato: VERSAO_DO_MAPA,
             funcionalidades: Vec::new(),
             pontos_justificados: Vec::new(),
+            issues_justificadas: Vec::new(),
             retirados: Vec::new(),
             versao: 0,
             atualizado_ms: 0,
@@ -579,6 +617,33 @@ impl MapaFuncionalidades {
             None => self.pontos_justificados.push(ponto),
         }
         Ok(())
+    }
+
+    /// Justifica uma issue sem funcionalidade (substitui a anterior da mesma
+    /// `chave` e origem).
+    pub fn justificar_issue(&mut self, issue: IssueJustificada) -> Result<(), ErroMapa> {
+        exigir("justificativa", &issue.justificativa)?;
+        let issue = IssueJustificada {
+            justificativa: issue.justificativa.trim().to_owned(),
+            ..issue
+        };
+        match self
+            .issues_justificadas
+            .iter_mut()
+            .find(|j| j.chave == issue.chave && j.origem == issue.origem)
+        {
+            Some(j) => *j = issue,
+            None => self.issues_justificadas.push(issue),
+        }
+        Ok(())
+    }
+
+    /// Tira a justificativa de uma issue. Devolve se havia.
+    pub fn desfazer_justificativa_da_issue(&mut self, origem: &str, chave: &str) -> bool {
+        let antes = self.issues_justificadas.len();
+        self.issues_justificadas
+            .retain(|j| !(j.chave == chave && j.origem == origem));
+        antes != self.issues_justificadas.len()
     }
 
     /// Desfaz a justificativa de um ponto (o analista discorda): o ponto volta a

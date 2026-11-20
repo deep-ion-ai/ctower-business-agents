@@ -94,6 +94,7 @@ pub fn rodar() {
             painel_funcionalidade::criar_analise_da_funcionalidade_app,
             vincular_issues::issues_para_vincular_app,
             vincular_issues::confirmar_vinculos_app,
+            vincular_issues::justificar_issue_app,
             projeto::visao_projeto_app,
             projeto::revalidar_projeto_app,
             projeto::mapa_projeto_app,

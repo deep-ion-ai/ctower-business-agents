@@ -212,6 +212,15 @@ export interface IssueDoRastreador {
   demanda: string | null;
   /** Funcionalidades a que essa demanda já está ligada. */
   ligadaA: string[];
+  /** Por que a issue fica sem funcionalidade, se o analista justificou. */
+  justificativa: JustificativaDeIssue | null;
+}
+
+export type MotivoDeIssue = "fora_do_escopo" | "infraestrutura" | "outro";
+
+export interface JustificativaDeIssue {
+  motivo: MotivoDeIssue;
+  texto: string;
 }
 
 export interface VistaDeIssues {
@@ -222,7 +231,7 @@ export interface VistaDeIssues {
   funcionalidades: { id: string; nome: string; areaNome: string }[];
 }
 
-export type IssueParaConfirmar = Omit<IssueDoRastreador, "sugestoes" | "demanda" | "ligadaA">;
+export type IssueParaConfirmar = Omit<IssueDoRastreador, "sugestoes" | "demanda" | "ligadaA" | "justificativa">;
 
 export interface ItemConfirmado {
   issue: IssueParaConfirmar;
@@ -244,6 +253,12 @@ export interface ApiMapa {
   issues: (projeto: string, meses: number | null, desde: string | null) => Promise<VistaDeIssues>;
   /** Confirma o lote: cria ou reaproveita as demandas e liga às funcionalidades. */
   vincular: (projeto: string, itens: ItemConfirmado[]) => Promise<ResultadoDoLote>;
+  /** Justifica a issue sem funcionalidade; `null` tira a justificativa. */
+  justificar: (
+    projeto: string,
+    issue: IssueParaConfirmar,
+    justificativa: JustificativaDeIssue | null,
+  ) => Promise<void>;
   mapa: (projeto: string) => Promise<MapaFuncionalidades>;
   revisar: (projeto: string, revisao: RevisaoDoMapa) => Promise<MapaFuncionalidades>;
   /** Pedido que abre a sessão de mapeamento no terminal do Claude. */
@@ -267,6 +282,8 @@ export interface ApiMapa {
 export const apiMapaTauri: ApiMapa = {
   issues: (projeto, meses, desde) => invoke("issues_para_vincular_app", { projeto, meses, desde }),
   vincular: (projeto, itens) => invoke("confirmar_vinculos_app", { projeto, itens }),
+  justificar: (projeto, issue, justificativa) =>
+    invoke("justificar_issue_app", { projeto, issue, justificativa }),
   mapa: (projeto) => invoke("mapa_funcionalidades_projeto", { projeto }),
   revisar: (projeto, revisao) => invoke("revisar_mapa_projeto", { projeto, revisao }),
   pedido: (pasta, area, orientacao) => invoke("pedido_de_mapeamento", { pasta, area, orientacao }),
