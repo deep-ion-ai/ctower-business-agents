@@ -51,6 +51,7 @@ fn cadastra_codigo_no_github_e_issues_no_jira_e_codigo_no_gitlab_e_issues_no_jir
         let r = Repositorios {
             codigo: vec![forge.into()],
             tracker: Some(TrackerConfig::Jira(jira())),
+            docs: None,
         };
         assert_eq!(
             salvar_repositorios(&c.dados, PROJETO, r.clone()).unwrap(),
@@ -69,6 +70,7 @@ fn recusa_cadastro_invalido_e_troca_de_tipo() {
             project_key: "proj".into(),
             ..jira()
         })),
+        docs: None,
     };
     assert!(
         salvar_repositorios(&c.dados, PROJETO, ruim)
@@ -78,6 +80,7 @@ fn recusa_cadastro_invalido_e_troca_de_tipo() {
     let r = Repositorios {
         codigo: vec![ForgeConfig::Github(GithubConfig { repo: "o/r".into() }).into()],
         tracker: Some(TrackerConfig::Jira(jira())),
+        docs: None,
     };
     salvar_repositorios(&c.dados, PROJETO, r.clone()).unwrap();
     let troca = Repositorios {
@@ -104,11 +107,85 @@ fn recusa_cadastro_invalido_e_troca_de_tipo() {
 }
 
 #[test]
+fn cadastra_edita_e_remove_o_destino_da_documentacao() {
+    let c = cenario();
+    let p = cadastrado(&c.dados, PROJETO).unwrap();
+    let raiz = p.pastas[0].caminho.clone();
+    let codigo = cba_repos::RepositorioCodigo {
+        caminho: "exemplo/faturamento".into(),
+        pasta: Some(raiz.clone()),
+        ..Default::default()
+    };
+    let sem = Repositorios {
+        codigo: vec![codigo.clone()],
+        tracker: None,
+        docs: None,
+    };
+    salvar_repositorios(&c.dados, PROJETO, sem.clone()).unwrap();
+    // Subpasta do código, digitada com \ e barra no fim: grava normalizada.
+    let na_pasta = Repositorios {
+        docs: Some(cba_repos::DestinoDocs::Subpasta {
+            codigo: "GitHub.com/Exemplo/Faturamento".into(),
+            subpasta: "docs\\negocio\\".into(),
+        }),
+        ..sem.clone()
+    };
+    let gravado = salvar_repositorios(&c.dados, PROJETO, na_pasta).unwrap();
+    assert_eq!(
+        gravado.docs,
+        Some(cba_repos::DestinoDocs::Subpasta {
+            codigo: "github.com/exemplo/faturamento".into(),
+            subpasta: "docs/negocio".into(),
+        })
+    );
+    let projeto = cadastrado(&c.dados, PROJETO).unwrap();
+    assert_eq!(projeto.repositorios, gravado);
+    assert_eq!(
+        projeto.pastas_de_documentacao(),
+        vec![raiz.join("docs").join("negocio")]
+    );
+    // Subpasta com `..`: recusa e nada muda.
+    let fora = Repositorios {
+        docs: Some(cba_repos::DestinoDocs::Subpasta {
+            codigo: codigo.chave(),
+            subpasta: "../fora".into(),
+        }),
+        ..sem.clone()
+    };
+    assert!(salvar_repositorios(&c.dados, PROJETO, fora).is_err());
+    assert_eq!(cadastrado(&c.dados, PROJETO).unwrap().repositorios, gravado);
+    // Troca para um repositório próprio.
+    let proprio = Repositorios {
+        docs: Some(cba_repos::DestinoDocs::Repositorio {
+            repositorio: cba_repos::RepositorioCodigo {
+                caminho: "exemplo/faturamento-docs".into(),
+                branch: "main".into(),
+                ..Default::default()
+            },
+            subpasta: String::new(),
+        }),
+        ..sem.clone()
+    };
+    let gravado = salvar_repositorios(&c.dados, PROJETO, proprio).unwrap();
+    assert_eq!(gravado.destino_docs().unwrap().branch_base(), Some("main"));
+    // E remove.
+    assert_eq!(
+        salvar_repositorios(&c.dados, PROJETO, sem.clone()).unwrap(),
+        sem
+    );
+    assert_eq!(
+        cadastrado(&c.dados, PROJETO).unwrap().repositorios.docs,
+        None
+    );
+}
+
+#[test]
 fn nenhum_token_vai_para_o_cadastro_em_disco() {
     let c = cenario();
     let r = Repositorios {
         codigo: vec![ForgeConfig::Gitlab(gitlab()).into()],
         tracker: Some(TrackerConfig::Jira(jira())),
+        docs: None,
     };
     salvar_repositorios(&c.dados, PROJETO, r).unwrap();
     let ferramentas = Ferramentas {
@@ -145,6 +222,7 @@ fn analise_a_partir_de_uma_issue_traz_titulo_descricao_e_link() {
     let r = Repositorios {
         codigo: vec![ForgeConfig::Github(GithubConfig { repo: "o/r".into() }).into()],
         tracker: Some(TrackerConfig::Jira(jira())),
+        docs: None,
     };
     salvar_repositorios(&c.dados, PROJETO, r).unwrap();
     let f = Ferramentas {
@@ -237,6 +315,7 @@ echo '{{"fields":{{"summary":"Cancelar fatura","description":"{historia}"}}}}'"#
         let r = Repositorios {
             codigo: vec![],
             tracker: Some(tracker),
+            docs: None,
         };
         salvar_repositorios(&c.dados, PROJETO, r).unwrap();
         let criada =
@@ -302,6 +381,7 @@ fn exportacao_liga_cada_evidencia_ao_seu_repositorio() {
         Repositorios {
             codigo: vec![gl, gh],
             tracker: None,
+            docs: None,
         },
     )
     .unwrap();
@@ -368,6 +448,7 @@ fn exportacao_liga_as_evidencias_ao_forge_no_commit() {
         Repositorios {
             codigo: vec![ForgeConfig::Gitlab(gitlab()).into()],
             tracker: None,
+            docs: None,
         },
     )
     .unwrap();

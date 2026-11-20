@@ -142,6 +142,18 @@ impl Projeto {
         }
         Exclusoes::novas(&self.exclusoes, &self.inclusoes)?;
         self.repositorios.validar().map_err(Erro::Repositorios)?;
+        // A documentação publicada não é código-fonte: nenhuma pasta do projeto fica
+        // dentro dela (#274).
+        for d in self.pastas_de_documentacao() {
+            if let Some(p) = self.pastas.iter().find(|p| p.caminho.starts_with(&d)) {
+                return Err(Erro::Repositorios(format!(
+                    "a pasta {} do projeto fica dentro da pasta da documentação ({}); \
+                     a documentação publicada não é código-fonte",
+                    p.caminho.display(),
+                    d.display()
+                )));
+            }
+        }
         if let Some(a) = &self.ambiente_teste {
             a.validar().map_err(Erro::AmbienteTeste)?;
         }
@@ -205,9 +217,41 @@ impl Projeto {
         Ok(projeto)
     }
 
-    /// Exclusões compiladas do projeto (padrão + ajustes do analista).
+    /// Exclusões compiladas do projeto: padrão, ajustes do analista e a pasta da
+    /// documentação publicada, quando ela fica dentro das pastas do projeto (#274).
     pub fn regras_de_exclusao(&self) -> Result<Exclusoes, Erro> {
-        Exclusoes::novas(&self.exclusoes, &self.inclusoes)
+        Ok(
+            Exclusoes::novas(&self.exclusoes, &self.inclusoes)?.com_documentacao(
+                self.pastas_de_documentacao()
+                    .iter()
+                    .filter_map(|d| relativo_as_pastas(&self.pastas, d)),
+            ),
+        )
+    }
+
+    /// Pastas locais da documentação publicada (#274), canônicas no que já existe.
+    ///
+    /// No repositório próprio, o clone mais a subpasta. Numa subpasta do código, a
+    /// pasta do repositório de código mais a subpasta; sem pasta no repositório
+    /// (cadastro antigo, que vale para o projeto todo), a raiz do git da pasta raiz
+    /// do projeto. Vazio sem destino ou sem clone local.
+    pub fn pastas_de_documentacao(&self) -> Vec<PathBuf> {
+        let Some(d) = self.repositorios.destino_docs() else {
+            return Vec::new();
+        };
+        let base = match d.pasta_local() {
+            Some(p) => p.to_path_buf(),
+            None if !d.independente => {
+                let Some(raiz) = self.pastas.iter().find(|p| p.prefixo.is_none()) else {
+                    return Vec::new();
+                };
+                crate::detectar_git(&raiz.caminho).map_or_else(|| raiz.caminho.clone(), |g| g.raiz)
+            }
+            None => return Vec::new(),
+        };
+        vec![canonica_parcial(&cba_repos::docs::juntar(
+            &base, d.subpasta,
+        ))]
     }
 
     /// Escopo de leitura do projeto: resolve caminhos relativos e aplica as
@@ -301,17 +345,7 @@ impl Escopo {
     /// dentro de alguma pasta do projeto. Não aplica as exclusões.
     pub fn relativo(&self, absoluto: &Path) -> Option<String> {
         let absoluto = dunce::canonicalize(absoluto).unwrap_or_else(|_| absoluto.to_path_buf());
-        self.pastas.iter().find_map(|p| {
-            let resto = absoluto.strip_prefix(&p.caminho).ok()?;
-            let mut partes: Vec<String> = Vec::new();
-            if let Some(x) = &p.prefixo {
-                partes.push(x.clone());
-            }
-            for c in resto.components() {
-                partes.push(c.as_os_str().to_str()?.to_string());
-            }
-            Some(partes.join("/"))
-        })
+        relativo_as_pastas(&self.pastas, &absoluto)
     }
 
     /// Pasta do projeto que contém o caminho relativo (para detectar o git dela).
@@ -336,6 +370,41 @@ impl Escopo {
                 .find(|p| p.prefixo.is_none())
                 .map(|p| (p, rel))
         })
+    }
+}
+
+/// Caminho relativo à raiz do projeto (com o prefixo da pasta) de um caminho
+/// absoluto já canônico, se ele estiver dentro de alguma das `pastas`.
+fn relativo_as_pastas(pastas: &[Pasta], absoluto: &Path) -> Option<String> {
+    pastas.iter().find_map(|p| {
+        let resto = absoluto.strip_prefix(&p.caminho).ok()?;
+        let mut partes: Vec<String> = Vec::new();
+        if let Some(x) = &p.prefixo {
+            partes.push(x.clone());
+        }
+        for c in resto.components() {
+            partes.push(c.as_os_str().to_str()?.to_string());
+        }
+        Some(partes.join("/"))
+    })
+}
+
+/// O caminho com a parte que já existe canônica e o resto como veio (a pasta da
+/// documentação pode ainda não existir).
+fn canonica_parcial(p: &Path) -> PathBuf {
+    let mut resto = Vec::new();
+    let mut atual = p;
+    loop {
+        if let Ok(c) = dunce::canonicalize(atual) {
+            return resto.iter().rev().fold(c, |c, parte| c.join(parte));
+        }
+        match (atual.parent(), atual.file_name()) {
+            (Some(pai), Some(nome)) => {
+                resto.push(nome.to_os_string());
+                atual = pai;
+            }
+            _ => return p.to_path_buf(),
+        }
     }
 }
 
@@ -666,5 +735,104 @@ mod tests {
                 ..
             }))
         ));
+    }
+
+    fn codigo_em(pasta: &Path) -> cba_repos::RepositorioCodigo {
+        cba_repos::RepositorioCodigo {
+            caminho: "exemplo/faturamento".into(),
+            pasta: Some(pasta.to_path_buf()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn projeto_antigo_abre_sem_destino_da_documentacao() {
+        let antigo = r#"{
+            "id": "faturamento-exemplo",
+            "nome": "Faturamento Exemplo",
+            "pastas": [{ "caminho": "/repos/faturamento" }],
+            "repositorios": {
+                "codigo": [{ "forja": "github", "host": "github.com", "caminho": "exemplo/faturamento" }],
+                "tracker": null
+            }
+        }"#;
+        let p: Projeto = serde_json::from_str(antigo).unwrap();
+        assert_eq!(p.repositorios.docs, None);
+        assert!(p.pastas_de_documentacao().is_empty());
+        let v = serde_json::to_value(&p).unwrap();
+        assert!(v["repositorios"].get("docs").is_none());
+        assert_eq!(serde_json::from_value::<Projeto>(v).unwrap(), p);
+    }
+
+    #[test]
+    fn subpasta_da_documentacao_fica_fora_do_escopo() {
+        let tmp = tempfile::tempdir().unwrap();
+        let raiz = tmp.path().join("faturamento");
+        let telas = tmp.path().join("telas");
+        fs::create_dir_all(raiz.join("docs/negocio")).unwrap();
+        fs::create_dir_all(raiz.join("db")).unwrap();
+        fs::create_dir_all(&telas).unwrap();
+        fs::write(raiz.join("docs/negocio/regras.md"), "# Regras").unwrap();
+        fs::write(raiz.join("docs/leiame.md"), "# Leia-me").unwrap();
+        fs::write(raiz.join("db/01.sql"), "create table nota ();").unwrap();
+        let mut p = Projeto::novo("Faturamento Exemplo", [&raiz, &telas]).unwrap();
+        p.inclusoes = vec!["docs/".into()];
+        let codigo = codigo_em(&dunce::canonicalize(&raiz).unwrap());
+        p.repositorios.codigo = vec![codigo.clone()];
+        p.repositorios.docs = Some(cba_repos::DestinoDocs::Subpasta {
+            codigo: codigo.chave(),
+            subpasta: "docs/negocio".into(),
+        });
+        p.validar().unwrap();
+        assert_eq!(
+            p.pastas_de_documentacao(),
+            vec![dunce::canonicalize(raiz.join("docs/negocio")).unwrap()]
+        );
+        let e = p.escopo().unwrap();
+        assert!(matches!(
+            e.resolver("docs/negocio/regras.md"),
+            Err(Recusa::Excluido(Exclusao {
+                motivo: Motivo::Documentacao,
+                ..
+            }))
+        ));
+        assert!(e.resolver("docs/leiame.md").is_ok());
+        assert!(e.resolver("db/01.sql").is_ok());
+    }
+
+    #[test]
+    fn repositorio_proprio_da_documentacao() {
+        let tmp = tempfile::tempdir().unwrap();
+        let raiz = tmp.path().join("faturamento");
+        let docs = raiz.join("faturamento-docs");
+        fs::create_dir_all(&docs).unwrap();
+        fs::write(docs.join("a.md"), "x").unwrap();
+        let mut p = Projeto::novo("Faturamento Exemplo", [&raiz]).unwrap();
+        let destino = |pasta: &Path| cba_repos::DestinoDocs::Repositorio {
+            repositorio: cba_repos::RepositorioCodigo {
+                caminho: "exemplo/faturamento-docs".into(),
+                ..codigo_em(pasta)
+            },
+            subpasta: String::new(),
+        };
+        // O clone dentro de uma pasta do projeto: fica fora do escopo.
+        p.repositorios.docs = Some(destino(&docs));
+        let e = p.escopo().unwrap();
+        assert!(matches!(
+            e.resolver("faturamento-docs/a.md"),
+            Err(Recusa::Excluido(_))
+        ));
+        // Uma pasta do projeto dentro do clone da documentação: recusa.
+        p.repositorios.docs = Some(destino(&raiz));
+        assert!(matches!(p.validar(), Err(Erro::Repositorios(m)) if m.contains("documentação")));
+        // Clone fora do projeto, ainda sem pasta criada: nada muda no escopo.
+        p.repositorios.docs = Some(destino(&tmp.path().join("ainda-nao")));
+        p.validar().unwrap();
+        assert!(
+            p.escopo()
+                .unwrap()
+                .resolver("faturamento-docs/a.md")
+                .is_ok()
+        );
     }
 }

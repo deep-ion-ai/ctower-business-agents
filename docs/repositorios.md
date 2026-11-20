@@ -79,6 +79,29 @@ clone com senha ou token embutido é recusada. Nenhuma execução pede nada no t
 "Testar acesso" roda `git ls-remote --heads` com o token digitado (ou o guardado) e confirma a
 permissão de leitura antes de clonar.
 
+## Destino da documentação (#274)
+
+O projeto pode cadastrar onde a documentação aprovada é publicada (`repositorios.docs`, opcional;
+projetos antigos abrem sem ele), na aba "Código e demandas":
+
+- **Pasta num repositório de código** (`modo: subpasta`): `codigo` é o `host/caminho` (minúsculas)
+  de um repositório de código já cadastrado e `subpasta` a pasta dentro dele (`docs/negocio`),
+  relativa, sem `..` e sem `.git`. A branch base é a do repositório de código.
+- **Repositório próprio** (`modo: repositorio`): os mesmos campos de um repositório de código
+  (forja, host, caminho, URL de clone, pasta do clone, branch base e origem do token) e uma
+  subpasta opcional. Não pode ser um dos repositórios de código. O clone usa a mesma pasta base dos
+  outros.
+
+A validação não usa a rede. O destino pode ser trocado ou removido a qualquer momento; ao mudar, o
+inventário é refeito. A prontidão traz o destino por último: no repositório próprio, os passos de
+um repositório de código; na subpasta, que o repositório de código continua cadastrado e que a
+subpasta, se já existe, é uma pasta. O resultado aparece na saúde do projeto.
+
+A pasta da documentação não é código-fonte: fica fora do inventário e das evidências (motivo
+"documentação publicada", que uma reinclusão não desfaz) e do aviso de alteração. O clone do
+repositório próprio conta como repositório cadastrado para o aviso, e nenhuma pasta do projeto pode
+ficar dentro da pasta da documentação.
+
 ## Regras que não mudam depois do cadastro
 
 Cada repositório de código já cadastrado (forja, host e caminho) não pode ser removido nem trocado;

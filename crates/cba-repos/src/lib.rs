@@ -58,6 +58,7 @@ pub mod clone;
 pub mod codigo;
 mod credential;
 pub mod demanda;
+pub mod docs;
 pub mod link;
 pub mod process;
 pub mod prontidao;
@@ -66,5 +67,6 @@ pub mod tracker;
 
 pub use codigo::{OrigemToken, RepositorioCodigo};
 pub use credential::{CREDENTIAL_DEADLINE, CredentialError, run_credential};
+pub use docs::{DestinoDocs, DestinoResolvido};
 pub use secret::Secret;
 pub use tracker::*;
