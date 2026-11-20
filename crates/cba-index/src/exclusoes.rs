@@ -49,6 +49,9 @@ pub enum Motivo {
     Ilegivel,
     /// Exclusão cadastrada pelo analista.
     Usuario,
+    /// Pasta da documentação publicada (#274): não é código-fonte. Não pode ser
+    /// reincluída.
+    Documentacao,
 }
 
 impl Motivo {
@@ -63,6 +66,7 @@ impl Motivo {
             Motivo::LinkSimbolico => "link simbólico",
             Motivo::Ilegivel => "ilegível",
             Motivo::Usuario => "excluído pelo analista",
+            Motivo::Documentacao => "documentação publicada",
         }
     }
 }
@@ -220,6 +224,8 @@ pub struct Exclusoes {
     conjunto: GlobSet,
     inclusoes: Vec<Regra>,
     conjunto_inclusoes: GlobSet,
+    /// Pastas da documentação publicada, relativas à raiz do projeto (#274).
+    documentacao: Vec<String>,
 }
 
 impl Exclusoes {
@@ -242,6 +248,30 @@ impl Exclusoes {
             conjunto_inclusoes: compilar(&inclusoes)?,
             regras,
             inclusoes,
+            documentacao: Vec::new(),
+        })
+    }
+
+    /// Acrescenta as pastas da documentação publicada (#274), relativas à raiz do
+    /// projeto e com `/`: elas e tudo dentro delas ficam fora, com o motivo
+    /// [`Motivo::Documentacao`], mesmo que uma reinclusão as cubra.
+    pub fn com_documentacao(mut self, pastas: impl IntoIterator<Item = String>) -> Self {
+        for p in pastas {
+            let p = p.replace('\\', "/").trim_matches('/').to_string();
+            if !p.is_empty() && !self.documentacao.contains(&p) {
+                self.documentacao.push(p);
+            }
+        }
+        self
+    }
+
+    /// A pasta da documentação que contém `relativo` (ou é ele).
+    fn documentacao_de(&self, relativo: &str) -> Option<&String> {
+        self.documentacao.iter().find(|d| {
+            relativo.len() >= d.len()
+                && relativo.is_char_boundary(d.len())
+                && relativo[..d.len()].eq_ignore_ascii_case(d)
+                && (relativo.len() == d.len() || relativo.as_bytes()[d.len()] == b'/')
         })
     }
 
@@ -257,6 +287,12 @@ impl Exclusoes {
         let relativo = relativo.trim_matches('/');
         if relativo.is_empty() {
             return None;
+        }
+        if let Some(d) = self.documentacao_de(relativo) {
+            return Some(Exclusao {
+                motivo: Motivo::Documentacao,
+                regra: Some(format!("/{d}/")),
+            });
         }
         let casa = |regras: &[Regra], indices: Vec<usize>| {
             indices
@@ -317,6 +353,9 @@ impl Exclusoes {
         for r in &self.regras {
             mapa.entry(r.motivo).or_default().push(&r.padrao);
         }
+        for d in &self.documentacao {
+            mapa.entry(Motivo::Documentacao).or_default().push(d);
+        }
         mapa
     }
 }
@@ -374,6 +413,29 @@ mod tests {
 
     fn motivo(e: &Exclusoes, caminho: &str) -> Option<Motivo> {
         e.avaliar_caminho(caminho).map(|x| x.motivo)
+    }
+
+    #[test]
+    fn pasta_da_documentacao_fica_fora_mesmo_reincluida() {
+        let e = Exclusoes::novas(&[], &["docs/".into(), "*.md".into()])
+            .unwrap()
+            .com_documentacao(["/docs/negocio/".to_string(), String::new()]);
+        assert_eq!(
+            motivo(&e, "docs/negocio/regras.md"),
+            Some(Motivo::Documentacao)
+        );
+        assert_eq!(
+            motivo(&e, "Docs/Negocio/a/b.md"),
+            Some(Motivo::Documentacao)
+        );
+        assert_eq!(
+            e.avaliar("docs/negocio", true).unwrap().regra.as_deref(),
+            Some("/docs/negocio/")
+        );
+        // Só a pasta, não o que começa com o mesmo nome.
+        assert_eq!(motivo(&e, "docs/negocios/a.md"), None);
+        assert_eq!(motivo(&e, "docs/a.md"), None);
+        assert_eq!(e.regras()[&Motivo::Documentacao], vec!["docs/negocio"]);
     }
 
     #[test]

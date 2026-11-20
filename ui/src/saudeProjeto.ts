@@ -1,9 +1,11 @@
 import type { AmbienteDetalhado, ProjetoConfig } from "./configuracoes";
-import type {
-  IntegracaoProntidao,
-  Prontidao,
-  RepositorioCodigo,
-  TrackerConfig,
+import {
+  repositorioDoDestino,
+  type DestinoDocs,
+  type IntegracaoProntidao,
+  type Prontidao,
+  type RepositorioCodigo,
+  type TrackerConfig,
 } from "./repositorios";
 
 /**
@@ -27,7 +29,7 @@ export const ABAS_DO_PROJETO: { id: AbaProjeto; rotulo: string }[] = [
 export type EstadoItem = "ok" | "problema" | "neutro";
 
 export interface ItemSaude {
-  id: "codigo" | "demandas" | "leitura" | "agente";
+  id: "codigo" | "demandas" | "docs" | "leitura" | "agente";
   estado: EstadoItem;
   titulo: string;
   texto: string;
@@ -167,6 +169,36 @@ export function integracaoDasDemandas(
 ): IntegracaoProntidao | undefined {
   if (!projeto.repositorios.tracker) return undefined;
   return prontidao?.integracoes[projeto.repositorios.codigo.length];
+}
+
+/**
+ * O destino da documentação (#274) vem por último na prontidão, depois do código e das
+ * demandas.
+ */
+export function integracaoDoDestino(
+  projeto: ProjetoConfig,
+  prontidao: Prontidao | null | undefined,
+): IntegracaoProntidao | undefined {
+  if (!projeto.repositorios.docs) return undefined;
+  const i =
+    projeto.repositorios.codigo.length + (projeto.repositorios.tracker ? 1 : 0);
+  return prontidao?.integracoes[i];
+}
+
+/** `docs/negocio em GitHub dono/repo` ou `GitLab grupo/docs`. */
+export function descreverDestino(
+  docs: DestinoDocs | null | undefined,
+  codigo: RepositorioCodigo[],
+): string | null {
+  if (!docs) return null;
+  const r = repositorioDoDestino(docs, codigo);
+  const onde = r
+    ? `${FORJA[r.forja]} ${r.caminho}`
+    : docs.modo === "subpasta"
+      ? docs.codigo
+      : "";
+  const sub = (docs.subpasta ?? "").trim().replace(/^\/+|\/+$/g, "");
+  return sub ? `${sub} em ${onde}` : onde;
 }
 
 /** Descrição curta da origem das demandas (`Jira FAT`, `GitHub Issues dono/repo`). */
@@ -310,6 +342,38 @@ export function itensDeSaude(
           aba: "codigo",
         };
 
+  // O destino da documentação só entra no checklist quando está cadastrado (#274).
+  const docs = projeto.repositorios.docs;
+  const integDocs = integracaoDoDestino(projeto, prontidao);
+  const textoDocs = descreverDestino(docs, codigo) ?? "";
+  const itemDocs: ItemSaude | null = !docs
+    ? null
+    : falhou(integDocs)
+      ? {
+          id: "docs",
+          estado: "problema",
+          titulo: "O destino da documentação não está acessível",
+          texto: `${textoDocs}: ${primeiraFalha(integDocs)}.`,
+          ...(docs.modo === "repositorio" &&
+          docs.repositorio.token === "global" &&
+          semTokenValido(integDocs)
+            ? { acao: "Abrir Acessos", acessos: true }
+            : { acao: "Resolver" }),
+          aba: "codigo",
+        }
+      : {
+          id: "docs",
+          estado: integDocs ? "ok" : "neutro",
+          titulo: integDocs
+            ? "Destino da documentação acessível"
+            : prontidao === null
+              ? "Não foi possível conferir o destino da documentação"
+              : "Conferindo o destino da documentação…",
+          texto: textoDocs,
+          acao: "Ver",
+          aba: "codigo",
+        };
+
   const sumidas = projeto.pastas.filter((p) => !p.existe);
   const itemLeitura: ItemSaude =
     sumidas.length > 0
@@ -376,7 +440,13 @@ export function itensDeSaude(
               aba: "agente",
             };
 
-  return [itemCodigo, itemDemandas, itemLeitura, itemAgente];
+  return [
+    itemCodigo,
+    itemDemandas,
+    ...(itemDocs ? [itemDocs] : []),
+    itemLeitura,
+    itemAgente,
+  ];
 }
 
 /**

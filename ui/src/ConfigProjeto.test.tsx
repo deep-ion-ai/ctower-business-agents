@@ -9,6 +9,7 @@ import { ConfigProjeto, type PropsConfigProjeto } from "./ConfigProjeto";
 import type { AmbienteDetalhado, ProjetoConfig } from "./configuracoes";
 import {
   REPOSITORIO_CODIGO_VAZIO,
+  type DestinoDocs,
   type Prontidao,
   type RepositorioCodigo,
   type TrackerConfig,
@@ -686,6 +687,137 @@ describe("ConfigProjeto", () => {
         painel.getByRole("radio", { name: "GitHub Issues" }),
       ).toBeDisabled();
       expect(painel.getByRole("radio", { name: "Nenhuma" })).toBeDisabled();
+    });
+  });
+
+  describe("Destino da documentação", () => {
+    const DOCS_REPO: RepositorioCodigo = {
+      ...REPOSITORIO_CODIGO_VAZIO,
+      caminho: "empresa/faturamento-docs",
+      url_clone: "https://github.com/empresa/faturamento-docs.git",
+      branch: "main",
+    };
+    const comDocs = (docs: DestinoDocs | null, prontidao?: Prontidao) =>
+      montar({
+        projeto: projetoFicticio({
+          repositorios: { codigo: [API_REPO], tracker: null, docs },
+        }),
+        estado: { ambiente: PRONTO, prontidao },
+      });
+    const cartao = (painel: ReturnType<typeof within>) =>
+      within(painel.getByRole("region", { name: "Destino da documentação" }));
+
+    it("projeto sem destino: Nenhum marcado e nada na saúde", () => {
+      const { aba } = comDocs(null, { integracoes: [ok("Código api")] });
+      expect(
+        within(screen.getByRole("list", { name: "Saúde do projeto" })).queryByText(
+          /documentação/,
+        ),
+      ).not.toBeInTheDocument();
+      const c = cartao(aba("Código e demandas"));
+      expect(c.getByRole("radio", { name: "Nenhum" })).toHaveAttribute("aria-checked", "true");
+      expect(c.queryByRole("button", { name: "Salvar o destino" })).not.toBeInTheDocument();
+    });
+
+    it("cadastra uma subpasta de um repositório de código, normalizada", async () => {
+      const { aba, api, aoMudar, aoConferirProntidao } = comDocs(null, { integracoes: [] });
+      const c = cartao(aba("Código e demandas"));
+      fireEvent.click(c.getByRole("radio", { name: "Pasta num repositório de código" }));
+      expect(c.getByLabelText("Repositório de código")).toHaveValue(
+        "github.com/empresa/faturamento-api",
+      );
+      // Sem subpasta, recusa sem chamar o app.
+      fireEvent.click(c.getByRole("button", { name: "Salvar o destino" }));
+      expect(c.getByRole("alert")).toHaveTextContent("informe a subpasta");
+      fireEvent.change(c.getByLabelText("Subpasta da documentação"), {
+        target: { value: "../docs" },
+      });
+      fireEvent.click(c.getByRole("button", { name: "Salvar o destino" }));
+      expect(c.getByRole("alert")).toHaveTextContent("relativa à raiz");
+      expect(api.salvarRepositorios).not.toHaveBeenCalled();
+      fireEvent.change(c.getByLabelText("Subpasta da documentação"), {
+        target: { value: "docs\\negocio\\" },
+      });
+      fireEvent.click(c.getByRole("button", { name: "Salvar o destino" }));
+      await waitFor(() =>
+        expect(api.salvarRepositorios).toHaveBeenCalledWith("faturamento-exemplo", {
+          codigo: [API_REPO],
+          tracker: null,
+          docs: {
+            modo: "subpasta",
+            codigo: "github.com/empresa/faturamento-api",
+            subpasta: "docs/negocio",
+          },
+        }),
+      );
+      expect(aoMudar).toHaveBeenCalled();
+      expect(aoConferirProntidao).toHaveBeenCalledWith("faturamento-exemplo", true);
+    });
+
+    it("repositório próprio: clona na pasta dos clones e salva com a pasta", async () => {
+      const { aba, api } = comDocs(null, { integracoes: [] });
+      const c = cartao(aba("Código e demandas"));
+      fireEvent.click(c.getByRole("radio", { name: "Repositório próprio" }));
+      fireEvent.change(c.getByLabelText("URL de clone (HTTPS ou SSH)"), {
+        target: { value: "https://github.com/empresa/faturamento-docs.git" },
+      });
+      fireEvent.change(c.getByLabelText("Branch (opcional)"), { target: { value: "main" } });
+      fireEvent.click(c.getByRole("button", { name: "Clonar na pasta dos clones" }));
+      await waitFor(() =>
+        expect(c.getByLabelText(/Pasta do clone/)).not.toHaveValue(""),
+      );
+      const pasta = (c.getByLabelText(/Pasta do clone/) as HTMLInputElement).value;
+      expect(pasta).toMatch(/faturamento-docs$/);
+      fireEvent.click(c.getByRole("button", { name: "Salvar o destino" }));
+      await waitFor(() =>
+        expect(api.salvarRepositorios).toHaveBeenCalledWith("faturamento-exemplo", {
+          codigo: [API_REPO],
+          tracker: null,
+          docs: {
+            modo: "repositorio",
+            repositorio: { ...DOCS_REPO, pasta },
+            subpasta: "",
+          },
+        }),
+      );
+    });
+
+    it("mostra o acesso conferido na aba e na saúde, e remove o destino", async () => {
+      const docs: DestinoDocs = { modo: "repositorio", repositorio: DOCS_REPO };
+      const { aba, api } = comDocs(docs, {
+        integracoes: [ok("Código api"), recusado("Documentação")],
+      });
+      const saude = within(screen.getByRole("list", { name: "Saúde do projeto" }));
+      expect(
+        saude.getByText("O destino da documentação não está acessível"),
+      ).toBeInTheDocument();
+      expect(
+        saude.getByText("GitHub empresa/faturamento-docs: Acesso de leitura (git ls-remote): token recusado."),
+      ).toBeInTheDocument();
+      const c = cartao(aba(/Código e demandas/));
+      expect(c.getByText("✕ sem acesso")).toBeInTheDocument();
+      expect(c.getByText(/Confira se o token tem permissão de leitura/)).toBeInTheDocument();
+      fireEvent.click(c.getByRole("radio", { name: "Nenhum" }));
+      fireEvent.click(c.getByRole("button", { name: "Remover o destino" }));
+      await waitFor(() =>
+        expect(api.salvarRepositorios).toHaveBeenCalledWith("faturamento-exemplo", {
+          codigo: [API_REPO],
+          tracker: null,
+          docs: null,
+        }),
+      );
+    });
+
+    it("acesso ok aparece na saúde com o destino", () => {
+      comDocs(
+        { modo: "subpasta", codigo: "github.com/empresa/faturamento-api", subpasta: "docs/negocio" },
+        { integracoes: [ok("Código api"), ok("Documentação")] },
+      );
+      const saude = within(screen.getByRole("list", { name: "Saúde do projeto" }));
+      expect(saude.getByText("Destino da documentação acessível")).toBeInTheDocument();
+      expect(
+        saude.getByText("docs/negocio em GitHub empresa/faturamento-api"),
+      ).toBeInTheDocument();
     });
   });
 

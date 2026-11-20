@@ -26,7 +26,7 @@ import {
 
 type KindTracker = "" | TrackerConfig["kind"];
 
-function CampoTexto({
+export function CampoTexto({
   rotulo,
   valor,
   aoMudar,

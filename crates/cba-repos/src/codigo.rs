@@ -163,7 +163,12 @@ impl RepositorioCodigo {
 
     /// Confere o cadastro sem rede. `n` é a posição (1-indexada) para a mensagem.
     pub fn validar(&self, n: usize) -> Result<(), String> {
-        let onde = format!("repositório de código {n}");
+        self.validar_como(&format!("repositório de código {n}"))
+    }
+
+    /// Como [`RepositorioCodigo::validar`], com `onde` no início das mensagens
+    /// (`repositório da documentação`).
+    pub fn validar_como(&self, onde: &str) -> Result<(), String> {
         match self.forja {
             ForgeKind::Github => {
                 if !repo_github_ok(self.caminho.trim()) {

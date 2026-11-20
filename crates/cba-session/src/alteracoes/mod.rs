@@ -13,6 +13,11 @@
 //! poucos segundos (`cba_tools::revalidacao::revalidar_analise`; #216) e que mostra a
 //! faixa "O código citado na análise mudou".
 //!
+//! A pasta da documentação publicada (#274) também fica de fora: o clone do
+//! repositório próprio da documentação conta como código-fonte em
+//! [`sem_codigo_fonte`], e a subpasta dentro de uma pasta retratada vai em
+//! [`Retrato::ignoradas`], cujos arquivos a conferência não lista.
+//!
 //! # Retrato e conferência
 //!
 //! O retrato é tirado uma vez por sessão, no primeiro `SessionStart` (ou no primeiro
@@ -190,6 +195,10 @@ pub struct Retrato {
     /// Limitações do retrato, em frases curtas (git ausente, pasta inacessível).
     #[serde(default)]
     pub avisos: Vec<String>,
+    /// Pastas (absolutas, canônicas) cujos arquivos a conferência não lista: a
+    /// documentação publicada (#274).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ignoradas: Vec<PathBuf>,
 }
 
 /// O que aconteceu com um arquivo durante a sessão.
@@ -431,6 +440,18 @@ pub fn retratar(
     projeto: &str,
     pastas: &[PathBuf],
 ) -> Result<Retrato, Erro> {
+    retratar_ignorando(retratos, sessao, projeto, pastas, &[])
+}
+
+/// Como [`retratar`], sem listar na conferência o que fica nas pastas `ignoradas`
+/// (a documentação publicada, #274).
+pub fn retratar_ignorando(
+    retratos: &Retratos,
+    sessao: &str,
+    projeto: &str,
+    pastas: &[PathBuf],
+    ignoradas: &[PathBuf],
+) -> Result<Retrato, Erro> {
     if retratos.da_sessao(sessao).is_none() {
         return Err(Erro::SemSessao);
     }
@@ -443,6 +464,10 @@ pub fn retratar(
         repositorios: Vec::new(),
         sem_git: Vec::new(),
         avisos: Vec::new(),
+        ignoradas: ignoradas
+            .iter()
+            .map(|p| dunce::canonicalize(p).unwrap_or_else(|_| p.clone()))
+            .collect(),
     };
 
     // Agrupa as pastas por repositório.
@@ -455,6 +480,9 @@ pub fn retratar(
                 .push("uma pasta do projeto está inacessível".into());
             continue;
         };
+        if retrato.ignoradas.iter().any(|i| pasta.starts_with(i)) {
+            continue;
+        }
         match cba_index::detectar_git(&pasta).and_then(|g| {
             let rel = relativo_git(&g.raiz, &pasta)?;
             Some((g.raiz, rel))
@@ -717,7 +745,19 @@ fn comparar(
             });
         }
     }
+    if !retrato.ignoradas.is_empty() {
+        lista.retain(|c| !ignorado(&retrato.ignoradas, &c.alterado.pasta, &c.alterado.caminho));
+    }
     Ok((lista, avisos))
+}
+
+/// O arquivo `caminho` (relativo a `pasta`, com `/`) fica numa das `ignoradas`.
+fn ignorado(ignoradas: &[PathBuf], pasta: &Path, caminho: &str) -> bool {
+    let absoluto = caminho
+        .split('/')
+        .filter(|p| !p.is_empty())
+        .fold(pasta.to_path_buf(), |c, p| c.join(p));
+    ignoradas.iter().any(|i| absoluto.starts_with(i))
 }
 
 /// Confere as pastas do projeto contra o retrato do início da sessão.
@@ -924,7 +964,8 @@ pub fn manter(retratos: &Retratos, sessao: &str, pedidos: &[Pedido]) -> Result<V
 /// Pastas a retratar numa sessão: as do projeto cadastrado e, se a sessão foi
 /// aberta numa worktree fora delas, a worktree. As pastas de código-fonte (num
 /// repositório git cujo remoto é o repositório de código cadastrado no projeto)
-/// ficam de fora: o aviso cobre só as demais pastas do projeto (#130).
+/// ficam de fora: o aviso cobre só as demais pastas do projeto (#130). O clone do
+/// repositório próprio da documentação também (#274).
 pub fn pastas_da_sessao(
     dados: &DiretorioDados,
     registro: &RegistroSessao,
@@ -943,7 +984,27 @@ pub fn pastas_da_sessao(
     {
         pastas.push(g.raiz);
     }
-    Ok(sem_codigo_fonte(pastas, &projeto.repositorios.codigo))
+    let mut repos = projeto.repositorios.codigo.clone();
+    if let Some(r) = projeto
+        .repositorios
+        .docs
+        .as_ref()
+        .and_then(|d| d.repositorio_proprio())
+    {
+        repos.push(r.clone());
+    }
+    Ok(sem_codigo_fonte(pastas, &repos))
+}
+
+/// Pastas da documentação publicada do projeto da sessão (#274), que o retrato
+/// ignora. Vazio sem destino ou sem o projeto.
+pub fn pastas_de_documentacao(dados: &DiretorioDados, registro: &RegistroSessao) -> Vec<PathBuf> {
+    cba_index::Cadastro::em(dados.projetos())
+        .obter(&registro.projeto)
+        .ok()
+        .flatten()
+        .map(|p| p.pastas_de_documentacao())
+        .unwrap_or_default()
 }
 
 /// Tira de `pastas` as que estão num repositório git com algum remoto apontando
@@ -1074,7 +1135,8 @@ pub fn executar(dados: &DiretorioDados, tarefa: Tarefa, sessao: &str) -> Result<
                     return Err(e);
                 }
             };
-            retratar(&retratos, sessao, &registro.projeto, &pastas).map(drop)
+            let ignoradas = pastas_de_documentacao(dados, &registro);
+            retratar_ignorando(&retratos, sessao, &registro.projeto, &pastas, &ignoradas).map(drop)
         }
         Tarefa::Conferir => conferir_e_avisar(dados, &registro).map(drop),
     }
