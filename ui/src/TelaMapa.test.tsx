@@ -49,6 +49,14 @@ function abrir(api: ApiMapa, analise = analiseFalsa(), apiTerminal?: ApiTerminal
 }
 
 describe("TelaMapa", () => {
+  it("Vincular demandas abre numa aba própria, sem tirar o mapa e a árvore da tela", async () => {
+    const api = apiFalsa();
+    const { navegar } = abrir(api);
+    fireEvent.click(await screen.findByRole("button", { name: "Vincular demandas" }));
+    expect(navegar).toHaveBeenCalledWith({ tipo: "vincular", projeto: "faturamento-exemplo" });
+    expect(screen.queryByRole("region", { name: "Vincular demandas" })).toBeNull();
+  });
+
   it("mostra o mapa por área, o resumo e os pontos sem tratamento", async () => {
     abrir(apiFalsa());
     expect(await screen.findByRole("region", { name: "F-COB-001: Calcular encargos" })).toBeInTheDocument();

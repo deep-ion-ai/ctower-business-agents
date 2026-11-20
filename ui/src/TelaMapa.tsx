@@ -22,7 +22,6 @@ import {
 import type { Tela } from "./Navegacao";
 import type { ApiConhecimento } from "./conhecimento";
 import { PainelFuncionalidade } from "./PainelFuncionalidade";
-import { VincularIssues } from "./VincularIssues";
 import { TerminalClaude } from "./TerminalClaude";
 import type { ApiTerminal, ProjetoResumo } from "./terminal";
 import type { TelaTerminal } from "./telaXterm";
@@ -498,7 +497,6 @@ function MapaDoProjeto({
   const [falha, setFalha] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [sessao, setSessao] = useState(false);
-  const [vinculando, setVinculando] = useState(false);
   const [filtro, setFiltro] = useState<Filtro>("todas");
   const [busca, setBusca] = useState("");
   const [todosSemTratamento, setTodosSemTratamento] = useState(false);
@@ -618,7 +616,12 @@ function MapaDoProjeto({
               </>
             )}
             {mapa && mapa.total > 0 && (
-              <button type="button" className="btn" onClick={() => setVinculando(true)}>
+              <button
+                type="button"
+                className="btn"
+                title="Abre, numa aba própria, as issues do rastreador para vincular às funcionalidades"
+                onClick={() => navegar({ tipo: "vincular", projeto })}
+              >
                 Vincular demandas
               </button>
             )}
@@ -639,16 +642,7 @@ function MapaDoProjeto({
           </p>
         )}
 
-        {vinculando ? (
-          <VincularIssues
-            projeto={projeto}
-            api={api}
-            aoVoltar={() => setVinculando(false)}
-            aoVincular={recarregar}
-            apiTerminal={apiTerminal}
-            criarTela={criarTela}
-          />
-        ) : pagina ? (
+        {pagina ? (
           <PainelFuncionalidade
             projeto={projeto}
             f={pagina}

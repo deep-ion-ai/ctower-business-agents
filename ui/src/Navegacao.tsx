@@ -27,6 +27,8 @@ import { TelaBase } from "./TelaBase";
 import { TelaConfiguracoes } from "./TelaConfiguracoes";
 import { TelaInicio } from "./TelaInicio";
 import { TelaMapa } from "./TelaMapa";
+import { VincularIssues } from "./VincularIssues";
+import { apiMapaTauri } from "./funcionalidades";
 import { TelaProjeto } from "./TelaProjeto";
 import type { ApiTerminal, ProjetoResumo } from "./terminal";
 import type { TelaTerminal } from "./telaXterm";
@@ -45,7 +47,9 @@ export type Tela =
   | { tipo: "configuracoes" }
   | { tipo: "demanda"; projeto: string; demanda: string }
   /** Mapa de funcionalidades do projeto (#208): fora das análises. */
-  | { tipo: "mapa"; projeto?: string };
+  | { tipo: "mapa"; projeto?: string }
+  /** Vincular as issues do rastreador às funcionalidades (#270), em aba própria. */
+  | { tipo: "vincular"; projeto: string };
 
 interface Props {
   /** Tela ao abrir (ex.: a análise sugerida no fim do primeiro uso). */
@@ -83,10 +87,12 @@ const AREAS: { tipo: Tela["tipo"]; rotulo: string; icone: IconName }[] = [
 const ROTULO_AREA = {
   ...Object.fromEntries(AREAS.map((a) => [a.tipo, a.rotulo])),
   demanda: "Demanda",
+  vincular: "Vincular demandas",
 } as Record<Tela["tipo"], string>;
 const ICONE_AREA = {
   ...Object.fromEntries(AREAS.map((a) => [a.tipo, a.icone])),
   demanda: "file",
+  vincular: "jira",
 } as Record<Tela["tipo"], IconName>;
 
 /** Aba aberta na área de editor: a tela que ela mostra e o contador de remontagem. */
@@ -108,6 +114,8 @@ export function chaveDaTela(t: Tela): string {
       return t.aberta ? `analise:${t.projeto ?? ""}:${t.aberta.id}` : "analise";
     case "demanda":
       return `demanda:${t.projeto}:${t.demanda}`;
+    case "vincular":
+      return `vincular:${t.projeto}`;
     default:
       return t.tipo;
   }
@@ -119,7 +127,7 @@ export function chaveDaTela(t: Tela): string {
  * encerraria o processo (#212).
  */
 const ficaViva = (a: Aba) =>
-  (a.tela.tipo === "analise" && !!a.tela.aberta) || a.tela.tipo === "mapa";
+  (a.tela.tipo === "analise" && !!a.tela.aberta) || a.tela.tipo === "mapa" || a.tela.tipo === "vincular";
 
 const nomeDoArquivo = (caminho: string) =>
   (caminho.split("/").pop() ?? caminho).replace(/\.md$/, "");
@@ -398,6 +406,7 @@ export function Navegacao({
     if (t.tipo === "base" && t.documento) return nomeDoArquivo(t.documento);
     if (t.tipo === "analise" && t.aberta) return t.aberta.id;
     if (t.tipo === "demanda") return t.demanda;
+    if (t.tipo === "vincular") return `Vincular demandas · ${nomeProjeto(t.projeto)}`;
     return ROTULO_AREA[t.tipo];
   };
 
@@ -673,6 +682,21 @@ export function Navegacao({
                       criarTela={criarTela}
                       navegar={navegar}
                     />
+                  </div>
+                ) : a.tela.tipo === "vincular" ? (
+                  <div key={a.chave} className="editor-aba" hidden={a.chave !== ativa}>
+                    <div className="page">
+                      <VincularIssues
+                        key={a.vez}
+                        projeto={a.tela.projeto}
+                        api={apiMapaTauri}
+                        // Volta à aba do mapa que já existe, sem remontá-la.
+                        aoVoltar={() => irParaArea("mapa")}
+                        aoVincular={() => undefined}
+                        apiTerminal={apiTerminal}
+                        criarTela={criarTela}
+                      />
+                    </div>
                   </div>
                 ) : null,
               )}
