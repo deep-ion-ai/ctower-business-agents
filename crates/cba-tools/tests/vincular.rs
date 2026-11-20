@@ -176,6 +176,18 @@ fn sugere_confirma_e_repetir_nao_duplica() {
         Some("https://github.com/o/r/issues/41")
     );
     let id = demandas[0].id;
+    // O mapa.md mostra a demanda ligada, com a chave levando à issue.
+    let texto = c
+        .amb
+        .kb
+        .ler_texto(&cba_kb::layout::mapa_de_funcionalidades())
+        .unwrap();
+    assert!(
+        texto.contains(&format!(
+            "**Demandas ligadas:** {id} ([#41](https://github.com/o/r/issues/41))"
+        )),
+        "{texto}"
+    );
     assert_eq!(
         c.mapa()
             .funcionalidade(&sugestoes[0][0].funcionalidade)

@@ -159,6 +159,9 @@ export interface DemandaNoPainel {
   titulo: string;
   aberta: boolean;
   criado: string;
+  /** Chave e endereço da issue, quando a demanda veio do rastreador (#270). */
+  chave: string | null;
+  origem: string | null;
   ligadaNoPainel: boolean;
   impacto: EtapaDemanda | null;
   historias: EtapaDemanda | null;

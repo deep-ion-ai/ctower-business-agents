@@ -84,6 +84,14 @@ function CartaoDemanda({
           {d.aberta ? "aberta" : "encerrada"}
         </span>
         {d.criado && <span className="muted">desde {d.criado}</span>}
+        {d.chave &&
+          (d.origem ? (
+            <a href={d.origem} target="_blank" rel="noreferrer" className="mono">
+              {d.chave}
+            </a>
+          ) : (
+            <span className="mono muted">{d.chave}</span>
+          ))}
       </header>
       <ol className="pf-etapas" aria-label={`Etapas de ${d.id}`}>
         <Etapa nome="Impacto" etapa={d.impacto} />

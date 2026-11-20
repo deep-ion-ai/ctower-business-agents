@@ -192,6 +192,8 @@ export function painelDe(id: string): PainelFuncionalidade {
         titulo: "Permitir cancelamento parcial",
         aberta: true,
         criado: "2026-11-14",
+        chave: "#41",
+        origem: "https://github.com/acme/faturamento/issues/41",
         ligadaNoPainel: true,
         impacto: { analise: "A-0019", estado: "em-andamento" },
         historias: null,
