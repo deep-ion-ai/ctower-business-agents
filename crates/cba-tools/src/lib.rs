@@ -48,6 +48,9 @@
 //!   segundo aviso e o descarte do transcript.
 //! - [`revisao`]: a revisão do analista (decisões, edição do texto, prontidão para
 //!   aprovar, aprovação com a escolha da área e exportação).
+//! - [`docs_externos`]: a sincronização do repositório de docs (#277), que traz
+//!   a documentação publicada para `externos/` como fonte externa rotulada; roda
+//!   sob demanda (app) e em segundo plano ao iniciar uma análise.
 //! - [`revalidacao`]: a revalidação das evidências das regras e das análises por
 //!   hash, que o app chama ao abrir o projeto e sob demanda (spec, seção 6.5).
 //! - [`publicacao`]: a publicação dos documentos aprovados no repositório da
@@ -68,6 +71,7 @@ pub mod conhecimento;
 pub mod contexto;
 pub mod dados_pessoais;
 pub mod diagramas;
+pub mod docs_externos;
 pub mod documento;
 pub mod editavel;
 pub mod estrutura;

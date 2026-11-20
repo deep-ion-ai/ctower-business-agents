@@ -37,12 +37,20 @@ pub fn salvar_repositorios(
     p.repositorios.validar_troca(&novos)?;
     novos.validar()?;
     let docs_mudou = p.repositorios.docs != novos.docs;
+    let docs_removido = p.repositorios.docs.is_some() && novos.docs.is_none();
     p.repositorios = novos;
     let cadastro = Cadastro::em(dados.projetos());
     if docs_mudou {
         cadastro.ajustar(&p).map_err(|e| e.to_string())?;
     } else {
         cadastro.salvar(&p).map_err(|e| e.to_string())?;
+    }
+    // Sem destino, a cópia da documentação externa (#277) sai da base.
+    if docs_removido
+        && let Ok(amb) = crate::analise::ambiente(dados, projeto)
+        && let Err(e) = cba_kb::externos::remover_tudo(&amb.kb)
+    {
+        tracing::warn!(erro = %e, "documentação externa não removida da base");
     }
     Ok(p.repositorios)
 }

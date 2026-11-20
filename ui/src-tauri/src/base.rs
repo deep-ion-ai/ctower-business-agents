@@ -16,6 +16,13 @@
 //! Só documentos `.md` dentro da pasta da base: o caminho é relativo e validado
 //! ([`CaminhoRelativo`], sem `..` nem caminho absoluto), e o arquivo, depois de
 //! seguir links simbólicos, tem de continuar dentro da base.
+//!
+//! # Documentação externa
+//!
+//! A cópia do repositório de docs (`<projeto>/externos/`, #277) aparece na busca
+//! com o rótulo da origem (repositório, caminho e commit) e abre só para leitura:
+//! [`salvar_documento`] recusa, porque a próxima sincronização desfaria a edição e
+//! a fonte é o repositório.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -24,8 +31,11 @@ use std::sync::{Arc, Mutex};
 
 use cba_core::config::Config;
 use cba_core::dados::DiretorioDados;
+use cba_kb::frontmatter::FrontmatterDocExterno;
 use cba_kb::frontmatter::{FrontmatterLivre, TipoDocumento};
-use cba_kb::indice::{Consulta, Indice, Modo, Resultado, Sincronizacao, Tipo, Vigia};
+use cba_kb::indice::{
+    Consulta, Externos, Indice, Modo, OrigemIndexada, Resultado, Sincronizacao, Tipo, Vigia,
+};
 use cba_kb::yaml::Value;
 use cba_kb::{Base, CaminhoRelativo, Documento, layout};
 use serde::Serialize;
@@ -62,6 +72,7 @@ fn tipos_do_filtro(nome: &str) -> Vec<Tipo> {
         "regra" => vec![Tipo::Documento(TipoDocumento::Regra)],
         "termo" => vec![Tipo::Documento(TipoDocumento::Termo)],
         "analise" => Tipo::ANALISES.to_vec(),
+        "externo" => vec![Tipo::Documento(TipoDocumento::DocExterno)],
         _ => Vec::new(),
     }
 }
@@ -81,6 +92,36 @@ pub struct Encontrado {
     pub status: Option<String>,
     /// Trecho com as palavras encontradas entre `**`.
     pub trecho: String,
+    /// Documentação externa (#277): de onde veio.
+    pub externo: Option<OrigemVista>,
+}
+
+/// Origem de um documento externo, para o rótulo na tela.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OrigemVista {
+    pub repositorio: String,
+    /// Caminho no repositório.
+    pub caminho: String,
+    pub commit: String,
+    /// `publicada` (documento aprovado publicado pelo app) ou `externa`.
+    pub confianca: String,
+}
+
+impl From<&OrigemIndexada> for OrigemVista {
+    fn from(o: &OrigemIndexada) -> Self {
+        Self {
+            repositorio: o.repositorio.clone(),
+            caminho: o.caminho.clone(),
+            commit: o.commit.clone(),
+            confianca: o.confianca.como_str().to_owned(),
+        }
+    }
+}
+
+/// O documento (relativo à raiz da base) é da documentação externa.
+pub fn e_externo(rel: &CaminhoRelativo) -> bool {
+    rel.partes().nth(1) == Some(layout::EXTERNOS)
 }
 
 impl From<&Resultado> for Encontrado {
@@ -94,6 +135,7 @@ impl From<&Resultado> for Encontrado {
             area: r.area.clone(),
             status: r.status.clone(),
             trecho: r.trecho.clone(),
+            externo: r.externo.as_ref().map(OrigemVista::from),
         }
     }
 }
@@ -127,6 +169,7 @@ pub fn buscar(
         // Sem texto, a Base lista os documentos (respeitando projeto e tipos), em vez
         // de abrir vazia até a primeira busca.
         let mut c = Consulta::nova("")
+            .externos(Externos::Incluir)
             .tipos(tipos.iter().copied())
             .pagina(POR_PAGINA, deslocamento);
         if let Some(s) = projeto.map(str::trim).filter(|s| !s.is_empty()) {
@@ -144,6 +187,7 @@ pub fn buscar(
     }
     let consulta = |modo| {
         let mut c = Consulta::nova(texto)
+            .externos(Externos::Incluir)
             .modo(modo)
             .tipos(tipos.iter().copied())
             .pagina(POR_PAGINA, deslocamento);
@@ -224,6 +268,10 @@ pub struct DocumentoAberto {
     pub analise: Option<AnaliseDoDocumento>,
     /// Frontmatter ilegível (o corpo aparece mesmo assim).
     pub problema: Option<String>,
+    /// Documentação externa (#277): só leitura. A origem, se o frontmatter da
+    /// cópia pôde ser lido.
+    pub somente_leitura: bool,
+    pub externo: Option<OrigemVista>,
 }
 
 fn como_texto(v: &Value) -> Option<String> {
@@ -343,6 +391,16 @@ pub fn abrir_documento(dados: &DiretorioDados, caminho: &str) -> Result<Document
     };
 
     let ligacoes = ligacoes(dados, &base, &rel);
+    let somente_leitura = e_externo(&rel);
+    let externo = somente_leitura
+        .then(|| Documento::<FrontmatterDocExterno>::analisar(&texto).ok())
+        .flatten()
+        .map(|d| OrigemVista {
+            repositorio: d.frontmatter.origem.repositorio,
+            caminho: d.frontmatter.origem.caminho,
+            commit: d.frontmatter.origem.commit,
+            confianca: d.frontmatter.confianca.como_str().to_owned(),
+        });
 
     Ok(DocumentoAberto {
         caminho: rel.as_str().to_owned(),
@@ -356,6 +414,8 @@ pub fn abrir_documento(dados: &DiretorioDados, caminho: &str) -> Result<Document
         ligacoes,
         analise,
         problema,
+        somente_leitura,
+        externo,
     })
 }
 
@@ -374,6 +434,12 @@ pub fn salvar_documento(
 ) -> Result<DocumentoAberto, String> {
     let base = base_configurada(dados)?;
     let rel = documento_da_base(&base, caminho)?;
+    if e_externo(&rel) {
+        return Err(format!(
+            "`{rel}` é documentação externa (cópia do repositório de docs) e não se edita no \
+             app: edite no repositório e sincronize"
+        ));
+    }
     let atual = base.ler_texto(&rel).map_err(|e| e.to_string())?;
     if versao_do_texto(&atual) != versao_lida {
         return Err(format!(

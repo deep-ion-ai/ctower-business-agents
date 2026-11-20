@@ -670,3 +670,172 @@ fn indice_corrompido_ou_de_outra_base_recomeca() {
     assert!(fotografia(&indice).is_empty());
     assert!(achados(&indice, &Consulta::nova("vazio")).len() == 1);
 }
+
+/// Importa `arquivos` (caminho, texto) como a documentação externa do projeto.
+fn importar_externos(projeto: &Projeto, commit: &str, arquivos: &[(&str, &str)]) {
+    use cba_kb::externos::{ArquivoExterno, Fonte, importar};
+    let lista: Vec<ArquivoExterno> = arquivos
+        .iter()
+        .map(|(c, t)| ArquivoExterno {
+            caminho: (*c).into(),
+            caminho_no_repositorio: format!("docs/{c}"),
+            versao: format!(
+                "{:x}",
+                t.len() * 31 + t.bytes().map(usize::from).sum::<usize>()
+            ),
+            tamanho: t.len() as u64,
+        })
+        .collect();
+    importar(
+        projeto,
+        &Fonte {
+            repositorio: "GitHub exemplo/faturamento-docs".into(),
+            branch: "main".into(),
+            commit: commit.into(),
+        },
+        &lista,
+        &|_| None,
+        &mut |a| {
+            Ok(arquivos
+                .iter()
+                .find(|(c, _)| *c == a.caminho)
+                .unwrap()
+                .1
+                .as_bytes()
+                .to_vec())
+        },
+        1,
+    )
+    .unwrap();
+}
+
+#[test]
+fn documentacao_externa_rotulada_fora_da_busca_padrao() {
+    use cba_kb::frontmatter::Confianca;
+    use cba_kb::indice::Externos;
+
+    let (_dir, base, projeto, arquivo) = montar_base();
+    importar_externos(
+        &projeto,
+        "c0ffee1",
+        &[
+            (
+                "processos/segunda-via.md",
+                "# Segunda via do boleto\n\nO cliente pede a segunda via com a multa já calculada.\n",
+            ),
+            (
+                "regras/RN-FAT-951.md",
+                "---\ntipo: regra\nid: RN-FAT-951\ntitulo: Multa de outra equipe\n---\n\nMulta \
+                 diferenciada para contratos antigos.\n",
+            ),
+        ],
+    );
+    let mut indice = abrir(&arquivo, &base);
+    let pasta = format!("{PROJETO}/externos/github-exemplo-faturamento-docs");
+
+    // Padrão: só a base própria.
+    let padrao = achados(&indice, &Consulta::nova("segunda via"));
+    assert!(padrao.is_empty(), "{padrao:?}");
+
+    // Pedindo, com a origem e o commit.
+    let externos = indice
+        .buscar(&Consulta::nova("segunda via").externos(Externos::Somente))
+        .unwrap();
+    let r = &externos.resultados[0];
+    assert_eq!(
+        r.caminho.as_str(),
+        format!("{pasta}/processos/segunda-via.md")
+    );
+    assert_eq!(r.titulo, "Segunda via do boleto");
+    assert_eq!(r.tipo, Some(Tipo::Documento(TipoDocumento::DocExterno)));
+    assert!(r.identificador.is_none());
+    let o = r.externo.as_ref().unwrap();
+    assert_eq!(o.repositorio, "GitHub exemplo/faturamento-docs");
+    assert_eq!(o.caminho, "docs/processos/segunda-via.md");
+    assert_eq!(o.commit, "c0ffee1");
+    assert_eq!(o.confianca, Confianca::Externa);
+
+    // A regra publicada por outra base não vira regra desta: não aparece no filtro
+    // de regras nem nos documentos do projeto, e o id do original acha a cópia.
+    let regras = achados(
+        &indice,
+        &Consulta::nova("multa")
+            .tipos([Tipo::Documento(TipoDocumento::Regra)])
+            .externos(Externos::Incluir),
+    );
+    assert!(
+        regras.iter().all(|c| !c.contains("/externos/")),
+        "{regras:?}"
+    );
+    let pelo_id = indice
+        .buscar(&Consulta::nova("RN-FAT-951").externos(Externos::Incluir))
+        .unwrap();
+    assert_eq!(pelo_id.resultados.len(), 1);
+    let o = pelo_id.resultados[0].externo.as_ref().unwrap();
+    assert_eq!(o.confianca, Confianca::Publicada);
+    assert_eq!(o.id_original.as_deref(), Some("RN-FAT-951"));
+    assert!(
+        indice
+            .documentos_do_projeto(PROJETO)
+            .unwrap()
+            .iter()
+            .all(|d| !d.caminho.as_str().contains("/externos/"))
+    );
+    let incluir = achados(
+        &indice,
+        &Consulta::nova("multa")
+            .modo(Modo::Qualquer)
+            .externos(Externos::Incluir),
+    );
+    assert!(
+        incluir.iter().any(|c| c.contains("/externos/")),
+        "{incluir:?}"
+    );
+    assert!(
+        incluir.iter().any(|c| !c.contains("/externos/")),
+        "{incluir:?}"
+    );
+    let listados = indice
+        .listar(&Consulta::nova("").externos(Externos::Somente))
+        .unwrap();
+    assert_eq!(listados.total, 2);
+    assert!(
+        indice
+            .problemas()
+            .unwrap()
+            .iter()
+            .all(|p| !p.caminho.as_str().contains("/externos/"))
+    );
+
+    // Saiu do repositório: sai do índice; o novo commit vale para o que mudou.
+    importar_externos(
+        &projeto,
+        "beef002",
+        &[(
+            "processos/segunda-via.md",
+            "# Segunda via do boleto\n\nAgora pelo portal.\n",
+        )],
+    );
+    let resumo = indice.sincronizar().unwrap();
+    assert_eq!((resumo.removidos, resumo.alterados), (1, 1));
+    let listados = indice
+        .listar(&Consulta::nova("").externos(Externos::Somente))
+        .unwrap();
+    assert_eq!(listados.total, 1);
+    assert_eq!(
+        listados.resultados[0].externo.as_ref().unwrap().commit,
+        "beef002"
+    );
+
+    // Reconstruível só a partir da base.
+    drop(indice);
+    fs::remove_dir_all(arquivo.parent().unwrap()).unwrap();
+    let indice = abrir(&arquivo, &base);
+    assert_eq!(
+        achados(
+            &indice,
+            &Consulta::nova("portal").externos(Externos::Somente)
+        ),
+        [format!("{pasta}/processos/segunda-via.md")]
+    );
+}

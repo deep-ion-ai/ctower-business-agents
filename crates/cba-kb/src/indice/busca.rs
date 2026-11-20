@@ -5,7 +5,8 @@ use serde::Serialize;
 
 use crate::caminho::{CaminhoRelativo, sem_acento};
 
-use super::{Indice, ResultadoIndice, Tipo};
+use super::{Indice, OrigemIndexada, ResultadoIndice, Tipo};
+use crate::frontmatter::Confianca;
 
 /// Palavras ignoradas na consulta (comparadas sem acento): artigos, preposições e
 /// palavras de pergunta, que aparecem em quase todo documento.
@@ -24,6 +25,28 @@ pub enum Modo {
     /// Basta uma palavra; os que têm mais palavras, e mais raras, vêm antes
     /// (contexto de uma análise a partir da demanda, por exemplo).
     Qualquer,
+}
+
+/// O que fazer com a documentação externa (`externos/`, #277).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Externos {
+    /// Só a base própria (padrão): a fonte externa é consultada sob demanda.
+    #[default]
+    Excluir,
+    /// A base própria e a externa juntas (a busca da tela da base).
+    Incluir,
+    /// Só a documentação externa.
+    Somente,
+}
+
+impl Externos {
+    fn filtro(self) -> &'static str {
+        match self {
+            Externos::Excluir => " AND d.externo = 0",
+            Externos::Incluir => "",
+            Externos::Somente => " AND d.externo = 1",
+        }
+    }
 }
 
 /// Uma consulta ao índice.
@@ -45,6 +68,8 @@ pub struct Consulta {
     pub limite: usize,
     /// Quantos resultados pular (paginação).
     pub deslocamento: usize,
+    /// Documentação externa: fora por padrão.
+    pub externos: Externos,
 }
 
 impl Consulta {
@@ -57,7 +82,13 @@ impl Consulta {
             tipos: Vec::new(),
             limite: 20,
             deslocamento: 0,
+            externos: Externos::Excluir,
         }
+    }
+
+    pub fn externos(mut self, externos: Externos) -> Self {
+        self.externos = externos;
+        self
     }
 
     pub fn modo(mut self, modo: Modo) -> Self {
@@ -100,6 +131,40 @@ pub struct Resultado {
     /// Relevância (BM25; maior é melhor). O título pesa mais que as chaves
     /// (identificador, termo, sinônimos, área), e estas mais que o corpo.
     pub relevancia: f64,
+    /// Documento externo (`externos/`, #277): a origem, se o frontmatter da cópia
+    /// pôde ser lido. `Some` só nos externos.
+    pub externo: Option<OrigemIndexada>,
+}
+
+impl Resultado {
+    /// Se é um documento da documentação externa.
+    pub fn e_externo(&self) -> bool {
+        self.externo.is_some()
+            || self.tipo == Some(Tipo::Documento(crate::TipoDocumento::DocExterno))
+    }
+}
+
+/// Colunas da origem externa (com `LEFT JOIN origem_externa o`).
+const COLUNAS_DA_ORIGEM: &str =
+    "o.repositorio, o.caminho, o.commit_, o.branch, o.confianca, o.tipo_original, o.id_original";
+
+fn origem(l: &rusqlite::Row<'_>, i: usize) -> rusqlite::Result<Option<OrigemIndexada>> {
+    let Some(repositorio) = l.get::<_, Option<String>>(i)? else {
+        return Ok(None);
+    };
+    let confianca = match l.get::<_, String>(i + 4)?.as_str() {
+        "publicada" => Confianca::Publicada,
+        _ => Confianca::Externa,
+    };
+    Ok(Some(OrigemIndexada {
+        repositorio,
+        caminho: l.get(i + 1)?,
+        commit: l.get(i + 2)?,
+        branch: l.get(i + 3)?,
+        confianca,
+        tipo_original: l.get(i + 5)?,
+        id_original: l.get(i + 6)?,
+    }))
 }
 
 /// Uma página de resultados.
@@ -156,6 +221,7 @@ impl Indice {
             });
         };
         let mut filtro = String::from("busca MATCH ?1 AND (?2 IS NULL OR d.projeto = ?2)");
+        filtro.push_str(consulta.externos.filtro());
         let mut parametros: Vec<Sql> = vec![
             Sql::Text(expressao),
             consulta.projeto.clone().map_or(Sql::Null, Sql::Text),
@@ -190,8 +256,9 @@ impl Indice {
         let sql = format!(
             "SELECT d.caminho, d.projeto, d.tipo, d.identificador, d.titulo, d.area, d.status, \
                     snippet(busca, -1, '**', '**', '…', 16), \
-                    bm25(busca, 10.0, 5.0, 1.0) AS r \
+                    bm25(busca, 10.0, 5.0, 1.0) AS r, {COLUNAS_DA_ORIGEM} \
              FROM busca JOIN documento d ON d.id = busca.rowid \
+             LEFT JOIN origem_externa o ON o.documento = d.id \
              WHERE {filtro} \
              ORDER BY r, d.caminho \
              LIMIT ?{} OFFSET ?{}",
@@ -210,11 +277,13 @@ impl Indice {
                 l.get::<_, Option<String>>(6)?,
                 l.get::<_, String>(7)?,
                 l.get::<_, f64>(8)?,
+                origem(l, 9)?,
             ))
         })?;
         let mut resultados = Vec::new();
         for linha in linhas {
-            let (caminho, projeto, tipo, identificador, titulo, area, status, trecho, r) = linha?;
+            let (caminho, projeto, tipo, identificador, titulo, area, status, trecho, r, externo) =
+                linha?;
             let Ok(caminho) = CaminhoRelativo::novo(&caminho) else {
                 continue;
             };
@@ -228,6 +297,7 @@ impl Indice {
                 status,
                 trecho: trecho.split_whitespace().collect::<Vec<_>>().join(" "),
                 relevancia: -r,
+                externo,
             });
         }
         Ok(Pagina {
@@ -241,6 +311,7 @@ impl Indice {
     /// `consulta` e ignora o texto. Ordem: projeto, tipo e caminho. O trecho vem vazio.
     pub fn listar(&self, consulta: &Consulta) -> ResultadoIndice<Pagina> {
         let mut filtro = String::from("(?1 IS NULL OR d.projeto = ?1)");
+        filtro.push_str(consulta.externos.filtro());
         let mut parametros: Vec<Sql> = vec![consulta.projeto.clone().map_or(Sql::Null, Sql::Text)];
         if !consulta.tipos.is_empty() {
             let marcas: Vec<String> = consulta
@@ -266,8 +337,10 @@ impl Indice {
             i64::try_from(consulta.deslocamento).unwrap_or(i64::MAX),
         ));
         let sql = format!(
-            "SELECT d.caminho, d.projeto, d.tipo, d.identificador, d.titulo, d.area, d.status \
-             FROM documento d WHERE {filtro} \
+            "SELECT d.caminho, d.projeto, d.tipo, d.identificador, d.titulo, d.area, d.status, \
+                    {COLUNAS_DA_ORIGEM} \
+             FROM documento d LEFT JOIN origem_externa o ON o.documento = d.id \
+             WHERE {filtro} \
              ORDER BY d.projeto, d.tipo, d.caminho \
              LIMIT ?{} OFFSET ?{}",
             n + 1,
@@ -283,11 +356,12 @@ impl Indice {
                 l.get::<_, String>(4)?,
                 l.get::<_, Option<String>>(5)?,
                 l.get::<_, Option<String>>(6)?,
+                origem(l, 7)?,
             ))
         })?;
         let mut resultados = Vec::new();
         for linha in linhas {
-            let (caminho, projeto, tipo, identificador, titulo, area, status) = linha?;
+            let (caminho, projeto, tipo, identificador, titulo, area, status, externo) = linha?;
             let Ok(caminho) = CaminhoRelativo::novo(&caminho) else {
                 continue;
             };
@@ -301,6 +375,7 @@ impl Indice {
                 status,
                 trecho: String::new(),
                 relevancia: 0.0,
+                externo,
             });
         }
         Ok(Pagina {

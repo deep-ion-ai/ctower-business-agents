@@ -91,6 +91,9 @@ pub fn aprovado(texto: &str) -> bool {
         | T::Decisao
         | T::Risco
         | T::Restricao => false,
+        // A documentação externa (#277) volta do repositório de docs: publicá-la
+        // de novo duplicaria o que já está lá.
+        T::DocExterno => false,
     }
 }
 

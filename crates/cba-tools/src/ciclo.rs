@@ -733,6 +733,9 @@ fn iniciar(
              padrão embutido"
         )),
     }
+    // Documentação publicada (#277): sincroniza em segundo plano e avisa se a
+    // cópia está desatualizada. Nunca impede a análise.
+    avisos.extend(crate::docs_externos::ao_iniciar_analise(ambiente));
     let falha_da_demanda = RefCell::new(None);
     let registrado = comum::alterar_com(
         ambiente,

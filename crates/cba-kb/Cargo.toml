@@ -11,6 +11,8 @@ publish = false
 # Índice (#8): SQLite embutido, com FTS5. `bundled` compila o SQLite junto, para
 # ter a mesma versão (e o FTS5) em Windows, macOS e Linux, sem depender do projeto.
 rusqlite = { version = "0.42", features = ["bundled"] }
+# Segredos e dados pessoais nos documentos externos importados (#277).
+regex = "1"
 serde.workspace = true
 serde_json.workspace = true
 serde_norway.workspace = true

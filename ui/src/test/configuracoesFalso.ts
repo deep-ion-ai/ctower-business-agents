@@ -29,6 +29,7 @@ import type {
   ForgeKind,
   EventoClone,
   Prontidao,
+  SituacaoDocsExternos,
   RepoDetectado,
   RepositorioCodigo,
   Repositorios,
@@ -366,6 +367,21 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
         Promise.resolve(repositorios),
     ),
     prontidaoRepositorios: vi.fn((): Promise<Prontidao> => Promise.resolve({ integracoes: [] })),
+    situacaoDocsExternos: vi.fn(
+      (): Promise<SituacaoDocsExternos> => Promise.resolve(situacaoDocsFicticia()),
+    ),
+    sincronizarDocsExternos: vi.fn(
+      (): Promise<SituacaoDocsExternos> =>
+        Promise.resolve({
+          ...situacaoDocsFicticia(),
+          repositorio: "GitHub exemplo/faturamento-docs",
+          branch: "main",
+          commit: "c0ffee1234567",
+          sincronizadoMs: Date.now(),
+          aviso: null,
+          importados: 3,
+        }),
+    ),
     detectarRepositorios: vi.fn((): Promise<RepoDetectado[]> => Promise.resolve([])),
     verificarAmbiente: vi.fn(
       (): Promise<AmbienteDetalhado> =>
@@ -527,4 +543,21 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
       proximoTeste = f;
     },
   });
+}
+
+/** Situação dos docs externos de um projeto com destino e ainda sem sincronização. */
+export function situacaoDocsFicticia(): SituacaoDocsExternos {
+  return {
+    comDestino: true,
+    repositorio: null,
+    branch: null,
+    commit: null,
+    sincronizadoMs: null,
+    erro: null,
+    aviso: "o repositório de docs ainda não foi sincronizado",
+    importados: 0,
+    jaNaBase: 0,
+    pulados: [],
+    mascarados: [],
+  };
 }

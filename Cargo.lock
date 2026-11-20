@@ -547,6 +547,7 @@ dependencies = [
 name = "cba-kb"
 version = "0.5.0"
 dependencies = [
+ "regex",
  "rusqlite",
  "serde",
  "serde_json",
