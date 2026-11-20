@@ -140,7 +140,7 @@ pub fn issues_para_vincular(
                     chave: i.chave.clone(),
                     titulo: i.titulo.clone(),
                     descricao: i.descricao.clone(),
-                    arquivos: Vec::new(),
+                    arquivos: i.arquivos.clone(),
                 },
             )
             .into_iter()
@@ -220,6 +220,7 @@ pub fn confirmar_lote(
                 criada_em: i.criada_em,
                 estado: i.estado,
                 rotulos: i.rotulos,
+                arquivos: Vec::new(),
             },
             funcionalidades,
         });

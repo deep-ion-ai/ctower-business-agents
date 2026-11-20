@@ -620,11 +620,7 @@ fn situacao_no_documento(f: &Funcionalidade) -> String {
 }
 
 /// Bloco de uma funcionalidade, com os pontos de entrada como notas.
-fn bloco(
-    f: &Funcionalidade,
-    caminho: &CaminhoRelativo,
-    demandas: &[cba_kb::DemandaLida],
-) -> Texto {
+fn bloco(f: &Funcionalidade, caminho: &CaminhoRelativo, demandas: &[cba_kb::DemandaLida]) -> Texto {
     let mut t = format!(
         "#### {} · {}\n\n{}\n\n**Situação:** {}",
         f.id,

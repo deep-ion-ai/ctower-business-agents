@@ -121,6 +121,10 @@ pub struct IssueListada {
     /// `aberta` ou `fechada`.
     pub estado: String,
     pub rotulos: Vec<String>,
+    /// Arquivos alterados pelos PRs que fecham a issue (só GitHub); ajudam a
+    /// sugerir a funcionalidade.
+    #[serde(default)]
+    pub arquivos: Vec<String>,
 }
 
 /// Resultado de uma leitura: issues (até o teto) e se havia mais.
@@ -151,17 +155,19 @@ fn lista(v: Value, ferramenta: &'static str) -> Result<Vec<Value>, DemandaErro> 
     }
 }
 
-pub fn listar_github(
+/// Teto de PRs consultados por listagem para ler os arquivos alterados.
+const TETO_PRS: usize = 60;
+
+fn listar_github_json(
     g: &GithubConfig,
-    periodo: &Periodo,
+    desde: &str,
     teto: usize,
+    campos: &str,
     f: &Ferramentas,
-) -> Result<Listagem, DemandaErro> {
-    let desde = periodo.data_a_partir_de(hoje())?;
-    let teto = teto.max(1);
-    let token = token_github(f);
+    token: Option<&Secret>,
+) -> Result<Value, DemandaErro> {
     let mut c = Command::new(&f.gh);
-    if let Some(t) = &token {
+    if let Some(t) = token {
         c.env("GH_TOKEN", t.expose());
     }
     c.args([
@@ -176,10 +182,71 @@ pub fn listar_github(
         "--limit",
         &(teto + 1).to_string(),
         "--json",
-        "number,title,body,url,createdAt,state,labels",
+        campos,
     ]);
-    let v = rodar_json("gh", c, token.as_ref().unwrap_or(&Secret::new("")))?;
-    let mut issues: Vec<IssueListada> = lista(v, "gh")?
+    rodar_json("gh", c, token.unwrap_or(&Secret::new("")))
+}
+
+/// Arquivos alterados por um PR (`gh pr view --json files`); vazio se falhar.
+fn arquivos_do_pr(
+    g: &GithubConfig,
+    numero: u64,
+    f: &Ferramentas,
+    token: Option<&Secret>,
+) -> Vec<String> {
+    let mut c = Command::new(&f.gh);
+    if let Some(t) = token {
+        c.env("GH_TOKEN", t.expose());
+    }
+    c.args([
+        "pr",
+        "view",
+        &numero.to_string(),
+        "-R",
+        g.repo.trim(),
+        "--json",
+        "files",
+    ]);
+    let Ok(v) = rodar_json("gh", c, token.unwrap_or(&Secret::new(""))) else {
+        return Vec::new();
+    };
+    v["files"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .map(|x| texto(x, &["path"]).to_string())
+                .filter(|p| !p.is_empty())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+pub fn listar_github(
+    g: &GithubConfig,
+    periodo: &Periodo,
+    teto: usize,
+    f: &Ferramentas,
+) -> Result<Listagem, DemandaErro> {
+    let desde = periodo.data_a_partir_de(hoje())?;
+    let teto = teto.max(1);
+    let token = token_github(f);
+    let mut c = Command::new(&f.gh);
+    if let Some(t) = &token {
+        c.env("GH_TOKEN", t.expose());
+    }
+    let campos = "number,title,body,url,createdAt,state,labels";
+    // `closedByPullRequestsReferences` não existe em todas as versões do `gh`:
+    // sem ele a listagem continua, só sem os arquivos dos PRs.
+    let com_prs = format!("{campos},closedByPullRequestsReferences");
+    let (v, tem_prs) = match listar_github_json(g, &desde, teto, &com_prs, f, token.as_ref()) {
+        Ok(v) => (v, true),
+        Err(_) => (
+            listar_github_json(g, &desde, teto, campos, f, token.as_ref())?,
+            false,
+        ),
+    };
+    let brutas = lista(v, "gh")?;
+    let mut issues: Vec<IssueListada> = brutas
         .iter()
         .map(|i| IssueListada {
             origem: OrigemIssue::Github,
@@ -203,8 +270,30 @@ pub fn listar_github(
                         .collect()
                 })
                 .unwrap_or_default(),
+            arquivos: Vec::new(),
         })
         .collect();
+    if tem_prs {
+        // Um `gh pr view` por PR, no máximo `TETO_PRS`; falha de um PR não derruba a listagem.
+        let mut consultados = 0usize;
+        for (issue, bruta) in issues.iter_mut().zip(&brutas).take(teto) {
+            let prs: Vec<u64> = bruta["closedByPullRequestsReferences"]
+                .as_array()
+                .map(|a| a.iter().filter_map(|p| p["number"].as_u64()).collect())
+                .unwrap_or_default();
+            for n in prs {
+                if consultados >= TETO_PRS {
+                    break;
+                }
+                consultados += 1;
+                issue
+                    .arquivos
+                    .extend(arquivos_do_pr(g, n, f, token.as_ref()));
+            }
+            issue.arquivos.sort();
+            issue.arquivos.dedup();
+        }
+    }
     let excedeu_teto = issues.len() > teto;
     issues.truncate(teto);
     Ok(Listagem {
@@ -296,6 +385,7 @@ pub fn listar_jira(
                             .collect()
                     })
                     .unwrap_or_default(),
+                arquivos: Vec::new(),
                 chave,
             }
         })
@@ -389,6 +479,55 @@ echo '[{"number":3,"title":"C","body":"c","url":"u3","createdAt":"2026-10-01T00:
         let todas = listar_github(&g, &Periodo::default(), 3, &f);
         // Com teto 3 o limite pedido muda para 4: a CLI falsa recusa.
         assert!(todas.is_err());
+    }
+
+    #[test]
+    fn github_traz_os_arquivos_dos_prs_que_fecham_a_issue() {
+        let d = tempfile::tempdir().unwrap();
+        let gh = script(
+            d.path(),
+            "gh",
+            r#"if [ "$1" = "pr" ]; then
+  case "$3" in
+    7) echo '{"files":[{"path":"db/parcelamento.sql"},{"path":"src/a.java"}]}';;
+    8) echo '{"files":[{"path":"src/a.java"}]}';;
+    *) exit 9;;
+  esac
+  exit 0
+fi
+echo '[{"number":5,"title":"A","body":"a","url":"u5","createdAt":"2026-10-01T00:00:00Z","state":"CLOSED","labels":[],"closedByPullRequestsReferences":[{"number":7},{"number":8}]},{"number":4,"title":"B","body":"b","url":"u4","createdAt":"2026-09-01T00:00:00Z","state":"OPEN","labels":[],"closedByPullRequestsReferences":[]}]'"#,
+        );
+        let f = Ferramentas {
+            gh,
+            ..Default::default()
+        };
+        let g = GithubConfig { repo: "o/r".into() };
+        let l = listar_github(&g, &Periodo::default(), 10, &f).unwrap();
+        assert_eq!(
+            l.issues[0].arquivos,
+            vec!["db/parcelamento.sql", "src/a.java"]
+        );
+        assert!(l.issues[1].arquivos.is_empty());
+    }
+
+    #[test]
+    fn github_sem_o_campo_de_prs_lista_sem_arquivos() {
+        let d = tempfile::tempdir().unwrap();
+        // `gh` antigo: recusa o campo novo, aceita os demais.
+        let gh = script(
+            d.path(),
+            "gh",
+            r#"case "$*" in *closedByPullRequestsReferences*) echo "Unknown JSON field" >&2; exit 1;; esac
+echo '[{"number":5,"title":"A","body":"a","url":"u5","createdAt":"2026-10-01T00:00:00Z","state":"OPEN","labels":[]}]'"#,
+        );
+        let f = Ferramentas {
+            gh,
+            ..Default::default()
+        };
+        let g = GithubConfig { repo: "o/r".into() };
+        let l = listar_github(&g, &Periodo::default(), 10, &f).unwrap();
+        assert_eq!(l.issues.len(), 1);
+        assert!(l.issues[0].arquivos.is_empty());
     }
 
     #[test]
