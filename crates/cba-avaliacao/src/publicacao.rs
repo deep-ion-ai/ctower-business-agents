@@ -417,6 +417,23 @@ fn texto_do_resultado(conteudo: &serde_json::Value) -> String {
     }
 }
 
+/// A resposta de `conhecimento` traz algum documento da documentação publicada:
+/// no texto (`[doc. publicada]`) ou nos dados (`"fonte": "externa"`). O Claude
+/// Code entrega ao agente os dados estruturados (`structuredContent`) no lugar do
+/// texto quando os dois vêm, e é isso que fica na transcrição.
+fn tem_documento_externo(resposta: &str) -> bool {
+    if resposta.contains(ROTULO_EXTERNO) {
+        return true;
+    }
+    serde_json::from_str::<serde_json::Value>(resposta)
+        .ok()
+        .and_then(|v| v.get("resultados").and_then(|r| r.as_array()).cloned())
+        .is_some_and(|r| {
+            r.iter()
+                .any(|x| x.get("fonte").and_then(|f| f.as_str()) == Some("externa"))
+        })
+}
+
 /// Lê a transcrição (`stream-json`, uma mensagem JSON por linha) e mede o uso da
 /// documentação publicada. `repositorio` é o caminho do repositório de docs
 /// (`dono/repo`) e `commit`, o commit sincronizado: a fonte é citada quando a
@@ -480,8 +497,9 @@ pub fn uso_da_documentacao(
                         .get(id)
                         .is_some_and(|n| n.ends_with("conhecimento"));
                     if e_conhecimento
-                        && texto_do_resultado(b.get("content").unwrap_or(&serde_json::Value::Null))
-                            .contains(ROTULO_EXTERNO)
+                        && tem_documento_externo(&texto_do_resultado(
+                            b.get("content").unwrap_or(&serde_json::Value::Null),
+                        ))
                     {
                         uso.respostas_com_externos += 1;
                     }

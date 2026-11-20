@@ -91,6 +91,53 @@ fn transcricao_mostra_o_uso_da_documentacao_publicada() {
 }
 
 #[test]
+fn resposta_em_dados_estruturados_tambem_conta() {
+    // Com texto e `structuredContent`, o Claude Code entrega ao agente os dados:
+    // é o que a transcrição real traz (sem o rótulo do texto).
+    let dados = json!({
+        "externos": "incluir",
+        "resultados": [{
+            "caminho": "faturamento-exemplo/externos/github-exemplo-faturamento-docs/regras/RN-GER-004.md",
+            "fonte": "externa",
+            "origem": { "repositorio": "GitHub exemplo/faturamento-docs", "commit": "53b6b84" }
+        }]
+    });
+    let t = transcricao(
+        &[
+            chamada(
+                "t1",
+                "mcp__cba__conhecimento",
+                json!({ "termo": "juros", "externos": "incluir" }),
+            ),
+            json!({ "type": "user", "message": { "content": [
+                { "type": "tool_result", "tool_use_id": "t1", "content": dados.to_string() }
+            ]}}),
+        ],
+        "Não paga juros.",
+    );
+    let uso = uso_da_documentacao(&t, "exemplo/faturamento-docs", "53b6b84aaa");
+    assert_eq!(uso.respostas_com_externos, 1);
+    assert!(uso.usada());
+
+    // Só a base própria nos dados: não conta.
+    let so_base = json!({ "resultados": [{ "fonte": "base" }] });
+    let t = transcricao(
+        &[
+            chamada(
+                "t1",
+                "mcp__cba__conhecimento",
+                json!({ "termo": "juros", "externos": "incluir" }),
+            ),
+            json!({ "type": "user", "message": { "content": [
+                { "type": "tool_result", "tool_use_id": "t1", "content": so_base.to_string() }
+            ]}}),
+        ],
+        "",
+    );
+    assert!(!uso_da_documentacao(&t, "exemplo/faturamento-docs", "53b6b84aaa").usada());
+}
+
+#[test]
 fn sem_pedir_externos_a_documentacao_nao_conta_como_usada() {
     // A contagem de `externos_disponiveis` e o contexto de iniciar_analise não
     // são uso: só o pedido com `externos` e um documento devolvido.
