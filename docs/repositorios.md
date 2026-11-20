@@ -69,7 +69,9 @@ remover o token apaga o último teste daquele token.
 
 O app clona os repositórios (HTTPS ou SSH) numa pasta base configurável (preferências do app; padrão
 `Documentos/ctower-business-repos`), uma subpasta por repositório, com progresso e erro claro por
-repositório. Só o clone inicial: atualizar (fetch/pull) fica com o analista.
+repositório. Depois do clone, o app só atualiza o clone e escreve nele para publicar a documentação
+(veja [Escrita no repositório](#escrita-no-repositório-275)); o resto (pull do código) fica com o
+analista.
 
 O token não vai para a URL, para os argumentos nem para o `.git/config`: o `git` recebe com `-c` um
 credential helper que vale só para aquela execução e lê o token de uma variável de ambiente. URL de
@@ -101,6 +103,33 @@ A pasta da documentação não é código-fonte: fica fora do inventário e das 
 "documentação publicada", que uma reinclusão não desfaz) e do aviso de alteração. O clone do
 repositório próprio conta como repositório cadastrado para o aviso, e nenhuma pasta do projeto pode
 ficar dentro da pasta da documentação.
+
+## Escrita no repositório (#275)
+
+A publicação grava arquivos numa branch própria e abre um PR (GitHub, `gh api`) ou MR (GitLab,
+`glab api`), devolvendo o link (`cba_repos::escrita::publicar`):
+
+- **Branches protegidas:** `develop`, `main`, `master` e a própria branch base nunca são branch de
+  escrita (sem diferenciar maiúsculas); o push é sem `--force` e só avança a branch.
+- **O clone do analista fica como está:** o commit é montado num índice temporário a partir da
+  branch remota, sem checkout, sem trocar a branch atual e sem criar branch local. Alterações não
+  comitadas fora dos arquivos publicados não atrapalham; num arquivo publicado, a publicação é
+  recusada ("clone sujo"). O autor é o do git do analista; sem `user.name`/`user.email`,
+  `ctower-business-agents`. Os hooks de pre-push não rodam (`--no-verify`).
+- **Republicar:** com PR/MR aberto, o commit novo vai em cima da ponta da branch remota, inclusive
+  dos commits de revisores, e o PR/MR é o mesmo. Sem PR/MR, uma branch já mesclada na base recomeça
+  da base e uma não mesclada é preservada (e ganha o PR/MR). Se a branch anda no remoto durante a
+  publicação, o push é recusado e o erro pede para publicar de novo.
+- **Sem mudanças efetivas** (o conteúdo já está na branch do PR/MR aberto ou na base), não há
+  commit, push nem PR/MR novo, e o resultado diz isso.
+- **Credencial:** a mesma do clone. O `git` recebe o token pelo credential helper de `-c` e
+  `CBA_GIT_TOKEN`; as CLIs, por `GH_TOKEN`/`GITLAB_TOKEN`. Nada na URL, nos argumentos nem no
+  `.git/config`, e as mensagens trocam o token por `***`. Falta de permissão de escrita (no push ou
+  na API) e CLI ausente têm erro próprio.
+
+`cba_repos::escrita::atualizar_clone` busca o remoto e avança a branch base local só por
+fast-forward: com a base no checkout, atualiza a pasta e recusa alterações não comitadas em
+arquivos rastreados; base local e remota divergentes são conflito, resolvido pelo analista.
 
 ## Regras que não mudam depois do cadastro
 

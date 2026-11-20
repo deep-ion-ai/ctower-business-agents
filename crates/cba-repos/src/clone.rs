@@ -7,7 +7,8 @@
 //! analista já tem (chave SSH, credencial do próprio git). Nenhuma execução pede
 //! nada no terminal: `GIT_TERMINAL_PROMPT=0` e SSH em `BatchMode`.
 //!
-//! Só o clone inicial: atualizar (fetch/pull) fica com o analista.
+//! Só o clone inicial; a atualização do clone e a escrita (branch própria, push e
+//! PR/MR) ficam em [`crate::escrita`] (#275).
 
 use crate::process::{self, RunError, cite};
 use crate::{ForgeKind, RepositorioCodigo, Secret};
@@ -53,7 +54,7 @@ pub struct Progresso {
 }
 
 /// O `git` com o token (se houver) só no ambiente e sem pedir nada no terminal.
-fn comando_git(git: &Path, forja: ForgeKind, token: Option<&Secret>) -> Command {
+pub(crate) fn comando_git(git: &Path, forja: ForgeKind, token: Option<&Secret>) -> Command {
     let mut c = Command::new(git);
     c.env("GIT_TERMINAL_PROMPT", "0")
         .env("GCM_INTERACTIVE", "never")
@@ -138,7 +139,7 @@ pub fn validar_url(url: &str) -> Result<(), String> {
 }
 
 /// Mensagem clara para a falha do git, sem o token.
-fn explicar(stderr: &str, token: Option<&Secret>) -> String {
+pub(crate) fn explicar(stderr: &str, token: Option<&Secret>) -> String {
     let t = stderr.to_ascii_lowercase();
     let motivo = if t.contains("authentication failed")
         || t.contains("could not read username")

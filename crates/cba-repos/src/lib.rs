@@ -59,6 +59,7 @@ pub mod codigo;
 mod credential;
 pub mod demanda;
 pub mod docs;
+pub mod escrita;
 pub mod link;
 pub mod process;
 pub mod prontidao;
