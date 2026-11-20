@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { mensagemDe } from "./analise";
+import { EscolherFuncionalidades } from "./EscolherFuncionalidades";
 import { TerminalClaude } from "./TerminalClaude";
 import type { ApiTerminal } from "./terminal";
 import type { TelaTerminal } from "./telaXterm";
@@ -417,6 +418,7 @@ function LinhaDaIssue({
   const ok = i.ligadaA.length > 0;
   const novas = e.funcionalidades.some((f) => !i.ligadaA.includes(f));
   const livres = funcionalidades.filter((f) => !exibidas.includes(f.id));
+  const [escolhendo, setEscolhendo] = useState(false);
   return (
     <li
       className={
@@ -488,18 +490,9 @@ function LinhaDaIssue({
           </ul>
           <div className="acoes">
             {livres.length > 0 && (
-              <select
-                aria-label={`Outra funcionalidade para ${i.chave}`}
-                value=""
-                onChange={(ev) => ev.target.value && alternar(ev.target.value)}
-              >
-                <option value="">Outra funcionalidade…</option>
-                {livres.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.id} · {f.nome} ({f.areaNome})
-                  </option>
-                ))}
-              </select>
+              <button type="button" className="btn" onClick={() => setEscolhendo(true)}>
+                Outra funcionalidade…
+              </button>
             )}
             <button
               type="button"
@@ -517,6 +510,21 @@ function LinhaDaIssue({
               Descartar
             </button>
           </div>
+          {escolhendo && (
+            <EscolherFuncionalidades
+              titulo={`Funcionalidades de ${i.chave}`}
+              funcionalidades={funcionalidades}
+              jaEscolhidas={e.funcionalidades}
+              aoFechar={() => setEscolhendo(false)}
+              aoAdicionar={(ids) => {
+                aoMudar((atual) => ({
+                  ...atual,
+                  funcionalidades: [...new Set([...atual.funcionalidades, ...ids])],
+                }));
+                setEscolhendo(false);
+              }}
+            />
+          )}
           {!ok && i.justificativa && (
             <p className="muted">
               Sem funcionalidade — {MOTIVOS[i.justificativa.motivo]}: {i.justificativa.texto}{" "}

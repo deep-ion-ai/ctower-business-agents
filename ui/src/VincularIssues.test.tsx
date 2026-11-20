@@ -140,9 +140,9 @@ describe("VincularIssues", () => {
     fireEvent.click(screen.getByRole("button", { name: "Buscar issues" }));
     await screen.findByLabelText("Resumo da leitura");
     // Issue sem sugestão: escolhe outra funcionalidade e confirma só ela.
-    fireEvent.change(screen.getByLabelText("Outra funcionalidade para #42"), {
-      target: { value: "F-FAT-002" },
-    });
+    fireEvent.click(screen.getAllByRole("button", { name: "Outra funcionalidade…" })[1]);
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("checkbox", { name: /F-FAT-002/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Adicionar 1" }));
     expect(screen.getByRole("button", { name: "Confirmar 2 issues" })).toBeInTheDocument();
     // Descarta a primeira: sai do lote.
     fireEvent.click(screen.getAllByRole("button", { name: "Descartar" })[0]);
@@ -177,9 +177,12 @@ describe("VincularIssues", () => {
     expect(screen.getByRole("button", { name: "Confirmar 0 issues" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Confirmar as novas" })).toBeDisabled();
     // Acrescentar outra funcionalidade libera só as novas.
-    fireEvent.change(screen.getByLabelText("Outra funcionalidade para #41"), {
-      target: { value: "F-FAT-002" },
-    });
+    fireEvent.click(screen.getAllByRole("button", { name: "Outra funcionalidade…" })[0]);
+    const modal = within(screen.getByRole("dialog", { name: "Funcionalidades de #41" }));
+    // A já ligada aparece marcada e travada.
+    expect(modal.getByRole("checkbox", { name: /F-FAT-001/ })).toBeDisabled();
+    fireEvent.click(modal.getByRole("checkbox", { name: /F-FAT-002/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Adicionar 1" }));
     expect(screen.getByRole("button", { name: "Confirmar as novas" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Confirmar 1 issue" })).toBeInTheDocument();
     // Filtros por situação.
@@ -232,5 +235,25 @@ describe("VincularIssues", () => {
     expect(await screen.findByLabelText("Funcionalidades de #42")).toHaveTextContent("IA");
     expect(screen.getByLabelText("Funcionalidades de #42")).toHaveTextContent("botão de cancelar");
     expect(screen.getByRole("checkbox", { name: /F-FAT-002/ })).toBeChecked();
+  });
+
+  it("modal: busca, escolhe mais de uma funcionalidade e adiciona de uma vez", async () => {
+    abrir();
+    fireEvent.click(screen.getByRole("button", { name: "Buscar issues" }));
+    await screen.findByLabelText("Resumo da leitura");
+    fireEvent.click(screen.getAllByRole("button", { name: "Outra funcionalidade…" })[1]);
+    const modal = within(screen.getByRole("dialog"));
+    expect(modal.getByText(/Cobrança/)).toBeInTheDocument();
+    // A busca filtra por nome.
+    fireEvent.change(modal.getByLabelText("Buscar funcionalidade"), { target: { value: "cancel" } });
+    expect(modal.queryByRole("checkbox", { name: /F-FAT-001/ })).toBeNull();
+    fireEvent.click(modal.getByRole("checkbox", { name: /F-FAT-002/ }));
+    fireEvent.change(modal.getByLabelText("Buscar funcionalidade"), { target: { value: "" } });
+    fireEvent.click(modal.getByRole("checkbox", { name: /F-FAT-001/ }));
+    fireEvent.click(modal.getByRole("button", { name: "Adicionar 2" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    const lista = screen.getByLabelText("Funcionalidades de #42");
+    expect(within(lista).getByRole("checkbox", { name: /F-FAT-001/ })).toBeChecked();
+    expect(within(lista).getByRole("checkbox", { name: /F-FAT-002/ })).toBeChecked();
   });
 });
