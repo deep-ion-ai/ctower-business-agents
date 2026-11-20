@@ -50,6 +50,8 @@
 //!   aprovar, aprovação com a escolha da área e exportação).
 //! - [`revalidacao`]: a revalidação das evidências das regras e das análises por
 //!   hash, que o app chama ao abrir o projeto e sob demanda (spec, seção 6.5).
+//! - [`publicacao`]: a publicação dos documentos aprovados no repositório da
+//!   documentação, com a prévia das mudanças e o PR/MR (#276).
 //!
 //! Papel na arquitetura: seção 5 de `docs/specs/2026-11-11-mvp-standalone.md`.
 
@@ -83,6 +85,7 @@ pub mod parecer;
 pub mod pauta;
 pub mod perguntar;
 pub mod prompts;
+pub mod publicacao;
 pub mod rastreabilidade;
 pub mod referencias;
 mod registro;

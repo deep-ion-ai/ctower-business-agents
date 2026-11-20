@@ -16,6 +16,9 @@ zeroize = "1"
 # Credenciais no Windows, keyutils no Linux.
 keyring = { version = "3", features = ["apple-native", "windows-native", "linux-native"] }
 regex = "1.13.1"
+# Id do blob do git (#276): compara o conteúdo publicado sem ler cada arquivo.
+sha1 = "0.10"
+sha2 = "0.10"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
