@@ -135,6 +135,44 @@ describe("CenariosAoVivo", () => {
       ),
     );
   });
+
+  it("mostra a marca a revalidar e deixa o analista marcar e tirar (#169)", () => {
+    const r = revisao();
+    const [ct1, ct2] = cenarios();
+    ct1.estado = "a-revalidar";
+    ct1.antes_de_revalidar = "valido";
+    ct1.fundamentos_a_revalidar = ["RN-FAT-014"];
+    ct1.limite!.evidencias[0].estado = "a-revalidar";
+    const td = { ...tabela(), estado: "a-revalidar" as const };
+    render(<CenariosAoVivo tabelas={[td]} cenarios={[ct1, ct2]} revisao={r} />);
+    expect(screen.getByText(/· 2 a revalidar/)).toBeTruthy();
+    const cartao = screen.getByRole("listitem", { name: /CT-0001/ });
+    const selo = within(cartao).getByText("a revalidar");
+    expect(selo.getAttribute("title")).toMatch(/RN-FAT-014/);
+    expect(within(cartao).getByText("RN-FAT-014").getAttribute("data-tone")).toBe("attention");
+    // A tabela foi marcada pelo analista.
+    expect(screen.getByText("a revalidar (analista)")).toBeTruthy();
+    fireEvent.click(
+      within(screen.getByRole("group", { name: "Revisão de CT-0001" })).getByRole("button", {
+        name: "Revisto",
+      }),
+    );
+    expect(r.aoDecidir).toHaveBeenCalledWith({
+      tipo: "revalidar",
+      item: { tipo: "cenario", cenario: "CT-0001" },
+      a_revalidar: false,
+    });
+    fireEvent.click(
+      within(screen.getByRole("group", { name: "Revisão de CT-0002" })).getByRole("button", {
+        name: "Marcar a revalidar",
+      }),
+    );
+    expect(r.aoDecidir).toHaveBeenCalledWith({
+      tipo: "revalidar",
+      item: { tipo: "cenario", cenario: "CT-0002" },
+      a_revalidar: true,
+    });
+  });
 });
 
 describe("NovaHistorias no fluxo cenarios", () => {

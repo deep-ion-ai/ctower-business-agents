@@ -87,6 +87,7 @@ fn regra(
             evidencias,
             origem: Some(caminho("analises/A-0001.md")),
             informada: None,
+            historico: Vec::new(),
         },
         format!("\n{corpo}\n"),
     )

@@ -143,6 +143,30 @@ describe("HistoriasAoVivo", () => {
     expect(screen.queryByRole("button")).toBeNull();
   });
 
+  it("mostra o critério a revalidar e o fundamento que mudou (#169)", () => {
+    const revisao = revisaoFalsa();
+    const lista = historias();
+    const ca1 = lista[0].criterios[0];
+    ca1.estado = "a-revalidar";
+    ca1.antes_de_revalidar = "valido";
+    ca1.fundamentos_a_revalidar = ["RN-FAT-008"];
+    render(<HistoriasAoVivo historias={lista} revisao={revisao} />);
+    expect(screen.getByText(/· 1 a revalidar/)).toBeInTheDocument();
+    const criterio = screen.getByRole("listitem", { name: "CA-1" });
+    expect(within(criterio).getByText("a revalidar")).toHaveAttribute(
+      "title",
+      "O código citado mudou desde o registro (RN-FAT-008).",
+    );
+    expect(within(criterio).getByText("RN-FAT-008")).toHaveAttribute("data-tone", "attention");
+    expect(within(criterio).getByText("af. A-0001/4")).not.toHaveAttribute("data-tone");
+    fireEvent.click(within(criterio).getByRole("button", { name: "Revisto" }));
+    expect(revisao.aoDecidir).toHaveBeenCalledWith({
+      tipo: "revalidar",
+      item: { tipo: "criterio", historia: "HU-0001", numero: 1 },
+      a_revalidar: false,
+    });
+  });
+
   it("o INVEST testável vem dos critérios", () => {
     const [hu1] = historias();
     expect(alertasInvest(hu1).has("testavel")).toBe(false);

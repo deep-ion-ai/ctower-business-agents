@@ -334,6 +334,7 @@ fn docx_da_analise_tem_secoes_confianca_e_evidencias() {
         "Dados",
         "Integrações",
         "Documentos e telas",
+        "Dados pessoais e requisitos não funcionais",
         "Riscos",
         "Abrangência",
         "Perguntas para o solicitante",
@@ -362,13 +363,13 @@ fn docx_da_analise_tem_secoes_confianca_e_evidencias() {
         );
     }
 
-    // 10 referências a 6 evidências: 10 notas do Word.
-    assert_eq!(doc.matches("<w:footnoteReference ").count(), 10);
+    // 13 referências a 6 evidências: 13 notas do Word.
+    assert_eq!(doc.matches("<w:footnoteReference ").count(), 13);
     let notas = texto(&partes["word/footnotes.xml"]);
     assert!(notas.contains(
         "Evidência [3]: backend/src/main/java/exemplo/faturamento/ParcelamentoService.java:34-35"
     ));
-    assert_eq!(notas.matches("Evidência [3]:").count(), 3);
+    assert_eq!(notas.matches("Evidência [3]:").count(), 4);
 
     // Lista de evidências e apêndice com o código.
     assert!(corpo.contains("[6] frontend/src/telas/parcelamento-form.ts:19\n"));
@@ -387,11 +388,11 @@ fn docx_da_analise_tem_secoes_confianca_e_evidencias() {
     // Link para a sugestão vira texto.
     assert!(corpo.contains("S-0001 · Limitar a tela ao parâmetro MAX_PARCELAS (frontend/src/telas/parcelamento-form.ts)"));
 
-    // Parágrafos: título do documento e identificação (2), 13 seções, 1 + 1 de
-    // demanda, 2 + 1 + 1 + 1 + 1 itens, 1 vazio (integrações), 2 de
+    // Parágrafos: título do documento e identificação (2), 14 seções, 1 + 1 de
+    // demanda, 2 + 1 + 1 + 1 + 1 + 1 itens, 1 vazio (integrações), 2 de
     // abrangência, 2 perguntas, 1 sugestão, 6 evidências e 6 trechos com o seu
-    // título: 2 + 13 + 2 + 6 + 1 + 2 + 2 + 1 + 6 + 12 = 47.
-    assert_eq!(paragrafos(doc), 47);
+    // título: 2 + 14 + 2 + 7 + 1 + 2 + 2 + 1 + 6 + 12 = 49.
+    assert_eq!(paragrafos(doc), 49);
 }
 
 #[test]
@@ -789,9 +790,9 @@ fn html_da_analise_tem_cabecalho_selos_notas_e_apendice() {
     assert!(h.contains("Status: rascunho · Exportado em 2026-11-17"));
     assert!(h.contains("<strong class=\"selo selo-confirmado\">[confirmado]</strong>"));
     assert!(h.contains("<strong class=\"selo selo-a-confirmar\">[a confirmar]</strong>"));
-    // 10 citações, cada uma com id e link para a nota; cada nota volta para
+    // 13 citações, cada uma com id e link para a nota; cada nota volta para
     // todas as suas citações.
-    assert_eq!(h.matches("<sup class=\"ref-nota\">").count(), 10);
+    assert_eq!(h.matches("<sup class=\"ref-nota\">").count(), 13);
     for k in 1..=6 {
         assert!(
             h.contains(&format!("<div class=\"nota\" id=\"nota-{k}\">")),

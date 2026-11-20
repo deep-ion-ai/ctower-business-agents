@@ -134,6 +134,9 @@ fn texto_do_criterio(c: &Criterio, caminho: &CaminhoRelativo) -> Texto {
     if let Some(p) = &c.pergunta {
         t.push_str(&format!(" · _a confirmar: depende da pergunta {p}_"));
     }
+    if let Some(marca) = crate::revalidacao::marca_no_documento(&c.revalidacao) {
+        t.push_str(&format!(" · {marca}"));
+    }
     let Gherkin {
         dado,
         quando,

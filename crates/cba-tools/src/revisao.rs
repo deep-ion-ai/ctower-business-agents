@@ -54,7 +54,7 @@ use cba_core::cenarios::TextoCenario;
 use cba_core::eventos::Mudanca;
 use cba_core::historias::{DecisaoHistoria, Gherkin, Narrativa, SituacaoHistoria};
 use cba_core::parecer::EstadoAchado;
-use cba_core::requisito::SituacaoItem;
+use cba_core::requisito::{ItemRequisito, SituacaoItem};
 use cba_docs::FonteDeTrechos;
 /// Opções da exportação, para quem chama sem depender de `cba-docs`.
 pub use cba_docs::OpcoesExportacao;
@@ -168,6 +168,13 @@ pub enum Decisao {
     },
     /// Aceitar, descartar ou desfazer a decisão sobre uma tabela de decisão.
     Tabela { numero: u32, situacao: SituacaoItem },
+    /// Marcar um critério, um cenário ou uma tabela como "a revalidar" ou, sem
+    /// `a_revalidar`, tirar a marca (do analista ou da revalidação) depois de rever
+    /// o item (#169). A marca do analista a revalidação não desfaz.
+    Revalidar {
+        item: ItemRequisito,
+        a_revalidar: bool,
+    },
     /// "Virar pergunta" (#119, #120): registrar uma pergunta para o solicitante a
     /// partir de um item da análise (um achado do ciclo de vida ou a relação
     /// inferida do modelo de dados), com o texto editado pelo analista; as
@@ -195,6 +202,10 @@ impl Decisao {
             Self::Cenario { .. } | Self::EditarCenario { .. } | Self::Tabela { .. } => {
                 Mudanca::Cenario
             }
+            Self::Revalidar { item, .. } => match item {
+                ItemRequisito::Criterio { .. } => Mudanca::Historia,
+                ItemRequisito::Cenario { .. } | ItemRequisito::Tabela { .. } => Mudanca::Cenario,
+            },
         }
     }
 
@@ -229,6 +240,7 @@ impl Decisao {
             Self::Cenario { cenario, situacao } => a.decidir_cenario(cenario, situacao),
             Self::EditarCenario { cenario, texto } => a.editar_cenario(cenario, texto),
             Self::Tabela { numero, situacao } => a.decidir_tabela(numero, situacao),
+            Self::Revalidar { item, a_revalidar } => a.marcar_item_a_revalidar(&item, a_revalidar),
             Self::VirarPergunta { texto, origem } => {
                 a.virar_pergunta(&texto, origem, agora_ms).map(|_| ())
             }
@@ -482,9 +494,23 @@ pub fn pendencias_das_historias(analise: &Analise) -> Vec<Pendencia> {
             }
             (SituacaoHistoria::Descartada | SituacaoHistoria::Quebrada, _) => {}
         }
+        for c in h
+            .criterios_validos()
+            .filter(|c| c.revalidacao.a_revalidar())
+        {
+            lista.push(Pendencia {
+                tipo: "criterio",
+                numero: Some(h.id.numero()),
+                motivo: format!("{} {}: {A_REVALIDAR}", h.id, c.rotulo()),
+            });
+        }
     }
     lista
 }
+
+/// Motivo da pendência de um item de requisito a revalidar (#169).
+const A_REVALIDAR: &str =
+    "a revalidar: o código citado mudou (ou o analista marcou); reveja e tire a marca";
 
 /// Pendências dos cenários (fluxo `cenarios`): ao menos um cenário; cada tabela de
 /// decisão e cada cenário com uma decisão do analista (aceito ou descartado) e,
@@ -507,6 +533,16 @@ pub fn pendencias_dos_cenarios(analise: &Analise) -> Vec<Pendencia> {
             });
         }
     }
+    for t in analise
+        .tabelas_no_documento()
+        .filter(|t| t.revalidacao.a_revalidar())
+    {
+        lista.push(Pendencia {
+            tipo: "tabela",
+            numero: Some(t.numero),
+            motivo: format!("{}: {A_REVALIDAR}", t.rotulo()),
+        });
+    }
     for c in &analise.cenarios {
         if c.situacao == SituacaoItem::Pendente {
             lista.push(Pendencia {
@@ -515,6 +551,16 @@ pub fn pendencias_dos_cenarios(analise: &Analise) -> Vec<Pendencia> {
                 motivo: format!("{}: sem decisão: aceite ou descarte", c.id),
             });
         }
+    }
+    for c in analise
+        .cenarios_no_documento()
+        .filter(|c| c.revalidacao.a_revalidar())
+    {
+        lista.push(Pendencia {
+            tipo: "cenario",
+            numero: Some(c.id.numero()),
+            motivo: format!("{}: {A_REVALIDAR}", c.id),
+        });
     }
     for coluna in crate::cenarios::colunas_sem_cenario(analise) {
         lista.push(Pendencia {

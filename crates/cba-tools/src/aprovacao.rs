@@ -708,6 +708,7 @@ impl Gravacao<'_> {
                     evidencias: p.evidencias,
                     origem: f.origem.clone().or_else(|| Some(origem.clone())),
                     informada: f.informada.clone(),
+                    historico: f.historico.clone(),
                 };
                 let (id, area) = (f.id.clone(), f.area.clone());
                 let mut conteudo = Conteudo::da_regra(frontmatter, enunciado);
@@ -735,6 +736,7 @@ impl Gravacao<'_> {
                 evidencias: p.evidencias.clone(),
                 origem: Some(origem.clone()),
                 informada: None,
+                historico: Vec::new(),
             };
             // Monta antes com o próximo número livre, para recusar (sem gravar) um
             // template que não monta; a reserva sem colisão monta de novo.

@@ -1,7 +1,8 @@
 //! Comparação do mapa de funcionalidades (#208) com o gabarito `MAP-FAT-001`: o
 //! mapa completo cobre as funcionalidades e trata todos os pontos de entrada; um
 //! parcial aponta o ponto sem tratamento (falha grave) e a justificativa de um
-//! ponto que deveria estar numa funcionalidade.
+//! ponto que deveria estar numa funcionalidade; uma funcionalidade dividida em
+//! duas que atendem a mesma esperada não conta como ponto mal tratado.
 
 use cba_avaliacao::execucao::escopo;
 use cba_avaliacao::gabarito::Gabarito;
@@ -215,4 +216,48 @@ fn mapa_parcial_aponta_o_que_falta() {
     assert_eq!(multa.tratamento, "justificado");
     assert!(!multa.bem_tratado);
     assert!(m.cobertura_de_pontos() < 1.0);
+}
+
+/// Na primeira execução com o modelo real (#258), o agente registrou "Quitar
+/// parcela" antes de "Registrar pagamento de fatura". As duas atendem a F-FAT-005
+/// (`pag*`, `quit*` e um ponto esperado dela); a comparação pegava só a primeira e
+/// dava como mal tratado o ponto do registro de pagamento.
+#[test]
+fn funcionalidade_dividida_trata_bem_os_pontos_das_partes() {
+    let g = gabarito();
+    let esperado = &g.mapeamento("MAP-FAT-001").unwrap().esperado;
+    let mut a = mapa(&g, true);
+    let escopo = escopo(&g).unwrap();
+    let pontos = pontos(&g);
+    let p = |s: &str| atribuido(&escopo, &pontos, s);
+    // Tira a F-FAT-005 e registra as duas partes, a da parcela primeiro.
+    let f5 = IdFuncionalidade::novo("FAT", 5).unwrap();
+    a.funcionalidades.retain(|f| f.id != f5);
+    registrar(
+        &mut a,
+        7,
+        "Quitar parcela",
+        "parcelamento",
+        vec![p("PRC_QUITAR_PARCELA")],
+    );
+    registrar(
+        &mut a,
+        8,
+        "Registrar pagamento de fatura",
+        "cobranca",
+        vec![p("PRC_REGISTRAR_PAGAMENTO")],
+    );
+
+    let m = avaliar_mapeamento(&a, esperado, &escopo);
+    assert!(m.falhas().is_empty(), "{:?}", m.falhas());
+    assert_eq!(m.cobertura_de_funcionalidades(), 1.0, "{m:#?}");
+    assert_eq!(m.cobertura_de_pontos(), 1.0, "{m:#?}");
+    // Casa com a que tem o ponto só dela (o registro de pagamento), não com a
+    // primeira registrada.
+    let pagamento = m
+        .funcionalidades
+        .iter()
+        .find(|f| f.esperada == "F-FAT-005")
+        .unwrap();
+    assert_eq!(pagamento.registrada.as_deref(), Some("F-FAT-008"), "{m:#?}");
 }

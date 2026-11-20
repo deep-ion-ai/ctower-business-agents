@@ -1,0 +1,512 @@
+{
+  "formato": 1,
+  "parametros": {
+    "data": "2026-11-19-174614",
+    "modelo": "sonnet",
+    "orcamento_por_execucao_usd": 1.5,
+    "repeticoes": 3,
+    "itens": [],
+    "permitir_edicao": false,
+    "versao_do_claude": "2.1.328 (Claude Code)",
+    "commit": "8392685"
+  },
+  "resumo": [
+    {
+      "fluxo": "mapear",
+      "item": "MAP-FAT-001",
+      "execucoes": 3,
+      "avaliadas": 0,
+      "concluidas": 0,
+      "regras_esperadas": 0,
+      "regras_media": 0.0,
+      "regras_min": 0.0,
+      "regras_max": 0.0,
+      "evidencias": 0,
+      "evidencias_validas": 0,
+      "confirmado_sem_evidencia_valida": 0,
+      "perguntas_media": null,
+      "premissa_corrigida": null,
+      "abrangencia_confere": null,
+      "arquivos_media": null,
+      "execucoes_com_arquivos_alterados": 0,
+      "execucoes_com_falha": 0,
+      "custo_usd": 0.8167754,
+      "duracao_s": 149.27800000000002,
+      "tokens": {
+        "entrada": 54,
+        "saida": 23598,
+        "cache_criacao": 123830,
+        "cache_leitura": 853674
+      }
+    }
+  ],
+  "execucoes": [
+    {
+      "fluxo": "mapear",
+      "item": "MAP-FAT-001",
+      "repeticao": 1,
+      "avaliacao": null,
+      "mapa": {
+        "funcionalidades_registradas": 7,
+        "funcionalidades": [
+          {
+            "esperada": "F-FAT-001",
+            "nome": "F-FAT-001",
+            "registrada": "F-COB-001",
+            "area_confere": true
+          },
+          {
+            "esperada": "F-FAT-002",
+            "nome": "F-FAT-002",
+            "registrada": "F-PAR-001",
+            "area_confere": true
+          },
+          {
+            "esperada": "F-FAT-003",
+            "nome": "F-FAT-003",
+            "registrada": "F-COB-003",
+            "area_confere": false
+          },
+          {
+            "esperada": "F-FAT-004",
+            "nome": "F-FAT-004",
+            "registrada": "F-COB-002",
+            "area_confere": true
+          },
+          {
+            "esperada": "F-FAT-005",
+            "nome": "Registro de pagamento",
+            "registrada": "F-PAG-001",
+            "area_confere": false
+          },
+          {
+            "esperada": "F-FAT-006",
+            "nome": "Suspensão da cobrança por contestação",
+            "registrada": "F-COB-004",
+            "area_confere": true
+          }
+        ],
+        "pontos": [
+          {
+            "chave": "backend/src/main/java/exemplo/faturamento/EncargosService.java#exemplo.faturamento.EncargosService.calcular",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-COB-001",
+            "bem_tratado": true
+          },
+          {
+            "chave": "backend/src/main/java/exemplo/faturamento/ParcelamentoService.java#exemplo.faturamento.ParcelamentoService.parcelar",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-PAR-001",
+            "bem_tratado": true
+          },
+          {
+            "chave": "cobol/CALCOBR.cbl#CALCOBR",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-COB-002",
+            "bem_tratado": true
+          },
+          {
+            "chave": "db/03_pkg_cobranca.sql#PKG_COBRANCA.FN_PARAMETRO",
+            "tratamento": "justificado",
+            "funcionalidade": null,
+            "bem_tratado": true
+          },
+          {
+            "chave": "db/03_pkg_cobranca.sql#PKG_COBRANCA.FN_DIAS_ATRASO",
+            "tratamento": "justificado",
+            "funcionalidade": null,
+            "bem_tratado": true
+          },
+          {
+            "chave": "db/03_pkg_cobranca.sql#PKG_COBRANCA.FN_CALCULAR_MULTA",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-COB-001",
+            "bem_tratado": true
+          },
+          {
+            "chave": "db/03_pkg_cobranca.sql#PKG_COBRANCA.FN_CALCULAR_JUROS",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-COB-001",
+            "bem_tratado": true
+          },
+          {
+            "chave": "db/03_pkg_cobranca.sql#PKG_COBRANCA.PRC_CANCELAR_FATURA",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-COB-003",
+            "bem_tratado": true
+          },
+          {
+            "chave": "db/04_pkg_situacao.sql#PKG_SITUACAO.PRC_REGISTRAR_PAGAMENTO",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-PAG-001",
+            "bem_tratado": true
+          },
+          {
+            "chave": "db/04_pkg_situacao.sql#PKG_SITUACAO.PRC_EFETIVAR_PARCELAMENTO",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-PAR-001",
+            "bem_tratado": true
+          },
+          {
+            "chave": "db/04_pkg_situacao.sql#PKG_SITUACAO.PRC_QUITAR_PARCELA",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-PAR-002",
+            "bem_tratado": true
+          },
+          {
+            "chave": "db/04_pkg_situacao.sql#PKG_SITUACAO.PRC_SUSPENDER_COBRANCA",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-COB-004",
+            "bem_tratado": true
+          },
+          {
+            "chave": "delphi/UFrmCancelamento.dfm#FrmCancelamento",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-COB-003",
+            "bem_tratado": true
+          },
+          {
+            "chave": "frontend/src/telas/parcelamento-form.ts#opcoesDeParcelas",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-PAR-001",
+            "bem_tratado": true
+          },
+          {
+            "chave": "frontend/src/telas/parcelamento-form.ts#enviarParcelamento",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-PAR-001",
+            "bem_tratado": true
+          }
+        ],
+        "evidencias_invalidas": []
+      },
+      "arquivos_alterados": [],
+      "claude": {
+        "custo_usd": 0.2772605,
+        "turnos": 21,
+        "duracao_ms": 49578,
+        "erro": false,
+        "subtipo": "success",
+        "tokens": {
+          "entrada": 18,
+          "saida": 7984,
+          "cache_criacao": 42162,
+          "cache_leitura": 287365
+        }
+      },
+      "erro": null
+    },
+    {
+      "fluxo": "mapear",
+      "item": "MAP-FAT-001",
+      "repeticao": 2,
+      "avaliacao": null,
+      "mapa": {
+        "funcionalidades_registradas": 7,
+        "funcionalidades": [
+          {
+            "esperada": "F-FAT-001",
+            "nome": "F-FAT-001",
+            "registrada": "F-COB-003",
+            "area_confere": true
+          },
+          {
+            "esperada": "F-FAT-002",
+            "nome": "F-FAT-002",
+            "registrada": "F-PAR-001",
+            "area_confere": true
+          },
+          {
+            "esperada": "F-FAT-003",
+            "nome": "F-FAT-003",
+            "registrada": "F-COB-001",
+            "area_confere": false
+          },
+          {
+            "esperada": "F-FAT-004",
+            "nome": "F-FAT-004",
+            "registrada": "F-COB-004",
+            "area_confere": true
+          },
+          {
+            "esperada": "F-FAT-005",
+            "nome": "Registro de pagamento",
+            "registrada": "F-PAG-001",
+            "area_confere": false
+          },
+          {
+            "esperada": "F-FAT-006",
+            "nome": "Suspensão da cobrança por contestação",
+            "registrada": "F-COB-002",
+            "area_confere": true
+          }
+        ],
+        "pontos": [
+          {
+            "chave": "backend/src/main/java/exemplo/faturamento/EncargosService.java#exemplo.faturamento.EncargosService.calcular",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-COB-003",
+            "bem_tratado": true
+          },
+          {
+            "chave": "backend/src/main/java/exemplo/faturamento/ParcelamentoService.java#exemplo.faturamento.ParcelamentoService.parcelar",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-PAR-001",
+            "bem_tratado": true
+          },
+          {
+            "chave": "cobol/CALCOBR.cbl#CALCOBR",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-COB-004",
+            "bem_tratado": true
+          },
+          {
+            "chave": "db/03_pkg_cobranca.sql#PKG_COBRANCA.FN_PARAMETRO",
+            "tratamento": "justificado",
+            "funcionalidade": null,
+            "bem_tratado": true
+          },
+          {
+            "chave": "db/03_pkg_cobranca.sql#PKG_COBRANCA.FN_DIAS_ATRASO",
+            "tratamento": "justificado",
+            "funcionalidade": null,
+            "bem_tratado": true
+          },
+          {
+            "chave": "db/03_pkg_cobranca.sql#PKG_COBRANCA.FN_CALCULAR_MULTA",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-COB-003",
+            "bem_tratado": true
+          },
+          {
+            "chave": "db/03_pkg_cobranca.sql#PKG_COBRANCA.FN_CALCULAR_JUROS",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-COB-003",
+            "bem_tratado": true
+          },
+          {
+            "chave": "db/03_pkg_cobranca.sql#PKG_COBRANCA.PRC_CANCELAR_FATURA",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-COB-001",
+            "bem_tratado": true
+          },
+          {
+            "chave": "db/04_pkg_situacao.sql#PKG_SITUACAO.PRC_REGISTRAR_PAGAMENTO",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-PAG-001",
+            "bem_tratado": true
+          },
+          {
+            "chave": "db/04_pkg_situacao.sql#PKG_SITUACAO.PRC_EFETIVAR_PARCELAMENTO",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-PAR-001",
+            "bem_tratado": true
+          },
+          {
+            "chave": "db/04_pkg_situacao.sql#PKG_SITUACAO.PRC_QUITAR_PARCELA",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-PAR-002",
+            "bem_tratado": true
+          },
+          {
+            "chave": "db/04_pkg_situacao.sql#PKG_SITUACAO.PRC_SUSPENDER_COBRANCA",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-COB-002",
+            "bem_tratado": true
+          },
+          {
+            "chave": "delphi/UFrmCancelamento.dfm#FrmCancelamento",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-COB-001",
+            "bem_tratado": true
+          },
+          {
+            "chave": "frontend/src/telas/parcelamento-form.ts#opcoesDeParcelas",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-PAR-001",
+            "bem_tratado": true
+          },
+          {
+            "chave": "frontend/src/telas/parcelamento-form.ts#enviarParcelamento",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-PAR-001",
+            "bem_tratado": true
+          }
+        ],
+        "evidencias_invalidas": []
+      },
+      "arquivos_alterados": [],
+      "claude": {
+        "custo_usd": 0.2744874,
+        "turnos": 21,
+        "duracao_ms": 50825,
+        "erro": false,
+        "subtipo": "success",
+        "tokens": {
+          "entrada": 18,
+          "saida": 7924,
+          "cache_criacao": 41654,
+          "cache_leitura": 285954
+        }
+      },
+      "erro": null
+    },
+    {
+      "fluxo": "mapear",
+      "item": "MAP-FAT-001",
+      "repeticao": 3,
+      "avaliacao": null,
+      "mapa": {
+        "funcionalidades_registradas": 7,
+        "funcionalidades": [
+          {
+            "esperada": "F-FAT-001",
+            "nome": "F-FAT-001",
+            "registrada": "F-COB-001",
+            "area_confere": true
+          },
+          {
+            "esperada": "F-FAT-002",
+            "nome": "F-FAT-002",
+            "registrada": "F-PAR-001",
+            "area_confere": true
+          },
+          {
+            "esperada": "F-FAT-003",
+            "nome": "F-FAT-003",
+            "registrada": "F-COB-003",
+            "area_confere": false
+          },
+          {
+            "esperada": "F-FAT-004",
+            "nome": "F-FAT-004",
+            "registrada": "F-COB-002",
+            "area_confere": true
+          },
+          {
+            "esperada": "F-FAT-005",
+            "nome": "Registro de pagamento",
+            "registrada": "F-PAG-001",
+            "area_confere": false
+          },
+          {
+            "esperada": "F-FAT-006",
+            "nome": "Suspensão da cobrança por contestação",
+            "registrada": "F-COB-004",
+            "area_confere": true
+          }
+        ],
+        "pontos": [
+          {
+            "chave": "backend/src/main/java/exemplo/faturamento/EncargosService.java#exemplo.faturamento.EncargosService.calcular",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-COB-001",
+            "bem_tratado": true
+          },
+          {
+            "chave": "backend/src/main/java/exemplo/faturamento/ParcelamentoService.java#exemplo.faturamento.ParcelamentoService.parcelar",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-PAR-001",
+            "bem_tratado": true
+          },
+          {
+            "chave": "cobol/CALCOBR.cbl#CALCOBR",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-COB-002",
+            "bem_tratado": true
+          },
+          {
+            "chave": "db/03_pkg_cobranca.sql#PKG_COBRANCA.FN_PARAMETRO",
+            "tratamento": "justificado",
+            "funcionalidade": null,
+            "bem_tratado": true
+          },
+          {
+            "chave": "db/03_pkg_cobranca.sql#PKG_COBRANCA.FN_DIAS_ATRASO",
+            "tratamento": "justificado",
+            "funcionalidade": null,
+            "bem_tratado": true
+          },
+          {
+            "chave": "db/03_pkg_cobranca.sql#PKG_COBRANCA.FN_CALCULAR_MULTA",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-COB-001",
+            "bem_tratado": true
+          },
+          {
+            "chave": "db/03_pkg_cobranca.sql#PKG_COBRANCA.FN_CALCULAR_JUROS",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-COB-001",
+            "bem_tratado": true
+          },
+          {
+            "chave": "db/03_pkg_cobranca.sql#PKG_COBRANCA.PRC_CANCELAR_FATURA",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-COB-003",
+            "bem_tratado": true
+          },
+          {
+            "chave": "db/04_pkg_situacao.sql#PKG_SITUACAO.PRC_REGISTRAR_PAGAMENTO",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-PAG-001",
+            "bem_tratado": true
+          },
+          {
+            "chave": "db/04_pkg_situacao.sql#PKG_SITUACAO.PRC_EFETIVAR_PARCELAMENTO",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-PAR-001",
+            "bem_tratado": true
+          },
+          {
+            "chave": "db/04_pkg_situacao.sql#PKG_SITUACAO.PRC_QUITAR_PARCELA",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-PAR-002",
+            "bem_tratado": true
+          },
+          {
+            "chave": "db/04_pkg_situacao.sql#PKG_SITUACAO.PRC_SUSPENDER_COBRANCA",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-COB-004",
+            "bem_tratado": true
+          },
+          {
+            "chave": "delphi/UFrmCancelamento.dfm#FrmCancelamento",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-COB-003",
+            "bem_tratado": true
+          },
+          {
+            "chave": "frontend/src/telas/parcelamento-form.ts#opcoesDeParcelas",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-PAR-001",
+            "bem_tratado": true
+          },
+          {
+            "chave": "frontend/src/telas/parcelamento-form.ts#enviarParcelamento",
+            "tratamento": "atribuido",
+            "funcionalidade": "F-PAR-001",
+            "bem_tratado": true
+          }
+        ],
+        "evidencias_invalidas": []
+      },
+      "arquivos_alterados": [],
+      "claude": {
+        "custo_usd": 0.26502749999999997,
+        "turnos": 21,
+        "duracao_ms": 48875,
+        "erro": false,
+        "subtipo": "success",
+        "tokens": {
+          "entrada": 18,
+          "saida": 7690,
+          "cache_criacao": 40014,
+          "cache_leitura": 280355
+        }
+      },
+      "erro": null
+    }
+  ],
+  "custo_total_usd": 0.8167754,
+  "sem_falhas_graves": true
+}

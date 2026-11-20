@@ -8,7 +8,10 @@ import {
   type ResumoRevalidacao,
   type VisaoProjeto,
 } from "./conhecimento";
+import type { ApiCobertura } from "./cobertura";
+import { CoberturaProjeto } from "./CoberturaProjeto";
 import { ListaDemandas } from "./ListaDemandas";
+import { MudancasCodigo } from "./MudancasCodigo";
 import { simbolosEmNegocio } from "./mapaNegocio";
 import type { Tela } from "./Navegacao";
 import type { ProjetoResumo } from "./terminal";
@@ -72,6 +75,7 @@ function Projeto({
   const [falha, setFalha] = useState<string | null>(null);
   const [revalidacao, setRevalidacao] = useState<Revalidacao>({ tipo: "conferindo" });
   const [area, setArea] = useState<string | null>(null);
+  const [mudancas, setMudancas] = useState(false);
 
   const carregar = useCallback(() => {
     api
@@ -156,7 +160,16 @@ function Projeto({
         >
           Conferir de novo
         </button>
+        {api.mudancas && !mudancas && (
+          <button className="btn" type="button" onClick={() => setMudancas(true)}>
+            O que mudou no código
+          </button>
+        )}
       </div>
+
+      {api.mudancas && mudancas && (
+        <MudancasCodigo api={api.mudancas} projeto={projeto} aoFechar={() => setMudancas(false)} />
+      )}
 
       <ListaDemandas api={api} projeto={projeto} navegar={navegar} />
 
@@ -278,6 +291,15 @@ function Projeto({
         </section>
       )}
 
+      {api.cobertura && (
+        <CoberturaProjeto
+          api={api as ApiCobertura}
+          projeto={projeto}
+          navegar={navegar}
+          versao={visao}
+        />
+      )}
+
       <MapaProjeto api={api} projeto={projeto} />
     </>
   );
@@ -292,6 +314,12 @@ function TextoRevalidacao({ resumo }: { resumo: ResumoRevalidacao }) {
     partes.push(`passaram a revalidar: ${marcadas.map((r) => r.id).join(", ")}`);
   if (restauradas.length > 0)
     partes.push(`voltaram a confirmadas: ${restauradas.map((r) => r.id).join(", ")}`);
+  const historias = resumo.historiasAfetadas ?? 0;
+  const cenarios = (resumo.cenariosAfetados ?? 0) + (resumo.tabelasAfetadas ?? 0);
+  if (historias > 0)
+    partes.push(`${contar(historias, "história", "histórias")} com critério a revalidar`);
+  if (cenarios > 0)
+    partes.push(`${contar(cenarios, "cenário ou tabela", "cenários e tabelas")} a revalidar`);
   if (resumo.problemas.length > 0) partes.push(`${contar(resumo.problemas.length, "documento", "documentos")} com problema`);
   return <span className="muted">{partes.join("; ")}.</span>;
 }

@@ -32,6 +32,11 @@ ter:
   lidos de tabela;
 - divergências entre camadas, como acontece em projetos que evoluíram aos
   poucos;
+- dados pessoais fictícios nas tabelas de clientes (`CLIENTE` e
+  `CLIENTE_CONTATO`, em `db/05_cliente_contato.sql`: nome, documento, e-mail,
+  telefone, endereço, data de nascimento e um texto livre do atendimento), ao
+  lado de colunas de negócio que não são pessoais, para a análise de dados
+  pessoais (LGPD) da análise de impacto (#126);
 - um `.env` falso, com valores que não funcionam em lugar algum, para testar
   a exclusão de arquivos com segredos.
 

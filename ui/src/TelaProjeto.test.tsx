@@ -3,6 +3,7 @@ import { TelaProjeto } from "./TelaProjeto";
 import { ANALISE, REGRA, PROJETO, apiConhecimentoFalsa } from "./test/conhecimentoFalso";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(), Channel: vi.fn() }));
+vi.mock("./telaXterm", () => ({ criarTelaXterm: vi.fn() }));
 
 function montar(falsa = apiConhecimentoFalsa()) {
   const navegar = vi.fn();
@@ -66,6 +67,20 @@ describe("TelaProjeto", () => {
     await waitFor(() => expect(botao).toBeEnabled());
     fireEvent.click(botao);
     await waitFor(() => expect(api.revalidar).toHaveBeenCalledTimes(2));
+  });
+
+  it("abre e fecha o que mudou no código (#124)", async () => {
+    const falsa = apiConhecimentoFalsa();
+    const relatorio = vi.fn().mockRejectedValue("informe `de`");
+    Object.assign(falsa.api, {
+      mudancas: { relatorio, propostas: vi.fn().mockResolvedValue([]) },
+    });
+    montar(falsa);
+    fireEvent.click(await screen.findByRole("button", { name: "O que mudou no código" }));
+    const painel = screen.getByRole("region", { name: "O que mudou no código" });
+    await waitFor(() => expect(relatorio).toHaveBeenCalledWith(PROJETO, null, null));
+    fireEvent.click(within(painel).getByRole("button", { name: "Fechar" }));
+    expect(screen.queryByRole("region", { name: "O que mudou no código" })).toBeNull();
   });
 
   it("navega pelo mapa e mapeia quando ainda não há mapa", async () => {

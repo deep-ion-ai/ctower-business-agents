@@ -6,6 +6,7 @@ import {
   apiConhecimentoFalsa,
   inicioFicticio,
 } from "./test/conhecimentoFalso";
+import { MAPA } from "./test/mapaFalso";
 import { apiConfiguracoesFalsa } from "./test/configuracoesFalso";
 import { act } from "react";
 import {
@@ -56,7 +57,11 @@ async function abrirTerminal(terminal: ReturnType<typeof apiTerminalFalsa>, indi
 }
 
 describe("Navegacao", () => {
-  afterEach(() => localStorage.clear());
+  afterEach(async () => {
+    localStorage.clear();
+    const { invoke } = await import("@tauri-apps/api/core");
+    vi.mocked(invoke).mockImplementation(() => Promise.reject(new Error("fora do Tauri")));
+  });
 
   it("a análise continua com o agente vivo ao ir a outra área e voltar (#212)", async () => {
     const { terminal } = montarComAnalise();
@@ -186,6 +191,51 @@ describe("Navegacao", () => {
     expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Início"]);
     await waitFor(() => expect(terminal.api.encerrar).toHaveBeenCalledWith(5));
     expect(screen.queryByRole("button", { name: "Fechar outras" })).not.toBeInTheDocument();
+  });
+
+  it("fechar a aba do mapa com a sessão do Claude viva pede confirmação; sem sessão, fecha direto (#257)", async () => {
+    const { invoke } = await import("@tauri-apps/api/core");
+    vi.mocked(invoke).mockImplementation(((comando: string) => {
+      if (comando === "mapa_funcionalidades_projeto") return Promise.resolve(MAPA);
+      if (comando === "pedido_de_mapeamento") return Promise.resolve("Mapeie o projeto");
+      return Promise.reject(new Error("fora do Tauri"));
+    }) as never);
+    const terminal = apiTerminalFalsa();
+    render(
+      <Navegacao
+        api={apiConhecimentoFalsa().api}
+        apiAnalise={apiAnaliseFalsa().api}
+        apiTerminal={terminal.api}
+        criarTela={telaFalsa}
+        inicial={{ tipo: "mapa", projeto: PROJETO }}
+      />,
+    );
+    // Sem sessão: fecha direto.
+    fireEvent.click(await screen.findByRole("button", { name: "Fechar Mapa de funcionalidades" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Mapa de funcionalidades" })).not.toBeInTheDocument();
+
+    // Reabre e começa a sessão com o Claude.
+    const atividades = screen.getByRole("navigation", { name: "Telas" });
+    fireEvent.click(within(atividades).getByRole("button", { name: "Mapa de funcionalidades" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Mapear com o Claude" }));
+    fireEvent.click(screen.getByRole("button", { name: "Começar" }));
+    await abrirTerminal(terminal, 0, 9);
+
+    fireEvent.click(screen.getByRole("button", { name: "Fechar Mapa de funcionalidades" }));
+    let dialogo = within(await screen.findByRole("dialog", { name: "Fechar o mapa" }));
+    expect(dialogo.getByText(/A sessão de mapeamento com o Claude será encerrada/)).toBeInTheDocument();
+    fireEvent.click(dialogo.getByRole("button", { name: "Manter a conversa" }));
+    expect(screen.getByRole("tab", { name: "Mapa de funcionalidades" })).toBeInTheDocument();
+    expect(terminal.api.encerrar).not.toHaveBeenCalled();
+
+    // "Fechar outras" conta a sessão do mapa entre as conversas vivas.
+    fireEvent.click(within(atividades).getByRole("button", { name: "Início" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fechar outras" }));
+    dialogo = within(await screen.findByRole("dialog", { name: "Fechar as outras abas" }));
+    expect(dialogo.getByText(/Uma das outras abas tem uma conversa/)).toBeInTheDocument();
+    fireEvent.click(dialogo.getByRole("button", { name: "Encerrar as conversas" }));
+    await waitFor(() => expect(terminal.api.encerrar).toHaveBeenCalledWith(9));
   });
 
   it("o explorador se atualiza ao vivo e mantém a ordem, sem reordenar por atividade (#227)", async () => {
