@@ -88,13 +88,16 @@ describe("VincularIssues", () => {
     expect(screen.getByLabelText("Meses")).toHaveValue(6);
     fireEvent.click(screen.getByRole("button", { name: "Buscar issues" }));
     expect(await screen.findByLabelText("Resumo da leitura")).toHaveTextContent(
-      "2 issue(s) criadas desde 2026-05-19 · 0 confirmada(s) · 1 com sugestão · 1 sem funcionalidade",
+      "0 de 2 issues vinculadas · criadas desde 2026-05-19",
     );
+    const chips = within(screen.getByRole("group", { name: "Vínculo" }));
+    expect(chips.getByRole("button", { name: "Com sugestão 1" })).toBeInTheDocument();
+    expect(chips.getByRole("button", { name: "Sem funcionalidade 1" })).toBeInTheDocument();
     expect(api.issues).toHaveBeenCalledWith("p", 6, null);
     expect(screen.getByText(/mais issues que o limite/)).toBeInTheDocument();
     expect(screen.getByLabelText("Funcionalidades de #41")).toHaveTextContent("9 pontos");
     expect(screen.getByRole("checkbox", { name: /F-FAT-001/ })).toBeChecked();
-    expect(screen.getAllByText("Sem funcionalidade sugerida.")).toHaveLength(1);
+    expect(screen.getAllByText(/Sem funcionalidade sugerida/)).toHaveLength(1);
   });
 
   it("muda o período e filtra por vínculo", async () => {
@@ -103,10 +106,20 @@ describe("VincularIssues", () => {
     fireEvent.click(screen.getByRole("button", { name: "Buscar issues" }));
     await screen.findByLabelText("Resumo da leitura");
     expect(api.issues).toHaveBeenCalledWith("p", 12, null);
-    fireEvent.change(screen.getByLabelText(/Vínculo/), { target: { value: "sem" } });
+    fireEvent.click(
+      within(screen.getByRole("group", { name: "Vínculo" })).getByRole("button", { name: /^Sem funcionalidade/ }),
+    );
     const lista = screen.getByRole("list", { name: "Issues" });
     expect(within(lista).queryByText("Parcelamento erra as parcelas")).toBeNull();
     expect(within(lista).getByText("Trocar a cor do botão")).toBeInTheDocument();
+    // Os chips contam sobre os outros filtros: a #42 está fechada.
+    fireEvent.change(screen.getByLabelText("Estado"), { target: { value: "aberta" } });
+    const chips = within(screen.getByRole("group", { name: "Vínculo" }));
+    expect(chips.getByRole("button", { name: "Sem funcionalidade 0" })).toBeInTheDocument();
+    expect(chips.getByRole("button", { name: "Todas 1" })).toBeInTheDocument();
+    // O lote só leva as issues visíveis.
+    fireEvent.click(chips.getByRole("button", { name: "Todas 1" }));
+    expect(screen.getByRole("button", { name: "Confirmar 1 issue" })).toBeInTheDocument();
   });
 
   it("confirma o lote só com as issues que têm funcionalidade e relê depois", async () => {
@@ -132,7 +145,7 @@ describe("VincularIssues", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("1 vínculo(s) novo(s)");
     // Marca a issue como confirmada sem reler o rastreador.
     expect(api.issues).toHaveBeenCalledTimes(1);
-    expect(await screen.findByText("✓ Confirmada")).toBeInTheDocument();
+    expect(await screen.findByText("Confirmada")).toBeInTheDocument();
   });
 
   it("troca a funcionalidade, descarta e desfaz", async () => {
@@ -146,7 +159,7 @@ describe("VincularIssues", () => {
     expect(screen.getByRole("button", { name: "Confirmar 2 issues" })).toBeInTheDocument();
     // Descarta a primeira: sai do lote.
     fireEvent.click(screen.getAllByRole("button", { name: "Descartar" })[0]);
-    expect(screen.getByText(/Descartada: fica sem funcionalidade/)).toBeInTheDocument();
+    expect(screen.getByText(/Descartada: fica fora da confirmação/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Confirmar 1 issue" }));
     await waitFor(() => expect(api.vincular).toHaveBeenCalled());
     const [, itens] = (api.vincular as ReturnType<typeof vi.fn>).mock.calls[0];
@@ -170,10 +183,9 @@ describe("VincularIssues", () => {
     });
     render(<VincularIssues projeto="p" api={api} aoVoltar={vi.fn()} aoVincular={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "Buscar issues" }));
-    expect(await screen.findByLabelText("Resumo da leitura")).toHaveTextContent(
-      "1 confirmada(s) · 0 com sugestão · 1 sem funcionalidade",
-    );
-    expect(screen.getByText("✓ Confirmada")).toBeInTheDocument();
+    expect(await screen.findByLabelText("Resumo da leitura")).toHaveTextContent("1 de 2 issues vinculadas");
+    expect(screen.getByRole("progressbar", { name: "Issues vinculadas" })).toHaveAttribute("aria-valuenow", "50");
+    expect(screen.getByText("Confirmada")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Confirmar 0 issues" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Confirmar as novas" })).toBeDisabled();
     // Acrescentar outra funcionalidade libera só as novas.
@@ -187,11 +199,12 @@ describe("VincularIssues", () => {
     expect(screen.getByRole("button", { name: "Confirmar as novas" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Confirmar 1 issue" })).toBeInTheDocument();
     // Filtros por situação.
-    fireEvent.change(screen.getByLabelText(/Vínculo/), { target: { value: "confirmadas" } });
+    const vinculo = within(screen.getByRole("group", { name: "Vínculo" }));
+    fireEvent.click(vinculo.getByRole("button", { name: /^Confirmadas/ }));
     const lista = screen.getByRole("list", { name: "Issues" });
     expect(within(lista).getByText("Parcelamento erra as parcelas")).toBeInTheDocument();
     expect(within(lista).queryByText("Trocar a cor do botão")).toBeNull();
-    fireEvent.change(screen.getByLabelText(/Vínculo/), { target: { value: "pendentes" } });
+    fireEvent.click(vinculo.getByRole("button", { name: /^A confirmar/ }));
     expect(within(lista).queryByText("Parcelamento erra as parcelas")).toBeNull();
   });
 
@@ -207,7 +220,8 @@ describe("VincularIssues", () => {
     fireEvent.change(screen.getByLabelText("Motivo de #42"), { target: { value: "infraestrutura" } });
     fireEvent.change(screen.getByLabelText("Justificativa de #42"), { target: { value: "Só visual" } });
     fireEvent.click(salvar);
-    expect(await screen.findByText(/infraestrutura: Só visual/)).toBeInTheDocument();
+    const justificada = (await screen.findByText(/Só visual/)).closest("p")!;
+    expect(justificada).toHaveTextContent("Sem funcionalidade — infraestrutura: Só visual");
     expect(api.justificar).toHaveBeenCalledWith(
       "p",
       expect.objectContaining({ chave: "#42" }),
