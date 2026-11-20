@@ -803,7 +803,9 @@ fn contexto_menciona_pouca_documentacao_publicada() {
     );
     // No roteiro, só os títulos (nada do corpo), com o rótulo e o lembrete.
     assert!(
-        texto.contains("Documentação publicada relacionada (12 no repositório de docs; 3 abaixo)"),
+        texto.contains(
+            "Documentação publicada relacionada (12 no repositório de docs; 3 abaixo, só o título)"
+        ),
         "{texto}"
     );
     assert_eq!(

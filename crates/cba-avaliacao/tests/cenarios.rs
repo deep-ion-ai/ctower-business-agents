@@ -230,6 +230,7 @@ fn cenarios_bons_atendem_o_gabarito() {
             ata: None,
             transcript: None,
             mapa: None,
+            publicacao: None,
             arquivos_alterados: Vec::new(),
             claude: None,
             erro: None,

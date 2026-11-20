@@ -1239,3 +1239,17 @@ mapeamentos:
         nome: Suspensão da cobrança por contestação
         area: cobranca
         palavras_chave: [[suspen*, contesta*]]
+
+# Ciclo de publicação da documentação (#279): o item `analise` é analisado,
+# aprovado e publicado no repositório de docs `repositorio` (na avaliação, um
+# repositório bare local, sem forja real); o item `reanalise` é analisado de
+# novo numa base nova, que só tem a documentação publicada, sincronizada do
+# repositório. A segunda análise é comparada com o gabarito como nos outros
+# fluxos e, à parte, confere-se que o agente consultou a documentação publicada
+# (`conhecimento` com `externos`) e citou a fonte.
+publicacoes:
+  - id: PUB-FAT-001
+    titulo: Publicar a análise da multa e reutilizá-la na pergunta sobre a carência
+    analise: P-FAT-001
+    reanalise: P-FAT-003
+    repositorio: exemplo/faturamento-docs
