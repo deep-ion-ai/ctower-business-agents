@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { mensagemDe } from "./analise";
 import { EscolherFuncionalidades } from "./EscolherFuncionalidades";
 import {
@@ -54,6 +54,67 @@ function inicial(i: IssueDoRastreador): Escolha {
   return { funcionalidades: i.sugestoes[0] ? [i.sugestoes[0].funcionalidade] : [], descartada: false };
 }
 
+/** O trabalho em andamento numa tela de vínculo: a última busca e as escolhas. */
+interface Trabalho {
+  meses: string;
+  desde: string;
+  vista: VistaDeIssues;
+  escolhas: Record<string, Escolha>;
+  estado: FiltroEstado;
+  vinculo: FiltroVinculo;
+  rotulo: string;
+  busca: string;
+  /** Quando a busca foi feita (ms). */
+  buscadaEm: number;
+}
+
+/**
+ * Último trabalho por projeto: em memória (sair e voltar à tela) e no
+ * armazenamento local (reabrir o app). Sem armazenamento, fica só a memória.
+ */
+const trabalhos = new Map<string, Trabalho>();
+const chaveDoTrabalho = (projeto: string) => `cba.vincular.${projeto}`;
+
+function trabalhoSalvo(projeto: string): Trabalho | null {
+  const emMemoria = trabalhos.get(projeto);
+  if (emMemoria) return emMemoria;
+  try {
+    const texto = localStorage.getItem(chaveDoTrabalho(projeto));
+    const t = texto ? (JSON.parse(texto) as Trabalho) : null;
+    if (t?.vista?.issues) {
+      trabalhos.set(projeto, t);
+      return t;
+    }
+  } catch {
+    // Sem armazenamento ou conteúdo inválido: começa do zero.
+  }
+  return null;
+}
+
+function salvarTrabalho(projeto: string, t: Trabalho) {
+  trabalhos.set(projeto, t);
+  try {
+    localStorage.setItem(chaveDoTrabalho(projeto), JSON.stringify(t));
+  } catch {
+    // Sem armazenamento: fica só em memória.
+  }
+}
+
+/** Para os testes: esquece o trabalho guardado. */
+export function esquecerTrabalhos() {
+  for (const projeto of trabalhos.keys()) {
+    try {
+      localStorage.removeItem(chaveDoTrabalho(projeto));
+    } catch {
+      // ignora
+    }
+  }
+  trabalhos.clear();
+}
+
+const quando = (ms: number) =>
+  new Date(ms).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+
 /**
  * Vincular demandas (#270): as issues do GitHub ou do Jira criadas no período,
  * cada uma com a funcionalidade sugerida (sem IA) e a pontuação. O analista
@@ -76,18 +137,37 @@ export function VincularIssues({
   /** Depois de gravar, para a tela reler o mapa. */
   aoVincular: () => void;
 }) {
-  const [meses, setMeses] = useState(String(MESES_PADRAO));
-  const [desde, setDesde] = useState("");
-  const [vista, setVista] = useState<VistaDeIssues | null>(null);
-  const [escolhas, setEscolhas] = useState<Record<string, Escolha>>({});
+  // Volta onde parou: a última busca do projeto, com as escolhas e os filtros.
+  const [salvo] = useState(() => trabalhoSalvo(projeto));
+  const [meses, setMeses] = useState(salvo?.meses ?? String(MESES_PADRAO));
+  const [desde, setDesde] = useState(salvo?.desde ?? "");
+  const [vista, setVista] = useState<VistaDeIssues | null>(salvo?.vista ?? null);
+  const [escolhas, setEscolhas] = useState<Record<string, Escolha>>(salvo?.escolhas ?? {});
+  const [buscadaEm, setBuscadaEm] = useState<number | null>(salvo?.buscadaEm ?? null);
   const [lendo, setLendo] = useState(false);
   const [gravando, setGravando] = useState(false);
   const [falha, setFalha] = useState<string | null>(null);
   const [resultado, setResultado] = useState<ResultadoDoLote | null>(null);
-  const [estado, setEstado] = useState<FiltroEstado>("todas");
-  const [vinculo, setVinculo] = useState<FiltroVinculo>("todas");
-  const [rotulo, setRotulo] = useState("");
-  const [busca, setBusca] = useState("");
+  const [estado, setEstado] = useState<FiltroEstado>(salvo?.estado ?? "todas");
+  const [vinculo, setVinculo] = useState<FiltroVinculo>(salvo?.vinculo ?? "todas");
+  const [rotulo, setRotulo] = useState(salvo?.rotulo ?? "");
+  const [busca, setBusca] = useState(salvo?.busca ?? "");
+
+  useEffect(() => {
+    if (vista) {
+      salvarTrabalho(projeto, {
+        meses,
+        desde,
+        vista,
+        escolhas,
+        estado,
+        vinculo,
+        rotulo,
+        busca,
+        buscadaEm: buscadaEm ?? Date.now(),
+      });
+    }
+  }, [projeto, meses, desde, vista, escolhas, estado, vinculo, rotulo, busca, buscadaEm]);
   /** Pedido da sessão do Claude que propõe o vínculo das issues sem sugestão. */
   const [sessaoIa, setSessaoIa] = useState<string | null>(null);
 
@@ -103,6 +183,7 @@ export function VincularIssues({
       .issues(projeto, desde.trim() ? null : n, desde.trim() || null)
       .then((v) => {
         setVista(v);
+        setBuscadaEm(Date.now());
         setEscolhas(Object.fromEntries(v.issues.map((i) => [chaveDe(i), inicial(i)])));
       })
       .catch((e: unknown) => setFalha(mensagemDe(e)))
@@ -351,6 +432,12 @@ export function VincularIssues({
                   {vinculadas} de {total}
                 </strong>{" "}
                 issues vinculadas <span className="muted">· criadas desde {vista.desde}</span>
+                {buscadaEm !== null && (
+                  <span className="muted" title="Busque de novo para trazer as issues novas e as mudanças do rastreador">
+                    {" "}
+                    · buscadas em {quando(buscadaEm)}
+                  </span>
+                )}
               </div>
               <div
                 className="vincular-barra"

@@ -1,8 +1,8 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { VistaDeIssues } from "./funcionalidades";
 import type { ApiTerminal } from "./terminal";
 import { apiFalsa } from "./test/mapaFalso";
-import { VincularIssues } from "./VincularIssues";
+import { esquecerTrabalhos, VincularIssues } from "./VincularIssues";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(), Channel: vi.fn() }));
 vi.mock("./telaXterm", () => ({ criarTelaXterm: vi.fn() }));
@@ -83,6 +83,8 @@ function abrir() {
 }
 
 describe("VincularIssues", () => {
+  beforeEach(() => esquecerTrabalhos());
+
   it("lê 6 meses por padrão e mostra sugestão, pontuação e issue sem funcionalidade", async () => {
     const { api } = abrir();
     expect(screen.getByLabelText("Meses")).toHaveValue(6);
@@ -270,5 +272,25 @@ describe("VincularIssues", () => {
     const lista = screen.getByLabelText("Funcionalidades de #42");
     expect(within(lista).getByRole("checkbox", { name: /F-FAT-001/ })).toBeChecked();
     expect(within(lista).getByRole("checkbox", { name: /F-FAT-002/ })).toBeChecked();
+  });
+
+  it("volta à tela com a última busca, as escolhas e os filtros, sem buscar de novo", async () => {
+    const primeira = abrir();
+    fireEvent.click(screen.getByRole("button", { name: "Buscar issues" }));
+    await screen.findByLabelText("Resumo da leitura");
+    // Descarta a #41 e filtra só as sem funcionalidade.
+    fireEvent.click(screen.getAllByRole("button", { name: "Descartar" })[0]);
+    fireEvent.click(
+      within(screen.getByRole("group", { name: "Vínculo" })).getByRole("button", { name: /^Todas/ }),
+    );
+    fireEvent.change(screen.getByLabelText("Buscar"), { target: { value: "Parcel" } });
+    expect(primeira.api.issues).toHaveBeenCalledTimes(1);
+    cleanup();
+
+    const segunda = abrir();
+    expect(await screen.findByLabelText("Resumo da leitura")).toHaveTextContent("buscadas em");
+    expect(segunda.api.issues).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Buscar")).toHaveValue("Parcel");
+    expect(screen.getByText(/Descartada: fica fora da confirmação/)).toBeInTheDocument();
   });
 });
