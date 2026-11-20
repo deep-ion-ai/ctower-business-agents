@@ -50,6 +50,7 @@ mod pauta;
 mod primeiro_uso;
 mod projeto;
 mod prompts;
+mod publicacao;
 mod rastreabilidade;
 mod registros;
 mod repositorios;

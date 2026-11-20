@@ -42,6 +42,8 @@ import { ConversaAgente, type SituacaoAgente } from "./ConversaAgente";
 import { PainelLateral, type Aba } from "./PainelLateral";
 import { useTerminalVisivel } from "./preferenciaTerminal";
 import { PromptsProntos } from "./PromptsProntos";
+import { apiPublicacaoTauri, type ApiPublicacao } from "./publicacao";
+import { PublicacaoDocs } from "./PublicacaoDocs";
 import { contarPendencias } from "./resumoRevisao";
 import { apiRevisaoTauri, type ApiRevisao, type DecisaoRevisao, type Pendencia } from "./revisao";
 import { AtaAoVivo } from "./AtaAoVivo";
@@ -70,7 +72,7 @@ export type EstadoConversa = "nenhuma" | "aberta" | "trabalhando";
 type Fora = { cliente: "claudeDesktop" | "terminalDoAnalista"; aviso: string };
 
 /** Painel aberto na barra (um por vez). */
-type Menu = "alteracao" | "continuar" | "exportar";
+type Menu = "alteracao" | "continuar" | "exportar" | "publicar";
 
 const ONDE_TEXTO: Record<ClienteConversa, string> = {
   terminalEmbutido: "aqui, no terminal do app",
@@ -142,6 +144,8 @@ interface Props {
   apiRevisao?: ApiRevisao;
   /** Ata ao vivo e participantes da análise de uma reunião (#141); para testes. */
   apiReuniao?: ApiReuniao;
+  /** Publicação dos documentos aprovados no repositório (#276); para testes. */
+  apiPublicacao?: ApiPublicacao;
   criarTela?: () => TelaTerminal;
   /** Abre outra análise (a criada por um próximo passo da ata, #142). */
   aoAbrirAnalise?: (id: string, abertura: Abertura) => void;
@@ -169,7 +173,7 @@ const AVISO_TERMINAL =
  *
  * A barra do topo traz o id, o título e o estado da análise e, à direita, o aviso de
  * alteração (ícone com contador), o menu "continuar a conversa" e os painéis de
- * aprovação e exportação.
+ * aprovação, exportação e publicação da documentação aprovada no repositório (#276).
  *
  * A conversa acontece num de três clientes, o preferido do primeiro uso primeiro: o
  * terminal embutido, o Claude Desktop (link com o pedido, `/desktop` com a sessão viva
@@ -190,6 +194,7 @@ export function PainelAnalise({
   apiAlteracoes = apiAlteracoesTauri,
   apiRevisao = apiRevisaoTauri,
   apiReuniao = apiReuniaoTauri,
+  apiPublicacao = apiPublicacaoTauri,
   aoAbrirAnalise,
   abrirUrl = openUrl,
   aoMudarConversa,
@@ -678,6 +683,17 @@ export function PainelAnalise({
                   aprovada={vista.analise.estado === "aprovada"}
                   csv={vista.analise.fluxo === "cenarios"}
                 />
+              </BotaoPainel>
+              <BotaoPainel
+                aberto={menu === "publicar"}
+                aoAlternar={alternar("publicar")}
+                aoFechar={fecharMenu}
+                rotulo="Publicar"
+                titulo="Publicar os documentos aprovados do projeto no repositório"
+                rotuloPainel="Publicar a documentação no repositório"
+                classePainel="painel-revisao"
+              >
+                <PublicacaoDocs api={apiPublicacao} projeto={projeto} abrirUrl={abrirUrl} />
               </BotaoPainel>
             </>
           )}

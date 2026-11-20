@@ -22,7 +22,9 @@
 //!   novo ([`Situacao::SemMudancas`]).
 //!
 //! [`atualizar_clone`] (fetch e avanço da branch base, só fast-forward) é pública
-//! para a sincronização do repositório de docs (#277).
+//! para a sincronização do repositório de docs (#277). [`ler_remoto`] lê, sem
+//! tocar no clone, o que já está numa pasta da branch base e da branch da
+//! publicação, para a prévia da publicação dos documentos (#276).
 
 use crate::clone::{comando_git, explicar};
 use crate::demanda::{Ferramentas, PRAZO_CLI};
@@ -31,7 +33,7 @@ use crate::process::{self, RunError, cite};
 use crate::{ForgeKind, RepositorioCodigo, Secret};
 use serde::Serialize;
 use serde_json::Value;
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -986,6 +988,164 @@ pub fn atualizar_clone(
     Ok(atualizacao)
 }
 
+/// Formato dos ids de objeto do repositório (`git rev-parse --show-object-format`).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum FormatoObjeto {
+    #[default]
+    Sha1,
+    Sha256,
+}
+
+impl FormatoObjeto {
+    /// Id do blob do git com este conteúdo (o mesmo de `git hash-object
+    /// --no-filters`), para comparar com o que está publicado sem ler o arquivo.
+    pub fn id_do_blob(self, conteudo: &[u8]) -> String {
+        use sha1::Digest as _;
+        let cabecalho = format!("blob {}\0", conteudo.len());
+        let bytes: Vec<u8> = match self {
+            FormatoObjeto::Sha1 => {
+                let mut h = sha1::Sha1::new();
+                h.update(cabecalho.as_bytes());
+                h.update(conteudo);
+                h.finalize().to_vec()
+            }
+            FormatoObjeto::Sha256 => {
+                let mut h = sha2::Sha256::new();
+                h.update(cabecalho.as_bytes());
+                h.update(conteudo);
+                h.finalize().to_vec()
+            }
+        };
+        bytes.iter().map(|b| format!("{b:02x}")).collect()
+    }
+}
+
+/// Os arquivos de uma pasta na ponta de uma branch do remoto.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ArvoreRemota {
+    /// Ponta da branch no remoto, depois do fetch.
+    pub commit: String,
+    /// Caminho relativo à raiz do repositório (`/`) → id do blob.
+    pub arquivos: BTreeMap<String, String>,
+    /// Conteúdo dos arquivos pedidos em `ler` que existem na branch.
+    pub conteudos: BTreeMap<String, Vec<u8>>,
+}
+
+/// Resultado de [`ler_remoto`].
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct LeituraRemota {
+    /// Branch base resolvida (a informada ou a padrão do remoto).
+    pub base: String,
+    pub na_base: ArvoreRemota,
+    /// A branch da publicação, se ela existe no remoto.
+    pub na_branch: Option<ArvoreRemota>,
+    pub formato: FormatoObjeto,
+}
+
+/// Onde ler: o clone do repositório, a branch base e a da publicação.
+#[derive(Debug, Clone, Copy)]
+pub struct Leitura<'a> {
+    pub repositorio: &'a RepositorioCodigo,
+    /// Clone local do repositório.
+    pub pasta: &'a Path,
+    /// Branch base; `None` = a padrão do remoto.
+    pub base: Option<&'a str>,
+    /// Branch da publicação (lida se existir no remoto).
+    pub branch: &'a str,
+    /// Pasta dentro do repositório (`/`; vazia = tudo).
+    pub pasta_no_repositorio: &'a str,
+    /// Arquivos (relativos à raiz do repositório) cujo conteúdo é devolvido.
+    pub ler: &'a [&'a str],
+}
+
+/// Lê, sem tocar no checkout, o que está numa pasta da branch base e da branch da
+/// publicação no remoto: busca o remoto (`git fetch`, com o token só no
+/// ambiente), lista os arquivos com o id do blob e traz o conteúdo dos caminhos
+/// pedidos. Serve à prévia da publicação (#276), que compara o que vai ser
+/// publicado com o que já está lá.
+pub fn ler_remoto(
+    git: &Path,
+    token: Option<&Secret>,
+    l: &Leitura<'_>,
+) -> Result<LeituraRemota, ErroEscrita> {
+    let prefixo = normalizar_subpasta(l.pasta_no_repositorio)
+        .map_err(|e| ErroEscrita::Invalido(e.replace("subpasta", "pasta")))?;
+    let (g, remoto) = Git::abrir(git, l.repositorio, l.pasta, token)?;
+    g.buscar(&remoto)?;
+    let base = g.resolver_base(&remoto, l.base)?;
+    let base_sha = g.ponta_da_base(&remoto, &base)?;
+    let formato = match g.tentar(&["rev-parse", "--show-object-format"])?.as_deref() {
+        Some("sha256") => FormatoObjeto::Sha256,
+        _ => FormatoObjeto::Sha1,
+    };
+    let na_base = g.arvore_remota(&base_sha, &prefixo, l.ler)?;
+    let branch = l.branch.trim();
+    let na_branch = match g.commit_de(&format!("refs/remotes/{remoto}/{branch}"))? {
+        Some(c) if !branch.is_empty() => Some(g.arvore_remota(&c, &prefixo, l.ler)?),
+        _ => None,
+    };
+    Ok(LeituraRemota {
+        base,
+        na_base,
+        na_branch,
+        formato,
+    })
+}
+
+impl Git<'_> {
+    /// Arquivos de `prefixo` no `commit`, com o conteúdo dos de `ler`.
+    fn arvore_remota(
+        &self,
+        commit: &str,
+        prefixo: &str,
+        ler: &[&str],
+    ) -> Result<ArvoreRemota, ErroEscrita> {
+        let mut args = vec!["ls-tree", "-r", "-z", "--full-tree", commit];
+        if !prefixo.is_empty() {
+            args.extend(["--", prefixo]);
+        }
+        let mut c = self.comando(false);
+        c.env("GIT_LITERAL_PATHSPECS", "1").args(&args);
+        let saida = self.saida_bruta(c, &args)?;
+        let mut arquivos = BTreeMap::new();
+        for linha in saida.split(|b| *b == 0).filter(|l| !l.is_empty()) {
+            let linha = String::from_utf8_lossy(linha);
+            let Some((meta, caminho)) = linha.split_once('\t') else {
+                continue;
+            };
+            let mut partes = meta.split(' ');
+            let (_, tipo, id) = (partes.next(), partes.next(), partes.next());
+            if let (Some("blob"), Some(id)) = (tipo, id) {
+                arquivos.insert(caminho.to_string(), id.to_string());
+            }
+        }
+        let mut conteudos = BTreeMap::new();
+        for caminho in ler {
+            if let Some(id) = arquivos.get(*caminho) {
+                let args = ["cat-file", "blob", id.as_str()];
+                let mut c = self.comando(false);
+                c.args(args);
+                conteudos.insert(caminho.to_string(), self.saida_bruta(c, &args)?);
+            }
+        }
+        Ok(ArvoreRemota {
+            commit: commit.to_string(),
+            arquivos,
+            conteudos,
+        })
+    }
+
+    /// Como [`Git::saida`], com o `stdout` inteiro, em bytes.
+    fn saida_bruta(&self, c: Command, args: &[&str]) -> Result<Vec<u8>, ErroEscrita> {
+        let o = self.executar(c, PRAZO_LOCAL)?;
+        if o.status.success() {
+            Ok(o.stdout)
+        } else {
+            Err(self.erro_local(args, &o))
+        }
+    }
+}
+
 /// Publica as mudanças numa branch própria e abre (ou reutiliza) o PR/MR.
 ///
 /// 1. confere o pedido e a branch (nunca uma protegida) e recusa se algum dos
@@ -1838,6 +1998,68 @@ esac"#,
             let e = atualizar_clone(&c.f.git, &c.repo, &c.clone, None, None).unwrap_err();
             assert!(matches!(e, ErroEscrita::Conflito(_)), "{e:?}");
             assert_eq!(git(&c.clone, &["rev-parse", "HEAD"]), local);
+        }
+
+        #[test]
+        fn ler_remoto_traz_a_pasta_da_base_e_da_branch_sem_mexer_no_clone() {
+            let c = Cenario::novo(ForgeKind::Github);
+            c.publicar(
+                BRANCH,
+                &[Mudanca::gravar("docs/negocio/novo.md", "# Novo\n")],
+            )
+            .unwrap();
+            let head = git(&c.clone, &["rev-parse", "HEAD"]);
+            let ler = ["docs/negocio/existente.md", "docs/negocio/novo.md"];
+            let l = ler_remoto(
+                &c.f.git,
+                None,
+                &Leitura {
+                    repositorio: &c.repo,
+                    pasta: &c.clone,
+                    base: None,
+                    branch: BRANCH,
+                    pasta_no_repositorio: "docs/negocio",
+                    ler: &ler,
+                },
+            )
+            .unwrap();
+            assert_eq!(l.base, "main");
+            assert_eq!(l.na_base.commit, c.no_remoto(&["rev-parse", "main"]));
+            assert_eq!(
+                l.na_base.arquivos.keys().collect::<Vec<_>>(),
+                ["docs/negocio/existente.md"]
+            );
+            assert_eq!(
+                l.na_base.conteudos["docs/negocio/existente.md"],
+                b"# Emiss\xc3\xa3o de nota\n"
+            );
+            // O id do blob calculado bate com o do git.
+            assert_eq!(
+                l.na_base.arquivos["docs/negocio/existente.md"],
+                l.formato.id_do_blob("# Emissão de nota\n".as_bytes())
+            );
+            let b = l.na_branch.unwrap();
+            assert_eq!(b.commit, c.no_remoto(&["rev-parse", BRANCH]));
+            assert_eq!(b.arquivos.len(), 2);
+            assert_eq!(b.conteudos["docs/negocio/novo.md"], b"# Novo\n");
+            // Sem a branch no remoto, só a base.
+            let l = ler_remoto(
+                &c.f.git,
+                None,
+                &Leitura {
+                    repositorio: &c.repo,
+                    pasta: &c.clone,
+                    base: Some("main"),
+                    branch: "docs/outra",
+                    pasta_no_repositorio: "",
+                    ler: &[],
+                },
+            )
+            .unwrap();
+            assert!(l.na_branch.is_none());
+            assert_eq!(l.na_base.arquivos.len(), 2);
+            assert!(l.na_base.conteudos.is_empty());
+            assert_eq!(git(&c.clone, &["rev-parse", "HEAD"]), head);
         }
     }
 }

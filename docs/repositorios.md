@@ -131,6 +131,26 @@ A publicação grava arquivos numa branch própria e abre um PR (GitHub, `gh api
 fast-forward: com a base no checkout, atualiza a pasta e recusa alterações não comitadas em
 arquivos rastreados; base local e remota divergentes são conflito, resolvido pelo analista.
 
+## Publicar os documentos aprovados (#276)
+
+O botão "Publicar", ao lado do "Exportar" na tela da análise, publica a base aprovada do projeto no
+destino da documentação (`cba_tools::publicacao`), nos dois modos:
+
+- **Só o aprovado:** análises, documentos de funcionalidade e mapa com `status: aprovada`, regras
+  `confirmada`, termos do glossário e sugestões `aceita`. Demandas, atas, análises de reunião,
+  registros da demanda, pessoas, memórias e o `projeto.md` ficam de fora. Os `.md` vão como estão
+  (com frontmatter), no layout da base, sob a subpasta do destino.
+- **Prévia antes de confirmar:** o que muda na branch base do destino (novos, alterados e
+  removidos), lido do remoto depois de um fetch, sem tocar no checkout (`cba_repos::escrita::ler_remoto`).
+  Antes do botão, o aviso pede a conferência de segredos e dados pessoais.
+- **Manifesto:** a pasta publicada leva `.cba-publicacao.json`, com o projeto e a lista do que o app
+  publicou. Só os arquivos listados nele (na base ou na branch da publicação) são removidos quando
+  deixam de estar aprovados. Um arquivo que já está na pasta sem ter sido publicado pelo app nunca é
+  apagado nem sobrescrito: a publicação para com um conflito. Manifesto de outro projeto na mesma
+  pasta também é recusado.
+- **Branch e PR/MR:** `docs/cba-<projeto>`, pela escrita acima, com o link do PR/MR no resultado.
+  Sem mudança na base nem publicação pendente, não há commit nem PR/MR.
+
 ## Regras que não mudam depois do cadastro
 
 Cada repositório de código já cadastrado (forja, host e caminho) não pode ser removido nem trocado;

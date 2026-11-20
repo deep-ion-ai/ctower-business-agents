@@ -799,6 +799,34 @@
   border: 0;
 }
 
+/* Publicação da documentação aprovada (#276): a prévia rola dentro do painel. */
+.publicacao {
+  max-height: min(70vh, 560px);
+  overflow-y: auto;
+}
+
+.publicacao-destino {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 8px;
+  margin: 0 0 8px;
+}
+
+.publicacao-destino dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.publicacao-grupo h4 {
+  margin: 8px 0 2px;
+}
+
+.publicacao-grupo ul {
+  margin: 0;
+  padding-left: 18px;
+  overflow-wrap: anywhere;
+}
+
 .nota-alteracao {
   margin: 0;
   font-size: 12px;
