@@ -45,6 +45,7 @@ export function EscolherFuncionalidades({
     <DialogoConfirmacao
       titulo={titulo}
       aoCancelar={aoFechar}
+      classe="dialogo-escolher"
       acoes={
         <>
           <button type="button" className="btn" onClick={aoFechar}>
@@ -62,9 +63,7 @@ export function EscolherFuncionalidades({
       }
     >
       {demanda && (
-        <p className="escolher-demanda">
-          <strong>{demanda}</strong>
-        </p>
+        <p className="escolher-demanda">{demanda}</p>
       )}
       <input
         type="search"
