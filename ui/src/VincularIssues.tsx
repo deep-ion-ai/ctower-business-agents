@@ -513,6 +513,7 @@ function LinhaDaIssue({
           {escolhendo && (
             <EscolherFuncionalidades
               titulo={`Funcionalidades de ${i.chave}`}
+              demanda={i.titulo}
               funcionalidades={funcionalidades}
               jaEscolhidas={e.funcionalidades}
               aoFechar={() => setEscolhendo(false)}

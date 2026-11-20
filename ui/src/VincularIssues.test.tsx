@@ -179,6 +179,7 @@ describe("VincularIssues", () => {
     // Acrescentar outra funcionalidade libera só as novas.
     fireEvent.click(screen.getAllByRole("button", { name: "Outra funcionalidade…" })[0]);
     const modal = within(screen.getByRole("dialog", { name: "Funcionalidades de #41" }));
+    expect(modal.getByText("Parcelamento erra as parcelas")).toBeInTheDocument();
     // A já ligada aparece marcada e travada.
     expect(modal.getByRole("checkbox", { name: /F-FAT-001/ })).toBeDisabled();
     fireEvent.click(modal.getByRole("checkbox", { name: /F-FAT-002/ }));
