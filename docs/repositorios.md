@@ -151,6 +151,33 @@ destino da documentação (`cba_tools::publicacao`), nos dois modos:
 - **Branch e PR/MR:** `docs/cba-<projeto>`, pela escrita acima, com o link do PR/MR no resultado.
   Sem mudança na base nem publicação pendente, não há commit nem PR/MR.
 
+## Sincronização do repositório de docs (#277)
+
+A documentação publicada volta para a base como fonte externa rotulada
+(`cba_tools::docs_externos::sincronizar`):
+
+- **Quando:** pelo botão "Sincronizar agora" no cartão do destino e, em segundo plano, ao iniciar
+  uma análise (se a última tentativa tem mais de 10 minutos). A análise nunca espera: se a cópia
+  tem mais de 24 horas, nunca foi sincronizada ou a última tentativa falhou (rede, credencial,
+  clone), o agente recebe um aviso, e as cópias anteriores continuam valendo.
+- **O quê:** `atualizar_clone` e os `.md` da subpasta lidos do commit da branch base do remoto
+  (`git ls-tree`/`cat-file`, sem checkout), copiados para `<projeto>/externos/<repositório>/` na
+  base com o tipo `doc-externo`: frontmatter gerado com a origem (repositório, caminho, commit,
+  branch), a confiança (`publicada` para documento com `tipo` do app, `externa` para o resto) e o
+  frontmatter original, se havia. Documento sem frontmatter entra (o título vem do `# título` ou do
+  nome do arquivo). Só o que mudou (pelo blob) é lido de novo; o que saiu do repositório sai da
+  base e do índice. O estado fica em `externos/.sincronizacao.json`.
+- **Por que copiar:** o índice continua sendo o espelho reconstruível da base (sem rede nem clone),
+  o conteúdo é o do commit mesmo com o clone noutra branch, e o que entra já está tratado.
+- **Não duplica a base:** um `.md` com `tipo` e `id` (ou `termo`) de um documento desta base (o que
+  ela mesma publicou) não é copiado.
+- **Segredos e dados pessoais:** caminhos com padrão de segredo do inventário e arquivos com chave
+  privada ficam de fora; credencial em URL, tokens conhecidos, valor de campo de senha, CPF válido
+  e e-mail são mascarados. O que foi pulado ou mascarado aparece no cartão.
+- **Só leitura e sem efeito na base:** o documento externo não se edita nem se aprova no app, não
+  vira regra nem termo e fica fora da busca padrão do índice (`Externos::Excluir`); a tela da base
+  o mostra com o rótulo da origem e o filtro "Externos". Remover o destino apaga `externos/`.
+
 ## Regras que não mudam depois do cadastro
 
 Cada repositório de código já cadastrado (forja, host e caminho) não pode ser removido nem trocado;

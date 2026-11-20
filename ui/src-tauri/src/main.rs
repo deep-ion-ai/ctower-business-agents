@@ -41,6 +41,7 @@ mod configuracoes;
 mod console;
 mod conversa;
 mod demandas;
+mod docs_externos;
 mod funcionalidades;
 mod gui;
 mod inicio;

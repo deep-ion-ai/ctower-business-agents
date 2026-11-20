@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { mensagemDe } from "./analise";
 import type { PropsConfigProjeto } from "./ConfigProjeto";
 import { CampoTexto, ItemRepositorioCodigo } from "./FormRepositorios";
@@ -7,8 +7,10 @@ import {
   chaveDoRepositorio,
   normalizarSubpasta,
   validarRepositorios,
+  type ApiRepositorios,
   type DestinoDocs,
   type Repositorios,
+  type SituacaoDocsExternos,
 } from "./repositorios";
 import {
   FORJA,
@@ -211,6 +213,7 @@ export function DestinoDocumentacao({
             .
           </p>
         )}
+        {gravado && !mudou && <SincronizacaoDocs api={api} projeto={projeto.id} />}
         {comFalha && (
           <p className="error-text">
             {primeiraFalha(integ)}
@@ -342,5 +345,110 @@ export function DestinoDocumentacao({
         )}
       </div>
     </section>
+  );
+}
+
+/** Data e hora curtas, no fuso do analista. */
+function quando(ms: number): string {
+  return new Date(ms).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+}
+
+/**
+ * Sincronização do repositório de docs (#277): traz os `.md` publicados de volta
+ * para a base (pasta `externos/`), como fonte externa rotulada e só de leitura. O
+ * app também sincroniza em segundo plano ao iniciar uma análise.
+ */
+export function SincronizacaoDocs({
+  api,
+  projeto,
+}: {
+  api: Pick<ApiRepositorios, "situacaoDocsExternos" | "sincronizarDocsExternos">;
+  projeto: string;
+}) {
+  const [situacao, setSituacao] = useState<SituacaoDocsExternos | null>(null);
+  const [sincronizando, setSincronizando] = useState(false);
+  const [falha, setFalha] = useState<string | null>(null);
+
+  useEffect(() => {
+    let vivo = true;
+    api
+      .situacaoDocsExternos(projeto)
+      .then((s) => vivo && setSituacao(s))
+      .catch(() => {});
+    return () => {
+      vivo = false;
+    };
+  }, [api, projeto]);
+
+  const sincronizar = () => {
+    setSincronizando(true);
+    setFalha(null);
+    api
+      .sincronizarDocsExternos(projeto)
+      .then(setSituacao)
+      .catch((e: unknown) => {
+        setFalha(mensagemDe(e));
+        api
+          .situacaoDocsExternos(projeto)
+          .then(setSituacao)
+          .catch(() => {});
+      })
+      .finally(() => setSincronizando(false));
+  };
+
+  const s = situacao;
+  const docs = (n: number) => (n === 1 ? "documento externo" : "documentos externos");
+  return (
+    <div className="sincronizacao-docs" role="group" aria-label="Sincronização da documentação">
+      <p className="muted">
+        {s?.sincronizadoMs ? (
+          <>
+            Na base: {s.importados} {docs(s.importados)} de <strong>{s.repositorio}</strong>,
+            commit <code>{s.commit?.slice(0, 7)}</code>, sincronizado em{" "}
+            {quando(s.sincronizadoMs)}
+            {s.jaNaBase > 0 && ` (${s.jaNaBase} já na base, não duplicados)`}.
+          </>
+        ) : (
+          "A documentação publicada ainda não foi trazida para a base."
+        )}{" "}
+        Os documentos externos ficam em <span className="caminho">externos/</span>, só para
+        leitura.
+      </p>
+      {s?.aviso && !falha && (
+        <p className="attention-text" role="status">
+          {s.aviso}
+        </p>
+      )}
+      {falha && (
+        <p className="error-text" role="alert">
+          {falha}
+        </p>
+      )}
+      {s && s.pulados.length > 0 && (
+        <details>
+          <summary>
+            {s.pulados.length} {s.pulados.length === 1 ? "arquivo pulado" : "arquivos pulados"}
+          </summary>
+          <ul>
+            {s.pulados.map((p) => (
+              <li key={p.caminho}>
+                <span className="caminho">{p.caminho}</span>: {p.motivo}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+      {s && s.mascarados.length > 0 && (
+        <p className="muted">
+          Trechos com possível segredo ou dado pessoal mascarados em {s.mascarados.length}{" "}
+          {s.mascarados.length === 1 ? "documento" : "documentos"}.
+        </p>
+      )}
+      <div className="acoes">
+        <button className="btn btn-sm" type="button" disabled={sincronizando} onClick={sincronizar}>
+          {sincronizando ? "Sincronizando…" : "Sincronizar agora"}
+        </button>
+      </div>
+    </div>
   );
 }

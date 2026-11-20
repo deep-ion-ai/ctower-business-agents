@@ -62,6 +62,18 @@ pub const ARQUIVO_TRAVA_MAPA: &str = ".mapa.trava";
 /// análise: só lido, para importar.
 pub const ARQUIVO_ESTADO_CATALOGO_LEGADO: &str = "catalogo.estado.json";
 
+/// Documentação externa importada do repositório de docs (#277), uma pasta por
+/// repositório (`externos/<slug do repositório>/`), com a mesma estrutura de
+/// pastas do original. Gerida pela sincronização: o que não veio do repositório é
+/// apagado, e editar uma cópia não adianta (a próxima sincronização desfaz).
+/// Criada na primeira sincronização, não em todo projeto.
+pub const EXTERNOS: &str = "externos";
+/// Estado da sincronização da documentação externa, em `externos/` (arquivo
+/// oculto: fica fora de [`crate::Projeto::documentos`]).
+pub const ARQUIVO_ESTADO_EXTERNOS: &str = ".sincronizacao.json";
+/// Trava da sincronização (app e servidor MCP), em `externos/`.
+pub const TRAVA_EXTERNOS: &str = ".sincronizacao.trava";
+
 /// Extensão dos documentos.
 pub const EXTENSAO: &str = "md";
 
@@ -149,6 +161,27 @@ pub fn funcionalidade(area: &str, tema: &str) -> Result<CaminhoRelativo, Caminho
     ))
 }
 
+/// `externos/`.
+pub fn externos() -> CaminhoRelativo {
+    CaminhoRelativo::novo(EXTERNOS).expect("nome fixo válido")
+}
+
+/// `externos/<slug do repositório>/`, a pasta das cópias de um repositório.
+pub fn externos_do_repositorio(repositorio: &str) -> Result<CaminhoRelativo, CaminhoInvalido> {
+    caminho(format!("{EXTERNOS}/{}", exigir_slug(repositorio)?))
+}
+
+/// `externos/.sincronizacao.json`.
+pub fn estado_dos_externos() -> CaminhoRelativo {
+    caminho(format!("{EXTERNOS}/{ARQUIVO_ESTADO_EXTERNOS}")).expect("nome fixo válido")
+}
+
+/// Se o caminho (relativo à raiz do projeto) é de um documento externo: só
+/// leitura no app, nunca regra nem termo da base.
+pub fn e_externo(relativo: &CaminhoRelativo) -> bool {
+    relativo.partes().next() == Some(EXTERNOS)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -189,5 +222,16 @@ mod tests {
         assert!(e_memoria_da_analise("A-0007.memoria.md"));
         assert!(!e_memoria_da_analise("A-0007.md"));
         assert!(!e_memoria_da_analise("memoria.md"));
+        let externos = externos_do_repositorio("GitHub exemplo/faturamento-docs").unwrap();
+        assert_eq!(
+            externos.as_str(),
+            "externos/github-exemplo-faturamento-docs"
+        );
+        assert!(e_externo(&externos.juntar("regras/multa.md").unwrap()));
+        assert!(!e_externo(&termo("multa").unwrap()));
+        assert_eq!(
+            estado_dos_externos().as_str(),
+            "externos/.sincronizacao.json"
+        );
     }
 }

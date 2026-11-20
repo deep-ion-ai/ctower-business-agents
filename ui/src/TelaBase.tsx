@@ -3,6 +3,7 @@ import { contar } from "./formatacao";
 import { mensagemDe } from "./analise";
 import {
   partesDoTrecho,
+  rotuloOrigem,
   rotuloTipo,
   type ApiConhecimento,
   type Busca,
@@ -18,6 +19,7 @@ const FILTROS: { tipo: FiltroTipo; rotulo: string }[] = [
   { tipo: "regra", rotulo: "Regras" },
   { tipo: "termo", rotulo: "Termos" },
   { tipo: "analise", rotulo: "Análises" },
+  { tipo: "externo", rotulo: "Externos" },
 ];
 
 /** Por página, igual ao `POR_PAGINA` de `base.rs`. */
@@ -212,6 +214,11 @@ export function TelaBase({
                     {rotuloTipo(r.tipo)} · {r.projeto}
                     {r.area && ` · ${r.area}`}
                   </span>
+                  {r.externo && (
+                    <span className="badge" title={r.externo.caminho}>
+                      {rotuloOrigem(r.externo)}
+                    </span>
+                  )}
                   {r.status === "a-revalidar" && (
                     <span className="badge" data-tone="attention">
                       a revalidar
@@ -294,7 +301,7 @@ export function TelaBase({
             )}
             {documento && !falhaDocumento && !editando && (
               <DocumentoBase
-                aoEditar={() => setEditando(true)}
+                aoEditar={documento.somenteLeitura ? undefined : () => setEditando(true)}
                 documento={documento}
                 aoAbrirDocumento={abrir}
                 aoAbrirAnalise={(s, id) =>

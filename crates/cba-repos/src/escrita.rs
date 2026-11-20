@@ -21,10 +21,11 @@
 //! - **sem mudanças efetivas, nada acontece**: sem commit, sem push e sem PR/MR
 //!   novo ([`Situacao::SemMudancas`]).
 //!
-//! [`atualizar_clone`] (fetch e avanço da branch base, só fast-forward) é pública
-//! para a sincronização do repositório de docs (#277). [`ler_remoto`] lê, sem
-//! tocar no clone, o que já está numa pasta da branch base e da branch da
-//! publicação, para a prévia da publicação dos documentos (#276).
+//! [`atualizar_clone`] (fetch e avanço da branch base, só fast-forward) e
+//! [`LeitorDeCommit`] (arquivos de um commit, sem checkout) servem à sincronização
+//! do repositório de docs (#277). [`ler_remoto`] lê, sem tocar no clone, o que já
+//! está numa pasta da branch base e da branch da publicação, para a prévia da
+//! publicação dos documentos (#276).
 
 use crate::clone::{comando_git, explicar};
 use crate::demanda::{Ferramentas, PRAZO_CLI};
@@ -1146,6 +1147,112 @@ impl Git<'_> {
     }
 }
 
+/// Um arquivo da árvore de um commit ([`LeitorDeCommit::listar`]).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ArquivoDoCommit {
+    /// Relativo à raiz do repositório, com `/`.
+    pub caminho: String,
+    /// Objeto (blob) do conteúdo: muda só quando o conteúdo muda.
+    pub blob: String,
+    /// Tamanho em bytes.
+    pub tamanho: u64,
+}
+
+/// Lê arquivos de um commit do clone (#277) direto do banco de objetos do git,
+/// sem checkout: o conteúdo é exatamente o do commit, qualquer que seja a branch
+/// em que o analista deixou a pasta. Só operações locais, sem token.
+pub struct LeitorDeCommit<'a> {
+    g: Git<'a>,
+}
+
+impl<'a> LeitorDeCommit<'a> {
+    /// Abre o clone em `pasta` (precisa ter um remoto que aponte para `repo`).
+    pub fn abrir(
+        git: &'a Path,
+        repo: &RepositorioCodigo,
+        pasta: &Path,
+    ) -> Result<LeitorDeCommit<'a>, ErroEscrita> {
+        let (g, _) = Git::abrir(git, repo, pasta, None)?;
+        Ok(LeitorDeCommit { g })
+    }
+
+    /// Arquivos comuns (sem links simbólicos nem submódulos) do commit, abaixo de
+    /// `subpasta` (vazia = o repositório inteiro), em ordem de caminho.
+    pub fn listar(
+        &self,
+        commit: &str,
+        subpasta: &str,
+    ) -> Result<Vec<ArquivoDoCommit>, ErroEscrita> {
+        objeto_valido(commit)?;
+        let subpasta = normalizar_subpasta(subpasta).map_err(ErroEscrita::Invalido)?;
+        let mut args = vec![
+            "--literal-pathspecs",
+            "ls-tree",
+            "-r",
+            "-z",
+            "-l",
+            "--full-tree",
+            commit,
+        ];
+        if !subpasta.is_empty() {
+            args.extend(["--", subpasta.as_str()]);
+        }
+        let mut c = self.g.comando(false);
+        c.args(&args);
+        let o = self.g.executar(c, PRAZO_LOCAL)?;
+        if !o.status.success() {
+            return Err(self.g.erro_local(&args[1..], &o));
+        }
+        let mut saida = Vec::new();
+        for entrada in o.stdout.split(|b| *b == 0) {
+            let entrada = String::from_utf8_lossy(entrada);
+            // `<modo> <tipo> <objeto> <tamanho>\t<caminho>`
+            let Some((cabeca, caminho)) = entrada.split_once('\t') else {
+                continue;
+            };
+            let campos: Vec<&str> = cabeca.split_whitespace().collect();
+            let [modo, "blob", blob, tamanho] = campos.as_slice() else {
+                continue;
+            };
+            if !modo.starts_with("100") {
+                continue;
+            }
+            saida.push(ArquivoDoCommit {
+                caminho: caminho.to_string(),
+                blob: blob.to_string(),
+                tamanho: tamanho.parse().unwrap_or(0),
+            });
+        }
+        saida.sort_by(|a, b| a.caminho.cmp(&b.caminho));
+        Ok(saida)
+    }
+
+    /// Conteúdo de um blob listado por [`LeitorDeCommit::listar`].
+    pub fn ler(&self, blob: &str) -> Result<Vec<u8>, ErroEscrita> {
+        objeto_valido(blob)?;
+        let args = ["cat-file", "blob", blob];
+        let mut c = self.g.comando(false);
+        c.args(args);
+        let o = self.g.executar(c, PRAZO_LOCAL)?;
+        if o.status.success() {
+            Ok(o.stdout)
+        } else {
+            Err(self.g.erro_local(&args, &o))
+        }
+    }
+}
+
+/// Identificador de objeto do git (hexadecimal), nunca uma opção.
+fn objeto_valido(objeto: &str) -> Result<(), ErroEscrita> {
+    if objeto.len() >= 4 && objeto.bytes().all(|b| b.is_ascii_hexdigit()) {
+        Ok(())
+    } else {
+        Err(ErroEscrita::Invalido(format!(
+            "objeto do git inválido: {objeto}"
+        )))
+    }
+}
+
 /// Publica as mudanças numa branch própria e abre (ou reutiliza) o PR/MR.
 ///
 /// 1. confere o pedido e a branch (nunca uma protegida) e recusa se algum dos
@@ -2060,6 +2167,28 @@ esac"#,
             assert_eq!(l.na_base.arquivos.len(), 2);
             assert!(l.na_base.conteudos.is_empty());
             assert_eq!(git(&c.clone, &["rev-parse", "HEAD"]), head);
+        }
+
+        #[test]
+        fn leitor_de_commit_le_a_arvore_sem_checkout() {
+            let c = Cenario::novo(ForgeKind::Github);
+            // O clone fica noutra branch: o leitor lê o commit, não a pasta.
+            git(&c.clone, &["checkout", "-q", "-b", "trabalho"]);
+            std::fs::write(c.clone.join("docs/negocio/local.md"), "não comitado\n").unwrap();
+            let novo = avancar_remoto(&c, "novo.md");
+            let a = atualizar_clone(&c.f.git, &c.repo, &c.clone, None, None).unwrap();
+            assert_eq!(a.commit, novo);
+            let l = LeitorDeCommit::abrir(&c.f.git, &c.repo, &c.clone).unwrap();
+            let docs = l.listar(&a.commit, "docs/negocio").unwrap();
+            let caminhos: Vec<&str> = docs.iter().map(|d| d.caminho.as_str()).collect();
+            assert_eq!(caminhos, ["docs/negocio/existente.md"]);
+            assert_eq!(l.ler(&docs[0].blob).unwrap(), b"# Emiss\xc3\xa3o de nota\n");
+            assert_eq!(docs[0].tamanho, 19);
+            let todos = l.listar(&a.commit, "").unwrap();
+            assert_eq!(todos.len(), 3, "{todos:?}");
+            assert!(l.listar("--output=x", "").is_err());
+            assert!(l.ler("-p").is_err());
+            assert!(l.listar(&a.commit, "../fora").is_err());
         }
     }
 }

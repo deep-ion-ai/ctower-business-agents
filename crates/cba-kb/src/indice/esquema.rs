@@ -6,8 +6,8 @@ use super::extracao::Registro;
 
 /// Versão do esquema, em `PRAGMA user_version`. Mudou o esquema, suba o número: o
 /// índice é recriado e reconstruído a partir da base. A versão 2 trouxe as tabelas
-/// da rastreabilidade (`super::rastro`).
-pub(super) const VERSAO: i64 = 2;
+/// da rastreabilidade (`super::rastro`); a 3, a documentação externa (#277).
+pub(super) const VERSAO: i64 = 3;
 
 /// Tabelas do índice.
 ///
@@ -17,6 +17,10 @@ pub(super) const VERSAO: i64 = 2;
 ///   por que o documento não passou na validação do tipo.
 /// - `evidencia`: evidências do frontmatter das regras.
 /// - `ligacao`: campos `origem` e `analise` que apontam para outro documento.
+/// - `externo` (coluna de `documento`): 1 para os documentos em `externos/` (a
+///   documentação importada do repositório de docs, #277), pelo caminho, mesmo se o
+///   frontmatter não puder ser lido.
+/// - `origem_externa`: origem, commit e confiança de um documento externo.
 /// - `busca`: FTS5 com o título, as chaves (identificador, termo, sinônimos,
 ///   área) e o corpo, `rowid` igual ao `id` do documento.
 pub(super) const CRIAR: &str = "
@@ -35,6 +39,7 @@ CREATE TABLE documento (
     status TEXT,
     frontmatter TEXT NOT NULL,
     erro TEXT,
+    externo INTEGER NOT NULL DEFAULT 0,
     hash TEXT NOT NULL,
     tamanho INTEGER NOT NULL,
     modificado_ns INTEGER NOT NULL,
@@ -60,6 +65,16 @@ CREATE TABLE ligacao (
     PRIMARY KEY (documento, para, campo)
 );
 CREATE INDEX ligacao_para ON ligacao (para);
+CREATE TABLE origem_externa (
+    documento INTEGER PRIMARY KEY REFERENCES documento (id),
+    repositorio TEXT NOT NULL,
+    caminho TEXT NOT NULL,
+    commit_ TEXT NOT NULL,
+    branch TEXT,
+    confianca TEXT NOT NULL,
+    tipo_original TEXT,
+    id_original TEXT
+);
 CREATE VIRTUAL TABLE busca USING fts5 (
     titulo,
     chaves,
@@ -71,6 +86,7 @@ CREATE VIRTUAL TABLE busca USING fts5 (
 /// Apaga as tabelas (para recriar numa versão nova do esquema).
 pub(super) const APAGAR: &str = "
 DROP TABLE IF EXISTS busca;
+DROP TABLE IF EXISTS origem_externa;
 DROP TABLE IF EXISTS ligacao;
 DROP TABLE IF EXISTS evidencia;
 DROP TABLE IF EXISTS documento;
@@ -80,6 +96,7 @@ DROP TABLE IF EXISTS meta;
 /// Esvazia as tabelas de conteúdo (outra base, reconstrução).
 pub(super) const LIMPAR: &str = "
 DELETE FROM busca;
+DELETE FROM origem_externa;
 DELETE FROM ligacao;
 DELETE FROM evidencia;
 DELETE FROM documento;
@@ -100,8 +117,8 @@ pub(super) fn inserir(
 ) -> rusqlite::Result<()> {
     tx.execute(
         "INSERT INTO documento (caminho, projeto, tipo, identificador, titulo, area, status, \
-             frontmatter, erro, hash, tamanho, modificado_ns, verificado_ns) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+             frontmatter, erro, externo, hash, tamanho, modificado_ns, verificado_ns) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
         params![
             r.caminho,
             r.projeto,
@@ -112,6 +129,7 @@ pub(super) fn inserir(
             r.status,
             r.frontmatter,
             r.erro,
+            r.externo,
             arquivo.hash,
             arquivo.tamanho,
             arquivo.modificado_ns,
@@ -119,6 +137,23 @@ pub(super) fn inserir(
         ],
     )?;
     let id = tx.last_insert_rowid();
+    if let Some(o) = &r.origem_externa {
+        tx.execute(
+            "INSERT INTO origem_externa (documento, repositorio, caminho, commit_, branch, \
+                 confianca, tipo_original, id_original) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![
+                id,
+                o.repositorio,
+                o.caminho,
+                o.commit,
+                o.branch,
+                o.confianca.como_str(),
+                o.tipo_original,
+                o.id_original,
+            ],
+        )?;
+    }
     if r.buscavel {
         tx.execute(
             "INSERT INTO busca (rowid, titulo, chaves, corpo) VALUES (?1, ?2, ?3, ?4)",
@@ -153,6 +188,7 @@ pub(super) fn inserir(
 pub(super) fn remover(tx: &Transaction<'_>, id: i64) -> rusqlite::Result<()> {
     tx.execute("DELETE FROM busca WHERE rowid = ?1", [id])?;
     tx.execute("DELETE FROM ligacao WHERE documento = ?1", [id])?;
+    tx.execute("DELETE FROM origem_externa WHERE documento = ?1", [id])?;
     tx.execute("DELETE FROM evidencia WHERE documento = ?1", [id])?;
     tx.execute("DELETE FROM documento WHERE id = ?1", [id])?;
     Ok(())

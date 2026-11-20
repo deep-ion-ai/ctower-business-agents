@@ -74,10 +74,15 @@ pub enum TipoDocumento {
     /// montado do estado ao lado (`mapa.estado.json`). Cada funcionalidade tem
     /// identificador estável (`F-<SIGLA>-NNN`).
     MapaFuncionalidades,
+    /// Documento do repositório de docs (#277), importado em
+    /// `externos/<repositório>/`: fonte externa rotulada (origem, commit e
+    /// confiança), só leitura no app. Não é regra nem termo da base, mesmo quando
+    /// o original era.
+    DocExterno,
 }
 
 impl TipoDocumento {
-    pub const TODOS: [TipoDocumento; 21] = [
+    pub const TODOS: [TipoDocumento; 22] = [
         Self::Projeto,
         Self::AnaliseImpacto,
         Self::Pergunta,
@@ -99,6 +104,7 @@ impl TipoDocumento {
         Self::Risco,
         Self::Restricao,
         Self::MapaFuncionalidades,
+        Self::DocExterno,
     ];
 
     /// Valor no frontmatter (`analise-impacto`).
@@ -125,6 +131,7 @@ impl TipoDocumento {
             Self::Risco => "risco",
             Self::Restricao => "restricao",
             Self::MapaFuncionalidades => "mapa-funcionalidades",
+            Self::DocExterno => "doc-externo",
         }
     }
 
@@ -635,6 +642,73 @@ pub struct FrontmatterTermo {
 
 impl Frontmatter for FrontmatterTermo {
     const TIPOS: &'static [TipoDocumento] = &[TipoDocumento::Termo];
+}
+
+/// De onde veio um documento externo ([`FrontmatterDocExterno`]).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OrigemExterna {
+    /// Repositório, para mensagens (`GitHub exemplo/faturamento-docs`).
+    pub repositorio: String,
+    /// Caminho do arquivo no repositório, relativo à raiz dele.
+    pub caminho: String,
+    /// Commit sincronizado em que o arquivo tinha este conteúdo.
+    pub commit: String,
+    /// Branch sincronizada.
+    #[serde(default)]
+    pub branch: Option<String>,
+}
+
+/// Quanto confiar num documento externo. Nenhum dos dois substitui evidência
+/// de código lida e conferida.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Confianca {
+    /// Documento da base de um projeto publicado pelo app (frontmatter com um
+    /// `tipo` conhecido), aprovado por um analista, talvez de outra máquina.
+    Publicada,
+    /// Escrito fora do app (sem frontmatter ou sem `tipo` conhecido): não foi
+    /// conferido contra o código.
+    Externa,
+}
+
+impl Confianca {
+    pub fn como_str(self) -> &'static str {
+        match self {
+            Self::Publicada => "publicada",
+            Self::Externa => "externa",
+        }
+    }
+}
+
+/// Documento externo (#277), em `externos/<repositório>/<caminho>.md`: cópia de um
+/// `.md` do repositório de docs, gerada pela sincronização. O corpo é o do
+/// original (com os trechos sensíveis mascarados); o frontmatter original, se
+/// havia, fica em `frontmatter_original`, sem efeito na base.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FrontmatterDocExterno {
+    pub tipo: TipoDocumento,
+    pub titulo: String,
+    pub origem: OrigemExterna,
+    pub confianca: Confianca,
+    /// `tipo` do original, quando ele tinha um conhecido (`regra`, `termo`...).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tipo_original: Option<String>,
+    /// `id` (ou `termo`) do original.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id_original: Option<String>,
+    /// Trechos mascarados na importação (segredos, dados pessoais).
+    #[serde(default, skip_serializing_if = "e_zero")]
+    pub trechos_mascarados: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub frontmatter_original: Option<Mapping>,
+}
+
+fn e_zero(n: &u32) -> bool {
+    *n == 0
+}
+
+impl Frontmatter for FrontmatterDocExterno {
+    const TIPOS: &'static [TipoDocumento] = &[TipoDocumento::DocExterno];
 }
 
 /// Sugestão de alteração, em `sugestoes/<id>.md`.

@@ -79,6 +79,25 @@ export function DocumentoBase({
             Abrir na tela da análise
           </button>
         )}
+        {documento.somenteLeitura && (
+          <p className="muted" role="note">
+            Documento externo, só leitura: cópia do repositório de docs
+            {documento.externo && (
+              <>
+                {" "}
+                (<span className="caminho">{documento.externo.caminho}</span> em{" "}
+                {documento.externo.repositorio}, commit{" "}
+                <code>{documento.externo.commit.slice(0, 7)}</code>,{" "}
+                {documento.externo.confianca === "publicada"
+                  ? "publicado pelo app"
+                  : "escrito fora do app"}
+                )
+              </>
+            )}
+            . Para mudar, edite no repositório e sincronize. Não substitui a evidência do
+            código.
+          </p>
+        )}
         {documento.problema && (
           <p className="error-text" role="alert">
             Frontmatter ilegível: {documento.problema}
