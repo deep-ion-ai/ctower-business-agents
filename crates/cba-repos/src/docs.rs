@@ -240,12 +240,21 @@ mod tests {
     use crate::{ForgeKind, OrigemToken};
     use serde_json::json;
 
+    /// Caminho absoluto em qualquer sistema (no Windows, `/x` não é absoluto).
+    fn abs(p: &str) -> PathBuf {
+        if cfg!(windows) {
+            PathBuf::from(format!("C:{p}"))
+        } else {
+            PathBuf::from(p)
+        }
+    }
+
     fn codigo() -> Vec<RepositorioCodigo> {
         vec![
             RepositorioCodigo {
                 caminho: "exemplo/faturamento".into(),
                 url_clone: "https://github.com/exemplo/faturamento.git".into(),
-                pasta: Some(PathBuf::from("/repos/faturamento")),
+                pasta: Some(abs("/repos/faturamento")),
                 branch: "develop".into(),
                 ..Default::default()
             },
@@ -264,7 +273,7 @@ mod tests {
             host: "gitlab.example.com".into(),
             caminho: "fin/faturamento-docs".into(),
             url_clone: "git@gitlab.example.com:fin/faturamento-docs.git".into(),
-            pasta: Some(PathBuf::from("/repos/faturamento-docs")),
+            pasta: Some(abs("/repos/faturamento-docs")),
             branch: "main".into(),
             token: OrigemToken::Proprio,
             ..Default::default()
@@ -311,10 +320,10 @@ mod tests {
         assert_eq!(r.repositorio.caminho, "exemplo/faturamento");
         assert_eq!(r.subpasta, "docs/negocio");
         assert_eq!(r.branch_base(), Some("develop"));
-        assert_eq!(r.pasta_local(), Some(Path::new("/repos/faturamento")));
+        assert_eq!(r.pasta_local(), Some(abs("/repos/faturamento").as_path()));
         assert_eq!(
             r.pasta_docs_local().unwrap(),
-            Path::new("/repos/faturamento").join("docs").join("negocio")
+            abs("/repos/faturamento").join("docs").join("negocio")
         );
         assert_eq!(
             r.caminho_no_repositorio("regras\\cancelamento.md"),
@@ -375,7 +384,7 @@ mod tests {
         assert_eq!(r.branch_base(), Some("main"));
         assert_eq!(
             r.pasta_docs_local().unwrap(),
-            Path::new("/repos/faturamento-docs")
+            abs("/repos/faturamento-docs")
         );
         assert_eq!(r.caminho_no_repositorio("a.md"), "a.md");
         assert_eq!(d.repositorio_proprio(), Some(&proprio()));
