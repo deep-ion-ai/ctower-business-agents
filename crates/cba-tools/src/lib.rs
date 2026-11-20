@@ -94,6 +94,7 @@ pub mod roteiro;
 pub mod schema;
 pub mod sugestao;
 pub mod termo;
+pub mod vincular;
 
 pub use registro::{
     ErroChamada, ErroFerramenta, Executar, Ferramenta, Registro, Saida, ler_argumentos,
@@ -138,6 +139,7 @@ pub fn registro_padrao() -> Registro {
         .registrar(mapear::pontos_de_entrada())
         .registrar(mapear::registrar_funcionalidade())
         .registrar(mapear::tratar_ponto_de_entrada())
+        .registrar(mapear::propor_vinculo_de_issue())
         .registrar(mapear::concluir_mapeamento())
         .registrar(mudancas::relatorio_de_mudancas())
         .registrar(mudancas::propor_atualizacao_de_regra())
@@ -190,6 +192,7 @@ mod tests {
             "pontos_de_entrada",
             "registrar_funcionalidade",
             "tratar_ponto_de_entrada",
+            "propor_vinculo_de_issue",
             "concluir_mapeamento",
             "relatorio_de_mudancas",
             "propor_atualizacao_de_regra",
@@ -216,6 +219,11 @@ mod tests {
         );
         assert!(
             !r.obter("tratar_ponto_de_entrada")
+                .unwrap()
+                .e_somente_leitura()
+        );
+        assert!(
+            !r.obter("propor_vinculo_de_issue")
                 .unwrap()
                 .e_somente_leitura()
         );

@@ -8,18 +8,21 @@ export function DialogoConfirmacao({
   titulo,
   aoCancelar,
   acoes,
+  classe,
   children,
 }: {
   titulo: string;
   aoCancelar: () => void;
   /** Os botões, o mais seguro com `autoFocus`. */
   acoes: ReactNode;
+  /** Classe extra do diálogo (largura própria, por exemplo). */
+  classe?: string;
   children: ReactNode;
 }) {
   return (
     <div className="dialogo-fundo">
       <div
-        className="dialogo"
+        className={classe ? `dialogo ${classe}` : "dialogo"}
         role="dialog"
         aria-modal="true"
         aria-label={titulo}

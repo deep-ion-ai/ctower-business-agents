@@ -639,6 +639,16 @@ function MapaDoProjeto({
                 </button>
               </>
             )}
+            {mapa && mapa.total > 0 && (
+              <button
+                type="button"
+                className="btn"
+                title="Abre, numa aba própria, as issues do rastreador para vincular às funcionalidades"
+                onClick={() => navegar({ tipo: "vincular", projeto })}
+              >
+                Vincular demandas
+              </button>
+            )}
             <button type="button" className="btn" onClick={recarregar}>
               Atualizar
             </button>

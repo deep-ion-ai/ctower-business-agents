@@ -3047,6 +3047,561 @@ button.indicador:hover {
   padding-left: 20px;
 }
 
+/* Vincular demandas (#270): issues do rastreador × funcionalidades do mapa. */
+.vincular-issues {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Botão só de ícone, com a dica no `title`. */
+.icone-acao {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.icone-acao:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.icone-acao:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.icone-acao:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.icone-acao.icone-principal:not(:disabled) {
+  background: var(--attention);
+  color: var(--on-attention);
+}
+.icone-acao.icone-principal:hover:not(:disabled) {
+  filter: brightness(1.08);
+  background: var(--attention);
+  color: var(--on-attention);
+}
+.icone-contador {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--attention);
+  color: var(--on-attention);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  box-sizing: border-box;
+}
+
+/* Cabeçalho: voltar, título, ajuda e o período na mesma linha. */
+.vincular-cabecalho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.vincular-cabecalho h3 {
+  margin: 0;
+}
+.vincular-info {
+  display: inline-flex;
+  color: var(--muted);
+  cursor: help;
+}
+.vincular-periodo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  padding: 4px 4px 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.vincular-periodo label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.vincular-periodo input[type="number"] {
+  width: 4em;
+}
+.vincular-buscar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.vincular-resultado {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--ok);
+  border-radius: 8px;
+  background: var(--done-bg);
+  color: var(--text);
+}
+.vincular-resultado > svg {
+  color: var(--ok);
+}
+.vincular-fechar {
+  display: inline-flex;
+  margin-left: auto;
+  padding: 2px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.vincular-aviso {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--attention-border);
+  border-radius: 8px;
+  background: var(--attention-card);
+  color: var(--text-2);
+}
+.vincular-aviso svg {
+  color: var(--attention);
+  flex-shrink: 0;
+}
+
+.vincular-vazio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 48px 16px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 12px;
+  color: var(--muted);
+  text-align: center;
+}
+.vincular-vazio svg {
+  width: 28px;
+  height: 28px;
+}
+
+/* Progresso e chips de situação, que também filtram. */
+.vincular-painel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.vincular-progresso {
+  display: grid;
+  gap: 6px;
+  flex: 1 1 260px;
+}
+.vincular-barra {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--idle-bg);
+  overflow: hidden;
+}
+.vincular-barra span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ok);
+  transition: width 0.3s;
+}
+.vincular-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.vincular-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 0.9em;
+  cursor: pointer;
+}
+.vincular-chip:hover {
+  background: var(--hover);
+}
+.vincular-chip[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--selected);
+  color: var(--text);
+}
+.vincular-chip-n {
+  min-width: 1.6em;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--idle-bg);
+  font-size: 0.85em;
+  font-weight: 700;
+  text-align: center;
+}
+.chip-confirmadas .vincular-chip-n {
+  background: var(--done-bg);
+  color: var(--ok);
+}
+.chip-sem .vincular-chip-n {
+  background: var(--attention-bg);
+  color: var(--attention);
+}
+
+/* Filtros à esquerda e ações do lote à direita, fixos ao rolar. */
+.vincular-barra-acoes {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+.vincular-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.vincular-busca {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+}
+.vincular-busca input {
+  min-width: 14rem;
+  border: 0;
+  outline: 0;
+  background: transparent;
+}
+.vincular-lote {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.vincular-confirmar-lote {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Lista e card da issue: a borda esquerda diz a situação. */
+.vincular-lista,
+.vincular-sugestoes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.vincular-lista {
+  display: grid;
+  gap: 8px;
+}
+.vincular-issue {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px 10px 14px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+.vincular-issue.sugerida {
+  border-left-color: var(--accent);
+}
+.vincular-issue.sem {
+  border-left-color: var(--attention);
+}
+.vincular-issue.confirmada {
+  border-left-color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 5%, var(--surface));
+}
+.vincular-issue.justificada {
+  border-left-color: var(--faint);
+}
+.vincular-issue.descartada {
+  opacity: 0.55;
+}
+.vincular-topo {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.vincular-titulo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  flex: 1;
+  min-width: 0;
+}
+.vincular-chave {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--mono);
+  font-size: 0.9em;
+  color: var(--link);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.vincular-chave:hover {
+  text-decoration: underline;
+}
+.vincular-meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.vincular-estado,
+.vincular-rotulo,
+.vincular-tipo {
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 0.78em;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+.vincular-estado {
+  background: var(--running-bg);
+  color: var(--running);
+}
+.vincular-estado.fechada {
+  background: var(--idle-bg);
+  color: var(--muted);
+}
+.vincular-rotulo {
+  border: 1px solid var(--border-strong);
+  color: var(--muted);
+}
+.vincular-acoes {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.vincular-selo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 6px;
+  padding: 1px 8px;
+  border: 1px solid var(--ok);
+  border-radius: 999px;
+  color: var(--ok);
+  font-size: 0.8em;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.vincular-selo svg {
+  width: 12px;
+  height: 12px;
+}
+.vincular-ligada,
+.vincular-justificada {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--text-2);
+  font-size: 0.9em;
+}
+.vincular-ligada svg {
+  color: var(--ok);
+  flex-shrink: 0;
+}
+.vincular-pendente {
+  color: var(--attention);
+}
+.vincular-justificada svg {
+  color: var(--faint);
+  flex-shrink: 0;
+}
+.vincular-sem {
+  margin: 0;
+  font-size: 0.9em;
+}
+
+/* Sugestões: uma linha por funcionalidade, com o medidor de pontos. */
+.vincular-sugestoes {
+  display: grid;
+  gap: 2px;
+}
+.vincular-sugestoes li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.vincular-sugestoes li:hover {
+  background: var(--hover);
+}
+.vincular-sugestoes li.marcada {
+  background: var(--selected);
+}
+.vincular-sugestoes label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 320px;
+  min-width: 0;
+  cursor: pointer;
+}
+.vincular-fid {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.vincular-evidencia {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+}
+.vincular-tipo {
+  background: var(--idle-bg);
+  color: var(--text-2);
+}
+.vincular-ia {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--epic) 18%, transparent);
+  color: var(--epic);
+  font-size: 0.78em;
+  font-weight: 600;
+}
+.vincular-ia svg {
+  width: 12px;
+  height: 12px;
+}
+.vincular-ia-texto {
+  max-width: 28rem;
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: 0.85em;
+  font-style: italic;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vincular-pontos {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.8em;
+  white-space: nowrap;
+}
+.vincular-medidor {
+  width: 56px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--idle-bg);
+  overflow: hidden;
+}
+.vincular-medidor span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+.vincular-justificar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.vincular-justificar input[type="text"] {
+  flex: 1 1 18rem;
+}
+
+/* Modal "Outra funcionalidade" (#270): busca e árvore por área. */
+.dialogo.dialogo-escolher {
+  box-sizing: border-box;
+  width: min(44rem, 100%);
+  max-width: none;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+.dialogo-escolher h3 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.dialogo-escolher input[type="search"] {
+  box-sizing: border-box;
+  width: 100%;
+}
+.dialogo-escolher .dialogo-acoes {
+  justify-content: flex-end;
+  margin-top: 0;
+}
+.escolher-funcionalidades {
+  flex: 1 1 auto;
+  min-height: 8rem;
+  max-height: 55vh;
+  overflow-y: auto;
+  padding: 4px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.escolher-area summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0.25rem 0;
+}
+.escolher-area ul {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding-left: 1.25rem;
+}
+
 /* Fundamento ou evidência que não confere mais com o código (#169). */
 .origens .chip[data-tone="attention"],
 code[data-tone="attention"] {

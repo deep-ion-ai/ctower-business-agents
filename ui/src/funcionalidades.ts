@@ -159,6 +159,9 @@ export interface DemandaNoPainel {
   titulo: string;
   aberta: boolean;
   criado: string;
+  /** Chave e endereço da issue, quando a demanda veio do rastreador (#270). */
+  chave: string | null;
+  origem: string | null;
   ligadaNoPainel: boolean;
   impacto: EtapaDemanda | null;
   historias: EtapaDemanda | null;
@@ -187,7 +190,79 @@ export interface PainelFuncionalidade {
   demandasDoProjeto: { id: string; titulo: string }[];
 }
 
+/** Vincular as issues do rastreador às funcionalidades (`vincular_issues.rs`, #270). */
+export interface SugestaoDeIssue {
+  funcionalidade: string;
+  nome: string;
+  pontuacao: number;
+  evidencias: string[];
+  /** Veio de uma proposta do agente (pontuação 0), não do texto. */
+  ia: boolean;
+}
+
+export interface IssueDoRastreador {
+  origem: "github" | "jira";
+  chave: string;
+  titulo: string;
+  descricao: string;
+  url: string;
+  criadaEm: string;
+  estado: "aberta" | "fechada";
+  rotulos: string[];
+  sugestoes: SugestaoDeIssue[];
+  /** Demanda da base que já representa a issue. */
+  demanda: string | null;
+  /** Funcionalidades a que essa demanda já está ligada. */
+  ligadaA: string[];
+  /** Por que a issue fica sem funcionalidade, se o analista justificou. */
+  justificativa: JustificativaDeIssue | null;
+}
+
+export type MotivoDeIssue = "fora_do_escopo" | "infraestrutura" | "outro";
+
+export interface JustificativaDeIssue {
+  motivo: MotivoDeIssue;
+  texto: string;
+}
+
+export interface VistaDeIssues {
+  issues: IssueDoRastreador[];
+  /** O período devolveu mais issues que o teto. */
+  excedeuTeto: boolean;
+  desde: string;
+  funcionalidades: { id: string; nome: string; areaNome: string }[];
+}
+
+export type IssueParaConfirmar = Omit<IssueDoRastreador, "sugestoes" | "demanda" | "ligadaA" | "justificativa">;
+
+export interface ItemConfirmado {
+  issue: IssueParaConfirmar;
+  funcionalidades: string[];
+}
+
+export interface ResultadoDoLote {
+  /** A demanda da base de cada issue confirmada. */
+  demandas: { origem: "github" | "jira"; chave: string; demanda: string }[];
+  criadas: string[];
+  reaproveitadas: string[];
+  vinculosNovos: number;
+  vinculosExistentes: number;
+  avisos: string[];
+}
+
 export interface ApiMapa {
+  /** Lê as issues do período (meses ou data `AAAA-MM-DD`) e sugere a funcionalidade. */
+  issues: (projeto: string, meses: number | null, desde: string | null) => Promise<VistaDeIssues>;
+  /** Confirma o lote: cria ou reaproveita as demandas e liga às funcionalidades. */
+  vincular: (projeto: string, itens: ItemConfirmado[]) => Promise<ResultadoDoLote>;
+  /** Justifica a issue sem funcionalidade; `null` tira a justificativa. */
+  justificar: (
+    projeto: string,
+    issue: IssueParaConfirmar,
+    justificativa: JustificativaDeIssue | null,
+  ) => Promise<void>;
+  /** Pedido que abre a sessão do Claude para propor o vínculo das issues. */
+  pedidoVinculoIa: (projeto: string, issues: IssueParaConfirmar[]) => Promise<string>;
   mapa: (projeto: string) => Promise<MapaFuncionalidades>;
   revisar: (projeto: string, revisao: RevisaoDoMapa) => Promise<MapaFuncionalidades>;
   /** Pedido que abre a sessão de mapeamento no terminal do Claude. */
@@ -209,6 +284,11 @@ export interface ApiMapa {
 }
 
 export const apiMapaTauri: ApiMapa = {
+  issues: (projeto, meses, desde) => invoke("issues_para_vincular_app", { projeto, meses, desde }),
+  vincular: (projeto, itens) => invoke("confirmar_vinculos_app", { projeto, itens }),
+  pedidoVinculoIa: (projeto, issues) => invoke("pedido_vinculo_ia_app", { projeto, issues }),
+  justificar: (projeto, issue, justificativa) =>
+    invoke("justificar_issue_app", { projeto, issue, justificativa }),
   mapa: (projeto) => invoke("mapa_funcionalidades_projeto", { projeto }),
   revisar: (projeto, revisao) => invoke("revisar_mapa_projeto", { projeto, revisao }),
   pedido: (pasta, area, orientacao) => invoke("pedido_de_mapeamento", { pasta, area, orientacao }),

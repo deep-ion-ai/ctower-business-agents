@@ -41,6 +41,7 @@ pub mod parecer;
 pub mod qualidade;
 pub mod requisito;
 pub mod tempo;
+pub mod vinculos;
 
 /// Nome da crate, para diagnóstico.
 pub const NOME: &str = env!("CARGO_PKG_NAME");

@@ -497,6 +497,39 @@ fn explicacao_do_mapa_grava_o_documento_negocial_ligado() {
     assert!(md.contains("aceita · documentada"), "{md}");
 }
 
+#[test]
+fn agente_propoe_o_vinculo_de_issue_com_evidencia() {
+    let c = cenario();
+    mapear_quase_tudo(&c);
+    let id = c.mapa().abertas().next().unwrap().id.to_string();
+    c.ok(
+        "propor_vinculo_de_issue",
+        json!({
+            "origem": "github",
+            "chave": "#41",
+            "funcionalidades": [id],
+            "evidencia": "cita PKG_COBRANCA.FN_CALCULAR_MULTA",
+        }),
+    );
+    let propostas = c.mapa().propostas_de_issue;
+    assert_eq!(propostas.len(), 1);
+    assert_eq!(propostas[0].chave, "#41");
+    // Repetir substitui; funcionalidade inexistente e evidência vazia recusam.
+    c.ok(
+        "propor_vinculo_de_issue",
+        json!({"origem": "github", "chave": "#41", "funcionalidades": [id], "evidencia": "outra"}),
+    );
+    assert_eq!(c.mapa().propostas_de_issue.len(), 1);
+    assert_eq!(c.mapa().propostas_de_issue[0].evidencia, "outra");
+    for args in [
+        json!({"origem": "github", "chave": "#41", "funcionalidades": ["F-ZZZ-999"], "evidencia": "x"}),
+        json!({"origem": "github", "chave": "#41", "funcionalidades": [id], "evidencia": "  "}),
+        json!({"origem": "gitlab", "chave": "#41", "funcionalidades": [id], "evidencia": "x"}),
+    ] {
+        assert!(c.chamar("propor_vinculo_de_issue", args).is_err());
+    }
+}
+
 fn endpoint(nome: &str, metodo: &str, rota: &str, linha: u32) -> PontoEntrada {
     let arquivo = "backend/src/main/java/exemplo/faturamento/FaturaController.java";
     PontoEntrada {

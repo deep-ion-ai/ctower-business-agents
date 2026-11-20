@@ -9,6 +9,7 @@ use crate::{
     acessos, alteracoes, ambiente_teste, analise, base, clones, cobertura, configuracoes, conversa,
     demandas, funcionalidades, inicio, mudancas, painel_funcionalidade, pauta, primeiro_uso,
     projeto, prompts, rastreabilidade, registros, repositorios, reunioes, revisao, terminal, vigia,
+    vincular_issues,
 };
 
 pub fn rodar() {
@@ -99,6 +100,10 @@ pub fn rodar() {
             funcionalidades::exportar_mapa_projeto,
             painel_funcionalidade::painel_funcionalidade_app,
             painel_funcionalidade::criar_analise_da_funcionalidade_app,
+            vincular_issues::issues_para_vincular_app,
+            vincular_issues::confirmar_vinculos_app,
+            vincular_issues::justificar_issue_app,
+            vincular_issues::pedido_vinculo_ia_app,
             projeto::visao_projeto_app,
             projeto::revalidar_projeto_app,
             projeto::mapa_projeto_app,

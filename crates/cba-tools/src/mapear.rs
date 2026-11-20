@@ -877,7 +877,7 @@ fn situacao_no_documento(f: &Funcionalidade) -> String {
 }
 
 /// Bloco de uma funcionalidade, com os pontos de entrada como notas.
-fn bloco(f: &Funcionalidade, caminho: &CaminhoRelativo) -> Texto {
+fn bloco(f: &Funcionalidade, caminho: &CaminhoRelativo, demandas: &[cba_kb::DemandaLida]) -> Texto {
     let mut t = format!(
         "#### {} · {}\n\n{}\n\n**Situação:** {}",
         f.id,
@@ -894,6 +894,14 @@ fn bloco(f: &Funcionalidade, caminho: &CaminhoRelativo) -> Texto {
     }
     if !f.atores.is_empty() {
         let _ = write!(t, "\n\n**Atores:** {}", f.atores.join(", "));
+    }
+    let ligadas: Vec<String> = f
+        .demandas
+        .iter()
+        .map(|id| demanda_com_link(id, demandas))
+        .collect();
+    if !ligadas.is_empty() {
+        let _ = write!(t, "\n\n**Demandas ligadas:** {}", ligadas.join(", "));
     }
     t.push_str("\n\n**Pontos de entrada:**\n");
     for p in &f.pontos {
@@ -935,9 +943,33 @@ fn bloco(f: &Funcionalidade, caminho: &CaminhoRelativo) -> Texto {
     }
 }
 
+/// `D-0004 (#41)` com a chave ligada à issue quando a demanda tem o endereço
+/// do rastreador; sem ele, só o ID (e a chave, se houver).
+fn demanda_com_link(id: &cba_kb::IdDemanda, demandas: &[cba_kb::DemandaLida]) -> String {
+    let Some(d) = demandas.iter().find(|d| d.id == *id) else {
+        return id.to_string();
+    };
+    let fm = &d.documento.frontmatter;
+    match (fm.chave.as_deref(), fm.origem.as_deref()) {
+        (Some(c), Some(o)) if o.starts_with("http") => format!("{id} ([{c}]({o}))"),
+        (Some(c), _) => format!("{id} ({c})"),
+        _ => id.to_string(),
+    }
+}
+
 /// Textos das seções do documento do mapa: o índice por área, as funcionalidades
 /// e os pontos justificados.
 pub fn textos(mapa: &MapaFuncionalidades, caminho: &CaminhoRelativo) -> Vec<Texto> {
+    textos_com_demandas(mapa, caminho, &[])
+}
+
+/// Como [`textos`], com as demandas da base para mostrar a chave e o link da
+/// issue das demandas ligadas a cada funcionalidade (#270).
+pub fn textos_com_demandas(
+    mapa: &MapaFuncionalidades,
+    caminho: &CaminhoRelativo,
+    demandas: &[cba_kb::DemandaLida],
+) -> Vec<Texto> {
     let mut textos = Vec::new();
     let itens = mapa.ordenadas();
     if !itens.is_empty() {
@@ -978,7 +1010,7 @@ pub fn textos(mapa: &MapaFuncionalidades, caminho: &CaminhoRelativo) -> Vec<Text
                 ));
                 area_atual = Some(f.area_nome.as_str());
             }
-            textos.push(bloco(f, caminho));
+            textos.push(bloco(f, caminho, demandas));
         }
     }
     if !mapa.pontos_justificados.is_empty() {
@@ -1027,7 +1059,8 @@ pub fn gravar_documento(
         atualizado: Some(cba_core::tempo::hoje()),
     };
     let mut conteudo = Conteudo::novo(frontmatter, caminho.clone());
-    conteudo.textos = textos(mapa, &caminho);
+    let demandas = kb.demandas().unwrap_or_default();
+    conteudo.textos = textos_com_demandas(mapa, &caminho, &demandas);
     let (templates, avisos) = Templates::da_base(base);
     let mut saida: Vec<String> = avisos.iter().map(ToString::to_string).collect();
     saida.extend(
@@ -1589,6 +1622,77 @@ pub fn registrar_funcionalidade() -> Ferramenta {
                 dados["avisos"] = json!(alterado.avisos);
             }
             Ok(Saida::json(dados))
+        },
+    )
+}
+
+/// `propor_vinculo_de_issue`: o agente propõe a funcionalidade de uma issue (#270).
+pub fn propor_vinculo_de_issue() -> Ferramenta {
+    Ferramenta::nova(
+        "propor_vinculo_de_issue",
+        "Propor vínculo de issue",
+        "Propõe a(s) funcionalidade(s) do mapa a que uma issue do rastreador pertence, com a \
+         evidência (ponto de entrada ou trecho da issue que sustenta o vínculo). É só uma \
+         proposta: o analista confirma na tela \"Vincular demandas\". Não chame para a issue \
+         sem relação clara com o mapa.",
+        json!({
+            "type": "object",
+            "properties": {
+                "origem": { "type": "string", "enum": ["github", "jira"] },
+                "chave": { "type": "string", "minLength": 1, "description": "`#41` ou `PROJ-9`, como o pedido mostra." },
+                "funcionalidades": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": { "type": "string", "minLength": 1 },
+                    "description": "F-<SIGLA>-NNN já registradas e abertas no mapa."
+                },
+                "evidencia": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000,
+                    "description": "Por que: o ponto de entrada (`PKG.FN_X`) ou o trecho da issue que a liga à funcionalidade."
+                }
+            },
+            "required": ["origem", "chave", "funcionalidades", "evidencia"],
+            "additionalProperties": false
+        }),
+        |ambiente, args| {
+            #[derive(Deserialize)]
+            struct Args {
+                origem: String,
+                chave: String,
+                funcionalidades: Vec<String>,
+                evidencia: String,
+            }
+            let args: Args = ler_argumentos(args)?;
+            if args.origem != "github" && args.origem != "jira" {
+                return Err(ErroFerramenta::Argumentos(
+                    "`origem`: use `github` ou `jira`".into(),
+                ));
+            }
+            let ids = args
+                .funcionalidades
+                .iter()
+                .map(|f| id_da_funcionalidade(f, "funcionalidades"))
+                .collect::<Result<Vec<_>, _>>()?;
+            let proposta = cba_core::funcionalidades::PropostaDeIssue {
+                origem: args.origem,
+                chave: args.chave.trim().to_owned(),
+                funcionalidades: ids,
+                evidencia: args.evidencia,
+                registrado_ms: 0,
+            };
+            let alterado = alterar(ambiente, |m, agora| {
+                m.propor_issue(cba_core::funcionalidades::PropostaDeIssue {
+                    registrado_ms: agora,
+                    ..proposta.clone()
+                })
+            })?;
+            Ok(Saida::json(json!({
+                "issue": proposta.chave,
+                "funcionalidades": proposta.funcionalidades.iter().map(ToString::to_string).collect::<Vec<_>>(),
+                "avisos": alterado.avisos,
+            })))
         },
     )
 }

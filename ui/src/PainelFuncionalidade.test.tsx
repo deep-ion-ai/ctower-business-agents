@@ -135,6 +135,10 @@ describe("PainelFuncionalidade", () => {
     expect(within(cartao).getByRole("list", { name: "Etapas de D-0004" })).toHaveTextContent(
       "ImpactoA-0019 · em andamento",
     );
+    expect(within(cartao).getByRole("link", { name: "#41" })).toHaveAttribute(
+      "href",
+      "https://github.com/acme/faturamento/issues/41",
+    );
     expect(cartao).toHaveTextContent("O estorno parcial gera nova fatura?");
     fireEvent.click(within(cartao).getByRole("button", { name: "Desligar" }));
     await waitFor(() =>
