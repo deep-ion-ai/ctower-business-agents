@@ -10,6 +10,12 @@
 //! na base, ou pede mais com `conhecimento`, quando precisar. Sem o índice, o
 //! contexto vem vazio, com o motivo.
 //!
+//! Documentação publicada (#278): a cópia do repositório de docs (`externos/`,
+//! #277) não entra nas listas acima. O contexto traz no máximo
+//! [`LIMITE_DE_EXTERNOS`] documentos dela, só título, origem e caminho, rotulados
+//! como pista; o resto o agente pede com `conhecimento` (`externos`), sob
+//! demanda, para a doc volumosa não inundar o contexto.
+//!
 //! Quando a análise é de uma demanda (`demanda.id` no frontmatter), o contexto
 //! traz também a demanda ([`contexto_da_demanda`]): as atas anteriores (resumo e
 //! decisões), as pendências delas, as pessoas do projeto com o papel e, no fluxo
@@ -21,14 +27,19 @@ use std::fmt::Write as _;
 use cba_core::ambiente::Ambiente;
 use cba_core::analise::Analise;
 use cba_kb::frontmatter::{FrontmatterAnalise, FrontmatterTermo, StatusAta};
-use cba_kb::indice::{Consulta, Indice, Modo, Resultado, Tipo};
+use cba_kb::indice::{Consulta, Externos, Indice, Modo, Resultado, Tipo};
 use cba_kb::{CaminhoRelativo, Id, IdDemanda, IdReuniao, TipoDocumento, layout};
 use serde_json::{Value, json};
 
+use crate::conhecimento::{ROTULO_EXTERNO, origem_json, rotulo_da_origem};
 use crate::fontes;
 
 /// Itens no máximo por tipo.
 const LIMITE: usize = 10;
+
+/// Documentos da documentação publicada no máximo no contexto: uma menção do que
+/// há, não o conteúdo. O resto vem sob demanda, por `conhecimento`.
+pub const LIMITE_DE_EXTERNOS: usize = 3;
 
 /// Contexto da base relacionado a uma análise.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -37,9 +48,13 @@ pub struct Contexto {
     pub termos: Vec<Value>,
     pub memorias: Vec<Value>,
     pub analises: Vec<Value>,
+    /// Documentação publicada relacionada (no máximo [`LIMITE_DE_EXTERNOS`]).
+    pub externos: Vec<Value>,
     /// Totais na base, para o agente saber o tamanho do que não veio.
     pub total_de_regras: usize,
     pub total_de_termos: usize,
+    /// Documentos da documentação publicada relacionados, em todas as páginas.
+    pub total_de_externos: usize,
     /// Por que o contexto não pôde ser montado (índice indisponível).
     pub aviso: Option<String>,
     /// A demanda da análise, com as atas anteriores, as pendências e as pessoas.
@@ -89,7 +104,8 @@ fn markdown_da_origem(o: &Value) -> String {
     )
 }
 
-/// Busca de um tipo de documento no índice, só do projeto da análise.
+/// Busca de um tipo de documento no índice, só do projeto da análise e só da
+/// base própria.
 fn buscar(
     indice: &Indice,
     ambiente: &Ambiente,
@@ -108,6 +124,22 @@ fn buscar(
         .unwrap_or_else(|_| {
             tracing::warn!("busca no índice da base falhou");
             Vec::new()
+        })
+}
+
+/// Os documentos mais relevantes da documentação publicada do projeto e o total.
+fn buscar_externos(indice: &Indice, ambiente: &Ambiente, texto: &str) -> (Vec<Resultado>, usize) {
+    let consulta = Consulta::nova(texto)
+        .modo(Modo::Qualquer)
+        .projeto(ambiente.kb.nome())
+        .externos(Externos::Somente)
+        .pagina(LIMITE_DE_EXTERNOS, 0);
+    indice
+        .buscar(&consulta)
+        .map(|p| (p.resultados, p.total))
+        .unwrap_or_else(|_| {
+            tracing::warn!("busca da documentação publicada no índice falhou");
+            (Vec::new(), 0)
         })
 }
 
@@ -255,6 +287,21 @@ impl Contexto {
             };
             contexto.analises.push(v);
         }
+
+        let (externos, total) = buscar_externos(&indice, ambiente, &texto);
+        contexto.total_de_externos = total;
+        contexto.externos = externos
+            .iter()
+            .filter_map(|r| {
+                let o = r.externo.as_ref()?;
+                Some(json!({
+                    "titulo": r.titulo,
+                    "arquivo": r.caminho,
+                    "rotulo": rotulo_da_origem(o),
+                    "origem": origem_json(o),
+                }))
+            })
+            .collect();
         contexto
     }
 
@@ -264,8 +311,10 @@ impl Contexto {
             "termos": self.termos,
             "memorias": self.memorias,
             "analises": self.analises,
+            "externos": self.externos,
             "total_de_regras": self.total_de_regras,
             "total_de_termos": self.total_de_termos,
+            "total_de_externos": self.total_de_externos,
         });
         if let Some(aviso) = &self.aviso {
             v["aviso"] = json!(aviso);
@@ -294,6 +343,35 @@ impl Contexto {
                 .unwrap_or_default(),
         );
         t.push_str(&self.markdown_da_base());
+        t.push_str(&self.markdown_dos_externos());
+        t
+    }
+
+    /// A menção à documentação publicada: poucos títulos, rotulados como pista.
+    fn markdown_dos_externos(&self) -> String {
+        let mut t = String::new();
+        if self.externos.is_empty() {
+            return t;
+        }
+        let _ = writeln!(
+            t,
+            "Documentação publicada relacionada ({} no repositório de docs; {} abaixo, só o \
+             título). Consulte-a antes de explorar o código, com `conhecimento` e externos: \
+             \"incluir\" (ou \"somente\", para ver mais dela). É pista, não prova: use-a \
+             para achar o código, confirme no código antes de afirmar e diga ao analista \
+             quando usar essa fonte.",
+            self.total_de_externos,
+            self.externos.len()
+        );
+        for r in &self.externos {
+            let _ = writeln!(
+                t,
+                "- {ROTULO_EXTERNO} {} ({}) — `{}`",
+                r["titulo"].as_str().unwrap_or_default(),
+                r["rotulo"].as_str().unwrap_or_default(),
+                r["arquivo"].as_str().unwrap_or_default()
+            );
+        }
         t
     }
 

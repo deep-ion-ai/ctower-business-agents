@@ -189,7 +189,11 @@ pub fn exportar_markdown_com_links(
 }
 
 /// Troca `[^1]: \`a.sql:1-2\` · commit \`abc\`` por `[^1]: [\`a.sql:1-2\`](url) · …`.
-fn linkar_notas(texto: &str, forge: &dyn LinksDeEvidencia, commit_padrao: Option<&str>) -> String {
+pub(crate) fn linkar_notas(
+    texto: &str,
+    forge: &dyn LinksDeEvidencia,
+    commit_padrao: Option<&str>,
+) -> String {
     let mut saida = String::with_capacity(texto.len());
     for linha in texto.split_inclusive('\n') {
         saida.push_str(
@@ -394,7 +398,7 @@ pub(crate) fn opcoes_markdown() -> Options {
 }
 
 /// Corpo sem o frontmatter `---` do início, se houver.
-fn sem_frontmatter(texto: &str) -> &str {
+pub(crate) fn sem_frontmatter(texto: &str) -> &str {
     let texto = texto.strip_prefix('\u{feff}').unwrap_or(texto);
     let Some(resto) = texto
         .strip_prefix("---\n")
@@ -414,7 +418,7 @@ fn sem_frontmatter(texto: &str) -> &str {
 
 /// Se o destino de um link aponta para dentro da base (caminho relativo), e não
 /// para um endereço externo ou uma âncora do próprio documento.
-fn e_link_da_base(destino: &str) -> bool {
+pub(crate) fn e_link_da_base(destino: &str) -> bool {
     !(destino.is_empty()
         || destino.starts_with('#')
         || destino.contains("://")
@@ -511,7 +515,7 @@ fn titulos(eventos: &[(Event, Range<usize>)]) -> Vec<Titulo> {
 }
 
 /// Aplica as substituições; uma edição dentro de outra maior é descartada.
-fn aplicar(texto: &str, mut edicoes: Vec<(Range<usize>, String)>) -> String {
+pub(crate) fn aplicar(texto: &str, mut edicoes: Vec<(Range<usize>, String)>) -> String {
     edicoes.sort_by(|a, b| a.0.start.cmp(&b.0.start).then(b.0.end.cmp(&a.0.end)));
     let mut saida = String::with_capacity(texto.len());
     let mut pos = 0;
@@ -561,7 +565,7 @@ pub(crate) fn notas(texto: &str) -> Vec<Nota> {
 }
 
 /// `arquivo:10-12` ou `arquivo:10`.
-fn citacao(texto: &str) -> Option<Citacao> {
+pub(crate) fn citacao(texto: &str) -> Option<Citacao> {
     let (arquivo, linhas) = texto.rsplit_once(':')?;
     let (a, b) = linhas.split_once('-').unwrap_or((linhas, linhas));
     let linhas = Linhas::novo(a.trim().parse().ok()?, b.trim().parse().ok()?)?;

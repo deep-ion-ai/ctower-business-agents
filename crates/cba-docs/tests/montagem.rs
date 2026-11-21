@@ -168,6 +168,7 @@ fn analise(tipo: TipoDocumento, numero: u32, titulo: &str) -> FrontmatterAnalise
         criado: data(),
         analista: Some("Ana Exemplo".into()),
         origem: None,
+        funcionalidades: Vec::new(),
     }
 }
 
@@ -384,6 +385,7 @@ fn conteudo_funcionalidade(g: &Gabarito) -> Conteudo<FrontmatterFuncionalidade> 
         tema: "parcelamento-de-fatura".into(),
         status: StatusAnalise::EmRevisao,
         origem: Some(c("analises/A-0003.md")),
+        funcionalidade: None,
     };
     let caminho = layout::funcionalidade("parcelamento", "parcelamento-de-fatura")
         .unwrap()
@@ -426,6 +428,7 @@ fn conteudo_caso_de_uso(g: &Gabarito) -> Conteudo<FrontmatterFuncionalidade> {
         tema: "cancelamento-de-fatura".into(),
         status: StatusAnalise::Rascunho,
         origem: None,
+        funcionalidade: None,
     };
     let caminho = layout::funcionalidade("cancelamento", "cancelamento-de-fatura")
         .unwrap()
@@ -485,6 +488,7 @@ fn conteudo_regra(g: &Gabarito) -> Conteudo<FrontmatterRegra> {
         origem: Some(c("analises/A-0001.md")),
         informada: None,
         historico: Vec::new(),
+        funcionalidades: Vec::new(),
     };
     Conteudo::da_regra(fm, &r.enunciado)
 }
@@ -496,6 +500,7 @@ fn conteudo_termo() -> Conteudo<FrontmatterTermo> {
         sinonimos: vec!["prazo de tolerância".into(), "dias de carência".into()],
         area: Some("cobranca".into()),
         origem: Some(c("analises/A-0001.md")),
+        funcionalidades: Vec::new(),
     };
     let caminho = layout::termo("Carência").unwrap();
     let mut conteudo = Conteudo::novo(fm, caminho);

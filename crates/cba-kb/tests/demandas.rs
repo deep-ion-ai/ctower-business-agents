@@ -64,6 +64,7 @@ fn analise(id: &str, demanda: Option<IdDemanda>) -> Documento<FrontmatterAnalise
             criado: data(2),
             analista: None,
             origem: None,
+            funcionalidades: Vec::new(),
         },
         format!("\n# Análise {id}\n"),
     )

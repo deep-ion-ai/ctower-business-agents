@@ -84,6 +84,8 @@ pub struct AprovacaoVista {
     pub termos: Vec<TermoVista>,
     /// Explicação ligada a uma funcionalidade: o documento negocial gravado.
     pub documento_negocial: Option<String>,
+    /// Funcionalidades do mapa gravadas na análise, nas regras e nos termos (#287).
+    pub funcionalidades: Vec<String>,
     pub avisos: Vec<String>,
 }
 
@@ -124,6 +126,11 @@ pub fn aprovar(
             })
             .collect(),
         documento_negocial: feita.documento_negocial.map(|d| d.to_string()),
+        funcionalidades: feita
+            .funcionalidades
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
         avisos: feita.avisos,
     })
 }

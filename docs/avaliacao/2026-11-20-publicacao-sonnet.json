@@ -1,0 +1,432 @@
+{
+  "formato": 1,
+  "parametros": {
+    "data": "2026-11-20-135939",
+    "modelo": "sonnet",
+    "orcamento_por_execucao_usd": 1.5,
+    "repeticoes": 3,
+    "itens": [
+      "PUB-FAT-001"
+    ],
+    "permitir_edicao": false,
+    "versao_do_claude": "2.1.329 (Claude Code)",
+    "commit": "c32f504"
+  },
+  "resumo": [
+    {
+      "fluxo": "publicacao",
+      "item": "PUB-FAT-001",
+      "execucoes": 3,
+      "avaliadas": 3,
+      "concluidas": 3,
+      "regras_esperadas": 2,
+      "regras_media": 1.0,
+      "regras_min": 1.0,
+      "regras_max": 1.0,
+      "evidencias": 36,
+      "evidencias_validas": 36,
+      "confirmado_sem_evidencia_valida": 0,
+      "perguntas_media": null,
+      "premissa_corrigida": null,
+      "abrangencia_confere": null,
+      "arquivos_media": null,
+      "execucoes_com_arquivos_alterados": 0,
+      "execucoes_com_falha": 0,
+      "custo_usd": 1.3679273,
+      "duracao_s": 274.956,
+      "tokens": {
+        "entrada": 112,
+        "saida": 38955,
+        "cache_criacao": 199397,
+        "cache_leitura": 1805653
+      }
+    }
+  ],
+  "execucoes": [
+    {
+      "fluxo": "publicacao",
+      "item": "PUB-FAT-001",
+      "repeticao": 1,
+      "avaliacao": {
+        "item": "P-FAT-003",
+        "fluxo": "perguntar",
+        "analise": "A-0001",
+        "estado": "concluida",
+        "concluida": true,
+        "afirmacoes": 5,
+        "por_confianca": {
+          "confirmado": 4,
+          "inferido": 1,
+          "a_confirmar": 0
+        },
+        "perguntas_registradas": 1,
+        "sugestoes": 0,
+        "termos": 0,
+        "evidencias": 12,
+        "evidencias_validas": 12,
+        "evidencias_invalidas": [],
+        "confirmado_sem_evidencia_valida": [],
+        "regras": [
+          {
+            "id": "RN-FAT-002",
+            "titulo": "Juros de mora desde o primeiro dia de atraso",
+            "encontrada": true,
+            "afirmacoes": [
+              1,
+              2,
+              5
+            ]
+          },
+          {
+            "id": "RN-FAT-003",
+            "titulo": "Carência de 3 dias sem encargos",
+            "encontrada": true,
+            "afirmacoes": [
+              1,
+              4,
+              5
+            ]
+          }
+        ],
+        "regras_encontradas": 2,
+        "regras_esperadas": 2,
+        "outras_regras_encontradas": [
+          "INC-FAT-002",
+          "RN-FAT-001",
+          "RN-FAT-004"
+        ],
+        "afirmacoes_fora_do_gabarito": [],
+        "arquivos": [],
+        "perguntas_esperadas": [],
+        "premissa": null,
+        "abrangencia": null
+      },
+      "publicacao": {
+        "analise": "P-FAT-001",
+        "primeira_analise": "A-0001",
+        "reanalise": "P-FAT-003",
+        "primeira": {
+          "custo_usd": 0.24765489999999996,
+          "turnos": 22,
+          "duracao_ms": 47197,
+          "erro": false,
+          "subtipo": "success",
+          "tokens": {
+            "entrada": 16,
+            "saida": 6740,
+            "cache_criacao": 38767,
+            "cache_leitura": 251549
+          }
+        },
+        "segunda": {
+          "custo_usd": 0.1762221,
+          "turnos": 19,
+          "duracao_ms": 39622,
+          "erro": false,
+          "subtipo": "success",
+          "tokens": {
+            "entrada": 20,
+            "saida": 5103,
+            "cache_criacao": 23437,
+            "cache_leitura": 314041
+          }
+        },
+        "teto_usd": 3.0,
+        "aprovada": true,
+        "regras_aprovadas": 5,
+        "publicados": [
+          "analises/A-0001.md",
+          "regras/RN-GER-001.md",
+          "regras/RN-GER-002.md",
+          "regras/RN-GER-003.md",
+          "regras/RN-GER-004.md",
+          "regras/RN-GER-005.md"
+        ],
+        "pr": "aberto",
+        "link": "https://github.com/exemplo/faturamento-docs/pull/1",
+        "commit": "c633f2e648b0a6361d3aa0ee51fe792b0354a1e3",
+        "importados": 7,
+        "uso": {
+          "consultas": 2,
+          "consultas_com_externos": 2,
+          "respostas_com_externos": 1,
+          "leituras_de_externos": 0,
+          "fonte_citada": true
+        }
+      },
+      "arquivos_alterados": [],
+      "claude": {
+        "custo_usd": 0.42387699999999995,
+        "turnos": 41,
+        "duracao_ms": 86819,
+        "erro": false,
+        "subtipo": "success",
+        "tokens": {
+          "entrada": 36,
+          "saida": 11843,
+          "cache_criacao": 62204,
+          "cache_leitura": 565590
+        }
+      },
+      "erro": null
+    },
+    {
+      "fluxo": "publicacao",
+      "item": "PUB-FAT-001",
+      "repeticao": 2,
+      "avaliacao": {
+        "item": "P-FAT-003",
+        "fluxo": "perguntar",
+        "analise": "A-0001",
+        "estado": "concluida",
+        "concluida": true,
+        "afirmacoes": 7,
+        "por_confianca": {
+          "confirmado": 6,
+          "inferido": 1,
+          "a_confirmar": 0
+        },
+        "perguntas_registradas": 1,
+        "sugestoes": 0,
+        "termos": 0,
+        "evidencias": 13,
+        "evidencias_validas": 13,
+        "evidencias_invalidas": [],
+        "confirmado_sem_evidencia_valida": [],
+        "regras": [
+          {
+            "id": "RN-FAT-002",
+            "titulo": "Juros de mora desde o primeiro dia de atraso",
+            "encontrada": true,
+            "afirmacoes": [
+              2,
+              4,
+              7
+            ]
+          },
+          {
+            "id": "RN-FAT-003",
+            "titulo": "Carência de 3 dias sem encargos",
+            "encontrada": true,
+            "afirmacoes": [
+              1,
+              3,
+              7
+            ]
+          }
+        ],
+        "regras_encontradas": 2,
+        "regras_esperadas": 2,
+        "outras_regras_encontradas": [
+          "INC-FAT-002",
+          "RN-FAT-001",
+          "RN-FAT-004"
+        ],
+        "afirmacoes_fora_do_gabarito": [],
+        "arquivos": [],
+        "perguntas_esperadas": [],
+        "premissa": null,
+        "abrangencia": null
+      },
+      "publicacao": {
+        "analise": "P-FAT-001",
+        "primeira_analise": "A-0001",
+        "reanalise": "P-FAT-003",
+        "primeira": {
+          "custo_usd": 0.2519173,
+          "turnos": 21,
+          "duracao_ms": 50628,
+          "erro": false,
+          "subtipo": "success",
+          "tokens": {
+            "entrada": 18,
+            "saida": 7483,
+            "cache_criacao": 37228,
+            "cache_leitura": 281393
+          }
+        },
+        "segunda": {
+          "custo_usd": 0.21949530000000003,
+          "turnos": 22,
+          "duracao_ms": 42595,
+          "erro": false,
+          "subtipo": "success",
+          "tokens": {
+            "entrada": 18,
+            "saida": 6022,
+            "cache_criacao": 32307,
+            "cache_leitura": 300113
+          }
+        },
+        "teto_usd": 3.0,
+        "aprovada": true,
+        "regras_aprovadas": 6,
+        "publicados": [
+          "analises/A-0001.md",
+          "regras/RN-GER-001.md",
+          "regras/RN-GER-002.md",
+          "regras/RN-GER-003.md",
+          "regras/RN-GER-004.md",
+          "regras/RN-GER-005.md",
+          "regras/RN-GER-006.md"
+        ],
+        "pr": "aberto",
+        "link": "https://github.com/exemplo/faturamento-docs/pull/1",
+        "commit": "bfd144377f267880ac5600a01572980007e64650",
+        "importados": 8,
+        "uso": {
+          "consultas": 2,
+          "consultas_com_externos": 2,
+          "respostas_com_externos": 2,
+          "leituras_de_externos": 0,
+          "fonte_citada": true
+        }
+      },
+      "arquivos_alterados": [],
+      "claude": {
+        "custo_usd": 0.47141260000000007,
+        "turnos": 43,
+        "duracao_ms": 93223,
+        "erro": false,
+        "subtipo": "success",
+        "tokens": {
+          "entrada": 36,
+          "saida": 13505,
+          "cache_criacao": 69535,
+          "cache_leitura": 581506
+        }
+      },
+      "erro": null
+    },
+    {
+      "fluxo": "publicacao",
+      "item": "PUB-FAT-001",
+      "repeticao": 3,
+      "avaliacao": {
+        "item": "P-FAT-003",
+        "fluxo": "perguntar",
+        "analise": "A-0001",
+        "estado": "concluida",
+        "concluida": true,
+        "afirmacoes": 6,
+        "por_confianca": {
+          "confirmado": 5,
+          "inferido": 1,
+          "a_confirmar": 0
+        },
+        "perguntas_registradas": 1,
+        "sugestoes": 0,
+        "termos": 0,
+        "evidencias": 11,
+        "evidencias_validas": 11,
+        "evidencias_invalidas": [],
+        "confirmado_sem_evidencia_valida": [],
+        "regras": [
+          {
+            "id": "RN-FAT-002",
+            "titulo": "Juros de mora desde o primeiro dia de atraso",
+            "encontrada": true,
+            "afirmacoes": [
+              2,
+              6
+            ]
+          },
+          {
+            "id": "RN-FAT-003",
+            "titulo": "Carência de 3 dias sem encargos",
+            "encontrada": true,
+            "afirmacoes": [
+              1,
+              6
+            ]
+          }
+        ],
+        "regras_encontradas": 2,
+        "regras_esperadas": 2,
+        "outras_regras_encontradas": [
+          "INC-FAT-002",
+          "RN-FAT-001",
+          "RN-FAT-004",
+          "RN-FAT-005",
+          "RN-FAT-006"
+        ],
+        "afirmacoes_fora_do_gabarito": [],
+        "arquivos": [],
+        "perguntas_esperadas": [],
+        "premissa": null,
+        "abrangencia": null
+      },
+      "publicacao": {
+        "analise": "P-FAT-001",
+        "primeira_analise": "A-0001",
+        "reanalise": "P-FAT-003",
+        "primeira": {
+          "custo_usd": 0.26238940000000005,
+          "turnos": 25,
+          "duracao_ms": 51518,
+          "erro": false,
+          "subtipo": "success",
+          "tokens": {
+            "entrada": 18,
+            "saida": 7813,
+            "cache_criacao": 38866,
+            "cache_leitura": 287594
+          }
+        },
+        "segunda": {
+          "custo_usd": 0.21024829999999997,
+          "turnos": 22,
+          "duracao_ms": 43396,
+          "erro": false,
+          "subtipo": "success",
+          "tokens": {
+            "entrada": 22,
+            "saida": 5794,
+            "cache_criacao": 28792,
+            "cache_leitura": 370963
+          }
+        },
+        "teto_usd": 3.0,
+        "aprovada": true,
+        "regras_aprovadas": 6,
+        "publicados": [
+          "analises/A-0001.md",
+          "regras/RN-GER-001.md",
+          "regras/RN-GER-002.md",
+          "regras/RN-GER-003.md",
+          "regras/RN-GER-004.md",
+          "regras/RN-GER-005.md",
+          "regras/RN-GER-006.md"
+        ],
+        "pr": "aberto",
+        "link": "https://github.com/exemplo/faturamento-docs/pull/1",
+        "commit": "ac2d4c672657aae6614143d7ff09aac30f0c4cab",
+        "importados": 8,
+        "uso": {
+          "consultas": 1,
+          "consultas_com_externos": 1,
+          "respostas_com_externos": 1,
+          "leituras_de_externos": 0,
+          "fonte_citada": true
+        }
+      },
+      "arquivos_alterados": [],
+      "claude": {
+        "custo_usd": 0.47263770000000005,
+        "turnos": 47,
+        "duracao_ms": 94914,
+        "erro": false,
+        "subtipo": "success",
+        "tokens": {
+          "entrada": 40,
+          "saida": 13607,
+          "cache_criacao": 67658,
+          "cache_leitura": 658557
+        }
+      },
+      "erro": null
+    }
+  ],
+  "custo_total_usd": 1.3679273,
+  "sem_falhas_graves": true
+}

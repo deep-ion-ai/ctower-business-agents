@@ -27,19 +27,34 @@ pub(crate) fn cadastrado(
 
 /// Grava os repositórios do projeto. O tipo de cada um e, no GitLab, host e
 /// caminho não mudam depois do cadastro; o que ainda não foi cadastrado pode ser
-/// acrescentado.
+/// acrescentado. O destino da documentação (#274) pode ser trocado ou removido;
+/// quando ele muda, o inventário é refeito, porque a pasta da documentação fica
+/// fora do que é analisado.
 pub fn salvar_repositorios(
     dados: &DiretorioDados,
     projeto: &str,
-    novos: Repositorios,
+    mut novos: Repositorios,
 ) -> Result<Repositorios, String> {
     let mut p = cadastrado(dados, projeto)?;
+    novos.docs = novos.docs.as_ref().map(|d| d.normalizado());
     p.repositorios.validar_troca(&novos)?;
     novos.validar()?;
+    let docs_mudou = p.repositorios.docs != novos.docs;
+    let docs_removido = p.repositorios.docs.is_some() && novos.docs.is_none();
     p.repositorios = novos;
-    Cadastro::em(dados.projetos())
-        .salvar(&p)
-        .map_err(|e| e.to_string())?;
+    let cadastro = Cadastro::em(dados.projetos());
+    if docs_mudou {
+        cadastro.ajustar(&p).map_err(|e| e.to_string())?;
+    } else {
+        cadastro.salvar(&p).map_err(|e| e.to_string())?;
+    }
+    // Sem destino, a cópia da documentação externa (#277) sai da base.
+    if docs_removido
+        && let Ok(amb) = crate::analise::ambiente(dados, projeto)
+        && let Err(e) = cba_kb::externos::remover_tudo(&amb.kb)
+    {
+        tracing::warn!(erro = %e, "documentação externa não removida da base");
+    }
     Ok(p.repositorios)
 }
 

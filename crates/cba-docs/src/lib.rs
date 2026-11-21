@@ -6,6 +6,10 @@
 //! [`ModeloHtml`]) e [`gravar_exportacao`] (módulo `exportacao`). Planilha do
 //! Excel: [`xlsx`].
 //!
+//! Documentação legível para a forja (#288): [`gerar_documentacao`] monta as
+//! páginas (README, funcionalidades, regras por área, glossário e análises) e
+//! [`marcador`] define os marcadores de ida e volta de cada documento.
+//!
 //! O agente registra dados estruturados pelas ferramentas MCP, e o app monta cada
 //! documento a partir do template do tipo:
 //!
@@ -34,6 +38,7 @@
 mod ata;
 mod conteudo;
 mod diagrama;
+mod documentacao;
 mod exportacao;
 mod figura;
 mod html;
@@ -43,6 +48,10 @@ mod montagem;
 mod planilha;
 mod template;
 mod word;
+
+/// Marcadores de ida e volta (#288). Vivem em `cba-kb`, que recorta as páginas
+/// publicadas na importação (#290); reexportados aqui para o renderizador.
+pub use cba_kb::marcador;
 
 use cba_kb::CaminhoRelativo;
 
@@ -56,6 +65,10 @@ pub use conteudo::{
 pub use diagrama::{
     ArestaDiagrama, AtributoDiagrama, Diagrama, EntidadeDiagrama, LINGUAGEM_MERMAID,
     Multiplicidade, NoDiagrama, OrigemRelacao, PapelNo, RelacaoDiagrama, TipoDiagrama, mermaid,
+};
+pub use documentacao::{
+    ContextoDaDocumentacao, Documentacao, DocumentoDaBase, GLOSSARIO, INDICE_ANALISES, Pagina,
+    README, gerar_documentacao,
 };
 pub use exportacao::{
     CodigoEmPasta, ErroExportacao, FonteDeTrechos, Formato, HtmlExportado, LinksDeEvidencia,

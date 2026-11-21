@@ -5,7 +5,9 @@ import type {
   ApiRevisao,
   AprovacaoFeita,
   Area,
+  FuncionalidadeResumida,
   OpcoesAprovacao,
+  OrigemDoVinculo,
   Pendencia,
   Prontidao,
   RegraPrevista,
@@ -95,6 +97,79 @@ function SeletorArea({
   );
 }
 
+const EXPLICACAO_DAS_FUNCIONALIDADES: Record<OrigemDoVinculo, string> = {
+  documento: "As da aprovação anterior.",
+  sessao: "A funcionalidade desta análise.",
+  evidencias:
+    "Sugeridas pelas evidências (pontos de entrada nos mesmos arquivos): confira antes de aprovar.",
+  nenhuma: "Nenhuma sugerida; escolha se a análise tratar de alguma.",
+};
+
+/**
+ * Funcionalidades do mapa da análise (#287): a proposta vem marcada, e o analista tira ou
+ * acrescenta. As regras e os termos herdam.
+ */
+function EscolhaFuncionalidades({
+  escolhidas,
+  porId,
+  doMapa,
+  origem,
+  aoMudar,
+}: {
+  escolhidas: string[];
+  porId: Map<string, FuncionalidadeResumida>;
+  doMapa: FuncionalidadeResumida[];
+  origem: OrigemDoVinculo;
+  aoMudar: (ids: string[]) => void;
+}) {
+  const id = useId();
+  const disponiveis = doMapa.filter((f) => !escolhidas.includes(f.id));
+  return (
+    <div className="funcionalidades-aprovacao" role="group" aria-label="Funcionalidades do mapa">
+      <p className="muted">
+        <strong>Funcionalidades do mapa</strong> (as regras e os termos herdam).{" "}
+        {EXPLICACAO_DAS_FUNCIONALIDADES[origem]}
+      </p>
+      {escolhidas.length > 0 && (
+        <ul className="chips-funcionalidades" aria-label="Funcionalidades vinculadas">
+          {escolhidas.map((f) => (
+            <li key={f} className="chip-funcionalidade">
+              <span>
+                {f}
+                {porId.get(f) ? ` · ${porId.get(f)!.nome}` : ""}
+              </span>
+              <button
+                type="button"
+                aria-label={`Tirar a funcionalidade ${f}`}
+                onClick={() => aoMudar(escolhidas.filter((x) => x !== f))}
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {disponiveis.length > 0 && (
+        <span className="campo-area">
+          <label htmlFor={id}>Acrescentar</label>{" "}
+          <select
+            id={id}
+            value=""
+            onChange={(e) => e.target.value && aoMudar([...escolhidas, e.target.value])}
+          >
+            <option value="">Escolha a funcionalidade</option>
+            {disponiveis.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.id} · {f.nome} ({f.areaNome})
+              </option>
+            ))}
+          </select>
+        </span>
+      )}
+    </div>
+  );
+}
+
 /**
  * Aprovação da análise (#37, spec 7.4; diálogo guiado, #186): mostra o que falta revisar
  * (com "Ir para" em cada item), pede a área das regras (obrigatória quando o projeto
@@ -115,6 +190,8 @@ export function AprovacaoAnalise({
   const [area, setArea] = useState("");
   const [ajustes, setAjustes] = useState<Record<number, Ajuste>>({});
   const [marcadas, setMarcadas] = useState<Record<number, boolean>>({});
+  // Funcionalidades escolhidas pelo analista; `null` são as propostas.
+  const [funcionalidades, setFuncionalidades] = useState<string[] | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [feita, setFeita] = useState<AprovacaoFeita | null>(null);
 
@@ -126,6 +203,25 @@ export function AprovacaoAnalise({
 
   if (!prontidao) return erro ? <p className="error-text">{erro}</p> : null;
 
+  // Vínculo com o mapa (#287): só quando o app manda a proposta.
+  const comVinculo = Array.isArray(prontidao.funcionalidades);
+  const porId = new Map(
+    [...(prontidao.funcionalidadesDoMapa ?? []), ...(prontidao.funcionalidades ?? [])].map((f) => [
+      f.id,
+      f,
+    ]),
+  );
+  const vinculadas = funcionalidades ?? (prontidao.funcionalidades ?? []).map((f) => f.id);
+  const areaDaPrimeira = () => {
+    const f = vinculadas.map((id) => porId.get(id)).find(Boolean);
+    if (!f) return "";
+    // A área precisa estar no `projeto.md` (quando ele declara alguma) para a escolha.
+    return prontidao.areas.length === 0 || prontidao.areas.some((a) => a.id === f.area) ? f.area : "";
+  };
+  // Sem a escolha do analista, a área da funcionalidade no lugar de `geral`.
+  const areaSugerida = funcionalidades === null ? (prontidao.areaSugerida ?? "") : areaDaPrimeira();
+  const areaEfetiva = area || areaSugerida;
+
   const ajuste = (n: number): Ajuste => ajustes[n] ?? { area: "", titulo: null, trocarArea: false };
   const mudar = (n: number, campo: Partial<Ajuste>) =>
     setAjustes((a) => ({ ...a, [n]: { ...ajuste(n), ...campo } }));
@@ -134,7 +230,8 @@ export function AprovacaoAnalise({
   const escolhidas = prontidao.regras.filter(marcada);
   const todasComArea = escolhidas.length > 0 && escolhidas.every((r) => ajuste(r.afirmacao).area);
   // Sem regras a criar (as histórias, por exemplo), a área não importa.
-  const faltaArea = prontidao.areaObrigatoria && escolhidas.length > 0 && !area && !todasComArea;
+  const faltaArea =
+    prontidao.areaObrigatoria && escolhidas.length > 0 && !areaEfetiva && !todasComArea;
   const aprovada = prontidao.estado === "aprovada";
   const podeGravar = prontidao.pendencias.length === 0;
   // A mesma conta do cabeçalho e da faixa (#222).
@@ -142,10 +239,11 @@ export function AprovacaoAnalise({
 
   const aprovar = () => {
     const opcoes: OpcoesAprovacao = {
-      area: area.trim() || null,
+      area: areaEfetiva.trim() || null,
       afirmacoes: {},
       regras: escolhidas.map((r) => r.afirmacao),
     };
+    if (comVinculo) opcoes.funcionalidades = vinculadas;
     for (const r of escolhidas) {
       const a = ajuste(r.afirmacao);
       const titulo = a.titulo?.trim() ?? "";
@@ -224,9 +322,24 @@ export function AprovacaoAnalise({
             {prontidao.termosAceitos.length > 0 &&
               ` Termos para o glossário: ${prontidao.termosAceitos.join(", ")}.`}
           </p>
+          {comVinculo && (
+            <EscolhaFuncionalidades
+              escolhidas={vinculadas}
+              porId={porId}
+              doMapa={prontidao.funcionalidadesDoMapa ?? []}
+              origem={
+                funcionalidades === null
+                  ? (prontidao.origemDasFuncionalidades ?? "nenhuma")
+                  : vinculadas.length > 0
+                    ? "documento"
+                    : "nenhuma"
+              }
+              aoMudar={setFuncionalidades}
+            />
+          )}
           <SeletorArea
             areas={prontidao.areas}
-            valor={area}
+            valor={areaEfetiva}
             rotulo="Área das regras"
             vazio={prontidao.areas.length > 0 ? "Escolha a área" : "Área (opcional)"}
             aoMudar={setArea}
@@ -335,6 +448,9 @@ export function AprovacaoAnalise({
                 </li>
               ))}
             </ul>
+          )}
+          {feita.funcionalidades && feita.funcionalidades.length > 0 && (
+            <p>Funcionalidades do mapa: {feita.funcionalidades.join(", ")}</p>
           )}
           {feita.documentoNegocial && (
             <p>Documento negocial no mapa de funcionalidades: {feita.documentoNegocial}</p>

@@ -830,3 +830,302 @@ fn trata_pontos_em_lote_numa_gravacao_so() {
     );
     assert!(m.contains("não os dois"), "{m}");
 }
+
+// ---------------------------------------------------------------------------
+// Vínculo com as funcionalidades (#287)
+
+/// Afirma com a evidência do ponto `sufixo`.
+fn afirmar_com_ponto(c: &Cenario, analise: &Id, secao: &str, texto: &str, sufixo: &str) {
+    c.ok(
+        "afirmar",
+        json!({
+            "analise": analise, "secao": secao, "texto": texto, "confianca": "confirmado",
+            "evidencias": [c.ponto(sufixo)["evidencia"].clone()],
+        }),
+    );
+}
+
+/// Conclui a análise, confirma as afirmações e aceita os termos.
+fn concluir_e_aceitar(c: &Cenario, analise: &Id) {
+    c.ok("concluir_analise", json!({ "analise": analise }));
+    let a = c.amb.analises.carregar(analise).unwrap();
+    for af in &a.afirmacoes {
+        revisao::revisar(
+            &c.amb,
+            analise,
+            Decisao::Afirmacao {
+                numero: af.numero,
+                estado: cba_core::analise::EstadoAfirmacao::Confirmada,
+            },
+        )
+        .unwrap();
+    }
+    for t in &a.termos {
+        revisao::revisar(
+            &c.amb,
+            analise,
+            Decisao::Termo {
+                numero: t.numero,
+                estado: cba_core::analise::EstadoTermo::Aceito,
+            },
+        )
+        .unwrap();
+    }
+}
+
+fn frontmatter<F: cba_kb::Frontmatter>(c: &Cenario, caminho: &cba_kb::CaminhoRelativo) -> F {
+    c.amb.kb.ler::<F>(caminho).unwrap().frontmatter
+}
+
+fn ids_propostos(p: &revisao::Prontidao) -> Vec<String> {
+    p.funcionalidades.iter().map(|f| f.id.to_string()).collect()
+}
+
+/// Aprova uma explicação de F-CAN-001 com uma regra e um termo.
+fn explicacao_aprovada(c: &Cenario) -> (Id, cba_tools::aprovacao::Aprovacao) {
+    let r = c.ok(
+        "iniciar_analise",
+        json!({ "fluxo": "explicar", "funcionalidade": "F-CAN-001" }),
+    );
+    let e = Id::analisar(r["analise"].as_str().unwrap()).unwrap();
+    for (secao, texto) in [
+        ("objetivo", "Cancelar uma fatura emitida, com motivo."),
+        (
+            "fluxo_principal",
+            "1. O atendente informa a fatura e o motivo.",
+        ),
+    ] {
+        c.ok(
+            "afirmar",
+            json!({ "analise": e, "secao": secao, "texto": texto, "confianca": "inferido" }),
+        );
+    }
+    afirmar_com_ponto(
+        c,
+        &e,
+        "regras",
+        "Só fatura aberta pode ser cancelada pelo atendente.",
+        "PKG_COBRANCA.PRC_CANCELAR_FATURA",
+    );
+    c.ok(
+        "propor_termo",
+        json!({
+            "analise": e, "termo": "Cancelamento", "definicao": "Fim da cobrança de uma fatura.",
+            "evidencias": [c.ponto("PKG_COBRANCA.PRC_CANCELAR_FATURA")["evidencia"].clone()],
+        }),
+    );
+    concluir_e_aceitar(c, &e);
+    let prontidao = revisao::prontidao(&c.amb, &e).unwrap();
+    assert_eq!(ids_propostos(&prontidao), ["F-CAN-001"]);
+    assert_eq!(
+        prontidao.origem_das_funcionalidades,
+        cba_tools::vinculo::OrigemDoVinculo::Sessao
+    );
+    assert_eq!(prontidao.area_sugerida.as_deref(), Some("cancelamento"));
+    // Só a afirmação das regras (a 3ª) vira regra.
+    let opcoes = OpcoesAprovacao {
+        regras: Some([3].into()),
+        ..Default::default()
+    };
+    let aprovacao = revisao::aprovar_revisada(&c.amb, &e, &opcoes).unwrap();
+    (e, aprovacao)
+}
+
+#[test]
+fn explicacao_aprovada_liga_analise_regras_termos_e_negocial_a_funcionalidade() {
+    use cba_kb::frontmatter::{
+        FrontmatterAnalise, FrontmatterFuncionalidade, FrontmatterRegra, FrontmatterTermo,
+    };
+    let c = cenario();
+    mapear_quase_tudo(&c);
+    c.aceitar_todas();
+    let (e, aprovacao) = explicacao_aprovada(&c);
+    assert_eq!(aprovacao.funcionalidades, [f("F-CAN-001")]);
+
+    let analise = c.amb.analises.carregar(&e).unwrap();
+    let fa: FrontmatterAnalise = frontmatter(&c, &analise.documento);
+    assert_eq!(fa.funcionalidades, [f("F-CAN-001")]);
+    assert_eq!(aprovacao.regras.len(), 1);
+    // A área da regra é a da funcionalidade, não `geral`.
+    assert_eq!(aprovacao.regras[0].area, "cancelamento");
+    let fr: FrontmatterRegra = frontmatter(&c, &aprovacao.regras[0].arquivo);
+    assert_eq!(fr.funcionalidades, [f("F-CAN-001")]);
+    assert_eq!(fr.id.to_string(), "RN-CAN-001");
+    let ft: FrontmatterTermo = frontmatter(&c, &aprovacao.termos[0].arquivo);
+    assert_eq!(ft.funcionalidades, [f("F-CAN-001")]);
+    assert_eq!(ft.area.as_deref(), Some("cancelamento"));
+    let negocial = aprovacao.documento_negocial.expect("documento negocial");
+    let fn_: FrontmatterFuncionalidade = frontmatter(&c, &negocial);
+    assert_eq!(fn_.funcionalidade, Some(f("F-CAN-001")));
+
+    // Aprovar de novo (só confere a base) não muda nada.
+    let opcoes = OpcoesAprovacao {
+        regras: Some([3].into()),
+        ..Default::default()
+    };
+    let de_novo = revisao::aprovar_revisada(&c.amb, &e, &opcoes).unwrap();
+    assert!(de_novo.ja_aprovada);
+    assert_eq!(de_novo.funcionalidades, [f("F-CAN-001")]);
+    assert!(
+        de_novo
+            .regras
+            .iter()
+            .all(|r| r.acao == cba_tools::aprovacao::Acao::SemMudanca)
+    );
+}
+
+#[test]
+fn pergunta_sugere_funcionalidades_pelas_evidencias_e_o_analista_troca() {
+    use cba_kb::frontmatter::{FrontmatterAnalise, FrontmatterRegra};
+    let c = cenario();
+    mapear_quase_tudo(&c);
+    let r = c.ok(
+        "iniciar_analise",
+        json!({ "fluxo": "perguntar", "entrada": "Como a multa é calculada?" }),
+    );
+    let p = Id::analisar(r["analise"].as_str().unwrap()).unwrap();
+    c.ok(
+        "afirmar",
+        json!({
+            "analise": p, "secao": "resposta", "texto": "Pelo pacote de cobrança.",
+            "confianca": "inferido",
+        }),
+    );
+    // Encargos (F-COB-001): o serviço e o pacote; cancelamento (F-CAN-001): o pacote.
+    afirmar_com_ponto(
+        &c,
+        &p,
+        "regras_encontradas",
+        "O cálculo dos encargos começa pelo serviço de encargos.",
+        "EncargosService.calcular",
+    );
+    afirmar_com_ponto(
+        &c,
+        &p,
+        "regras_encontradas",
+        "A multa é calculada no pacote de cobrança.",
+        "PKG_COBRANCA.FN_CALCULAR_MULTA",
+    );
+    concluir_e_aceitar(&c, &p);
+
+    // Sem nenhuma aceita, não há sugestão: só as aceitas contam.
+    let prontidao = revisao::prontidao(&c.amb, &p).unwrap();
+    assert!(prontidao.funcionalidades.is_empty());
+    assert_eq!(
+        prontidao.origem_das_funcionalidades,
+        cba_tools::vinculo::OrigemDoVinculo::Nenhuma
+    );
+    assert!(!prontidao.funcionalidades_do_mapa.is_empty());
+
+    c.aceitar_todas();
+    let prontidao = revisao::prontidao(&c.amb, &p).unwrap();
+    assert_eq!(ids_propostos(&prontidao), ["F-COB-001", "F-CAN-001"]);
+    assert_eq!(
+        prontidao.origem_das_funcionalidades,
+        cba_tools::vinculo::OrigemDoVinculo::Evidencias
+    );
+    assert_eq!(prontidao.area_sugerida.as_deref(), Some("cobranca"));
+
+    // O analista troca pela de cancelamento: a análise e as regras levam a escolha.
+    let aprovacao = revisao::aprovar_revisada(
+        &c.amb,
+        &p,
+        &OpcoesAprovacao {
+            funcionalidades: Some(vec![f("F-CAN-001"), f("F-ZZZ-999")]),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(aprovacao.funcionalidades, [f("F-CAN-001")]);
+    assert!(
+        aprovacao.avisos.iter().any(|a| a.contains("F-ZZZ-999")),
+        "{:?}",
+        aprovacao.avisos
+    );
+    let analise = c.amb.analises.carregar(&p).unwrap();
+    let fa: FrontmatterAnalise = frontmatter(&c, &analise.documento);
+    assert_eq!(fa.funcionalidades, [f("F-CAN-001")]);
+    assert!(!aprovacao.regras.is_empty());
+    for regra in &aprovacao.regras {
+        assert_eq!(regra.area, "cancelamento");
+        let fr: FrontmatterRegra = frontmatter(&c, &regra.arquivo);
+        assert_eq!(fr.funcionalidades, [f("F-CAN-001")]);
+    }
+    // Depois de aprovada, a proposta é a gravada no documento.
+    let prontidao = revisao::prontidao(&c.amb, &p).unwrap();
+    assert_eq!(ids_propostos(&prontidao), ["F-CAN-001"]);
+    assert_eq!(
+        prontidao.origem_das_funcionalidades,
+        cba_tools::vinculo::OrigemDoVinculo::Documento
+    );
+
+    // Tirar todas: a análise e as regras dela ficam sem o campo.
+    let sem = revisao::aprovar_revisada(
+        &c.amb,
+        &p,
+        &OpcoesAprovacao {
+            funcionalidades: Some(Vec::new()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(sem.funcionalidades.is_empty());
+    let texto = std::fs::read_to_string(c.amb.kb.caminho(&analise.documento)).unwrap();
+    assert!(!texto.contains("funcionalidades:"), "{texto}");
+    for regra in &sem.regras {
+        let texto = std::fs::read_to_string(c.amb.kb.caminho(&regra.arquivo)).unwrap();
+        assert!(!texto.contains("funcionalidades:"), "{texto}");
+    }
+}
+
+#[test]
+fn religa_documentos_aprovados_antes_do_vinculo() {
+    use cba_kb::frontmatter::{
+        FrontmatterAnalise, FrontmatterFuncionalidade, FrontmatterRegra, FrontmatterTermo,
+    };
+    let c = cenario();
+    mapear_quase_tudo(&c);
+    c.aceitar_todas();
+    let (e, aprovacao) = explicacao_aprovada(&c);
+    let analise = c.amb.analises.carregar(&e).unwrap().documento;
+    let regra = aprovacao.regras[0].arquivo.clone();
+    let termo = aprovacao.termos[0].arquivo.clone();
+    let negocial = aprovacao.documento_negocial.clone().unwrap();
+
+    // Como numa base anterior ao #287: nenhum documento tem o vínculo.
+    let kb = &c.amb.kb;
+    let mut d = kb.ler::<FrontmatterAnalise>(&analise).unwrap();
+    d.frontmatter.funcionalidades.clear();
+    d.tirar_campo("funcionalidades");
+    kb.gravar(&analise, &d).unwrap();
+    let mut d = kb.ler::<FrontmatterRegra>(&regra).unwrap();
+    d.frontmatter.funcionalidades.clear();
+    d.tirar_campo("funcionalidades");
+    kb.gravar(&regra, &d).unwrap();
+    let mut d = kb.ler::<FrontmatterTermo>(&termo).unwrap();
+    d.frontmatter.funcionalidades.clear();
+    d.tirar_campo("funcionalidades");
+    kb.gravar(&termo, &d).unwrap();
+    let mut d = kb.ler::<FrontmatterFuncionalidade>(&negocial).unwrap();
+    d.frontmatter.funcionalidade = None;
+    d.tirar_campo("funcionalidade");
+    kb.gravar(&negocial, &d).unwrap();
+    let texto = std::fs::read_to_string(kb.caminho(&regra)).unwrap();
+    assert!(!texto.contains("funcionalidades:"), "{texto}");
+
+    let feita = cba_tools::vinculo::religar_projeto(&c.amb).unwrap();
+    assert_eq!(feita.analises, std::slice::from_ref(&analise));
+    assert_eq!(feita.regras, std::slice::from_ref(&regra));
+    assert_eq!(feita.termos, std::slice::from_ref(&termo));
+    assert_eq!(feita.negociais, std::slice::from_ref(&negocial));
+    assert_eq!(feita.regras_sem_vinculo, 0);
+    assert!(feita.avisos.is_empty(), "{:?}", feita.avisos);
+    let fr: FrontmatterRegra = frontmatter(&c, &regra);
+    assert_eq!(fr.funcionalidades, [f("F-CAN-001")]);
+    let fn_: FrontmatterFuncionalidade = frontmatter(&c, &negocial);
+    assert_eq!(fn_.funcionalidade, Some(f("F-CAN-001")));
+
+    // Idempotente: nada a religar na segunda vez.
+    let de_novo = cba_tools::vinculo::religar_projeto(&c.amb).unwrap();
+    assert_eq!(de_novo.total(), 0);
+}

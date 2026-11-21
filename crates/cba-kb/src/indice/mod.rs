@@ -33,6 +33,13 @@
 //! como linhas de `documento` do tipo correspondente, as evidências das regras e as
 //! ligações entre documentos (`origem`, `analise`, `demanda`).
 //!
+//! Documentação externa (#277): os documentos em `<projeto>/externos/` (a cópia do
+//! repositório de docs, [`crate::externos`]) entram como os demais, com a coluna
+//! `externo` e a origem (repositório, caminho, commit, confiança) em
+//! [`Resultado::externo`]. A busca **não** os traz por padrão
+//! ([`Externos::Excluir`]): quem quer a fonte externa pede
+//! ([`Consulta::externos`]), com rótulo e peso próprios.
+//!
 //! Rastreabilidade (#121): o índice lê também o estado de cada análise
 //! (`analises/A-NNNN.estado.json`) e guarda histórias, critérios, cenários e
 //! afirmações com o que citam, para a matriz da demanda ([`Indice::matriz`]) e a
@@ -58,10 +65,10 @@ use sha2::{Digest, Sha256};
 
 use crate::base::Base;
 use crate::caminho::CaminhoRelativo;
-use crate::frontmatter::TipoDocumento;
+use crate::frontmatter::{Confianca, TipoDocumento};
 use crate::id::IdDemanda;
 
-pub use busca::{Consulta, Modo, Pagina, Resultado};
+pub use busca::{Consulta, Externos, Modo, PESO_DOS_EXTERNOS, Pagina, Resultado};
 pub use rastro::{
     Alerta, AlvoReverso, AnaliseRastro, CenarioRastro, CriterioRastro, DemandaRastro, Dependentes,
     EvidenciaRastro, Lacuna, LinhaHistoria, LinhaRegra, Matriz, RegraRastro,
@@ -147,6 +154,37 @@ impl Tipo {
 impl Serialize for Tipo {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         s.serialize_str(self.como_str())
+    }
+}
+
+/// De onde veio um documento externo (#277), como o índice guarda.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct OrigemIndexada {
+    /// Rótulo do repositório (`GitHub exemplo/faturamento-docs`).
+    pub repositorio: String,
+    /// Caminho do original no repositório.
+    pub caminho: String,
+    /// Commit em que o conteúdo foi importado.
+    pub commit: String,
+    pub branch: Option<String>,
+    pub confianca: Confianca,
+    /// `tipo` e `id` do original, se ele tinha (documento publicado pelo app).
+    pub tipo_original: Option<String>,
+    pub id_original: Option<String>,
+    /// Âncora do trecho na página, quando o documento foi recortado de uma página
+    /// com marcadores (#290).
+    pub ancora: Option<String>,
+    /// Link do original (com a âncora) na forja, quando se pôde montar.
+    pub url: Option<String>,
+}
+
+impl OrigemIndexada {
+    /// `caminho#âncora` (ou só o caminho).
+    pub fn caminho_com_ancora(&self) -> String {
+        match &self.ancora {
+            Some(a) => format!("{}#{a}", self.caminho),
+            None => self.caminho.clone(),
+        }
     }
 }
 
@@ -576,11 +614,12 @@ impl Indice {
         Ok(saida)
     }
 
-    /// Documentos de um projeto da base (sem o corpo), em ordem de caminho.
+    /// Documentos de um projeto da base (sem o corpo), em ordem de caminho. A
+    /// documentação externa (`externos/`) fica de fora: não é a base do projeto.
     pub fn documentos_do_projeto(&self, projeto: &str) -> ResultadoIndice<Vec<DocumentoIndexado>> {
         let mut consulta = self.conexao.prepare(
             "SELECT caminho, tipo, identificador, titulo, area, status, modificado_ns \
-             FROM documento WHERE projeto = ?1 ORDER BY caminho",
+             FROM documento WHERE projeto = ?1 AND externo = 0 ORDER BY caminho",
         )?;
         let linhas = consulta.query_map([projeto], |l| {
             Ok((

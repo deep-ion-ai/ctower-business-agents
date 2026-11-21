@@ -44,12 +44,20 @@
 //!   registro.
 //! - [`aprovacao`]: a aprovação da análise pelo analista, que leva à base as
 //!   afirmações confirmadas (regras) e os termos aceitos (glossário).
+//! - [`vinculo`]: o vínculo da análise, das regras e dos termos com as
+//!   funcionalidades do mapa (#287): a proposta na aprovação (sessão ou
+//!   evidências) e a religação dos documentos aprovados antes.
 //! - [`aprovacao_ata`]: a aprovação da ata de uma reunião (fluxo `reuniao`), com o
 //!   segundo aviso e o descarte do transcript.
 //! - [`revisao`]: a revisão do analista (decisões, edição do texto, prontidão para
 //!   aprovar, aprovação com a escolha da área e exportação).
+//! - [`docs_externos`]: a sincronização do repositório de docs (#277), que traz
+//!   a documentação publicada para `externos/` como fonte externa rotulada; roda
+//!   sob demanda (app) e em segundo plano ao iniciar uma análise.
 //! - [`revalidacao`]: a revalidação das evidências das regras e das análises por
 //!   hash, que o app chama ao abrir o projeto e sob demanda (spec, seção 6.5).
+//! - [`publicacao`]: a publicação dos documentos aprovados no repositório da
+//!   documentação, com a prévia das mudanças e o PR/MR (#276).
 //!
 //! Papel na arquitetura: seção 5 de `docs/specs/2026-11-11-mvp-standalone.md`.
 
@@ -66,6 +74,8 @@ pub mod conhecimento;
 pub mod contexto;
 pub mod dados_pessoais;
 pub mod diagramas;
+pub mod docs_externos;
+pub mod documentacao;
 pub mod documento;
 pub mod editavel;
 pub mod estrutura;
@@ -83,6 +93,7 @@ pub mod parecer;
 pub mod pauta;
 pub mod perguntar;
 pub mod prompts;
+pub mod publicacao;
 pub mod rastreabilidade;
 pub mod referencias;
 mod registro;
@@ -95,6 +106,7 @@ pub mod schema;
 pub mod sugestao;
 pub mod termo;
 pub mod vincular;
+pub mod vinculo;
 
 pub use registro::{
     ErroChamada, ErroFerramenta, Executar, Ferramenta, Registro, Saida, ler_argumentos,

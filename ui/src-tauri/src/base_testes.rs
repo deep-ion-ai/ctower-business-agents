@@ -219,3 +219,61 @@ fn vigia_avisa_quando_a_base_muda_fora_do_app() {
     // A mesma base não inicia outra vigia.
     vigia.garantir(&c.dados, Duration::from_millis(50));
 }
+
+/// #277: a documentação externa aparece na busca da base com o rótulo da origem e
+/// abre só para leitura; salvar é recusado.
+#[test]
+fn documento_externo_aparece_rotulado_e_nao_se_edita() {
+    use cba_kb::externos::{ArquivoExterno, Fonte, importar};
+
+    let c = cenario();
+    c.aprovar_analise_da_multa();
+    let kb = Base::abrir(c.dir.path().join("base"))
+        .unwrap()
+        .projeto(PROJETO)
+        .unwrap();
+    let texto = "# Segunda via do boleto\n\nA segunda via sai com a multa calculada.\n";
+    importar(
+        &kb,
+        &Fonte {
+            repositorio: "GitHub exemplo/faturamento-docs".into(),
+            branch: "main".into(),
+            commit: "c0ffee1234567".into(),
+        },
+        &[ArquivoExterno {
+            caminho: "processos/segunda-via.md".into(),
+            caminho_no_repositorio: "docs/negocio/processos/segunda-via.md".into(),
+            versao: "1".into(),
+            tamanho: texto.len() as u64,
+        }],
+        &|_| None,
+        &mut |_| Ok(texto.as_bytes().to_vec()),
+        1,
+    )
+    .unwrap();
+    let caminho =
+        format!("{PROJETO}/externos/github-exemplo-faturamento-docs/processos/segunda-via.md");
+
+    let b = buscar(&c.dados, "segunda via", None, &[], 0).unwrap();
+    let r = b.resultados.iter().find(|r| r.caminho == caminho).unwrap();
+    assert_eq!(r.tipo.as_deref(), Some("doc-externo"));
+    let o = r.externo.as_ref().unwrap();
+    assert_eq!(o.commit, "c0ffee1234567");
+    assert_eq!(o.confianca, "externa");
+    let so_externos = buscar(&c.dados, "multa", None, &["externo".into()], 0).unwrap();
+    assert_eq!(caminhos(&so_externos), [caminho.as_str()]);
+
+    let d = abrir_documento(&c.dados, &caminho).unwrap();
+    assert!(d.somente_leitura);
+    assert_eq!(
+        d.externo.as_ref().unwrap().caminho,
+        "docs/negocio/processos/segunda-via.md"
+    );
+    let e = salvar_documento(&c.dados, &caminho, "mexido", &d.versao).unwrap_err();
+    assert!(e.contains("documentação externa"), "{e}");
+    assert!(
+        std::fs::read_to_string(c.dir.path().join("base").join(&caminho))
+            .unwrap()
+            .contains("Segunda via do boleto")
+    );
+}

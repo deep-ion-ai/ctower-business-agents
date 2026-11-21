@@ -1,5 +1,6 @@
 import { useRef, useState, type KeyboardEvent } from "react";
 import { mensagemDe } from "./analise";
+import { DestinoDocumentacao } from "./DestinoDocumentacao";
 import type { PropsConfigProjeto } from "./ConfigProjeto";
 import {
   CampoRepoGithub,
@@ -45,14 +46,16 @@ type Edicao =
 
 /**
  * Aba “Código e demandas” (#192): os repositórios de código, com o acesso conferido
- * sozinho ao abrir a página, e de onde vêm as demandas (origem em pílulas, campos
- * essenciais, “Mais opções” e “Testar conexão”).
+ * sozinho ao abrir a página, de onde vêm as demandas (origem em pílulas, campos
+ * essenciais, “Mais opções” e “Testar conexão”) e onde a documentação é publicada
+ * (#274).
  */
 export function AbaCodigoDemandas(props: PropsConfigProjeto) {
   return (
     <div className="aba-codigo">
       <RepositoriosDeCodigo {...props} />
       <Demandas {...props} />
+      <DestinoDocumentacao {...props} />
     </div>
   );
 }

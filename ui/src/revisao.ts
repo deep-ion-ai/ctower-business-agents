@@ -70,6 +70,18 @@ export interface RegraPrevista {
   sugerida?: boolean;
 }
 
+/** Funcionalidade do mapa na janela de aprovação (`cba_tools::vinculo::FuncionalidadeResumida`). */
+export interface FuncionalidadeResumida {
+  id: string;
+  nome: string;
+  /** Slug da área (`cobranca`). */
+  area: string;
+  areaNome: string;
+}
+
+/** De onde vieram as funcionalidades propostas (`cba_tools::vinculo::OrigemDoVinculo`). */
+export type OrigemDoVinculo = "documento" | "sessao" | "evidencias" | "nenhuma";
+
 /** Se a análise pode ser aprovada e o que a aprovação fará. */
 export interface Prontidao {
   estado: "criada" | "em-andamento" | "concluida" | "aprovada";
@@ -82,6 +94,13 @@ export interface Prontidao {
   regras: RegraPrevista[];
   incorretas: number[];
   termosAceitos: string[];
+  /** Funcionalidades do mapa propostas (#287); as regras e os termos herdam. */
+  funcionalidades?: FuncionalidadeResumida[];
+  origemDasFuncionalidades?: OrigemDoVinculo;
+  /** Funcionalidades abertas do mapa, para a escolha. */
+  funcionalidadesDoMapa?: FuncionalidadeResumida[];
+  /** Área da primeira funcionalidade proposta, no lugar de `geral`. */
+  areaSugerida?: string | null;
 }
 
 /** Escolhas da aprovação (`cba_tools::aprovacao::OpcoesAprovacao`). */
@@ -90,6 +109,8 @@ export interface OpcoesAprovacao {
   afirmacoes: Record<number, { area: string | null; titulo: string | null }>;
   /** Afirmações que viram regra; sem a lista, as de fora da resposta e dos exemplos. */
   regras?: number[] | null;
+  /** Funcionalidades do mapa da análise (#287); sem a lista, as propostas. */
+  funcionalidades?: string[] | null;
 }
 
 export type Acao = "criada" | "atualizada" | "sem-mudanca";
@@ -100,6 +121,8 @@ export interface AprovacaoFeita {
   termos: { termo: string; arquivo: string; acao: Acao }[];
   /** Explicação ligada a uma funcionalidade do mapa (#208): o documento negocial gravado. */
   documentoNegocial?: string | null;
+  /** Funcionalidades do mapa gravadas na análise, nas regras e nos termos (#287). */
+  funcionalidades?: string[];
   avisos: string[];
 }
 

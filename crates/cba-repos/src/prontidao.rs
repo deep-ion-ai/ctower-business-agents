@@ -10,6 +10,7 @@ use crate::chaveiro::{conta_propria, token_do_repositorio};
 use crate::clone::testar_acesso;
 use crate::codigo::HOST_GITHUB;
 use crate::demanda::{Ferramentas, PRAZO_CLI};
+use crate::docs::DestinoDocs;
 use crate::process::{RunError, cite, run};
 use crate::{
     ForgeKind, GithubConfig, GitlabConfig, JiraConfig, OrigemToken, RepositorioCodigo,
@@ -514,7 +515,58 @@ pub fn conferir(r: &Repositorios, f: &Ferramentas) -> Prontidao {
         Some(TrackerConfig::Jira(j)) => integracoes.push(prontidao_jira(j, f)),
         None => {}
     }
+    if let Some(d) = &r.docs {
+        integracoes.push(prontidao_docs(d, &r.codigo, f));
+    }
     Prontidao { integracoes }
+}
+
+/// Destino da documentação (#274), a última integração de [`conferir`]. No
+/// repositório próprio, os mesmos passos de um repositório de código (git, token,
+/// API da forja e leitura); numa subpasta do código, que o repositório de código
+/// continua cadastrado e que a subpasta, se já existe no clone, é uma pasta (o
+/// acesso é o do repositório de código, conferido na integração dele).
+pub fn prontidao_docs(
+    d: &DestinoDocs,
+    codigo: &[RepositorioCodigo],
+    f: &Ferramentas,
+) -> Integracao {
+    let titulo = format!("Documentação ({})", d.rotulo(codigo));
+    if let DestinoDocs::Repositorio { repositorio, .. } = d {
+        return Integracao {
+            titulo,
+            ..prontidao_codigo(repositorio, f)
+        };
+    }
+    let mut b = Construtor::novo();
+    let destino = d.resolver(codigo);
+    b.passo(
+        "repositorio",
+        "Repositório de código do destino cadastrado",
+        "Escolha de novo o repositório de código do destino da documentação.",
+        || {
+            destino
+                .map(|r| Some(r.repositorio.rotulo()))
+                .ok_or_else(|| "o repositório de código não está mais cadastrado".to_string())
+        },
+    );
+    b.passo(
+        "pasta",
+        "Subpasta da documentação",
+        "A subpasta existe no clone e não é uma pasta: escolha outra subpasta.",
+        || match destino.and_then(|r| r.pasta_docs_local()) {
+            None => Ok(Some("sem clone local: vale o repositório remoto".into())),
+            Some(p) if p.is_dir() => Ok(Some(p.display().to_string())),
+            Some(p) if p.exists() => Err(format!("{} não é uma pasta", p.display())),
+            Some(_) => Ok(Some(
+                "ainda não existe: é criada na primeira publicação".into(),
+            )),
+        },
+    );
+    Integracao {
+        titulo,
+        passos: b.passos,
+    }
 }
 
 #[cfg(all(test, unix))]
@@ -670,6 +722,7 @@ esac"#,
                 web.clone(),
             ],
             tracker: Some(TrackerConfig::Github(GithubConfig { repo: "o/r".into() })),
+            docs: None,
         };
         let p = conferir(&r, &f);
         assert!(!p.pronta());
@@ -839,5 +892,79 @@ esac"#,
                 .contains("desligadas"),
             "{i:?}"
         );
+    }
+
+    #[test]
+    fn destino_da_documentacao_vem_por_ultimo() {
+        use crate::chaveiro::ChaveiroMemoria;
+        let d = tempfile::tempdir().unwrap();
+        let clone = d.path().join("faturamento");
+        std::fs::create_dir_all(clone.join("docs")).unwrap();
+        std::fs::write(clone.join("docs/arquivo"), "x").unwrap();
+        let f = Ferramentas {
+            git: git_publico(d.path()),
+            chaveiro: std::sync::Arc::new(ChaveiroMemoria::default()),
+            ..Default::default()
+        };
+        let codigo = RepositorioCodigo {
+            caminho: "exemplo/faturamento".into(),
+            pasta: Some(clone.clone()),
+            ..Default::default()
+        };
+        let mut r = Repositorios {
+            codigo: vec![codigo.clone()],
+            tracker: None,
+            docs: Some(DestinoDocs::Subpasta {
+                codigo: codigo.chave(),
+                subpasta: "docs/negocio".into(),
+            }),
+        };
+        let p = conferir(&r, &f);
+        assert_eq!(p.integracoes.len(), 2);
+        let docs = &p.integracoes[1];
+        assert_eq!(
+            docs.titulo,
+            "Documentação (docs/negocio em GitHub exemplo/faturamento)"
+        );
+        assert!(docs.pronta(), "{docs:?}");
+        assert!(
+            docs.passos[1]
+                .detalhe
+                .as_deref()
+                .unwrap()
+                .contains("ainda não existe")
+        );
+        // A subpasta existe e é um arquivo: falha.
+        r.docs = Some(DestinoDocs::Subpasta {
+            codigo: codigo.chave(),
+            subpasta: "docs/arquivo".into(),
+        });
+        assert!(!conferir(&r, &f).integracoes[1].pronta());
+        // Repositório de código que sumiu: falha no primeiro passo.
+        let sem = conferir(
+            &Repositorios {
+                codigo: vec![],
+                ..r.clone()
+            },
+            &f,
+        );
+        assert_eq!(sem.integracoes[0].passos[0].situacao, Situacao::Falhou);
+        // Repositório próprio: os passos de um repositório de código.
+        r.docs = Some(DestinoDocs::Repositorio {
+            repositorio: RepositorioCodigo {
+                caminho: "exemplo/faturamento-docs".into(),
+                ..Default::default()
+            },
+            subpasta: String::new(),
+        });
+        let p = conferir(&r, &f);
+        let docs = &p.integracoes[1];
+        assert_eq!(
+            docs.titulo,
+            "Documentação (GitHub exemplo/faturamento-docs)"
+        );
+        let ids: Vec<_> = docs.passos.iter().map(|p| p.id.as_str()).collect();
+        assert_eq!(ids, ["git", "credencial", "token", "acesso"]);
+        assert!(docs.pronta(), "{docs:?}");
     }
 }

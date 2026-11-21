@@ -63,6 +63,24 @@ describe("TelaMapa", () => {
     expect(screen.queryByRole("region", { name: "Vincular demandas" })).toBeNull();
   });
 
+  it("religa os documentos aprovados antes do vínculo e mostra o resumo (#287)", async () => {
+    const api = apiFalsa();
+    api.religar = vi.fn().mockResolvedValue({
+      analises: ["analises/A-0001.md"],
+      regras: ["regras/RN-CAN-001.md"],
+      termos: [],
+      negociais: [],
+      regrasSemVinculo: 0,
+      avisos: [],
+    });
+    abrir(api);
+    fireEvent.click(await screen.findByRole("button", { name: "Religar documentos" }));
+    expect(
+      await screen.findByText("Religados às funcionalidades: 1 análise, 1 regra."),
+    ).toBeInTheDocument();
+    expect(api.religar).toHaveBeenCalledWith("faturamento-exemplo");
+  });
+
   it("mostra o mapa por área, o resumo e os pontos sem tratamento", async () => {
     abrir(apiFalsa());
     expect(await screen.findByRole("region", { name: "F-COB-001: Calcular encargos" })).toBeInTheDocument();

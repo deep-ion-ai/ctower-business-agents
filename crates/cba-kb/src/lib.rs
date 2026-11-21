@@ -22,6 +22,8 @@
 //!     demandas/D-NNNN-<slug>/reunioes/R-NNNN.estado.json   # estado da ata
 //!     demandas/D-NNNN-<slug>/registros/PR-NNNN.md          # premissa, decisão (DE),
 //!                                                          # risco (RI), restrição (RE)
+//!     externos/<repositório>/...   # cópia do repositório de docs (#277), só leitura
+//!     externos/.sincronizacao.json # estado da sincronização
 //! ```
 //!
 //! O que esta crate oferece:
@@ -43,6 +45,10 @@
 //! - Índice SQLite com busca FTS5 ([`indice`]): espelho reconstruível da base, no
 //!   diretório de dados do app.
 //!
+//! - Documentação externa ([`externos`]): os `.md` do repositório de docs copiados
+//!   para `externos/`, com origem, commit e confiança, e os trechos sensíveis
+//!   mascarados.
+//!
 //! Papel na arquitetura: seção 5 de `docs/specs/2026-11-11-mvp-standalone.md`.
 
 pub mod arquivo;
@@ -51,11 +57,13 @@ mod caminho;
 mod demandas;
 mod documento;
 mod erro;
+pub mod externos;
 pub mod frontmatter;
 mod id;
 pub mod indice;
 pub mod informada;
 pub mod layout;
+pub mod marcador;
 mod papeis;
 mod pessoas;
 pub mod registros;

@@ -140,6 +140,7 @@ fn gravar_regra_e_termo_do_gabarito(amb: &Ambiente, id: &str) {
                     origem: None,
                     informada: None,
                     historico: Vec::new(),
+                    funcionalidades: Vec::new(),
                 },
                 format!("\n{}\n", texto(&regra["enunciado"])),
             ),
@@ -155,6 +156,7 @@ fn gravar_regra_e_termo_do_gabarito(amb: &Ambiente, id: &str) {
                     sinonimos: vec!["período de tolerância".into()],
                     area: Some("cobranca".into()),
                     origem: None,
+                    funcionalidades: Vec::new(),
                 },
                 "\nDias após o vencimento sem encargos: parâmetro DIAS_CARENCIA.\n",
             ),
@@ -597,6 +599,7 @@ fn fora_do_schema_os_argumentos_sao_recusados() {
         ),
         ("conhecimento", json!({ "termo": "x", "cursor": -1 })),
         ("conhecimento", json!({ "termo": "x", "tipos": ["outro"] })),
+        ("conhecimento", json!({ "termo": "x", "externos": "todos" })),
         ("estrutura", json!({ "arquivo": "x", "extra": 1 })),
     ] {
         assert!(
@@ -607,4 +610,302 @@ fn fora_do_schema_os_argumentos_sao_recusados() {
             "{nome} {args}"
         );
     }
+}
+
+const REPOSITORIO_DE_DOCS: &str = "GitHub exemplo/faturamento-docs";
+const PASTA_DOS_EXTERNOS: &str = "faturamento-exemplo/externos/github-exemplo-faturamento-docs";
+
+/// Importa `arquivos` (caminho, texto) como a documentação publicada do projeto,
+/// como a sincronização faria (#277), sem git.
+fn importar_externos(amb: &Ambiente, arquivos: &[(String, String)]) {
+    use cba_kb::externos::{ArquivoExterno, Fonte, importar};
+    let lista: Vec<ArquivoExterno> = arquivos
+        .iter()
+        .enumerate()
+        .map(|(i, (c, t))| ArquivoExterno {
+            caminho: c.clone(),
+            caminho_no_repositorio: format!("docs/{c}"),
+            versao: format!("v{i}-{}", t.len()),
+            tamanho: t.len() as u64,
+        })
+        .collect();
+    importar(
+        &amb.kb,
+        &Fonte {
+            repositorio: REPOSITORIO_DE_DOCS.into(),
+            branch: "main".into(),
+            commit: "c0ffee1234567890".into(),
+        },
+        &lista,
+        &|_| None,
+        &mut |a| {
+            Ok(arquivos
+                .iter()
+                .find(|(c, _)| *c == a.caminho)
+                .unwrap()
+                .1
+                .as_bytes()
+                .to_vec())
+        },
+        1,
+    )
+    .unwrap();
+}
+
+/// Critérios da #278: a busca devolve a documentação publicada só quando pedida,
+/// rotulada (origem, commit, confiança) e distinta da base própria.
+#[test]
+fn conhecimento_traz_a_documentacao_publicada_rotulada_e_sob_demanda() {
+    let c = cenario();
+    gravar_regra_e_termo_do_gabarito(&c.amb, "RN-FAT-003");
+    importar_externos(
+        &c.amb,
+        &[
+            (
+                "processos/carencia.md".into(),
+                "# Carência na cobrança\n\nA carência é contada em dias corridos a partir \
+                 do vencimento.\n"
+                    .into(),
+            ),
+            (
+                "regras/RN-FAT-951.md".into(),
+                "---\ntipo: regra\nid: RN-FAT-951\ntitulo: Carência de outra equipe\n---\n\n\
+                 Carência diferenciada para contratos antigos.\n"
+                    .into(),
+            ),
+        ],
+    );
+
+    // Padrão: só a base própria, com a contagem do que a documentação publicada tem.
+    let (texto, padrao) = c.chamar("conhecimento", json!({ "termo": "carência" }));
+    assert_eq!(padrao["externos"], "excluir");
+    assert_eq!(padrao["externos_disponiveis"], 2, "{padrao}");
+    let resultados = padrao["resultados"].as_array().unwrap();
+    assert!(!resultados.is_empty());
+    assert!(resultados.iter().all(|r| r["fonte"] == "base"), "{padrao}");
+    assert!(!texto.contains("[doc. publicada]"), "{texto}");
+    assert!(
+        texto.contains("tem 2 documento(s)") && texto.contains("externos: \"incluir\""),
+        "{texto}"
+    );
+
+    // Juntas: a base própria antes, os externos rotulados com a origem.
+    let (texto, juntas) = c.chamar(
+        "conhecimento",
+        json!({ "termo": "carência", "externos": "incluir" }),
+    );
+    assert!(juntas.get("externos_disponiveis").is_none(), "{juntas}");
+    let resultados = juntas["resultados"].as_array().unwrap();
+    let fontes: Vec<&str> = resultados
+        .iter()
+        .map(|r| r["fonte"].as_str().unwrap())
+        .collect();
+    assert_eq!(fontes.iter().filter(|f| **f == "externa").count(), 2);
+    assert_eq!(fontes[0], "base", "{juntas}");
+    let externo = resultados
+        .iter()
+        .find(|r| r["identificador"] == "RN-FAT-951")
+        .unwrap();
+    assert_eq!(externo["fonte"], "externa");
+    assert_eq!(externo["origem"]["repositorio"], REPOSITORIO_DE_DOCS);
+    assert_eq!(externo["origem"]["commit"], "c0ffee1234567890");
+    assert_eq!(externo["origem"]["confianca"], "publicada");
+    assert_eq!(externo["origem"]["tipo_original"], "regra");
+    assert_eq!(
+        externo["caminho"],
+        format!("{PASTA_DOS_EXTERNOS}/regras/RN-FAT-951.md")
+    );
+    assert!(
+        texto.contains(
+            "- [doc. publicada] RN-FAT-951 (regra; GitHub exemplo/faturamento-docs @ c0ffee1, \
+             confiança publicada): Carência de outra equipe"
+        ),
+        "{texto}"
+    );
+    assert!(texto.contains("são pista, não prova"), "{texto}");
+    assert!(
+        texto.contains("confiança externa): Carência na cobrança"),
+        "{texto}"
+    );
+
+    // Só a documentação publicada; `tipos` não a esconde.
+    let (texto, somente) = c.chamar(
+        "conhecimento",
+        json!({ "termo": "carência", "externos": "somente", "tipos": ["regra"] }),
+    );
+    assert_eq!(somente["pagina"]["total"], 2, "{somente}");
+    assert!(
+        somente["resultados"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|r| r["fonte"] == "externa")
+    );
+    assert!(texto.starts_with("Documentação publicada: 2"), "{texto}");
+    // E o filtro de tipo continua valendo para a base própria.
+    let (_, regras) = c.chamar(
+        "conhecimento",
+        json!({ "termo": "carência", "externos": "incluir", "tipos": ["termo"] }),
+    );
+    let tipos: BTreeSet<&str> = regras["resultados"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r["tipo"].as_str().unwrap())
+        .collect();
+    assert_eq!(tipos, BTreeSet::from(["termo", "doc-externo"]), "{regras}");
+}
+
+/// Critério da #278: o contexto automático não é inundado pela documentação
+/// publicada. Traz poucos títulos, rotulados, e diz quanto há.
+#[test]
+fn contexto_menciona_pouca_documentacao_publicada() {
+    let c = cenario();
+    gravar_regra_e_termo_do_gabarito(&c.amb, "RN-FAT-003");
+    let docs: Vec<(String, String)> = (1..=12)
+        .map(|i| {
+            (
+                format!("processos/carencia-{i:02}.md"),
+                format!(
+                    "# Carência, parte {i}\n\n{}\n",
+                    "A carência da fatura em atraso conta dias corridos. ".repeat(40)
+                ),
+            )
+        })
+        .collect();
+    importar_externos(&c.amb, &docs);
+    let a = c
+        .amb
+        .analises
+        .criar(cba_core::analises::NovaAnalise {
+            fluxo: cba_core::analise::Fluxo::Perguntar,
+            titulo: "Carência".into(),
+            entrada: "Quantos dias de carência a fatura em atraso tem?".into(),
+            analista: None,
+            base: None,
+        })
+        .unwrap();
+    let (texto, dados) = c.chamar("iniciar_analise", json!({ "analise": a.id }));
+    let ctx = &dados["contexto"];
+    // A base própria continua como antes, sem nenhum externo nas listas dela.
+    assert_eq!(ctx["regras"][0]["id"], "RN-FAT-003", "{ctx}");
+    for lista in ["regras", "termos", "memorias", "analises"] {
+        let texto = ctx[lista].to_string();
+        assert!(!texto.contains("/externos/"), "{lista}: {texto}");
+    }
+    let externos = ctx["externos"].as_array().unwrap();
+    assert_eq!(externos.len(), cba_tools::contexto::LIMITE_DE_EXTERNOS);
+    assert_eq!(ctx["total_de_externos"], 12);
+    assert_eq!(externos[0]["origem"]["repositorio"], REPOSITORIO_DE_DOCS);
+    assert!(
+        externos[0]["arquivo"]
+            .as_str()
+            .unwrap()
+            .starts_with(PASTA_DOS_EXTERNOS)
+    );
+    // No roteiro, só os títulos (nada do corpo), com o rótulo e o lembrete.
+    assert!(
+        texto.contains(
+            "Documentação publicada relacionada (12 no repositório de docs; 3 abaixo, só o título)"
+        ),
+        "{texto}"
+    );
+    assert_eq!(
+        texto.matches("- [doc. publicada] Carência, parte").count(),
+        3
+    );
+    assert!(!texto.contains("conta dias corridos"), "{texto}");
+    assert!(texto.contains("pista, não prova"));
+}
+
+/// Critério da #278: `afirmar` continua exigindo evidência de código; a
+/// documentação publicada não serve de evidência, e a recusa explica.
+#[test]
+fn afirmar_recusa_a_documentacao_publicada_como_evidencia() {
+    let c = cenario();
+    importar_externos(
+        &c.amb,
+        &[(
+            "processos/carencia.md".into(),
+            "# Carência\n\nA carência é de 3 dias.\n".into(),
+        )],
+    );
+    let a = c
+        .amb
+        .analises
+        .criar(cba_core::analises::NovaAnalise {
+            fluxo: cba_core::analise::Fluxo::Perguntar,
+            titulo: "Carência".into(),
+            entrada: "Quantos dias de carência a fatura em atraso tem?".into(),
+            analista: None,
+            base: None,
+        })
+        .unwrap();
+    let copia = format!("{PASTA_DOS_EXTERNOS}/processos/carencia.md");
+    let absoluto = c
+        .amb
+        .base
+        .raiz()
+        .join(&copia)
+        .to_string_lossy()
+        .into_owned();
+    assert!(std::path::Path::new(&absoluto).is_file());
+    for arquivo in [
+        copia.clone(),
+        copia.replace("faturamento-exemplo/", ""),
+        absoluto,
+    ] {
+        let m = c.recusa(
+            "afirmar",
+            json!({
+                "analise": a.id,
+                "secao": "resposta",
+                "texto": "A carência é de 3 dias.",
+                "confianca": "confirmado",
+                "evidencias": [{
+                    "arquivo": arquivo,
+                    "linha_inicial": 3,
+                    "linha_final": 3,
+                    "trecho": "A carência é de 3 dias."
+                }]
+            }),
+        );
+        assert!(m.contains("documentação publicada"), "{arquivo}: {m}");
+        assert!(m.contains("pista, não prova"), "{m}");
+        assert!(m.contains("cite o trecho do código"), "{m}");
+    }
+    // Sem evidência, `confirmado` continua recusado.
+    c.recusa(
+        "afirmar",
+        json!({
+            "analise": a.id,
+            "secao": "resposta",
+            "texto": "A carência é de 3 dias, segundo a documentação publicada.",
+            "confianca": "confirmado"
+        }),
+    );
+    assert!(
+        c.amb
+            .analises
+            .carregar(&a.id)
+            .unwrap()
+            .afirmacoes
+            .is_empty()
+    );
+    // Com o código, vale.
+    c.chamar(
+        "afirmar",
+        json!({
+            "analise": a.id,
+            "secao": "resposta",
+            "texto": "Dentro da carência não há multa.",
+            "confianca": "confirmado",
+            "evidencias": [{
+                "arquivo": "db/03_pkg_cobranca.sql",
+                "linha_inicial": 66,
+                "linha_final": 68,
+                "trecho": "IF V_DIAS <= FN_PARAMETRO('DIAS_CARENCIA') THEN\n    RETURN 0;"
+            }]
+        }),
+    );
 }
