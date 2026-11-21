@@ -561,7 +561,7 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
             let e = executar_publicacao(&gabarito, p, &exe, r, &opcoes, &pasta);
             let resultado = e.publicacao.as_ref().map_or("-".to_owned(), |c| {
                 format!(
-                    "{} publicado(s), {} sincronizado(s), documentação publicada usada: {}, custo do ciclo US$ {:.2}",
+                    "{} publicado(s), {} sincronizado(s), regra recortada da documentação publicada usada: {}, custo do ciclo US$ {:.2}",
                     c.publicados.len(),
                     c.importados,
                     c.uso

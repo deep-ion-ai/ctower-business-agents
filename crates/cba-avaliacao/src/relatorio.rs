@@ -911,12 +911,26 @@ fn publicacao_md(s: &mut String, c: &crate::publicacao::CicloAvaliado) {
         Some(u) => {
             let _ = writeln!(
                 s,
-                "  - Analisar {} de novo: `conhecimento` chamado {} vez(es), {} com `externos`; {} resposta(s) com `[doc. publicada]`; {} leitura(s) em `externos/`; fonte citada na resposta: {}; documentação publicada usada: {}",
+                "  - Analisar {} de novo: `conhecimento` chamado {} vez(es), {} com `externos`; {} resposta(s) com `[doc. publicada]`; {} leitura(s) em `externos/`; {} bloco(s) recortado(s) recebido(s), {} regra(s){}; fonte citada na resposta: {}; regra recortada da documentação publicada usada: {}",
                 c.reanalise,
                 u.consultas,
                 u.consultas_com_externos,
                 u.respostas_com_externos,
                 u.leituras_de_externos,
+                u.blocos_recebidos.len(),
+                u.regras_recortadas.len(),
+                if u.regras_recortadas.is_empty() {
+                    String::new()
+                } else {
+                    format!(
+                        " ({})",
+                        u.regras_recortadas
+                            .iter()
+                            .map(|r| format!("`{r}`"))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )
+                },
                 sim_nao(u.fonte_citada),
                 sim_nao(u.usada())
             );
