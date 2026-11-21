@@ -5,7 +5,7 @@ O que o sistema faz, em linguagem de negócio: funcionalidades, regras de negóc
 
 > **Gerada pelo app.** Para corrigir ou completar, edite na base do ctower-business-agents e publique de novo: o que for mudado direto aqui volta ao que está na base na próxima publicação.
 
-**Código descrito:** `main` @ `c0ffee123456` · **Publicada em:** 2026-11-20
+**Código descrito:** `main` @ `c0ffee123456` · **Atualizada em:** 2026-11-20
 
 2 funcionalidades · 5 regras de negócio · 2 termos · 2 análises
 

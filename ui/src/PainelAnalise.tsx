@@ -691,7 +691,7 @@ export function PainelAnalise({
                 rotulo="Publicar"
                 titulo="Publicar os documentos aprovados do projeto no repositório"
                 rotuloPainel="Publicar a documentação no repositório"
-                classePainel="painel-revisao"
+                classePainel="painel-revisao painel-publicacao"
               >
                 <PublicacaoDocs api={apiPublicacao} projeto={projeto} abrirUrl={abrirUrl} />
               </BotaoPainel>

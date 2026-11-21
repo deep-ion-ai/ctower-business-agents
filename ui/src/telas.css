@@ -799,10 +799,53 @@
   border: 0;
 }
 
-/* Publicação da documentação aprovada (#276): a prévia rola dentro do painel. */
+/* Publicação da documentação aprovada (#276, #289): o painel vai até a borda de
+   baixo da janela (altura medida no componente); o corpo rola e as ações (aviso
+   de segredos e botão "Publicar") ficam fixas no rodapé, mesmo em janela baixa. */
+.painel-flutuante.painel-publicacao {
+  max-height: none;
+  overflow: visible;
+}
+
 .publicacao {
-  max-height: min(70vh, 560px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  max-height: min(70vh, 640px);
+}
+
+.publicacao > h3 {
+  margin: 0;
+  flex: none;
+}
+
+.publicacao-corpo {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+}
+
+.publicacao-acoes {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.publicacao-acoes:empty {
+  display: none;
+}
+
+.publicacao-resumo {
+  margin: 0 0 6px;
+}
+
+.publicacao-grupo summary {
+  cursor: pointer;
+  margin: 8px 0 2px;
+  font-weight: 600;
 }
 
 .publicacao-destino {

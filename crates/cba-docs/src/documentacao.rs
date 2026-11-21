@@ -77,8 +77,10 @@ pub struct ContextoDaDocumentacao {
     /// Versão do código descrita. Sem ela, a base da análise aprovada mais
     /// recente.
     pub codigo: Option<VersaoCodigo>,
-    /// Data da publicação (AAAA-MM-DD), só no README. Uma data que muda a cada
-    /// publicação muda o README; quem publica decide se passa.
+    /// Data da última mudança da base (AAAA-MM-DD), só no README ("Atualizada
+    /// em"). Uma data que muda a cada publicação mudaria o README sempre; a
+    /// publicação (#289) passa a da última mudança registrada nos documentos
+    /// aprovados.
     pub data: Option<String>,
 }
 
@@ -1624,7 +1626,7 @@ impl<'a> Gerador<'a> {
             ));
         }
         if let Some(d) = &self.contexto.data {
-            info.push(format!("**Publicada em:** {d}"));
+            info.push(format!("**Atualizada em:** {d}"));
         }
         if !info.is_empty() {
             let _ = writeln!(s, "{}\n", info.join(" · "));

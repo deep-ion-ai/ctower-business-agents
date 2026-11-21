@@ -22,6 +22,7 @@ pub fn previa(
             projeto: &a.kb,
             nome: &a.projeto.nome,
             repositorios: &a.projeto.repositorios,
+            escopo: Some(&a.escopo),
         },
     )
 }
@@ -39,6 +40,7 @@ pub fn publicar(
             projeto: &a.kb,
             nome: &a.projeto.nome,
             repositorios: &a.projeto.repositorios,
+            escopo: Some(&a.escopo),
         },
     )
 }
