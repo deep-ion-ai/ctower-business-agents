@@ -12,21 +12,25 @@
 //!    viram regras na base A.
 //! 3. **Publicar** ([`publicar`]): o destino da documentação é um repositório
 //!    próprio, um repositório bare local ([`RemotoDeDocs`]); a publicação é a do
-//!    app (`cba_tools::publicacao`), com branch própria e PR. O PR vai para uma
+//!    app (`cba_tools::publicacao`): as páginas legíveis (README, regras por
+//!    área, glossário, análises), com um bloco marcado por documento, numa
+//!    branch própria e PR. O PR vai para uma
 //!    forja falsa ([`forja_falsa`]: o próprio executável copiado como `gh`), que
 //!    devolve um link fictício. Depois, o PR é dado como mesclado
 //!    ([`RemotoDeDocs::mesclar`]: a branch base do bare avança até a branch da
 //!    publicação), como faria quem revisa.
 //! 4. **Sincronizar:** numa base B, nova, de outro analista no mesmo código, com o
 //!    mesmo destino (outro clone). A base B só conhece o que foi publicado: a
-//!    sincronização (`cba_tools::docs_externos::sincronizar`) copia a
-//!    documentação para `externos/`. Na base A ela não copiaria nada, porque a
-//!    base não importa o que ela mesma publicou.
+//!    sincronização (`cba_tools::docs_externos::sincronizar`) recorta as
+//!    páginas pelos marcadores e copia cada bloco (uma regra, um termo, uma
+//!    análise) para `externos/`, com a âncora do trecho. Na base A ela não
+//!    copiaria nenhum bloco, porque a base não importa o que ela mesma publicou.
 //! 5. **Analisar de novo:** o item `reanalise`, com o Claude, na base B. A análise
 //!    é comparada com o gabarito como nos outros fluxos e, pela transcrição do
 //!    `claude` (`--output-format stream-json`), confere-se o uso da documentação
 //!    publicada ([`uso_da_documentacao`]): `conhecimento` chamado com `externos`,
-//!    resultados `[doc. publicada]` devolvidos e a fonte citada na resposta.
+//!    uma **regra recortada** de página (bloco com âncora) devolvida e a fonte
+//!    citada na resposta.
 //!
 //! As etapas sem modelo (2 a 4 e a leitura da transcrição) são determinísticas e
 //! testadas no CI (`tests/publicacao.rs`).
@@ -392,16 +396,34 @@ pub struct UsoDaDocumentacao {
     pub respostas_com_externos: usize,
     /// Leituras (`Read`) de arquivos da cópia em `externos/`.
     pub leituras_de_externos: usize,
+    /// Blocos recortados das páginas publicadas (#290) recebidos nas respostas
+    /// de `conhecimento`, pelo caminho da página com a âncora
+    /// (`regras/geral.md#rn-ger-001`), sem repetição e em ordem.
+    pub blocos_recebidos: Vec<String>,
+    /// Os blocos recebidos que são regras (`tipo_original` `regra`).
+    pub regras_recortadas: Vec<String>,
+    /// Leituras (`Read`) da cópia de uma regra recortada em `externos/`
+    /// (`externos/<repositório>/<página>/regra-<id>.md`).
+    pub leituras_de_regras_recortadas: usize,
     /// A resposta final do agente cita a fonte: o repositório de docs ou o commit.
     pub fonte_citada: bool,
 }
 
 impl UsoDaDocumentacao {
     /// O agente pediu a documentação publicada e recebeu ao menos um documento
-    /// dela (ou leu um).
-    pub fn usada(&self) -> bool {
+    /// dela (ou leu um), qualquer que seja.
+    pub fn consultada(&self) -> bool {
         self.consultas_com_externos > 0
             && (self.respostas_com_externos > 0 || self.leituras_de_externos > 0)
+    }
+
+    /// O agente pediu a documentação publicada e recebeu (ou leu) uma regra
+    /// recortada de uma página publicada, com a âncora: é o formato legível
+    /// (#288 a #290) chegando à análise como documento próprio, não a página
+    /// inteira.
+    pub fn usada(&self) -> bool {
+        self.consultada()
+            && (!self.regras_recortadas.is_empty() || self.leituras_de_regras_recortadas > 0)
     }
 }
 
@@ -435,6 +457,58 @@ fn tem_documento_externo(resposta: &str) -> bool {
         })
 }
 
+/// Blocos recortados (com âncora) numa resposta de `conhecimento`: pares
+/// (`caminho#âncora`, tipo original). Nos dados, `origem.ancora` dos
+/// resultados com `"fonte": "externa"`; no texto, o `trecho <caminho>#<âncora>`
+/// do rótulo da linha `[doc. publicada] <id> (<tipo>; ...)`.
+fn blocos_da_resposta(resposta: &str) -> Vec<(String, String)> {
+    if let Some(resultados) = serde_json::from_str::<serde_json::Value>(resposta)
+        .ok()
+        .and_then(|v| v.get("resultados").and_then(|r| r.as_array()).cloned())
+    {
+        return resultados
+            .iter()
+            .filter(|x| x.get("fonte").and_then(|f| f.as_str()) == Some("externa"))
+            .filter_map(|x| {
+                let o = x.get("origem")?;
+                let ancora = o.get("ancora").and_then(|a| a.as_str())?;
+                let caminho = o.get("caminho").and_then(|c| c.as_str()).unwrap_or("");
+                let tipo = o
+                    .get("tipo_original")
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("");
+                Some((format!("{caminho}#{ancora}"), tipo.to_owned()))
+            })
+            .collect();
+    }
+    resposta
+        .lines()
+        .filter_map(|linha| {
+            let resto = &linha[linha.find(ROTULO_EXTERNO)? + ROTULO_EXTERNO.len()..];
+            let trecho = &resto[resto.find(", trecho ")? + ", trecho ".len()..];
+            let trecho = trecho.split(')').next().unwrap_or(trecho).trim();
+            if !trecho.contains('#') {
+                return None;
+            }
+            let tipo = resto
+                .split_once('(')
+                .and_then(|(_, t)| t.split_once(';'))
+                .map_or("", |(t, _)| t.trim());
+            Some((trecho.to_owned(), tipo.to_owned()))
+        })
+        .collect()
+}
+
+/// O arquivo lido é a cópia de uma regra recortada de página
+/// (`externos/<repositório>/<página sem .md>/regra-<id>.md`, #290).
+fn e_copia_de_regra_recortada(arquivo: &str) -> bool {
+    arquivo.contains("/externos/")
+        && arquivo
+            .rsplit('/')
+            .next()
+            .is_some_and(|nome| nome.starts_with("regra-") && nome.ends_with(".md"))
+}
+
 /// Lê a transcrição (`stream-json`, uma mensagem JSON por linha) e mede o uso da
 /// documentação publicada. `repositorio` é o caminho do repositório de docs
 /// (`dono/repo`) e `commit`, o commit sincronizado: a fonte é citada quando a
@@ -448,6 +522,8 @@ pub fn uso_da_documentacao(
     // Ferramenta de cada chamada, pelo id, para ligar a resposta à chamada.
     let mut chamadas: HashMap<String, String> = HashMap::new();
     let mut resposta_final = String::new();
+    let mut recortados = std::collections::BTreeSet::new();
+    let mut regras = std::collections::BTreeSet::new();
     for linha in transcricao.lines() {
         let Ok(v) = serde_json::from_str::<serde_json::Value>(linha.trim()) else {
             continue;
@@ -485,6 +561,9 @@ pub fn uso_da_documentacao(
                         if arquivo.contains("/externos/") {
                             uso.leituras_de_externos += 1;
                         }
+                        if e_copia_de_regra_recortada(&arquivo) {
+                            uso.leituras_de_regras_recortadas += 1;
+                        }
                     }
                 }
             }
@@ -497,12 +576,19 @@ pub fn uso_da_documentacao(
                     let e_conhecimento = chamadas
                         .get(id)
                         .is_some_and(|n| n.ends_with("conhecimento"));
-                    if e_conhecimento
-                        && tem_documento_externo(&texto_do_resultado(
-                            b.get("content").unwrap_or(&serde_json::Value::Null),
-                        ))
-                    {
+                    if !e_conhecimento {
+                        continue;
+                    }
+                    let texto =
+                        texto_do_resultado(b.get("content").unwrap_or(&serde_json::Value::Null));
+                    if tem_documento_externo(&texto) {
                         uso.respostas_com_externos += 1;
+                    }
+                    for (bloco, tipo) in blocos_da_resposta(&texto) {
+                        if tipo == "regra" {
+                            regras.insert(bloco.clone());
+                        }
+                        recortados.insert(bloco);
                     }
                 }
             }
@@ -516,6 +602,8 @@ pub fn uso_da_documentacao(
             _ => {}
         }
     }
+    uso.blocos_recebidos = recortados.into_iter().collect();
+    uso.regras_recortadas = regras.into_iter().collect();
     let resposta = resposta_final.to_lowercase();
     let nome = repositorio
         .rsplit('/')
@@ -591,14 +679,20 @@ impl CicloAvaliado {
         if self.commit.is_some() && self.importados == 0 {
             f.push("a sincronização não trouxe a documentação publicada para a base".to_owned());
         }
-        if let Some(u) = &self.uso
-            && !u.usada()
-        {
-            f.push(
-                "a segunda análise não consultou a documentação publicada (conhecimento com \
-                 externos)"
-                    .to_owned(),
-            );
+        if let Some(u) = &self.uso {
+            if !u.consultada() {
+                f.push(
+                    "a segunda análise não consultou a documentação publicada (conhecimento com \
+                     externos)"
+                        .to_owned(),
+                );
+            } else if !u.usada() {
+                f.push(
+                    "a segunda análise consultou a documentação publicada, mas não recebeu \
+                     nenhuma regra recortada de página (bloco com âncora)"
+                        .to_owned(),
+                );
+            }
         }
         f
     }

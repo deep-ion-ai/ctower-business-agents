@@ -58,12 +58,12 @@ fn transcricao_mostra_o_uso_da_documentacao_publicada() {
             ),
             resposta(
                 "t2",
-                "- [doc. publicada] RN-GER-001 (regra; exemplo/faturamento-docs @ abc1234, confiança publicada): Carência",
+                "- [doc. publicada] RN-GER-001 (regra; GitHub exemplo/faturamento-docs @ abc1234, confiança publicada, trecho regras/geral.md#rn-ger-001): Carência — `x`\n  https://github.com/exemplo/faturamento-docs/blob/abc1234/regras/geral.md#rn-ger-001\n- [doc. publicada] carencia (termo; GitHub exemplo/faturamento-docs @ abc1234, confiança publicada, trecho glossario.md#carencia): Carência — `y`\n- [doc. publicada] README (documento; GitHub exemplo/faturamento-docs @ abc1234, confiança publicada): Faturamento — `z`",
             ),
             chamada(
                 "t3",
                 "Read",
-                json!({ "file_path": "/tmp/base-b/faturamento-exemplo/externos/github-exemplo-faturamento-docs/regras/RN-GER-001.md" }),
+                json!({ "file_path": "/tmp/base-b/faturamento-exemplo/externos/github-exemplo-faturamento-docs/regras/geral/regra-RN-GER-001.md" }),
             ),
             chamada(
                 "t4",
@@ -81,6 +81,12 @@ fn transcricao_mostra_o_uso_da_documentacao_publicada() {
             consultas_com_externos: 1,
             respostas_com_externos: 1,
             leituras_de_externos: 1,
+            blocos_recebidos: vec![
+                "glossario.md#carencia".into(),
+                "regras/geral.md#rn-ger-001".into()
+            ],
+            regras_recortadas: vec!["regras/geral.md#rn-ger-001".into()],
+            leituras_de_regras_recortadas: 1,
             fonte_citada: true,
         }
     );
@@ -97,9 +103,12 @@ fn resposta_em_dados_estruturados_tambem_conta() {
     let dados = json!({
         "externos": "incluir",
         "resultados": [{
-            "caminho": "faturamento-exemplo/externos/github-exemplo-faturamento-docs/regras/RN-GER-004.md",
+            "caminho": "faturamento-exemplo/externos/github-exemplo-faturamento-docs/regras/geral/regra-RN-GER-004.md",
             "fonte": "externa",
-            "origem": { "repositorio": "GitHub exemplo/faturamento-docs", "commit": "53b6b84" }
+            "origem": {
+                "repositorio": "GitHub exemplo/faturamento-docs", "commit": "53b6b84",
+                "caminho": "regras/geral.md", "ancora": "rn-ger-004", "tipo_original": "regra"
+            }
         }]
     });
     let t = transcricao(
@@ -117,6 +126,7 @@ fn resposta_em_dados_estruturados_tambem_conta() {
     );
     let uso = uso_da_documentacao(&t, "exemplo/faturamento-docs", "53b6b84aaa");
     assert_eq!(uso.respostas_com_externos, 1);
+    assert_eq!(uso.regras_recortadas, ["regras/geral.md#rn-ger-004"]);
     assert!(uso.usada());
 
     // Só a base própria nos dados: não conta.
@@ -176,6 +186,54 @@ fn sem_pedir_externos_a_documentacao_nao_conta_como_usada() {
     let falhas = ciclo.falhas();
     assert_eq!(falhas.len(), 1, "{falhas:?}");
     assert!(falhas[0].contains("não consultou"), "{falhas:?}");
+}
+
+#[test]
+fn documento_externo_sem_bloco_recortado_nao_basta() {
+    // Um `.md` inteiro no formato antigo (sem âncora) e um termo recortado: a
+    // documentação foi consultada, mas nenhuma regra recortada de página chegou.
+    let dados = json!({
+        "resultados": [
+            { "fonte": "externa", "origem": { "caminho": "regras/RN-GER-004.md", "ancora": null, "tipo_original": "regra" } },
+            { "fonte": "externa", "origem": { "caminho": "glossario.md", "ancora": "juros", "tipo_original": "termo" } }
+        ]
+    });
+    let t = transcricao(
+        &[
+            chamada(
+                "t1",
+                "mcp__cba__conhecimento",
+                json!({ "termo": "juros", "externos": "incluir" }),
+            ),
+            json!({ "type": "user", "message": { "content": [
+                { "type": "tool_result", "tool_use_id": "t1", "content": dados.to_string() }
+            ]}}),
+            chamada(
+                "t2",
+                "Read",
+                json!({ "file_path": "/b/externos/github-x/regras/RN-GER-004.md" }),
+            ),
+        ],
+        "",
+    );
+    let uso = uso_da_documentacao(&t, "exemplo/faturamento-docs", "53b6b84aaa");
+    assert!(uso.consultada());
+    assert_eq!(uso.blocos_recebidos, ["glossario.md#juros"]);
+    assert!(uso.regras_recortadas.is_empty());
+    assert_eq!(uso.leituras_de_regras_recortadas, 0);
+    assert!(!uso.usada());
+    let ciclo = CicloAvaliado {
+        primeira_analise: Some("A-0001".into()),
+        aprovada: true,
+        publicados: vec!["README.md".into()],
+        commit: Some("abc1234def".into()),
+        importados: 1,
+        uso: Some(uso),
+        ..Default::default()
+    };
+    let falhas = ciclo.falhas();
+    assert_eq!(falhas.len(), 1, "{falhas:?}");
+    assert!(falhas[0].contains("regra recortada"), "{falhas:?}");
 }
 
 #[test]
@@ -496,6 +554,11 @@ mod com_git {
         .join("\n");
         let uso = uso_da_documentacao(&transcricao, &esperada.repositorio, &commit);
         assert!(uso.usada() && uso.fonte_citada, "{uso:?}");
+        // A carência vem como regra recortada da página da área, com a âncora.
+        assert!(
+            uso.regras_recortadas.iter().any(|r| r.contains(".md#rn-")),
+            "{uso:?}"
+        );
 
         // Na base A, que publicou: nenhum bloco dela mesma entra (dedup por
         // tipo+id, #290); só o leia-me e as páginas sem marcador (README,

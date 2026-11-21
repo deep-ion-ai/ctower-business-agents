@@ -679,7 +679,7 @@ fn criterios_das_analises(s: &mut String) {
     );
     let _ = writeln!(
         s,
-        "- **Ciclo de publicação** (`publicacao`): o item `analise` é analisado, aprovado (as afirmações `confirmado` com evidências válidas confirmadas) e publicado num repositório de docs local, com PR numa forja falsa dado como mesclado; numa base nova, a documentação é sincronizada e o item `reanalise` é analisado de novo e comparado com o gabarito como os outros. Documentação publicada usada quando `conhecimento` é chamado com `externos` (`incluir` ou `somente`) e devolve algum `[doc. publicada]` (ou o agente lê um arquivo de `externos/`); fonte citada quando a resposta final traz o repositório ou o commit. Falha grave: análise não aprovada, nada publicado, nada sincronizado ou documentação publicada não usada."
+        "- **Ciclo de publicação** (`publicacao`): o item `analise` é analisado, aprovado (as afirmações `confirmado` com evidências válidas confirmadas) e publicado num repositório de docs local, com PR numa forja falsa dado como mesclado; numa base nova, a documentação é sincronizada e o item `reanalise` é analisado de novo e comparado com o gabarito como os outros. Regra recortada usada quando `conhecimento` é chamado com `externos` (`incluir` ou `somente`) e devolve uma regra recortada de página publicada, com a âncora do trecho (ou o agente lê a cópia dela em `externos/`); fonte citada quando a resposta final traz o repositório ou o commit. Falha grave: análise não aprovada, nada publicado, nada sincronizado, documentação publicada não consultada ou consultada sem nenhuma regra recortada."
     );
     let _ = writeln!(
         s,
@@ -911,12 +911,26 @@ fn publicacao_md(s: &mut String, c: &crate::publicacao::CicloAvaliado) {
         Some(u) => {
             let _ = writeln!(
                 s,
-                "  - Analisar {} de novo: `conhecimento` chamado {} vez(es), {} com `externos`; {} resposta(s) com `[doc. publicada]`; {} leitura(s) em `externos/`; fonte citada na resposta: {}; documentação publicada usada: {}",
+                "  - Analisar {} de novo: `conhecimento` chamado {} vez(es), {} com `externos`; {} resposta(s) com `[doc. publicada]`; {} leitura(s) em `externos/`; {} bloco(s) recortado(s) recebido(s), {} regra(s){}; fonte citada na resposta: {}; regra recortada da documentação publicada usada: {}",
                 c.reanalise,
                 u.consultas,
                 u.consultas_com_externos,
                 u.respostas_com_externos,
                 u.leituras_de_externos,
+                u.blocos_recebidos.len(),
+                u.regras_recortadas.len(),
+                if u.regras_recortadas.is_empty() {
+                    String::new()
+                } else {
+                    format!(
+                        " ({})",
+                        u.regras_recortadas
+                            .iter()
+                            .map(|r| format!("`{r}`"))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )
+                },
                 sim_nao(u.fonte_citada),
                 sim_nao(u.usada())
             );
