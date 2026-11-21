@@ -1,8 +1,8 @@
 //! Marcadores de ida e volta da documentação publicada (#288).
 //!
-//! As páginas legíveis ([`crate::gerar_documentacao`]) juntam vários documentos
+//! As páginas legíveis (`cba_docs::gerar_documentacao`) juntam vários documentos
 //! da base numa página só (as regras de uma funcionalidade, o glossário). Para a
-//! importação (#290) recortar cada documento de volta, cada um vem entre dois
+//! importação (#290, [`crate::externos`]) recortar cada documento de volta, cada um vem entre dois
 //! comentários HTML, invisíveis no GitHub e no GitLab:
 //!
 //! ```text

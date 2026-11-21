@@ -484,6 +484,8 @@ export interface SituacaoDocsExternos {
   jaNaBase: number;
   pulados: DocPulado[];
   mascarados: { caminho: string; trechos: number }[];
+  /** Páginas com marcadores ilegíveis, importadas inteiras (#290). */
+  avisos?: DocPulado[];
 }
 
 export interface ApiRepositorios {

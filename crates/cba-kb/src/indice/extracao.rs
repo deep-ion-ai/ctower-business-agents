@@ -155,6 +155,8 @@ pub(super) fn extrair(projeto: &Projeto, relativo: &CaminhoRelativo, bytes: Vec<
             confianca: f.confianca,
             tipo_original: f.tipo_original,
             id_original: f.id_original,
+            ancora: f.origem.ancora,
+            url: f.origem.url,
         });
     }
 

@@ -32,6 +32,8 @@ pub struct SituacaoDocs {
     pub ja_na_base: usize,
     pub pulados: Vec<Pulado>,
     pub mascarados: Vec<Mascarado>,
+    /// Páginas importadas com ressalva (marcadores ilegíveis: entraram inteiras).
+    pub avisos: Vec<Pulado>,
 }
 
 /// Situação atual, sem rede.
@@ -52,6 +54,7 @@ pub fn situacao(dados: &DiretorioDados, projeto: &str) -> Result<SituacaoDocs, S
         ja_na_base: estado.ja_na_base.len(),
         pulados: estado.pulados,
         mascarados: estado.mascarados,
+        avisos: estado.avisos,
     })
 }
 

@@ -63,6 +63,7 @@ mod id;
 pub mod indice;
 pub mod informada;
 pub mod layout;
+pub mod marcador;
 mod papeis;
 mod pessoas;
 pub mod registros;

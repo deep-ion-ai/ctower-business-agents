@@ -227,3 +227,272 @@ fn falha_de_rede_fica_registrada_e_nao_apaga_as_copias() {
     );
     assert!(docs_externos::ao_iniciar_analise_com(&c.amb, c.f.clone()).is_none());
 }
+
+// ---- Páginas da documentação legível (#288), recortadas na importação (#290) ----
+
+/// Base de exemplo da documentação legível (a mesma dos testes do renderizador).
+fn base_da_documentacao() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../cba-docs/tests/documentacao/base")
+}
+
+/// As páginas que o renderizador da #288 gera da base de exemplo.
+fn paginas_geradas() -> Vec<(String, String)> {
+    fn visitar(pasta: &Path, raiz: &Path, saida: &mut Vec<cba_docs::DocumentoDaBase>) {
+        let mut entradas: Vec<_> = std::fs::read_dir(pasta)
+            .unwrap()
+            .map(|e| e.unwrap().path())
+            .collect();
+        entradas.sort();
+        for p in entradas {
+            if p.is_dir() {
+                visitar(&p, raiz, saida);
+            } else if p.extension().is_some_and(|e| e == "md") {
+                let caminho = p
+                    .strip_prefix(raiz)
+                    .unwrap()
+                    .components()
+                    .map(|c| c.as_os_str().to_str().unwrap())
+                    .collect::<Vec<_>>()
+                    .join("/");
+                saida.push(cba_docs::DocumentoDaBase {
+                    caminho,
+                    texto: std::fs::read_to_string(&p).unwrap(),
+                });
+            }
+        }
+    }
+    let raiz = base_da_documentacao();
+    let mut documentos = Vec::new();
+    visitar(&raiz, &raiz, &mut documentos);
+    let mapa: cba_core::funcionalidades::MapaFuncionalidades = serde_json::from_slice(
+        &std::fs::read(raiz.join("funcionalidades/mapa.estado.json")).unwrap(),
+    )
+    .unwrap();
+    let contexto = cba_docs::ContextoDaDocumentacao {
+        projeto: "Faturamento Exemplo".into(),
+        areas: Default::default(),
+        codigo: None,
+        data: None,
+    };
+    cba_docs::gerar_documentacao(&documentos, Some(&mapa), None, &contexto)
+        .paginas
+        .into_iter()
+        .map(|p| (p.caminho, p.conteudo))
+        .collect()
+}
+
+const PAGINA_COB: &str = "funcionalidades/cobranca/f-cob-001-cobrar-multa-por-atraso.md";
+const BLOCOS_COB: &str = "externos/github-exemplo-faturamento-docs/funcionalidades/cobranca/\
+                          f-cob-001-cobrar-multa-por-atraso";
+
+impl Cenario {
+    /// Grava as páginas na subpasta de docs do autor e publica num commit só.
+    fn publicar_paginas(&self, paginas: &[(String, String)]) -> String {
+        for (caminho, texto) in paginas {
+            let destino = self.autor.join("docs/negocio").join(caminho);
+            std::fs::create_dir_all(destino.parent().unwrap()).unwrap();
+            std::fs::write(destino, texto).unwrap();
+        }
+        git(&self.autor, &["add", "-A"]);
+        git(&self.autor, &["commit", "-q", "-m", "docs"]);
+        git(&self.autor, &["push", "-q", "origin", "main"]);
+        git(&self.autor, &["rev-parse", "HEAD"])
+    }
+
+    fn todos_os_externos(&self) -> Vec<cba_kb::indice::Resultado> {
+        let mut indice = Indice::abrir(self.amb.dados.arquivo_do_indice(), &self.amb.base).unwrap();
+        indice.sincronizar().unwrap();
+        indice
+            .listar(
+                &Consulta::nova("")
+                    .externos(Externos::Somente)
+                    .pagina(500, 0),
+            )
+            .unwrap()
+            .resultados
+    }
+}
+
+type Chave = (String, Option<String>, Option<String>);
+
+/// `(caminho#âncora, tipo, id)` de cada externo esperado das páginas: um por
+/// bloco, ou a página inteira quando ela não tem marcador.
+fn esperados(paginas: &[(String, String)]) -> Vec<Chave> {
+    let mut saida = Vec::new();
+    for (caminho, texto) in paginas {
+        let blocos = cba_kb::marcador::blocos(texto).unwrap();
+        if blocos.is_empty() {
+            saida.push((format!("docs/negocio/{caminho}"), None, None));
+        }
+        for b in blocos {
+            let f = &b.marcador.metadados.frontmatter;
+            let id = f["id"]
+                .as_str()
+                .or_else(|| f["termo"].as_str())
+                .unwrap_or(&b.marcador.id);
+            saida.push((
+                format!("docs/negocio/{caminho}#{}", b.ancora().unwrap()),
+                Some(b.marcador.tipo.clone()),
+                Some(id.to_string()),
+            ));
+        }
+    }
+    saida.sort();
+    saida
+}
+
+fn obtidos(externos: &[cba_kb::indice::Resultado]) -> Vec<Chave> {
+    let mut saida: Vec<_> = externos
+        .iter()
+        .map(|r| {
+            let o = r.externo.as_ref().unwrap();
+            (
+                o.caminho_com_ancora(),
+                o.tipo_original.clone(),
+                o.id_original.clone(),
+            )
+        })
+        .filter(|(c, _, _)| c != "docs/negocio/processos/segunda-via.md")
+        .collect();
+    saida.sort();
+    saida
+}
+
+/// A página sem o bloco do documento `id`.
+fn sem_bloco(pagina: &str, id: &str) -> String {
+    let abertura = format!("<!-- cba:regra id={id} ");
+    let mut dentro = false;
+    let mut saida = String::new();
+    for linha in pagina.lines() {
+        if linha.starts_with(&abertura) {
+            dentro = true;
+            continue;
+        }
+        if dentro {
+            dentro = linha.trim() != cba_kb::marcador::FECHAMENTO;
+            continue;
+        }
+        saida.push_str(linha);
+        saida.push('\n');
+    }
+    saida
+}
+
+#[test]
+fn paginas_geradas_viram_um_externo_por_documento_e_voltam_iguais() {
+    let c = cenario();
+    let paginas = paginas_geradas();
+    assert!(paginas.iter().any(|(c, _)| c == PAGINA_COB));
+    let commit = c.publicar_paginas(&paginas);
+    let s = docs_externos::sincronizar(&c.amb, &c.f).unwrap();
+    assert!(s.importacao.avisos.is_empty(), "{:?}", s.importacao.avisos);
+
+    let externos = c.todos_os_externos();
+    assert_eq!(obtidos(&externos), esperados(&paginas));
+
+    // A página da funcionalidade com N regras vira N regras externas, com âncora
+    // e o link do trecho na forja.
+    let regras: Vec<_> = externos
+        .iter()
+        .filter_map(|r| r.externo.as_ref())
+        .filter(|o| o.caminho.ends_with(PAGINA_COB) && o.tipo_original.as_deref() == Some("regra"))
+        .collect();
+    assert_eq!(regras.len(), 3);
+    for o in &regras {
+        let ancora = o.ancora.as_deref().unwrap();
+        assert_eq!(ancora, o.id_original.as_deref().unwrap().to_lowercase());
+        assert_eq!(
+            o.url.as_deref().unwrap(),
+            format!(
+                "https://github.com/exemplo/faturamento-docs/blob/{commit}/docs/negocio/\
+                 {PAGINA_COB}#{ancora}"
+            )
+        );
+        assert_eq!(o.confianca, Confianca::Publicada);
+    }
+
+    // Ida e volta: o frontmatter da cópia é o do documento na base de origem.
+    let copia: cba_kb::Documento<cba_kb::frontmatter::FrontmatterDocExterno> = c
+        .amb
+        .kb
+        .ler(&cba_kb::CaminhoRelativo::novo(&format!("{BLOCOS_COB}/regra-RN-COB-001.md")).unwrap())
+        .unwrap();
+    let original: cba_kb::Documento<cba_kb::frontmatter::FrontmatterLivre> =
+        cba_kb::Documento::analisar(
+            &std::fs::read_to_string(base_da_documentacao().join("regras/RN-COB-001.md")).unwrap(),
+        )
+        .unwrap();
+    assert_eq!(
+        copia.frontmatter.frontmatter_original.as_ref(),
+        Some(&original.frontmatter.0)
+    );
+    assert!(!copia.corpo.contains("<!--"));
+    assert!(!copia.corpo.contains("<a id"));
+}
+
+#[test]
+fn regra_removida_da_pagina_sai_alterada_atualiza_e_a_da_base_nao_entra() {
+    let c = cenario();
+    // A base deste projeto já tem a RN-COB-002 (foi ela quem publicou).
+    let regra =
+        std::fs::read_to_string(base_da_documentacao().join("regras/RN-COB-002.md")).unwrap();
+    c.amb
+        .kb
+        .gravar_texto(
+            &cba_kb::CaminhoRelativo::novo("regras/RN-COB-002.md").unwrap(),
+            &regra,
+        )
+        .unwrap();
+
+    let paginas = paginas_geradas();
+    c.publicar_paginas(&paginas);
+    let s = docs_externos::sincronizar(&c.amb, &c.f).unwrap();
+    assert!(
+        s.importacao
+            .ja_na_base
+            .contains(&format!("docs/negocio/{PAGINA_COB}#rn-cob-002")),
+        "{:?}",
+        s.importacao.ja_na_base
+    );
+    let raiz = c.amb.kb.raiz().join(BLOCOS_COB);
+    assert!(!raiz.join("regra-RN-COB-002.md").exists());
+    assert!(raiz.join("regra-RN-COB-001.md").exists());
+    let antes = c.todos_os_externos().len();
+
+    // Sai a RN-COB-003 da página e muda o texto da RN-COB-001.
+    let texto = paginas
+        .iter()
+        .find(|(c, _)| c == PAGINA_COB)
+        .unwrap()
+        .1
+        .clone();
+    assert!(texto.contains("<!-- cba:regra id=RN-COB-003 "));
+    let texto = sem_bloco(&texto, "RN-COB-003").replacen("2%", "3%", 1);
+    let commit = c.publicar_paginas(&[(PAGINA_COB.to_string(), texto)]);
+    let s = docs_externos::sincronizar(&c.amb, &c.f).unwrap();
+    assert_eq!(
+        (
+            s.importacao.removidos,
+            s.importacao.alterados,
+            s.importacao.novos
+        ),
+        (1, 1, 0),
+        "{:?}",
+        s.importacao
+    );
+    assert!(!raiz.join("regra-RN-COB-003.md").exists());
+    let alterada: cba_kb::Documento<cba_kb::frontmatter::FrontmatterDocExterno> = c
+        .amb
+        .kb
+        .ler(&cba_kb::CaminhoRelativo::novo(&format!("{BLOCOS_COB}/regra-RN-COB-001.md")).unwrap())
+        .unwrap();
+    assert!(alterada.frontmatter.titulo.contains("3%"));
+    assert_eq!(alterada.frontmatter.origem.commit, commit);
+    let externos = c.todos_os_externos();
+    assert_eq!(externos.len(), antes - 1);
+    assert!(
+        !externos
+            .iter()
+            .any(|r| r.externo.as_ref().unwrap().id_original.as_deref() == Some("RN-COB-003"))
+    );
+}

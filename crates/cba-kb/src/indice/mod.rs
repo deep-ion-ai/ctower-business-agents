@@ -171,6 +171,21 @@ pub struct OrigemIndexada {
     /// `tipo` e `id` do original, se ele tinha (documento publicado pelo app).
     pub tipo_original: Option<String>,
     pub id_original: Option<String>,
+    /// Âncora do trecho na página, quando o documento foi recortado de uma página
+    /// com marcadores (#290).
+    pub ancora: Option<String>,
+    /// Link do original (com a âncora) na forja, quando se pôde montar.
+    pub url: Option<String>,
+}
+
+impl OrigemIndexada {
+    /// `caminho#âncora` (ou só o caminho).
+    pub fn caminho_com_ancora(&self) -> String {
+        match &self.ancora {
+            Some(a) => format!("{}#{a}", self.caminho),
+            None => self.caminho.clone(),
+        }
+    }
 }
 
 /// O que uma sincronização fez.

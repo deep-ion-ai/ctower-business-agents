@@ -6,8 +6,9 @@ use super::extracao::Registro;
 
 /// Versão do esquema, em `PRAGMA user_version`. Mudou o esquema, suba o número: o
 /// índice é recriado e reconstruído a partir da base. A versão 2 trouxe as tabelas
-/// da rastreabilidade (`super::rastro`); a 3, a documentação externa (#277).
-pub(super) const VERSAO: i64 = 3;
+/// da rastreabilidade (`super::rastro`); a 3, a documentação externa (#277); a 4,
+/// a âncora e o link do trecho recortado de uma página publicada (#290).
+pub(super) const VERSAO: i64 = 4;
 
 /// Tabelas do índice.
 ///
@@ -73,7 +74,9 @@ CREATE TABLE origem_externa (
     branch TEXT,
     confianca TEXT NOT NULL,
     tipo_original TEXT,
-    id_original TEXT
+    id_original TEXT,
+    ancora TEXT,
+    url TEXT
 );
 CREATE VIRTUAL TABLE busca USING fts5 (
     titulo,
@@ -140,8 +143,8 @@ pub(super) fn inserir(
     if let Some(o) = &r.origem_externa {
         tx.execute(
             "INSERT INTO origem_externa (documento, repositorio, caminho, commit_, branch, \
-                 confianca, tipo_original, id_original) \
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                 confianca, tipo_original, id_original, ancora, url) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
             params![
                 id,
                 o.repositorio,
@@ -151,6 +154,8 @@ pub(super) fn inserir(
                 o.confianca.como_str(),
                 o.tipo_original,
                 o.id_original,
+                o.ancora,
+                o.url,
             ],
         )?;
     }

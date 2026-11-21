@@ -42,13 +42,16 @@ mod documentacao;
 mod exportacao;
 mod figura;
 mod html;
-pub mod marcador;
 mod modelo;
 mod modelo_html;
 mod montagem;
 mod planilha;
 mod template;
 mod word;
+
+/// Marcadores de ida e volta (#288). Vivem em `cba-kb`, que recorta as páginas
+/// publicadas na importação (#290); reexportados aqui para o renderizador.
+pub use cba_kb::marcador;
 
 use cba_kb::CaminhoRelativo;
 

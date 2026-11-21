@@ -438,6 +438,23 @@ export function SincronizacaoDocs({
           </ul>
         </details>
       )}
+      {s?.avisos && s.avisos.length > 0 && (
+        <details>
+          <summary>
+            {s.avisos.length}{" "}
+            {s.avisos.length === 1
+              ? "página importada inteira (marcadores ilegíveis)"
+              : "páginas importadas inteiras (marcadores ilegíveis)"}
+          </summary>
+          <ul>
+            {s.avisos.map((p) => (
+              <li key={p.caminho}>
+                <span className="caminho">{p.caminho}</span>: {p.motivo}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
       {s && s.mascarados.length > 0 && (
         <p className="muted">
           Trechos com possível segredo ou dado pessoal mascarados em {s.mascarados.length}{" "}
