@@ -843,6 +843,7 @@ pub fn ligar_explicacao(
             tema: slug(&f.nome),
             status: StatusAnalise::Aprovada,
             origem: Some(analise.documento.clone()),
+            funcionalidade: Some(id.clone()),
         },
         corpo,
     );

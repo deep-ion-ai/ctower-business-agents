@@ -34,6 +34,9 @@ struct Original {
     /// Texto do início do arquivo até a linha `---` de fechamento, inclusive.
     cabecalho: String,
     mapa: Mapping,
+    /// Algum campo foi tirado ([`Documento::tirar_campo`]): o cabeçalho lido não
+    /// vale mais.
+    campos_tirados: bool,
 }
 
 /// Frontmatter inválido. A posição do arquivo é acrescentada por [`crate::Erro`].
@@ -127,8 +130,20 @@ impl<F: Frontmatter> Documento<F> {
             original: Some(Original {
                 cabecalho: partes.cabecalho.to_owned(),
                 mapa,
+                campos_tirados: false,
             }),
         })
+    }
+
+    /// Tira do documento lido o campo `campo`, para a próxima gravação não o
+    /// manter. Sem isso, um campo opcional que fica vazio e não é gravado
+    /// (`skip_serializing_if`) voltaria do arquivo com o valor anterior.
+    pub fn tirar_campo(&mut self, campo: &str) {
+        if let Some(original) = &mut self.original
+            && original.mapa.shift_remove(campo).is_some()
+        {
+            original.campos_tirados = true;
+        }
     }
 
     /// Texto do arquivo. Valida o frontmatter antes, para nunca gravar um documento
@@ -153,7 +168,7 @@ impl<F: Frontmatter> Documento<F> {
         let mapa = match &self.original {
             Some(original) => {
                 let mesclado = mesclar(&original.mapa, novo, F::PRESERVA_DESCONHECIDOS);
-                if mesclado == original.mapa {
+                if mesclado == original.mapa && !original.campos_tirados {
                     return Ok(format!("{}{}", original.cabecalho, self.corpo));
                 }
                 mesclado
@@ -402,6 +417,26 @@ Enunciado.
         let bom = format!("\u{feff}{REGRA}");
         let r = Documento::<FrontmatterRegra>::analisar(&bom).unwrap();
         assert_eq!(r.para_texto().unwrap(), bom);
+    }
+
+    #[test]
+    fn campo_tirado_some_ao_gravar() {
+        let com = REGRA.replace(
+            "origem: analises/A-0193.md\n",
+            "origem: analises/A-0193.md\nfuncionalidades:\n- F-COB-001\n",
+        );
+        // Sem tirar, a lista vazia (não gravada) volta do arquivo.
+        let mut r = Documento::<FrontmatterRegra>::analisar(&com).unwrap();
+        r.frontmatter.funcionalidades.clear();
+        assert!(r.para_texto().unwrap().contains("F-COB-001"));
+        r.tirar_campo("funcionalidades");
+        let texto = r.para_texto().unwrap();
+        assert!(!texto.contains("funcionalidades"), "{texto}");
+        assert!(texto.contains("origem: analises/A-0193.md"), "{texto}");
+        // Tirar um campo que não existe não muda o texto.
+        let mut r = Documento::<FrontmatterRegra>::analisar(REGRA).unwrap();
+        r.tirar_campo("funcionalidades");
+        assert_eq!(r.para_texto().unwrap(), REGRA);
     }
 
     fn chaves(texto: &str) -> Vec<String> {

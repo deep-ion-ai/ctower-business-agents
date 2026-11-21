@@ -1225,6 +1225,7 @@ fn mcp_ferramentas_de_consulta_de_ponta_a_ponta() {
                     sinonimos: vec![],
                     area: Some("cobranca".into()),
                     origem: None,
+                    funcionalidades: vec![],
                 },
                 "\nDias de atraso sem encargos (DIAS_CARENCIA).\n",
             ),

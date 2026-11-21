@@ -156,6 +156,7 @@ impl Analises {
                     criado: tempo::data_utc(agora),
                     analista: nova.analista.clone(),
                     origem: origem.clone(),
+                    funcionalidades: Vec::new(),
                 },
                 format!("# {titulo}\n"),
             )

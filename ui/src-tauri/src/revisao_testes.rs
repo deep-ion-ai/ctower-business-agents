@@ -229,6 +229,7 @@ fn revisao_e_aprovacao_de_ponta_a_ponta() {
             },
         )]),
         regras: Some(BTreeSet::from([1])),
+        funcionalidades: None,
     };
     // O formato que a tela envia: chaves numéricas como texto.
     let da_tela: OpcoesAprovacao = serde_json::from_value(json!({

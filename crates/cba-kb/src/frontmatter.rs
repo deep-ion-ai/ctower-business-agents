@@ -15,7 +15,7 @@ use serde::de::{DeserializeOwned, Error as _};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::caminho::{CaminhoRelativo, e_slug};
-use crate::id::{Id, IdDemanda, IdReuniao, Serie};
+use crate::id::{Id, IdDemanda, IdFuncionalidade, IdReuniao, Serie};
 use crate::yaml::{Mapping, Value};
 
 /// Tipo de documento, no campo `tipo` do frontmatter.
@@ -547,6 +547,11 @@ pub struct FrontmatterAnalise {
     /// mudarem.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub origem: Option<Id>,
+    /// Funcionalidades do mapa a que o documento se refere (#287), na ordem em que
+    /// o analista as confirmou. Só é gravado quando há alguma: bases anteriores
+    /// abrem sem ele.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub funcionalidades: Vec<IdFuncionalidade>,
 }
 
 impl Frontmatter for FrontmatterAnalise {
@@ -601,6 +606,11 @@ pub struct FrontmatterRegra {
     /// código, a regra mantém o identificador e a versão que valia vem para cá.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub historico: Vec<VersaoDaRegra>,
+    /// Funcionalidades do mapa a que o documento se refere (#287), na ordem em que
+    /// o analista as confirmou. Só é gravado quando há alguma: bases anteriores
+    /// abrem sem ele.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub funcionalidades: Vec<IdFuncionalidade>,
 }
 
 /// Versão anterior de uma regra, guardada no `historico` dela (#124).
@@ -638,6 +648,11 @@ pub struct FrontmatterTermo {
     pub area: Option<String>,
     #[serde(default)]
     pub origem: Option<CaminhoRelativo>,
+    /// Funcionalidades do mapa a que o documento se refere (#287), na ordem em que
+    /// o analista as confirmou. Só é gravado quando há alguma: bases anteriores
+    /// abrem sem ele.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub funcionalidades: Vec<IdFuncionalidade>,
 }
 
 impl Frontmatter for FrontmatterTermo {
@@ -754,6 +769,10 @@ pub struct FrontmatterFuncionalidade {
     /// Análise que originou o documento, relativa à raiz do projeto.
     #[serde(default)]
     pub origem: Option<CaminhoRelativo>,
+    /// Funcionalidade do mapa (`F-COB-001`) que o documento negocial explica
+    /// (#287). Só é gravado quando existe: bases anteriores abrem sem ele.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub funcionalidade: Option<IdFuncionalidade>,
 }
 
 impl Frontmatter for FrontmatterFuncionalidade {
@@ -1036,6 +1055,50 @@ impl Frontmatter for FrontmatterLivre {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #287: o vínculo com as funcionalidades do mapa é opcional; documentos
+    /// gravados antes abrem sem ele, e ele só aparece quando existe.
+    #[test]
+    fn funcionalidades_opcionais_nos_documentos() {
+        use crate::Documento;
+        let antiga = "---\ntipo: regra\nid: RN-COB-001\ntitulo: Multa\narea: cobranca\n\
+                      status: confirmada\n---\n# Multa\n";
+        let mut regra = Documento::<FrontmatterRegra>::analisar(antiga).unwrap();
+        assert!(regra.frontmatter.funcionalidades.is_empty());
+        assert!(!regra.para_texto().unwrap().contains("funcionalidades"));
+        let f = IdFuncionalidade::analisar("F-COB-001").unwrap();
+        regra.frontmatter.funcionalidades = vec![f.clone()];
+        let texto = regra.para_texto().unwrap();
+        assert!(texto.contains("funcionalidades:\n- F-COB-001\n"), "{texto}");
+        let relida = Documento::<FrontmatterRegra>::analisar(&texto).unwrap();
+        assert_eq!(relida.frontmatter.funcionalidades, vec![f.clone()]);
+
+        let termo = "---\ntipo: termo\ntermo: Multa\nfuncionalidades: [F-COB-001]\n---\n";
+        let termo = Documento::<FrontmatterTermo>::analisar(termo).unwrap();
+        assert_eq!(termo.frontmatter.funcionalidades, vec![f.clone()]);
+
+        let analise = "---\ntipo: pergunta\nid: A-0001\ntitulo: P\nprojeto: p\n\
+                       demanda: {origem: texto}\nstatus: rascunho\ncriado: 2026-11-20\n---\n";
+        let mut analise = Documento::<FrontmatterAnalise>::analisar(analise).unwrap();
+        assert!(analise.frontmatter.funcionalidades.is_empty());
+        assert!(!analise.para_texto().unwrap().contains("funcionalidades"));
+        analise.frontmatter.funcionalidades = vec![f.clone()];
+        let relida =
+            Documento::<FrontmatterAnalise>::analisar(&analise.para_texto().unwrap()).unwrap();
+        assert_eq!(relida.frontmatter.funcionalidades, vec![f.clone()]);
+
+        let negocial = "---\ntipo: funcionalidade\ntitulo: Multa\narea: cobranca\n\
+                        tema: multa\nstatus: aprovada\n---\n";
+        let mut negocial = Documento::<FrontmatterFuncionalidade>::analisar(negocial).unwrap();
+        assert_eq!(negocial.frontmatter.funcionalidade, None);
+        assert!(!negocial.para_texto().unwrap().contains("funcionalidade:"));
+        negocial.frontmatter.funcionalidade = Some(f.clone());
+        let texto = negocial.para_texto().unwrap();
+        assert!(texto.contains("funcionalidade: F-COB-001"), "{texto}");
+        let invalida = "---\ntipo: regra\nid: RN-COB-001\ntitulo: M\narea: c\n\
+                        status: confirmada\nfuncionalidades: [X-1]\n---\n";
+        assert!(Documento::<FrontmatterRegra>::analisar(invalida).is_err());
+    }
 
     #[test]
     fn tipos_ida_e_volta() {

@@ -184,6 +184,7 @@ impl Cenario {
                         origem: None,
                         informada: None,
                         historico: Vec::new(),
+                        funcionalidades: Vec::new(),
                     },
                     "\n# RN-FAT-008\n",
                 ),
@@ -678,6 +679,7 @@ fn frontmatter() -> FrontmatterAnalise {
         criado: Data::nova(2026, 11, 13).unwrap(),
         analista: Some("Ana Exemplo".into()),
         origem: None,
+        funcionalidades: Vec::new(),
     }
 }
 

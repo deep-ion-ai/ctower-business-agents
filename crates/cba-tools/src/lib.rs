@@ -44,6 +44,9 @@
 //!   registro.
 //! - [`aprovacao`]: a aprovação da análise pelo analista, que leva à base as
 //!   afirmações confirmadas (regras) e os termos aceitos (glossário).
+//! - [`vinculo`]: o vínculo da análise, das regras e dos termos com as
+//!   funcionalidades do mapa (#287): a proposta na aprovação (sessão ou
+//!   evidências) e a religação dos documentos aprovados antes.
 //! - [`aprovacao_ata`]: a aprovação da ata de uma reunião (fluxo `reuniao`), com o
 //!   segundo aviso e o descarte do transcript.
 //! - [`revisao`]: a revisão do analista (decisões, edição do texto, prontidão para
@@ -102,6 +105,7 @@ pub mod schema;
 pub mod sugestao;
 pub mod termo;
 pub mod vincular;
+pub mod vinculo;
 
 pub use registro::{
     ErroChamada, ErroFerramenta, Executar, Ferramenta, Registro, Saida, ler_argumentos,

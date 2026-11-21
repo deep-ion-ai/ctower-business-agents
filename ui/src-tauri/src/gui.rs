@@ -98,6 +98,7 @@ pub fn rodar() {
             funcionalidades::pedido_de_mapeamento,
             funcionalidades::explicar_funcionalidade_app,
             funcionalidades::exportar_mapa_projeto,
+            funcionalidades::religar_funcionalidades_app,
             painel_funcionalidade::painel_funcionalidade_app,
             painel_funcionalidade::criar_analise_da_funcionalidade_app,
             vincular_issues::issues_para_vincular_app,

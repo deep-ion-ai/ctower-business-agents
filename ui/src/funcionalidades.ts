@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import type { AnaliseCriada, AnaliseResumo, EstadoAnalise, Fluxo } from "./analise";
 import type { StatusRegra } from "./conhecimento";
+import { contar } from "./formatacao";
 
 /**
  * Mapa de funcionalidades do projeto (#208): um cadastro do projeto, fora das
@@ -250,6 +251,36 @@ export interface ResultadoDoLote {
   avisos: string[];
 }
 
+/** Documentos religados às funcionalidades (`cba_tools::vinculo::Religacao`, #287). */
+export interface Religacao {
+  analises: string[];
+  regras: string[];
+  termos: string[];
+  negociais: string[];
+  /** Regras que continuam sem funcionalidade (a origem não leva a uma). */
+  regrasSemVinculo: number;
+  avisos: string[];
+}
+
+/** Resumo da religação, para o aviso da tela. */
+export function resumoReligacao(r: Religacao): string {
+  const partes = [
+    r.analises.length && contar(r.analises.length, "análise", "análises"),
+    r.regras.length && contar(r.regras.length, "regra"),
+    r.termos.length && contar(r.termos.length, "termo"),
+    r.negociais.length && contar(r.negociais.length, "documento negocial", "documentos negociais"),
+  ].filter(Boolean);
+  const feito =
+    partes.length > 0
+      ? `Religados às funcionalidades: ${partes.join(", ")}.`
+      : "Nenhum documento a religar.";
+  const sem =
+    r.regrasSemVinculo > 0
+      ? ` ${contar(r.regrasSemVinculo, "regra continua", "regras continuam")} sem funcionalidade (a análise de origem não tem uma).`
+      : "";
+  return feito + sem;
+}
+
 export interface ApiMapa {
   /** Lê as issues do período (meses ou data `AAAA-MM-DD`) e sugere a funcionalidade. */
   issues: (projeto: string, meses: number | null, desde: string | null) => Promise<VistaDeIssues>;
@@ -281,6 +312,8 @@ export interface ApiMapa {
   escolherDestino: (formato: "markdown" | "word") => Promise<string | null>;
   /** Exporta o documento do mapa e devolve o caminho gravado. */
   exportar: (projeto: string, destino: string, formato: "markdown" | "word") => Promise<string>;
+  /** Liga às funcionalidades os documentos aprovados antes do vínculo (#287). */
+  religar?: (projeto: string) => Promise<Religacao>;
 }
 
 export const apiMapaTauri: ApiMapa = {
@@ -316,4 +349,5 @@ export const apiMapaTauri: ApiMapa = {
     }),
   exportar: (projeto, destino, formato) =>
     invoke("exportar_mapa_projeto", { projeto, destino, formato }),
+  religar: (projeto) => invoke("religar_funcionalidades_app", { projeto }),
 };
