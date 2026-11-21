@@ -880,22 +880,8 @@ pub fn exportar_analise_com_avisos(
     }
     let (texto, commit) = texto_para_exportar(amb, &analise)?;
     let fonte = TrechosDoProjeto(&amb.escopo);
-    // Pastas canônicas, para comparar com o caminho resolvido pelo escopo.
-    let repos: Vec<cba_repos::RepositorioCodigo> = amb
-        .projeto
-        .repositorios
-        .codigo
-        .iter()
-        .cloned()
-        .map(|mut r| {
-            r.pasta = r.pasta.map(|p| dunce::canonicalize(&p).unwrap_or(p));
-            r
-        })
-        .collect();
-    let forge = (!repos.is_empty()).then(|| LinksDoForge {
-        repos: &repos,
-        escopo: &amb.escopo,
-    });
+    let forge =
+        crate::documentacao::LinksNaForja::novo(&amb.projeto.repositorios.codigo, &amb.escopo);
     let links = forge
         .as_ref()
         .map(|f| (f as &dyn cba_docs::LinksDeEvidencia, commit.as_deref()));
@@ -1015,27 +1001,6 @@ pub fn diagramas_para_exportar(amb: &Ambiente, id: &Id) -> Result<Vec<String>, E
     let analise = amb.analises.carregar(id)?;
     let (texto, _) = texto_para_exportar(amb, &analise)?;
     Ok(cba_docs::blocos_mermaid(&texto))
-}
-
-/// Links das evidências nos repositórios de código do projeto (GitHub ou GitLab),
-/// no commit da evidência ou da análise. Cada arquivo vai para o repositório cuja
-/// pasta o contém.
-struct LinksDoForge<'a> {
-    repos: &'a [cba_repos::RepositorioCodigo],
-    escopo: &'a cba_index::Escopo,
-}
-
-impl cba_docs::LinksDeEvidencia for LinksDoForge<'_> {
-    fn link(&self, arquivo: &str, linhas: Linhas, commit: Option<&str>) -> Option<String> {
-        let absoluto = self.escopo.resolver(arquivo).ok();
-        cba_repos::link::link_evidencia(
-            self.repos,
-            absoluto.as_deref(),
-            commit?,
-            arquivo,
-            Some((linhas.inicio, linhas.fim)),
-        )
-    }
 }
 
 #[cfg(test)]

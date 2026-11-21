@@ -75,6 +75,7 @@ pub mod contexto;
 pub mod dados_pessoais;
 pub mod diagramas;
 pub mod docs_externos;
+pub mod documentacao;
 pub mod documento;
 pub mod editavel;
 pub mod estrutura;
