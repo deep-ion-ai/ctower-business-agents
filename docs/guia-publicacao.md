@@ -32,10 +32,12 @@ o aviso de alteração.
    Demandas, atas, pessoas e memórias nunca são publicadas.
 2. Na tela de uma análise, clique em **Publicar**, ao lado do "Exportar". A publicação leva a base
    aprovada do projeto inteiro, não só aquela análise.
-3. Confira a prévia: o que é novo, o que muda e o que sai do repositório.
+3. Confira a prévia: por documento ("2 regras novas, 1 alterada; 1 termo novo") e as páginas
+   afetadas. Se o PR/MR aberto já tem esta versão, a prévia diz que não há o que enviar.
+   Sem nenhum documento aprovado, ela avisa que ainda não há aprovados no projeto.
 4. Confira que não há segredos (senhas, tokens, chaves, endereços internos) nem dados pessoais nos
    documentos e marque a confirmação.
-5. Clique em **Publicar**. O app grava os documentos na branch `docs/cba-<projeto>` e abre o PR/MR;
+5. Clique em **Publicar**. O app grava as páginas na branch `docs/cba-<projeto>` e abre o PR/MR;
    o resultado traz o link. Nada é gravado direto na branch base, e o seu clone fica como estava.
 
 Publicar de novo com o PR/MR ainda aberto acrescenta um commit no mesmo PR/MR. Se nada mudou, o app
@@ -45,9 +47,13 @@ diz que não há o que publicar.
 
 O PR/MR é revisado e mesclado na forja (GitHub ou GitLab), como qualquer mudança no repositório:
 
-- os arquivos são os `.md` da base, com o frontmatter (tipo, identificador, status, evidências com o
-  commit), no mesmo layout de pastas;
-- o `.cba-publicacao.json` lista o que o app publicou; o app só remove do repositório o que está
+- os arquivos são páginas legíveis: o `README.md` com o índice por área e funcionalidade, as
+  páginas das funcionalidades com as regras, o glossário e as análises, com links para o trecho do
+  código de cada evidência. Cada documento vem entre marcadores invisíveis na forja, que guardam o
+  frontmatter dele; o corpo do PR/MR resume o que muda por documento e aponta o README;
+- publicações feitas antes desta versão (os `.md` da base, como estavam) são substituídas pelas
+  páginas na próxima publicação; arquivos escritos à mão continuam;
+- o `.cba-publicacao.json` lista as páginas que o app publicou; o app só remove do repositório o que está
   nele, e nunca apaga nem sobrescreve um arquivo escrito à mão (a publicação para com um conflito);
 - comentários e commits de revisores na branch são preservados na próxima publicação.
 

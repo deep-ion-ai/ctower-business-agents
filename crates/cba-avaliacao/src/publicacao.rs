@@ -360,6 +360,7 @@ pub fn publicar(
             projeto: &ambiente.kb,
             nome: &ambiente.projeto.nome,
             repositorios,
+            escopo: Some(&ambiente.escopo),
         },
     )
 }

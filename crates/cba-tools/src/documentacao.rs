@@ -12,7 +12,7 @@ use cba_kb::Projeto;
 use cba_kb::frontmatter::Linhas;
 use cba_repos::RepositorioCodigo;
 
-use crate::publicacao::documentos_aprovados;
+use crate::publicacao::{DocumentoAprovado, documentos_aprovados};
 
 /// Links das evidências nos repositórios de código do projeto (GitHub ou
 /// GitLab), no commit da evidência (ou no padrão de quem chama). Cada arquivo
@@ -66,7 +66,19 @@ pub fn documentacao_do_projeto(
     links: Option<&dyn LinksDeEvidencia>,
     data: Option<String>,
 ) -> Result<Documentacao, String> {
-    let documentos: Vec<DocumentoDaBase> = documentos_aprovados(projeto)?
+    documentacao_dos_aprovados(projeto, documentos_aprovados(projeto)?, links, data)
+}
+
+/// Como [`documentacao_do_projeto`], com os documentos aprovados já lidos
+/// ([`documentos_aprovados`]): a publicação (#289) conta e data os aprovados sem
+/// ler a base duas vezes.
+pub fn documentacao_dos_aprovados(
+    projeto: &Projeto,
+    aprovados: Vec<DocumentoAprovado>,
+    links: Option<&dyn LinksDeEvidencia>,
+    data: Option<String>,
+) -> Result<Documentacao, String> {
+    let documentos: Vec<DocumentoDaBase> = aprovados
         .into_iter()
         .filter_map(|d| {
             Some(DocumentoDaBase {

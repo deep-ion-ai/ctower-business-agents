@@ -177,26 +177,37 @@ ficar dentro da pasta da documentação.
   o token por `***`. Falta de permissão de escrita (no push ou na API) e CLI ausente têm erro
   próprio.
 
-### Publicar os documentos aprovados (#276)
+### Publicar os documentos aprovados (#276, #289)
 
 O botão "Publicar", ao lado do "Exportar" na tela da análise, publica a base aprovada do projeto
 inteiro (não só a análise aberta) no destino (`cba_tools::publicacao`), nos dois modos:
 
 - **Só o aprovado:** análises, documentos de funcionalidade e mapa com `status: aprovada`, regras
   `confirmada`, termos do glossário e sugestões `aceita`. Demandas, atas, análises de reunião,
-  registros da demanda, pessoas, memórias e o `projeto.md` ficam de fora. Os `.md` vão como estão
-  (com frontmatter), no layout da base, sob a subpasta do destino.
-- **Prévia antes de confirmar:** o que muda na branch base do destino (novos, alterados e
-  removidos), lido do remoto depois de um fetch, sem tocar no checkout
-  (`cba_repos::escrita::ler_remoto`). Antes do botão, o aviso pede a conferência de segredos e
-  dados pessoais.
-- **Manifesto:** a pasta publicada leva `.cba-publicacao.json`, com o projeto e a lista do que o app
-  publicou. Só os arquivos listados nele (na base ou na branch da publicação) são removidos quando
-  deixam de estar aprovados. Um arquivo que já está na pasta sem ter sido publicado pelo app nunca é
-  apagado nem sobrescrito: a publicação para com um conflito. Manifesto de outro projeto na mesma
-  pasta também é recusado.
-- **Branch e PR/MR:** `docs/cba-<projeto>`, pela escrita acima, com o link do PR/MR no resultado.
-  Sem mudança na base nem publicação pendente, não há commit nem PR/MR.
+  registros da demanda, pessoas, memórias e o `projeto.md` ficam de fora.
+- **Páginas legíveis (#289):** o que vai para a subpasta do destino são as páginas do renderizador
+  (#288: `README.md`, páginas por funcionalidade, regras por área, glossário e análises), com os
+  marcadores de ida e volta de cada documento e os permalinks das evidências (pelo escopo do
+  projeto). O README traz a data da última mudança registrada nos documentos aprovados (`criado`,
+  `atualizado`), não a da publicação: publicar de novo sem mudança não muda nada.
+- **Prévia antes de confirmar:** por documento ("2 regras novas, 1 alterada; 1 termo novo",
+  comparando os blocos marcados das páginas com os da branch base) e as páginas afetadas, lidas do
+  remoto depois de um fetch, sem tocar no checkout (`cba_repos::escrita::ler_remoto`). Com um PR/MR
+  pendente, a prévia compara também com a ponta da branch da publicação e avisa quando ele já tem
+  esta versão (nada a enviar). Sem documento aprovado, diz que ainda não há aprovados. Antes do
+  botão, o aviso pede a conferência de segredos e dados pessoais.
+- **Manifesto:** a pasta publicada leva `.cba-publicacao.json` (`versao: 2`), com o projeto e a
+  lista das páginas que o app publicou. Só os arquivos listados nele (na base ou na branch da
+  publicação) são removidos quando deixam de ser gerados. Um arquivo que já está na pasta sem ter
+  sido publicado pelo app nunca é apagado nem sobrescrito: a publicação para com um conflito.
+  Manifesto de outro projeto na mesma pasta, ou de uma versão mais nova do app, também é recusado.
+- **Migração do formato antigo:** sobre uma publicação da #276 (manifesto sem `versao`, com os `.md`
+  da base), os arquivos listados nele saem e as páginas entram; os arquivos alheios ficam. Na
+  prévia, cada `.md` antigo conta como o documento dele: com o mesmo frontmatter, "só muda de
+  formato".
+- **Branch e PR/MR:** `docs/cba-<projeto>`, pela escrita acima, com o link do PR/MR no resultado e,
+  no corpo do PR/MR, o resumo por documento e o link do README na branch. Sem mudança na base nem
+  publicação pendente, não há commit nem PR/MR.
 
 ### Sincronização (#277)
 

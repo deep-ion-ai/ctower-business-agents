@@ -125,11 +125,28 @@ esac"#,
             .all(|m| m.tipo == TipoMudanca::Novo && m.caminho.starts_with("negocio/")),
         "{pv:?}"
     );
-    // A análise aprovada, a regra e o termo.
+    // As páginas legíveis (#289): o README, a análise e o glossário; nenhum
+    // `.md` cru da base.
     let caminhos: Vec<&str> = pv.mudancas.iter().map(|m| m.caminho.as_str()).collect();
+    assert!(caminhos.contains(&"negocio/README.md"), "{caminhos:?}");
+    assert!(caminhos.contains(&"negocio/glossario.md"), "{caminhos:?}");
     assert!(caminhos.iter().any(|c| c.starts_with("negocio/analises/")));
-    assert!(caminhos.iter().any(|c| c.starts_with("negocio/regras/")));
-    assert!(caminhos.iter().any(|c| c.starts_with("negocio/glossario/")));
+    assert!(
+        !caminhos.iter().any(|c| c.starts_with("negocio/regras/RN-")),
+        "{caminhos:?}"
+    );
+    // A prévia por documento: a análise aprovada, a regra e o termo.
+    let tipos: Vec<&str> = pv
+        .documentos
+        .documentos
+        .iter()
+        .map(|d| d.tipo.as_str())
+        .collect();
+    assert!(
+        tipos.contains(&"regra") && tipos.contains(&"termo"),
+        "{pv:?}"
+    );
+    assert!(pv.documentos.texto.contains("regra"), "{pv:?}");
     assert!(
         !forja.join("chamadas").exists(),
         "a prévia não chama a forja"
@@ -151,5 +168,10 @@ esac"#,
         ],
     );
     assert!(arvore.contains("negocio/.cba-publicacao.json"), "{arvore}");
+    assert!(arvore.contains("negocio/README.md"), "{arvore}");
     assert!(arvore.contains("leia-me.md"), "{arvore}");
+
+    // A prévia seguinte já diz que o PR/MR aberto tem esta versão.
+    let pv = previa(&c.dados, PROJETO, &f).unwrap();
+    assert!(pv.branch_atualizada && pv.nada_a_publicar, "{pv:?}");
 }
