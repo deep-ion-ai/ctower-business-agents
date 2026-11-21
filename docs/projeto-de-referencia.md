@@ -55,3 +55,21 @@ Ao terminar uma issue que muda um fluxo ou uma tela, sugira no PR **um roteiro d
 - **Demanda de evolução**, tirada das especificações acima. Exemplo: "o Open Finance exige expor as parcelas do contrato; qual o impacto?".
 
 Escreva o roteiro em poucas linhas, com o tipo, o texto da pergunta ou da demanda e o módulo do mapa onde a resposta deve estar. Não invente resultado esperado: não há gabarito para esta referência.
+
+## Roteiro: publicação legível (#273)
+
+Teste de uso da documentação publicada como páginas legíveis (#287 a #291). Publica no próprio fork, numa branch `docs/cba-<projeto>` com PR; não mescle o PR (o `main` do fork fica no commit base acima).
+
+1. **Destino.** No projeto do OpenCBS, aba "Código e demandas", cartão **Onde a documentação é publicada**: pasta no repositório de código `deep-ion-ai/OpenCBS-Cloud`, subpasta `docs/negocio`. O token precisa de escrita no fork e de abrir PR.
+2. **Funcionalidade aceita.** Na tela do mapa, aceite uma funcionalidade de um módulo do [mapa acima](#mapa-de-módulos-úteis), por exemplo a quitação antecipada (`opencbs-loans/.../services/earlyfee/`), e clique em **Explicar**.
+3. **Aprovar.** Revise a explicação, confirme as afirmações com evidência e aprove. Na janela de aprovação, confira que **Funcionalidades do mapa** traz a funcionalidade explicada e que a área veio dela.
+4. **Publicar.** Na tela da análise, **Publicar**: a prévia deve contar por documento (regras novas, a análise e, se houver, o documento negocial) e citar o `README.md` e a página da funcionalidade. Publique e abra o link do PR.
+5. **Conferir no GitHub**, na branch do PR, em `docs/negocio`:
+   - **README** → a área com a tabela de funcionalidades, e a funcionalidade aceita com o número de regras;
+   - **funcionalidade** → a página `funcionalidades/<área>/<id>-<nome>.md` com "Como funciona", as regras, os termos e os pontos de entrada;
+   - **regra** → o link `…#rn-…` leva ao título da regra na página;
+   - **permalink** → "Evidências no código" abre o arquivo Java no commit `ab200dd…`, com as linhas destacadas.
+   - O corpo do PR resume por documento e aponta o README; nenhum marcador `<!-- cba:… -->` aparece na página renderizada.
+6. **Publicar de novo** sem mudar nada: a prévia diz que o PR já tem esta versão.
+
+Registre no PR as telas ou os links da branch (README, página da funcionalidade, uma regra pela âncora e um permalink).

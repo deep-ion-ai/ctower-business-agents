@@ -6,7 +6,7 @@ Assistente desktop para analistas de requisitos e de negócio entenderem sistema
 - Usa a assinatura de IA que o analista já tem. Recomendado: Claude Code no terminal embutido, com conversa, documento e evidências numa janela só. Para quem não quer terminal: Claude Desktop.
 - Analisa, não desenvolve: o agente é orientado a não alterar código nem publicar nada.
 - Evidência para cada afirmação, validada pelo app, e base de conhecimento local do projeto.
-- Documentação aprovada exportável (Markdown, Word, HTML) e publicável num repositório git, por branch própria e PR/MR, de onde volta para as análises seguintes como pista ([guia da publicação](docs/guia-publicacao.md)).
+- Documentação aprovada exportável (Markdown, Word, HTML) e publicável num repositório git como páginas legíveis (README, funcionalidades, regras, glossário, com permalinks para o código), por branch própria e PR/MR, de onde volta para as análises seguintes como pista ([guia da publicação](docs/guia-publicacao.md)).
 
 ## Instalação
 

@@ -123,8 +123,10 @@ Escrever no rastreador (comentário ou anexo na issue) fica para a fase 2.
 ## Documentação publicada (#273)
 
 A exportação grava um arquivo avulso (Markdown, Word, HTML ou CSV) para mandar a alguém. A
-publicação versiona a base aprovada do projeto num repositório git, revisada por PR/MR, e a traz de
-volta para as análises seguintes, de qualquer analista do projeto. O ciclo:
+publicação leva a base aprovada do projeto para um repositório git como páginas legíveis e
+navegáveis na forja (README, funcionalidades, regras, glossário e análises, com permalinks para o
+código), revisadas por PR/MR, e a traz de volta para as análises seguintes, de qualquer analista do
+projeto. O guia do analista está em [`guia-publicacao.md`](guia-publicacao.md). O ciclo:
 
 1. **Destino** cadastrado no projeto (#274).
 2. **Publicar** os documentos aprovados numa branch própria, com PR/MR (#275, #276).
@@ -185,10 +187,29 @@ inteiro (não só a análise aberta) no destino (`cba_tools::publicacao`), nos d
 - **Só o aprovado:** análises, documentos de funcionalidade e mapa com `status: aprovada`, regras
   `confirmada`, termos do glossário e sugestões `aceita`. Demandas, atas, análises de reunião,
   registros da demanda, pessoas, memórias e o `projeto.md` ficam de fora.
-- **Páginas legíveis (#289):** o que vai para a subpasta do destino são as páginas do renderizador
-  (#288: `README.md`, páginas por funcionalidade, regras por área, glossário e análises), com os
-  marcadores de ida e volta de cada documento e os permalinks das evidências (pelo escopo do
-  projeto). O README traz a data da última mudança registrada nos documentos aprovados (`criado`,
+- **Páginas legíveis (#288, #289):** o que vai para a subpasta do destino são as páginas do
+  renderizador (`cba_docs::gerar_documentacao`), com os marcadores de ida e volta de cada documento
+  e os permalinks das evidências (pelo escopo do projeto):
+
+  ```text
+  README.md                               entrada: índice por área → funcionalidade, contagens
+  funcionalidades/<área>/<id>-<slug>.md   funcionalidade aceita no mapa: descrição, "Como funciona"
+                                          (o negocial), regras, termos, análises, pontos de entrada
+  funcionalidades/<área>/<tema>-<doc>.md  documento negocial sem funcionalidade aceita
+  regras/<área>.md                        regras sem funcionalidade aceita
+  glossario.md                            termos, com "Usado em"
+  analises/README.md, analises/<id>.md    análises por tipo e cada análise legível
+  ```
+
+  Cada documento fica numa página só (a canônica): a regra na página da primeira funcionalidade
+  aceita dela (pelo campo `funcionalidades`, #287, ou herdado da análise de origem) ou, sem ela, em
+  `regras/<área>.md`; o termo no glossário; a análise na dela. Nas outras páginas, só link. Cada
+  documento tem uma âncora (`#rn-cob-001`), e as evidências viram permalinks no commit analisado
+  (`/blob/<commit>/<arquivo>#L12-L14` no GitHub, `/-/blob/<commit>/<arquivo>#L12-14` no GitLab).
+  O marcador de cada documento é um comentário HTML, invisível na forja, com o tipo, o id, o
+  caminho na base e o frontmatter completo em JSON:
+  `<!-- cba:regra id=RN-COB-001 {"caminho":"regras/RN-COB-001.md","frontmatter":{…}} -->` …
+  `<!-- /cba -->` (`cba_kb::marcador`, reexportado em `cba_docs::marcador`). O README traz a data da última mudança registrada nos documentos aprovados (`criado`,
   `atualizado`), não a da publicação: publicar de novo sem mudança não muda nada.
 - **Prévia antes de confirmar:** por documento ("2 regras novas, 1 alterada; 1 termo novo",
   comparando os blocos marcados das páginas com os da branch base) e as páginas afetadas, lidas do
@@ -220,15 +241,16 @@ externa rotulada:
   clone), o agente recebe um aviso, e as cópias anteriores continuam valendo.
 - **O quê:** a atualização do clone e os `.md` da subpasta lidos do commit da branch base do remoto
   (`git ls-tree`/`cat-file`, sem checkout), copiados para `<projeto>/externos/<repositório>/` na
-  base com o tipo `doc-externo`: frontmatter gerado com a origem (repositório, caminho, commit,
+  base com o tipo `doc-externo` (as páginas com marcadores, um documento por bloco: veja
+  [Páginas da documentação legível](#páginas-da-documentação-legível-290)): frontmatter gerado com a origem (repositório, caminho, commit,
   branch), a confiança (`publicada` para documento com `tipo` do app, `externa` para o resto) e o
   frontmatter original, se havia. Documento sem frontmatter entra (o título vem do `# título` ou do
   nome do arquivo). Só o que mudou (pelo blob) é lido de novo; o que saiu do repositório sai da
   base e do índice. O estado fica em `externos/.sincronizacao.json`.
 - **Por que copiar:** o índice continua sendo o espelho reconstruível da base (sem rede nem clone),
   o conteúdo é o do commit mesmo com o clone noutra branch, e o que entra já está tratado.
-- **Não duplica a base:** um `.md` com `tipo` e `id` (ou `termo`) de um documento desta base (o que
-  ela mesma publicou) não é copiado. Por isso a documentação publicada faz diferença nas bases dos
+- **Não duplica a base:** um bloco (ou um `.md` no formato antigo) com `tipo` e `id` (ou `termo`)
+  de um documento desta base (o que ela mesma publicou) não é copiado. Por isso a documentação publicada faz diferença nas bases dos
   outros analistas do projeto, ou numa base nova; na base de quem publicou, os documentos já estão.
 - **Segredos e dados pessoais:** caminhos com padrão de segredo do inventário e arquivos com chave
   privada ficam de fora; credencial em URL, tokens conhecidos, valor de campo de senha, CPF válido
@@ -267,8 +289,9 @@ evidência de código:
 - **`conhecimento`:** o parâmetro `externos` escolhe a fonte: `excluir` (padrão, só a base
   própria), `incluir` (as duas) ou `somente`. Sem pedir, a resposta diz quantos documentos da
   documentação publicada casam com o termo (`externos_disponiveis`). Cada documento externo vem
-  rotulado `[doc. publicada]`, com o repositório, o commit e a confiança, e nos dados com
-  `fonte: "externa"` e a `origem`; os da base própria têm `fonte: "base"`. Os limites são os de
+  rotulado `[doc. publicada]`, com o repositório, o commit e a confiança (o bloco recortado de uma
+  página, também com o trecho `página#âncora` e o link dele na forja), e nos dados com
+  `fonte: "externa"` e a `origem` (com `ancora` e `url`); os da base própria têm `fonte: "base"`. Os limites são os de
   sempre (20 itens por página, até 6.000 caracteres). O filtro `tipos` vale para a base própria; a
   documentação publicada vem inteira quando pedida.
 - **Peso no ranking:** com `incluir`, a relevância (BM25) de um documento externo é multiplicada
@@ -290,5 +313,5 @@ evidência de código:
 O cenário `publicacao` da avaliação (`cargo run -p cba-avaliacao -- rodar --fluxos publicacao`)
 roda o ciclo inteiro no Faturamento Exemplo: analisa, aprova, publica num repositório bare local
 (PR numa forja falsa, dado como mesclado), sincroniza numa base nova e analisa de novo, conferindo
-que o agente consultou a documentação publicada. Veja
+que o agente recebeu da documentação publicada uma regra recortada de página, com a âncora (#291). Veja
 [Ciclo de publicação](avaliacao.md#ciclo-de-publicação), na avaliação.
