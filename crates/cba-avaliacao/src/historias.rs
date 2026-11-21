@@ -182,6 +182,7 @@ pub fn gravar_regra(
             origem,
             informada: None,
             historico: Vec::new(),
+            funcionalidades: Vec::new(),
         },
         format!(
             "\n# {id} · {}\n\n{}\n",

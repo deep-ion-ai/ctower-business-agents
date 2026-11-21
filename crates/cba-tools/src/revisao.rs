@@ -52,6 +52,7 @@ use cba_core::analise::{
 use cba_core::analises;
 use cba_core::cenarios::TextoCenario;
 use cba_core::eventos::Mudanca;
+use cba_core::funcionalidades::MapaFuncionalidades;
 use cba_core::historias::{DecisaoHistoria, Gherkin, Narrativa, SituacaoHistoria};
 use cba_core::parecer::EstadoAchado;
 use cba_core::requisito::{ItemRequisito, SituacaoItem};
@@ -67,6 +68,7 @@ use crate::aprovacao::{self, Aprovacao, ErroAprovacao, OpcoesAprovacao, titulo_d
 use crate::documento;
 use crate::evidencias::ArquivoDoProjeto;
 use crate::roteiro;
+use crate::vinculo::{self, FuncionalidadeResumida, OrigemDoVinculo};
 
 /// Formato da exportação: o documento em Markdown, Word ou HTML ou, só nos
 /// cenários de teste, a lista de cenários em CSV.
@@ -376,6 +378,15 @@ pub struct Prontidao {
     /// Afirmações incorretas: ficam registradas e não viram regra.
     pub incorretas: Vec<u32>,
     pub termos_aceitos: Vec<String>,
+    /// Funcionalidades do mapa propostas para a análise (#287), que as regras e
+    /// os termos herdam; o analista confirma ou troca.
+    pub funcionalidades: Vec<FuncionalidadeResumida>,
+    /// De onde vieram as propostas: sugeridas pelas evidências pedem conferência.
+    pub origem_das_funcionalidades: OrigemDoVinculo,
+    /// Funcionalidades abertas do mapa, para o analista escolher.
+    pub funcionalidades_do_mapa: Vec<FuncionalidadeResumida>,
+    /// Área da primeira funcionalidade proposta, sugerida no lugar de `geral`.
+    pub area_sugerida: Option<String>,
 }
 
 /// Pendências que impedem a aprovação de `analise` (veja o módulo).
@@ -641,7 +652,28 @@ pub fn prontidao(amb: &Ambiente, id: &Id) -> Result<Prontidao, ErroRevisao> {
             sugerida: aprovacao::vira_regra_por_padrao(&a.secao),
         })
         .collect();
+    // Mapa ilegível não impede a aprovação: a análise fica sem funcionalidade.
+    let mapa = MapaFuncionalidades::carregar(&amb.kb).unwrap_or_default();
+    let (propostas, origem_das_funcionalidades) =
+        vinculo::propostas(&analise, &vinculo::do_documento(&amb.kb, &analise), &mapa);
+    let resumir = |ids: &[cba_kb::IdFuncionalidade]| -> Vec<FuncionalidadeResumida> {
+        ids.iter()
+            .filter_map(|id| vinculo::resolver(&mapa, id))
+            .map(FuncionalidadeResumida::de)
+            .collect()
+    };
+    let area_sugerida = vinculo::area_das(&mapa, &propostas)
+        .and_then(|a| aprovacao::resolver_area(&areas, &a).ok())
+        .map(|(id, _)| id);
     Ok(Prontidao {
+        funcionalidades: resumir(&propostas),
+        origem_das_funcionalidades,
+        funcionalidades_do_mapa: mapa
+            .ordenadas()
+            .into_iter()
+            .map(FuncionalidadeResumida::de)
+            .collect(),
+        area_sugerida,
         estado: analise.estado,
         pode_aprovar: pendencias.is_empty() && analise.estado == EstadoAnalise::Concluida,
         pendencias,
@@ -697,7 +729,18 @@ pub fn aprovar_revisada(
                 .get(&r.afirmacao)
                 .is_some_and(|aj| tem(&aj.area))
         });
-        if p.area_obrigatoria && !escolhidas.is_empty() && !tem(&opcoes.area) && !todas_com_area {
+        // A área da funcionalidade vinculada vale como escolha (#287).
+        let mapa = MapaFuncionalidades::carregar(&amb.kb).unwrap_or_default();
+        let analise = amb.analises.carregar(id)?;
+        let (funcionalidades, _) =
+            aprovacao::funcionalidades_da_aprovacao(&amb.kb, &analise, opcoes, &mapa);
+        let da_funcionalidade = vinculo::area_das(&mapa, &funcionalidades).is_some();
+        if p.area_obrigatoria
+            && !escolhidas.is_empty()
+            && !tem(&opcoes.area)
+            && !todas_com_area
+            && !da_funcionalidade
+        {
             return Err(ErroRevisao::AreaNaoEscolhida);
         }
     }

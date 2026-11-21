@@ -72,6 +72,7 @@ fn cenario() -> Cenario {
                         origem: None,
                         informada: None,
                         historico: Vec::new(),
+                        funcionalidades: Vec::new(),
                     },
                     "Só fatura ABERTA e sem nenhum valor pago pode ser cancelada.\n",
                 ),

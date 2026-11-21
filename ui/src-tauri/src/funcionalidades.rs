@@ -325,6 +325,16 @@ pub fn exportar_mapa(
     .map_err(|e| e.to_string())
 }
 
+/// Liga às funcionalidades do mapa os documentos aprovados antes do vínculo
+/// (#287), pela funcionalidade da sessão e pela análise de origem.
+pub fn religar_funcionalidades(
+    dados: &DiretorioDados,
+    projeto: &str,
+) -> Result<cba_tools::vinculo::Religacao, String> {
+    let ambiente = ambiente(dados, projeto)?;
+    cba_tools::vinculo::religar_projeto(&ambiente)
+}
+
 // ---------------------------------------------------------------------------
 // Comandos
 
@@ -370,6 +380,14 @@ pub async fn exportar_mapa_projeto(
 ) -> Result<String, String> {
     let dados = dados()?;
     bloqueante(move || exportar_mapa(&dados, &projeto, &destino, formato)).await
+}
+
+#[tauri::command]
+pub async fn religar_funcionalidades_app(
+    projeto: String,
+) -> Result<cba_tools::vinculo::Religacao, String> {
+    let dados = dados()?;
+    bloqueante(move || religar_funcionalidades(&dados, &projeto)).await
 }
 
 #[cfg(test)]

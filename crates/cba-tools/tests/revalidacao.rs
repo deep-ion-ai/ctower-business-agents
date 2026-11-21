@@ -156,6 +156,7 @@ impl Cenario {
                 origem: None,
                 informada: None,
                 historico: Vec::new(),
+                funcionalidades: Vec::new(),
             },
             "# Regra de exemplo\n",
         );

@@ -88,6 +88,7 @@ fn regra(
             origem: Some(caminho("analises/A-0001.md")),
             informada: None,
             historico: Vec::new(),
+            funcionalidades: Vec::new(),
         },
         format!("\n{corpo}\n"),
     )
@@ -101,6 +102,7 @@ fn termo(nome: &str, sinonimos: &[&str], corpo: &str) -> Documento<FrontmatterTe
             sinonimos: sinonimos.iter().map(|s| (*s).into()).collect(),
             area: Some("cobranca".into()),
             origem: Some(caminho("analises/A-0001.md")),
+            funcionalidades: Vec::new(),
         },
         format!("\n{corpo}\n"),
     )
@@ -170,6 +172,7 @@ fn montar_base() -> (tempfile::TempDir, Base, Projeto, PathBuf) {
                     criado: data(),
                     analista: Some("Ana Exemplo".into()),
                     origem: None,
+                    funcionalidades: Vec::new(),
                 },
                 "\n# Pergunta\n\nComo a cobrança calcula os encargos de uma fatura paga \
                  com atraso?\n\n## Resposta\n\nPassada a carência, há multa única e \

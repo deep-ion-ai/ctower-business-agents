@@ -14,6 +14,7 @@ import {
   apiMapaTauri,
   NOME_MOTIVO,
   NOME_TIPO_ENTRADA,
+  resumoReligacao,
   type ApiMapa,
   type Funcionalidade,
   type MapaFuncionalidades,
@@ -577,6 +578,16 @@ function MapaDoProjeto({
       .catch((e: unknown) => setFalha(mensagemDe(e)));
   };
 
+  const religar = () => {
+    if (!api.religar) return;
+    setFalha(null);
+    setAviso(null);
+    api
+      .religar(projeto)
+      .then((r) => setAviso(resumoReligacao(r)))
+      .catch((e: unknown) => setFalha(mensagemDe(e)));
+  };
+
   const abertas = mapa?.areas.flatMap((a) => a.funcionalidades) ?? [];
   const pagina =
     (selecionada &&
@@ -647,6 +658,16 @@ function MapaDoProjeto({
                 onClick={() => navegar({ tipo: "vincular", projeto })}
               >
                 Vincular demandas
+              </button>
+            )}
+            {api.religar && mapa && mapa.total > 0 && (
+              <button
+                type="button"
+                className="btn"
+                title="Liga às funcionalidades as análises, regras e termos aprovados antes do vínculo, pela análise de origem"
+                onClick={religar}
+              >
+                Religar documentos
               </button>
             )}
             <button type="button" className="btn" onClick={recarregar}>
