@@ -304,7 +304,7 @@ evidência de código:
   de docs do projeto e a cópia em `externos/` com um motivo próprio, que manda citar o código que o
   documento descreve. `confirmado` continua exigindo ao menos uma evidência de código.
 - **Roteiros:** perguntar, explicar, impacto e revisar orientam a consultar a documentação
-  publicada, a confirmar no código, a tratar divergência como pergunta e a dizer ao analista,
+  publicada (um conceito por chamada, porque a busca exige todas as palavras), a confirmar no código, a tratar divergência como pergunta e a dizer ao analista,
   no chat, as fontes externas usadas (repositório e commit); o de reunião cita a fonte na ligação
   com o código.
 

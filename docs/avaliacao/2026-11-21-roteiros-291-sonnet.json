@@ -1,0 +1,622 @@
+{
+  "formato": 1,
+  "parametros": {
+    "data": "2026-11-21-022612",
+    "modelo": "sonnet",
+    "orcamento_por_execucao_usd": 1.5,
+    "repeticoes": 1,
+    "itens": [
+      "P-FAT-001",
+      "F-FAT-002",
+      "D-FAT-001",
+      "REV-FAT-001"
+    ],
+    "permitir_edicao": false,
+    "versao_do_claude": "2.1.330 (Claude Code)",
+    "commit": "bb381ef"
+  },
+  "resumo": [
+    {
+      "fluxo": "perguntar",
+      "item": "P-FAT-001",
+      "execucoes": 1,
+      "avaliadas": 1,
+      "concluidas": 1,
+      "regras_esperadas": 7,
+      "regras_media": 1.0,
+      "regras_min": 1.0,
+      "regras_max": 1.0,
+      "evidencias": 16,
+      "evidencias_validas": 16,
+      "confirmado_sem_evidencia_valida": 0,
+      "perguntas_media": 1.0,
+      "premissa_corrigida": null,
+      "abrangencia_confere": null,
+      "arquivos_media": null,
+      "execucoes_com_arquivos_alterados": 0,
+      "execucoes_com_falha": 0,
+      "custo_usd": 0.25501789999999996,
+      "duracao_s": 50.155,
+      "tokens": {
+        "entrada": 18,
+        "saida": 7493,
+        "cache_criacao": 37746,
+        "cache_leitura": 290679
+      }
+    },
+    {
+      "fluxo": "explicar",
+      "item": "F-FAT-002",
+      "execucoes": 1,
+      "avaliadas": 1,
+      "concluidas": 1,
+      "regras_esperadas": 7,
+      "regras_media": 0.8571428571428571,
+      "regras_min": 0.8571428571428571,
+      "regras_max": 0.8571428571428571,
+      "evidencias": 27,
+      "evidencias_validas": 27,
+      "confirmado_sem_evidencia_valida": 0,
+      "perguntas_media": 1.0,
+      "premissa_corrigida": null,
+      "abrangencia_confere": null,
+      "arquivos_media": 0.6,
+      "execucoes_com_arquivos_alterados": 0,
+      "execucoes_com_falha": 0,
+      "custo_usd": 0.4181154,
+      "duracao_s": 90.335,
+      "tokens": {
+        "entrada": 26,
+        "saida": 14460,
+        "cache_criacao": 55439,
+        "cache_leitura": 517074
+      }
+    },
+    {
+      "fluxo": "impacto",
+      "item": "D-FAT-001",
+      "execucoes": 1,
+      "avaliadas": 1,
+      "concluidas": 1,
+      "regras_esperadas": 3,
+      "regras_media": 1.0,
+      "regras_min": 1.0,
+      "regras_max": 1.0,
+      "evidencias": 21,
+      "evidencias_validas": 21,
+      "confirmado_sem_evidencia_valida": 0,
+      "perguntas_media": 0.5,
+      "premissa_corrigida": 1,
+      "abrangencia_confere": 1,
+      "arquivos_media": 1.0,
+      "execucoes_com_arquivos_alterados": 0,
+      "execucoes_com_falha": 0,
+      "custo_usd": 0.33146980000000004,
+      "duracao_s": 67.348,
+      "tokens": {
+        "entrada": 22,
+        "saida": 10012,
+        "cache_criacao": 47787,
+        "cache_leitura": 401578
+      }
+    },
+    {
+      "fluxo": "revisar",
+      "item": "REV-FAT-001",
+      "execucoes": 1,
+      "avaliadas": 1,
+      "concluidas": 1,
+      "regras_esperadas": 0,
+      "regras_media": 1.0,
+      "regras_min": 1.0,
+      "regras_max": 1.0,
+      "evidencias": 2,
+      "evidencias_validas": 2,
+      "confirmado_sem_evidencia_valida": 0,
+      "perguntas_media": 1.0,
+      "premissa_corrigida": null,
+      "abrangencia_confere": null,
+      "arquivos_media": null,
+      "execucoes_com_arquivos_alterados": 0,
+      "execucoes_com_falha": 0,
+      "custo_usd": 0.2801462,
+      "duracao_s": 58.231,
+      "tokens": {
+        "entrada": 24,
+        "saida": 7917,
+        "cache_criacao": 39628,
+        "cache_leitura": 424162
+      }
+    }
+  ],
+  "execucoes": [
+    {
+      "fluxo": "perguntar",
+      "item": "P-FAT-001",
+      "repeticao": 1,
+      "avaliacao": {
+        "item": "P-FAT-001",
+        "fluxo": "perguntar",
+        "analise": "A-0001",
+        "estado": "concluida",
+        "concluida": true,
+        "afirmacoes": 8,
+        "por_confianca": {
+          "confirmado": 7,
+          "inferido": 1,
+          "a_confirmar": 0
+        },
+        "perguntas_registradas": 2,
+        "sugestoes": 0,
+        "termos": 0,
+        "evidencias": 16,
+        "evidencias_validas": 16,
+        "evidencias_invalidas": [],
+        "confirmado_sem_evidencia_valida": [],
+        "regras": [
+          {
+            "id": "RN-FAT-001",
+            "titulo": "Multa por atraso vem de parâmetro",
+            "encontrada": true,
+            "afirmacoes": [
+              1,
+              2,
+              8
+            ]
+          },
+          {
+            "id": "RN-FAT-002",
+            "titulo": "Juros de mora desde o primeiro dia de atraso",
+            "encontrada": true,
+            "afirmacoes": [
+              3
+            ]
+          },
+          {
+            "id": "RN-FAT-003",
+            "titulo": "Carência de 3 dias sem encargos",
+            "encontrada": true,
+            "afirmacoes": [
+              3,
+              8
+            ]
+          },
+          {
+            "id": "RN-FAT-004",
+            "titulo": "Cliente com isenção cadastrada não paga encargos",
+            "encontrada": true,
+            "afirmacoes": [
+              4,
+              7
+            ]
+          },
+          {
+            "id": "RN-FAT-005",
+            "titulo": "Órgão público não paga multa",
+            "encontrada": true,
+            "afirmacoes": [
+              1,
+              5,
+              8
+            ]
+          },
+          {
+            "id": "RN-FAT-006",
+            "titulo": "Teto de encargos por tipo de cliente",
+            "encontrada": true,
+            "afirmacoes": [
+              6,
+              8
+            ]
+          },
+          {
+            "id": "INC-FAT-002",
+            "titulo": "Lote COBOL usa valores fixos e não aplica exceções do backend",
+            "encontrada": true,
+            "afirmacoes": [
+              7
+            ]
+          }
+        ],
+        "regras_encontradas": 7,
+        "regras_esperadas": 7,
+        "outras_regras_encontradas": [],
+        "afirmacoes_fora_do_gabarito": [],
+        "arquivos": [],
+        "perguntas_esperadas": [
+          {
+            "tema": "O lote de cobrança deveria seguir o cálculo do projeto (parâmetros, exceção do órgão público, teto)?",
+            "atendida_por": 2
+          }
+        ],
+        "premissa": null,
+        "abrangencia": null
+      },
+      "arquivos_alterados": [],
+      "claude": {
+        "custo_usd": 0.25501789999999996,
+        "turnos": 23,
+        "duracao_ms": 50155,
+        "erro": false,
+        "subtipo": "success",
+        "tokens": {
+          "entrada": 18,
+          "saida": 7493,
+          "cache_criacao": 37746,
+          "cache_leitura": 290679
+        }
+      },
+      "erro": null
+    },
+    {
+      "fluxo": "explicar",
+      "item": "F-FAT-002",
+      "repeticao": 1,
+      "avaliacao": {
+        "item": "F-FAT-002",
+        "fluxo": "explicar",
+        "analise": "A-0001",
+        "estado": "concluida",
+        "concluida": true,
+        "afirmacoes": 16,
+        "por_confianca": {
+          "confirmado": 16,
+          "inferido": 0,
+          "a_confirmar": 0
+        },
+        "perguntas_registradas": 3,
+        "sugestoes": 0,
+        "termos": 1,
+        "evidencias": 27,
+        "evidencias_validas": 27,
+        "evidencias_invalidas": [],
+        "confirmado_sem_evidencia_valida": [],
+        "regras": [
+          {
+            "id": "RN-FAT-007",
+            "titulo": "Parcelamento só para pessoa jurídica e órgão público",
+            "encontrada": true,
+            "afirmacoes": [
+              4,
+              9
+            ]
+          },
+          {
+            "id": "RN-FAT-008",
+            "titulo": "Quantidade de parcelas entre 2 e MAX_PARCELAS",
+            "encontrada": true,
+            "afirmacoes": [
+              4,
+              11
+            ]
+          },
+          {
+            "id": "RN-FAT-009",
+            "titulo": "Valor mínimo da parcela, exceto órgão público",
+            "encontrada": true,
+            "afirmacoes": [
+              12,
+              15,
+              16
+            ]
+          },
+          {
+            "id": "RN-FAT-010",
+            "titulo": "Só fatura aberta pode ser parcelada",
+            "encontrada": true,
+            "afirmacoes": [
+              4,
+              10
+            ]
+          },
+          {
+            "id": "RN-FAT-011",
+            "titulo": "Composição e vencimentos das parcelas",
+            "encontrada": true,
+            "afirmacoes": [
+              5,
+              6,
+              7
+            ]
+          },
+          {
+            "id": "INC-FAT-001",
+            "titulo": "Tela oferece até 12 parcelas; backend aceita até 6",
+            "encontrada": true,
+            "afirmacoes": [
+              11
+            ]
+          },
+          {
+            "id": "INC-FAT-003",
+            "titulo": "Tela calcula a parcela mínima sobre o valor original",
+            "encontrada": false,
+            "afirmacoes": []
+          }
+        ],
+        "regras_encontradas": 6,
+        "regras_esperadas": 7,
+        "outras_regras_encontradas": [
+          "RN-FAT-005",
+          "RN-FAT-006"
+        ],
+        "afirmacoes_fora_do_gabarito": [
+          1,
+          2,
+          3,
+          8,
+          14
+        ],
+        "arquivos": [
+          {
+            "arquivo": "backend/src/main/java/exemplo/faturamento/ParcelamentoService.java",
+            "citado": true
+          },
+          {
+            "arquivo": "backend/src/main/java/exemplo/faturamento/ParametroRepository.java",
+            "citado": false
+          },
+          {
+            "arquivo": "frontend/src/telas/parcelamento-form.ts",
+            "citado": true
+          },
+          {
+            "arquivo": "db/01_tabelas.sql",
+            "citado": false
+          },
+          {
+            "arquivo": "db/02_parametros.sql",
+            "citado": true
+          }
+        ],
+        "perguntas_esperadas": [
+          {
+            "tema": "A tela oferece até 12 parcelas e o backend aceita até 6; qual é o limite certo?",
+            "atendida_por": 1
+          },
+          {
+            "tema": "A tela confere a parcela mínima sem os encargos; qual valor deve valer?",
+            "atendida_por": 3
+          }
+        ],
+        "premissa": null,
+        "abrangencia": null
+      },
+      "arquivos_alterados": [],
+      "claude": {
+        "custo_usd": 0.4181154,
+        "turnos": 39,
+        "duracao_ms": 90335,
+        "erro": false,
+        "subtipo": "success",
+        "tokens": {
+          "entrada": 26,
+          "saida": 14460,
+          "cache_criacao": 55439,
+          "cache_leitura": 517074
+        }
+      },
+      "erro": null
+    },
+    {
+      "fluxo": "impacto",
+      "item": "D-FAT-001",
+      "repeticao": 1,
+      "avaliacao": {
+        "item": "D-FAT-001",
+        "fluxo": "impacto",
+        "analise": "A-0001",
+        "estado": "concluida",
+        "concluida": true,
+        "afirmacoes": 11,
+        "por_confianca": {
+          "confirmado": 6,
+          "inferido": 5,
+          "a_confirmar": 0
+        },
+        "perguntas_registradas": 1,
+        "sugestoes": 0,
+        "termos": 0,
+        "evidencias": 21,
+        "evidencias_validas": 21,
+        "evidencias_invalidas": [],
+        "confirmado_sem_evidencia_valida": [],
+        "regras": [
+          {
+            "id": "RN-FAT-007",
+            "titulo": "Parcelamento só para pessoa jurídica e órgão público",
+            "encontrada": true,
+            "afirmacoes": [
+              1,
+              2
+            ]
+          },
+          {
+            "id": "RN-FAT-008",
+            "titulo": "Quantidade de parcelas entre 2 e MAX_PARCELAS",
+            "encontrada": true,
+            "afirmacoes": [
+              3,
+              6,
+              7,
+              8,
+              10,
+              11
+            ]
+          },
+          {
+            "id": "INC-FAT-001",
+            "titulo": "Tela oferece até 12 parcelas; backend aceita até 6",
+            "encontrada": true,
+            "afirmacoes": [
+              6,
+              7,
+              11
+            ]
+          }
+        ],
+        "regras_encontradas": 3,
+        "regras_esperadas": 3,
+        "outras_regras_encontradas": [
+          "RN-FAT-009",
+          "RN-FAT-010",
+          "RN-FAT-011"
+        ],
+        "afirmacoes_fora_do_gabarito": [
+          9
+        ],
+        "arquivos": [
+          {
+            "arquivo": "backend/src/main/java/exemplo/faturamento/ParcelamentoService.java",
+            "citado": true
+          },
+          {
+            "arquivo": "frontend/src/telas/parcelamento-form.ts",
+            "citado": true
+          },
+          {
+            "arquivo": "db/02_parametros.sql",
+            "citado": true
+          }
+        ],
+        "perguntas_esperadas": [
+          {
+            "tema": "O limite de 3 parcelas vale também para órgão público, que usa o mesmo parâmetro?",
+            "atendida_por": 1
+          },
+          {
+            "tema": "A tela oferece até 12 parcelas; deve ser alinhada ao novo limite?",
+            "atendida_por": null
+          }
+        ],
+        "premissa": {
+          "veredito_esperado": "nao_confere",
+          "corrigida": true,
+          "afirmacao": 1
+        },
+        "abrangencia": {
+          "esperada": "pequena",
+          "registrada": "pequena",
+          "confere": true
+        }
+      },
+      "arquivos_alterados": [],
+      "claude": {
+        "custo_usd": 0.33146980000000004,
+        "turnos": 32,
+        "duracao_ms": 67348,
+        "erro": false,
+        "subtipo": "success",
+        "tokens": {
+          "entrada": 22,
+          "saida": 10012,
+          "cache_criacao": 47787,
+          "cache_leitura": 401578
+        }
+      },
+      "erro": null
+    },
+    {
+      "fluxo": "revisar",
+      "item": "REV-FAT-001",
+      "repeticao": 1,
+      "avaliacao": {
+        "item": "REV-FAT-001",
+        "fluxo": "revisar",
+        "analise": "A-0001",
+        "estado": "concluida",
+        "concluida": true,
+        "afirmacoes": 2,
+        "por_confianca": {
+          "confirmado": 2,
+          "inferido": 0,
+          "a_confirmar": 0
+        },
+        "perguntas_registradas": 3,
+        "sugestoes": 0,
+        "termos": 0,
+        "evidencias": 2,
+        "evidencias_validas": 2,
+        "evidencias_invalidas": [],
+        "confirmado_sem_evidencia_valida": [],
+        "regras": [],
+        "regras_encontradas": 0,
+        "regras_esperadas": 0,
+        "outras_regras_encontradas": [
+          "RN-FAT-012",
+          "RN-FAT-013"
+        ],
+        "afirmacoes_fora_do_gabarito": [],
+        "arquivos": [],
+        "perguntas_esperadas": [
+          {
+            "tema": "A história muda a regra que proíbe cancelar fatura com pagamento parcial, ou o texto está errado?",
+            "atendida_por": 1
+          }
+        ],
+        "premissa": null,
+        "abrangencia": null,
+        "parecer": {
+          "veredito_esperado": "precisa_de_retrabalho",
+          "veredito_registrado": "precisa_de_retrabalho",
+          "achados_registrados": 7,
+          "achados": [
+            {
+              "id": "REV-FAT-001-C1",
+              "descricao": "Contradição plantada: a história permite cancelar fatura com pagamento parcial; a regra RN-FAT-012 só cancela fatura sem nenhum valor pago.",
+              "atendido_por": 1
+            },
+            {
+              "id": "REV-FAT-001-L1",
+              "descricao": "O motivo é obrigatório, mas o sistema exige ao menos 10 caracteres (RN-FAT-013); a história não diz.",
+              "atendido_por": 3
+            },
+            {
+              "id": "REV-FAT-001-L2",
+              "descricao": "Fatura emitida há mais de 30 dias só pode ser cancelada por supervisor (RN-FAT-014); a história não trata o perfil.",
+              "atendido_por": 4
+            }
+          ],
+          "termos_vagos": [
+            {
+              "termo": "rápido",
+              "apontado_por": 5
+            },
+            {
+              "termo": "adequado",
+              "apontado_por": 5
+            },
+            {
+              "termo": "e/ou",
+              "apontado_por": 6
+            },
+            {
+              "termo": "etc.",
+              "apontado_por": 7
+            }
+          ],
+          "evidencias": 4,
+          "evidencias_invalidas": [],
+          "correcao_sem_evidencia_valida": []
+        }
+      },
+      "arquivos_alterados": [],
+      "claude": {
+        "custo_usd": 0.2801462,
+        "turnos": 28,
+        "duracao_ms": 58231,
+        "erro": false,
+        "subtipo": "success",
+        "tokens": {
+          "entrada": 24,
+          "saida": 7917,
+          "cache_criacao": 39628,
+          "cache_leitura": 424162
+        }
+      },
+      "erro": null
+    }
+  ],
+  "custo_total_usd": 1.2847493,
+  "sem_falhas_graves": true
+}
