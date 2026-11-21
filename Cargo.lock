@@ -506,7 +506,9 @@ dependencies = [
 name = "cba-docs"
 version = "0.5.0"
 dependencies = [
+ "cba-core",
  "cba-kb",
+ "cba-repos",
  "pulldown-cmark",
  "quick-xml",
  "serde",

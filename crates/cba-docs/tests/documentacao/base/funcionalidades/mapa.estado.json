@@ -1,0 +1,77 @@
+{
+  "formato": 1,
+  "funcionalidades": [
+    {
+      "id": "F-COB-001",
+      "nome": "Cobrar multa por atraso",
+      "area": "cobranca",
+      "area_nome": "Cobrança",
+      "descricao": "Calcula e lança a multa da fatura paga depois do vencimento.",
+      "atores": ["Operador de cobrança", "Rotina noturna"],
+      "pontos": [
+        {
+          "chave": "db/pkg_cobranca.sql#PKG_COBRANCA.PRC_MULTA",
+          "tipo": "rotina_banco",
+          "nome": "PKG_COBRANCA.PRC_MULTA",
+          "evidencia": {
+            "arquivo": "db/pkg_cobranca.sql",
+            "linhas": "10-30",
+            "trecho": "PROCEDURE PRC_MULTA",
+            "hash": "h1",
+            "commit": "c0ffee1234567890"
+          }
+        }
+      ],
+      "dados_gravados": ["FATURA.VL_MULTA"],
+      "relacionadas": ["F-CAN-001", "F-COB-002"],
+      "situacao": "aceita",
+      "registrada_ms": 1
+    },
+    {
+      "id": "F-COB-002",
+      "nome": "Parcelar fatura",
+      "area": "cobranca",
+      "area_nome": "Cobrança",
+      "descricao": "Divide a fatura em parcelas.",
+      "pontos": [],
+      "situacao": "pendente",
+      "registrada_ms": 2
+    },
+    {
+      "id": "F-COB-003",
+      "nome": "Calcular multa",
+      "area": "cobranca",
+      "area_nome": "Cobrança",
+      "descricao": "Duplicada da F-COB-001.",
+      "pontos": [],
+      "situacao": "juntada",
+      "juntada_em": "F-COB-001",
+      "registrada_ms": 3
+    },
+    {
+      "id": "F-CAN-001",
+      "nome": "Cancelar fatura",
+      "area": "cancelamento",
+      "area_nome": "Cancelamento",
+      "descricao": "Cancela uma fatura emitida | ainda não paga.",
+      "atores": ["Atendente"],
+      "pontos": [],
+      "situacao": "aceita",
+      "documento": "funcionalidades/cancelamento/cancelar-fatura/negocial.md",
+      "explicacao": "A-0002",
+      "registrada_ms": 4
+    },
+    {
+      "id": "F-CAN-002",
+      "nome": "Estornar cancelamento",
+      "area": "cancelamento",
+      "area_nome": "Cancelamento",
+      "descricao": "Descartada.",
+      "pontos": [],
+      "situacao": "descartada",
+      "registrada_ms": 5
+    }
+  ],
+  "versao": 7,
+  "atualizado_ms": 7
+}

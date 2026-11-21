@@ -8,6 +8,7 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+cba-core.workspace = true
 cba-kb.workspace = true
 pulldown-cmark = { version = "0.13", default-features = false }
 serde.workspace = true
@@ -16,6 +17,7 @@ thiserror = "2"
 zip.workspace = true
 
 [dev-dependencies]
+cba-repos.workspace = true
 quick-xml.workspace = true
 serde_norway.workspace = true
 tempfile = "3"
