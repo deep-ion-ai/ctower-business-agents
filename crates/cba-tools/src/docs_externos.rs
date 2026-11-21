@@ -12,7 +12,10 @@
 //!    clone noutra branch;
 //! 4. importa para `externos/<repositório>/` ([`cba_kb::externos::importar`]),
 //!    pulando os caminhos com padrão de segredo do inventário
-//!    ([`cba_index::Exclusoes`]) e mascarando segredos e dados pessoais;
+//!    ([`cba_index::Exclusoes`]) e mascarando segredos e dados pessoais. As
+//!    páginas da documentação legível (#288) são recortadas pelos marcadores
+//!    (#290): cada regra, termo ou análise vira um documento externo, com a
+//!    âncora e o link do trecho na forja;
 //! 5. sincroniza o índice da base.
 //!
 //! Falha de rede, credencial ou clone fica registrada no estado
@@ -193,8 +196,19 @@ pub fn sincronizar(
             .ok_or_else(|| "arquivo fora do commit".to_string())?;
         leitor.ler(blob).map_err(|e| e.to_string())
     };
-    let importacao = externos::importar(kb, &fonte, &lista, &pular, &mut ler, externos::agora_ms())
-        .map_err(|e| falhou(e.to_string()))?;
+    // Link do original na forja, no commit sincronizado (com a âncora do bloco,
+    // na página com marcadores).
+    let link = |caminho: &str| repo.link(&atualizacao.commit, caminho, None);
+    let importacao = externos::importar_com_links(
+        kb,
+        &fonte,
+        &lista,
+        &pular,
+        &mut ler,
+        &link,
+        externos::agora_ms(),
+    )
+    .map_err(|e| falhou(e.to_string()))?;
 
     let aviso_do_indice = sincronizar_indice(ambiente).err();
     tracing::info!(

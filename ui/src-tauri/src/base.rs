@@ -101,7 +101,8 @@ pub struct Encontrado {
 #[serde(rename_all = "camelCase")]
 pub struct OrigemVista {
     pub repositorio: String,
-    /// Caminho no repositório.
+    /// Caminho no repositório, com `#âncora` no trecho recortado de uma página
+    /// da documentação legível (#290).
     pub caminho: String,
     pub commit: String,
     /// `publicada` (documento aprovado publicado pelo app) ou `externa`.
@@ -112,7 +113,7 @@ impl From<&OrigemIndexada> for OrigemVista {
     fn from(o: &OrigemIndexada) -> Self {
         Self {
             repositorio: o.repositorio.clone(),
-            caminho: o.caminho.clone(),
+            caminho: o.caminho_com_ancora(),
             commit: o.commit.clone(),
             confianca: o.confianca.como_str().to_owned(),
         }
@@ -396,8 +397,8 @@ pub fn abrir_documento(dados: &DiretorioDados, caminho: &str) -> Result<Document
         .then(|| Documento::<FrontmatterDocExterno>::analisar(&texto).ok())
         .flatten()
         .map(|d| OrigemVista {
+            caminho: d.frontmatter.origem.caminho_com_ancora(),
             repositorio: d.frontmatter.origem.repositorio,
-            caminho: d.frontmatter.origem.caminho,
             commit: d.frontmatter.origem.commit,
             confianca: d.frontmatter.confianca.como_str().to_owned(),
         });

@@ -64,7 +64,7 @@ impl Cenario {
         arquivos.sort_by(|a, b| a.caminho.cmp(&b.caminho));
         let commit_atual = self.commit.clone();
         let mut leituras = 0;
-        let r = importar(
+        let r = importar_com_links(
             &self.projeto,
             &Fonte {
                 repositorio: REPO.into(),
@@ -79,6 +79,11 @@ impl Cenario {
             &mut |a: &ArquivoExterno| {
                 leituras += 1;
                 Ok(commit_atual[&a.caminho].clone())
+            },
+            &|c: &str| {
+                Some(format!(
+                    "https://github.com/exemplo/faturamento-docs/blob/{commit}/{c}"
+                ))
             },
             1_000,
         )
@@ -314,4 +319,414 @@ fn trava_uma_sincronizacao_por_vez() {
     assert!(travar(&c.projeto).unwrap().is_none());
     drop(t);
     assert!(travar(&c.projeto).unwrap().is_some());
+}
+
+// ---- Páginas da documentação legível, recortadas pelos marcadores (#290) ----
+
+/// Um bloco como o renderizador da #288 escreve: abertura, âncora, título,
+/// texto, fechamento.
+fn bloco(tipo: &str, id: &str, caminho: &str, titulo: &str, texto: &str) -> String {
+    let frontmatter = match tipo {
+        "termo" => serde_json::json!({"tipo": "termo", "termo": titulo, "area": "cobranca"}),
+        _ => serde_json::json!({
+            "tipo": tipo,
+            "id": id,
+            "titulo": titulo,
+            "area": "cobranca",
+            "status": "confirmada",
+        }),
+    };
+    let m = marcador::Marcador::novo(
+        tipo,
+        id,
+        marcador::Metadados {
+            caminho: caminho.into(),
+            frontmatter,
+        },
+    )
+    .unwrap();
+    format!(
+        "{}\n<a id=\"{}\"></a>\n### {id} · {titulo}\n\n{texto}\n{}\n",
+        m.abertura(),
+        id.to_lowercase(),
+        marcador::FECHAMENTO
+    )
+}
+
+fn regra(n: u32, texto: &str) -> String {
+    let id = format!("RN-COB-00{n}");
+    bloco(
+        "regra",
+        &id,
+        &format!("regras/{id}.md"),
+        &format!("Regra {n} da cobrança"),
+        texto,
+    )
+}
+
+/// Página de funcionalidade com as regras `ns`.
+fn pagina(ns: &[(u32, &str)]) -> String {
+    let mut s = String::from(
+        "<!-- Gerado pelo ctower-business-agents. -->\n# F-COB-001 · Emitir fatura\n\n\
+         Texto da funcionalidade, fora dos blocos.\n\n## Regras\n\n",
+    );
+    for (n, texto) in ns {
+        s.push_str(&regra(*n, texto));
+        s.push('\n');
+    }
+    s
+}
+
+const PAGINA: &str = "funcionalidades/cobranca/F-COB-001-emitir-fatura.md";
+const BLOCOS: &str =
+    "externos/github-exemplo-faturamento-docs/funcionalidades/cobranca/F-COB-001-emitir-fatura";
+
+fn cinco_regras() -> Vec<(u32, &'static str)> {
+    vec![
+        (1, "Multa de 2% sobre a fatura paga depois do vencimento."),
+        (2, "Juros de 1% ao mês."),
+        (3, "Fatura vence no dia 10."),
+        (4, "Desconto de 5% no débito automático."),
+        (5, "Segunda via sem custo."),
+    ]
+}
+
+#[test]
+fn pagina_com_marcadores_vira_um_externo_por_bloco() {
+    let mut c = Cenario::novo();
+    c.arquivo(PAGINA, &pagina(&cinco_regras()));
+    let r = c.importar("c1");
+    assert_eq!((r.novos, r.alterados, r.removidos), (5, 0, 0));
+    assert!(r.avisos.is_empty());
+    // O texto fora dos blocos não vira documento.
+    assert!(!c.projeto.raiz().join(PASTA).join(PAGINA).exists());
+
+    let doc = c.copia(&format!("{BLOCOS}/regra-RN-COB-001.md"));
+    let f = &doc.frontmatter;
+    assert_eq!(f.tipo, TipoDocumento::DocExterno);
+    assert_eq!(f.titulo, "Regra 1 da cobrança");
+    assert_eq!(f.confianca, Confianca::Publicada);
+    assert_eq!(f.tipo_original.as_deref(), Some("regra"));
+    assert_eq!(f.id_original.as_deref(), Some("RN-COB-001"));
+    assert_eq!(f.origem.caminho, format!("docs/negocio/{PAGINA}"));
+    assert_eq!(f.origem.ancora.as_deref(), Some("rn-cob-001"));
+    assert_eq!(
+        f.origem.caminho_com_ancora(),
+        format!("docs/negocio/{PAGINA}#rn-cob-001")
+    );
+    assert_eq!(
+        f.origem.url.as_deref(),
+        Some(
+            format!(
+                "https://github.com/exemplo/faturamento-docs/blob/c1/docs/negocio/{PAGINA}#rn-cob-001"
+            )
+            .as_str()
+        )
+    );
+    assert_eq!(f.origem.commit, "c1");
+    let original = f.frontmatter_original.as_ref().unwrap();
+    assert_eq!(
+        original.get("status").and_then(Value::as_str),
+        Some("confirmada")
+    );
+    assert!(doc.corpo.contains("Multa de 2%"));
+    assert!(doc.corpo.contains("### RN-COB-001 · Regra 1 da cobrança"));
+    assert!(!doc.corpo.contains("<a id"));
+    assert!(!doc.corpo.contains("<!--"));
+    assert!(!doc.corpo.contains("Juros"));
+
+    let estado = EstadoExternos::ler(&c.projeto).unwrap();
+    assert_eq!(estado.importados(), 5);
+
+    // Mesma página em outro commit: nada lido nem regravado.
+    let r = c.importar("c2");
+    assert_eq!((r.novos, r.alterados, r.inalterados), (0, 0, 5));
+    assert_eq!(c.leituras, 0);
+}
+
+#[test]
+fn bloco_removido_sai_e_alterado_e_regravado() {
+    let mut c = Cenario::novo();
+    c.arquivo(PAGINA, &pagina(&cinco_regras()));
+    c.importar("c1");
+
+    let mut regras = cinco_regras();
+    regras.remove(2); // sai a RN-COB-003
+    regras[1].1 = "Juros de 2% ao mês."; // muda a RN-COB-002
+    c.arquivo(PAGINA, &pagina(&regras));
+    let r = c.importar("c2");
+    assert_eq!(
+        (r.novos, r.alterados, r.removidos, r.inalterados),
+        (0, 1, 1, 3)
+    );
+    assert!(
+        !c.projeto
+            .raiz()
+            .join(BLOCOS)
+            .join("regra-RN-COB-003.md")
+            .exists()
+    );
+    let mudou = c.copia(&format!("{BLOCOS}/regra-RN-COB-002.md"));
+    assert!(mudou.corpo.contains("Juros de 2%"));
+    assert_eq!(mudou.frontmatter.origem.commit, "c2");
+    // O bloco que não mudou fica com a cópia (e o commit) de antes.
+    assert_eq!(
+        c.copia(&format!("{BLOCOS}/regra-RN-COB-001.md"))
+            .frontmatter
+            .origem
+            .commit,
+        "c1"
+    );
+    assert_eq!(EstadoExternos::ler(&c.projeto).unwrap().importados(), 4);
+
+    // Cópia de bloco mexida à mão volta a ser a da página.
+    let disco = c.projeto.raiz().join(BLOCOS).join("regra-RN-COB-004.md");
+    fs::write(&disco, "editado\n").unwrap();
+    let r = c.importar("c2");
+    assert_eq!((r.alterados, r.inalterados), (1, 3));
+    assert!(
+        fs::read_to_string(&disco)
+            .unwrap()
+            .contains("Desconto de 5%")
+    );
+
+    // A página sai do repositório: os blocos saem da base.
+    c.commit.remove(PAGINA);
+    let r = c.importar("c3");
+    assert_eq!(r.removidos, 4);
+    assert!(!c.projeto.raiz().join(BLOCOS).exists());
+}
+
+#[test]
+fn bloco_que_a_base_ja_tem_nao_e_copiado() {
+    let mut c = Cenario::novo();
+    c.projeto
+        .gravar_texto(
+            &CaminhoRelativo::novo("regras/RN-COB-001.md").unwrap(),
+            "---\ntipo: regra\nid: RN-COB-001\ntitulo: Multa\n---\n\nMulta.\n",
+        )
+        .unwrap();
+    c.projeto
+        .gravar_texto(
+            &CaminhoRelativo::novo("glossario/multa.md").unwrap(),
+            "---\ntipo: termo\ntermo: Multa\n---\n\nMulta.\n",
+        )
+        .unwrap();
+    c.projeto
+        .gravar_texto(
+            &CaminhoRelativo::novo("funcionalidades/cobranca/emitir/negocial.md").unwrap(),
+            "---\ntipo: funcionalidade\ntitulo: Emitir\narea: cobranca\ntema: emitir\nstatus: aprovada\n---\n\nComo funciona.\n",
+        )
+        .unwrap();
+    let mut texto = pagina(&cinco_regras()[..2]);
+    // O negocial não tem `id`: vale o caminho na base de origem.
+    let negocial = marcador::Marcador::novo(
+        "funcionalidade",
+        "cobranca/emitir/negocial",
+        marcador::Metadados {
+            caminho: "funcionalidades/cobranca/emitir/negocial.md".into(),
+            frontmatter: serde_json::json!({"tipo": "funcionalidade", "titulo": "Emitir"}),
+        },
+    )
+    .unwrap();
+    texto.push_str(&format!(
+        "{}\n<a id=\"cobranca-emitir-negocial\"></a>\nComo funciona.\n{}\n",
+        negocial.abertura(),
+        marcador::FECHAMENTO
+    ));
+    c.arquivo(PAGINA, &texto);
+    c.arquivo(
+        "glossario.md",
+        &format!(
+            "# Glossário\n\n{}",
+            bloco(
+                "termo",
+                "multa",
+                "glossario/multa.md",
+                "Multa",
+                "Valor cobrado no atraso."
+            )
+        ),
+    );
+    let r = c.importar("c1");
+    let mut ja: Vec<&str> = r.ja_na_base.iter().map(String::as_str).collect();
+    ja.sort();
+    assert_eq!(
+        ja,
+        [
+            "docs/negocio/funcionalidades/cobranca/F-COB-001-emitir-fatura.md#cobranca-emitir-negocial",
+            "docs/negocio/funcionalidades/cobranca/F-COB-001-emitir-fatura.md#rn-cob-001",
+            "docs/negocio/glossario.md#multa",
+        ]
+    );
+    assert_eq!(r.novos, 1);
+    assert!(
+        c.projeto
+            .raiz()
+            .join(BLOCOS)
+            .join("regra-RN-COB-002.md")
+            .exists()
+    );
+    assert!(
+        !c.projeto
+            .raiz()
+            .join(BLOCOS)
+            .join("regra-RN-COB-001.md")
+            .exists()
+    );
+
+    // Sem a regra na base, o bloco publicado entra (a página não mudou).
+    fs::remove_file(c.projeto.raiz().join("regras/RN-COB-001.md")).unwrap();
+    let r = c.importar("c2");
+    assert_eq!((r.novos, r.inalterados), (1, 1));
+    assert!(
+        c.projeto
+            .raiz()
+            .join(BLOCOS)
+            .join("regra-RN-COB-001.md")
+            .exists()
+    );
+}
+
+#[test]
+fn formato_antigo_passa_ao_novo_e_as_copias_antigas_saem() {
+    let mut c = Cenario::novo();
+    c.arquivo(
+        "regras/RN-COB-001.md",
+        "---\ntipo: regra\nid: RN-COB-001\ntitulo: Multa\n---\n\nMulta de 2%.\n",
+    );
+    c.arquivo("leia-me.md", "# Leia-me\n\nEscrito à mão.\n");
+    let r = c.importar("c1");
+    assert_eq!(r.novos, 2);
+    let antiga = c.copia(&format!("{PASTA}/regras/RN-COB-001.md"));
+    assert_eq!(
+        antiga.frontmatter.id_original.as_deref(),
+        Some("RN-COB-001")
+    );
+    assert!(antiga.frontmatter.origem.ancora.is_none());
+
+    // O repositório passa a ter as páginas legíveis.
+    c.commit.remove("regras/RN-COB-001.md");
+    c.arquivo(PAGINA, &pagina(&cinco_regras()[..1]));
+    let r = c.importar("c2");
+    assert_eq!((r.novos, r.removidos, r.inalterados), (1, 1, 1));
+    assert!(!c.projeto.raiz().join(PASTA).join("regras").exists());
+    let nova = c.copia(&format!("{BLOCOS}/regra-RN-COB-001.md"));
+    assert_eq!(
+        nova.frontmatter.origem.ancora.as_deref(),
+        Some("rn-cob-001")
+    );
+    // O leia-me escrito à mão continua um documento só.
+    assert_eq!(
+        c.copia(&format!("{PASTA}/leia-me.md"))
+            .frontmatter
+            .confianca,
+        Confianca::Externa
+    );
+}
+
+#[test]
+fn marcador_malformado_importa_a_pagina_inteira_com_aviso() {
+    let mut c = Cenario::novo();
+    let mut texto = pagina(&cinco_regras()[..2]);
+    // Bloco sem fechamento.
+    texto.push_str(&regra(3, "Sem fim.").replace(marcador::FECHAMENTO, ""));
+    c.arquivo(PAGINA, &texto);
+    let r = c.importar("c1");
+    assert_eq!(r.novos, 1);
+    assert_eq!(r.avisos.len(), 1);
+    assert_eq!(r.avisos[0].caminho, format!("docs/negocio/{PAGINA}"));
+    assert!(
+        r.avisos[0].motivo.contains("sem fechamento"),
+        "{:?}",
+        r.avisos
+    );
+    let doc = c.copia(&format!("{PASTA}/{PAGINA}"));
+    assert_eq!(doc.frontmatter.confianca, Confianca::Externa);
+    assert!(doc.corpo.contains("Juros de 1%"));
+    assert!(!c.projeto.raiz().join(BLOCOS).exists());
+
+    // Na próxima, sem ler de novo, o aviso continua.
+    let r = c.importar("c2");
+    assert_eq!(c.leituras, 0);
+    assert_eq!(r.avisos.len(), 1);
+    assert_eq!(EstadoExternos::ler(&c.projeto).unwrap().avisos.len(), 1);
+
+    // Corrigida a página, os blocos entram e a cópia inteira sai.
+    c.arquivo(PAGINA, &pagina(&cinco_regras()[..2]));
+    let r = c.importar("c3");
+    assert!(r.avisos.is_empty());
+    assert_eq!((r.novos, r.removidos), (2, 1));
+}
+
+#[test]
+fn mascara_e_pula_por_bloco() {
+    let mut c = Cenario::novo();
+    let mut texto = pagina(&[
+        (1, "Contato do gestor: ana@example.com, senha: Fatura2026!"),
+        (2, "Juros de 1% ao mês."),
+    ]);
+    texto.push_str(&regra(
+        3,
+        "-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----",
+    ));
+    // Segredo no frontmatter do marcador também é mascarado.
+    let m = marcador::Marcador::novo(
+        "regra",
+        "RN-COB-004",
+        marcador::Metadados {
+            caminho: "regras/RN-COB-004.md".into(),
+            frontmatter: serde_json::json!({
+                "tipo": "regra",
+                "id": "RN-COB-004",
+                "titulo": "Acesso com token ghp_abcdefghijklmnopqrstuvwxyz0123",
+            }),
+        },
+    )
+    .unwrap();
+    texto.push_str(&format!(
+        "{}\n<a id=\"rn-cob-004\"></a>\nTexto.\n{}\n",
+        m.abertura(),
+        marcador::FECHAMENTO
+    ));
+    c.arquivo(PAGINA, &texto);
+    let r = c.importar("c1");
+    assert_eq!(r.novos, 3);
+    assert_eq!(
+        r.pulados,
+        [Pulado {
+            caminho: format!("docs/negocio/{PAGINA}#rn-cob-003"),
+            motivo: "possível segredo: traz uma chave privada".into(),
+        }]
+    );
+    let mut mascarados = r.mascarados.clone();
+    mascarados.sort_by(|a, b| a.caminho.cmp(&b.caminho));
+    assert_eq!(
+        mascarados,
+        [
+            Mascarado {
+                caminho: format!("docs/negocio/{PAGINA}#rn-cob-001"),
+                trechos: 2,
+            },
+            Mascarado {
+                caminho: format!("docs/negocio/{PAGINA}#rn-cob-004"),
+                trechos: 1,
+            },
+        ]
+    );
+    let doc = c.copia(&format!("{BLOCOS}/regra-RN-COB-001.md"));
+    assert!(!doc.corpo.contains("ana@example.com"));
+    assert!(!doc.corpo.contains("Fatura2026"));
+    assert_eq!(doc.frontmatter.trechos_mascarados, 2);
+    let doc = c.copia(&format!("{BLOCOS}/regra-RN-COB-004.md"));
+    assert!(!doc.frontmatter.titulo.contains("ghp_"));
+    let texto_da_copia =
+        fs::read_to_string(c.projeto.raiz().join(BLOCOS).join("regra-RN-COB-004.md")).unwrap();
+    assert!(!texto_da_copia.contains("ghp_"), "{texto_da_copia}");
+
+    // Na próxima, sem ler de novo, o bloco continua pulado e os outros mascarados.
+    let r = c.importar("c2");
+    assert_eq!(c.leituras, 0);
+    assert_eq!(r.pulados.len(), 1);
+    assert_eq!(r.mascarados.len(), 2);
 }

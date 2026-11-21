@@ -671,6 +671,23 @@ pub struct OrigemExterna {
     /// Branch sincronizada.
     #[serde(default)]
     pub branch: Option<String>,
+    /// Âncora do trecho na página (`rn-cob-001`), quando o documento foi recortado
+    /// de uma página da documentação legível pelos marcadores (#290).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ancora: Option<String>,
+    /// Link do arquivo (com a âncora, se houver) na forja, no commit sincronizado.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+}
+
+impl OrigemExterna {
+    /// `caminho#âncora` (ou só o caminho).
+    pub fn caminho_com_ancora(&self) -> String {
+        match &self.ancora {
+            Some(a) => format!("{}#{a}", self.caminho),
+            None => self.caminho.clone(),
+        }
+    }
 }
 
 /// Quanto confiar num documento externo. Nenhum dos dois substitui evidência

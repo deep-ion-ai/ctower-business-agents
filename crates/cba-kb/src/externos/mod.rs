@@ -72,10 +72,13 @@ use crate::frontmatter::{
     Confianca, FrontmatterDocExterno, FrontmatterLivre, OrigemExterna, TipoDocumento,
 };
 use crate::layout;
+use crate::marcador::{self, Bloco};
 use crate::yaml::{Mapping, Value};
 
 /// Arquivo maior que isto não é importado (documentação, não anexo).
 pub const LIMITE_DE_TAMANHO: u64 = 1024 * 1024;
+
+const CHAVE_PRIVADA: &str = "possível segredo: traz uma chave privada";
 
 /// Versão do formato do estado.
 const FORMATO: u32 = 1;
@@ -140,6 +143,9 @@ pub struct Importacao {
     pub ja_na_base: Vec<String>,
     pub pulados: Vec<Pulado>,
     pub mascarados: Vec<Mascarado>,
+    /// Arquivos importados com ressalva (página com marcadores malformados,
+    /// importada inteira): o caminho e o aviso.
+    pub avisos: Vec<Pulado>,
 }
 
 impl Importacao {
@@ -165,6 +171,102 @@ struct Registro {
     pulado: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     copia: Option<Copia>,
+    /// Página com marcadores (#290): um registro por bloco, e nenhuma cópia do
+    /// arquivo inteiro.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    blocos: Vec<RegistroBloco>,
+    /// Aviso da leitura (marcador malformado), repetido enquanto a versão for a
+    /// mesma.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    aviso: Option<String>,
+}
+
+/// Um bloco de uma página com marcadores.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct RegistroBloco {
+    /// Hash do marcador e do texto do bloco.
+    versao: String,
+    tipo_original: String,
+    id_original: String,
+    /// Caminho do documento na base de origem (do marcador).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    caminho_original: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ancora: Option<String>,
+    /// Onde a cópia fica (ou ficaria), relativo à raiz do projeto.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    copia_em: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pulado: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    copia: Option<Copia>,
+}
+
+impl Registro {
+    fn pulado(versao: String, motivo: String) -> Self {
+        Self {
+            versao,
+            tipo_original: None,
+            id_original: None,
+            pulado: Some(motivo),
+            copia: None,
+            blocos: Vec::new(),
+            aviso: None,
+        }
+    }
+
+    /// As partes registradas, sem o conteúdo.
+    fn partes(&self, a: &ArquivoExterno, relativo: &CaminhoRelativo) -> Vec<Parte> {
+        if self.blocos.is_empty() {
+            return vec![Parte {
+                rotulo: a.caminho_no_repositorio.clone(),
+                versao: self.versao.clone(),
+                tipo_original: self.tipo_original.clone(),
+                id_original: self.id_original.clone(),
+                caminho_original: None,
+                ancora: None,
+                relativo: Some(relativo.clone()),
+                pulado: None,
+                texto: None,
+            }];
+        }
+        self.blocos
+            .iter()
+            .map(|b| Parte {
+                rotulo: format!(
+                    "{}#{}",
+                    a.caminho_no_repositorio,
+                    b.ancora.as_deref().unwrap_or(&b.id_original)
+                ),
+                versao: b.versao.clone(),
+                tipo_original: Some(b.tipo_original.clone()),
+                id_original: Some(b.id_original.clone()),
+                caminho_original: Some(b.caminho_original.clone().unwrap_or_default()),
+                ancora: b.ancora.clone(),
+                relativo: b
+                    .copia_em
+                    .as_deref()
+                    .and_then(|c| CaminhoRelativo::novo(c).ok()),
+                pulado: b.pulado.clone(),
+                texto: None,
+            })
+            .collect()
+    }
+
+    /// A cópia gravada em `relativo` a partir do conteúdo na `versao`.
+    fn copia_de(&self, relativo: &str, versao: &str) -> Option<&Copia> {
+        if self.blocos.is_empty() {
+            return self
+                .copia
+                .as_ref()
+                .filter(|c| self.versao == versao && c.caminho == relativo);
+        }
+        self.blocos
+            .iter()
+            .filter(|b| b.versao == versao)
+            .filter_map(|b| b.copia.as_ref())
+            .find(|c| c.caminho == relativo)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -201,6 +303,8 @@ pub struct EstadoExternos {
     #[serde(default)]
     pub mascarados: Vec<Mascarado>,
     #[serde(default)]
+    pub avisos: Vec<Pulado>,
+    #[serde(default)]
     arquivos: BTreeMap<String, Registro>,
 }
 
@@ -219,9 +323,16 @@ impl EstadoExternos {
             .map_err(|erro| projeto.erro_io(&relativo, erro))
     }
 
-    /// Quantos documentos foram copiados para a base.
+    /// Quantos documentos foram copiados para a base (cada bloco de uma página
+    /// com marcadores conta como um).
     pub fn importados(&self) -> usize {
-        self.arquivos.values().filter(|r| r.copia.is_some()).count()
+        self.arquivos
+            .values()
+            .map(|r| {
+                usize::from(r.copia.is_some())
+                    + r.blocos.iter().filter(|b| b.copia.is_some()).count()
+            })
+            .sum()
     }
 
     /// Por que a cópia pode estar desatualizada, ou `None` se a última tentativa
@@ -343,6 +454,59 @@ struct Lido {
     id_original: Option<String>,
 }
 
+/// Um documento a copiar: o arquivo inteiro (formato antigo, ou página sem
+/// marcador) ou um bloco recortado de uma página com marcadores.
+struct Parte {
+    /// Como aparece no resumo: o caminho no repositório, com `#âncora` no bloco.
+    rotulo: String,
+    /// Versão do conteúdo: o blob do arquivo, ou o hash do bloco.
+    versao: String,
+    tipo_original: Option<String>,
+    id_original: Option<String>,
+    /// Caminho do documento na base de origem (do marcador).
+    caminho_original: Option<String>,
+    ancora: Option<String>,
+    /// Caminho da cópia; `None` se o nome não serve (bloco).
+    relativo: Option<CaminhoRelativo>,
+    /// Pulado pelo conteúdo (chave privada no bloco).
+    pulado: Option<String>,
+    /// O conteúdo, quando o arquivo foi lido nesta importação.
+    texto: Option<Texto>,
+}
+
+enum Texto {
+    Inteiro(String),
+    Bloco(Bloco),
+}
+
+impl Parte {
+    fn bloco(&self) -> bool {
+        self.caminho_original.is_some()
+    }
+}
+
+/// `(tipo, id)` e `(tipo, caminho)` dos documentos da base do projeto.
+struct DaBase {
+    ids: HashSet<(String, String)>,
+    caminhos: HashSet<(String, String)>,
+}
+
+impl DaBase {
+    /// Se a base já tem o documento: mesmo `tipo` e `id`, ou (bloco) mesmo `tipo`
+    /// e caminho na base de origem (o negocial não tem `id`).
+    fn tem(&self, p: &Parte) -> bool {
+        let Some(tipo) = &p.tipo_original else {
+            return false;
+        };
+        p.id_original
+            .as_ref()
+            .is_some_and(|id| self.ids.contains(&(tipo.clone(), id.clone())))
+            || p.caminho_original
+                .as_ref()
+                .is_some_and(|c| self.caminhos.contains(&(tipo.clone(), c.clone())))
+    }
+}
+
 /// Importa os `.md` do repositório para `externos/<repositório>/`: cria e
 /// regrava as cópias do que mudou, apaga as que não vieram e grava o estado.
 ///
@@ -361,6 +525,21 @@ pub fn importar(
     ler: &mut dyn FnMut(&ArquivoExterno) -> Result<Vec<u8>, String>,
     agora_ms: u64,
 ) -> Resultado<Importacao> {
+    importar_com_links(projeto, fonte, arquivos, pular, ler, &|_| None, agora_ms)
+}
+
+/// Como [`importar`], com `link`: o endereço de um arquivo (pelo caminho no
+/// repositório) na forja, no commit sincronizado, para a origem das cópias. No
+/// bloco recortado de uma página, a âncora vai junto (`...#rn-cob-001`).
+pub fn importar_com_links(
+    projeto: &Projeto,
+    fonte: &Fonte,
+    arquivos: &[ArquivoExterno],
+    pular: &dyn Fn(&str) -> Option<String>,
+    ler: &mut dyn FnMut(&ArquivoExterno) -> Result<Vec<u8>, String>,
+    link: &dyn Fn(&str) -> Option<String>,
+    agora_ms: u64,
+) -> Resultado<Importacao> {
     let anterior = EstadoExternos::ler(projeto).unwrap_or_default();
     let pasta = layout::externos_do_repositorio(&fonte.repositorio)?;
     let da_base = identificadores_da_base(projeto)?;
@@ -373,33 +552,29 @@ pub fn importar(
         if !a.caminho.to_ascii_lowercase().ends_with(".md") {
             continue;
         }
-        let pulado = |resumo: &mut Importacao, motivo: String| {
+        let pulado = |resumo: &mut Importacao, caminho: &str, motivo: String| {
             resumo.pulados.push(Pulado {
-                caminho: a.caminho_no_repositorio.clone(),
+                caminho: caminho.to_owned(),
                 motivo,
             })
         };
-        if let Some(motivo) = pular(&a.caminho_no_repositorio) {
-            pulado(&mut resumo, motivo);
+        let caminho = a.caminho_no_repositorio.as_str();
+        if let Some(motivo) = pular(caminho) {
+            pulado(&mut resumo, caminho, motivo);
             continue;
         }
         let Some(relativo) = caminho_da_copia(&pasta, &a.caminho) else {
             pulado(
                 &mut resumo,
+                caminho,
                 "nome de arquivo que não vale em todos os sistemas (ou em pasta oculta)".into(),
             );
             continue;
         };
-        if !nomes_sem_caixa.insert(relativo.as_str().to_lowercase()) {
-            pulado(
-                &mut resumo,
-                "outro arquivo tem o mesmo nome, só com maiúsculas diferentes".into(),
-            );
-            continue;
-        }
         if a.tamanho > LIMITE_DE_TAMANHO {
             pulado(
                 &mut resumo,
+                caminho,
                 format!(
                     "arquivo grande demais ({} KiB; o limite é {} KiB)",
                     a.tamanho / 1024,
@@ -408,130 +583,111 @@ pub fn importar(
             );
             continue;
         }
-        let antes = anterior
-            .arquivos
-            .get(&a.caminho_no_repositorio)
-            .filter(|r| r.versao == a.versao);
+        // O registro da importação anterior, de qualquer versão: o bloco que não
+        // mudou numa página que mudou continua com a cópia (e o commit) de antes.
+        let ultimo = anterior.arquivos.get(caminho);
+        let antes = ultimo.filter(|r| r.versao == a.versao);
 
         // Pulado pelo conteúdo nesta mesma versão: não lê de novo.
         if let Some(motivo) = antes.and_then(|r| r.pulado.clone()) {
-            pulado(&mut resumo, motivo.clone());
+            pulado(&mut resumo, caminho, motivo.clone());
             registros.insert(
-                a.caminho_no_repositorio.clone(),
-                Registro {
-                    versao: a.versao.clone(),
-                    tipo_original: None,
-                    id_original: None,
-                    pulado: Some(motivo),
-                    copia: None,
-                },
+                caminho.to_owned(),
+                Registro::pulado(a.versao.clone(), motivo),
             );
             continue;
         }
 
-        let mut conteudo: Option<String> = None;
-        let lido = match antes {
-            Some(r) => Lido {
-                tipo_original: r.tipo_original.clone(),
-                id_original: r.id_original.clone(),
-            },
-            None => match ler_texto(a, ler) {
+        let reaproveitavel = |p: &Parte| -> Option<Copia> {
+            let relativo = p.relativo.as_ref()?;
+            let c = ultimo?.copia_de(relativo.as_str(), &p.versao)?;
+            (hash_do_arquivo(&projeto.caminho(relativo)).as_deref() == Some(c.hash.as_str()))
+                .then(|| c.clone())
+        };
+
+        // Mesma versão e todas as cópias intactas: nada a ler.
+        let registradas = antes.map(|r| r.partes(a, &relativo));
+        let precisa_ler = registradas.as_ref().is_none_or(|partes| {
+            partes.iter().any(|p| {
+                p.pulado.is_none()
+                    && p.relativo.is_some()
+                    && !da_base.tem(p)
+                    && reaproveitavel(p).is_none()
+            })
+        });
+        let mut aviso = antes.and_then(|r| r.aviso.clone());
+        let partes = match registradas {
+            Some(partes) if !precisa_ler => partes,
+            _ => match ler_texto(a, ler) {
                 Ok(texto) => {
-                    let lido = identificar(&texto);
-                    conteudo = Some(texto);
-                    lido
+                    let (partes, a_aviso) = recortar(a, &relativo, &pasta, texto);
+                    aviso = a_aviso;
+                    partes
                 }
                 Err(Pulo::Leitura(motivo)) => {
-                    pulado(&mut resumo, motivo);
+                    pulado(&mut resumo, caminho, motivo);
                     continue;
                 }
                 Err(Pulo::Conteudo(motivo)) => {
-                    pulado(&mut resumo, motivo.clone());
+                    pulado(&mut resumo, caminho, motivo.clone());
                     registros.insert(
-                        a.caminho_no_repositorio.clone(),
-                        Registro {
-                            versao: a.versao.clone(),
-                            tipo_original: None,
-                            id_original: None,
-                            pulado: Some(motivo),
-                            copia: None,
-                        },
+                        caminho.to_owned(),
+                        Registro::pulado(a.versao.clone(), motivo),
                     );
                     continue;
                 }
             },
         };
-        let mut registro = Registro {
-            versao: a.versao.clone(),
-            tipo_original: lido.tipo_original.clone(),
-            id_original: lido.id_original.clone(),
-            pulado: None,
-            copia: None,
-        };
-
-        if let (Some(t), Some(id)) = (&lido.tipo_original, &lido.id_original)
-            && da_base.contains(&(t.clone(), id.clone()))
-        {
-            resumo.ja_na_base.push(a.caminho_no_repositorio.clone());
-            registros.insert(a.caminho_no_repositorio.clone(), registro);
-            continue;
-        }
-
-        let destino = projeto.caminho(&relativo);
-        let copia_antes = antes
-            .and_then(|r| r.copia.as_ref())
-            .filter(|c| c.caminho == relativo.as_str());
-        if let Some(c) = copia_antes
-            && hash_do_arquivo(&destino).as_deref() == Some(c.hash.as_str())
-        {
-            if c.trechos_mascarados > 0 {
-                resumo.mascarados.push(Mascarado {
-                    caminho: a.caminho_no_repositorio.clone(),
-                    trechos: c.trechos_mascarados,
-                });
-            }
-            registro.copia = Some(c.clone());
-            registros.insert(a.caminho_no_repositorio.clone(), registro);
-            copias.insert(relativo.as_str().to_owned());
-            resumo.inalterados += 1;
-            continue;
-        }
-
-        let texto = match conteudo {
-            Some(t) => t,
-            None => match ler_texto(a, ler) {
-                Ok(t) => t,
-                Err(Pulo::Leitura(m) | Pulo::Conteudo(m)) => {
-                    pulado(&mut resumo, m);
-                    continue;
-                }
-            },
-        };
-        let (bytes, trechos) =
-            montar_copia(fonte, a, &texto, &lido).map_err(|erro| Erro::Frontmatter {
-                arquivo: projeto.na_base(&relativo),
-                erro,
-            })?;
-        let existia = destino.exists();
-        arquivo::gravar(&destino, &bytes).map_err(|erro| projeto.erro_io(&relativo, erro))?;
-        if existia {
-            resumo.alterados += 1;
-        } else {
-            resumo.novos += 1;
-        }
-        if trechos > 0 {
-            resumo.mascarados.push(Mascarado {
-                caminho: a.caminho_no_repositorio.clone(),
-                trechos,
+        if let Some(aviso) = &aviso {
+            resumo.avisos.push(Pulado {
+                caminho: caminho.to_owned(),
+                motivo: aviso.clone(),
             });
         }
-        registro.copia = Some(Copia {
-            caminho: relativo.as_str().to_owned(),
-            hash: hash(&bytes),
-            trechos_mascarados: trechos,
-        });
-        registros.insert(a.caminho_no_repositorio.clone(), registro);
-        copias.insert(relativo.as_str().to_owned());
+
+        let mut registro = Registro {
+            versao: a.versao.clone(),
+            tipo_original: None,
+            id_original: None,
+            pulado: None,
+            copia: None,
+            blocos: Vec::new(),
+            aviso,
+        };
+        for parte in partes {
+            let copia = copiar_parte(
+                projeto,
+                fonte,
+                a,
+                &parte,
+                &da_base,
+                &reaproveitavel,
+                link,
+                &mut nomes_sem_caixa,
+                &mut resumo,
+            )?;
+            if let Some(c) = &copia {
+                copias.insert(c.caminho.clone());
+            }
+            if parte.bloco() {
+                registro.blocos.push(RegistroBloco {
+                    versao: parte.versao,
+                    tipo_original: parte.tipo_original.unwrap_or_default(),
+                    id_original: parte.id_original.unwrap_or_default(),
+                    caminho_original: parte.caminho_original,
+                    ancora: parte.ancora,
+                    copia_em: parte.relativo.map(|r| r.as_str().to_owned()),
+                    pulado: parte.pulado,
+                    copia,
+                });
+            } else {
+                registro.tipo_original = parte.tipo_original;
+                registro.id_original = parte.id_original;
+                registro.pulado = parte.pulado;
+                registro.copia = copia;
+            }
+        }
+        registros.insert(caminho.to_owned(), registro);
     }
 
     resumo.removidos = apagar_sobras(projeto, &copias)?;
@@ -545,10 +701,226 @@ pub fn importar(
         ja_na_base: resumo.ja_na_base.clone(),
         pulados: resumo.pulados.clone(),
         mascarados: resumo.mascarados.clone(),
+        avisos: resumo.avisos.clone(),
         arquivos: registros,
     };
     estado.gravar(projeto)?;
     Ok(resumo)
+}
+
+/// Copia uma parte (ou reaproveita a cópia de antes) e devolve a cópia; `None`
+/// se ela não entra (pulada, já na base, nome repetido).
+#[allow(clippy::too_many_arguments)]
+fn copiar_parte(
+    projeto: &Projeto,
+    fonte: &Fonte,
+    a: &ArquivoExterno,
+    parte: &Parte,
+    da_base: &DaBase,
+    reaproveitavel: &dyn Fn(&Parte) -> Option<Copia>,
+    link: &dyn Fn(&str) -> Option<String>,
+    nomes_sem_caixa: &mut HashSet<String>,
+    resumo: &mut Importacao,
+) -> Resultado<Option<Copia>> {
+    let pular = |resumo: &mut Importacao, motivo: String| {
+        resumo.pulados.push(Pulado {
+            caminho: parte.rotulo.clone(),
+            motivo,
+        });
+    };
+    if let Some(motivo) = &parte.pulado {
+        pular(resumo, motivo.clone());
+        return Ok(None);
+    }
+    let Some(relativo) = &parte.relativo else {
+        pular(
+            resumo,
+            "identificador que não serve de nome de arquivo em todos os sistemas".into(),
+        );
+        return Ok(None);
+    };
+    if da_base.tem(parte) {
+        resumo.ja_na_base.push(parte.rotulo.clone());
+        return Ok(None);
+    }
+    if !nomes_sem_caixa.insert(relativo.as_str().to_lowercase()) {
+        pular(
+            resumo,
+            "outro arquivo tem o mesmo nome, só com maiúsculas diferentes".into(),
+        );
+        return Ok(None);
+    }
+    if let Some(c) = reaproveitavel(parte) {
+        if c.trechos_mascarados > 0 {
+            resumo.mascarados.push(Mascarado {
+                caminho: parte.rotulo.clone(),
+                trechos: c.trechos_mascarados,
+            });
+        }
+        resumo.inalterados += 1;
+        return Ok(Some(c));
+    }
+    let Some(texto) = &parte.texto else {
+        // Não acontece: sem cópia aproveitável, o arquivo é lido.
+        pular(resumo, "conteúdo não lido".into());
+        return Ok(None);
+    };
+    let url = link(&a.caminho_no_repositorio).map(|u| match &parte.ancora {
+        Some(ancora) => format!("{u}#{ancora}"),
+        None => u,
+    });
+    let origem = OrigemExterna {
+        repositorio: fonte.repositorio.clone(),
+        caminho: a.caminho_no_repositorio.clone(),
+        commit: fonte.commit.clone(),
+        branch: Some(fonte.branch.clone()).filter(|b| !b.is_empty()),
+        ancora: parte.ancora.clone(),
+        url,
+    };
+    let montado = match texto {
+        Texto::Inteiro(t) => montar_copia(origem, a, t, parte),
+        Texto::Bloco(b) => montar_bloco(origem, b, parte),
+    };
+    let (bytes, trechos) = montado.map_err(|erro| Erro::Frontmatter {
+        arquivo: projeto.na_base(relativo),
+        erro,
+    })?;
+    let destino = projeto.caminho(relativo);
+    let existia = destino.exists();
+    arquivo::gravar(&destino, &bytes).map_err(|erro| projeto.erro_io(relativo, erro))?;
+    if existia {
+        resumo.alterados += 1;
+    } else {
+        resumo.novos += 1;
+    }
+    if trechos > 0 {
+        resumo.mascarados.push(Mascarado {
+            caminho: parte.rotulo.clone(),
+            trechos,
+        });
+    }
+    Ok(Some(Copia {
+        caminho: relativo.as_str().to_owned(),
+        hash: hash(&bytes),
+        trechos_mascarados: trechos,
+    }))
+}
+
+/// As partes de um arquivo lido: um bloco por marcador ou, sem marcador (ou
+/// com marcador malformado, devolvido como aviso), o arquivo inteiro.
+fn recortar(
+    a: &ArquivoExterno,
+    relativo: &CaminhoRelativo,
+    pasta: &CaminhoRelativo,
+    texto: String,
+) -> (Vec<Parte>, Option<String>) {
+    let (blocos, aviso) = match marcador::blocos(&texto) {
+        Ok(b) => (b, None),
+        Err(e) => (
+            Vec::new(),
+            Some(format!(
+                "marcadores da documentação ilegíveis ({e}): a página entrou inteira, como \
+                 um documento só"
+            )),
+        ),
+    };
+    if blocos.is_empty() {
+        let lido = identificar(&texto);
+        return (
+            vec![Parte {
+                rotulo: a.caminho_no_repositorio.clone(),
+                versao: a.versao.clone(),
+                tipo_original: lido.tipo_original,
+                id_original: lido.id_original,
+                caminho_original: None,
+                ancora: None,
+                relativo: Some(relativo.clone()),
+                pulado: sensivel::tem_chave_privada(&texto).then(|| CHAVE_PRIVADA.to_string()),
+                texto: Some(Texto::Inteiro(texto)),
+            }],
+            aviso,
+        );
+    }
+    let partes = blocos
+        .into_iter()
+        .map(|b| {
+            let m = &b.marcador;
+            let frontmatter = yaml_do_json(&m.metadados.frontmatter);
+            let id = frontmatter
+                .as_ref()
+                .and_then(identificador)
+                .unwrap_or_else(|| m.id.clone());
+            let ancora = b.ancora().map(str::to_owned);
+            let rotulo = format!(
+                "{}#{}",
+                a.caminho_no_repositorio,
+                ancora.clone().unwrap_or_else(|| id.clone())
+            );
+            let versao = hash(format!("{}\n{}", m.abertura(), b.conteudo).as_bytes());
+            let pulado =
+                sensivel::tem_chave_privada(&b.conteudo).then(|| CHAVE_PRIVADA.to_string());
+            Parte {
+                rotulo,
+                versao,
+                tipo_original: Some(m.tipo.clone()),
+                id_original: Some(id),
+                caminho_original: Some(m.metadados.caminho.clone()),
+                relativo: caminho_do_bloco(pasta, &a.caminho, &m.tipo, &m.id),
+                ancora,
+                pulado,
+                texto: Some(Texto::Bloco(b)),
+            }
+        })
+        .collect();
+    (partes, aviso)
+}
+
+/// `externos/<repositório>/<página sem .md>/<tipo>-<id>.md`: estável enquanto o
+/// documento ficar na mesma página, para a importação seguinte reconhecer a
+/// cópia (e apagá-la quando o bloco sair da página).
+fn caminho_do_bloco(
+    pasta: &CaminhoRelativo,
+    pagina: &str,
+    tipo: &str,
+    id: &str,
+) -> Option<CaminhoRelativo> {
+    let sem_extensao = pagina.get(..pagina.len().checked_sub(3)?)?;
+    let id: String = id
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() || matches!(c, '-' | '_' | '.') {
+                c
+            } else {
+                '-'
+            }
+        })
+        .collect();
+    caminho_da_copia(pasta, &format!("{sem_extensao}/{tipo}-{id}.md"))
+}
+
+/// O frontmatter do marcador (JSON) como YAML; `None` se não for um objeto.
+fn yaml_do_json(json: &serde_json::Value) -> Option<Mapping> {
+    match serde_norway::to_value(json).ok()? {
+        Value::Mapping(m) => Some(m),
+        _ => None,
+    }
+}
+
+/// Mascara os textos de um valor YAML; devolve quantos trechos.
+fn mascarar_yaml(valor: &mut Value) -> u32 {
+    match valor {
+        Value::String(s) => {
+            let (mascarado, n) = sensivel::mascarar(s);
+            if n > 0 {
+                *s = mascarado;
+            }
+            n
+        }
+        Value::Sequence(itens) => itens.iter_mut().map(mascarar_yaml).sum(),
+        Value::Mapping(m) => m.values_mut().map(mascarar_yaml).sum(),
+        Value::Tagged(t) => mascarar_yaml(&mut t.value),
+        _ => 0,
+    }
 }
 
 enum Pulo {
@@ -563,14 +935,7 @@ fn ler_texto(
     ler: &mut dyn FnMut(&ArquivoExterno) -> Result<Vec<u8>, String>,
 ) -> Result<String, Pulo> {
     let bytes = ler(a).map_err(|e| Pulo::Leitura(format!("não foi possível ler: {e}")))?;
-    let texto = String::from_utf8(bytes)
-        .map_err(|_| Pulo::Conteudo("o arquivo não está em UTF-8".into()))?;
-    if sensivel::tem_chave_privada(&texto) {
-        return Err(Pulo::Conteudo(
-            "possível segredo: traz uma chave privada".into(),
-        ));
-    }
-    Ok(texto)
+    String::from_utf8(bytes).map_err(|_| Pulo::Conteudo("o arquivo não está em UTF-8".into()))
 }
 
 /// `tipo` conhecido e `id` (ou `termo`) do frontmatter do original, se houver.
@@ -605,14 +970,18 @@ fn identificador(mapa: &Mapping) -> Option<String> {
     texto_de(mapa, "id").or_else(|| texto_de(mapa, "termo"))
 }
 
-/// `(tipo, id)` dos documentos da base do projeto (fora de `externos/`).
-fn identificadores_da_base(projeto: &Projeto) -> Resultado<HashSet<(String, String)>> {
+/// `(tipo, id)` e `(tipo, caminho)` dos documentos da base do projeto (fora de
+/// `externos/`).
+fn identificadores_da_base(projeto: &Projeto) -> Resultado<DaBase> {
     let documentos = match projeto.documentos() {
         Ok(d) => d,
         Err(Erro::Io { erro, .. }) if erro.kind() == io::ErrorKind::NotFound => Vec::new(),
         Err(e) => return Err(e),
     };
-    let mut saida = HashSet::new();
+    let mut saida = DaBase {
+        ids: HashSet::new(),
+        caminhos: HashSet::new(),
+    };
     for relativo in documentos {
         if layout::e_externo(&relativo) {
             continue;
@@ -623,10 +992,14 @@ fn identificadores_da_base(projeto: &Projeto) -> Resultado<HashSet<(String, Stri
         let Ok(doc) = Documento::<FrontmatterLivre>::analisar(&texto) else {
             continue;
         };
-        if let (Some(tipo), Some(id)) = (doc.frontmatter.tipo(), identificador(&doc.frontmatter.0))
-        {
-            saida.insert((tipo.como_str().to_owned(), id));
+        let Some(tipo) = doc.frontmatter.tipo() else {
+            continue;
+        };
+        let tipo = tipo.como_str().to_owned();
+        if let Some(id) = identificador(&doc.frontmatter.0) {
+            saida.ids.insert((tipo.clone(), id));
         }
+        saida.caminhos.insert((tipo, relativo.as_str().to_owned()));
     }
     Ok(saida)
 }
@@ -663,12 +1036,12 @@ fn caminho_da_copia(pasta: &CaminhoRelativo, caminho: &str) -> Option<CaminhoRel
     pasta.juntar(relativo.as_str()).ok()
 }
 
-/// O texto da cópia e quantos trechos foram mascarados.
+/// O texto da cópia de um arquivo inteiro e quantos trechos foram mascarados.
 fn montar_copia(
-    fonte: &Fonte,
+    origem: OrigemExterna,
     a: &ArquivoExterno,
     texto: &str,
-    lido: &Lido,
+    parte: &Parte,
 ) -> Result<(Vec<u8>, u32), crate::ErroFrontmatter> {
     let (texto, trechos) = sensivel::mascarar(texto);
     let (original, corpo) = match Documento::<FrontmatterLivre>::analisar(&texto) {
@@ -677,11 +1050,7 @@ fn montar_copia(
     };
     let titulo = original
         .as_ref()
-        .and_then(|m| {
-            texto_de(m, "titulo")
-                .or_else(|| texto_de(m, "termo"))
-                .or_else(|| texto_de(m, "nome"))
-        })
+        .and_then(titulo_do_frontmatter)
         .or_else(|| primeiro_titulo(&corpo))
         .unwrap_or_else(|| {
             let nome = a.caminho.rsplit('/').next().unwrap_or(&a.caminho);
@@ -691,24 +1060,75 @@ fn montar_copia(
     let frontmatter = FrontmatterDocExterno {
         tipo: TipoDocumento::DocExterno,
         titulo,
-        origem: OrigemExterna {
-            repositorio: fonte.repositorio.clone(),
-            caminho: a.caminho_no_repositorio.clone(),
-            commit: fonte.commit.clone(),
-            branch: Some(fonte.branch.clone()).filter(|b| !b.is_empty()),
-        },
-        confianca: if lido.tipo_original.is_some() {
+        origem,
+        confianca: if parte.tipo_original.is_some() {
             Confianca::Publicada
         } else {
             Confianca::Externa
         },
-        tipo_original: lido.tipo_original.clone(),
-        id_original: lido.id_original.clone(),
+        tipo_original: parte.tipo_original.clone(),
+        id_original: parte.id_original.clone(),
         trechos_mascarados: trechos,
         frontmatter_original: original.filter(|m| !m.is_empty()),
     };
     let texto = Documento::novo(frontmatter, corpo).para_texto()?;
     Ok((texto.into_bytes(), trechos))
+}
+
+/// O texto da cópia de um bloco recortado de uma página: o frontmatter do
+/// marcador vira o `frontmatter_original` e o texto legível do bloco (sem a
+/// linha da âncora), o corpo. Os dois saem mascarados.
+fn montar_bloco(
+    origem: OrigemExterna,
+    bloco: &Bloco,
+    parte: &Parte,
+) -> Result<(Vec<u8>, u32), crate::ErroFrontmatter> {
+    let mut original = yaml_do_json(&bloco.marcador.metadados.frontmatter);
+    let mut trechos: u32 = original
+        .as_mut()
+        .map(|m| m.values_mut().map(mascarar_yaml).sum())
+        .unwrap_or(0);
+    let corpo = corpo_do_bloco(bloco);
+    let (corpo, n) = sensivel::mascarar(&corpo);
+    trechos += n;
+    let titulo = original
+        .as_ref()
+        .and_then(titulo_do_frontmatter)
+        .or_else(|| primeiro_titulo(&corpo))
+        .or_else(|| parte.id_original.clone())
+        .unwrap_or_else(|| bloco.marcador.id.clone());
+    let frontmatter = FrontmatterDocExterno {
+        tipo: TipoDocumento::DocExterno,
+        titulo,
+        origem,
+        confianca: Confianca::Publicada,
+        tipo_original: parte.tipo_original.clone(),
+        id_original: parte.id_original.clone(),
+        trechos_mascarados: trechos,
+        frontmatter_original: original.filter(|m| !m.is_empty()),
+    };
+    let texto = Documento::novo(frontmatter, format!("\n{corpo}\n")).para_texto()?;
+    Ok((texto.into_bytes(), trechos))
+}
+
+/// O texto legível do bloco, sem a linha da âncora (`<a id="..."></a>`).
+fn corpo_do_bloco(bloco: &Bloco) -> String {
+    let mut linhas = bloco
+        .conteudo
+        .lines()
+        .skip_while(|l| l.trim().is_empty())
+        .peekable();
+    if bloco.ancora().is_some() {
+        linhas.next();
+    }
+    let corpo: Vec<&str> = linhas.collect();
+    corpo.join("\n").trim().to_owned()
+}
+
+fn titulo_do_frontmatter(m: &Mapping) -> Option<String> {
+    texto_de(m, "titulo")
+        .or_else(|| texto_de(m, "termo"))
+        .or_else(|| texto_de(m, "nome"))
 }
 
 fn primeiro_titulo(corpo: &str) -> Option<String> {

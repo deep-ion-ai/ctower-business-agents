@@ -447,8 +447,26 @@ mod com_git {
         );
         let s = sincronizar(&b, &f).unwrap();
         assert_eq!(s.fonte.commit, commit);
-        // Os documentos publicados e o leia-me; o manifesto não é `.md`.
-        assert_eq!(s.importacao.novos, novos.len() + 1, "{:?}", s.importacao);
+        // As páginas recortadas pelos marcadores (#290): um documento externo
+        // por bloco; a página sem marcador (README, índices) entra inteira. Mais
+        // o leia-me; o manifesto não é `.md`.
+        let pasta = clone_b.join(&esperada.subpasta);
+        let (mut blocos, mut sem_marcador) = (0, 0);
+        for pagina in novos.iter().filter(|p| p.ends_with(".md")) {
+            let texto = std::fs::read_to_string(pasta.join(pagina)).unwrap();
+            match cba_kb::marcador::blocos(&texto).unwrap().len() {
+                0 => sem_marcador += 1,
+                n => blocos += n,
+            }
+        }
+        assert!(blocos >= 3, "{blocos}");
+        assert_eq!(
+            s.importacao.novos,
+            blocos + sem_marcador + 1,
+            "{:?}",
+            s.importacao
+        );
+        assert!(s.importacao.avisos.is_empty(), "{:?}", s.importacao);
 
         // O agente consulta a documentação publicada como faria na segunda
         // análise; a resposta, numa transcrição, conta como uso.
@@ -479,17 +497,17 @@ mod com_git {
         let uso = uso_da_documentacao(&transcricao, &esperada.repositorio, &commit);
         assert!(uso.usada() && uso.fonte_citada, "{uso:?}");
 
-        // Na base A, que publicou. Provisório até a #290 (importação pelos
-        // marcadores): as páginas legíveis (#289) não têm o frontmatter dos
-        // documentos, e a sincronização ainda não reconhece nelas o que a base
-        // já tem; com a #290, volta a ser só o leia-me.
+        // Na base A, que publicou: nenhum bloco dela mesma entra (dedup por
+        // tipo+id, #290); só o leia-me e as páginas sem marcador (README,
+        // índices).
         let mut a2 = a.clone();
         a2.projeto.repositorios = destino(esperada, &remoto, &clone_a);
         let s = sincronizar(&a2, &f).unwrap();
+        assert_eq!(s.importacao.ja_na_base.len(), blocos, "{:?}", s.importacao);
         assert_eq!(
             s.importacao.novos,
-            novos.len() + 1,
-            "as páginas e o leia-me: {:?}",
+            sem_marcador + 1,
+            "o leia-me e as páginas sem marcador: {:?}",
             s.importacao
         );
     }

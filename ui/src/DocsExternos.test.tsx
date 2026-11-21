@@ -84,4 +84,23 @@ describe("documentação externa (#277)", () => {
     expect(screen.getByText(/1 documento externo/)).toBeInTheDocument();
     expect(screen.getByText("1 arquivo pulado")).toBeInTheDocument();
   });
+
+  it("página com marcadores ilegíveis aparece como importada inteira", async () => {
+    const api = apiConfiguracoesFalsa();
+    api.situacaoDocsExternos.mockResolvedValue({
+      ...situacaoDocsFicticia(),
+      importados: 1,
+      avisos: [
+        {
+          caminho: "docs/negocio/glossario.md",
+          motivo: "marcadores da documentação ilegíveis (bloco termo:multa sem fechamento)",
+        },
+      ],
+    });
+    render(<SincronizacaoDocs api={api} projeto={PROJETO} />);
+    expect(
+      await screen.findByText("1 página importada inteira (marcadores ilegíveis)"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("docs/negocio/glossario.md")).toBeInTheDocument();
+  });
 });

@@ -237,6 +237,28 @@ externa rotulada:
   vira regra nem termo e fica fora da busca padrão do índice (`Externos::Excluir`); a tela da base
   o mostra com o rótulo da origem e o filtro "Externos".
 
+#### Páginas da documentação legível (#290)
+
+As páginas geradas pela #288 juntam vários documentos (as regras de uma funcionalidade, o
+glossário). A sincronização as recorta pelos marcadores (`<!-- cba:<tipo> id=<id> {...} -->` …
+`<!-- /cba -->`, módulo `cba_kb::marcador`):
+
+- **Um documento externo por bloco**, em
+  `externos/<repositório>/<página sem .md>/<tipo>-<id>.md`, com o `tipo` e o `id` do marcador, o
+  frontmatter original (o do marcador) e o texto legível do bloco como corpo. A origem aponta para o
+  trecho: caminho da página com a âncora (`…/f-cob-001-cobrar-multa.md#rn-cob-001`) e o link na
+  forja no commit sincronizado; o `conhecimento` mostra os dois. O texto fora dos blocos (cabeçalho,
+  índice) não vira documento.
+- **Por bloco**: bloco que mudou é regravado (o que não mudou fica com a cópia e o commit de antes),
+  bloco que saiu da página sai da base; mascaramento e chave privada valem por bloco; o bloco cujo
+  `tipo` e `id` (ou, sem `id`, como no negocial, o caminho na base de origem) esta base já tem não é
+  copiado.
+- **Sem marcador** (README, documentação escrita à mão) ou no **formato antigo** (um `.md` por
+  documento, com frontmatter): um documento externo por arquivo, como antes. Quando o repositório
+  passa ao formato novo, as cópias antigas saem na sincronização seguinte.
+- **Marcador malformado** (sem fechamento, aninhado, metadados ilegíveis): a página entra inteira,
+  como um documento só, e o cartão do destino mostra o aviso. A sincronização não falha.
+
 ### Consulta pelos agentes (#278)
 
 Os agentes consultam a documentação publicada como pista, sob demanda, sem que ela substitua a

@@ -152,8 +152,8 @@ impl Resultado {
 }
 
 /// Colunas da origem externa (com `LEFT JOIN origem_externa o`).
-const COLUNAS_DA_ORIGEM: &str =
-    "o.repositorio, o.caminho, o.commit_, o.branch, o.confianca, o.tipo_original, o.id_original";
+const COLUNAS_DA_ORIGEM: &str = "o.repositorio, o.caminho, o.commit_, o.branch, o.confianca, o.tipo_original, o.id_original, \
+     o.ancora, o.url";
 
 fn origem(l: &rusqlite::Row<'_>, i: usize) -> rusqlite::Result<Option<OrigemIndexada>> {
     let Some(repositorio) = l.get::<_, Option<String>>(i)? else {
@@ -171,6 +171,8 @@ fn origem(l: &rusqlite::Row<'_>, i: usize) -> rusqlite::Result<Option<OrigemInde
         confianca,
         tipo_original: l.get(i + 5)?,
         id_original: l.get(i + 6)?,
+        ancora: l.get(i + 7)?,
+        url: l.get(i + 8)?,
     }))
 }
 

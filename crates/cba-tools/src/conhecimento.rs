@@ -67,10 +67,17 @@ fn externos_do_argumento(nome: Option<&str>) -> Externos {
 
 /// Origem de um documento externo numa linha: repositório, commit curto e
 /// confiança (`GitHub exemplo/faturamento-docs @ c0ffee1, confiança publicada`).
+/// O trecho recortado de uma página publicada (#290) leva também o caminho com
+/// a âncora (`..., trecho docs/funcionalidades/cobranca/f-cob-001.md#rn-cob-001`).
 pub(crate) fn rotulo_da_origem(o: &OrigemIndexada) -> String {
     let commit: String = o.commit.chars().take(7).collect();
+    let trecho = if o.ancora.is_some() {
+        format!(", trecho {}", o.caminho_com_ancora())
+    } else {
+        String::new()
+    };
     format!(
-        "{} @ {commit}, confiança {}",
+        "{} @ {commit}, confiança {}{trecho}",
         o.repositorio,
         o.confianca.como_str()
     )
@@ -86,6 +93,8 @@ pub(crate) fn origem_json(o: &OrigemIndexada) -> Value {
         "confianca": o.confianca.como_str(),
         "tipo_original": o.tipo_original,
         "id_original": o.id_original,
+        "ancora": o.ancora,
+        "url": o.url,
     })
 }
 
@@ -255,6 +264,9 @@ fn item_externo(r: &Resultado, o: &OrigemIndexada) -> Item {
         r.titulo,
         r.caminho
     );
+    if let Some(url) = &o.url {
+        let _ = write!(linha, "\n  {url}");
+    }
     if !r.trecho.is_empty() {
         let _ = write!(linha, "\n  {}", r.trecho);
     }
@@ -357,5 +369,70 @@ fn resposta(
     Saida {
         texto,
         dados: Some(dados),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cba_kb::frontmatter::Confianca;
+
+    fn origem(ancora: Option<&str>) -> OrigemIndexada {
+        OrigemIndexada {
+            repositorio: "GitHub exemplo/faturamento-docs".into(),
+            caminho: "docs/funcionalidades/cobranca/f-cob-001.md".into(),
+            commit: "c0ffee1234567890".into(),
+            branch: Some("main".into()),
+            confianca: Confianca::Publicada,
+            tipo_original: Some("regra".into()),
+            id_original: Some("RN-COB-001".into()),
+            ancora: ancora.map(str::to_owned),
+            url: ancora.map(|a| {
+                format!(
+                    "https://github.com/exemplo/faturamento-docs/blob/c0ffee1234567890/docs/\
+                     funcionalidades/cobranca/f-cob-001.md#{a}"
+                )
+            }),
+        }
+    }
+
+    #[test]
+    fn rotulo_aponta_para_a_ancora_do_trecho() {
+        assert_eq!(
+            rotulo_da_origem(&origem(None)),
+            "GitHub exemplo/faturamento-docs @ c0ffee1, confiança publicada"
+        );
+        assert_eq!(
+            rotulo_da_origem(&origem(Some("rn-cob-001"))),
+            "GitHub exemplo/faturamento-docs @ c0ffee1, confiança publicada, trecho \
+             docs/funcionalidades/cobranca/f-cob-001.md#rn-cob-001"
+        );
+        let r = Resultado {
+            caminho: cba_kb::CaminhoRelativo::novo("p/externos/x/regra-RN-COB-001.md").unwrap(),
+            projeto: "p".into(),
+            tipo: None,
+            identificador: None,
+            titulo: "Multa".into(),
+            area: None,
+            status: None,
+            trecho: String::new(),
+            relevancia: 0.0,
+            externo: Some(origem(Some("rn-cob-001"))),
+        };
+        let item = item_externo(&r, r.externo.as_ref().unwrap());
+        assert!(
+            item.linha.contains("f-cob-001.md#rn-cob-001): Multa"),
+            "{}",
+            item.linha
+        );
+        assert!(
+            item.linha.contains(
+                "regra-RN-COB-001.md`\n  https://github.com/exemplo/faturamento-docs/blob/\
+                 c0ffee1234567890/docs/funcionalidades/cobranca/f-cob-001.md#rn-cob-001"
+            ),
+            "{}",
+            item.linha
+        );
+        assert_eq!(item.dados["origem"]["ancora"], "rn-cob-001");
     }
 }
