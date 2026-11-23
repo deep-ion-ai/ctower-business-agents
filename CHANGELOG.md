@@ -1,5 +1,84 @@
 # Changelog
 
+## [0.6.0](https://github.com/deep-ion-ai/ctower-business-agents/compare/v0.5.0...v0.6.0) (2026-11-23)
+
+
+### Features
+
+* **docs:** gerar a documentação legível com índice, páginas por funcionalidade e permalinks ([06d4e5a](https://github.com/deep-ion-ai/ctower-business-agents/commit/06d4e5a9a20f641158cca726265efbfb9b9d44a5))
+* **docs:** gerar a documentação legível com índice, páginas por funcionalidade e permalinks ([#288](https://github.com/deep-ion-ai/ctower-business-agents/issues/288)) ([e95e18d](https://github.com/deep-ion-ai/ctower-business-agents/commit/e95e18ddfe1a96fa8d482b8f3d15b50e5c258b28))
+* **docs:** publicar as páginas legíveis com prévia por documento ([41e8b4b](https://github.com/deep-ion-ai/ctower-business-agents/commit/41e8b4bccaba200c8cb831db0afd64543f663e34))
+* **docs:** publicar as páginas legíveis com prévia por documento ([#289](https://github.com/deep-ion-ai/ctower-business-agents/issues/289)) ([844903c](https://github.com/deep-ion-ai/ctower-business-agents/commit/844903cd2f68f632921e572e9c1eda43ab9b20dd))
+* **docs:** publicar os documentos aprovados no repositório ([2d4caba](https://github.com/deep-ion-ai/ctower-business-agents/commit/2d4cabad3703bec758bae8898d1bae45af840656))
+* **docs:** publicar os documentos aprovados no repositório ([65d48c1](https://github.com/deep-ion-ai/ctower-business-agents/commit/65d48c19ac6077aeb2494f05e42a6c83a21519ef)), closes [#276](https://github.com/deep-ion-ai/ctower-business-agents/issues/276)
+* exportação em HTML com template e tokens CSS configuráveis ([#166](https://github.com/deep-ion-ai/ctower-business-agents/issues/166)) ([b877842](https://github.com/deep-ion-ai/ctower-business-agents/commit/b877842c767b6dce2370ff4cf6cca2f69bfffd8f))
+* **fluxos:** dados pessoais (LGPD) e requisitos não funcionais na análise de impacto ([#264](https://github.com/deep-ion-ai/ctower-business-agents/issues/264)) ([af2a5b0](https://github.com/deep-ion-ai/ctower-business-agents/commit/af2a5b00c8458201e0234a3ce8d5583b525717ed))
+* **fluxos:** fluxo mapear e catálogo de funcionalidades com IDs estáveis ([#208](https://github.com/deep-ion-ai/ctower-business-agents/issues/208)) ([76b4751](https://github.com/deep-ion-ai/ctower-business-agents/commit/76b47511b3bef310dac37b138d42aac073e13590))
+* **fluxos:** mapa de funcionalidades do projeto a partir do código ([#208](https://github.com/deep-ion-ai/ctower-business-agents/issues/208)) ([534d900](https://github.com/deep-ion-ai/ctower-business-agents/commit/534d900329f23736e20878d6d98117df356a63cd))
+* **index:** pontos de entrada do projeto a partir do mapa estrutural ([#208](https://github.com/deep-ion-ai/ctower-business-agents/issues/208)) ([02e4582](https://github.com/deep-ion-ai/ctower-business-agents/commit/02e4582d04a2d2a1878a9c814fe32da493e7a1bd))
+* **kb:** importar as páginas publicadas recortando pelos marcadores ([de1412f](https://github.com/deep-ion-ai/ctower-business-agents/commit/de1412f8d4c07a4f1e85be492994ff5e57dcf4eb))
+* **kb:** importar as páginas publicadas recortando pelos marcadores ([#290](https://github.com/deep-ion-ai/ctower-business-agents/issues/290)) ([0ceaa17](https://github.com/deep-ion-ai/ctower-business-agents/commit/0ceaa172a591ddb49cfb22d46328d16c6d2d5b44))
+* **kb:** ligar regras, termos e análises às funcionalidades do mapa ([daebf90](https://github.com/deep-ion-ai/ctower-business-agents/commit/daebf90d5274e40dec261c7870d9c3bb2556df91))
+* **kb:** ligar regras, termos e análises às funcionalidades do mapa ([#287](https://github.com/deep-ion-ai/ctower-business-agents/issues/287)) ([3f63953](https://github.com/deep-ion-ai/ctower-business-agents/commit/3f6395375d133e42fd81abc6dea5ac453530bd10))
+* **kb:** relatório do que mudou no código desde a última análise ([#266](https://github.com/deep-ion-ai/ctower-business-agents/issues/266)) ([6486c58](https://github.com/deep-ion-ai/ctower-business-agents/commit/6486c5800e28b82304a92078119a9cb2ff4c5743))
+* **kb:** sincronizar o repositório de docs e indexá-lo como fonte rotulada ([7129424](https://github.com/deep-ion-ai/ctower-business-agents/commit/7129424a18ca6557646117020138198325bada5f))
+* **kb:** sincronizar o repositório de docs e indexá-lo como fonte rotulada ([bd7d03b](https://github.com/deep-ion-ai/ctower-business-agents/commit/bd7d03b45e01e806f846e81982b3d58adaf92fd7))
+* mapa de funcionalidades e evolução da base de conhecimento ([#259](https://github.com/deep-ion-ai/ctower-business-agents/issues/259)) ([b8dd4cd](https://github.com/deep-ion-ai/ctower-business-agents/commit/b8dd4cd37586b09b76803ca7fb84a41b30a4f17f))
+* **mapa:** a árvore abre a página só da funcionalidade escolhida ([#208](https://github.com/deep-ion-ai/ctower-business-agents/issues/208)) ([84b36b9](https://github.com/deep-ion-ai/ctower-business-agents/commit/84b36b9bc933a35ef531156e90f7b66335c7cb79))
+* **mapa:** árvore lateral para navegar entre as áreas e as funcionalidades ([#208](https://github.com/deep-ion-ai/ctower-business-agents/issues/208)) ([33829f5](https://github.com/deep-ion-ai/ctower-business-agents/commit/33829f5db9300282ff4b3ffb1431d4b2ad24095f))
+* **mapa:** casar endpoints com tolerância e tratar pontos de entrada em lote ([#256](https://github.com/deep-ion-ai/ctower-business-agents/issues/256)) ([#262](https://github.com/deep-ion-ai/ctower-business-agents/issues/262)) ([8392685](https://github.com/deep-ion-ai/ctower-business-agents/commit/8392685b253599b5ab29440b738fde8a4094a51c))
+* **mapa:** demandas ligadas com link da issue no painel e no mapa.md ([#270](https://github.com/deep-ion-ai/ctower-business-agents/issues/270)) ([bee178b](https://github.com/deep-ion-ai/ctower-business-agents/commit/bee178bfecaa195135be393c874c07706a579784))
+* **mapa:** explicação ligada à funcionalidade, com link na tela e sem segunda explicação ([#208](https://github.com/deep-ion-ai/ctower-business-agents/issues/208)) ([a889b54](https://github.com/deep-ion-ai/ctower-business-agents/commit/a889b54b188d412413fe73c0f98796f4048c5f79))
+* **mapa:** justificar issue sem funcionalidade ([#270](https://github.com/deep-ion-ai/ctower-business-agents/issues/270)) ([f19dc41](https://github.com/deep-ion-ai/ctower-business-agents/commit/f19dc411f29b2f299f008ededfb092a715c76912))
+* **mapa:** marca como confirmada a issue já vinculada ([#270](https://github.com/deep-ion-ai/ctower-business-agents/issues/270)) ([0d174ef](https://github.com/deep-ion-ai/ctower-business-agents/commit/0d174ef009d7108ed814f59b1723daf74a18b99b))
+* **mapa:** modal para escolher várias funcionalidades, com busca e árvore por área ([#270](https://github.com/deep-ion-ai/ctower-business-agents/issues/270)) ([98cbef9](https://github.com/deep-ion-ai/ctower-business-agents/commit/98cbef9c087e0cb777a1353348c0e7d07a084496))
+* **mapa:** opção no topo para mostrar as evidências de código, desligada por padrão ([#208](https://github.com/deep-ion-ai/ctower-business-agents/issues/208)) ([6dca244](https://github.com/deep-ion-ai/ctower-business-agents/commit/6dca2444058800edf831e1e94edf0965e24ac544))
+* **mapa:** painel da funcionalidade com análises, demandas, regras e pendências ([#208](https://github.com/deep-ion-ai/ctower-business-agents/issues/208)) ([5bc5c22](https://github.com/deep-ion-ai/ctower-business-agents/commit/5bc5c225ca40c3097beecc833fb1719a87f7c3d4))
+* **mapa:** pontos de entrada só aparecem com a opção de evidências de código ligada ([#208](https://github.com/deep-ion-ai/ctower-business-agents/issues/208)) ([d6345a2](https://github.com/deep-ion-ai/ctower-business-agents/commit/d6345a2600e0f736fa7a695d2a84c35f579845e9))
+* **mapa:** regra no painel com ID e título na primeira linha e o enunciado abaixo ([#208](https://github.com/deep-ion-ai/ctower-business-agents/issues/208)) ([25d09de](https://github.com/deep-ion-ai/ctower-business-agents/commit/25d09de77f0e471eee580b01a4316ccca8bbb859))
+* **mapa:** sugere a funcionalidade das issues e confirma o vínculo às demandas ([#270](https://github.com/deep-ion-ai/ctower-business-agents/issues/270)) ([13a73f8](https://github.com/deep-ion-ai/ctower-business-agents/commit/13a73f8d2d5a6267146804a15f81c367607836a6))
+* **mapa:** sugestão de vínculo com IA em lote, por propor_vinculo_de_issue ([#270](https://github.com/deep-ion-ai/ctower-business-agents/issues/270)) ([d9ddc11](https://github.com/deep-ion-ai/ctower-business-agents/commit/d9ddc117e4bbe42b9c8bb351e8c0e151d4b85ecd))
+* **mapa:** sugestão usa os arquivos dos PRs que fecham a issue ([#270](https://github.com/deep-ion-ai/ctower-business-agents/issues/270)) ([aea4544](https://github.com/deep-ion-ai/ctower-business-agents/commit/aea454481ab913ed74e9bf096ab0e70d6f0294ab))
+* **mapa:** tela Vincular demandas com leitura, sugestão e confirmação em lote ([#270](https://github.com/deep-ion-ai/ctower-business-agents/issues/270)) ([c913e35](https://github.com/deep-ion-ai/ctower-business-agents/commit/c913e35654567d537c420a5b310385271231bcfc))
+* **mapa:** título da demanda na modal de funcionalidades ([#270](https://github.com/deep-ion-ai/ctower-business-agents/issues/270)) ([e444c4b](https://github.com/deep-ion-ai/ctower-business-agents/commit/e444c4b64e7e968fae88c7d7e29c593643eec35f))
+* **mapa:** UX da tela Vincular demandas com ícones, progresso e chips de situação ([#270](https://github.com/deep-ion-ai/ctower-business-agents/issues/270)) ([eddc64e](https://github.com/deep-ion-ai/ctower-business-agents/commit/eddc64eb2c01077892f389a4f687542538b04025))
+* **mapa:** vincular as issues do GitHub e do Jira às funcionalidades ([#270](https://github.com/deep-ion-ai/ctower-business-agents/issues/270)) ([b195d3a](https://github.com/deep-ion-ai/ctower-business-agents/commit/b195d3afedded3e6b1ed3dd24ac277985e8d78d0))
+* **mapa:** Vincular demandas em aba própria, ao lado do mapa ([#270](https://github.com/deep-ion-ai/ctower-business-agents/issues/270)) ([8f4bc3a](https://github.com/deep-ion-ai/ctower-business-agents/commit/8f4bc3ad394512a33e1394ae85459335ef95a0a9))
+* **mapa:** Vincular demandas volta à última busca, com as escolhas e os filtros ([#270](https://github.com/deep-ion-ai/ctower-business-agents/issues/270)) ([088fd07](https://github.com/deep-ion-ai/ctower-business-agents/commit/088fd07e4ee8c8de2a97cec33b2a9675de3f8f9f))
+* publicar a documentação em repositório e reutilizá-la nas análises ([#273](https://github.com/deep-ion-ai/ctower-business-agents/issues/273)) ([ae2bf0e](https://github.com/deep-ion-ai/ctower-business-agents/commit/ae2bf0eb46faf626cbff5b44bb57c56cfb76b04b))
+* **repos:** cadastrar o destino da documentação no projeto ([02de0d7](https://github.com/deep-ion-ai/ctower-business-agents/commit/02de0d7904718bb81ad1f8c74a8e95996ff5826a))
+* **repos:** cadastrar o destino da documentação no projeto ([ef03a31](https://github.com/deep-ion-ai/ctower-business-agents/commit/ef03a31961824abb7ba35b021948f9ec420635da)), closes [#274](https://github.com/deep-ion-ai/ctower-business-agents/issues/274)
+* **repos:** gravar no repositório com branch própria e PR/MR ([03776ce](https://github.com/deep-ion-ai/ctower-business-agents/commit/03776ce67aaab0c9e7cbb95429c6153be6d92512))
+* **repos:** gravar no repositório com branch própria e PR/MR ([#275](https://github.com/deep-ion-ai/ctower-business-agents/issues/275)) ([96712b8](https://github.com/deep-ion-ai/ctower-business-agents/commit/96712b80b9cc53a173875b0d38f473ce88346d78))
+* **repos:** lista issues do GitHub e do Jira por período ([#270](https://github.com/deep-ion-ai/ctower-business-agents/issues/270)) ([5ca1c74](https://github.com/deep-ion-ai/ctower-business-agents/commit/5ca1c7435ed1c6f39ce9321f7ff1a34ffab3d9c7))
+* **revalidacao:** revalidar as evidências de histórias e cenários de teste ([#263](https://github.com/deep-ion-ai/ctower-business-agents/issues/263)) ([dcb9894](https://github.com/deep-ion-ai/ctower-business-agents/commit/dcb98948ecc6940161d9c4da2169163c96140843)), closes [#169](https://github.com/deep-ion-ai/ctower-business-agents/issues/169)
+* **tools:** agentes consultam a documentação publicada ([6a7c965](https://github.com/deep-ion-ai/ctower-business-agents/commit/6a7c965a461583b45bb37e4634e05a67a19ac397))
+* **tools:** agentes consultam a documentação publicada ([cd6fd57](https://github.com/deep-ion-ai/ctower-business-agents/commit/cd6fd57ac4584bea7dfaa49f22bb7d94f73215a7))
+* **ui:** mapa de cobertura da base e sugestão da próxima análise ([#125](https://github.com/deep-ion-ai/ctower-business-agents/issues/125)) ([#261](https://github.com/deep-ion-ai/ctower-business-agents/issues/261)) ([a03c463](https://github.com/deep-ion-ai/ctower-business-agents/commit/a03c463378735064dc8f16a0e66417cb921dea3f))
+* **ui:** mapear funcionalidades, revisão do mapa e catálogo na tela do projeto ([#208](https://github.com/deep-ion-ai/ctower-business-agents/issues/208)) ([7a48818](https://github.com/deep-ion-ai/ctower-business-agents/commit/7a48818774206464fbbb684fd62f2476fcf76869))
+
+
+### Bug Fixes
+
+* **avaliacao:** resposta de conhecimento em dados estruturados conta como uso da documentação publicada ([#279](https://github.com/deep-ion-ai/ctower-business-agents/issues/279)) ([c32f504](https://github.com/deep-ion-ai/ctower-business-agents/commit/c32f50420d847b295c8fd29ef8c70a8fba83d71a))
+* **mapa:** classes próprias no painel, sem herdar o estilo das listas antigas ([#208](https://github.com/deep-ion-ai/ctower-business-agents/issues/208)) ([363b1e1](https://github.com/deep-ion-ai/ctower-business-agents/commit/363b1e173116b799ceeac774dc00a159c2b381e7))
+* **mapa:** enunciado completo das regras no painel e coluna do ID sem quebra ([#208](https://github.com/deep-ion-ai/ctower-business-agents/issues/208)) ([6f612bb](https://github.com/deep-ion-ai/ctower-business-agents/commit/6f612bbb240162daa8fcd20223437c843b85b6b6))
+* **mapa:** largura própria e espaçamento da modal de funcionalidades ([#270](https://github.com/deep-ion-ai/ctower-business-agents/issues/270)) ([fbb2b44](https://github.com/deep-ion-ai/ctower-business-agents/commit/fbb2b44f3cb6d0c59f112e7ffaddf723c5063684))
+* **mapa:** pedido de vínculo com IA traz as funcionalidades abertas do mapa ([#270](https://github.com/deep-ion-ai/ctower-business-agents/issues/270)) ([c88d3f6](https://github.com/deep-ion-ai/ctower-business-agents/commit/c88d3f684f518540b34b1cb8e06b00b80c127264))
+* **mapa:** regra do painel alinhada à esquerda ([#208](https://github.com/deep-ion-ai/ctower-business-agents/issues/208)) ([1dccef2](https://github.com/deep-ion-ai/ctower-business-agents/commit/1dccef238b115262ca70bb1964e37eba81df3b02))
+* **mapa:** título da modal de funcionalidades no formato CHAVE - título ([#270](https://github.com/deep-ion-ai/ctower-business-agents/issues/270)) ([15e0d0f](https://github.com/deep-ion-ai/ctower-business-agents/commit/15e0d0f9fc64e45ed4444b52fc827fd5ee8aa6ae))
+* **repos:** converte a descrição do Jira de markup wiki para Markdown ([da0687b](https://github.com/deep-ion-ai/ctower-business-agents/commit/da0687b5692a1e8abdec965638cef999a82d48db))
+* **repos:** JQL da listagem do Jira sem ORDER BY próprio ([#270](https://github.com/deep-ion-ai/ctower-business-agents/issues/270)) ([78efb86](https://github.com/deep-ion-ai/ctower-business-agents/commit/78efb8682d0e7130e7ae20d5339ace6685a34018))
+* **repos:** lista issues do Jira em blocos de até 100 ([#270](https://github.com/deep-ion-ai/ctower-business-agents/issues/270)) ([80e3226](https://github.com/deep-ion-ai/ctower-business-agents/commit/80e3226d6410f939af6c065a5c4a8f2fa8a9832c))
+* **tools:** roteiros pedem um conceito por consulta à documentação publicada ([#291](https://github.com/deep-ion-ai/ctower-business-agents/issues/291)) ([bb381ef](https://github.com/deep-ion-ai/ctower-business-agents/commit/bb381ef06bf1741aef51f3c3f6b91c475a0741bd))
+* **ui:** confirmar antes de fechar a aba do mapa com a sessão do Claude viva ([#260](https://github.com/deep-ion-ai/ctower-business-agents/issues/260)) ([a143067](https://github.com/deep-ion-ai/ctower-business-agents/commit/a143067a9aa150fa5e40ffd1f0c7a1ce5fefcd66))
+* **ui:** layout do painel "Mapear com o Claude" na tela do mapa ([#268](https://github.com/deep-ion-ai/ctower-business-agents/issues/268)) ([#269](https://github.com/deep-ion-ai/ctower-business-agents/issues/269)) ([9b5f5c5](https://github.com/deep-ion-ai/ctower-business-agents/commit/9b5f5c5d5ed13ae2e6f29ea4a9c02c983c74d314))
+
+
+### Performance Improvements
+
+* **mapa:** confirmar vínculos não relê o rastreador ([#270](https://github.com/deep-ion-ai/ctower-business-agents/issues/270)) ([ae0698f](https://github.com/deep-ion-ai/ctower-business-agents/commit/ae0698f3e09de3a12a317b8af243f72bba9b957f))
+
 ## [0.5.0](https://github.com/deep-ion-ai/ctower-business-agents/compare/v0.4.0...v0.5.0) (2026-11-17)
 
 
