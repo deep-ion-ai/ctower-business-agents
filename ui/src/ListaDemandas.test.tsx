@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ListaDemandas } from "./ListaDemandas";
-import { PROJETO, apiConhecimentoFalsa } from "./test/conhecimentoFalso";
+import type { DemandaVista } from "./demandas";
+import { PROJETO, apiConhecimentoFalsa, demandasFicticias } from "./test/conhecimentoFalso";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(), Channel: vi.fn() }));
 
@@ -23,6 +24,39 @@ describe("ListaDemandas", () => {
 
     fireEvent.click(within(itens[0]).getByRole("button", { name: "D-0001: Parcelamento PJ" }));
     expect(navegar).toHaveBeenCalledWith({ tipo: "demanda", projeto: PROJETO, demanda: "D-0001" });
+  });
+
+  it("mostra o status conferido no rastreador, o aviso e atualiza sem o cache (#292)", async () => {
+    const [d1, d2] = demandasFicticias();
+    const conferidas: DemandaVista[] = [
+      {
+        ...d1,
+        status: "encerrada",
+        encerrado: "2026-11-20",
+        rastreador: {
+          estado: "encerrada",
+          conferido: "2026-11-23T14:05:00Z",
+          encerrado: "2026-11-20",
+        },
+        avisoRastreador: "rastreador inacessível (sem rede); fica o último estado conhecido",
+      },
+      d2,
+    ];
+    const falsa = apiConhecimentoFalsa();
+    falsa.api.listarDemandas = vi.fn(() => Promise.resolve(conferidas));
+    const { api } = montar(falsa);
+    const lista = await screen.findByRole("region", { name: "Demandas" });
+    const itens = await within(lista).findAllByRole("listitem");
+    expect(itens[0]).toHaveAttribute("data-status", "encerrada");
+    expect(within(itens[0]).getByText("encerrada em 2026-11-20")).toBeInTheDocument();
+    expect(within(itens[0]).getByText(/no rastreador: encerrada · conferido em/)).toBeInTheDocument();
+    expect(within(itens[0]).getByRole("status")).toHaveTextContent("sem rede");
+    // O estado vem do rastreador: sem encerrar ou reabrir à mão.
+    expect(within(itens[0]).queryByRole("button", { name: /Reabrir|Encerrar/ })).toBeNull();
+    expect(within(itens[1]).getByRole("button", { name: "Reabrir D-0002" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Atualizar status" }));
+    await waitFor(() => expect(api.atualizarStatusDemandas).toHaveBeenCalledWith(PROJETO));
   });
 
   it("encerra e reabre", async () => {

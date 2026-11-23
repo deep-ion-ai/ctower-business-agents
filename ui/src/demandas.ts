@@ -5,18 +5,37 @@ import type { Cliente, EstadoAnalise, EstadoSessao, Fluxo } from "./analise";
  * camelCase): a lista do projeto e o painel da demanda (#138).
  */
 export type StatusDemanda = "aberta" | "encerrada";
+/** Estado da issue no rastreador, normalizado (#292). */
+export type EstadoRastreador = "aberta" | "em-andamento" | "encerrada";
+
+/** Último estado conferido no rastreador. */
+export interface RastreadorVista {
+  estado: EstadoRastreador;
+  /** Última conferência (ISO 8601, UTC). */
+  conferido: string;
+  /** Data de fechamento no rastreador (`AAAA-MM-DD`). */
+  encerrado: string | null;
+}
 export type StatusAta = "rascunho" | "aprovada";
 
 export interface DemandaVista {
   /** `D-0001`. */
   id: string;
   titulo: string;
+  /** Status efetivo: o conferido no rastreador, quando há; senão, o local. */
   status: StatusDemanda;
+  /** Status gravado pelo analista (encerrar e reabrir). */
+  statusLocal: StatusDemanda;
+  /** Estado conferido no rastreador; `null` na demanda sem chave ou ainda não conferida. */
+  rastreador: RastreadorVista | null;
+  /** Rastreador inacessível ou issue não encontrada na última conferência. */
+  avisoRastreador: string | null;
   /** Chave no rastreador (`PROJ-123`). */
   chave: string | null;
   origem: string | null;
   /** `AAAA-MM-DD`. */
   criado: string;
+  /** Data de encerramento que acompanha o status efetivo. */
   encerrado: string | null;
   /** `demanda.md`, relativo à raiz da base. */
   documento: string;
@@ -102,6 +121,19 @@ export const ROTULO_STATUS_DEMANDA: Record<StatusDemanda, string> = {
   aberta: "aberta",
   encerrada: "encerrada",
 };
+
+export const ROTULO_ESTADO_RASTREADOR: Record<EstadoRastreador, string> = {
+  aberta: "aberta",
+  "em-andamento": "em andamento",
+  encerrada: "encerrada",
+};
+
+/** Data e hora locais da conferência (`23/11/2026 14:05`); o texto como veio, se ilegível. */
+export function quandoConferido(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+}
 
 export const ROTULO_STATUS_ATA: Record<StatusAta, string> = {
   rascunho: "rascunho",

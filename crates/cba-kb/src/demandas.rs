@@ -23,7 +23,8 @@ use crate::caminho::{CaminhoRelativo, slug};
 use crate::documento::Documento;
 use crate::erro::{Erro, Resultado};
 use crate::frontmatter::{
-    Data, ErroCampo, Frontmatter, FrontmatterDemanda, StatusDemanda, TipoDocumento,
+    Data, ErroCampo, EstadoNoRastreador, EstadoRastreador, Frontmatter, FrontmatterDemanda,
+    StatusDemanda, TipoDocumento,
 };
 use crate::id::IdDemanda;
 use crate::layout;
@@ -59,8 +60,30 @@ pub struct DemandaLida {
 }
 
 impl DemandaLida {
+    /// Aberta pelo status efetivo ([`DemandaLida::status_efetivo`]).
     pub fn aberta(&self) -> bool {
-        self.documento.frontmatter.status == StatusDemanda::Aberta
+        self.status_efetivo() == StatusDemanda::Aberta
+    }
+
+    /// O estado conferido no rastreador, quando há (em andamento conta como
+    /// aberta); sem ele, o status local do analista.
+    pub fn status_efetivo(&self) -> StatusDemanda {
+        let f = &self.documento.frontmatter;
+        match f.rastreador.as_ref().map(|r| r.estado) {
+            Some(EstadoRastreador::Encerrada) => StatusDemanda::Encerrada,
+            Some(_) => StatusDemanda::Aberta,
+            None => f.status,
+        }
+    }
+
+    /// Data de encerramento que acompanha o [`DemandaLida::status_efetivo`].
+    pub fn encerrado_efetivo(&self) -> Option<Data> {
+        let f = &self.documento.frontmatter;
+        match &f.rastreador {
+            Some(r) if r.estado == EstadoRastreador::Encerrada => r.encerrado,
+            Some(_) => None,
+            None => f.encerrado,
+        }
     }
 }
 
@@ -169,6 +192,7 @@ impl Projeto {
                     origem: texto_opcional(&nova.origem),
                     criado: hoje,
                     encerrado: None,
+                    rastreador: None,
                 },
                 corpo_inicial(nova),
             )
@@ -319,6 +343,31 @@ impl Projeto {
         self.mudar_status(id, |f| {
             f.status = StatusDemanda::Aberta;
             f.encerrado = None;
+        })
+    }
+
+    /// Grava o estado conferido no rastreador, sem mexer no `status` local. Só
+    /// regrava o arquivo quando o estado ou a data de encerramento mudam, ou
+    /// quando a conferência gravada é de outro dia (as datas comparadas são os
+    /// 10 primeiros caracteres de `conferido`), para não sujar a base a cada
+    /// conferência.
+    pub fn gravar_estado_no_rastreador(
+        &self,
+        id: IdDemanda,
+        estado: EstadoNoRastreador,
+    ) -> Resultado<DemandaLida> {
+        self.mudar_status(id, |f| {
+            let regravar = match &f.rastreador {
+                None => true,
+                Some(r) => {
+                    r.estado != estado.estado
+                        || r.encerrado != estado.encerrado
+                        || r.conferido.get(..10) != estado.conferido.get(..10)
+                }
+            };
+            if regravar {
+                f.rastreador = Some(estado);
+            }
         })
     }
 

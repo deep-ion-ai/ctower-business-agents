@@ -263,6 +263,8 @@ export interface ApiConhecimento extends ApiAmbiente {
   vigiarBase(aoMudar: () => void): Promise<() => void>;
   /** Demandas do projeto, as abertas primeiro. */
   listarDemandas(projeto: string): Promise<DemandaVista[]>;
+  /** Confere de novo o status de todas as demandas com o rastreador, sem cache (#292). */
+  atualizarStatusDemandas(projeto: string): Promise<DemandaVista[]>;
   criarDemanda(projeto: string, nova: NovaDemanda): Promise<DemandaVista>;
   encerrarDemanda(projeto: string, demanda: string): Promise<DemandaVista>;
   reabrirDemanda(projeto: string, demanda: string): Promise<DemandaVista>;
@@ -329,6 +331,7 @@ export const apiConhecimentoTauri: ApiConhecimento = {
     };
   },
   listarDemandas: (projeto) => invoke("listar_demandas_app", { projeto }),
+  atualizarStatusDemandas: (projeto) => invoke("atualizar_status_demandas_app", { projeto }),
   criarDemanda: (projeto, nova) =>
     invoke("criar_demanda_app", {
       projeto,

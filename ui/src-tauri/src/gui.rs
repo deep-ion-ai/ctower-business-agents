@@ -116,6 +116,7 @@ pub fn rodar() {
             projeto::mapa_projeto_app,
             projeto::mapear_projeto_app,
             demandas::listar_demandas_app,
+            demandas::atualizar_status_demandas_app,
             demandas::criar_demanda_app,
             demandas::encerrar_demanda_app,
             demandas::reabrir_demanda_app,
