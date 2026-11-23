@@ -6,7 +6,8 @@
 //!
 //! - **Markdown** ([`exportar_markdown`]): sem o frontmatter interno, com os links
 //!   para outros documentos da base trocados pelo texto do link (quem recebe não
-//!   tem a base), o selo de confiança e as evidências como notas de rodapé
+//!   tem a base; as imagens da base ficam, para quem exporta copiar os arquivos
+//!   ao lado), o selo de confiança e as evidências como notas de rodapé
 //!   `[^n]` com `arquivo:linhas`, e, se houver de onde ler o código, um apêndice
 //!   com os trechos citados.
 //! - **Word** ([`exportar_word`]): o mesmo conteúdo num `.docx` com estilos
@@ -446,22 +447,22 @@ fn limpar(corpo: &str, opcoes: &OpcoesExportacao) -> String {
         }
     }
 
-    // Links para a base e notas. O texto do link vai do fim do `[` (ou `![`)
-    // ao fim do último evento dentro do link, com os escapes do Markdown.
+    // Links para a base e notas. O texto do link vai do fim do `[` ao fim do
+    // último evento dentro do link, com os escapes do Markdown. As imagens da
+    // base (os prints do manual, #272) ficam: quem exporta troca o destino pela
+    // cópia ao lado ou embute a imagem ([`Figuras::inserir_imagem`]).
     let mut link: Option<(usize, usize, Option<usize>)> = None;
+    let mut em_imagem = 0usize;
     for (evento, r) in &eventos {
         match evento {
-            Event::Start(Tag::Link { dest_url, .. } | Tag::Image { dest_url, .. })
-                if e_link_da_base(dest_url) =>
+            Event::Start(Tag::Image { .. }) => em_imagem += 1,
+            Event::End(TagEnd::Image) => em_imagem = em_imagem.saturating_sub(1),
+            Event::Start(Tag::Link { dest_url, .. })
+                if e_link_da_base(dest_url) && em_imagem == 0 =>
             {
-                let abre = if corpo[r.start..].starts_with('!') {
-                    2
-                } else {
-                    1
-                };
-                link = Some((r.start, r.start + abre, None));
+                link = Some((r.start, r.start + 1, None));
             }
-            Event::End(TagEnd::Link | TagEnd::Image) => {
+            Event::End(TagEnd::Link) => {
                 if let Some((inicio, texto, fim)) = link.take() {
                     let texto = fim.map_or("", |fim| &corpo[texto..fim]);
                     edicoes.push((inicio..r.end, texto.to_owned()));

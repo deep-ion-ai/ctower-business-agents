@@ -43,7 +43,18 @@ export type DecisaoRevisao =
   /** Marcar um critério, cenário ou tabela "a revalidar" ou, sem `a_revalidar`, tirar a marca (#169). */
   | { tipo: "revalidar"; item: ItemRequisito; a_revalidar: boolean }
   /** "Virar pergunta" (#119, #120): pergunta do analista a partir de um item da análise, com o texto editado e as evidências do item. */
-  | { tipo: "virar-pergunta"; texto: string; origem: OrigemPergunta };
+  | { tipo: "virar-pergunta"; texto: string; origem: OrigemPergunta }
+  /** Manual do usuário (#272): texto do passo, dispensa e legenda do print. */
+  | {
+      tipo: "editar-passo";
+      numero: number;
+      titulo: string;
+      instrucao: string;
+      tela?: string | null;
+      resultado?: string | null;
+    }
+  | { tipo: "dispensar-print"; numero: number; dispensado: boolean }
+  | { tipo: "legenda-print"; numero: number; legenda: string; texto_alternativo: string };
 
 export interface Area {
   id: string;
@@ -52,7 +63,15 @@ export interface Area {
 }
 
 export interface Pendencia {
-  tipo: "analise" | "afirmacao" | "termo" | "historia" | "criterio" | "tabela" | "cenario";
+  tipo:
+    | "analise"
+    | "afirmacao"
+    | "termo"
+    | "historia"
+    | "criterio"
+    | "tabela"
+    | "cenario"
+    | "passo";
   numero: number | null;
   motivo: string;
 }

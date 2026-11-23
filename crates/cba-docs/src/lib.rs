@@ -77,11 +77,12 @@ pub use exportacao::{
 };
 pub use figura::{
     ErroFigura, Figura, Figuras, MAXIMO_DE_FIGURAS, TAMANHO_MAXIMO_DA_FIGURA, blocos_mermaid,
+    imagens_da_base,
 };
 pub use modelo::{
     CENARIOS, DADOS_PESSOAIS_E_RNF, FLUXO_PROCESSO, FUNCIONALIDADES_MAPEADAS, HISTORIAS,
-    INDICE_CATALOGO, MODELO_DADOS, MODELOS, Modelo, Montavel, NAO_MAPEADOS, RASTREABILIDADE, Secao,
-    TABELAS_DECISAO, VALORES_LIMITE, modelo,
+    INDICE_CATALOGO, MODELO_DADOS, MODELOS, Modelo, Montavel, NAO_MAPEADOS, PASSO_A_PASSO,
+    RASTREABILIDADE, Secao, TABELAS_DECISAO, VALORES_LIMITE, modelo,
 };
 pub use modelo_html::{
     ArquivoHtml, AvisoHtml, FOLHA_PADRAO, ModeloHtml, PASTA_EXPORTACAO, VARIAVEIS_HTML,
@@ -124,9 +125,102 @@ fn caminho_relativo(de: &CaminhoRelativo, para: &CaminhoRelativo) -> String {
     partes.join("/")
 }
 
+/// Caminho, relativo à raiz do projeto, para onde aponta o destino de um link ou
+/// imagem do documento `de` (`../regras/RN-FAT-001.md`, sem a âncora). `None` se
+/// o destino não é da base (endereço, âncora) ou sai da raiz.
+pub fn resolver(de: &CaminhoRelativo, destino: &str) -> Option<CaminhoRelativo> {
+    let destino = destino.trim();
+    let destino = destino
+        .strip_prefix('<')
+        .and_then(|d| d.strip_suffix('>'))
+        .unwrap_or(destino);
+    let destino = destino.split('#').next().unwrap_or_default();
+    if !exportacao::e_link_da_base(destino) || destino.starts_with('/') {
+        return None;
+    }
+    let mut partes: Vec<&str> = de.partes().collect();
+    partes.pop();
+    for parte in destino.split('/') {
+        match parte {
+            "" | "." => {}
+            ".." => {
+                partes.pop()?;
+            }
+            p => partes.push(p),
+        }
+    }
+    CaminhoRelativo::novo(&partes.join("/")).ok()
+}
+
+/// O corpo de um documento gravado em `de` como fica gravado em `para`: os
+/// destinos relativos dos links e das imagens que apontam para a base são
+/// refeitos a partir da nova pasta (a âncora fica). Endereços externos, âncoras
+/// do próprio documento e destinos que saem da raiz ficam como estão.
+pub fn relocalizar(corpo: &str, de: &CaminhoRelativo, para: &CaminhoRelativo) -> String {
+    use pulldown_cmark::{Event, Parser, Tag};
+    let mut edicoes: Vec<(std::ops::Range<usize>, String)> = Vec::new();
+    for (evento, r) in Parser::new_ext(corpo, exportacao::opcoes_markdown()).into_offset_iter() {
+        let (Event::Start(Tag::Link { dest_url, .. }) | Event::Start(Tag::Image { dest_url, .. })) =
+            evento
+        else {
+            continue;
+        };
+        let Some(alvo) = resolver(de, &dest_url) else {
+            continue;
+        };
+        let ancora = dest_url
+            .split_once('#')
+            .map(|(_, a)| format!("#{a}"))
+            .unwrap_or_default();
+        // O destino fica depois do último `](` do trecho do link.
+        let trecho = &corpo[r.clone()];
+        let Some(abre) = trecho.rfind("](") else {
+            continue;
+        };
+        let inicio = r.start + abre + 2;
+        let resto = &corpo[inicio..r.end];
+        let (desloc, tamanho) = if resto.starts_with('<') {
+            match resto.find('>') {
+                Some(f) => (0, f + 1),
+                None => continue,
+            }
+        } else {
+            (0, resto.find([' ', ')', '\t', '\n']).unwrap_or(resto.len()))
+        };
+        let novo = caminho_relativo(para, &alvo) + &ancora;
+        let novo = if novo.contains([' ', '(', ')', '<', '>']) {
+            format!("<{novo}>")
+        } else {
+            novo
+        };
+        edicoes.push((inicio + desloc..inicio + desloc + tamanho, novo));
+    }
+    exportacao::aplicar(corpo, edicoes)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn resolve_e_relocaliza_links_e_imagens() {
+        let de = c("analises/A-0001.md");
+        assert_eq!(
+            resolver(&de, "../funcionalidades/can/cancelar/manual/p.png")
+                .unwrap()
+                .as_str(),
+            "funcionalidades/can/cancelar/manual/p.png"
+        );
+        assert_eq!(resolver(&de, "../../fora.md"), None);
+        assert_eq!(resolver(&de, "https://x.com/a.png"), None);
+        assert_eq!(resolver(&de, "#secao"), None);
+        let corpo = "Veja [RN](../regras/RN-FAT-001.md#enunciado) e ![Tela](../funcionalidades/can/cancelar/manual/p%201.png) e [site](https://x.com) e [doc](<../a b.md>).\n";
+        let para = c("funcionalidades/can/cancelar/manual.md");
+        assert_eq!(
+            relocalizar(corpo, &de, &para),
+            "Veja [RN](../../../regras/RN-FAT-001.md#enunciado) e ![Tela](manual/p%201.png) e [site](https://x.com) e [doc](<../../../a b.md>).\n"
+        );
+    }
 
     fn c(s: &str) -> CaminhoRelativo {
         CaminhoRelativo::novo(s).unwrap()

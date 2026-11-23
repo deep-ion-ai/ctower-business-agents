@@ -666,7 +666,7 @@ pub fn salvar_leitura(
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AmbienteDesfeito {
-    /// Regras da proteção tiradas do `settings.json`.
+    /// Regras da proteção tiradas (do `.claude/settings.local.json` das pastas).
     pub protecao_tirada: Vec<String>,
     /// Servidor MCP e hooks tirados.
     pub preparo: Resultado,
@@ -691,12 +691,24 @@ fn alvo_do_cadastrado(projeto: &cba_index::Projeto) -> Result<(Alvo, Option<Stri
                 .or_else(|| projeto.pastas.first())
                 .ok_or("o projeto não tem pastas cadastradas")?;
             let plataforma = cba_session::clientes::Plataforma::atual();
+            // As outras pastas, se existem, também têm os hooks no arquivo local.
+            let mut raizes = vec![pasta.caminho.clone()];
+            for outra in &projeto.pastas {
+                if let Ok(a) = Alvo::da_pasta(&projeto.id, &outra.caminho) {
+                    for r in a.raizes {
+                        if !raizes.contains(&r) {
+                            raizes.push(r);
+                        }
+                    }
+                }
+            }
             Ok((
                 Alvo {
                     projeto: projeto.id.clone(),
                     diretorio: pasta.caminho.clone(),
                     chave: preparo::chave_do_caminho(&pasta.caminho, plataforma),
                     worktree: false,
+                    raizes,
                 },
                 Some(format!(
                     "a pasta {} não existe mais; o servidor MCP foi procurado pelo caminho dela. \

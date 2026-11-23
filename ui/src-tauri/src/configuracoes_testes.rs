@@ -448,7 +448,8 @@ fn preparar_com_protecao(dados: &DiretorioDados, preparador: &Preparador, e: &Pa
             .pronto
     );
     assert_ne!(fs::read(e).unwrap(), ESTADO_DO_ANALISTA.as_bytes());
-    assert_ne!(fs::read(s).unwrap(), SETTINGS_DO_ANALISTA.as_bytes());
+    // Os hooks e a proteção ficam no arquivo local da pasta (#304), não no do usuário.
+    assert_eq!(fs::read(s).unwrap(), SETTINGS_DO_ANALISTA.as_bytes());
 }
 
 #[test]
@@ -457,8 +458,14 @@ fn desfazer_o_ambiente_deixa_a_configuracao_do_claude_como_antes() {
     let raiz = dunce::canonicalize(c.dir.path()).unwrap();
     let (preparador, estado, settings) = configuracao_do_analista(&raiz);
     preparar_com_protecao(&c.dados, &preparador, &estado, &settings);
+    let local = c.codigo.join(".claude").join("settings.local.json");
+    assert!(local.is_file());
 
     let feito = desfazer_ambiente(&c.dados, &preparador, PROJETO).unwrap();
+    assert!(
+        !c.codigo.join(".claude").exists(),
+        "o arquivo e a pasta saem"
+    );
     assert_eq!(feito.protecao_tirada.len(), 1);
     assert!(feito.avisos.is_empty(), "{:?}", feito.avisos);
     assert!(feito.igual_ao_antes);
@@ -481,18 +488,18 @@ fn desfazer_o_ambiente_deixa_a_configuracao_do_claude_como_antes() {
 
 #[test]
 fn desfazer_devolve_os_hooks_de_outra_instalacao_do_app() {
-    // #213: os hooks apontavam para outra instalação (a de desenvolvimento).
+    // #213: o servidor e os hooks da pasta apontavam para outra instalação (a de
+    // desenvolvimento).
     let c = cenario();
     let raiz = dunce::canonicalize(c.dir.path()).unwrap();
-    let (preparador, estado, settings) = configuracao_do_analista(&raiz);
+    let (preparador, estado, _) = configuracao_do_analista(&raiz);
     let dev = raiz
         .join("dev")
         .join(if cfg!(windows) { "cba.exe" } else { "cba" });
     let dev = Preparador::novo(preparador.config.clone(), dev, Plataforma::atual()).unwrap();
-    let outro = raiz.join("codigo").join("do-dev");
-    fs::create_dir_all(&outro).unwrap();
-    dev.preparar(&cba_session::preparo::Alvo::da_pasta("do-dev", &outro).unwrap())
+    dev.preparar(&cba_session::preparo::Alvo::da_pasta(PROJETO, &c.codigo).unwrap())
         .unwrap();
+    let local = c.codigo.join(".claude").join("settings.local.json");
     // A configuração "de antes", com 4 espaços de indentação.
     let quatro = |caminho: &Path| {
         let v: serde_json::Value = serde_json::from_slice(&fs::read(caminho).unwrap()).unwrap();
@@ -504,7 +511,7 @@ fn desfazer_devolve_os_hooks_de_outra_instalacao_do_app() {
         fs::write(caminho, &b).unwrap();
         b
     };
-    let (estado_antes, settings_antes) = (quatro(&estado), quatro(&settings));
+    let (estado_antes, local_antes) = (quatro(&estado), quatro(&local));
 
     let plano = analise::planejar_preparo(&c.dados, &preparador, PROJETO).unwrap();
     assert_eq!(
@@ -513,11 +520,11 @@ fn desfazer_devolve_os_hooks_de_outra_instalacao_do_app() {
         "o plano avisa da troca"
     );
     analise::preparar_ambiente(&c.dados, &preparador, PROJETO).unwrap();
-    assert_ne!(fs::read(&settings).unwrap(), settings_antes);
+    assert_ne!(fs::read(&local).unwrap(), local_antes);
 
     let feito = desfazer_ambiente(&c.dados, &preparador, PROJETO).unwrap();
     assert!(feito.igual_ao_antes, "{:?}", feito.avisos);
-    assert_eq!(fs::read(&settings).unwrap(), settings_antes, "diff vazio");
+    assert_eq!(fs::read(&local).unwrap(), local_antes, "diff vazio");
     assert_eq!(fs::read(&estado).unwrap(), estado_antes, "diff vazio");
 }
 

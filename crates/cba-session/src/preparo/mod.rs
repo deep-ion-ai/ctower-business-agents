@@ -3,8 +3,8 @@
 //!
 //! Qualquer sessão do Claude Code (terminal embutido, terminal do analista ou aba de
 //! código do Claude Desktop) aberta na pasta de um projeto cadastrado precisa enxergar
-//! o servidor MCP do app e mandar os eventos para o receptor de hooks, sem que nenhum
-//! arquivo seja criado no repositório do projeto.
+//! o servidor MCP do app e mandar os eventos para o receptor de hooks, sem afetar as
+//! sessões dos outros projetos do analista (#302).
 //!
 //! # O que é gravado, e onde
 //!
@@ -12,12 +12,18 @@
 //! |---|---|---|
 //! | Servidor MCP `cba` (`<executável> mcp`) | `~/.claude.json`, em `projects["<chave>"].mcpServers` | local: só sessões nessa pasta |
 //! | Confiança na pasta (`hasTrustDialogAccepted: true`, #218) | `~/.claude.json`, em `projects["<chave>"]` | local: só sessões nessa pasta |
-//! | Hooks dos eventos de [`crate::hooks::EVENTOS`] (`"<executável>" hook <evento>`) | `~/.claude/settings.json`, em `hooks` | usuário: todas as sessões |
+//! | Hooks dos eventos de [`crate::hooks::EVENTOS`] (`"<executável>" hook <evento>`) | `<raiz>/.claude/settings.local.json`, em `hooks`, para cada raiz de [`Alvo::raizes`] | local: só sessões nessa raiz |
+//! | Linha [`LINHA_EXCLUDE`], se a raiz é de um repositório git | `info/exclude` do diretório comum do git | não versionado |
 //!
-//! | Opcional: proteção contra edição, `Edit(//<pasta>/**)` em `permissions.deny` ([`protecao`]) | `~/.claude/settings.json` | usuário, com caminho absoluto |
+//! | Opcional: proteção contra edição, `Edit(//<pasta>/**)` em `permissions.deny` ([`protecao`]) | `<raiz>/.claude/settings.local.json` da pasta | local, com caminho absoluto |
 //!
-//! Com `CLAUDE_CONFIG_DIR` definido, os dois arquivos ficam nessa pasta
-//! (`<dir>/.claude.json` e `<dir>/settings.json`).
+//! A `<raiz>` de uma pasta é o caminho da chave do escopo local: a raiz do repositório
+//! principal, ou a própria pasta fora do git. Com `CLAUDE_CONFIG_DIR` definido, o
+//! estado e o `settings.json` do usuário ficam nessa pasta (`<dir>/.claude.json` e
+//! `<dir>/settings.json`). O preparo não grava mais nada no `settings.json` do
+//! usuário; os hooks que versões anteriores gravaram lá saem no desfazer
+//! ([`Preparador::desfazer`]) e na migração da abertura do app
+//! ([`Preparador::retirar_hooks_globais`], orquestrada por [`crate::migracao`], #305).
 //!
 //! Fontes (documentação oficial do Claude Code, consultada em 2026-11-11):
 //! - <https://code.claude.com/docs/en/mcp.md>: o escopo local fica em `~/.claude.json`
@@ -37,23 +43,31 @@
 //! - <https://code.claude.com/docs/en/settings.md> e
 //!   <https://code.claude.com/docs/en/claude-directory.md>: `CLAUDE_CONFIG_DIR` muda
 //!   `~/.claude` e `~/.claude.json`; o Desktop lê os mesmos arquivos de configuração.
+//! - Spike da #303 (Claude Code 2.1.330, `docs/specs/2026-11-23-spike-settings-local.md`):
+//!   a sessão lê o `.claude/settings.local.json` da pasta em que começou e o da raiz
+//!   do repositório principal (também numa worktree), sem subir pelas pastas
+//!   intermediárias; fora do git, só o da pasta. Os hooks desse arquivo só disparam
+//!   com a pasta confiável (o `hasTrustDialogAccepted` acima basta). O mesmo comando
+//!   em dois escopos roda uma vez só. O Claude Code não tira do git um arquivo criado
+//!   por fora: daí o `info/exclude`.
 //!
 //! # Por que esses escopos
 //!
 //! - **MCP no escopo local** (e não no de projeto, `.mcp.json`) porque o de projeto
-//!   cria arquivo no repositório do projeto, e não no de usuário porque o servidor só
-//!   faz sentido nas pastas cadastradas.
+//!   é versionado, e não no de usuário porque o servidor só faz sentido nas pastas
+//!   cadastradas.
 //! - **A chave do escopo local** não está documentada. Verificado com o Claude Code
 //!   2.1.322 (`claude mcp add-json --scope local` com `CLAUDE_CONFIG_DIR` temporário):
 //!   numa pasta dentro de um repositório git, a chave é a raiz do repositório; numa
 //!   worktree, a raiz do repositório **principal**; fora de repositório, a própria
 //!   pasta. É o que [`Alvo::da_pasta`] calcula, com [`cba_index::detectar_git`].
-//! - **Hooks no escopo de usuário** porque os únicos locais por projeto ficam dentro
-//!   do repositório (`.claude/settings*.json`). Os hooks disparam em qualquer sessão
-//!   do analista; o receptor responde `{}` rápido e ignora as sessões fora das pastas
-//!   cadastradas (pelo `cwd` do evento, #25). São compartilhados entre os projetos e
-//!   entre as instalações do app: voltam ao que eram só quando a última pasta
-//!   preparada por esta instalação é desfeita.
+//! - **Hooks no `.claude/settings.local.json` da raiz** (#302, #304): é o único
+//!   escopo por pasta para hooks fora do versionamento. No escopo do usuário (o de
+//!   antes) eles disparavam em toda sessão do analista, em qualquer pasta, e davam
+//!   erro em todas se o executável sumisse. Na raiz (e não na pasta cadastrada)
+//!   porque é o arquivo que as sessões nas subpastas e nas worktrees também leem.
+//!   Pastas que compartilham a raiz compartilham o arquivo: o desfazer não tira os
+//!   hooks de uma raiz que é a pasta de outro projeto preparado por esta instalação.
 //!
 //! # Garantias
 //!
@@ -64,19 +78,21 @@
 //!   mantida. Um servidor `cba` que não é nosso é conflito, e nada é gravado.
 //! - **Reversível:** [`Preparador::desfazer`] devolve o que havia antes, inclusive os
 //!   hooks e o servidor de outra instalação do app que o preparo trocou (#213). O
-//!   valor de antes fica num registro ao lado do `settings.json` ([`registro`]). O que
-//!   não dá para devolver (mudou depois do preparo, ainda em uso por outra pasta,
-//!   dados que o próprio Claude gravou) fica como está e é dito em
-//!   [`Resultado::mantidos`].
+//!   valor de antes fica num registro ao lado do `settings.json` ([`registro`]), fora
+//!   da pasta do projeto. O arquivo local e a pasta `.claude` saem se só existiam por
+//!   causa do app, e a linha do `info/exclude` sai se foi o app que a pôs. O que não
+//!   dá para devolver (mudou depois do preparo, ainda em uso por outra pasta, dados
+//!   que o próprio Claude gravou) fica como está e é dito em [`Resultado::mantidos`].
 //! - **Avisa da troca:** se um hook ou o servidor aponta para outra instalação do
 //!   app, o plano diz qual ([`Alteracao::outra_instalacao`]).
-//! - **Gravação atômica com cópia de segurança** (`<arquivo>.cba-backup`), veja
-//!   [`arquivo`].
+//! - **Gravação atômica com cópia de segurança** (`<arquivo>.cba-backup` ao lado dos
+//!   arquivos do usuário; a do arquivo local em `<pasta do settings.json>/cba-backups/`,
+//!   [`ConfigClaude::backup_de`]), veja [`arquivo`].
 //! - **Sem credenciais:** os arquivos são tratados como JSON genérico; nenhum campo
 //!   além dos nossos é interpretado, registrado no log ou copiado para outro lugar.
-//! - **Nada nas pastas do projeto:** só os dois arquivos acima (e as cópias de
-//!   segurança e o registro ao lado deles) são escritos. A indentação e as quebras de
-//!   linha de cada arquivo são mantidas.
+//! - **Na pasta do projeto, só o arquivo local:** além do `.claude/settings.local.json`
+//!   (e do `info/exclude`, dentro do `.git`), nada é escrito nas pastas do projeto. A
+//!   indentação e as quebras de linha de cada arquivo são mantidas.
 //!
 //! O consentimento do analista fica com a interface: [`Preparador::planejar`] mostra
 //! o que seria alterado sem gravar nada.
@@ -100,8 +116,11 @@
 
 pub mod arquivo;
 mod json;
+mod migracao;
 pub mod protecao;
 pub mod registro;
+
+pub use migracao::RetiradaGlobal;
 
 #[cfg(test)]
 mod tests;
@@ -115,7 +134,7 @@ use serde::Serialize;
 use crate::clientes::{Ambiente, AmbienteReal, Plataforma};
 use crate::hooks::EVENTOS;
 use json::{Json, Objeto};
-use registro::{Registro, TrocaConfianca, TrocaHook, TrocaMcp};
+use registro::{Registro, TrocaConfianca, TrocaHook, TrocaLocal, TrocaMcp};
 
 /// Nome do servidor MCP na configuração (as ferramentas aparecem como `mcp__cba__*`).
 pub const NOME_SERVIDOR: &str = "cba";
@@ -127,6 +146,29 @@ pub const LIMITE_HOOK_S: u64 = 10;
 pub const CAMPO_CONFIANCA: &str = "hasTrustDialogAccepted";
 /// Nome do executável do app, sem extensão: identifica as nossas entradas.
 const NOME_EXECUTAVEL: &str = "cba";
+/// Pasta das configurações do Claude Code dentro de uma pasta de projeto.
+pub const PASTA_LOCAL: &str = ".claude";
+/// Configurações locais (pessoais, fora do versionamento) de uma pasta (#302).
+pub const ARQUIVO_LOCAL: &str = "settings.local.json";
+/// Linha do `info/exclude` do git que tira o arquivo local do versionamento.
+pub const LINHA_EXCLUDE: &str = "/.claude/settings.local.json";
+/// Pasta das cópias de segurança dos arquivos locais, ao lado do `settings.json`.
+pub const PASTA_BACKUPS: &str = "cba-backups";
+
+/// `<raiz>/.claude/settings.local.json`.
+pub fn arquivo_local(raiz: &Path) -> PathBuf {
+    raiz.join(PASTA_LOCAL).join(ARQUIVO_LOCAL)
+}
+
+/// Raiz do escopo local de uma pasta (já canônica): a raiz do repositório principal,
+/// ou a própria pasta fora do git. É onde o Claude Code procura o
+/// `.claude/settings.local.json` além da pasta da sessão (spike da #303).
+fn raiz_local(diretorio: &Path) -> (PathBuf, bool) {
+    match cba_index::detectar_git(diretorio) {
+        Some(repo) => (repo.raiz_principal, repo.worktree),
+        None => (diretorio.to_path_buf(), false),
+    }
+}
 
 /// Erro do preparo. As mensagens nunca citam o conteúdo dos arquivos.
 #[derive(Debug, thiserror::Error)]
@@ -191,6 +233,31 @@ impl ConfigClaude {
         PathBuf::from(r)
     }
 
+    /// Cópia de segurança de um arquivo de fora da configuração (o
+    /// `settings.local.json` de uma pasta): em `<pasta do settings.json>/cba-backups/`,
+    /// com o caminho do arquivo no nome, nunca na pasta do projeto.
+    pub fn backup_de(&self, arquivo: &Path) -> PathBuf {
+        let nome: String = arquivo
+            .to_string_lossy()
+            .chars()
+            .map(|c| {
+                if c.is_alphanumeric() || c == '.' || c == '-' {
+                    c
+                } else {
+                    '_'
+                }
+            })
+            .collect();
+        let pasta = self
+            .settings
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or(Path::new("."));
+        pasta
+            .join(PASTA_BACKUPS)
+            .join(format!("{nome}{}", arquivo::SUFIXO_BACKUP))
+    }
+
     /// Arquivos padrão dentro de uma pasta do usuário.
     pub fn da_pasta_do_usuario(home: &Path) -> Self {
         Self {
@@ -212,11 +279,15 @@ pub struct Alvo {
     pub chave: String,
     /// Se a pasta está numa worktree do git (a chave é o repositório principal).
     pub worktree: bool,
+    /// Raízes do escopo local das pastas do projeto, sem repetição: onde fica o
+    /// `.claude/settings.local.json` com os hooks e a proteção (#304). A primeira é a
+    /// da `chave`.
+    pub raizes: Vec<PathBuf>,
 }
 
 impl Alvo {
     /// Alvo de um projeto cadastrado: a pasta raiz (sem prefixo) ou, na falta dela, a
-    /// primeira.
+    /// primeira, com as raízes de todas as pastas (as inacessíveis ficam de fora).
     pub fn do_projeto(projeto: &cba_index::Projeto) -> Result<Self, Erro> {
         let pasta = projeto
             .pastas
@@ -224,7 +295,20 @@ impl Alvo {
             .find(|p| p.prefixo.is_none())
             .or_else(|| projeto.pastas.first())
             .ok_or_else(|| Erro::Pasta(PathBuf::new()))?;
-        Self::da_pasta(&projeto.id, &pasta.caminho)
+        let mut alvo = Self::da_pasta(&projeto.id, &pasta.caminho)?;
+        for outra in &projeto.pastas {
+            let Ok(dir) = dunce::canonicalize(&outra.caminho) else {
+                continue;
+            };
+            if !dir.is_dir() {
+                continue;
+            }
+            let (raiz, _) = raiz_local(&dir);
+            if !alvo.raizes.contains(&raiz) {
+                alvo.raizes.push(raiz);
+            }
+        }
+        Ok(alvo)
     }
 
     /// Alvo de uma pasta, na plataforma atual.
@@ -238,15 +322,13 @@ impl Alvo {
         if !diretorio.is_dir() {
             return Err(Erro::Pasta(diretorio));
         }
-        let (raiz, worktree) = match cba_index::detectar_git(&diretorio) {
-            Some(repo) => (repo.raiz_principal, repo.worktree),
-            None => (diretorio.clone(), false),
-        };
+        let (raiz, worktree) = raiz_local(&diretorio);
         Ok(Self {
             projeto: projeto.to_string(),
             chave: chave_do_caminho(&raiz, plataforma),
             diretorio,
             worktree,
+            raizes: vec![raiz],
         })
     }
 }
@@ -300,8 +382,12 @@ pub enum Item {
     /// `projects["<chave>"].hasTrustDialogAccepted` no `.claude.json`: a pasta é
     /// confiável e o Claude não pergunta na primeira conversa (#218).
     Confianca { chave: String },
-    /// `hooks.<evento>` no `settings.json`.
+    /// `hooks.<evento>` no `settings.local.json` de uma raiz (ou, em preparos
+    /// anteriores à #304, no `settings.json` do usuário).
     Hook { evento: String },
+    /// Linha `/.claude/settings.local.json` no `info/exclude` do git da raiz: o
+    /// arquivo local fica fora do versionamento.
+    ExclusaoGit { raiz: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -375,13 +461,15 @@ impl Resultado {
     }
 
     /// Executáveis de outras instalações do app que o preparo tira do lugar (para o
-    /// aviso do plano), sem repetição.
+    /// aviso do plano), sem repetição. O mesmo executável aparece com `\` no servidor
+    /// MCP e com `/` nos hooks, no Windows: conta uma vez só.
     pub fn outras_instalacoes(&self) -> Vec<&str> {
         let mut v: Vec<&str> = Vec::new();
+        let normal = |c: &str| c.replace('\\', "/");
         for a in &self.alteracoes {
             if a.acao == Acao::Atualizado
                 && let Some(o) = a.outra_instalacao.as_deref()
-                && !v.contains(&o)
+                && !v.iter().any(|x| normal(x) == normal(o))
             {
                 v.push(o);
             }
@@ -407,6 +495,8 @@ pub enum Situacao {
 pub struct SituacaoHook {
     pub evento: String,
     pub situacao: Situacao,
+    /// O `settings.local.json` conferido.
+    pub arquivo: PathBuf,
 }
 
 /// Resultado de [`Preparador::verificar`].
@@ -419,8 +509,10 @@ pub struct Verificacao {
     /// O Claude Code confia na pasta: a primeira conversa abre sem o diálogo de
     /// confiança (#218).
     pub pasta_confiavel: bool,
+    /// Por raiz e evento.
     pub hooks: Vec<SituacaoHook>,
-    /// `disableAllHooks: true` nas configurações do usuário: os hooks não rodam.
+    /// `disableAllHooks: true` nas configurações do usuário (sem `false` no arquivo
+    /// local) ou no arquivo local de alguma raiz: os hooks não rodam.
     pub hooks_desativados: bool,
     /// Tudo no lugar (com a pasta confiável) e os hooks ativos.
     pub pronto: bool,
@@ -478,8 +570,8 @@ impl Preparador {
         self.aplicar(alvo, Modo::Simular)
     }
 
-    /// Registra o servidor MCP no escopo local de `alvo` e os hooks no escopo do
-    /// usuário.
+    /// Registra o servidor MCP e a confiança no escopo local de `alvo` e os hooks no
+    /// `.claude/settings.local.json` de cada raiz.
     pub fn preparar(&self, alvo: &Alvo) -> Result<Resultado, Erro> {
         self.aplicar(alvo, Modo::Gravar)
     }
@@ -503,27 +595,37 @@ impl Preparador {
         };
 
         let settings = arquivo::ler(&self.config.settings)?;
-        let hooks_desativados =
+        let desativados_no_usuario =
             matches!(settings.raiz.get("disableAllHooks"), Some(Json::Bool(true)));
+        let mut hooks_desativados = false;
         let mut hooks = Vec::new();
-        for evento in EVENTOS {
-            let esperado = self.comando_hook(evento);
-            let comandos = comandos_nossos(&settings.raiz, evento, &settings.caminho)?;
-            let situacao = if comandos.iter().any(|c| *c == esperado) && comandos.len() == 1 {
-                Situacao::Ok
-            } else if comandos.is_empty() {
-                Situacao::Ausente
-            } else {
-                Situacao::Desatualizado
+        for raiz in &alvo.raizes {
+            let local = arquivo::ler(&arquivo_local(raiz))?;
+            hooks_desativados |= match local.raiz.get("disableAllHooks") {
+                Some(Json::Bool(b)) => *b,
+                _ => desativados_no_usuario,
             };
-            hooks.push(SituacaoHook {
-                evento: evento.to_string(),
-                situacao,
-            });
+            for evento in EVENTOS {
+                let esperado = self.comando_hook(evento);
+                let comandos = comandos_nossos(&local.raiz, evento, &local.caminho)?;
+                let situacao = if comandos.iter().any(|c| *c == esperado) && comandos.len() == 1 {
+                    Situacao::Ok
+                } else if comandos.is_empty() {
+                    Situacao::Ausente
+                } else {
+                    Situacao::Desatualizado
+                };
+                hooks.push(SituacaoHook {
+                    evento: evento.to_string(),
+                    situacao,
+                    arquivo: arquivo_local(raiz),
+                });
+            }
         }
         let pronto = servidor_mcp == Situacao::Ok
             && pasta_confiavel
             && !hooks_desativados
+            && !hooks.is_empty()
             && hooks.iter().all(|h| h.situacao == Situacao::Ok);
         Ok(Verificacao {
             diretorio: alvo.diretorio.clone(),
@@ -538,12 +640,14 @@ impl Preparador {
 
     /// Tira o servidor MCP do escopo local de `alvo` e devolve o que o preparo
     /// trocou ([`registro`]): o servidor de antes (de outra instalação do app, se
-    /// havia) e, quando nenhuma outra pasta preparada por esta instalação usa mais, os
-    /// hooks de antes. O que não dá para devolver fica, e é dito em
+    /// havia), os hooks de antes no `settings.local.json` de cada raiz (o arquivo e a
+    /// pasta `.claude` saem se só existiam por causa do app) e a linha do
+    /// `info/exclude`. O que não dá para devolver fica, e é dito em
     /// [`Resultado::mantidos`].
     ///
-    /// Sem registro (preparo de uma versão anterior do app), os hooks saem só se
-    /// nenhuma pasta tiver mais o servidor de nenhuma instalação.
+    /// Os hooks que preparos anteriores à #304 gravaram no `settings.json` do usuário
+    /// saem quando nenhuma outra pasta preparada por esta instalação usa mais; sem
+    /// registro, só se nenhuma pasta tiver mais o servidor de nenhuma instalação.
     pub fn desfazer(&self, alvo: &Alvo) -> Result<Resultado, Erro> {
         let mut resultado = self.resultado(alvo, Modo::Gravar);
         let mut registro = Registro::ler(&self.config.registro());
@@ -556,6 +660,8 @@ impl Preparador {
             &self.config.estado,
             Modo::Gravar,
             &mut registro,
+            None,
+            false,
             |raiz, caminho, reg| {
                 mantidos.clear();
                 // Antes do servidor: a entrada da pasta pode ficar vazia e sair.
@@ -586,6 +692,140 @@ impl Preparador {
         });
         resultado.mantidos.append(&mut mantidos);
 
+        for raiz in &alvo.raizes {
+            self.desfazer_local(
+                raiz,
+                &pastas_minhas,
+                &pastas_todas,
+                &mut registro,
+                &mut resultado,
+            )?;
+        }
+        self.desfazer_global(&pastas_minhas, &pastas_todas, &mut registro, &mut resultado)?;
+        tracing::info!(
+            projeto = alvo.projeto,
+            mudou = resultado.houve_mudanca(),
+            mantidos = resultado.mantidos.len(),
+            "preparo desfeito"
+        );
+        Ok(resultado)
+    }
+
+    /// Devolve o `settings.local.json` de `raiz` ao que era antes do preparo, a menos
+    /// que a raiz seja a pasta de outra pasta preparada por esta instalação.
+    fn desfazer_local(
+        &self,
+        raiz: &Path,
+        pastas_minhas: &[String],
+        pastas_todas: &[String],
+        registro: &mut Registro,
+        resultado: &mut Resultado,
+    ) -> Result<(), Erro> {
+        let exe = self.executavel_texto();
+        let arq = arquivo_local(raiz);
+        let chave = chave_do_caminho(raiz, self.plataforma);
+        let usa = |pastas: &[String]| {
+            pastas
+                .iter()
+                .any(|k| mesma_chave(k, &chave, self.plataforma))
+        };
+        if usa(pastas_minhas) {
+            let lido = arquivo::ler(&arq)?;
+            let mut algum = false;
+            for evento in EVENTOS {
+                algum |= !comandos_nossos(&lido.raiz, evento, &lido.caminho)?.is_empty();
+            }
+            if algum {
+                resultado.mantidos.push(Mantido::HooksEmUso {
+                    arquivo: arq,
+                    pastas: vec![chave],
+                });
+            }
+            return Ok(());
+        }
+        let antes = registro.local(&exe, &chave).cloned();
+        let apagar_vazio = antes.as_ref().is_some_and(|t| !t.arquivo_existia);
+        let pasta_existia = antes.as_ref().is_none_or(|t| t.pasta_existia);
+        let nenhuma_usa = !usa(pastas_todas);
+        let mut acoes = Vec::new();
+        let mut mudaram = Vec::new();
+        let mut em_uso = false;
+        let mut exclude_meu = false;
+        let backup = self.config.backup_de(&arq);
+        if let Some(b) = self.editar_registrando(
+            &arq,
+            Modo::Gravar,
+            registro,
+            Some(&backup),
+            apagar_vazio,
+            |obj, caminho, reg| {
+                let (troca, outra_usa) = match reg.tirar_local(&exe, &chave) {
+                    Some((t, o)) => (Some(t), o),
+                    None => (None, false),
+                };
+                let (existia, trocas) = troca
+                    .as_ref()
+                    .map(|t| (t.hooks_existia, t.hooks.clone()))
+                    .unwrap_or((None, BTreeMap::new()));
+                (acoes, mudaram, em_uso) =
+                    self.restaurar_hooks(obj, caminho, existia, trocas, nenhuma_usa)?;
+                exclude_meu = troca.is_some_and(|t| t.exclude) && !outra_usa;
+                Ok(())
+            },
+        )? {
+            resultado.backups.push(b);
+        }
+        resultado
+            .alteracoes
+            .extend(acoes.into_iter().map(|(evento, acao, outra)| Alteracao {
+                arquivo: arq.clone(),
+                item: Item::Hook { evento },
+                acao,
+                outra_instalacao: outra,
+            }));
+        if !mudaram.is_empty() {
+            resultado.mantidos.push(Mantido::HooksMudaramDepois {
+                arquivo: arq.clone(),
+                eventos: mudaram,
+            });
+        }
+        if em_uso {
+            resultado.mantidos.push(Mantido::HooksEmUso {
+                arquivo: arq.clone(),
+                pastas: pastas_todas.to_vec(),
+            });
+        }
+        if !arq.exists() && !pasta_existia {
+            // Só sai vazia: nunca apaga o que o analista pôs lá.
+            let _ = std::fs::remove_dir(raiz.join(PASTA_LOCAL));
+        }
+        // A linha sai só se foi o app que a pôs e o arquivo saiu: um arquivo do
+        // analista que ficou continua fora do versionamento.
+        if exclude_meu
+            && !arq.exists()
+            && let Some(exclude) = arquivo_exclude(raiz)
+            && remover_linha_exclude(&exclude)?
+        {
+            resultado.alteracoes.push(Alteracao {
+                arquivo: exclude,
+                item: Item::ExclusaoGit { raiz: chave },
+                acao: Acao::Removido,
+                outra_instalacao: None,
+            });
+        }
+        Ok(())
+    }
+
+    /// Tira do `settings.json` do usuário os hooks que preparos anteriores à #304
+    /// gravaram lá, quando nenhuma outra pasta preparada por esta instalação usa
+    /// mais. Só as mudanças entram no resultado.
+    fn desfazer_global(
+        &self,
+        pastas_minhas: &[String],
+        pastas_todas: &[String],
+        registro: &mut Registro,
+        resultado: &mut Resultado,
+    ) -> Result<(), Erro> {
         let arq = self.config.settings.clone();
         if !pastas_minhas.is_empty() {
             // Outra pasta preparada por esta instalação ainda usa os hooks.
@@ -597,54 +837,54 @@ impl Preparador {
             if algum {
                 resultado.mantidos.push(Mantido::HooksEmUso {
                     arquivo: arq,
-                    pastas: pastas_minhas.clone(),
+                    pastas: pastas_minhas.to_vec(),
                 });
             }
-        } else {
-            let mut acoes = Vec::new();
-            let mut mudaram = Vec::new();
-            let mut em_uso = false;
-            if let Some(backup) = self.editar_registrando(
-                &self.config.settings,
-                Modo::Gravar,
-                &mut registro,
-                |raiz, caminho, reg| {
-                    (acoes, mudaram, em_uso) =
-                        self.restaurar_hooks(raiz, caminho, reg, pastas_todas.is_empty())?;
-                    Ok(())
-                },
-            )? {
-                resultado.backups.push(backup);
-            }
-            resultado
-                .alteracoes
-                .extend(acoes.into_iter().map(|(evento, acao, outra)| Alteracao {
+            return Ok(());
+        }
+        let mut acoes = Vec::new();
+        let mut mudaram = Vec::new();
+        let mut em_uso = false;
+        let exe = self.executavel_texto();
+        if let Some(backup) = self.editar_registrando(
+            &self.config.settings,
+            Modo::Gravar,
+            registro,
+            None,
+            false,
+            |raiz, caminho, reg| {
+                let (existia, trocas) = reg.tirar_hooks(&exe).unwrap_or((None, BTreeMap::new()));
+                (acoes, mudaram, em_uso) =
+                    self.restaurar_hooks(raiz, caminho, existia, trocas, pastas_todas.is_empty())?;
+                Ok(())
+            },
+        )? {
+            resultado.backups.push(backup);
+        }
+        resultado.alteracoes.extend(
+            acoes
+                .into_iter()
+                .filter(|(_, acao, _)| *acao != Acao::SemMudanca)
+                .map(|(evento, acao, outra)| Alteracao {
                     arquivo: arq.clone(),
                     item: Item::Hook { evento },
                     acao,
                     outra_instalacao: outra,
-                }));
-            if !mudaram.is_empty() {
-                resultado.mantidos.push(Mantido::HooksMudaramDepois {
-                    arquivo: arq.clone(),
-                    eventos: mudaram,
-                });
-            }
-            if em_uso {
-                resultado.mantidos.push(Mantido::HooksEmUso {
-                    arquivo: arq,
-                    pastas: pastas_todas.clone(),
-                });
-            }
-        }
-        tracing::info!(
-            projeto = alvo.projeto,
-            mudou = resultado.houve_mudanca(),
-            hooks_mantidos = !pastas_minhas.is_empty(),
-            mantidos = resultado.mantidos.len(),
-            "preparo desfeito"
+                }),
         );
-        Ok(resultado)
+        if !mudaram.is_empty() {
+            resultado.mantidos.push(Mantido::HooksMudaramDepois {
+                arquivo: arq.clone(),
+                eventos: mudaram,
+            });
+        }
+        if em_uso {
+            resultado.mantidos.push(Mantido::HooksEmUso {
+                arquivo: arq,
+                pastas: pastas_todas.to_vec(),
+            });
+        }
+        Ok(())
     }
 
     fn resultado(&self, alvo: &Alvo, modo: Modo) -> Resultado {
@@ -669,6 +909,8 @@ impl Preparador {
             &self.config.estado,
             modo,
             &mut registro,
+            None,
+            false,
             |raiz, caminho, reg| {
                 acao_mcp = self.registrar_mcp(raiz, alvo, caminho, reg)?;
                 acao_confianca = self.registrar_confianca(raiz, alvo, caminho, reg)?;
@@ -694,26 +936,9 @@ impl Preparador {
             outra_instalacao: None,
         });
 
-        let mut acoes = Vec::new();
-        if let Some(backup) = self.editar_registrando(
-            &self.config.settings,
-            modo,
-            &mut registro,
-            |raiz, caminho, reg| {
-                acoes = self.registrar_hooks(raiz, caminho, reg)?;
-                Ok(())
-            },
-        )? {
-            resultado.backups.push(backup);
+        for raiz in &alvo.raizes {
+            self.aplicar_local(raiz, modo, &mut registro, &mut resultado)?;
         }
-        resultado
-            .alteracoes
-            .extend(acoes.into_iter().map(|(evento, acao, outra)| Alteracao {
-                arquivo: self.config.settings.clone(),
-                item: Item::Hook { evento },
-                acao,
-                outra_instalacao: outra,
-            }));
 
         if modo == Modo::Gravar {
             tracing::info!(
@@ -727,7 +952,99 @@ impl Preparador {
         Ok(resultado)
     }
 
-    /// Como [`editar`], levando junto o [`Registro`]: `f` o atualiza a cada tentativa,
+    /// Hooks no `settings.local.json` de `raiz` e, se a raiz é de um repositório git,
+    /// a linha do arquivo no `info/exclude`.
+    fn aplicar_local(
+        &self,
+        raiz: &Path,
+        modo: Modo,
+        registro: &mut Registro,
+        resultado: &mut Resultado,
+    ) -> Result<(), Erro> {
+        let exe = self.executavel_texto();
+        let arq = arquivo_local(raiz);
+        let chave = chave_do_caminho(raiz, self.plataforma);
+        let pasta_existia = raiz.join(PASTA_LOCAL).is_dir();
+        let arquivo_existia = arq.exists();
+        let mut acoes = Vec::new();
+        let backup = self.config.backup_de(&arq);
+        if let Some(b) = self.editar_registrando(
+            &arq,
+            modo,
+            registro,
+            Some(&backup),
+            false,
+            |obj, caminho, reg| {
+                let instalacao = reg.instalacoes.entry(exe.clone()).or_default();
+                let mut troca = instalacao.locais.remove(&chave).unwrap_or(TrocaLocal {
+                    arquivo_existia,
+                    pasta_existia,
+                    ..TrocaLocal::default()
+                });
+                acoes =
+                    self.registrar_hooks(obj, caminho, &mut troca.hooks, &mut troca.hooks_existia)?;
+                if !troca.vazia() {
+                    instalacao.locais.insert(chave.clone(), troca);
+                }
+                if instalacao.vazia() {
+                    reg.instalacoes.remove(&exe);
+                }
+                Ok(())
+            },
+        )? {
+            resultado.backups.push(b);
+        }
+        resultado
+            .alteracoes
+            .extend(acoes.into_iter().map(|(evento, acao, outra)| Alteracao {
+                arquivo: arq.clone(),
+                item: Item::Hook { evento },
+                acao,
+                outra_instalacao: outra,
+            }));
+
+        if let Some(exclude) = arquivo_exclude(raiz)
+            && !tem_linha_exclude(&exclude)
+        {
+            if modo == Modo::Gravar {
+                self.registrar_exclude(registro, &chave, arquivo_existia, pasta_existia)?;
+                acrescentar_linha_exclude(&exclude)?;
+            }
+            resultado.alteracoes.push(Alteracao {
+                arquivo: exclude,
+                item: Item::ExclusaoGit { raiz: chave },
+                acao: Acao::Adicionado,
+                outra_instalacao: None,
+            });
+        }
+        Ok(())
+    }
+
+    /// Anota no registro (e grava) que esta instalação pôs a linha do `info/exclude`
+    /// da raiz `chave`.
+    fn registrar_exclude(
+        &self,
+        registro: &mut Registro,
+        chave: &str,
+        arquivo_existia: bool,
+        pasta_existia: bool,
+    ) -> Result<(), Erro> {
+        registro
+            .instalacoes
+            .entry(self.executavel_texto())
+            .or_default()
+            .locais
+            .entry(chave.to_string())
+            .or_insert(TrocaLocal {
+                arquivo_existia,
+                pasta_existia,
+                ..TrocaLocal::default()
+            })
+            .exclude = true;
+        registro.gravar(&self.config.registro())
+    }
+
+    /// Como [`editar_com`], levando junto o [`Registro`]: `f` o atualiza a cada tentativa,
     /// a partir do que estava em `registro`. No modo de gravação, o registro novo é
     /// gravado **antes** do arquivo do Claude (nunca há troca sem o valor de antes
     /// guardado) e volta ao que era se a gravação do arquivo falhar.
@@ -736,6 +1053,8 @@ impl Preparador {
         arquivo: &Path,
         modo: Modo,
         registro: &mut Registro,
+        backup: Option<&Path>,
+        apagar_vazio: bool,
         mut f: F,
     ) -> Result<Option<PathBuf>, Erro>
     where
@@ -744,7 +1063,7 @@ impl Preparador {
         let base = registro.clone();
         let caminho = self.config.registro();
         let mut novo = base.clone();
-        let feito = editar(arquivo, modo, |raiz, c| {
+        let feito = editar_com(arquivo, modo, backup, apagar_vazio, |raiz, c| {
             novo = base.clone();
             f(raiz, c, &mut novo)?;
             if modo == Modo::Gravar && novo != base {
@@ -1050,11 +1369,14 @@ impl Preparador {
         Ok(resposta)
     }
 
+    /// Põe os hooks do app em `raiz` (o `settings.local.json` de uma raiz), guardando
+    /// em `trocas` e `hooks_existia_reg` o que havia antes.
     fn registrar_hooks(
         &self,
         raiz: &mut Objeto,
         caminho: &Path,
-        reg: &mut Registro,
+        trocas: &mut BTreeMap<String, TrocaHook>,
+        hooks_existia_reg: &mut Option<bool>,
     ) -> Result<Vec<(String, Acao, Option<String>)>, Erro> {
         let meu = self.executavel_no_hook();
         let hooks_existia = raiz.get("hooks").is_some();
@@ -1093,9 +1415,8 @@ impl Preparador {
             };
             acoes.push((evento.to_string(), acao, outra));
 
-            let instalacao = reg.instalacoes.entry(self.executavel_texto()).or_default();
-            instalacao.hooks_existia.get_or_insert(hooks_existia);
-            match instalacao.hooks.get_mut(*evento) {
+            hooks_existia_reg.get_or_insert(hooks_existia);
+            match trocas.get_mut(*evento) {
                 Some(troca) => troca.depois = depois,
                 None => {
                     // Os handlers desta mesma instalação (preparo antigo) não são "antes".
@@ -1110,30 +1431,27 @@ impl Preparador {
                         Some((Json::Lista(g), tirados)) if g.is_empty() && tirados > 0 => None,
                         outro => outro.map(|(v, _)| v),
                     };
-                    instalacao
-                        .hooks
-                        .insert(evento.to_string(), TrocaHook { antes, depois });
+                    trocas.insert(evento.to_string(), TrocaHook { antes, depois });
                 }
             }
         }
         Ok(acoes)
     }
 
-    /// Devolve os hooks de antes do preparo desta instalação. Devolve as ações por
-    /// evento, os eventos que mudaram depois do preparo e se os hooks ficaram porque
-    /// outras pastas ainda usam (só sem registro).
+    /// Devolve os hooks de antes do preparo desta instalação (`trocas`, já tiradas do
+    /// registro). Devolve as ações por evento, os eventos que mudaram depois do
+    /// preparo e se os hooks ficaram porque outras pastas ainda usam (só sem
+    /// registro).
     #[allow(clippy::type_complexity)]
     fn restaurar_hooks(
         &self,
         raiz: &mut Objeto,
         caminho: &Path,
-        reg: &mut Registro,
+        hooks_existia: Option<bool>,
+        trocas: BTreeMap<String, TrocaHook>,
         nenhuma_pasta_usa: bool,
     ) -> Result<(Vec<(String, Acao, Option<String>)>, Vec<String>, bool), Erro> {
         let meu = self.executavel_no_hook();
-        let (hooks_existia, trocas) = reg
-            .tirar_hooks(&self.executavel_texto())
-            .unwrap_or((None, BTreeMap::new()));
         let mut acoes = Vec::new();
         let mut mudaram = Vec::new();
         let mut em_uso = false;
@@ -1220,7 +1538,15 @@ fn formato(caminho: &Path, campo: &str) -> Erro {
 
 /// Lê, edita e (no modo de gravação) grava se algo mudou. Repete se o arquivo mudar
 /// entre a leitura e a gravação. Devolve a cópia de segurança, se houve.
-fn editar<F>(caminho: &Path, modo: Modo, mut f: F) -> Result<Option<PathBuf>, Erro>
+/// Com `backup`, a cópia de segurança vai para lá (e não ao lado do arquivo); com
+/// `apagar_vazio`, o arquivo é apagado (em vez de gravado como `{}`) se ficar vazio.
+fn editar_com<F>(
+    caminho: &Path,
+    modo: Modo,
+    backup: Option<&Path>,
+    apagar_vazio: bool,
+    mut f: F,
+) -> Result<Option<PathBuf>, Erro>
 where
     F: FnMut(&mut Objeto, &Path) -> Result<(), Erro>,
 {
@@ -1232,11 +1558,96 @@ where
         if modo == Modo::Simular || raiz == lido.raiz {
             return Ok(None);
         }
-        match arquivo::gravar(&lido, &raiz) {
+        let feito = if apagar_vazio && raiz.is_empty() {
+            arquivo::apagar(&lido, backup)
+        } else {
+            arquivo::gravar_com_backup_em(&lido, &raiz, backup)
+        };
+        match feito {
             Err(Erro::AlteradoDuranteGravacao(_)) if tentativa < 4 => tentativa += 1,
             outro => return outro,
         }
     }
+}
+
+/// `info/exclude` do git da raiz, se ela é a raiz de um repositório.
+fn arquivo_exclude(raiz: &Path) -> Option<PathBuf> {
+    let repo = cba_index::detectar_git(raiz)?;
+    if repo.raiz != raiz {
+        return None;
+    }
+    Some(
+        cba_index::diretorio_comum_git(raiz)?
+            .join("info")
+            .join("exclude"),
+    )
+}
+
+/// Linhas do `info/exclude` que já tiram o arquivo local do versionamento.
+fn e_linha_do_arquivo_local(linha: &str) -> bool {
+    matches!(
+        linha.trim(),
+        LINHA_EXCLUDE | ".claude/settings.local.json" | "**/.claude/settings.local.json"
+    )
+}
+
+fn tem_linha_exclude(exclude: &Path) -> bool {
+    std::fs::read_to_string(exclude).is_ok_and(|t| t.lines().any(e_linha_do_arquivo_local))
+}
+
+fn erro_io(arquivo: &Path, e: io::Error) -> Erro {
+    Erro::Arquivo {
+        arquivo: arquivo.to_path_buf(),
+        tipo: e.kind(),
+    }
+}
+
+/// Acrescenta [`LINHA_EXCLUDE`] ao `info/exclude`, criando-o se preciso.
+fn acrescentar_linha_exclude(exclude: &Path) -> Result<(), Erro> {
+    let mut texto = match std::fs::read_to_string(exclude) {
+        Ok(t) => t,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => String::new(),
+        Err(e) => return Err(erro_io(exclude, e)),
+    };
+    if !texto.is_empty() && !texto.ends_with('\n') {
+        texto.push('\n');
+    }
+    texto.push_str(LINHA_EXCLUDE);
+    texto.push('\n');
+    if let Some(pasta) = exclude.parent() {
+        std::fs::create_dir_all(pasta).map_err(|e| erro_io(pasta, e))?;
+    }
+    std::fs::write(exclude, texto).map_err(|e| erro_io(exclude, e))
+}
+
+/// Tira [`LINHA_EXCLUDE`] do `info/exclude`. Devolve se tirou.
+fn remover_linha_exclude(exclude: &Path) -> Result<bool, Erro> {
+    let Ok(texto) = std::fs::read_to_string(exclude) else {
+        return Ok(false);
+    };
+    let linhas: Vec<&str> = texto.lines().collect();
+    let ficam: Vec<&str> = linhas
+        .iter()
+        .copied()
+        .filter(|l| l.trim() != LINHA_EXCLUDE)
+        .collect();
+    if ficam.len() == linhas.len() {
+        return Ok(false);
+    }
+    if ficam.iter().all(|l| l.trim().is_empty()) {
+        // Só tinha a nossa linha: o arquivo (e a pasta `info`, se vazia) saem. O git
+        // cria o `info/exclude` com comentários, então isso só acontece quando foi o
+        // app que o criou.
+        std::fs::remove_file(exclude).map_err(|e| erro_io(exclude, e))?;
+        if let Some(info) = exclude.parent() {
+            let _ = std::fs::remove_dir(info);
+        }
+        return Ok(true);
+    }
+    let mut novo = ficam.join("\n");
+    novo.push('\n');
+    std::fs::write(exclude, novo).map_err(|e| erro_io(exclude, e))?;
+    Ok(true)
 }
 
 fn servidores<'a>(projeto: &'a Objeto, caminho: &Path) -> Result<Option<&'a Objeto>, Erro> {

@@ -79,10 +79,15 @@ pub enum TipoDocumento {
     /// confiança), só leitura no app. Não é regra nem termo da base, mesmo quando
     /// o original era.
     DocExterno,
+    /// Manual do usuário de uma funcionalidade do mapa (fluxo `manual`, #272): na
+    /// análise, em `analises/`; aprovado, em
+    /// `funcionalidades/<area>/<tema>/manual.md`, com os prints na pasta `manual/`
+    /// ao lado.
+    Manual,
 }
 
 impl TipoDocumento {
-    pub const TODOS: [TipoDocumento; 22] = [
+    pub const TODOS: [TipoDocumento; 23] = [
         Self::Projeto,
         Self::AnaliseImpacto,
         Self::Pergunta,
@@ -105,6 +110,7 @@ impl TipoDocumento {
         Self::Restricao,
         Self::MapaFuncionalidades,
         Self::DocExterno,
+        Self::Manual,
     ];
 
     /// Valor no frontmatter (`analise-impacto`).
@@ -132,6 +138,7 @@ impl TipoDocumento {
             Self::Restricao => "restricao",
             Self::MapaFuncionalidades => "mapa-funcionalidades",
             Self::DocExterno => "doc-externo",
+            Self::Manual => "manual",
         }
     }
 
@@ -563,6 +570,7 @@ impl Frontmatter for FrontmatterAnalise {
         TipoDocumento::ParecerRevisao,
         TipoDocumento::Historias,
         TipoDocumento::CenariosTeste,
+        TipoDocumento::Manual,
     ];
 
     fn validar(&self) -> Result<(), ErroCampo> {
@@ -793,8 +801,11 @@ pub struct FrontmatterFuncionalidade {
 }
 
 impl Frontmatter for FrontmatterFuncionalidade {
-    const TIPOS: &'static [TipoDocumento] =
-        &[TipoDocumento::Funcionalidade, TipoDocumento::CasoDeUso];
+    const TIPOS: &'static [TipoDocumento] = &[
+        TipoDocumento::Funcionalidade,
+        TipoDocumento::CasoDeUso,
+        TipoDocumento::Manual,
+    ];
 }
 
 /// Mapa de funcionalidades do projeto, em `funcionalidades/mapa.md` (#208). O

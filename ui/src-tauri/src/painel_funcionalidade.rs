@@ -140,6 +140,9 @@ pub struct PainelVista {
     pub atividade: Vec<Atividade>,
     /// Demandas abertas do projeto (para ligar uma ou analisar o impacto).
     pub demandas_do_projeto: Vec<DemandaResumo>,
+    /// Manual do usuário da funcionalidade (#272): nenhum, em andamento ou
+    /// aprovado (com os motivos para revisar, se a funcionalidade mudou).
+    pub manual: cba_tools::manual::SituacaoManual,
 }
 
 fn nome_do_fluxo(f: Fluxo) -> &'static str {
@@ -151,6 +154,7 @@ fn nome_do_fluxo(f: Fluxo) -> &'static str {
         Fluxo::Revisar => "revisão",
         Fluxo::Historias => "histórias",
         Fluxo::Cenarios => "cenários de teste",
+        Fluxo::Manual => "manual do usuário",
     }
 }
 
@@ -446,6 +450,7 @@ pub fn painel(
         relacionadas,
         atividade,
         demandas_do_projeto,
+        manual: cba_tools::manual::situacao(&amb, f),
     })
 }
 
@@ -477,6 +482,9 @@ pub fn criar_analise(
 ) -> Result<AnaliseCriada, String> {
     if fluxo == Fluxo::Explicar {
         return crate::funcionalidades::explicar_funcionalidade(dados, projeto, funcionalidade);
+    }
+    if fluxo == Fluxo::Manual {
+        return crate::manual::gerar_manual(dados, projeto, funcionalidade);
     }
     let amb = ambiente(dados, projeto)?;
     let fid = IdFuncionalidade::analisar(funcionalidade.trim())

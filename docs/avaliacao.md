@@ -67,7 +67,7 @@ Cada execução trabalha numa pasta temporária, sem tocar na configuração do 
 
 - a fixture é copiada e vira um repositório git novo; dados do app (`CBA_DATA_DIR`) e base de conhecimento também são temporários;
 - o projeto é cadastrado e a análise é criada como o app faz (spec, 4.2), e o pedido é o mesmo do app: `Inicie a análise A-0001 pelo ctower`;
-- o servidor MCP e os hooks são gerados pelo mesmo preparo do app (`cba_session::preparo`), em arquivos temporários, e passados com `--mcp-config <arquivo> --strict-mcp-config --settings <arquivo> --setting-sources local --no-session-persistence`: nenhum MCP, hook ou permissão do usuário entra, e a sessão não fica no histórico;
+- o servidor MCP e os hooks são gerados pelo mesmo preparo do app (`cba_session::preparo`): o estado do Claude em arquivos temporários e os hooks no `.claude/settings.local.json` da cópia (nunca na fixture), passados com `--mcp-config <arquivo> --strict-mcp-config --settings <settings.local.json> --setting-sources local --no-session-persistence`: nenhum MCP, hook ou permissão do usuário entra, e a sessão não fica no histórico. A comparação da cópia com a fixture ignora esse arquivo;
 - o agente pode usar Read, Grep, Glob e as ferramentas do `cba`; Edit, Write e Bash ficam negados, a não ser com `--permitir-edicao`.
 
 O `claude` usa o login de quem roda. O programa não lê nem grava credenciais.
@@ -230,6 +230,12 @@ O roteiro foi avaliado com o modelo real na #258 ([relatório](avaliacao/2026-11
 - **Utilitários.** As justificativas diziam a quais rotinas o ajudante serve por suposição (uma citou o cancelamento, que não chama `FN_PARAMETRO`). O roteiro passou a pedir as que o chamam, por `referencias`; depois do ajuste, as justificativas citam `FN_CALCULAR_MULTA` e `FN_CALCULAR_JUROS`.
 
 Números de referência (rodada final, três execuções): nenhuma falha grave; 7 funcionalidades registradas por execução; funcionalidades esperadas 100% (6 de 6) e pontos de entrada bem tratados 100% (15 de 15) nas três; área conferindo em 4 de 6 (o agente põe o cancelamento em Cobrança, e o gabarito em Cancelamento; e o pagamento numa área Pagamento, e o gabarito em Cobrança: escolhas defensáveis, só cobertura); US$ 0,27 a 0,28, 21 turnos e cerca de 50 s por execução (US$ 0,82 no total). Antes dos ajustes: funcionalidades 100%, pontos 93% nas três (pela comparação antiga), US$ 0,26 e 48 a 50 s por execução. Como o mapeamento não cria análise, as colunas de regras, evidências e "Concluídas" do resumo não se aplicam (a conclusão aparece como a ausência de ponto sem tratamento). O mapa usa o roteiro embutido no app (não há cópia na base), então não entra em `roteiro::revisado`, que é dos fluxos de análise.
+
+## Manual do usuário
+
+O fluxo **Manual do usuário** (`manual`, #272) escreve o manual de uma funcionalidade do mapa em linguagem de usuário final (roteiro `crates/cba-tools/textos/roteiros/manual.md`, ferramenta `registrar_passo_manual`): as seções de texto por `afirmar` e o passo a passo com a tela de cada passo como "print sugerido". Os prints são do analista, no app; o agente não os produz.
+
+Ainda não há caso no `cba-avaliacao`: o roteiro é provisório (fora de `roteiro::revisado`, não é copiado para a base nem aparece no editor de textos) até a primeira avaliação com o modelo real. O teste `crates/cba-tools/tests/manual.rs` confere a mecânica na fixture, sem IA: o manual de "Cancelar fatura" (`F-CAN-001`) aberto pelo mapa, as seções e os passos registrados, um print incluído e outro dispensado, a pendência do passo sem print, a aprovação que grava `funcionalidades/cancelamento/cancelar-fatura/manual.md` ao lado do print, a exportação em Markdown (print copiado ao lado), HTML e Word (print embutido) e o manual "a revisar" quando o mapeamento muda, com a revisão reaproveitando os passos e os prints.
 
 ## Ciclo de publicação
 

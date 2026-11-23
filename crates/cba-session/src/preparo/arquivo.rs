@@ -93,6 +93,24 @@ pub fn ler(caminho: &Path) -> Result<Lido, Erro> {
 /// Grava `raiz` no lugar de `lido`, com cópia de segurança e conferência de
 /// concorrência. Devolve o caminho da cópia de segurança, se havia arquivo antes.
 pub fn gravar(lido: &Lido, raiz: &Objeto) -> Result<Option<PathBuf>, Erro> {
+    gravar_com_backup_em(lido, raiz, None)
+}
+
+/// Cópia de segurança padrão: `<arquivo>.cba-backup`, ao lado do arquivo.
+fn backup_ao_lado(caminho: &Path) -> PathBuf {
+    let mut b = caminho.to_path_buf().into_os_string();
+    b.push(SUFIXO_BACKUP);
+    PathBuf::from(b)
+}
+
+/// Como [`gravar`], com a cópia de segurança em `backup` (em vez de ao lado do
+/// arquivo). Para os arquivos dentro das pastas dos projetos (#304): a cópia não
+/// pode ficar no repositório.
+pub fn gravar_com_backup_em(
+    lido: &Lido,
+    raiz: &Objeto,
+    backup: Option<&Path>,
+) -> Result<Option<PathBuf>, Erro> {
     let caminho = &lido.caminho;
     let pasta = caminho
         .parent()
@@ -140,13 +158,7 @@ pub fn gravar(lido: &Lido, raiz: &Objeto) -> Result<Option<PathBuf>, Erro> {
         }
 
         let backup = match &lido.original {
-            Some(_) => {
-                let mut b = caminho.clone().into_os_string();
-                b.push(SUFIXO_BACKUP);
-                let b = PathBuf::from(b);
-                fs::copy(caminho, &b).map_err(|e| erro_io(&b, e))?;
-                Some(b)
-            }
+            Some(_) => Some(copiar_backup(caminho, backup)?),
             None => None,
         };
         renomear(&temporario, caminho)?;
@@ -156,6 +168,38 @@ pub fn gravar(lido: &Lido, raiz: &Objeto) -> Result<Option<PathBuf>, Erro> {
         let _ = fs::remove_file(&temporario);
     }
     resultado
+}
+
+/// Copia `caminho` para a cópia de segurança (`backup`, ou ao lado do arquivo).
+fn copiar_backup(caminho: &Path, backup: Option<&Path>) -> Result<PathBuf, Erro> {
+    let b = backup
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| backup_ao_lado(caminho));
+    if let Some(pasta) = b.parent().filter(|p| !p.as_os_str().is_empty()) {
+        fs::create_dir_all(pasta).map_err(|e| erro_io(pasta, e))?;
+    }
+    fs::copy(caminho, &b).map_err(|e| erro_io(&b, e))?;
+    Ok(b)
+}
+
+/// Apaga o arquivo lido, com cópia de segurança em `backup` (ou ao lado) e a mesma
+/// conferência de concorrência de [`gravar`]. Arquivo que já não existe não é erro.
+pub fn apagar(lido: &Lido, backup: Option<&Path>) -> Result<Option<PathBuf>, Erro> {
+    let caminho = &lido.caminho;
+    let atual = match fs::read(caminho) {
+        Ok(b) => Some(b),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => None,
+        Err(e) => return Err(erro_io(caminho, e)),
+    };
+    if atual != lido.original {
+        return Err(Erro::AlteradoDuranteGravacao(caminho.clone()));
+    }
+    if atual.is_none() {
+        return Ok(None);
+    }
+    let b = copiar_backup(caminho, backup)?;
+    fs::remove_file(caminho).map_err(|e| erro_io(caminho, e))?;
+    Ok(Some(b))
 }
 
 /// Indentação do arquivo: o espaço em branco no começo da primeira linha recuada

@@ -31,7 +31,7 @@ use std::collections::HashMap;
 use pulldown_cmark::{Alignment, CodeBlockKind, Event, HeadingLevel, Parser, Tag, TagEnd};
 
 use crate::exportacao::opcoes_markdown;
-use crate::figura::{Figuras, e_mermaid};
+use crate::figura::{Figura, Figuras, e_mermaid};
 use crate::word::AVISO_DIAGRAMA;
 
 /// Corpo HTML do Markdown.
@@ -192,6 +192,8 @@ struct Renderizador<'f> {
     /// Citações já escritas de cada nota.
     escritas: HashMap<String, usize>,
     em_definicao: Option<String>,
+    /// Imagem da base aberta, embutida no fim: a figura e o texto alternativo.
+    imagem: Option<(&'f Figura, String)>,
 }
 
 impl<'f> Renderizador<'f> {
@@ -212,6 +214,7 @@ impl<'f> Renderizador<'f> {
             citacoes,
             escritas: HashMap::new(),
             em_definicao: None,
+            imagem: None,
         }
     }
 
@@ -247,6 +250,17 @@ impl<'f> Renderizador<'f> {
                 _ => {}
             }
             return;
+        }
+        // Dentro da imagem embutida, o texto vira o `alt`.
+        if let Some((_, alt)) = &mut self.imagem {
+            match evento {
+                Event::Text(t) | Event::Code(t) => {
+                    alt.push_str(&t);
+                    return;
+                }
+                Event::End(TagEnd::Image) => {}
+                _ => return,
+            }
         }
         match evento {
             Event::Start(tag) => self.abrir(tag),
@@ -390,6 +404,13 @@ impl<'f> Renderizador<'f> {
                 }
             }
             Tag::Image { dest_url, .. } => {
+                let figuras: &'f Figuras = self.figuras;
+                if let Some(figura) = figuras.imagem(&dest_url) {
+                    // Imagem da base entregue por quem exporta: PNG embutido,
+                    // com o texto alternativo no `alt`.
+                    self.imagem = Some((figura, String::new()));
+                    return;
+                }
                 // Sem `src`: o texto alternativo e o endereço, como texto.
                 self.html("<span class=\"imagem\">");
                 self.links.push(Some(dest_url.to_string()));
@@ -487,6 +508,17 @@ impl<'f> Renderizador<'f> {
                     self.html("</a>");
                 }
             }
+            TagEnd::Image if self.imagem.is_some() => {
+                let (figura, alt) = self.imagem.take().expect("imagem aberta");
+                let html = format!(
+                    "<img class=\"print\" alt=\"{}\" width=\"{}\" height=\"{}\" src=\"data:image/png;base64,{}\">",
+                    escapar(alt.trim()),
+                    figura.largura,
+                    figura.altura,
+                    base64(&figura.png)
+                );
+                self.html(&html);
+            }
             TagEnd::Image => {
                 if let Some(Some(destino)) = self.links.pop()
                     && !destino.trim().is_empty()
@@ -563,6 +595,29 @@ impl<'f> Renderizador<'f> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn imagem_da_base_entregue_sai_embutida_com_alt() {
+        let mut figuras = Figuras::novas();
+        figuras
+            .inserir_imagem(
+                "manual/passo-01.png",
+                Figura::nova(crate::figura::tests::png(40, 20), 0, 0).unwrap(),
+            )
+            .unwrap();
+        let h = corpo(
+            "![Tela \"a\" & b](manual/passo-01.png)\n\n![Sem](manual/outra.png)\n",
+            &figuras,
+        );
+        assert!(
+            h.contains("<img class=\"print\" alt=\"Tela &quot;a&quot; &amp; b\" width=\"40\" height=\"20\" src=\"data:image/png;base64,"),
+            "{h}"
+        );
+        assert!(
+            h.contains("<span class=\"imagem\">Sem (manual/outra.png)</span>"),
+            "{h}"
+        );
+    }
+
     use super::*;
 
     fn html(md: &str) -> String {

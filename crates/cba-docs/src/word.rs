@@ -286,6 +286,11 @@ struct Escritor<'f> {
     titulo: Option<String>,
     titulo_aberto: bool,
     ultimo_bloco_tabela: bool,
+    /// Imagem da base aberta (print do manual, #272): a figura e o texto
+    /// alternativo, que vai na descrição da imagem.
+    imagem: Option<(&'f Figura, String)>,
+    /// O parágrafo aberto foi reaberto depois de uma imagem: vazio, sai.
+    reaberto: bool,
 }
 
 impl<'f> Escritor<'f> {
@@ -310,6 +315,8 @@ impl<'f> Escritor<'f> {
             titulo: None,
             titulo_aberto: false,
             ultimo_bloco_tabela: false,
+            imagem: None,
+            reaberto: false,
         }
     }
 
@@ -338,6 +345,37 @@ impl<'f> Escritor<'f> {
                 _ => {}
             }
             return;
+        }
+        if let Some((_, alt)) = &mut self.imagem {
+            match evento {
+                Event::Text(t) | Event::Code(t) => alt.push_str(&t),
+                Event::End(TagEnd::Image) => {
+                    let (figura, alt) = self.imagem.take().expect("imagem aberta");
+                    // A figura é um parágrafo próprio: fecha o texto antes e
+                    // reabre o parágrafo com o mesmo estilo depois.
+                    let ppr = self.paragrafo.as_ref().map(|p| p.ppr.clone());
+                    self.fechar_paragrafo_com_texto();
+                    self.figura_com_descricao(figura, alt.trim());
+                    if let Some(ppr) = ppr {
+                        self.paragrafo = Some(Paragrafo {
+                            ppr,
+                            em_linha: EmLinha::default(),
+                        });
+                        self.reaberto = true;
+                    }
+                }
+                _ => {}
+            }
+            return;
+        }
+        if let Event::Start(Tag::Image { dest_url, .. }) = &evento
+            && self.celula.is_none()
+        {
+            let figuras: &'f Figuras = self.figuras;
+            if let Some(figura) = figuras.imagem(dest_url) {
+                self.imagem = Some((figura, String::new()));
+                return;
+            }
         }
         match evento {
             Event::Start(Tag::Paragraph) => {
@@ -582,15 +620,38 @@ impl<'f> Escritor<'f> {
         if self.celula.is_some() {
             return;
         }
+        if std::mem::take(&mut self.reaberto) {
+            self.fechar_paragrafo_com_texto();
+            return;
+        }
         if let Some(p) = self.paragrafo.take() {
             let xml = montar_paragrafo(p);
             self.bloco(&xml);
         }
     }
 
+    /// Fecha o parágrafo aberto só se ele tem texto; o vazio é descartado.
+    fn fechar_paragrafo_com_texto(&mut self) {
+        if self.celula.is_some() {
+            return;
+        }
+        if let Some(mut p) = self.paragrafo.take() {
+            p.em_linha.descarregar();
+            if !p.em_linha.xml.is_empty() {
+                let xml = montar_paragrafo(p);
+                self.bloco(&xml);
+            }
+        }
+    }
+
     /// Parágrafo centralizado com a imagem da figura, no tamanho dela, reduzida
     /// para caber na largura útil e na altura máxima.
     fn figura(&mut self, figura: &Figura) {
+        self.figura_com_descricao(figura, "");
+    }
+
+    /// Como [`Self::figura`], com o texto alternativo na descrição da imagem.
+    fn figura_com_descricao(&mut self, figura: &Figura, descricao: &str) {
         self.imagens.push(figura.png.clone());
         let n = self.imagens.len();
         let mut cx = u64::from(figura.largura) * EMU_POR_PIXEL;
@@ -606,8 +667,13 @@ impl<'f> Escritor<'f> {
         }
         let (cx, cy) = (cx.max(1), cy.max(1));
         let rid = RID_IMAGENS + n;
+        let descr = if descricao.is_empty() {
+            String::new()
+        } else {
+            format!(" descr=\"{}\"", escapar(descricao))
+        };
         self.bloco(&format!(
-            "<w:p><w:pPr><w:pStyle w:val=\"Figura\"/></w:pPr><w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\"><wp:extent cx=\"{cx}\" cy=\"{cy}\"/><wp:docPr id=\"{n}\" name=\"Figura {n}\"/><wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a=\"{NS_A}\" noChangeAspect=\"1\"/></wp:cNvGraphicFramePr><a:graphic xmlns:a=\"{NS_A}\"><a:graphicData uri=\"{NS_PIC}\"><pic:pic xmlns:pic=\"{NS_PIC}\"><pic:nvPicPr><pic:cNvPr id=\"{n}\" name=\"figura{n}.png\"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed=\"rId{rid}\"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"{cx}\" cy=\"{cy}\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>"
+            "<w:p><w:pPr><w:pStyle w:val=\"Figura\"/></w:pPr><w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\"><wp:extent cx=\"{cx}\" cy=\"{cy}\"/><wp:docPr id=\"{n}\" name=\"Figura {n}\"{descr}/><wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a=\"{NS_A}\" noChangeAspect=\"1\"/></wp:cNvGraphicFramePr><a:graphic xmlns:a=\"{NS_A}\"><a:graphicData uri=\"{NS_PIC}\"><pic:pic xmlns:pic=\"{NS_PIC}\"><pic:nvPicPr><pic:cNvPr id=\"{n}\" name=\"figura{n}.png\"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed=\"rId{rid}\"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"{cx}\" cy=\"{cy}\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>"
         ));
     }
 
@@ -859,6 +925,35 @@ mod tests {
     #[test]
     fn escapa_e_tira_caracteres_de_controle() {
         assert_eq!(escapar("a<b>&\"c\u{1}"), "a&lt;b&gt;&amp;&quot;c");
+    }
+
+    #[test]
+    fn imagem_da_base_vira_figura_com_descricao_e_o_texto_continua() {
+        let mut figuras = Figuras::novas();
+        figuras
+            .inserir_imagem(
+                "manual/passo-01.png",
+                Figura::nova(crate::figura::tests::png(800, 400), 0, 0).unwrap(),
+            )
+            .unwrap();
+        let mut e = Escritor::novo("", &figuras);
+        let md = "Antes.\n\n![Tela de \"cancelamento\"](manual/passo-01.png)\n\n_Figura 1. Legenda_\n\n![Outra](manual/outra.png)\n";
+        for ev in Parser::new_ext(md, opcoes_markdown()) {
+            e.evento(ev);
+        }
+        e.fechar_paragrafo();
+        assert_eq!(e.imagens.len(), 1);
+        assert!(
+            e.corpo
+                .contains("descr=\"Tela de &quot;cancelamento&quot;\"")
+        );
+        assert!(e.corpo.contains("Antes."));
+        assert!(e.corpo.contains("Legenda"));
+        // Sem a imagem entregue, o texto alternativo e o endereço.
+        assert!(e.corpo.contains("Outra"));
+        assert!(e.corpo.contains("(manual/outra.png)"));
+        // Sem parágrafo vazio em volta da figura.
+        assert!(!e.corpo.contains("<w:p></w:p>"));
     }
 
     #[test]

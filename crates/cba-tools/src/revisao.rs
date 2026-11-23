@@ -185,6 +185,25 @@ pub enum Decisao {
         texto: String,
         origem: OrigemPergunta,
     },
+    /// Novo texto de um passo do manual do usuário (fluxo `manual`), com o print
+    /// preservado.
+    EditarPasso {
+        numero: u32,
+        titulo: String,
+        instrucao: String,
+        #[serde(default)]
+        tela: Option<String>,
+        #[serde(default)]
+        resultado: Option<String>,
+    },
+    /// Dispensar o print de um passo do manual ou, com `false`, voltar a pedi-lo.
+    DispensarPrint { numero: u32, dispensado: bool },
+    /// Nova legenda e novo texto alternativo do print de um passo.
+    LegendaPrint {
+        numero: u32,
+        legenda: String,
+        texto_alternativo: String,
+    },
 }
 
 impl Decisao {
@@ -203,6 +222,9 @@ impl Decisao {
             | Self::EditarCriterio { .. } => Mudanca::Historia,
             Self::Cenario { .. } | Self::EditarCenario { .. } | Self::Tabela { .. } => {
                 Mudanca::Cenario
+            }
+            Self::EditarPasso { .. } | Self::DispensarPrint { .. } | Self::LegendaPrint { .. } => {
+                Mudanca::Passo
             }
             Self::Revalidar { item, .. } => match item {
                 ItemRequisito::Criterio { .. } => Mudanca::Historia,
@@ -246,6 +268,28 @@ impl Decisao {
             Self::VirarPergunta { texto, origem } => {
                 a.virar_pergunta(&texto, origem, agora_ms).map(|_| ())
             }
+            Self::EditarPasso {
+                numero,
+                titulo,
+                instrucao,
+                tela,
+                resultado,
+            } => a.editar_passo(
+                numero,
+                cba_core::manual::NovoPasso {
+                    numero: None,
+                    titulo,
+                    instrucao,
+                    tela,
+                    resultado,
+                },
+            ),
+            Self::DispensarPrint { numero, dispensado } => a.dispensar_print(numero, dispensado),
+            Self::LegendaPrint {
+                numero,
+                legenda,
+                texto_alternativo,
+            } => a.editar_legenda(numero, &legenda, &texto_alternativo),
         }
     }
 }
@@ -421,6 +465,8 @@ pub fn pendencias(analise: &Analise) -> Vec<Pendencia> {
         lista.extend(pendencias_das_historias(analise));
     } else if analise.fluxo == Fluxo::Cenarios {
         lista.extend(pendencias_dos_cenarios(analise));
+    } else if analise.fluxo == Fluxo::Manual {
+        lista.extend(pendencias_do_manual(None, analise));
     } else if analise.afirmacoes.is_empty() {
         lista.push(Pendencia {
             tipo: "analise",
@@ -453,6 +499,20 @@ pub fn pendencias(analise: &Analise) -> Vec<Pendencia> {
         }
     }
     lista
+}
+
+/// Pendências do manual do usuário (fluxo `manual`, #272): ao menos um passo e,
+/// em cada passo, o print ou a dispensa dele; com a base, também o arquivo do
+/// print que sumiu.
+pub fn pendencias_do_manual(kb: Option<&cba_kb::Projeto>, analise: &Analise) -> Vec<Pendencia> {
+    crate::manual::pendencias(kb, analise)
+        .into_iter()
+        .map(|(numero, motivo)| Pendencia {
+            tipo: if numero.is_some() { "passo" } else { "analise" },
+            numero,
+            motivo,
+        })
+        .collect()
 }
 
 /// Pendências das histórias (fluxo `historias`): cada história precisa de uma
@@ -594,7 +654,15 @@ pub fn prontidao(amb: &Ambiente, id: &Id) -> Result<Prontidao, ErroRevisao> {
         .ler_projeto()
         .map(|d| d.frontmatter.areas)
         .unwrap_or_default();
-    let pendencias = pendencias(&analise);
+    let mut pendencias = pendencias(&analise);
+    if analise.fluxo == Fluxo::Manual && analise.estado != EstadoAnalise::Aprovada {
+        // Com a base, também o print cujo arquivo sumiu.
+        for p in pendencias_do_manual(Some(&amb.kb), &analise) {
+            if !pendencias.contains(&p) {
+                pendencias.push(p);
+            }
+        }
+    }
     let mut avisos = Vec::new();
     let abertas = analise
         .perguntas
@@ -649,7 +717,7 @@ pub fn prontidao(amb: &Ambiente, id: &Id) -> Result<Prontidao, ErroRevisao> {
             texto: a.texto.clone(),
             secao: a.secao.clone(),
             secao_titulo: roteiro::titulo_da_secao(analise.fluxo, &a.secao).to_owned(),
-            sugerida: aprovacao::vira_regra_por_padrao(&a.secao),
+            sugerida: aprovacao::vira_regra_por_padrao_no(analise.fluxo, &a.secao),
         })
         .collect();
     // Mapa ilegível não impede a aprovação: a análise fica sem funcionalidade.
@@ -879,6 +947,23 @@ pub fn exportar_analise_com_avisos(
         });
     }
     let (texto, commit) = texto_para_exportar(amb, &analise)?;
+    // Prints do manual do usuário (#272): embutidos no Word e no HTML, copiados
+    // para uma pasta ao lado no Markdown.
+    let mut com_prints = figuras.clone();
+    crate::manual::figuras_dos_prints(&amb.kb, &analise.documento, &texto, &mut com_prints);
+    let figuras = &com_prints;
+    let texto = if formato == Formato::Markdown {
+        crate::manual::com_prints_ao_lado(&amb.kb, &analise.documento, &texto, &destino).map_err(
+            |erro| {
+                ErroRevisao::Exportacao(cba_docs::ErroExportacao::Gravar {
+                    caminho: destino.clone(),
+                    erro,
+                })
+            },
+        )?
+    } else {
+        texto
+    };
     let fonte = TrechosDoProjeto(&amb.escopo);
     let forge =
         crate::documentacao::LinksNaForja::novo(&amb.projeto.repositorios.codigo, &amb.escopo);

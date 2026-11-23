@@ -15,6 +15,8 @@
 //!   evidências), que o app transforma em Mermaid na montagem (#118).
 //! - [`funcionalidades`]: o mapa de funcionalidades do projeto (#208), um
 //!   cadastro do projeto fora das análises, com identificadores estáveis.
+//! - [`manual`]: passo a passo do manual do usuário de uma funcionalidade, com
+//!   os prints de tela (fluxo `manual`, #272).
 //! - [`parecer`]: parecer de revisão de um requisito ou história (fluxo
 //!   `revisar`): achados, verificação INVEST e veredito.
 //! - [`qualidade`]: critérios de qualidade de requisitos (características da
@@ -36,6 +38,7 @@ pub mod eventos;
 pub mod funcionalidades;
 pub mod historias;
 pub mod log;
+pub mod manual;
 pub mod memoria;
 pub mod parecer;
 pub mod qualidade;

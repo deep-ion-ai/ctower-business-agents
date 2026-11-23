@@ -1,15 +1,21 @@
 //! Registro do que o preparo trocou, para o desfazer restaurar exatamente (#213).
 //!
-//! Os hooks ficam no escopo do usuário e são compartilhados por todas as instalações
-//! do app (a de desenvolvimento, a de teste, a instalada). Quando uma instalação
-//! prepara um projeto e os hooks apontam para outra, o preparo os troca; sem guardar o
-//! valor anterior, o desfazer não tinha como devolvê-los.
+//! Os hooks e o servidor MCP são compartilhados por todas as instalações do app (a de
+//! desenvolvimento, a de teste, a instalada). Quando uma instalação prepara um projeto
+//! e as entradas apontam para outra, o preparo as troca; sem guardar o valor anterior,
+//! o desfazer não tinha como devolvê-las.
 //!
 //! O registro fica ao lado do `settings.json` ([`ConfigClaude::registro`]), em
-//! `<settings>.cba-anterior`, e guarda, por instalação (o caminho do executável):
+//! `<settings>.cba-anterior`, fora das pastas dos projetos, e guarda, por instalação
+//! (o caminho do executável):
 //!
-//! - para cada evento de hook que ela mudou, o valor de `hooks.<evento>` antes
-//!   (`None` se não existia) e o que ela gravou;
+//! - para cada raiz de pasta preparada (#304), o que ela mudou no
+//!   `<raiz>/.claude/settings.local.json` ([`TrocaLocal`]): se o arquivo e a pasta
+//!   `.claude` já existiam, o valor de cada `hooks.<evento>` antes e o que ela gravou,
+//!   e se foi ela que pôs a linha do arquivo no `info/exclude` do git;
+//! - para cada evento de hook que ela mudou no `settings.json` do usuário (preparos
+//!   anteriores à #304, que gravavam os hooks no escopo do usuário), o valor de
+//!   `hooks.<evento>` antes (`None` se não existia) e o que ela gravou;
 //! - para cada pasta (chave de `projects`) em que ela mudou o servidor MCP, o servidor
 //!   `cba` anterior (de outra instalação, se havia), o que ela gravou e se a entrada da
 //!   pasta e o `mcpServers` já existiam;
@@ -69,6 +75,31 @@ pub struct TrocaConfianca {
     pub antes: Option<Json>,
 }
 
+/// O que uma instalação trocou no `<raiz>/.claude/settings.local.json` de uma raiz
+/// (#304).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrocaLocal {
+    /// O `settings.local.json` já existia antes da primeira troca.
+    pub arquivo_existia: bool,
+    /// A pasta `.claude` da raiz já existia antes da primeira troca.
+    pub pasta_existia: bool,
+    /// A chave `hooks` existia no arquivo antes da primeira troca.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hooks_existia: Option<bool>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub hooks: BTreeMap<String, TrocaHook>,
+    /// Foi esta instalação que pôs o arquivo no `info/exclude` do git.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub exclude: bool,
+}
+
+impl TrocaLocal {
+    pub fn vazia(&self) -> bool {
+        self.hooks.is_empty() && !self.exclude
+    }
+}
+
 /// O que uma instalação trocou.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -83,11 +114,17 @@ pub struct Instalacao {
     /// Por chave de `projects`.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub confianca: BTreeMap<String, TrocaConfianca>,
+    /// Por raiz (caminho, como em [`super::Alvo::raizes`]).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub locais: BTreeMap<String, TrocaLocal>,
 }
 
 impl Instalacao {
     pub fn vazia(&self) -> bool {
-        self.hooks.is_empty() && self.mcp.is_empty() && self.confianca.is_empty()
+        self.hooks.is_empty()
+            && self.mcp.is_empty()
+            && self.confianca.is_empty()
+            && self.locais.values().all(TrocaLocal::vazia)
     }
 }
 
@@ -108,6 +145,9 @@ fn mesmo(a: &Json, b: &Json) -> bool {
 fn versao() -> u32 {
     1
 }
+
+/// Versão gravada: a 2 acrescenta [`Instalacao::locais`] (#304).
+pub const VERSAO: u32 = 2;
 
 impl Registro {
     /// Lê o registro. Ausente, vazio ou ilegível vira registro vazio: o desfazer cai
@@ -140,7 +180,12 @@ impl Registro {
             .filter(|p| !p.as_os_str().is_empty())
             .unwrap_or(Path::new("."));
         fs::create_dir_all(pasta).map_err(|e| erro(pasta, e))?;
-        let mut texto = serde_json::to_string_pretty(self).unwrap_or_default();
+        let mut atual = self.clone();
+        atual.versao = VERSAO;
+        for i in atual.instalacoes.values_mut() {
+            i.locais.retain(|_, t| !t.vazia());
+        }
+        let mut texto = serde_json::to_string_pretty(&atual).unwrap_or_default();
         texto.push('\n');
         let temporario: PathBuf = pasta.join(format!(".cba-anterior.{}.tmp", std::process::id()));
         let resultado = (|| {
@@ -209,6 +254,42 @@ impl Registro {
             }
         }
         Some((existia, hooks))
+    }
+
+    /// Tira do registro as trocas desta instalação no arquivo local da `raiz`,
+    /// emendando as das outras instalações na mesma raiz como em
+    /// [`Registro::tirar_mcp`]. O segundo valor diz se outra instalação ainda tem
+    /// trocas nessa raiz (e passa a responder pela linha do `info/exclude`).
+    pub fn tirar_local(&mut self, exe: &str, raiz: &str) -> Option<(TrocaLocal, bool)> {
+        let saiu = self.instalacoes.get_mut(exe)?.locais.remove(raiz)?;
+        self.limpar(exe);
+        let mut outra_usa = false;
+        for outra in self.instalacoes.values_mut() {
+            let Some(troca) = outra.locais.get_mut(raiz) else {
+                continue;
+            };
+            outra_usa = true;
+            for (evento, t) in &mut troca.hooks {
+                if let Some(minha) = saiu.hooks.get(evento)
+                    && t.antes.as_ref().is_some_and(|a| mesmo(a, &minha.depois))
+                {
+                    t.antes = minha.antes.clone();
+                }
+            }
+            troca.arquivo_existia &= saiu.arquivo_existia;
+            troca.pasta_existia &= saiu.pasta_existia;
+            if let (Some(a), Some(b)) = (troca.hooks_existia, saiu.hooks_existia) {
+                troca.hooks_existia = Some(a && b);
+            }
+            // A linha do exclude passa a ser da que fica.
+            troca.exclude |= saiu.exclude;
+        }
+        Some((saiu, outra_usa))
+    }
+
+    /// Troca local registrada pela instalação `exe` na `raiz`.
+    pub fn local(&self, exe: &str, raiz: &str) -> Option<&TrocaLocal> {
+        self.instalacoes.get(exe)?.locais.get(raiz)
     }
 
     /// Tira do registro a confiança na pasta `chave` marcada pela instalação `exe`.
