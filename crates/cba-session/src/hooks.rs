@@ -12,10 +12,12 @@
 //!   evento desconhecido, base inacessível ou falha ao gravar só vão para o log. Com
 //!   a proteção contra edição ligada para o projeto ([`crate::protecao`]), o
 //!   `PreToolUse` de `Bash` e `PowerShell` responde `deny`.
-//! - **Rápido** (meta: menos de 200 ms). Os hooks ficam no escopo de usuário (#24) e
-//!   disparam em todas as sessões do analista; fora das pastas dos projetos
-//!   cadastrados, o receptor só lê o cadastro e sai, sem gravar nada. Dentro, só
-//!   grava quando algo muda (o `PreToolUse` de uma sessão já ativa não grava).
+//! - **Rápido** (meta: menos de 200 ms). Os hooks ficam no `.claude/settings.local.json`
+//!   da raiz de cada pasta cadastrada (#304) e só disparam nas sessões desses
+//!   repositórios e pastas; numa pasta do repositório fora do cadastro (ou com hooks
+//!   antigos no escopo do usuário), o receptor só lê o cadastro e sai, sem gravar
+//!   nada. Dentro, só grava quando algo muda (o `PreToolUse` de uma sessão já ativa
+//!   não grava).
 //! - **Sem conteúdo no log** (spec, seção 9): o log registra o evento, a duração e o
 //!   desfecho, nunca o JSON recebido, o identificador da sessão ou caminhos.
 //!

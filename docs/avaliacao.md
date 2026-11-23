@@ -67,7 +67,7 @@ Cada execução trabalha numa pasta temporária, sem tocar na configuração do 
 
 - a fixture é copiada e vira um repositório git novo; dados do app (`CBA_DATA_DIR`) e base de conhecimento também são temporários;
 - o projeto é cadastrado e a análise é criada como o app faz (spec, 4.2), e o pedido é o mesmo do app: `Inicie a análise A-0001 pelo ctower`;
-- o servidor MCP e os hooks são gerados pelo mesmo preparo do app (`cba_session::preparo`), em arquivos temporários, e passados com `--mcp-config <arquivo> --strict-mcp-config --settings <arquivo> --setting-sources local --no-session-persistence`: nenhum MCP, hook ou permissão do usuário entra, e a sessão não fica no histórico;
+- o servidor MCP e os hooks são gerados pelo mesmo preparo do app (`cba_session::preparo`): o estado do Claude em arquivos temporários e os hooks no `.claude/settings.local.json` da cópia (nunca na fixture), passados com `--mcp-config <arquivo> --strict-mcp-config --settings <settings.local.json> --setting-sources local --no-session-persistence`: nenhum MCP, hook ou permissão do usuário entra, e a sessão não fica no histórico. A comparação da cópia com a fixture ignora esse arquivo;
 - o agente pode usar Read, Grep, Glob e as ferramentas do `cba`; Edit, Write e Bash ficam negados, a não ser com `--permitir-edicao`.
 
 O `claude` usa o login de quem roda. O programa não lê nem grava credenciais.

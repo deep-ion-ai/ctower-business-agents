@@ -18,6 +18,10 @@
 //! [`sem_codigo_fonte`], e a subpasta dentro de uma pasta retratada vai em
 //! [`Retrato::ignoradas`], cujos arquivos a conferência não lista.
 //!
+//! O `.claude/settings.local.json`, em que o preparo grava os hooks e a proteção
+//! (#304), também não é listado: é a configuração pessoal do Claude Code, fora do
+//! versionamento.
+//!
 //! # Retrato e conferência
 //!
 //! O retrato é tirado uma vez por sessão, no primeiro `SessionStart` (ou no primeiro
@@ -748,7 +752,20 @@ fn comparar(
     if !retrato.ignoradas.is_empty() {
         lista.retain(|c| !ignorado(&retrato.ignoradas, &c.alterado.pasta, &c.alterado.caminho));
     }
+    lista.retain(|c| !e_configuracao_local(&c.alterado.caminho));
     Ok((lista, avisos))
+}
+
+/// O `.claude/settings.local.json` (de uma pasta ou de uma subpasta) é a configuração
+/// pessoal do Claude Code em que o preparo grava os hooks e a proteção (#304), não
+/// uma alteração do projeto.
+fn e_configuracao_local(caminho: &str) -> bool {
+    let sufixo = format!(
+        "{}/{}",
+        crate::preparo::PASTA_LOCAL,
+        crate::preparo::ARQUIVO_LOCAL
+    );
+    caminho == sufixo || caminho.ends_with(&format!("/{sufixo}"))
 }
 
 /// O arquivo `caminho` (relativo a `pasta`, com `/`) fica numa das `ignoradas`.

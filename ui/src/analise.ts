@@ -459,7 +459,8 @@ export interface AlteracaoPreparo {
   item:
     | { tipo: "servidorMcp"; chave: string }
     | { tipo: "confianca"; chave: string }
-    | { tipo: "hook"; evento: string };
+    | { tipo: "hook"; evento: string }
+    | { tipo: "exclusaoGit"; raiz: string };
   acao: "adicionado" | "atualizado" | "removido" | "restaurado" | "semMudanca";
   /**
    * Executável de outra instalação do app: em "atualizado", para onde a entrada apontava
@@ -511,9 +512,9 @@ export interface SituacaoProtecao {
   projeto: string;
   ligada: boolean;
   completa: boolean;
-  /** `~/.claude/settings.json`. */
+  /** `.claude/settings.local.json` da primeira pasta (o de cada regra vai nela). */
   arquivo: string;
-  regras: { regra: string; presente: boolean; doApp: boolean }[];
+  regras: { regra: string; arquivo?: string; presente: boolean; doApp: boolean }[];
   negadasPeloHook: string[];
 }
 

@@ -76,25 +76,37 @@ export function PrepararAmbiente({
       {plano && (
         <>
           <p>
-            O app vai registrar o servidor MCP e os hooks na configuração do Claude Code e marcar a
-            pasta do projeto como confiável, para o Claude não perguntar isso na primeira conversa.
-            Nada é criado nas pastas do projeto, e o app faz uma cópia de segurança de cada arquivo
-            antes de gravar. Ao desfazer o preparo, tudo isso sai.
+            O app vai registrar o servidor MCP na configuração do Claude Code, marcar a pasta do
+            projeto como confiável (para o Claude não perguntar isso na primeira conversa) e gravar
+            os hooks no arquivo <code>.claude/settings.local.json</code> da pasta, que vale só para
+            as conversas nela e fica fora do git. É o único arquivo criado na pasta do projeto. O
+            app faz uma cópia de segurança de cada arquivo antes de gravar e, ao desfazer o
+            preparo, tudo isso sai.
           </p>
           <ul className="plano-preparo">
-            {mudancas.map((a) => (
-              <li key={`${a.arquivo}-${a.item.tipo}-${chaveDoItem(a.item)}`}>
-                {descreverItem(a.item)}{" "}
-                <span className="muted">
-                  ({a.acao === "atualizado" ? "atualizado" : "adicionado"} em {a.arquivo}
-                  {a.outraInstalacao ? "; hoje vai para outra instalação do app" : ""})
-                </span>
+            {porArquivo(mudancas).map(([arquivo, itens]) => (
+              <li key={arquivo}>
+                <code>{arquivo}</code>
+                <ul>
+                  {itens.map((a) => (
+                    <li key={`${a.item.tipo}-${chaveDoItem(a.item)}`}>
+                      {descreverItem(a.item)}{" "}
+                      <span className="muted">
+                        ({a.acao === "atualizado" ? "atualizado" : "adicionado"}
+                        {a.outraInstalacao ? "; hoje vai para outra instalação do app" : ""})
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               </li>
             ))}
             {proteger && (
               <li>
                 Proteção contra edição: regra <code>deny</code> de <code>Edit</code> para as pastas
-                do projeto <span className="muted">(adicionada nas configurações do usuário)</span>
+                do projeto{" "}
+                <span className="muted">
+                  (no <code>.claude/settings.local.json</code> de cada pasta)
+                </span>
               </li>
             )}
           </ul>
@@ -158,7 +170,25 @@ export function PrepararAmbiente({
 }
 
 function chaveDoItem(item: AlteracaoPreparo["item"]): string {
-  return item.tipo === "hook" ? item.evento : item.chave;
+  switch (item.tipo) {
+    case "hook":
+      return item.evento;
+    case "exclusaoGit":
+      return item.raiz;
+    default:
+      return item.chave;
+  }
+}
+
+/** Alterações agrupadas pelo arquivo, na ordem em que aparecem. */
+export function porArquivo(alteracoes: AlteracaoPreparo[]): [string, AlteracaoPreparo[]][] {
+  const grupos: [string, AlteracaoPreparo[]][] = [];
+  for (const a of alteracoes) {
+    const grupo = grupos.find(([arquivo]) => arquivo === a.arquivo);
+    if (grupo) grupo[1].push(a);
+    else grupos.push([a.arquivo, [a]]);
+  }
+  return grupos;
 }
 
 /** Texto de um item do plano. */
@@ -170,6 +200,8 @@ export function descreverItem(item: AlteracaoPreparo["item"]): string {
       return `Servidor MCP "cba" para a pasta ${item.chave}`;
     case "confianca":
       return `Pasta ${item.chave} marcada como confiável no Claude Code (sem a pergunta "Quick safety check", em inglês, na primeira conversa)`;
+    case "exclusaoGit":
+      return `Arquivo .claude/settings.local.json fora do git em ${item.raiz} (linha no info/exclude, que não é versionado)`;
   }
 }
 

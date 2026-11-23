@@ -294,6 +294,9 @@ fn pasta_fora_do_git_lista_sem_diff() {
     std::thread::sleep(Duration::from_millis(20));
     c.acrescentar("db/01_tabelas.sql", "-- sessão\n");
     c.escrever("db/novo.sql", "x\n");
+    // O preparo grava os hooks no arquivo local: não é alteração do projeto (#304).
+    fs::create_dir_all(c.arquivo(".claude")).unwrap();
+    c.escrever(".claude/settings.local.json", "{}\n");
     let (detalhes, avisos) = detalhar(&c.retratos, SESSAO).unwrap();
     assert!(!avisos.is_empty());
     let nomes: Vec<_> = detalhes

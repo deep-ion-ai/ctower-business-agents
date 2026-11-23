@@ -1,11 +1,16 @@
-//! Proteção opcional contra edição: regras `deny` na configuração do usuário do
-//! Claude Code (spec, princípios e seção 10, "proteção opcional contra edição"; #29).
+//! Proteção opcional contra edição: regras `deny` nas configurações locais das pastas
+//! do projeto (spec, princípios e seção 10, "proteção opcional contra edição"; #29,
+//! #304).
 //!
 //! # O que é gravado, e onde
 //!
 //! | Item | Arquivo | Escopo |
 //! |---|---|---|
-//! | `Edit(//<pasta do projeto>/**)` em `permissions.deny`, uma por pasta | `~/.claude/settings.json` | usuário: vale em toda sessão, de qualquer pasta |
+//! | `Edit(//<pasta do projeto>/**)` em `permissions.deny`, uma por pasta | `<raiz>/.claude/settings.local.json` da pasta ([`super::arquivo_local`]) | local: só sessões nessa raiz, com o caminho absoluto da pasta |
+//!
+//! Instalações anteriores à #304 gravavam as regras no `~/.claude/settings.json`; as
+//! funções sem `_em` ([`Preparador::negar`], [`Preparador::liberar`]) ainda tratam
+//! esse arquivo, para a migração (#305).
 //!
 //! O `Bash` não tem regra por pasta: quem o nega, nas sessões do projeto protegido,
 //! é o receptor de hooks (`PreToolUse`, [`crate::protecao`]).
@@ -25,10 +30,12 @@
 //!   não é usada na conferência: por isso não é gravada.
 //! - `//caminho` é absoluto; `/caminho` no `settings.json` do usuário seria relativo
 //!   a `~/.claude`. No Windows, o caminho vai na forma POSIX (`//c/Users/...`).
-//! - O escopo é o do usuário porque os de projeto (`.claude/settings*.json`) ficam
-//!   dentro do repositório do projeto, onde o app não escreve (spec, seção 6.2), e o
-//!   `~/.claude.json` não é local documentado de permissões. Como o caminho é
-//!   absoluto, a regra só pega a pasta do projeto.
+//! - O escopo é o local (`.claude/settings.local.json`, pessoal e fora do
+//!   versionamento; spec, seção 6.2): vale só nas sessões da raiz da pasta e não se
+//!   mistura às regras do analista no escopo do usuário. Verificado no spike da #303:
+//!   a regra local nega `Edit` e `Write` mesmo com `allow` em outro escopo e o modo
+//!   `acceptEdits`. Como o caminho é absoluto, a regra só pega a pasta do projeto,
+//!   mesmo gravada na raiz do repositório.
 //! - Uma regra `Bash` sem padrão tira a ferramenta de todas as sessões do analista;
 //!   regras de Bash casam o texto do comando, não a pasta. Daí o hook.
 //!
@@ -40,7 +47,7 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 
 use super::json::Json;
-use super::{Erro, Modo, Preparador, editar, formato};
+use super::{Erro, Modo, Preparador, arquivo_local, editar_com, formato, raiz_local};
 use crate::clientes::Plataforma;
 
 /// Regra `deny` que impede a edição de `pasta` e de tudo dentro dela.
@@ -100,9 +107,36 @@ impl Preparador {
         regras
     }
 
+    /// Regra de proteção de cada pasta e o `settings.local.json` (da raiz da pasta)
+    /// em que ela vai, sem repetição.
+    pub fn regras_por_arquivo(&self, pastas: &[PathBuf]) -> Vec<(PathBuf, String)> {
+        let mut v: Vec<(PathBuf, String)> = Vec::new();
+        for p in pastas {
+            let pasta = dunce::canonicalize(p).unwrap_or(p.clone());
+            let (raiz, _) = raiz_local(&pasta);
+            let item = (
+                arquivo_local(&raiz),
+                regra_de_protecao(&pasta, self.plataforma),
+            );
+            if !v.contains(&item) {
+                v.push(item);
+            }
+        }
+        v
+    }
+
     /// Quais das regras estão em `permissions.deny` do `settings.json` do usuário.
     pub fn negacoes_presentes(&self, regras: &[String]) -> Result<Vec<bool>, Erro> {
-        let lido = super::arquivo::ler(&self.config.settings)?;
+        self.negacoes_presentes_em(&self.config.settings, regras)
+    }
+
+    /// Quais das regras estão em `permissions.deny` de `arquivo`.
+    pub fn negacoes_presentes_em(
+        &self,
+        arquivo: &Path,
+        regras: &[String],
+    ) -> Result<Vec<bool>, Erro> {
+        let lido = super::arquivo::ler(arquivo)?;
         let deny = lido
             .raiz
             .get("permissions")
@@ -115,74 +149,126 @@ impl Preparador {
             .collect())
     }
 
-    /// Acrescenta as regras que faltam em `permissions.deny`, preservando o resto.
+    /// Acrescenta as regras que faltam em `permissions.deny` do `settings.json` do
+    /// usuário (instalações anteriores à #304).
     pub fn negar(&self, regras: &[String]) -> Result<ResultadoNegacoes, Erro> {
+        self.negar_em(&self.config.settings.clone(), regras)
+    }
+
+    /// Acrescenta as regras que faltam em `permissions.deny` de `arquivo`,
+    /// preservando o resto. Um arquivo local fica fora do versionamento como no
+    /// preparo ([`super::LINHA_EXCLUDE`]).
+    pub fn negar_em(&self, arquivo: &Path, regras: &[String]) -> Result<ResultadoNegacoes, Erro> {
+        let local = arquivo != self.config.settings;
+        let backup_local = local.then(|| self.config.backup_de(arquivo));
         let mut alteradas = Vec::new();
-        let backup = editar(&self.config.settings, Modo::Gravar, |raiz, caminho| {
-            alteradas.clear();
-            let permissoes = raiz
-                .objeto_mut("permissions")
-                .ok_or_else(|| formato(caminho, "permissions"))?;
-            if permissoes.get("deny").is_none() {
-                permissoes.inserir("deny", Json::Lista(Vec::new()));
-            }
-            let Some(Json::Lista(deny)) = permissoes.get_mut("deny") else {
-                return Err(formato(caminho, "permissions.deny"));
-            };
-            for r in regras {
-                if !deny.iter().any(|v| v.como_texto() == Some(r)) {
-                    deny.push(Json::texto(r));
-                    alteradas.push(r.clone());
+        let backup = editar_com(
+            arquivo,
+            Modo::Gravar,
+            backup_local.as_deref(),
+            false,
+            |raiz, caminho| {
+                alteradas.clear();
+                let permissoes = raiz
+                    .objeto_mut("permissions")
+                    .ok_or_else(|| formato(caminho, "permissions"))?;
+                if permissoes.get("deny").is_none() {
+                    permissoes.inserir("deny", Json::Lista(Vec::new()));
                 }
-            }
-            Ok(())
-        })?;
+                let Some(Json::Lista(deny)) = permissoes.get_mut("deny") else {
+                    return Err(formato(caminho, "permissions.deny"));
+                };
+                for r in regras {
+                    if !deny.iter().any(|v| v.como_texto() == Some(r)) {
+                        deny.push(Json::texto(r));
+                        alteradas.push(r.clone());
+                    }
+                }
+                Ok(())
+            },
+        )?;
+        if local && !alteradas.is_empty() {
+            self.garantir_exclude(arquivo)?;
+        }
         tracing::info!(regras = alteradas.len(), "proteção contra edição gravada");
         Ok(ResultadoNegacoes {
-            arquivo: self.config.settings.clone(),
+            arquivo: arquivo.to_path_buf(),
             alteradas,
             backups: backup.into_iter().collect(),
         })
     }
 
-    /// Tira exatamente as regras informadas de `permissions.deny`. Listas e objetos
-    /// que ficaram vazios por isso saem também.
+    /// Tira as regras de `permissions.deny` do `settings.json` do usuário
+    /// (instalações anteriores à #304).
     pub fn liberar(&self, regras: &[String]) -> Result<ResultadoNegacoes, Erro> {
+        self.liberar_em(&self.config.settings.clone(), regras)
+    }
+
+    /// Tira exatamente as regras informadas de `permissions.deny` de `arquivo`.
+    /// Listas e objetos que ficaram vazios por isso saem também; um arquivo local que
+    /// fica vazio é apagado.
+    pub fn liberar_em(&self, arquivo: &Path, regras: &[String]) -> Result<ResultadoNegacoes, Erro> {
+        let local = arquivo != self.config.settings;
+        let backup_local = local.then(|| self.config.backup_de(arquivo));
         let mut alteradas = Vec::new();
-        let backup = editar(&self.config.settings, Modo::Gravar, |raiz, caminho| {
-            alteradas.clear();
-            let Some(Json::Objeto(permissoes)) = raiz.get_mut("permissions") else {
-                return match raiz.get("permissions") {
-                    None => Ok(()),
-                    Some(_) => Err(formato(caminho, "permissions")),
+        let backup = editar_com(
+            arquivo,
+            Modo::Gravar,
+            backup_local.as_deref(),
+            local,
+            |raiz, caminho| {
+                alteradas.clear();
+                let Some(Json::Objeto(permissoes)) = raiz.get_mut("permissions") else {
+                    return match raiz.get("permissions") {
+                        None => Ok(()),
+                        Some(_) => Err(formato(caminho, "permissions")),
+                    };
                 };
-            };
-            let Some(Json::Lista(deny)) = permissoes.get_mut("deny") else {
-                return match permissoes.get("deny") {
-                    None => Ok(()),
-                    Some(_) => Err(formato(caminho, "permissions.deny")),
+                let Some(Json::Lista(deny)) = permissoes.get_mut("deny") else {
+                    return match permissoes.get("deny") {
+                        None => Ok(()),
+                        Some(_) => Err(formato(caminho, "permissions.deny")),
+                    };
                 };
-            };
-            deny.retain(|v| match v.como_texto() {
-                Some(t) if regras.iter().any(|r| r == t) => {
-                    alteradas.push(t.to_owned());
-                    false
+                deny.retain(|v| match v.como_texto() {
+                    Some(t) if regras.iter().any(|r| r == t) => {
+                        alteradas.push(t.to_owned());
+                        false
+                    }
+                    _ => true,
+                });
+                if !alteradas.is_empty() && deny.is_empty() {
+                    permissoes.remover("deny");
                 }
-                _ => true,
-            });
-            if !alteradas.is_empty() && deny.is_empty() {
-                permissoes.remover("deny");
-            }
-            if !alteradas.is_empty() && permissoes.is_empty() {
-                raiz.remover("permissions");
-            }
-            Ok(())
-        })?;
+                if !alteradas.is_empty() && permissoes.is_empty() {
+                    raiz.remover("permissions");
+                }
+                Ok(())
+            },
+        )?;
         tracing::info!(regras = alteradas.len(), "proteção contra edição retirada");
         Ok(ResultadoNegacoes {
-            arquivo: self.config.settings.clone(),
+            arquivo: arquivo.to_path_buf(),
             alteradas,
             backups: backup.into_iter().collect(),
         })
+    }
+
+    /// Garante a linha do `info/exclude` para o arquivo local (`<raiz>/.claude/
+    /// settings.local.json`), registrando-a como do app para o desfazer do preparo.
+    fn garantir_exclude(&self, arquivo: &Path) -> Result<(), Erro> {
+        let Some(raiz) = arquivo.parent().and_then(Path::parent) else {
+            return Ok(());
+        };
+        let Some(exclude) = super::arquivo_exclude(raiz) else {
+            return Ok(());
+        };
+        if super::tem_linha_exclude(&exclude) {
+            return Ok(());
+        }
+        let mut registro = super::registro::Registro::ler(&self.config.registro());
+        let chave = super::chave_do_caminho(raiz, self.plataforma);
+        self.registrar_exclude(&mut registro, &chave, true, true)?;
+        super::acrescentar_linha_exclude(&exclude)
     }
 }

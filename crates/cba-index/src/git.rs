@@ -39,6 +39,12 @@ pub fn detectar_git(caminho: &Path) -> Option<RepositorioGit> {
     detectar_com_comum(caminho).map(|(r, _)| r)
 }
 
+/// Diretório comum do git do repositório que contém `caminho` (onde ficam o `config`
+/// e o `info/exclude`, compartilhados pelas worktrees); `None` fora de repositório.
+pub fn diretorio_comum_git(caminho: &Path) -> Option<PathBuf> {
+    detectar_com_comum(caminho).map(|(_, c)| c)
+}
+
 /// Como [`detectar_git`], com o diretório comum do git (onde fica o `config`).
 fn detectar_com_comum(caminho: &Path) -> Option<(RepositorioGit, PathBuf)> {
     let inicio = dunce::canonicalize(caminho).ok()?;

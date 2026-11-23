@@ -5,7 +5,8 @@
 //! pasta do projeto mesmo que o analista aprove:
 //!
 //! - **`Edit`, `Write` e `NotebookEdit`:** regras `deny` com o caminho absoluto de
-//!   cada pasta no `~/.claude/settings.json` ([`crate::preparo::protecao`]).
+//!   cada pasta no `.claude/settings.local.json` da raiz da pasta
+//!   ([`crate::preparo::protecao`], #304).
 //! - **`Bash` e `PowerShell`:** o receptor de hooks responde `deny` no `PreToolUse`
 //!   dessas ferramentas nas sessões do projeto ([`protegido`]). O Claude Code não tem
 //!   regra de Bash por pasta, e uma regra `Bash` pura tiraria a ferramenta de todas
@@ -13,12 +14,14 @@
 //!   aprovação do analista não chega a ser pedida.
 //!
 //! O registro `<dados>/protecao/<projeto>.json` diz que a proteção está ligada (o
-//! hook só confere se ele existe) e guarda as regras que o app acrescentou: desligar
-//! tira só essas, nunca uma regra igual que o analista já tinha.
+//! hook só confere se ele existe) e guarda as regras que o app acrescentou, cada uma
+//! com o arquivo em que está: desligar tira só essas, nunca uma regra igual que o
+//! analista já tinha. No formato 1 (anterior à #304) as regras eram só texto e
+//! estavam no `settings.json` do usuário ([`RegraAdicionada::arquivo`] `None`).
 
 use std::fs;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use cba_core::dados::DiretorioDados;
 use cba_core::tempo;
@@ -28,7 +31,7 @@ use crate::preparo::{Erro, Preparador};
 
 /// Pasta dos registros de proteção no diretório de dados.
 pub const PASTA: &str = "protecao";
-const VERSAO_DO_FORMATO: u32 = 1;
+const VERSAO_DO_FORMATO: u32 = 2;
 /// Ferramentas negadas pelo hook nas sessões de um projeto protegido.
 pub const FERRAMENTAS_NEGADAS_PELO_HOOK: &[&str] = &["Bash", "PowerShell"];
 
@@ -37,14 +40,58 @@ pub const MOTIVO: &str = "A proteção contra edição está ligada para este pr
 comandos de shell estão desligados nesta pasta. Use as ferramentas do cba e a leitura de \
 arquivos, e registre o que mudaria como sugestão de alteração.";
 
+/// Regra que o app acrescentou e o arquivo em que ela está.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(from = "FormatoRegra")]
+pub struct RegraAdicionada {
+    pub regra: String,
+    /// `None`: o `settings.json` do usuário (registro do formato 1, anterior à #304).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub arquivo: Option<PathBuf>,
+}
+
+/// Uma regra no registro: texto (formato 1) ou com o arquivo.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum FormatoRegra {
+    Texto(String),
+    Completa {
+        regra: String,
+        #[serde(default)]
+        arquivo: Option<PathBuf>,
+    },
+}
+
+impl From<FormatoRegra> for RegraAdicionada {
+    fn from(f: FormatoRegra) -> Self {
+        match f {
+            FormatoRegra::Texto(regra) => Self {
+                regra,
+                arquivo: None,
+            },
+            FormatoRegra::Completa { regra, arquivo } => Self { regra, arquivo },
+        }
+    }
+}
+
 /// Registro da proteção ligada.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RegistroProtecao {
     pub formato: u32,
     pub projeto: String,
     /// Regras que o app acrescentou (e que desligar tira).
-    pub adicionadas: Vec<String>,
+    pub adicionadas: Vec<RegraAdicionada>,
     pub ligada_ms: u64,
+}
+
+impl RegistroProtecao {
+    /// A regra foi acrescentada pelo app em `arquivo` (`settings` é o do usuário,
+    /// para as regras do formato 1).
+    fn tem(&self, regra: &str, arquivo: &Path, settings: &Path) -> bool {
+        self.adicionadas
+            .iter()
+            .any(|a| a.regra == regra && a.arquivo.as_deref().unwrap_or(settings) == arquivo)
+    }
 }
 
 /// Uma regra da proteção e onde ela está.
@@ -52,7 +99,9 @@ pub struct RegistroProtecao {
 #[serde(rename_all = "camelCase")]
 pub struct RegraProtecao {
     pub regra: String,
-    /// Está no `settings.json`.
+    /// O `settings.local.json` em que a regra vai.
+    pub arquivo: PathBuf,
+    /// Está no arquivo.
     pub presente: bool,
     /// Foi o app que a acrescentou.
     pub do_app: bool,
@@ -65,9 +114,9 @@ pub struct SituacaoProtecao {
     pub projeto: String,
     /// Registro presente: o hook nega o Bash nas sessões do projeto.
     pub ligada: bool,
-    /// Ligada e com todas as regras no `settings.json`.
+    /// Ligada e com todas as regras no lugar.
     pub completa: bool,
-    /// `~/.claude/settings.json`.
+    /// Arquivo da primeira pasta (o das outras está em cada regra).
     pub arquivo: PathBuf,
     pub regras: Vec<RegraProtecao>,
     /// Ferramentas negadas pelo hook quando ligada.
@@ -109,24 +158,26 @@ pub fn situacao(
 ) -> Result<SituacaoProtecao, Erro> {
     let registro = registro(dados, &projeto.id);
     let ligada = protegido(dados, &projeto.id);
-    let esperadas = preparador.regras_de_protecao(&pastas(projeto));
-    let presentes = preparador.negacoes_presentes(&esperadas)?;
-    let regras: Vec<RegraProtecao> = esperadas
-        .into_iter()
-        .zip(presentes)
-        .map(|(regra, presente)| RegraProtecao {
+    let mut regras = Vec::new();
+    for (arquivo, regra) in preparador.regras_por_arquivo(&pastas(projeto)) {
+        let presente = preparador.negacoes_presentes_em(&arquivo, std::slice::from_ref(&regra))?[0];
+        regras.push(RegraProtecao {
             do_app: registro
                 .as_ref()
-                .is_some_and(|r| r.adicionadas.contains(&regra)),
+                .is_some_and(|r| r.tem(&regra, &arquivo, &preparador.config.settings)),
             regra,
+            arquivo,
             presente,
-        })
-        .collect();
+        });
+    }
     Ok(SituacaoProtecao {
         projeto: projeto.id.clone(),
         completa: ligada && regras.iter().all(|r| r.presente),
         ligada,
-        arquivo: preparador.config.settings.clone(),
+        arquivo: regras
+            .first()
+            .map(|r| r.arquivo.clone())
+            .unwrap_or_else(|| preparador.config.settings.clone()),
         regras,
         negadas_pelo_hook: FERRAMENTAS_NEGADAS_PELO_HOOK
             .iter()
@@ -143,14 +194,26 @@ pub fn ligar(
 ) -> Result<SituacaoProtecao, Erro> {
     let destino =
         arquivo(dados, &projeto.id).ok_or_else(|| Erro::Pasta(PathBuf::from(&projeto.id)))?;
-    let regras = preparador.regras_de_protecao(&pastas(projeto));
-    let feito = preparador.negar(&regras)?;
     let mut adicionadas = registro(dados, &projeto.id)
         .map(|r| r.adicionadas)
         .unwrap_or_default();
-    for r in feito.alteradas {
-        if !adicionadas.contains(&r) {
-            adicionadas.push(r);
+    let mut por_arquivo: Vec<(PathBuf, Vec<String>)> = Vec::new();
+    for (arquivo, regra) in preparador.regras_por_arquivo(&pastas(projeto)) {
+        match por_arquivo.iter_mut().find(|(a, _)| *a == arquivo) {
+            Some((_, v)) => v.push(regra),
+            None => por_arquivo.push((arquivo, vec![regra])),
+        }
+    }
+    for (arquivo, regras) in por_arquivo {
+        let feito = preparador.negar_em(&arquivo, &regras)?;
+        for regra in feito.alteradas {
+            let nova = RegraAdicionada {
+                regra,
+                arquivo: Some(arquivo.clone()),
+            };
+            if !adicionadas.contains(&nova) {
+                adicionadas.push(nova);
+            }
         }
     }
     let novo = RegistroProtecao {
@@ -168,7 +231,7 @@ pub fn ligar(
     situacao(dados, preparador, projeto)
 }
 
-/// Desliga a proteção: tira do `settings.json` só as regras que o app acrescentou e
+/// Desliga a proteção: tira de cada arquivo só as regras que o app acrescentou nele e
 /// apaga o registro. Também serve ao descadastro do projeto.
 pub fn desligar(
     dados: &DiretorioDados,
@@ -179,7 +242,7 @@ pub fn desligar(
         return Ok(Vec::new());
     };
     let Some(reg) = registro(dados, projeto) else {
-        // Registro ilegível ou ausente: nada é tirado do settings.json.
+        // Registro ilegível ou ausente: nenhuma regra é tirada.
         match fs::remove_file(&destino) {
             Ok(()) => {}
             Err(e) if e.kind() == io::ErrorKind::NotFound => {}
@@ -187,12 +250,25 @@ pub fn desligar(
         }
         return Ok(Vec::new());
     };
-    let feito = preparador.liberar(&reg.adicionadas)?;
+    let mut por_arquivo: Vec<(PathBuf, Vec<String>)> = Vec::new();
+    for a in reg.adicionadas {
+        let arquivo = a
+            .arquivo
+            .unwrap_or_else(|| preparador.config.settings.clone());
+        match por_arquivo.iter_mut().find(|(x, _)| *x == arquivo) {
+            Some((_, v)) => v.push(a.regra),
+            None => por_arquivo.push((arquivo, vec![a.regra])),
+        }
+    }
+    let mut tiradas = Vec::new();
+    for (arquivo, regras) in por_arquivo {
+        tiradas.extend(preparador.liberar_em(&arquivo, &regras)?.alteradas);
+    }
     match fs::remove_file(&destino) {
         Ok(()) => {}
         Err(e) if e.kind() == io::ErrorKind::NotFound => {}
         Err(e) => return Err(erro_io(destino, e)),
     }
     tracing::info!(projeto, "proteção contra edição desligada");
-    Ok(feito.alteradas)
+    Ok(tiradas)
 }

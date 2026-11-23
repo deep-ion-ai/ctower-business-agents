@@ -206,20 +206,23 @@ function Protecao({ api, projeto }: PropsConfigProjeto) {
             <div className="confirmar-alteracao" role="region" aria-label="Confirmar a proteção">
               {situacao.ligada ? (
                 <p>
-                  O app vai tirar de {situacao.arquivo} só as regras que ele mesmo acrescentou, e o
-                  terminal (Bash) volta a funcionar nas conversas deste projeto.
+                  O app vai tirar do <code>.claude/settings.local.json</code> das pastas só as regras
+                  que ele mesmo acrescentou, e o terminal (Bash) volta a funcionar nas conversas
+                  deste projeto.
                 </p>
               ) : (
                 <>
                   <p>
-                    O app vai acrescentar em {situacao.arquivo} estas regras, que valem mesmo que
-                    você aprove a edição, e negar o terminal ({situacao.negadasPeloHook.join(", ")})
-                    nas conversas deste projeto:
+                    O app vai acrescentar estas regras no <code>.claude/settings.local.json</code>{" "}
+                    das pastas (pessoal e fora do git), que valem mesmo que você aprove a edição, e
+                    negar o terminal ({situacao.negadasPeloHook.join(", ")}) nas conversas deste
+                    projeto:
                   </p>
                   <ul>
                     {situacao.regras.map((r) => (
                       <li key={r.regra}>
                         <code>{r.regra}</code>
+                        {r.arquivo && <span className="muted"> em {r.arquivo}</span>}
                       </li>
                     ))}
                   </ul>
