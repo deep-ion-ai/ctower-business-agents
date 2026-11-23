@@ -49,6 +49,10 @@ _Nada registrado._
 
 - **[a confirmar]** Arquivos que mudariam: `backend/src/main/java/exemplo/faturamento/ParcelamentoService.java`, `frontend/src/telas/parcelamento-form.ts`, `db/02_parametros.sql`.
 
+## Dados pessoais e requisitos não funcionais
+
+- **[inferido]** Nenhum dado pessoal é tocado: o limite de parcelas vem de um parâmetro, sem campo do cliente.[^3][^4][^5]
+
 ## Riscos
 
 - **[confirmado]** Tela oferece até 12 parcelas; backend aceita até 6 (INC-FAT-001): A tela de parcelamento valida e oferece de 2 a 12 parcelas (constante fixa no código), enquanto o backend aceita no máximo MAX_PARCELAS (hoje 6). Pedidos de 7 a 12 parcelas passam pela tela e são recusados pelo backend.[^6][^3]

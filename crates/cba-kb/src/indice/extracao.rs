@@ -10,14 +10,15 @@ use crate::caminho::CaminhoRelativo;
 use crate::documento::Documento;
 use crate::frontmatter::{
     self, Frontmatter, FrontmatterAnalise, FrontmatterAta, FrontmatterDemanda,
-    FrontmatterFuncionalidade, FrontmatterLivre, FrontmatterMemoria, FrontmatterPessoa,
-    FrontmatterProjeto, FrontmatterRegra, FrontmatterSugestao, FrontmatterTermo, TipoDocumento,
+    FrontmatterDocExterno, FrontmatterFuncionalidade, FrontmatterLivre, FrontmatterMapa,
+    FrontmatterMemoria, FrontmatterPessoa, FrontmatterProjeto, FrontmatterRegra,
+    FrontmatterSugestao, FrontmatterTermo, TipoDocumento,
 };
 use crate::id::{Id, IdDemanda};
 use crate::layout;
 use crate::yaml::{Mapping, Value};
 
-use super::Tipo;
+use super::{OrigemIndexada, Tipo};
 
 /// O que o índice guarda de um documento.
 #[derive(Debug, Default)]
@@ -42,6 +43,10 @@ pub(super) struct Registro {
     pub evidencias: Vec<frontmatter::Evidencia>,
     /// (documento citado, relativo à base; campo).
     pub ligacoes: Vec<(String, &'static str)>,
+    /// Em `externos/` (documentação importada, #277).
+    pub externo: bool,
+    /// Origem de um documento externo legível.
+    pub origem_externa: Option<OrigemIndexada>,
 }
 
 /// Monta o registro de um documento a partir dos bytes do arquivo.
@@ -50,6 +55,7 @@ pub(super) fn extrair(projeto: &Projeto, relativo: &CaminhoRelativo, bytes: Vec<
         caminho: projeto.na_base(relativo).as_str().to_owned(),
         projeto: projeto.nome().to_owned(),
         frontmatter: "{}".into(),
+        externo: layout::e_externo(relativo),
         ..Default::default()
     };
     let texto = match String::from_utf8(bytes) {
@@ -95,6 +101,9 @@ pub(super) fn extrair(projeto: &Projeto, relativo: &CaminhoRelativo, bytes: Vec<
     let mut chaves: Vec<String> = Vec::new();
     chaves.extend(r.identificador.clone());
     chaves.extend(textos_da_lista(mapa, "sinonimos"));
+    // Documento externo: o identificador do original (`RN-FAT-001`) acha a cópia,
+    // sem virar o identificador dela (não é regra nem termo da base).
+    chaves.extend(texto_do_campo(mapa, "id_original"));
     chaves.extend(r.area.clone());
     r.chaves = chaves.join("\n");
 
@@ -133,6 +142,23 @@ pub(super) fn extrair(projeto: &Projeto, relativo: &CaminhoRelativo, bytes: Vec<
     if let Some(valor) = mapa.get("evidencias") {
         r.evidencias = serde_norway::from_value(valor.clone()).unwrap_or_default();
     }
+    if r.externo
+        && tipo == Some(TipoDocumento::DocExterno)
+        && let Ok(d) = Documento::<FrontmatterDocExterno>::analisar(&texto)
+    {
+        let f = d.frontmatter;
+        r.origem_externa = Some(OrigemIndexada {
+            repositorio: f.origem.repositorio,
+            caminho: f.origem.caminho,
+            commit: f.origem.commit,
+            branch: f.origem.branch,
+            confianca: f.confianca,
+            tipo_original: f.tipo_original,
+            id_original: f.id_original,
+            ancora: f.origem.ancora,
+            url: f.origem.url,
+        });
+    }
 
     r.erro = match tipo {
         None => Some(match mapa.get("tipo") {
@@ -158,6 +184,7 @@ fn validar(tipo: TipoDocumento, relativo: &CaminhoRelativo, texto: &str) -> Resu
         | TipoDocumento::AnaliseReuniao
         | TipoDocumento::ParecerRevisao => com::<FrontmatterAnalise>(texto),
         TipoDocumento::Historias | TipoDocumento::CenariosTeste => com::<FrontmatterAnalise>(texto),
+        TipoDocumento::MapaFuncionalidades => com::<FrontmatterMapa>(texto),
         // Explicação de funcionalidade: análise em `analises/`, documento negocial
         // em `funcionalidades/`.
         TipoDocumento::Funcionalidade if relativo.partes().next() == Some(layout::ANALISES) => {
@@ -177,6 +204,7 @@ fn validar(tipo: TipoDocumento, relativo: &CaminhoRelativo, texto: &str) -> Resu
         | TipoDocumento::Decisao
         | TipoDocumento::Risco
         | TipoDocumento::Restricao => com::<crate::registros::FrontmatterRegistro>(texto),
+        TipoDocumento::DocExterno => com::<FrontmatterDocExterno>(texto),
     }
 }
 

@@ -44,6 +44,13 @@ pub struct Gabarito {
     /// Ciclos de vida esperados de entidades com campo de status (#119).
     #[serde(default)]
     pub ciclos_vida: Vec<CicloVida>,
+    /// Mapa de funcionalidades esperado (#208).
+    #[serde(default)]
+    pub mapeamentos: Vec<Mapeamento>,
+    /// Ciclo de publicação da documentação (#279): analisar, aprovar, publicar e
+    /// analisar de novo com a documentação publicada.
+    #[serde(default)]
+    pub publicacoes: Vec<Publicacao>,
     /// Pasta do gabarito, para resolver `raiz`. Preenchida por [`Gabarito::carregar`].
     #[serde(skip)]
     pub pasta: PathBuf,
@@ -200,6 +207,47 @@ pub struct Demanda {
     pub arquivos_impactados: Vec<String>,
     #[serde(default)]
     pub perguntas_esperadas: Vec<PerguntaEsperada>,
+    /// Seção "Dados pessoais e requisitos não funcionais" esperada (#126).
+    #[serde(default)]
+    pub dados_pessoais: Option<DadosPessoaisEsperados>,
+}
+
+/// O que a seção "Dados pessoais e requisitos não funcionais" da análise de
+/// impacto deve ter (#126).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DadosPessoaisEsperados {
+    /// Campos com dado pessoal que a demanda toca.
+    pub campos: Vec<CampoPessoal>,
+    /// Colunas que não guardam dado pessoal: apontá-las é falso positivo.
+    #[serde(default)]
+    pub nao_pessoais: Vec<CampoNaoPessoal>,
+    /// Aspectos não funcionais (auditoria, desempenho, acesso).
+    #[serde(default)]
+    pub aspectos: Vec<AspectoEsperado>,
+}
+
+/// Campo com dado pessoal (`CLIENTE.NOME`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CampoPessoal {
+    pub campo: String,
+    pub categoria: String,
+    pub palavras_chave: Vec<Vec<String>>,
+    pub evidencias: Vec<EvidenciaEsperada>,
+}
+
+/// Coluna que não guarda dado pessoal.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CampoNaoPessoal {
+    pub campo: String,
+    pub palavras_chave: Vec<Vec<String>>,
+}
+
+/// Aspecto não funcional que a análise deve tratar, por afirmação ou pergunta.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AspectoEsperado {
+    pub aspecto: String,
+    pub tema: String,
+    pub palavras_chave: Vec<Vec<String>>,
 }
 
 /// Requisito ou história fictícios e o parecer esperado (fluxo `revisar`).
@@ -346,6 +394,63 @@ pub struct NegativoEsperado {
     pub palavras_chave: Vec<Vec<String>>,
 }
 
+/// Ciclo de publicação da documentação (#279): o item `analise` é analisado,
+/// aprovado e publicado num repositório de docs; o item `reanalise` é analisado
+/// de novo numa base nova, que só conhece a documentação publicada (sincronizada
+/// do repositório), para conferir que o agente a consulta.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Publicacao {
+    pub id: String,
+    pub titulo: String,
+    /// Item do gabarito (pergunta, funcionalidade ou demanda) analisado, aprovado
+    /// e publicado.
+    pub analise: String,
+    /// Item analisado de novo com a documentação publicada; comparado com o
+    /// gabarito como nos outros fluxos.
+    pub reanalise: String,
+    /// Caminho do repositório de docs (`dono/repo`), para os rótulos e o PR.
+    pub repositorio: String,
+    /// Pasta da documentação dentro do repositório (vazia: a raiz).
+    #[serde(default)]
+    pub subpasta: String,
+}
+
+/// Mapeamento das funcionalidades do projeto (#208): o mapa esperado.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Mapeamento {
+    pub id: String,
+    pub titulo: String,
+    #[serde(flatten)]
+    pub esperado: MapeamentoEsperado,
+}
+
+/// O mapa esperado: os pontos de entrada e as funcionalidades.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MapeamentoEsperado {
+    pub pontos_de_entrada: Vec<PontoEsperado>,
+    pub funcionalidades: Vec<FuncionalidadeMapeadaEsperada>,
+}
+
+/// Ponto de entrada do mapa e as funcionalidades a que ele pode ir.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PontoEsperado {
+    pub chave: String,
+    pub funcionalidades: Vec<String>,
+    /// Pode ficar sem funcionalidade, justificado como utilitário.
+    #[serde(default)]
+    pub justificavel: bool,
+}
+
+/// Funcionalidade esperada no catálogo.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FuncionalidadeMapeadaEsperada {
+    pub id: String,
+    #[serde(default)]
+    pub nome: Option<String>,
+    pub area: String,
+    pub palavras_chave: Vec<Vec<String>>,
+}
+
 /// Ciclo de vida de uma entidade (#119): a análise de explicar com o `pedido`,
 /// que deve registrar o diagrama de estados esperado.
 #[derive(Debug, Clone, Deserialize)]
@@ -489,6 +594,10 @@ pub struct Item {
     /// Fluxo do processo e modelo de dados esperados, só no fluxo explicar (#120).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub modelagem: Option<ModelagemEsperada>,
+    /// Dados pessoais e requisitos não funcionais esperados, só no fluxo impacto
+    /// (#126).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dados_pessoais: Option<DadosPessoaisEsperados>,
 }
 
 /// Erro ao ler o gabarito ou ao achar um item.
@@ -533,6 +642,26 @@ impl Gabarito {
     }
 
     /// Reunião pelo id (`REU-*`).
+    /// Mapeamento das funcionalidades (#208), avaliado à parte das análises.
+    pub fn mapeamento(&self, id: &str) -> Result<&Mapeamento, Erro> {
+        self.mapeamentos.iter().find(|m| m.id == id).ok_or_else(|| {
+            Erro(format!(
+                "o mapeamento `{id}` não existe no gabarito (use o id de um mapeamento, como \
+                 MAP-FAT-001)"
+            ))
+        })
+    }
+
+    /// Ciclo de publicação da documentação (#279).
+    pub fn publicacao(&self, id: &str) -> Result<&Publicacao, Erro> {
+        self.publicacoes.iter().find(|p| p.id == id).ok_or_else(|| {
+            Erro(format!(
+                "o ciclo de publicação `{id}` não existe no gabarito (use o id de um ciclo, como \
+                 PUB-FAT-001)"
+            ))
+        })
+    }
+
     pub fn reuniao(&self, id: &str) -> Result<&Reuniao, Erro> {
         self.reunioes.iter().find(|r| r.id == id).ok_or_else(|| {
             Erro(format!(
@@ -580,6 +709,7 @@ impl Gabarito {
                 cenarios: None,
                 ciclo_vida: None,
                 modelagem: None,
+                dados_pessoais: None,
             });
         }
         if let Some(f) = self.funcionalidades.iter().find(|f| f.id == id) {
@@ -603,6 +733,7 @@ impl Gabarito {
                         modelo_dados: f.modelo_dados.clone(),
                     }
                 }),
+                dados_pessoais: None,
             });
         }
         if let Some(d) = self.demandas.iter().find(|d| d.id == id) {
@@ -621,6 +752,7 @@ impl Gabarito {
                 cenarios: None,
                 ciclo_vida: None,
                 modelagem: None,
+                dados_pessoais: d.dados_pessoais.clone(),
             });
         }
         if let Some(r) = self.revisoes.iter().find(|r| r.id == id) {
@@ -640,6 +772,7 @@ impl Gabarito {
                 cenarios: None,
                 ciclo_vida: None,
                 modelagem: None,
+                dados_pessoais: None,
             });
         }
         if let Some(h) = self.historias.iter().find(|h| h.id == id) {
@@ -659,6 +792,7 @@ impl Gabarito {
                 cenarios: None,
                 ciclo_vida: None,
                 modelagem: None,
+                dados_pessoais: None,
             });
         }
         if let Some(c) = self.cenarios.iter().find(|c| c.id == id) {
@@ -677,6 +811,7 @@ impl Gabarito {
                 cenarios: Some(c.esperado.clone()),
                 ciclo_vida: None,
                 modelagem: None,
+                dados_pessoais: None,
             });
         }
         if let Some(c) = self.ciclos_vida.iter().find(|c| c.id == id) {
@@ -695,6 +830,7 @@ impl Gabarito {
                 cenarios: None,
                 ciclo_vida: Some(c.esperado.clone()),
                 modelagem: None,
+                dados_pessoais: None,
             });
         }
         Err(Erro(format!(

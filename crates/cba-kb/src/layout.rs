@@ -51,6 +51,29 @@ pub const PASTAS_DO_PROJETO: [&str; 6] = [
     SUGESTOES,
 ];
 
+/// Mapa de funcionalidades do projeto (#208), em `funcionalidades/`.
+pub const ARQUIVO_MAPA: &str = "mapa.md";
+/// Estado do mapa, ao lado dele: a fonte de verdade das funcionalidades e dos
+/// identificadores.
+pub const ARQUIVO_ESTADO_MAPA: &str = "mapa.estado.json";
+/// Trava das alterações do estado do mapa (app e servidor MCP).
+pub const ARQUIVO_TRAVA_MAPA: &str = ".mapa.trava";
+/// Estado do catálogo da primeira versão do #208, quando o mapa era aprovado por
+/// análise: só lido, para importar.
+pub const ARQUIVO_ESTADO_CATALOGO_LEGADO: &str = "catalogo.estado.json";
+
+/// Documentação externa importada do repositório de docs (#277), uma pasta por
+/// repositório (`externos/<slug do repositório>/`), com a mesma estrutura de
+/// pastas do original. Gerida pela sincronização: o que não veio do repositório é
+/// apagado, e editar uma cópia não adianta (a próxima sincronização desfaz).
+/// Criada na primeira sincronização, não em todo projeto.
+pub const EXTERNOS: &str = "externos";
+/// Estado da sincronização da documentação externa, em `externos/` (arquivo
+/// oculto: fica fora de [`crate::Projeto::documentos`]).
+pub const ARQUIVO_ESTADO_EXTERNOS: &str = ".sincronizacao.json";
+/// Trava da sincronização (app e servidor MCP), em `externos/`.
+pub const TRAVA_EXTERNOS: &str = ".sincronizacao.trava";
+
 /// Extensão dos documentos.
 pub const EXTENSAO: &str = "md";
 
@@ -105,6 +128,29 @@ pub fn e_memoria_da_analise(nome: &str) -> bool {
     nome.ends_with(SUFIXO_MEMORIA_DA_ANALISE)
 }
 
+/// `funcionalidades/mapa.md`.
+pub fn mapa_de_funcionalidades() -> CaminhoRelativo {
+    caminho(format!("{FUNCIONALIDADES}/{ARQUIVO_MAPA}")).expect("nome fixo válido")
+}
+
+/// `funcionalidades/mapa.estado.json`.
+pub fn estado_do_mapa() -> CaminhoRelativo {
+    caminho(format!("{FUNCIONALIDADES}/{ARQUIVO_ESTADO_MAPA}")).expect("nome fixo válido")
+}
+
+/// `funcionalidades/.mapa.trava`.
+pub fn trava_do_mapa() -> CaminhoRelativo {
+    caminho(format!("{FUNCIONALIDADES}/{ARQUIVO_TRAVA_MAPA}")).expect("nome fixo válido")
+}
+
+/// `funcionalidades/catalogo.estado.json` (legado, só para importar).
+pub fn estado_do_catalogo_legado() -> CaminhoRelativo {
+    caminho(format!(
+        "{FUNCIONALIDADES}/{ARQUIVO_ESTADO_CATALOGO_LEGADO}"
+    ))
+    .expect("nome fixo válido")
+}
+
 /// `funcionalidades/<slug da área>/<slug do tema>/`, pasta dos documentos de uma
 /// funcionalidade.
 pub fn funcionalidade(area: &str, tema: &str) -> Result<CaminhoRelativo, CaminhoInvalido> {
@@ -113,6 +159,27 @@ pub fn funcionalidade(area: &str, tema: &str) -> Result<CaminhoRelativo, Caminho
         exigir_slug(area)?,
         exigir_slug(tema)?
     ))
+}
+
+/// `externos/`.
+pub fn externos() -> CaminhoRelativo {
+    CaminhoRelativo::novo(EXTERNOS).expect("nome fixo válido")
+}
+
+/// `externos/<slug do repositório>/`, a pasta das cópias de um repositório.
+pub fn externos_do_repositorio(repositorio: &str) -> Result<CaminhoRelativo, CaminhoInvalido> {
+    caminho(format!("{EXTERNOS}/{}", exigir_slug(repositorio)?))
+}
+
+/// `externos/.sincronizacao.json`.
+pub fn estado_dos_externos() -> CaminhoRelativo {
+    caminho(format!("{EXTERNOS}/{ARQUIVO_ESTADO_EXTERNOS}")).expect("nome fixo válido")
+}
+
+/// Se o caminho (relativo à raiz do projeto) é de um documento externo: só
+/// leitura no app, nunca regra nem termo da base.
+pub fn e_externo(relativo: &CaminhoRelativo) -> bool {
+    relativo.partes().next() == Some(EXTERNOS)
 }
 
 #[cfg(test)]
@@ -139,6 +206,14 @@ mod tests {
             "funcionalidades/cobranca/cancelamento-de-fatura"
         );
         assert!(termo("??").is_err());
+        assert_eq!(
+            mapa_de_funcionalidades().as_str(),
+            "funcionalidades/mapa.md"
+        );
+        assert_eq!(
+            estado_do_mapa().as_str(),
+            "funcionalidades/mapa.estado.json"
+        );
         let id = crate::Id::analisar("A-0007").unwrap();
         assert_eq!(
             memoria_da_analise(&id).as_str(),
@@ -147,5 +222,16 @@ mod tests {
         assert!(e_memoria_da_analise("A-0007.memoria.md"));
         assert!(!e_memoria_da_analise("A-0007.md"));
         assert!(!e_memoria_da_analise("memoria.md"));
+        let externos = externos_do_repositorio("GitHub exemplo/faturamento-docs").unwrap();
+        assert_eq!(
+            externos.as_str(),
+            "externos/github-exemplo-faturamento-docs"
+        );
+        assert!(e_externo(&externos.juntar("regras/multa.md").unwrap()));
+        assert!(!e_externo(&termo("multa").unwrap()));
+        assert_eq!(
+            estado_dos_externos().as_str(),
+            "externos/.sincronizacao.json"
+        );
     }
 }

@@ -117,7 +117,7 @@ export interface Descadastro {
   documentos: string | null;
 }
 
-export type GrupoTexto = "template" | "roteiro" | "prompt" | "regrasDoProjeto";
+export type GrupoTexto = "template" | "roteiro" | "prompt" | "exportacao" | "regrasDoProjeto";
 export type EstadoTexto = "padrao" | "igualAoPadrao" | "editado" | "ilegivel";
 
 export interface TextoEditavel {
@@ -157,6 +157,13 @@ export interface LeituraTexto {
   variaveis: VariavelTexto[];
   /** Hash do conteúdo do arquivo, ou `ausente`; vai de volta em `salvarTexto`. */
   versao: string;
+}
+
+/** Prévia da exportação em HTML (`PreviaExportacao`). */
+export interface PreviaExportacao {
+  /** O arquivo completo, para um `iframe` isolado. */
+  html: string;
+  avisos: string[];
 }
 
 /** Resultado de gravar um texto (`SalvoTexto`). */
@@ -219,6 +226,12 @@ export interface ApiConfiguracoes
   salvarTexto(arquivo: string, texto: string, versaoLida: string): Promise<SalvoTexto>;
   /** Remove a cópia da base (nas regras do projeto, regrava o padrão). */
   restaurarTexto(arquivo: string): Promise<LeituraTexto>;
+  /**
+   * Prévia da exportação em HTML (#166): um documento de exemplo com o template e os
+   * tokens da base, com `texto` no lugar de `arquivo`. Só os arquivos do grupo
+   * `exportacao`.
+   */
+  previaExportacao(arquivo: string, texto: string): Promise<PreviaExportacao>;
   situacaoProtecao(projeto: string): Promise<SituacaoProtecao>;
   mudarProtecao(projeto: string, ligada: boolean): Promise<SituacaoProtecao>;
 }
@@ -244,6 +257,7 @@ export const apiConfiguracoesTauri: ApiConfiguracoes = {
   salvarTexto: (arquivo, texto, versaoLida) =>
     invoke("salvar_texto_editavel", { arquivo, texto, versaoLida }),
   restaurarTexto: (arquivo) => invoke("restaurar_texto_padrao", { arquivo }),
+  previaExportacao: (arquivo, texto) => invoke("previa_exportacao_texto", { arquivo, texto }),
   situacaoProtecao: (projeto) => invoke("situacao_protecao_projeto", { projeto }),
   mudarProtecao: (projeto, ligada) => invoke("mudar_protecao_projeto", { projeto, ligada }),
   verificarAmbiente: apiAnaliseTauri.verificarAmbiente,

@@ -10,4 +10,4 @@ Variáveis: {{id}} (identificador da análise), {{titulo}}, {{fluxo}} (nome do
 fluxo) e {{documento}} (caminho do documento, relativo à base). Sem {{id}}, o app
 acrescenta o identificador no fim e avisa.
 -->
-Aprofunde a análise {{id}} pelo ctower. Chame `retomar_analise` e trate primeiro as afirmações que marquei para aprofundar, depois as inferidas e as a confirmar: procure no código a evidência que falta, registre o que encontrar com `afirmar` e o que o código não responder com `perguntar`. Não repita o que já está registrado. Ao terminar, chame `concluir_analise`.
+Aprofunde a análise {{id}} pelo ctower. Chame `retomar_analise` e trate primeiro as afirmações que marquei para aprofundar, depois as inferidas e as a confirmar: procure no código a evidência que falta (a documentação publicada, em `conhecimento` com `externos: "incluir"`, pode dizer onde procurar, mas é pista, não evidência; diga quando a usar), registre o que encontrar com `afirmar` e o que o código não responder com `perguntar`. Não repita o que já está registrado. Ao terminar, chame `concluir_analise`.

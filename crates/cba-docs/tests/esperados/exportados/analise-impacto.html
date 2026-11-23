@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="ctower-business-agents">
+<title>A-0002 · Parcelamento da fatura para pessoa jurídica</title>
+<style>
+/*
+  Tokens da exportação em HTML: a identidade visual do documento.
+
+  A folha de estilo do documento usa só estas variáveis. Para trocar cores,
+  fontes e tamanhos, mude os valores abaixo. Para ir além (regras novas),
+  use estilo.css.
+
+  Fontes: use fontes instaladas no computador de quem abre o arquivo; o
+  documento não carrega fontes da internet.
+*/
+:root {
+  /* Cores */
+  --cor-texto: #1f2328;
+  --cor-texto-suave: #59636e;
+  --cor-fundo: #f6f7f9;
+  --cor-papel: #ffffff;
+  --cor-destaque: #0b5cad;
+  --cor-borda: #d0d7de;
+  --cor-atencao: #9a6700;
+  --cor-atencao-fundo: #fff8c5;
+  --cor-confirmado: #1a7f37;
+  --cor-codigo-texto: #1f2328;
+  --cor-codigo-fundo: #f3f4f6;
+
+  /* Fontes */
+  --fonte-texto: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --fonte-titulo: var(--fonte-texto);
+  --fonte-codigo: "Cascadia Mono", Consolas, "SF Mono", Menlo, "Liberation Mono", monospace;
+
+  /* Tamanhos */
+  --tamanho-texto: 16px;
+  --tamanho-codigo: 0.875em;
+  --tamanho-titulo-1: 1.9em;
+  --tamanho-titulo-2: 1.4em;
+  --tamanho-titulo-3: 1.15em;
+  --altura-linha: 1.55;
+
+  /* Página */
+  --largura-maxima: 52rem;
+  --espaco: 1rem;
+  --raio: 6px;
+  --margem-impressao: 18mm;
+}
+/* Folha padrão da exportação em HTML: usa só os tokens (var(--…)). */
+*, *::before, *::after { box-sizing: border-box; }
+html { background: var(--cor-fundo); }
+body {
+  margin: 0;
+  padding: var(--espaco);
+  color: var(--cor-texto);
+  background: var(--cor-fundo);
+  font-family: var(--fonte-texto);
+  font-size: var(--tamanho-texto);
+  line-height: var(--altura-linha);
+}
+.cabecalho, .documento, .rodape {
+  max-width: var(--largura-maxima);
+  margin: 0 auto;
+}
+.cabecalho, .rodape { color: var(--cor-texto-suave); font-size: 0.875em; }
+.cabecalho p, .rodape p { margin: calc(var(--espaco) / 4) 0; }
+.cabecalho { padding: 0 calc(var(--espaco) * 2); }
+.rodape { padding: var(--espaco) calc(var(--espaco) * 2); }
+.documento {
+  background: var(--cor-papel);
+  border: 1px solid var(--cor-borda);
+  border-radius: var(--raio);
+  padding: calc(var(--espaco) * 2);
+  overflow-wrap: break-word;
+}
+h1, h2, h3, h4, h5, h6 { font-family: var(--fonte-titulo); line-height: 1.25; margin: 1.6em 0 0.6em; }
+h1 { font-size: var(--tamanho-titulo-1); margin-top: 0; color: var(--cor-destaque); }
+h2 { font-size: var(--tamanho-titulo-2); padding-bottom: 0.25em; border-bottom: 1px solid var(--cor-borda); }
+h3 { font-size: var(--tamanho-titulo-3); }
+a { color: var(--cor-destaque); }
+code, pre { font-family: var(--fonte-codigo); font-size: var(--tamanho-codigo); color: var(--cor-codigo-texto); }
+code { background: var(--cor-codigo-fundo); padding: 0.1em 0.3em; border-radius: calc(var(--raio) / 2); }
+pre {
+  background: var(--cor-codigo-fundo);
+  border: 1px solid var(--cor-borda);
+  border-radius: var(--raio);
+  padding: var(--espaco);
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+pre code { background: none; padding: 0; font-size: 1em; }
+blockquote { margin: var(--espaco) 0; padding: 0 var(--espaco); color: var(--cor-texto-suave); border-left: 4px solid var(--cor-borda); }
+table { border-collapse: collapse; width: 100%; margin: var(--espaco) 0; }
+th, td { border: 1px solid var(--cor-borda); padding: 0.35em 0.6em; vertical-align: top; text-align: left; }
+th { background: var(--cor-codigo-fundo); }
+.alinhar-centro { text-align: center; }
+.alinhar-direita { text-align: right; }
+hr { border: 0; border-top: 1px solid var(--cor-borda); margin: calc(var(--espaco) * 1.5) 0; }
+img { max-width: 100%; height: auto; }
+figure.diagrama { margin: var(--espaco) 0; text-align: center; }
+.selo { white-space: nowrap; }
+.selo-confirmado { color: var(--cor-confirmado); }
+.selo-inferido { color: var(--cor-destaque); }
+.selo-a-confirmar { color: var(--cor-atencao); }
+.aviso {
+  background: var(--cor-atencao-fundo);
+  border-left: 4px solid var(--cor-atencao);
+  padding: calc(var(--espaco) / 2) var(--espaco);
+}
+.ref-nota { font-size: 0.75em; line-height: 0; }
+.ref-nota a { text-decoration: none; }
+.nota { display: flex; gap: 0.5em; margin: 0.4em 0; font-size: 0.925em; }
+.nota-rotulo { font-weight: 600; color: var(--cor-texto-suave); }
+.nota-corpo > p { margin: 0; }
+.nota-voltar { text-decoration: none; margin-left: 0.25em; }
+.nota:target, .ref-nota a:target { background: var(--cor-atencao-fundo); }
+:target { scroll-margin-top: var(--espaco); }
+
+@media print {
+  @page { margin: var(--margem-impressao); }
+  html, body { background: none; }
+  body { padding: 0; }
+  .documento { border: 0; padding: 0; max-width: none; background: none; }
+  .cabecalho, .rodape { max-width: none; padding: 0; }
+  .rodape { margin-top: calc(var(--espaco) * 2); }
+  a { color: inherit; }
+  h1, h2, h3, h4 { break-after: avoid-page; page-break-after: avoid; }
+  pre, blockquote, table, figure, .nota { break-inside: avoid; page-break-inside: avoid; }
+  section.apendice { break-before: page; page-break-before: always; }
+  .nota-voltar { display: none; }
+}
+/*
+  Estilo adicional da exportação em HTML.
+
+  Opcional: as regras daqui vêm depois da folha padrão e podem mudar o que os
+  tokens não alcançam. Prefira usar as variáveis de tokens.css, por exemplo:
+
+  .selo-a-confirmar { text-transform: uppercase; }
+  h2 { border-bottom-style: dashed; }
+*/
+</style>
+</head>
+<body>
+<header class="cabecalho">
+<p class="cabecalho-tipo">Análise de impacto · faturamento-exemplo</p>
+<p class="cabecalho-dados">Status: rascunho · Exportado em 2026-11-17</p>
+</header>
+<main class="documento">
+<h1>A-0002 · Parcelamento da fatura para pessoa jurídica</h1>
+<p>Análise de impacto · Projeto <code>faturamento-exemplo</code> · Status: rascunho · Criada em 2026-11-11 · Analista: Ana Exemplo · Código: <code>develop</code> @ <code>1a2b3c4d</code></p>
+<section>
+<h2>Demanda como veio</h2>
+<p>Permitir parcelamento da fatura em até 3 vezes para clientes pessoa jurídica. Acho que hoje o projeto não parcela fatura nenhuma.</p>
+</section>
+<section>
+<h2>Demanda como entendida</h2>
+<p>A suposição está errada: o parcelamento já existe para pessoa jurídica (e órgão público), em até 6 vezes. A demanda já está atendida; se o objetivo for limitar a 3, mudar MAX_PARCELAS afeta também órgão público, e a tela continua oferecendo até 12 (INC-FAT-001).</p>
+</section>
+<section>
+<h2>Como é hoje</h2>
+<ul>
+<li><strong class="selo selo-confirmado">[confirmado]</strong> Parcelamento só para pessoa jurídica e órgão público (RN-FAT-007): Pessoa física não pode parcelar fatura. Pessoa jurídica e órgão público podem.<sup class="ref-nota"><a href="#nota-1" id="ref-1-1">[1]</a></sup><sup class="ref-nota"><a href="#nota-2" id="ref-2-1">[2]</a></sup></li>
+<li><strong class="selo selo-confirmado">[confirmado]</strong> Quantidade de parcelas entre 2 e MAX_PARCELAS (RN-FAT-008): O parcelamento aceita de 2 até MAX_PARCELAS parcelas (hoje 6), valor lido da tabela PARAMETRO pelo backend.<sup class="ref-nota"><a href="#nota-3" id="ref-3-1">[3]</a></sup><sup class="ref-nota"><a href="#nota-4" id="ref-4-1">[4]</a></sup><sup class="ref-nota"><a href="#nota-5" id="ref-5-1">[5]</a></sup></li>
+</ul>
+</section>
+<section>
+<h2>Funcionalidades</h2>
+<ul>
+<li><strong class="selo selo-inferido">[inferido]</strong> Parcelamento de fatura (F-FAT-002): só o limite de parcelas muda, se o objetivo for limitar a 3.<sup class="ref-nota"><a href="#nota-3" id="ref-3-2">[3]</a></sup><sup class="ref-nota"><a href="#nota-4" id="ref-4-2">[4]</a></sup><sup class="ref-nota"><a href="#nota-5" id="ref-5-2">[5]</a></sup></li>
+</ul>
+</section>
+<section>
+<h2>Dados</h2>
+<ul>
+<li><strong class="selo selo-inferido">[inferido]</strong> Nenhuma tabela muda; o limite vem do parâmetro MAX_PARCELAS.</li>
+</ul>
+</section>
+<section>
+<h2>Integrações</h2>
+<p><em>Nada registrado.</em></p>
+</section>
+<section>
+<h2>Documentos e telas</h2>
+<ul>
+<li><strong class="selo selo-a-confirmar">[a confirmar]</strong> Arquivos que mudariam: <code>backend/src/main/java/exemplo/faturamento/ParcelamentoService.java</code>, <code>frontend/src/telas/parcelamento-form.ts</code>, <code>db/02_parametros.sql</code>.</li>
+</ul>
+</section>
+<section>
+<h2>Dados pessoais e requisitos não funcionais</h2>
+<ul>
+<li><strong class="selo selo-inferido">[inferido]</strong> Nenhum dado pessoal é tocado: o limite de parcelas vem de um parâmetro, sem campo do cliente.<sup class="ref-nota"><a href="#nota-3" id="ref-3-3">[3]</a></sup><sup class="ref-nota"><a href="#nota-4" id="ref-4-3">[4]</a></sup><sup class="ref-nota"><a href="#nota-5" id="ref-5-3">[5]</a></sup></li>
+</ul>
+</section>
+<section>
+<h2>Riscos</h2>
+<ul>
+<li><strong class="selo selo-confirmado">[confirmado]</strong> Tela oferece até 12 parcelas; backend aceita até 6 (INC-FAT-001): A tela de parcelamento valida e oferece de 2 a 12 parcelas (constante fixa no código), enquanto o backend aceita no máximo MAX_PARCELAS (hoje 6). Pedidos de 7 a 12 parcelas passam pela tela e são recusados pelo backend.<sup class="ref-nota"><a href="#nota-6" id="ref-6-1">[6]</a></sup><sup class="ref-nota"><a href="#nota-3" id="ref-3-4">[3]</a></sup></li>
+</ul>
+</section>
+<section>
+<h2>Abrangência</h2>
+<p>Estimativa: <strong>pequena</strong></p>
+<p>Pequena: o parcelamento já existe; a mudança se limita a um parâmetro e à tela.</p>
+</section>
+<section>
+<h2>Perguntas para o solicitante</h2>
+<ol>
+<li>O limite de 3 parcelas vale também para órgão público?</li>
+<li>A tela deve deixar de oferecer até 12 parcelas?
+Hoje o backend recusa acima de 6.</li>
+</ol>
+</section>
+<section>
+<h2>Sugestões de alteração</h2>
+<ul>
+<li>S-0001 · Limitar a tela ao parâmetro MAX_PARCELAS (<code>frontend/src/telas/parcelamento-form.ts</code>)</li>
+</ul>
+</section>
+<section>
+<h2>Evidências</h2>
+<div class="nota" id="nota-1"><span class="nota-rotulo">[1]</span><div class="nota-corpo"><p><a href="https://forja.exemplo/blob/1a2b3c4d/backend/src/main/java/exemplo/faturamento/ParcelamentoService.java#L30-L32"><code>backend/src/main/java/exemplo/faturamento/ParcelamentoService.java:30-32</code></a></p>
+</div><a class="nota-voltar" href="#ref-1-1" title="Voltar à citação" aria-label="Voltar à citação">↩</a></div>
+<div class="nota" id="nota-2"><span class="nota-rotulo">[2]</span><div class="nota-corpo"><p><a href="https://forja.exemplo/blob/1a2b3c4d/frontend/src/telas/parcelamento-form.ts#L25-L30"><code>frontend/src/telas/parcelamento-form.ts:25-30</code></a></p>
+</div><a class="nota-voltar" href="#ref-2-1" title="Voltar à citação" aria-label="Voltar à citação">↩</a></div>
+<div class="nota" id="nota-3"><span class="nota-rotulo">[3]</span><div class="nota-corpo"><p><a href="https://forja.exemplo/blob/1a2b3c4d/backend/src/main/java/exemplo/faturamento/ParcelamentoService.java#L34-L35"><code>backend/src/main/java/exemplo/faturamento/ParcelamentoService.java:34-35</code></a></p>
+</div><a class="nota-voltar" href="#ref-3-1" title="Voltar à citação 1" aria-label="Voltar à citação 1">↩</a><a class="nota-voltar" href="#ref-3-2" title="Voltar à citação 2" aria-label="Voltar à citação 2">↩</a><a class="nota-voltar" href="#ref-3-3" title="Voltar à citação 3" aria-label="Voltar à citação 3">↩</a><a class="nota-voltar" href="#ref-3-4" title="Voltar à citação 4" aria-label="Voltar à citação 4">↩</a></div>
+<div class="nota" id="nota-4"><span class="nota-rotulo">[4]</span><div class="nota-corpo"><p><a href="https://forja.exemplo/blob/1a2b3c4d/backend/src/main/java/exemplo/faturamento/ParcelamentoService.java#L14-L14"><code>backend/src/main/java/exemplo/faturamento/ParcelamentoService.java:14</code></a></p>
+</div><a class="nota-voltar" href="#ref-4-1" title="Voltar à citação 1" aria-label="Voltar à citação 1">↩</a><a class="nota-voltar" href="#ref-4-2" title="Voltar à citação 2" aria-label="Voltar à citação 2">↩</a><a class="nota-voltar" href="#ref-4-3" title="Voltar à citação 3" aria-label="Voltar à citação 3">↩</a></div>
+<div class="nota" id="nota-5"><span class="nota-rotulo">[5]</span><div class="nota-corpo"><p><a href="https://forja.exemplo/blob/1a2b3c4d/db/02_parametros.sql#L15-L16"><code>db/02_parametros.sql:15-16</code></a></p>
+</div><a class="nota-voltar" href="#ref-5-1" title="Voltar à citação 1" aria-label="Voltar à citação 1">↩</a><a class="nota-voltar" href="#ref-5-2" title="Voltar à citação 2" aria-label="Voltar à citação 2">↩</a><a class="nota-voltar" href="#ref-5-3" title="Voltar à citação 3" aria-label="Voltar à citação 3">↩</a></div>
+<div class="nota" id="nota-6"><span class="nota-rotulo">[6]</span><div class="nota-corpo"><p><a href="https://forja.exemplo/blob/1a2b3c4d/frontend/src/telas/parcelamento-form.ts#L19-L19"><code>frontend/src/telas/parcelamento-form.ts:19</code></a></p>
+</div><a class="nota-voltar" href="#ref-6-1" title="Voltar à citação" aria-label="Voltar à citação">↩</a></div>
+</section>
+<section class="apendice">
+<h2>Apêndice: trechos citados</h2>
+<h3>[1] <code>backend/src/main/java/exemplo/faturamento/ParcelamentoService.java:30-32</code></h3>
+<pre><code class="language-java">30 |         if (fatura.tipoCliente() == TipoCliente.PF) {
+31 |             throw new RegraNegocioException(&quot;Parcelamento disponível apenas para pessoa jurídica e órgão público&quot;);
+32 |         }</code></pre>
+<h3>[2] <code>frontend/src/telas/parcelamento-form.ts:25-30</code></h3>
+<pre><code class="language-typescript">25 |   if (pedido.tipoCliente === &#39;PF&#39;) {
+26 |     erros.push({
+27 |       campo: &#39;tipoCliente&#39;,
+28 |       mensagem: &#39;Parcelamento disponível apenas para empresas e órgãos públicos.&#39;,
+29 |     });
+30 |     return erros;</code></pre>
+<h3>[3] <code>backend/src/main/java/exemplo/faturamento/ParcelamentoService.java:34-35</code></h3>
+<pre><code class="language-java">34 |         int maxParcelas = parametros.inteiro(ParametroRepository.MAX_PARCELAS);
+35 |         if (quantidade &lt; MIN_PARCELAS || quantidade &gt; maxParcelas) {</code></pre>
+<h3>[4] <code>backend/src/main/java/exemplo/faturamento/ParcelamentoService.java:14</code></h3>
+<pre><code class="language-java">14 |     private static final int MIN_PARCELAS = 2;</code></pre>
+<h3>[5] <code>db/02_parametros.sql:15-16</code></h3>
+<pre><code class="language-sql">15 | INSERT INTO PARAMETRO (CHAVE, VALOR, DESCRICAO)
+16 | VALUES (&#39;MAX_PARCELAS&#39;, 6.0000, &#39;Quantidade maxima de parcelas no parcelamento de fatura&#39;);</code></pre>
+<h3>[6] <code>frontend/src/telas/parcelamento-form.ts:19</code></h3>
+<pre><code class="language-typescript">19 | const MAX_PARCELAS = 12;</code></pre>
+</section>
+
+</main>
+<footer class="rodape">
+<p>A-0002 · faturamento-exemplo · exportado em 2026-11-17</p>
+</footer>
+</body>
+</html>

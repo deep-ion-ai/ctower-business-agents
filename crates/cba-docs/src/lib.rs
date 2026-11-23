@@ -1,8 +1,14 @@
 //! Documentos das análises.
 //!
 //! Templates por tipo de documento e montagem dos documentos (spec, seção 7.3).
-//! Exportação para Markdown e Word: [`exportar_markdown`], [`exportar_word`] e
-//! [`gravar_exportacao`] (módulo `exportacao`). Planilha do Excel: [`xlsx`].
+//! Exportação para Markdown, Word e HTML: [`exportar_markdown`],
+//! [`exportar_word`], [`exportar_html`] (com o template e os tokens CSS de
+//! [`ModeloHtml`]) e [`gravar_exportacao`] (módulo `exportacao`). Planilha do
+//! Excel: [`xlsx`].
+//!
+//! Documentação legível para a forja (#288): [`gerar_documentacao`] monta as
+//! páginas (README, funcionalidades, regras por área, glossário e análises) e
+//! [`marcador`] define os marcadores de ida e volta de cada documento.
 //!
 //! O agente registra dados estruturados pelas ferramentas MCP, e o app monta cada
 //! documento a partir do template do tipo:
@@ -32,13 +38,20 @@
 mod ata;
 mod conteudo;
 mod diagrama;
+mod documentacao;
 mod exportacao;
 mod figura;
+mod html;
 mod modelo;
+mod modelo_html;
 mod montagem;
 mod planilha;
 mod template;
 mod word;
+
+/// Marcadores de ida e volta (#288). Vivem em `cba-kb`, que recorta as páginas
+/// publicadas na importação (#290); reexportados aqui para o renderizador.
+pub use cba_kb::marcador;
 
 use cba_kb::CaminhoRelativo;
 
@@ -53,17 +66,26 @@ pub use diagrama::{
     ArestaDiagrama, AtributoDiagrama, Diagrama, EntidadeDiagrama, LINGUAGEM_MERMAID,
     Multiplicidade, NoDiagrama, OrigemRelacao, PapelNo, RelacaoDiagrama, TipoDiagrama, mermaid,
 };
+pub use documentacao::{
+    ContextoDaDocumentacao, Documentacao, DocumentoDaBase, GLOSSARIO, INDICE_ANALISES, Pagina,
+    README, gerar_documentacao,
+};
 pub use exportacao::{
-    CodigoEmPasta, ErroExportacao, FonteDeTrechos, Formato, LinksDeEvidencia, OpcoesExportacao,
-    exportar, exportar_com_links, exportar_markdown, exportar_markdown_com_links, exportar_word,
-    gravar_exportacao, gravar_exportacao_com_links,
+    CodigoEmPasta, ErroExportacao, FonteDeTrechos, Formato, HtmlExportado, LinksDeEvidencia,
+    OpcoesExportacao, exportar, exportar_com_links, exportar_html, exportar_markdown,
+    exportar_markdown_com_links, exportar_word, gravar_exportacao, gravar_exportacao_com_links,
 };
 pub use figura::{
     ErroFigura, Figura, Figuras, MAXIMO_DE_FIGURAS, TAMANHO_MAXIMO_DA_FIGURA, blocos_mermaid,
 };
 pub use modelo::{
-    CENARIOS, FLUXO_PROCESSO, HISTORIAS, MODELO_DADOS, MODELOS, Modelo, Montavel, RASTREABILIDADE,
-    Secao, TABELAS_DECISAO, VALORES_LIMITE, modelo,
+    CENARIOS, DADOS_PESSOAIS_E_RNF, FLUXO_PROCESSO, FUNCIONALIDADES_MAPEADAS, HISTORIAS,
+    INDICE_CATALOGO, MODELO_DADOS, MODELOS, Modelo, Montavel, NAO_MAPEADOS, RASTREABILIDADE, Secao,
+    TABELAS_DECISAO, VALORES_LIMITE, modelo,
+};
+pub use modelo_html::{
+    ArquivoHtml, AvisoHtml, FOLHA_PADRAO, ModeloHtml, PASTA_EXPORTACAO, VARIAVEIS_HTML,
+    previa_html, rotulo_do_tipo, validar_template_html,
 };
 pub use montagem::{ErroMontagem, Montado};
 pub use planilha::{Aba, xlsx};

@@ -64,9 +64,21 @@ export type TrackerConfig =
   | ({ kind: "gitlab" } & GitlabConfig)
   | ({ kind: "jira" } & JiraConfig);
 
+/**
+ * Onde a documentação publicada fica (#274): um repositório só dela (`repositorio`, com
+ * a branch base e a pasta do clone) ou uma subpasta (`docs/negocio`) de um repositório
+ * de código do projeto (`codigo` = `host/caminho` em minúsculas, a
+ * {@link chaveDoRepositorio}).
+ */
+export type DestinoDocs =
+  | { modo: "repositorio"; repositorio: RepositorioCodigo; subpasta?: string }
+  | { modo: "subpasta"; codigo: string; subpasta: string };
+
 export interface Repositorios {
   codigo: RepositorioCodigo[];
   tracker: TrackerConfig | null;
+  /** Ausente nos projetos antigos e sem destino. */
+  docs?: DestinoDocs | null;
 }
 
 export const SEM_REPOSITORIOS: Repositorios = { codigo: [], tracker: null };
@@ -177,6 +189,79 @@ export function mesmoRepositorio(
   );
 }
 
+/** `host/caminho` em minúsculas, como o `RepositorioCodigo::chave` do `cba-repos`. */
+export function chaveDoRepositorio(r: Pick<RepositorioCodigo, "host" | "caminho">): string {
+  return `${r.host.trim().toLowerCase()}/${r.caminho.trim().replace(/^\/+|\/+$/g, "").toLowerCase()}`;
+}
+
+/**
+ * Subpasta da documentação normalizada (`\` vira `/`, sem barras nas pontas), como o
+ * `normalizar_subpasta` do `cba-repos`; `null` se for absoluta, tiver unidade, `.`, `..`,
+ * barras repetidas ou `.git`. Vazia = a raiz.
+ */
+export function normalizarSubpasta(subpasta: string): string | null {
+  const s = subpasta.trim().replace(/\\/g, "/");
+  if (s.startsWith("/") || s.includes(":")) return null;
+  const t = s.replace(/\/+$/, "");
+  if (!t) return "";
+  const partes = t.split("/");
+  if (partes.some((p) => p === "" || p === "." || p === ".." || p.toLowerCase() === ".git")) {
+    return null;
+  }
+  return t;
+}
+
+/** O repositório onde a documentação é escrita: o próprio ou o de código escolhido. */
+export function repositorioDoDestino(
+  docs: DestinoDocs,
+  codigo: RepositorioCodigo[],
+): RepositorioCodigo | null {
+  if (docs.modo === "repositorio") return docs.repositorio;
+  const chave = docs.codigo.trim().toLowerCase();
+  return codigo.find((c) => chaveDoRepositorio(c) === chave) ?? null;
+}
+
+/** Mesmas regras do `DestinoDocs::validar`. `null` = válido. */
+export function validarDestinoDocs(
+  docs: DestinoDocs,
+  codigo: RepositorioCodigo[],
+): string | null {
+  const o = "Destino da documentação";
+  const subpasta = normalizarSubpasta(docs.subpasta ?? "");
+  if (subpasta === null) {
+    return `${o}: a subpasta é relativa à raiz do repositório, sem /, .. nem unidade no início (ex.: docs/negocio).`;
+  }
+  if (docs.modo === "subpasta") {
+    if (!docs.codigo.trim()) return `${o}: escolha o repositório de código.`;
+    if (!repositorioDoDestino(docs, codigo)) {
+      return `${o}: o repositório de código ${docs.codigo} não está cadastrado no projeto.`;
+    }
+    if (!subpasta) {
+      return `${o}: informe a subpasta dentro do repositório (ex.: docs/negocio); a raiz é do código.`;
+    }
+    return null;
+  }
+  const r = docs.repositorio;
+  if (!r.host.trim()) return `${o}: informe o host.`;
+  if (r.forja === "github" && !REPO_GITHUB.test(r.caminho.trim())) {
+    return `${o}: caminho do GitHub inválido, use dono/repositório.`;
+  }
+  if (r.forja === "gitlab" && !r.caminho.includes("/")) {
+    return `${o}: caminho do GitLab inválido, use grupo/projeto/app.`;
+  }
+  if (r.token === "comando" && !r.comando_credencial.trim()) {
+    return `${o}: informe o comando que imprime o token (ex.: pass show gitlab | head -1).`;
+  }
+  if (r.pasta && !/^(\/|[A-Za-z]:[\\/]|\\\\)/.test(r.pasta.trim())) {
+    return `${o}: informe o caminho completo da pasta do clone.`;
+  }
+  const igual = codigo.find((c) => mesmoRepositorio(c, r));
+  if (igual) {
+    return `${o}: ${igual.caminho} já é um repositório de código do projeto; escolha “Pasta num repositório de código”.`;
+  }
+  return null;
+}
+
 /** `Tipo = papel`, uma por linha. */
 export function mapaDeTipos(texto: string): Record<string, PapelTipoJira> {
   const mapa: Record<string, PapelTipoJira> = {};
@@ -226,6 +311,10 @@ export function validarRepositorios(r: Repositorios): string | null {
     if (j < i) {
       return `${o}: repete o repositório de código ${j + 1} (${c.host}/${c.caminho}).`;
     }
+  }
+  if (r.docs) {
+    const docs = validarDestinoDocs(r.docs, r.codigo);
+    if (docs) return docs;
   }
   const t = r.tracker;
   if (!t) return null;
@@ -371,6 +460,34 @@ export function reduzirProgressoClone(
   return novo;
 }
 
+/** Arquivo do repositório de docs que não foi importado (#277). */
+export interface DocPulado {
+  /** Caminho no repositório. */
+  caminho: string;
+  motivo: string;
+}
+
+/** Situação da cópia do repositório de docs na base (#277). */
+export interface SituacaoDocsExternos {
+  comDestino: boolean;
+  repositorio: string | null;
+  branch: string | null;
+  commit: string | null;
+  /** Última sincronização bem-sucedida (ms desde 1970). */
+  sincronizadoMs: number | null;
+  /** Erro da última tentativa; as cópias anteriores continuam valendo. */
+  erro: string | null;
+  /** Por que a cópia pode estar desatualizada. */
+  aviso: string | null;
+  importados: number;
+  /** Publicados por esta base: não copiados, para não duplicar. */
+  jaNaBase: number;
+  pulados: DocPulado[];
+  mascarados: { caminho: string; trechos: number }[];
+  /** Páginas com marcadores ilegíveis, importadas inteiras (#290). */
+  avisos?: DocPulado[];
+}
+
 export interface ApiRepositorios {
   salvarRepositorios(projeto: string, repositorios: Repositorios): Promise<Repositorios>;
   prontidaoRepositorios(projeto: string): Promise<Prontidao>;
@@ -409,6 +526,10 @@ export interface ApiRepositorios {
   testarJira(jira: JiraConfig, token: string | null): Promise<IntegracaoProntidao>;
   /** Testa as demandas (GitHub, GitLab ou Jira) com o valor da tela, ainda não salvo. */
   testarDemandas(tracker: TrackerConfig, token: string | null): Promise<IntegracaoProntidao>;
+  /** Situação da cópia do repositório de docs, sem rede. */
+  situacaoDocsExternos(projeto: string): Promise<SituacaoDocsExternos>;
+  /** Busca o repositório de docs e importa os `.md`; recusa com a falha (rede, credencial). */
+  sincronizarDocsExternos(projeto: string): Promise<SituacaoDocsExternos>;
 }
 
 export const apiRepositoriosTauri: ApiRepositorios = {
@@ -432,4 +553,6 @@ export const apiRepositoriosTauri: ApiRepositorios = {
   cancelarClone: () => invoke("cancelar_clone_app"),
   testarJira: (jira, token) => invoke("testar_jira_app", { jira, token }),
   testarDemandas: (tracker, token) => invoke("testar_demandas_app", { tracker, token }),
+  situacaoDocsExternos: (projeto) => invoke("situacao_docs_externos_app", { projeto }),
+  sincronizarDocsExternos: (projeto) => invoke("sincronizar_docs_externos_app", { projeto }),
 };

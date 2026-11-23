@@ -13,7 +13,8 @@ use std::time::Duration;
 use cba_avaliacao::ata::{Transcripts, avaliar_ata};
 use cba_avaliacao::comparacao::{avaliar, nome_do_fluxo};
 use cba_avaliacao::execucao::{
-    Opcoes, escopo, executar, executar_reuniao, falas_da_reuniao, versao_do_claude,
+    Opcoes, escopo, executar, executar_mapeamento, executar_publicacao, executar_reuniao,
+    falas_da_reuniao, versao_do_claude,
 };
 use cba_avaliacao::gabarito::{Gabarito, Item, Reuniao};
 use cba_avaliacao::longa::{self, OpcoesLonga, TamanhoTranscript};
@@ -33,7 +34,7 @@ USO
       --modelo <m>            modelo do claude (padrão: sonnet)
       --orcamento <usd>       --max-budget-usd de cada execução (padrão: 1.5)
       --fluxos <lista>        perguntar,explicar,impacto,revisar,historias,cenarios,
-                              ciclo-vida,reuniao,reuniao-longa
+                              ciclo-vida,mapear,publicacao,reuniao,reuniao-longa
                               (padrão: perguntar,explicar,impacto)
       --repeticoes <n>        execuções de cada fluxo (padrão: 1)
       --pergunta <id>         item do fluxo perguntar (padrão: P-FAT-001)
@@ -43,6 +44,10 @@ USO
       --historias <id>        item do fluxo historias (padrão: HIS-FAT-001)
       --cenarios <id>         item do fluxo cenarios (padrão: CEN-FAT-001)
       --ciclo-vida <id>       item do ciclo de vida, no fluxo explicar (padrão: CV-FAT-001)
+      --mapeamento <id>       item do fluxo mapear (padrão: MAP-FAT-001)
+      --publicacao <id>       ciclo de publicação da documentação: analisar, aprovar,
+                              publicar e analisar de novo (padrão: PUB-FAT-001; duas
+                              execuções do claude, teto de 2 x --orcamento)
       --reuniao <id>          reunião dos fluxos reuniao e reuniao-longa (padrão: REU-FAT-001)
       --orcamento-longa <usd> --max-budget-usd da reunião longa (padrão: 3)
       --longa-minutos <n>     duração da reunião longa sintética (padrão: 120)
@@ -66,6 +71,23 @@ USO
 Sai com 0 sem falhas graves, 1 com falha grave e 2 em erro de uso.";
 
 fn main() -> ExitCode {
+    // Copiado como `gh`, o executável é a forja falsa do ciclo de publicação
+    // (#279): responde ao `gh api` da publicação, sem forja real.
+    let argv0 = std::env::args().next().unwrap_or_default();
+    if cba_avaliacao::publicacao::chamado_como_forja_falsa(&argv0) {
+        let pasta = std::env::current_exe()
+            .ok()
+            .and_then(|e| e.parent().map(Path::to_path_buf))
+            .unwrap_or_else(|| PathBuf::from("."));
+        let args: Vec<String> = std::env::args().skip(1).collect();
+        let (saida, codigo) = cba_avaliacao::publicacao::forja_falsa(&args, &pasta);
+        if codigo == 0 {
+            println!("{saida}");
+        } else {
+            eprintln!("{saida}");
+        }
+        return ExitCode::from(u8::try_from(codigo).unwrap_or(1));
+    }
     let args: Vec<String> = std::env::args().skip(1).collect();
     let resultado = match args.first().map(String::as_str) {
         Some("rodar") => rodar(&args[1..]),
@@ -198,6 +220,8 @@ fn comparar(resto: &[String]) -> Result<bool, String> {
             avaliacao: Some(avaliacao),
             ata: None,
             transcript: None,
+            mapa: None,
+            publicacao: None,
             arquivos_alterados: Vec::new(),
             claude: None,
             erro: None,
@@ -255,6 +279,8 @@ fn comparar_ata(args: &Args) -> Result<bool, String> {
             avaliacao: None,
             ata: Some(ata),
             transcript: Some(TamanhoTranscript::de(&lido)),
+            mapa: None,
+            publicacao: None,
             arquivos_alterados: Vec::new(),
             claude: None,
             erro: None,
@@ -312,6 +338,8 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
         "--historias",
         "--cenarios",
         "--ciclo-vida",
+        "--mapeamento",
+        "--publicacao",
         "--saida",
         "--cba",
         "--claude",
@@ -361,6 +389,10 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
     let mut itens: Vec<Item> = Vec::new();
     // Fluxo `reuniao`: (normal, longa).
     let mut reunioes = (false, false);
+    // Mapeamento de funcionalidades (#208), fora das análises.
+    let mut mapeamento = None;
+    // Ciclo de publicação da documentação (#279).
+    let mut publicacao = None;
     for fluxo in args
         .valor("--fluxos")
         .unwrap_or("perguntar,explicar,impacto")
@@ -376,6 +408,16 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
             "historias" => ("--historias", "HIS-FAT-001", Fluxo::Historias),
             "cenarios" => ("--cenarios", "CEN-FAT-001", Fluxo::Cenarios),
             "ciclo-vida" => ("--ciclo-vida", "CV-FAT-001", Fluxo::Explicar),
+            "mapear" => {
+                let id = args.valor("--mapeamento").unwrap_or("MAP-FAT-001");
+                mapeamento = Some(gabarito.mapeamento(id).map_err(|e| e.to_string())?);
+                continue;
+            }
+            "publicacao" => {
+                let id = args.valor("--publicacao").unwrap_or("PUB-FAT-001");
+                publicacao = Some(gabarito.publicacao(id).map_err(|e| e.to_string())?);
+                continue;
+            }
             "reuniao" => {
                 reunioes.0 = true;
                 continue;
@@ -387,7 +429,7 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
             outro => {
                 return Err(format!(
                     "fluxo desconhecido: {outro} (use perguntar, explicar, impacto, revisar, historias, cenarios, \
-                     ciclo-vida, reuniao ou reuniao-longa)"
+                     ciclo-vida, mapear, publicacao, reuniao ou reuniao-longa)"
                 ));
             }
         };
@@ -398,7 +440,11 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
         }
         itens.push(item);
     }
-    if itens.is_empty() && reunioes == (false, false) {
+    if itens.is_empty()
+        && reunioes == (false, false)
+        && mapeamento.is_none()
+        && publicacao.is_none()
+    {
         return Err("nenhum fluxo escolhido".into());
     }
 
@@ -432,7 +478,12 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
         tempo_limite: Duration::from_secs(tempo_limite),
         manter: args.chave("--manter"),
     };
-    let normais = (itens.len() as u32 + u32::from(reunioes.0)) * repeticoes;
+    // O ciclo de publicação roda o claude duas vezes.
+    let normais = (itens.len() as u32
+        + u32::from(reunioes.0)
+        + u32::from(mapeamento.is_some())
+        + 2 * u32::from(publicacao.is_some()))
+        * repeticoes;
     let longas = u32::from(reunioes.1) * repeticoes;
     let total = normais + longas;
     eprintln!(
@@ -463,6 +514,65 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
             let falhas = e.falhas();
             eprintln!(
                 "  regras {regras}, custo US$ {custo}{}",
+                if falhas.is_empty() {
+                    String::new()
+                } else {
+                    format!(", falhas: {}", falhas.join("; "))
+                }
+            );
+            execucoes.push(e);
+        }
+    }
+    if let Some(m) = mapeamento {
+        for r in 1..=repeticoes {
+            eprintln!("- mapear {} (repetição {r})...", m.id);
+            let pasta = saida.join(format!("mapear-{}-{r}", m.id));
+            let e = executar_mapeamento(&gabarito, m, r, &opcoes, &pasta);
+            let custo = e
+                .claude
+                .as_ref()
+                .and_then(|c| c.custo_usd)
+                .map_or("?".to_owned(), |c| format!("{c:.2}"));
+            let resultado = e.mapa.as_ref().map_or("-".to_owned(), |m| {
+                format!(
+                    "funcionalidades {:.0}%, pontos {:.0}%",
+                    m.cobertura_de_funcionalidades() * 100.0,
+                    m.cobertura_de_pontos() * 100.0
+                )
+            });
+            let falhas = e.falhas();
+            eprintln!(
+                "  {resultado}, custo US$ {custo}{}",
+                if falhas.is_empty() {
+                    String::new()
+                } else {
+                    format!(", falhas: {}", falhas.join("; "))
+                }
+            );
+            execucoes.push(e);
+        }
+    }
+    if let Some(p) = publicacao {
+        let exe = std::env::current_exe()
+            .map_err(|e| format!("executável da avaliação (forja falsa): {e}"))?;
+        for r in 1..=repeticoes {
+            eprintln!("- publicacao {} (repetição {r})...", p.id);
+            let pasta = saida.join(format!("publicacao-{}-{r}", p.id));
+            let e = executar_publicacao(&gabarito, p, &exe, r, &opcoes, &pasta);
+            let resultado = e.publicacao.as_ref().map_or("-".to_owned(), |c| {
+                format!(
+                    "{} publicado(s), {} sincronizado(s), regra recortada da documentação publicada usada: {}, custo do ciclo US$ {:.2}",
+                    c.publicados.len(),
+                    c.importados,
+                    c.uso
+                        .as_ref()
+                        .map_or("-", |u| if u.usada() { "sim" } else { "não" }),
+                    c.custo_usd()
+                )
+            });
+            let falhas = e.falhas();
+            eprintln!(
+                "  {resultado}{}",
                 if falhas.is_empty() {
                     String::new()
                 } else {
@@ -518,6 +628,12 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
     }
 
     let mut nomes: Vec<String> = itens.iter().map(|i| i.id.clone()).collect();
+    if let Some(m) = mapeamento {
+        nomes.push(m.id.clone());
+    }
+    if let Some(p) = publicacao {
+        nomes.push(p.id.clone());
+    }
     if reunioes.0 {
         nomes.push(reuniao.id.clone());
     }

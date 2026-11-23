@@ -335,6 +335,98 @@ id_sequencial!(
     "esperado CT-NNNN"
 );
 
+/// Identificador estável de uma funcionalidade do catálogo, `F-<SIGLA>-NNN`
+/// (#208). A sigla é a da área, como nas regras (`RN-<SIGLA>-NNN`): de 1 a 10
+/// caracteres `A-Z0-9`. A numeração é por sigla, sequencial por projeto e nunca
+/// reaproveitada. A funcionalidade vive no estado do catálogo
+/// (`funcionalidades/mapa.estado.json`);
+/// rodar o mapeamento de novo mantém o identificador das que continuam
+/// existindo.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct IdFuncionalidade {
+    sigla: String,
+    numero: u32,
+}
+
+impl IdFuncionalidade {
+    /// Funcionalidade `numero` (a partir de 1) da sigla.
+    pub fn novo(sigla: &str, numero: u32) -> Result<Self, IdInvalido> {
+        Serie::regra(sigla).map_err(|e| IdInvalido {
+            valor: sigla.to_owned(),
+            motivo: if e.motivo.contains("sigla") {
+                "a sigla da funcionalidade tem de 1 a 10 caracteres A-Z ou 0-9"
+            } else {
+                e.motivo
+            },
+        })?;
+        Ok(Self {
+            sigla: sigla.to_owned(),
+            numero: numero.max(1),
+        })
+    }
+
+    pub fn sigla(&self) -> &str {
+        &self.sigla
+    }
+
+    pub fn numero(&self) -> u32 {
+        self.numero
+    }
+
+    /// Lê `F-FAT-001`, só na forma canônica (3 dígitos no mínimo).
+    pub fn analisar(texto: &str) -> Result<Self, IdInvalido> {
+        let erro = |motivo| IdInvalido {
+            valor: texto.to_owned(),
+            motivo,
+        };
+        let resto = texto
+            .strip_prefix("F-")
+            .ok_or_else(|| erro("esperado F-<SIGLA>-NNN"))?;
+        let (sigla, numero) = resto
+            .rsplit_once('-')
+            .ok_or_else(|| erro("esperado F-<SIGLA>-NNN"))?;
+        if numero.is_empty() || !numero.bytes().all(|b| b.is_ascii_digit()) {
+            return Err(erro("o número tem só dígitos"));
+        }
+        let n: u32 = numero.parse().map_err(|_| erro("número grande demais"))?;
+        if n == 0 {
+            return Err(erro("a numeração começa em 1"));
+        }
+        let id = Self::novo(sigla, n).map_err(|e| erro(e.motivo))?;
+        if id.to_string() != texto {
+            return Err(erro("fora da forma canônica (dígitos a mais ou a menos)"));
+        }
+        Ok(id)
+    }
+}
+
+impl fmt::Display for IdFuncionalidade {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "F-{}-{:03}", self.sigla, self.numero)
+    }
+}
+
+impl std::str::FromStr for IdFuncionalidade {
+    type Err = IdInvalido;
+
+    fn from_str(texto: &str) -> Result<Self, Self::Err> {
+        Self::analisar(texto)
+    }
+}
+
+impl Serialize for IdFuncionalidade {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.collect_str(self)
+    }
+}
+
+impl<'de> Deserialize<'de> for IdFuncionalidade {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let texto = String::deserialize(d)?;
+        Self::analisar(&texto).map_err(serde::de::Error::custom)
+    }
+}
+
 /// Número de um identificador `<prefixo>NNNN` (4 dígitos no mínimo), na forma
 /// canônica.
 fn numero_com_prefixo(
@@ -540,5 +632,30 @@ mod tests {
         ] {
             assert!(IdReuniao::analisar(ruim).is_err(), "{ruim:?}");
         }
+    }
+
+    #[test]
+    fn identificador_de_funcionalidade() {
+        let id = IdFuncionalidade::analisar("F-FAT-007").unwrap();
+        assert_eq!((id.sigla(), id.numero()), ("FAT", 7));
+        assert_eq!(id.to_string(), "F-FAT-007");
+        assert_eq!(
+            IdFuncionalidade::novo("COB", 1234).unwrap().to_string(),
+            "F-COB-1234"
+        );
+        for errado in [
+            "F-FAT-07",
+            "F-FAT-0007",
+            "F-fat-001",
+            "F-FAT-000",
+            "FAT-001",
+            "F--001",
+            "RN-FAT-001",
+        ] {
+            assert!(IdFuncionalidade::analisar(errado).is_err(), "{errado}");
+        }
+        let json = serde_json::to_string(&id).unwrap();
+        assert_eq!(json, "\"F-FAT-007\"");
+        assert_eq!(serde_json::from_str::<IdFuncionalidade>(&json).unwrap(), id);
     }
 }

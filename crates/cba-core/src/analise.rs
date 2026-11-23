@@ -14,6 +14,7 @@
 //!            (qualquer estado volta a ativa, menos encerrada)
 //! Afirmação: registrada ──► confirmada | incorreta | aprofundar ; qualquer ◄──► a-revalidar
 //! Evidência: valida ◄──► a-revalidar (o hash do trecho não confere mais / voltou a conferir)
+//! Critério, cenário, tabela: valido ◄──► a-revalidar (evidência citada; ao lado da decisão)
 //! Pergunta:  aberta ──► respondida | descartada
 //! Sugestão:  proposta ──► aceita | recusada
 //! Termo:     proposto ──► aceito | recusado
@@ -24,7 +25,7 @@
 
 use cba_kb::frontmatter::{Linhas, StatusAnalise, StatusSugestao, TipoDocumento};
 use cba_kb::informada::{Destinatario, Informacao};
-use cba_kb::{CaminhoRelativo, Id, IdCenario, IdHistoria, IdReuniao};
+use cba_kb::{CaminhoRelativo, Id, IdCenario, IdFuncionalidade, IdHistoria, IdReuniao};
 use serde::{Deserialize, Serialize};
 
 use crate::cenarios::{Cenario, TabelaDecisao};
@@ -33,6 +34,7 @@ use crate::historias::Historia;
 use crate::parecer::{
     Achado, AvaliacaoInvest, EstadoAchado, NovoAchado, Parecer, Veredito, VereditoRegistrado,
 };
+use crate::requisito::{Fundamento, ItemRequisito, Revalidacao};
 
 /// Versão do formato do arquivo de estado. Sobe quando um campo muda de sentido;
 /// campos novos com valor padrão não exigem mudança.
@@ -176,6 +178,36 @@ pub struct Evidencia {
     pub commit: Option<String>,
     #[serde(default)]
     pub estado: EstadoEvidencia,
+}
+
+/// O que a revalidação confere numa evidência: o arquivo, o intervalo citado e o
+/// hash dele no registro. Serve às evidências das análises ([`Evidencia`]) e às
+/// cópias guardadas nos fundamentos dos requisitos (`cba_kb::frontmatter::Evidencia`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TrechoCitado<'a> {
+    pub arquivo: &'a CaminhoRelativo,
+    pub linhas: Linhas,
+    pub hash: &'a str,
+}
+
+impl<'a> From<&'a Evidencia> for TrechoCitado<'a> {
+    fn from(e: &'a Evidencia) -> Self {
+        Self {
+            arquivo: &e.arquivo,
+            linhas: e.linhas,
+            hash: &e.hash,
+        }
+    }
+}
+
+impl<'a> From<&'a cba_kb::frontmatter::Evidencia> for TrechoCitado<'a> {
+    fn from(e: &'a cba_kb::frontmatter::Evidencia) -> Self {
+        Self {
+            arquivo: &e.arquivo,
+            linhas: e.linhas,
+            hash: &e.hash,
+        }
+    }
 }
 
 /// Estado de uma afirmação, decidido pelo analista no app.
@@ -411,15 +443,70 @@ pub struct Revalidada {
     pub afirmacoes_marcadas: Vec<u32>,
     /// Afirmações que voltaram ao estado anterior, pelo número.
     pub afirmacoes_restauradas: Vec<u32>,
+    /// Fundamentos de critérios, cenários e tabelas que passaram a ter evidência que
+    /// não confere (contados por item: o mesmo fundamento em dois itens conta duas
+    /// vezes).
+    pub fundamentos_marcados: usize,
+    /// Fundamentos cujas evidências voltaram todas a conferir.
+    pub fundamentos_restaurados: usize,
+    /// Critérios, cenários e tabelas que passaram a a revalidar (#169).
+    pub itens_marcados: Vec<ItemRequisito>,
+    /// Critérios, cenários e tabelas que voltaram ao estado anterior.
+    pub itens_restaurados: Vec<ItemRequisito>,
 }
 
 impl Revalidada {
     /// Alguma coisa mudou.
     pub fn mudou(&self) -> bool {
-        self.evidencias_marcadas + self.evidencias_restauradas > 0
+        self.evidencias_marcadas
+            + self.evidencias_restauradas
+            + self.fundamentos_marcados
+            + self.fundamentos_restaurados
+            > 0
             || !self.afirmacoes_marcadas.is_empty()
             || !self.afirmacoes_restauradas.is_empty()
+            || !self.itens_marcados.is_empty()
+            || !self.itens_restaurados.is_empty()
     }
+
+    fn item(&mut self, item: ItemRequisito, mudanca: Option<bool>) {
+        match mudanca {
+            Some(true) => self.itens_marcados.push(item),
+            Some(false) => self.itens_restaurados.push(item),
+            None => {}
+        }
+    }
+}
+
+/// Confere as evidências dos fundamentos de um item de requisito e atualiza
+/// [`Revalidacao::fundamentos_a_revalidar`]. Devolve se algum fundamento acabou de
+/// deixar de conferir. Fundamento sem evidência não é marcado; o que tem evidência
+/// que não se sabe conferir (`None`) fica como está.
+fn revalidar_fundamentos(
+    fundamentos: &[Fundamento],
+    marca: &mut Revalidacao,
+    confere: &impl Fn(TrechoCitado<'_>) -> Option<bool>,
+    r: &mut Revalidada,
+) -> bool {
+    let mut marcou = false;
+    for f in fundamentos {
+        let rotulo = f.rotulo();
+        let resultados: Vec<Option<bool>> = f
+            .evidencias()
+            .iter()
+            .map(|e| confere(TrechoCitado::from(e)))
+            .collect();
+        let marcado = marca.fundamentos_a_revalidar.contains(&rotulo);
+        if !marcado && resultados.contains(&Some(false)) {
+            marca.fundamentos_a_revalidar.push(rotulo);
+            r.fundamentos_marcados += 1;
+            marcou = true;
+        } else if marcado && !resultados.is_empty() && resultados.iter().all(|x| *x == Some(true)) {
+            marca.fundamentos_a_revalidar.retain(|x| *x != rotulo);
+            r.fundamentos_restaurados += 1;
+        }
+    }
+    marcou
 }
 
 /// Estado completo de uma análise.
@@ -475,6 +562,12 @@ pub struct Analise {
     /// Mermaid na montagem do documento.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub diagramas: Vec<Diagrama>,
+    /// Funcionalidade do mapa a que a análise se refere (aberta pelo painel da
+    /// funcionalidade). No fluxo `explicar`, a que ela explica (fluxo `explicar`
+    /// aberto pela lista de funcionalidades, #208). Aprovada, o documento negocial
+    /// vai para `funcionalidades/<area>/<tema>/` e fica ligado ao item.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub funcionalidade: Option<IdFuncionalidade>,
 }
 
 /// Operação recusada pelo modelo. As mensagens se dirigem a quem chamou (o agente
@@ -640,6 +733,7 @@ impl Analise {
             tabelas: Vec::new(),
             cenarios: Vec::new(),
             diagramas: Vec::new(),
+            funcionalidade: None,
         }
     }
 
@@ -1202,7 +1296,7 @@ impl Analise {
     /// `cba_tools::evidencias::hash_das_linhas`). Devolve quantas afirmações mudaram.
     ///
     /// Só marca: não desfaz marca nenhuma (para isso, [`Analise::revalidar`]).
-    pub fn marcar_a_revalidar(&mut self, confere: impl Fn(&Evidencia) -> bool) -> usize {
+    pub fn marcar_a_revalidar(&mut self, confere: impl Fn(TrechoCitado<'_>) -> bool) -> usize {
         self.revalidar(|e| (!confere(e)).then_some(false))
             .afirmacoes_marcadas
             .len()
@@ -1218,11 +1312,19 @@ impl Analise {
     ///   conferem de novo; a marcada pelo analista fica como está.
     ///
     /// Vale também para as evidências dos termos, das sugestões e dos achados do
-    /// parecer de revisão.
-    pub fn revalidar(&mut self, confere: impl Fn(&Evidencia) -> Option<bool>) -> Revalidada {
+    /// parecer de revisão, e, nos dois sentidos, para os itens de requisito (#169):
+    /// o critério de aceite (pelas evidências dos fundamentos), o cenário de teste
+    /// (pelas do limite e dos fundamentos) e a tabela de decisão (pelas das condições
+    /// e dos fundamentos) ficam a revalidar como a afirmação, com o estado anterior
+    /// em [`Revalidacao::antes_de_revalidar`], e voltam a ele quando tudo confere de
+    /// novo; a marca do analista ([`Analise::marcar_item_a_revalidar`]) fica.
+    pub fn revalidar(&mut self, confere: impl Fn(TrechoCitado<'_>) -> Option<bool>) -> Revalidada {
         let mut r = Revalidada::default();
         // Devolve se a evidência acabou de deixar de conferir.
-        let conferir = |e: &mut Evidencia, r: &mut Revalidada| match (e.estado, confere(e)) {
+        let conferir = |e: &mut Evidencia, r: &mut Revalidada| match (
+            e.estado,
+            confere(TrechoCitado::from(&*e)),
+        ) {
             (EstadoEvidencia::Valida, Some(false)) => {
                 e.estado = EstadoEvidencia::ARevalidar;
                 r.evidencias_marcadas += 1;
@@ -1276,7 +1378,102 @@ impl Analise {
         for e in outras {
             conferir(e, &mut r);
         }
+
+        // Itens de requisito (#169).
+        let a_revalidar =
+            |evs: &[Evidencia]| evs.iter().any(|e| e.estado == EstadoEvidencia::ARevalidar);
+        for h in &mut self.historias {
+            for c in &mut h.criterios {
+                let marcou =
+                    revalidar_fundamentos(&c.fundamentos, &mut c.revalidacao, &confere, &mut r);
+                let alguma = !c.revalidacao.fundamentos_a_revalidar.is_empty();
+                let mudanca = c.revalidacao.aplicar(marcou, alguma);
+                r.item(
+                    ItemRequisito::Criterio {
+                        historia: h.id,
+                        numero: c.numero,
+                    },
+                    mudanca,
+                );
+            }
+        }
+        for t in &mut self.tabelas {
+            let mut marcou = false;
+            for e in t.condicoes.iter_mut().flat_map(|c| c.evidencias.iter_mut()) {
+                marcou |= conferir(e, &mut r);
+            }
+            marcou |= revalidar_fundamentos(&t.fundamentos, &mut t.revalidacao, &confere, &mut r);
+            let alguma = !t.revalidacao.fundamentos_a_revalidar.is_empty()
+                || t.condicoes.iter().any(|c| a_revalidar(&c.evidencias));
+            let mudanca = t.revalidacao.aplicar(marcou, alguma);
+            r.item(ItemRequisito::Tabela { numero: t.numero }, mudanca);
+        }
+        for c in &mut self.cenarios {
+            let mut marcou = false;
+            for e in c.limite.iter_mut().flat_map(|l| l.evidencias.iter_mut()) {
+                marcou |= conferir(e, &mut r);
+            }
+            marcou |= revalidar_fundamentos(&c.fundamentos, &mut c.revalidacao, &confere, &mut r);
+            let alguma = !c.revalidacao.fundamentos_a_revalidar.is_empty()
+                || c.limite
+                    .as_ref()
+                    .is_some_and(|l| a_revalidar(&l.evidencias));
+            let mudanca = c.revalidacao.aplicar(marcou, alguma);
+            r.item(ItemRequisito::Cenario { cenario: c.id }, mudanca);
+        }
         r
+    }
+
+    /// Marca do analista num critério, cenário ou tabela (#169): `marcar` põe o item
+    /// a revalidar (e a revalidação não desfaz); sem `marcar`, tira a marca, seja de
+    /// quem for (o analista reviu o item).
+    pub fn marcar_item_a_revalidar(
+        &mut self,
+        item: &ItemRequisito,
+        marcar: bool,
+    ) -> Result<(), ErroModelo> {
+        if self.estado == EstadoAnalise::Aprovada {
+            return Err(ErroModelo::AnaliseAprovada(self.id.clone()));
+        }
+        let marca = match item {
+            ItemRequisito::Criterio { historia, numero } => {
+                let h = self
+                    .historias
+                    .iter_mut()
+                    .find(|h| h.id == *historia)
+                    .ok_or(ErroModelo::HistoriaDesconhecida(*historia))?;
+                &mut h
+                    .criterios
+                    .iter_mut()
+                    .find(|c| c.numero == *numero)
+                    .ok_or(ErroModelo::ItemDesconhecido {
+                        tipo: "critério",
+                        numero: *numero,
+                    })?
+                    .revalidacao
+            }
+            ItemRequisito::Cenario { cenario } => {
+                &mut self
+                    .cenarios
+                    .iter_mut()
+                    .find(|c| c.id == *cenario)
+                    .ok_or(ErroModelo::CenarioDesconhecido(*cenario))?
+                    .revalidacao
+            }
+            ItemRequisito::Tabela { numero } => {
+                &mut self
+                    .tabelas
+                    .iter_mut()
+                    .find(|t| t.numero == *numero)
+                    .ok_or(ErroModelo::ItemDesconhecido {
+                        tipo: "tabela de decisão",
+                        numero: *numero,
+                    })?
+                    .revalidacao
+            }
+        };
+        marca.marcar_pelo_analista(marcar);
+        Ok(())
     }
 
     /// Parecer da revisão, criado no primeiro registro; recusa fora do fluxo

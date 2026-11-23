@@ -11,6 +11,7 @@ import {
   type EstadoTexto,
   type InfoBase,
   type LeituraTexto,
+  type PreviaExportacao,
   type ModoTroca,
   type SalvoTexto,
   type TextoEditavel,
@@ -28,6 +29,7 @@ import type {
   ForgeKind,
   EventoClone,
   Prontidao,
+  SituacaoDocsExternos,
   RepoDetectado,
   RepositorioCodigo,
   Repositorios,
@@ -96,6 +98,13 @@ export const TEXTOS: TextoEditavel[] = [
     rotulo: "Regras do projeto Faturamento Exemplo",
     arquivo: "faturamento-exemplo/regras-do-projeto.md",
     estado: "igualAoPadrao",
+  },
+  {
+    grupo: "exportacao",
+    id: "tokens",
+    rotulo: "Tokens CSS da exportação",
+    arquivo: "_templates/exportacao/tokens.css",
+    estado: "padrao",
   },
 ];
 
@@ -194,7 +203,7 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
       texto: arquivos.get(arquivo)!.texto ?? padraoFalso(t),
       padrao: padraoFalso(t),
       estado: estadoDe(t),
-      variaveis: t.grupo === "regrasDoProjeto" ? [] : VARIAVEIS_FALSAS,
+      variaveis: t.grupo === "regrasDoProjeto" || t.grupo === "exportacao" ? [] : VARIAVEIS_FALSAS,
       versao: versaoDe(arquivo),
     };
   };
@@ -358,6 +367,21 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
         Promise.resolve(repositorios),
     ),
     prontidaoRepositorios: vi.fn((): Promise<Prontidao> => Promise.resolve({ integracoes: [] })),
+    situacaoDocsExternos: vi.fn(
+      (): Promise<SituacaoDocsExternos> => Promise.resolve(situacaoDocsFicticia()),
+    ),
+    sincronizarDocsExternos: vi.fn(
+      (): Promise<SituacaoDocsExternos> =>
+        Promise.resolve({
+          ...situacaoDocsFicticia(),
+          repositorio: "GitHub exemplo/faturamento-docs",
+          branch: "main",
+          commit: "c0ffee1234567",
+          sincronizadoMs: Date.now(),
+          aviso: null,
+          importados: 3,
+        }),
+    ),
     detectarRepositorios: vi.fn((): Promise<RepoDetectado[]> => Promise.resolve([])),
     verificarAmbiente: vi.fn(
       (): Promise<AmbienteDetalhado> =>
@@ -491,6 +515,13 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
       });
       return Promise.resolve(leitura(arquivo));
     }),
+    previaExportacao: vi.fn(
+      (_arquivo: string, texto: string): Promise<PreviaExportacao> =>
+        Promise.resolve({
+          html: `<!doctype html><style>${texto}</style><h1>Documento de exemplo</h1>`,
+          avisos: texto.includes("{{") ? ["variável desconhecida"] : [],
+        }),
+    ),
     situacaoProtecao: vi.fn((_s: string) => Promise.resolve(protecao(false))),
     mudarProtecao: vi.fn((_s: string, ligada: boolean) => Promise.resolve(protecao(ligada))),
   } satisfies ApiConfiguracoes;
@@ -512,4 +543,21 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
       proximoTeste = f;
     },
   });
+}
+
+/** Situação dos docs externos de um projeto com destino e ainda sem sincronização. */
+export function situacaoDocsFicticia(): SituacaoDocsExternos {
+  return {
+    comDestino: true,
+    repositorio: null,
+    branch: null,
+    commit: null,
+    sincronizadoMs: null,
+    erro: null,
+    aviso: "o repositório de docs ainda não foi sincronizado",
+    importados: 0,
+    jaNaBase: 0,
+    pulados: [],
+    mascarados: [],
+  };
 }

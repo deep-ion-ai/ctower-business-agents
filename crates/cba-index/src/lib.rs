@@ -44,6 +44,7 @@
 
 pub mod ambiente_teste;
 mod cadastro;
+mod entradas;
 mod erro;
 mod exclusoes;
 pub mod extrator;
@@ -55,6 +56,7 @@ mod projeto;
 
 pub use ambiente_teste::{AmbienteTeste, UsuarioTeste};
 pub use cadastro::Cadastro;
+pub use entradas::{PontoEntrada, TipoEntrada};
 pub use erro::Erro;
 pub use exclusoes::{Exclusao, Exclusoes, Motivo, REGRAS_PADRAO};
 pub use extrator::{

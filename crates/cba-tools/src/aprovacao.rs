@@ -15,12 +15,20 @@
 //!    (`glossario/<termo>.md`), pelo template de termo;
 //! 5. em [`aprovar_analise`], sincroniza o índice da base (falha vira aviso).
 //!
+//! # Funcionalidades do mapa (#287)
+//!
+//! A análise aprovada guarda no frontmatter as funcionalidades do mapa a que se
+//! refere: as escolhidas na janela de aprovação ([`OpcoesAprovacao::funcionalidades`])
+//! ou, sem a escolha, as propostas ([`crate::vinculo::propostas`]). As regras e os
+//! termos herdam: o documento criado ou vindo desta análise fica com a lista dela;
+//! o que veio de outra análise soma as duas.
+//!
 //! # Área e sigla
 //!
 //! A área de cada regra é, na ordem: a do ajuste da afirmação
-//! ([`AjusteDaRegra::area`]), a da aprovação ([`OpcoesAprovacao::area`]), a única
-//! área declarada no `projeto.md` (quando há só uma) e, sem nenhuma delas,
-//! [`AREA_GERAL`]. A área informada é procurada nas áreas do `projeto.md` pelo id
+//! ([`AjusteDaRegra::area`]), a da aprovação ([`OpcoesAprovacao::area`]), a da
+//! primeira funcionalidade vinculada à análise (#287), a única área declarada no
+//! `projeto.md` (quando há só uma) e, sem nenhuma delas, [`AREA_GERAL`]. A área informada é procurada nas áreas do `projeto.md` pelo id
 //! ou pelo nome (sem diferença de acentos e maiúsculas); fora delas, vale o slug do
 //! texto. A sigla do identificador é a da área no `projeto.md` e, se a área não
 //! declarar sigla (ou não estiver declarada), as três primeiras letras ou dígitos
@@ -66,18 +74,22 @@ use cba_core::analises::{self, Analises};
 use cba_core::config::Config;
 use cba_core::dados::DiretorioDados;
 use cba_core::eventos::{DiarioEventos, Mudanca};
+use cba_core::funcionalidades::MapaFuncionalidades;
 use cba_docs::{Conteudo, Montavel, Templates, Texto};
 use cba_kb::frontmatter::{
     Area, Evidencia, FrontmatterRegra, FrontmatterTermo, StatusRegra, TipoDocumento,
 };
 use cba_kb::indice::Indice;
-use cba_kb::{Base, CaminhoRelativo, Documento, Id, Serie, layout, slug};
+use cba_kb::{Base, CaminhoRelativo, Documento, Id, IdFuncionalidade, Serie, layout, slug};
 use serde::{Deserialize, Serialize};
 
-use crate::documento;
+use crate::{documento, vinculo};
 
 /// Área das regras quando nem o analista nem o `projeto.md` indicam uma.
 pub const AREA_GERAL: &str = "geral";
+
+/// Campo do frontmatter com as funcionalidades do mapa (#287).
+const CAMPO_FUNCIONALIDADES: &str = "funcionalidades";
 
 /// Tamanho máximo, em caracteres, do título derivado do texto da afirmação.
 pub const LIMITE_DO_TITULO: usize = 80;
@@ -97,6 +109,12 @@ pub struct OpcoesAprovacao {
     /// exemplo ([`vira_regra_por_padrao`]).
     #[serde(default)]
     pub regras: Option<BTreeSet<u32>>,
+    /// Funcionalidades do mapa a que a análise se refere, confirmadas ou trocadas
+    /// pelo analista (#287). As regras e os termos herdam. Sem a escolha
+    /// (`None`), valem as propostas ([`vinculo::propostas`]): as já gravadas no
+    /// documento, a da sessão ou as sugeridas pelas evidências.
+    #[serde(default)]
+    pub funcionalidades: Option<Vec<IdFuncionalidade>>,
 }
 
 /// Seções cujas afirmações não viram regra sem a escolha do analista: a resposta
@@ -172,6 +190,14 @@ pub struct Aprovacao {
     pub ja_aprovada: bool,
     pub regras: Vec<RegraAprovada>,
     pub termos: Vec<TermoAprovado>,
+    /// Numa explicação ligada a uma funcionalidade do mapa (#208): o documento
+    /// negocial gravado em `funcionalidades/<area>/<tema>/`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub documento_negocial: Option<CaminhoRelativo>,
+    /// Funcionalidades do mapa gravadas na análise e herdadas pelas regras e pelos
+    /// termos (#287).
+    #[serde(default)]
+    pub funcionalidades: Vec<IdFuncionalidade>,
     /// Problemas que não impediram a aprovação (template com marcador
     /// desconhecido, documento da análise não remontado, índice não sincronizado).
     pub avisos: Vec<String>,
@@ -263,10 +289,23 @@ pub fn aprovar(
         });
     }
     let areas = kb.ler_projeto()?.frontmatter.areas;
-    // Confere os ajustes antes de gravar qualquer coisa.
-    planejar_regras(&atual, &areas, opcoes)?;
-
     let mut avisos = Vec::new();
+    let mapa = MapaFuncionalidades::carregar(kb).unwrap_or_else(|e| {
+        tracing::warn!("mapa de funcionalidades ilegível na aprovação");
+        avisos.push(format!(
+            "o mapa de funcionalidades não pôde ser lido ({e}); a análise fica sem \
+             funcionalidade"
+        ));
+        MapaFuncionalidades::default()
+    });
+    let (funcionalidades, fora) = funcionalidades_da_aprovacao(kb, &atual, opcoes, &mapa);
+    avisos.extend(fora.iter().map(|id| {
+        format!("a funcionalidade {id} não está no mapa (ou foi descartada) e ficou de fora")
+    }));
+    let area_sugerida = vinculo::area_das(&mapa, &funcionalidades);
+    // Confere os ajustes antes de gravar qualquer coisa.
+    planejar_regras(&atual, &areas, opcoes, area_sugerida.as_deref())?;
+
     let ja_aprovada = atual.estado == EstadoAnalise::Aprovada;
     let analise = if ja_aprovada {
         atual
@@ -291,22 +330,63 @@ pub fn aprovar(
 
     let (templates, avisos_templates) = Templates::da_base(base);
     avisos.extend(avisos_templates.iter().map(ToString::to_string));
+    if let Err(e) = vinculo::gravar_na_analise(kb, &analise.documento, &funcionalidades) {
+        tracing::warn!("funcionalidades não gravadas no documento da análise");
+        avisos.push(format!(
+            "as funcionalidades não foram gravadas no documento da análise ({e})"
+        ));
+    }
     let mut gravacao = Gravacao {
         kb,
         templates: &templates,
         avisos,
+        funcionalidades: &funcionalidades,
+        area_sugerida: area_sugerida.as_deref(),
     };
     let origem = analise.documento.clone();
-    let plano = planejar_regras(&analise, &areas, opcoes)?;
+    let plano = planejar_regras(&analise, &areas, opcoes, area_sugerida.as_deref())?;
     let regras = gravacao.regras(plano, &origem)?;
     let termos = gravacao.termos(&analise, &areas, opcoes, &origem)?;
+    let mut avisos = gravacao.avisos;
+    let documento_negocial = match crate::mapear::ligar_explicacao(base, kb, &analise) {
+        Ok(d) => d,
+        Err(e) => {
+            tracing::warn!("documento negocial não ligado ao mapa de funcionalidades");
+            avisos.push(format!(
+                "o documento negocial não foi ligado ao mapa de funcionalidades ({e})"
+            ));
+            None
+        }
+    };
     Ok(Aprovacao {
         analise,
         ja_aprovada,
         regras,
         termos,
-        avisos: gravacao.avisos,
+        documento_negocial,
+        funcionalidades,
+        avisos,
     })
+}
+
+/// Funcionalidades que a aprovação grava (#287): as escolhidas pelo analista
+/// ([`OpcoesAprovacao::funcionalidades`]) ou, sem a escolha, as propostas
+/// ([`vinculo::propostas`]). Juntadas valem pela de destino; as que não estão no
+/// mapa voltam no segundo item, para o aviso.
+pub fn funcionalidades_da_aprovacao(
+    kb: &cba_kb::Projeto,
+    analise: &Analise,
+    opcoes: &OpcoesAprovacao,
+    mapa: &MapaFuncionalidades,
+) -> (Vec<IdFuncionalidade>, Vec<IdFuncionalidade>) {
+    match &opcoes.funcionalidades {
+        Some(escolhidas) => vinculo::normalizar(mapa, escolhidas),
+        None => {
+            let (propostas, _) =
+                vinculo::propostas(analise, &vinculo::do_documento(kb, analise), mapa);
+            (propostas, Vec::new())
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -400,8 +480,8 @@ pub fn sigla_do_slug(slug: &str) -> String {
 /// Título da regra derivado do texto da afirmação, sem markdown: o trecho em
 /// negrito que abre a afirmação (`**Origem dos parâmetros.** As multas…` →
 /// "Origem dos parâmetros") ou, sem ele, a primeira frase. Sai sem o ponto final e,
-/// se passar de [`LIMITE_DO_TITULO`] caracteres, cortado numa fronteira de palavra,
-/// sem reticências.
+/// se passar de [`LIMITE_DO_TITULO`] caracteres, cortado sem terminar no meio da
+/// frase: numa fronteira de oração ou, sem ela, com reticências (#287).
 pub fn titulo_da_regra(texto: &str) -> String {
     let linha = texto
         .lines()
@@ -428,19 +508,93 @@ pub fn limpar_titulo(titulo: &str) -> String {
     sem_enfase(&linha).trim().to_owned()
 }
 
-/// Corta em [`LIMITE_DO_TITULO`] caracteres, numa fronteira de palavra quando dá.
+/// Fronteiras de oração em que um título longo pode terminar: o corte fica antes
+/// delas e o título fica completo, sem reticências.
+const FRONTEIRAS_DE_ORACAO: &[&str] = &[
+    ", ",
+    "; ",
+    ": ",
+    " — ",
+    " – ",
+    " (",
+    " e ",
+    " ou ",
+    " mas ",
+    " que ",
+    " quando ",
+    " se ",
+    " caso ",
+    " desde que ",
+    " exceto ",
+    " salvo ",
+    " enquanto ",
+    " porque ",
+];
+
+/// Palavras que não terminam um título cortado em fronteira de palavra (artigos,
+/// preposições, conjunções): "…da parcela em aberto mais" vira "…da parcela em
+/// aberto…".
+const PALAVRAS_DE_LIGACAO: &[&str] = &[
+    "a", "o", "as", "os", "um", "uma", "uns", "umas", "de", "da", "do", "das", "dos", "em", "no",
+    "na", "nos", "nas", "num", "numa", "ao", "aos", "à", "às", "por", "pela", "pelo", "pelas",
+    "pelos", "para", "pra", "com", "sem", "sob", "sobre", "entre", "até", "após", "e", "ou", "mas",
+    "que", "se", "mais", "menos", "muito", "como", "quando", "caso", "cujo", "cuja", "seu", "sua",
+    "seus", "suas", "este", "esta", "esse", "essa", "não",
+];
+
+/// Menor oração aceita no corte por fronteira, em caracteres: abaixo disso, o
+/// título perderia o sentido, e o corte vai para a fronteira de palavra.
+const MINIMO_DA_ORACAO: usize = LIMITE_DO_TITULO * 3 / 8;
+
+/// Byte em que começa o caractere `n` de `texto` (ou o fim, se ele for menor).
+fn byte_do_caractere(texto: &str, n: usize) -> usize {
+    texto.char_indices().nth(n).map_or(texto.len(), |(i, _)| i)
+}
+
+/// Sem pontuação, espaços e aberturas soltas no fim.
+fn sem_pontuacao_final(texto: &str) -> &str {
+    texto.trim_end_matches([',', ';', ':', '.', ' ', '-', '—', '–', '(', '…'])
+}
+
+/// Corta em [`LIMITE_DO_TITULO`] caracteres sem terminar no meio da frase (#287):
+/// de preferência antes da última fronteira de oração que cabe
+/// ([`FRONTEIRAS_DE_ORACAO`]); sem ela, na última fronteira de palavra, sem as
+/// palavras de ligação soltas no fim, e com reticências ("…").
 fn cortar(titulo: &str) -> String {
     if titulo.chars().count() <= LIMITE_DO_TITULO {
         return titulo.to_owned();
     }
-    let corte: String = titulo.chars().take(LIMITE_DO_TITULO).collect();
-    let corte = match corte.rfind(' ') {
-        Some(i) if i > LIMITE_DO_TITULO / 2 => &corte[..i],
-        _ => corte.as_str(),
+    let janela = &titulo[..byte_do_caractere(titulo, LIMITE_DO_TITULO)];
+    let oracao = FRONTEIRAS_DE_ORACAO
+        .iter()
+        .filter_map(|f| janela.rfind(f))
+        .filter(|&i| titulo[..i].chars().count() >= MINIMO_DA_ORACAO)
+        .max();
+    if let Some(i) = oracao {
+        let corte = sem_pontuacao_final(&titulo[..i]);
+        if !corte.is_empty() {
+            return corte.to_owned();
+        }
+    }
+    // Um caractere a menos, para as reticências caberem no limite.
+    let janela = &titulo[..byte_do_caractere(titulo, LIMITE_DO_TITULO - 1)];
+    let mut corte = match janela.rfind(' ') {
+        Some(i) if i > 0 => &janela[..i],
+        _ => janela,
     };
-    corte
-        .trim_end_matches([',', ';', ':', '.', ' ', '-', '—', '(', '…'])
-        .to_owned()
+    loop {
+        corte = sem_pontuacao_final(corte);
+        match corte.rsplit_once(' ') {
+            Some((antes, ultima))
+                if PALAVRAS_DE_LIGACAO.contains(&ultima.to_lowercase().as_str())
+                    && antes.chars().count() >= MINIMO_DA_ORACAO =>
+            {
+                corte = antes;
+            }
+            _ => break,
+        }
+    }
+    format!("{corte}…")
 }
 
 /// Sem as notas de rodapé (`[^1]`) e com os links (`[texto](url)`) trocados pelo texto.
@@ -528,6 +682,7 @@ fn planejar_regras(
     analise: &Analise,
     areas: &[Area],
     opcoes: &OpcoesAprovacao,
+    area_da_funcionalidade: Option<&str>,
 ) -> Result<Vec<RegraPlanejada>, ErroAprovacao> {
     if let Some(n) = opcoes
         .afirmacoes
@@ -544,9 +699,12 @@ fn planejar_regras(
     {
         return Err(ErroAprovacao::AjusteSemAfirmacao(*n));
     }
-    let area_padrao = match nao_vazio(&opcoes.area) {
-        Some(a) => resolver_area(areas, a)?,
-        None => match areas {
+    let area_da_funcionalidade = area_da_funcionalidade
+        .map(str::trim)
+        .filter(|a| !slug(a).is_empty());
+    let area_padrao = match (nao_vazio(&opcoes.area), area_da_funcionalidade) {
+        (Some(a), _) | (None, Some(a)) => resolver_area(areas, a)?,
+        (None, None) => match areas {
             [unica] => resolver_area(areas, &unica.id)?,
             _ => resolver_area(areas, AREA_GERAL)?,
         },
@@ -603,6 +761,28 @@ struct Gravacao<'a> {
     kb: &'a cba_kb::Projeto,
     templates: &'a Templates,
     avisos: Vec<String>,
+    /// Funcionalidades da análise, que as regras e os termos herdam (#287).
+    funcionalidades: &'a [IdFuncionalidade],
+    /// Área da primeira funcionalidade, para o termo sem área.
+    area_sugerida: Option<&'a str>,
+}
+
+impl Gravacao<'_> {
+    /// Funcionalidades de um documento existente depois desta aprovação: as da
+    /// análise, se ele veio dela (o analista pode ter trocado); somadas às dele,
+    /// se veio de outra (a regra serve às duas).
+    fn funcionalidades_de(
+        &self,
+        existentes: &[IdFuncionalidade],
+        origem_do_documento: Option<&CaminhoRelativo>,
+        origem: &CaminhoRelativo,
+    ) -> Vec<IdFuncionalidade> {
+        if origem_do_documento == Some(origem) {
+            self.funcionalidades.to_vec()
+        } else {
+            vinculo::somar(existentes, self.funcionalidades)
+        }
+    }
 }
 
 impl Gravacao<'_> {
@@ -681,7 +861,7 @@ impl Gravacao<'_> {
                 .iter()
                 .position(|(_, d)| p.chave.corresponde(&d.frontmatter, origem));
             if let Some(i) = encontrada {
-                let (caminho, existente) = existentes[i].clone();
+                let (caminho, mut existente) = existentes[i].clone();
                 let f = &existente.frontmatter;
                 let frontmatter = FrontmatterRegra {
                     tipo: TipoDocumento::Regra,
@@ -692,11 +872,20 @@ impl Gravacao<'_> {
                     evidencias: p.evidencias,
                     origem: f.origem.clone().or_else(|| Some(origem.clone())),
                     informada: f.informada.clone(),
+                    historico: f.historico.clone(),
+                    funcionalidades: self.funcionalidades_de(
+                        &f.funcionalidades,
+                        f.origem.as_ref(),
+                        origem,
+                    ),
                 };
                 let (id, area) = (f.id.clone(), f.area.clone());
                 let mut conteudo = Conteudo::da_regra(frontmatter, enunciado);
                 conteudo.caminho = caminho.clone();
                 let novo = self.montar(&conteudo)?;
+                if novo.frontmatter.funcionalidades.is_empty() {
+                    existente.tirar_campo(CAMPO_FUNCIONALIDADES);
+                }
                 let acao = self.atualizar(&caminho, existente, novo.clone())?;
                 existentes[i].1 = novo;
                 saida.push(RegraAprovada {
@@ -719,6 +908,8 @@ impl Gravacao<'_> {
                 evidencias: p.evidencias.clone(),
                 origem: Some(origem.clone()),
                 informada: None,
+                historico: Vec::new(),
+                funcionalidades: self.funcionalidades.to_vec(),
             };
             // Monta antes com o próximo número livre, para recusar (sem gravar) um
             // template que não monta; a reserva sem colisão monta de novo.
@@ -806,10 +997,22 @@ impl Gravacao<'_> {
             tipo: TipoDocumento::Termo,
             termo: nome.clone(),
             sinonimos,
-            area: area.or_else(|| anterior.and_then(|f| f.area.clone())),
+            // Sem área informada, fica a do termo existente e, sem ela, a da
+            // funcionalidade da análise (#287).
+            area: area
+                .or_else(|| anterior.and_then(|f| f.area.clone()))
+                .or_else(|| {
+                    self.area_sugerida
+                        .and_then(|a| resolver_area(areas, a).ok())
+                        .map(|(id, _)| id)
+                }),
             origem: anterior
                 .and_then(|f| f.origem.clone())
                 .or_else(|| Some(origem.clone())),
+            funcionalidades: match anterior {
+                Some(f) => self.funcionalidades_de(&f.funcionalidades, f.origem.as_ref(), origem),
+                None => self.funcionalidades.to_vec(),
+            },
         };
         let mut conteudo = Conteudo::novo(frontmatter, caminho.clone());
         conteudo.textos.push(Texto {
@@ -825,7 +1028,12 @@ impl Gravacao<'_> {
         }
         let novo = self.montar(&conteudo)?;
         let acao = match existente {
-            Some(doc) => self.atualizar(&caminho, doc, novo)?,
+            Some(mut doc) => {
+                if novo.frontmatter.funcionalidades.is_empty() {
+                    doc.tirar_campo(CAMPO_FUNCIONALIDADES);
+                }
+                self.atualizar(&caminho, doc, novo)?
+            }
             None => {
                 self.kb.criar(&caminho, &novo)?;
                 Acao::Criada
@@ -862,13 +1070,55 @@ mod tests {
             titulo_da_regra("\n  Carência de 3 dias.\n"),
             "Carência de 3 dias"
         );
+        // Sem fronteira de oração depois de um começo com sentido: reticências.
         let longo = "Passada a carência, a fatura em atraso recebe multa única de \
                      PERC_MULTA_ATRASO por cento sobre o valor original";
         let t = titulo_da_regra(longo);
-        assert!(!t.contains('…'), "{t}");
+        assert!(t.ends_with('…'), "{t}");
         assert!(t.chars().count() <= LIMITE_DO_TITULO, "{t}");
-        assert!(longo.starts_with(&t), "{t}");
-        assert!(!t.ends_with(' '), "{t}");
+        assert!(longo.starts_with(t.trim_end_matches('…')), "{t}");
+        assert!(!t.ends_with(" …"), "{t}");
+    }
+
+    /// #287: o título não termina no meio da frase ("…da parcela em aberto mais").
+    #[test]
+    fn titulo_longo_corta_na_oracao_ou_com_reticencias() {
+        // Fronteira de oração dentro do limite: o título é a oração, sem reticências.
+        assert_eq!(
+            titulo_da_regra(
+                "O acordo de parcelamento é cancelado automaticamente, quando houver \
+                 atraso superior a noventa dias da parcela em aberto mais antiga"
+            ),
+            "O acordo de parcelamento é cancelado automaticamente"
+        );
+        assert_eq!(
+            titulo_da_regra(
+                "A multa por atraso incide sobre o valor original da fatura e os juros \
+                 de mora incidem sobre o saldo devedor atualizado diariamente"
+            ),
+            "A multa por atraso incide sobre o valor original da fatura"
+        );
+        // Sem fronteira: reticências, sem palavra de ligação solta antes delas.
+        let t = titulo_da_regra(
+            "O desconto concedido na renegociação considera o valor total da parcela em \
+             aberto mais antiga do contrato",
+        );
+        assert!(t.ends_with('…'), "{t}");
+        let sem = t.trim_end_matches('…');
+        let ultima = sem.rsplit(' ').next().unwrap();
+        assert!(!PALAVRAS_DE_LIGACAO.contains(&ultima), "{t}");
+        assert!(t.chars().count() <= LIMITE_DO_TITULO, "{t}");
+        // A oração curta demais não serve de título.
+        let t = titulo_da_regra(
+            "Na baixa, o sistema recalcula o saldo devedor do contrato considerando todos os \
+             pagamentos parciais registrados",
+        );
+        assert!(
+            t.ends_with('…') && t.starts_with("Na baixa, o sistema"),
+            "{t}"
+        );
+        // Curto: intacto.
+        assert_eq!(titulo_da_regra("Multa de 2%"), "Multa de 2%");
     }
 
     #[test]
@@ -900,7 +1150,7 @@ mod tests {
     }
 
     #[test]
-    fn titulo_nunca_tem_markdown_nem_reticencias() {
+    fn titulo_nunca_tem_markdown_e_cabe_no_limite() {
         let casos = [
             "**Origem dos parâmetros.** As multas são cadastradas no produto de crédito",
             "**Um negrito muito longo que passa do limite de oitenta caracteres do título da regra derivada.** Resto.",
@@ -915,7 +1165,9 @@ mod tests {
                 !t.contains("**") && !t.contains("[^") && !t.contains('`'),
                 "{t}"
             );
-            assert!(!t.contains('…') && !t.ends_with("..."), "{t}");
+            assert!(!t.ends_with("..."), "{t}");
+            // Reticências só no fim, quando o título foi cortado.
+            assert!(!t.trim_end_matches('…').contains('…'), "{t}");
             assert!(t.chars().count() <= LIMITE_DO_TITULO, "{t}");
         }
     }

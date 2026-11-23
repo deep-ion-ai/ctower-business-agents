@@ -18,6 +18,11 @@
 //! em que o trecho aparece de fato, ou o conteúdo atual do intervalo. A prova de
 //! conceito mostrou que o agente corrige a chamada na hora com isso (spec, seção 13).
 //!
+//! Documentação não é evidência (#278): a documentação publicada, tanto a pasta
+//! de docs dentro do projeto (excluída da análise, #274) quanto a cópia dela na
+//! base (`externos/`, #277), é pista para achar o código, não prova. Citá-la
+//! volta com [`Motivo::Documentacao`], que diz para citar o código.
+//!
 //! A evidência aceita guarda o caminho como está no disco, o trecho citado, o hash
 //! do intervalo ([`hash_das_linhas`]) e o commit da pasta, quando ela está num
 //! repositório git. A revalidação (#12) recalcula o mesmo hash para saber se o
@@ -28,7 +33,7 @@ use std::fs;
 use std::path::Path;
 
 use cba_core::analise::{EstadoEvidencia, Evidencia};
-use cba_index::{Escopo, Recusa as RecusaDoEscopo, detectar_git};
+use cba_index::{Escopo, Motivo as MotivoDaExclusao, Recusa as RecusaDoEscopo, detectar_git};
 use cba_kb::CaminhoRelativo;
 use cba_kb::frontmatter::Linhas;
 use serde::Deserialize;
@@ -94,6 +99,9 @@ pub fn schema_da_evidencia() -> Value {
 pub enum Motivo {
     /// O escopo do projeto recusou o caminho.
     Caminho(RecusaDoEscopo),
+    /// O caminho é da documentação publicada (a pasta de docs do projeto ou a
+    /// cópia em `externos/` na base): pista, não prova.
+    Documentacao,
     /// Linha final menor que a inicial (ou linha zero).
     IntervaloInvalido,
     /// Mais linhas que [`LIMITE_DE_LINHAS`].
@@ -167,6 +175,14 @@ impl fmt::Display for Motivo {
                     write!(f, "o caminho não é um arquivo; cite um arquivo")
                 }
             },
+            Self::Documentacao => write!(
+                f,
+                "o arquivo é documentação publicada (a pasta de docs ou a cópia dela em \
+                 `externos/` na base), não código: documentação é pista, não prova, e não \
+                 serve de evidência. Leia o código que o documento descreve e cite o \
+                 trecho do código; se o código não confirmar, registre com `a_confirmar` e \
+                 diga no texto que a informação vem da documentação publicada"
+            ),
             Self::IntervaloInvalido => write!(
                 f,
                 "intervalo inválido; linha_inicial começa em 1 e linha_final não pode ser \
@@ -272,7 +288,9 @@ pub struct ArquivoDoProjeto {
 impl ArquivoDoProjeto {
     /// Abre um arquivo do projeto pelo escopo, com as mesmas regras das evidências.
     pub fn abrir(escopo: &Escopo, arquivo: &str) -> Result<Self, Motivo> {
-        let absoluto = escopo.resolver(arquivo).map_err(Motivo::Caminho)?;
+        let absoluto = escopo
+            .resolver(arquivo)
+            .map_err(|r| motivo_do_caminho(arquivo, r))?;
         let texto = ler_texto(&absoluto)?;
         let relativo = escopo
             .relativo(&absoluto)
@@ -352,6 +370,34 @@ impl ArquivoDoProjeto {
             commit: self.commit.clone(),
             estado: EstadoEvidencia::Valida,
         }
+    }
+}
+
+/// Se o caminho citado passa por uma pasta `externos` (a cópia da documentação
+/// publicada na base, `<projeto>/externos/<repositório>/…`).
+fn na_copia_dos_externos(arquivo: &str) -> bool {
+    arquivo
+        .split(['/', '\\'])
+        .any(|p| p == cba_kb::layout::EXTERNOS)
+}
+
+/// O motivo da recusa de um caminho pelo escopo. A documentação publicada tem
+/// motivo próprio: a pasta de docs do projeto (excluída da análise) e, fora do
+/// projeto, a cópia em `externos/`. Uma pasta `externos` do próprio código, que
+/// o escopo aceita, continua valendo.
+fn motivo_do_caminho(arquivo: &str, recusa: RecusaDoEscopo) -> Motivo {
+    match recusa {
+        RecusaDoEscopo::Excluido(e) if e.motivo == MotivoDaExclusao::Documentacao => {
+            Motivo::Documentacao
+        }
+        RecusaDoEscopo::ForaDoProjeto
+        | RecusaDoEscopo::NaoEncontrado
+        | RecusaDoEscopo::CaminhoInvalido(_)
+            if na_copia_dos_externos(arquivo) =>
+        {
+            Motivo::Documentacao
+        }
+        r => Motivo::Caminho(r),
     }
 }
 

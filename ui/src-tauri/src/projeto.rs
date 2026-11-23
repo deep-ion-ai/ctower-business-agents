@@ -249,6 +249,12 @@ pub struct ResumoRevalidacao {
     pub regras: Vec<RegraRevalidada>,
     /// Análises com afirmações marcadas ou restauradas.
     pub analises: Vec<String>,
+    /// Histórias com critério de aceite a revalidar (#169).
+    pub historias_afetadas: usize,
+    /// Cenários de teste a revalidar.
+    pub cenarios_afetados: usize,
+    /// Tabelas de decisão a revalidar.
+    pub tabelas_afetadas: usize,
     pub problemas: Vec<ProblemaVista>,
     pub mudou: bool,
     pub duracao_ms: u64,
@@ -270,6 +276,9 @@ impl From<&Relatorio> for ResumoRevalidacao {
                 })
                 .collect(),
             analises: r.analises.iter().map(|a| a.id.to_string()).collect(),
+            historias_afetadas: r.historias_afetadas,
+            cenarios_afetados: r.cenarios_afetados,
+            tabelas_afetadas: r.tabelas_afetadas,
             problemas: r
                 .problemas
                 .iter()

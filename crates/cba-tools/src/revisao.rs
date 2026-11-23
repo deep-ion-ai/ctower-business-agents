@@ -18,8 +18,9 @@
 //!   `projeto.md` para a escolha.
 //! - [`aprovar_revisada`] confere a prontidão e a área e chama a aprovação
 //!   ([`crate::aprovacao::aprovar_analise`]).
-//! - [`exportar_analise`] exporta o documento para Markdown ou Word
-//!   (`cba_docs::gravar_exportacao`), com os trechos citados lidos pelo escopo do
+//! - [`exportar_analise`] exporta o documento para Markdown, Word ou HTML
+//!   (`cba_docs::gravar_exportacao`; o HTML com o template e os tokens CSS da
+//!   base, `cba_docs::ModeloHtml`, #166), com os trechos citados lidos pelo escopo do
 //!   projeto (as exclusões valem também aqui), fora das pastas do projeto; os
 //!   cenários de teste também em CSV, uma linha por cenário
 //!   ([`crate::cenarios::csv`]). No Word, os diagramas saem como as figuras que o
@@ -51,9 +52,10 @@ use cba_core::analise::{
 use cba_core::analises;
 use cba_core::cenarios::TextoCenario;
 use cba_core::eventos::Mudanca;
+use cba_core::funcionalidades::MapaFuncionalidades;
 use cba_core::historias::{DecisaoHistoria, Gherkin, Narrativa, SituacaoHistoria};
 use cba_core::parecer::EstadoAchado;
-use cba_core::requisito::SituacaoItem;
+use cba_core::requisito::{ItemRequisito, SituacaoItem};
 use cba_docs::FonteDeTrechos;
 /// Opções da exportação, para quem chama sem depender de `cba-docs`.
 pub use cba_docs::OpcoesExportacao;
@@ -66,14 +68,17 @@ use crate::aprovacao::{self, Aprovacao, ErroAprovacao, OpcoesAprovacao, titulo_d
 use crate::documento;
 use crate::evidencias::ArquivoDoProjeto;
 use crate::roteiro;
+use crate::vinculo::{self, FuncionalidadeResumida, OrigemDoVinculo};
 
-/// Formato da exportação: o documento em Markdown ou Word ou, só nos cenários de
-/// teste, a lista de cenários em CSV.
+/// Formato da exportação: o documento em Markdown, Word ou HTML ou, só nos
+/// cenários de teste, a lista de cenários em CSV.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Formato {
     Markdown,
     Word,
+    /// Arquivo HTML único, com o template e os tokens CSS da base (#166).
+    Html,
     /// Uma linha por cenário de teste (fluxo `cenarios`), para importar em
     /// ferramentas de teste.
     Csv,
@@ -85,6 +90,7 @@ impl Formato {
         match self {
             Self::Markdown => "md",
             Self::Word => "docx",
+            Self::Html => "html",
             Self::Csv => "csv",
         }
     }
@@ -164,6 +170,13 @@ pub enum Decisao {
     },
     /// Aceitar, descartar ou desfazer a decisão sobre uma tabela de decisão.
     Tabela { numero: u32, situacao: SituacaoItem },
+    /// Marcar um critério, um cenário ou uma tabela como "a revalidar" ou, sem
+    /// `a_revalidar`, tirar a marca (do analista ou da revalidação) depois de rever
+    /// o item (#169). A marca do analista a revalidação não desfaz.
+    Revalidar {
+        item: ItemRequisito,
+        a_revalidar: bool,
+    },
     /// "Virar pergunta" (#119, #120): registrar uma pergunta para o solicitante a
     /// partir de um item da análise (um achado do ciclo de vida ou a relação
     /// inferida do modelo de dados), com o texto editado pelo analista; as
@@ -191,6 +204,10 @@ impl Decisao {
             Self::Cenario { .. } | Self::EditarCenario { .. } | Self::Tabela { .. } => {
                 Mudanca::Cenario
             }
+            Self::Revalidar { item, .. } => match item {
+                ItemRequisito::Criterio { .. } => Mudanca::Historia,
+                ItemRequisito::Cenario { .. } | ItemRequisito::Tabela { .. } => Mudanca::Cenario,
+            },
         }
     }
 
@@ -225,6 +242,7 @@ impl Decisao {
             Self::Cenario { cenario, situacao } => a.decidir_cenario(cenario, situacao),
             Self::EditarCenario { cenario, texto } => a.editar_cenario(cenario, texto),
             Self::Tabela { numero, situacao } => a.decidir_tabela(numero, situacao),
+            Self::Revalidar { item, a_revalidar } => a.marcar_item_a_revalidar(&item, a_revalidar),
             Self::VirarPergunta { texto, origem } => {
                 a.virar_pergunta(&texto, origem, agora_ms).map(|_| ())
             }
@@ -360,6 +378,15 @@ pub struct Prontidao {
     /// Afirmações incorretas: ficam registradas e não viram regra.
     pub incorretas: Vec<u32>,
     pub termos_aceitos: Vec<String>,
+    /// Funcionalidades do mapa propostas para a análise (#287), que as regras e
+    /// os termos herdam; o analista confirma ou troca.
+    pub funcionalidades: Vec<FuncionalidadeResumida>,
+    /// De onde vieram as propostas: sugeridas pelas evidências pedem conferência.
+    pub origem_das_funcionalidades: OrigemDoVinculo,
+    /// Funcionalidades abertas do mapa, para o analista escolher.
+    pub funcionalidades_do_mapa: Vec<FuncionalidadeResumida>,
+    /// Área da primeira funcionalidade proposta, sugerida no lugar de `geral`.
+    pub area_sugerida: Option<String>,
 }
 
 /// Pendências que impedem a aprovação de `analise` (veja o módulo).
@@ -478,9 +505,23 @@ pub fn pendencias_das_historias(analise: &Analise) -> Vec<Pendencia> {
             }
             (SituacaoHistoria::Descartada | SituacaoHistoria::Quebrada, _) => {}
         }
+        for c in h
+            .criterios_validos()
+            .filter(|c| c.revalidacao.a_revalidar())
+        {
+            lista.push(Pendencia {
+                tipo: "criterio",
+                numero: Some(h.id.numero()),
+                motivo: format!("{} {}: {A_REVALIDAR}", h.id, c.rotulo()),
+            });
+        }
     }
     lista
 }
+
+/// Motivo da pendência de um item de requisito a revalidar (#169).
+const A_REVALIDAR: &str =
+    "a revalidar: o código citado mudou (ou o analista marcou); reveja e tire a marca";
 
 /// Pendências dos cenários (fluxo `cenarios`): ao menos um cenário; cada tabela de
 /// decisão e cada cenário com uma decisão do analista (aceito ou descartado) e,
@@ -503,6 +544,16 @@ pub fn pendencias_dos_cenarios(analise: &Analise) -> Vec<Pendencia> {
             });
         }
     }
+    for t in analise
+        .tabelas_no_documento()
+        .filter(|t| t.revalidacao.a_revalidar())
+    {
+        lista.push(Pendencia {
+            tipo: "tabela",
+            numero: Some(t.numero),
+            motivo: format!("{}: {A_REVALIDAR}", t.rotulo()),
+        });
+    }
     for c in &analise.cenarios {
         if c.situacao == SituacaoItem::Pendente {
             lista.push(Pendencia {
@@ -511,6 +562,16 @@ pub fn pendencias_dos_cenarios(analise: &Analise) -> Vec<Pendencia> {
                 motivo: format!("{}: sem decisão: aceite ou descarte", c.id),
             });
         }
+    }
+    for c in analise
+        .cenarios_no_documento()
+        .filter(|c| c.revalidacao.a_revalidar())
+    {
+        lista.push(Pendencia {
+            tipo: "cenario",
+            numero: Some(c.id.numero()),
+            motivo: format!("{}: {A_REVALIDAR}", c.id),
+        });
     }
     for coluna in crate::cenarios::colunas_sem_cenario(analise) {
         lista.push(Pendencia {
@@ -591,7 +652,28 @@ pub fn prontidao(amb: &Ambiente, id: &Id) -> Result<Prontidao, ErroRevisao> {
             sugerida: aprovacao::vira_regra_por_padrao(&a.secao),
         })
         .collect();
+    // Mapa ilegível não impede a aprovação: a análise fica sem funcionalidade.
+    let mapa = MapaFuncionalidades::carregar(&amb.kb).unwrap_or_default();
+    let (propostas, origem_das_funcionalidades) =
+        vinculo::propostas(&analise, &vinculo::do_documento(&amb.kb, &analise), &mapa);
+    let resumir = |ids: &[cba_kb::IdFuncionalidade]| -> Vec<FuncionalidadeResumida> {
+        ids.iter()
+            .filter_map(|id| vinculo::resolver(&mapa, id))
+            .map(FuncionalidadeResumida::de)
+            .collect()
+    };
+    let area_sugerida = vinculo::area_das(&mapa, &propostas)
+        .and_then(|a| aprovacao::resolver_area(&areas, &a).ok())
+        .map(|(id, _)| id);
     Ok(Prontidao {
+        funcionalidades: resumir(&propostas),
+        origem_das_funcionalidades,
+        funcionalidades_do_mapa: mapa
+            .ordenadas()
+            .into_iter()
+            .map(FuncionalidadeResumida::de)
+            .collect(),
+        area_sugerida,
         estado: analise.estado,
         pode_aprovar: pendencias.is_empty() && analise.estado == EstadoAnalise::Concluida,
         pendencias,
@@ -647,7 +729,18 @@ pub fn aprovar_revisada(
                 .get(&r.afirmacao)
                 .is_some_and(|aj| tem(&aj.area))
         });
-        if p.area_obrigatoria && !escolhidas.is_empty() && !tem(&opcoes.area) && !todas_com_area {
+        // A área da funcionalidade vinculada vale como escolha (#287).
+        let mapa = MapaFuncionalidades::carregar(&amb.kb).unwrap_or_default();
+        let analise = amb.analises.carregar(id)?;
+        let (funcionalidades, _) =
+            aprovacao::funcionalidades_da_aprovacao(&amb.kb, &analise, opcoes, &mapa);
+        let da_funcionalidade = vinculo::area_das(&mapa, &funcionalidades).is_some();
+        if p.area_obrigatoria
+            && !escolhidas.is_empty()
+            && !tem(&opcoes.area)
+            && !todas_com_area
+            && !da_funcionalidade
+        {
             return Err(ErroRevisao::AreaNaoEscolhida);
         }
     }
@@ -730,9 +823,8 @@ pub fn destino_da_exportacao(
 }
 
 /// Exporta o documento da análise para `destino` e devolve o caminho gravado.
-///
-/// Na análise de uma reunião, o documento dela só aponta para a ata; o que se
-/// exporta é a ata (`R-NNNN.md`), quando ela já foi montada na base.
+/// Os avisos do template HTML ficam de fora; para eles, use
+/// [`exportar_analise_com_avisos`].
 pub fn exportar_analise(
     amb: &Ambiente,
     id: &Id,
@@ -741,46 +833,85 @@ pub fn exportar_analise(
     opcoes: &OpcoesExportacao,
     figuras: &cba_docs::Figuras,
 ) -> Result<PathBuf, ErroRevisao> {
+    exportar_analise_com_avisos(amb, id, destino, formato, opcoes, figuras).map(|e| e.caminho)
+}
+
+/// Resultado de uma exportação.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Exportado {
+    /// Caminho gravado, com a extensão do formato.
+    pub caminho: PathBuf,
+    /// No HTML, os avisos do template e dos tokens da base (arquivo ilegível,
+    /// variável desconhecida, `{{conteudo}}` ausente). Não impedem a exportação.
+    pub avisos: Vec<String>,
+}
+
+/// Exporta o documento da análise para `destino`.
+///
+/// Na análise de uma reunião, o documento dela só aponta para a ata; o que se
+/// exporta é a ata (`R-NNNN.md`), quando ela já foi montada na base.
+pub fn exportar_analise_com_avisos(
+    amb: &Ambiente,
+    id: &Id,
+    destino: &Path,
+    formato: Formato,
+    opcoes: &OpcoesExportacao,
+    figuras: &cba_docs::Figuras,
+) -> Result<Exportado, ErroRevisao> {
     let analise = amb.analises.carregar(id)?;
     if formato == Formato::Csv && analise.fluxo != Fluxo::Cenarios {
         return Err(ErroRevisao::CsvSemCenarios(analise.id));
     }
     let destino = destino_da_exportacao(&amb.escopo, destino, formato)?;
-    if formato == Formato::Csv {
-        let csv = crate::cenarios::csv(&analise);
-        cba_kb::arquivo::gravar(&destino, csv.as_bytes()).map_err(|erro| {
+    let gravar = |bytes: &[u8]| {
+        cba_kb::arquivo::gravar(&destino, bytes).map_err(|erro| {
             ErroRevisao::Exportacao(cba_docs::ErroExportacao::Gravar {
                 caminho: destino.clone(),
                 erro,
             })
-        })?;
-        return Ok(destino);
+        })
+    };
+    if formato == Formato::Csv {
+        gravar(crate::cenarios::csv(&analise).as_bytes())?;
+        return Ok(Exportado {
+            caminho: destino,
+            avisos: Vec::new(),
+        });
+    }
+    let (texto, commit) = texto_para_exportar(amb, &analise)?;
+    let fonte = TrechosDoProjeto(&amb.escopo);
+    let forge =
+        crate::documentacao::LinksNaForja::novo(&amb.projeto.repositorios.codigo, &amb.escopo);
+    let links = forge
+        .as_ref()
+        .map(|f| (f as &dyn cba_docs::LinksDeEvidencia, commit.as_deref()));
+    if formato == Formato::Html {
+        let (modelo, mut avisos) = cba_docs::ModeloHtml::da_base(&amb.base);
+        let exportado = cba_docs::exportar_html(
+            &texto,
+            opcoes,
+            Some(&fonte),
+            links,
+            figuras,
+            &modelo,
+            &cba_core::tempo::hoje().to_string(),
+        );
+        // Os avisos do template já vieram de `da_base`.
+        for aviso in exportado.avisos {
+            if !avisos.contains(&aviso) {
+                avisos.push(aviso);
+            }
+        }
+        gravar(exportado.html.as_bytes())?;
+        return Ok(Exportado {
+            caminho: destino,
+            avisos: avisos.iter().map(ToString::to_string).collect(),
+        });
     }
     let formato = match formato {
         Formato::Word => cba_docs::Formato::Word,
         _ => cba_docs::Formato::Markdown,
     };
-    let (texto, commit) = texto_para_exportar(amb, &analise)?;
-    let fonte = TrechosDoProjeto(&amb.escopo);
-    // Pastas canônicas, para comparar com o caminho resolvido pelo escopo.
-    let repos: Vec<cba_repos::RepositorioCodigo> = amb
-        .projeto
-        .repositorios
-        .codigo
-        .iter()
-        .cloned()
-        .map(|mut r| {
-            r.pasta = r.pasta.map(|p| dunce::canonicalize(&p).unwrap_or(p));
-            r
-        })
-        .collect();
-    let forge = (!repos.is_empty()).then(|| LinksDoForge {
-        repos: &repos,
-        escopo: &amb.escopo,
-    });
-    let links = forge
-        .as_ref()
-        .map(|f| (f as &dyn cba_docs::LinksDeEvidencia, commit.as_deref()));
     cba_docs::gravar_exportacao_com_links(
         &destino,
         &texto,
@@ -789,6 +920,49 @@ pub fn exportar_analise(
         Some(&fonte),
         links,
         figuras,
+    )?;
+    Ok(Exportado {
+        caminho: destino,
+        avisos: Vec::new(),
+    })
+}
+
+/// Exporta o mapa de funcionalidades do projeto (`funcionalidades/mapa.md`, #208)
+/// em Markdown ou Word, com os trechos citados como na exportação de uma análise.
+/// Devolve o caminho gravado.
+pub fn exportar_mapa(
+    amb: &Ambiente,
+    destino: &Path,
+    formato: Formato,
+    opcoes: &OpcoesExportacao,
+) -> Result<PathBuf, ErroRevisao> {
+    if formato == Formato::Csv {
+        return Err(ErroRevisao::Destino(
+            "o mapa de funcionalidades exporta em Markdown ou Word".into(),
+        ));
+    }
+    let catalogo = cba_kb::layout::mapa_de_funcionalidades();
+    if !amb.kb.existe(&catalogo) {
+        return Err(ErroRevisao::Destino(
+            "o projeto ainda não tem mapa de funcionalidades: mapeie antes de exportar".into(),
+        ));
+    }
+    let destino = destino_da_exportacao(&amb.escopo, destino, formato)?;
+    let texto =
+        std::fs::read_to_string(amb.kb.caminho(&catalogo)).map_err(ErroRevisao::Documento)?;
+    let formato = match formato {
+        Formato::Word => cba_docs::Formato::Word,
+        _ => cba_docs::Formato::Markdown,
+    };
+    let fonte = TrechosDoProjeto(&amb.escopo);
+    cba_docs::gravar_exportacao_com_links(
+        &destino,
+        &texto,
+        formato,
+        opcoes,
+        Some(&fonte),
+        None,
+        &cba_docs::Figuras::default(),
     )?;
     Ok(destino)
 }
@@ -827,27 +1001,6 @@ pub fn diagramas_para_exportar(amb: &Ambiente, id: &Id) -> Result<Vec<String>, E
     let analise = amb.analises.carregar(id)?;
     let (texto, _) = texto_para_exportar(amb, &analise)?;
     Ok(cba_docs::blocos_mermaid(&texto))
-}
-
-/// Links das evidências nos repositórios de código do projeto (GitHub ou GitLab),
-/// no commit da evidência ou da análise. Cada arquivo vai para o repositório cuja
-/// pasta o contém.
-struct LinksDoForge<'a> {
-    repos: &'a [cba_repos::RepositorioCodigo],
-    escopo: &'a cba_index::Escopo,
-}
-
-impl cba_docs::LinksDeEvidencia for LinksDoForge<'_> {
-    fn link(&self, arquivo: &str, linhas: Linhas, commit: Option<&str>) -> Option<String> {
-        let absoluto = self.escopo.resolver(arquivo).ok();
-        cba_repos::link::link_evidencia(
-            self.repos,
-            absoluto.as_deref(),
-            commit?,
-            arquivo,
-            Some((linhas.inicio, linhas.fim)),
-        )
-    }
 }
 
 #[cfg(test)]

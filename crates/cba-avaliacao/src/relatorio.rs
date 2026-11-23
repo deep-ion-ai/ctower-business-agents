@@ -81,6 +81,31 @@ pub struct SaidaClaude {
 }
 
 impl SaidaClaude {
+    /// Soma de duas execuções (o ciclo de publicação roda o `claude` duas vezes):
+    /// custo, turnos, duração e tokens somados; erro se alguma teve erro; o
+    /// subtipo da última.
+    pub fn somar(&self, outra: &Self) -> Self {
+        let soma_f = |a: Option<f64>, b: Option<f64>| match (a, b) {
+            (None, None) => None,
+            (a, b) => Some(a.unwrap_or(0.0) + b.unwrap_or(0.0)),
+        };
+        let soma_u = |a: Option<u64>, b: Option<u64>| match (a, b) {
+            (None, None) => None,
+            (a, b) => Some(a.unwrap_or(0) + b.unwrap_or(0)),
+        };
+        Self {
+            custo_usd: soma_f(self.custo_usd, outra.custo_usd),
+            turnos: soma_u(self.turnos, outra.turnos),
+            duracao_ms: soma_u(self.duracao_ms, outra.duracao_ms),
+            erro: self.erro || outra.erro,
+            subtipo: outra.subtipo.clone().or_else(|| self.subtipo.clone()),
+            tokens: match (self.tokens, outra.tokens) {
+                (None, None) => None,
+                (a, b) => Some(a.unwrap_or_default().somar(b.unwrap_or_default())),
+            },
+        }
+    }
+
     /// Lê a saída JSON do `claude -p`; o que faltar fica `None`.
     pub fn do_json(texto: &str) -> Self {
         let Ok(v) = serde_json::from_str::<serde_json::Value>(texto.trim()) else {
@@ -120,6 +145,13 @@ pub struct Execucao {
     /// Fluxo `reuniao`: tamanho do transcript analisado.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transcript: Option<TamanhoTranscript>,
+    /// Mapeamento de funcionalidades (#208): comparação do mapa com o gabarito.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mapa: Option<crate::mapeamento::MapeamentoAvaliado>,
+    /// Ciclo de publicação da documentação (#279): as etapas e o uso da
+    /// documentação publicada na segunda análise (comparada em `avaliacao`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub publicacao: Option<crate::publicacao::CicloAvaliado>,
     /// Arquivos do projeto criados, removidos ou alterados na cópia.
     pub arquivos_alterados: Vec<Diferenca>,
     pub claude: Option<SaidaClaude>,
@@ -134,18 +166,24 @@ impl Execucao {
         if let Some(e) = &self.erro {
             f.push(e.clone());
         }
-        match (&self.avaliacao, &self.ata) {
-            (Some(a), _) => f.extend(a.falhas()),
-            (None, Some(a)) => f.extend(a.falhas()),
-            (None, None) if self.erro.is_none() => f.push(
+        match (&self.avaliacao, &self.ata, &self.mapa) {
+            (Some(a), ..) => f.extend(a.falhas()),
+            (None, Some(a), _) => f.extend(a.falhas()),
+            (None, None, Some(m)) => f.extend(m.falhas()),
+            (None, None, None) if self.erro.is_none() => f.push(
                 if self.e_reuniao() {
                     "sem estado da ata"
+                } else if self.fluxo == "mapear" {
+                    "sem estado do mapa"
                 } else {
                     "sem estado da análise"
                 }
                 .to_owned(),
             ),
-            (None, None) => {}
+            (None, None, None) => {}
+        }
+        if let Some(c) = &self.publicacao {
+            f.extend(c.falhas());
         }
         if !self.arquivos_alterados.is_empty() {
             f.push(format!(
@@ -586,6 +624,14 @@ fn execucao_md(s: &mut String, e: &Execucao) {
         ata_md(s, a);
         return;
     }
+    if let Some(m) = &e.mapa {
+        mapeamento_md(s, m);
+        let _ = writeln!(s);
+        return;
+    }
+    if let Some(c) = &e.publicacao {
+        publicacao_md(s, c);
+    }
     analise_md(s, e);
 }
 
@@ -612,6 +658,10 @@ fn criterios_das_analises(s: &mut String) {
     );
     let _ = writeln!(
         s,
+        "- **Dados pessoais e requisitos não funcionais** (impacto): campo pessoal esperado apontado por uma afirmação da seção com as palavras-chave do campo e evidência válida que toca a esperada (definição ou conteúdo da coluna); aspecto não funcional (auditoria, desempenho, acesso) tratado por uma afirmação da seção ou por uma pergunta com as palavras-chave; possível falso positivo quando uma afirmação da seção cita uma coluna não pessoal do gabarito sem apontar nenhum campo esperado (para revisão, não é falha grave)."
+    );
+    let _ = writeln!(
+        s,
         "- **Revisão de requisito** (`revisar`): achado esperado atendido por um achado da característica esperada, com as palavras-chave e, se o esperado cita regras, com evidência válida que toca a regra; termo vago apontado por um achado de ambiguidade ou verificabilidade cujo trecho o contém; veredito igual ao esperado. Falha grave: achado de correção sem evidência válida, ou nenhum achado quando o esperado não é `pronta`."
     );
     let _ = writeln!(
@@ -622,6 +672,14 @@ fn criterios_das_analises(s: &mut String) {
     let _ = writeln!(
         s,
         "- **Fluxo do processo e modelo de dados** (`explicar`): raia esperada atendida pela raia de algum passo com as palavras-chave; passo do fluxo principal atendido por um nó com as palavras-chave no rótulo ou na descrição, ou com evidência que toca a esperada; decisão esperada, do mesmo jeito, por um nó de decisão; fluxograma coerente com início, fim, decisões com dois caminhos e todos os passos alcançáveis. Entidade esperada achada pela tabela, com o nome de negócio e a ligação ao glossário; relação esperada achada pelas tabelas das pontas, com a origem (chave estrangeira ou join). Falha grave: relação registrada com a origem errada (o documento não distingue a relação inferida)."
+    );
+    let _ = writeln!(
+        s,
+        "- **Mapa de funcionalidades** (`mapear`, sem análise: o agente começa por `iniciar_mapeamento` e o mapa do projeto é comparado): funcionalidade esperada encontrada quando uma funcionalidade registrada (não descartada nem juntada) tem as palavras-chave no nome ou na descrição e ao menos um ponto de entrada esperado dela; área confere pelo slug. Ponto de entrada esperado bem tratado quando está numa funcionalidade que atende uma das esperadas para ele (cada parte de uma funcionalidade dividida conta), ou justificado quando o gabarito o aceita como utilitário. Falha grave: nenhuma funcionalidade, ponto de entrada do gabarito sem tratamento ou evidência de ponto de entrada que não confere."
+    );
+    let _ = writeln!(
+        s,
+        "- **Ciclo de publicação** (`publicacao`): o item `analise` é analisado, aprovado (as afirmações `confirmado` com evidências válidas confirmadas) e publicado num repositório de docs local, com PR numa forja falsa dado como mesclado; numa base nova, a documentação é sincronizada e o item `reanalise` é analisado de novo e comparado com o gabarito como os outros. Regra recortada usada quando `conhecimento` é chamado com `externos` (`incluir` ou `somente`) e devolve uma regra recortada de página publicada, com a âncora do trecho (ou o agente lê a cópia dela em `externos/`); fonte citada quando a resposta final traz o repositório ou o commit. Falha grave: análise não aprovada, nada publicado, nada sincronizado, documentação publicada não consultada ou consultada sem nenhuma regra recortada."
     );
     let _ = writeln!(
         s,
@@ -764,7 +822,163 @@ fn analise_md(s: &mut String, e: &Execucao) {
     if let Some(m) = &a.modelagem {
         modelagem_md(s, m);
     }
+    if let Some(d) = &a.dados_pessoais {
+        dados_pessoais_md(s, d);
+    }
     let _ = writeln!(s, "- Concluída: {}\n", sim_nao(a.concluida));
+}
+
+fn dados_pessoais_md(s: &mut String, d: &crate::dados_pessoais::DadosPessoaisAvaliados) {
+    let _ = writeln!(
+        s,
+        "- Dados pessoais e requisitos não funcionais: {} afirmação(ões) na seção; campos pessoais apontados {} de {}; aspectos tratados {} de {}",
+        d.afirmacoes,
+        d.campos_apontados(),
+        d.campos.len(),
+        d.aspectos_atendidos(),
+        d.aspectos.len()
+    );
+    for c in &d.campos {
+        let _ = writeln!(
+            s,
+            "  - {} ({}): {}",
+            c.campo,
+            c.categoria,
+            c.apontado_por
+                .map_or("não apontado".to_owned(), |n| format!("afirmação {n}"))
+        );
+    }
+    for a in &d.aspectos {
+        let como = match (a.afirmacao, a.pergunta) {
+            (Some(n), _) => format!("afirmação {n}"),
+            (None, Some(n)) => format!("pergunta {n}"),
+            (None, None) => "não tratado".to_owned(),
+        };
+        let _ = writeln!(s, "  - {} ({}): {como}", a.aspecto, a.tema);
+    }
+    for f in &d.falsos_positivos {
+        let _ = writeln!(
+            s,
+            "  - Possível falso positivo: {} (afirmações {})",
+            f.campo,
+            crate::comparacao::lista_de_numeros(&f.afirmacoes)
+        );
+    }
+}
+
+fn publicacao_md(s: &mut String, c: &crate::publicacao::CicloAvaliado) {
+    let custo = |x: &Option<SaidaClaude>| {
+        x.as_ref()
+            .and_then(|x| x.custo_usd)
+            .map_or("?".to_owned(), |v| format!("{v:.2}"))
+    };
+    let _ = writeln!(
+        s,
+        "- Ciclo de publicação: custo US$ {:.2} (primeira análise US$ {}, segunda US$ {}), teto US$ {:.2}",
+        c.custo_usd(),
+        custo(&c.primeira),
+        custo(&c.segunda),
+        c.teto_usd
+    );
+    let _ = writeln!(
+        s,
+        "  - Analisar {}: análise {}; aprovada: {}; {} regra(s) na base",
+        c.analise,
+        c.primeira_analise.as_deref().unwrap_or("não criada"),
+        sim_nao(c.aprovada),
+        c.regras_aprovadas
+    );
+    let _ = writeln!(
+        s,
+        "  - Publicar: {} documento(s) novos ou alterados; PR {}{}",
+        c.publicados.len(),
+        c.pr.as_deref().unwrap_or("não aberto"),
+        c.link
+            .as_deref()
+            .map(|l| format!(" ({l})"))
+            .unwrap_or_default()
+    );
+    let _ = writeln!(
+        s,
+        "  - Sincronizar (base nova): {} documento(s) em `externos/`, commit {}",
+        c.importados,
+        c.commit
+            .as_deref()
+            .map(|x| x.chars().take(7).collect::<String>())
+            .unwrap_or_else(|| "-".to_owned())
+    );
+    match &c.uso {
+        Some(u) => {
+            let _ = writeln!(
+                s,
+                "  - Analisar {} de novo: `conhecimento` chamado {} vez(es), {} com `externos`; {} resposta(s) com `[doc. publicada]`; {} leitura(s) em `externos/`; {} bloco(s) recortado(s) recebido(s), {} regra(s){}; fonte citada na resposta: {}; regra recortada da documentação publicada usada: {}",
+                c.reanalise,
+                u.consultas,
+                u.consultas_com_externos,
+                u.respostas_com_externos,
+                u.leituras_de_externos,
+                u.blocos_recebidos.len(),
+                u.regras_recortadas.len(),
+                if u.regras_recortadas.is_empty() {
+                    String::new()
+                } else {
+                    format!(
+                        " ({})",
+                        u.regras_recortadas
+                            .iter()
+                            .map(|r| format!("`{r}`"))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )
+                },
+                sim_nao(u.fonte_citada),
+                sim_nao(u.usada())
+            );
+        }
+        None => {
+            let _ = writeln!(s, "  - Analisar {} de novo: não rodou", c.reanalise);
+        }
+    }
+}
+
+fn mapeamento_md(s: &mut String, m: &crate::mapeamento::MapeamentoAvaliado) {
+    let _ = writeln!(
+        s,
+        "- Mapa de funcionalidades: {} registradas; funcionalidades esperadas {:.0}%, pontos de entrada bem tratados {:.0}%",
+        m.funcionalidades_registradas,
+        m.cobertura_de_funcionalidades() * 100.0,
+        m.cobertura_de_pontos() * 100.0
+    );
+    for f in &m.funcionalidades {
+        match &f.registrada {
+            None => {
+                let _ = writeln!(s, "  - {} ({}): não encontrada", f.esperada, f.nome);
+            }
+            Some(r) if !f.area_confere => {
+                let _ = writeln!(
+                    s,
+                    "  - {} ({}): encontrada como {r}, em outra área",
+                    f.esperada, f.nome
+                );
+            }
+            Some(_) => {}
+        }
+    }
+    for p in m.pontos.iter().filter(|p| !p.bem_tratado) {
+        let _ = writeln!(
+            s,
+            "  - `{}`: {}{}",
+            p.chave,
+            p.tratamento.replace('_', " "),
+            p.funcionalidade
+                .as_ref()
+                .map(|f| format!(" em {f}, fora das esperadas"))
+                .unwrap_or_default()
+        );
+    }
+    for e in &m.evidencias_invalidas {
+        let _ = writeln!(s, "  - Evidência inválida: {e}");
+    }
 }
 
 fn ciclo_vida_md(s: &mut String, c: &crate::ciclo_vida::CicloVidaAvaliado) {
@@ -1367,6 +1581,8 @@ mod tests {
             avaliacao: None,
             ata: None,
             transcript: None,
+            mapa: None,
+            publicacao: None,
             arquivos_alterados: vec![Diferenca::Alterado("db/a.sql".into())],
             claude: Some(SaidaClaude {
                 custo_usd: Some(0.5),

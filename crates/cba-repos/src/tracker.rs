@@ -9,6 +9,7 @@
 
 use crate::ParseEnumError;
 use crate::codigo::{RepositorioCodigo, repo_github_ok};
+use crate::docs::{DestinoDocs, DestinoResolvido};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fmt;
@@ -244,6 +245,9 @@ pub struct Repositorios {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub codigo: Vec<RepositorioCodigo>,
     pub tracker: Option<TrackerConfig>,
+    /// Onde a documentação é publicada (#274). Ausente nos cadastros antigos.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub docs: Option<DestinoDocs>,
 }
 
 /// Forma gravada, com o campo `forge` do cadastro antigo.
@@ -253,6 +257,7 @@ struct RepositoriosGravados {
     codigo: Vec<RepositorioCodigo>,
     forge: Option<ForgeConfig>,
     tracker: Option<TrackerConfig>,
+    docs: Option<DestinoDocs>,
 }
 
 impl From<RepositoriosGravados> for Repositorios {
@@ -266,13 +271,21 @@ impl From<RepositoriosGravados> for Repositorios {
         Repositorios {
             codigo,
             tracker: g.tracker,
+            docs: g.docs,
         }
     }
 }
 
 impl Repositorios {
     pub fn vazio(&self) -> bool {
-        self.codigo.is_empty() && self.tracker.is_none()
+        self.codigo.is_empty() && self.tracker.is_none() && self.docs.is_none()
+    }
+
+    /// O destino da documentação com o repositório onde se escreve, a branch base,
+    /// a subpasta e a pasta local do clone. `None` sem destino (ou com um destino
+    /// que não se resolve, o que o cadastro validado não deixa acontecer).
+    pub fn destino_docs(&self) -> Option<DestinoResolvido<'_>> {
+        self.docs.as_ref()?.resolver(&self.codigo)
     }
 
     /// Algum repositório de código cadastrado é o remoto `url`?
@@ -294,6 +307,9 @@ impl Repositorios {
             Some(TrackerConfig::Gitlab(g)) => validar_gitlab(g, "issues")?,
             Some(TrackerConfig::Jira(j)) => validar_jira(j)?,
             None => {}
+        }
+        if let Some(d) = &self.docs {
+            d.validar(&self.codigo)?;
         }
         Ok(())
     }
@@ -435,6 +451,7 @@ mod tests {
         Repositorios {
             codigo: vec![cod(f)],
             tracker: Some(t),
+            docs: None,
         }
     }
 
@@ -468,6 +485,7 @@ mod tests {
             Repositorios {
                 codigo: vec![],
                 tracker: Some(TrackerConfig::Jira(j)),
+                docs: None,
             }
             .validar()
         };
@@ -520,6 +538,7 @@ mod tests {
             Repositorios {
                 codigo: vec![],
                 tracker: Some(TrackerConfig::Jira(j)),
+                docs: None,
             }
             .validar()
         };
@@ -570,6 +589,7 @@ mod tests {
             Repositorios {
                 codigo: vec![cod(f)],
                 tracker: None,
+                docs: None,
             }
             .validar()
         };
@@ -661,6 +681,7 @@ mod tests {
                 cod(ForgeConfig::Gitlab(gitlab())),
             ],
             tracker: None,
+            docs: None,
         };
         dois.validar().unwrap();
         assert!(dois.codigo_aponta_para("git@gitlab.example.com:grupo/projeto/app.git"));
@@ -676,6 +697,7 @@ mod tests {
         let um = Repositorios {
             codigo: vec![cod(ForgeConfig::Github(github()))],
             tracker: None,
+            docs: None,
         };
         assert!(um.validar_troca(&dois).is_ok());
         assert!(dois.validar_troca(&um).is_err());
@@ -765,5 +787,56 @@ mod tests {
             .issue_url("PROJ-1"),
             "https://j.example.com/browse/PROJ-1"
         );
+    }
+
+    #[test]
+    fn destino_da_documentacao_opcional_e_validado() {
+        use crate::docs::DestinoDocs;
+        // Cadastro antigo, sem o campo: abre sem destino, e a gravação não o escreve.
+        let antigo = json!({
+            "codigo": [{ "forja": "github", "host": "github.com", "caminho": "deep-ion-ai/app" }],
+            "tracker": null
+        });
+        let r: Repositorios = serde_json::from_value(antigo).unwrap();
+        assert_eq!(r.docs, None);
+        assert!(r.destino_docs().is_none());
+        assert!(serde_json::to_value(&r).unwrap().get("docs").is_none());
+
+        // Com destino numa subpasta: grava, relê igual e valida contra o código.
+        let mut com = r.clone();
+        com.docs = Some(DestinoDocs::Subpasta {
+            codigo: "github.com/deep-ion-ai/app".into(),
+            subpasta: "docs/negocio".into(),
+        });
+        com.validar().unwrap();
+        assert!(!com.vazio());
+        let v = serde_json::to_value(&com).unwrap();
+        assert_eq!(v["docs"]["modo"], "subpasta");
+        assert_eq!(serde_json::from_value::<Repositorios>(v).unwrap(), com);
+        let d = com.destino_docs().unwrap();
+        assert_eq!(
+            (d.repositorio.caminho.as_str(), d.subpasta),
+            ("deep-ion-ai/app", "docs/negocio")
+        );
+        // Só o destino já não é "vazio".
+        let so_docs = Repositorios {
+            codigo: vec![],
+            tracker: None,
+            docs: Some(DestinoDocs::Repositorio {
+                repositorio: cod(ForgeConfig::Github(github())),
+                subpasta: String::new(),
+            }),
+        };
+        assert!(!so_docs.vazio());
+        so_docs.validar().unwrap();
+        // Subpasta de um repositório que não está cadastrado: recusa.
+        let ruim = Repositorios {
+            codigo: vec![],
+            ..com.clone()
+        };
+        assert!(ruim.validar().unwrap_err().contains("não está cadastrado"));
+        // Trocar ou remover o destino pode.
+        assert!(com.validar_troca(&r).is_ok());
+        assert!(r.validar_troca(&com).is_ok());
     }
 }

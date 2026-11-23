@@ -54,6 +54,10 @@ function montar(
       criarTela={() => tela}
       abrirUrl={abrirUrl}
       apiRevisao={apiRevisao}
+      apiPublicacao={{
+        previa: () => new Promise(() => {}),
+        publicar: () => new Promise(() => {}),
+      }}
     />,
   );
   return { ...analise, terminal, conversa, aoVoltar, tela, ...r };
@@ -272,6 +276,15 @@ describe("PainelAnalise", () => {
     expect(
       screen.getByRole("region", { name: "Exportar o documento" }),
     ).toBeVisible();
+    // Publicar a documentação aprovada (#276), ao lado do Exportar: um painel por vez.
+    fireEvent.click(within(barra).getByRole("button", { name: "Publicar" }));
+    expect(
+      screen.getByRole("region", { name: "Publicar a documentação no repositório" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("region", { name: "Exportar o documento" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(within(barra).getByRole("button", { name: "Exportar" }));
     // Aprovar abre um diálogo modal; Esc fecha e devolve o foco ao botão.
     const aprovar = within(barra).getByRole("button", { name: /^Aprovar/ });
     fireEvent.click(aprovar);

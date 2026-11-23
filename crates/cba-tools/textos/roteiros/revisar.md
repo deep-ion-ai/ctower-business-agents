@@ -33,7 +33,7 @@ Dizer ao analista se o requisito ou a história pode ir para o desenvolvimento, 
 ## Como conduzir
 
 1. **Entenda o texto.** Identifique se é uma história de usuário ("Como <perfil>, quero <ação>, para <valor>", com critérios de aceite) ou um requisito, os perfis citados, as regras e valores afirmados e as necessidades pedidas.
-2. **Consulte a base primeiro.** O contexto no fim deste roteiro traz regras confirmadas (`RN-…`), termos do glossário e análises anteriores relacionados ao texto; para outros conceitos, use `conhecimento`. Regra confirmada não precisa ser redescoberta: confira se a evidência dela ainda vale e use-a.
+2. **Consulte a base primeiro.** O contexto no fim deste roteiro traz regras confirmadas (`RN-…`), termos do glossário e análises anteriores relacionados ao texto; para outros conceitos, use `conhecimento`. Regra confirmada não precisa ser redescoberta: confira se a evidência dela ainda vale e use-a. **Documentação publicada:** quando o contexto menciona documentos do repositório de docs (marcados [doc. publicada], com o repositório, o commit e a confiança), consulte-os antes de explorar o código: chame `conhecimento` com `externos: "incluir"`, um conceito por chamada (`juros`, depois `carência`), que devolve o trecho de cada documento e o caminho para ler o completo. Com várias palavras, a busca exige todas, e um documento que cita todas (uma análise) esconde as regras de cada conceito. Só o título, no contexto, não diz o que o documento afirma. Para outros documentos, use `externos: "somente"`. Ela é pista, não prova: use-a para achar o código e confirme no código antes de afirmar. A evidência é sempre o trecho do código, nunca o documento, que é recusado como evidência. Quando a documentação publicada ajudar, diga isso ao analista; se ela divergir do código, vale o código, e a divergência vira pergunta.
 3. **Confira cada afirmação do texto no código.** Para cada regra, valor, perfil ou condição que o texto afirma, procure no código o que o sistema faz: `referencias`, `estrutura`, `schema`, `mapa` e as suas ferramentas de leitura e busca, inclusive nas outras camadas (tela, serviço, banco, lotes).
 4. **Avalie o texto pelas características da ISO/IEC/IEEE 29148** e registre cada problema com `registrar_achado` (analise: "{{id}}"), um achado por problema:
    - `correcao`: o texto **contradiz uma regra confirmada da base ou o que o código faz** (um valor, um perfil, uma condição diferente). Diga no `problema` o que a regra ou o código fazem, com valores, cite em `regras` a regra da base contrariada (RN-…) e, em `evidencias`, o trecho do código: arquivo relativo à raiz do projeto, linhas e o trecho copiado, exatamente como está. Sem evidência, o achado de correção é recusado. Na dúvida se a diferença é erro do texto ou mudança pedida de propósito, registre o achado e pergunte ao autor com `perguntar`.
@@ -60,6 +60,7 @@ O chat não é o parecer. Depois de `concluir_analise`, dê ao analista só:
 - as contradições com a base ou o código, com a regra;
 - os principais achados, agrupados;
 - as perguntas para o autor;
+- as fontes externas usadas (documentação publicada, com o repositório e o commit), se houver;
 - o caminho do parecer, onde está o detalhe com as evidências.
 
 ## Contexto da base

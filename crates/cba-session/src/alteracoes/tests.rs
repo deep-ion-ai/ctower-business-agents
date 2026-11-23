@@ -508,3 +508,99 @@ fn sessao_altera_codigo_sem_aviso_e_docs_com_aviso() {
             .contains("+alterado pela sessão")
     );
 }
+
+#[test]
+fn editar_a_subpasta_da_documentacao_nao_avisa() {
+    let dir = tempfile::tempdir().unwrap();
+    let raiz = dunce::canonicalize(dir.path()).unwrap();
+    let codigo = raiz.join("faturamento");
+    // O remoto não é o cadastrado (um espelho): a pasta continua no retrato.
+    repo_com_remoto(
+        &codigo,
+        "https://espelho.example.com/exemplo/faturamento.git",
+    );
+    fs::create_dir_all(codigo.join("docs/negocio")).unwrap();
+    fs::write(codigo.join("docs/negocio/regras.md"), "# Regras\n").unwrap();
+    git(&codigo, &["config", "core.autocrlf", "false"]);
+    git(&codigo, &["add", "-A"]);
+    git(&codigo, &["commit", "-q", "-m", "inicial"]);
+    let dados = DiretorioDados::em(raiz.join("dados"));
+    let mut projeto = cba_index::Projeto::novo("Faturamento Exemplo", [&codigo]).unwrap();
+    let mut repo = github("exemplo/faturamento").remove(0);
+    repo.pasta = Some(codigo.clone());
+    projeto.repositorios.docs = Some(cba_repos::DestinoDocs::Subpasta {
+        codigo: repo.chave(),
+        subpasta: "docs/negocio".into(),
+    });
+    projeto.repositorios.codigo = vec![repo];
+    cba_index::Cadastro::em(dados.projetos())
+        .cadastrar(&projeto)
+        .unwrap();
+    let registro = RegistroSessao::novo(SESSAO, &projeto.id, 0);
+
+    let pastas = pastas_da_sessao(&dados, &registro).unwrap();
+    assert_eq!(pastas, vec![codigo.clone()]);
+    let ignoradas = pastas_de_documentacao(&dados, &registro);
+    assert_eq!(ignoradas, vec![codigo.join("docs").join("negocio")]);
+    let retratos = Retratos::do_diretorio(&dados);
+    let r = retratar_ignorando(&retratos, SESSAO, &projeto.id, &pastas, &ignoradas).unwrap();
+    assert_eq!(r.ignoradas, ignoradas);
+
+    fs::write(codigo.join("docs/negocio/regras.md"), "# Regras novas\n").unwrap();
+    fs::write(codigo.join("docs/negocio/nova.md"), "# Nova\n").unwrap();
+    assert!(conferir(&retratos, SESSAO).unwrap().alterados.is_empty());
+    // Fora da subpasta, o aviso continua.
+    fs::write(codigo.join("leia-me.md"), "alterado pela sessão\n").unwrap();
+    let c = conferir(&retratos, SESSAO).unwrap();
+    let alterados: Vec<_> = c.alterados.iter().map(|a| a.caminho.as_str()).collect();
+    assert_eq!(alterados, ["leia-me.md"]);
+}
+
+#[test]
+fn clone_do_repositorio_da_documentacao_nao_entra_no_retrato() {
+    let dir = tempfile::tempdir().unwrap();
+    let raiz = dunce::canonicalize(dir.path()).unwrap();
+    let codigo = raiz.join("faturamento");
+    let docs = raiz.join("faturamento-docs");
+    repo_com_remoto(&codigo, "https://github.com/exemplo/faturamento.git");
+    repo_com_remoto(&docs, "https://github.com/exemplo/faturamento-docs.git");
+    let dados = DiretorioDados::em(raiz.join("dados"));
+    let mut projeto = cba_index::Projeto::novo("Faturamento Exemplo", [&codigo]).unwrap();
+    let mut proprio = github("exemplo/faturamento-docs").remove(0);
+    proprio.pasta = Some(docs.clone());
+    projeto.repositorios.docs = Some(cba_repos::DestinoDocs::Repositorio {
+        repositorio: proprio,
+        subpasta: String::new(),
+    });
+    cba_index::Cadastro::em(dados.projetos())
+        .cadastrar(&projeto)
+        .unwrap();
+    // A sessão foi aberta no clone da documentação, fora das pastas do projeto.
+    let mut registro = RegistroSessao::novo(SESSAO, &projeto.id, 0);
+    registro.diretorio = Some(docs.clone());
+    assert_eq!(pastas_da_sessao(&dados, &registro).unwrap(), vec![codigo]);
+    assert_eq!(pastas_de_documentacao(&dados, &registro), vec![docs]);
+}
+
+#[test]
+fn retrato_antigo_sem_ignoradas_continua_valendo() {
+    let r: Retrato = serde_json::from_value(serde_json::json!({
+        "formato": 1,
+        "sessao": SESSAO,
+        "projeto": "faturamento-exemplo",
+        "momento_ms": 0
+    }))
+    .unwrap();
+    assert!(r.ignoradas.is_empty());
+    assert!(serde_json::to_value(&r).unwrap().get("ignoradas").is_none());
+    assert!(ignorado(
+        &[PathBuf::from("/r/docs")],
+        Path::new("/r"),
+        "docs/a/b.md"
+    ));
+    assert!(!ignorado(
+        &[PathBuf::from("/r/docs")],
+        Path::new("/r"),
+        "docs2/a.md"
+    ));
+}

@@ -1,0 +1,45 @@
+<!--
+Template da exportação em HTML (análises e atas).
+
+O arquivo exportado é este HTML com as variáveis trocadas pelos valores do
+documento. Variáveis aceitas:
+
+  {{titulo}}           título do documento
+  {{id}}               identificador (A-0001, R-0001)
+  {{projeto}}          projeto do documento
+  {{tipo}}             tipo do documento (Análise de impacto, Ata de reunião...)
+  {{status}}           status do documento (rascunho, aprovada...)
+  {{data_exportacao}}  data da exportação (AAAA-MM-DD)
+  {{css}}              estilo: os tokens de tokens.css, a folha padrão e o estilo.css
+  {{conteudo}}         o documento em si (essencial: se faltar, vai para o fim)
+
+Os valores saem escapados: um "<" no título aparece como texto. Não use
+<script>, fontes ou imagens externas: o arquivo deve abrir sem internet.
+
+Para mudar cores, fontes e tamanhos, edite tokens.css, não este arquivo.
+Este comentário não vai para o arquivo exportado.
+-->
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="ctower-business-agents">
+<title>{{titulo}}</title>
+<style>
+{{css}}
+</style>
+</head>
+<body>
+<header class="cabecalho">
+<p class="cabecalho-tipo">{{tipo}} · {{projeto}}</p>
+<p class="cabecalho-dados">Status: {{status}} · Exportado em {{data_exportacao}}</p>
+</header>
+<main class="documento">
+{{conteudo}}
+</main>
+<footer class="rodape">
+<p>{{id}} · {{projeto}} · exportado em {{data_exportacao}}</p>
+</footer>
+</body>
+</html>

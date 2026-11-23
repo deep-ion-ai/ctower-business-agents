@@ -9,9 +9,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use cba_docs::{
-    Afirmacao, ArestaDiagrama, Aviso, Citacao, Confianca, Conteudo, Diagrama, ErroMontagem,
-    Montavel, NoDiagrama, Origem, PapelNo, Pergunta, ReferenciaSugestao, Templates, Texto,
-    TipoDiagrama, arquivo_do_template, bloco_de_codigo,
+    Afirmacao, ArestaDiagrama, Aviso, Citacao, Confianca, Conteudo, DADOS_PESSOAIS_E_RNF, Diagrama,
+    ErroMontagem, Montavel, NoDiagrama, Origem, PapelNo, Pergunta, ReferenciaSugestao, Templates,
+    Texto, TipoDiagrama, arquivo_do_template, bloco_de_codigo,
 };
 use cba_kb::frontmatter::{
     Abrangencia, Area, Data, Demanda, Evidencia, FrontmatterAnalise, FrontmatterFuncionalidade,
@@ -168,6 +168,7 @@ fn analise(tipo: TipoDocumento, numero: u32, titulo: &str) -> FrontmatterAnalise
         criado: data(),
         analista: Some("Ana Exemplo".into()),
         origem: None,
+        funcionalidades: Vec::new(),
     }
 }
 
@@ -346,6 +347,14 @@ fn conteudo_analise_impacto(g: &Gabarito) -> Conteudo<FrontmatterAnalise> {
         confianca: Confianca::AConfirmar,
         evidencias: Vec::new(),
     });
+    conteudo.afirmacoes.push(Afirmacao {
+        secao: DADOS_PESSOAIS_E_RNF.into(),
+        texto: "Nenhum dado pessoal é tocado: o limite de parcelas vem de um parâmetro, sem \
+                campo do cliente."
+            .into(),
+        confianca: Confianca::Inferido,
+        evidencias: g.regra("RN-FAT-008").citacoes(),
+    });
     conteudo.textos.push(Texto::novo(
         "abrangencia",
         "Pequena: o parcelamento já existe; a mudança se limita a um parâmetro e à tela.",
@@ -376,6 +385,7 @@ fn conteudo_funcionalidade(g: &Gabarito) -> Conteudo<FrontmatterFuncionalidade> 
         tema: "parcelamento-de-fatura".into(),
         status: StatusAnalise::EmRevisao,
         origem: Some(c("analises/A-0003.md")),
+        funcionalidade: None,
     };
     let caminho = layout::funcionalidade("parcelamento", "parcelamento-de-fatura")
         .unwrap()
@@ -418,6 +428,7 @@ fn conteudo_caso_de_uso(g: &Gabarito) -> Conteudo<FrontmatterFuncionalidade> {
         tema: "cancelamento-de-fatura".into(),
         status: StatusAnalise::Rascunho,
         origem: None,
+        funcionalidade: None,
     };
     let caminho = layout::funcionalidade("cancelamento", "cancelamento-de-fatura")
         .unwrap()
@@ -476,6 +487,8 @@ fn conteudo_regra(g: &Gabarito) -> Conteudo<FrontmatterRegra> {
         evidencias,
         origem: Some(c("analises/A-0001.md")),
         informada: None,
+        historico: Vec::new(),
+        funcionalidades: Vec::new(),
     };
     Conteudo::da_regra(fm, &r.enunciado)
 }
@@ -487,6 +500,7 @@ fn conteudo_termo() -> Conteudo<FrontmatterTermo> {
         sinonimos: vec!["prazo de tolerância".into(), "dias de carência".into()],
         area: Some("cobranca".into()),
         origem: Some(c("analises/A-0001.md")),
+        funcionalidades: Vec::new(),
     };
     let caminho = layout::termo("Carência").unwrap();
     let mut conteudo = Conteudo::novo(fm, caminho);
@@ -849,6 +863,45 @@ fn template_editado_na_base_substitui_o_padrao() {
          [^1]: `db/03_pkg_cobranca.sql:71-72` · hash `hash-ficticio-1` · commit `1a2b3c4d`\n\
          [^2]: `db/02_parametros.sql:6-7` · hash `hash-ficticio-2` · commit `1a2b3c4d`\n"
     );
+}
+
+/// Template da análise de impacto editado antes da seção de dados pessoais e
+/// requisitos não funcionais (#126): a seção vai para o fim, com aviso, antes das
+/// evidências do template.
+#[test]
+fn template_de_impacto_sem_a_secao_de_dados_pessoais_recebe_a_secao_no_fim() {
+    let (_dir, base, _) = base_com_projeto();
+    let padrao = cba_docs::modelo(TipoDocumento::AnaliseImpacto)
+        .unwrap()
+        .padrao
+        .replace("\r\n", "\n");
+    let antigo = padrao.replace(
+        "## Dados pessoais e requisitos não funcionais\n\n{{dados_pessoais_e_rnf}}\n\n",
+        "",
+    );
+    let antigo = antigo.replace("{{dados_pessoais_e_rnf}}, ", "");
+    assert!(!antigo.contains("dados_pessoais_e_rnf"));
+    base.gravar_texto(&arquivo_do_template(TipoDocumento::AnaliseImpacto), &antigo)
+        .unwrap();
+    let (templates, avisos) = Templates::da_base(&base);
+    assert!(avisos.is_empty(), "{avisos:?}");
+
+    let montado = templates
+        .montar(&conteudo_analise_impacto(&gabarito()))
+        .unwrap();
+    assert_eq!(
+        montado.avisos,
+        vec![Aviso::SecaoSemMarcador {
+            tipo: TipoDocumento::AnaliseImpacto,
+            secao: DADOS_PESSOAIS_E_RNF.into(),
+        }]
+    );
+    let corpo = &montado.documento.corpo;
+    let secao = corpo
+        .find("## Dados pessoais e requisitos não funcionais")
+        .unwrap();
+    assert!(secao > corpo.find("## Evidências").unwrap(), "no fim");
+    assert!(corpo[secao..].contains("Nenhum dado pessoal é tocado"));
 }
 
 #[test]

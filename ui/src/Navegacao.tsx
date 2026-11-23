@@ -26,6 +26,9 @@ import type { ApiConfiguracoes } from "./configuracoes";
 import { TelaBase } from "./TelaBase";
 import { TelaConfiguracoes } from "./TelaConfiguracoes";
 import { TelaInicio } from "./TelaInicio";
+import { TelaMapa } from "./TelaMapa";
+import { VincularIssues } from "./VincularIssues";
+import { apiMapaTauri } from "./funcionalidades";
 import { TelaProjeto } from "./TelaProjeto";
 import type { ApiTerminal, ProjetoResumo } from "./terminal";
 import type { TelaTerminal } from "./telaXterm";
@@ -42,7 +45,11 @@ export type Tela =
       aberta?: { id: string; abertura: Abertura };
     }
   | { tipo: "configuracoes" }
-  | { tipo: "demanda"; projeto: string; demanda: string };
+  | { tipo: "demanda"; projeto: string; demanda: string }
+  /** Mapa de funcionalidades do projeto (#208): fora das análises. */
+  | { tipo: "mapa"; projeto?: string }
+  /** Vincular as issues do rastreador às funcionalidades (#270), em aba própria. */
+  | { tipo: "vincular"; projeto: string };
 
 interface Props {
   /** Tela ao abrir (ex.: a análise sugerida no fim do primeiro uso). */
@@ -72,6 +79,7 @@ const AREAS: { tipo: Tela["tipo"]; rotulo: string; icone: IconName }[] = [
   { tipo: "projeto", rotulo: "Projeto", icone: "project" },
   { tipo: "base", rotulo: "Base de conhecimento", icone: "book" },
   { tipo: "analise", rotulo: "Análises", icone: "analysis" },
+  { tipo: "mapa", rotulo: "Mapa de funcionalidades", icone: "features" },
   { tipo: "configuracoes", rotulo: "Configurações", icone: "settings" },
 ];
 
@@ -79,10 +87,12 @@ const AREAS: { tipo: Tela["tipo"]; rotulo: string; icone: IconName }[] = [
 const ROTULO_AREA = {
   ...Object.fromEntries(AREAS.map((a) => [a.tipo, a.rotulo])),
   demanda: "Demanda",
+  vincular: "Vincular demandas",
 } as Record<Tela["tipo"], string>;
 const ICONE_AREA = {
   ...Object.fromEntries(AREAS.map((a) => [a.tipo, a.icone])),
   demanda: "file",
+  vincular: "jira",
 } as Record<Tela["tipo"], IconName>;
 
 /** Aba aberta na área de editor: a tela que ela mostra e o contador de remontagem. */
@@ -104,6 +114,8 @@ export function chaveDaTela(t: Tela): string {
       return t.aberta ? `analise:${t.projeto ?? ""}:${t.aberta.id}` : "analise";
     case "demanda":
       return `demanda:${t.projeto}:${t.demanda}`;
+    case "vincular":
+      return `vincular:${t.projeto}`;
     default:
       return t.tipo;
   }
@@ -111,9 +123,11 @@ export function chaveDaTela(t: Tela): string {
 
 /**
  * Aba que fica montada (escondida) quando outra está à vista: a de uma análise
- * aberta, cujo terminal roda o agente. Desmontar encerraria o processo (#212).
+ * aberta e a do mapa de funcionalidades, cujo terminal roda o agente. Desmontar
+ * encerraria o processo (#212).
  */
-const ficaViva = (a: Aba) => a.tela.tipo === "analise" && !!a.tela.aberta;
+const ficaViva = (a: Aba) =>
+  (a.tela.tipo === "analise" && !!a.tela.aberta) || a.tela.tipo === "mapa" || a.tela.tipo === "vincular";
 
 const nomeDoArquivo = (caminho: string) =>
   (caminho.split("/").pop() ?? caminho).replace(/\.md$/, "");
@@ -231,7 +245,7 @@ export function Navegacao({
 
   // Conversa de cada aba de análise aberta: fechar a aba com ela viva pede confirmação.
   const conversas = useRef(new Map<string, EstadoConversa>());
-  const [fechamento, setFechamento] = useState<{ chave: string; trabalhando: boolean } | null>(
+  const [fechamento, setFechamento] = useState<{ chave: string; trabalhando: boolean; mapa: boolean } | null>(
     null,
   );
   const [fechamentoOutras, setFechamentoOutras] = useState<{
@@ -331,7 +345,11 @@ export function Navegacao({
   const fechar = (chave: string) => {
     const conversa = conversas.current.get(chave);
     if (conversa) {
-      setFechamento({ chave, trabalhando: conversa === "trabalhando" });
+      setFechamento({
+        chave,
+        trabalhando: conversa === "trabalhando",
+        mapa: abas.find((a) => a.chave === chave)?.tela.tipo === "mapa",
+      });
       return;
     }
     if (chave === ativa && pendenteRef.current) {
@@ -392,6 +410,7 @@ export function Navegacao({
     if (t.tipo === "base" && t.documento) return nomeDoArquivo(t.documento);
     if (t.tipo === "analise" && t.aberta) return t.aberta.id;
     if (t.tipo === "demanda") return t.demanda;
+    if (t.tipo === "vincular") return `Vincular demandas · ${nomeProjeto(t.projeto)}`;
     return ROTULO_AREA[t.tipo];
   };
 
@@ -656,6 +675,34 @@ export function Navegacao({
                       aoMudarConversa={(estado) => aoMudarConversa(a.chave, estado)}
                     />
                   </div>
+                ) : a.tela.tipo === "mapa" ? (
+                  <div key={a.chave} className="editor-aba" hidden={a.chave !== ativa}>
+                    <TelaMapa
+                      key={a.vez}
+                      projetos={projetos}
+                      projetoInicial={a.tela.projeto}
+                      apiAnalise={apiAnalise}
+                      apiTerminal={apiTerminal}
+                      criarTela={criarTela}
+                      navegar={navegar}
+                      aoMudarConversa={(estado) => aoMudarConversa(a.chave, estado)}
+                    />
+                  </div>
+                ) : a.tela.tipo === "vincular" ? (
+                  <div key={a.chave} className="editor-aba" hidden={a.chave !== ativa}>
+                    <div className="page">
+                      <VincularIssues
+                        key={a.vez}
+                        projeto={a.tela.projeto}
+                        api={apiMapaTauri}
+                        // Volta à aba do mapa que já existe, sem remontá-la.
+                        aoVoltar={() => irParaArea("mapa")}
+                        aoVincular={() => undefined}
+                        apiTerminal={apiTerminal}
+                        criarTela={criarTela}
+                      />
+                    </div>
+                  </div>
                 ) : null,
               )}
               {aba?.tela.tipo === "demanda" && (
@@ -718,7 +765,7 @@ export function Navegacao({
 
       {fechamento && (
         <DialogoConfirmacao
-          titulo="Fechar a análise"
+          titulo={fechamento.mapa ? "Fechar o mapa" : "Fechar a análise"}
           aoCancelar={() => setFechamento(null)}
           acoes={
             <>
@@ -747,11 +794,14 @@ export function Navegacao({
           <p>
             {fechamento.trabalhando
               ? "O agente ainda está trabalhando. Encerrar a conversa?"
-              : "A conversa com o agente continua aberta nesta análise. Encerrar a conversa?"}
+              : fechamento.mapa
+                ? "A sessão de mapeamento com o Claude continua aberta. Encerrar a sessão?"
+                : "A conversa com o agente continua aberta nesta análise. Encerrar a conversa?"}
           </p>
           <p className="muted">
-            Fechar a aba encerra o Claude Code desta análise. Dá para retomar a conversa depois,
-            pela própria análise.
+            {fechamento.mapa
+              ? "A sessão de mapeamento com o Claude será encerrada. Uma sessão nova continua o mapa de onde parou."
+              : "Fechar a aba encerra o Claude Code desta análise. Dá para retomar a conversa depois, pela própria análise."}
           </p>
         </DialogoConfirmacao>
       )}
@@ -799,8 +849,9 @@ export function Navegacao({
             {fechamentoOutras.trabalhando && " O agente ainda está trabalhando."}
           </p>
           <p className="muted">
-            Fechar uma aba de análise encerra o Claude Code dela. Dá para retomar a conversa
-            depois, pela própria análise. “Manter as conversas” fecha só as abas sem conversa.
+            Fechar uma aba encerra o Claude Code dela: nas análises, dá para retomar a conversa
+            depois, pela própria análise; no mapa, a sessão de mapeamento será encerrada.
+            “Manter as conversas” fecha só as abas sem conversa.
           </p>
         </DialogoConfirmacao>
       )}

@@ -214,6 +214,18 @@ impl Mapa {
         m
     }
 
+    /// Mapa montado de extrações já feitas, sem disco: para testes e para quem
+    /// já tem os arquivos mapeados.
+    pub fn de_arquivos(arquivos: Vec<ArquivoMapeado>) -> Self {
+        Self::novo(
+            FORMATO_MAPA,
+            String::new(),
+            0,
+            EstatisticasMapa::default(),
+            arquivos,
+        )
+    }
+
     fn indexar(&mut self) {
         let mut ind = Indice::default();
         for (a, arq) in self.arquivos.iter().enumerate() {

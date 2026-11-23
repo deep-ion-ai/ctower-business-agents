@@ -26,13 +26,16 @@ pub mod ata;
 pub mod cenarios;
 pub mod ciclo_vida;
 pub mod comparacao;
+pub mod dados_pessoais;
 pub mod execucao;
 pub mod gabarito;
 pub mod historias;
 pub mod longa;
+pub mod mapeamento;
 pub mod modelagem;
 pub mod parecer;
 pub mod pastas;
+pub mod publicacao;
 pub mod relatorio;
 pub mod texto;
 

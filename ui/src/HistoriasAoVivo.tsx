@@ -11,6 +11,7 @@ import type {
 } from "./analise";
 import type { Revisao } from "./AcoesRevisao";
 import type { DecisaoRevisao } from "./revisao";
+import { BotaoRevalidar, ChipFundamento, SeloRevalidar, aRevalidar } from "./MarcaRevalidar";
 
 /** As letras do INVEST, na ordem. */
 const INVEST: [LetraInvest, string, string][] = [
@@ -202,6 +203,7 @@ function ItemCriterio({
             a confirmar: pergunta {c.pergunta}
           </span>
         )}
+        <SeloRevalidar marca={c} />
         {c.situacao !== "pendente" && <span className="muted">{c.situacao}</span>}
         {c.original && <span className="muted editada">(editado pelo analista)</span>}
       </div>
@@ -232,9 +234,13 @@ function ItemCriterio({
       <p className="origens">
         Origem:{" "}
         {c.fundamentos.map((f) => (
-          <span key={rotuloFundamento(f)} className="chip" title={textoFundamento(f)}>
-            {rotuloFundamento(f)}
-          </span>
+          <ChipFundamento
+            key={rotuloFundamento(f)}
+            marca={c}
+            fundamento={f}
+            rotulo={rotuloFundamento(f)}
+            texto={textoFundamento(f)}
+          />
         ))}
       </p>
       {revisao && aberta && !editando && (
@@ -297,6 +303,12 @@ function ItemCriterio({
               Desfazer
             </button>
           )}
+          <BotaoRevalidar
+            marca={c}
+            item={{ tipo: "criterio", historia: historia.id, numero: c.numero }}
+            ocupado={ocupado}
+            aoDecidir={decidir}
+          />
         </div>
       )}
     </li>
@@ -498,12 +510,14 @@ export function HistoriasAoVivo({
     .filter((h) => h.situacao !== "descartada" && h.situacao !== "quebrada")
     .flatMap(validos);
   const aConfirmar = criterios.filter((c) => c.pergunta).length;
+  const revalidar = criterios.filter(aRevalidar).length;
   return (
     <section aria-label="Histórias" className="historias-ao-vivo">
       <h3>Histórias</h3>
       <p className="muted">
         {contar(historias.length, "história", "histórias")} · {contar(criterios.length, "critério", "critérios")}
         {aConfirmar > 0 && ` · ${aConfirmar} a confirmar`}
+        {revalidar > 0 && ` · ${revalidar} a revalidar`}
         {origem && ` · origem ${origem}`}
       </p>
       <p className="muted legenda-invest">

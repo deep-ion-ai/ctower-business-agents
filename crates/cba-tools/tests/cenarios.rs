@@ -152,6 +152,8 @@ impl Caso {
                         }],
                         origem: None,
                         informada: None,
+                        historico: Vec::new(),
+                        funcionalidades: Vec::new(),
                     },
                     format!("\n# {id}\n"),
                 ),
@@ -901,6 +903,7 @@ fn frontmatter() -> FrontmatterAnalise {
         criado: Data::nova(2026, 11, 14).unwrap(),
         analista: Some("Ana Exemplo".into()),
         origem: None,
+        funcionalidades: Vec::new(),
     }
 }
 

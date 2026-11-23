@@ -1,4 +1,6 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
+import { apiCoberturaTauri, type ApiCobertura } from "./cobertura";
+import { apiMudancasTauri, type ApiMudancas } from "./mudancas";
 import {
   apiAnaliseTauri,
   type AnaliseCriada,
@@ -96,6 +98,12 @@ export interface ResumoRevalidacao {
     depois: StatusRegra;
   }[];
   analises: string[];
+  /** Histórias com critério de aceite a revalidar (#169). */
+  historiasAfetadas?: number;
+  /** Cenários de teste a revalidar (#169). */
+  cenariosAfetados?: number;
+  /** Tabelas de decisão a revalidar (#169). */
+  tabelasAfetadas?: number;
   problemas: ProblemaVista[];
   mudou: boolean;
   duracaoMs: number;
@@ -126,7 +134,22 @@ export interface MapaVista {
 }
 
 /** Filtro da busca por grupo de tipo. */
-export type FiltroTipo = "regra" | "termo" | "analise";
+export type FiltroTipo = "regra" | "termo" | "analise" | "externo";
+
+/** De onde veio um documento externo (a cópia do repositório de docs, #277). */
+export interface OrigemExterna {
+  repositorio: string;
+  /** Caminho no repositório. */
+  caminho: string;
+  commit: string;
+  /** `publicada` (documento aprovado publicado pelo app) ou `externa`. */
+  confianca: string;
+}
+
+/** Rótulo curto da origem: `GitHub dono/docs · abc1234`. */
+export function rotuloOrigem(o: OrigemExterna): string {
+  return `${o.repositorio} · ${o.commit.slice(0, 7)}`;
+}
 
 export interface Encontrado {
   caminho: string;
@@ -138,6 +161,8 @@ export interface Encontrado {
   status: string | null;
   /** Trecho com as palavras encontradas entre `**`. */
   trecho: string;
+  /** Documentação externa: de onde veio (ausente nos documentos da base). */
+  externo?: OrigemExterna | null;
 }
 
 export interface Busca {
@@ -175,6 +200,9 @@ export interface DocumentoAberto {
   /** A análise que o documento representa, para abrir na tela da análise. */
   analise: { projeto: string; id: string } | null;
   problema: string | null;
+  /** Documentação externa (`externos/`): não se edita no app. */
+  somenteLeitura?: boolean;
+  externo?: OrigemExterna | null;
 }
 
 /** Pedido de uma análise de histórias: a origem, a demanda, ou as duas. */
@@ -239,9 +267,15 @@ export interface ApiConhecimento extends ApiAmbiente {
   encerrarDemanda(projeto: string, demanda: string): Promise<DemandaVista>;
   reabrirDemanda(projeto: string, demanda: string): Promise<DemandaVista>;
   painelDemanda(projeto: string, demanda: string): Promise<PainelDemanda>;
+  /** Cobertura da base por área e pasta (#125); sem ela, a tela não mostra a seção. */
+  cobertura?: ApiCobertura["cobertura"];
+  /** O que mudou no código (#124), na tela do projeto. */
+  mudancas?: ApiMudancas;
 }
 
 export const apiConhecimentoTauri: ApiConhecimento = {
+  cobertura: apiCoberturaTauri.cobertura,
+  mudancas: apiMudancasTauri,
   situacao: () => invoke("situacao_app"),
   inicio: () => invoke("inicio_app"),
   criarAnalise: (projeto, fluxo, entrada, titulo, demanda) =>
@@ -348,6 +382,7 @@ const ROTULO_TIPO: Record<string, string> = {
   restricao: "Restrição",
   projeto: "Projeto",
   "regras-do-projeto": "Regras do projeto",
+  "doc-externo": "Documento externo",
 };
 
 export function rotuloTipo(tipo: string | null): string {

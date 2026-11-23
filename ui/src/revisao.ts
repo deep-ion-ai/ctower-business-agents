@@ -2,6 +2,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import type { Gherkin, Narrativa, OrigemPergunta, SituacaoItem, VistaAnalise } from "./analise";
 
+/** Critério, cenário ou tabela (`cba_core::requisito::ItemRequisito`). */
+export type ItemRequisito =
+  | { tipo: "criterio"; historia: string; numero: number }
+  | { tipo: "cenario"; cenario: string }
+  | { tipo: "tabela"; numero: number };
+
 /**
  * Revisão, aprovação e exportação da análise (#37): espelho de
  * `cba_tools::revisao` e dos comandos de `ui/src-tauri/src/revisao.rs`.
@@ -34,6 +40,8 @@ export type DecisaoRevisao =
   | { tipo: "cenario"; cenario: string; situacao: SituacaoItem }
   | ({ tipo: "editar-cenario"; cenario: string; titulo: string } & Gherkin)
   | { tipo: "tabela"; numero: number; situacao: SituacaoItem }
+  /** Marcar um critério, cenário ou tabela "a revalidar" ou, sem `a_revalidar`, tirar a marca (#169). */
+  | { tipo: "revalidar"; item: ItemRequisito; a_revalidar: boolean }
   /** "Virar pergunta" (#119, #120): pergunta do analista a partir de um item da análise, com o texto editado e as evidências do item. */
   | { tipo: "virar-pergunta"; texto: string; origem: OrigemPergunta };
 
@@ -62,6 +70,18 @@ export interface RegraPrevista {
   sugerida?: boolean;
 }
 
+/** Funcionalidade do mapa na janela de aprovação (`cba_tools::vinculo::FuncionalidadeResumida`). */
+export interface FuncionalidadeResumida {
+  id: string;
+  nome: string;
+  /** Slug da área (`cobranca`). */
+  area: string;
+  areaNome: string;
+}
+
+/** De onde vieram as funcionalidades propostas (`cba_tools::vinculo::OrigemDoVinculo`). */
+export type OrigemDoVinculo = "documento" | "sessao" | "evidencias" | "nenhuma";
+
 /** Se a análise pode ser aprovada e o que a aprovação fará. */
 export interface Prontidao {
   estado: "criada" | "em-andamento" | "concluida" | "aprovada";
@@ -74,6 +94,13 @@ export interface Prontidao {
   regras: RegraPrevista[];
   incorretas: number[];
   termosAceitos: string[];
+  /** Funcionalidades do mapa propostas (#287); as regras e os termos herdam. */
+  funcionalidades?: FuncionalidadeResumida[];
+  origemDasFuncionalidades?: OrigemDoVinculo;
+  /** Funcionalidades abertas do mapa, para a escolha. */
+  funcionalidadesDoMapa?: FuncionalidadeResumida[];
+  /** Área da primeira funcionalidade proposta, no lugar de `geral`. */
+  areaSugerida?: string | null;
 }
 
 /** Escolhas da aprovação (`cba_tools::aprovacao::OpcoesAprovacao`). */
@@ -82,6 +109,8 @@ export interface OpcoesAprovacao {
   afirmacoes: Record<number, { area: string | null; titulo: string | null }>;
   /** Afirmações que viram regra; sem a lista, as de fora da resposta e dos exemplos. */
   regras?: number[] | null;
+  /** Funcionalidades do mapa da análise (#287); sem a lista, as propostas. */
+  funcionalidades?: string[] | null;
 }
 
 export type Acao = "criada" | "atualizada" | "sem-mudanca";
@@ -90,11 +119,15 @@ export interface AprovacaoFeita {
   jaAprovada: boolean;
   regras: { id: string; arquivo: string; area: string; afirmacoes: number[]; acao: Acao }[];
   termos: { termo: string; arquivo: string; acao: Acao }[];
+  /** Explicação ligada a uma funcionalidade do mapa (#208): o documento negocial gravado. */
+  documentoNegocial?: string | null;
+  /** Funcionalidades do mapa gravadas na análise, nas regras e nos termos (#287). */
+  funcionalidades?: string[];
   avisos: string[];
 }
 
 /** Formato da exportação; `csv` (uma linha por cenário) só nos cenários de teste (#117). */
-export type FormatoExportacao = "markdown" | "word" | "csv";
+export type FormatoExportacao = "markdown" | "word" | "html" | "csv";
 
 export interface OpcoesExportacao {
   /** Notas de rodapé e seção de evidências. */
@@ -103,11 +136,11 @@ export interface OpcoesExportacao {
   perguntas: boolean;
   /** Apêndice com os trechos de código citados. */
   trechos: boolean;
-  /** Word: apêndice com o código Mermaid dos diagramas desenhados (#118). */
+  /** Word e HTML: apêndice com o código Mermaid dos diagramas desenhados (#118). */
   codigo_diagramas: boolean;
 }
 
-/** Figura de um diagrama renderizada pela tela, para o Word (#118). */
+/** Figura de um diagrama renderizada pela tela, para o Word e o HTML (#118, #166). */
 export interface FiguraPedida {
   /** Código do bloco Mermaid, como {@link ApiRevisao.diagramasExportacao} devolveu. */
   codigo: string;
@@ -122,21 +155,31 @@ export interface PedidoExportacao {
   destino: string;
   formato: FormatoExportacao;
   opcoes: OpcoesExportacao;
-  /** Word: as figuras dos diagramas; bloco sem figura sai como aviso e código. */
+  /** Word e HTML: as figuras dos diagramas; bloco sem figura sai como aviso e código. */
   figuras?: FiguraPedida[];
 }
 
 export const EXTENSAO: Record<FormatoExportacao, string> = {
   markdown: "md",
   word: "docx",
+  html: "html",
   csv: "csv",
 };
 
 const FILTRO: Record<FormatoExportacao, { name: string; extensions: string[] }> = {
   markdown: { name: "Markdown", extensions: ["md"] },
   word: { name: "Documento do Word", extensions: ["docx"] },
+  html: { name: "Página HTML", extensions: ["html", "htm"] },
   csv: { name: "CSV (planilha, ferramentas de teste)", extensions: ["csv"] },
 };
+
+/** Resultado da exportação (`ExportacaoFeita`). */
+export interface ExportacaoFeita {
+  /** Caminho gravado, com a extensão do formato. */
+  caminho: string;
+  /** HTML: avisos do template e dos tokens da base (não impedem a exportação). */
+  avisos: string[];
+}
 
 /** Operações da revisão. A interface usa {@link apiRevisaoTauri}; os testes, uma falsa. */
 export interface ApiRevisao {
@@ -145,11 +188,11 @@ export interface ApiRevisao {
   aprovar(projeto: string, analise: string, opcoes: OpcoesAprovacao): Promise<AprovacaoFeita>;
   /** Diálogo de salvar do projeto; `null` se o analista cancelar. */
   escolherDestino(nome: string, formato: FormatoExportacao): Promise<string | null>;
-  /** Exporta e devolve o caminho gravado. */
-  exportar(projeto: string, analise: string, pedido: PedidoExportacao): Promise<string>;
+  /** Exporta e devolve o caminho gravado e os avisos do template HTML da base. */
+  exportar(projeto: string, analise: string, pedido: PedidoExportacao): Promise<ExportacaoFeita>;
   /**
    * Código dos blocos Mermaid do documento que a exportação vai ler (#118), para a tela
-   * desenhar as figuras do Word. Sem ela, o Word sai com aviso e código no lugar.
+   * desenhar as figuras do Word e do HTML. Sem ela, o Word sai com aviso e código no lugar.
    */
   diagramasExportacao?(projeto: string, analise: string): Promise<string[]>;
 }

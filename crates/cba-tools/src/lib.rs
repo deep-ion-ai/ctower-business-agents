@@ -20,9 +20,15 @@
 //!   "Histórias e critérios", com as referências conferidas por [`fundamentos`]) e
 //!   [`cenarios`] (`registrar_tabela_decisao` e `registrar_cenario`, do fluxo
 //!   "Cenários de teste") e [`diagramas`] (`registrar_diagrama`, os diagramas
-//!   pelos elementos, que o app transforma em Mermaid, #118).
+//!   pelos elementos, que o app transforma em Mermaid, #118) e [`mapear`]
+//!   (`iniciar_mapeamento`, `pontos_de_entrada`, `registrar_funcionalidade`,
+//!   `tratar_ponto_de_entrada` e `concluir_mapeamento`: o mapa de funcionalidades
+//!   do projeto, #208, fora das análises) e [`mudancas`]
+//!   (`relatorio_de_mudancas` e `propor_atualizacao_de_regra`: o que mudou no
+//!   código desde a última análise e a explicação por regra, #124).
 //! - Consulta, só de leitura e paginada ([`paginacao`]): [`conhecimento`] (busca no
-//!   índice da base), [`mapa`], [`estrutura`], [`banco`] (`schema`) e
+//!   índice da base), [`mapa`], [`estrutura`], [`banco`] (`schema`, com os indícios
+//!   de dado pessoal de [`dados_pessoais`]) e
 //!   [`referencias`], a partir do mapa estrutural do projeto ([`fontes`]), e
 //!   [`rastreabilidade`] (matriz da demanda e consulta reversa por regra ou
 //!   arquivo, #121, que também exporta a matriz para Excel e Word).
@@ -38,12 +44,20 @@
 //!   registro.
 //! - [`aprovacao`]: a aprovação da análise pelo analista, que leva à base as
 //!   afirmações confirmadas (regras) e os termos aceitos (glossário).
+//! - [`vinculo`]: o vínculo da análise, das regras e dos termos com as
+//!   funcionalidades do mapa (#287): a proposta na aprovação (sessão ou
+//!   evidências) e a religação dos documentos aprovados antes.
 //! - [`aprovacao_ata`]: a aprovação da ata de uma reunião (fluxo `reuniao`), com o
 //!   segundo aviso e o descarte do transcript.
 //! - [`revisao`]: a revisão do analista (decisões, edição do texto, prontidão para
 //!   aprovar, aprovação com a escolha da área e exportação).
+//! - [`docs_externos`]: a sincronização do repositório de docs (#277), que traz
+//!   a documentação publicada para `externos/` como fonte externa rotulada; roda
+//!   sob demanda (app) e em segundo plano ao iniciar uma análise.
 //! - [`revalidacao`]: a revalidação das evidências das regras e das análises por
 //!   hash, que o app chama ao abrir o projeto e sob demanda (spec, seção 6.5).
+//! - [`publicacao`]: a publicação dos documentos aprovados no repositório da
+//!   documentação, com a prévia das mudanças e o PR/MR (#276).
 //!
 //! Papel na arquitetura: seção 5 de `docs/specs/2026-11-11-mvp-standalone.md`.
 
@@ -54,10 +68,14 @@ pub mod aprovacao_ata;
 pub mod banco;
 pub mod cenarios;
 pub mod ciclo;
+pub mod cobertura;
 mod comum;
 pub mod conhecimento;
 pub mod contexto;
+pub mod dados_pessoais;
 pub mod diagramas;
+pub mod docs_externos;
+pub mod documentacao;
 pub mod documento;
 pub mod editavel;
 pub mod estrutura;
@@ -66,13 +84,16 @@ mod fontes;
 pub mod fundamentos;
 pub mod historias;
 pub mod mapa;
+pub mod mapear;
 pub mod memoria;
 mod modelo_dados;
+pub mod mudancas;
 mod paginacao;
 pub mod parecer;
 pub mod pauta;
 pub mod perguntar;
 pub mod prompts;
+pub mod publicacao;
 pub mod rastreabilidade;
 pub mod referencias;
 mod registro;
@@ -84,6 +105,8 @@ pub mod roteiro;
 pub mod schema;
 pub mod sugestao;
 pub mod termo;
+pub mod vincular;
+pub mod vinculo;
 
 pub use registro::{
     ErroChamada, ErroFerramenta, Executar, Ferramenta, Registro, Saida, ler_argumentos,
@@ -124,6 +147,14 @@ pub fn registro_padrao() -> Registro {
         .registrar(cenarios::registrar_tabela_decisao())
         .registrar(cenarios::registrar_cenario())
         .registrar(diagramas::registrar_diagrama())
+        .registrar(mapear::iniciar_mapeamento())
+        .registrar(mapear::pontos_de_entrada())
+        .registrar(mapear::registrar_funcionalidade())
+        .registrar(mapear::tratar_ponto_de_entrada())
+        .registrar(mapear::propor_vinculo_de_issue())
+        .registrar(mapear::concluir_mapeamento())
+        .registrar(mudancas::relatorio_de_mudancas())
+        .registrar(mudancas::propor_atualizacao_de_regra())
         .registrar(ciclo::concluir_analise());
     registro
 }
@@ -169,6 +200,14 @@ mod tests {
             "registrar_tabela_decisao",
             "registrar_cenario",
             "registrar_diagrama",
+            "iniciar_mapeamento",
+            "pontos_de_entrada",
+            "registrar_funcionalidade",
+            "tratar_ponto_de_entrada",
+            "propor_vinculo_de_issue",
+            "concluir_mapeamento",
+            "relatorio_de_mudancas",
+            "propor_atualizacao_de_regra",
             "concluir_analise",
         ] {
             assert!(r.obter(nome).is_some(), "{nome}");
@@ -185,6 +224,26 @@ mod tests {
                 .e_somente_leitura()
         );
         assert!(!r.obter("registrar_diagrama").unwrap().e_somente_leitura());
+        assert!(
+            !r.obter("registrar_funcionalidade")
+                .unwrap()
+                .e_somente_leitura()
+        );
+        assert!(
+            !r.obter("tratar_ponto_de_entrada")
+                .unwrap()
+                .e_somente_leitura()
+        );
+        assert!(
+            !r.obter("propor_vinculo_de_issue")
+                .unwrap()
+                .e_somente_leitura()
+        );
+        assert!(
+            !r.obter("propor_atualizacao_de_regra")
+                .unwrap()
+                .e_somente_leitura()
+        );
         assert!(!r.obter("iniciar_analise").unwrap().e_somente_leitura());
         assert!(!r.obter("concluir_analise").unwrap().e_somente_leitura());
         assert!(!r.obter("propor_papel").unwrap().e_somente_leitura());
@@ -204,6 +263,10 @@ mod tests {
             "ler_transcript",
             "sugerir_demanda",
             "verificar_termos_vagos",
+            "iniciar_mapeamento",
+            "pontos_de_entrada",
+            "concluir_mapeamento",
+            "relatorio_de_mudancas",
         ] {
             assert!(r.obter(consulta).unwrap().e_somente_leitura(), "{consulta}");
         }

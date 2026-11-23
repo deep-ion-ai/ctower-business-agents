@@ -69,6 +69,7 @@ fn analise(id: &cba_kb::Id, titulo: &str) -> Documento<FrontmatterAnalise> {
             criado: data(),
             analista: Some("Ana Exemplo".into()),
             origem: None,
+            funcionalidades: Vec::new(),
         },
         format!("\n# {titulo}\n"),
     )
@@ -282,6 +283,8 @@ fn regras_do_gabarito_vao_e_voltam() {
                 .collect(),
             origem: Some(CaminhoRelativo::novo("analises/A-0001.md").unwrap()),
             informada: None,
+            historico: Vec::new(),
+            funcionalidades: Vec::new(),
         };
         let documento = Documento::novo(frontmatter, format!("\n{}\n", regra.enunciado));
         projeto.criar(&id.arquivo(), &documento).unwrap();

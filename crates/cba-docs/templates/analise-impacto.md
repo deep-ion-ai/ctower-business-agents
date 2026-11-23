@@ -6,8 +6,8 @@ Marcadores de campo: {{id}}, {{titulo}}, {{projeto}}, {{status}}, {{criado}},
 
 Marcadores de seção: {{demanda_como_veio}}, {{demanda_como_entendida}},
 {{como_e_hoje}}, {{funcionalidades}}, {{dados}}, {{integracoes}},
-{{documentos_e_telas}}, {{riscos}}, {{abrangencia}}, {{perguntas}},
-{{sugestoes}}, {{evidencias}}.
+{{documentos_e_telas}}, {{dados_pessoais_e_rnf}}, {{riscos}}, {{abrangencia}},
+{{perguntas}}, {{sugestoes}}, {{evidencias}}.
 
 Uma seção com conteúdo cujo marcador foi removido vai para o fim do documento,
 com aviso. Marcador desconhecido também gera aviso e fica no texto como está.
@@ -43,6 +43,10 @@ Análise de impacto · Projeto `{{projeto}}` · Status: {{status}} · Criada em 
 ## Documentos e telas
 
 {{documentos_e_telas}}
+
+## Dados pessoais e requisitos não funcionais
+
+{{dados_pessoais_e_rnf}}
 
 ## Riscos
 

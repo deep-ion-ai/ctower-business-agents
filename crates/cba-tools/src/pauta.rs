@@ -973,6 +973,8 @@ fn criar_regra(
         evidencias: Vec::new(),
         origem: origem.clone(),
         informada: Some(informada.clone()),
+        historico: Vec::new(),
+        funcionalidades: Vec::new(),
     };
     let serie = Serie::regra(&plano.sigla).map_err(cba_kb::Erro::from)?;
     // Monta antes com o próximo número livre, para recusar (sem gravar) um

@@ -10,7 +10,7 @@
 
 mod comum;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
@@ -38,6 +38,54 @@ struct Gabarito {
     cenarios: Vec<Cenarios>,
     #[serde(default)]
     ciclos_vida: Vec<CicloVida>,
+    #[serde(default)]
+    mapeamentos: Vec<Mapeamento>,
+    #[serde(default)]
+    publicacoes: Vec<Publicacao>,
+}
+
+/// Ciclo de publicação da documentação (#279).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Publicacao {
+    id: String,
+    titulo: String,
+    analise: String,
+    reanalise: String,
+    repositorio: String,
+    #[serde(default)]
+    subpasta: String,
+}
+
+/// Mapa de funcionalidades esperado (#208).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Mapeamento {
+    id: String,
+    titulo: String,
+    pontos_de_entrada: Vec<PontoEsperado>,
+    funcionalidades: Vec<FuncionalidadeMapeada>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PontoEsperado {
+    chave: String,
+    funcionalidades: Vec<String>,
+    /// Lido pela avaliação (cba-avaliacao); aqui só o formato conta.
+    #[serde(default)]
+    #[allow(dead_code)]
+    justificavel: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FuncionalidadeMapeada {
+    id: String,
+    #[serde(default)]
+    nome: Option<String>,
+    area: String,
+    palavras_chave: Vec<Vec<String>>,
 }
 
 /// Ciclo de vida esperado de uma entidade com campo de status (#119).
@@ -473,6 +521,8 @@ struct Demanda {
     arquivos_impactados: Vec<String>,
     #[serde(default)]
     perguntas_esperadas: Vec<PerguntaEsperada>,
+    #[serde(default)]
+    dados_pessoais: Option<DadosPessoais>,
 }
 
 /// Pergunta que o agente deve fazer ao solicitante (avaliação dos fluxos, #33).
@@ -489,6 +539,97 @@ struct PerguntaEsperada {
 struct VerificacaoDaPremissa {
     veredito: String,
     palavras_chave: Vec<Vec<String>>,
+}
+
+/// Seção "Dados pessoais e requisitos não funcionais" esperada (#126).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DadosPessoais {
+    campos: Vec<CampoPessoal>,
+    #[serde(default)]
+    nao_pessoais: Vec<CampoNaoPessoal>,
+    #[serde(default)]
+    aspectos: Vec<AspectoEsperado>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CampoPessoal {
+    campo: String,
+    categoria: String,
+    palavras_chave: Vec<Vec<String>>,
+    evidencias: Vec<Evidencia>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CampoNaoPessoal {
+    campo: String,
+    palavras_chave: Vec<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AspectoEsperado {
+    aspecto: String,
+    tema: String,
+    palavras_chave: Vec<Vec<String>>,
+}
+
+/// A coluna `TABELA.COLUNA` está no `CREATE TABLE` da tabela nos scripts.
+fn coluna_nos_scripts(raiz: &Path, campo: &str) -> bool {
+    let Some((tabela, coluna)) = campo.split_once('.') else {
+        return false;
+    };
+    bloco_da_tabela(raiz, tabela).is_some_and(|bloco| {
+        bloco
+            .lines()
+            .any(|l| l.split_whitespace().next() == Some(coluna))
+    })
+}
+
+fn conferir_dados_pessoais(c: &mut Conferencia, raiz: &Path, onde: &str, d: &DadosPessoais) {
+    if d.campos.is_empty() {
+        c.erro(format!("{onde}: dados_pessoais sem campos"));
+    }
+    let mut vistos = HashSet::new();
+    for campo in &d.campos {
+        let onde = format!("{onde}, campo {}", campo.campo);
+        if !vistos.insert(campo.campo.as_str()) {
+            c.erro(format!("{onde}: campo repetido"));
+        }
+        if !coluna_nos_scripts(raiz, &campo.campo) {
+            c.erro(format!("{onde}: coluna não está nos scripts"));
+        }
+        c.texto_preenchido(&onde, "categoria", &campo.categoria);
+        c.palavras_chave(&onde, &campo.palavras_chave);
+        if campo.evidencias.is_empty() {
+            c.erro(format!("{onde}: sem evidências"));
+        }
+        for ev in &campo.evidencias {
+            c.evidencia(&onde, ev);
+        }
+    }
+    for campo in &d.nao_pessoais {
+        let onde = format!("{onde}, não pessoal {}", campo.campo);
+        if !vistos.insert(campo.campo.as_str()) {
+            c.erro(format!("{onde}: campo repetido ou também pessoal"));
+        }
+        if !coluna_nos_scripts(raiz, &campo.campo) {
+            c.erro(format!("{onde}: coluna não está nos scripts"));
+        }
+        c.palavras_chave(&onde, &campo.palavras_chave);
+    }
+    for a in &d.aspectos {
+        let onde = format!("{onde}, aspecto {}", a.aspecto);
+        if !["dados_pessoais", "auditoria", "desempenho", "acesso"].contains(&a.aspecto.as_str()) {
+            c.erro(format!(
+                "{onde}: aspecto deve ser dados_pessoais, auditoria, desempenho ou acesso"
+            ));
+        }
+        c.texto_preenchido(&onde, "tema", &a.tema);
+        c.palavras_chave(&onde, &a.palavras_chave);
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -678,6 +819,8 @@ fn conferir(caminho: &Path) -> Vec<String> {
         .chain(gabarito.historias.iter().map(|h| &h.id))
         .chain(gabarito.cenarios.iter().map(|c| &c.id))
         .chain(gabarito.ciclos_vida.iter().map(|c| &c.id))
+        .chain(gabarito.mapeamentos.iter().map(|m| &m.id))
+        .chain(gabarito.publicacoes.iter().map(|p| &p.id))
         .chain(
             gabarito
                 .ciclos_vida
@@ -838,6 +981,9 @@ fn conferir(caminho: &Path) -> Vec<String> {
                 &format!("{onde}, verificação da premissa"),
                 &v.palavras_chave,
             );
+        }
+        if let Some(dp) = &d.dados_pessoais {
+            conferir_dados_pessoais(&mut c, &raiz, &onde, dp);
         }
         if d.arquivos_impactados.is_empty() {
             c.erro(format!("{onde}: nenhum arquivo impactado"));
@@ -1036,6 +1182,18 @@ fn conferir(caminho: &Path) -> Vec<String> {
         conferir_ciclo_vida(&mut c, cv);
     }
 
+    let do_explicar: BTreeSet<&str> = gabarito
+        .funcionalidades
+        .iter()
+        .map(|f| f.id.as_str())
+        .collect();
+    for m in &gabarito.mapeamentos {
+        conferir_mapeamento(&mut c, &raiz, m, &do_explicar);
+    }
+    for p in &gabarito.publicacoes {
+        conferir_publicacao(&mut c, &gabarito, p);
+    }
+
     // Toda regra é exercitada por ao menos um fluxo.
     for regra in &gabarito.regras {
         if !citadas_nos_fluxos.contains(regra.id.as_str()) {
@@ -1047,6 +1205,101 @@ fn conferir(caminho: &Path) -> Vec<String> {
     }
 
     c.erros
+}
+
+/// Ciclo de publicação (#279): os dois itens são de análise (pergunta,
+/// funcionalidade ou demanda) e diferentes, o repositório é `dono/repo` e a
+/// subpasta é relativa.
+fn conferir_publicacao(c: &mut Conferencia, gabarito: &Gabarito, p: &Publicacao) {
+    let onde = format!("publicação {}", p.id);
+    c.texto_preenchido(&onde, "titulo", &p.titulo);
+    let de_analise = |id: &str| {
+        gabarito.perguntas.iter().any(|x| x.id == id)
+            || gabarito.funcionalidades.iter().any(|x| x.id == id)
+            || gabarito.demandas.iter().any(|x| x.id == id)
+    };
+    for (campo, id) in [("analise", &p.analise), ("reanalise", &p.reanalise)] {
+        if !de_analise(id) {
+            c.erro(format!(
+                "{onde}: `{campo}` {id} não é pergunta, funcionalidade nem demanda"
+            ));
+        }
+    }
+    if p.analise == p.reanalise {
+        c.erro(format!("{onde}: `analise` e `reanalise` são o mesmo item"));
+    }
+    let partes: Vec<&str> = p.repositorio.split('/').collect();
+    if partes.len() != 2 || partes.iter().any(|x| x.trim().is_empty()) {
+        c.erro(format!("{onde}: `repositorio` precisa ser dono/repo"));
+    }
+    if p.subpasta.starts_with('/') || p.subpasta.split('/').any(|x| x == "..") {
+        c.erro(format!("{onde}: `subpasta` precisa ser relativa, sem `..`"));
+    }
+}
+
+/// Mapeamento (#208): cada ponto de entrada existe na fixture (o arquivo e o
+/// nome) e aponta para funcionalidades do mapeamento; cada funcionalidade tem um
+/// ponto, área e palavras-chave e, se não é do fluxo explicar, nome.
+fn conferir_mapeamento(
+    c: &mut Conferencia,
+    raiz: &Path,
+    m: &Mapeamento,
+    do_explicar: &BTreeSet<&str>,
+) {
+    let onde = format!("mapeamento {}", m.id);
+    c.texto_preenchido(&onde, "titulo", &m.titulo);
+    let ids: BTreeSet<&str> = m.funcionalidades.iter().map(|f| f.id.as_str()).collect();
+    if ids.len() != m.funcionalidades.len() {
+        c.erro(format!("{onde}: funcionalidade repetida"));
+    }
+    let mut chaves = BTreeSet::new();
+    for p in &m.pontos_de_entrada {
+        let onde = format!("{onde}, ponto {}", p.chave);
+        if !chaves.insert(p.chave.as_str()) {
+            c.erro(format!("{onde}: ponto repetido"));
+        }
+        let Some((arquivo, nome)) = p.chave.split_once('#') else {
+            c.erro(format!("{onde}: chave fora do formato <arquivo>#<nome>"));
+            continue;
+        };
+        let simples = nome.rsplit('.').next().unwrap_or(nome).to_uppercase();
+        match fs::read(raiz.join(arquivo)) {
+            Ok(bytes) => {
+                if !String::from_utf8_lossy(&bytes)
+                    .to_uppercase()
+                    .contains(&simples)
+                {
+                    c.erro(format!("{onde}: `{simples}` não aparece em `{arquivo}`"));
+                }
+            }
+            Err(_) => c.erro(format!("{onde}: arquivo `{arquivo}` não existe na fixture")),
+        }
+        if p.funcionalidades.is_empty() {
+            c.erro(format!("{onde}: sem funcionalidade esperada"));
+        }
+        for f in &p.funcionalidades {
+            if !ids.contains(f.as_str()) {
+                c.erro(format!("{onde}: funcionalidade {f} fora do mapeamento"));
+            }
+        }
+    }
+    for f in &m.funcionalidades {
+        let onde = format!("{onde}, {}", f.id);
+        c.texto_preenchido(&onde, "area", &f.area);
+        c.palavras_chave(&onde, &f.palavras_chave);
+        if !do_explicar.contains(f.id.as_str())
+            && f.nome.as_deref().is_none_or(|n| n.trim().is_empty())
+        {
+            c.erro(format!("{onde}: funcionalidade nova sem `nome`"));
+        }
+        if !m
+            .pontos_de_entrada
+            .iter()
+            .any(|p| p.funcionalidades.iter().any(|x| x == &f.id))
+        {
+            c.erro(format!("{onde}: nenhum ponto de entrada esperado"));
+        }
+    }
 }
 
 /// Ciclo de vida (#119): estados únicos com um inicial, transições entre estados
