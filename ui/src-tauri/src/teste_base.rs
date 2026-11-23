@@ -26,7 +26,7 @@ fn fixture() -> PathBuf {
         .unwrap()
 }
 
-fn copiar(de: &Path, para: &Path) {
+pub fn copiar(de: &Path, para: &Path) {
     fs::create_dir_all(para).unwrap();
     for entrada in fs::read_dir(de).unwrap() {
         let entrada = entrada.unwrap();

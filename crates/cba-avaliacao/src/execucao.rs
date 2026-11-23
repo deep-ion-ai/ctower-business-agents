@@ -10,10 +10,13 @@
 //!    transcript no diretório de dados temporário ([`cba_reunioes::Guarda`]), como o
 //!    app faz ao receber o transcript;
 //! 3. gera o registro do servidor MCP e os hooks com o mesmo preparo do app
-//!    ([`cba_session::preparo`]), mas em arquivos temporários, e os passa ao `claude`
-//!    por `--mcp-config --strict-mcp-config` e `--settings`, com
-//!    `--setting-sources local` (nenhuma configuração do usuário, do projeto ou MCP
-//!    dele entra) e `--no-session-persistence`;
+//!    ([`cba_session::preparo`]): o estado do Claude em arquivos temporários e os
+//!    hooks no `.claude/settings.local.json` da cópia (#304; a fixture não é
+//!    tocada). Passa o servidor ao `claude` por `--mcp-config --strict-mcp-config`, e
+//!    os hooks pelo próprio arquivo local, com `--setting-sources local` (nenhuma
+//!    configuração do usuário, do projeto ou MCP dele entra) e
+//!    `--no-session-persistence`. O mesmo arquivo vai também em `--settings` (o
+//!    Claude Code roda uma vez só o comando repetido);
 //! 4. roda `claude -p "Inicie a análise A-0001 pelo ctower"` (no fluxo `reuniao`,
 //!    "Analise a reunião R-0001 da demanda D-0001 pelo ctower", e o agente cria a
 //!    análise com `iniciar_analise`) na cópia, com `CBA_DATA_DIR` apontando para os
@@ -157,8 +160,8 @@ fn cadastrar_projeto(
     })
 }
 
-/// O mesmo preparo do app, em arquivos temporários: devolve o `mcp.json` e o
-/// `settings.json`.
+/// O mesmo preparo do app, com o estado do Claude em arquivos temporários: devolve o
+/// `mcp.json` e o `settings.local.json` com os hooks, na cópia.
 fn preparar_claude(raiz: &Path, p: &Projeto, cba: &Path) -> Result<(PathBuf, PathBuf), String> {
     preparar_claude_em(&raiz.join("claude"), p, cba)
 }
@@ -198,7 +201,13 @@ fn preparar_claude_em(
             .expect("JSON serializável"),
     )
     .map_err(erro("gravação do mcp.json"))?;
-    Ok((mcp, config.settings))
+    let settings = feito
+        .alteracoes
+        .iter()
+        .find(|a| matches!(a.item, cba_session::preparo::Item::Hook { .. }))
+        .map(|a| a.arquivo.clone())
+        .ok_or("o preparo não gravou os hooks")?;
+    Ok((mcp, settings))
 }
 
 /// Ambiente preparado de uma execução.
