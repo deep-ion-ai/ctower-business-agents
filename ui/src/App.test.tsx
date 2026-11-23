@@ -95,4 +95,42 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Refazer o primeiro uso" }));
     expect(await screen.findByRole("region", { name: "Primeiro uso" })).toBeInTheDocument();
   });
+
+  it("mostra uma vez o aviso da migração das configurações para as pastas", async () => {
+    const apiMigracao = {
+      migrar: vi.fn(() =>
+        Promise.resolve({
+          mensagem:
+            "As configurações do CBA no Claude Code agora valem só nas pastas dos projetos cadastrados",
+          projetos: ["faturamento-exemplo"],
+          arquivosLocais: ["/codigo/faturamento/.claude/settings.local.json"],
+          settings: "/home/ana/.claude/settings.json",
+          eventosRetirados: ["SessionStart", "Stop"],
+          regrasRetiradas: [],
+          ficaram: ["PreToolUse"],
+          pendentes: [],
+        }),
+      ),
+      marcarVisto: vi.fn(() => Promise.resolve()),
+    };
+    render(<App api={concluido()} apiMigracao={apiMigracao} />);
+    const aviso = await screen.findByRole("status", { name: "Configurações do Claude Code" });
+    expect(aviso).toHaveTextContent("agora valem só nas pastas dos projetos cadastrados");
+    expect(aviso).toHaveTextContent("/codigo/faturamento/.claude/settings.local.json");
+    expect(aviso).toHaveTextContent("SessionStart, Stop");
+    expect(aviso).toHaveTextContent("foram mudados depois do CBA, os hooks de: PreToolUse");
+    fireEvent.click(screen.getByRole("button", { name: "Entendi" }));
+    await waitFor(() => expect(apiMigracao.marcarVisto).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole("status", { name: "Configurações do Claude Code" })).toBeNull();
+  });
+
+  it("sem migração a fazer, não mostra aviso", async () => {
+    const apiMigracao = {
+      migrar: vi.fn(() => Promise.resolve(null)),
+      marcarVisto: vi.fn(() => Promise.resolve()),
+    };
+    render(<App api={concluido()} apiMigracao={apiMigracao} />);
+    await waitFor(() => expect(apiMigracao.migrar).toHaveBeenCalled());
+    expect(screen.queryByRole("status", { name: "Configurações do Claude Code" })).toBeNull();
+  });
 });

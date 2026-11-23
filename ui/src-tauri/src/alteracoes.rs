@@ -4,13 +4,14 @@
 //! O aviso fica na tela da análise: os arquivos que as sessões ligadas a ela
 //! alteraram, com o diff, e as opções de desfazer (com confirmação na tela) e de
 //! manter ([`cba_session::alteracoes`]). A proteção é uma opção do preparo do
-//! ambiente e das configurações (#39): regras `deny` no `settings.json` do usuário e
+//! ambiente e das configurações (#39): regras `deny` no `.claude/settings.local.json` das pastas e
 //! o `Bash` negado pelo hook ([`cba_session::protecao`]).
 
 use cba_core::dados::DiretorioDados;
 use cba_index::Cadastro;
 use cba_kb::Id;
 use cba_session::alteracoes::{self, AvisoAlteracao, Pedido};
+use cba_session::migracao;
 use cba_session::preparo::Preparador;
 use cba_session::protecao::{self, SituacaoProtecao};
 
@@ -168,7 +169,10 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let raiz = dunce::canonicalize(dir.path()).unwrap();
         let dados = DiretorioDados::em(raiz.join("dados"));
-        let projeto = cba_index::Projeto::novo("Faturamento Exemplo", [fixture()]).unwrap();
+        // Numa cópia: a proteção grava no `.claude/settings.local.json` da pasta.
+        let codigo = raiz.join("codigo");
+        crate::teste_base::copiar(&fixture(), &codigo);
+        let projeto = cba_index::Projeto::novo("Faturamento Exemplo", [&codigo]).unwrap();
         Cadastro::em(dados.projetos()).cadastrar(&projeto).unwrap();
         let home = raiz.join("home");
         let config = ConfigClaude::da_pasta_do_usuario(&home);
@@ -181,15 +185,16 @@ mod tests {
         assert!(!s.ligada);
         let s = mudar_protecao(&dados, &preparador, &projeto.id, true).unwrap();
         assert!(s.ligada && s.completa);
-        let json: serde_json::Value =
-            serde_json::from_slice(&fs::read(&config.settings).unwrap()).unwrap();
-        assert_eq!(json["theme"], "dark");
+        // A regra vai para o arquivo local da pasta; o do usuário não muda.
+        let local = codigo.join(".claude").join("settings.local.json");
+        let json: serde_json::Value = serde_json::from_slice(&fs::read(&local).unwrap()).unwrap();
         assert_eq!(json["permissions"]["deny"].as_array().unwrap().len(), 1);
+        let usuario: serde_json::Value =
+            serde_json::from_slice(&fs::read(&config.settings).unwrap()).unwrap();
+        assert_eq!(usuario, json!({"theme": "dark"}));
         let s = mudar_protecao(&dados, &preparador, &projeto.id, false).unwrap();
         assert!(!s.ligada);
-        let json: serde_json::Value =
-            serde_json::from_slice(&fs::read(&config.settings).unwrap()).unwrap();
-        assert_eq!(json, json!({"theme": "dark"}));
+        assert!(!local.exists(), "o arquivo que só tinha a regra sai");
         assert!(situacao_protecao(&dados, &preparador, "outro").is_err());
     }
 
@@ -221,4 +226,29 @@ mod tests {
             resolver_alteracoes(&dados, "faturamento-exemplo", "A-0001", &[pedido], true).is_err()
         );
     }
+}
+
+// ---------------------------------------------------------------------------
+// Migração das configurações para as pastas (#305)
+
+/// Leva para as pastas dos projetos as entradas que versões anteriores gravaram no
+/// `settings.json` do usuário, uma vez ([`cba_session::migracao`]). Devolve o aviso
+/// enquanto o analista não o viu.
+#[tauri::command]
+pub async fn migrar_configuracoes_claude() -> Result<Option<migracao::AvisoMigracao>, String> {
+    let dados = dados()?;
+    bloqueante(move || {
+        migracao::migrar(&dados, &preparador()?).map_err(|e| {
+            tracing::warn!("migração das configurações para as pastas: tentará de novo");
+            e.to_string()
+        })
+    })
+    .await
+}
+
+/// O analista viu o aviso da migração.
+#[tauri::command]
+pub async fn marcar_aviso_migracao_visto() -> Result<(), String> {
+    let dados = dados()?;
+    bloqueante(move || migracao::marcar_visto(&dados).map_err(|e| e.to_string())).await
 }

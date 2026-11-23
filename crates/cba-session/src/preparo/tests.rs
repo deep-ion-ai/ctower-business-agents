@@ -67,6 +67,11 @@ impl Cenario {
     fn settings(&self) -> Value {
         Self::json(&self.config.settings)
     }
+
+    /// `.claude/settings.local.json` da raiz `raiz`.
+    fn local(raiz: &Path) -> Value {
+        Self::json(&arquivo_local(raiz))
+    }
 }
 
 fn chave(p: &Path) -> String {
@@ -150,7 +155,14 @@ fn prepara_em_configuracao_vazia() {
         estado["projects"][&alvo.chave]["hasTrustDialogAccepted"],
         true
     );
-    let settings = c.settings();
+    // Nada no settings.json do usuário: os hooks ficam no arquivo local da pasta.
+    assert!(!c.config.settings.exists());
+    assert!(
+        r.alteracoes[2..]
+            .iter()
+            .all(|a| a.arquivo == arquivo_local(&pasta))
+    );
+    let settings = Cenario::local(&pasta);
     for evento in EVENTOS {
         assert_eq!(
             settings["hooks"][evento],
@@ -173,14 +185,14 @@ fn preparar_de_novo_nao_muda_nada() {
     c.preparador().preparar(&alvo).unwrap();
     let antes = (
         fs::read(&c.config.estado).unwrap(),
-        fs::read(&c.config.settings).unwrap(),
+        fs::read(arquivo_local(&pasta)).unwrap(),
     );
     let r = c.preparador().preparar(&alvo).unwrap();
     assert!(!r.houve_mudanca());
     assert!(r.backups.is_empty());
     let depois = (
         fs::read(&c.config.estado).unwrap(),
-        fs::read(&c.config.settings).unwrap(),
+        fs::read(arquivo_local(&pasta)).unwrap(),
     );
     assert_eq!(antes, depois);
 }
@@ -195,6 +207,14 @@ fn planejar_nao_grava() {
     assert!(plano.houve_mudanca());
     assert!(!c.config.estado.exists());
     assert!(!c.config.settings.exists());
+    assert!(!pasta.join(PASTA_LOCAL).exists());
+    assert!(
+        plano
+            .alteracoes
+            .iter()
+            .any(|a| a.arquivo == arquivo_local(&pasta)),
+        "o plano diz qual arquivo é criado na pasta"
+    );
 }
 
 /// Configuração do analista com outros projetos, servidores e hooks.
@@ -276,14 +296,28 @@ fn preserva_a_configuracao_do_analista_e_desfaz_exatamente() {
     let chave_json = serde_json::to_string(&alvo.chave).unwrap();
     let estado_original = ESTADO_DO_ANALISTA.replace("\"CHAVE\"", &chave_json);
     fs::write(&c.config.estado, &estado_original).unwrap();
-    fs::create_dir_all(c.config.settings.parent().unwrap()).unwrap();
-    fs::write(&c.config.settings, SETTINGS_DO_ANALISTA).unwrap();
+    // O analista já tem o seu settings.local.json na pasta.
+    let local = arquivo_local(&pasta);
+    fs::create_dir_all(local.parent().unwrap()).unwrap();
+    fs::write(&local, SETTINGS_DO_ANALISTA).unwrap();
 
     let r = c.preparador().preparar(&alvo).unwrap();
     assert_eq!(r.backups.len(), 2);
     let mut backup = c.config.estado.clone().into_os_string();
     backup.push(arquivo::SUFIXO_BACKUP);
     assert_eq!(fs::read_to_string(backup).unwrap(), estado_original);
+    // A cópia do arquivo local fica na configuração do Claude, não na pasta.
+    assert_eq!(r.backups[1], c.config.backup_de(&local));
+    assert!(r.backups[1].starts_with(c.config.settings.parent().unwrap()));
+    assert_eq!(
+        fs::read_to_string(&r.backups[1]).unwrap(),
+        SETTINGS_DO_ANALISTA
+    );
+    assert_eq!(
+        arvore(&pasta.join(PASTA_LOCAL)),
+        [PathBuf::from(ARQUIVO_LOCAL)].into()
+    );
+    assert!(!c.config.settings.exists());
 
     let estado = c.estado();
     let original: Value = serde_json::from_str(&estado_original).unwrap();
@@ -307,7 +341,7 @@ fn preserva_a_configuracao_do_analista_e_desfaz_exatamente() {
     assert!(pos("oauthAccount") < pos("projects"));
     assert!(pos("projects") < pos("zUltimaChave"));
 
-    let settings = c.settings();
+    let settings = Cenario::local(&pasta);
     assert_eq!(settings["theme"], "dark");
     assert_eq!(
         settings["hooks"]["PostToolUse"].as_array().unwrap().len(),
@@ -340,10 +374,7 @@ fn preserva_a_configuracao_do_analista_e_desfaz_exatamente() {
         fs::read_to_string(&c.config.estado).unwrap(),
         estado_original
     );
-    assert_eq!(
-        fs::read_to_string(&c.config.settings).unwrap(),
-        SETTINGS_DO_ANALISTA
-    );
+    assert_eq!(fs::read_to_string(&local).unwrap(), SETTINGS_DO_ANALISTA);
 }
 
 #[test]
@@ -364,10 +395,12 @@ fn desfazer_sem_preparo_nao_muda_nada() {
 }
 
 #[test]
-fn hooks_ficam_ate_o_ultimo_projeto_sair() {
+fn cada_pasta_tem_os_seus_hooks() {
     let c = Cenario::novo();
-    let a = c.alvo("a", &c.pasta("a"));
-    let b = c.alvo("b", &c.pasta("b"));
+    let pasta_a = c.pasta("a");
+    let pasta_b = c.pasta("b");
+    let a = c.alvo("a", &pasta_a);
+    let b = c.alvo("b", &pasta_b);
     let p = c.preparador();
     p.preparar(&a).unwrap();
     let r = p.preparar(&b).unwrap();
@@ -375,18 +408,93 @@ fn hooks_ficam_ate_o_ultimo_projeto_sair() {
         r.alteracoes
             .iter()
             .filter(|x| matches!(x.item, Item::Hook { .. }))
-            .all(|x| x.acao == Acao::SemMudanca),
-        "os hooks são compartilhados"
+            .all(|x| x.acao == Acao::Adicionado && x.arquivo == arquivo_local(&pasta_b)),
+        "cada pasta tem o seu arquivo"
     );
 
     p.desfazer(&a).unwrap();
     assert!(c.estado()["projects"].get(&a.chave).is_none());
+    assert!(
+        !pasta_a.join(PASTA_LOCAL).exists(),
+        "o arquivo e a pasta saem"
+    );
     assert!(p.verificar(&b).unwrap().pronto, "b continua pronto");
     assert_eq!(p.verificar(&a).unwrap().servidor_mcp, Situacao::Ausente);
 
     p.desfazer(&b).unwrap();
     assert_eq!(c.estado(), json!({ "projects": {} }));
-    assert_eq!(c.settings(), json!({}));
+    assert!(!pasta_b.join(PASTA_LOCAL).exists());
+    assert!(!c.config.settings.exists());
+    assert!(!c.config.registro().exists());
+}
+
+#[test]
+fn projeto_com_varias_pastas_tem_um_arquivo_em_cada_uma() {
+    let c = Cenario::novo();
+    let raiz = c.pasta("fat");
+    let extra = c.pasta("telas");
+    let projeto = cba_index::Projeto::novo("Faturamento Exemplo", [&raiz, &extra]).unwrap();
+    let alvo = Alvo::do_projeto(&projeto).unwrap();
+    assert_eq!(alvo.raizes, [raiz.clone(), extra.clone()]);
+    let p = c.preparador();
+    p.preparar(&alvo).unwrap();
+    for pasta in [&raiz, &extra] {
+        assert!(
+            Cenario::local(pasta)["hooks"]["Stop"].is_array(),
+            "{pasta:?}"
+        );
+    }
+    let v = p.verificar(&alvo).unwrap();
+    assert_eq!(v.hooks.len(), 2 * EVENTOS.len());
+    assert!(v.pronto);
+    // Descadastrar tira de todas.
+    p.desfazer(&alvo).unwrap();
+    assert!(!raiz.join(PASTA_LOCAL).exists());
+    assert!(!extra.join(PASTA_LOCAL).exists());
+}
+
+#[test]
+fn preparo_nao_toca_os_hooks_globais() {
+    let c = Cenario::novo();
+    fs::create_dir_all(c.config.settings.parent().unwrap()).unwrap();
+    fs::write(&c.config.settings, SETTINGS_DO_ANALISTA).unwrap();
+    let alvo = c.alvo("s", &c.pasta("s"));
+    let p = c.preparador();
+    let r = p.preparar(&alvo).unwrap();
+    assert!(r.alteracoes.iter().all(|a| a.arquivo != c.config.settings));
+    assert_eq!(
+        fs::read_to_string(&c.config.settings).unwrap(),
+        SETTINGS_DO_ANALISTA
+    );
+}
+
+#[test]
+fn hooks_globais_de_preparo_antigo_saem_com_o_ultimo_projeto() {
+    let c = Cenario::novo();
+    let alvo = c.alvo("s", &c.pasta("s"));
+    let p = c.preparador();
+    p.preparar(&alvo).unwrap();
+    // Um preparo anterior à #304 deixou os hooks no settings.json do usuário.
+    let mut hooks = serde_json::Map::new();
+    for evento in EVENTOS {
+        hooks.insert(
+            evento.to_string(),
+            json!([{ "hooks": [{ "type": "command", "command": comando(&c.exe, evento), "timeout": LIMITE_HOOK_S }]}]),
+        );
+    }
+    fs::create_dir_all(c.config.settings.parent().unwrap()).unwrap();
+    fs::write(
+        &c.config.settings,
+        serde_json::to_vec(&json!({ "theme": "dark", "hooks": hooks })).unwrap(),
+    )
+    .unwrap();
+    let r = p.desfazer(&alvo).unwrap();
+    assert!(
+        r.alteracoes
+            .iter()
+            .any(|a| a.arquivo == c.config.settings && a.acao == Acao::Removido)
+    );
+    assert_eq!(c.settings(), json!({ "theme": "dark" }));
 }
 
 #[test]
@@ -400,10 +508,25 @@ fn worktree_usa_o_repositorio_principal_como_chave() {
 
     let antes_repo = arvore(&repo);
     let antes_wt = arvore(&wt);
-    c.preparador().preparar(&alvo).unwrap();
+    let r = c.preparador().preparar(&alvo).unwrap();
     assert!(c.estado()["projects"][chave(&repo)]["mcpServers"]["cba"].is_object());
     assert!(c.estado()["projects"].get(chave(&wt)).is_none());
+    // Os hooks vão para a raiz do repositório principal, que a worktree lê.
+    assert_eq!(alvo.raizes, std::slice::from_ref(&repo));
+    assert!(Cenario::local(&repo)["hooks"]["Stop"].is_array());
+    assert_eq!(arvore(&wt), antes_wt, "nada na worktree");
+    // E o arquivo fica fora do git, pelo info/exclude do diretório comum.
+    let exclude = repo.join(".git").join("info").join("exclude");
+    assert_eq!(
+        fs::read_to_string(&exclude).unwrap(),
+        format!("{LINHA_EXCLUDE}\n")
+    );
+    assert!(r.alteracoes.iter().any(|a| a.arquivo == exclude
+        && matches!(a.item, Item::ExclusaoGit { .. })
+        && a.acao == Acao::Adicionado));
     assert!(c.preparador().verificar(&alvo).unwrap().pronto);
+    // Preparar de novo não duplica a linha.
+    assert!(!c.preparador().preparar(&alvo).unwrap().houve_mudanca());
     c.preparador().desfazer(&alvo).unwrap();
     assert_eq!(arvore(&repo), antes_repo);
     assert_eq!(arvore(&wt), antes_wt);
@@ -422,16 +545,20 @@ fn subpasta_de_repositorio_usa_a_raiz_do_repositorio() {
 }
 
 #[test]
-fn nenhum_arquivo_e_criado_na_pasta_do_projeto() {
+fn so_o_arquivo_local_e_criado_na_pasta_do_projeto() {
     let c = Cenario::novo();
     let pasta = c.pasta("faturamento");
     let antes = arvore(&pasta);
     let alvo = c.alvo("faturamento-exemplo", &pasta);
     let p = c.preparador();
     p.planejar(&alvo).unwrap();
+    assert_eq!(arvore(&pasta), antes);
     p.preparar(&alvo).unwrap();
     p.verificar(&alvo).unwrap();
-    assert_eq!(arvore(&pasta), antes);
+    let mut com_local = antes.clone();
+    com_local.insert(PathBuf::from(PASTA_LOCAL));
+    com_local.insert(Path::new(PASTA_LOCAL).join(ARQUIVO_LOCAL));
+    assert_eq!(arvore(&pasta), com_local);
     p.desfazer(&alvo).unwrap();
     assert_eq!(arvore(&pasta), antes);
     // Fora da configuração do Claude, nada novo na pasta temporária.
@@ -470,7 +597,7 @@ fn outro_executavel_e_substituido_sem_duplicar() {
             .all(|a| a.acao == Acao::Atualizado)
     );
     assert_eq!(r.alteracoes[1].acao, Acao::SemMudanca, "já era confiável");
-    let settings = c.settings();
+    let settings = Cenario::local(&c.raiz.join("projetos").join("s"));
     for evento in EVENTOS {
         let grupos = settings["hooks"][evento].as_array().unwrap();
         assert_eq!(grupos.len(), 1, "{evento}");
@@ -517,9 +644,10 @@ fn json_invalido_nao_e_sobrescrito() {
 #[test]
 fn formato_inesperado_e_erro() {
     let c = Cenario::novo();
-    let alvo = c.alvo("s", &c.pasta("s"));
-    fs::create_dir_all(c.config.settings.parent().unwrap()).unwrap();
-    fs::write(&c.config.settings, r#"{"hooks": {"Stop": "texto"}}"#).unwrap();
+    let pasta = c.pasta("s");
+    let alvo = c.alvo("s", &pasta);
+    fs::create_dir_all(pasta.join(PASTA_LOCAL)).unwrap();
+    fs::write(arquivo_local(&pasta), r#"{"hooks": {"Stop": "texto"}}"#).unwrap();
     let erro = c.preparador().preparar(&alvo).unwrap_err();
     assert!(matches!(erro, Erro::Formato { ref campo, .. } if campo == "hooks.Stop"));
 }
@@ -544,6 +672,17 @@ fn hooks_desativados_aparecem_na_verificacao() {
             .unwrap()
             .ends_with('\n')
     );
+    // `false` no arquivo local religa os hooks dessa pasta.
+    let local = arquivo_local(&c.raiz.join("projetos").join("s"));
+    let mut v = Cenario::json(&local);
+    v["disableAllHooks"] = json!(false);
+    fs::write(&local, serde_json::to_vec(&v).unwrap()).unwrap();
+    assert!(!p.verificar(&alvo).unwrap().hooks_desativados);
+    // E `true` no local desliga.
+    v["disableAllHooks"] = json!(true);
+    fs::write(&local, serde_json::to_vec(&v).unwrap()).unwrap();
+    fs::write(&c.config.settings, "{}").unwrap();
+    assert!(p.verificar(&alvo).unwrap().hooks_desativados);
 }
 
 #[test]
@@ -627,18 +766,19 @@ fn permissoes_e_links_simbolicos_sao_preservados() {
     let alvo = c.alvo("s", &c.pasta("s"));
     fs::write(&c.config.estado, "{}").unwrap();
     fs::set_permissions(&c.config.estado, fs::Permissions::from_mode(0o600)).unwrap();
-    // settings.json gerido por dotfiles: um link para outro arquivo.
+    // settings.local.json gerido por dotfiles: um link para outro arquivo.
     let dotfiles = c.raiz.join("home").join("dotfiles");
     fs::create_dir_all(&dotfiles).unwrap();
     fs::write(dotfiles.join("settings.json"), "{}\n").unwrap();
-    fs::create_dir_all(c.config.settings.parent().unwrap()).unwrap();
-    std::os::unix::fs::symlink(dotfiles.join("settings.json"), &c.config.settings).unwrap();
+    let local = arquivo_local(&c.raiz.join("projetos").join("s"));
+    fs::create_dir_all(local.parent().unwrap()).unwrap();
+    std::os::unix::fs::symlink(dotfiles.join("settings.json"), &local).unwrap();
 
     c.preparador().preparar(&alvo).unwrap();
     let modo = fs::metadata(&c.config.estado).unwrap().permissions().mode() & 0o777;
     assert_eq!(modo, 0o600);
     assert!(
-        fs::symlink_metadata(&c.config.settings)
+        fs::symlink_metadata(&local)
             .unwrap()
             .file_type()
             .is_symlink()
@@ -669,6 +809,7 @@ fn do_projeto_usa_a_pasta_raiz() {
     let alvo = Alvo::do_projeto(&projeto).unwrap();
     assert_eq!(alvo.projeto, "faturamento-exemplo");
     assert_eq!(alvo.diretorio, raiz);
+    assert_eq!(alvo.raizes, [raiz, extra]);
 }
 
 /// Ambiente falso só com variáveis e pasta do usuário.
@@ -837,9 +978,12 @@ fn protecao_desligada_tira_so_as_regras_do_app() {
     let pasta_a = c.pasta("faturamento");
     let pasta_b = c.pasta("faturamento-db");
     let projeto = cba_index::Projeto::novo("Faturamento Exemplo", [&pasta_a, &pasta_b]).unwrap();
+    // Cada pasta, fora do git, tem o seu arquivo local.
+    let regras = p.regras_por_arquivo(&[pasta_a.clone(), pasta_b.clone()]);
+    assert_eq!(regras[0].0, arquivo_local(&pasta_a));
+    assert_eq!(regras[1].0, arquivo_local(&pasta_b));
     // O analista já tinha negado a primeira pasta por conta própria.
-    let regras = p.regras_de_protecao(&[pasta_a, pasta_b]);
-    p.negar(&regras[..1]).unwrap();
+    p.negar_em(&regras[0].0, &[regras[0].1.clone()]).unwrap();
 
     let s = crate::protecao::situacao(&dados, &p, &projeto).unwrap();
     assert!(!s.ligada && !s.completa);
@@ -848,34 +992,94 @@ fn protecao_desligada_tira_so_as_regras_do_app() {
 
     let s = crate::protecao::ligar(&dados, &p, &projeto).unwrap();
     assert!(s.ligada && s.completa);
-    assert_eq!(s.arquivo, c.config.settings);
+    assert_eq!(s.arquivo, arquivo_local(&pasta_a));
     assert_eq!(
         s.regras
             .iter()
-            .map(|r| (r.presente, r.do_app))
+            .map(|r| (r.arquivo.clone(), r.presente, r.do_app))
             .collect::<Vec<_>>(),
-        [(true, false), (true, true)]
+        [
+            (arquivo_local(&pasta_a), true, false),
+            (arquivo_local(&pasta_b), true, true)
+        ]
     );
     assert!(crate::protecao::protegido(&dados, &projeto.id));
+    // Nada no settings.json do usuário.
+    assert!(!c.config.settings.exists());
     // Ligar de novo não muda nada nem esquece o que é do app.
     crate::protecao::ligar(&dados, &p, &projeto).unwrap();
     assert_eq!(
         crate::protecao::registro(&dados, &projeto.id)
             .unwrap()
             .adicionadas,
-        [regras[1].clone()]
+        [crate::protecao::RegraAdicionada {
+            regra: regras[1].1.clone(),
+            arquivo: Some(regras[1].0.clone()),
+        }]
     );
 
     let tiradas = crate::protecao::desligar(&dados, &p, &projeto.id).unwrap();
-    assert_eq!(tiradas, [regras[1].clone()]);
+    assert_eq!(tiradas, [regras[1].1.clone()]);
     assert!(!crate::protecao::protegido(&dados, &projeto.id));
-    assert_eq!(p.negacoes_presentes(&regras).unwrap(), [true, false]);
+    assert_eq!(
+        p.negacoes_presentes_em(&regras[0].0, &[regras[0].1.clone()])
+            .unwrap(),
+        [true]
+    );
+    // O arquivo que só tinha a regra do app ficou vazio e saiu.
+    assert!(!regras[1].0.exists());
     // Desligar o que já está desligado não faz nada.
     assert!(
         crate::protecao::desligar(&dados, &p, &projeto.id)
             .unwrap()
             .is_empty()
     );
+}
+
+#[test]
+fn protecao_do_formato_antigo_sai_do_settings_do_usuario() {
+    let c = Cenario::novo();
+    let p = c.preparador();
+    let dados = cba_core::dados::DiretorioDados::em(c.raiz.join("dados"));
+    let pasta = c.pasta("faturamento");
+    let regras = p.regras_de_protecao(std::slice::from_ref(&pasta));
+    p.negar(&regras).unwrap();
+    let destino = c
+        .raiz
+        .join("dados")
+        .join("protecao")
+        .join("faturamento-exemplo.json");
+    fs::create_dir_all(destino.parent().unwrap()).unwrap();
+    fs::write(
+        &destino,
+        serde_json::to_vec(&json!({
+            "formato": 1, "projeto": "faturamento-exemplo",
+            "adicionadas": regras, "ligada_ms": 1
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let reg = crate::protecao::registro(&dados, "faturamento-exemplo").unwrap();
+    assert_eq!(reg.adicionadas[0].arquivo, None);
+
+    let tiradas = crate::protecao::desligar(&dados, &p, "faturamento-exemplo").unwrap();
+    assert_eq!(tiradas, regras);
+    assert_eq!(p.negacoes_presentes(&regras).unwrap(), [false]);
+}
+
+#[test]
+fn protecao_em_repositorio_vai_para_a_raiz_e_fica_fora_do_git() {
+    let c = Cenario::novo();
+    let p = c.preparador();
+    let (repo, _) = repo_com_worktree(&c.raiz);
+    let modulo = repo.join("modulo");
+    fs::create_dir_all(&modulo).unwrap();
+    let regras = p.regras_por_arquivo(std::slice::from_ref(&modulo));
+    assert_eq!(regras[0].0, arquivo_local(&repo));
+    assert!(regras[0].1.contains("modulo/**"));
+    p.negar_em(&regras[0].0, &[regras[0].1.clone()]).unwrap();
+    let exclude = fs::read_to_string(repo.join(".git").join("info").join("exclude")).unwrap();
+    assert!(exclude.lines().any(|l| l == LINHA_EXCLUDE));
 }
 
 // ---------------------------------------------------------------------------
@@ -889,9 +1093,9 @@ fn outra_instalacao(c: &Cenario) -> PathBuf {
         .join(if cfg!(windows) { "cba.exe" } else { "cba" })
 }
 
-/// Configuração com os hooks e o servidor de outra instalação, indentada com quatro
-/// espaços (como no teste de uso completo).
-fn com_outra_instalacao(c: &Cenario, com_projeto: bool) -> (String, String) {
+/// Configuração com os hooks (no arquivo local de `pasta`) e o servidor de outra
+/// instalação, indentada com quatro espaços (como no teste de uso completo).
+fn com_outra_instalacao(c: &Cenario, pasta: &Path, com_projeto: bool) -> (String, String) {
     let dev = outra_instalacao(c);
     let mut hooks = serde_json::Map::new();
     for evento in EVENTOS {
@@ -930,8 +1134,8 @@ fn com_outra_instalacao(c: &Cenario, com_projeto: bool) -> (String, String) {
         String::from_utf8(b).unwrap() + "\n"
     };
     let (settings, estado) = (quatro(&settings), quatro(&estado));
-    fs::create_dir_all(c.config.settings.parent().unwrap()).unwrap();
-    fs::write(&c.config.settings, &settings).unwrap();
+    fs::create_dir_all(pasta.join(PASTA_LOCAL)).unwrap();
+    fs::write(arquivo_local(pasta), &settings).unwrap();
     fs::write(&c.config.estado, &estado).unwrap();
     (settings, estado)
 }
@@ -940,8 +1144,10 @@ fn com_outra_instalacao(c: &Cenario, com_projeto: bool) -> (String, String) {
 fn hooks_de_outra_instalacao_voltam_ao_desfazer() {
     for com_projeto in [true, false] {
         let c = Cenario::novo();
-        let (settings, estado) = com_outra_instalacao(&c, com_projeto);
-        let alvo = c.alvo("teste", &c.pasta("teste"));
+        let pasta = c.pasta("teste");
+        let (settings, estado) = com_outra_instalacao(&c, &pasta, com_projeto);
+        let local = arquivo_local(&pasta);
+        let alvo = c.alvo("teste", &pasta);
         let dev = outra_instalacao(&c);
         let dev_no_hook = comando(&dev, "X")
             .trim_start_matches('"')
@@ -968,7 +1174,7 @@ fn hooks_de_outra_instalacao_voltam_ao_desfazer() {
         assert!(c.config.registro().exists());
         // A indentação do analista fica.
         assert!(
-            fs::read_to_string(&c.config.settings)
+            fs::read_to_string(&local)
                 .unwrap()
                 .contains("\n    \"theme\"")
         );
@@ -984,7 +1190,7 @@ fn hooks_de_outra_instalacao_voltam_ao_desfazer() {
             r.alteracoes
         );
         // Diff vazio.
-        assert_eq!(fs::read_to_string(&c.config.settings).unwrap(), settings);
+        assert_eq!(fs::read_to_string(&local).unwrap(), settings);
         assert_eq!(fs::read_to_string(&c.config.estado).unwrap(), estado);
         assert!(
             !c.config.registro().exists(),
@@ -996,7 +1202,8 @@ fn hooks_de_outra_instalacao_voltam_ao_desfazer() {
 #[test]
 fn servidor_de_outra_instalacao_na_mesma_pasta_volta_ao_desfazer() {
     let c = Cenario::novo();
-    let alvo = c.alvo("s", &c.pasta("s"));
+    let pasta = c.pasta("s");
+    let alvo = c.alvo("s", &pasta);
     c.preparador_com(outra_instalacao(&c))
         .preparar(&alvo)
         .unwrap();
@@ -1004,7 +1211,7 @@ fn servidor_de_outra_instalacao_na_mesma_pasta_volta_ao_desfazer() {
     fs::remove_file(c.config.registro()).unwrap();
     let antes = (
         fs::read(&c.config.estado).unwrap(),
-        fs::read(&c.config.settings).unwrap(),
+        fs::read(arquivo_local(&pasta)).unwrap(),
     );
 
     let p = c.preparador();
@@ -1016,53 +1223,55 @@ fn servidor_de_outra_instalacao_na_mesma_pasta_volta_ao_desfazer() {
     assert!(r.voltou_ao_que_era(), "{:?}", r.mantidos);
     let depois = (
         fs::read(&c.config.estado).unwrap(),
-        fs::read(&c.config.settings).unwrap(),
+        fs::read(arquivo_local(&pasta)).unwrap(),
     );
     assert_eq!(antes, depois);
 }
 
 #[test]
 fn hooks_em_uso_por_outra_pasta_ficam_e_sao_ditos() {
+    // O projeto x tem as pastas a e b; o projeto y tem a pasta b como principal.
     let c = Cenario::novo();
-    let (settings, estado) = com_outra_instalacao(&c, true);
-    let a = c.alvo("a", &c.pasta("a"));
-    let b = c.alvo("b", &c.pasta("b"));
+    let pasta_a = c.pasta("a");
+    let pasta_b = c.pasta("b");
+    let x = cba_index::Projeto::novo("X", [&pasta_a, &pasta_b]).unwrap();
+    let x = Alvo::do_projeto(&x).unwrap();
+    let y = c.alvo("y", &pasta_b);
     let p = c.preparador();
-    p.preparar(&a).unwrap();
-    p.preparar(&b).unwrap();
+    p.preparar(&x).unwrap();
+    p.preparar(&y).unwrap();
 
-    let r = p.desfazer(&a).unwrap();
+    let r = p.desfazer(&x).unwrap();
     assert!(!r.voltou_ao_que_era());
     assert!(matches!(
         &r.mantidos[..],
-        [Mantido::HooksEmUso { pastas, .. }] if pastas == std::slice::from_ref(&b.chave)
+        [Mantido::HooksEmUso { pastas, arquivo }]
+            if pastas == std::slice::from_ref(&y.chave) && *arquivo == arquivo_local(&pasta_b)
     ));
-    assert!(p.verificar(&b).unwrap().pronto, "b continua pronto");
+    assert!(!pasta_a.join(PASTA_LOCAL).exists());
+    assert!(p.verificar(&y).unwrap().pronto, "y continua pronto");
 
-    let r = p.desfazer(&b).unwrap();
+    let r = p.desfazer(&y).unwrap();
     assert!(r.voltou_ao_que_era(), "{:?}", r.mantidos);
-    assert_eq!(fs::read_to_string(&c.config.settings).unwrap(), settings);
-    assert_eq!(fs::read_to_string(&c.config.estado).unwrap(), estado);
+    assert!(!pasta_b.join(PASTA_LOCAL).exists());
 }
 
 #[test]
 fn hook_mudado_depois_do_preparo_nao_e_sobrescrito() {
     let c = Cenario::novo();
-    com_outra_instalacao(&c, false);
-    let alvo = c.alvo("s", &c.pasta("s"));
+    let pasta = c.pasta("s");
+    com_outra_instalacao(&c, &pasta, false);
+    let local = arquivo_local(&pasta);
+    let alvo = c.alvo("s", &pasta);
     let p = c.preparador();
     p.preparar(&alvo).unwrap();
     // O analista acrescenta um handler seu ao Stop depois do preparo.
-    let mut s = c.settings();
+    let mut s = Cenario::json(&local);
     s["hooks"]["Stop"][0]["hooks"]
         .as_array_mut()
         .unwrap()
         .push(json!({ "type": "command", "command": "som.sh" }));
-    fs::write(
-        &c.config.settings,
-        serde_json::to_string_pretty(&s).unwrap(),
-    )
-    .unwrap();
+    fs::write(&local, serde_json::to_string_pretty(&s).unwrap()).unwrap();
 
     let r = p.desfazer(&alvo).unwrap();
     assert!(!r.voltou_ao_que_era());
@@ -1074,7 +1283,7 @@ fn hook_mudado_depois_do_preparo_nao_e_sobrescrito() {
         "{:?}",
         r.mantidos
     );
-    let stop = &c.settings()["hooks"]["Stop"];
+    let stop = &Cenario::json(&local)["hooks"]["Stop"];
     assert_eq!(
         stop,
         &json!([{ "hooks": [{ "type": "command", "command": "som.sh" }] }])
@@ -1082,7 +1291,7 @@ fn hook_mudado_depois_do_preparo_nao_e_sobrescrito() {
     // Os outros eventos voltaram para a outra instalação.
     let dev = outra_instalacao(&c);
     assert_eq!(
-        c.settings()["hooks"]["SessionStart"][0]["hooks"][0]["command"],
+        Cenario::json(&local)["hooks"]["SessionStart"][0]["hooks"][0]["command"],
         comando(&dev, "SessionStart")
     );
 }
@@ -1112,52 +1321,50 @@ fn entrada_que_o_claude_gravou_na_pasta_fica_e_e_dita() {
 
 #[test]
 fn instalacoes_em_pilha_voltam_ao_original() {
-    // A de desenvolvimento prepara P1; a de teste prepara P2 (toma os hooks); a de
-    // desenvolvimento prepara P1 de novo (toma de volta). Desfazer as duas volta ao
-    // arquivo original.
+    // A de desenvolvimento prepara a pasta; a de teste prepara a mesma pasta (toma os
+    // hooks); a de desenvolvimento prepara de novo (toma de volta). Desfazer as duas
+    // volta ao arquivo original do analista.
     let c = Cenario::novo();
-    fs::create_dir_all(c.config.settings.parent().unwrap()).unwrap();
-    fs::write(&c.config.settings, SETTINGS_DO_ANALISTA).unwrap();
-    let p1 = c.alvo("p1", &c.pasta("p1"));
-    let p2 = c.alvo("p2", &c.pasta("p2"));
+    let pasta = c.pasta("p1");
+    let local = arquivo_local(&pasta);
+    fs::create_dir_all(local.parent().unwrap()).unwrap();
+    fs::write(&local, SETTINGS_DO_ANALISTA).unwrap();
+    let alvo = c.alvo("p1", &pasta);
     let dev = c.preparador_com(outra_instalacao(&c));
     let teste = c.preparador();
-    dev.preparar(&p1).unwrap();
-    teste.preparar(&p2).unwrap();
-    dev.preparar(&p1).unwrap();
-    assert!(dev.verificar(&p1).unwrap().pronto);
+    dev.preparar(&alvo).unwrap();
+    teste.preparar(&alvo).unwrap();
+    dev.preparar(&alvo).unwrap();
+    assert!(dev.verificar(&alvo).unwrap().pronto);
 
-    let r = teste.desfazer(&p2).unwrap();
-    assert!(r.voltou_ao_que_era(), "{:?}", r.mantidos);
+    teste.desfazer(&alvo).unwrap();
     assert!(
-        dev.verificar(&p1).unwrap().pronto,
+        dev.verificar(&alvo).unwrap().pronto,
         "os hooks ficam com a dev"
     );
-    dev.desfazer(&p1).unwrap();
-    assert_eq!(
-        fs::read_to_string(&c.config.settings).unwrap(),
-        SETTINGS_DO_ANALISTA
-    );
+    dev.desfazer(&alvo).unwrap();
+    assert_eq!(fs::read_to_string(&local).unwrap(), SETTINGS_DO_ANALISTA);
     assert!(!c.config.registro().exists());
 }
 
 #[test]
-fn sem_registro_os_hooks_ficam_se_outra_pasta_usa() {
+fn sem_registro_os_hooks_do_app_saem_da_pasta() {
     // Preparo de uma versão anterior do app: o desfazer não sabe o que havia antes.
     let c = Cenario::novo();
     let a = c.alvo("a", &c.pasta("a"));
-    let b = c.alvo("b", &c.pasta("b"));
-    c.preparador_com(outra_instalacao(&c)).preparar(&a).unwrap();
+    let pasta_b = c.pasta("b");
+    let b = c.alvo("b", &pasta_b);
+    let dev = c.preparador_com(outra_instalacao(&c));
+    dev.preparar(&a).unwrap();
     let p = c.preparador();
     p.preparar(&b).unwrap();
     fs::remove_file(c.config.registro()).unwrap();
 
     let r = p.desfazer(&b).unwrap();
-    assert!(matches!(
-        &r.mantidos[..],
-        [Mantido::HooksEmUso { pastas, .. }] if pastas == std::slice::from_ref(&a.chave)
-    ));
+    assert!(r.voltou_ao_que_era(), "{:?}", r.mantidos);
     assert_eq!(p.verificar(&b).unwrap().servidor_mcp, Situacao::Ausente);
+    assert!(Cenario::local(&pasta_b)["hooks"].is_null());
+    assert!(dev.verificar(&a).unwrap().pronto, "a pasta da dev não muda");
 }
 
 #[test]
@@ -1174,7 +1381,7 @@ fn registro_ilegivel_nao_impede_o_desfazer() {
             .filter(|a| !matches!(a.item, Item::Confianca { .. }))
             .all(|a| a.acao == Acao::Removido)
     );
-    assert_eq!(c.settings(), json!({}));
+    assert!(!c.config.settings.exists());
 }
 
 // ---------------------------------------------------------------------------

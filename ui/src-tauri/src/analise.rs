@@ -800,16 +800,6 @@ mod tests {
                 }),
             );
         }
-
-        fn preparador(&self) -> Preparador {
-            let exe = self.dir.path().join("bin").join("cba");
-            Preparador::novo(
-                ConfigClaude::da_pasta_do_usuario(&self.dir.path().join("home")),
-                exe,
-                Plataforma::atual(),
-            )
-            .unwrap()
-        }
     }
 
     #[test]
@@ -1019,8 +1009,15 @@ mod tests {
 
     #[test]
     fn preparo_mostra_o_plano_antes_de_gravar() {
-        let c = cenario();
-        let p = c.preparador();
+        // Numa cópia da fixture: o preparo grava o `.claude/settings.local.json` na
+        // raiz da pasta (#304), e a fixture fica dentro deste repositório.
+        let c = crate::teste_base::cenario();
+        let p = Preparador::novo(
+            ConfigClaude::da_pasta_do_usuario(&c.dir.path().join("home")),
+            c.dir.path().join("bin").join("cba"),
+            Plataforma::atual(),
+        )
+        .unwrap();
         let antes = verificar_ambiente(&c.dados, &p, PROJETO).unwrap();
         assert!(!antes.pronto);
         assert!(!antes.pendencias.is_empty());
@@ -1033,6 +1030,12 @@ mod tests {
         let depois = verificar_ambiente(&c.dados, &p, PROJETO).unwrap();
         assert!(depois.pronto, "{:?}", depois.pendencias);
         assert!(depois.pendencias.is_empty());
+        assert!(
+            c.codigo
+                .join(".claude")
+                .join("settings.local.json")
+                .is_file()
+        );
         assert!(verificar_ambiente(&c.dados, &p, "inexistente").is_err());
     }
 

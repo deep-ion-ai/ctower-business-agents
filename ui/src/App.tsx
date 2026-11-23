@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { apiAnaliseTauri, mensagemDe, type ApiAnalise } from "./analise";
 import { AssistentePrimeiroUso, type FimPrimeiroUso } from "./AssistentePrimeiroUso";
+import { AvisoMigracao } from "./AvisoMigracao";
+import { apiMigracaoTauri, type ApiMigracao, type AvisoMigracao as Aviso } from "./migracao";
 import { apiPrimeiroUsoTauri, type ApiPrimeiroUso, type Situacao } from "./primeiroUso";
 import { Navegacao, type Tela } from "./Navegacao";
 import { Titlebar } from "./shell/Titlebar";
@@ -18,16 +20,38 @@ export const PRODUTO = "Ctower Business Agents";
 export function App({
   api = apiPrimeiroUsoTauri,
   apiAnalise = apiAnaliseTauri,
+  apiMigracao = apiMigracaoTauri,
 }: {
   api?: ApiPrimeiroUso;
   /** Cria a primeira análise ao concluir o assistente; para testes. */
   apiAnalise?: Pick<ApiAnalise, "criarAnalise">;
+  /** Migração das configurações do Claude Code para as pastas (#305); para testes. */
+  apiMigracao?: ApiMigracao;
 }) {
   const [versao, setVersao] = useState<string | null>(null);
   const [situacao, setSituacao] = useState<Situacao | null>(null);
   const [falha, setFalha] = useState<string | null>(null);
   const [assistente, setAssistente] = useState(false);
   const [inicio, setInicio] = useState<{ projeto: string; tela: Tela } | null>(null);
+  const [migracao, setMigracao] = useState<Aviso | null>(null);
+
+  // Na abertura: leva para as pastas o que versões anteriores gravaram no
+  // `settings.json` do usuário (uma vez; com falha, tenta na próxima abertura).
+  useEffect(() => {
+    let ativo = true;
+    apiMigracao
+      .migrar()
+      .then((a) => ativo && setMigracao(a))
+      .catch(() => undefined);
+    return () => {
+      ativo = false;
+    };
+  }, [apiMigracao]);
+
+  const fecharMigracao = () => {
+    setMigracao(null);
+    apiMigracao.marcarVisto().catch(() => undefined);
+  };
 
   useEffect(() => {
     let ativo = true;
@@ -105,7 +129,12 @@ export function App({
         refazerPrimeiroUso={situacao ? reabrir : undefined}
         produto={PRODUTO}
         versao={versao}
-        banner={avisoFalha}
+        banner={
+          <>
+            {avisoFalha}
+            {migracao && <AvisoMigracao aviso={migracao} aoFechar={fecharMigracao} />}
+          </>
+        }
       />
     );
   }
