@@ -209,8 +209,11 @@ export function descreverItem(item: AlteracaoPreparo["item"]): string {
 export function outrasInstalacoes(alteracoes: AlteracaoPreparo[]): string[] {
   const v: string[] = [];
   for (const a of alteracoes) {
-    if (a.acao === "atualizado" && a.outraInstalacao && !v.includes(a.outraInstalacao)) {
-      v.push(a.outraInstalacao);
+    // O mesmo executável vem com "\\" no servidor MCP e com "/" nos hooks (Windows).
+    const normal = (c: string) => c.replaceAll("\\", "/");
+    const o = a.outraInstalacao;
+    if (a.acao === "atualizado" && o && !v.some((x) => normal(x) === normal(o))) {
+      v.push(o);
     }
   }
   return v;

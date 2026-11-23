@@ -457,13 +457,15 @@ impl Resultado {
     }
 
     /// Executáveis de outras instalações do app que o preparo tira do lugar (para o
-    /// aviso do plano), sem repetição.
+    /// aviso do plano), sem repetição. O mesmo executável aparece com `\` no servidor
+    /// MCP e com `/` nos hooks, no Windows: conta uma vez só.
     pub fn outras_instalacoes(&self) -> Vec<&str> {
         let mut v: Vec<&str> = Vec::new();
+        let normal = |c: &str| c.replace('\\', "/");
         for a in &self.alteracoes {
             if a.acao == Acao::Atualizado
                 && let Some(o) = a.outra_instalacao.as_deref()
-                && !v.contains(&o)
+                && !v.iter().any(|x| normal(x) == normal(o))
             {
                 v.push(o);
             }
