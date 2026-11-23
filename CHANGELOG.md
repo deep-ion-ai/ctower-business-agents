@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.7.0](https://github.com/deep-ion-ai/ctower-business-agents/compare/v0.6.0...v0.7.0) (2026-11-23)
+
+
+### Features
+
+* **fluxos:** manual do usuário de uma funcionalidade, com passos e prints ([#272](https://github.com/deep-ion-ai/ctower-business-agents/issues/272)) ([b78dc20](https://github.com/deep-ion-ai/ctower-business-agents/commit/b78dc20865e6420ce452503c2d95043b0a737553))
+* **fluxos:** manual do usuário de uma funcionalidade, com prints de tela ([#272](https://github.com/deep-ion-ai/ctower-business-agents/issues/272)) ([49e80d0](https://github.com/deep-ion-ai/ctower-business-agents/commit/49e80d0ccb43078c96681a8b47b27b06659353fa))
+* **preparo:** hooks e proteção no .claude/settings.local.json de cada pasta ([#304](https://github.com/deep-ion-ai/ctower-business-agents/issues/304)) ([d55d1f1](https://github.com/deep-ion-ai/ctower-business-agents/commit/d55d1f1cd8346b0d8c26ef8c89fcc9a3ae176fc2))
+* **preparo:** hooks e proteção só nas pastas dos projetos cadastrados ([#302](https://github.com/deep-ion-ai/ctower-business-agents/issues/302)) ([d3c15df](https://github.com/deep-ion-ai/ctower-business-agents/commit/d3c15df1a674abcb8bdc0d6441247f0b5f7c39ef))
+* **preparo:** migrar para as pastas as entradas globais do app no settings.json ([#305](https://github.com/deep-ion-ai/ctower-business-agents/issues/305)) ([10633f9](https://github.com/deep-ion-ai/ctower-business-agents/commit/10633f92a464bb713b5d358cbf67279152f8494e))
+* **ui:** gerar o manual do usuário no painel e incluir os prints nos passos ([#272](https://github.com/deep-ion-ai/ctower-business-agents/issues/272)) ([a1f0040](https://github.com/deep-ion-ai/ctower-business-agents/commit/a1f0040a2ef5260d9e2cf6e7f29185a8e22488c0))
+
+
+### Bug Fixes
+
+* **preparo:** conta uma vez a outra instalação com separadores diferentes ([#304](https://github.com/deep-ion-ai/ctower-business-agents/issues/304)) ([f9a6365](https://github.com/deep-ion-ai/ctower-business-agents/commit/f9a6365e53691ae6da57efd6409dee0cdedf2b3f))
+
 ## [0.6.0](https://github.com/deep-ion-ai/ctower-business-agents/compare/v0.5.0...v0.6.0) (2026-11-23)
 
 
