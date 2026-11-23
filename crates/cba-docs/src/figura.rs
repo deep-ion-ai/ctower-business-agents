@@ -77,10 +77,13 @@ fn chave(codigo: &str) -> String {
     codigo.replace("\r\n", "\n").trim_end().to_owned()
 }
 
-/// Figuras renderizadas, pelo código Mermaid do bloco.
+/// Figuras renderizadas, pelo código Mermaid do bloco, e as imagens da base
+/// citadas no documento (os prints do manual do usuário, #272), pelo destino da
+/// imagem como está no Markdown (`![alt](destino)`).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Figuras {
     mapa: HashMap<String, Figura>,
+    imagens: HashMap<String, Figura>,
 }
 
 impl Figuras {
@@ -103,9 +106,41 @@ impl Figuras {
         self.mapa.get(&chave(codigo))
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.mapa.is_empty()
+    /// Guarda a imagem citada no documento com o destino `destino`.
+    pub fn inserir_imagem(&mut self, destino: &str, figura: Figura) -> Result<(), ErroFigura> {
+        let chave = destino.trim().to_owned();
+        if !self.imagens.contains_key(&chave)
+            && self.mapa.len() + self.imagens.len() >= MAXIMO_DE_FIGURAS
+        {
+            return Err(ErroFigura::Muitas);
+        }
+        self.imagens.insert(chave, figura);
+        Ok(())
     }
+
+    /// Imagem do destino, se houver.
+    pub fn imagem(&self, destino: &str) -> Option<&Figura> {
+        self.imagens.get(destino.trim())
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.mapa.is_empty() && self.imagens.is_empty()
+    }
+}
+
+/// Destinos das imagens do Markdown que apontam para dentro da base (caminho
+/// relativo), na ordem, sem repetição.
+pub fn imagens_da_base(markdown: &str) -> Vec<String> {
+    let mut lista: Vec<String> = Vec::new();
+    for evento in Parser::new_ext(markdown, opcoes_markdown()) {
+        if let Event::Start(Tag::Image { dest_url, .. }) = evento
+            && crate::exportacao::e_link_da_base(&dest_url)
+            && !lista.iter().any(|d| d == dest_url.as_ref())
+        {
+            lista.push(dest_url.to_string());
+        }
+    }
+    lista
 }
 
 /// O bloco de código é de Mermaid (` ```mermaid `).
@@ -147,7 +182,7 @@ pub fn blocos_mermaid(markdown: &str) -> Vec<String> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     /// PNG mínimo (só a assinatura e o IHDR), suficiente para o cabeçalho.

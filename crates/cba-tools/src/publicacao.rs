@@ -102,7 +102,8 @@ pub fn aprovado(texto: &str) -> bool {
         | T::CenariosTeste
         | T::Funcionalidade
         | T::CasoDeUso
-        | T::MapaFuncionalidades => status == Some("aprovada"),
+        | T::MapaFuncionalidades
+        | T::Manual => status == Some("aprovada"),
         // Trabalho em andamento, dados pessoais (pessoas, participantes das
         // reuniões) ou configuração local.
         T::Projeto

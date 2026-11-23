@@ -45,6 +45,7 @@ fn secoes_estruturadas(fluxo: Fluxo) -> &'static [&'static str] {
             cba_docs::CENARIOS,
             cba_docs::RASTREABILIDADE,
         ],
+        Fluxo::Manual => &[cba_docs::PASSO_A_PASSO],
         _ => &[],
     }
 }
@@ -59,7 +60,7 @@ pub fn secao_da_entrada(fluxo: Fluxo) -> Option<&'static str> {
         Fluxo::Reuniao => Some("reuniao"),
         Fluxo::Revisar => Some("requisito"),
         Fluxo::Historias | Fluxo::Cenarios => Some("pedido"),
-        Fluxo::Explicar => None,
+        Fluxo::Explicar | Fluxo::Manual => None,
     }
 }
 
@@ -240,6 +241,11 @@ pub fn conteudo(
         conteudo
             .textos
             .extend(crate::cenarios::textos(analise, &analise.documento));
+    }
+    if analise.fluxo == Fluxo::Manual {
+        conteudo
+            .textos
+            .push(crate::manual::texto(analise, &analise.documento));
     }
     conteudo.afirmacoes = analise
         .afirmacoes

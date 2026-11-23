@@ -151,6 +151,7 @@ fn nome_do_fluxo(f: Fluxo) -> &'static str {
         Fluxo::Revisar => "revisão",
         Fluxo::Historias => "histórias",
         Fluxo::Cenarios => "cenários de teste",
+        Fluxo::Manual => "manual do usuário",
     }
 }
 

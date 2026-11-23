@@ -21,7 +21,7 @@ use crate::documento::secoes_de_afirmacao;
 use crate::editavel::{self, Aviso, Padrao, Texto};
 
 /// Os fluxos, na ordem em que aparecem para o analista.
-pub const FLUXOS: [Fluxo; 7] = [
+pub const FLUXOS: [Fluxo; 8] = [
     Fluxo::Perguntar,
     Fluxo::Explicar,
     Fluxo::Impacto,
@@ -29,6 +29,7 @@ pub const FLUXOS: [Fluxo; 7] = [
     Fluxo::Revisar,
     Fluxo::Historias,
     Fluxo::Cenarios,
+    Fluxo::Manual,
 ];
 
 /// Pasta dos roteiros dentro de `_templates/`.
@@ -60,6 +61,7 @@ pub fn nome_do_fluxo(fluxo: Fluxo) -> &'static str {
         Fluxo::Revisar => "revisão de qualidade de um requisito ou história",
         Fluxo::Historias => "histórias de usuário com critérios de aceite",
         Fluxo::Cenarios => "cenários de teste derivados das regras",
+        Fluxo::Manual => "manual do usuário de uma funcionalidade",
     }
 }
 
@@ -74,6 +76,7 @@ pub fn nome_do_arquivo(fluxo: Fluxo) -> &'static str {
         Fluxo::Revisar => "revisar",
         Fluxo::Historias => "historias",
         Fluxo::Cenarios => "cenarios",
+        Fluxo::Manual => "manual",
     }
 }
 
@@ -82,8 +85,8 @@ pub fn nome_do_arquivo(fluxo: Fluxo) -> &'static str {
 /// (#32): perguntar no M1, explicar e impacto no M2; o de reunião, na #140; os de
 /// revisão (#116), histórias (#115) e cenários (#117), na #168, depois da
 /// avaliação com o modelo real (`cba-avaliacao rodar --fluxos
-/// revisar,historias,cenarios`). Hoje todos os fluxos estão revisados; um fluxo
-/// novo entra aqui só depois de ter o roteiro avaliado.
+/// revisar,historias,cenarios`). O do manual do usuário (#272) ainda é
+/// provisório: entra aqui depois da avaliação com o modelo real.
 pub fn revisado(fluxo: Fluxo) -> bool {
     matches!(
         fluxo,
@@ -106,6 +109,7 @@ pub(crate) fn padrao(fluxo: Fluxo) -> Padrao {
         Fluxo::Revisar => include_str!("../textos/roteiros/revisar.md"),
         Fluxo::Historias => include_str!("../textos/roteiros/historias.md"),
         Fluxo::Cenarios => include_str!("../textos/roteiros/cenarios.md"),
+        Fluxo::Manual => include_str!("../textos/roteiros/manual.md"),
     };
     Padrao {
         pasta: PASTA,
@@ -189,6 +193,24 @@ fn dica_da_secao(fluxo: Fluxo, marcador: &str) -> &'static str {
         }
         (Fluxo::Explicar, "dados") => "tabelas e campos lidos e gravados, e em que passo",
         (Fluxo::Explicar, "integracoes") => "projetos, lotes e serviços chamados ou que chamam",
+        (Fluxo::Manual, "objetivo") => {
+            "para que o usuário usa a funcionalidade, em uma ou duas frases, do ponto de vista dele"
+        }
+        (Fluxo::Manual, "quem_usa") => {
+            "os perfis de usuário que fazem a tarefa e, se o código mostra, a permissão exigida"
+        }
+        (Fluxo::Manual, "pre_requisitos") => {
+            "o que precisa estar pronto antes: acesso, cadastro, situação do registro (\"a fatura precisa estar aberta\")"
+        }
+        (Fluxo::Manual, "resultados_esperados") => {
+            "o que muda para o usuário quando termina: mensagem de sucesso, situação nova, documento emitido"
+        }
+        (Fluxo::Manual, "mensagens_e_erros") => {
+            "uma mensagem por afirmação: o texto como aparece na tela, quando aparece e o que o usuário deve fazer"
+        }
+        (Fluxo::Manual, "perguntas_frequentes") => {
+            "uma pergunta e a resposta curta por afirmação (\"**Posso cancelar uma fatura paga?** Não: ...\"), a partir das regras e dos fluxos alternativos"
+        }
         (Fluxo::Reuniao, "ligacao_com_o_codigo") => {
             "o que o código já faz, ou com que regra conflita, sobre uma necessidade ou regra citada na reunião (cite o item da ata, como N-3, e a evidência)"
         }
@@ -214,6 +236,8 @@ pub fn secoes_obrigatorias(fluxo: Fluxo) -> &'static [&'static str] {
         Fluxo::Historias => &[],
         // Os cenários têm ferramentas próprias; `concluir_analise` confere os cenários.
         Fluxo::Cenarios => &[],
+        // Os passos têm ferramenta própria; `concluir_analise` confere os passos.
+        Fluxo::Manual => &["objetivo"],
     }
 }
 
@@ -271,7 +295,7 @@ fn titulo_ao_fim(variavel: &str) -> &'static str {
 /// Os roteiros dos fluxos.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Roteiros {
-    por_fluxo: [Texto; 7],
+    por_fluxo: [Texto; 8],
 }
 
 fn indice(fluxo: Fluxo) -> usize {
@@ -283,6 +307,7 @@ fn indice(fluxo: Fluxo) -> usize {
         Fluxo::Revisar => 4,
         Fluxo::Historias => 5,
         Fluxo::Cenarios => 6,
+        Fluxo::Manual => 7,
     }
 }
 
@@ -646,9 +671,13 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let base = Base::criar(dir.path()).unwrap();
         let criados = Roteiros::copiar_padrao(&base).unwrap();
-        // Todos os roteiros estão revisados (os de revisão, histórias e
-        // cenários, na #168) e vão para a base.
-        assert!(FLUXOS.into_iter().all(revisado));
+        // Os roteiros revisados (os de revisão, histórias e cenários, na #168)
+        // vão para a base; o do manual do usuário (#272) ainda é provisório.
+        assert!(
+            FLUXOS
+                .into_iter()
+                .all(|f| revisado(f) == (f != Fluxo::Manual))
+        );
         assert_eq!(
             criados,
             [

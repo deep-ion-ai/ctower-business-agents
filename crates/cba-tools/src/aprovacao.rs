@@ -126,12 +126,28 @@ pub fn vira_regra_por_padrao(secao: &str) -> bool {
     !SECOES_SEM_REGRA.contains(&secao.trim())
 }
 
+/// Como [`vira_regra_por_padrao`], no fluxo da análise: no manual do usuário
+/// (#272) o texto é para o usuário final, e nada vira regra sem a escolha do
+/// analista.
+pub fn vira_regra_por_padrao_no(fluxo: cba_core::analise::Fluxo, secao: &str) -> bool {
+    fluxo != cba_core::analise::Fluxo::Manual && vira_regra_por_padrao(secao)
+}
+
 impl OpcoesAprovacao {
     /// Se a afirmação confirmada `a` vira regra com estas escolhas.
     pub fn vira_regra(&self, a: &Afirmacao) -> bool {
         match &self.regras {
             Some(escolhidas) => escolhidas.contains(&a.numero),
             None => vira_regra_por_padrao(&a.secao),
+        }
+    }
+
+    /// Como [`Self::vira_regra`], no fluxo da análise
+    /// ([`vira_regra_por_padrao_no`]).
+    pub fn vira_regra_no(&self, fluxo: cba_core::analise::Fluxo, a: &Afirmacao) -> bool {
+        match &self.regras {
+            Some(escolhidas) => escolhidas.contains(&a.numero),
+            None => vira_regra_por_padrao_no(fluxo, &a.secao),
         }
     }
 }
@@ -191,7 +207,8 @@ pub struct Aprovacao {
     pub regras: Vec<RegraAprovada>,
     pub termos: Vec<TermoAprovado>,
     /// Numa explicação ligada a uma funcionalidade do mapa (#208): o documento
-    /// negocial gravado em `funcionalidades/<area>/<tema>/`.
+    /// negocial gravado em `funcionalidades/<area>/<tema>/`. No manual do usuário
+    /// (#272), o `manual.md` gravado na mesma pasta.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub documento_negocial: Option<CaminhoRelativo>,
     /// Funcionalidades do mapa gravadas na análise e herdadas pelas regras e pelos
@@ -356,6 +373,17 @@ pub fn aprovar(
                 "o documento negocial não foi ligado ao mapa de funcionalidades ({e})"
             ));
             None
+        }
+    };
+    let documento_negocial = match crate::manual::ligar_manual(kb, &analise) {
+        Ok(Some(d)) => Some(d),
+        Ok(None) => documento_negocial,
+        Err(e) => {
+            tracing::warn!("manual do usuário não gravado na pasta da funcionalidade");
+            avisos.push(format!(
+                "o manual não foi gravado na pasta da funcionalidade ({e})"
+            ));
+            documento_negocial
         }
     };
     Ok(Aprovacao {
@@ -711,7 +739,7 @@ fn planejar_regras(
     };
 
     let mut plano: Vec<RegraPlanejada> = Vec::new();
-    for a in confirmadas(analise).filter(|a| opcoes.vira_regra(a)) {
+    for a in confirmadas(analise).filter(|a| opcoes.vira_regra_no(analise.fluxo, a)) {
         let ajuste = opcoes.afirmacoes.get(&a.numero);
         let (area, sigla) = match ajuste.and_then(|j| nao_vazio(&j.area)) {
             Some(texto) => resolver_area(areas, texto)?,

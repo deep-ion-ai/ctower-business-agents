@@ -71,6 +71,9 @@ pub enum Mudanca {
     /// justificado. O campo `analise` do evento traz [`ALVO_MAPA`] e a `versao` é a
     /// do mapa: a tela relê o estado (`funcionalidades/mapa.estado.json`).
     Funcionalidade,
+    /// Passo do manual do usuário registrado, editado ou removido, ou print
+    /// incluído, trocado, removido ou dispensado (fluxo `manual`, #272).
+    Passo,
 }
 
 /// Valor do campo `analise` dos eventos do mapa de funcionalidades.

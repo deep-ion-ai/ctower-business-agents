@@ -192,6 +192,7 @@ fn rotulo_do_roteiro(fluxo: cba_core::analise::Fluxo) -> &'static str {
         Fluxo::Revisar => "Revisar requisito",
         Fluxo::Historias => "Histórias e critérios",
         Fluxo::Cenarios => "Cenários de teste",
+        Fluxo::Manual => "Manual do usuário",
     }
 }
 
@@ -525,12 +526,31 @@ fn sem_comentario_inicial(texto: &str) -> (usize, &str) {
 mod tests {
     use super::*;
 
+    fn arquivos_tem_template_do_manual(lista: &[TextoEditavel]) -> bool {
+        lista
+            .iter()
+            .any(|t| t.arquivo.as_str() == "_templates/manual.md")
+    }
+
     #[test]
     fn textos_editaveis_cobrem_templates_roteiros_e_prompts() {
         let lista = textos_editaveis();
         let de = |g: Grupo| lista.iter().filter(|t| t.grupo == g).count();
         assert_eq!(de(Grupo::Template), cba_docs::MODELOS.len());
-        assert_eq!(de(Grupo::Roteiro), crate::roteiro::FLUXOS.len());
+        // O roteiro do manual do usuário (#272) ainda é provisório e fica de fora.
+        assert_eq!(
+            de(Grupo::Roteiro),
+            crate::roteiro::FLUXOS
+                .iter()
+                .filter(|f| crate::roteiro::revisado(**f))
+                .count()
+        );
+        assert!(
+            !lista
+                .iter()
+                .any(|t| t.arquivo.as_str() == "_templates/roteiros/manual.md")
+        );
+        assert!(arquivos_tem_template_do_manual(&lista));
         assert_eq!(de(Grupo::Prompt), crate::prompts::DEFINICOES.len());
         assert_eq!(de(Grupo::Exportacao), 3);
         let arquivos: std::collections::BTreeSet<&str> =
