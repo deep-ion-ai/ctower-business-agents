@@ -82,6 +82,8 @@ pub fn rodar() {
             alteracoes::manter_alteracoes_projeto,
             alteracoes::situacao_protecao_projeto,
             alteracoes::mudar_protecao_projeto,
+            alteracoes::migrar_configuracoes_claude,
+            alteracoes::marcar_aviso_migracao_visto,
             inicio::inicio_app,
             inicio::criar_analise_fluxo,
             inicio::criar_analise_de_historias_app,

@@ -22,7 +22,8 @@
 //! estado e o `settings.json` do usuário ficam nessa pasta (`<dir>/.claude.json` e
 //! `<dir>/settings.json`). O preparo não grava mais nada no `settings.json` do
 //! usuário; os hooks que versões anteriores gravaram lá saem no desfazer
-//! ([`Preparador::desfazer`]) e na migração (#305).
+//! ([`Preparador::desfazer`]) e na migração da abertura do app
+//! ([`Preparador::retirar_hooks_globais`], orquestrada por [`crate::migracao`], #305).
 //!
 //! Fontes (documentação oficial do Claude Code, consultada em 2026-11-11):
 //! - <https://code.claude.com/docs/en/mcp.md>: o escopo local fica em `~/.claude.json`
@@ -115,8 +116,11 @@
 
 pub mod arquivo;
 mod json;
+mod migracao;
 pub mod protecao;
 pub mod registro;
+
+pub use migracao::RetiradaGlobal;
 
 #[cfg(test)]
 mod tests;

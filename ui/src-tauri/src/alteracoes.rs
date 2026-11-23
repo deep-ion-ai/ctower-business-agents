@@ -11,6 +11,7 @@ use cba_core::dados::DiretorioDados;
 use cba_index::Cadastro;
 use cba_kb::Id;
 use cba_session::alteracoes::{self, AvisoAlteracao, Pedido};
+use cba_session::migracao;
 use cba_session::preparo::Preparador;
 use cba_session::protecao::{self, SituacaoProtecao};
 
@@ -225,4 +226,29 @@ mod tests {
             resolver_alteracoes(&dados, "faturamento-exemplo", "A-0001", &[pedido], true).is_err()
         );
     }
+}
+
+// ---------------------------------------------------------------------------
+// Migração das configurações para as pastas (#305)
+
+/// Leva para as pastas dos projetos as entradas que versões anteriores gravaram no
+/// `settings.json` do usuário, uma vez ([`cba_session::migracao`]). Devolve o aviso
+/// enquanto o analista não o viu.
+#[tauri::command]
+pub async fn migrar_configuracoes_claude() -> Result<Option<migracao::AvisoMigracao>, String> {
+    let dados = dados()?;
+    bloqueante(move || {
+        migracao::migrar(&dados, &preparador()?).map_err(|e| {
+            tracing::warn!("migração das configurações para as pastas: tentará de novo");
+            e.to_string()
+        })
+    })
+    .await
+}
+
+/// O analista viu o aviso da migração.
+#[tauri::command]
+pub async fn marcar_aviso_migracao_visto() -> Result<(), String> {
+    let dados = dados()?;
+    bloqueante(move || migracao::marcar_visto(&dados).map_err(|e| e.to_string())).await
 }

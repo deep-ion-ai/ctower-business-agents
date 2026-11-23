@@ -1,0 +1,18 @@
+{
+  "numStartups": 42,
+  "projects": {
+    "@CHAVE_A@": {
+      "allowedTools": [],
+      "hasTrustDialogAccepted": true,
+      "mcpServers": {
+        "cba": {"type": "stdio", "command": "@EXE@", "args": ["mcp"], "env": {"CBA_PROJETO": "faturamento"}}
+      }
+    },
+    "@CHAVE_B@": {
+      "hasTrustDialogAccepted": true,
+      "mcpServers": {
+        "cba": {"type": "stdio", "command": "@EXE@", "args": ["mcp"], "env": {"CBA_PROJETO": "estoque"}}
+      }
+    }
+  }
+}

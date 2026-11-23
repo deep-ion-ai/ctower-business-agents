@@ -12,6 +12,7 @@
 pub mod alteracoes;
 pub mod clientes;
 pub mod hooks;
+pub mod migracao;
 pub mod passagem;
 pub mod preparo;
 pub mod protecao;

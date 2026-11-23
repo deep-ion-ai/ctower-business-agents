@@ -1,0 +1,170 @@
+{
+  "versao": 1,
+  "instalacoes": {
+    "@EXE@": {
+      "hooksExistia": false,
+      "hooks": {
+        "SessionStart": {
+          "antes": null,
+          "depois": [
+            {
+              "hooks": [
+                {
+                  "type": "command",
+                  "command": "@HOOK:SessionStart@",
+                  "timeout": 10
+                }
+              ]
+            }
+          ]
+        },
+        "UserPromptSubmit": {
+          "antes": null,
+          "depois": [
+            {
+              "hooks": [
+                {
+                  "type": "command",
+                  "command": "@HOOK:UserPromptSubmit@",
+                  "timeout": 10
+                }
+              ]
+            }
+          ]
+        },
+        "PreToolUse": {
+          "antes": [
+            {
+              "matcher": "Bash",
+              "hooks": [
+                {
+                  "type": "command",
+                  "command": "/usr/local/bin/meu-log"
+                }
+              ]
+            }
+          ],
+          "depois": [
+            {
+              "matcher": "Bash",
+              "hooks": [
+                {
+                  "type": "command",
+                  "command": "/usr/local/bin/meu-log"
+                }
+              ]
+            },
+            {
+              "hooks": [
+                {
+                  "type": "command",
+                  "command": "@HOOK:PreToolUse@",
+                  "timeout": 10
+                }
+              ]
+            }
+          ]
+        },
+        "Notification": {
+          "antes": null,
+          "depois": [
+            {
+              "hooks": [
+                {
+                  "type": "command",
+                  "command": "@HOOK:Notification@",
+                  "timeout": 10
+                }
+              ]
+            }
+          ]
+        },
+        "Stop": {
+          "antes": [
+            {
+              "hooks": [
+                {
+                  "type": "command",
+                  "command": "say pronto"
+                }
+              ]
+            }
+          ],
+          "depois": [
+            {
+              "hooks": [
+                {
+                  "type": "command",
+                  "command": "say pronto"
+                }
+              ]
+            },
+            {
+              "hooks": [
+                {
+                  "type": "command",
+                  "command": "@HOOK:Stop@",
+                  "timeout": 10
+                }
+              ]
+            }
+          ]
+        },
+        "SessionEnd": {
+          "antes": null,
+          "depois": [
+            {
+              "hooks": [
+                {
+                  "type": "command",
+                  "command": "@HOOK:SessionEnd@",
+                  "timeout": 10
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "mcp": {
+        "@CHAVE_A@": {
+          "projetoExistia": true,
+          "servidoresExistia": false,
+          "antes": null,
+          "depois": {
+            "type": "stdio",
+            "command": "@EXE@",
+            "args": [
+              "mcp"
+            ],
+            "env": {
+              "CBA_PROJETO": "faturamento"
+            }
+          }
+        },
+        "@CHAVE_B@": {
+          "projetoExistia": false,
+          "servidoresExistia": false,
+          "antes": null,
+          "depois": {
+            "type": "stdio",
+            "command": "@EXE@",
+            "args": [
+              "mcp"
+            ],
+            "env": {
+              "CBA_PROJETO": "estoque"
+            }
+          }
+        }
+      },
+      "confianca": {
+        "@CHAVE_A@": {
+          "antes": null
+        },
+        "@CHAVE_B@": {
+          "antes": null
+        }
+      }
+    }
+  }
+}

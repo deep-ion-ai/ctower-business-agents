@@ -222,13 +222,64 @@ pub fn ligar(
         adicionadas,
         ligada_ms: tempo::agora_ms(),
     };
-    let mut json = serde_json::to_vec_pretty(&novo)
-        .map_err(io::Error::other)
-        .map_err(|e| erro_io(destino.clone(), e))?;
-    json.push(b'\n');
-    cba_kb::arquivo::gravar(&destino, &json).map_err(|e| erro_io(destino.clone(), e))?;
+    gravar_registro(&destino, &novo)?;
     tracing::info!(projeto = projeto.id, "proteção contra edição ligada");
     situacao(dados, preparador, projeto)
+}
+
+fn gravar_registro(destino: &Path, registro: &RegistroProtecao) -> Result<(), Erro> {
+    let mut json = serde_json::to_vec_pretty(registro)
+        .map_err(io::Error::other)
+        .map_err(|e| erro_io(destino.to_path_buf(), e))?;
+    json.push(b'\n');
+    cba_kb::arquivo::gravar(destino, &json).map_err(|e| erro_io(destino.to_path_buf(), e))
+}
+
+/// Leva para os arquivos locais das pastas as regras que o app gravou no
+/// `settings.json` do usuário antes da #304 (registro do formato 1), e só então as
+/// tira de lá (#305). Devolve as regras tiradas do `settings.json`.
+///
+/// Idempotente e retomável: cada passo confere o que já está feito. Interrompida
+/// depois de gravar as regras locais, a próxima vez só tira as globais; depois de
+/// tirá-las, só regrava o registro no formato novo. Proteção desligada ou já no
+/// formato novo: nada muda.
+pub fn migrar(
+    dados: &DiretorioDados,
+    preparador: &Preparador,
+    projeto: &cba_index::Projeto,
+) -> Result<Vec<String>, Erro> {
+    let Some(destino) = arquivo(dados, &projeto.id) else {
+        return Ok(Vec::new());
+    };
+    let Some(reg) = registro(dados, &projeto.id) else {
+        return Ok(Vec::new());
+    };
+    let globais: Vec<String> = reg
+        .adicionadas
+        .iter()
+        .filter(|a| a.arquivo.is_none())
+        .map(|a| a.regra.clone())
+        .collect();
+    if globais.is_empty() {
+        return Ok(Vec::new());
+    }
+    // 1. As regras locais (as que faltam), mantendo as globais no registro.
+    ligar(dados, preparador, projeto)?;
+    // 2. Só então, as globais que o app pôs.
+    let tiradas = preparador
+        .liberar_em(&preparador.config.settings, &globais)?
+        .alteradas;
+    // 3. O registro sem as globais.
+    let mut reg = registro(dados, &projeto.id).unwrap_or(reg);
+    reg.adicionadas.retain(|a| a.arquivo.is_some());
+    reg.formato = VERSAO_DO_FORMATO;
+    gravar_registro(&destino, &reg)?;
+    tracing::info!(
+        projeto = projeto.id,
+        regras = tiradas.len(),
+        "proteção levada para as pastas"
+    );
+    Ok(tiradas)
 }
 
 /// Desliga a proteção: tira de cada arquivo só as regras que o app acrescentou nele e
