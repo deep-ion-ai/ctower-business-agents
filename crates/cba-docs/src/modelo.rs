@@ -72,6 +72,9 @@ pub const DADOS_PESSOAIS_E_RNF: &str = "dados_pessoais_e_rnf";
 pub const FUNCIONALIDADES_MAPEADAS: &str = "funcionalidades_mapeadas";
 pub const NAO_MAPEADOS: &str = "nao_mapeados";
 pub const INDICE_CATALOGO: &str = "indice";
+/// Seção do manual do usuário (#272) com os passos, montada a partir do estado
+/// da análise.
+pub const PASSO_A_PASSO: &str = "passo_a_passo";
 
 const fn s(marcador: &'static str, titulo: &'static str) -> Secao {
     Secao { marcador, titulo }
@@ -110,7 +113,7 @@ const CAMPOS_FUNCIONALIDADE_OU_ANALISE: &[&str] = &[
 ];
 
 /// Tipos que têm template, na ordem da spec (seção 7.3).
-pub const MODELOS: [Modelo; 13] = [
+pub const MODELOS: [Modelo; 14] = [
     Modelo {
         tipo: TipoDocumento::AnaliseImpacto,
         secoes: &[
@@ -324,6 +327,22 @@ pub const MODELOS: [Modelo; 13] = [
         ],
         padrao: include_str!("../templates/mapa-funcionalidades.md"),
     },
+    Modelo {
+        tipo: TipoDocumento::Manual,
+        secoes: &[
+            s("objetivo", "Objetivo"),
+            s("quem_usa", "Quem usa"),
+            s("pre_requisitos", "Antes de começar"),
+            s(PASSO_A_PASSO, "Passo a passo"),
+            s("resultados_esperados", "Resultados esperados"),
+            s("mensagens_e_erros", "Mensagens e erros comuns"),
+            s("perguntas_frequentes", "Perguntas frequentes"),
+            s(PERGUNTAS, "Perguntas em aberto"),
+            EVIDENCIAS_SECAO,
+        ],
+        campos: CAMPOS_FUNCIONALIDADE_OU_ANALISE,
+        padrao: include_str!("../templates/manual.md"),
+    },
 ];
 
 /// Modelo do tipo, se o tipo tiver template (`projeto` e `memoria-area` não têm).
@@ -356,6 +375,7 @@ pub(crate) fn texto_vazio(marcador: &str) -> &'static str {
         FUNCIONALIDADES_MAPEADAS => "_Nenhuma funcionalidade registrada._",
         NAO_MAPEADOS => "_Todos os pontos de entrada têm funcionalidade._",
         INDICE_CATALOGO => "_Catálogo vazio._",
+        PASSO_A_PASSO => "_Nenhum passo registrado._",
         _ => "_Nada registrado._",
     }
 }

@@ -22,6 +22,7 @@ import {
   type Funcionalidade,
   type PainelFuncionalidade as Painel,
   type RevisaoDoMapa,
+  type SituacaoManual,
 } from "./funcionalidades";
 import type { Tela } from "./Navegacao";
 
@@ -35,6 +36,7 @@ const NOME_FLUXO: Partial<Record<Fluxo, string>> = {
   cenarios: "Cenários",
   revisar: "Revisar",
   reuniao: "Reunião",
+  manual: "Manual",
 };
 
 /** Fluxos que o painel abre, com a descrição do atalho. */
@@ -45,6 +47,113 @@ const NOVAS: { fluxo: Fluxo; nome: string; descricao: string }[] = [
   { fluxo: "historias", nome: "Histórias", descricao: "Da explicação aprovada ou de uma demanda" },
   { fluxo: "cenarios", nome: "Cenários de teste", descricao: "Das regras, pela explicação ou demanda" },
 ];
+
+/**
+ * Manual do usuário da funcionalidade (#272): gerar (só com a funcionalidade
+ * aceita), continuar o que está em andamento ou abrir o aprovado; o aprovado
+ * fica "a revisar" quando a funcionalidade muda, e a revisão começa com os
+ * passos e os prints dele.
+ */
+function CartaoManual({
+  manual,
+  aceita,
+  ocupado,
+  aoGerar,
+  aoAbrirAnalise,
+  aoAbrirDocumento,
+}: {
+  manual?: SituacaoManual;
+  aceita: boolean;
+  ocupado: boolean;
+  aoGerar: () => void;
+  aoAbrirAnalise: (id: string) => void;
+  aoAbrirDocumento: (documento: string) => void;
+}) {
+  const m = manual ?? { situacao: "nenhum" as const };
+  const aRevisar = m.situacao === "aprovado" && m.aRevisar.length > 0;
+  return (
+    <section className="cartao-painel" aria-label="Manual do usuário">
+      <header className="linha-cabecalho">
+        <h3>Manual do usuário</h3>
+        {m.situacao === "emAndamento" && (
+          <span className="muted">
+            {m.analise} · {ESTADO_ANALISE[m.estado]}
+          </span>
+        )}
+        {m.situacao === "aprovado" &&
+          (aRevisar ? (
+            <span className="badge" data-tone="attention">
+              a revisar
+            </span>
+          ) : (
+            <span className="badge" data-tone="done">
+              aprovado
+            </span>
+          ))}
+      </header>
+      {m.situacao === "nenhum" && (
+        <p className="muted">
+          {aceita
+            ? "Gere o passo a passo para o usuário final; os prints de tela entram em cada passo."
+            : "Aceite o mapeamento da funcionalidade para gerar o manual."}
+        </p>
+      )}
+      {m.situacao === "emAndamento" && (
+        <p>
+          {contar(m.passos, "passo", "passos")}
+          {m.semPrint > 0 && ` · ${contar(m.semPrint, "passo sem print", "passos sem print")}`}
+        </p>
+      )}
+      {m.situacao === "aprovado" &&
+        (aRevisar ? (
+          <>
+            <p>A funcionalidade mudou depois da aprovação; os prints foram mantidos.</p>
+            <ul className="motivos-revisar">
+              {m.aRevisar.map((x) => (
+                <li key={x}>{x}</li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <p>O manual foi aprovado e está na base, ao lado dos prints.</p>
+        ))}
+      <div className="acoes">
+        {m.situacao === "nenhum" && aceita && (
+          <button type="button" className="btn btn-primary" disabled={ocupado} onClick={aoGerar}>
+            Gerar manual do usuário
+          </button>
+        )}
+        {m.situacao === "emAndamento" && (
+          <button type="button" className="btn" onClick={() => aoAbrirAnalise(m.analise)}>
+            Abrir o manual {m.analise}
+          </button>
+        )}
+        {m.situacao === "aprovado" && (
+          <>
+            {m.documento && (
+              <button type="button" className="btn" onClick={() => aoAbrirDocumento(m.documento!)}>
+                Abrir na base
+              </button>
+            )}
+            <button type="button" className="btn" onClick={() => aoAbrirAnalise(m.analise)}>
+              Abrir {m.analise}
+            </button>
+            {aceita && (
+              <button
+                type="button"
+                className={aRevisar ? "btn btn-primary" : "btn"}
+                disabled={ocupado}
+                onClick={aoGerar}
+              >
+                Revisar o manual
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    </section>
+  );
+}
 
 const dia = (ms: number) =>
   new Date(ms).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
@@ -661,6 +770,15 @@ export function PainelFuncionalidade({
                     )}
                   </div>
                 </section>
+
+                <CartaoManual
+                  manual={p.manual}
+                  aceita={s === "aceita"}
+                  ocupado={ocupado}
+                  aoGerar={() => criar("manual", null, null)}
+                  aoAbrirAnalise={abrirAnalise}
+                  aoAbrirDocumento={(d) => navegar({ tipo: "base", documento: d })}
+                />
 
                 <section className="cartao-painel" aria-label="Análises">
                   <header className="linha-cabecalho">

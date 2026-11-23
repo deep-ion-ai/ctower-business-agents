@@ -22,7 +22,9 @@ const DESCRICAO_DA_SECAO: &str = "Seção do documento em que a afirmação entr
     Explicar funcionalidade: objetivo, atores_e_telas, fluxo_principal, \
     fluxos_alternativos, excecoes, fluxo_processo, regras, dados, modelo_dados, \
     integracoes. \
-    Análise de reunião: ligacao_com_o_codigo.";
+    Análise de reunião: ligacao_com_o_codigo. \
+    Manual do usuário: objetivo, quem_usa, pre_requisitos, resultados_esperados, \
+    mensagens_e_erros, perguntas_frequentes.";
 
 #[derive(Debug, Deserialize)]
 struct Args {
@@ -208,12 +210,14 @@ mod tests {
             .unwrap();
         let (perguntar, resto) = resto.split_once("Análise de impacto:").unwrap();
         let (impacto, resto) = resto.split_once("Explicar funcionalidade:").unwrap();
-        let (explicar, reuniao) = resto.split_once("Análise de reunião:").unwrap();
+        let (explicar, resto) = resto.split_once("Análise de reunião:").unwrap();
+        let (reuniao, manual) = resto.split_once("Manual do usuário:").unwrap();
         for (fluxo, texto) in [
             (Fluxo::Perguntar, perguntar),
             (Fluxo::Impacto, impacto),
             (Fluxo::Explicar, explicar),
             (Fluxo::Reuniao, reuniao),
+            (Fluxo::Manual, manual),
         ] {
             let lista: Vec<&str> = texto
                 .trim()

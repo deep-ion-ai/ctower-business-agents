@@ -189,7 +189,29 @@ export interface PainelFuncionalidade {
   relacionadas: { id: string; nome: string }[];
   atividade: { quandoMs: number; texto: string }[];
   demandasDoProjeto: { id: string; titulo: string }[];
+  /** Manual do usuário da funcionalidade (#272). */
+  manual?: SituacaoManual;
 }
+
+/** Situação do manual do usuário (`cba_tools::manual::SituacaoManual`). */
+export type SituacaoManual =
+  | { situacao: "nenhum" }
+  | {
+      situacao: "emAndamento";
+      analise: string;
+      estado: EstadoAnalise;
+      passos: number;
+      /** Passos sem print e sem dispensa. */
+      semPrint: number;
+    }
+  | {
+      situacao: "aprovado";
+      analise: string;
+      /** `manual.md` na base, relativo à raiz da base. */
+      documento: string | null;
+      /** Motivos para revisar (a funcionalidade mudou depois da aprovação). */
+      aRevisar: string[];
+    };
 
 /** Vincular as issues do rastreador às funcionalidades (`vincular_issues.rs`, #270). */
 export interface SugestaoDeIssue {

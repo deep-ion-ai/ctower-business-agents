@@ -23,6 +23,7 @@ import { CartaoAfirmacao, ROTULO_CONFIANCA } from "./CartaoAfirmacao";
 import { CenariosAoVivo } from "./CenariosAoVivo";
 import { DiagramaAoVivo } from "./DiagramaAoVivo";
 import { HistoriasAoVivo } from "./HistoriasAoVivo";
+import { ManualAoVivo } from "./ManualAoVivo";
 import { FaixaRevisao } from "./FaixaRevisao";
 import {
   contagemPorFiltro,
@@ -182,6 +183,9 @@ export function DocumentoAoVivo({
   const deCenarios = analise.fluxo === "cenarios";
   // Histórias e cenários têm registros próprios, no lugar das afirmações.
   const deHistorias = analise.fluxo === "historias" || deCenarios;
+  // O manual do usuário (#272) tem afirmações e, além delas, o passo a passo.
+  const deManual = analise.fluxo === "manual";
+  const rotuloEntrada = deHistorias ? "Pedido" : deManual ? "Funcionalidade" : "Pergunta";
   // Aprovada, a revisão fecha: as regras já foram para a base.
   const rev = analise.estado === "aprovada" ? undefined : revisao;
   const diagramas = analise.diagramas ?? [];
@@ -358,10 +362,19 @@ export function DocumentoAoVivo({
         <div className="documento-conteudo">
           {/* Na revisão, o texto revisado já aparece no parecer, com as marcas. */}
           {analise.fluxo !== "revisar" && (
-            <section aria-label={deHistorias ? "Pedido" : "Pergunta"}>
-              <h3>{deHistorias ? "Pedido" : "Pergunta"}</h3>
+            <section aria-label={rotuloEntrada}>
+              <h3>{rotuloEntrada}</h3>
               <blockquote>{analise.entrada}</blockquote>
             </section>
+          )}
+
+          {deManual && (
+            <ManualAoVivo
+              projeto={analise.projeto}
+              analise={analise.id}
+              passos={analise.passos ?? []}
+              revisao={rev}
+            />
           )}
 
           {deCenarios ? (

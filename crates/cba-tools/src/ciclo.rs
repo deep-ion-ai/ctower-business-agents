@@ -383,8 +383,8 @@ pub fn iniciar_analise() -> Ferramenta {
                 "analise": comum::schema_da_analise(),
                 "fluxo": {
                     "type": "string",
-                    "enum": ["perguntar", "explicar", "impacto", "reuniao", "revisar", "historias", "cenarios"],
-                    "description": "Só para criar: perguntar (pergunta ao sistema), explicar (explicar funcionalidade, documento negocial), impacto (análise de impacto de uma demanda), reuniao (montar a ata de uma reunião a partir do transcript; exige `reuniao`), revisar (revisar a qualidade de um requisito ou história contra a base e o código; a entrada é o texto revisado) historias (histórias com critérios de aceite; exige `origem` ou `demanda`) ou cenarios (cenários de teste derivados das regras: tabela de decisão, partição de equivalência e valores-limite; exige `origem`, `demanda` ou `entrada`)."
+                    "enum": ["perguntar", "explicar", "impacto", "reuniao", "revisar", "historias", "cenarios", "manual"],
+                    "description": "Só para criar: perguntar (pergunta ao sistema), explicar (explicar funcionalidade, documento negocial), impacto (análise de impacto de uma demanda), reuniao (montar a ata de uma reunião a partir do transcript; exige `reuniao`), revisar (revisar a qualidade de um requisito ou história contra a base e o código; a entrada é o texto revisado) historias (histórias com critérios de aceite; exige `origem` ou `demanda`) ou cenarios (cenários de teste derivados das regras: tabela de decisão, partição de equivalência e valores-limite; exige `origem`, `demanda` ou `entrada`) ou manual (manual do usuário de uma funcionalidade do mapa, com o passo a passo; exige `funcionalidade`)."
                 },
                 "entrada": {
                     "type": "string",
@@ -412,7 +412,7 @@ pub fn iniciar_analise() -> Ferramenta {
                 "funcionalidade": {
                     "type": "string",
                     "minLength": 1,
-                    "description": "Só para criar, no fluxo explicar: a funcionalidade do mapa (F-<SIGLA>-NNN) a explicar. A entrada vem do mapa, e o documento negocial aprovado fica ligado a ela."
+                    "description": "Só para criar, nos fluxos explicar e manual: a funcionalidade do mapa (F-<SIGLA>-NNN) a explicar ou cujo manual do usuário será escrito. A entrada vem do mapa, e o documento aprovado fica ligado a ela."
                 }
             },
             "additionalProperties": false
@@ -431,9 +431,13 @@ pub fn iniciar_analise() -> Ferramenta {
                     .map(reuniao::id_da_reuniao)
                     .transpose()?,
             };
-            if args.funcionalidade.is_some() && args.fluxo != Some(Fluxo::Explicar) {
+            if args.funcionalidade.is_some()
+                && !matches!(args.fluxo, Some(Fluxo::Explicar | Fluxo::Manual))
+            {
                 return Err(ErroFerramenta::Argumentos(
-                    "`funcionalidade` só vale para criar uma análise do fluxo `explicar`".into(),
+                    "`funcionalidade` só vale para criar uma análise dos fluxos `explicar` ou \
+                     `manual`"
+                        .into(),
                 ));
             }
             if args.origem.is_some()
@@ -510,6 +514,20 @@ pub fn iniciar_analise() -> Ferramenta {
                         )
                     })?;
                     let analise = crate::mapear::criar_explicacao(ambiente, &fid)?;
+                    (analise.id, true)
+                }
+                (None, Some(Fluxo::Manual), _) => {
+                    let fid = cba_kb::IdFuncionalidade::analisar(
+                        args.funcionalidade.as_deref().unwrap_or_default().trim(),
+                    )
+                    .map_err(|_| {
+                        ErroFerramenta::Argumentos(
+                            "no fluxo `manual`, informe `funcionalidade`: a funcionalidade \
+                             do mapa (F-<SIGLA>-NNN), como F-FAT-001"
+                                .into(),
+                        )
+                    })?;
+                    let analise = crate::manual::criar_manual(ambiente, &fid)?;
                     (analise.id, true)
                 }
                 (None, Some(Fluxo::Historias), entrada) => {
@@ -1004,6 +1022,9 @@ fn retomar(ambiente: &Ambiente, analise: &Analise, memoria: &Memoria) -> Saida {
     if let Some((texto, _)) = &cenarios {
         t.push_str(texto);
     }
+    if fluxo == Fluxo::Manual {
+        t.push_str(&crate::manual::para_retomar(analise));
+    }
     let _ = writeln!(t, "## Afirmações");
     let _ = writeln!(t);
     if analise.afirmacoes.is_empty() {
@@ -1410,6 +1431,8 @@ fn concluir(ambiente: &Ambiente, id: &Id) -> Result<Saida, ErroFerramenta> {
         conferir_historias(&atual)?;
     } else if fluxo == Fluxo::Cenarios {
         conferir_cenarios(&atual)?;
+    } else if fluxo == Fluxo::Manual {
+        crate::manual::conferir_para_concluir(&atual)?;
     } else if afirmacoes_validas(&atual).next().is_none() {
         return Err(ErroFerramenta::Recusa(format!(
             "a análise {id} ainda não tem afirmações. Registre o que apurou com `afirmar` \
@@ -1532,6 +1555,8 @@ fn concluir(ambiente: &Ambiente, id: &Id) -> Result<Saida, ErroFerramenta> {
                 "as histórias (HU-NNNN e título) com o número de critérios, os critérios a confirmar, os alertas INVEST e as quebras propostas",
             Fluxo::Cenarios =>
                 "as tabelas de decisão, o número de cenários por técnica, os limites lidos do código e os cenários a confirmar",
+            Fluxo::Manual =>
+                "o objetivo, os passos com a tela sugerida para o print de cada um e as perguntas em aberto",
         }
     );
     if !abertas.is_empty() {

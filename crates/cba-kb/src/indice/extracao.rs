@@ -190,7 +190,12 @@ fn validar(tipo: TipoDocumento, relativo: &CaminhoRelativo, texto: &str) -> Resu
         TipoDocumento::Funcionalidade if relativo.partes().next() == Some(layout::ANALISES) => {
             com::<FrontmatterAnalise>(texto)
         }
-        TipoDocumento::Funcionalidade | TipoDocumento::CasoDeUso => {
+        // Manual do usuário (#272): análise em `analises/`, manual aprovado em
+        // `funcionalidades/`.
+        TipoDocumento::Manual if relativo.partes().next() == Some(layout::ANALISES) => {
+            com::<FrontmatterAnalise>(texto)
+        }
+        TipoDocumento::Funcionalidade | TipoDocumento::CasoDeUso | TipoDocumento::Manual => {
             com::<FrontmatterFuncionalidade>(texto)
         }
         TipoDocumento::Regra => com::<FrontmatterRegra>(texto),

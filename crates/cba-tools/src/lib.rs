@@ -20,7 +20,9 @@
 //!   "Histórias e critérios", com as referências conferidas por [`fundamentos`]) e
 //!   [`cenarios`] (`registrar_tabela_decisao` e `registrar_cenario`, do fluxo
 //!   "Cenários de teste") e [`diagramas`] (`registrar_diagrama`, os diagramas
-//!   pelos elementos, que o app transforma em Mermaid, #118) e [`mapear`]
+//!   pelos elementos, que o app transforma em Mermaid, #118) e [`manual`]
+//!   (`registrar_passo_manual`, o passo a passo do manual do usuário de uma
+//!   funcionalidade, com os prints incluídos pelo analista, #272) e [`mapear`]
 //!   (`iniciar_mapeamento`, `pontos_de_entrada`, `registrar_funcionalidade`,
 //!   `tratar_ponto_de_entrada` e `concluir_mapeamento`: o mapa de funcionalidades
 //!   do projeto, #208, fora das análises) e [`mudancas`]
@@ -83,6 +85,7 @@ pub mod evidencias;
 mod fontes;
 pub mod fundamentos;
 pub mod historias;
+pub mod manual;
 pub mod mapa;
 pub mod mapear;
 pub mod memoria;
@@ -147,6 +150,7 @@ pub fn registro_padrao() -> Registro {
         .registrar(cenarios::registrar_tabela_decisao())
         .registrar(cenarios::registrar_cenario())
         .registrar(diagramas::registrar_diagrama())
+        .registrar(manual::registrar_passo_manual())
         .registrar(mapear::iniciar_mapeamento())
         .registrar(mapear::pontos_de_entrada())
         .registrar(mapear::registrar_funcionalidade())
@@ -197,6 +201,7 @@ mod tests {
             "registrar_veredito",
             "registrar_historia",
             "registrar_criterio",
+            "registrar_passo_manual",
             "registrar_tabela_decisao",
             "registrar_cenario",
             "registrar_diagrama",

@@ -31,6 +31,7 @@ use serde::{Deserialize, Serialize};
 use crate::cenarios::{Cenario, TabelaDecisao};
 use crate::diagramas::Diagrama;
 use crate::historias::Historia;
+use crate::manual::PassoManual;
 use crate::parecer::{
     Achado, AvaliacaoInvest, EstadoAchado, NovoAchado, Parecer, Veredito, VereditoRegistrado,
 };
@@ -65,6 +66,10 @@ pub enum Fluxo {
     /// As tabelas de decisão e os cenários ficam em [`Analise::tabelas`] e
     /// [`Analise::cenarios`] ([`crate::cenarios`]).
     Cenarios,
+    /// Manual do usuário de uma funcionalidade do mapa, com o passo a passo e os
+    /// prints de tela (#272). Os passos ficam em [`Analise::passos`]
+    /// ([`crate::manual`]).
+    Manual,
 }
 
 impl Fluxo {
@@ -78,6 +83,7 @@ impl Fluxo {
             Self::Revisar => TipoDocumento::ParecerRevisao,
             Self::Historias => TipoDocumento::Historias,
             Self::Cenarios => TipoDocumento::CenariosTeste,
+            Self::Manual => TipoDocumento::Manual,
         }
     }
 }
@@ -568,6 +574,9 @@ pub struct Analise {
     /// vai para `funcionalidades/<area>/<tema>/` e fica ligado ao item.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub funcionalidade: Option<IdFuncionalidade>,
+    /// Passo a passo do manual do usuário (fluxo `manual`, [`crate::manual`]).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub passos: Vec<PassoManual>,
 }
 
 /// Operação recusada pelo modelo. As mensagens se dirigem a quem chamou (o agente
@@ -684,6 +693,14 @@ pub enum ErroModelo {
     OrigemJaPerguntada { origem: String, numero: u32 },
     #[error("o {0} não existe mais nesta análise")]
     OrigemDesconhecida(String),
+    #[error(
+        "a análise {0} não é do fluxo `manual`; os passos do manual do usuário são \
+         registrados na análise aberta por \"Gerar manual do usuário\" no painel da \
+         funcionalidade"
+    )]
+    ForaDoFluxoDoManual(Id),
+    #[error("passo recusado: {0}")]
+    PassoInvalido(String),
 }
 
 fn exigir(campo: &'static str, valor: &str) -> Result<(), ErroModelo> {
@@ -734,6 +751,7 @@ impl Analise {
             cenarios: Vec::new(),
             diagramas: Vec::new(),
             funcionalidade: None,
+            passos: Vec::new(),
         }
     }
 
