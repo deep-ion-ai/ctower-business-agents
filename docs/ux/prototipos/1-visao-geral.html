@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>Visão geral do projeto · protótipo #312</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<link rel="stylesheet" href="prototipo.css">
+<style>html,body{height:100%} .win,.win.alta{width:auto;height:100vh;min-height:640px}</style>
+</head>
+<body>
+<div class="win alta" id="win">
+  <header class="tb">
+    <b>Ctower Business Agents</b>
+    <button class="proj" type="button" title="Trocar de projeto">OpenCBS ▾</button>
+    <span class="sp"></span>
+    <span class="busca"><span>Buscar regra, análise, demanda…</span><span class="kbd">⌘K</span></span>
+    <span class="sp"></span>
+    <button class="btn btn-sm" type="button" id="tema">Tema escuro</button>
+  </header>
+  <div class="work">
+    <nav class="rail" aria-label="Seções do projeto">
+      <div class="grupo">Projeto</div>
+      <a href="1-visao-geral.html" aria-current="page"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-4H4zM14 8h6V4h-6z"></path></svg><span>Visão geral</span></a>
+      <a href="2-atividades.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 6h16v10H8l-4 4z"></path></svg><span>Atividades</span><span class="n">7</span></a>
+      <a href="#analises" title="Fora deste protótipo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"></path><path d="M9 12h7M9 16h5"></path></svg><span>Análises</span><span class="n neutro">9</span></a>
+      <a href="3-demandas.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="2"></circle></svg><span>Demandas</span><span class="n neutro">6</span></a>
+      <div class="grupo">Conhecimento</div>
+      <a href="6-base.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"></path></svg><span>Base</span></a>
+      <a href="5-funcionalidades.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 6v5M5 20v-5h14v5M12 11v4"></path><rect x="9" y="2" width="6" height="4"></rect></svg><span>Funcionalidades</span></a>
+      <a href="#codigo" title="Fora deste protótipo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4M13 6l-2 12"></path></svg><span>Código</span></a>
+      <a class="fim" href="#configuracoes" title="Fora deste protótipo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"></path></svg><span>Configurações</span></a>
+    </nav>
+    <main class="main">
+      <div class="page">
+        <div class="cab">
+          <div>
+            <h1>OpenCBS</h1>
+            <p class="sub">1 repositório de código · demandas do GitHub Issues · conferido há 5 min</p>
+          </div>
+          <div class="acoes">
+            <span class="chip" data-tone="done">Ambiente pronto</span>
+            <span class="chip" data-tone="done">Código acessível</span>
+            <span class="chip" data-tone="done">Demandas conectadas</span>
+            <button class="btn" type="button">Configurar projeto</button>
+            <button class="btn btn-p" type="button">Nova análise ▾</button>
+          </div>
+        </div>
+
+        <section class="panel passos" aria-label="Próximos passos">
+          <h2>Próximos passos <a href="2-atividades.html">Ver as 7 atividades</a></h2>
+          <div class="passo">
+            <span class="dot" data-tone="attention"></span>
+            <div><p class="t">O agente aguarda você na A-0008</p><p class="d">Cenários · Como o sistema calcula a multa de uma parcela em atraso? Ele fez uma pergunta há 12 min.</p></div>
+            <button class="btn btn-p" type="button">Responder ao agente</button>
+          </div>
+          <div class="passo">
+            <span class="dot" data-tone="attention"></span>
+            <div><p class="t">Revisar e aprovar a A-0003</p><p class="d">Análise de impacto do Open Finance: 14 afirmações sem decisão e 4 perguntas em aberto.</p></div>
+            <button class="btn" type="button">Revisar a análise</button>
+          </div>
+          <div class="passo">
+            <span class="dot" data-tone="running"></span>
+            <div><p class="t">2 demandas novas sem análise</p><p class="d">#412 Portabilidade: informar o saldo devedor · #409 Lembrete de vencimento por e-mail.</p></div>
+            <a class="btn" href="3-demandas.html">Ver as demandas</a>
+          </div>
+        </section>
+
+        <div class="grid g4">
+          <a class="panel kpi" data-tone="attention" href="2-atividades.html">
+            <span class="r">Aguardando sua revisão</span><b>5</b><span class="x">análises concluídas pelo agente</span>
+          </a>
+          <a class="panel kpi" href="#analises">
+            <span class="r">Análises</span><b>9</b><span class="x">2 aprovadas · 2 em andamento</span>
+          </a>
+          <a class="panel kpi" href="3-demandas.html">
+            <span class="r">Demandas abertas</span><b>6</b><span class="x">2 sem análise · 11 encerradas</span>
+          </a>
+          <a class="panel kpi" href="6-base.html">
+            <span class="r">Regras na base</span><b>24</b><span class="x">0 a revalidar · 1 termo</span>
+          </a>
+        </div>
+
+        <div class="grid g32">
+          <section class="panel" aria-label="Análises">
+            <h2>Análises por situação <a href="#analises">Abrir as análises</a></h2>
+            <div class="pilha" role="img" aria-label="5 aguardando revisão, 2 em andamento, 2 aprovadas">
+              <span class="s-revisao" style="flex: 5" title="Aguardando revisão: 5"></span>
+              <span class="s-andamento" style="flex: 2" title="Em andamento: 2"></span>
+              <span class="s-aprovada" style="flex: 2" title="Aprovadas: 2"></span>
+            </div>
+            <div class="legenda">
+              <span><i class="s-revisao"></i>Aguardando revisão 5</span>
+              <span><i class="s-andamento"></i>Em andamento 2</span>
+              <span><i class="s-aprovada"></i>Aprovadas 2</span>
+            </div>
+            <h2 style="margin-top: 6px">Por tipo de análise</h2>
+            <div class="barras">
+              <span>Perguntar ao sistema</span><span class="tr" title="2 análises"><span style="width: 100%"></span></span><span class="v">2</span>
+              <span>Explicar funcionalidade</span><span class="tr" title="2 análises"><span style="width: 100%"></span></span><span class="v">2</span>
+              <span>Analisar impacto</span><span class="tr" title="1 análise"><span style="width: 50%"></span></span><span class="v">1</span>
+              <span>Analisar reunião</span><span class="tr" title="1 análise"><span style="width: 50%"></span></span><span class="v">1</span>
+              <span>Revisar requisito</span><span class="tr" title="1 análise"><span style="width: 50%"></span></span><span class="v">1</span>
+              <span>Histórias e critérios</span><span class="tr" title="1 análise"><span style="width: 50%"></span></span><span class="v">1</span>
+              <span>Cenários de teste</span><span class="tr" title="1 análise"><span style="width: 50%"></span></span><span class="v">1</span>
+            </div>
+          </section>
+
+          <section class="panel" aria-label="Sessões e atividade">
+            <h2>Sessões do agente</h2>
+            <ul class="linhas">
+              <li><span class="dot" data-tone="attention"></span><span class="id">A-0008</span><span class="tit">Cenários · multa por atraso</span><span class="fim"><span class="chip" data-tone="attention">aguarda você</span></span></li>
+              <li><span class="dot" data-tone="running"></span><span class="id">A-0002</span><span class="tit">Quitação antecipada</span><span class="fim"><span class="chip" data-tone="running">trabalhando</span></span></li>
+            </ul>
+            <h2 style="margin-top: 6px">Atividade recente</h2>
+            <ul class="linhas">
+              <li><span class="muted mono">10:42</span><span class="tit">A-0008: o agente fez uma pergunta</span></li>
+              <li><span class="muted mono">09:15</span><span class="tit">A-0007 concluída pelo agente</span></li>
+              <li><span class="muted mono">ontem</span><span class="tit">A-0009 aprovada: 7 regras novas</span></li>
+              <li><span class="muted mono">ontem</span><span class="tit">Demanda #412 chegou do GitHub</span></li>
+              <li><span class="muted mono">16/11</span><span class="tit">Ata da reunião R-0001 em rascunho</span></li>
+            </ul>
+          </section>
+        </div>
+
+        <div class="grid g2">
+          <section class="panel" aria-label="Cobertura da base">
+            <h2>Cobertura da base por área <span class="ajuda" title="Quanto do código mais usado de cada área já tem regra ou documento na base.">?</span> <a href="5-funcionalidades.html">Ver as lacunas</a></h2>
+            <div class="barras">
+              <span>Multas por atraso</span><span class="tr" title="17 regras"><span style="width: 100%"></span></span><span class="v">17 regras</span>
+              <span>Geral (cobrança)</span><span class="tr" title="7 regras"><span style="width: 41%"></span></span><span class="v">7 regras</span>
+              <span>Crédito</span><span class="tr" title="0 regras, 1 termo"><span style="width: 3%"></span></span><span class="v">1 termo</span>
+              <span>Empréstimos (serviços)</span><span class="tr" title="Lacuna: 39 arquivos muito referenciados e nenhuma regra"></span><span class="v">lacuna</span>
+              <span>Contabilidade</span><span class="tr" title="Lacuna: 14 arquivos muito referenciados e nenhuma regra"></span><span class="v">lacuna</span>
+            </div>
+            <div class="vazio">
+              <b>Mapa de funcionalidades vazio</b>
+              <span>2.250 pontos de entrada do código ainda não viraram funcionalidades com nome de negócio.</span>
+              <button class="btn btn-sm" type="button">Mapear com o Claude</button>
+            </div>
+          </section>
+
+          <section class="panel" aria-label="Demandas">
+            <h2>Demandas <a href="3-demandas.html">Abrir as demandas</a></h2>
+            <div class="pilha" role="img" aria-label="6 abertas, 11 encerradas">
+              <span class="s-andamento" style="flex: 6" title="Abertas: 6"></span>
+              <span class="s-neutro" style="flex: 11" title="Encerradas: 11"></span>
+            </div>
+            <div class="legenda">
+              <span><i class="s-andamento"></i>Abertas 6</span>
+              <span><i class="s-neutro"></i>Encerradas 11</span>
+            </div>
+            <ul class="linhas">
+              <li><span class="id">#412</span><span class="tit">Portabilidade: informar o saldo devedor</span><span class="fim"><span class="chip" data-tone="attention">sem análise</span></span></li>
+              <li><span class="id">#409</span><span class="tit">Lembrete de vencimento por e-mail</span><span class="fim"><span class="chip" data-tone="attention">sem análise</span></span></li>
+              <li><span class="id">#398</span><span class="tit">Expor contratos e parcelas (api-loans)</span><span class="fim"><span class="chip">A-0003 em revisão</span></span></li>
+            </ul>
+            <p class="muted" style="font-size: 12.5px">Estado conferido no GitHub há 5 min. Nada é escrito no rastreador.</p>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+  <footer class="sb"><span>Ambiente pronto</span><span class="mono">Base: ~/Documentos/ctower-business</span><span style="flex: 1"></span><span>1 sessão aguarda você</span></footer>
+</div>
+<script>
+// Tema: ?tema=escuro na URL ou o botão da barra de título; a escolha segue nos links.
+(function () {
+  var w = document.getElementById("win"), b = document.getElementById("tema");
+  var escuro = new URLSearchParams(location.search).get("tema") === "escuro";
+  function aplicar() {
+    w.classList.toggle("escuro", escuro);
+    b.textContent = escuro ? "Tema claro" : "Tema escuro";
+    document.querySelectorAll(".rail a, .page a").forEach(function (a) {
+      var h = a.getAttribute("href");
+      if (h && h.indexOf(".html") > 0) a.setAttribute("href", h.split("?")[0] + (escuro ? "?tema=escuro" : ""));
+    });
+  }
+  b.onclick = function () { escuro = !escuro; aplicar(); };
+  aplicar();
+})();
+</script>
+</body>
+</html>
