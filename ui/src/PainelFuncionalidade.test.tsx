@@ -2,15 +2,19 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import type { ApiConhecimento } from "./conhecimento";
 import type { Funcionalidade } from "./funcionalidades";
 import { PainelFuncionalidade } from "./PainelFuncionalidade";
-import { apiFalsa, MAPA } from "./test/mapaFalso";
+import { apiFalsa, MAPA, painelDe } from "./test/mapaFalso";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(), Channel: vi.fn() }));
 
 const CANCELAR = MAPA.areas[0].funcionalidades[0];
 const COBRANCA = MAPA.areas[1].funcionalidades[0];
 
-function abrir(f: Funcionalidade = CANCELAR, evidencias = false) {
-  const api = apiFalsa();
+function abrir(
+  f: Funcionalidade = CANCELAR,
+  evidencias = false,
+  painel: typeof painelDe = painelDe,
+) {
+  const api = apiFalsa(MAPA, painel);
   const navegar = vi.fn();
   const aoEscolher = vi.fn();
   const aoRevisar = vi.fn().mockResolvedValue(undefined);
@@ -125,6 +129,70 @@ describe("PainelFuncionalidade", () => {
     const tabela = screen.getByRole("table");
     expect(tabela).toHaveTextContent("pelo código");
     expect(tabela).toHaveTextContent("aberta aqui");
+  });
+
+  it("manual do usuário: gerar a partir da funcionalidade aceita", async () => {
+    const { api, navegar } = abrir();
+    const manual = await screen.findByRole("region", { name: "Manual do usuário" });
+    fireEvent.click(within(manual).getByRole("button", { name: "Gerar manual do usuário" }));
+    await waitFor(() =>
+      expect(api.criarAnalise).toHaveBeenCalledWith(
+        "faturamento-exemplo",
+        "F-CAN-001",
+        "manual",
+        null,
+        null,
+      ),
+    );
+    await waitFor(() => expect(navegar).toHaveBeenCalled());
+  });
+
+  it("manual do usuário: em andamento com passos sem print e aprovado a revisar", async () => {
+    abrir(CANCELAR, false, (id) => ({
+      ...painelDe(id),
+      manual: {
+        situacao: "emAndamento",
+        analise: "A-0031",
+        estado: "concluida",
+        passos: 3,
+        semPrint: 1,
+      },
+    }));
+    const manual = await screen.findByRole("region", { name: "Manual do usuário" });
+    expect(manual).toHaveTextContent("3 passos · 1 passo sem print");
+    expect(within(manual).getByRole("button", { name: "Abrir o manual A-0031" })).toBeEnabled();
+    expect(within(manual).queryByRole("button", { name: "Gerar manual do usuário" })).toBeNull();
+  });
+
+  it("manual do usuário aprovado fica a revisar quando a funcionalidade muda", async () => {
+    const { api, navegar } = abrir(CANCELAR, false, (id) => ({
+      ...painelDe(id),
+      manual: {
+        situacao: "aprovado",
+        analise: "A-0031",
+        documento: "faturamento-exemplo/funcionalidades/cancelamento/cancelar-fatura/manual.md",
+        aRevisar: ["o mapeamento da funcionalidade mudou depois da aprovação"],
+      },
+    }));
+    const manual = await screen.findByRole("region", { name: "Manual do usuário" });
+    expect(within(manual).getByText("a revisar")).toBeInTheDocument();
+    expect(manual).toHaveTextContent("os prints foram mantidos");
+    expect(manual).toHaveTextContent("o mapeamento da funcionalidade mudou");
+    fireEvent.click(within(manual).getByRole("button", { name: "Abrir na base" }));
+    expect(navegar).toHaveBeenCalledWith({
+      tipo: "base",
+      documento: "faturamento-exemplo/funcionalidades/cancelamento/cancelar-fatura/manual.md",
+    });
+    fireEvent.click(within(manual).getByRole("button", { name: "Revisar o manual" }));
+    await waitFor(() =>
+      expect(api.criarAnalise).toHaveBeenCalledWith(
+        "faturamento-exemplo",
+        "F-CAN-001",
+        "manual",
+        null,
+        null,
+      ),
+    );
   });
 
   it("aba Demandas: etapas, ligar, desligar e analisar impacto", async () => {

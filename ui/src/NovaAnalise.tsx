@@ -29,6 +29,8 @@ const ENTRADA: Record<Fluxo, { rotulo: string; exemplo: string }> = {
   // Histórias e cenários têm formulário próprio (NovaHistorias), com a análise de origem.
   historias: { rotulo: "Pedido", exemplo: "" },
   cenarios: { rotulo: "Pedido", exemplo: "" },
+  // O manual do usuário nasce no painel da funcionalidade (#272).
+  manual: { rotulo: "Funcionalidade", exemplo: "" },
 };
 
 /**

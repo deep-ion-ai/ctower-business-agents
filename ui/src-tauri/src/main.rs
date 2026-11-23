@@ -45,6 +45,7 @@ mod docs_externos;
 mod funcionalidades;
 mod gui;
 mod inicio;
+mod manual;
 mod mudancas;
 mod painel_funcionalidade;
 mod pauta;

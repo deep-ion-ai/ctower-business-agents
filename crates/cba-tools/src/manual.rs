@@ -667,7 +667,11 @@ pub fn ligar_manual(
 
 /// Situação do manual de uma funcionalidade.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase", tag = "situacao")]
+#[serde(
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase",
+    tag = "situacao"
+)]
 pub enum SituacaoManual {
     /// Ainda não há manual.
     Nenhum,
@@ -897,5 +901,31 @@ mod tests {
         a.dispensar_print(2, true).unwrap();
         assert!(!texto(&a, &a.documento).texto.contains("Print sugerido"));
         assert!(pendencias(None, &a).is_empty());
+    }
+
+    #[test]
+    fn situacao_no_formato_da_tela() {
+        let v = serde_json::to_value(SituacaoManual::EmAndamento {
+            analise: "A-0031".into(),
+            estado: EstadoAnalise::Concluida,
+            passos: 3,
+            sem_print: 1,
+        })
+        .unwrap();
+        assert_eq!(
+            v,
+            json!({ "situacao": "emAndamento", "analise": "A-0031", "estado": "concluida", "passos": 3, "semPrint": 1 })
+        );
+        let v = serde_json::to_value(SituacaoManual::Aprovado {
+            analise: "A-0031".into(),
+            documento: None,
+            a_revisar: vec!["x".into()],
+        })
+        .unwrap();
+        assert_eq!(v["aRevisar"], json!(["x"]));
+        assert_eq!(
+            serde_json::to_value(SituacaoManual::Nenhum).unwrap(),
+            json!({ "situacao": "nenhum" })
+        );
     }
 }

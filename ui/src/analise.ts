@@ -13,7 +13,8 @@ export type Fluxo =
   | "reuniao"
   | "revisar"
   | "historias"
-  | "cenarios";
+  | "cenarios"
+  | "manual";
 export type EstadoAnalise = "criada" | "em-andamento" | "concluida" | "aprovada";
 export type EstadoSessao = "ativa" | "aguardando-analista" | "concluida" | "encerrada";
 export type Cliente = "claude-code" | "claude-desktop" | "desconhecido";
@@ -144,6 +145,27 @@ export interface Analise {
   diagramas?: Diagrama[];
   /** Funcionalidade do mapa que esta explicação documenta (`F-FAT-001`, #208). */
   funcionalidade?: string | null;
+  /** Passo a passo do manual do usuário (fluxo `manual`, #272). */
+  passos?: PassoManual[];
+}
+
+/** Print de tela de um passo do manual (`cba_core::manual::PrintDoPasso`). */
+export interface PrintDoPasso {
+  /** PNG na base, relativo à raiz do projeto. */
+  arquivo: string;
+  legenda: string;
+  texto_alternativo: string;
+}
+
+/** Passo do manual do usuário (`cba_core::manual::PassoManual`). */
+export interface PassoManual {
+  numero: number;
+  titulo: string;
+  instrucao: string;
+  tela?: string | null;
+  resultado?: string | null;
+  print?: PrintDoPasso | null;
+  print_dispensado?: boolean;
 }
 
 /** Papel de um nó do diagrama (`cba_core::diagramas::PapelNo`). */

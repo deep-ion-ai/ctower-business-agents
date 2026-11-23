@@ -7,6 +7,8 @@ import {
   type LigacaoVista,
 } from "./conhecimento";
 import { ConsultaReversa } from "./ConsultaReversa";
+import { resolverImagem } from "./manual";
+import { ImagemDaBase } from "./ManualAoVivo";
 import { OPCOES_MARKDOWN_BASE } from "./markdownOpcoes";
 import { separarNotasSeguidas } from "./notasDeRodape";
 
@@ -185,7 +187,20 @@ export function CorpoMarkdown({
         </a>
       );
     };
-    return { a: { component: Link } };
+    // Prints do manual do usuário (#272): PNG da base lido pelo app.
+    const Imagem = ({ src, alt }: { src?: string; alt?: string }) => {
+      const naBase = src ? resolverImagem(caminho, src) : null;
+      if (!naBase) {
+        return (
+          <span className="imagem" title={src}>
+            {alt}
+          </span>
+        );
+      }
+      const [projeto, ...resto] = naBase.split("/");
+      return <ImagemDaBase projeto={projeto} arquivo={resto.join("/")} alt={alt ?? ""} />;
+    };
+    return { a: { component: Link }, img: { component: Imagem } };
   }, [caminho, aoAbrirDocumento]);
 
   // A nota de rodapé leva à sua linha no fim do documento, sem mexer no endereço da janela.

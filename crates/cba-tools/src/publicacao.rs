@@ -102,8 +102,7 @@ pub fn aprovado(texto: &str) -> bool {
         | T::CenariosTeste
         | T::Funcionalidade
         | T::CasoDeUso
-        | T::MapaFuncionalidades
-        | T::Manual => status == Some("aprovada"),
+        | T::MapaFuncionalidades => status == Some("aprovada"),
         // Trabalho em andamento, dados pessoais (pessoas, participantes das
         // reuniões) ou configuração local.
         T::Projeto
@@ -119,6 +118,9 @@ pub fn aprovado(texto: &str) -> bool {
         // A documentação externa (#277) volta do repositório de docs: publicá-la
         // de novo duplicaria o que já está lá.
         T::DocExterno => false,
+        // O manual do usuário (#272) leva os prints, que a documentação legível
+        // ainda não publica: fica de fora até as páginas levarem as imagens.
+        T::Manual => false,
     }
 }
 
