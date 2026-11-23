@@ -433,6 +433,29 @@ pub enum StatusDemanda {
     Encerrada,
 }
 
+/// Estado da issue no rastreador (GitHub, GitLab ou Jira), normalizado (#292).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum EstadoRastreador {
+    Aberta,
+    /// Só quando o rastreador distingue (no Jira, a categoria "em andamento").
+    EmAndamento,
+    Encerrada,
+}
+
+/// Último estado conferido no rastreador. Não substitui o `status` local do
+/// analista: quando existe, é ele que vale para a demanda estar aberta ou
+/// encerrada ([`crate::DemandaLida::status_efetivo`]).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EstadoNoRastreador {
+    pub estado: EstadoRastreador,
+    /// Quando foi conferido (ISO 8601, UTC).
+    pub conferido: String,
+    /// Data de fechamento no rastreador, quando encerrada.
+    #[serde(default)]
+    pub encerrado: Option<Data>,
+}
+
 /// Estado de uma ata de reunião.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -866,6 +889,9 @@ pub struct FrontmatterDemanda {
     pub criado: Data,
     #[serde(default)]
     pub encerrado: Option<Data>,
+    /// Estado conferido no rastreador, quando a demanda veio de uma issue (#292).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rastreador: Option<EstadoNoRastreador>,
 }
 
 impl Frontmatter for FrontmatterDemanda {

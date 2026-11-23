@@ -31,6 +31,18 @@ pub fn data_utc(ms: u64) -> Data {
     Data::nova(ano, mes, dia).expect("o algoritmo só produz datas válidas")
 }
 
+/// Instante em ISO 8601, UTC, com segundos (`2026-11-23T14:05:09Z`).
+pub fn instante_iso(ms: u64) -> String {
+    let segundos_do_dia = (ms / 1000) % 86_400;
+    format!(
+        "{}T{:02}:{:02}:{:02}Z",
+        data_utc(ms),
+        segundos_do_dia / 3600,
+        segundos_do_dia / 60 % 60,
+        segundos_do_dia % 60
+    )
+}
+
 /// Dias desde 1970-01-01 (negativo antes).
 pub fn dias_desde_1970(data: Data) -> i64 {
     // Algoritmo "days_from_civil" de Howard Hinnant.
@@ -76,6 +88,8 @@ mod tests {
         assert_eq!(data_utc(951_825_600_000).to_string(), "2000-02-29");
         // 2026-11-11 00:00 UTC.
         assert_eq!(data_utc(1_794_355_200_000).to_string(), "2026-11-11");
+        assert_eq!(instante_iso(1_794_355_200_000), "2026-11-11T00:00:00Z");
+        assert_eq!(instante_iso(1_798_761_599_999), "2026-12-31T23:59:59Z");
         // Um milissegundo antes da virada do ano.
         assert_eq!(data_utc(1_798_761_599_999).to_string(), "2026-12-31");
     }

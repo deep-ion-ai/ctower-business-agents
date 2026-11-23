@@ -10,6 +10,7 @@ import {
   type PainelDemanda as Painel,
   type TranscriptGuardado,
 } from "./demandas";
+import { EstadoNoRastreador } from "./EstadoNoRastreador";
 import { ROTULO_SESSAO } from "./DocumentoAoVivo";
 import type { Tela } from "./Navegacao";
 import { NovaAnalise } from "./NovaAnalise";
@@ -163,9 +164,14 @@ export function PainelDemanda({
           <button type="button" className="link" onClick={() => abrirDocumento(d.documento)}>
             abrir o demanda.md
           </button>{" "}
-          <button type="button" className="btn" onClick={mudarStatus} disabled={mudando}>
-            {aberta ? "Encerrar a demanda" : "Reabrir a demanda"}
-          </button>
+          {!d.rastreador && (
+            <button type="button" className="btn" onClick={mudarStatus} disabled={mudando}>
+              {aberta ? "Encerrar a demanda" : "Reabrir a demanda"}
+            </button>
+          )}
+        </p>
+        <p>
+          <EstadoNoRastreador rastreador={d.rastreador} aviso={d.avisoRastreador} />
         </p>
       </header>
       {falha && (

@@ -173,7 +173,7 @@ pub(crate) fn texto<'a>(v: &'a Value, caminho: &[&str]) -> &'a str {
 }
 
 /// Número da issue em `123`, `#123` ou `!123`.
-fn numero(ref_: &str) -> Result<u64, DemandaErro> {
+pub(crate) fn numero(ref_: &str) -> Result<u64, DemandaErro> {
     ref_.trim()
         .trim_start_matches(['#', '!'])
         .parse::<u64>()

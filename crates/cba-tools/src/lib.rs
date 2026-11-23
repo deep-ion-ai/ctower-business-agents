@@ -106,6 +106,7 @@ pub mod revalidacao;
 pub mod revisao;
 pub mod roteiro;
 pub mod schema;
+pub mod status_demandas;
 pub mod sugestao;
 pub mod termo;
 pub mod vincular;

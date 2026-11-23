@@ -193,6 +193,12 @@ export function painelDe(id: string): PainelFuncionalidade {
         id: "D-0004",
         titulo: "Permitir cancelamento parcial",
         aberta: true,
+        rastreador: {
+          estado: "em-andamento",
+          conferido: "2026-11-20T13:00:00Z",
+          encerrado: null,
+        },
+        avisoRastreador: null,
         criado: "2026-11-14",
         chave: "#41",
         origem: "https://github.com/acme/faturamento/issues/41",

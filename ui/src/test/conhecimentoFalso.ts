@@ -213,6 +213,9 @@ export function demandasFicticias(): DemandaVista[] {
       id: "D-0001",
       titulo: "Parcelamento PJ",
       status: "aberta",
+      statusLocal: "aberta",
+      rastreador: null,
+      avisoRastreador: null,
       chave: "FAT-12",
       origem: null,
       criado: "2026-11-01",
@@ -223,6 +226,9 @@ export function demandasFicticias(): DemandaVista[] {
       id: "D-0002",
       titulo: "Multa de fatura vencida",
       status: "encerrada",
+      statusLocal: "encerrada",
+      rastreador: null,
+      avisoRastreador: null,
       chave: null,
       origem: null,
       criado: "2026-10-01",
@@ -454,6 +460,9 @@ export function apiConhecimentoFalsa() {
       return Promise.resolve(parar);
     }),
     listarDemandas: vi.fn((): Promise<DemandaVista[]> => Promise.resolve(demandasFicticias())),
+    atualizarStatusDemandas: vi.fn(
+      (): Promise<DemandaVista[]> => Promise.resolve(demandasFicticias()),
+    ),
     criarDemanda: vi.fn(
       (_p: string, nova: NovaDemanda): Promise<DemandaVista> =>
         Promise.resolve({

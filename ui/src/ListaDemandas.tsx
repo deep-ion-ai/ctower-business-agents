@@ -2,12 +2,17 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { mensagemDe } from "./analise";
 import type { ApiConhecimento } from "./conhecimento";
 import { ROTULO_STATUS_DEMANDA, type DemandaVista } from "./demandas";
+import { EstadoNoRastreador } from "./EstadoNoRastreador";
 import type { Tela } from "./Navegacao";
 
 /**
  * Demandas do projeto (#138), no início da tela do projeto: as abertas primeiro,
  * com criar (título, descrição e chave externa opcional), encerrar e reabrir. Cada
  * demanda abre o painel dela.
+ *
+ * A demanda que veio de uma issue mostra o status conferido no rastreador (#292),
+ * com quando foi conferido; encerrar e reabrir ficam só para as demais. "Atualizar
+ * status" confere de novo, sem o cache.
  */
 export function ListaDemandas({
   api,
@@ -22,6 +27,7 @@ export function ListaDemandas({
   const [falha, setFalha] = useState<string | null>(null);
   const [criando, setCriando] = useState(false);
   const [mudando, setMudando] = useState<string | null>(null);
+  const [atualizando, setAtualizando] = useState(false);
 
   const carregar = useCallback(() => {
     api
@@ -34,6 +40,17 @@ export function ListaDemandas({
   }, [api, projeto]);
 
   useEffect(carregar, [carregar]);
+
+  const atualizarStatus = () => {
+    setAtualizando(true);
+    setFalha(null);
+    api
+      .atualizarStatusDemandas(projeto)
+      .then(setDemandas)
+      .catch((e: unknown) => setFalha(mensagemDe(e)))
+      .finally(() => setAtualizando(false));
+  };
+  const temChave = demandas?.some((d) => d.chave) ?? false;
 
   const mudarStatus = (d: DemandaVista) => {
     setMudando(d.id);
@@ -50,6 +67,11 @@ export function ListaDemandas({
   return (
     <section aria-label="Demandas">
       <h3>Demandas</h3>
+      {temChave && (
+        <button type="button" className="btn" disabled={atualizando} onClick={atualizarStatus}>
+          {atualizando ? "Atualizando o status…" : "Atualizar status"}
+        </button>
+      )}
       {falha && (
         <p className="error-text" role="alert">
           {falha}
@@ -82,14 +104,17 @@ export function ListaDemandas({
                   ? `encerrada em ${d.encerrado}`
                   : `criada em ${d.criado}`}
               </span>
-              <button
-                type="button"
-                className="btn"
-                disabled={mudando === d.id}
-                onClick={() => mudarStatus(d)}
-              >
-                {d.status === "aberta" ? `Encerrar ${d.id}` : `Reabrir ${d.id}`}
-              </button>
+              <EstadoNoRastreador rastreador={d.rastreador} aviso={d.avisoRastreador} />
+              {!d.rastreador && (
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={mudando === d.id}
+                  onClick={() => mudarStatus(d)}
+                >
+                  {d.status === "aberta" ? `Encerrar ${d.id}` : `Reabrir ${d.id}`}
+                </button>
+              )}
             </li>
           ))}
         </ul>

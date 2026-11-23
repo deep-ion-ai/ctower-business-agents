@@ -110,6 +110,16 @@ prontidão não bloqueia o app.
 
 - **Análise a partir de uma issue:** o campo “Issue do projeto” (`PROJ-123`, `45`) busca título e
   descrição como entrada. O link vai em `demanda.origem` e a chave em `demanda.chave`.
+- **Status das demandas (#292):** a demanda com `chave` do rastreador do projeto (e `origem` dele,
+  quando houver) tem o estado conferido em lote — `gh api graphql`, `glab api
+  projects/:id/issues?iids[]=…` e `jira issue list --jql "key in (…)"` — ao ser importada, ao abrir
+  a lista de demandas, o painel da demanda e o da funcionalidade (com cache de 5 minutos) e pelo
+  botão "Atualizar status". O estado vai para o bloco `rastreador` do `demanda.md` (`estado`:
+  `aberta`, `em-andamento` ou `encerrada`; `conferido`; `encerrado`, a data de fechamento), sem
+  mudar o `status` local, e passa a valer para a demanda estar aberta ou encerrada. No Jira, o estado
+  sai da categoria do status (`new`, `indeterminate`, `done`), não do nome. O arquivo só é regravado
+  quando o estado muda ou o dia vira. Sem rede ou sem token, a tela mostra o último estado conhecido
+  com um aviso. A demanda sem `chave` mantém o status local. Nada é escrito no rastreador.
 - **Evidências exportadas:** cada nota vira um link para o arquivo e as linhas no commit da
   evidência (ou, na falta dele, o `base.commit` da análise), no repositório cuja pasta contém o
   arquivo (a mais funda, se um estiver dentro do outro); o caminho no link é relativo à pasta do

@@ -3796,3 +3796,13 @@ code[data-tone="attention"] {
   padding-left: 18px;
   color: var(--text-2);
 }
+
+/* Estado da demanda no rastreador (#292). */
+.estado-rastreador {
+  font-size: 0.85em;
+}
+
+.aviso-rastreador {
+  color: var(--attention);
+  font-size: 0.85em;
+}

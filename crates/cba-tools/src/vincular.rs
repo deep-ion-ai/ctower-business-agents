@@ -6,6 +6,10 @@
 //! é ligada às funcionalidades por [`MapaFuncionalidades::ligar_demanda`], com
 //! **uma única gravação do mapa por lote**. Repetir a confirmação não duplica
 //! demandas nem vínculos. Nada é escrito no rastreador.
+//!
+//! A demanda criada (ou reaproveitada sem estado do rastreador) já sai com o
+//! estado da issue na listagem (#292); a conferência seguinte
+//! ([`crate::status_demandas`]) traz a data de fechamento e o "em andamento".
 
 use cba_core::ambiente::Ambiente;
 use cba_core::funcionalidades::MapaFuncionalidades;
@@ -72,6 +76,28 @@ pub fn demanda_da_issue(
         .map(|d| d.id)
 }
 
+/// Grava na demanda o estado da issue como veio na listagem (`aberta` ou
+/// `fechada`, sem a data). Falha só vai para o log: a conferência seguinte grava.
+fn gravar_estado_da_listagem(ambiente: &Ambiente, id: IdDemanda, issue: &IssueListada) {
+    use cba_kb::frontmatter::{EstadoNoRastreador, EstadoRastreador};
+    let estado = match issue.estado.as_str() {
+        "aberta" => EstadoRastreador::Aberta,
+        "fechada" => EstadoRastreador::Encerrada,
+        _ => return,
+    };
+    let gravado = ambiente.kb.gravar_estado_no_rastreador(
+        id,
+        EstadoNoRastreador {
+            estado,
+            conferido: cba_core::tempo::instante_iso(cba_core::tempo::agora_ms()),
+            encerrado: None,
+        },
+    );
+    if let Err(erro) = gravado {
+        tracing::warn!(demanda = %id, %erro, "estado da issue não gravado na demanda");
+    }
+}
+
 /// Confirma o lote: cria ou reaproveita as demandas e liga cada uma às
 /// funcionalidades escolhidas. Issue sem funcionalidade fica de fora (continua
 /// "sem funcionalidade", sem demanda).
@@ -85,6 +111,12 @@ pub fn confirmar_vinculos(
     for item in lote.iter().filter(|i| !i.funcionalidades.is_empty()) {
         let id = match demanda_da_issue(&existentes, &item.issue) {
             Some(id) => {
+                let sem_estado = existentes
+                    .iter()
+                    .any(|d| d.id == id && d.documento.frontmatter.rastreador.is_none());
+                if sem_estado {
+                    gravar_estado_da_listagem(ambiente, id, &item.issue);
+                }
                 if !resultado.reaproveitadas.contains(&id) {
                     resultado.reaproveitadas.push(id);
                 }
@@ -105,6 +137,7 @@ pub fn confirmar_vinculos(
                     .map_err(interno)?;
                 resultado.criadas.push(nova.id);
                 existentes.push(nova.clone());
+                gravar_estado_da_listagem(ambiente, nova.id, &item.issue);
                 nova.id
             }
         };

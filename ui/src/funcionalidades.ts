@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import type { AnaliseCriada, AnaliseResumo, EstadoAnalise, Fluxo } from "./analise";
 import type { StatusRegra } from "./conhecimento";
+import type { RastreadorVista } from "./demandas";
 import { contar } from "./formatacao";
 
 /**
@@ -158,7 +159,12 @@ export interface EtapaDemanda {
 export interface DemandaNoPainel {
   id: string;
   titulo: string;
+  /** Pelo status efetivo: o conferido no rastreador, quando há (#292). */
   aberta: boolean;
+  /** Estado conferido no rastreador, se a demanda veio de uma issue. */
+  rastreador: RastreadorVista | null;
+  /** Rastreador inacessível ou issue não encontrada na última conferência. */
+  avisoRastreador: string | null;
   criado: string;
   /** Chave e endereço da issue, quando a demanda veio do rastreador (#270). */
   chave: string | null;

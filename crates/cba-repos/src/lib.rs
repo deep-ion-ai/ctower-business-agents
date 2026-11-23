@@ -60,6 +60,7 @@ mod credential;
 pub mod demanda;
 pub mod docs;
 pub mod escrita;
+pub mod estado;
 pub mod link;
 pub mod listagem;
 pub mod process;

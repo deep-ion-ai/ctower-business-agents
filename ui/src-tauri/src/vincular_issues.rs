@@ -380,7 +380,36 @@ pub async fn confirmar_vinculos_app(
     itens: Vec<ItemConfirmado>,
 ) -> Result<ResultadoDoLote, String> {
     let dados = dados()?;
-    bloqueante(move || confirmar_lote(&dados, &projeto, itens)).await
+    bloqueante(move || {
+        let r = confirmar_lote(&dados, &projeto, itens)?;
+        conferir_importadas(&dados, &projeto, &r, &Ferramentas::default());
+        Ok(r)
+    })
+    .await
+}
+
+/// Confere já o estado das demandas importadas (#292): a listagem só diz aberta
+/// ou fechada; a conferência traz a data de fechamento e o "em andamento".
+/// Falha não desfaz a importação: a próxima tela confere de novo.
+pub fn conferir_importadas(
+    dados: &DiretorioDados,
+    projeto: &str,
+    r: &ResultadoDoLote,
+    ferramentas: &Ferramentas,
+) {
+    let ids: Vec<cba_kb::IdDemanda> = r
+        .demandas
+        .iter()
+        .filter_map(|d| cba_kb::IdDemanda::analisar(&d.demanda).ok())
+        .collect();
+    if ids.is_empty() {
+        return;
+    }
+    if let Err(erro) =
+        crate::demandas::conferir_status(dados, projeto, Some(&ids), true, ferramentas)
+    {
+        tracing::warn!(%erro, "estado das demandas importadas não conferido");
+    }
 }
 
 /// Pedido para a sessão do Claude propor o vínculo das issues sem sugestão clara.
