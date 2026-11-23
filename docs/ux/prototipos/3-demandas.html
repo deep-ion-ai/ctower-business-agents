@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>Demandas e issues do rastreador · protótipo #312</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<link rel="stylesheet" href="prototipo.css">
+<style>html,body{height:100%} .win,.win.alta{width:auto;height:100vh;min-height:640px}</style>
+</head>
+<body>
+<div class="win" id="win">
+  <header class="tb">
+    <b>Ctower Business Agents</b>
+    <button class="proj" type="button" title="Trocar de projeto">OpenCBS ▾</button>
+    <span class="sp"></span>
+    <span class="busca"><span>Buscar regra, análise, demanda…</span><span class="kbd">⌘K</span></span>
+    <span class="sp"></span>
+    <button class="btn btn-sm" type="button" id="tema">Tema escuro</button>
+  </header>
+  <div class="work">
+    <nav class="rail" aria-label="Seções do projeto">
+      <div class="grupo">Projeto</div>
+      <a href="1-visao-geral.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-4H4zM14 8h6V4h-6z"></path></svg><span>Visão geral</span></a>
+      <a href="2-atividades.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 6h16v10H8l-4 4z"></path></svg><span>Atividades</span><span class="n">7</span></a>
+      <a href="#analises" title="Fora deste protótipo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"></path><path d="M9 12h7M9 16h5"></path></svg><span>Análises</span><span class="n neutro">9</span></a>
+      <a href="3-demandas.html" aria-current="page"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="2"></circle></svg><span>Demandas</span><span class="n neutro">6</span></a>
+      <div class="grupo">Conhecimento</div>
+      <a href="6-base.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"></path></svg><span>Base</span></a>
+      <a href="5-funcionalidades.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 6v5M5 20v-5h14v5M12 11v4"></path><rect x="9" y="2" width="6" height="4"></rect></svg><span>Funcionalidades</span></a>
+      <a href="#codigo" title="Fora deste protótipo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4M13 6l-2 12"></path></svg><span>Código</span></a>
+      <a class="fim" href="#configuracoes" title="Fora deste protótipo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"></path></svg><span>Configurações</span></a>
+    </nav>
+    <main class="main">
+      <div class="page">
+        <div class="cab">
+          <div>
+            <h1>Demandas</h1>
+            <p class="sub">Issues de GitHub · OpenCBS/OpenCBS-Cloud · estado conferido há 5 min</p>
+          </div>
+          <div class="acoes">
+            <button class="btn" type="button">Atualizar</button>
+            <button class="btn" type="button">Nova demanda à mão</button>
+          </div>
+        </div>
+
+        <div class="barra-filtros">
+          <label class="sr-only" for="busca-demandas">Buscar demandas</label>
+          <input id="busca-demandas" class="campo" style="width: 320px" type="search" placeholder="Número ou título">
+          <button class="chip" type="button" aria-pressed="true">Abertas 6</button>
+          <button class="chip" type="button" aria-pressed="false">Encerradas 11</button>
+          <button class="chip" type="button" aria-pressed="false">Todas 17</button>
+          <span class="muted">·</span>
+          <button class="chip" type="button" aria-pressed="false">Sem análise 2</button>
+          <button class="chip" type="button" aria-pressed="false">Com análise 4</button>
+          <label class="sr-only" for="rotulo-demandas">Rótulo</label>
+          <select id="rotulo-demandas" class="campo"><option>Todos os rótulos</option><option>open-finance</option><option>cobrança</option></select>
+        </div>
+
+        <div class="grid g32">
+          <section class="panel" aria-label="Lista de demandas">
+            <ul class="linhas">
+              <li class="sel"><span class="id">#412</span>
+                <span class="tit"><b>Portabilidade: informar o saldo devedor ao banco de destino</b><br><span class="muted">aberta ontem · open-finance</span></span>
+                <span class="fim"><span class="chip" data-tone="attention">sem análise</span><button class="btn btn-p btn-sm" type="button">Analisar impacto</button></span></li>
+              <li><span class="id">#409</span>
+                <span class="tit"><b>Lembrete de vencimento por e-mail</b><br><span class="muted">aberta há 3 dias · cobrança</span></span>
+                <span class="fim"><span class="chip" data-tone="attention">sem análise</span><button class="btn btn-sm" type="button">Analisar impacto</button></span></li>
+              <li><span class="id">#398</span>
+                <span class="tit"><b>Expor contratos, parcelas e encargos pela API de dados (api-loans)</b><br><span class="muted">aberta há 9 dias · open-finance</span></span>
+                <span class="fim"><span class="chip">A-0003 em revisão</span><button class="btn btn-sm" type="button">Abrir a análise</button></span></li>
+              <li><span class="id">#391</span>
+                <span class="tit"><b>Quitação antecipada pagando só o saldo devedor</b><br><span class="muted">aberta há 12 dias · crédito</span></span>
+                <span class="fim"><span class="chip">A-0006 em revisão</span><button class="btn btn-sm" type="button">Abrir a análise</button></span></li>
+              <li><span class="id">#377</span>
+                <span class="tit"><b>Multa por atraso: carência por produto</b><br><span class="muted">aberta há 20 dias · cobrança</span></span>
+                <span class="fim"><span class="chip" data-tone="done">A-0001 aprovada</span><button class="btn btn-sm" type="button">Abrir a demanda</button></span></li>
+              <li><span class="id">#352</span>
+                <span class="tit"><b>Portabilidade de crédito (Open Finance)</b><br><span class="muted">aberta há 1 mês · open-finance · D-0001</span></span>
+                <span class="fim"><span class="chip">A-0005 em revisão</span><button class="btn btn-sm" type="button">Abrir a demanda</button></span></li>
+            </ul>
+            <p class="muted" style="font-size: 12.5px">6 de 17 demandas. Nada é escrito no rastreador: analisar cria a demanda na base e a análise ligada a ela.</p>
+          </section>
+
+          <section class="panel" aria-label="Demanda selecionada">
+            <h2>#412 <span class="chip" data-tone="running">aberta</span> <a href="#github">Abrir no GitHub ↗</a></h2>
+            <h3 style="font-size: 16px; font-weight: 600">Portabilidade: informar o saldo devedor ao banco de destino</h3>
+            <p style="color: var(--text-2)">O Open Finance exige que a instituição de origem informe o saldo devedor atualizado quando o cliente pede a portabilidade. Precisamos calcular o saldo com juros e multas até a data do pedido…</p>
+            <div class="legenda"><span>Aberta por maria.souza</span><span>2 comentários</span><span>rótulo open-finance</span></div>
+            <h2 style="margin-top: 6px">Na base</h2>
+            <div class="vazio">
+              <b>Ainda sem análise</b>
+              <span>A análise de impacto verifica no código o que o solicitante afirmou e lista o que muda em regras, dados e telas.</span>
+              <button class="btn btn-p" type="button">Analisar impacto</button>
+              <button class="btn btn-sm" type="button">Outra análise ▾</button>
+            </div>
+            <h2 style="margin-top: 6px">Parecidas</h2>
+            <ul class="linhas">
+              <li><span class="id">#352</span><span class="tit">Portabilidade de crédito (Open Finance)</span><span class="fim"><span class="chip">A-0005</span></span></li>
+              <li><span class="id">RN-MUL-001</span><span class="tit">A multa de atraso é apurada todo dia…</span></li>
+            </ul>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+  <footer class="sb"><span>Ambiente pronto</span><span class="mono">Base: ~/Documentos/ctower-business</span><span style="flex: 1"></span><span>1 sessão aguarda você</span></footer>
+</div>
+<script>
+// Tema: ?tema=escuro na URL ou o botão da barra de título; a escolha segue nos links.
+(function () {
+  var w = document.getElementById("win"), b = document.getElementById("tema");
+  var escuro = new URLSearchParams(location.search).get("tema") === "escuro";
+  function aplicar() {
+    w.classList.toggle("escuro", escuro);
+    b.textContent = escuro ? "Tema claro" : "Tema escuro";
+    document.querySelectorAll(".rail a, .page a").forEach(function (a) {
+      var h = a.getAttribute("href");
+      if (h && h.indexOf(".html") > 0) a.setAttribute("href", h.split("?")[0] + (escuro ? "?tema=escuro" : ""));
+    });
+  }
+  b.onclick = function () { escuro = !escuro; aplicar(); };
+  aplicar();
+})();
+</script>
+</body>
+</html>
