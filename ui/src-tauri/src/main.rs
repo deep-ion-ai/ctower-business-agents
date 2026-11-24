@@ -56,6 +56,7 @@ mod publicacao;
 mod rastreabilidade;
 mod registros;
 mod repositorios;
+mod resumo;
 mod reunioes;
 mod revisao;
 mod terminal;
