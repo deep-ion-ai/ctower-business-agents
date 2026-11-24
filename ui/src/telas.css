@@ -4137,3 +4137,78 @@ code[data-tone="attention"] {
 .busca-issue-opcoes button:focus-visible {
   background: var(--hover);
 }
+
+/* Funcionalidades: progresso do mapa, lista compacta e lacunas (#327). */
+.progresso-mapa {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 24px;
+  margin: 8px 0;
+}
+.progresso-etapas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.progresso-codigo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.barra-progresso {
+  width: 140px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.barra-progresso > div {
+  height: 100%;
+  background: var(--accent);
+}
+.lista-compacta {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+.linha-funcionalidade {
+  border-bottom: 1px solid var(--border);
+  padding: 4px 0;
+}
+.linha-principal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+.linha-nome {
+  flex: 1 1 200px;
+  min-width: 0;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 2px 0;
+  color: inherit;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.linha-nome:hover strong {
+  text-decoration: underline;
+}
+.linha-etiquetas {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.mapa-vazio ol {
+  text-align: left;
+  margin: 8px auto;
+  max-width: 480px;
+}

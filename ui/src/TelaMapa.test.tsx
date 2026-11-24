@@ -73,7 +73,8 @@ describe("TelaMapa", () => {
       avisos: [],
     });
     abrir(api);
-    fireEvent.click(await screen.findByRole("button", { name: "Religar documentos" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Mais" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Religar documentos" }));
     expect(
       await screen.findByText("Religados às funcionalidades: 1 análise, 1 regra."),
     ).toBeInTheDocument();
@@ -82,21 +83,22 @@ describe("TelaMapa", () => {
 
   it("mostra o mapa por área, o resumo e os pontos sem tratamento", async () => {
     abrir(apiFalsa());
-    expect(await screen.findByRole("region", { name: "F-COB-001: Calcular encargos" })).toBeInTheDocument();
+    expect(await screen.findByRole("listitem", { name: "F-COB-001: Calcular encargos" })).toBeInTheDocument();
     expect(screen.getByLabelText("Resumo do mapa")).toHaveTextContent(
       "2 funcionalidades · 2 áreas · 1 a revisar · 1 documentadas · 15 pontos de entrada, 1 ainda sem funcionalidade",
     );
     expect(screen.getByRole("heading", { name: /Cancelamento/ })).toBeInTheDocument();
-    const sem = screen.getByRole("list", { name: "Ainda sem funcionalidade" });
-    expect(sem).toHaveTextContent("PKG_SITUACAO.PRC_SUSPENDER_COBRANCA");
+    const lacunas = screen.getByRole("list", { name: "Lacunas da cobertura" });
+    expect(lacunas).toHaveTextContent("db");
+    expect(screen.queryByText("PKG_SITUACAO.PRC_SUSPENDER_COBRANCA")).toBeNull();
     expect(screen.getByRole("list", { name: "Justificados" })).toHaveTextContent("utilitário");
   });
 
   it("aceita, filtra e desfaz uma justificativa", async () => {
     const api = apiFalsa();
     abrir(api);
-    const cartao = await screen.findByRole("region", { name: "F-COB-001: Calcular encargos" });
-    fireEvent.click(within(cartao).getByRole("button", { name: "Aceitar" }));
+    const cartao = await screen.findByRole("listitem", { name: "F-COB-001: Calcular encargos" });
+    fireEvent.click(within(cartao).getByRole("button", { name: "Aceitar F-COB-001" }));
     await waitFor(() =>
       expect(api.revisar).toHaveBeenCalledWith("faturamento-exemplo", {
         tipo: "decidir",
@@ -108,14 +110,14 @@ describe("TelaMapa", () => {
       expect(screen.getByLabelText("Resumo do mapa")).toHaveTextContent("0 a revisar"),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "A revisar" }));
-    expect(screen.queryByRole("region", { name: "F-CAN-001: Cancelar fatura" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Todas" }));
+    fireEvent.click(screen.getByRole("button", { name: /^A revisar/ }));
+    expect(screen.queryByRole("listitem", { name: "F-CAN-001: Cancelar fatura" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /^Todas \(/ }));
     fireEvent.change(screen.getByRole("searchbox", { name: "Buscar funcionalidade" }), {
       target: { value: "cancelar" },
     });
-    expect(screen.queryByRole("region", { name: "F-COB-001: Calcular encargos" })).toBeNull();
-    expect(screen.getByRole("region", { name: "F-CAN-001: Cancelar fatura" })).toBeInTheDocument();
+    expect(screen.queryByRole("listitem", { name: "F-COB-001: Calcular encargos" })).toBeNull();
+    expect(screen.getByRole("listitem", { name: "F-CAN-001: Cancelar fatura" })).toBeInTheDocument();
 
     fireEvent.click(
       within(screen.getByRole("list", { name: "Justificados" })).getByRole("button", {
@@ -133,8 +135,9 @@ describe("TelaMapa", () => {
   it("divide uma funcionalidade escolhendo os pontos", async () => {
     const api = apiFalsa();
     abrir(api);
-    const cartao = await screen.findByRole("region", { name: "F-COB-001: Calcular encargos" });
-    fireEvent.click(within(cartao).getByRole("button", { name: "Dividir" }));
+    const cartao = await screen.findByRole("listitem", { name: "F-COB-001: Calcular encargos" });
+    fireEvent.click(within(cartao).getByRole("button", { name: "Mais ações para F-COB-001" }));
+    fireEvent.click(within(cartao).getByRole("menuitem", { name: "Dividir" }));
     const form = within(cartao).getByRole("form", { name: "Dividir F-COB-001" });
     fireEvent.click(within(form).getByLabelText("EncargosService.calcular"));
     fireEvent.change(within(form).getByLabelText("Nome da nova"), {
@@ -158,22 +161,26 @@ describe("TelaMapa", () => {
   it("explica uma funcionalidade numa análise e abre o documento negocial", async () => {
     const api = apiFalsa();
     const { navegar } = abrir(api);
-    const cartao = await screen.findByRole("region", { name: "F-CAN-001: Cancelar fatura" });
-    fireEvent.click(within(cartao).getByRole("button", { name: "Documento negocial" }));
+    const cartao = await screen.findByRole("listitem", { name: "F-CAN-001: Cancelar fatura" });
+    fireEvent.click(within(cartao).getByRole("button", { name: "Mais ações para F-CAN-001" }));
+    fireEvent.click(within(cartao).getByRole("menuitem", { name: "Documento negocial" }));
     expect(navegar).toHaveBeenCalledWith({
       tipo: "base",
       documento: "faturamento-exemplo/funcionalidades/cancelamento/cancelar-fatura/negocial.md",
     });
-    // Já explicada: "Explicar" desabilitado e o link para a análise.
-    expect(within(cartao).getByRole("button", { name: "Explicar" })).toBeDisabled();
-    fireEvent.click(within(cartao).getByRole("button", { name: "Explicação A-0002 (aprovada)" }));
+    // Já explicada: sem "Explicar" e com o link para a análise.
+    expect(within(cartao).queryByRole("button", { name: "Explicar F-CAN-001" })).toBeNull();
+    fireEvent.click(within(cartao).getByRole("button", { name: "Mais ações para F-CAN-001" }));
+    expect(within(cartao).queryByRole("menuitem", { name: "Explicar" })).toBeNull();
+    fireEvent.click(within(cartao).getByRole("menuitem", { name: "Explicação A-0002 (aprovada)" }));
     expect(navegar).toHaveBeenCalledWith({
       tipo: "analise",
       projeto: "faturamento-exemplo",
       aberta: { id: "A-0002", abertura: { tipo: "reabrir" } },
     });
-    const cobranca = screen.getByRole("region", { name: "F-COB-001: Calcular encargos" });
-    fireEvent.click(within(cobranca).getByRole("button", { name: "Explicar" }));
+    const cobranca = screen.getByRole("listitem", { name: "F-COB-001: Calcular encargos" });
+    fireEvent.click(within(cobranca).getByRole("button", { name: "Mais ações para F-COB-001" }));
+    fireEvent.click(within(cobranca).getByRole("menuitem", { name: "Explicar" }));
     await waitFor(() =>
       expect(navegar).toHaveBeenCalledWith({
         tipo: "analise",
@@ -186,7 +193,7 @@ describe("TelaMapa", () => {
   it("relê o mapa quando o agente registra algo", async () => {
     const api = apiFalsa();
     const { analise } = abrir(api);
-    await screen.findByRole("region", { name: "F-COB-001: Calcular encargos" });
+    await screen.findByRole("listitem", { name: "F-COB-001: Calcular encargos" });
     expect(api.mapa).toHaveBeenCalledTimes(1);
     analise.avisar({ tipo: "mudanca", analise: "A-0001", mudanca: "afirmacao", versao: 2 });
     analise.avisar({ tipo: "mudanca", analise: "mapa", mudanca: "funcionalidade", versao: 4 });
@@ -206,7 +213,7 @@ describe("TelaMapa", () => {
       enviarPrompt: vi.fn().mockResolvedValue(undefined),
     } as unknown as ApiTerminal;
     abrir(api, analiseFalsa(), apiTerminal);
-    await screen.findByRole("region", { name: "F-COB-001: Calcular encargos" });
+    await screen.findByRole("listitem", { name: "F-COB-001: Calcular encargos" });
     fireEvent.click(screen.getByRole("button", { name: "Mapear com o Claude" }));
     const form = screen.getByRole("form", { name: "Começar o mapeamento" });
     fireEvent.change(within(form).getByLabelText("Pasta (opcional)"), { target: { value: "db" } });
@@ -234,7 +241,7 @@ describe("TelaMapa", () => {
     } as unknown as ApiTerminal;
     const aoMudarConversa = vi.fn();
     abrir(api, analiseFalsa(), apiTerminal, aoMudarConversa);
-    await screen.findByRole("region", { name: "F-COB-001: Calcular encargos" });
+    await screen.findByRole("listitem", { name: "F-COB-001: Calcular encargos" });
     // Sem sessão, nada de conversa viva.
     expect(aoMudarConversa).not.toHaveBeenCalledWith("aberta");
     fireEvent.click(screen.getByRole("button", { name: "Mapear com o Claude" }));
@@ -245,29 +252,11 @@ describe("TelaMapa", () => {
     await waitFor(() => expect(aoMudarConversa).toHaveBeenLastCalledWith("nenhuma"));
   });
 
-  it("mostra as evidências de código só quando o analista pede", async () => {
-    abrir(apiFalsa());
-    const cartao = await screen.findByRole("region", { name: "F-COB-001: Calcular encargos" });
-    const opcao = screen.getByRole("checkbox", { name: "Mostrar evidências de código" });
-    expect(opcao).not.toBeChecked();
-    // Desligada: nem os pontos de entrada (arquivo e linha) nem os trechos, só a contagem.
-    expect(within(cartao).queryByRole("list", { name: "Pontos de entrada de F-COB-001" })).toBeNull();
-    expect(cartao).not.toHaveTextContent("db/03_pkg_cobranca.sql");
-    expect(cartao).toHaveTextContent("2 pontos de entrada");
-    fireEvent.click(opcao);
-    const pontos = within(cartao).getByRole("list", { name: "Pontos de entrada de F-COB-001" });
-    expect(pontos).toHaveTextContent("PKG_COBRANCA.FN_CALCULAR_MULTA · rotina de banco · db/03_pkg_cobranca.sql:10");
-    const ev = within(cartao).getByLabelText("Evidência de PKG_COBRANCA.FN_CALCULAR_MULTA");
-    expect(ev).toHaveTextContent("FUNCTION FN_CALCULAR_MULTA");
-    fireEvent.click(opcao);
-    expect(within(cartao).queryByRole("list", { name: "Pontos de entrada de F-COB-001" })).toBeNull();
-  });
-
   it("árvore lateral abre a página só da funcionalidade escolhida", async () => {
     abrir(apiFalsa());
     const arvore = await screen.findByRole("navigation", { name: "Árvore de funcionalidades" });
     expect(within(arvore).getByRole("button", { name: /Cobrança 1 · 1 a revisar/ })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "A revisar" }));
+    fireEvent.click(screen.getByRole("button", { name: /^A revisar/ }));
     const cancelar = within(arvore).getByRole("button", { name: /F-CAN-001 Cancelar fatura/ });
     expect(cancelar).toHaveClass("fora-do-filtro");
 
@@ -276,9 +265,9 @@ describe("TelaMapa", () => {
     expect(within(pagina).getByRole("heading", { name: "Cancelar fatura" })).toBeInTheDocument();
     expect(await within(pagina).findByRole("region", { name: "Indicadores" })).toBeInTheDocument();
     // Só ela: nem as outras, nem a lista, nem os pontos sem tratamento.
-    expect(screen.queryByRole("region", { name: "F-COB-001: Calcular encargos" })).toBeNull();
+    expect(screen.queryByRole("listitem", { name: "F-COB-001: Calcular encargos" })).toBeNull();
     expect(screen.queryByRole("region", { name: "Funcionalidades" })).toBeNull();
-    expect(screen.queryByRole("region", { name: "Pontos de entrada sem funcionalidade" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Ainda sem mapa" })).toBeNull();
     expect(cancelar).toHaveAttribute("aria-current", "true");
 
     // A árvore troca de página; "Todas as funcionalidades" volta à lista.
@@ -308,6 +297,36 @@ describe("TelaMapa", () => {
       }),
     );
     expect(await screen.findByText(/O mapa ainda está vazio/)).toBeInTheDocument();
+    // Os pontos de entrada ficam atrás de "Ver os pontos de entrada".
+    expect(screen.getByText("Ver os pontos de entrada")).toBeInTheDocument();
+    expect(screen.getByText("PKG_SITUACAO.PRC_SUSPENDER_COBRANCA")).not.toBeVisible();
     expect(screen.queryByRole("button", { name: "Exportar Markdown" })).toBeNull();
+  });
+
+  it("mostra o progresso do mapa em quatro etapas e o código já mapeado", async () => {
+    abrir(apiFalsa());
+    const progresso = await screen.findByRole("region", { name: "Progresso do mapa" });
+    const etapas = within(progresso).getAllByRole("listitem").map((e) => e.textContent);
+    expect(etapas).toEqual(["2 de 2 mapeadas", "1 de 2 aceitas", "1 de 2 explicadas", "— com manual"]);
+    expect(within(progresso).getByRole("progressbar", { name: "Código já mapeado" })).toHaveAttribute(
+      "aria-valuenow",
+      "93",
+    );
+  });
+
+  it("filtros mostram a contagem", async () => {
+    abrir(apiFalsa());
+    expect(await screen.findByRole("button", { name: "Todas (2)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "A revisar (1)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Aceitas (1)" })).toBeInTheDocument();
+  });
+
+  it("Mapear numa lacuna abre a sessão com a pasta preenchida e Código lista todas", async () => {
+    const { navegar } = abrir(apiFalsa());
+    fireEvent.click(await screen.findByRole("button", { name: "Mapear db" }));
+    const form = screen.getByRole("form", { name: "Começar o mapeamento" });
+    expect(within(form).getByLabelText("Pasta (opcional)")).toHaveValue("db");
+    fireEvent.click(screen.getByRole("button", { name: "Ver todas as pastas em Código" }));
+    expect(navegar).toHaveBeenCalledWith({ tipo: "codigo", projeto: "faturamento-exemplo" });
   });
 });
