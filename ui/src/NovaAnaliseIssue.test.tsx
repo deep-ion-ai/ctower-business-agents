@@ -18,6 +18,7 @@ const issue = (chave: string, titulo: string): IssueDoProjeto => ({
   analise: null,
   demanda: null,
   funcionalidades: [],
+  analises: [],
 });
 
 function montar(listar: ApiIssues["listar"]) {
@@ -63,17 +64,22 @@ describe("NovaAnalise: Issue do projeto vira busca sobre a lista das issues (#32
       ),
     );
     const api = montar(listar);
-    const campo = await screen.findByLabelText(/Issue do projeto/);
+    const campo = await screen.findByLabelText(/Issue ou demanda/);
     fireEvent.focus(campo);
-    const opcoes = await screen.findByRole("list", { name: "Issues do projeto" });
-    expect(within(opcoes).getAllByRole("button")).toHaveLength(2);
+    const opcoes = await screen.findByRole("list", { name: "Demandas e issues do projeto" });
+    // As demandas abertas do projeto vêm antes das issues, no mesmo campo (#350).
+    expect(within(opcoes).getAllByRole("button").map((b) => b.querySelector(".id")?.textContent)).toEqual([
+      "D-0001",
+      "#412",
+      "#377",
+    ]);
     expect(listar).toHaveBeenCalledWith(PROJETO, { busca: "", estado: "abertas" });
 
     fireEvent.change(campo, { target: { value: "multa" } });
-    await waitFor(() => expect(within(screen.getByRole("list", { name: "Issues do projeto" })).getAllByRole("button")).toHaveLength(1));
+    await waitFor(() => expect(within(screen.getByRole("list", { name: "Demandas e issues do projeto" })).getAllByRole("button")).toHaveLength(1));
     fireEvent.click(screen.getByRole("button", { name: /#377/ }));
     expect(campo).toHaveValue("#377");
-    expect(screen.queryByRole("list", { name: "Issues do projeto" })).toBeNull();
+    expect(screen.queryByRole("list", { name: "Demandas e issues do projeto" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Iniciar a análise" }));
     await waitFor(() =>
@@ -83,10 +89,10 @@ describe("NovaAnalise: Issue do projeto vira busca sobre a lista das issues (#32
 
   it("sem a lista, o campo segue como texto livre", async () => {
     const api = montar(() => Promise.reject(new Error("sem rede")));
-    const campo = await screen.findByLabelText(/Issue do projeto/);
+    const campo = await screen.findByLabelText(/Issue ou demanda/);
     fireEvent.focus(campo);
     fireEvent.change(campo, { target: { value: "PROJ-123" } });
-    expect(screen.queryByRole("list", { name: "Issues do projeto" })).toBeNull();
+    expect(screen.queryByRole("list", { name: "Demandas e issues do projeto" })).toBeNull();
     const iniciar = screen.getByRole("button", { name: "Iniciar a análise" });
     await waitFor(() => expect(iniciar).toBeEnabled());
     fireEvent.click(iniciar);

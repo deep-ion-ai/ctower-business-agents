@@ -32,6 +32,7 @@ export function NovaReuniao({
   demandaFixa,
   aoCriar,
   aoCancelar,
+  semTitulo = false,
 }: {
   api: ApiConhecimento;
   apiReuniao?: ApiReuniao;
@@ -40,6 +41,8 @@ export function NovaReuniao({
   demandaFixa?: string;
   aoCriar: (projeto: string, criada: AnaliseCriada) => void;
   aoCancelar: () => void;
+  /** Sem o título do fluxo (quem chama já mostra o tipo escolhido). */
+  semTitulo?: boolean;
 }) {
   const [projeto, setProjeto] = useState(projetos[0]?.id ?? "");
   const [abertas, setAbertas] = useState<DemandaVista[]>([]);
@@ -152,21 +155,23 @@ export function NovaReuniao({
 
   return (
     <form className="nova-pergunta nova-reuniao" onSubmit={criar} aria-label={ROTULO_FLUXO.reuniao}>
-      <h3>{ROTULO_FLUXO.reuniao}</h3>
+      {!semTitulo && <h3>{ROTULO_FLUXO.reuniao}</h3>}
       {demandaFixa ? (
         <p className="muted">A reunião fica na demanda {demandaFixa}.</p>
       ) : (
         <>
-          <label>
-            Projeto{" "}
-            <select value={projeto} onChange={(e) => setProjeto(e.target.value)}>
-              {projetos.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.nome}
-                </option>
-              ))}
-            </select>
-          </label>
+          {projetos.length > 1 && (
+            <label>
+              Projeto{" "}
+              <select value={projeto} onChange={(e) => setProjeto(e.target.value)}>
+                {projetos.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nome}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label>
             Demanda
             <select value={demanda} onChange={(e) => setDemanda(e.target.value)}>

@@ -38,6 +38,7 @@ export function TelaConfiguracoes({
   listarProjetos = true,
   aoConfigurarProjeto,
   aoIrParaConfiguracoes,
+  aoRefazerPrimeiroUso,
 }: {
   api?: ApiConfiguracoes;
   /** Os projetos ou a base mudaram: as outras telas devem reler. */
@@ -60,6 +61,8 @@ export function TelaConfiguracoes({
   aoConfigurarProjeto?: (projeto: string) => void;
   /** Com {@link projetoFixo}: leva às configurações do app, na seção já escolhida. */
   aoIrParaConfiguracoes?: () => void;
+  /** "Refazer o primeiro uso", no cabeçalho (saiu do pé do menu lateral: #350). */
+  aoRefazerPrimeiroUso?: () => void;
 }) {
   const [cfg, setCfg] = useState<Configuracoes | null>(null);
   /** Texto aberto no editor embutido (caminho relativo à base). */
@@ -134,6 +137,15 @@ export function TelaConfiguracoes({
   if (!cfg) {
     return (
       <section className="configuracoes page" aria-label="Configurações">
+        {projetoFixo === undefined && aoRefazerPrimeiroUso && (
+          // Mesmo sem as configurações lidas, o primeiro uso continua à mão.
+          <div className="cab-secao">
+            <h2>Configurações</h2>
+            <button type="button" className="btn" onClick={aoRefazerPrimeiroUso}>
+              Refazer o primeiro uso
+            </button>
+          </div>
+        )}
         {falha ? (
           <p className="error-text" role="alert">
             Não foi possível ler as configurações: {falha}
@@ -170,7 +182,14 @@ export function TelaConfiguracoes({
             )}
           </div>
         ) : (
-          <h2>Configurações</h2>
+          <div className="cab-secao">
+            <h2>Configurações</h2>
+            {aoRefazerPrimeiroUso && (
+              <button type="button" className="btn" onClick={aoRefazerPrimeiroUso}>
+                Refazer o primeiro uso
+              </button>
+            )}
+          </div>
         )}
         {falha && (
           <p className="error-text" role="alert">

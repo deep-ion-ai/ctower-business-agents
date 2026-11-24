@@ -1,4 +1,4 @@
-import type { KeyboardEvent, ReactNode } from "react";
+import type { KeyboardEvent } from "react";
 import {
   GRUPOS_DE_SECOES,
   ITEM_CONFIGURACOES,
@@ -18,17 +18,11 @@ export function MenuLateral({
   atual,
   contagens,
   aoEscolher,
-  rodape,
-  aoNovaAnalise,
 }: {
   /** Seção à vista; `null` quando uma aba de objeto está na frente. */
   atual: Secao | null;
   contagens: Partial<Record<Secao, Contagem>>;
   aoEscolher: (s: Secao) => void;
-  /** Ações extras no pé (ex.: "Refazer o primeiro uso"). */
-  rodape?: ReactNode;
-  /** "Nova análise", ação global: abre a escolha do tipo na seção Análises. */
-  aoNovaAnalise?: () => void;
 }) {
   const teclas = (e: KeyboardEvent<HTMLElement>) => {
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
@@ -66,11 +60,6 @@ export function MenuLateral({
 
   return (
     <nav className="menu-lateral" aria-label="Seções do projeto" onKeyDown={teclas}>
-      {aoNovaAnalise && (
-        <button type="button" className="btn btn-primary menu-nova" onClick={aoNovaAnalise}>
-          Nova análise
-        </button>
-      )}
       {GRUPOS_DE_SECOES.map((g) => (
         <div key={g.titulo} className="menu-grupo" role="group" aria-label={g.titulo}>
           <span className="menu-grupo-titulo" aria-hidden="true">
@@ -81,7 +70,6 @@ export function MenuLateral({
       ))}
       <div className="menu-fim">
         {item(ITEM_CONFIGURACOES)}
-        {rodape}
       </div>
     </nav>
   );

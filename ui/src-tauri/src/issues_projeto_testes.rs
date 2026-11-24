@@ -448,3 +448,60 @@ fn analisar_impacto_recusa_issue_encerrada_ou_fora_da_lista_sem_criar_nada() {
     assert!(amb.kb.demandas().unwrap().is_empty());
     assert!(amb.analises.listar().unwrap().is_empty());
 }
+
+/// A análise criada direto da issue grava o link em `demanda.origem` e a chave, sem
+/// demanda da base: a issue a acha mesmo assim, com todas as ligadas (#350).
+#[test]
+fn analise_criada_da_issue_liga_pela_chave_e_pelo_link() {
+    let c = cenario();
+    com_rastreador(&c);
+    let f = gh_falso(c.dir.path());
+    let ligada = |entrada: &str| {
+        crate::analise::criar_analise_com_demanda(
+            &c.dados,
+            PROJETO,
+            Fluxo::Impacto,
+            entrada,
+            None,
+            Some(cba_kb::frontmatter::Demanda {
+                id: None,
+                origem: "https://github.com/o/r/issues/43".into(),
+                chave: Some("#43".into()),
+            }),
+        )
+        .unwrap()
+    };
+    let primeira = ligada("Emitir nota de crédito.");
+    let segunda = ligada("Emitir nota de crédito, de novo.");
+    // A colada à mão, com a mesma chave por acaso, não liga.
+    crate::analise::criar_analise_com_demanda(
+        &c.dados,
+        PROJETO,
+        Fluxo::Impacto,
+        "Outra coisa.",
+        None,
+        Some(cba_kb::frontmatter::Demanda {
+            id: None,
+            origem: "texto".into(),
+            chave: Some("#43".into()),
+        }),
+    )
+    .unwrap();
+    let l = listar(
+        &c.dados,
+        PROJETO,
+        &filtro(FiltroEstado::Todas),
+        Leitura::Cache,
+        &f,
+        nada,
+    )
+    .unwrap();
+    let i43 = l.issues.iter().find(|i| i.chave == "#43").unwrap();
+    assert_eq!(i43.situacao, SituacaoNaBase::EmAndamento);
+    let mut esperadas = vec![primeira.analise.id.clone(), segunda.analise.id.clone()];
+    esperadas.sort();
+    let mut achadas = i43.analises.clone();
+    achadas.sort();
+    assert_eq!(achadas, esperadas);
+    assert!(i43.analise.as_ref().is_some_and(|a| esperadas.contains(a)));
+}

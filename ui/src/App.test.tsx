@@ -93,8 +93,9 @@ describe("App", () => {
     );
     expect(api.concluir).toHaveBeenCalled();
 
-    // Cada passo pode ser refeito.
-    fireEvent.click(screen.getByRole("button", { name: "Refazer o primeiro uso" }));
+    // Cada passo pode ser refeito, pelo cabeçalho de Configurações (#350).
+    fireEvent.click(screen.getByRole("button", { name: "Configurações" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Refazer o primeiro uso" }));
     expect(await screen.findByRole("region", { name: "Primeiro uso" })).toBeInTheDocument();
   });
 

@@ -269,11 +269,15 @@ describe("Navegacao", () => {
     expect(screen.getByRole("tab", { name: "A-0002" })).toHaveAttribute("aria-selected", "true");
   });
 
-  it("\"Nova análise\" do menu abre a seção Análises com a escolha do tipo", async () => {
+  it("\"Nova análise\" fica só na seção Análises e abre o painel com a escolha do tipo (#350)", async () => {
     montar();
     await screen.findByRole("region", { name: "Visão geral do projeto" });
-    fireEvent.click(within(menu()).getByRole("button", { name: "Nova análise" }));
-    expect(await screen.findByRole("group", { name: "Tipo de análise" })).toBeInTheDocument();
+    expect(within(menu()).queryByRole("button", { name: "Nova análise" })).toBeNull();
+    fireEvent.click(item("Análises"));
+    const secao = await screen.findByRole("region", { name: "Análises" });
+    fireEvent.click(await within(secao).findByRole("button", { name: "Nova análise" }));
+    const painel = await screen.findByRole("dialog", { name: "Nova análise" });
+    expect(within(painel).getByRole("group", { name: "Tipo de análise" })).toBeInTheDocument();
     expect(item("Análises")).toHaveAttribute("aria-current", "page");
   });
 
@@ -299,7 +303,7 @@ describe("Navegacao", () => {
     // A análise abre numa aba; o menu deixa de marcar a seção.
     fireEvent.click(item("Análises"));
     const recentes = await screen.findByRole("region", { name: "Análises do projeto" });
-    fireEvent.click(await within(recentes).findByRole("button", { name: "A-0001: Multa por atraso" }));
+    fireEvent.click(await within(recentes).findByRole("button", { name: "Multa por atraso" }));
     expect(await screen.findByRole("region", { name: "Análise" })).toBeInTheDocument();
     await waitFor(() => expect(analise.api.carregarAnalise).toHaveBeenCalledWith(PROJETO, "A-0001"));
     const abas = screen.getByRole("tablist", { name: "Abas abertas" });
@@ -377,7 +381,7 @@ describe("Navegacao", () => {
     // Abrir de novo pela lista de Análises só foca a aba: nada de retomada.
     fireEvent.click(item("Análises"));
     const recentes = await screen.findByRole("region", { name: "Análises do projeto" });
-    fireEvent.click(await within(recentes).findByRole("button", { name: "A-0001: Multa por atraso" }));
+    fireEvent.click(await within(recentes).findByRole("button", { name: "Multa por atraso" }));
     expect(await screen.findByRole("region", { name: "Análise" })).toBeInTheDocument();
     expect(terminal.api.abrir).toHaveBeenCalledTimes(1);
     expect(terminal.api.encerrar).not.toHaveBeenCalled();

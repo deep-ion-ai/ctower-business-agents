@@ -84,6 +84,9 @@ pub struct IssueDoProjeto {
     pub situacao: SituacaoNaBase,
     /// Análise que define a situação (a mais recente).
     pub analise: Option<String>,
+    /// Todas as análises ligadas à issue (pela demanda ou pela chave), da mais
+    /// recente para a mais antiga (#350).
+    pub analises: Vec<String>,
     /// Demanda da base que representa a issue.
     pub demanda: Option<String>,
     /// Funcionalidades a que essa demanda está ligada.
@@ -258,6 +261,17 @@ fn analises_ligadas(amb: &cba_core::ambiente::Ambiente) -> Vec<AnaliseLigada> {
         .collect()
 }
 
+/// A origem gravada na análise aponta o rastreador da issue: o nome dele (`jira`)
+/// ou o link da issue, que é o que a análise criada direto da issue grava
+/// (`criar_analise_de_issue`). `texto` (demanda colada) nunca casa (#350).
+fn da_mesma_origem(origem: &str, i: &IssueListada) -> bool {
+    let o = origem.trim();
+    o.eq_ignore_ascii_case(i.origem.nome())
+        || o.eq_ignore_ascii_case(i.url.trim())
+        || o.starts_with("http://")
+        || o.starts_with("https://")
+}
+
 fn montar(
     dados: &DiretorioDados,
     projeto: &str,
@@ -275,16 +289,18 @@ fn montar(
     let analises = analises_ligadas(&amb);
     let vista = |i: &IssueListada| -> IssueDoProjeto {
         let demanda = demanda_da_issue(&demandas, i);
-        let mais_recente = analises
+        let mut ligadas: Vec<&AnaliseLigada> = analises
             .iter()
             .filter(|a| {
                 (demanda.is_some() && a.demanda == demanda)
-                    || (a.origem == i.origem.nome()
+                    || (da_mesma_origem(&a.origem, i)
                         && a.chave
                             .as_deref()
                             .is_some_and(|c| c.trim().eq_ignore_ascii_case(&i.chave)))
             })
-            .max_by_key(|a| a.criada_ms);
+            .collect();
+        ligadas.sort_by_key(|a| std::cmp::Reverse(a.criada_ms));
+        let mais_recente = ligadas.first().copied();
         let funcionalidades = match (demanda, &mapa) {
             (Some(d), Some(m)) => m
                 .abertas()
@@ -306,6 +322,7 @@ fn montar(
                 SituacaoNaBase::da_analise(a.estado)
             }),
             analise: mais_recente.map(|a| a.id.clone()),
+            analises: ligadas.iter().map(|a| a.id.clone()).collect(),
             demanda: demanda.map(|d| d.to_string()),
             funcionalidades,
         }
