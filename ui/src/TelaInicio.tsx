@@ -137,7 +137,8 @@ export function TelaInicio({
         navegar({ tipo: "projeto", projeto: p.projeto });
         break;
       case "preparar":
-        navegar({ tipo: "configuracoes" });
+        // O preparo do ambiente fica em "Configurar projeto" (#319).
+        navegar({ tipo: "configurar", projeto: p.projeto });
         break;
       case "primeira-analise":
         setFluxo("perguntar");
@@ -287,10 +288,10 @@ export function TelaInicio({
           api={apiProjeto}
           aoFechar={() => setNovoProjeto(false)}
           aoConcluir={projetoCadastrado}
-          aoPrepararAmbiente={() => {
-            // O preparo do ambiente do Claude fica no cartão do projeto, em Configurações.
+          aoPrepararAmbiente={(p) => {
+            // O preparo do ambiente do Claude fica em "Configurar projeto" (#319).
             projetoCadastrado();
-            navegar({ tipo: "configuracoes" });
+            navegar({ tipo: "configurar", projeto: p.id });
           }}
         />
       )}

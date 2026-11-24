@@ -67,74 +67,13 @@
   cursor: progress;
 }
 
-/* Área de trabalho: barra de atividades, painel lateral e principal. */
+/* Área de trabalho: menu lateral e principal. */
 
 .shell-work {
   position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
-}
-
-.activitybar {
-  flex: 0 0 48px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 4px 0;
-  background: var(--bg-header);
-  border-right: 1px solid var(--border);
-  z-index: 3;
-}
-
-.ab-item {
-  position: relative;
-  width: 48px;
-  height: 46px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.ab-item:hover,
-.ab-item[aria-current="page"] {
-  color: var(--text);
-}
-
-.ab-item[aria-current="page"] {
-  box-shadow: inset 2px 0 0 var(--accent);
-}
-
-.ab-item:focus-visible {
-  outline-offset: -2px;
-}
-
-/* Dica do ícone (o `title` viraria descrição acessível repetindo o nome). */
-
-.ab-item[data-tip]:hover::after {
-  content: attr(data-tip);
-  position: absolute;
-  left: calc(100% + 6px);
-  top: 50%;
-  transform: translateY(-50%);
-  padding: 3px 8px;
-  border: 1px solid var(--border-strong);
-  border-radius: 4px;
-  background: var(--surface-3);
-  color: var(--text);
-  font-size: 12px;
-  white-space: nowrap;
-  pointer-events: none;
-  z-index: 5;
-}
-
-.ab-spacer {
-  flex: 1;
 }
 
 /* Painel lateral */
@@ -551,12 +490,211 @@ button.sb-item:hover {
 }
 
 /* Tela estreita: o painel lateral vira gaveta sobre a área de editor. */
+/* Seletor de projeto na barra de título (#319). */
+
+.seletor-projeto {
+  position: relative;
+  min-width: 0;
+}
+
+.seletor-projeto-botao {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 260px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--btn-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.seletor-projeto-botao:hover {
+  background: var(--hover);
+}
+
+.seletor-projeto-nome {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seletor-projeto-vazio {
+  font-size: 13px;
+}
+
+.seletor-projeto-lista {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  min-width: 280px;
+  max-height: 60vh;
+  overflow: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px var(--shadow);
+}
+
+.seletor-projeto-opcao {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.seletor-projeto-opcao:hover,
+.seletor-projeto-opcao:focus-visible {
+  background: var(--hover);
+  outline: none;
+}
+
+.seletor-projeto-opcao[aria-selected="true"] {
+  background: var(--selected);
+  font-weight: 600;
+}
+
+.seletor-projeto-opcao-nome {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seletor-projeto-ok {
+  font-size: 12px;
+}
+
+/* Menu lateral com rótulos e contagens (#319). */
+
+.menu-painel {
+  width: 208px;
+}
+
+.menu-lateral {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 8px;
+}
+
+.menu-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.menu-grupo-titulo {
+  padding: 10px 10px 4px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu-item:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.menu-item[aria-current="page"] {
+  background: var(--selected);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.menu-item svg {
+  flex: none;
+}
+
+.menu-item-rotulo {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-item-contagem {
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--idle-bg);
+  color: var(--text-2);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.menu-item-contagem[data-tone="attention"] {
+  border-color: var(--attention-border);
+  background: var(--attention-bg);
+  color: var(--attention);
+}
+
+.menu-fim {
+  margin-top: auto;
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.menu-refazer {
+  align-self: flex-start;
+  padding: 4px 10px;
+  font-size: 12.5px;
+}
+
+/* Cabeçalho de seção: título à esquerda, ações à direita. */
+
+.cab-secao {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.cab-secao > :last-child:not(:first-child) {
+  margin-left: auto;
+}
+
 @media (max-width: 900px) {
   .sidepanel {
     position: absolute;
     top: 0;
     bottom: 0;
-    left: 48px;
+    left: 0;
     z-index: 2;
     max-width: calc(100% - 64px);
     box-shadow: 4px 0 16px var(--shadow);
@@ -569,7 +707,7 @@ button.sb-item:hover {
   .sidepanel-scrim {
     display: block;
     position: absolute;
-    inset: 0 0 0 48px;
+    inset: 0;
     z-index: 1;
     background: var(--scrim);
     opacity: 0.5;

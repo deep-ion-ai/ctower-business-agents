@@ -9,7 +9,7 @@ import {
 } from "./repositorios";
 
 /**
- * Saúde de um projeto nas configurações (#192): o checklist da Visão geral, as marcas
+ * Saúde de um projeto nas configurações (#192): o checklist da Saúde do cadastro, as marcas
  * das abas, o selo do cabeçalho e o nº de pendências do menu saem daqui, para os
  * quatro dizerem a mesma coisa.
  */
@@ -17,7 +17,7 @@ export type AbaProjeto =
   "geral" | "codigo" | "leitura" | "teste" | "agente" | "avancado";
 
 export const ABAS_DO_PROJETO: { id: AbaProjeto; rotulo: string }[] = [
-  { id: "geral", rotulo: "Visão geral" },
+  { id: "geral", rotulo: "Saúde do cadastro" },
   { id: "codigo", rotulo: "Código e demandas" },
   { id: "leitura", rotulo: "O que é analisado" },
   { id: "teste", rotulo: "Ambiente de teste" },
@@ -462,7 +462,7 @@ export function pendenciasDoProjeto(
     .length;
 }
 
-/** Marca de cada aba: o nº de pendências na Visão geral, “!” nas abas com problema. */
+/** Marca de cada aba: o nº de pendências na Saúde do cadastro, “!” nas abas com problema. */
 export function marcasDasAbas(
   itens: ItemSaude[],
 ): Partial<Record<AbaProjeto, string>> {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { contar } from "./formatacao";
 import { mensagemDe } from "./analise";
 import {
@@ -31,17 +31,21 @@ export function TelaProjeto({
   projetos,
   projetoInicial,
   navegar,
+  cabecalho,
 }: {
   api: ApiConhecimento;
   projetos: ProjetoResumo[];
   projetoInicial?: string;
   navegar: (t: Tela) => void;
+  /** Topo da tela, acima de tudo (ex.: o cabeçalho da Visão geral, #319). */
+  cabecalho?: ReactNode;
 }) {
   const [escolhido, setEscolhido] = useState(projetoInicial ?? "");
   const projeto = escolhido || projetos[0]?.id || "";
 
   return (
     <section className="tela-projeto page" aria-label="Projeto">
+      {cabecalho}
       {projetos.length > 1 && (
         <label>
           Projeto{" "}
@@ -325,7 +329,7 @@ function TextoRevalidacao({ resumo }: { resumo: ResumoRevalidacao }) {
 }
 
 /** Mapa estrutural por pasta (sem IA, sem custo), com as subpastas navegáveis. */
-function MapaProjeto({ api, projeto }: { api: ApiConhecimento; projeto: string }) {
+export function MapaProjeto({ api, projeto }: { api: ApiConhecimento; projeto: string }) {
   const [pasta, setPasta] = useState("");
   const [mapa, setMapa] = useState<MapaVista | null | undefined>(undefined);
   const [mapeando, setMapeando] = useState(false);

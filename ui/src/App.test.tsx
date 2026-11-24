@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { App, PRODUTO } from "./App";
 import { criarTelaXterm } from "./telaXterm";
 import { apiAnaliseFalsa, apiPrimeiroUsoFalsa, situacaoInicial, telaFalsa } from "./test/falsos";
@@ -36,12 +36,14 @@ describe("App", () => {
     expect(await screen.findByText("Versão 1.2.3")).toBeInTheDocument();
   });
 
-  it("depois do primeiro uso, abre o início com os clientes de IA e a navegação", async () => {
+  it("depois do primeiro uso, abre a navegação por projeto, com Atividades e Análises no menu", async () => {
     render(<App api={concluido()} />);
+    const menu = await screen.findByRole("navigation", { name: "Seções do projeto" });
+    expect(screen.queryByRole("region", { name: "Primeiro uso" })).not.toBeInTheDocument();
+    fireEvent.click(within(menu).getByRole("button", { name: /^Atividades/ }));
     expect(await screen.findByRole("region", { name: "Início" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Clientes de IA" })).toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "Primeiro uso" })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Análises" }));
+    fireEvent.click(within(menu).getByRole("button", { name: /^Análises/ }));
     expect(await screen.findByRole("region", { name: "Pergunta ao sistema" })).toBeInTheDocument();
   });
 

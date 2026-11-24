@@ -12,6 +12,11 @@
   align-items: start;
 }
 
+/* "Configurar projeto" (#319): só a página do projeto, sem o menu. */
+.config-layout-fixo {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .config-conteudo {
   display: flex;
   flex-direction: column;
