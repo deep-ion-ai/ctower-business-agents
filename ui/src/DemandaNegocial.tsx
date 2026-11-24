@@ -1,7 +1,8 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { mensagemDe } from "./analise";
 import type { ApiConhecimento } from "./conhecimento";
 import type { DemandaVista } from "./demandas";
+import { DemandaAchada, useDemandaResolvida } from "./NovaAnalise";
 
 export type TipoDemanda = "bug" | "funcionalidade" | "melhoria";
 
@@ -68,11 +69,17 @@ export function FormDemandaNegocial({
   projeto,
   aoRegistrar,
   aoCancelar,
+  aoAbrirAnalise,
+  aoAnalisarExistente,
 }: {
   api: ApiConhecimento;
   projeto: string;
   aoRegistrar: (d: DemandaVista) => void;
   aoCancelar: () => void;
+  /** Continua uma análise que a issue informada já tem. */
+  aoAbrirAnalise?: (id: string) => void;
+  /** A issue já é uma demanda do projeto: analisa a que existe, em vez de duplicar. */
+  aoAnalisarExistente?: (demanda: string) => void;
 }) {
   const [tipo, setTipo] = useState<TipoDemanda | null>(null);
   const [titulo, setTitulo] = useState("");
@@ -81,6 +88,23 @@ export function FormDemandaNegocial({
   const [chave, setChave] = useState("");
   const [gravando, setGravando] = useState(false);
   const [falha, setFalha] = useState<string | null>(null);
+  const [demandas, setDemandas] = useState<DemandaVista[]>([]);
+
+  useEffect(() => {
+    let ativo = true;
+    api
+      .listarDemandas(projeto)
+      .then((l) => ativo && setDemandas(l))
+      .catch(() => undefined);
+    return () => {
+      ativo = false;
+    };
+  }, [api, projeto]);
+
+  // A issue informada: o título e, se já for demanda do projeto, as análises (#350).
+  const resolvida = useDemandaResolvida(api, projeto, chave, demandas);
+  const achada = resolvida && resolvida !== "buscando" && resolvida.achada ? resolvida : null;
+  const jaRegistrada = achada?.demanda ?? null;
 
   const atual = TIPOS_DEMANDA.find((t) => t.id === tipo);
   const falta = [
@@ -88,8 +112,9 @@ export function FormDemandaNegocial({
     !titulo.trim() && "o título",
     !descricao.trim() && "a descrição",
   ].filter((x): x is string => !!x);
-  const motivo =
-    falta.length === 0
+  const motivo = jaRegistrada
+    ? `A issue já é a demanda ${jaRegistrada}: analise a que existe, em vez de registrar de novo.`
+    : falta.length === 0
       ? null
       : `Para registrar, falta ${falta.length === 1 ? falta[0] : `${falta.slice(0, -1).join(", ")} e ${falta[falta.length - 1]}`}.`;
 
@@ -171,6 +196,27 @@ export function FormDemandaNegocial({
           />
         </label>
       </div>
+      {achada && (
+        <DemandaAchada
+          achada={achada}
+          aoAbrirAnalise={aoAbrirAnalise}
+          aviso={
+            jaRegistrada
+              ? `Esta issue já está registrada como a demanda ${jaRegistrada}.`
+              : "Issue do rastreador, ainda sem demanda no projeto."
+          }
+        />
+      )}
+      {jaRegistrada && aoAnalisarExistente && (
+        <button type="button" className="btn" onClick={() => aoAnalisarExistente(jaRegistrada)}>
+          Analisar a demanda {jaRegistrada}
+        </button>
+      )}
+      {achada && !jaRegistrada && !titulo.trim() && (
+        <button type="button" className="btn" onClick={() => setTitulo(achada.titulo)}>
+          Usar o título da issue
+        </button>
+      )}
       <p className="muted ajuda-campo">
         A demanda ganha um código (D-0001) e aparece em Demandas. Depois de registrar, você pode
         analisá-la daqui mesmo.

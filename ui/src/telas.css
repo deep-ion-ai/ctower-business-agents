@@ -4654,3 +4654,9 @@ ul.analises-existentes {
   font-size: 12px;
   white-space: nowrap;
 }
+.nova-analise > .btn {
+  align-self: flex-start;
+}
+.nova-pergunta > .rodape-form {
+  align-self: stretch;
+}

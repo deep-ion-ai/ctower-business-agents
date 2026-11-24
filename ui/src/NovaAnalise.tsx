@@ -127,13 +127,20 @@ export async function resolverDemanda(
     demanda = daBase.id;
     if (DEMANDA.test(ref)) origem = "demanda do projeto";
   }
-  if (!DEMANDA.test(ref) && api.issues) {
-    const lista = await api.issues.listar(projeto, { busca: chave, estado: "todas" }).catch(() => null);
-    const issue = lista?.issues.find((i) => chaveNormalizada(i.chave) === chave || i.url === ref);
+  // Pela demanda da base com chave no rastreador, a issue dela também conta: as análises
+  // criadas direto da issue ficam ligadas só pela chave.
+  const chaveDaIssue = DEMANDA.test(ref) ? (daBase?.chave ? chaveNormalizada(daBase.chave) : null) : chave;
+  if (chaveDaIssue && api.issues) {
+    const lista = await api.issues
+      .listar(projeto, { busca: chaveDaIssue, estado: "todas" })
+      .catch(() => null);
+    const issue = lista?.issues.find(
+      (i) => chaveNormalizada(i.chave) === chaveDaIssue || (!DEMANDA.test(ref) && i.url === ref),
+    );
     if (issue) {
       titulo = titulo ?? issue.titulo;
       demanda = demanda ?? issue.demanda;
-      origem = NOME_ORIGEM[issue.origem];
+      if (!DEMANDA.test(ref)) origem = NOME_ORIGEM[issue.origem];
       issueAchada = { origem: issue.origem, chave: issue.chave, aberta: issue.estado === "aberta" };
       ids.push(...(issue.analises ?? (issue.analise ? [issue.analise] : [])));
     }
@@ -161,6 +168,98 @@ const TOM_ESTADO: Record<EstadoAnalise, "attention" | "running" | "done" | undef
   concluida: "attention",
   aprovada: "done",
 };
+
+/**
+ * O título e as análises da demanda que `referencia` aponta, um instante depois de
+ * digitar (#350). `null` sem referência reconhecida; `"buscando"` enquanto procura.
+ */
+export function useDemandaResolvida(
+  api: ApiConhecimento,
+  projeto: string,
+  referencia: string,
+  demandas: DemandaVista[],
+  ligado = true,
+): DemandaResolvida | "buscando" | null {
+  const [resolvida, setResolvida] = useState<DemandaResolvida | "buscando" | null>(null);
+  useEffect(() => {
+    const ref = referencia.trim();
+    if (!ligado || !projeto || !origemDaReferencia(ref)) {
+      setResolvida(null);
+      return;
+    }
+    let ativo = true;
+    setResolvida("buscando");
+    const espera = setTimeout(() => {
+      resolverDemanda(api, projeto, ref, demandas)
+        .then((r) => ativo && setResolvida(r))
+        .catch(() => ativo && setResolvida({ achada: false }));
+    }, 350);
+    return () => {
+      ativo = false;
+      clearTimeout(espera);
+    };
+  }, [api, projeto, referencia, demandas, ligado]);
+  return resolvida;
+}
+
+/** A demanda achada: o título e as análises que já tem, para continuar uma (#350). */
+export function DemandaAchada({
+  achada,
+  aoAbrirAnalise,
+  aviso,
+}: {
+  achada: Extract<DemandaResolvida, { achada: true }>;
+  aoAbrirAnalise?: (id: string) => void;
+  /** Texto no lugar do padrão ("Continue por ela ou inicie uma nova abaixo"). */
+  aviso?: string;
+}) {
+  const existentes = achada.analises;
+  const continua = (e: EstadoAnalise) => e === "em-andamento" || e === "criada";
+  return (
+    <div className="demanda-achada">
+      <strong>{achada.titulo}</strong>
+      {aviso && <p className="muted">{aviso}</p>}
+      {existentes.length > 0 ? (
+        <>
+          {!aviso && (
+            <p className="muted">
+              {existentes.length === 1
+                ? "Esta demanda já tem uma análise. Continue por ela ou inicie uma nova abaixo."
+                : `Esta demanda já tem ${existentes.length} análises. Continue por uma delas ou inicie uma nova abaixo.`}
+            </p>
+          )}
+          <ul className="analises-existentes" aria-label="Análises desta demanda">
+            {existentes.map((a) => (
+              <li key={a.id}>
+                <div>
+                  <span>{a.titulo}</span>
+                  <span className="muted">
+                    <span className="id">{a.id}</span> · {ROTULO_FLUXO[a.fluxo]}
+                  </span>
+                </div>
+                <span className="badge" data-tone={TOM_ESTADO[a.estado]}>
+                  {ROTULO_ESTADO_ANALISE[a.estado][0].toUpperCase() + ROTULO_ESTADO_ANALISE[a.estado].slice(1)}
+                </span>
+                {aoAbrirAnalise && (
+                  <button
+                    type="button"
+                    className={continua(a.estado) ? "btn btn-primary" : "btn"}
+                    aria-label={`${continua(a.estado) ? "Continuar" : "Abrir"} ${a.id}`}
+                    onClick={() => aoAbrirAnalise(a.id)}
+                  >
+                    {continua(a.estado) ? "Continuar" : "Abrir"}
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        !aviso && <p className="muted">Esta demanda ainda não tem análise.</p>
+      )}
+    </div>
+  );
+}
 
 /** Uma sugestão do campo "Issue ou demanda": demanda do projeto ou issue do rastreador. */
 interface Sugestao {
@@ -251,26 +350,8 @@ export function NovaAnalise({
     };
   }, [api, projeto, demandaFixa, referencia, buscando]);
 
-  // Na demanda cadastrada, o título e as análises da demanda, um instante depois de digitar.
-  const [resolvida, setResolvida] = useState<DemandaResolvida | "buscando" | null>(null);
-  useEffect(() => {
-    const ref = referencia.trim();
-    if (!cadastrada || demandaFixa || !projeto || !origemDaReferencia(ref)) {
-      setResolvida(null);
-      return;
-    }
-    let ativo = true;
-    setResolvida("buscando");
-    const espera = setTimeout(() => {
-      resolverDemanda(api, projeto, ref, demandas)
-        .then((r) => ativo && setResolvida(r))
-        .catch(() => ativo && setResolvida({ achada: false }));
-    }, 350);
-    return () => {
-      ativo = false;
-      clearTimeout(espera);
-    };
-  }, [api, projeto, cadastrada, demandaFixa, referencia, demandas]);
+  // O título e as análises da demanda, em todos os tipos com o campo (#350).
+  const resolvida = useDemandaResolvida(api, projeto, referencia, demandas, !demandaFixa);
 
   const verificar = useCallback(() => {
     if (!projeto) return;
@@ -317,7 +398,9 @@ export function NovaAnalise({
     if (motivo || criando) return;
     setCriando(true);
     setFalha(null);
-    const tituloFinal = titulo.trim() || achada?.titulo || undefined;
+    // Na demanda cadastrada, sem título digitado, vale o da demanda; nos outros tipos, o
+    // título sai do texto.
+    const tituloFinal = titulo.trim() || (cadastrada ? achada?.titulo : undefined) || undefined;
     let pedido: Promise<AnaliseCriada>;
     if (cadastrada && !ehDemanda && achada?.issue?.aberta && api.issues) {
       // Como "Analisar impacto" em Demandas: cria (ou reaproveita) a demanda da issue e
@@ -363,11 +446,11 @@ export function NovaAnalise({
       ].filter((s) => s.chave.toLowerCase() !== termo)
     : [];
   const origem = origemDaReferencia(referencia);
-  const ajuda = cadastrada && resolvida === "buscando"
+  const ajuda = resolvida === "buscando"
     ? "Procurando a demanda…"
-    : cadastrada && resolvida !== null && !achada
+    : resolvida !== null && !achada
       ? `Não achei ${referencia.trim()} nas demandas nem nas issues do projeto. Ao iniciar, o app busca a issue no rastreador.`
-      : cadastrada && achada
+      : achada
         ? `Reconhecida: ${achada.origem}${achada.demanda && achada.origem !== "demanda do projeto" ? `, demanda ${achada.demanda}` : ""}.`
         : origem
     ? `Reconhecida: ${origem}${demandaEscolhida ? ` (${demandaEscolhida.titulo})` : ""}.`
@@ -455,7 +538,7 @@ export function NovaAnalise({
             data-tom={
               resolvida === "buscando"
                 ? undefined
-                : (cadastrada && resolvida !== null ? achada : origem)
+                : (resolvida !== null ? achada : origem)
                   ? "ok"
                   : referencia.trim()
                     ? "atencao"
@@ -465,47 +548,7 @@ export function NovaAnalise({
           >
             {ajuda}
           </span>
-          {achada && (
-            <div className="demanda-achada">
-              <strong>{achada.titulo}</strong>
-              {existentes.length > 0 ? (
-                <>
-                  <p className="muted">
-                    {existentes.length === 1
-                      ? "Esta demanda já tem uma análise. Continue por ela ou inicie uma nova abaixo."
-                      : `Esta demanda já tem ${existentes.length} análises. Continue por uma delas ou inicie uma nova abaixo.`}
-                  </p>
-                  <ul className="analises-existentes" aria-label="Análises desta demanda">
-                    {existentes.map((a) => (
-                      <li key={a.id}>
-                        <div>
-                          <span>{a.titulo}</span>
-                          <span className="muted">
-                            <span className="id">{a.id}</span> · {ROTULO_FLUXO[a.fluxo]}
-                          </span>
-                        </div>
-                        <span className="badge" data-tone={TOM_ESTADO[a.estado]}>
-                          {ROTULO_ESTADO_ANALISE[a.estado][0].toUpperCase() + ROTULO_ESTADO_ANALISE[a.estado].slice(1)}
-                        </span>
-                        {aoAbrirAnalise && (
-                          <button
-                            type="button"
-                            className={a.estado === "em-andamento" || a.estado === "criada" ? "btn btn-primary" : "btn"}
-                            aria-label={`${a.estado === "em-andamento" || a.estado === "criada" ? "Continuar" : "Abrir"} ${a.id}`}
-                            onClick={() => aoAbrirAnalise(a.id)}
-                          >
-                            {a.estado === "em-andamento" || a.estado === "criada" ? "Continuar" : "Abrir"}
-                          </button>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              ) : (
-                <p className="muted">Esta demanda ainda não tem análise.</p>
-              )}
-            </div>
-          )}
+          {achada && <DemandaAchada achada={achada} aoAbrirAnalise={aoAbrirAnalise} />}
         </div>
       )}
       <label>

@@ -624,6 +624,7 @@ function PainelNova({
   const projetos = resumoProjeto ? [resumoProjeto] : [];
   const criada = (_p: string, c: AnaliseCriada) =>
     aoAbrir(c.analise.id, { tipo: "nova", promptInicial: c.promptInicial });
+  const abrirExistente = (id: string) => aoAbrir(id, { tipo: "reabrir" });
   const voltar = () => {
     setRegistrada(null);
     aoEscolher("escolha");
@@ -731,6 +732,11 @@ function PainelNova({
           projeto={projeto}
           aoRegistrar={setRegistrada}
           aoCancelar={aoFechar}
+          aoAbrirAnalise={abrirExistente}
+          aoAnalisarExistente={(ref) => {
+            setReferencia(ref);
+            aoEscolher("cadastrada");
+          }}
         />
       );
     } else if (apiConhecimento && escolha === "cadastrada") {
@@ -745,12 +751,19 @@ function PainelNova({
           projetos={projetos}
           aoCancelar={aoFechar}
           aoCriar={criada}
-          aoAbrirAnalise={(id) => aoAbrir(id, { tipo: "reabrir" })}
+          aoAbrirAnalise={abrirExistente}
         />
       );
     } else if (apiConhecimento && escolha === "reuniao") {
       form = (
-        <NovaReuniao api={apiConhecimento} projetos={projetos} semTitulo aoCancelar={aoFechar} aoCriar={criada} />
+        <NovaReuniao
+          api={apiConhecimento}
+          projetos={projetos}
+          semTitulo
+          aoCancelar={aoFechar}
+          aoCriar={criada}
+          aoAbrirAnalise={abrirExistente}
+        />
       );
     } else if (apiConhecimento && (escolha === "historias" || escolha === "cenarios")) {
       form = (
@@ -774,6 +787,7 @@ function PainelNova({
           projetos={projetos}
           aoCancelar={aoFechar}
           aoCriar={criada}
+          aoAbrirAnalise={abrirExistente}
         />
       );
     }

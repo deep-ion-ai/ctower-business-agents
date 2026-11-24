@@ -345,6 +345,61 @@ describe("TelaAnalise", () => {
     expect(aoAbrirAnalise).toHaveBeenCalledWith(PROJETO, "A-0003", { tipo: "reabrir" });
   });
 
+  it("a demanda da base mostra também as análises ligadas só pela chave da issue dela (#350)", async () => {
+    const conhecimento = apiConhecimentoFalsa();
+    const pelaChave: AnaliseResumo = {
+      id: "A-0009",
+      titulo: "Criada direto da issue",
+      fluxo: "impacto",
+      estado: "concluida",
+      atualizadaMs: 9,
+    };
+    conhecimento.api.listarAnalises.mockResolvedValue([pelaChave] as never);
+    // D-0001 tem a chave FAT-12; a issue FAT-12 tem a A-0009, ligada só pela chave.
+    const listar = vi.fn(() =>
+      Promise.resolve({
+        issues: [
+          {
+            origem: "jira" as const,
+            chave: "FAT-12",
+            titulo: "Parcelamento PJ",
+            descricao: "",
+            url: "https://rastreador.exemplo/FAT-12",
+            criadaEm: "2026-11-01T00:00:00Z",
+            estado: "aberta",
+            rotulos: [],
+            situacao: "em-revisao" as const,
+            analise: "A-0009",
+            analises: ["A-0009"],
+            demanda: null,
+            funcionalidades: [],
+          },
+        ],
+        total: 1,
+        rotulos: [],
+        lidaEm: "2026-11-24T00:00:00Z",
+        atualizando: false,
+        aviso: null,
+        excedeuTeto: false,
+        desde: "2026-01-01",
+      }),
+    );
+    (conhecimento.api as { issues?: unknown }).issues = {
+      listar,
+      analisarImpacto: vi.fn(),
+      aoAtualizar: vi.fn(() => Promise.resolve(() => undefined)),
+    };
+    const { painel } = await abrirPainelCompleto(conhecimento);
+    fireEvent.click(within(painel).getByRole("button", { name: "Revisar requisito" }));
+    const form = within(painel).getByRole("form", { name: "Revisar requisito" });
+    fireEvent.change(within(form).getByLabelText(/Issue ou demanda/), { target: { value: "D-0001" } });
+    const existentes = await within(form).findByRole("list", { name: "Análises desta demanda" });
+    expect(within(existentes).getByText("Criada direto da issue")).toBeInTheDocument();
+    expect(listar).toHaveBeenCalledWith(PROJETO, { busca: "FAT-12", estado: "todas" });
+    // Fora da demanda cadastrada, o texto continua obrigatório com uma demanda da base.
+    expect(within(form).getByRole("button", { name: "Iniciar uma análise nova" })).toBeDisabled();
+  });
+
   it("demanda cadastrada: inicia a análise ligada à demanda, com o título dela", async () => {
     const { painel, conhecimento } = await abrirPainelCompleto();
     fireEvent.click(within(painel).getByRole("button", { name: "Analisar demanda cadastrada" }));
