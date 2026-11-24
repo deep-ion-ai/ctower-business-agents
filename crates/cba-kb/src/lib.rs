@@ -70,7 +70,9 @@ pub mod registros;
 mod reunioes;
 
 pub use base::{Base, PADRAO_REGRAS_DO_PROJETO, Projeto};
-pub use caminho::{CaminhoInvalido, CaminhoRelativo, e_slug, slug};
+pub use caminho::{
+    CaminhoInvalido, CaminhoRelativo, e_slug, nome_legivel_da_area, slug, titulo_sem_markdown,
+};
 pub use demandas::{DemandaLida, NovaDemanda};
 pub use documento::{Documento, ErroFrontmatter};
 pub use erro::{Erro, Resultado};

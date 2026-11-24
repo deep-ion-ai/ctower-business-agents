@@ -91,6 +91,7 @@ pub(super) fn extrair(projeto: &Projeto, relativo: &CaminhoRelativo, bytes: Vec<
     r.tipo = tipo.map(Tipo::Documento);
     r.identificador = texto_do_campo(mapa, "id").or_else(|| texto_do_campo(mapa, "termo"));
     r.titulo = texto_do_campo(mapa, "titulo")
+        .map(|t| crate::caminho::titulo_sem_markdown(&t))
         .or_else(|| texto_do_campo(mapa, "termo"))
         .or_else(|| texto_do_campo(mapa, "nome"))
         .or_else(|| primeiro_titulo(&r.corpo))
