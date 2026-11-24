@@ -726,6 +726,7 @@ export function PainelAnalise({
       <div
         className="painel-colunas"
         ref={colunas}
+        data-sem-conversa={!conversa && !fora && trecho === null ? "" : undefined}
         style={{ "--largura-conversa": `${larguraConversa}px` } as CSSProperties}
       >
         <section className="painel-documento" aria-label="Documento ao vivo">
@@ -803,7 +804,7 @@ export function PainelAnalise({
                   aoAlternar={alternar("continuar")}
                   aoFechar={fecharMenu}
                   rotulo="Continuar a conversa"
-                  conteudo={`${onde ? ONDE_CURTO[onde] : "Escolher onde"} ▾`}
+                  conteudo={`${onde ? ONDE_CURTO[onde] : "Conversa"} ▾`}
                   classeBotao="btn btn-sm seletor-onde"
                   rotuloPainel="Onde continuar a conversa"
                   classePainel="menu-continuar"

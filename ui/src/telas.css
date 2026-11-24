@@ -449,7 +449,7 @@
 
 .base-colunas {
   display: grid;
-  grid-template-columns: minmax(16rem, 1fr) minmax(0, 2fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 16px;
   align-items: start;
 }
@@ -470,6 +470,104 @@
 /* Editando, o documento ocupa a largura toda e a lista sai do caminho. */
 .base-colunas[data-editando] > .resultados-base {
   display: none;
+}
+
+/* Nada na leitura estoura a largura: caminhos e trechos quebram (B-04). */
+.resultados-base,
+.documento-aberto {
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-wrap: anywhere;
+}
+
+.documento-aberto .mono,
+.documento-aberto code,
+.documento-aberto pre {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.tela-base-documento .documento-aberto {
+  max-width: 60rem;
+}
+
+.abas-base {
+  display: flex;
+  gap: 4px;
+}
+
+.abas-base .btn[aria-selected="true"] {
+  background: var(--selected);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.contagem {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.barra-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.grupo-base h3 {
+  margin: 12px 0 4px;
+}
+
+.grupo-base li .id {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.grupo-base li[data-status="a-revalidar"] {
+  background: var(--attention-card);
+  box-shadow: inset 3px 0 0 var(--attention);
+}
+
+.vazio-base {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+}
+
+.aviso-documentos {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--attention);
+  border-radius: 8px;
+  background: var(--attention-card);
+}
+
+.aviso-documentos h3 {
+  margin: 0 0 4px;
+}
+
+.detalhes-arquivo {
+  margin-top: 16px;
+  color: var(--text-2);
+}
+
+.detalhes-arquivo summary {
+  cursor: pointer;
+}
+
+.onde-no-codigo h3 {
+  margin: 16px 0 4px;
+}
+
+.onde-no-codigo ul {
+  margin: 0;
+  padding-left: 20px;
 }
 
 .documento-aberto .editor-documento {
@@ -618,20 +716,18 @@
 
 .painel-titulo-linha {
   display: flex;
-  flex-wrap: nowrap;
+  /* Os selos nunca são cortados (#330): o texto inteiro, e quem não cabe vai para a
+     linha de baixo, em vez de virar reticências. */
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
   min-width: 0;
-  /* Altura fixa: os selos não quebram em 2 linhas (#219). */
-  height: 24px;
-  overflow: hidden;
 }
 
 .painel-titulo-linha .badge {
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex: 0 0 auto;
+  max-width: 100%;
+  white-space: nowrap;
 }
 
 .painel-titulo-linha .painel-titulo {
@@ -663,9 +759,7 @@
 
 .painel-subtitulo {
   display: flex;
-  flex-wrap: nowrap;
-  height: 18px;
-  overflow: hidden;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px 12px;
   font-size: 12px;
@@ -673,10 +767,7 @@
 
 .painel-subtitulo .selo-sessao {
   margin: 0;
-  min-width: 0;
-  overflow: hidden;
   white-space: nowrap;
-  text-overflow: ellipsis;
 }
 
 .painel-acoes {
@@ -944,6 +1035,15 @@
 
 .painel-colunas:has(.divisor-colunas[data-arrastando]) .painel-conversa {
   pointer-events: none;
+}
+
+/* Sem conversa aberta, o painel lateral encolhe e o documento ocupa a largura (#330). */
+.painel-colunas[data-sem-conversa] .painel-conversa {
+  flex-basis: 16rem;
+}
+
+.painel-colunas[data-sem-conversa] .divisor-colunas {
+  display: none;
 }
 
 @media (max-width: 1100px) {
@@ -2073,6 +2173,11 @@
 
 .selo-aprovacao {
   align-self: center;
+}
+
+.resumo-pendencias {
+  margin: 0 0 8px;
+  padding-left: 18px;
 }
 
 .faixa-codigo {
@@ -3805,4 +3910,305 @@ code[data-tone="attention"] {
 .aviso-rastreador {
   color: var(--attention);
   font-size: 0.85em;
+}
+
+/* Atividades (#321): a caixa de entrada do analista. */
+.atividades-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.atividades-grupo h2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.atividades-linhas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.atividades-linhas li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+
+.atividades-linhas li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.atividades-id {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.atividades-texto {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.atividades-texto strong {
+  overflow-wrap: anywhere;
+}
+
+.atividades-linhas .btn {
+  flex: 0 0 auto;
+}
+
+/* A tela Início continua abaixo dos grupos, sem repetir o espaço do topo. */
+.atividades + .tela-inicio {
+  padding-top: 0;
+}
+
+@media (max-width: 600px) {
+  .atividades-linhas li {
+    flex-wrap: wrap;
+  }
+}
+
+/* Área Demandas (#323): lista única de issues e demandas, com o painel ao lado. */
+.demandas {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.demandas-sub {
+  margin: -6px 0 0;
+}
+.demandas-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+.demandas-busca {
+  width: min(320px, 100%);
+}
+.demandas-grade {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .demandas-grade {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.demandas .linhas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.demandas .linhas > li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--border);
+}
+.demandas .linhas > li:last-child {
+  border-bottom: 0;
+}
+.demandas .linhas .id {
+  min-width: 4.5em;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.9em;
+  color: var(--text-2);
+}
+.demandas .linhas .tit {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.demandas .linhas .fim {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.linha-demanda[data-selecionada="true"] {
+  background: var(--selected);
+  border-radius: 6px;
+}
+.linha-demanda-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.demandas-painel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: sticky;
+  top: 0;
+}
+.demandas-painel h3,
+.demandas-painel h4 {
+  margin: 0;
+}
+.demandas-painel h4 {
+  margin-top: 6px;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.demandas-painel-cab {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.demandas-painel-titulo {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+.demandas-descricao {
+  margin: 0;
+  max-height: 14em;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: var(--text-2);
+}
+.demandas-nabase {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.demandas-nabase p {
+  margin: 0;
+}
+.demandas-rodape {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+}
+.busca-issue {
+  position: relative;
+}
+.busca-issue-opcoes {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  max-height: 14em;
+  overflow: auto;
+}
+.busca-issue-opcoes button {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.busca-issue-opcoes button:hover,
+.busca-issue-opcoes button:focus-visible {
+  background: var(--hover);
+}
+
+/* Funcionalidades: progresso do mapa, lista compacta e lacunas (#327). */
+.progresso-mapa {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 24px;
+  margin: 8px 0;
+}
+.progresso-etapas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.progresso-codigo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.barra-progresso {
+  width: 140px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.barra-progresso > div {
+  height: 100%;
+  background: var(--accent);
+}
+.lista-compacta {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+.linha-funcionalidade {
+  border-bottom: 1px solid var(--border);
+  padding: 4px 0;
+}
+.linha-principal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+.linha-nome {
+  flex: 1 1 200px;
+  min-width: 0;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 2px 0;
+  color: inherit;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.linha-nome:hover strong {
+  text-decoration: underline;
+}
+.linha-etiquetas {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.mapa-vazio ol {
+  text-align: left;
+  margin: 8px auto;
+  max-width: 480px;
 }

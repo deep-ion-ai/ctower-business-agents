@@ -11,6 +11,8 @@ import {
   type Situacao,
 } from "./analise";
 import type { DemandaVista, NovaDemanda, PainelDemanda } from "./demandas";
+import { apiResumoTauri, type ResumoProjeto } from "./resumoProjeto";
+import { apiIssuesTauri, type ApiIssues } from "./issuesProjeto";
 
 /**
  * Espelho dos comandos do início, do projeto e da base de conhecimento
@@ -269,13 +271,21 @@ export interface ApiConhecimento extends ApiAmbiente {
   encerrarDemanda(projeto: string, demanda: string): Promise<DemandaVista>;
   reabrirDemanda(projeto: string, demanda: string): Promise<DemandaVista>;
   painelDemanda(projeto: string, demanda: string): Promise<PainelDemanda>;
+  /**
+   * Resumo do projeto (#318): contagens e a lista de atividades do analista, para as
+   * Atividades e o selo do menu (#321).
+   */
+  resumoProjeto(projeto: string): Promise<ResumoProjeto>;
   /** Cobertura da base por área e pasta (#125); sem ela, a tela não mostra a seção. */
   cobertura?: ApiCobertura["cobertura"];
   /** O que mudou no código (#124), na tela do projeto. */
   mudancas?: ApiMudancas;
+  /** Issues do rastreador (#322, #323); sem ela, a área Demandas mostra só as demandas da base. */
+  issues?: ApiIssues;
 }
 
 export const apiConhecimentoTauri: ApiConhecimento = {
+  issues: apiIssuesTauri,
   cobertura: apiCoberturaTauri.cobertura,
   mudancas: apiMudancasTauri,
   situacao: () => invoke("situacao_app"),
@@ -343,6 +353,7 @@ export const apiConhecimentoTauri: ApiConhecimento = {
   reabrirDemanda: (projeto, demanda) => invoke("reabrir_demanda_app", { projeto, demanda }),
   painelDemanda: (projeto, demanda) => invoke("painel_demanda_app", { projeto, demanda }),
   verificarAmbiente: apiAnaliseTauri.verificarAmbiente,
+  resumoProjeto: apiResumoTauri.resumoProjeto,
   planejarPreparo: apiAnaliseTauri.planejarPreparo,
   prepararAmbiente: apiAnaliseTauri.prepararAmbiente,
 };

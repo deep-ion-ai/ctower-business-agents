@@ -86,6 +86,11 @@ impl DiretorioDados {
         self.raiz.join("eventos")
     }
 
+    /// Histórico de atividade persistente, com rotação ([`crate::historico`]).
+    pub fn historico(&self) -> PathBuf {
+        self.raiz.join("historico")
+    }
+
     /// Estado das sessões dos clientes de IA, gravado pelo receptor de hooks
     /// (`cba_session::sessoes`).
     pub fn sessoes(&self) -> PathBuf {
@@ -97,6 +102,12 @@ impl DiretorioDados {
     /// aqui o transcript existe em disco: nunca na base nem no repositório.
     pub fn reunioes(&self) -> PathBuf {
         self.raiz.join("reunioes")
+    }
+
+    /// Cache da listagem das issues do rastreador, um arquivo por projeto
+    /// (`cba_repos::cache_issues`). Reconstruível: é só a última leitura.
+    pub fn issues(&self) -> PathBuf {
+        self.raiz.join("issues")
     }
 }
 
@@ -119,6 +130,7 @@ mod tests {
         assert_eq!(d.projetos(), raiz.join("projetos"));
         assert_eq!(d.eventos(), raiz.join("eventos"));
         assert_eq!(d.sessoes(), raiz.join("sessoes"));
+        assert_eq!(d.historico(), raiz.join("historico"));
         assert_eq!(d.reunioes(), raiz.join("reunioes"));
     }
 

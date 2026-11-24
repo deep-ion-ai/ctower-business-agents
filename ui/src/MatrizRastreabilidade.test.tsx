@@ -148,7 +148,7 @@ describe("ConsultaReversa", () => {
     fireEvent.click(within(secao).getByRole("button", { name: "A-0002" }));
     expect(abrirAnalise).toHaveBeenCalledWith(PROJETO_BASE, "A-0002");
 
-    fireEvent.click(within(secao).getByRole("button", { name: `Arquivo ${SERVICO}` }));
+    fireEvent.click(within(secao).getByRole("button", { name: `Arquivo ${SERVICO.split("/").pop()}` }));
     const doArquivo = await screen.findByRole("region", { name: "O que depende deste arquivo" });
     expect(api.dependentes).toHaveBeenLastCalledWith(PROJETO_BASE, {
       tipo: "arquivo",

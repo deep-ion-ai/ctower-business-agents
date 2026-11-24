@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { mensagemDe, type AmbienteClaude, type AnaliseCriada, type AnaliseResumo } from "./analise";
+import {
+  mensagemDe,
+  ROTULO_ESTADO_ANALISE,
+  type AmbienteClaude,
+  type AnaliseCriada,
+  type AnaliseResumo,
+} from "./analise";
 import { ROTULO_FLUXO, type ApiConhecimento } from "./conhecimento";
 import { PrepararAmbiente } from "./PrepararAmbiente";
 import type { ProjetoResumo } from "./terminal";
@@ -39,7 +45,7 @@ const TEXTOS: Record<
     pedido: "O que você quer nas histórias (opcional)",
     exemplo: "Ex.: Só o parcelamento na tela; o relatório de recebíveis fica para depois.",
     botao: "Gerar as histórias",
-    preparar: "Prepare o ambiente do Claude antes de gerar as histórias.",
+    preparar: "Ligue o agente a este projeto antes de gerar as histórias.",
   },
   cenarios: {
     explicacao:
@@ -51,16 +57,11 @@ const TEXTOS: Record<
     pedido: "Regras ou o que você quer nos cenários",
     exemplo: "Ex.: Cenários do cancelamento: RN-FAT-013 e RN-FAT-014.",
     botao: "Gerar os cenários",
-    preparar: "Prepare o ambiente do Claude antes de gerar os cenários.",
+    preparar: "Ligue o agente a este projeto antes de gerar os cenários.",
   },
 };
 
-const ESTADO: Record<AnaliseResumo["estado"], string> = {
-  criada: "criada",
-  "em-andamento": "em andamento",
-  concluida: "em revisão",
-  aprovada: "aprovada",
-};
+const ESTADO = ROTULO_ESTADO_ANALISE;
 
 /**
  * Formulário dos fluxos derivados de uma análise: "Histórias e critérios" (#115) e

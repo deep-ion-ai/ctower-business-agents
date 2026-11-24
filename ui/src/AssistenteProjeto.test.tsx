@@ -982,7 +982,7 @@ describe("Assistente de projeto: passo 5, concluído", () => {
     expect(
       screen.queryByRole("navigation", { name: "Etapas do cadastro" }),
     ).toBeNull();
-    fireEvent.click(botao("Preparar o ambiente do Claude"));
+    fireEvent.click(botao("Ligar o agente a este projeto"));
     expect(aoPrepararAmbiente).toHaveBeenCalledWith(
       expect.objectContaining({ nome: "Faturamento Exemplo" }),
     );

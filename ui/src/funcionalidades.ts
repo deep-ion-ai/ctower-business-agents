@@ -65,6 +65,8 @@ export interface Funcionalidade {
   explicacao: AnaliseResumo | null;
   /** Nenhum ponto de entrada dela existe mais no código. */
   semPontoDeEntrada: boolean;
+  /** Tem manual do usuário aprovado, quando o mapa o informa. */
+  comManual?: boolean;
 }
 
 export interface AreaMapa {
@@ -230,7 +232,7 @@ export interface SugestaoDeIssue {
 }
 
 export interface IssueDoRastreador {
-  origem: "github" | "jira";
+  origem: "github" | "gitlab" | "jira";
   chave: string;
   titulo: string;
   descricao: string;
@@ -271,7 +273,7 @@ export interface ItemConfirmado {
 
 export interface ResultadoDoLote {
   /** A demanda da base de cada issue confirmada. */
-  demandas: { origem: "github" | "jira"; chave: string; demanda: string }[];
+  demandas: { origem: "github" | "gitlab" | "jira"; chave: string; demanda: string }[];
   criadas: string[];
   reaproveitadas: string[];
   vinculosNovos: number;

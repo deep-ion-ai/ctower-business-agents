@@ -72,7 +72,7 @@ describe("TelaInicio", () => {
     const { navegar } = montar(falsa);
     const passo = await screen.findByRole("region", { name: "Próximo passo" });
     fireEvent.click(await within(passo).findByRole("button", { name: "Preparar" }));
-    expect(navegar).toHaveBeenCalledWith({ tipo: "configuracoes" });
+    expect(navegar).toHaveBeenCalledWith({ tipo: "configurar", projeto: base.projetos[0].id });
   });
 
   it("num projeto sem análise, sugere a primeira análise e abre a pergunta (#227)", async () => {
@@ -242,7 +242,7 @@ describe("TelaInicio", () => {
     montar(falsa);
     fireEvent.click(await screen.findByRole("button", { name: "Explicar funcionalidade" }));
     expect(
-      await screen.findByText(/Prepare o ambiente do Claude antes de iniciar/),
+      await screen.findByText(/Ligue o agente a este projeto antes de iniciar/),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Funcionalidade")).toBeInTheDocument();
   });

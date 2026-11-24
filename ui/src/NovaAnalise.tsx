@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { mensagemDe, type AmbienteClaude, type AnaliseCriada, type Fluxo } from "./analise";
 import { ROTULO_FLUXO, type ApiConhecimento } from "./conhecimento";
 import type { DemandaVista } from "./demandas";
+import type { IssueDoProjeto } from "./issuesProjeto";
 import { PrepararAmbiente } from "./PrepararAmbiente";
 import type { ProjetoResumo } from "./terminal";
 
@@ -81,6 +82,26 @@ export function NovaAnalise({
     };
   }, [api, projeto, demandaFixa]);
 
+  // "Issue do projeto" é uma busca sobre a lista das issues abertas do rastreador (#323);
+  // o que não está na lista continua valendo digitado (o app busca a issue na hora).
+  const [opcoes, setOpcoes] = useState<IssueDoProjeto[]>([]);
+  const [buscando, setBuscando] = useState(false);
+  useEffect(() => {
+    if (!api.issues || demandaFixa || !projeto || !buscando) {
+      setOpcoes([]);
+      return;
+    }
+    let ativo = true;
+    api.issues
+      .listar(projeto, { busca: issue.trim(), estado: "abertas" })
+      .then((l) => ativo && setOpcoes(l.issues.slice(0, 6)))
+      // Sem a lista (sem rede, sem rastreador), o campo segue como texto livre.
+      .catch(() => ativo && setOpcoes([]));
+    return () => {
+      ativo = false;
+    };
+  }, [api, projeto, demandaFixa, issue, buscando]);
+
   const verificar = useCallback(() => {
     if (!projeto) return;
     setAmbiente(null);
@@ -137,15 +158,45 @@ export function NovaAnalise({
         <PrepararAmbiente api={api} projeto={projeto} ambiente={ambiente} aoConcluir={verificar} />
       )}
       {!demandaFixa && (
-        <label>
-          {fluxo === "revisar" ? "Chave no rastreador (opcional)" : "Issue do projeto (opcional)"}
-          <input
-            value={issue}
-            onChange={(e) => setIssue(e.target.value)}
-            placeholder="Ex.: PROJ-123 ou 45"
-            spellCheck={false}
-          />
-        </label>
+        <div
+          className="busca-issue"
+          onBlur={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget)) setBuscando(false);
+          }}
+        >
+          <label>
+            {fluxo === "revisar" ? "Chave no rastreador (opcional)" : "Issue do projeto (opcional)"}
+            <input
+              value={issue}
+              onChange={(e) => {
+                setIssue(e.target.value);
+                setBuscando(true);
+              }}
+              onFocus={() => setBuscando(true)}
+              placeholder="Busque pelo número ou título, ou digite PROJ-123"
+              spellCheck={false}
+              autoComplete="off"
+            />
+          </label>
+          {opcoes.length > 0 && (
+            <ul className="busca-issue-opcoes" aria-label="Issues do projeto">
+              {opcoes.map((o) => (
+                <li key={`${o.origem}:${o.chave}`}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIssue(o.chave);
+                      setBuscando(false);
+                    }}
+                  >
+                    <span className="id">{o.chave}</span>
+                    <span>{o.titulo}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
       {!demandaFixa && issue.trim() !== "" && (
         <p className="muted">
@@ -192,7 +243,7 @@ export function NovaAnalise({
         </button>
       </div>
       {ambiente && !pronto && (
-        <p className="muted">Prepare o ambiente do Claude antes de iniciar a análise.</p>
+        <p className="muted">Ligue o agente a este projeto antes de iniciar a análise.</p>
       )}
       {falha && (
         <p className="error-text" role="alert">

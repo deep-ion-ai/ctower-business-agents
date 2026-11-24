@@ -26,6 +26,12 @@ jobs:
   #   politicas  crates/, ui/, fixtures/, scripts/, Cargo.*, rust-toolchain.toml e os
   #              arquivos de versão (release-please-config.json e o manifest)
   #   instaladores  packaging/
+  #   codigo     false só no PR de back-merge da release (head main, base develop)
+  #              cujos arquivos são todos gerados pelo release-please (lista fechada
+  #              abaixo). Eles já passaram pelo CI no PR da release e no push para
+  #              main, e o push na develop depois do merge roda tudo de novo. Então
+  #              rust, ui e instaladores são pulados; `politicas` e `ci-ok` seguem.
+  #              Qualquer outro arquivo (ex.: hotfix na main) volta ao CI completo.
   # PR só de docs/, *.md da raiz, LICENSE e afins não roda nenhum deles; `titulo`,
   # CLA e `ci-ok` continuam.
   mudancas:
@@ -34,6 +40,7 @@ jobs:
       rust: ${{ steps.filtro.outputs.rust }}
       ui: ${{ steps.filtro.outputs.ui }}
       politicas: ${{ steps.filtro.outputs.politicas }}
+      codigo: ${{ steps.filtro.outputs.codigo }}
       instaladores: ${{ steps.filtro.outputs.instaladores }}
     steps:
       # Em PR o checkout traz o merge commit de teste; o primeiro pai é a base.
@@ -44,6 +51,8 @@ jobs:
       - id: filtro
         env:
           EVENTO: ${{ github.event_name }}
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_REF: ${{ github.base_ref }}
         run: |
           if [ "$EVENTO" != pull_request ]; then
             alterados=
@@ -54,6 +63,14 @@ jobs:
             tudo=false
             if printf '%s\n' "$alterados" | grep -Eq '^\.github/workflows/'; then tudo=true; fi
           fi
+          # Back-merge da release: só arquivos gerados pelo release-please.
+          codigo=true
+          if [ "$EVENTO" = pull_request ] && [ "$HEAD_REF" = main ] && [ "$BASE_REF" = develop ] \
+            && [ -n "$alterados" ] \
+            && ! printf '%s\n' "$alterados" | grep -Evq '^(\.release-please-manifest\.json|CHANGELOG\.md|Cargo\.toml|Cargo\.lock|ui/package\.json|ui/package-lock\.json|ui/src-tauri/tauri\.conf\.json)$'; then
+            codigo=false
+          fi
+          echo "codigo=$codigo" >> "$GITHUB_OUTPUT"
           # area NOME REGEX: true se roda tudo ou algum arquivo alterado casa.
           area() {
             if [ "$tudo" = true ] || printf '%s\n' "$alterados" | grep -Eq "$2"; then
@@ -69,7 +86,7 @@ jobs:
 
   rust:
     needs: mudancas
-    if: needs.mudancas.outputs.rust == 'true'
+    if: needs.mudancas.outputs.rust == 'true' && needs.mudancas.outputs.codigo == 'true'
     strategy:
       # Um sistema que falha não cancela os outros.
       fail-fast: false
@@ -111,7 +128,7 @@ jobs:
   # Frontend do app: tipos, testes de componentes e build do Vite.
   ui:
     needs: mudancas
-    if: needs.mudancas.outputs.ui == 'true'
+    if: needs.mudancas.outputs.ui == 'true' && needs.mudancas.outputs.codigo == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -154,7 +171,7 @@ jobs:
   # (sem instalar nada; veja packaging/tests).
   instalador-sh:
     needs: mudancas
-    if: needs.mudancas.outputs.instaladores == 'true'
+    if: needs.mudancas.outputs.instaladores == 'true' && needs.mudancas.outputs.codigo == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -174,7 +191,7 @@ jobs:
 
   instalador-ps1:
     needs: mudancas
-    if: needs.mudancas.outputs.instaladores == 'true'
+    if: needs.mudancas.outputs.instaladores == 'true' && needs.mudancas.outputs.codigo == 'true'
     runs-on: windows-latest
     defaults:
       run:

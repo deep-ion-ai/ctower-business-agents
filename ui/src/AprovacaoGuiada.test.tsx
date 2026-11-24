@@ -55,6 +55,31 @@ const REVALIDAR: Afirmacao = {
 };
 
 describe("Aprovação guiada", () => {
+  it("com muitas pendências iguais, resume em uma linha e oferece Revisar (#330)", async () => {
+    const aoRevisar = vi.fn();
+    const muitas: Prontidao = {
+      ...COM_PENDENCIAS,
+      pendencias: Array.from({ length: 14 }, (_, i) => ({
+        tipo: "afirmacao" as const,
+        numero: i + 1,
+        motivo: `afirmação ${i + 1}: sem decisão`,
+      })),
+    };
+    render(
+      <AprovacaoAnalise
+        api={apiRevisao(muitas)}
+        projeto="p"
+        analise="AN-0001"
+        versao={1}
+        aoRevisarPendentes={aoRevisar}
+      />,
+    );
+    expect(await screen.findByText("14 afirmações sem decisão")).toBeInTheDocument();
+    expect(screen.queryByText("afirmação 3: sem decisão")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Revisar as 14 pendentes" }));
+    expect(aoRevisar).toHaveBeenCalled();
+  });
+
   it("com pendências: lista com Ir para e Revisar a(s) pendente(s), pela conta única", async () => {
     const aoIrPara = vi.fn();
     const aoRevisar = vi.fn();

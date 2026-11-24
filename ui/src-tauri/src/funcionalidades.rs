@@ -16,6 +16,7 @@ use cba_core::funcionalidades::{
 };
 use cba_index::{PontoEntrada, TipoEntrada};
 use cba_kb::{IdFuncionalidade, layout};
+use cba_tools::manual;
 use cba_tools::mapear::{self, RevisaoDoMapa};
 use serde::Serialize;
 
@@ -88,6 +89,8 @@ pub struct FuncionalidadeVista {
     pub explicacao: Option<AnaliseResumo>,
     /// Nenhum ponto de entrada dela existe mais no mapa estrutural.
     pub sem_ponto_de_entrada: bool,
+    /// Tem manual do usuário aprovado (só preenchido na lista do mapa, #327).
+    pub com_manual: bool,
 }
 
 /// Área do mapa, com as funcionalidades dela.
@@ -186,6 +189,7 @@ pub(crate) fn vista_da(
         documento: f.documento.as_ref().map(|d| kb.na_base(d).to_string()),
         explicacao: explicacoes.get(&f.id).map(AnaliseResumo::from),
         sem_ponto_de_entrada: chaves.is_some_and(|c| mapear::sem_ponto_de_entrada(f, c)),
+        com_manual: false,
     }
 }
 
@@ -215,9 +219,18 @@ fn vista(
         }
         Err(e) => (None, Some(e), None),
     };
+    let com_manual: BTreeSet<IdFuncionalidade> = manual::manuais(&ambiente.analises)
+        .into_iter()
+        .filter(|(_, l)| {
+            l.iter()
+                .any(|a| a.estado == cba_core::analise::EstadoAnalise::Aprovada)
+        })
+        .map(|(f, _)| f)
+        .collect();
     let mut areas: Vec<AreaVista> = Vec::new();
     for f in mapa.ordenadas() {
-        let v = vista_da(f, kb, chaves.as_ref(), &explicacoes);
+        let mut v = vista_da(f, kb, chaves.as_ref(), &explicacoes);
+        v.com_manual = com_manual.contains(&f.id);
         match areas.last_mut() {
             Some(a) if a.area == f.area => a.funcionalidades.push(v),
             _ => areas.push(AreaVista {

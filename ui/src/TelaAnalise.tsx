@@ -3,14 +3,21 @@ import {
   apiAnaliseTauri,
   mensagemDe,
   type AmbienteClaude,
+  type AnaliseCriada,
   type AnaliseResumo,
   type ApiAnalise,
   type EstadoAnalise,
+  type Fluxo,
   type Situacao,
+  ROTULO_ESTADO_ANALISE,
 } from "./analise";
+import { ROTULO_FLUXO, type ApiConhecimento } from "./conhecimento";
+import { NovaAnalise } from "./NovaAnalise";
+import { NovaHistorias } from "./NovaHistorias";
+import { NovaReuniao } from "./NovaReuniao";
 import { PainelAnalise, type Abertura, type EstadoConversa } from "./PainelAnalise";
 import { PrepararAmbiente } from "./PrepararAmbiente";
-import type { ApiTerminal } from "./terminal";
+import type { ApiTerminal, ProjetoResumo } from "./terminal";
 import type { TelaTerminal } from "./telaXterm";
 
 interface Props {
@@ -20,6 +27,12 @@ interface Props {
   criarTela?: () => TelaTerminal;
   /** Projeto escolhido ao abrir (ex.: o recém-cadastrado no primeiro uso). */
   projetoInicial?: string;
+  /** Abre a lista já filtrada por situação (link da Visão geral). */
+  situacaoInicial?: EstadoAnalise;
+  /** Abre o painel "Nova análise" (ação global do menu e da Visão geral). */
+  novaInicial?: boolean;
+  /** Para os tipos de análise além da pergunta; sem ele, só "Perguntar ao sistema". */
+  apiConhecimento?: ApiConhecimento;
   /** Pergunta já preenchida (a sugestão do fim do primeiro uso). */
   perguntaInicial?: string;
   /** Abre o assistente do primeiro uso quando falta a base ou um projeto. */
@@ -37,12 +50,37 @@ interface Props {
   aoMudarConversa?: (estado: EstadoConversa) => void;
 }
 
-const ESTADO: Record<EstadoAnalise, string> = {
-  criada: "criada",
-  "em-andamento": "em andamento",
-  concluida: "concluída",
-  aprovada: "aprovada",
-};
+const ESTADO = ROTULO_ESTADO_ANALISE;
+const SITUACOES: EstadoAnalise[] = ["criada", "em-andamento", "concluida", "aprovada"];
+const TIPOS: Fluxo[] = [
+  "perguntar",
+  "explicar",
+  "impacto",
+  "reuniao",
+  "revisar",
+  "historias",
+  "cenarios",
+];
+
+const dobrar = (t: string) =>
+  t
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase();
+
+/** Aplica situação, tipo e busca (id ou título, sem acento nem caixa) à lista. */
+export function filtrarAnalises(
+  l: AnaliseResumo[],
+  f: { situacao: EstadoAnalise | null; tipo: Fluxo | null; busca: string },
+): AnaliseResumo[] {
+  const termo = dobrar(f.busca.trim());
+  return l.filter(
+    (a) =>
+      (!f.situacao || a.estado === f.situacao) &&
+      (!f.tipo || a.fluxo === f.tipo) &&
+      (!termo || dobrar(`${a.id} ${a.titulo}`).includes(termo)),
+  );
+}
 
 /**
  * Pergunta ao sistema, do início ao documento: escolher o projeto (preparando o
@@ -55,6 +93,9 @@ export function TelaAnalise({
   criarTela,
   projetoInicial = "",
   perguntaInicial = "",
+  situacaoInicial,
+  novaInicial,
+  apiConhecimento,
   aoPrimeiroUso,
   aberturaInicial,
   aoAbrirAnalise,
@@ -108,8 +149,8 @@ export function TelaAnalise({
   }
 
   return (
-    <section className="tela-analise page" aria-label="Pergunta ao sistema">
-      <h2>Pergunta ao sistema</h2>
+    <section className="tela-analise page" aria-label="Análises">
+      <h2>Análises</h2>
       {erro && (
         <p className="error-text" role="alert">
           {erro}
@@ -146,6 +187,10 @@ export function TelaAnalise({
               api={api}
               projeto={projeto}
               perguntaInicial={perguntaInicial}
+              situacaoInicial={situacaoInicial}
+              novaInicial={novaInicial}
+              apiConhecimento={apiConhecimento}
+              resumoProjeto={situacao.projetos.find((x) => x.id === projeto)}
               aoAbrir={(id, abertura) => abrir(projeto, id, abertura)}
             />
           )}
@@ -159,20 +204,32 @@ function Projeto({
   api,
   projeto,
   perguntaInicial,
+  situacaoInicial,
+  novaInicial,
+  apiConhecimento,
+  resumoProjeto,
   aoAbrir,
 }: {
   api: ApiAnalise;
   projeto: string;
   perguntaInicial: string;
+  situacaoInicial?: EstadoAnalise;
+  novaInicial?: boolean;
+  apiConhecimento?: ApiConhecimento;
+  resumoProjeto?: ProjetoResumo;
   aoAbrir: (id: string, abertura: Abertura) => void;
 }) {
   const [ambiente, setAmbiente] = useState<AmbienteClaude | null>(null);
   const [falhaAmbiente, setFalhaAmbiente] = useState<string | null>(null);
   const [analises, setAnalises] = useState<AnaliseResumo[] | null>(null);
-  const [entrada, setEntrada] = useState(perguntaInicial);
-  const [titulo, setTitulo] = useState("");
-  const [criando, setCriando] = useState(false);
   const [falha, setFalha] = useState<string | null>(null);
+  const [busca, setBusca] = useState("");
+  const [situacao, setSituacao] = useState<EstadoAnalise | null>(situacaoInicial ?? null);
+  const [tipo, setTipo] = useState<Fluxo | null>(null);
+  // A pergunta sugerida abre direto o formulário da pergunta.
+  const [novo, setNovo] = useState<Fluxo | "escolha" | null>(
+    perguntaInicial ? "perguntar" : novaInicial ? "escolha" : null,
+  );
 
   const verificar = useCallback(() => {
     setFalhaAmbiente(null);
@@ -195,6 +252,217 @@ function Projeto({
     };
   }, [api, projeto]);
 
+  const pronto = ambiente?.pronto === true;
+  const visiveis = analises ? filtrarAnalises(analises, { situacao, tipo, busca }) : [];
+  const filtrando = busca.trim() !== "" || situacao !== null || tipo !== null;
+  const tiposNaLista = TIPOS.filter((t) => analises?.some((a) => a.fluxo === t));
+  const criada = (_p: string, c: AnaliseCriada) =>
+    aoAbrir(c.analise.id, { tipo: "nova", promptInicial: c.promptInicial });
+  const projetos = resumoProjeto ? [resumoProjeto] : [];
+
+  return (
+    <>
+      {falhaAmbiente && (
+        <p className="error-text" role="alert">
+          Não foi possível verificar se o agente está ligado a este projeto: {falhaAmbiente}
+        </p>
+      )}
+      {ambiente && !pronto && (
+        <PrepararAmbiente api={api} projeto={projeto} ambiente={ambiente} aoConcluir={verificar} />
+      )}
+
+      <div className="titulo-com-acao">
+        <button
+          className="btn btn-primary"
+          type="button"
+          aria-expanded={novo !== null}
+          onClick={() => setNovo(novo === null ? "escolha" : null)}
+        >
+          Nova análise
+        </button>
+      </div>
+      {novo !== null && (
+        <section aria-label="Nova análise" className="fluxos">
+          <div className="botoes-fluxo" role="group" aria-label="Tipo de análise">
+            {TIPOS.filter((t) => t === "perguntar" || apiConhecimento).map((t) => (
+              <button
+                key={t}
+                type="button"
+                className="btn"
+                aria-pressed={novo === t}
+                onClick={() => setNovo(novo === t ? "escolha" : t)}
+              >
+                {ROTULO_FLUXO[t]}
+              </button>
+            ))}
+          </div>
+          {novo === "perguntar" && (
+            <FormPergunta
+              api={api}
+              projeto={projeto}
+              pronto={pronto}
+              ambiente={ambiente}
+              inicial={perguntaInicial}
+              aoAbrir={aoAbrir}
+            />
+          )}
+          {apiConhecimento && novo === "reuniao" && (
+            <NovaReuniao
+              api={apiConhecimento}
+              projetos={projetos}
+              aoCancelar={() => setNovo("escolha")}
+              aoCriar={criada}
+            />
+          )}
+          {apiConhecimento && (novo === "historias" || novo === "cenarios") && (
+            <NovaHistorias
+              key={novo}
+              fluxo={novo}
+              api={apiConhecimento}
+              projetos={projetos}
+              aoCancelar={() => setNovo("escolha")}
+              aoCriar={criada}
+            />
+          )}
+          {apiConhecimento &&
+            novo !== "escolha" &&
+            novo !== "perguntar" &&
+            novo !== "reuniao" &&
+            novo !== "historias" &&
+            novo !== "cenarios" && (
+              <NovaAnalise
+                key={novo}
+                api={apiConhecimento}
+                fluxo={novo}
+                projetos={projetos}
+                aoCancelar={() => setNovo("escolha")}
+                aoCriar={criada}
+              />
+            )}
+        </section>
+      )}
+      {falha && (
+        <p className="error-text" role="alert">
+          {falha}
+        </p>
+      )}
+
+      <section aria-label="Análises do projeto">
+        <h3>Análises</h3>
+        {analises && analises.length > 0 && (
+          <div className="demandas-filtros">
+            <label className="sr-only" htmlFor="busca-analises">
+              Buscar análise
+            </label>
+            <input
+              id="busca-analises"
+              type="search"
+              placeholder="Número ou título"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+            />
+            <div className="vincular-chips" role="group" aria-label="Situação da análise">
+              {SITUACOES.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  className="vincular-chip"
+                  aria-pressed={situacao === s}
+                  onClick={() => setSituacao(situacao === s ? null : s)}
+                >
+                  {ESTADO[s][0].toUpperCase() + ESTADO[s].slice(1)}
+                </button>
+              ))}
+            </div>
+            {tiposNaLista.length > 1 && (
+              <>
+                <label className="sr-only" htmlFor="tipo-analises">
+                  Tipo de análise
+                </label>
+                <select
+                  id="tipo-analises"
+                  value={tipo ?? ""}
+                  onChange={(e) => setTipo((e.target.value || null) as Fluxo | null)}
+                >
+                  <option value="">Todos os tipos</option>
+                  {tiposNaLista.map((t) => (
+                    <option key={t} value={t}>
+                      {ROTULO_FLUXO[t]}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
+          </div>
+        )}
+        {analises?.length === 0 && <p className="muted">Nenhuma análise ainda.</p>}
+        {analises && analises.length > 0 && visiveis.length === 0 && (
+          <p className="muted">Nenhuma análise com este filtro.</p>
+        )}
+        {visiveis.length > 0 && (
+          <ul className="lista-analises">
+            {visiveis.map((a) => (
+              <li key={a.id}>
+                <button
+                  className="link"
+                  type="button"
+                  onClick={() => aoAbrir(a.id, { tipo: "reabrir" })}
+                >
+                  {a.id}: {a.titulo}
+                </button>{" "}
+                <span className="muted">{ROTULO_FLUXO[a.fluxo]}</span>{" "}
+                <span className="badge" data-tone={TOM[a.estado]}>
+                  {ESTADO[a.estado]}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {filtrando && analises && analises.length > 0 && (
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              setBusca("");
+              setSituacao(null);
+              setTipo(null);
+            }}
+          >
+            Limpar filtros
+          </button>
+        )}
+      </section>
+    </>
+  );
+}
+
+const TOM: Record<EstadoAnalise, "attention" | "running" | "done" | undefined> = {
+  criada: undefined,
+  "em-andamento": "running",
+  concluida: "attention",
+  aprovada: "done",
+};
+
+function FormPergunta({
+  api,
+  projeto,
+  pronto,
+  ambiente,
+  inicial,
+  aoAbrir,
+}: {
+  api: ApiAnalise;
+  projeto: string;
+  pronto: boolean;
+  ambiente: AmbienteClaude | null;
+  inicial: string;
+  aoAbrir: (id: string, abertura: Abertura) => void;
+}) {
+  const [entrada, setEntrada] = useState(inicial);
+  const [titulo, setTitulo] = useState("");
+  const [criando, setCriando] = useState(false);
+  const [falha, setFalha] = useState<string | null>(null);
+
   const perguntar = (ev: FormEvent) => {
     ev.preventDefault();
     if (!entrada.trim()) return;
@@ -211,19 +479,8 @@ function Projeto({
       });
   };
 
-  const pronto = ambiente?.pronto === true;
-
   return (
     <>
-      {falhaAmbiente && (
-        <p className="error-text" role="alert">
-          Não foi possível verificar o ambiente do Claude: {falhaAmbiente}
-        </p>
-      )}
-      {ambiente && !pronto && (
-        <PrepararAmbiente api={api} projeto={projeto} ambiente={ambiente} aoConcluir={verificar} />
-      )}
-
       <form className="nova-pergunta" onSubmit={perguntar} aria-label="Nova pergunta">
         <label>
           Pergunta
@@ -242,7 +499,7 @@ function Projeto({
           Perguntar
         </button>
         {!pronto && ambiente && (
-          <span className="muted"> Prepare o ambiente do Claude antes de perguntar.</span>
+          <span className="muted"> Ligue o agente a este projeto para perguntar.</span>
         )}
       </form>
       {falha && (
@@ -250,27 +507,6 @@ function Projeto({
           {falha}
         </p>
       )}
-
-      <section aria-label="Análises do projeto">
-        <h3>Análises</h3>
-        {analises?.length === 0 && <p className="muted">Nenhuma análise ainda.</p>}
-        {analises && analises.length > 0 && (
-          <ul className="lista-analises">
-            {analises.map((a) => (
-              <li key={a.id}>
-                <button
-                  className="link"
-                  type="button"
-                  onClick={() => aoAbrir(a.id, { tipo: "reabrir" })}
-                >
-                  {a.id}: {a.titulo}
-                </button>{" "}
-                <span className="muted">{ESTADO[a.estado]}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
     </>
   );
 }

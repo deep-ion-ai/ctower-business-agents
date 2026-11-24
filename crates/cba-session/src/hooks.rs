@@ -694,7 +694,7 @@ fn analises_do_projeto(dados: &DiretorioDados, projeto: &str) -> Result<Analises
     let kb = base.projeto(projeto).map_err(|_| "projeto_fora_da_base")?;
     Ok(Analises::new(
         kb,
-        Arc::new(DiarioEventos::em(dados.eventos())),
+        Arc::new(DiarioEventos::do_diretorio(dados)),
     ))
 }
 

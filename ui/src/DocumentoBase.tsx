@@ -1,12 +1,8 @@
 import Markdown from "markdown-to-jsx";
 import { useMemo, type MouseEvent, type ReactNode } from "react";
-import {
-  resolverLink,
-  rotuloTipo,
-  type DocumentoAberto,
-  type LigacaoVista,
-} from "./conhecimento";
+import { resolverLink, rotuloTipo, type DocumentoAberto, type LigacaoVista } from "./conhecimento";
 import { ConsultaReversa } from "./ConsultaReversa";
+import { ErroTecnico } from "./erroTecnico";
 import { resolverImagem } from "./manual";
 import { ImagemDaBase } from "./ManualAoVivo";
 import { OPCOES_MARKDOWN_BASE } from "./markdownOpcoes";
@@ -36,25 +32,35 @@ export function DocumentoBase({
   aoAbrirDocumento,
   aoAbrirAnalise,
   aoEditar,
+  aoAbrirEmAba,
+  nomeDaArea,
 }: {
   documento: DocumentoAberto;
   aoAbrirDocumento: (caminho: string) => void;
   aoAbrirAnalise?: (projeto: string, id: string) => void;
   /** Mostra o botão "Editar". */
   aoEditar?: () => void;
+  /** Mostra "Abrir em aba": a página inteira do documento. */
+  aoAbrirEmAba?: () => void;
+  /** Nome legível da área (o do `projeto.md`); sem ele, o identificador. */
+  nomeDaArea?: (id: string) => string;
 }) {
   const campos = documento.campos.filter((c) => !NO_CABECALHO.has(c.chave));
   const saem = documento.ligacoes.filter((l) => l.sai);
   const chegam = documento.ligacoes.filter((l) => !l.sai);
   // Consulta reversa na tela da regra (#121).
   const regra = documento.campos.find((c) => c.chave === "id")?.valor;
+  const ehRegra = documento.tipo === "regra" && !!documento.projeto && !!regra;
+  const area = documento.campos.find((c) => c.chave === "area")?.valor;
 
   return (
     <article className="documento-base" aria-label={documento.titulo}>
       <header>
         <p className="muted">
           {rotuloTipo(documento.tipo)}
-          {documento.projeto && ` · ${documento.projeto}`} · <code>{documento.caminho}</code>
+          {regra && documento.tipo === "regra" && ` ${regra}`}
+          {documento.projeto && ` · ${documento.projeto}`}
+          {area && ` · ${nomeDaArea ? nomeDaArea(area) : area}`}
         </p>
         <h2>
           {documento.titulo}{" "}
@@ -67,20 +73,27 @@ export function DocumentoBase({
             </span>
           )}
         </h2>
-        {aoEditar && (
-          <button className="btn" type="button" onClick={aoEditar}>
-            Editar
-          </button>
-        )}
-        {documento.analise && aoAbrirAnalise && (
-          <button
-            className="btn"
-            type="button"
-            onClick={() => aoAbrirAnalise(documento.analise!.projeto, documento.analise!.id)}
-          >
-            Abrir na tela da análise
-          </button>
-        )}
+        <div className="acoes">
+          {aoEditar && (
+            <button className="btn" type="button" onClick={aoEditar}>
+              Editar
+            </button>
+          )}
+          {aoAbrirEmAba && (
+            <button className="btn" type="button" onClick={aoAbrirEmAba}>
+              Abrir em aba
+            </button>
+          )}
+          {documento.analise && aoAbrirAnalise && (
+            <button
+              className="btn"
+              type="button"
+              onClick={() => aoAbrirAnalise(documento.analise!.projeto, documento.analise!.id)}
+            >
+              Abrir na tela da análise
+            </button>
+          )}
+        </div>
         {documento.somenteLeitura && (
           <p className="muted" role="note">
             Documento externo, só leitura: cópia do repositório de docs
@@ -96,19 +109,50 @@ export function DocumentoBase({
                 )
               </>
             )}
-            . Para mudar, edite no repositório e sincronize. Não substitui a evidência do
-            código.
+            . Para mudar, edite no repositório e sincronize. Não substitui a evidência do código.
           </p>
         )}
         {documento.problema && (
           <p className="error-text" role="alert">
-            Frontmatter ilegível: {documento.problema}
+            Este documento tem um problema e não pôde ser lido por inteiro:{" "}
+            <ErroTecnico mensagem={documento.problema} />
           </p>
         )}
       </header>
 
-      {campos.length > 0 && (
+      {/* O texto vem primeiro (B-05): o resto é apoio. */}
+      <CorpoMarkdown
+        markdown={documento.markdown}
+        caminho={documento.caminho}
+        aoAbrirDocumento={aoAbrirDocumento}
+      />
+
+      {ehRegra && (
+        <ConsultaReversa
+          projeto={documento.projeto!}
+          regra={regra!}
+          aoAbrirDocumento={aoAbrirDocumento}
+          aoAbrirAnalise={aoAbrirAnalise}
+          comCodigo
+        />
+      )}
+
+      {(saem.length > 0 || chegam.length > 0) && (
+        <nav className="ligacoes" aria-label="Ligações">
+          {saem.length > 0 && <Ligacoes titulo="Cita" ligacoes={saem} aoAbrir={aoAbrirDocumento} />}
+          {chegam.length > 0 && (
+            <Ligacoes titulo="Citado por" ligacoes={chegam} aoAbrir={aoAbrirDocumento} />
+          )}
+        </nav>
+      )}
+
+      <details className="detalhes-arquivo">
+        <summary>Detalhes do arquivo</summary>
         <dl className="campos-documento">
+          <div>
+            <dt>arquivo</dt>
+            <dd>{documento.caminho}</dd>
+          </div>
           {campos.map((c) => (
             <div key={c.chave}>
               <dt>{c.chave}</dt>
@@ -116,33 +160,7 @@ export function DocumentoBase({
             </div>
           ))}
         </dl>
-      )}
-
-      {(saem.length > 0 || chegam.length > 0) && (
-        <nav className="ligacoes" aria-label="Ligações">
-          {saem.length > 0 && (
-            <Ligacoes titulo="Cita" ligacoes={saem} aoAbrir={aoAbrirDocumento} />
-          )}
-          {chegam.length > 0 && (
-            <Ligacoes titulo="Citado por" ligacoes={chegam} aoAbrir={aoAbrirDocumento} />
-          )}
-        </nav>
-      )}
-
-      {documento.tipo === "regra" && documento.projeto && regra && (
-        <ConsultaReversa
-          projeto={documento.projeto}
-          regra={regra}
-          aoAbrirDocumento={aoAbrirDocumento}
-          aoAbrirAnalise={aoAbrirAnalise}
-        />
-      )}
-
-      <CorpoMarkdown
-        markdown={documento.markdown}
-        caminho={documento.caminho}
-        aoAbrirDocumento={aoAbrirDocumento}
-      />
+      </details>
     </article>
   );
 }

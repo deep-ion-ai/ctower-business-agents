@@ -16,12 +16,18 @@ export interface ProjetoNoMenu {
 export function MenuConfiguracoes({
   escolha,
   projetos,
+  listarProjetos = true,
   podeCadastrar,
   aoEscolher,
   aoNovoProjeto,
 }: {
   escolha: Escolha;
   projetos: ProjetoNoMenu[];
+  /**
+   * `false`: o grupo Projetos fica só com "+ Novo projeto"; cada projeto se configura
+   * pelo cabeçalho da Visão geral (#319).
+   */
+  listarProjetos?: boolean;
   /** Há base escolhida: sem ela não dá para cadastrar projeto. */
   podeCadastrar: boolean;
   aoEscolher: (e: Escolha) => void;
@@ -68,8 +74,15 @@ export function MenuConfiguracoes({
         <span className="menu-config-titulo" aria-hidden="true">
           Projetos
         </span>
-        {projetos.length === 0 && <p className="muted menu-config-vazio">Nenhum projeto cadastrado.</p>}
-        {projetos.map((p) => {
+        {!listarProjetos && (
+          <p className="muted menu-config-vazio">
+            Cada projeto se configura em “Configurar projeto”, na Visão geral dele.
+          </p>
+        )}
+        {listarProjetos && projetos.length === 0 && (
+          <p className="muted menu-config-vazio">Nenhum projeto cadastrado.</p>
+        )}
+        {(listarProjetos ? projetos : []).map((p) => {
           const aberto = escolha.secao === "projeto" && escolha.projeto === p.id;
           const pendente = (p.pendencias ?? 0) > 0;
           return (

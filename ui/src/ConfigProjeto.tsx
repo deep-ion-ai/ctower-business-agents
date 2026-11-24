@@ -49,7 +49,7 @@ const SELO = {
 
 /**
  * Página do projeto nas configurações (#192): cabeçalho com nome, selo de saúde e
- * resumo, e as abas Visão geral, Código e demandas, O que é analisado, Ambiente de
+ * resumo, e as abas Saúde do cadastro (antes "Visão geral", #319), Código e demandas, O que é analisado, Ambiente de
  * teste, Agente e Avançado. As abas seguem o padrão WAI-ARIA (setas, Home e End; uma
  * só aba no Tab). Sair de “O que é analisado” ou de “Ambiente de teste” com
  * alterações não salvas pede confirmação.

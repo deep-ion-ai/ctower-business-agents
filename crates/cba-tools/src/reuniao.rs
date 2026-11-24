@@ -161,8 +161,9 @@ pub(crate) fn notificar_ata(ambiente: &Ambiente, id: IdReuniao) {
         mudanca: Mudanca::Ata,
         versao: 0,
         processo: std::process::id(),
+        estado: None,
     };
-    if let Err(e) = DiarioEventos::em(ambiente.dados.eventos()).notificar(&evento) {
+    if let Err(e) = DiarioEventos::do_diretorio(&ambiente.dados).notificar(&evento) {
         tracing::warn!(reuniao = %id, erro = %e.kind(), "diário de eventos: falha ao notificar");
     }
 }

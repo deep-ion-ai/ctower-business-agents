@@ -51,7 +51,7 @@ function itensDoPreparo(a: AmbienteDetalhado) {
       texto: hooks
         ? "O app fica sabendo quando o agente termina ou pede algo."
         : v?.hooksDesativados
-          ? "Os hooks estão desativados nas configurações do Claude."
+          ? "Os avisos estão desativados nas configurações do Claude."
           : "O app não sabe quando o agente termina.",
     },
     {

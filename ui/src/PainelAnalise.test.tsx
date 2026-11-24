@@ -137,7 +137,7 @@ describe("PainelAnalise", () => {
       }),
     );
     expect(await screen.findByText(AFIRMACAO_MULTA.texto)).toBeInTheDocument();
-    expect(screen.getByText("confirmado")).toHaveAttribute("data-tone", "done");
+    expect(screen.getByText("com evidência")).toHaveAttribute("data-tone", "done");
     expect(api.carregarAnalise).toHaveBeenCalledTimes(2);
 
     // Reinício da vigia: relê, mesmo sem versão nova.
@@ -1226,7 +1226,7 @@ describe("PainelAnalise", () => {
       // O seletor mostra onde escolher, e as ações só valem com uma conversa.
       expect(
         screen.getByRole("button", { name: "Continuar a conversa" }),
-      ).toHaveTextContent("Escolher onde");
+      ).toHaveTextContent("Conversa");
       expect(
         screen.queryByRole("group", { name: "Ações rápidas" }),
       ).not.toBeInTheDocument();
