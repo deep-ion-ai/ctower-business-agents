@@ -34,12 +34,15 @@ export function TelaBase({
   api,
   projetos,
   documentoInicial,
+  projetoInicial = "",
   navegar,
   aoAbrirDocumento,
   aoPendencia,
 }: {
   api: ApiConhecimento;
   projetos: ProjetoResumo[];
+  /** Filtro de projeto ao abrir (o projeto escolhido na barra de título, #319). */
+  projetoInicial?: string;
   documentoInicial?: string;
   navegar: (t: Tela) => void;
   /** Avisa o shell do documento aberto, para listá-lo no painel lateral (#85). */
@@ -48,7 +51,7 @@ export function TelaBase({
   aoPendencia?: (pendente: boolean) => void;
 }) {
   const [texto, setTexto] = useState("");
-  const [projeto, setProjeto] = useState("");
+  const [projeto, setProjeto] = useState(projetoInicial);
   const [tipos, setTipos] = useState<FiltroTipo[]>([]);
   const [busca, setBusca] = useState<Busca | null>(null);
   // Sem texto, a Base já abre com a lista dos documentos, em vez de vazia até a busca.

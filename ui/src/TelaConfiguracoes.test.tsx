@@ -550,7 +550,7 @@ describe("TelaConfiguracoes", () => {
       expect(projeto.getByRole("heading", { name: "Faturamento Exemplo" })).toBeInTheDocument();
       expect(await projeto.findByText("✓ Tudo pronto")).toBeInTheDocument();
       expect(projeto.getByRole("tablist", { name: "Partes do projeto" })).toBeInTheDocument();
-      expect(projeto.getByRole("tab", { name: "Visão geral" })).toHaveAttribute(
+      expect(projeto.getByRole("tab", { name: "Saúde do cadastro" })).toHaveAttribute(
         "aria-selected",
         "true",
       );
@@ -561,7 +561,7 @@ describe("TelaConfiguracoes", () => {
       // A prontidão dos repositórios é conferida sozinha, uma vez.
       expect(api.prontidaoRepositorios).toHaveBeenCalledTimes(1);
       fireEvent.click(projeto.getByRole("tab", { name: "Código e demandas" }));
-      fireEvent.click(projeto.getByRole("tab", { name: "Visão geral" }));
+      fireEvent.click(projeto.getByRole("tab", { name: "Saúde do cadastro" }));
       expect(api.prontidaoRepositorios).toHaveBeenCalledTimes(1);
     });
 

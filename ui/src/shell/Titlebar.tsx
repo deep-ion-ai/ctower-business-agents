@@ -47,11 +47,14 @@ export function Titlebar({
   produto,
   versao,
   antes,
+  meio,
   acoes,
 }: {
   produto: string;
   versao: string | null;
   antes?: ReactNode;
+  /** Logo depois da marca (ex.: o seletor de projeto, #319). */
+  meio?: ReactNode;
   acoes?: ReactNode;
 }) {
   return (
@@ -64,6 +67,7 @@ export function Titlebar({
           {versao ? `Versão ${versao}` : ""}
         </span>
       </div>
+      {meio}
       <span className="titlebar-spacer" />
       <div className="titlebar-actions">
         {acoes}
