@@ -123,7 +123,7 @@ pub(crate) fn ambiente(dados: &DiretorioDados, projeto: &str) -> Result<Ambiente
         .first()
         .map(|p| p.caminho.clone())
         .ok_or("o projeto não tem pastas cadastradas")?;
-    let notificador = Arc::new(DiarioEventos::em(dados.eventos()));
+    let notificador = Arc::new(DiarioEventos::do_diretorio(dados));
     Ambiente::do_processo_com(&pasta, Some(projeto), dados, notificador).map_err(|e| e.to_string())
 }
 

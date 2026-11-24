@@ -255,7 +255,7 @@ impl Guarda {
     /// Guarda em `<dados>/reunioes`, notificando no diário de eventos do app
     /// (`<dados>/eventos`).
     pub fn nova(dados: &DiretorioDados) -> Self {
-        Self::com_notificador(dados, Arc::new(DiarioEventos::em(dados.eventos())))
+        Self::com_notificador(dados, Arc::new(DiarioEventos::do_diretorio(dados)))
     }
 
     /// Guarda em `<dados>/reunioes`, com outro destino das notificações.
@@ -633,6 +633,7 @@ impl Guarda {
             mudanca: Mudanca::Transcript,
             versao: 0,
             processo: std::process::id(),
+            estado: None,
         };
         if let Err(e) = self.notificador.notificar(&evento) {
             tracing::warn!(projeto, reuniao = %reuniao, erro = %e.kind(), "diário de eventos: falha ao notificar");

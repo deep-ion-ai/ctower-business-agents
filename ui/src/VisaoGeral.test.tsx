@@ -69,7 +69,7 @@ const resumoVazio = (): ResumoProjeto => ({
   },
   demandas: { abertas: 0, encerradas: 0, semAnalise: 0 },
   base: { regras: 0, aRevalidar: 0, termos: 0 },
-  sessoes: { total: 0, ativas: 0, aguardandoAnalista: 0, concluidas: 0, encerradas: 0, porAnalise: [] },
+  sessoes: { total: 0, ativas: 0, aguardandoAnalista: 0, concluidas: 0, encerradas: 0, porAnalise: [], vivas: [] },
   pedemAcao: 0,
 });
 
@@ -261,7 +261,8 @@ describe("VisaoGeral", () => {
     const sessoes = within(painel).getByRole("list", { name: "Sessões ativas" });
     expect(sessoes).toHaveTextContent("A-0002");
     expect(sessoes).toHaveTextContent("aguarda você");
-    fireEvent.click(within(sessoes).getByRole("button", { name: "Abrir a análise" }));
+    expect(sessoes).toHaveTextContent("Parcelamento para pessoa jurídica");
+    fireEvent.click(within(sessoes).getByRole("button", { name: "Parcelamento para pessoa jurídica" }));
     expect(navegar).toHaveBeenLastCalledWith({
       tipo: "analise",
       projeto: PROJETO,
@@ -270,6 +271,63 @@ describe("VisaoGeral", () => {
     const recentes = within(painel).getByRole("list", { name: "Atividade recente" });
     expect(recentes).toHaveTextContent("A-0008: o agente aguarda você");
     expect(recentes).toHaveTextContent("A-0003 concluída pelo agente");
+  });
+
+  it("sessão sem análise ligada aparece com o cliente, sem link", async () => {
+    const base = resumoCheio();
+    montar({
+      ...base,
+      sessoes: {
+        ...base.sessoes,
+        vivas: [
+          {
+            id: "s9",
+            estado: "ativa",
+            cliente: "claude-code",
+            analise: null,
+            titulo: null,
+            inicioMs: 0,
+            atualizadaMs: 0,
+            fimMs: null,
+          },
+        ],
+      },
+    });
+    const painel = await screen.findByRole("region", { name: "Sessões e atividade" });
+    const sessoes = within(painel).getByRole("list", { name: "Sessões ativas" });
+    expect(sessoes).toHaveTextContent("Claude Code, ainda sem análise");
+    expect(sessoes).toHaveTextContent("trabalhando");
+    expect(within(sessoes).queryByRole("button")).toBeNull();
+  });
+
+  it("a atividade recente vem do histórico persistente, até 20 linhas", async () => {
+    const linha = (i: number): ResumoProjeto["atividadeRecente"][number] => ({
+      quandoMs: 1_700_000_000_000 - i,
+      alvo: "A-0001",
+      titulo: "Multa por atraso",
+      mudanca: "afirmacao",
+      estado: "em-andamento",
+      quantas: 3,
+    });
+    montar({
+      ...resumoCheio(),
+      atividadeRecente: [
+        { ...linha(0), mudanca: "estado", estado: "concluida", quantas: 1 },
+        { ...linha(1), alvo: "R-0002", titulo: null, mudanca: "ata", quantas: 1 },
+        { ...linha(2), alvo: "mapa", titulo: null, mudanca: "funcionalidade", quantas: 2 },
+        ...Array.from({ length: 30 }, (_, i) => linha(i + 3)),
+      ],
+    });
+    const painel = await screen.findByRole("region", { name: "Sessões e atividade" });
+    const recentes = within(painel).getByRole("list", { name: "Atividade recente" });
+    const itens = within(recentes).getAllByRole("listitem");
+    expect(itens).toHaveLength(20);
+    expect(itens[0]).toHaveTextContent("A-0001 · Multa por atraso: concluída pelo agente");
+    expect(itens[1]).toHaveTextContent("Reunião R-0002: ata atualizada");
+    expect(itens[2]).toHaveTextContent("Mapa de funcionalidades: funcionalidades atualizadas (2)");
+    expect(itens[3]).toHaveTextContent("A-0001 · Multa por atraso: afirmações atualizadas (3)");
+    // Com histórico, as datas derivadas do resumo não entram.
+    expect(recentes).not.toHaveTextContent("A-0008: o agente aguarda você");
   });
 
   it("a cobertura mostra o nome da área e as lacunas em texto, e o estado do mapa", async () => {

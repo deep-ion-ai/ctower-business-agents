@@ -16,6 +16,13 @@
 //! carimbo dos arquivos vale para qualquer processo que grave (app, `cba mcp`, `cba
 //! hook`), com a tela aberta ou não.
 //!
+//! # Sessões e histórico (#331)
+//!
+//! As sessões vivas vêm de todos os registros do projeto (`<dados>/sessoes`), ligadas
+//! a uma análise ou não, e a atividade recente vem do histórico persistente
+//! (`<dados>/historico`, [`cba_core::historico`]), que sobrevive a reiniciar o app.
+//! O comando `listar_sessoes_projeto_app` devolve todas as sessões do projeto.
+//!
 //! # Fora do resumo
 //!
 //! O grupo "Ambiente a preparar" (seção 7.1) depende do `verificar_ambiente_projeto`,
@@ -30,14 +37,16 @@ use std::sync::{Arc, LazyLock, Mutex};
 use std::time::UNIX_EPOCH;
 
 use cba_core::analise::{
-    Analise, EstadoAfirmacao, EstadoAnalise, EstadoPergunta, EstadoSessao, Fluxo,
+    Analise, Cliente, EstadoAfirmacao, EstadoAnalise, EstadoPergunta, EstadoSessao, Fluxo,
 };
 use cba_core::dados::DiretorioDados;
+use cba_core::eventos::{Evento, Mudanca};
+use cba_core::historico::Historico;
 use cba_core::tempo;
 use cba_kb::frontmatter::{FrontmatterAnalise, StatusRegra};
 use cba_kb::{Id, IdDemanda, layout};
 use cba_session::passagem::ClientesDasSessoes;
-use cba_session::sessoes::Sessoes;
+use cba_session::sessoes::{RegistroSessao, Sessoes};
 use cba_tools::revisao::pendencias;
 use serde::Serialize;
 
@@ -157,6 +166,49 @@ pub struct ResumoSessoes {
     pub concluidas: usize,
     pub encerradas: usize,
     pub por_analise: Vec<SessaoDaAnalise>,
+    /// Sessões vivas do projeto (ativas ou à espera do analista), ligadas a uma
+    /// análise ou não, da mais recente para a mais antiga (#331).
+    pub vivas: Vec<SessaoProjeto>,
+}
+
+/// Uma sessão de cliente de IA do projeto, como o registro dos hooks a descreve
+/// (#331). Só identificadores, estados e instantes.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessaoProjeto {
+    pub id: String,
+    pub estado: EstadoSessao,
+    pub cliente: Cliente,
+    /// Análise ligada, se a sessão já chamou uma ferramenta do `cba` com ela.
+    pub analise: Option<String>,
+    /// Título da análise ligada, quando ela existe.
+    pub titulo: Option<String>,
+    pub inicio_ms: u64,
+    pub atualizada_ms: u64,
+    pub fim_ms: Option<u64>,
+}
+
+/// Quantas atividades o resumo traz do histórico.
+pub const ATIVIDADES_RECENTES: usize = 20;
+/// Quantas linhas do histórico o resumo lê para montar as atividades recentes.
+const LINHAS_LIDAS: usize = 2000;
+
+/// Uma atividade recente do projeto, do histórico persistente (#331). Mudanças
+/// seguidas do mesmo tipo no mesmo alvo viram uma linha só, com a quantidade.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AtividadeRecente {
+    /// Instante da última mudança do grupo.
+    pub quando_ms: u64,
+    /// Análise (`A-0001`), reunião (`R-0001`) ou `mapa`.
+    pub alvo: String,
+    /// Título da análise, quando o alvo é uma análise que existe.
+    pub titulo: Option<String>,
+    pub mudanca: Mudanca,
+    /// Estado da análise depois da mudança, quando o evento o traz.
+    pub estado: Option<EstadoAnalise>,
+    /// Quantas mudanças seguidas o grupo junta.
+    pub quantas: usize,
 }
 
 /// Tipo de atividade, na ordem de prioridade (seção 7.1).
@@ -226,6 +278,9 @@ pub struct ResumoProjeto {
     pub sessoes: ResumoSessoes,
     /// Na ordem do `proximoPasso`, por projeto.
     pub atividades: Vec<Atividade>,
+    /// As últimas atividades do histórico persistente, da mais recente para a mais
+    /// antiga (até [`ATIVIDADES_RECENTES`]). Vazia em projeto sem histórico.
+    pub atividade_recente: Vec<AtividadeRecente>,
     /// O que o selo do menu mostra: quantas atividades esperam o analista.
     pub pedem_acao: usize,
     /// Quando o resumo foi montado (ms desde 1970).
@@ -317,7 +372,15 @@ struct CacheProjeto {
     analises: HashMap<String, EntradaAnalise>,
     base: Option<(u64, ResumoBase)>,
     demandas: Option<(u64, Vec<DemandaCompacta>)>,
-    sessoes: Option<(u64, HashMap<String, SessaoVista>)>,
+    sessoes: Option<(u64, SessoesLidas)>,
+    historico: Option<(u64, Vec<Evento>)>,
+}
+
+/// O que o resumo guarda dos registros de sessão.
+struct SessoesLidas {
+    por_analise: HashMap<String, SessaoVista>,
+    /// Sessões vivas, sem o título (que vem das análises).
+    vivas: Vec<SessaoProjeto>,
 }
 
 static CACHE: LazyLock<Mutex<HashMap<String, Arc<Mutex<CacheProjeto>>>>> =
@@ -503,20 +566,52 @@ pub fn resumo_projeto(dados: &DiretorioDados, projeto: &str) -> Result<ResumoPro
             .unwrap_or_default();
         let marcas = ClientesDasSessoes::no_diretorio(dados.raiz());
         let mut por_analise: HashMap<String, SessaoVista> = HashMap::new();
+        let mut vivas = Vec::new();
         // Do mais recente para o mais antigo: a primeira de cada análise é a que vale.
         for r in registros {
+            let cliente = marcas.cliente_de(&r);
+            if matches!(
+                r.estado,
+                EstadoSessao::Ativa | EstadoSessao::AguardandoAnalista
+            ) {
+                vivas.push(sessao_do_registro(&r, cliente));
+            }
             let Some(a) = r.analise.as_ref().map(|a| a.to_string()) else {
                 continue;
             };
             por_analise.entry(a).or_insert_with(|| SessaoVista {
-                cliente: marcas.cliente_de(&r),
+                cliente,
                 id: r.id,
                 estado: r.estado,
             });
         }
-        cache.sessoes = Some((sig, por_analise));
+        cache.sessoes = Some((sig, SessoesLidas { por_analise, vivas }));
     }
-    let registradas = &cache.sessoes.as_ref().expect("preenchido acima").1;
+
+    // Histórico: relido só quando um dos dois arquivos muda.
+    let historico = Historico::em(dados.historico());
+    let mut arq = BTreeMap::new();
+    for caminho in [historico.anterior(projeto), historico.arquivo(projeto)] {
+        if let Some(c) = carimbo(&caminho) {
+            arq.insert(caminho, c);
+        }
+    }
+    let sig = assinatura(&arq);
+    if cache.historico.as_ref().is_none_or(|(s, _)| *s != sig) {
+        let eventos = historico.ultimos(projeto, LINHAS_LIDAS).unwrap_or_default();
+        cache.historico = Some((sig, eventos));
+    }
+    let titulos: HashMap<&str, &str> = analises
+        .iter()
+        .map(|a| (a.id.as_str(), a.titulo.as_str()))
+        .collect();
+    let atividade_recente = atividades_recentes(
+        &cache.historico.as_ref().expect("preenchido acima").1,
+        &titulos,
+    );
+
+    let lidas = &cache.sessoes.as_ref().expect("preenchido acima").1;
+    let registradas = &lidas.por_analise;
     let demandas_lidas = &cache.demandas.as_ref().expect("preenchido acima").1;
     let sessao_de = |a: &AnaliseCompacta| {
         registradas
@@ -607,6 +702,18 @@ pub fn resumo_projeto(dados: &DiretorioDados, projeto: &str) -> Result<ResumoPro
         }
     }
     let total_analises = analises.len();
+    sessoes.vivas = lidas
+        .vivas
+        .iter()
+        .map(|s| SessaoProjeto {
+            titulo: s
+                .analise
+                .as_deref()
+                .and_then(|a| titulos.get(a))
+                .map(|t| (*t).to_owned()),
+            ..s.clone()
+        })
+        .collect();
 
     // Demandas: abertas, encerradas e as abertas sem análise ligada.
     let com_analise: std::collections::HashSet<IdDemanda> =
@@ -672,12 +779,95 @@ pub fn resumo_projeto(dados: &DiretorioDados, projeto: &str) -> Result<ResumoPro
         sessoes,
         pedem_acao: atividades.len(),
         atividades,
+        atividade_recente,
         gerado_ms: tempo::agora_ms(),
     })
 }
 
 // ---------------------------------------------------------------------------
+// Sessões e histórico (#331)
+
+fn sessao_do_registro(r: &RegistroSessao, cliente: Cliente) -> SessaoProjeto {
+    SessaoProjeto {
+        id: r.id.clone(),
+        estado: r.estado,
+        cliente,
+        analise: r.analise.as_ref().map(|a| a.to_string()),
+        titulo: None,
+        inicio_ms: r.inicio_ms,
+        atualizada_ms: r.atualizada_ms,
+        fim_ms: r.fim_ms,
+    }
+}
+
+/// As atividades recentes a partir dos eventos do histórico (do mais antigo para o
+/// mais recente): mudanças seguidas do mesmo tipo, no mesmo alvo e com o mesmo
+/// estado viram uma linha. As mudanças de sessão ficam de fora: são as idas e
+/// vindas entre "trabalhando" e "aguarda você", que o bloco das sessões já mostra.
+pub fn atividades_recentes(
+    eventos: &[Evento],
+    titulos: &HashMap<&str, &str>,
+) -> Vec<AtividadeRecente> {
+    let mut grupos: Vec<AtividadeRecente> = Vec::new();
+    for e in eventos.iter().filter(|e| e.mudanca != Mudanca::Sessao) {
+        if let Some(g) = grupos.last_mut()
+            && g.alvo == e.analise
+            && g.mudanca == e.mudanca
+            && g.estado == e.estado
+        {
+            g.quantas += 1;
+            g.quando_ms = g.quando_ms.max(e.quando_ms);
+            continue;
+        }
+        grupos.push(AtividadeRecente {
+            quando_ms: e.quando_ms,
+            alvo: e.analise.clone(),
+            titulo: titulos.get(e.analise.as_str()).map(|t| (*t).to_owned()),
+            mudanca: e.mudanca,
+            estado: e.estado,
+            quantas: 1,
+        });
+    }
+    grupos.reverse();
+    grupos.truncate(ATIVIDADES_RECENTES);
+    grupos
+}
+
+/// Todas as sessões registradas do projeto, da mais recente para a mais antiga, com
+/// o título da análise ligada.
+pub fn sessoes_do_projeto(
+    dados: &DiretorioDados,
+    projeto: &str,
+) -> Result<Vec<SessaoProjeto>, String> {
+    let titulos: HashMap<String, String> = crate::analise::listar_analises(dados, projeto)?
+        .into_iter()
+        .map(|a| (a.id, a.titulo))
+        .collect();
+    let registros = Sessoes::do_diretorio(dados)
+        .do_projeto(projeto)
+        .map_err(|e| format!("não foi possível ler as sessões: {e}"))?;
+    let marcas = ClientesDasSessoes::no_diretorio(dados.raiz());
+    Ok(registros
+        .iter()
+        .map(|r| {
+            let mut s = sessao_do_registro(r, marcas.cliente_de(r));
+            s.titulo = s.analise.as_ref().and_then(|a| titulos.get(a)).cloned();
+            s
+        })
+        .collect())
+}
+
+// ---------------------------------------------------------------------------
 // Comando
+
+#[tauri::command]
+pub async fn listar_sessoes_projeto_app(projeto: String) -> Result<Vec<SessaoProjeto>, String> {
+    let dados = DiretorioDados::padrao()
+        .map_err(|e| format!("diretório de dados do app inacessível: {e}"))?;
+    tauri::async_runtime::spawn_blocking(move || sessoes_do_projeto(&dados, &projeto))
+        .await
+        .map_err(|e| format!("falha interna: {e}"))?
+}
 
 #[tauri::command]
 pub async fn resumo_projeto_app(projeto: String) -> Result<ResumoProjeto, String> {

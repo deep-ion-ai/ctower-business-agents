@@ -107,7 +107,7 @@ impl Ambiente {
         projeto: Option<&str>,
         dados: &DiretorioDados,
     ) -> Result<Self, ErroAmbiente> {
-        let notificador = Arc::new(DiarioEventos::em(dados.eventos()));
+        let notificador = Arc::new(DiarioEventos::do_diretorio(dados));
         Self::do_processo_com(diretorio, projeto, dados, notificador)
     }
 

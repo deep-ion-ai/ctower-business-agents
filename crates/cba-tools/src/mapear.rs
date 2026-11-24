@@ -149,8 +149,9 @@ pub fn notificar(dados: &cba_core::dados::DiretorioDados, projeto: &str, versao:
         mudanca: Mudanca::Funcionalidade,
         versao,
         processo: std::process::id(),
+        estado: None,
     };
-    if let Err(e) = DiarioEventos::em(dados.eventos()).notificar(&evento) {
+    if let Err(e) = DiarioEventos::do_diretorio(dados).notificar(&evento) {
         tracing::warn!(erro = %e.kind(), "diário de eventos: falha ao notificar o mapa");
     }
 }

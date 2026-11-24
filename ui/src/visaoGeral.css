@@ -350,6 +350,12 @@
   border-top: 0;
 }
 
+/* Até 20 linhas do histórico (#331): rola dentro do painel. */
+.vg-recentes {
+  max-height: 360px;
+  overflow-y: auto;
+}
+
 .vg-titulo {
   min-width: 0;
   overflow: hidden;

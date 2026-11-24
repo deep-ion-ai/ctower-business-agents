@@ -27,6 +27,10 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use crate::analise::EstadoAnalise;
+use crate::dados::DiretorioDados;
+use crate::historico::Historico;
+
 /// Tipo de mudança numa análise.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -93,6 +97,11 @@ pub struct Evento {
     pub versao: u64,
     /// Processo que gravou (app, `cba mcp` ou `cba hook`).
     pub processo: u32,
+    /// Estado da análise depois da mudança, quando o evento é de uma análise (o
+    /// histórico de atividade diz "concluída" ou "aprovada" com ele). Ausente nas
+    /// linhas gravadas antes do campo existir e nos eventos de reunião e do mapa.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub estado: Option<EstadoAnalise>,
 }
 
 /// Destino das notificações.
@@ -114,13 +123,26 @@ impl Notificador for SemNotificacao {
 #[derive(Debug, Clone)]
 pub struct DiarioEventos {
     pasta: PathBuf,
+    /// Histórico persistente que recebe a mesma linha ([`crate::historico`]).
+    historico: Option<Historico>,
 }
 
 impl DiarioEventos {
-    /// Diário na pasta informada (normalmente `DiretorioDados::eventos`).
+    /// Diário na pasta informada, sem histórico (testes e leitores do diário).
     pub fn em(pasta: impl Into<PathBuf>) -> Self {
         Self {
             pasta: pasta.into(),
+            historico: None,
+        }
+    }
+
+    /// Diário do diretório de dados do app (`<dados>/eventos`), que também grava
+    /// cada evento no histórico de atividade (`<dados>/historico`). É o que todo
+    /// processo que grava usa.
+    pub fn do_diretorio(dados: &DiretorioDados) -> Self {
+        Self {
+            pasta: dados.eventos(),
+            historico: Some(Historico::em(dados.historico())),
         }
     }
 
@@ -271,7 +293,14 @@ impl Notificador for DiarioEventos {
         // processos gravando; é liberada quando o arquivo é fechado.
         arquivo.lock()?;
         arquivo.write_all(&linha)?;
-        arquivo.flush()
+        arquivo.flush()?;
+        drop(arquivo);
+        // Depois do diário: o aviso às telas não espera o histórico, e uma falha
+        // aqui só perde a linha do histórico.
+        if let Some(h) = &self.historico {
+            h.registrar(evento)?;
+        }
+        Ok(())
     }
 }
 
@@ -287,7 +316,44 @@ mod tests {
             mudanca: Mudanca::Afirmacao,
             versao: n,
             processo: std::process::id(),
+            estado: None,
         }
+    }
+
+    #[test]
+    fn do_diretorio_grava_tambem_no_historico() {
+        let dir = tempfile::tempdir().unwrap();
+        let dados = DiretorioDados::em(dir.path());
+        let diario = DiarioEventos::do_diretorio(&dados);
+        diario.notificar(&evento(1)).unwrap();
+        let mut leitor = diario.leitor("faturamento-exemplo").com_limite(1);
+        diario.notificar(&evento(2)).unwrap();
+        // A vigia lê e esvazia o diário; o histórico continua com tudo.
+        assert_eq!(leitor.ler_novos().unwrap().eventos, vec![evento(2)]);
+        assert!(diario.ler("faturamento-exemplo").unwrap().is_empty());
+        let historico = Historico::em(dados.historico());
+        assert_eq!(
+            historico.ultimos("faturamento-exemplo", 20).unwrap(),
+            vec![evento(1), evento(2)]
+        );
+    }
+
+    #[test]
+    fn evento_sem_estado_le_linhas_antigas() {
+        let linha = r#"{"quando_ms":1,"projeto":"p","analise":"A-0001","mudanca":"estado","versao":2,"processo":3}"#;
+        let e: Evento = serde_json::from_str(linha).unwrap();
+        assert_eq!(e.estado, None);
+        let com = Evento {
+            estado: Some(EstadoAnalise::Concluida),
+            ..e
+        };
+        let texto = serde_json::to_string(&com).unwrap();
+        assert!(texto.contains(r#""estado":"concluida""#), "{texto}");
+        assert!(
+            !serde_json::to_string(&evento(1))
+                .unwrap()
+                .contains("estado")
+        );
     }
 
     #[test]
