@@ -17,7 +17,7 @@
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
-use cba_core::analise::{Analise, EstadoAnalise};
+use cba_core::analise::{Analise, EstadoAnalise, Fluxo};
 use cba_core::dados::DiretorioDados;
 use cba_core::funcionalidades::MapaFuncionalidades;
 use cba_core::tempo;
@@ -27,10 +27,10 @@ use cba_repos::TrackerConfig;
 use cba_repos::cache_issues::{self, CacheIssues, FiltroIssues, VALIDADE_PADRAO};
 use cba_repos::demanda::Ferramentas;
 use cba_repos::listagem::{IssueListada, OrigemIssue};
-use cba_tools::vincular::demanda_da_issue;
+use cba_tools::vincular::{demanda_da_issue, demanda_da_issue_ou_nova};
 use serde::{Deserialize, Serialize};
 
-use crate::analise::ambiente;
+use crate::analise::{AnaliseCriada, ambiente};
 use crate::repositorios::cadastrado;
 
 /// Evento mandado à tela quando a releitura em segundo plano termina; a carga é
@@ -336,6 +336,72 @@ fn montar(
     })
 }
 
+/// O que "Analisar impacto" fez.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImpactoIniciado {
+    /// Demanda da base que representa a issue (`D-0001`).
+    pub demanda: String,
+    /// A demanda nasceu agora; senão, foi reaproveitada.
+    pub demanda_criada: bool,
+    pub criada: AnaliseCriada,
+}
+
+/// "Analisar impacto" (#323): cria a demanda da base com a chave e o endereço da
+/// issue, ou reaproveita a que existe, e cria a análise de impacto ligada a ela,
+/// com o título e a descrição da issue como entrada. A issue é a da última leitura
+/// da lista (a que o analista está vendo); nada é escrito no rastreador.
+///
+/// A issue encerrada no rastreador não é analisada: a demanda dela já nasceria
+/// encerrada e a base só liga análise nova a demanda aberta.
+pub fn analisar_impacto(
+    dados: &DiretorioDados,
+    projeto: &str,
+    origem: OrigemIssue,
+    chave: &str,
+) -> Result<ImpactoIniciado, String> {
+    let tracker = tracker_do_projeto(dados, projeto)?;
+    let cache = cache_issues::ler(&arquivo_do_cache(dados, projeto), &tracker)
+        .ok_or("a lista de issues ainda não foi lida; use Atualizar e tente de novo")?;
+    let chave = chave.trim();
+    let issue = cache
+        .listagem
+        .issues
+        .iter()
+        .find(|i| i.origem == origem && i.chave.eq_ignore_ascii_case(chave))
+        .ok_or_else(|| {
+            format!("a issue {chave} não está na lista; use Atualizar e tente de novo")
+        })?;
+    if issue.estado != "aberta" {
+        return Err(format!(
+            "a issue {} está encerrada no rastreador; a análise de impacto parte de uma issue aberta",
+            issue.chave
+        ));
+    }
+    let amb = ambiente(dados, projeto)?;
+    let mut existentes = amb.kb.demandas().map_err(|e| e.to_string())?;
+    let (id, demanda_criada) =
+        demanda_da_issue_ou_nova(&amb, &mut existentes, issue).map_err(|e| e.to_string())?;
+    let entrada = if issue.descricao.trim().is_empty() {
+        issue.titulo.clone()
+    } else {
+        format!("{}\n\n{}", issue.titulo, issue.descricao.trim())
+    };
+    let criada = crate::demandas::criar_analise_ligada(
+        dados,
+        projeto,
+        &id.to_string(),
+        Fluxo::Impacto,
+        &entrada,
+        Some(&issue.titulo),
+    )?;
+    Ok(ImpactoIniciado {
+        demanda: id.to_string(),
+        demanda_criada,
+        criada,
+    })
+}
+
 fn dados() -> Result<DiretorioDados, String> {
     DiretorioDados::padrao().map_err(|e| format!("diretório de dados do app inacessível: {e}"))
 }
@@ -379,6 +445,17 @@ pub async fn issues_do_projeto_app(
         )
     })
     .await
+}
+/// "Analisar impacto" na linha da issue (#323): demanda na base, análise de
+/// impacto ligada e o pedido que abre a conversa.
+#[tauri::command]
+pub async fn analisar_impacto_da_issue_app(
+    projeto: String,
+    origem: OrigemIssue,
+    chave: String,
+) -> Result<ImpactoIniciado, String> {
+    let dados = dados()?;
+    bloqueante(move || analisar_impacto(&dados, &projeto, origem, &chave)).await
 }
 
 #[cfg(all(test, unix))]

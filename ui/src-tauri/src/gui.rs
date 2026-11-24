@@ -109,6 +109,7 @@ pub fn rodar() {
             manual::remover_passo_manual_app,
             manual::ler_print_manual_app,
             issues_projeto::issues_do_projeto_app,
+            issues_projeto::analisar_impacto_da_issue_app,
             vincular_issues::issues_para_vincular_app,
             vincular_issues::confirmar_vinculos_app,
             vincular_issues::justificar_issue_app,

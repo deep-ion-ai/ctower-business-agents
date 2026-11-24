@@ -355,3 +355,96 @@ fn situacao_na_base_pela_analise_da_demanda() {
     let chaves: Vec<&str> = l.issues.iter().map(|i| i.chave.as_str()).collect();
     assert_eq!(chaves, ["#42", "#43"]);
 }
+
+#[test]
+fn analisar_impacto_cria_a_demanda_e_a_analise_e_reaproveita_a_demanda() {
+    let c = cenario();
+    com_rastreador(&c);
+    let f = gh_falso(c.dir.path());
+    listar(
+        &c.dados,
+        PROJETO,
+        &FiltroLista::default(),
+        Leitura::Cache,
+        &f,
+        nada,
+    )
+    .unwrap();
+
+    let primeira = analisar_impacto(&c.dados, PROJETO, OrigemIssue::Github, "#41").unwrap();
+    assert!(primeira.demanda_criada);
+    let amb = ambiente(&c.dados, PROJETO).unwrap();
+    let demandas = amb.kb.demandas().unwrap();
+    assert_eq!(demandas.len(), 1);
+    let f = &demandas[0].documento.frontmatter;
+    assert_eq!(f.chave.as_deref(), Some("#41"));
+    assert_eq!(
+        f.origem.as_deref(),
+        Some("https://github.com/o/r/issues/41")
+    );
+
+    // A análise é de impacto, com o texto da issue, ligada à demanda.
+    let analises = amb.analises.listar().unwrap();
+    assert_eq!(analises.len(), 1);
+    assert_eq!(analises[0].fluxo, Fluxo::Impacto);
+    assert!(
+        analises[0]
+            .entrada
+            .contains("Ao parcelar em 12x o valor não bate.")
+    );
+    let doc = amb
+        .kb
+        .ler::<FrontmatterAnalise>(&analises[0].documento)
+        .unwrap();
+    assert_eq!(doc.frontmatter.demanda.id, Some(demandas[0].id));
+    assert_eq!(primeira.demanda, demandas[0].id.to_string());
+
+    // A lista passa a mostrar a análise e a demanda da issue.
+    let l = listar(
+        &c.dados,
+        PROJETO,
+        &FiltroLista::default(),
+        Leitura::Cache,
+        &gh_falso(c.dir.path()),
+        nada,
+    )
+    .unwrap();
+    let i = l.issues.iter().find(|i| i.chave == "#41").unwrap();
+    assert_eq!(i.situacao, SituacaoNaBase::EmAndamento);
+    assert_eq!(i.demanda.as_deref(), Some(primeira.demanda.as_str()));
+
+    // Analisar de novo reaproveita a demanda: uma só, com duas análises.
+    let segunda = analisar_impacto(&c.dados, PROJETO, OrigemIssue::Github, "#41").unwrap();
+    assert!(!segunda.demanda_criada);
+    assert_eq!(segunda.demanda, primeira.demanda);
+    assert_eq!(amb.kb.demandas().unwrap().len(), 1);
+    assert_eq!(amb.analises.listar().unwrap().len(), 2);
+}
+
+#[test]
+fn analisar_impacto_recusa_issue_encerrada_ou_fora_da_lista_sem_criar_nada() {
+    let c = cenario();
+    com_rastreador(&c);
+    let f = gh_falso(c.dir.path());
+
+    // Sem leitura da lista, pede para atualizar.
+    let e = analisar_impacto(&c.dados, PROJETO, OrigemIssue::Github, "#41").unwrap_err();
+    assert!(e.contains("Atualizar"), "{e}");
+
+    listar(
+        &c.dados,
+        PROJETO,
+        &FiltroLista::default(),
+        Leitura::Cache,
+        &f,
+        nada,
+    )
+    .unwrap();
+    let e = analisar_impacto(&c.dados, PROJETO, OrigemIssue::Github, "#42").unwrap_err();
+    assert!(e.contains("encerrada"), "{e}");
+    let e = analisar_impacto(&c.dados, PROJETO, OrigemIssue::Github, "#99").unwrap_err();
+    assert!(e.contains("não está na lista"), "{e}");
+    let amb = ambiente(&c.dados, PROJETO).unwrap();
+    assert!(amb.kb.demandas().unwrap().is_empty());
+    assert!(amb.analises.listar().unwrap().is_empty());
+}

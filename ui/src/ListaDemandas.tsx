@@ -138,7 +138,7 @@ export function ListaDemandas({
   );
 }
 
-function FormDemanda({
+export function FormDemanda({
   api,
   projeto,
   aoCriar,
