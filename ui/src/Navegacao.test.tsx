@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { Navegacao } from "./Navegacao";
 import {
   PROJETO,
+  REGRA,
   apiConhecimentoFalsa,
   inicioFicticio,
   resumoFicticio,
