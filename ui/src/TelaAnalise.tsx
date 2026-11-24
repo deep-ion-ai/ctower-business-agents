@@ -217,7 +217,7 @@ function Projeto({
     <>
       {falhaAmbiente && (
         <p className="error-text" role="alert">
-          Não foi possível verificar o ambiente do Claude: {falhaAmbiente}
+          Não foi possível verificar se o agente está ligado a este projeto: {falhaAmbiente}
         </p>
       )}
       {ambiente && !pronto && (
@@ -242,7 +242,7 @@ function Projeto({
           Perguntar
         </button>
         {!pronto && ambiente && (
-          <span className="muted"> Prepare o ambiente do Claude antes de perguntar.</span>
+          <span className="muted"> Ligue o agente a este projeto para perguntar.</span>
         )}
       </form>
       {falha && (

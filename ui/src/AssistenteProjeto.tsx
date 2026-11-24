@@ -838,7 +838,7 @@ function Concluido({
           Fazer depois
         </button>
         <button type="button" className="btn btn-primary" onClick={() => aoPrepararAmbiente(projeto)}>
-          Preparar o ambiente do Claude
+          Ligar o agente a este projeto
         </button>
       </div>
     </section>

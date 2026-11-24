@@ -242,7 +242,7 @@ describe("TelaInicio", () => {
     montar(falsa);
     fireEvent.click(await screen.findByRole("button", { name: "Explicar funcionalidade" }));
     expect(
-      await screen.findByText(/Prepare o ambiente do Claude antes de iniciar/),
+      await screen.findByText(/Ligue o agente a este projeto antes de iniciar/),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Funcionalidade")).toBeInTheDocument();
   });

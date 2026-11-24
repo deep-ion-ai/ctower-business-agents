@@ -1,3 +1,4 @@
+import { AjudaTermo } from "./AjudaTermo";
 import { useCallback, useEffect, useState } from "react";
 import { contar } from "./formatacao";
 import { mensagemDe, type AnaliseCriada, type Fluxo } from "./analise";
@@ -325,7 +326,7 @@ function descreverPasso(p: PassoInicio): { titulo: string; texto: string; acao: 
       };
     case "preparar":
       return {
-        titulo: `Preparar o ambiente do Claude de ${p.nome}`,
+        titulo: `Ligar o agente ao projeto ${p.nome}`,
         texto:
           "Sem o preparo, o agente não consegue registrar as afirmações da análise no documento.",
         acao: "Preparar",
@@ -374,7 +375,14 @@ function ListaAnalises({
 }) {
   return (
     <section aria-label={titulo}>
-      <h2>{titulo}</h2>
+      <h2>
+        {titulo}
+        {titulo === "Aguardando revisão" && (
+          <AjudaTermo termo="aguardando revisão">
+            O agente terminou a análise e falta você conferir e aprovar.
+          </AjudaTermo>
+        )}
+      </h2>
       {analises.length === 0 && <p className="muted">{vazio}</p>}
       {analises.length > 0 && (
         <ul className="lista-analises">

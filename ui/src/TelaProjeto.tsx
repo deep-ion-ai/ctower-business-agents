@@ -1,3 +1,4 @@
+import { AjudaTermo } from "./AjudaTermo";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { contar } from "./formatacao";
 import { mensagemDe } from "./analise";
@@ -223,7 +224,12 @@ function Projeto({
       </section>
 
       <section aria-label="Regras">
-        <h3>Regras{area && ` da área ${area}`}</h3>
+        <h3>
+          Regras{area && ` da área ${area}`}
+          <AjudaTermo termo="a revalidar">
+            O código citado como evidência mudou depois da aprovação; confira se a regra continua valendo.
+          </AjudaTermo>
+        </h3>
         {regras.length === 0 && (
           <p className="muted">
             Nenhuma regra ainda: as afirmações confirmadas viram regras quando a análise é

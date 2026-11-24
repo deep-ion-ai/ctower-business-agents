@@ -80,7 +80,7 @@ describe("TelaAnalise", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Perguntar" })).toBeDisabled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Ver o que será alterado" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ver e ligar o agente" }));
     expect(await screen.findByText(/Servidor MCP "cba" para a pasta \/codigo/)).toBeInTheDocument();
     expect(screen.getByText("Hook SessionStart")).toBeInTheDocument();
     // A confiança na pasta entra no plano (#218).
@@ -89,7 +89,7 @@ describe("TelaAnalise", () => {
     ).toBeInTheDocument();
     expect(analise.api.prepararAmbiente).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Concordo, preparar o ambiente" }));
+    fireEvent.click(screen.getByRole("button", { name: "Concordo, ligar o agente" }));
     await waitFor(() =>
       expect(analise.api.prepararAmbiente).toHaveBeenCalledWith("faturamento-exemplo"),
     );
@@ -117,14 +117,14 @@ describe("TelaAnalise", () => {
       })),
     });
     montar(analise);
-    fireEvent.click(await screen.findByRole("button", { name: "Ver o que será alterado" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ver e ligar o agente" }));
     const aviso = await screen.findByRole("note");
     expect(aviso).toHaveTextContent("Hoje os avisos do Claude vão para outra instalação do app");
     expect(within(aviso).getAllByText(dev)).toHaveLength(1);
     expect(screen.getByText("Hook SessionStart").parentElement).toHaveTextContent(
       "hoje vai para outra instalação do app",
     );
-    const concordo = screen.getByRole("button", { name: "Concordo, preparar o ambiente" });
+    const concordo = screen.getByRole("button", { name: "Concordo, ligar o agente" });
     expect(concordo).toBeDisabled();
     fireEvent.click(within(aviso).getByRole("checkbox"));
     expect(concordo).toBeEnabled();

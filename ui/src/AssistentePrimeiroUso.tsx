@@ -120,7 +120,7 @@ export function AssistentePrimeiroUso({
 
       {etapa === "ambiente" && projeto && (
         <section className="passo-assistente" aria-label="Ambiente do Claude">
-          <h2>Preparar o ambiente do Claude</h2>
+          <h2>Ligar o agente a este projeto</h2>
           {cadastrado && (
             <details className="cadastrado">
               <summary>
@@ -131,9 +131,9 @@ export function AssistentePrimeiroUso({
             </details>
           )}
           <p>
-            Para o Claude consultar o projeto e registrar a análise no app, ele precisa conhecer o
-            servidor do app (MCP) e avisar o app do andamento da conversa (hooks). O app mostra
-            exatamente o que vai mudar na configuração do Claude e só grava com a sua concordância.
+            Para o Claude consultar o projeto e registrar a análise no app, o app precisa ligá-lo a
+            este projeto. O app mostra exatamente o que vai mudar na configuração do Claude e só
+            grava com a sua concordância.
           </p>
           <AmbienteDoProjeto api={api} projeto={projeto.id} aoMudar={aoMudarAmbiente} />
           <div className="acoes">
@@ -247,7 +247,7 @@ function Pronto({
       <h2>Tudo pronto para analisar “{projeto.nome}”</h2>
       {!ambientePronto && (
         <p className="attention-text" role="status">
-          O ambiente do Claude ainda não foi preparado. A tela da análise vai pedir o preparo antes
+          O agente ainda não foi ligado a este projeto. A tela da análise vai pedir o preparo antes
           da primeira pergunta.
         </p>
       )}

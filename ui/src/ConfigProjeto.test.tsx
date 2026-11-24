@@ -1013,10 +1013,10 @@ describe("ConfigProjeto", () => {
         painel.getByText("Ferramentas do app não conectadas"),
       ).toBeInTheDocument();
       fireEvent.click(
-        painel.getByRole("button", { name: "Ver o que será alterado" }),
+        painel.getByRole("button", { name: "Ver e ligar o agente" }),
       );
       const concordo = await painel.findByRole("button", {
-        name: "Concordo, preparar o ambiente",
+        name: "Concordo, ligar o agente",
       });
       expect(painel.queryByRole("checkbox")).not.toBeInTheDocument();
       fireEvent.click(concordo);

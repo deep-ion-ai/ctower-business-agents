@@ -256,7 +256,7 @@ describe("Cartão de afirmação", () => {
     montar();
     const c = within(cartao(1));
     expect(c.getByTitle("Afirmação 1")).toHaveTextContent("1");
-    expect(c.getByText("confirmado")).toHaveAttribute("data-tone", "done");
+    expect(c.getByText("com evidência")).toHaveAttribute("data-tone", "done");
     expect(within(cartao(2)).getByText("inferido")).toHaveAttribute("data-tone", "running");
     expect(within(cartao(6)).getByText("a confirmar")).toHaveAttribute("data-tone", "attention");
     expect(c.getByText("Passada a carência, a multa é de 2%.")).toBeInTheDocument();

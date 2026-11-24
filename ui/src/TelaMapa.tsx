@@ -25,12 +25,13 @@ import type { EstadoConversa } from "./PainelAnalise";
 import type { ApiConhecimento } from "./conhecimento";
 import { PainelFuncionalidade } from "./PainelFuncionalidade";
 import { TerminalClaude, type EstadoTerminal } from "./TerminalClaude";
+import { AjudaTermo } from "./AjudaTermo";
 import type { ApiTerminal, ProjetoResumo } from "./terminal";
 import type { TelaTerminal } from "./telaXterm";
 
 
 
-/** Pontos sem tratamento mostrados de uma vez (projetos grandes têm milhares). */
+/** Pontos ainda sem funcionalidade mostrados de uma vez (projetos grandes têm milhares). */
 const MOSTRADOS = 100;
 
 type Filtro = "todas" | "pendentes" | "aceitas" | "sem-ponto";
@@ -616,7 +617,7 @@ function MapaDoProjeto({
                   `${mapa.pendentes} a revisar`,
                   `${mapa.documentadas} documentadas`,
                   mapa.completude
-                    ? `${contar(mapa.completude.total, "ponto de entrada", "pontos de entrada")}, ${semTratamento.length} sem tratamento`
+                    ? `${contar(mapa.completude.total, "ponto de entrada", "pontos de entrada")}, ${semTratamento.length} ainda sem funcionalidade`
                     : null,
                 ]
                   .filter(Boolean)
@@ -773,18 +774,23 @@ function MapaDoProjeto({
             aria-label="Pontos de entrada sem funcionalidade"
             className="pontos-sem-funcionalidade"
           >
-            <h4>Pontos de entrada sem funcionalidade</h4>
+            <h4>
+              Pontos de entrada sem funcionalidade
+              <AjudaTermo termo="ponto de entrada">
+                Telas, serviços e rotinas por onde o sistema é usado.
+              </AjudaTermo>
+            </h4>
             {semTratamento.length > 0 && (
               <>
                 <p className="aviso">
                   {contar(
                     semTratamento.length,
-                    "ponto de entrada ainda sem tratamento",
-                    "pontos de entrada ainda sem tratamento",
+                    "ponto de entrada ainda sem funcionalidade",
+                    "pontos de entrada ainda sem funcionalidade",
                   )}
                   : uma sessão de mapeamento os atribui a funcionalidades ou justifica.
                 </p>
-                <ul aria-label="Sem tratamento">
+                <ul aria-label="Ainda sem funcionalidade">
                   {mostrados.map((p) => (
                     <li key={p.chave}>
                       <code>{p.nome}</code>{" "}

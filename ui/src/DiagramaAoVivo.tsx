@@ -58,7 +58,7 @@ const PAPEL: Record<string, string> = {
 };
 
 const CONFIANCA: Record<string, string> = {
-  confirmado: "confirmado",
+  confirmado: "com evidência",
   inferido: "inferido",
   a_confirmar: "a confirmar",
 };
