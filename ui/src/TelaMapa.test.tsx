@@ -85,10 +85,10 @@ describe("TelaMapa", () => {
     abrir(apiFalsa());
     expect(await screen.findByRole("region", { name: "F-COB-001: Calcular encargos" })).toBeInTheDocument();
     expect(screen.getByLabelText("Resumo do mapa")).toHaveTextContent(
-      "2 funcionalidades · 2 áreas · 1 a revisar · 1 documentadas · 15 pontos de entrada, 1 sem tratamento",
+      "2 funcionalidades · 2 áreas · 1 a revisar · 1 documentadas · 15 pontos de entrada, 1 ainda sem funcionalidade",
     );
     expect(screen.getByRole("heading", { name: /Cancelamento/ })).toBeInTheDocument();
-    const sem = screen.getByRole("list", { name: "Sem tratamento" });
+    const sem = screen.getByRole("list", { name: "Ainda sem funcionalidade" });
     expect(sem).toHaveTextContent("PKG_SITUACAO.PRC_SUSPENDER_COBRANCA");
     expect(screen.getByRole("list", { name: "Justificados" })).toHaveTextContent("utilitário");
   });

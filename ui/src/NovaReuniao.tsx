@@ -270,7 +270,7 @@ export function NovaReuniao({
         </button>
       </div>
       {ambiente && !pronto && (
-        <p className="muted">Prepare o ambiente do Claude antes de iniciar a análise.</p>
+        <p className="muted">Ligue o agente a este projeto antes de iniciar a análise.</p>
       )}
       {!aceito && previa?.podeCriar && (
         <p className="muted">Aceite o aviso de privacidade para criar a reunião.</p>

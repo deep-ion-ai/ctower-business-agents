@@ -61,20 +61,30 @@ export function PrepararAmbiente({
   const outras = outrasInstalacoes(mudancas);
 
   return (
-    <div className="preparar-ambiente" role="region" aria-label="Preparar o ambiente">
-      <p>O ambiente do Claude ainda não está preparado para este projeto:</p>
-      <ul>
-        {ambiente.pendencias.map((p) => (
-          <li key={p}>{p}</li>
-        ))}
-      </ul>
+    <div className="preparar-ambiente" role="region" aria-label="Ligar o agente a este projeto">
+      <p>O agente ainda não está ligado a este projeto.</p>
+      <details className="detalhes-tecnicos">
+        <summary>Detalhes</summary>
+        <ul>
+          {ambiente.pendencias.map((p) => (
+            <li key={p}>{p}</li>
+          ))}
+        </ul>
+      </details>
       {!plano && (
         <button className="btn" type="button" onClick={planejar} disabled={ocupado}>
-          Ver o que será alterado
+          Ver e ligar o agente
         </button>
       )}
       {plano && (
         <>
+          <p>
+            O app vai ligar o agente a este projeto e, para isso, vai alterar a configuração do
+            Claude (detalhes abaixo). Antes de gravar, faz uma cópia de segurança de cada arquivo e,
+            ao desfazer, tudo isso sai.
+          </p>
+          <details className="detalhes-tecnicos">
+            <summary>Detalhes</summary>
           <p>
             O app vai registrar o servidor MCP na configuração do Claude Code, marcar a pasta do
             projeto como confiável (para o Claude não perguntar isso na primeira conversa) e gravar
@@ -110,6 +120,7 @@ export function PrepararAmbiente({
               </li>
             )}
           </ul>
+          </details>
           {outras.length > 0 && (
             <div className="aviso-outra-instalacao attention-text" role="note">
               <p>
@@ -155,7 +166,7 @@ export function PrepararAmbiente({
               onClick={preparar}
               disabled={ocupado || (outras.length > 0 && !aceitaTroca)}
             >
-              Concordo, preparar o ambiente
+              Concordo, ligar o agente
             </button>
           </div>
         </>

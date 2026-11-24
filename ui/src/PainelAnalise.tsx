@@ -804,7 +804,7 @@ export function PainelAnalise({
                   aoAlternar={alternar("continuar")}
                   aoFechar={fecharMenu}
                   rotulo="Continuar a conversa"
-                  conteudo={`${onde ? ONDE_CURTO[onde] : "Escolher onde"} ▾`}
+                  conteudo={`${onde ? ONDE_CURTO[onde] : "Conversa"} ▾`}
                   classeBotao="btn btn-sm seletor-onde"
                   rotuloPainel="Onde continuar a conversa"
                   classePainel="menu-continuar"

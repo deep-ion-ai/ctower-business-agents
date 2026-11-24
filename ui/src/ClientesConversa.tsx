@@ -158,7 +158,10 @@ export function ClientesConversa({
             o.cliente === "terminalDoAnalista" &&
             !(vivo && aquiAgora) &&
             opcoes && (
-              <ComandosTerminal opcoes={opcoes} aoLink={aoLinkTerminal} aoCopiar={aoCopiar} />
+              <details className="detalhes-tecnicos" open={onde === "terminalDoAnalista"}>
+                <summary>Detalhes para quem usa terminal</summary>
+                <ComandosTerminal opcoes={opcoes} aoLink={aoLinkTerminal} aoCopiar={aoCopiar} />
+              </details>
             )}
         </section>
       ))}

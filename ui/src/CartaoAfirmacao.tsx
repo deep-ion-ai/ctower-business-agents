@@ -4,7 +4,7 @@ import { AcoesAfirmacao, type ComandoAfirmacao, type Revisao } from "./AcoesRevi
 import { TextoAfirmacao } from "./TextoAfirmacao";
 
 export const ROTULO_CONFIANCA: Record<Confianca, string> = {
-  confirmado: "confirmado",
+  confirmado: "com evidência",
   inferido: "inferido",
   a_confirmar: "a confirmar",
 };

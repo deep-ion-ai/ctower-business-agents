@@ -75,7 +75,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
     fireEvent.click(await screen.findByRole("button", { name: "Cadastrar o projeto" }));
     fireEvent.click(
-      await screen.findByRole("button", { name: "Preparar o ambiente do Claude" }),
+      await screen.findByRole("button", { name: "Ligar o agente a este projeto" }),
     );
     await screen.findByText(/O ambiente do Claude está preparado/);
     fireEvent.click(screen.getByRole("button", { name: "Continuar" }));

@@ -39,7 +39,7 @@ const TEXTOS: Record<
     pedido: "O que você quer nas histórias (opcional)",
     exemplo: "Ex.: Só o parcelamento na tela; o relatório de recebíveis fica para depois.",
     botao: "Gerar as histórias",
-    preparar: "Prepare o ambiente do Claude antes de gerar as histórias.",
+    preparar: "Ligue o agente a este projeto antes de gerar as histórias.",
   },
   cenarios: {
     explicacao:
@@ -51,7 +51,7 @@ const TEXTOS: Record<
     pedido: "Regras ou o que você quer nos cenários",
     exemplo: "Ex.: Cenários do cancelamento: RN-FAT-013 e RN-FAT-014.",
     botao: "Gerar os cenários",
-    preparar: "Prepare o ambiente do Claude antes de gerar os cenários.",
+    preparar: "Ligue o agente a este projeto antes de gerar os cenários.",
   },
 };
 

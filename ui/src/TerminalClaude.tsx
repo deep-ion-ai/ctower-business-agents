@@ -247,15 +247,15 @@ function OrientacaoErro({ erro }: { erro: ErroAbertura }) {
   if (erro.motivo === "ambienteNaoPreparado") {
     return (
       <>
-        <ul>
-          {erro.pendencias.map((p) => (
-            <li key={p}>{p}</li>
-          ))}
-        </ul>
-        <p>
-          O app registra o servidor MCP e os hooks na configuração do Claude ao preparar o
-          ambiente do projeto. Depois disso, tente de novo.
-        </p>
+        <details className="detalhes-tecnicos">
+          <summary>Detalhes</summary>
+          <ul>
+            {erro.pendencias.map((p) => (
+              <li key={p}>{p}</li>
+            ))}
+          </ul>
+        </details>
+        <p>Ligue o agente a este projeto e tente de novo.</p>
       </>
     );
   }

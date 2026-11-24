@@ -192,7 +192,7 @@ export function NovaAnalise({
         </button>
       </div>
       {ambiente && !pronto && (
-        <p className="muted">Prepare o ambiente do Claude antes de iniciar a análise.</p>
+        <p className="muted">Ligue o agente a este projeto antes de iniciar a análise.</p>
       )}
       {falha && (
         <p className="error-text" role="alert">
