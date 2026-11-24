@@ -23,15 +23,16 @@ import { Titlebar } from "./shell/Titlebar";
 import type { ResumoProjeto } from "./resumoProjeto";
 import { TelaAnalise } from "./TelaAnalise";
 import { TelaAtividades } from "./TelaAtividades";
-import type { ApiConfiguracoes } from "./configuracoes";
+import { apiConfiguracoesTauri, type ApiConfiguracoes } from "./configuracoes";
 import { TelaBase } from "./TelaBase";
 import { TelaCodigo } from "./TelaCodigo";
 import { TelaConfiguracoes } from "./TelaConfiguracoes";
 import { TelaInicio } from "./TelaInicio";
 import { TelaMapa } from "./TelaMapa";
 import { VincularIssues } from "./VincularIssues";
-import { apiMapaTauri } from "./funcionalidades";
-import { TelaProjeto } from "./TelaProjeto";
+import { apiMapaTauri, type ApiMapa } from "./funcionalidades";
+import { VisaoGeral } from "./VisaoGeral";
+import { apiResumoTauri, type ApiResumo } from "./resumoProjeto";
 import type { ApiTerminal, ProjetoResumo } from "./terminal";
 import type { TelaTerminal } from "./telaXterm";
 
@@ -75,6 +76,10 @@ interface Props {
   apiAnalise?: ApiAnalise;
   /** Para testes. */
   apiConfiguracoes?: ApiConfiguracoes;
+  /** Para testes: o resumo do projeto (#318) que alimenta a Visão geral. */
+  apiResumo?: ApiResumo;
+  /** Para testes: o mapa de funcionalidades lido pela Visão geral. */
+  apiMapa?: Pick<ApiMapa, "mapa">;
   /** Para testes: o terminal embutido das análises. */
   apiTerminal?: ApiTerminal;
   /** Para testes. */
@@ -198,6 +203,8 @@ export function Navegacao({
   api = apiConhecimentoTauri,
   apiAnalise,
   apiConfiguracoes,
+  apiResumo = apiResumoTauri,
+  apiMapa = apiMapaTauri,
   apiTerminal,
   criarTela,
   abrirLink,
@@ -534,8 +541,6 @@ export function Navegacao({
   const sessoesAguardando =
     inicio?.emAndamento.filter((a) => a.sessao?.estado === "aguardando-analista") ?? [];
   const aguardando = sessoesAguardando.length;
-  // O projeto atual só, para as telas que ainda têm o próprio seletor de projeto.
-  const soOAtual = projetos.filter((p) => p.id === projeto);
   // As seções esperam a lista de projetos, para não abrir num projeto que sumiu.
   const secaoAVista = lidos && ativa === null;
   const chaveSecao = `${secao.id}:${projeto}:${secao.vez}`;
@@ -650,26 +655,14 @@ export function Navegacao({
                 </div>
               )}
               {secaoAVista && secao.id === "visao-geral" && (
-                <TelaProjeto
+                <VisaoGeral
                   key={chaveSecao}
+                  projeto={projeto}
                   api={api}
-                  projetos={soOAtual}
-                  projetoInicial={projeto || undefined}
+                  apiResumo={apiResumo}
+                  apiConfiguracoes={apiConfiguracoes ?? apiConfiguracoesTauri}
+                  apiMapa={apiMapa}
                   navegar={navegar}
-                  cabecalho={
-                    projeto && (
-                      <div className="cab-secao">
-                        <h2>Visão geral</h2>
-                        <button
-                          type="button"
-                          className="btn"
-                          onClick={() => navegar({ tipo: "configurar", projeto })}
-                        >
-                          Configurar projeto
-                        </button>
-                      </div>
-                    )
-                  }
                 />
               )}
               {secaoAVista && secao.id === "atividades" && (

@@ -1,7 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { Navegacao } from "./Navegacao";
 import {
-  REGRA,
   PROJETO,
   apiConhecimentoFalsa,
   inicioFicticio,
@@ -9,6 +8,7 @@ import {
 } from "./test/conhecimentoFalso";
 import { MAPA } from "./test/mapaFalso";
 import { apiConfiguracoesFalsa } from "./test/configuracoesFalso";
+import { apiResumoFalsa } from "./test/resumoFalso";
 import { act } from "react";
 import {
   apiAnaliseFalsa,
@@ -51,8 +51,17 @@ function conhecimentoComDois() {
 
 function montar(conhecimento = apiConhecimentoFalsa()) {
   const analise = apiAnaliseFalsa();
-  render(<Navegacao api={conhecimento.api} apiAnalise={analise.api} />);
-  return { conhecimento, analise };
+  const resumo = apiResumoFalsa();
+  render(
+    <Navegacao
+      api={conhecimento.api}
+      apiAnalise={analise.api}
+      apiResumo={resumo}
+      apiConfiguracoes={apiConfiguracoesFalsa()}
+      apiMapa={{ mapa: () => Promise.resolve(MAPA) }}
+    />,
+  );
+  return { conhecimento, analise, resumo };
 }
 
 /** Navegação aberta numa análise recém-criada, com o terminal embutido falso. */
@@ -62,6 +71,9 @@ function montarComAnalise(analise = apiAnaliseFalsa()) {
     <Navegacao
       api={apiConhecimentoFalsa().api}
       apiAnalise={analise.api}
+      apiResumo={apiResumoFalsa()}
+      apiConfiguracoes={apiConfiguracoesFalsa()}
+      apiMapa={{ mapa: () => Promise.resolve(MAPA) }}
       apiTerminal={terminal.api}
       criarTela={telaFalsa}
       inicial={{
@@ -93,8 +105,8 @@ describe("Navegacao", () => {
 
   it("abre na Visão geral do último projeto usado, sem abas", async () => {
     localStorage.setItem("cba.projeto.ultimo", OUTRO);
-    const { conhecimento } = montar(conhecimentoComDois());
-    await waitFor(() => expect(conhecimento.api.visaoProjeto).toHaveBeenCalledWith(OUTRO));
+    const { resumo } = montar(conhecimentoComDois());
+    await waitFor(() => expect(resumo.resumoProjeto).toHaveBeenCalledWith(OUTRO));
     expect(item("Visão geral")).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("button", { name: /Projeto: Empréstimos/ })).toBeInTheDocument();
     expect(screen.queryByRole("tablist", { name: "Abas abertas" })).not.toBeInTheDocument();
@@ -102,15 +114,15 @@ describe("Navegacao", () => {
 
   it("sem projeto lembrado (ou que sumiu), abre o primeiro e lembra a escolha", async () => {
     localStorage.setItem("cba.projeto.ultimo", "descadastrado");
-    const { conhecimento } = montar(conhecimentoComDois());
-    await waitFor(() => expect(conhecimento.api.visaoProjeto).toHaveBeenCalledWith(PROJETO));
-    expect(conhecimento.api.visaoProjeto).not.toHaveBeenCalledWith("descadastrado");
+    const { resumo } = montar(conhecimentoComDois());
+    await waitFor(() => expect(resumo.resumoProjeto).toHaveBeenCalledWith(PROJETO));
+    expect(resumo.resumoProjeto).not.toHaveBeenCalledWith("descadastrado");
     expect(localStorage.getItem("cba.projeto.ultimo")).toBe(PROJETO);
   });
 
   it("trocar de projeto troca o conteúdo de todas as seções", async () => {
-    const { conhecimento } = montar(conhecimentoComDois());
-    await waitFor(() => expect(conhecimento.api.visaoProjeto).toHaveBeenCalledWith(PROJETO));
+    const { conhecimento, resumo } = montar(conhecimentoComDois());
+    await waitFor(() => expect(resumo.resumoProjeto).toHaveBeenCalledWith(PROJETO));
 
     fireEvent.click(item("Demandas"));
     await waitFor(() => expect(conhecimento.api.listarDemandas).toHaveBeenCalledWith(PROJETO));
@@ -124,7 +136,7 @@ describe("Navegacao", () => {
 
     // As outras seções também.
     fireEvent.click(item("Visão geral"));
-    await waitFor(() => expect(conhecimento.api.visaoProjeto).toHaveBeenCalledWith(OUTRO));
+    await waitFor(() => expect(resumo.resumoProjeto).toHaveBeenCalledWith(OUTRO));
     fireEvent.click(item("Base"));
     await waitFor(() =>
       expect(conhecimento.api.buscar).toHaveBeenLastCalledWith("", expect.objectContaining({ projeto: OUTRO })),
@@ -134,7 +146,7 @@ describe("Navegacao", () => {
   });
 
   it("o seletor mostra as pendências de cada projeto e funciona pelo teclado", async () => {
-    const { conhecimento } = montar(conhecimentoComDois());
+    const { conhecimento, resumo } = montar(conhecimentoComDois());
     await waitFor(() => expect(conhecimento.api.inicio).toHaveBeenCalled());
     const botao = await screen.findByRole("button", { name: /Projeto: Faturamento Exemplo/ });
     fireEvent.click(botao);
@@ -157,7 +169,7 @@ describe("Navegacao", () => {
     expect(within(screen.getByRole("listbox")).getByRole("option", { name: /Empréstimos/ })).toHaveFocus();
     fireEvent.keyDown(screen.getByRole("listbox"), { key: "Enter" });
     expect(await screen.findByRole("button", { name: /Projeto: Empréstimos/ })).toBeInTheDocument();
-    await waitFor(() => expect(conhecimento.api.visaoProjeto).toHaveBeenCalledWith(OUTRO));
+    await waitFor(() => expect(resumo.resumoProjeto).toHaveBeenCalledWith(OUTRO));
   });
 
   it("o menu mostra rótulos e contagens e é navegável por teclado", async () => {
@@ -250,7 +262,7 @@ describe("Navegacao", () => {
 
   it("passear pelas seções não abre abas; abrir análise, documento ou demanda abre", async () => {
     const { analise } = montar();
-    expect(await screen.findByRole("region", { name: "Regras" })).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "Visão geral do projeto" })).toBeInTheDocument();
 
     fireEvent.click(item("Atividades"));
     expect(await screen.findByRole("region", { name: "Início" })).toBeInTheDocument();
@@ -287,18 +299,26 @@ describe("Navegacao", () => {
     expect(within(abas).getAllByRole("tab")).toHaveLength(2);
   });
 
-  it("da Visão geral para o documento na base, numa aba", async () => {
-    const { conhecimento } = montar();
-    const regras = await screen.findByRole("region", { name: "Regras" });
-    fireEvent.click(within(regras).getByRole("button", { name: /RN-COB-001/ }));
-    expect(await screen.findByRole("article", { name: /Passada a carência/ })).toBeInTheDocument();
-    expect(conhecimento.api.abrirDocumento).toHaveBeenCalledWith(REGRA);
-    expect(screen.getByRole("tab", { name: "RN-COB-001" })).toHaveAttribute("aria-selected", "true");
+  it("da Visão geral para a análise, numa aba", async () => {
+    const { analise } = montar();
+    const passos = await screen.findByRole("region", { name: "Próximos passos" });
+    fireEvent.click(await within(passos).findByRole("button", { name: "Responder ao agente" }));
+    expect(await screen.findByRole("region", { name: "Análise" })).toBeInTheDocument();
+    await waitFor(() => expect(analise.api.carregarAnalise).toHaveBeenCalledWith(PROJETO, "A-0002"));
+    expect(screen.getByRole("tab", { name: "A-0002" })).toHaveAttribute("aria-selected", "true");
 
     // Fechar a única aba volta à seção.
-    fireEvent.click(screen.getByRole("button", { name: "Fechar RN-COB-001" }));
-    expect(await screen.findByRole("region", { name: "Regras" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Fechar A-0002" }));
+    expect(await screen.findByRole("region", { name: "Visão geral do projeto" })).toBeInTheDocument();
     expect(item("Visão geral")).toHaveAttribute("aria-current", "page");
+  });
+
+  it("os números da Visão geral levam à seção correspondente", async () => {
+    montar();
+    await screen.findByRole("region", { name: "Próximos passos" });
+    fireEvent.click(await screen.findByRole("button", { name: /^Regras na base/ }));
+    expect(screen.getByRole("search", { name: "Busca na base" })).toBeInTheDocument();
+    expect(item("Base")).toHaveAttribute("aria-current", "page");
   });
 
   it("a análise continua com o agente vivo ao ir a outra seção e voltar (#212)", async () => {
@@ -403,9 +423,9 @@ describe("Navegacao", () => {
     const { terminal } = montarComAnalise();
     await abrirTerminal(terminal, 0, 5);
     fireEvent.click(item("Visão geral"));
-    const regras = await screen.findByRole("region", { name: "Regras" });
-    fireEvent.click(within(regras).getByRole("button", { name: /RN-COB-001/ }));
-    await screen.findByRole("tab", { name: "RN-COB-001" });
+    const passos = await screen.findByRole("region", { name: "Próximos passos" });
+    fireEvent.click(await within(passos).findByRole("button", { name: "Responder ao agente" }));
+    await screen.findByRole("tab", { name: "A-0002" });
     fireEvent.click(item("Demandas"));
     fireEvent.click(await screen.findByRole("button", { name: /^D-0001:/ }));
     await screen.findByRole("tab", { name: "D-0001" });
@@ -475,7 +495,7 @@ describe("Navegacao", () => {
         apiConfiguracoes={configuracoes}
       />,
     );
-    await screen.findByRole("region", { name: "Regras" });
+    await screen.findByRole("region", { name: "Visão geral do projeto" });
     fireEvent.click(item("Configurações"));
     const cfg = await screen.findByRole("region", { name: "Configurações" });
     const projetos = await within(cfg).findByRole("group", { name: "Projetos" });
@@ -509,7 +529,7 @@ describe("Navegacao", () => {
         apiConfiguracoes={apiConfiguracoesFalsa()}
       />,
     );
-    await screen.findByRole("region", { name: "Regras" });
+    await screen.findByRole("region", { name: "Visão geral do projeto" });
     fireEvent.click(item("Configurações"));
     fireEvent.click(await screen.findByRole("button", { name: "Editar Perguntar ao sistema" }));
     const campo = await screen.findByRole("textbox", { name: "Texto" });
@@ -544,7 +564,7 @@ describe("Navegacao", () => {
 
   it("o botão da barra de título mostra e esconde o menu lateral", async () => {
     montar();
-    await screen.findByRole("region", { name: "Regras" });
+    await screen.findByRole("region", { name: "Visão geral do projeto" });
     const alternar = screen.getByRole("button", { name: "Fechar menu lateral" });
     expect(alternar).toHaveAttribute("aria-expanded", "true");
     fireEvent.click(alternar);
@@ -564,7 +584,7 @@ describe("Navegacao", () => {
     );
     try {
       montar();
-      await screen.findByRole("region", { name: "Regras" });
+      await screen.findByRole("region", { name: "Visão geral do projeto" });
       expect(screen.queryByRole("navigation", { name: "Seções do projeto" })).not.toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Abrir menu lateral" }));
       fireEvent.click(item("Atividades"));
@@ -577,7 +597,7 @@ describe("Navegacao", () => {
 
   it("troca o tema pela barra de título", async () => {
     montar();
-    await screen.findByRole("region", { name: "Regras" });
+    await screen.findByRole("region", { name: "Visão geral do projeto" });
     const tema = screen.getByRole("group", { name: "Tema" });
     fireEvent.click(within(tema).getByRole("button", { name: "Tema claro" }));
     expect(document.documentElement.dataset.theme).toBe("light");
