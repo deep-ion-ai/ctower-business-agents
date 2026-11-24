@@ -98,6 +98,12 @@ impl DiretorioDados {
     pub fn reunioes(&self) -> PathBuf {
         self.raiz.join("reunioes")
     }
+
+    /// Cache da listagem das issues do rastreador, um arquivo por projeto
+    /// (`cba_repos::cache_issues`). Reconstruível: é só a última leitura.
+    pub fn issues(&self) -> PathBuf {
+        self.raiz.join("issues")
+    }
 }
 
 #[cfg(test)]
