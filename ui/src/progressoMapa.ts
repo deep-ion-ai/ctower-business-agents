@@ -13,13 +13,13 @@ export interface ProgressoDoMapa {
 
 export function progressoDoMapa(mapa: MapaFuncionalidades): ProgressoDoMapa {
   const abertas = mapa.areas.flatMap((a) => a.funcionalidades);
-  const sabeManual = abertas.some((f) => f.manual !== undefined);
+  const sabeManual = abertas.some((f) => f.comManual !== undefined);
   const c = mapa.completude;
   return {
     mapeadas: abertas.length,
     aceitas: abertas.filter((f) => f.situacao === "aceita").length,
     explicadas: abertas.filter((f) => f.explicacao !== null).length,
-    comManual: sabeManual ? abertas.filter((f) => f.manual?.situacao === "aprovado").length : null,
+    comManual: sabeManual ? abertas.filter((f) => f.comManual).length : null,
     codigoMapeado:
       c && c.total > 0 ? Math.round(((c.total - c.semTratamento.length) / c.total) * 100) : null,
   };
