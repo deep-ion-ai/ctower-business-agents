@@ -62,6 +62,27 @@ export function useProntidao(
   return { prontidao, erro, setErro };
 }
 
+/** Acima disso, o diálogo resume as pendências em vez de listar uma a uma. */
+const LIMITE_DA_LISTA = 5;
+
+const SEM_DECISAO: Record<Pendencia["tipo"], [string, string]> = {
+  analise: ["pendência da análise", "pendências da análise"],
+  afirmacao: ["afirmação sem decisão", "afirmações sem decisão"],
+  termo: ["termo sem decisão", "termos sem decisão"],
+  historia: ["história sem decisão", "histórias sem decisão"],
+  criterio: ["critério sem decisão", "critérios sem decisão"],
+  tabela: ["tabela sem decisão", "tabelas sem decisão"],
+  cenario: ["cenário sem decisão", "cenários sem decisão"],
+  passo: ["passo sem decisão", "passos sem decisão"],
+};
+
+/** "14 afirmações sem decisão", uma linha por tipo de pendência. */
+function resumoPendencias(pendencias: Pendencia[]): string[] {
+  const por = new Map<Pendencia["tipo"], number>();
+  for (const p of pendencias) por.set(p.tipo, (por.get(p.tipo) ?? 0) + 1);
+  return [...por].map(([tipo, n]) => contar(n, ...SEM_DECISAO[tipo]));
+}
+
 const ACAO = { criada: "criada", atualizada: "atualizada", "sem-mudanca": "sem mudança" } as const;
 
 function SeletorArea({
@@ -236,6 +257,8 @@ export function AprovacaoAnalise({
   const podeGravar = prontidao.pendencias.length === 0;
   // A mesma conta do cabeçalho e da faixa (#222).
   const pendentes = contarPendencias(prontidao.pendencias);
+  // Muitas pendências iguais viram um resumo, com "Revisar" (#330).
+  const resumir = prontidao.pendencias.length > LIMITE_DA_LISTA && !!aoRevisarPendentes;
 
   const aprovar = () => {
     const opcoes: OpcoesAprovacao = {
@@ -273,25 +296,27 @@ export function AprovacaoAnalise({
       {!aprovada && prontidao.pendencias.length > 0 && (
         <div className="pendencias">
           <p>Antes de aprovar:</p>
-          <ul aria-label="Pendências">
-            {prontidao.pendencias.map((p) => (
-              <li key={`${p.tipo}-${p.numero ?? ""}`}>
-                {p.motivo}
-                {aoIrPara && p.tipo === "afirmacao" && p.numero !== null && (
-                  <>
-                    {" "}
-                    <button
-                      className="btn btn-link"
-                      type="button"
-                      aria-label={`Ir para: ${p.motivo}`}
-                      onClick={() => aoIrPara(p)}
-                    >
-                      Ir para
-                    </button>
-                  </>
-                )}
-              </li>
-            ))}
+          <ul aria-label="Pendências" className={resumir ? "resumo-pendencias" : undefined}>
+            {resumir
+              ? resumoPendencias(prontidao.pendencias).map((g) => <li key={g}>{g}</li>)
+              : prontidao.pendencias.map((p) => (
+                  <li key={`${p.tipo}-${p.numero ?? ""}`}>
+                    {p.motivo}
+                    {aoIrPara && p.tipo === "afirmacao" && p.numero !== null && (
+                      <>
+                        {" "}
+                        <button
+                          className="btn btn-link"
+                          type="button"
+                          aria-label={`Ir para: ${p.motivo}`}
+                          onClick={() => aoIrPara(p)}
+                        >
+                          Ir para
+                        </button>
+                      </>
+                    )}
+                  </li>
+                ))}
           </ul>
           {aoRevisarPendentes && pendentes > 0 && (
             <button

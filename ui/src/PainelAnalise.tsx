@@ -726,6 +726,7 @@ export function PainelAnalise({
       <div
         className="painel-colunas"
         ref={colunas}
+        data-sem-conversa={!conversa && !fora && trecho === null ? "" : undefined}
         style={{ "--largura-conversa": `${larguraConversa}px` } as CSSProperties}
       >
         <section className="painel-documento" aria-label="Documento ao vivo">
