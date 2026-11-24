@@ -120,6 +120,18 @@ prontidão não bloqueia o app.
   sai da categoria do status (`new`, `indeterminate`, `done`), não do nome. O arquivo só é regravado
   quando o estado muda ou o dia vira. Sem rede ou sem token, a tela mostra o último estado conhecido
   com um aviso. A demanda sem `chave` mantém o status local. Nada é escrito no rastreador.
+- **Issues do projeto (#322):** o comando `issues_do_projeto_app` lista as issues do rastreador
+  (GitHub e Jira; os últimos 6 meses, como em "Vincular demandas") a partir de um cache em
+  `<dados>/issues/<projeto>.json`, com o instante da última leitura. Com cache, abrir a lista não
+  chama `gh` nem `jira`: a leitura com mais de 5 minutos é refeita em segundo plano, e o evento
+  `issues-do-projeto-atualizadas` avisa a tela quando termina; depois dela, as demandas ligadas às
+  issues são conferidas como acima, com o mesmo cache. Sem cache, a primeira leitura é feita na
+  hora; `forcar` ("Atualizar") também. Busca por número (`41`, `#41`, `PROJ-41`) ou título, sem
+  diferença de acentos; filtros por estado no rastreador (abertas, o padrão; encerradas; todas),
+  por rótulo e pela situação na base (`sem-analise`, `em-andamento`, `em-revisao`, `aprovada`, pela
+  análise mais recente da demanda ou da chave da issue). Cada issue traz a demanda que a
+  representa e as funcionalidades ligadas a ela. Sem rede, a lista é a última leitura, com o aviso.
+  Trocar o rastreador do projeto descarta o cache. Nada é escrito no rastreador.
 - **Evidências exportadas:** cada nota vira um link para o arquivo e as linhas no commit da
   evidência (ou, na falta dele, o `base.commit` da análise), no repositório cuja pasta contém o
   arquivo (a mais funda, se um estiver dentro do outro); o caminho no link é relativo à pasta do
