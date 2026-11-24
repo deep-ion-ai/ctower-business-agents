@@ -19,7 +19,9 @@ import {
 import {
   atividadeRecente,
   barrasPorTipo,
+  COMO_O_APP_TRABALHA,
   horaDoResumo,
+  primeirosPassos,
   proximosPassos,
   quando,
   segmentosDeAnalises,
@@ -228,6 +230,7 @@ export function VisaoGeral({
 
       {resumo && (
         <>
+          <PrimeirosPassos resumo={resumo} ambiente={ambiente} aoIr={irParaPasso} />
           <ProximosPassos resumo={resumo} ambiente={ambiente} aoIr={irParaPasso} aoVerTodas={ir.atividades} />
           <Numeros resumo={resumo} ir={ir} />
           <div className="vg-grade vg-g32">
@@ -269,6 +272,64 @@ function Painel({
       </h3>
       {children}
     </section>
+  );
+}
+
+function PrimeirosPassos({
+  resumo,
+  ambiente,
+  aoIr,
+}: {
+  resumo: ResumoProjeto;
+  ambiente: AmbienteConferido;
+  aoIr: (d: DestinoPasso) => void;
+}) {
+  const lista = primeirosPassos(resumo, ambiente?.pronto);
+  if (!lista) return null;
+  const { passos, feitos } = lista;
+  // Só o primeiro passo pendente leva o botão em destaque.
+  const proximo = passos.find((p) => !p.feito)?.chave;
+  return (
+    <div className="vg-grade vg-g32">
+      <section className="panel vg-painel vg-primeiros" aria-label="Primeiros passos">
+        <h3>
+          Primeiros passos
+          <span className="vg-progresso">{`${feitos} de ${passos.length}`}</span>
+        </h3>
+        <progress value={feitos} max={passos.length} aria-label="Progresso dos primeiros passos" />
+        <ol className="vg-lista-passos">
+          {passos.map((p) => (
+            <li key={p.chave} data-feito={p.feito}>
+              <span className="vg-ponto" data-tone={p.feito ? "done" : "neutro"} aria-hidden="true" />
+              <div className="vg-passo-texto">
+                <p className="vg-passo-titulo">
+                  {p.titulo}
+                  {p.feito && <span className="sr-only"> (feito)</span>}
+                </p>
+                <p className="vg-passo-descricao">{p.descricao}</p>
+              </div>
+              {!p.feito && p.acao && (
+                <button
+                  type="button"
+                  className={p.chave === proximo ? "btn btn-primary" : "btn"}
+                  onClick={() => aoIr(p.acao!.destino)}
+                >
+                  {p.acao.rotulo}
+                </button>
+              )}
+            </li>
+          ))}
+        </ol>
+      </section>
+      <section className="panel vg-painel" aria-label="Como o app trabalha">
+        <h3>Como o app trabalha</h3>
+        <ol className="vg-como">
+          {COMO_O_APP_TRABALHA.map((t) => (
+            <li key={t}>{t}</li>
+          ))}
+        </ol>
+      </section>
+    </div>
   );
 }
 

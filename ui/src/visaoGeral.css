@@ -407,3 +407,12 @@
   font-size: 12.5px;
   color: var(--muted);
 }
+
+.vg-primeiros progress { width: 100%; margin-bottom: 8px; }
+.vg-progresso { margin-left: 8px; font-weight: normal; color: var(--muted, inherit); font-size: 0.85em; }
+.vg-lista-passos { list-style: none; margin: 0; padding: 0; }
+.vg-lista-passos li { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.vg-lista-passos li[data-feito="true"] .vg-passo-titulo { text-decoration: line-through; opacity: 0.7; }
+.vg-lista-passos .vg-passo-texto { flex: 1; }
+.vg-como { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+.motivo-bloqueio { margin: 6px 0 0; text-align: right; }

@@ -202,7 +202,7 @@ describe("Proteção opcional no preparo do ambiente", () => {
   it("vem desligada e só liga com a caixa marcada", async () => {
     const api = apiAmbiente();
     render(<AmbienteDoProjeto api={api} projeto="faturamento-exemplo" />);
-    fireEvent.click(await screen.findByRole("button", { name: "Ver e ligar o agente" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ver e preparar" }));
     const caixa = await screen.findByRole("checkbox");
     expect(caixa).not.toBeChecked();
     fireEvent.click(caixa);
@@ -217,7 +217,7 @@ describe("Proteção opcional no preparo do ambiente", () => {
   it("sem marcar, prepara sem a proteção", async () => {
     const api = apiAmbiente();
     render(<AmbienteDoProjeto api={api} projeto="faturamento-exemplo" />);
-    fireEvent.click(await screen.findByRole("button", { name: "Ver e ligar o agente" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ver e preparar" }));
     const concordo = await screen.findByRole("button", { name: "Concordo, ligar o agente" });
     await waitFor(() => expect(concordo).toBeEnabled());
     fireEvent.click(concordo);

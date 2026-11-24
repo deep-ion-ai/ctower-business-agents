@@ -80,7 +80,7 @@ describe("TelaAnalise", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Perguntar" })).toBeDisabled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Ver e ligar o agente" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ver e preparar" }));
     expect(await screen.findByText(/Servidor MCP "cba" para a pasta \/codigo/)).toBeInTheDocument();
     expect(screen.getByText("Hook SessionStart")).toBeInTheDocument();
     // A confiança na pasta entra no plano (#218).
@@ -117,7 +117,7 @@ describe("TelaAnalise", () => {
       })),
     });
     montar(analise);
-    fireEvent.click(await screen.findByRole("button", { name: "Ver e ligar o agente" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ver e preparar" }));
     const aviso = await screen.findByRole("note");
     expect(aviso).toHaveTextContent("Hoje os avisos do Claude vão para outra instalação do app");
     expect(within(aviso).getAllByText(dev)).toHaveLength(1);

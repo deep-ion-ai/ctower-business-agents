@@ -1013,7 +1013,7 @@ describe("ConfigProjeto", () => {
         painel.getByText("Ferramentas do app não conectadas"),
       ).toBeInTheDocument();
       fireEvent.click(
-        painel.getByRole("button", { name: "Ver e ligar o agente" }),
+        painel.getByRole("button", { name: "Ver e preparar" }),
       );
       const concordo = await painel.findByRole("button", {
         name: "Concordo, ligar o agente",
