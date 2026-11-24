@@ -77,6 +77,9 @@ describe("NovaAnalise: Issue do projeto vira busca sobre a lista das issues (#32
 
     fireEvent.change(campo, { target: { value: "multa" } });
     await waitFor(() => expect(within(screen.getByRole("list", { name: "Demandas e issues do projeto" })).getAllByRole("button")).toHaveLength(1));
+    // O mousedown na lista não tira o foco do campo: no WebKit, o blur fecharia a
+    // lista antes do clique (#350).
+    expect(fireEvent.mouseDown(screen.getByRole("button", { name: /#377/ }))).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: /#377/ }));
     expect(campo).toHaveValue("#377");
     expect(screen.queryByRole("list", { name: "Demandas e issues do projeto" })).toBeNull();

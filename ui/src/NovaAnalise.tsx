@@ -304,6 +304,8 @@ export function NovaAnalise({
       ? "Para iniciar, ligue o agente a este projeto (acima)."
       : cadastrada && !ref
         ? "Para iniciar, informe a demanda ou a issue."
+        : cadastrada && !origemDaReferencia(ref)
+          ? "Para iniciar, escolha uma sugestão ou informe D-0012, PROJ-123, #142 ou o link da issue."
         : !cadastrada && !temEntrada && !dispensaEntrada
           ? ehDemanda
             ? `Para iniciar, preencha “${rotulo}”: a demanda ${ref.toUpperCase()} só liga o resultado.`
@@ -424,7 +426,13 @@ export function NovaAnalise({
             data-invalido={cadastrada && !ref ? "" : undefined}
           />
           {sugestoes.length > 0 && (
-            <ul className="busca-issue-opcoes" aria-label="Demandas e issues do projeto">
+            <ul
+              className="busca-issue-opcoes"
+              aria-label="Demandas e issues do projeto"
+              // No WebKit (macOS) o clique não dá foco ao botão: sem isto, o campo perde
+              // o foco, a lista fecha no blur e o clique na sugestão se perde.
+              onMouseDown={(e) => e.preventDefault()}
+            >
               {sugestoes.map((o) => (
                 <li key={o.chave}>
                   <button

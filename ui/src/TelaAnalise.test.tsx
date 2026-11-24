@@ -331,6 +331,10 @@ describe("TelaAnalise", () => {
     expect(within(form).getByText("Para iniciar, informe a demanda ou a issue.")).toBeInTheDocument();
     const campo = within(form).getByLabelText(/Demanda ou issue/);
     expect(campo).toHaveFocus();
+    // Texto que não é demanda nem issue não libera o botão.
+    fireEvent.change(campo, { target: { value: "exp" } });
+    expect(iniciar).toBeDisabled();
+    expect(within(form).getByText(/escolha uma sugestão ou informe D-0012/)).toBeInTheDocument();
 
     fireEvent.change(campo, { target: { value: "D-0001" } });
     expect(await within(form).findByText("Parcelamento PJ")).toBeInTheDocument();

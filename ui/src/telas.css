@@ -4647,3 +4647,10 @@ ul.analises-existentes {
 .nova-analise .busca-issue > label {
   display: block;
 }
+.busca-issue-opcoes .id {
+  flex: none;
+  min-width: 7.5em;
+  font-family: var(--mono);
+  font-size: 12px;
+  white-space: nowrap;
+}
