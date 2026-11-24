@@ -11,7 +11,7 @@ function montar() {
     <TelaBase
       api={falsa.api}
       projetos={[{ id: PROJETO, nome: "Faturamento Exemplo" }]}
-      documentoInicial={REGRA}
+      projetoInicial={PROJETO}
       navegar={vi.fn()}
       aoPendencia={aoPendencia}
     />,
@@ -20,6 +20,9 @@ function montar() {
 }
 
 async function editar() {
+  // A regra abre ao lado da lista, na aba Regras.
+  const lista = await screen.findByRole("region", { name: "Resultados" });
+  fireEvent.click(await within(lista).findByRole("button", { name: /Passada a carência/ }));
   await screen.findByRole("article", { name: /Passada a carência/ });
   fireEvent.click(screen.getByRole("button", { name: "Editar" }));
   return screen.findByRole("textbox", { name: "Texto" });
@@ -29,8 +32,8 @@ describe("TelaBase: editar o documento (#220)", () => {
   it("abre com a lista de documentos, sem esperar a primeira busca", async () => {
     const { api } = montar();
     const resultados = await screen.findByRole("region", { name: "Resultados" });
-    expect(api.buscar).toHaveBeenCalledWith("", { projeto: undefined, tipos: [], deslocamento: 0 });
-    expect(within(resultados).getByText(/documentos na base/)).toBeInTheDocument();
+    expect(api.buscar).toHaveBeenCalledWith("", { projeto: PROJETO, tipos: [], deslocamento: 0 });
+    expect(await within(resultados).findByText(/1 item em Regras/)).toBeInTheDocument();
   });
 
   it("edita, mostra a prévia, salva e a busca refeita enxerga o texto novo", async () => {

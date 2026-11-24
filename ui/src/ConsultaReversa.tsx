@@ -29,6 +29,7 @@ export function ConsultaReversa({
   aoAbrirDocumento,
   aoAbrirAnalise,
   api = apiRastreabilidadeTauri,
+  comCodigo = false,
 }: {
   /** Pasta do projeto na base. */
   projeto: string;
@@ -37,6 +38,8 @@ export function ConsultaReversa({
   aoAbrirDocumento: (caminho: string) => void;
   aoAbrirAnalise?: (projeto: string, id: string) => void;
   api?: ApiRastreabilidade;
+  /** Mostra antes "Onde está no código" (#328): os arquivos das evidências da regra. */
+  comCodigo?: boolean;
 }) {
   const [alvo, setAlvo] = useState<AlvoReverso>({ tipo: "regra", valor: regra });
   const [arquivos, setArquivos] = useState<string[]>([]);
@@ -84,167 +87,193 @@ export function ConsultaReversa({
   const contagem = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 
   return (
-    <section
-      className="consulta-reversa"
-      aria-label={doArquivo ? "O que depende deste arquivo" : "O que depende desta regra"}
-    >
-      <header className="consulta-reversa-cabecalho">
-        <h3>{doArquivo ? "O que depende deste arquivo" : "O que depende desta regra"}</h3>
-        <span className="badge">{contagem(d.demandas.length, "demanda", "demandas")}</span>
-        <span className="badge">{contagem(d.analises.length, "análise", "análises")}</span>
-        <span className="badge">{contagem(d.criterios.length, "critério", "critérios")}</span>
-        <span className="badge">{contagem(d.cenarios.length, "cenário", "cenários")}</span>
-        <div className="consulta-reversa-alvo" role="group" aria-label="Consultar por">
-          <button
-            type="button"
-            className="btn"
-            aria-pressed={!doArquivo}
-            onClick={() => setAlvo({ tipo: "regra", valor: regra })}
-          >
-            Regra
-          </button>
-          {arquivos.map((a) => (
-            <button
-              key={a}
-              type="button"
-              className="btn"
-              aria-pressed={doArquivo && alvo.valor === a}
-              onClick={() => setAlvo({ tipo: "arquivo", valor: a })}
-            >
-              Arquivo <span className="mono">{a}</span>
-            </button>
-          ))}
-        </div>
-      </header>
-      {falha && (
-        <p className="error-text" role="alert">
-          {falha}
-        </p>
-      )}
-      {d.demandas.length + d.analises.length + d.criterios.length + d.cenarios.length === 0 ? (
-        <p className="muted">
-          Nada na base depende {doArquivo ? "deste arquivo" : "desta regra"} ainda: nenhuma
-          demanda, análise, critério ou cenário a cita.
-        </p>
-      ) : (
-        <>
-          <p className="muted">
-            Se {doArquivo ? "este arquivo" : "esta regra"} mudar, estes itens precisam ser
-            revistos. Abertos primeiro; aprovados e encerrados em seguida.
-          </p>
-          <div className="consulta-reversa-grupos">
-            {doArquivo && d.regras.length > 0 && (
-              <Grupo titulo="Regras com evidência no arquivo">
-                {d.regras.map((r) => (
-                  <li key={r.id}>
-                    {r.documento ? (
-                      <button
-                        type="button"
-                        className="link mono"
-                        onClick={() => aoAbrirDocumento(r.documento!)}
-                      >
-                        {r.id}
-                      </button>
-                    ) : (
-                      <span className="mono">{r.id}</span>
-                    )}{" "}
-                    {r.titulo}
-                  </li>
-                ))}
-              </Grupo>
-            )}
-            <Grupo titulo="Demandas">
-              {d.demandas.map((x) => (
-                <li key={x.id}>
-                  {x.documento ? (
-                    <button
-                      type="button"
-                      className="link mono"
-                      onClick={() => aoAbrirDocumento(x.documento!)}
-                    >
-                      {x.id}
-                    </button>
-                  ) : (
-                    <span className="mono">{x.id}</span>
-                  )}{" "}
-                  {x.titulo}{" "}
-                  {x.status && (
-                    <span className="badge" data-tone={x.status === "aberta" ? "running" : "done"}>
-                      {x.status}
-                    </span>
-                  )}
-                </li>
-              ))}
-            </Grupo>
-            <Grupo titulo="Análises">
-              {d.analises.map((a) => (
-                <li key={a.id}>
-                  <button
-                    type="button"
-                    className="link mono"
-                    onClick={() => abrirAnalise(a.id, a.documento)}
-                  >
-                    {a.id}
-                  </button>{" "}
-                  {a.titulo}{" "}
-                  {a.estado && (
-                    <span
-                      className="badge"
-                      data-tone={a.estado === "aprovada" ? "done" : "running"}
-                    >
-                      {ROTULO_ESTADO[a.estado] ?? a.estado}
-                    </span>
-                  )}
-                </li>
-              ))}
-            </Grupo>
-            <Grupo titulo="Histórias e critérios">
-              {d.criterios.map((c) => (
-                <li key={`${c.historia}/${c.criterio}`}>
-                  <button
-                    type="button"
-                    className="link mono"
-                    onClick={() => abrirAnalise(c.analise, null)}
-                  >
-                    {c.historia} {c.criterio}
-                  </button>{" "}
-                  {c.texto}{" "}
-                  {c.aRevalidar && (
-                    <span className="badge" data-tone="attention">
-                      revisar
-                    </span>
-                  )}
-                </li>
-              ))}
-            </Grupo>
-            <Grupo titulo="Cenários de teste">
-              {d.cenarios.map((c) => (
-                <li key={c.id}>
-                  <button
-                    type="button"
-                    className="link mono"
-                    onClick={() => abrirAnalise(c.analise, null)}
-                  >
-                    {c.id}
-                  </button>{" "}
-                  {c.titulo}{" "}
-                  <span className="badge" data-tone={c.aRevalidar ? "attention" : "done"}>
-                    {c.aRevalidar ? "revisar" : "ok"}
+    <>
+      {comCodigo && (
+        <section className="onde-no-codigo" aria-label="Onde está no código">
+          <h3>Onde está no código</h3>
+          {arquivos.length === 0 ? (
+            <p className="muted">Esta regra não cita trechos de código.</p>
+          ) : (
+            <ul>
+              {arquivos.map((a) => (
+                <li key={a}>
+                  <span className="mono" title={a}>
+                    {a.split("/").pop()}
                   </span>
                 </li>
               ))}
-            </Grupo>
-          </div>
-        </>
+            </ul>
+          )}
+        </section>
       )}
-      <p className="muted consulta-reversa-mcp">
-        O agente consulta o mesmo resultado com a ferramenta{" "}
-        <code>
-          rastreabilidade({doArquivo ? "arquivo" : "regra"}: "{alvo.valor}")
-        </code>{" "}
-        ao analisar impacto.
-      </p>
-    </section>
+      <section
+        className="consulta-reversa"
+        aria-label={doArquivo ? "O que depende deste arquivo" : "O que depende desta regra"}
+      >
+        <header className="consulta-reversa-cabecalho">
+          <h3>{doArquivo ? "O que depende deste arquivo" : "Se esta regra mudar"}</h3>
+          <span className="badge">{contagem(d.demandas.length, "demanda", "demandas")}</span>
+          <span className="badge">{contagem(d.analises.length, "análise", "análises")}</span>
+          <span className="badge">{contagem(d.criterios.length, "critério", "critérios")}</span>
+          <span className="badge">{contagem(d.cenarios.length, "cenário", "cenários")}</span>
+          <div className="consulta-reversa-alvo" role="group" aria-label="Consultar por">
+            <button
+              type="button"
+              className="btn"
+              aria-pressed={!doArquivo}
+              onClick={() => setAlvo({ tipo: "regra", valor: regra })}
+            >
+              Regra
+            </button>
+            {arquivos.map((a) => (
+              <button
+                key={a}
+                type="button"
+                className="btn"
+                aria-pressed={doArquivo && alvo.valor === a}
+                onClick={() => setAlvo({ tipo: "arquivo", valor: a })}
+              >
+                Arquivo{" "}
+                <span className="mono" title={a}>
+                  {a.split("/").pop()}
+                </span>
+              </button>
+            ))}
+          </div>
+        </header>
+        {falha && (
+          <p className="error-text" role="alert">
+            {falha}
+          </p>
+        )}
+        {d.demandas.length + d.analises.length + d.criterios.length + d.cenarios.length === 0 ? (
+          <p className="muted">
+            Nada na base depende {doArquivo ? "deste arquivo" : "desta regra"} ainda: nenhuma
+            demanda, análise, critério ou cenário a cita.
+          </p>
+        ) : (
+          <>
+            <p className="muted">
+              Se {doArquivo ? "este arquivo" : "esta regra"} mudar, estes itens precisam ser
+              revistos. Abertos primeiro; aprovados e encerrados em seguida.
+            </p>
+            <div className="consulta-reversa-grupos">
+              {doArquivo && d.regras.length > 0 && (
+                <Grupo titulo="Regras com evidência no arquivo">
+                  {d.regras.map((r) => (
+                    <li key={r.id}>
+                      {r.documento ? (
+                        <button
+                          type="button"
+                          className="link mono"
+                          onClick={() => aoAbrirDocumento(r.documento!)}
+                        >
+                          {r.id}
+                        </button>
+                      ) : (
+                        <span className="mono">{r.id}</span>
+                      )}{" "}
+                      {r.titulo}
+                    </li>
+                  ))}
+                </Grupo>
+              )}
+              <Grupo titulo="Demandas">
+                {d.demandas.map((x) => (
+                  <li key={x.id}>
+                    {x.documento ? (
+                      <button
+                        type="button"
+                        className="link mono"
+                        onClick={() => aoAbrirDocumento(x.documento!)}
+                      >
+                        {x.id}
+                      </button>
+                    ) : (
+                      <span className="mono">{x.id}</span>
+                    )}{" "}
+                    {x.titulo}{" "}
+                    {x.status && (
+                      <span
+                        className="badge"
+                        data-tone={x.status === "aberta" ? "running" : "done"}
+                      >
+                        {x.status}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </Grupo>
+              <Grupo titulo="Análises">
+                {d.analises.map((a) => (
+                  <li key={a.id}>
+                    <button
+                      type="button"
+                      className="link mono"
+                      onClick={() => abrirAnalise(a.id, a.documento)}
+                    >
+                      {a.id}
+                    </button>{" "}
+                    {a.titulo}{" "}
+                    {a.estado && (
+                      <span
+                        className="badge"
+                        data-tone={a.estado === "aprovada" ? "done" : "running"}
+                      >
+                        {ROTULO_ESTADO[a.estado] ?? a.estado}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </Grupo>
+              <Grupo titulo="Histórias e critérios">
+                {d.criterios.map((c) => (
+                  <li key={`${c.historia}/${c.criterio}`}>
+                    <button
+                      type="button"
+                      className="link mono"
+                      onClick={() => abrirAnalise(c.analise, null)}
+                    >
+                      {c.historia} {c.criterio}
+                    </button>{" "}
+                    {c.texto}{" "}
+                    {c.aRevalidar && (
+                      <span className="badge" data-tone="attention">
+                        revisar
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </Grupo>
+              <Grupo titulo="Cenários de teste">
+                {d.cenarios.map((c) => (
+                  <li key={c.id}>
+                    <button
+                      type="button"
+                      className="link mono"
+                      onClick={() => abrirAnalise(c.analise, null)}
+                    >
+                      {c.id}
+                    </button>{" "}
+                    {c.titulo}{" "}
+                    <span className="badge" data-tone={c.aRevalidar ? "attention" : "done"}>
+                      {c.aRevalidar ? "revisar" : "ok"}
+                    </span>
+                  </li>
+                ))}
+              </Grupo>
+            </div>
+          </>
+        )}
+        <p className="muted consulta-reversa-mcp">
+          O agente consulta o mesmo resultado com a ferramenta{" "}
+          <code>
+            rastreabilidade({doArquivo ? "arquivo" : "regra"}: "{alvo.valor}")
+          </code>{" "}
+          ao analisar impacto.
+        </p>
+      </section>
+    </>
   );
 }
 
