@@ -137,23 +137,27 @@ export function AssistentePrimeiroUso({
           </p>
           <AmbienteDoProjeto api={api} projeto={projeto.id} aoMudar={aoMudarAmbiente} />
           <div className="acoes">
-            <button
-              className="btn"
-              type="button"
-              onClick={() => setEtapa("pronto")}
-              disabled={ambientePronto}
-            >
-              Preparar depois
-            </button>
+            {!ambientePronto && (
+              <button className="btn" type="button" onClick={() => setEtapa("pronto")}>
+                Preparar depois
+              </button>
+            )}
             <button
               type="button"
               className="btn btn-primary"
               onClick={() => setEtapa("pronto")}
               disabled={!ambientePronto}
+              aria-describedby={ambientePronto ? undefined : "motivo-ambiente"}
             >
               Continuar
             </button>
           </div>
+          {!ambientePronto && (
+            <p id="motivo-ambiente" className="dica motivo-bloqueio">
+              Continuar fica liberado depois de ligar o agente (use “Ver e preparar” acima). Se
+              preferir, escolha “Preparar depois”.
+            </p>
+          )}
         </section>
       )}
 
@@ -244,11 +248,15 @@ function Pronto({
 
   return (
     <section className="passo-assistente" aria-label="Primeira análise">
-      <h2>Tudo pronto para analisar “{projeto.nome}”</h2>
+      <h2>
+        {ambientePronto
+          ? `Tudo pronto para analisar “${projeto.nome}”`
+          : `“${projeto.nome}” está cadastrado, falta ligar o agente`}
+      </h2>
       {!ambientePronto && (
         <p className="attention-text" role="status">
-          O agente ainda não foi ligado a este projeto. A tela da análise vai pedir o preparo antes
-          da primeira pergunta.
+          O agente ainda não foi ligado a este projeto. Os primeiros passos na Visão geral mostram
+          o que falta, e a tela da análise pede o preparo antes da primeira pergunta.
         </p>
       )}
       <p>Que tal começar com uma pergunta? Escolha uma sugestão ou escreva a sua.</p>
@@ -277,10 +285,16 @@ function Pronto({
           className="btn btn-primary"
           onClick={() => concluir(true)}
           disabled={gravando || !pergunta.trim()}
+          aria-describedby={pergunta.trim() ? undefined : "motivo-pergunta"}
         >
           Fazer a primeira análise
         </button>
       </div>
+      {!pergunta.trim() && (
+        <p id="motivo-pergunta" className="dica motivo-bloqueio">
+          Escreva uma pergunta ou escolha uma sugestão acima para fazer a primeira análise.
+        </p>
+      )}
     </section>
   );
 }

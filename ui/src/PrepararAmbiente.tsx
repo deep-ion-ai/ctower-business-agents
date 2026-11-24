@@ -73,7 +73,7 @@ export function PrepararAmbiente({
       </details>
       {!plano && (
         <button className="btn" type="button" onClick={planejar} disabled={ocupado}>
-          Ver e ligar o agente
+          Ver e preparar
         </button>
       )}
       {plano && (

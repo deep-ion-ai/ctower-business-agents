@@ -335,6 +335,23 @@ describe("VisaoGeral", () => {
     expect(navegar).toHaveBeenLastCalledWith({ tipo: "configurar", projeto: PROJETO });
   });
 
+  it("projeto novo mostra os primeiros passos e como o app trabalha", async () => {
+    const { navegar } = montar(resumoVazio(), { ambiente: { pronto: false, pendencias: ["servidor MCP"] } });
+    const lista = await screen.findByRole("region", { name: "Primeiros passos" });
+    expect(lista).toHaveTextContent("2 de 5");
+    expect(screen.getByRole("region", { name: "Como o app trabalha" })).toBeInTheDocument();
+    fireEvent.click(within(lista).getByRole("button", { name: "Ligar o agente" }));
+    expect(navegar).toHaveBeenLastCalledWith({ tipo: "configurar", projeto: PROJETO });
+  });
+
+  it("os primeiros passos somem quando a primeira análise é aprovada", async () => {
+    const r = resumoVazio();
+    r.analises = { ...r.analises, total: 1, porEstado: { ...r.analises.porEstado, aprovada: 1 } };
+    montar(r);
+    await screen.findByRole("region", { name: "Próximos passos" });
+    expect(screen.queryByRole("region", { name: "Primeiros passos" })).not.toBeInTheDocument();
+  });
+
   it("falha no resumo mostra o erro, sem os blocos", () => {
     montar(null, { falha: "disco cheio" });
     expect(screen.getByRole("alert")).toHaveTextContent("disco cheio");

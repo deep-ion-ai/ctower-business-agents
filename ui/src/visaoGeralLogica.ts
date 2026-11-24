@@ -251,3 +251,61 @@ export function barrasPorTipo(resumo: ResumoProjeto): BarraTipo[] {
       largura: Math.round((f.total / maior) * 100),
     }));
 }
+
+/** Um dos cinco primeiros passos de um projeto novo. */
+export interface PrimeiroPasso {
+  chave: "ia" | "projeto" | "agente" | "pergunta" | "aprovar";
+  titulo: string;
+  descricao: string;
+  feito: boolean;
+  /** Ação do passo pendente (os feitos não têm). */
+  acao?: { rotulo: string; destino: DestinoPasso };
+}
+
+/**
+ * Os primeiros passos: IA escolhida e projeto cadastrado já estão feitos quando a
+ * Visão geral abre; ligar o agente, a primeira pergunta e a primeira aprovação
+ * dependem do ambiente e das análises. A lista some (`null`) quando a primeira
+ * análise é aprovada.
+ */
+export function primeirosPassos(
+  resumo: ResumoProjeto,
+  ambientePronto: boolean | undefined,
+): { passos: PrimeiroPasso[]; feitos: number } | null {
+  if (resumo.analises.porEstado.aprovada > 0) return null;
+  const perguntou = resumo.analises.total > 0;
+  const passos: PrimeiroPasso[] = [
+    { chave: "ia", titulo: "IA escolhida", descricao: "O app conversa com o agente que você escolheu.", feito: true },
+    { chave: "projeto", titulo: "Projeto cadastrado", descricao: "O código do projeto está inventariado.", feito: true },
+    {
+      chave: "agente",
+      titulo: "Ligar o agente a este projeto",
+      descricao: "Sem isso o agente não lê a base nem o código.",
+      feito: ambientePronto === true,
+      acao: { rotulo: "Ligar o agente", destino: { tipo: "configurar" } },
+    },
+    {
+      chave: "pergunta",
+      titulo: "Fazer a primeira pergunta",
+      descricao: "Pergunte algo sobre o sistema, como “quais são as regras de cobrança?”.",
+      feito: perguntou,
+      acao: { rotulo: "Nova análise", destino: { tipo: "nova-analise" } },
+    },
+    {
+      chave: "aprovar",
+      titulo: "Revisar e aprovar",
+      descricao: "O que você aprova vira regra na base do projeto.",
+      feito: false,
+      acao: { rotulo: "Ver as análises", destino: { tipo: "nova-analise" } },
+    },
+  ];
+  return { passos, feitos: passos.filter((p) => p.feito).length };
+}
+
+/** “Como o app trabalha”, em quatro linhas. */
+export const COMO_O_APP_TRABALHA = [
+  "Você pergunta sobre o sistema; o agente lê o código e responde com evidências.",
+  "Você revisa: confirma o que está certo e corrige o resto.",
+  "O que você aprova vira regra, termo ou documento na base.",
+  "A base serve de memória para as próximas análises e demandas.",
+] as const;

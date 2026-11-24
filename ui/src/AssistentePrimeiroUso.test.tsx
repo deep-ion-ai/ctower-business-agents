@@ -232,7 +232,7 @@ describe("Assistente do primeiro uso", () => {
       await screen.findByText("o servidor MCP do app não está registrado para esta pasta"),
     ).toBeInTheDocument();
     expect(continuar()).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: "Ver e ligar o agente" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ver e preparar" }));
     expect(await screen.findByText("Hook SessionStart")).toBeInTheDocument();
     expect(api.prepararAmbiente).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Concordo, ligar o agente" }));
@@ -265,7 +265,7 @@ describe("Assistente do primeiro uso", () => {
     });
     render(<AssistentePrimeiroUso api={api} situacao={situacaoInicial()} aoConcluir={vi.fn()} />);
     await ateOAmbiente(api);
-    fireEvent.click(await screen.findByRole("button", { name: "Ver e ligar o agente" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ver e preparar" }));
     fireEvent.click(await screen.findByRole("button", { name: "Agora não" }));
     expect(api.prepararAmbiente).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Preparar depois" }));
