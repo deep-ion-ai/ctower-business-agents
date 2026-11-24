@@ -5,6 +5,7 @@ import {
   PROJETO,
   apiConhecimentoFalsa,
   inicioFicticio,
+  resumoFicticio,
 } from "./test/conhecimentoFalso";
 import { MAPA } from "./test/mapaFalso";
 import { apiConfiguracoesFalsa } from "./test/configuracoesFalso";
@@ -188,19 +189,63 @@ describe("Navegacao", () => {
     expect(item("Configurações")).toHaveFocus();
   });
 
-  it("as contagens se atualizam ao vivo", async () => {
+  it("o selo de Atividades se atualiza ao vivo pelo diário de eventos (#321)", async () => {
     const conhecimento = apiConhecimentoFalsa();
-    const base = inicioFicticio();
-    conhecimento.api.inicio.mockResolvedValue(
-      inicioFicticio({ projetos: [{ ...base.projetos[0], aRevalidar: 0 }], emAndamento: [], recentes: [] }),
-    );
-    montar(conhecimento);
-    await waitFor(() => expect(conhecimento.api.inicio).toHaveBeenCalled());
-    expect(item("Atividades")).toHaveTextContent(/^Atividades$/);
+    conhecimento.api.resumoProjeto.mockResolvedValue(resumoFicticio({ atividades: [] }));
+    const { analise } = montar(conhecimento);
+    await waitFor(() => expect(conhecimento.api.resumoProjeto).toHaveBeenCalledWith(PROJETO));
+    await waitFor(() => expect(item("Atividades")).toHaveTextContent(/^Atividades$/));
+    expect(analise.api.vigiar).toHaveBeenCalledWith(PROJETO, expect.any(Function));
 
-    conhecimento.api.inicio.mockResolvedValue(inicioFicticio());
-    await act(async () => conhecimento.avisar());
+    // A sessão da A-0002 passou a esperar o analista: o aviso da vigia relê o resumo.
+    conhecimento.api.resumoProjeto.mockResolvedValue(resumoFicticio());
+    await act(async () =>
+      analise.avisar({ tipo: "mudanca", analise: "A-0002", mudanca: "sessao", versao: 3 }),
+    );
     await waitFor(() => expect(item("Atividades")).toHaveTextContent("Atividades2"));
+
+    // A base editada fora do app também relê.
+    conhecimento.api.resumoProjeto.mockResolvedValue(resumoFicticio({ atividades: [] }));
+    await act(async () => conhecimento.avisar());
+    await waitFor(() => expect(item("Atividades")).toHaveTextContent(/^Atividades$/));
+  });
+
+  it("o selo soma o ambiente a preparar e deixa de fora as demandas novas, ocultas até a #322", async () => {
+    const conhecimento = apiConhecimentoFalsa();
+    const resumo = resumoFicticio();
+    conhecimento.api.resumoProjeto.mockResolvedValue(
+      resumoFicticio({
+        atividades: [
+          ...resumo.atividades,
+          { ...resumo.atividades[1], tipo: "demanda-sem-analise", regras: null, demanda: "D-0001", titulo: "Pix" },
+        ],
+      }),
+    );
+    conhecimento.api.verificarAmbiente.mockResolvedValue({ pronto: false, pendencias: ["servidor MCP"] });
+    montar(conhecimento);
+    // Responder (A-0002), revalidar e o ambiente; a demanda nova não conta.
+    await waitFor(() => expect(item("Atividades")).toHaveTextContent("Atividades3"));
+  });
+
+  it("“N sessões aguardam você”, na barra de status, leva às Atividades (#321)", async () => {
+    montar();
+    await screen.findByRole("region", { name: "Regras" });
+    const barra = screen.getByRole("contentinfo", { name: "Barra de status" });
+    fireEvent.click(await within(barra).findByRole("button", { name: "1 sessão aguarda você" }));
+    expect(await screen.findByRole("region", { name: "Atividades" })).toBeInTheDocument();
+    expect(item("Atividades")).toHaveAttribute("aria-current", "page");
+    const grupo = await screen.findByRole("region", { name: "O agente aguarda você" });
+    expect(within(grupo).getByText("Parcelamento para pessoa jurídica")).toBeInTheDocument();
+  });
+
+  it("a ação de um item das Atividades abre a análise numa aba", async () => {
+    const { analise } = montar();
+    await screen.findByRole("region", { name: "Regras" });
+    fireEvent.click(item("Atividades"));
+    const grupo = await screen.findByRole("region", { name: "O agente aguarda você" });
+    fireEvent.click(within(grupo).getByRole("button", { name: "Responder ao agente: A-0002" }));
+    await waitFor(() => expect(analise.api.carregarAnalise).toHaveBeenCalledWith(PROJETO, "A-0002"));
+    expect(screen.getByRole("tab", { name: "A-0002" })).toHaveAttribute("aria-selected", "true");
   });
 
   it("passear pelas seções não abre abas; abrir análise, documento ou demanda abre", async () => {

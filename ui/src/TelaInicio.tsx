@@ -54,6 +54,11 @@ interface Props {
   apiProjeto?: ApiAssistenteProjeto;
   /** Um projeto foi cadastrado (o painel lateral recarrega a lista). */
   aoMudarProjetos?: () => void;
+  /**
+   * Abaixo das Atividades (#321): sem o “Próximo passo” e sem as listas “Em
+   * andamento” e “Aguardando revisão”, que os grupos das Atividades já mostram.
+   */
+  semConducao?: boolean;
 }
 
 /**
@@ -68,6 +73,7 @@ export function TelaInicio({
   apiReuniao,
   apiProjeto = apiConfiguracoesTauri,
   aoMudarProjetos,
+  semConducao = false,
 }: Props) {
   const [inicio, setInicio] = useState<Inicio | null>(null);
   const [falha, setFalha] = useState<string | null>(null);
@@ -89,7 +95,7 @@ export function TelaInicio({
 
   // O preparo do ambiente de cada projeto alimenta o “próximo passo”.
   useEffect(() => {
-    if (!inicio) return;
+    if (!inicio || semConducao) return;
     let ativo = true;
     for (const p of inicio.projetos) {
       if (p.erro) continue;
@@ -101,7 +107,7 @@ export function TelaInicio({
     return () => {
       ativo = false;
     };
-  }, [api, inicio]);
+  }, [api, inicio, semConducao]);
 
   const abrirAnalise = (a: AnaliseInicio) =>
     navegar({
@@ -126,7 +132,7 @@ export function TelaInicio({
     aoMudarProjetos?.();
   };
 
-  const passo = inicio ? proximoPasso(inicio, ambientes) : null;
+  const passo = inicio && !semConducao ? proximoPasso(inicio, ambientes) : null;
   const executarPasso = (p: PassoInicio) => {
     switch (p.tipo) {
       case "responder":
@@ -223,13 +229,15 @@ export function TelaInicio({
 
       {inicio && (
         <>
-          <ListaAnalises
-            titulo="Em andamento"
-            vazio="Nenhuma análise em andamento."
-            analises={inicio.emAndamento.filter(emAndamento)}
-            aoAbrir={abrirAnalise}
-          />
-          {inicio.emAndamento.some(aguardaRevisao) && (
+          {!semConducao && (
+            <ListaAnalises
+              titulo="Em andamento"
+              vazio="Nenhuma análise em andamento."
+              analises={inicio.emAndamento.filter(emAndamento)}
+              aoAbrir={abrirAnalise}
+            />
+          )}
+          {!semConducao && inicio.emAndamento.some(aguardaRevisao) && (
             <ListaAnalises
               titulo="Aguardando revisão"
               vazio=""

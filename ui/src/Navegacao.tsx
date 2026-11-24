@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { mensagemDe, type ApiAnalise } from "./analise";
+import { apiAnaliseTauri, mensagemDe, type ApiAnalise } from "./analise";
+import { seloAtividades, type AmbienteConferido } from "./atividades";
 import type { AbrirLink } from "./ClientesIA";
 import { apiConhecimentoTauri, type ApiConhecimento, type Inicio } from "./conhecimento";
 import { DialogoConfirmacao } from "./DialogoConfirmacao";
@@ -19,7 +20,9 @@ import {
 import { SeletorProjeto, type ProjetoNoSeletor } from "./SeletorProjeto";
 import { Icon, type IconName } from "./shell/icons";
 import { Titlebar } from "./shell/Titlebar";
+import type { ResumoProjeto } from "./resumoProjeto";
 import { TelaAnalise } from "./TelaAnalise";
+import { TelaAtividades } from "./TelaAtividades";
 import type { ApiConfiguracoes } from "./configuracoes";
 import { TelaBase } from "./TelaBase";
 import { TelaCodigo } from "./TelaCodigo";
@@ -40,8 +43,8 @@ import type { TelaTerminal } from "./telaXterm";
  * base, a demanda e o vínculo das issues (#319, §11.2 da revisão de UX).
  */
 export type Tela =
-  /** Atividades; até a #321, a tela Início. */
-  | { tipo: "inicio" }
+  /** Atividades (#321), no projeto pedido ou no da barra de título. */
+  | { tipo: "inicio"; projeto?: string }
   /** Visão geral do projeto; até a #320, a tela Projeto. */
   | { tipo: "projeto"; projeto?: string }
   | { tipo: "base"; documento?: string }
@@ -186,8 +189,9 @@ const telaEstreita = () => typeof matchMedia === "function" && matchMedia(ESTREI
  * Abaixo de 900 px o menu vira gaveta.
  *
  * Enquanto uma seção nova não existe, o item do menu abre a tela atual: Visão geral
- * mostra a tela Projeto (#320), Atividades o Início (#321) e Demandas a lista de
- * demandas da base (#323).
+ * mostra a tela Projeto (#320) e Demandas a lista de demandas da base (#323).
+ * Atividades (#321) mostra os grupos do que espera o analista e, abaixo, o resto do
+ * Início (nova análise, recentes, projetos).
  */
 export function Navegacao({
   inicial,
@@ -227,6 +231,11 @@ export function Navegacao({
   // Muda a cada navegação e quando as configurações mexem nos projetos ou na base.
   const [recarga, setRecarga] = useState(0);
   const [ladoAberto, setLadoAberto] = useState(() => !telaEstreita());
+  /** Resumo do projeto escolhido (#318): alimenta as Atividades e o selo do menu. */
+  const [resumo, setResumo] = useState<{ projeto: string; resumo: ResumoProjeto } | null>(null);
+  const [falhaResumo, setFalhaResumo] = useState<{ projeto: string; falha: string } | null>(null);
+  /** Ambiente do Claude conferido por projeto: o grupo "Ambiente a preparar". */
+  const [ambientes, setAmbientes] = useState<Record<string, AmbienteConferido>>({});
 
   const aba = ativa ? (abas.find((a) => a.chave === ativa) ?? null) : null;
 
@@ -356,6 +365,56 @@ export function Navegacao({
     };
   }, [api]);
 
+  // O resumo do projeto escolhido acompanha o diário de eventos (#321): cada aviso da
+  // vigia das análises (sessão que passou a esperar o analista, análise concluída ou
+  // aprovada) relê o resumo, e o selo de Atividades muda na hora. A base editada fora
+  // do app e o relógio das contagens também releem.
+  const vigiaAnalises = apiAnalise ?? apiAnaliseTauri;
+  useEffect(() => {
+    if (!projeto) return;
+    let ativo = true;
+    const ler = () =>
+      api
+        .resumoProjeto(projeto)
+        .then((r) => {
+          if (!ativo) return;
+          setResumo({ projeto, resumo: r });
+          setFalhaResumo(null);
+        })
+        .catch((e: unknown) => ativo && setFalhaResumo({ projeto, falha: mensagemDe(e) }));
+    ler();
+    const relogio = setInterval(ler, INTERVALO_CONTAGENS);
+    const paradas: (() => void)[] = [];
+    const guardar = (p: () => void) => (ativo ? paradas.push(p) : p());
+    vigiaAnalises
+      .vigiar(projeto, ler)
+      .then(guardar)
+      .catch(() => undefined);
+    api
+      .vigiarBase(ler)
+      .then(guardar)
+      .catch(() => undefined);
+    return () => {
+      ativo = false;
+      clearInterval(relogio);
+      paradas.forEach((p) => p());
+    };
+  }, [api, vigiaAnalises, projeto, recarga]);
+
+  // O ambiente do Claude do projeto, conferido de novo a cada navegação: o preparo
+  // feito em "Configurar projeto" some das Atividades ao voltar.
+  useEffect(() => {
+    if (!projeto) return;
+    let ativo = true;
+    api
+      .verificarAmbiente(projeto)
+      .then((a) => ativo && setAmbientes((m) => ({ ...m, [projeto]: a })))
+      .catch(() => ativo && setAmbientes((m) => ({ ...m, [projeto]: null })));
+    return () => {
+      ativo = false;
+    };
+  }, [api, projeto, recarga]);
+
   /**
    * Item do menu: mostra a seção. A mesma seção, com uma aba na frente, só volta a
    * ela, sem abrir do zero.
@@ -446,19 +505,35 @@ export function Navegacao({
     return ROTULO_SECAO[secaoDaTela(t)];
   };
 
+  const resumoAtual = resumo?.projeto === projeto ? resumo.resumo : null;
+  const falhaAtual = falhaResumo?.projeto === projeto ? falhaResumo.falha : null;
+  const ambienteAtual = ambientes[projeto];
+  /** O selo de Atividades do projeto escolhido, pelo resumo; `null` antes de lê-lo. */
+  const selo = resumoAtual ? seloAtividades(resumoAtual, ambienteAtual) : null;
+
   const noSeletor: ProjetoNoSeletor[] = projetos.map((p) => {
     const visto = inicio?.projetos.find((x) => x.id === p.id);
     return {
       id: p.id,
       nome: p.nome,
-      pendencias: inicio && visto ? pendenciasNoInicio(inicio, visto) : 0,
+      pendencias:
+        p.id === projeto && selo !== null
+          ? selo
+          : inicio && visto
+            ? pendenciasNoInicio(inicio, visto)
+            : 0,
       erro: !!visto?.erro,
     };
   });
-  const contagens = contagensDoMenu(inicio, projeto);
+  const contagensDoInicio = contagensDoMenu(inicio, projeto);
+  const contagens =
+    selo === null
+      ? contagensDoInicio
+      : { ...contagensDoInicio, atividades: { n: selo, atencao: selo > 0 } };
   const aRevalidar = inicio?.projetos.reduce((n, s) => n + s.aRevalidar, 0) ?? 0;
-  const aguardando =
-    inicio?.emAndamento.filter((a) => a.sessao?.estado === "aguardando-analista").length ?? 0;
+  const sessoesAguardando =
+    inicio?.emAndamento.filter((a) => a.sessao?.estado === "aguardando-analista") ?? [];
+  const aguardando = sessoesAguardando.length;
   // O projeto atual só, para as telas que ainda têm o próprio seletor de projeto.
   const soOAtual = projetos.filter((p) => p.id === projeto);
   // As seções esperam a lista de projetos, para não abrir num projeto que sumiu.
@@ -598,15 +673,25 @@ export function Navegacao({
                 />
               )}
               {secaoAVista && secao.id === "atividades" && (
-                <TelaInicio
-                  key={chaveSecao}
-                  api={api}
-                  navegar={navegar}
-                  abrirLink={abrirLink}
-                  aoPrimeiroUso={aoPrimeiroUso}
-                  apiProjeto={apiConfiguracoes}
-                  aoMudarProjetos={() => setRecarga((r) => r + 1)}
-                />
+                <div key={chaveSecao}>
+                  <TelaAtividades
+                    projeto={projeto}
+                    nomeProjeto={nomeProjeto(projeto)}
+                    resumo={resumoAtual}
+                    falha={falhaAtual}
+                    ambiente={ambienteAtual}
+                    navegar={navegar}
+                  />
+                  <TelaInicio
+                    api={api}
+                    navegar={navegar}
+                    abrirLink={abrirLink}
+                    aoPrimeiroUso={aoPrimeiroUso}
+                    apiProjeto={apiConfiguracoes}
+                    aoMudarProjetos={() => setRecarga((r) => r + 1)}
+                    semConducao
+                  />
+                </div>
               )}
               {secaoAVista && secao.id === "analises" && (
                 <TelaAnalise
@@ -862,10 +947,21 @@ export function Navegacao({
         <span className="sb-item">{projetos.length === 1 ? "1 projeto" : `${projetos.length} projetos`}</span>
         <span className="sb-spacer" />
         {aguardando > 0 && (
-          <span className="sb-item sb-warn">
+          <button
+            type="button"
+            className="sb-item sb-warn"
+            title="Abre as Atividades, onde fica cada sessão que espera você"
+            onClick={() => {
+              // O projeto da barra de título, se uma das sessões é dele; senão, o da primeira.
+              const alvo = sessoesAguardando.some((a) => a.projeto === projeto)
+                ? projeto
+                : sessoesAguardando[0].projeto;
+              navegar({ tipo: "inicio", projeto: alvo });
+            }}
+          >
             <Icon name="warning" size={12} />
             {aguardando === 1 ? "1 sessão aguarda você" : `${aguardando} sessões aguardam você`}
-          </span>
+          </button>
         )}
         {aRevalidar > 0 && (
           <button
