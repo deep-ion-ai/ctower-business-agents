@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { mensagemDe, type AmbienteClaude, type AnaliseCriada, type AnaliseResumo } from "./analise";
+import {
+  mensagemDe,
+  ROTULO_ESTADO_ANALISE,
+  type AmbienteClaude,
+  type AnaliseCriada,
+  type AnaliseResumo,
+} from "./analise";
 import { ROTULO_FLUXO, type ApiConhecimento } from "./conhecimento";
 import { PrepararAmbiente } from "./PrepararAmbiente";
 import type { ProjetoResumo } from "./terminal";
@@ -55,12 +61,7 @@ const TEXTOS: Record<
   },
 };
 
-const ESTADO: Record<AnaliseResumo["estado"], string> = {
-  criada: "criada",
-  "em-andamento": "em andamento",
-  concluida: "em revisão",
-  aprovada: "aprovada",
-};
+const ESTADO = ROTULO_ESTADO_ANALISE;
 
 /**
  * Formulário dos fluxos derivados de uma análise: "Histórias e critérios" (#115) e

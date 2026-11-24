@@ -19,6 +19,7 @@ export function MenuLateral({
   contagens,
   aoEscolher,
   rodape,
+  aoNovaAnalise,
 }: {
   /** Seção à vista; `null` quando uma aba de objeto está na frente. */
   atual: Secao | null;
@@ -26,6 +27,8 @@ export function MenuLateral({
   aoEscolher: (s: Secao) => void;
   /** Ações extras no pé (ex.: "Refazer o primeiro uso"). */
   rodape?: ReactNode;
+  /** "Nova análise", ação global: abre a escolha do tipo na seção Análises. */
+  aoNovaAnalise?: () => void;
 }) {
   const teclas = (e: KeyboardEvent<HTMLElement>) => {
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
@@ -63,6 +66,11 @@ export function MenuLateral({
 
   return (
     <nav className="menu-lateral" aria-label="Seções do projeto" onKeyDown={teclas}>
+      {aoNovaAnalise && (
+        <button type="button" className="btn btn-primary menu-nova" onClick={aoNovaAnalise}>
+          Nova análise
+        </button>
+      )}
       {GRUPOS_DE_SECOES.map((g) => (
         <div key={g.titulo} className="menu-grupo" role="group" aria-label={g.titulo}>
           <span className="menu-grupo-titulo" aria-hidden="true">

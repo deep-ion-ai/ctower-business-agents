@@ -226,7 +226,7 @@ describe("VisaoGeral", () => {
     const revisao = await screen.findByRole("button", { name: /^Aguardando sua revisão/ });
     expect(revisao).toHaveTextContent("1");
     fireEvent.click(revisao);
-    expect(navegar).toHaveBeenLastCalledWith({ tipo: "inicio" });
+    expect(navegar).toHaveBeenLastCalledWith({ tipo: "analise", projeto: PROJETO, situacao: "concluida" });
     const analises = screen.getByRole("button", { name: /^Análises/ });
     expect(analises).toHaveTextContent("9");
     expect(analises).toHaveTextContent("2 aprovadas · 2 em andamento");
@@ -325,7 +325,7 @@ describe("VisaoGeral", () => {
       expect(screen.getByRole("region", { name: "Cobertura da base" })).toHaveTextContent("Nenhuma área na base ainda"),
     );
     fireEvent.click(within(screen.getByRole("region", { name: "Análises" })).getByRole("button", { name: "Nova análise" }));
-    expect(navegar).toHaveBeenLastCalledWith({ tipo: "analise", projeto: PROJETO });
+    expect(navegar).toHaveBeenLastCalledWith({ tipo: "analise", projeto: PROJETO, nova: true });
   });
 
   it("o ambiente por preparar entra nos próximos passos", async () => {

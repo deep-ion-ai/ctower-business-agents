@@ -1,7 +1,7 @@
 import { AjudaTermo } from "./AjudaTermo";
 import { useCallback, useEffect, useState } from "react";
 import { contar } from "./formatacao";
-import { mensagemDe, type AnaliseCriada, type Fluxo } from "./analise";
+import { mensagemDe, ROTULO_ESTADO_ANALISE, type AnaliseCriada, type Fluxo } from "./analise";
 import type { ApiAssistenteProjeto } from "./AssistenteProjeto";
 import { ClientesIA, type AbrirLink } from "./ClientesIA";
 import { apiConfiguracoesTauri } from "./configuracoes";
@@ -36,12 +36,7 @@ const FLUXOS: Fluxo[] = [
   "cenarios",
 ];
 
-const ESTADO: Record<AnaliseInicio["estado"], string> = {
-  criada: "criada",
-  "em-andamento": "em andamento",
-  concluida: "concluída, aguardando revisão",
-  aprovada: "aprovada",
-};
+const ESTADO = ROTULO_ESTADO_ANALISE;
 
 interface Props {
   api: ApiConhecimento;
@@ -177,6 +172,7 @@ export function TelaInicio({
 
       {passo && <ProximoPassoInicio passo={passo} aoExecutar={() => executarPasso(passo)} />}
 
+      {!semConducao && (
       <section aria-label="Nova análise" className="fluxos">
         <h2>Nova análise</h2>
         <div className="botoes-fluxo">
@@ -226,6 +222,7 @@ export function TelaInicio({
           />
         )}
       </section>
+      )}
 
       {inicio && (
         <>
@@ -245,12 +242,14 @@ export function TelaInicio({
               aoAbrir={abrirAnalise}
             />
           )}
-          <ListaAnalises
-            titulo="Recentes"
-            vazio="Nenhuma análise ainda."
-            analises={inicio.recentes}
-            aoAbrir={abrirAnalise}
-          />
+          {!semConducao && (
+            <ListaAnalises
+              titulo="Recentes"
+              vazio="Nenhuma análise ainda."
+              analises={inicio.recentes}
+              aoAbrir={abrirAnalise}
+            />
+          )}
           <section aria-label="Projetos">
             <div className="titulo-com-acao">
               <h2>Projetos</h2>
