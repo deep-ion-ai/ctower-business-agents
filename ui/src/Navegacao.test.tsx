@@ -92,6 +92,16 @@ const menu = () => screen.getByRole("navigation", { name: "Seções do projeto" 
 /** O item do menu pelo rótulo (o nome acessível leva a contagem junto). */
 const item = (rotulo: string) => within(menu()).getByRole("button", { name: new RegExp(`^${rotulo}`) });
 
+/** Da seção Base: abre a regra ao lado da lista e depois "Abrir em aba". */
+async function abrirRegraEmAba() {
+  fireEvent.click(item("Base"));
+  const resultados = await screen.findByRole("region", { name: "Resultados" });
+  fireEvent.click(await within(resultados).findByRole("button", { name: /Passada a carência/ }));
+  await screen.findByRole("article", { name: /Passada a carência/ });
+  fireEvent.click(screen.getByRole("button", { name: "Abrir em aba" }));
+  await screen.findByRole("tab", { name: "RN-COB-001" });
+}
+
 describe("Navegacao", () => {
   afterEach(async () => {
     localStorage.clear();
@@ -307,6 +317,25 @@ describe("Navegacao", () => {
     fireEvent.click(screen.getByRole("button", { name: "Fechar A-0002" }));
     expect(await screen.findByRole("region", { name: "Visão geral do projeto" })).toBeInTheDocument();
     expect(item("Visão geral")).toHaveAttribute("aria-current", "page");
+  });
+
+  it("a Visão geral não mostra mais as regras nem o glossário (#328)", async () => {
+    montar();
+    await screen.findByRole("region", { name: "Visão geral do projeto" });
+    expect(screen.queryByRole("region", { name: "Regras" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Glossário" })).not.toBeInTheDocument();
+  });
+
+  it("da Base para o documento, numa aba", async () => {
+    const { conhecimento } = montar();
+    await abrirRegraEmAba();
+    expect(conhecimento.api.abrirDocumento).toHaveBeenCalledWith(REGRA);
+    expect(screen.getByRole("tab", { name: "RN-COB-001" })).toHaveAttribute("aria-selected", "true");
+
+    // Fechar a única aba volta à seção de onde ela veio: a Base.
+    fireEvent.click(screen.getByRole("button", { name: "Fechar RN-COB-001" }));
+    expect(await screen.findByRole("search", { name: "Busca na base" })).toBeInTheDocument();
+    expect(item("Base")).toHaveAttribute("aria-current", "page");
   });
 
   it("os números da Visão geral levam à seção correspondente", async () => {

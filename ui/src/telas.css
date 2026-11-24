@@ -449,7 +449,7 @@
 
 .base-colunas {
   display: grid;
-  grid-template-columns: minmax(16rem, 1fr) minmax(0, 2fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 16px;
   align-items: start;
 }
@@ -470,6 +470,104 @@
 /* Editando, o documento ocupa a largura toda e a lista sai do caminho. */
 .base-colunas[data-editando] > .resultados-base {
   display: none;
+}
+
+/* Nada na leitura estoura a largura: caminhos e trechos quebram (B-04). */
+.resultados-base,
+.documento-aberto {
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-wrap: anywhere;
+}
+
+.documento-aberto .mono,
+.documento-aberto code,
+.documento-aberto pre {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.tela-base-documento .documento-aberto {
+  max-width: 60rem;
+}
+
+.abas-base {
+  display: flex;
+  gap: 4px;
+}
+
+.abas-base .btn[aria-selected="true"] {
+  background: var(--selected);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.contagem {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.barra-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.grupo-base h3 {
+  margin: 12px 0 4px;
+}
+
+.grupo-base li .id {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.grupo-base li[data-status="a-revalidar"] {
+  background: var(--attention-card);
+  box-shadow: inset 3px 0 0 var(--attention);
+}
+
+.vazio-base {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+}
+
+.aviso-documentos {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--attention);
+  border-radius: 8px;
+  background: var(--attention-card);
+}
+
+.aviso-documentos h3 {
+  margin: 0 0 4px;
+}
+
+.detalhes-arquivo {
+  margin-top: 16px;
+  color: var(--text-2);
+}
+
+.detalhes-arquivo summary {
+  cursor: pointer;
+}
+
+.onde-no-codigo h3 {
+  margin: 16px 0 4px;
+}
+
+.onde-no-codigo ul {
+  margin: 0;
+  padding-left: 20px;
 }
 
 .documento-aberto .editor-documento {
