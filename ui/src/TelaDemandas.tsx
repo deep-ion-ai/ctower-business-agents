@@ -24,7 +24,7 @@ const ESTADOS: { id: FiltroEstadoIssues; rotulo: string }[] = [
   { id: "encerradas", rotulo: "Encerradas" },
   { id: "todas", rotulo: "Todas" },
 ];
-const ROTULO_ORIGEM = { github: "GitHub", jira: "Jira" } as const;
+const ROTULO_ORIGEM = { github: "GitHub", gitlab: "GitLab", jira: "Jira" } as const;
 
 /** Uma linha da lista única: a issue do rastreador ou a demanda criada à mão. */
 type Linha =
