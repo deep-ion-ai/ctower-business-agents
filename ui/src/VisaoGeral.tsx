@@ -537,6 +537,11 @@ const ROTULO_SESSAO = {
   "aguardando-analista": "aguarda você",
 } as const;
 const TOM_SESSAO = { ativa: "running", "aguardando-analista": "attention" } as const;
+const ROTULO_CLIENTE = {
+  "claude-code": "Claude Code",
+  "claude-desktop": "Claude Desktop",
+  desconhecido: "Sessão do agente",
+} as const;
 
 function SessoesEAtividade({
   resumo,
@@ -545,7 +550,8 @@ function SessoesEAtividade({
   resumo: ResumoProjeto;
   aoAbrirAnalise: (id: string) => void;
 }) {
-  const vivas = resumo.sessoes.porAnalise.flatMap((s) =>
+  // As sessões vivas do projeto (#331), com ou sem análise ligada.
+  const vivas = resumo.sessoes.vivas.flatMap((s) =>
     s.estado === "ativa" || s.estado === "aguardando-analista" ? [{ ...s, estado: s.estado }] : [],
   );
   const recentes = atividadeRecente(resumo);
@@ -560,10 +566,23 @@ function SessoesEAtividade({
           {vivas.map((s) => (
             <li key={s.id}>
               <span className="vg-ponto" data-tone={TOM_SESSAO[s.estado]} aria-hidden="true" />
-              <span className="vg-id">{s.analise}</span>
-              <button type="button" className="link vg-titulo" onClick={() => aoAbrirAnalise(s.analise)}>
-                Abrir a análise
-              </button>
+              {s.analise ? (
+                <>
+                  <span className="vg-id">{s.analise}</span>
+                  <button
+                    type="button"
+                    className="link vg-titulo"
+                    title={s.titulo ?? undefined}
+                    onClick={() => aoAbrirAnalise(s.analise!)}
+                  >
+                    {s.titulo ?? "Abrir a análise"}
+                  </button>
+                </>
+              ) : (
+                <span className="vg-titulo muted">
+                  {`${ROTULO_CLIENTE[s.cliente]}, ainda sem análise`}
+                </span>
+              )}
               <span className="vg-fim">
                 <span className="vg-chip vg-chip-estatico" data-tone={TOM_SESSAO[s.estado]}>
                   {ROTULO_SESSAO[s.estado]}
@@ -577,7 +596,7 @@ function SessoesEAtividade({
       {recentes.length === 0 ? (
         <p className="vg-nota">Ainda não aconteceu nada neste projeto.</p>
       ) : (
-        <ul className="vg-linhas" aria-label="Atividade recente">
+        <ul className="vg-linhas vg-recentes" aria-label="Atividade recente">
           {recentes.map((r) => (
             <li key={r.chave}>
               <span className="vg-quando">{quando(r.ms)}</span>

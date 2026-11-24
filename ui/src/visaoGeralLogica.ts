@@ -1,7 +1,7 @@
 import { atividadeVisivel } from "./atividades";
 import { ROTULO_FLUXO } from "./conhecimento";
 import { contar } from "./formatacao";
-import type { Atividade, ResumoProjeto } from "./resumoProjeto";
+import type { Atividade, AtividadeRecente, Mudanca, ResumoProjeto } from "./resumoProjeto";
 
 /**
  * Lógica pura da Visão geral do projeto (#320, §6 da revisão de UX): os próximos
@@ -149,11 +149,63 @@ export interface Recente {
   texto: string;
 }
 
+/** Quantas linhas a atividade recente mostra (as últimas 20 do histórico, #331). */
+export const RECENTES_VISIVEIS = 20;
+
+const ESTADO_ANALISE: Record<NonNullable<AtividadeRecente["estado"]>, string> = {
+  criada: "criada",
+  "em-andamento": "em andamento",
+  concluida: "concluída pelo agente",
+  aprovada: "aprovada",
+};
+
+const MUDANCA: Record<Exclude<Mudanca, "criada" | "estado">, string> = {
+  sessao: "sessão do agente",
+  afirmacao: "afirmações atualizadas",
+  pergunta: "perguntas atualizadas",
+  sugestao: "sugestões atualizadas",
+  termo: "termos do glossário atualizados",
+  historia: "histórias de usuário atualizadas",
+  cenario: "cenários de teste atualizados",
+  alteracao: "arquivos do projeto alterados",
+  transcript: "transcript guardado ou descartado",
+  ata: "ata atualizada",
+  parecer: "parecer de revisão atualizado",
+  diagrama: "diagramas atualizados",
+  funcionalidade: "funcionalidades atualizadas",
+  passo: "passos do manual atualizados",
+};
+
+/** "A-0003 · Impacto do Open Finance: concluída pelo agente", "A-0001: afirmações atualizadas (3)". */
+export function textoDaAtividade(a: AtividadeRecente): string {
+  const nome =
+    a.alvo === "mapa"
+      ? "Mapa de funcionalidades"
+      : a.alvo.startsWith("R-")
+        ? `Reunião ${a.alvo}`
+        : a.titulo
+          ? `${a.alvo} · ${a.titulo}`
+          : a.alvo;
+  if (a.mudanca === "criada") return `${nome}: criada`;
+  if (a.mudanca === "estado") return `${nome}: ${a.estado ? ESTADO_ANALISE[a.estado] : "mudou de situação"}`;
+  const vezes = a.quantas > 1 ? ` (${a.quantas})` : "";
+  return `${nome}: ${MUDANCA[a.mudanca]}${vezes}`;
+}
+
 /**
- * A atividade recente com as datas que já existem (o jornal de eventos é truncado e
- * não serve de histórico): análises concluídas e atividades com `atualizadaMs`.
+ * A atividade recente: as últimas linhas do histórico persistente (#331), que
+ * sobrevive a reiniciar o app. Projeto sem histórico ainda (o histórico começou a
+ * ser gravado com esta versão) usa as datas que o resumo já tem: análises
+ * concluídas e atividades com `atualizadaMs`.
  */
-export function atividadeRecente(resumo: ResumoProjeto, limite = 5): Recente[] {
+export function atividadeRecente(resumo: ResumoProjeto, limite = RECENTES_VISIVEIS): Recente[] {
+  if (resumo.atividadeRecente.length > 0) {
+    return resumo.atividadeRecente.slice(0, limite).map((a, i) => ({
+      chave: `${i}:${a.alvo}:${a.mudanca}:${a.quandoMs}`,
+      ms: a.quandoMs,
+      texto: textoDaAtividade(a),
+    }));
+  }
   const linhas = new Map<string, Recente>();
   for (const a of resumo.aguardandoRevisao) {
     linhas.set(`revisar:${a.id}`, {

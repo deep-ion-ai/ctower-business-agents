@@ -86,6 +86,7 @@ pub fn rodar() {
             alteracoes::marcar_aviso_migracao_visto,
             inicio::inicio_app,
             resumo::resumo_projeto_app,
+            resumo::listar_sessoes_projeto_app,
             inicio::criar_analise_fluxo,
             inicio::criar_analise_de_historias_app,
             inicio::criar_analise_de_cenarios_app,

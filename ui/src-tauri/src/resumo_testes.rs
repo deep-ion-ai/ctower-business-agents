@@ -341,3 +341,138 @@ fn cem_analises_respondem_dentro_da_meta() {
         "chamada com cache levou {quente:?}"
     );
 }
+
+#[test]
+fn sessoes_vivas_incluem_as_sem_analise_e_a_lista_traz_todas() {
+    let c = cenario();
+    let a1 = criar_analise(&c.dados, PROJETO, "Como a multa é calculada?", None)
+        .unwrap()
+        .analise
+        .id;
+    sessao(&c, "s1", &a1, EstadoSessao::AguardandoAnalista, 2_000);
+    sessao(&c, "s0", &a1, EstadoSessao::Encerrada, 1_000);
+    // Sessão aberta na pasta do projeto, ainda sem análise ligada.
+    Sessoes::do_diretorio(&c.dados)
+        .alterar("s2", |_| Some(RegistroSessao::novo("s2", PROJETO, 3_000)))
+        .unwrap();
+    // Sessão de outro projeto não aparece.
+    Sessoes::do_diretorio(&c.dados)
+        .alterar("s3", |_| Some(RegistroSessao::novo("s3", "outro", 4_000)))
+        .unwrap();
+
+    let r = resumo_projeto(&c.dados, PROJETO).unwrap();
+    let vivas: Vec<_> = r
+        .sessoes
+        .vivas
+        .iter()
+        .map(|s| (s.id.as_str(), s.estado, s.analise.as_deref()))
+        .collect();
+    assert_eq!(
+        vivas,
+        [
+            ("s2", EstadoSessao::Ativa, None),
+            ("s1", EstadoSessao::AguardandoAnalista, Some(a1.as_str())),
+        ]
+    );
+    assert_eq!(
+        r.sessoes.vivas[1].titulo.as_deref(),
+        Some("Como a multa é calculada?")
+    );
+    assert_eq!(r.sessoes.vivas[1].cliente, Cliente::ClaudeCode);
+
+    let todas = sessoes_do_projeto(&c.dados, PROJETO).unwrap();
+    let ids: Vec<_> = todas.iter().map(|s| s.id.as_str()).collect();
+    assert_eq!(ids, ["s2", "s1", "s0"]);
+    assert_eq!(todas[2].estado, EstadoSessao::Encerrada);
+    assert_eq!(
+        todas[1].titulo.as_deref(),
+        Some("Como a multa é calculada?")
+    );
+    assert_eq!(todas[0].titulo, None);
+}
+
+#[test]
+fn atividade_recente_vem_do_historico_e_sobrevive_ao_diario_esvaziado() {
+    let c = cenario();
+    let r = resumo_projeto(&c.dados, PROJETO).unwrap();
+    assert!(r.atividade_recente.is_empty());
+
+    let a1 = criar_analise(&c.dados, PROJETO, "Como a multa é calculada?", None)
+        .unwrap()
+        .analise
+        .id;
+    c.chamar("iniciar_analise", json!({"analise": a1}));
+    afirmar(
+        &c,
+        &a1,
+        "resposta",
+        "A multa é de 2% sobre o valor original.",
+    );
+    afirmar(&c, &a1, "resposta", "Os juros são de 1% ao mês.");
+    c.chamar("concluir_analise", json!({"analise": a1}));
+
+    // A vigia do app esvazia o diário; reiniciar o app não traz nada dele de volta.
+    let diario = cba_core::eventos::DiarioEventos::em(c.dados.eventos());
+    std::fs::write(diario.arquivo(PROJETO), "").unwrap();
+
+    let r = resumo_projeto(&c.dados, PROJETO).unwrap();
+    let linhas: Vec<_> = r
+        .atividade_recente
+        .iter()
+        .map(|a| (a.alvo.as_str(), a.mudanca, a.estado, a.quantas))
+        .collect();
+    assert_eq!(linhas[0].0, a1);
+    assert_eq!(
+        (linhas[0].1, linhas[0].2),
+        (Mudanca::Estado, Some(EstadoAnalise::Concluida))
+    );
+    // As duas afirmações seguidas viram uma linha só.
+    assert!(
+        linhas.contains(&(
+            a1.as_str(),
+            Mudanca::Afirmacao,
+            Some(EstadoAnalise::EmAndamento),
+            2
+        )),
+        "{linhas:?}"
+    );
+    assert_eq!(linhas.last().unwrap().1, Mudanca::Criada);
+    assert_eq!(
+        r.atividade_recente[0].titulo.as_deref(),
+        Some("Como a multa é calculada?")
+    );
+    assert!(
+        r.atividade_recente
+            .iter()
+            .all(|a| a.mudanca != Mudanca::Sessao)
+    );
+}
+
+#[test]
+fn atividade_recente_agrupa_e_limita_a_vinte() {
+    let evento = |n: u64, alvo: &str, mudanca| Evento {
+        quando_ms: n,
+        projeto: PROJETO.into(),
+        analise: alvo.into(),
+        mudanca,
+        versao: n,
+        processo: 1,
+        estado: None,
+    };
+    let mut eventos = Vec::new();
+    for i in 0..30 {
+        let alvo = if i % 2 == 0 { "A-0001" } else { "A-0002" };
+        eventos.push(evento(i * 10, alvo, Mudanca::Pergunta));
+        eventos.push(evento(i * 10 + 1, alvo, Mudanca::Pergunta));
+        eventos.push(evento(i * 10 + 2, alvo, Mudanca::Sessao));
+    }
+    let titulos = HashMap::from([("A-0001", "Multa")]);
+    let r = atividades_recentes(&eventos, &titulos);
+    assert_eq!(r.len(), ATIVIDADES_RECENTES);
+    assert_eq!(
+        (r[0].alvo.as_str(), r[0].quando_ms, r[0].quantas),
+        ("A-0002", 291, 2)
+    );
+    assert_eq!(r[1].titulo.as_deref(), Some("Multa"));
+    assert_eq!(r[0].titulo, None);
+}

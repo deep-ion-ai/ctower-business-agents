@@ -463,6 +463,7 @@ impl Analises {
             mudanca,
             versao: analise.versao,
             processo: std::process::id(),
+            estado: Some(analise.estado),
         };
         if let Err(e) = self.notificador.notificar(&evento) {
             tracing::warn!(erro = %e.kind(), "falha ao notificar o app");

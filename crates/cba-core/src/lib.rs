@@ -37,6 +37,7 @@ pub mod diagramas;
 pub mod eventos;
 pub mod funcionalidades;
 pub mod historias;
+pub mod historico;
 pub mod log;
 pub mod manual;
 pub mod memoria;

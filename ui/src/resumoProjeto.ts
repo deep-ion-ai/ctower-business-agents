@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Fluxo, SessaoVista } from "./analise";
+import type { Cliente, EstadoSessao, Fluxo, SessaoVista } from "./analise";
 
 /**
  * O resumo do projeto (#318): as contagens e a lista de atividades numa chamada só,
@@ -40,9 +40,13 @@ export interface ResumoProjeto {
     encerradas: number;
     /** A sessão mais recente de cada análise. */
     porAnalise: ({ analise: string } & SessaoVista)[];
+    /** Sessões vivas do projeto, ligadas a uma análise ou não, da mais recente para a mais antiga (#331). */
+    vivas: SessaoProjeto[];
   };
   /** Na ordem de prioridade; o grupo "Ambiente a preparar" a tela junta. */
   atividades: Atividade[];
+  /** As últimas atividades do histórico persistente, da mais recente para a mais antiga (#331). */
+  atividadeRecente: AtividadeRecente[];
   /** O número do selo do menu: quantas atividades esperam o analista. */
   pedemAcao: number;
   geradoMs: number;
@@ -70,6 +74,49 @@ export interface Atividade {
   atualizadaMs: number | null;
 }
 
+/** Uma sessão de cliente de IA do projeto (`SessaoProjeto`, #331). */
+export interface SessaoProjeto {
+  id: string;
+  estado: EstadoSessao;
+  cliente: Cliente;
+  /** Análise ligada, quando a sessão já trabalhou numa. */
+  analise: string | null;
+  titulo: string | null;
+  inicioMs: number;
+  atualizadaMs: number;
+  fimMs: number | null;
+}
+
+/** Tipo de mudança do diário e do histórico (`Mudanca`, `cba_core::eventos`). */
+export type Mudanca =
+  | "criada"
+  | "estado"
+  | "sessao"
+  | "afirmacao"
+  | "pergunta"
+  | "sugestao"
+  | "termo"
+  | "historia"
+  | "cenario"
+  | "alteracao"
+  | "transcript"
+  | "ata"
+  | "parecer"
+  | "diagrama"
+  | "funcionalidade"
+  | "passo";
+
+/** Uma linha da atividade recente (`AtividadeRecente`, #331): mudanças seguidas juntas. */
+export interface AtividadeRecente {
+  quandoMs: number;
+  /** Análise (`A-0001`), reunião (`R-0001`) ou `mapa`. */
+  alvo: string;
+  titulo: string | null;
+  mudanca: Mudanca;
+  estado: "criada" | "em-andamento" | "concluida" | "aprovada" | null;
+  quantas: number;
+}
+
 export interface ApiResumo {
   resumoProjeto(projeto: string): Promise<ResumoProjeto>;
 }
@@ -77,3 +124,7 @@ export interface ApiResumo {
 export const apiResumoTauri: ApiResumo = {
   resumoProjeto: (projeto) => invoke("resumo_projeto_app", { projeto }),
 };
+
+/** Todas as sessões registradas do projeto (#331). */
+export const listarSessoesProjeto = (projeto: string): Promise<SessaoProjeto[]> =>
+  invoke("listar_sessoes_projeto_app", { projeto });

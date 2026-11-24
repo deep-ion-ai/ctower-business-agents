@@ -272,7 +272,7 @@ pub fn aprovar_analise(
     let raiz = config.base().ok_or(ErroAprovacao::BaseNaoConfigurada)?;
     let base = Base::abrir(raiz)?;
     let kb = base.projeto(projeto)?;
-    let analises = Analises::new(kb, Arc::new(DiarioEventos::em(dados.eventos())));
+    let analises = Analises::new(kb, Arc::new(DiarioEventos::do_diretorio(dados)));
     let mut aprovacao = aprovar(&base, &analises, id, opcoes)?;
     let sincronizado =
         Indice::abrir(dados.arquivo_do_indice(), &base).and_then(|mut i| i.sincronizar());
