@@ -524,7 +524,7 @@ fn agente_propoe_o_vinculo_de_issue_com_evidencia() {
     for args in [
         json!({"origem": "github", "chave": "#41", "funcionalidades": ["F-ZZZ-999"], "evidencia": "x"}),
         json!({"origem": "github", "chave": "#41", "funcionalidades": [id], "evidencia": "  "}),
-        json!({"origem": "gitlab", "chave": "#41", "funcionalidades": [id], "evidencia": "x"}),
+        json!({"origem": "bitbucket", "chave": "#41", "funcionalidades": [id], "evidencia": "x"}),
     ] {
         assert!(c.chamar("propor_vinculo_de_issue", args).is_err());
     }
