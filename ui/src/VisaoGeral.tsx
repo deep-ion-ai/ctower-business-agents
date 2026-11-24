@@ -27,7 +27,7 @@ import {
   type Passo,
   type Segmento,
   type Tom,
-} from "./visaoGeral";
+} from "./visaoGeralLogica";
 import "./visaoGeral.css";
 
 /** Quantas áreas a cobertura mostra e quantas demandas o bloco lista. */
