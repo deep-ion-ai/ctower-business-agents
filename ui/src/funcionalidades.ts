@@ -65,6 +65,8 @@ export interface Funcionalidade {
   explicacao: AnaliseResumo | null;
   /** Nenhum ponto de entrada dela existe mais no código. */
   semPontoDeEntrada: boolean;
+  /** Manual do usuário, quando o mapa o informa (senão só o painel sabe). */
+  manual?: SituacaoManual;
 }
 
 export interface AreaMapa {

@@ -26,6 +26,8 @@ import type { ApiConhecimento } from "./conhecimento";
 import { PainelFuncionalidade } from "./PainelFuncionalidade";
 import { TerminalClaude, type EstadoTerminal } from "./TerminalClaude";
 import { AjudaTermo } from "./AjudaTermo";
+import { MenuMais, type ItemMenuMais } from "./MenuMais";
+import { lacunasPorPasta, passaNoFiltro, progressoDoMapa } from "./progressoMapa";
 import type { ApiTerminal, ProjetoResumo } from "./terminal";
 import type { TelaTerminal } from "./telaXterm";
 
@@ -33,6 +35,8 @@ import type { TelaTerminal } from "./telaXterm";
 
 /** Pontos ainda sem funcionalidade mostrados de uma vez (projetos grandes têm milhares). */
 const MOSTRADOS = 100;
+/** Pastas listadas em "Ainda sem mapa"; a lista completa fica em Código. */
+const LACUNAS_MOSTRADAS = 5;
 
 type Filtro = "todas" | "pendentes" | "aceitas" | "sem-ponto";
 
@@ -54,23 +58,20 @@ function passa(f: Funcionalidade, filtro: Filtro, busca: string): boolean {
   );
 }
 
-function CartaoFuncionalidade({
+function LinhaFuncionalidade({
   f,
   outras,
   revisao,
-  evidencias = false,
+  aoAbrir,
   aoExplicar,
   aoAbrirExplicacao,
   aoAbrirDocumento,
-  selecionada = false,
 }: {
   f: Funcionalidade;
   outras: Funcionalidade[];
   revisao: Revisao;
-  /** Escolhida na árvore lateral. */
-  selecionada?: boolean;
-  /** Mostra o trecho de código citado em cada ponto de entrada. */
-  evidencias?: boolean;
+  /** Abre o painel da funcionalidade. */
+  aoAbrir: (f: Funcionalidade) => void;
   aoExplicar?: (f: Funcionalidade) => void;
   aoAbrirExplicacao?: (analise: string) => void;
   aoAbrirDocumento?: (documento: string) => void;
@@ -84,86 +85,81 @@ function CartaoFuncionalidade({
       .aoRevisar(r)
       .then(() => setForm(null))
       .catch(() => undefined);
+  const decidir = (decisao: "aceitar" | "descartar" | "desfazer") =>
+    revisar({ tipo: "decidir", funcionalidade: f.id, decisao });
+  const podeExplicar = aberta && !!aoExplicar && !f.explicacao;
+
+  // Uma ação principal por linha; o resto vai para o menu "⋯".
+  let principal: { texto: string; aoClicar: () => void } | null = null;
+  if (s === "pendente") principal = { texto: "Aceitar", aoClicar: () => void decidir("aceitar") };
+  else if (podeExplicar) principal = { texto: "Explicar", aoClicar: () => aoExplicar!(f) };
+  else if (s === "descartada")
+    principal = { texto: "Voltar a revisar", aoClicar: () => void decidir("desfazer") };
+
+  const itens: ItemMenuMais[] = [{ texto: "Abrir o painel", aoEscolher: () => aoAbrir(f) }];
+  if (aberta) {
+    itens.push({ texto: "Editar", aoEscolher: () => setForm("editar") });
+    if (outras.length > 0) itens.push({ texto: "Juntar", aoEscolher: () => setForm("juntar") });
+    if (f.pontos.length > 1) itens.push({ texto: "Dividir", aoEscolher: () => setForm("dividir") });
+    if (s === "pendente" && podeExplicar)
+      itens.push({ texto: "Explicar", aoEscolher: () => aoExplicar!(f) });
+    itens.push({ texto: "Descartar", aoEscolher: () => void decidir("descartar") });
+  }
+  if (s === "aceita") itens.push({ texto: "Desfazer", aoEscolher: () => void decidir("desfazer") });
+  if (f.explicacao && aoAbrirExplicacao) {
+    const id = f.explicacao.id;
+    itens.push({
+      texto: `Explicação ${id} (${ESTADO_ANALISE[f.explicacao.estado]})`,
+      aoEscolher: () => aoAbrirExplicacao(id),
+    });
+  }
+  if (f.documento && aoAbrirDocumento) {
+    const documento = f.documento;
+    itens.push({ texto: "Documento negocial", aoEscolher: () => aoAbrirDocumento(documento) });
+  }
+  const menu = s === "juntada" ? itens.slice(0, 1) : itens;
+
   return (
-    <section
+    <li
       id={idDoCartao(f.id)}
-      className={`funcionalidade situacao-${s}${selecionada ? " selecionada" : ""}`}
+      className={`linha-funcionalidade situacao-${s}`}
       aria-label={`${f.id}: ${f.nome}`}
-      aria-current={selecionada ? "true" : undefined}
     >
-      <header className="historia-cabecalho">
-        <span className="painel-id">{f.id}</span>
-        <strong>{f.nome}</strong>
-        {f.documento ? (
-          <span className="chip">documentada</span>
-        ) : (
-          f.explicacao && <span className="chip">em explicação</span>
-        )}
-        {f.semPontoDeEntrada && <span className="chip">sem ponto de entrada no código</span>}
-        <span className="badge" data-tone={s === "aceita" ? "done" : undefined}>
-          {s === "juntada" && f.juntadaEm ? `juntada em ${f.juntadaEm}` : SITUACAO[s]}
+      <div className="linha-principal">
+        <button type="button" className="linha-nome" onClick={() => aoAbrir(f)}>
+          <span className="painel-id">{f.id}</span> <strong>{f.nome}</strong>
+        </button>
+        <span className="linha-etiquetas">
+          {f.documento ? (
+            <span className="chip">documentada</span>
+          ) : (
+            f.explicacao && <span className="chip">em explicação</span>
+          )}
+          {f.semPontoDeEntrada && <span className="chip">sem ponto de entrada</span>}
+          <span className="badge" data-tone={s === "aceita" ? "done" : undefined}>
+            {s === "juntada" && f.juntadaEm ? `juntada em ${f.juntadaEm}` : SITUACAO[s]}
+          </span>
         </span>
-      </header>
-      {form === "editar" ? (
+        {principal && (
+          <button
+            type="button"
+            className={s === "pendente" ? "btn btn-sm btn-primary" : "btn btn-sm"}
+            disabled={ocupado}
+            aria-label={`${principal.texto} ${f.id}`}
+            onClick={principal.aoClicar}
+          >
+            {principal.texto}
+          </button>
+        )}
+        <MenuMais rotulo={`Mais ações para ${f.id}`} itens={menu} />
+      </div>
+      {form === "editar" && (
         <FormEditar
           f={f}
           ocupado={ocupado}
           aoCancelar={() => setForm(null)}
           aoSalvar={(d) => revisar({ tipo: "editar", funcionalidade: f.id, ...d })}
         />
-      ) : (
-        <p>
-          {f.descricao}
-          {f.editada && <span className="muted editada"> (editada pelo analista)</span>}
-        </p>
-      )}
-      {f.atores.length > 0 && (
-        <p className="muted">
-          <strong>Atores:</strong> {f.atores.join(", ")}
-        </p>
-      )}
-      {evidencias ? (
-        <ul className="pontos-entrada" aria-label={`Pontos de entrada de ${f.id}`}>
-          {f.pontos.map((p, i) => (
-            <li key={p.chave ?? `${p.nome}-${i}`}>
-              <code>{p.nome}</code>
-              {p.tipo && <span className="muted"> · {NOME_TIPO_ENTRADA[p.tipo]}</span>}
-              <span className="muted">
-                {" "}
-                · {p.arquivo}:{p.linhaInicial}
-                {p.linhaFinal !== p.linhaInicial ? `-${p.linhaFinal}` : ""}
-              </span>
-              {p.foraDaLista && <span className="chip">fora da lista do mapa</span>}
-              <pre className="evidencia-ponto" aria-label={`Evidência de ${p.nome}`}>
-                <code>{p.trecho}</code>
-              </pre>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="muted">
-          {contar(f.pontos.length, "ponto de entrada", "pontos de entrada")}
-          {f.pontos.some((p) => p.foraDaLista) && " (algum fora da lista do mapa)"}
-        </p>
-      )}
-      {(f.dadosLidos.length > 0 || f.dadosGravados.length > 0) && (
-        <p className="muted">
-          {f.dadosLidos.length > 0 && (
-            <>
-              <strong>Lê:</strong> {f.dadosLidos.join(", ")}{" "}
-            </>
-          )}
-          {f.dadosGravados.length > 0 && (
-            <>
-              <strong>Grava:</strong> {f.dadosGravados.join(", ")}
-            </>
-          )}
-        </p>
-      )}
-      {f.relacionadas.length > 0 && (
-        <p className="muted">
-          <strong>Relacionadas:</strong> {f.relacionadas.join(", ")}
-        </p>
       )}
       {form === "juntar" && (
         <FormJuntar
@@ -182,93 +178,7 @@ function CartaoFuncionalidade({
           aoDividir={(d) => revisar({ tipo: "dividir", funcionalidade: f.id, ...d })}
         />
       )}
-      {s !== "juntada" && form === null && (
-        <div className="acoes-revisao" role="group" aria-label={`Revisão de ${f.id}`}>
-          {s === "pendente" && (
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={ocupado}
-              onClick={() => revisar({ tipo: "decidir", funcionalidade: f.id, decisao: "aceitar" })}
-            >
-              Aceitar
-            </button>
-          )}
-          {aberta && (
-            <>
-              <button type="button" className="btn" disabled={ocupado} onClick={() => setForm("editar")}>
-                Editar
-              </button>
-              {outras.length > 0 && (
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={ocupado}
-                  onClick={() => setForm("juntar")}
-                >
-                  Juntar
-                </button>
-              )}
-              {f.pontos.length > 1 && (
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={ocupado}
-                  onClick={() => setForm("dividir")}
-                >
-                  Dividir
-                </button>
-              )}
-              <button
-                type="button"
-                className="btn"
-                disabled={ocupado}
-                onClick={() =>
-                  revisar({ tipo: "decidir", funcionalidade: f.id, decisao: "descartar" })
-                }
-              >
-                Descartar
-              </button>
-            </>
-          )}
-          {s !== "pendente" && (
-            <button
-              type="button"
-              className="btn"
-              disabled={ocupado}
-              onClick={() => revisar({ tipo: "decidir", funcionalidade: f.id, decisao: "desfazer" })}
-            >
-              {s === "descartada" ? "Voltar a revisar" : "Desfazer"}
-            </button>
-          )}
-          {aberta && aoExplicar && (
-            <button
-              type="button"
-              className="btn"
-              disabled={ocupado || !!f.explicacao}
-              title={f.explicacao ? `Já explicada na análise ${f.explicacao.id}` : undefined}
-              onClick={() => aoExplicar(f)}
-            >
-              Explicar
-            </button>
-          )}
-          {f.explicacao && aoAbrirExplicacao && (
-            <button
-              type="button"
-              className="btn"
-              onClick={() => aoAbrirExplicacao(f.explicacao!.id)}
-            >
-              Explicação {f.explicacao.id} ({ESTADO_ANALISE[f.explicacao.estado]})
-            </button>
-          )}
-          {f.documento && aoAbrirDocumento && (
-            <button type="button" className="btn" onClick={() => aoAbrirDocumento(f.documento!)}>
-              Documento negocial
-            </button>
-          )}
-        </div>
-      )}
-    </section>
+    </li>
   );
 }
 
@@ -350,6 +260,7 @@ function ArvoreDoMapa({
 function SessaoDeMapeamento({
   projeto,
   api,
+  pastaInicial = "",
   apiTerminal,
   criarTela,
   aoFechar,
@@ -357,12 +268,14 @@ function SessaoDeMapeamento({
 }: {
   projeto: string;
   api: ApiMapa;
+  /** Recorte já preenchido (o "Mapear" de uma lacuna da cobertura). */
+  pastaInicial?: string;
   apiTerminal?: ApiTerminal;
   criarTela?: () => TelaTerminal;
   aoFechar: () => void;
   aoMudarConversa?: (estado: EstadoConversa) => void;
 }) {
-  const [pasta, setPasta] = useState("");
+  const [pasta, setPasta] = useState(pastaInicial);
   const [area, setArea] = useState("");
   const [orientacao, setOrientacao] = useState("");
   const [pedido, setPedido] = useState<string | null>(null);
@@ -525,7 +438,7 @@ function MapaDoProjeto({
   const [sessao, setSessao] = useState(false);
   const [filtro, setFiltro] = useState<Filtro>("todas");
   const [busca, setBusca] = useState("");
-  const [todosSemTratamento, setTodosSemTratamento] = useState(false);
+  const [pastaSessao, setPastaSessao] = useState("");
   const [evidencias, setEvidencias] = useState(false);
   /** Funcionalidade aberta na página própria (escolhida na árvore). */
   const [selecionada, setSelecionada] = useState<string | null>(null);
@@ -595,7 +508,14 @@ function MapaDoProjeto({
       [...abertas, ...(mapa?.fechadas ?? [])].find((f) => f.id === selecionada)) ||
     null;
   const semTratamento = mapa?.completude?.semTratamento ?? [];
-  const mostrados = todosSemTratamento ? semTratamento : semTratamento.slice(0, MOSTRADOS);
+  const mostrados = semTratamento.slice(0, MOSTRADOS);
+  const progresso = mapa && mapa.total > 0 ? progressoDoMapa(mapa) : null;
+  const lacunas = lacunasPorPasta(semTratamento);
+  const mapearPasta = (pasta: string) => {
+    setPastaSessao(pasta);
+    setSessao(true);
+  };
+  const contagem = (valor: Filtro) => abertas.filter((f) => passaNoFiltro(f, valor)).length;
 
   return (
     <div className={sessao ? "mapa-colunas com-sessao" : "mapa-colunas"}>
@@ -634,7 +554,7 @@ function MapaDoProjeto({
               Mostrar evidências de código
             </label>
             {!sessao && (
-              <button type="button" className="btn btn-primary" onClick={() => setSessao(true)}>
+              <button type="button" className="btn btn-primary" onClick={() => mapearPasta("")}>
                 Mapear com o Claude
               </button>
             )}
@@ -651,19 +571,15 @@ function MapaDoProjeto({
                 </button>
               </>
             )}
-            {api.religar && mapa && mapa.total > 0 && (
-              <button
-                type="button"
-                className="btn"
-                title="Liga às funcionalidades as análises, regras e termos aprovados antes do vínculo, pela análise de origem"
-                onClick={religar}
-              >
-                Religar documentos
-              </button>
-            )}
-            <button type="button" className="btn" onClick={recarregar}>
-              Atualizar
-            </button>
+            <MenuMais
+              rotulo="Mais"
+              itens={[
+                ...(api.religar && mapa && mapa.total > 0
+                  ? [{ texto: "Religar documentos", aoEscolher: religar }]
+                  : []),
+                { texto: "Atualizar", aoEscolher: recarregar },
+              ]}
+            />
           </div>
         </header>
         {erro && <p className="erro">Não foi possível ler o mapa: {erro}</p>}
@@ -671,11 +587,77 @@ function MapaDoProjeto({
         {aviso && <p className="muted">{aviso}</p>}
         {mapa?.erroCompletude && <p className="aviso">{mapa.erroCompletude}</p>}
 
+        {progresso && (
+          <section className="progresso-mapa" aria-label="Progresso do mapa">
+            <ol className="progresso-etapas">
+              {[
+                { rotulo: "mapeadas", n: progresso.mapeadas },
+                { rotulo: "aceitas", n: progresso.aceitas },
+                { rotulo: "explicadas", n: progresso.explicadas },
+                { rotulo: "com manual", n: progresso.comManual },
+              ].map((e) => (
+                <li key={e.rotulo}>
+                  <strong>{e.n ?? "—"}</strong>
+                  {e.n !== null && <span className="muted"> de {progresso.mapeadas}</span>} {e.rotulo}
+                </li>
+              ))}
+            </ol>
+            {progresso.codigoMapeado !== null && (
+              <div className="progresso-codigo">
+                <span id="rotulo-codigo-mapeado">Código já mapeado</span>
+                <div
+                  className="barra-progresso"
+                  role="progressbar"
+                  aria-labelledby="rotulo-codigo-mapeado"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={progresso.codigoMapeado}
+                >
+                  <div style={{ width: `${progresso.codigoMapeado}%` }} />
+                </div>
+                <span className="muted">{progresso.codigoMapeado}%</span>
+              </div>
+            )}
+          </section>
+        )}
+
         {mapa && mapa.total === 0 && (
-          <p className="empty">
-            O mapa ainda está vazio. Use "Mapear com o Claude" para o agente agrupar os pontos de
-            entrada do código em funcionalidades de negócio.
-          </p>
+          <section className="mapa-vazio empty" aria-label="Mapa vazio">
+            <p>
+              <strong>O mapa ainda está vazio.</strong> Ele é o inventário, em linguagem de negócio,
+              do que o sistema faz.
+            </p>
+            <ol>
+              <li>O Claude lê o código e agrupa os pontos de entrada em funcionalidades.</li>
+              <li>Você revisa: aceita, edita, junta, divide ou descarta.</li>
+              <li>Depois explica cada uma e gera o manual do usuário.</li>
+            </ol>
+            {!sessao && (
+              <button type="button" className="btn btn-primary" onClick={() => mapearPasta("")}>
+                Mapear com o Claude
+              </button>
+            )}
+            {semTratamento.length > 0 && (
+              <details>
+                <summary>Ver os pontos de entrada</summary>
+                <ul aria-label="Ainda sem funcionalidade">
+                  {mostrados.map((p) => (
+                    <li key={p.chave}>
+                      <code>{p.nome}</code>{" "}
+                      <span className="muted">
+                        · {NOME_TIPO_ENTRADA[p.tipo]} · {p.arquivo}:{p.linha}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                {semTratamento.length > mostrados.length && (
+                  <p className="muted">
+                    e mais {semTratamento.length - mostrados.length}: a lista completa está em Código.
+                  </p>
+                )}
+              </details>
+            )}
+          </section>
         )}
 
         {pagina ? (
@@ -694,148 +676,162 @@ function MapaDoProjeto({
           />
         ) : (
           <>
-        {mapa && mapa.total > 0 && (
-          <section aria-label="Funcionalidades" className="funcionalidades-ao-vivo">
-            <div className="mapa-filtros" role="group" aria-label="Filtro">
-              {FILTROS.map((f) => (
-                <button
-                  key={f.valor}
-                  type="button"
-                  className="btn"
-                  aria-pressed={filtro === f.valor}
-                  onClick={() => setFiltro(f.valor)}
-                >
-                  {f.rotulo}
-                </button>
-              ))}
-              <input
-                type="search"
-                aria-label="Buscar funcionalidade"
-                placeholder="Buscar…"
-                value={busca}
-                onChange={(e) => setBusca(e.target.value)}
-              />
-            </div>
-            {mapa.areas.map((a) => {
-              const lista = a.funcionalidades.filter((f) => passa(f, filtro, busca));
-              if (lista.length === 0) return null;
-              return (
-                <div key={a.area} className="area-funcionalidades">
-                  <h4>
-                    {a.nome}{" "}
-                    <span className="muted">({contar(a.funcionalidades.length, "funcionalidade", "funcionalidades")})</span>
-                  </h4>
-                  {lista.map((f) => (
-                    <CartaoFuncionalidade
-                      key={f.id}
-                      f={f}
-                      outras={abertas.filter((o) => o.id !== f.id)}
-                      revisao={revisao}
-                      evidencias={evidencias}
-                      aoExplicar={explicar}
-                      aoAbrirExplicacao={abrirExplicacao}
-                      aoAbrirDocumento={abrirDocumento}
-                    />
+            {mapa && mapa.total > 0 && (
+              <section aria-label="Funcionalidades" className="funcionalidades-ao-vivo">
+                <div className="mapa-filtros" role="group" aria-label="Filtro">
+                  {FILTROS.map((f) => (
+                    <button
+                      key={f.valor}
+                      type="button"
+                      className="btn"
+                      aria-pressed={filtro === f.valor}
+                      onClick={() => setFiltro(f.valor)}
+                    >
+                      {f.rotulo} ({contagem(f.valor)})
+                    </button>
                   ))}
-                </div>
-              );
-            })}
-            {mapa.fechadas.length > 0 && (
-              <details className="funcionalidades-fechadas">
-                <summary>
-                  {contar(mapa.fechadas.length, "descartada ou juntada", "descartadas ou juntadas")}
-                </summary>
-                {mapa.fechadas.map((f) => (
-                  <CartaoFuncionalidade
-                    key={f.id}
-                    f={f}
-                    outras={[]}
-                    revisao={revisao}
-                    evidencias={evidencias}
+                  <input
+                    type="search"
+                    aria-label="Buscar funcionalidade"
+                    placeholder="Buscar…"
+                    value={busca}
+                    onChange={(e) => setBusca(e.target.value)}
                   />
-                ))}
-              </details>
-            )}
-          </section>
-        )}
-
-        {mapa && (semTratamento.length > 0 || mapa.justificados.length > 0) && (
-          <section
-            aria-label="Pontos de entrada sem funcionalidade"
-            className="pontos-sem-funcionalidade"
-          >
-            <h4>
-              Pontos de entrada sem funcionalidade
-              <AjudaTermo termo="ponto de entrada">
-                Telas, serviços e rotinas por onde o sistema é usado.
-              </AjudaTermo>
-            </h4>
-            {semTratamento.length > 0 && (
-              <>
-                <p className="aviso">
-                  {contar(
-                    semTratamento.length,
-                    "ponto de entrada ainda sem funcionalidade",
-                    "pontos de entrada ainda sem funcionalidade",
-                  )}
-                  : uma sessão de mapeamento os atribui a funcionalidades ou justifica.
-                </p>
-                <ul aria-label="Ainda sem funcionalidade">
-                  {mostrados.map((p) => (
-                    <li key={p.chave}>
-                      <code>{p.nome}</code>{" "}
-                      <span className="muted">
-                        · {NOME_TIPO_ENTRADA[p.tipo]} · {p.arquivo}:{p.linha}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-                {semTratamento.length > mostrados.length && (
-                  <button type="button" className="btn" onClick={() => setTodosSemTratamento(true)}>
-                    Mostrar mais {semTratamento.length - mostrados.length}
-                  </button>
+                </div>
+                {mapa.areas.map((a) => {
+                  const lista = a.funcionalidades.filter((f) => passa(f, filtro, busca));
+                  if (lista.length === 0) return null;
+                  return (
+                    <div key={a.area} className="area-funcionalidades">
+                      <h4>
+                        {a.nome}{" "}
+                        <span className="muted">
+                          ({contar(a.funcionalidades.length, "funcionalidade", "funcionalidades")})
+                        </span>
+                      </h4>
+                      <ul className="lista-compacta" aria-label={`Funcionalidades de ${a.nome}`}>
+                        {lista.map((f) => (
+                          <LinhaFuncionalidade
+                            key={f.id}
+                            f={f}
+                            outras={abertas.filter((o) => o.id !== f.id)}
+                            revisao={revisao}
+                            aoAbrir={escolher}
+                            aoExplicar={explicar}
+                            aoAbrirExplicacao={abrirExplicacao}
+                            aoAbrirDocumento={abrirDocumento}
+                          />
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })}
+                {mapa.fechadas.length > 0 && (
+                  <details className="funcionalidades-fechadas">
+                    <summary>
+                      {contar(mapa.fechadas.length, "descartada ou juntada", "descartadas ou juntadas")}
+                    </summary>
+                    <ul className="lista-compacta" aria-label="Descartadas e juntadas">
+                      {mapa.fechadas.map((f) => (
+                        <LinhaFuncionalidade
+                          key={f.id}
+                          f={f}
+                          outras={[]}
+                          revisao={revisao}
+                          aoAbrir={escolher}
+                        />
+                      ))}
+                    </ul>
+                  </details>
                 )}
-              </>
+              </section>
             )}
-            {mapa.justificados.length > 0 && (
-              <details>
-                <summary>
-                  {contar(mapa.justificados.length, "ponto justificado", "pontos justificados")}
-                </summary>
-                <ul aria-label="Justificados">
-                  {mapa.justificados.map((j) => (
-                    <li key={j.chave}>
-                      <code>{j.nome}</code>{" "}
-                      <span className="muted">
-                        · {NOME_TIPO_ENTRADA[j.tipo]} · {NOME_MOTIVO[j.motivo]}:
-                      </span>{" "}
-                      {j.justificativa}{" "}
-                      <button
-                        type="button"
-                        className="btn btn-link"
-                        disabled={ocupado}
-                        onClick={() =>
-                          revisao
-                            .aoRevisar({ tipo: "desfazer-justificativa", ponto: j.chave })
-                            .catch(() => undefined)
-                        }
-                      >
-                        Desfazer
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </details>
+
+            {mapa && mapa.total > 0 && (lacunas.length > 0 || mapa.justificados.length > 0) && (
+              <section aria-label="Ainda sem mapa" className="pontos-sem-funcionalidade">
+                <h4>
+                  Ainda sem mapa
+                  <AjudaTermo termo="ponto de entrada">
+                    Telas, serviços e rotinas por onde o sistema é usado.
+                  </AjudaTermo>
+                </h4>
+                {lacunas.length > 0 && (
+                  <>
+                    <p className="aviso">
+                      {contar(
+                        semTratamento.length,
+                        "ponto de entrada ainda sem funcionalidade",
+                        "pontos de entrada ainda sem funcionalidade",
+                      )}
+                      , nestas pastas:
+                    </p>
+                    <ul aria-label="Lacunas da cobertura">
+                      {lacunas.slice(0, LACUNAS_MOSTRADAS).map((l) => (
+                        <li key={l.pasta}>
+                          <code>{l.pasta}</code>{" "}
+                          <span className="muted">{contar(l.pontos, "ponto", "pontos")}</span>{" "}
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            disabled={sessao}
+                            aria-label={`Mapear ${l.pasta}`}
+                            onClick={() => mapearPasta(l.pasta)}
+                          >
+                            Mapear
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    <button
+                      type="button"
+                      className="btn btn-link"
+                      onClick={() => navegar({ tipo: "codigo", projeto })}
+                    >
+                      Ver todas as pastas em Código
+                    </button>
+                  </>
+                )}
+                {mapa.justificados.length > 0 && (
+                  <details>
+                    <summary>
+                      {contar(mapa.justificados.length, "ponto justificado", "pontos justificados")}
+                    </summary>
+                    <ul aria-label="Justificados">
+                      {mapa.justificados.map((j) => (
+                        <li key={j.chave}>
+                          <code>{j.nome}</code>{" "}
+                          <span className="muted">
+                            · {NOME_TIPO_ENTRADA[j.tipo]} · {NOME_MOTIVO[j.motivo]}:
+                          </span>{" "}
+                          {j.justificativa}{" "}
+                          <button
+                            type="button"
+                            className="btn btn-link"
+                            disabled={ocupado}
+                            onClick={() =>
+                              revisao
+                                .aoRevisar({ tipo: "desfazer-justificativa", ponto: j.chave })
+                                .catch(() => undefined)
+                            }
+                          >
+                            Desfazer
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </section>
             )}
-          </section>
-        )}
           </>
         )}
       </div>
       {sessao && (
         <SessaoDeMapeamento
+          key={pastaSessao}
           projeto={projeto}
           api={api}
+          pastaInicial={pastaSessao}
           apiTerminal={apiTerminal}
           criarTela={criarTela}
           aoFechar={() => setSessao(false)}
