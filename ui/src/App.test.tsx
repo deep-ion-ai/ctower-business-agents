@@ -44,7 +44,7 @@ describe("App", () => {
     expect(await screen.findByRole("region", { name: "Início" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Clientes de IA" })).toBeInTheDocument();
     fireEvent.click(within(menu).getByRole("button", { name: /^Análises/ }));
-    expect(await screen.findByRole("region", { name: "Pergunta ao sistema" })).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "Análises" })).toBeInTheDocument();
   });
 
   it("no primeiro uso, abre o assistente e, ao concluir, inicia a primeira análise (#227)", async () => {
@@ -61,7 +61,7 @@ describe("App", () => {
     );
     render(<App api={api} apiAnalise={analise.api} />);
     expect(await screen.findByRole("region", { name: "Primeiro uso" })).toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "Pergunta ao sistema" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Análises" })).not.toBeInTheDocument();
 
     fireEvent.click(await screen.findByRole("button", { name: "Continuar" }));
     await screen.findByText(/o app vai criá-la/);
@@ -87,7 +87,7 @@ describe("App", () => {
       "faturamento-exemplo",
       expect.stringContaining("regras de negócio"),
     );
-    expect(screen.queryByRole("region", { name: "Pergunta ao sistema" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Análises" })).not.toBeInTheDocument();
     await waitFor(() =>
       expect(screen.queryByRole("region", { name: "Primeiro uso" })).not.toBeInTheDocument(),
     );

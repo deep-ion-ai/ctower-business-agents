@@ -11,6 +11,12 @@ function montar(analise = apiAnaliseFalsa()) {
   return { ...analise, terminal };
 }
 
+/** "Nova análise" → "Perguntar ao sistema": o formulário da pergunta. */
+async function abrirPergunta() {
+  fireEvent.click(await screen.findByRole("button", { name: "Nova análise" }));
+  fireEvent.click(screen.getByRole("button", { name: "Perguntar ao sistema" }));
+}
+
 describe("TelaAnalise", () => {
   it("sem base ou sem projeto, leva ao primeiro uso", async () => {
     const analise = apiAnaliseFalsa();
@@ -75,6 +81,7 @@ describe("TelaAnalise", () => {
       ],
     });
     montar(analise);
+    await abrirPergunta();
     expect(
       await screen.findByText("o servidor MCP do app não está registrado para esta pasta"),
     ).toBeInTheDocument();
@@ -136,6 +143,7 @@ describe("TelaAnalise", () => {
 
   it("cria a análise da pergunta e abre o terminal com o pedido de início", async () => {
     const { api, terminal } = montar();
+    await abrirPergunta();
     fireEvent.change(await screen.findByLabelText("Pergunta"), {
       target: { value: "Como é calculada a multa por atraso de pagamento?" },
     });
@@ -155,7 +163,7 @@ describe("TelaAnalise", () => {
     });
     expect(await screen.findByRole("article", { name: "Documento da análise" })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "← Análises" }));
-    expect(await screen.findByRole("form", { name: "Nova pergunta" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Nova análise" })).toBeInTheDocument();
   });
 
   it("mostra a recusa ao criar a análise", async () => {
@@ -164,6 +172,7 @@ describe("TelaAnalise", () => {
       "a pasta da base de conhecimento não está acessível",
     );
     montar(analise);
+    await abrirPergunta();
     fireEvent.change(await screen.findByLabelText("Pergunta"), { target: { value: "Qual?" } });
     const perguntar = screen.getByRole("button", { name: "Perguntar" });
     await waitFor(() => expect(perguntar).toBeEnabled());
@@ -183,7 +192,7 @@ describe("TelaAnalise", () => {
       },
     ]);
     const { terminal } = montar(analise);
-    expect(await screen.findByText("concluída")).toBeInTheDocument();
+    expect(await screen.findByText("aguardando revisão")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "A-0001: Multa por atraso" }));
     // O documento à esquerda; a conversa à direita, sem o bloco "Como continuar".
     expect(await screen.findByRole("article", { name: "Documento da análise" })).toBeVisible();
@@ -195,5 +204,45 @@ describe("TelaAnalise", () => {
     );
     expect(analise.api.carregarAnalise).toHaveBeenCalledWith("faturamento-exemplo", "A-0001");
     expect(terminal.api.abrir).not.toHaveBeenCalled();
+  });
+
+  it("filtra a lista por situação, tipo e busca, com o mesmo rótulo de estado", async () => {
+    const analise = apiAnaliseFalsa();
+    analise.api.listarAnalises.mockResolvedValue([
+      { id: "A-0001", titulo: "Multa por atraso", fluxo: "perguntar", estado: "concluida", atualizadaMs: 1 },
+      { id: "A-0002", titulo: "Parcelamento", fluxo: "impacto", estado: "aprovada", atualizadaMs: 2 },
+      { id: "A-0003", titulo: "Cancelamento", fluxo: "perguntar", estado: "em-andamento", atualizadaMs: 3 },
+    ]);
+    montar(analise);
+    const lista = await screen.findByRole("region", { name: "Análises do projeto" });
+    expect(within(lista).getAllByRole("listitem")).toHaveLength(3);
+    fireEvent.click(within(lista).getByRole("button", { name: "Aguardando revisão" }));
+    expect(within(lista).getAllByRole("listitem")).toHaveLength(1);
+    expect(within(lista).getByText("A-0001: Multa por atraso")).toBeInTheDocument();
+    fireEvent.click(within(lista).getByRole("button", { name: "Aguardando revisão" }));
+    fireEvent.change(screen.getByLabelText("Tipo de análise"), { target: { value: "impacto" } });
+    expect(within(lista).getAllByRole("listitem")).toHaveLength(1);
+    expect(within(lista).getByText("A-0002: Parcelamento")).toBeInTheDocument();
+    fireEvent.click(within(lista).getByRole("button", { name: "Limpar filtros" }));
+    fireEvent.change(screen.getByLabelText("Buscar análise"), { target: { value: "cancelamento" } });
+    expect(within(lista).getAllByRole("listitem")).toHaveLength(1);
+    fireEvent.change(screen.getByLabelText("Buscar análise"), { target: { value: "zzz" } });
+    expect(within(lista).getByText("Nenhuma análise com este filtro.")).toBeInTheDocument();
+  });
+
+  it("abre já filtrada pela situação do link e com a escolha do tipo da ação global", async () => {
+    const analise = apiAnaliseFalsa();
+    analise.api.listarAnalises.mockResolvedValue([
+      { id: "A-0001", titulo: "Multa", fluxo: "perguntar", estado: "concluida", atualizadaMs: 1 },
+      { id: "A-0002", titulo: "Parcelamento", fluxo: "perguntar", estado: "aprovada", atualizadaMs: 2 },
+    ]);
+    render(<TelaAnalise api={analise.api} situacaoInicial="concluida" novaInicial />);
+    const lista = await screen.findByRole("region", { name: "Análises do projeto" });
+    await waitFor(() => expect(within(lista).getAllByRole("listitem")).toHaveLength(1));
+    expect(within(lista).getByRole("button", { name: "Aguardando revisão" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("group", { name: "Tipo de análise" })).toBeInTheDocument();
   });
 });

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { apiAnaliseTauri, mensagemDe, type ApiAnalise } from "./analise";
+import { apiAnaliseTauri, mensagemDe, type ApiAnalise, type EstadoAnalise } from "./analise";
 import { seloAtividades, type AmbienteConferido } from "./atividades";
 import type { AbrirLink } from "./ClientesIA";
 import { apiConhecimentoTauri, type ApiConhecimento, type Inicio } from "./conhecimento";
@@ -54,6 +54,10 @@ export type Tela =
       projeto?: string;
       pergunta?: string;
       aberta?: { id: string; abertura: Abertura };
+      /** Abre a lista já filtrada por situação (ex.: "aguardando revisão", da Visão geral). */
+      situacao?: EstadoAnalise;
+      /** Abre a lista com o painel "Nova análise" aberto. */
+      nova?: boolean;
     }
   | { tipo: "configuracoes" }
   /** "Configurar projeto", aberto pelo cabeçalho da Visão geral (#319). */
@@ -569,6 +573,7 @@ export function Navegacao({
             atual={ativa === null ? ITEM_DA_SECAO(secao.id) : null}
             contagens={contagens}
             aoEscolher={irParaSecao}
+            aoNovaAnalise={projeto ? () => navegar({ tipo: "analise", projeto, nova: true }) : undefined}
             rodape={
               refazerPrimeiroUso && (
                 <button type="button" className="link menu-refazer" onClick={() => sairDaTela(refazerPrimeiroUso)}>
@@ -694,6 +699,9 @@ export function Navegacao({
                   criarTela={criarTela}
                   projetoInicial={projeto}
                   perguntaInicial={tela.tipo === "analise" ? tela.pergunta : undefined}
+                  situacaoInicial={tela.tipo === "analise" ? tela.situacao : undefined}
+                  novaInicial={tela.tipo === "analise" ? tela.nova : undefined}
+                  apiConhecimento={api}
                   aoPrimeiroUso={aoPrimeiroUso}
                   aoAbrirAnalise={(p, id, abertura) => navegar({ tipo: "analise", projeto: p, aberta: { id, abertura } })}
                 />

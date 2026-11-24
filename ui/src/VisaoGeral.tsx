@@ -148,7 +148,8 @@ export function VisaoGeral({
 
   const ir = {
     configurar: () => navegar({ tipo: "configurar", projeto }),
-    novaAnalise: () => navegar({ tipo: "analise", projeto }),
+    novaAnalise: () => navegar({ tipo: "analise", projeto, nova: true }),
+    aguardandoRevisao: () => navegar({ tipo: "analise", projeto, situacao: "concluida" }),
     atividades: () => navegar({ tipo: "inicio" }),
     analises: () => navegar({ tipo: "analise", projeto }),
     demandas: () => navegar({ tipo: "demandas", projeto }),
@@ -333,6 +334,7 @@ function PassoLinha({ passo, aoIr }: { passo: Passo; aoIr: (d: DestinoPasso) => 
 interface Irs {
   atividades: () => void;
   analises: () => void;
+  aguardandoRevisao: () => void;
   demandas: () => void;
   base: () => void;
 }
@@ -358,7 +360,7 @@ function Numeros({ resumo, ir }: { resumo: ResumoProjeto; ir: Irs }) {
       vazio: "Quando o agente conclui uma análise, ela espera a sua revisão aqui.",
       texto: "análises concluídas pelo agente",
       tom: "attention",
-      ir: ir.atividades,
+      ir: ir.aguardandoRevisao,
     },
     {
       chave: "analises",

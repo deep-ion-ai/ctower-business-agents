@@ -49,6 +49,8 @@ function conhecimentoComDois() {
   return conhecimento;
 }
 
+const ANALISE_A1 = { id: "A-0001", titulo: "Multa por atraso", fluxo: "perguntar", estado: "concluida", atualizadaMs: 1 } as const;
+
 function montar(conhecimento = apiConhecimentoFalsa()) {
   const analise = apiAnaliseFalsa();
   render(
@@ -267,15 +269,24 @@ describe("Navegacao", () => {
     expect(screen.getByRole("tab", { name: "A-0002" })).toHaveAttribute("aria-selected", "true");
   });
 
+  it("\"Nova análise\" do menu abre a seção Análises com a escolha do tipo", async () => {
+    montar();
+    await screen.findByRole("region", { name: "Visão geral do projeto" });
+    fireEvent.click(within(menu()).getByRole("button", { name: "Nova análise" }));
+    expect(await screen.findByRole("group", { name: "Tipo de análise" })).toBeInTheDocument();
+    expect(item("Análises")).toHaveAttribute("aria-current", "page");
+  });
+
   it("passear pelas seções não abre abas; abrir análise, documento ou demanda abre", async () => {
     const { analise } = montar();
+    analise.api.listarAnalises.mockResolvedValue([ANALISE_A1]);
     expect(await screen.findByRole("region", { name: "Visão geral do projeto" })).toBeInTheDocument();
 
     fireEvent.click(item("Atividades"));
     expect(await screen.findByRole("region", { name: "Início" })).toBeInTheDocument();
     expect(item("Atividades")).toHaveAttribute("aria-current", "page");
     fireEvent.click(item("Análises"));
-    expect(await screen.findByRole("region", { name: "Pergunta ao sistema" })).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "Análises" })).toBeInTheDocument();
     fireEvent.click(item("Demandas"));
     expect(await screen.findByRole("region", { name: "Demandas" })).toBeInTheDocument();
     fireEvent.click(item("Base"));
@@ -286,9 +297,9 @@ describe("Navegacao", () => {
     expect(screen.queryByRole("tablist", { name: "Abas abertas" })).not.toBeInTheDocument();
 
     // A análise abre numa aba; o menu deixa de marcar a seção.
-    fireEvent.click(item("Atividades"));
-    const recentes = await screen.findByRole("region", { name: "Recentes" });
-    fireEvent.click(within(recentes).getByRole("button", { name: "A-0001: Multa por atraso" }));
+    fireEvent.click(item("Análises"));
+    const recentes = await screen.findByRole("region", { name: "Análises do projeto" });
+    fireEvent.click(await within(recentes).findByRole("button", { name: "A-0001: Multa por atraso" }));
     expect(await screen.findByRole("region", { name: "Análise" })).toBeInTheDocument();
     await waitFor(() => expect(analise.api.carregarAnalise).toHaveBeenCalledWith(PROJETO, "A-0001"));
     const abas = screen.getByRole("tablist", { name: "Abas abertas" });
@@ -348,7 +359,9 @@ describe("Navegacao", () => {
   });
 
   it("a análise continua com o agente vivo ao ir a outra seção e voltar (#212)", async () => {
-    const { terminal } = montarComAnalise();
+    const falsa = apiAnaliseFalsa();
+    falsa.api.listarAnalises.mockResolvedValue([ANALISE_A1]);
+    const { terminal } = montarComAnalise(falsa);
     await abrirTerminal(terminal, 0, 7);
     expect(terminal.aberturas[0].pedido).toEqual({ promptInicial: "Inicie a A-0001" });
 
@@ -361,10 +374,10 @@ describe("Navegacao", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: "A-0001" }));
     expect(await screen.findByRole("region", { name: "Análise" })).toBeInTheDocument();
-    // Abrir de novo pela lista do início só foca a aba: nada de retomada.
-    fireEvent.click(item("Atividades"));
-    const recentes = await screen.findByRole("region", { name: "Recentes" });
-    fireEvent.click(within(recentes).getByRole("button", { name: "A-0001: Multa por atraso" }));
+    // Abrir de novo pela lista de Análises só foca a aba: nada de retomada.
+    fireEvent.click(item("Análises"));
+    const recentes = await screen.findByRole("region", { name: "Análises do projeto" });
+    fireEvent.click(await within(recentes).findByRole("button", { name: "A-0001: Multa por atraso" }));
     expect(await screen.findByRole("region", { name: "Análise" })).toBeInTheDocument();
     expect(terminal.api.abrir).toHaveBeenCalledTimes(1);
     expect(terminal.api.encerrar).not.toHaveBeenCalled();
@@ -387,8 +400,12 @@ describe("Navegacao", () => {
 
     // "← Análises" leva à seção sem fechar a análise; a nova abre numa aba própria.
     fireEvent.click(await screen.findByRole("button", { name: "← Análises" }));
-    expect(await screen.findByRole("region", { name: "Pergunta ao sistema" })).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "Análises" })).toBeInTheDocument();
     expect(item("Análises")).toHaveAttribute("aria-current", "page");
+    fireEvent.click(
+      within(await screen.findByRole("region", { name: "Análises" })).getByRole("button", { name: "Nova análise" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Perguntar ao sistema" }));
     fireEvent.change(await screen.findByRole("textbox", { name: "Pergunta" }), {
       target: { value: "Como são os juros de mora?" },
     });
