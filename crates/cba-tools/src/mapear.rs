@@ -1639,7 +1639,7 @@ pub fn propor_vinculo_de_issue() -> Ferramenta {
         json!({
             "type": "object",
             "properties": {
-                "origem": { "type": "string", "enum": ["github", "jira"] },
+                "origem": { "type": "string", "enum": ["github", "gitlab", "jira"] },
                 "chave": { "type": "string", "minLength": 1, "description": "`#41` ou `PROJ-9`, como o pedido mostra." },
                 "funcionalidades": {
                     "type": "array",
@@ -1666,9 +1666,9 @@ pub fn propor_vinculo_de_issue() -> Ferramenta {
                 evidencia: String,
             }
             let args: Args = ler_argumentos(args)?;
-            if args.origem != "github" && args.origem != "jira" {
+            if !["github", "gitlab", "jira"].contains(&args.origem.as_str()) {
                 return Err(ErroFerramenta::Argumentos(
-                    "`origem`: use `github` ou `jira`".into(),
+                    "`origem`: use `github`, `gitlab` ou `jira`".into(),
                 ));
             }
             let ids = args

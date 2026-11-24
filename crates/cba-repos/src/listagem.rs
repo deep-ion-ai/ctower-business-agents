@@ -4,9 +4,10 @@
 //! `jira issue list --raw`. Só leitura; o token chega ao filho só no ambiente.
 
 use crate::demanda::{
-    DemandaErro, Ferramentas, rodar_json, texto, token_github, token_jira, wiki_para_markdown,
+    DemandaErro, Ferramentas, rodar_json, texto, token_github, token_gitlab, token_jira,
+    wiki_para_markdown,
 };
-use crate::{GithubConfig, JiraConfig, Secret, TrackerConfig};
+use crate::{GithubConfig, GitlabConfig, JiraConfig, Secret, TrackerConfig};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::process::Command;
@@ -16,6 +17,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub const MESES_PADRAO: u32 = 6;
 /// Teto padrão de issues por leitura (GitHub; o Jira usa o `max_issues` do cadastro).
 pub const TETO_PADRAO: usize = 200;
+/// Máximo de itens por página da API do GitLab.
+const PAGINA_GITLAB: usize = 100;
 /// Mais que isso por chamada o `jira issue list --paginate` recusa.
 const PAGINA_JIRA: usize = 100;
 
@@ -95,6 +98,7 @@ pub fn hoje() -> (i32, u32, u32) {
 #[serde(rename_all = "lowercase")]
 pub enum OrigemIssue {
     Github,
+    Gitlab,
     Jira,
 }
 
@@ -102,6 +106,7 @@ impl OrigemIssue {
     pub fn nome(self) -> &'static str {
         match self {
             OrigemIssue::Github => "github",
+            OrigemIssue::Gitlab => "gitlab",
             OrigemIssue::Jira => "jira",
         }
     }
@@ -303,6 +308,76 @@ pub fn listar_github(
     })
 }
 
+pub fn listar_gitlab(
+    g: &GitlabConfig,
+    periodo: &Periodo,
+    teto: usize,
+    f: &Ferramentas,
+) -> Result<Listagem, DemandaErro> {
+    let desde = periodo.data_a_partir_de(hoje())?;
+    let teto = teto.max(1);
+    let token = token_gitlab(g, f)?;
+    let id = g.path.trim_matches('/').replace('/', "%2F");
+    // Lê páginas de até 100 até ter teto + 1 (o a mais mostra que passou do teto).
+    let querido = teto + 1;
+    let mut brutas: Vec<Value> = Vec::new();
+    let mut pagina_n = 1usize;
+    while brutas.len() < querido {
+        let por_pagina = PAGINA_GITLAB.min(querido - brutas.len());
+        let mut c = Command::new(&f.glab);
+        c.args([
+            "api",
+            &format!(
+                "projects/{id}/issues?state=all&order_by=created_at&sort=desc\
+                 &created_after={desde}T00:00:00Z&per_page={por_pagina}&page={pagina_n}"
+            ),
+        ])
+        .env("GITLAB_HOST", g.host.trim())
+        .env("GITLAB_TOKEN", token.expose());
+        let pagina = lista(rodar_json("glab", c, &token)?, "glab")?;
+        let n = pagina.len();
+        brutas.extend(pagina);
+        if n < por_pagina {
+            break;
+        }
+        pagina_n += 1;
+    }
+    let mut issues: Vec<IssueListada> = brutas
+        .iter()
+        .map(|i| IssueListada {
+            origem: OrigemIssue::Gitlab,
+            chave: format!("#{}", i["iid"].as_u64().unwrap_or(0)),
+            titulo: texto(i, &["title"]).to_string(),
+            descricao: texto(i, &["description"]).to_string(),
+            url: texto(i, &["web_url"]).to_string(),
+            criada_em: texto(i, &["created_at"]).to_string(),
+            estado: if texto(i, &["state"]).eq_ignore_ascii_case("opened") {
+                "aberta"
+            } else {
+                "fechada"
+            }
+            .into(),
+            rotulos: i["labels"]
+                .as_array()
+                .map(|l| {
+                    l.iter()
+                        .filter_map(|r| r.as_str().map(str::to_string))
+                        .filter(|n| !n.is_empty())
+                        .collect()
+                })
+                .unwrap_or_default(),
+            arquivos: Vec::new(),
+        })
+        .collect();
+    let excedeu_teto = issues.len() > teto;
+    issues.truncate(teto);
+    Ok(Listagem {
+        issues,
+        excedeu_teto,
+        desde,
+    })
+}
+
 /// JQL da listagem: projeto + criação + o `jql` do cadastro (sem `ORDER BY`: o
 /// `jira issue list` acrescenta o próprio, por `created` decrescente, e um segundo
 /// faria a consulta falhar).
@@ -399,7 +474,7 @@ pub fn listar_jira(
     })
 }
 
-/// Lê as issues do rastreador do projeto. GitLab fica fora deste escopo.
+/// Lê as issues do rastreador do projeto (GitHub, GitLab ou Jira).
 pub fn listar_issues(
     tracker: &TrackerConfig,
     periodo: &Periodo,
@@ -409,10 +484,7 @@ pub fn listar_issues(
     match tracker {
         TrackerConfig::Github(g) => listar_github(g, periodo, teto.unwrap_or(TETO_PADRAO), f),
         TrackerConfig::Jira(j) => listar_jira(j, periodo, teto, f),
-        TrackerConfig::Gitlab(_) => Err(DemandaErro::Falhou {
-            ferramenta: "glab",
-            detalhe: "a listagem de issues do GitLab ainda não é suportada".into(),
-        }),
+        TrackerConfig::Gitlab(g) => listar_gitlab(g, periodo, teto.unwrap_or(TETO_PADRAO), f),
     }
 }
 
@@ -618,7 +690,78 @@ echo "[$out]""#,
     }
 
     #[test]
-    fn gitlab_nao_e_suportado_e_nada_vaza() {
+    fn gitlab_lista_com_periodo_teto_e_estados() {
+        let d = tempfile::tempdir().unwrap();
+        let glab = script(
+            d.path(),
+            "glab",
+            r#"[ "$GITLAB_TOKEN" = "tok" ] && [ "$GITLAB_HOST" = "gitlab.example.com" ] || exit 1
+[ "$1" = "api" ] || exit 2
+case "$2" in projects/g%2Fp/issues\?state=all*) ;; *) exit 3;; esac
+case "$2" in *"created_after=20"*) ;; *) exit 4;; esac
+case "$2" in *"per_page=3&page=1") ;; *) exit 5;; esac
+echo '[{"iid":3,"title":"C","description":"c","web_url":"u3","created_at":"2026-10-01T00:00:00Z","state":"opened","labels":["bug"]},{"iid":2,"title":"B","description":"b","web_url":"u2","created_at":"2026-09-01T00:00:00Z","state":"closed","labels":[]},{"iid":1,"title":"A","description":"a","web_url":"u1","created_at":"2026-08-01T00:00:00Z","state":"closed","labels":[]}]'"#,
+        );
+        let f = Ferramentas {
+            glab,
+            ..Default::default()
+        };
+        let g = GitlabConfig {
+            host: "gitlab.example.com".into(),
+            path: "g/p".into(),
+            credential_cmd: "echo tok".into(),
+            ..Default::default()
+        };
+        let l = listar_gitlab(&g, &Periodo::default(), 2, &f).unwrap();
+        assert!(l.excedeu_teto);
+        assert_eq!(l.issues.len(), 2);
+        assert_eq!(l.issues[0].chave, "#3");
+        assert_eq!(l.issues[0].origem, OrigemIssue::Gitlab);
+        assert_eq!(l.issues[0].estado, "aberta");
+        assert_eq!(l.issues[0].rotulos, vec!["bug"]);
+        assert_eq!(l.issues[1].estado, "fechada");
+        let t = TrackerConfig::Gitlab(g);
+        assert!(listar_issues(&t, &Periodo::default(), Some(2), &f).is_ok());
+    }
+
+    #[test]
+    fn gitlab_pagina_em_blocos_de_ate_100() {
+        let d = tempfile::tempdir().unwrap();
+        let glab = script(
+            d.path(),
+            "glab",
+            r#"pg="${2##*page=}"; pp="${2##*per_page=}"; pp="${pp%%&*}"
+[ "$pp" -ge 1 ] && [ "$pp" -le 100 ] || exit 1
+de=$(( (pg - 1) * 100 ))
+n=$((150 - de)); [ "$n" -gt "$pp" ] && n=$pp; [ "$n" -lt 0 ] && n=0
+i=0; out=""
+while [ "$i" -lt "$n" ]; do
+  [ -n "$out" ] && out="$out,"
+  out="$out{\"iid\":$((de + i + 1)),\"state\":\"opened\"}"
+  i=$((i + 1))
+done
+echo "[$out]""#,
+        );
+        let f = Ferramentas {
+            glab,
+            ..Default::default()
+        };
+        let g = GitlabConfig {
+            host: "gitlab.example.com".into(),
+            path: "g/p".into(),
+            credential_cmd: "echo tok".into(),
+            ..Default::default()
+        };
+        let l = listar_gitlab(&g, &Periodo::default(), 120, &f).unwrap();
+        assert_eq!(l.issues.len(), 120);
+        assert!(l.excedeu_teto);
+        let l = listar_gitlab(&g, &Periodo::default(), 200, &f).unwrap();
+        assert_eq!(l.issues.len(), 150);
+        assert!(!l.excedeu_teto);
+    }
+
+    #[test]
+    fn gitlab_sem_token_falha() {
         let t = TrackerConfig::Gitlab(Default::default());
         assert!(listar_issues(&t, &Periodo::default(), None, &Ferramentas::default()).is_err());
     }

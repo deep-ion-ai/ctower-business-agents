@@ -6,7 +6,7 @@ import type { AnaliseCriada } from "./analise";
  * Espelho dos comandos das issues do projeto (`ui/src-tauri/src/issues_projeto.rs`,
  * campos em camelCase): a lista da área Demandas (#322, #323).
  */
-export type OrigemIssue = "github" | "jira";
+export type OrigemIssue = "github" | "gitlab" | "jira";
 export type FiltroEstadoIssues = "abertas" | "encerradas" | "todas";
 export type SituacaoNaBase = "sem-analise" | "em-andamento" | "em-revisao" | "aprovada";
 

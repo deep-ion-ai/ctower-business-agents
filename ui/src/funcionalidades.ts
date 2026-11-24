@@ -230,7 +230,7 @@ export interface SugestaoDeIssue {
 }
 
 export interface IssueDoRastreador {
-  origem: "github" | "jira";
+  origem: "github" | "gitlab" | "jira";
   chave: string;
   titulo: string;
   descricao: string;
@@ -271,7 +271,7 @@ export interface ItemConfirmado {
 
 export interface ResultadoDoLote {
   /** A demanda da base de cada issue confirmada. */
-  demandas: { origem: "github" | "jira"; chave: string; demanda: string }[];
+  demandas: { origem: "github" | "gitlab" | "jira"; chave: string; demanda: string }[];
   criadas: string[];
   reaproveitadas: string[];
   vinculosNovos: number;
