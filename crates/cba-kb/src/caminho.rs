@@ -270,3 +270,65 @@ mod tests {
         assert!(!e_slug(""));
     }
 }
+
+/// Título sem markdown: tira negrito, itálico com `_`, código, notas de rodapé
+/// (`[^1]`) e links (`[texto](url)` fica `texto`), e . Serve para
+/// mostrar títulos de regras antigas gravadas com o markdown cru (#329).
+pub fn titulo_sem_markdown(titulo: &str) -> String {
+    let mut s = String::with_capacity(titulo.len());
+    let mut resto = titulo.trim();
+    while let Some(c) = resto.chars().next() {
+        if resto.starts_with("[^")
+            && let Some(f) = resto.find(']')
+        {
+            resto = &resto[f + 1..];
+        } else if resto.starts_with('[')
+            && let Some(f) = resto.find("](")
+            && let Some(p) = resto[f..].find(')')
+        {
+            s.push_str(&resto[1..f]);
+            resto = &resto[f + p + 1..];
+        } else if resto.starts_with("**") || resto.starts_with("__") {
+            resto = &resto[2..];
+        } else if c == '`' {
+            resto = &resto[1..];
+        } else {
+            s.push(c);
+            resto = &resto[c.len_utf8()..];
+        }
+    }
+    s.trim().to_owned()
+}
+
+/// Nome legível para uma área só conhecida pelo identificador (`gestao-de-contas`
+/// → "Gestao de contas").
+pub fn nome_legivel_da_area(id: &str) -> String {
+    let texto = id.replace(['-', '_'], " ");
+    let texto = texto.trim();
+    let mut cs = texto.chars();
+    cs.next()
+        .map(|p| p.to_uppercase().collect::<String>() + cs.as_str())
+        .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod testes_titulo {
+    use super::*;
+
+    #[test]
+    fn tira_markdown_do_titulo() {
+        assert_eq!(
+            titulo_sem_markdown("**Origem dos parâmetros**"),
+            "Origem dos parâmetros"
+        );
+        assert_eq!(
+            titulo_sem_markdown("Uso de `Cfg`[^2] e [link](http://x)"),
+            "Uso de Cfg e link"
+        );
+    }
+
+    #[test]
+    fn nome_da_area() {
+        assert_eq!(nome_legivel_da_area("gestao-de-contas"), "Gestao de contas");
+    }
+}
