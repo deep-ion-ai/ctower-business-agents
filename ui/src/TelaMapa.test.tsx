@@ -303,6 +303,20 @@ describe("TelaMapa", () => {
     expect(screen.queryByRole("button", { name: "Exportar Markdown" })).toBeNull();
   });
 
+  it("conta os manuais aprovados quando o mapa informa (#327)", async () => {
+    const mapa = {
+      ...MAPA,
+      areas: MAPA.areas.map((a) => ({
+        ...a,
+        funcionalidades: a.funcionalidades.map((f) => ({ ...f, comManual: f.id === "F-CAN-001" })),
+      })),
+    };
+    abrir(apiFalsa(mapa));
+    const progresso = await screen.findByRole("region", { name: "Progresso do mapa" });
+    const etapas = within(progresso).getAllByRole("listitem").map((e) => e.textContent);
+    expect(etapas[3]).toBe("1 de 2 com manual");
+  });
+
   it("mostra o progresso do mapa em quatro etapas e o código já mapeado", async () => {
     abrir(apiFalsa());
     const progresso = await screen.findByRole("region", { name: "Progresso do mapa" });
