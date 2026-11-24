@@ -3813,3 +3813,70 @@ code[data-tone="attention"] {
   color: var(--attention);
   font-size: 0.85em;
 }
+
+/* Atividades (#321): a caixa de entrada do analista. */
+.atividades-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.atividades-grupo h2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.atividades-linhas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.atividades-linhas li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+
+.atividades-linhas li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.atividades-id {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.atividades-texto {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.atividades-texto strong {
+  overflow-wrap: anywhere;
+}
+
+.atividades-linhas .btn {
+  flex: 0 0 auto;
+}
+
+/* A tela Início continua abaixo dos grupos, sem repetir o espaço do topo. */
+.atividades + .tela-inicio {
+  padding-top: 0;
+}
+
+@media (max-width: 600px) {
+  .atividades-linhas li {
+    flex-wrap: wrap;
+  }
+}
