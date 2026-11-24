@@ -98,6 +98,42 @@ fn gravar_estado_da_listagem(ambiente: &Ambiente, id: IdDemanda, issue: &IssueLi
     }
 }
 
+/// Demanda da base da issue: a que já existe (pela `chave`) ou uma nova, criada
+/// com o título, a descrição, a chave e o endereço dela. Devolve o número e se
+/// foi criada agora. A demanda sem estado do rastreador (e a nova) passa a ter o
+/// da listagem. `existentes` ganha a demanda criada.
+pub fn demanda_da_issue_ou_nova(
+    ambiente: &Ambiente,
+    existentes: &mut Vec<cba_kb::DemandaLida>,
+    issue: &IssueListada,
+) -> Result<(IdDemanda, bool), ErroFerramenta> {
+    if let Some(id) = demanda_da_issue(existentes, issue) {
+        let sem_estado = existentes
+            .iter()
+            .any(|d| d.id == id && d.documento.frontmatter.rastreador.is_none());
+        if sem_estado {
+            gravar_estado_da_listagem(ambiente, id, issue);
+        }
+        return Ok((id, false));
+    }
+    let nova = ambiente
+        .kb
+        .criar_demanda(
+            &NovaDemanda {
+                titulo: issue.titulo.clone(),
+                descricao: Some(issue.descricao.clone()),
+                chave: Some(issue.chave.clone()),
+                origem: Some(issue.url.clone()).filter(|u| !u.is_empty()),
+            },
+            cba_core::tempo::hoje(),
+        )
+        .map_err(interno)?;
+    let id = nova.id;
+    existentes.push(nova);
+    gravar_estado_da_listagem(ambiente, id, issue);
+    Ok((id, true))
+}
+
 /// Confirma o lote: cria ou reaproveita as demandas e liga cada uma às
 /// funcionalidades escolhidas. Issue sem funcionalidade fica de fora (continua
 /// "sem funcionalidade", sem demanda).
@@ -109,38 +145,12 @@ pub fn confirmar_vinculos(
     let mut existentes = ambiente.kb.demandas().map_err(interno)?;
     let mut ligacoes: Vec<(IdDemanda, &[IdFuncionalidade])> = Vec::new();
     for item in lote.iter().filter(|i| !i.funcionalidades.is_empty()) {
-        let id = match demanda_da_issue(&existentes, &item.issue) {
-            Some(id) => {
-                let sem_estado = existentes
-                    .iter()
-                    .any(|d| d.id == id && d.documento.frontmatter.rastreador.is_none());
-                if sem_estado {
-                    gravar_estado_da_listagem(ambiente, id, &item.issue);
-                }
-                if !resultado.reaproveitadas.contains(&id) {
-                    resultado.reaproveitadas.push(id);
-                }
-                id
-            }
-            None => {
-                let nova = ambiente
-                    .kb
-                    .criar_demanda(
-                        &NovaDemanda {
-                            titulo: item.issue.titulo.clone(),
-                            descricao: Some(item.issue.descricao.clone()),
-                            chave: Some(item.issue.chave.clone()),
-                            origem: Some(item.issue.url.clone()).filter(|u| !u.is_empty()),
-                        },
-                        cba_core::tempo::hoje(),
-                    )
-                    .map_err(interno)?;
-                resultado.criadas.push(nova.id);
-                existentes.push(nova.clone());
-                gravar_estado_da_listagem(ambiente, nova.id, &item.issue);
-                nova.id
-            }
-        };
+        let (id, criada) = demanda_da_issue_ou_nova(ambiente, &mut existentes, &item.issue)?;
+        if criada {
+            resultado.criadas.push(id);
+        } else if !resultado.reaproveitadas.contains(&id) {
+            resultado.reaproveitadas.push(id);
+        }
         resultado.por_issue.push(DemandaDaIssue {
             origem: item.issue.origem,
             chave: item.issue.chave.clone(),

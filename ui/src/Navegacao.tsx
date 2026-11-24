@@ -4,7 +4,6 @@ import { seloAtividades, type AmbienteConferido } from "./atividades";
 import type { AbrirLink } from "./ClientesIA";
 import { apiConhecimentoTauri, type ApiConhecimento, type Inicio } from "./conhecimento";
 import { DialogoConfirmacao } from "./DialogoConfirmacao";
-import { ListaDemandas } from "./ListaDemandas";
 import { MenuLateral } from "./MenuLateral";
 import type { Abertura, EstadoConversa } from "./PainelAnalise";
 import { PainelDemanda } from "./PainelDemanda";
@@ -18,6 +17,7 @@ import {
   type Secao,
 } from "./secoesProjeto";
 import { SeletorProjeto, type ProjetoNoSeletor } from "./SeletorProjeto";
+import type { SituacaoNaBase } from "./issuesProjeto";
 import { Icon, type IconName } from "./shell/icons";
 import { Titlebar } from "./shell/Titlebar";
 import type { ResumoProjeto } from "./resumoProjeto";
@@ -26,6 +26,7 @@ import { TelaAtividades } from "./TelaAtividades";
 import { apiConfiguracoesTauri, type ApiConfiguracoes } from "./configuracoes";
 import { TelaBase } from "./TelaBase";
 import { TelaCodigo } from "./TelaCodigo";
+import { TelaDemandas } from "./TelaDemandas";
 import { TelaConfiguracoes } from "./TelaConfiguracoes";
 import { TelaInicio } from "./TelaInicio";
 import { TelaMapa } from "./TelaMapa";
@@ -58,8 +59,8 @@ export type Tela =
   /** "Configurar projeto", aberto pelo cabeçalho da Visão geral (#319). */
   | { tipo: "configurar"; projeto?: string }
   | { tipo: "demanda"; projeto: string; demanda: string }
-  /** Demandas do projeto (#319); até a #323, a lista de demandas da base. */
-  | { tipo: "demandas"; projeto?: string }
+  /** Demandas do projeto (#323): issues do rastreador e demandas à mão; `situacao` abre a lista já filtrada. */
+  | { tipo: "demandas"; projeto?: string; situacao?: SituacaoNaBase }
   /** Mapa de funcionalidades do projeto (#208): a seção Funcionalidades. */
   | { tipo: "mapa"; projeto?: string }
   /** Mapa estrutural e "O que mudou no código" (#319). */
@@ -191,7 +192,7 @@ const telaEstreita = () => typeof matchMedia === "function" && matchMedia(ESTREI
  * Abaixo de 900 px o menu vira gaveta.
  *
  * Enquanto uma seção nova não existe, o item do menu abre a tela atual: Visão geral
- * mostra a tela Projeto (#320) e Demandas a lista de demandas da base (#323).
+ * mostra a tela Projeto (#320).
  * Atividades (#321) mostra os grupos do que espera o analista e, abaixo, o resto do
  * Início (nova análise, recentes, projetos).
  */
@@ -699,11 +700,19 @@ export function Navegacao({
               )}
               {secaoAVista && secao.id === "demandas" && (
                 <div className="page" key={chaveSecao}>
-                  <h2>Demandas</h2>
                   {projeto ? (
-                    <ListaDemandas api={api} projeto={projeto} navegar={navegar} />
+                    <TelaDemandas
+                      api={api}
+                      projeto={projeto}
+                      navegar={navegar}
+                      abrirLink={abrirLink}
+                      situacaoInicial={tela.tipo === "demandas" ? tela.situacao : undefined}
+                    />
                   ) : (
-                    <p className="muted">Nenhum projeto cadastrado.</p>
+                    <>
+                      <h2>Demandas</h2>
+                      <p className="muted">Nenhum projeto cadastrado.</p>
+                    </>
                   )}
                 </div>
               )}

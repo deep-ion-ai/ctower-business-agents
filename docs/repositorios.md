@@ -132,6 +132,16 @@ prontidão não bloqueia o app.
   análise mais recente da demanda ou da chave da issue). Cada issue traz a demanda que a
   representa e as funcionalidades ligadas a ela. Sem rede, a lista é a última leitura, com o aviso.
   Trocar o rastreador do projeto descarta o cache. Nada é escrito no rastreador.
+- **Área Demandas e "Analisar impacto" (#323):** a seção Demandas mostra numa lista só as issues
+  acima e as demandas criadas à mão, com busca, filtros, painel da issue (descrição, link para o
+  rastreador, o que há na base, itens parecidos) e o frescor ("conferido há 5 min", "Atualizar").
+  A ação da linha acompanha a situação: "Analisar impacto" (sem análise), "Abrir a análise" (em
+  andamento ou em revisão) ou "Abrir a demanda" (aprovada). O comando `analisar_impacto_da_issue_app`
+  parte da issue da última leitura, cria a demanda da base com a chave e o endereço dela ou reaproveita
+  a que existe (pela chave), cria a análise de impacto ligada a ela, com o título e a descrição como
+  entrada, e a tela abre a análise com o agente. Issue encerrada no rastreador não é analisada. O
+  vínculo com as funcionalidades parte da própria área ("Vincular a funcionalidades"); o Mapa não
+  tem mais o botão. No formulário de impacto, "Issue do projeto" busca nesta mesma lista.
 - **Evidências exportadas:** cada nota vira um link para o arquivo e as linhas no commit da
   evidência (ou, na falta dele, o `base.commit` da análise), no repositório cuja pasta contém o
   arquivo (a mais funda, se um estiver dentro do outro); o caminho no link é relativo à pasta do

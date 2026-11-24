@@ -12,6 +12,7 @@ import {
 } from "./analise";
 import type { DemandaVista, NovaDemanda, PainelDemanda } from "./demandas";
 import { apiResumoTauri, type ResumoProjeto } from "./resumoProjeto";
+import { apiIssuesTauri, type ApiIssues } from "./issuesProjeto";
 
 /**
  * Espelho dos comandos do início, do projeto e da base de conhecimento
@@ -279,9 +280,12 @@ export interface ApiConhecimento extends ApiAmbiente {
   cobertura?: ApiCobertura["cobertura"];
   /** O que mudou no código (#124), na tela do projeto. */
   mudancas?: ApiMudancas;
+  /** Issues do rastreador (#322, #323); sem ela, a área Demandas mostra só as demandas da base. */
+  issues?: ApiIssues;
 }
 
 export const apiConhecimentoTauri: ApiConhecimento = {
+  issues: apiIssuesTauri,
   cobertura: apiCoberturaTauri.cobertura,
   mudancas: apiMudancasTauri,
   situacao: () => invoke("situacao_app"),

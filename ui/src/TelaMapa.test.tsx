@@ -55,12 +55,11 @@ function abrir(
 }
 
 describe("TelaMapa", () => {
-  it("Vincular demandas abre numa aba própria, sem tirar o mapa e a árvore da tela", async () => {
+  it("o vínculo das demandas vive na área Demandas: o Mapa não tem mais o botão (#323)", async () => {
     const api = apiFalsa();
-    const { navegar } = abrir(api);
-    fireEvent.click(await screen.findByRole("button", { name: "Vincular demandas" }));
-    expect(navegar).toHaveBeenCalledWith({ tipo: "vincular", projeto: "faturamento-exemplo" });
-    expect(screen.queryByRole("region", { name: "Vincular demandas" })).toBeNull();
+    abrir(api);
+    expect(await screen.findByRole("button", { name: /Exportar Markdown|Mapear/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Vincular demandas" })).toBeNull();
   });
 
   it("religa os documentos aprovados antes do vínculo e mostra o resumo (#287)", async () => {
