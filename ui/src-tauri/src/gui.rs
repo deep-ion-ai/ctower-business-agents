@@ -9,7 +9,7 @@ use crate::{
     acessos, alteracoes, ambiente_teste, analise, base, clones, cobertura, configuracoes, conversa,
     demandas, docs_externos, funcionalidades, inicio, manual, mudancas, painel_funcionalidade,
     pauta, primeiro_uso, projeto, prompts, publicacao, rastreabilidade, registros, repositorios,
-    reunioes, revisao, terminal, vigia, vincular_issues,
+    resumo, reunioes, revisao, terminal, vigia, vincular_issues,
 };
 
 pub fn rodar() {
@@ -85,6 +85,7 @@ pub fn rodar() {
             alteracoes::migrar_configuracoes_claude,
             alteracoes::marcar_aviso_migracao_visto,
             inicio::inicio_app,
+            resumo::resumo_projeto_app,
             inicio::criar_analise_fluxo,
             inicio::criar_analise_de_historias_app,
             inicio::criar_analise_de_cenarios_app,
