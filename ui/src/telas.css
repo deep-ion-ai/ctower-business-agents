@@ -618,20 +618,18 @@
 
 .painel-titulo-linha {
   display: flex;
-  flex-wrap: nowrap;
+  /* Os selos nunca são cortados (#330): o texto inteiro, e quem não cabe vai para a
+     linha de baixo, em vez de virar reticências. */
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
   min-width: 0;
-  /* Altura fixa: os selos não quebram em 2 linhas (#219). */
-  height: 24px;
-  overflow: hidden;
 }
 
 .painel-titulo-linha .badge {
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex: 0 0 auto;
+  max-width: 100%;
+  white-space: nowrap;
 }
 
 .painel-titulo-linha .painel-titulo {
@@ -663,9 +661,7 @@
 
 .painel-subtitulo {
   display: flex;
-  flex-wrap: nowrap;
-  height: 18px;
-  overflow: hidden;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px 12px;
   font-size: 12px;
@@ -673,10 +669,7 @@
 
 .painel-subtitulo .selo-sessao {
   margin: 0;
-  min-width: 0;
-  overflow: hidden;
   white-space: nowrap;
-  text-overflow: ellipsis;
 }
 
 .painel-acoes {
@@ -944,6 +937,15 @@
 
 .painel-colunas:has(.divisor-colunas[data-arrastando]) .painel-conversa {
   pointer-events: none;
+}
+
+/* Sem conversa aberta, o painel lateral encolhe e o documento ocupa a largura (#330). */
+.painel-colunas[data-sem-conversa] .painel-conversa {
+  flex-basis: 16rem;
+}
+
+.painel-colunas[data-sem-conversa] .divisor-colunas {
+  display: none;
 }
 
 @media (max-width: 1100px) {
@@ -2073,6 +2075,11 @@
 
 .selo-aprovacao {
   align-self: center;
+}
+
+.resumo-pendencias {
+  margin: 0 0 8px;
+  padding-left: 18px;
 }
 
 .faixa-codigo {
