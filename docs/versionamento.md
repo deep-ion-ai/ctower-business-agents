@@ -28,6 +28,8 @@ O título do PR é conferido pelo workflow `pr-title`, porque é ele que vira a 
 3. Mesclar o PR de release cria a tag `vX.Y.Z` e a GitHub Release em rascunho. Os jobs de build dos instaladores rodam no mesmo workflow, logo depois (tags criadas pelo `GITHUB_TOKEN` não disparam outros workflows).
 4. O job `publicar` anexa à release os instaladores (`cba-windows-x64-setup.exe`, `cba-macos-universal.dmg`), os scripts `packaging/install/install.sh` e `install.ps1` (#45, quando existirem) e o `SHA256SUMS` de todos eles, acrescenta às notas as instruções de instalação (`packaging/notas-da-release.md`) e tira a release do rascunho. Assim, `releases/latest` só muda quando a release está completa.
 
+5. Depois da release, um PR de back-merge leva a `main` de volta à `develop`. Se ele traz só os arquivos gerados pelo release-please (`.release-please-manifest.json`, `CHANGELOG.md`, `Cargo.toml`, `Cargo.lock`, `ui/package.json`, `ui/package-lock.json`, `ui/src-tauri/tauri.conf.json`), o CI pula `rust`, `ui` e os instaladores (já passaram no PR da release e no push para `main`), e o `ci-ok` fica verde. Qualquer outro arquivo, como um hotfix na `main`, roda o CI completo. O push na `develop` depois do merge roda tudo de novo.
+
 Para testar os instaladores de uma branch sem publicar, dispare o workflow `release` manualmente (`gh workflow run release.yml --ref <branch>`): os instaladores ficam como artefatos do run.
 
 ## Primeira versão
