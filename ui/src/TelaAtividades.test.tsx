@@ -135,7 +135,7 @@ describe("TelaAtividades", () => {
 
     expect(within(grupo("Regras a revalidar")).getByText("2 regras a revalidar")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Ver as regras" }));
-    expect(navegar).toHaveBeenLastCalledWith({ tipo: "projeto", projeto: PROJETO });
+    expect(navegar).toHaveBeenLastCalledWith({ tipo: "base" });
     fireEvent.click(screen.getByRole("button", { name: "Preparar" }));
     expect(navegar).toHaveBeenLastCalledWith({ tipo: "configurar", projeto: PROJETO });
   });

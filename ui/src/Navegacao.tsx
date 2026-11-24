@@ -32,7 +32,6 @@ import { TelaMapa } from "./TelaMapa";
 import { VincularIssues } from "./VincularIssues";
 import { apiMapaTauri, type ApiMapa } from "./funcionalidades";
 import { VisaoGeral } from "./VisaoGeral";
-import { apiResumoTauri, type ApiResumo } from "./resumoProjeto";
 import type { ApiTerminal, ProjetoResumo } from "./terminal";
 import type { TelaTerminal } from "./telaXterm";
 
@@ -76,8 +75,6 @@ interface Props {
   apiAnalise?: ApiAnalise;
   /** Para testes. */
   apiConfiguracoes?: ApiConfiguracoes;
-  /** Para testes: o resumo do projeto (#318) que alimenta a Visão geral. */
-  apiResumo?: ApiResumo;
   /** Para testes: o mapa de funcionalidades lido pela Visão geral. */
   apiMapa?: Pick<ApiMapa, "mapa">;
   /** Para testes: o terminal embutido das análises. */
@@ -203,7 +200,6 @@ export function Navegacao({
   api = apiConhecimentoTauri,
   apiAnalise,
   apiConfiguracoes,
-  apiResumo = apiResumoTauri,
   apiMapa = apiMapaTauri,
   apiTerminal,
   criarTela,
@@ -658,8 +654,11 @@ export function Navegacao({
                 <VisaoGeral
                   key={chaveSecao}
                   projeto={projeto}
+                  nomeProjeto={nomeProjeto(projeto)}
+                  resumo={resumoAtual}
+                  falha={falhaAtual}
+                  ambiente={ambienteAtual}
                   api={api}
-                  apiResumo={apiResumo}
                   apiConfiguracoes={apiConfiguracoes ?? apiConfiguracoesTauri}
                   apiMapa={apiMapa}
                   navegar={navegar}

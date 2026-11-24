@@ -8,7 +8,6 @@ import {
 } from "./test/conhecimentoFalso";
 import { MAPA } from "./test/mapaFalso";
 import { apiConfiguracoesFalsa } from "./test/configuracoesFalso";
-import { apiResumoFalsa } from "./test/resumoFalso";
 import { act } from "react";
 import {
   apiAnaliseFalsa,
@@ -51,17 +50,15 @@ function conhecimentoComDois() {
 
 function montar(conhecimento = apiConhecimentoFalsa()) {
   const analise = apiAnaliseFalsa();
-  const resumo = apiResumoFalsa();
   render(
     <Navegacao
       api={conhecimento.api}
       apiAnalise={analise.api}
-      apiResumo={resumo}
       apiConfiguracoes={apiConfiguracoesFalsa()}
       apiMapa={{ mapa: () => Promise.resolve(MAPA) }}
     />,
   );
-  return { conhecimento, analise, resumo };
+  return { conhecimento, analise };
 }
 
 /** Navegação aberta numa análise recém-criada, com o terminal embutido falso. */
@@ -71,7 +68,6 @@ function montarComAnalise(analise = apiAnaliseFalsa()) {
     <Navegacao
       api={apiConhecimentoFalsa().api}
       apiAnalise={analise.api}
-      apiResumo={apiResumoFalsa()}
       apiConfiguracoes={apiConfiguracoesFalsa()}
       apiMapa={{ mapa: () => Promise.resolve(MAPA) }}
       apiTerminal={terminal.api}
@@ -105,8 +101,8 @@ describe("Navegacao", () => {
 
   it("abre na Visão geral do último projeto usado, sem abas", async () => {
     localStorage.setItem("cba.projeto.ultimo", OUTRO);
-    const { resumo } = montar(conhecimentoComDois());
-    await waitFor(() => expect(resumo.resumoProjeto).toHaveBeenCalledWith(OUTRO));
+    const { conhecimento } = montar(conhecimentoComDois());
+    await waitFor(() => expect(conhecimento.api.resumoProjeto).toHaveBeenCalledWith(OUTRO));
     expect(item("Visão geral")).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("button", { name: /Projeto: Empréstimos/ })).toBeInTheDocument();
     expect(screen.queryByRole("tablist", { name: "Abas abertas" })).not.toBeInTheDocument();
@@ -114,15 +110,15 @@ describe("Navegacao", () => {
 
   it("sem projeto lembrado (ou que sumiu), abre o primeiro e lembra a escolha", async () => {
     localStorage.setItem("cba.projeto.ultimo", "descadastrado");
-    const { resumo } = montar(conhecimentoComDois());
-    await waitFor(() => expect(resumo.resumoProjeto).toHaveBeenCalledWith(PROJETO));
-    expect(resumo.resumoProjeto).not.toHaveBeenCalledWith("descadastrado");
+    const { conhecimento } = montar(conhecimentoComDois());
+    await waitFor(() => expect(conhecimento.api.resumoProjeto).toHaveBeenCalledWith(PROJETO));
+    expect(conhecimento.api.resumoProjeto).not.toHaveBeenCalledWith("descadastrado");
     expect(localStorage.getItem("cba.projeto.ultimo")).toBe(PROJETO);
   });
 
   it("trocar de projeto troca o conteúdo de todas as seções", async () => {
-    const { conhecimento, resumo } = montar(conhecimentoComDois());
-    await waitFor(() => expect(resumo.resumoProjeto).toHaveBeenCalledWith(PROJETO));
+    const { conhecimento } = montar(conhecimentoComDois());
+    await waitFor(() => expect(conhecimento.api.resumoProjeto).toHaveBeenCalledWith(PROJETO));
 
     fireEvent.click(item("Demandas"));
     await waitFor(() => expect(conhecimento.api.listarDemandas).toHaveBeenCalledWith(PROJETO));
@@ -136,7 +132,7 @@ describe("Navegacao", () => {
 
     // As outras seções também.
     fireEvent.click(item("Visão geral"));
-    await waitFor(() => expect(resumo.resumoProjeto).toHaveBeenCalledWith(OUTRO));
+    await waitFor(() => expect(conhecimento.api.resumoProjeto).toHaveBeenCalledWith(OUTRO));
     fireEvent.click(item("Base"));
     await waitFor(() =>
       expect(conhecimento.api.buscar).toHaveBeenLastCalledWith("", expect.objectContaining({ projeto: OUTRO })),
@@ -146,7 +142,7 @@ describe("Navegacao", () => {
   });
 
   it("o seletor mostra as pendências de cada projeto e funciona pelo teclado", async () => {
-    const { conhecimento, resumo } = montar(conhecimentoComDois());
+    const { conhecimento } = montar(conhecimentoComDois());
     await waitFor(() => expect(conhecimento.api.inicio).toHaveBeenCalled());
     const botao = await screen.findByRole("button", { name: /Projeto: Faturamento Exemplo/ });
     fireEvent.click(botao);
@@ -169,7 +165,7 @@ describe("Navegacao", () => {
     expect(within(screen.getByRole("listbox")).getByRole("option", { name: /Empréstimos/ })).toHaveFocus();
     fireEvent.keyDown(screen.getByRole("listbox"), { key: "Enter" });
     expect(await screen.findByRole("button", { name: /Projeto: Empréstimos/ })).toBeInTheDocument();
-    await waitFor(() => expect(resumo.resumoProjeto).toHaveBeenCalledWith(OUTRO));
+    await waitFor(() => expect(conhecimento.api.resumoProjeto).toHaveBeenCalledWith(OUTRO));
   });
 
   it("o menu mostra rótulos e contagens e é navegável por teclado", async () => {
@@ -241,7 +237,7 @@ describe("Navegacao", () => {
 
   it("“N sessões aguardam você”, na barra de status, leva às Atividades (#321)", async () => {
     montar();
-    await screen.findByRole("region", { name: "Regras" });
+    await screen.findByRole("region", { name: "Visão geral do projeto" });
     const barra = screen.getByRole("contentinfo", { name: "Barra de status" });
     fireEvent.click(await within(barra).findByRole("button", { name: "1 sessão aguarda você" }));
     expect(await screen.findByRole("region", { name: "Atividades" })).toBeInTheDocument();
@@ -252,7 +248,7 @@ describe("Navegacao", () => {
 
   it("a ação de um item das Atividades abre a análise numa aba", async () => {
     const { analise } = montar();
-    await screen.findByRole("region", { name: "Regras" });
+    await screen.findByRole("region", { name: "Visão geral do projeto" });
     fireEvent.click(item("Atividades"));
     const grupo = await screen.findByRole("region", { name: "O agente aguarda você" });
     fireEvent.click(within(grupo).getByRole("button", { name: "Responder ao agente: A-0002" }));

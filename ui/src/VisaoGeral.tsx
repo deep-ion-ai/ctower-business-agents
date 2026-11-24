@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { AjudaTermo } from "./AjudaTermo";
 import { mensagemDe } from "./analise";
 import type { ApiConhecimento } from "./conhecimento";
@@ -8,7 +8,8 @@ import { ROTULO_ESTADO_RASTREADOR, quandoConferido, type DemandaVista } from "./
 import { contar } from "./formatacao";
 import type { MapaFuncionalidades } from "./funcionalidades";
 import type { Tela } from "./Navegacao";
-import type { ApiResumo, ResumoProjeto } from "./resumoProjeto";
+import type { ResumoProjeto } from "./resumoProjeto";
+import { ambienteAPreparar, type AmbienteConferido } from "./atividades";
 import {
   itensDeSaude,
   resumoDoProjeto,
@@ -50,7 +51,8 @@ function useLeitura<T>(ler: () => Promise<T>, chave: unknown): Leitura<T> {
   const [estado, setEstado] = useState<Leitura<T>>({ tipo: "lendo" });
   useEffect(() => {
     let ativo = true;
-    setEstado({ tipo: "lendo" });
+    // Relendo, mantém o que já estava à vista, sem piscar.
+    setEstado((e) => (e.tipo === "ok" ? e : { tipo: "lendo" }));
     ler()
       .then((valor) => ativo && setEstado({ tipo: "ok", valor }))
       .catch((e: unknown) => ativo && setEstado({ tipo: "falha", mensagem: mensagemDe(e) }));
@@ -65,57 +67,38 @@ function useLeitura<T>(ler: () => Promise<T>, chave: unknown): Leitura<T> {
 
 /**
  * Visão geral do projeto (#320, §6 da revisão de UX): responde "como o projeto
- * está" numa tela. O resumo (`resumo_projeto_app`, #318) é lido uma vez por abertura
- * e relido quando a base muda; a saúde do cadastro, a cobertura, o mapa e as
- * demandas vêm das suas fontes e falham cada uma por conta própria. Cada número e
- * cada bloco leva à lista ou ao objeto correspondente.
+ * está" numa tela. O resumo (`resumo_projeto_app`, #318) é lido pela navegação, uma
+ * vez por abertura e de novo a cada aviso de mudança, e compartilhado com as
+ * Atividades e o selo do menu; a saúde do cadastro, a cobertura, o mapa e as demandas
+ * vêm das suas fontes e falham cada uma por conta própria. Cada número e cada bloco
+ * leva à lista ou ao objeto correspondente.
  */
 export function VisaoGeral({
   projeto,
+  nomeProjeto,
+  resumo,
+  falha,
+  ambiente,
   api,
-  apiResumo,
   apiConfiguracoes,
   apiMapa,
   navegar,
 }: {
   projeto: string;
+  nomeProjeto?: string;
+  /** Resumo do projeto (#318); `null` enquanto carrega ou quando a leitura falhou. */
+  resumo: ResumoProjeto | null;
+  falha: string | null;
+  /** Ambiente do Claude conferido pela navegação (`undefined`: ainda não; `null`: falhou). */
+  ambiente: AmbienteConferido;
   api: ApiConhecimento;
-  apiResumo: ApiResumo;
-  apiConfiguracoes: Pick<ApiConfiguracoes, "configuracoes" | "verificarAmbiente" | "prontidaoRepositorios">;
+  apiConfiguracoes: Pick<ApiConfiguracoes, "configuracoes" | "prontidaoRepositorios">;
   apiMapa: ApiMapaLeitura;
   navegar: (t: Tela) => void;
 }) {
-  const [resumo, setResumo] = useState<ResumoProjeto | null>(null);
-  const [falha, setFalha] = useState<string | null>(null);
-
-  const ler = useCallback(() => {
-    apiResumo
-      .resumoProjeto(projeto)
-      .then((r) => {
-        setResumo(r);
-        setFalha(null);
-      })
-      .catch((e: unknown) => setFalha(mensagemDe(e)));
-  }, [apiResumo, projeto]);
-
-  // Uma chamada ao abrir; a base mudando fora do app (ou uma análise gravada) relê.
-  useEffect(ler, [ler]);
-  useEffect(() => {
-    let parar: (() => void) | null = null;
-    let ativo = true;
-    api
-      .vigiarBase(ler)
-      .then((p) => (ativo ? (parar = p) : p()))
-      .catch(() => undefined);
-    return () => {
-      ativo = false;
-      parar?.();
-    };
-  }, [api, ler]);
-
   // Saúde do cadastro: as mesmas fontes e a mesma conta das configurações.
   const [cadastro, setCadastro] = useState<ProjetoConfig | null>(null);
-  const [estado, setEstado] = useState<EstadoDoProjeto>({});
+  const [prontidao, setProntidao] = useState<EstadoDoProjeto["prontidao"]>(undefined);
   useEffect(() => {
     let ativo = true;
     apiConfiguracoes
@@ -126,35 +109,41 @@ export function VisaoGeral({
         setCadastro(p);
         if (p && p.repositorios.codigo.length === 0 && !p.repositorios.tracker) {
           // Nada a conferir na rede.
-          setEstado((e) => ({ ...e, prontidao: { integracoes: [] } }));
+          setProntidao({ integracoes: [] });
         } else {
           apiConfiguracoes
             .prontidaoRepositorios(projeto)
-            .then((prontidao) => ativo && setEstado((e) => ({ ...e, prontidao })))
-            .catch(() => ativo && setEstado((e) => ({ ...e, prontidao: null })));
+            .then((r) => ativo && setProntidao(r))
+            .catch(() => ativo && setProntidao(null));
         }
       })
       .catch(() => ativo && setCadastro(null));
-    apiConfiguracoes
-      .verificarAmbiente(projeto)
-      .then((ambiente) => ativo && setEstado((e) => ({ ...e, ambiente })))
-      .catch(() => ativo && setEstado((e) => ({ ...e, ambiente: null })));
     return () => {
       ativo = false;
     };
   }, [apiConfiguracoes, projeto]);
 
-  const itens = cadastro ? itensDeSaude(cadastro, estado) : [];
-  const ambientePronto = estado.ambiente ? estado.ambiente.pronto : null;
+  const itens = cadastro ? itensDeSaude(cadastro, { ambiente, prontidao }) : [];
 
+  // Relê a cobertura e as demandas quando o que o resumo conta muda, não a cada leitura dele.
+  const assinatura = resumo
+    ? [
+        resumo.analises.total,
+        resumo.demandas.abertas,
+        resumo.demandas.encerradas,
+        resumo.base.regras,
+        resumo.base.aRevalidar,
+        resumo.base.termos,
+      ].join(":")
+    : "";
   const cobertura = useLeitura<Cobertura>(
     () => (api.cobertura ? api.cobertura(projeto) : Promise.reject(new Error("indisponível"))),
-    `${projeto}:${resumo?.geradoMs ?? 0}`,
+    `${projeto}:${assinatura}`,
   );
   const mapa = useLeitura<MapaFuncionalidades>(() => apiMapa.mapa(projeto), projeto);
   const demandas = useLeitura<DemandaVista[]>(
     () => api.listarDemandas(projeto),
-    `${projeto}:${resumo?.geradoMs ?? 0}`,
+    `${projeto}:${assinatura}`,
   );
 
   const ir = {
@@ -184,7 +173,7 @@ export function VisaoGeral({
     }
   };
 
-  const nome = cadastro?.nome ?? resumo?.nome ?? "";
+  const nome = nomeProjeto ?? cadastro?.nome ?? resumo?.nome ?? "";
 
   return (
     <section className="visao-geral page" aria-label="Visão geral do projeto">
@@ -227,21 +216,19 @@ export function VisaoGeral({
         </div>
       </header>
 
-      {falha && (
+      {falha && !resumo && (
         <div className="vg-vazio" role="alert">
           <p>
             <b>Não foi possível ler o resumo do projeto.</b> {falha}
           </p>
-          <button type="button" className="btn btn-sm" onClick={ler}>
-            Tentar de novo
-          </button>
+          <p>O app tenta de novo sozinho em alguns segundos.</p>
         </div>
       )}
       {!resumo && !falha && <p className="muted">Carregando…</p>}
 
       {resumo && (
         <>
-          <ProximosPassos resumo={resumo} ambientePronto={ambientePronto} aoIr={irParaPasso} aoVerTodas={ir.atividades} />
+          <ProximosPassos resumo={resumo} ambiente={ambiente} aoIr={irParaPasso} aoVerTodas={ir.atividades} />
           <Numeros resumo={resumo} ir={ir} />
           <div className="vg-grade vg-g32">
             <Analises resumo={resumo} aoAbrir={ir.analises} aoCriar={ir.novaAnalise} />
@@ -287,16 +274,16 @@ function Painel({
 
 function ProximosPassos({
   resumo,
-  ambientePronto,
+  ambiente,
   aoIr,
   aoVerTodas,
 }: {
   resumo: ResumoProjeto;
-  ambientePronto: boolean | null;
+  ambiente: AmbienteConferido;
   aoIr: (d: DestinoPasso) => void;
   aoVerTodas: () => void;
 }) {
-  const { visiveis, total } = proximosPassos(resumo, ambientePronto);
+  const { visiveis, total } = proximosPassos(resumo, ambienteAPreparar(ambiente));
   return (
     <section className="panel vg-painel vg-passos" aria-label="Próximos passos">
       <h3>

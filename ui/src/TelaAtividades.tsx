@@ -97,8 +97,8 @@ export function TelaAtividades({ projeto, nomeProjeto, resumo, falha, ambiente, 
               ? "O código citado pela regra mudou desde a aprovação."
               : "O código citado por essas regras mudou desde a aprovação.",
           acao: "Ver as regras",
-          // As regras a revalidar ficam na tela do projeto (a Visão geral, até a #320).
-          aoAgir: () => navegar({ tipo: "projeto", projeto }),
+          // As regras a revalidar ficam na Base (a Visão geral só resume, #320).
+          aoAgir: () => navegar({ tipo: "base" }),
         };
       }
       case "retomar":

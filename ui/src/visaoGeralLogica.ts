@@ -1,3 +1,4 @@
+import { atividadeVisivel } from "./atividades";
 import { ROTULO_FLUXO } from "./conhecimento";
 import { contar } from "./formatacao";
 import type { Atividade, ResumoProjeto } from "./resumoProjeto";
@@ -117,10 +118,10 @@ function passoDaAtividade(resumo: ResumoProjeto, a: Atividade): Passo | null {
  */
 export function proximosPassos(
   resumo: ResumoProjeto,
-  ambientePronto: boolean | null,
+  ambienteAPreparar: boolean,
 ): { visiveis: Passo[]; total: number } {
   const passos: Passo[] = [];
-  let ambiente = ambientePronto === false;
+  let ambiente = ambienteAPreparar;
   const pedirAmbiente = () => {
     ambiente = false;
     passos.push({
@@ -132,7 +133,7 @@ export function proximosPassos(
       destino: { tipo: "configurar" },
     });
   };
-  for (const a of resumo.atividades) {
+  for (const a of resumo.atividades.filter(atividadeVisivel)) {
     if (ambiente && (a.tipo === "retomar" || a.tipo === "primeira-analise")) pedirAmbiente();
     const p = passoDaAtividade(resumo, a);
     if (p) passos.push(p);

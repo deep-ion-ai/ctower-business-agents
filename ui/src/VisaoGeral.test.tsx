@@ -4,9 +4,9 @@ import type { ApiConhecimento } from "./conhecimento";
 import type { Tela } from "./Navegacao";
 import { VisaoGeral } from "./VisaoGeral";
 import { apiConfiguracoesFalsa } from "./test/configuracoesFalso";
-import { PROJETO, apiConhecimentoFalsa } from "./test/conhecimentoFalso";
+import { PROJETO, apiConhecimentoFalsa, resumoFicticio } from "./test/conhecimentoFalso";
 import { MAPA } from "./test/mapaFalso";
-import { apiResumoFalsa, resumoFicticio, resumoVazio } from "./test/resumoFalso";
+import type { AmbienteConferido } from "./atividades";
 import type { ResumoProjeto } from "./resumoProjeto";
 import type { MapaFuncionalidades } from "./funcionalidades";
 
@@ -45,32 +45,68 @@ const COBERTURA: Cobertura = {
   totais: { regras: 24, termos: 1, documentos: 0, aRevalidar: 0 },
 };
 
+const FLUXOS = ["perguntar", "explicar", "impacto", "reuniao", "revisar", "historias", "cenarios", "manual"] as const;
+const porFluxo = (n: Partial<Record<(typeof FLUXOS)[number], number>>) =>
+  FLUXOS.map((fluxo) => ({ fluxo, total: n[fluxo] ?? 0 }));
+
+/** O resumo do fixture, com demandas e tipos de análise. */
+const resumoBase = (): ResumoProjeto => {
+  const r = resumoFicticio();
+  return {
+    ...r,
+    analises: { ...r.analises, porFluxo: porFluxo({ perguntar: 1, impacto: 1 }) },
+    demandas: { abertas: 1, encerradas: 1, semAnalise: 1 },
+  };
+};
+
+/** Um projeto sem análise, demanda, regra nem sessão. */
+const resumoVazio = (): ResumoProjeto => ({
+  ...resumoFicticio({ atividades: [] }),
+  analises: {
+    total: 0,
+    porEstado: { criada: 0, emAndamento: 0, concluida: 0, aprovada: 0 },
+    porFluxo: porFluxo({}),
+  },
+  demandas: { abertas: 0, encerradas: 0, semAnalise: 0 },
+  base: { regras: 0, aRevalidar: 0, termos: 0 },
+  sessoes: { total: 0, ativas: 0, aguardandoAnalista: 0, concluidas: 0, encerradas: 0, porAnalise: [] },
+  pedemAcao: 0,
+});
+
 function montar(
-  resumo: ResumoProjeto = resumoFicticio(),
-  extras: { mapa?: MapaFuncionalidades; cobertura?: Cobertura } = {},
+  resumo: ResumoProjeto | null = resumoBase(),
+  extras: {
+    mapa?: MapaFuncionalidades;
+    cobertura?: Cobertura;
+    ambiente?: AmbienteConferido;
+    falha?: string;
+  } = {},
 ) {
   const conhecimento = apiConhecimentoFalsa();
   const api: ApiConhecimento = {
     ...conhecimento.api,
     cobertura: vi.fn(() => Promise.resolve(extras.cobertura ?? COBERTURA)),
   };
-  const apiResumo = apiResumoFalsa(resumo);
   const navegar = vi.fn<(t: Tela) => void>();
   render(
     <VisaoGeral
       projeto={PROJETO}
+      nomeProjeto="Faturamento Exemplo"
+      resumo={resumo}
+      falha={extras.falha ?? null}
+      ambiente={"ambiente" in extras ? extras.ambiente : { pronto: true, pendencias: [] }}
       api={api}
-      apiResumo={apiResumo}
       apiConfiguracoes={apiConfiguracoesFalsa()}
       apiMapa={{ mapa: () => Promise.resolve(extras.mapa ?? MAPA) }}
       navegar={navegar}
     />,
   );
-  return { conhecimento, apiResumo, navegar };
+  return { conhecimento, navegar };
 }
 
 const resumoCheio = (): ResumoProjeto =>
   resumoFicticio({
+    demandas: { abertas: 1, encerradas: 1, semAnalise: 1 },
     analises: {
       total: 9,
       porEstado: { criada: 0, emAndamento: 2, concluida: 5, aprovada: 2 },
@@ -145,12 +181,11 @@ const resumoCheio = (): ResumoProjeto =>
   });
 
 describe("VisaoGeral", () => {
-  it("lê o resumo uma vez e mostra o cabeçalho com origens e selos de saúde", async () => {
-    const { apiResumo } = montar();
+  it("mostra o cabeçalho com origens e selos de saúde", async () => {
+    montar();
     expect(await screen.findByRole("heading", { name: "Faturamento Exemplo" })).toBeInTheDocument();
     await screen.findByRole("region", { name: "Próximos passos" });
-    expect(apiResumo.resumoProjeto).toHaveBeenCalledTimes(1);
-    expect(apiResumo.resumoProjeto).toHaveBeenCalledWith(PROJETO);
+    expect(screen.getByText(/1 repositório de código|0 repositórios de código/)).toBeInTheDocument();
     const saude = await screen.findByRole("list", { name: "Saúde do projeto" });
     // O selo leva o símbolo e o rótulo em texto, não só a cor.
     expect(within(saude).getAllByRole("button").length).toBeGreaterThan(0);
@@ -163,9 +198,10 @@ describe("VisaoGeral", () => {
     const passos = await screen.findByRole("region", { name: "Próximos passos" });
     expect(within(passos).getByText("O agente aguarda você na A-0008")).toBeInTheDocument();
     expect(within(passos).getByText("Revisar e aprovar a A-0003")).toBeInTheDocument();
-    expect(within(passos).getByText("Demanda D-0001 sem análise")).toBeInTheDocument();
-    expect(within(passos).queryByText("Regras a revalidar")).not.toBeInTheDocument();
-    expect(within(passos).getByRole("button", { name: "Ver as 4 atividades" })).toBeInTheDocument();
+    expect(within(passos).getByText("Regras a revalidar")).toBeInTheDocument();
+    // As demandas novas ficam fora até a #322, como nas Atividades (MOSTRAR_DEMANDAS_NOVAS).
+    expect(within(passos).queryByText(/sem análise/)).not.toBeInTheDocument();
+    expect(within(passos).getByRole("button", { name: "Ver as 3 atividades" })).toBeInTheDocument();
 
     fireEvent.click(within(passos).getByRole("button", { name: "Responder ao agente" }));
     expect(navegar).toHaveBeenLastCalledWith({
@@ -179,9 +215,9 @@ describe("VisaoGeral", () => {
       projeto: PROJETO,
       aberta: { id: "A-0003", abertura: { tipo: "reabrir" } },
     });
-    fireEvent.click(within(passos).getByRole("button", { name: "Ver as demandas" }));
-    expect(navegar).toHaveBeenLastCalledWith({ tipo: "demandas", projeto: PROJETO });
-    fireEvent.click(within(passos).getByRole("button", { name: "Ver as 4 atividades" }));
+    fireEvent.click(within(passos).getByRole("button", { name: "Ver as regras" }));
+    expect(navegar).toHaveBeenLastCalledWith({ tipo: "base" });
+    fireEvent.click(within(passos).getByRole("button", { name: "Ver as 3 atividades" }));
     expect(navegar).toHaveBeenLastCalledWith({ tipo: "inicio" });
   });
 
@@ -293,51 +329,22 @@ describe("VisaoGeral", () => {
   });
 
   it("o ambiente por preparar entra nos próximos passos", async () => {
-    const config = apiConfiguracoesFalsa();
-    config.verificarAmbiente.mockResolvedValue({ pronto: false, pendencias: ["servidor MCP"] });
-    const conhecimento = apiConhecimentoFalsa();
-    const navegar = vi.fn<(t: Tela) => void>();
-    render(
-      <VisaoGeral
-        projeto={PROJETO}
-        api={conhecimento.api}
-        apiResumo={apiResumoFalsa(resumoVazio())}
-        apiConfiguracoes={config}
-        apiMapa={{ mapa: () => Promise.resolve(MAPA) }}
-        navegar={navegar}
-      />,
-    );
+    const { navegar } = montar(resumoVazio(), { ambiente: { pronto: false, pendencias: ["servidor MCP"] } });
     const passos = await screen.findByRole("region", { name: "Próximos passos" });
-    fireEvent.click(await within(passos).findByRole("button", { name: "Preparar" }));
+    fireEvent.click(within(passos).getByRole("button", { name: "Preparar" }));
     expect(navegar).toHaveBeenLastCalledWith({ tipo: "configurar", projeto: PROJETO });
   });
 
-  it("falha no resumo mostra o erro e deixa tentar de novo", async () => {
-    const conhecimento = apiConhecimentoFalsa();
-    const apiResumo = apiResumoFalsa();
-    apiResumo.resumoProjeto.mockRejectedValueOnce(new Error("disco cheio"));
-    render(
-      <VisaoGeral
-        projeto={PROJETO}
-        api={conhecimento.api}
-        apiResumo={apiResumo}
-        apiConfiguracoes={apiConfiguracoesFalsa()}
-        apiMapa={{ mapa: () => Promise.resolve(MAPA) }}
-        navegar={vi.fn()}
-      />,
-    );
-    expect(await screen.findByText(/disco cheio/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Tentar de novo" }));
-    await screen.findByRole("region", { name: "Próximos passos" });
-    expect(screen.queryByText(/disco cheio/)).not.toBeInTheDocument();
-    expect(apiResumo.resumoProjeto).toHaveBeenCalledTimes(2);
+  it("falha no resumo mostra o erro, sem os blocos", () => {
+    montar(null, { falha: "disco cheio" });
+    expect(screen.getByRole("alert")).toHaveTextContent("disco cheio");
+    expect(screen.queryByRole("region", { name: "Próximos passos" })).not.toBeInTheDocument();
+    // O cabeçalho continua: dá para configurar o projeto e criar uma análise.
+    expect(screen.getByRole("button", { name: "Nova análise" })).toBeInTheDocument();
   });
 
-  it("relê o resumo quando a base muda", async () => {
-    const { conhecimento, apiResumo } = montar();
-    await screen.findByRole("region", { name: "Próximos passos" });
-    expect(apiResumo.resumoProjeto).toHaveBeenCalledTimes(1);
-    conhecimento.avisar();
-    await waitFor(() => expect(apiResumo.resumoProjeto).toHaveBeenCalledTimes(2));
+  it("antes de ler o resumo, mostra o carregamento", () => {
+    montar(null);
+    expect(screen.getByText("Carregando…")).toBeInTheDocument();
   });
 });
