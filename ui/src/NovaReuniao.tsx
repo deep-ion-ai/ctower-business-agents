@@ -14,6 +14,7 @@ import {
   type PreviaTranscript,
 } from "./reunioes";
 import type { ProjetoResumo } from "./terminal";
+import { DemandaAchada, useDemandaResolvida } from "./NovaAnalise";
 
 /** Valor do seletor de demanda que pede uma demanda nova. */
 const NOVA = "__nova__";
@@ -32,6 +33,8 @@ export function NovaReuniao({
   demandaFixa,
   aoCriar,
   aoCancelar,
+  semTitulo = false,
+  aoAbrirAnalise,
 }: {
   api: ApiConhecimento;
   apiReuniao?: ApiReuniao;
@@ -40,10 +43,23 @@ export function NovaReuniao({
   demandaFixa?: string;
   aoCriar: (projeto: string, criada: AnaliseCriada) => void;
   aoCancelar: () => void;
+  /** Sem o título do fluxo (quem chama já mostra o tipo escolhido). */
+  semTitulo?: boolean;
+  /** Continua uma análise que a demanda escolhida já tem (#350). */
+  aoAbrirAnalise?: (id: string) => void;
 }) {
   const [projeto, setProjeto] = useState(projetos[0]?.id ?? "");
   const [abertas, setAbertas] = useState<DemandaVista[]>([]);
   const [demanda, setDemanda] = useState(demandaFixa ?? NOVA);
+  // O título e as análises da demanda escolhida, como nos outros tipos (#350).
+  const resolvida = useDemandaResolvida(
+    api,
+    projeto,
+    !demandaFixa && demanda !== NOVA ? demanda : "",
+    abertas,
+    !demandaFixa,
+  );
+  const achada = resolvida && resolvida !== "buscando" && resolvida.achada ? resolvida : null;
   const [titulo, setTitulo] = useState("");
   const [chave, setChave] = useState("");
   const [texto, setTexto] = useState("");
@@ -152,21 +168,23 @@ export function NovaReuniao({
 
   return (
     <form className="nova-pergunta nova-reuniao" onSubmit={criar} aria-label={ROTULO_FLUXO.reuniao}>
-      <h3>{ROTULO_FLUXO.reuniao}</h3>
+      {!semTitulo && <h3>{ROTULO_FLUXO.reuniao}</h3>}
       {demandaFixa ? (
         <p className="muted">A reunião fica na demanda {demandaFixa}.</p>
       ) : (
         <>
-          <label>
-            Projeto{" "}
-            <select value={projeto} onChange={(e) => setProjeto(e.target.value)}>
-              {projetos.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.nome}
-                </option>
-              ))}
-            </select>
-          </label>
+          {projetos.length > 1 && (
+            <label>
+              Projeto{" "}
+              <select value={projeto} onChange={(e) => setProjeto(e.target.value)}>
+                {projetos.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nome}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label>
             Demanda
             <select value={demanda} onChange={(e) => setDemanda(e.target.value)}>
@@ -178,6 +196,7 @@ export function NovaReuniao({
               <option value={NOVA}>Criar uma demanda nova</option>
             </select>
           </label>
+          {achada && <DemandaAchada achada={achada} aoAbrirAnalise={aoAbrirAnalise} />}
           {demanda === NOVA && (
             <>
               <label>
@@ -261,13 +280,16 @@ export function NovaReuniao({
         </label>
       </section>
 
-      <div className="acoes">
-        <button type="submit" className="btn btn-primary" disabled={!podeCriar}>
-          Criar a reunião e iniciar a análise
-        </button>
-        <button className="btn" type="button" onClick={aoCancelar}>
-          Cancelar
-        </button>
+      {/* Como nos outros formulários: Cancelar e, à direita, a ação principal (#350). */}
+      <div className="rodape-form">
+        <div className="acoes">
+          <button className="btn" type="button" onClick={aoCancelar}>
+            Cancelar
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={!podeCriar}>
+            Criar a reunião e iniciar a análise
+          </button>
+        </div>
       </div>
       {ambiente && !pronto && (
         <p className="muted">Ligue o agente a este projeto antes de iniciar a análise.</p>

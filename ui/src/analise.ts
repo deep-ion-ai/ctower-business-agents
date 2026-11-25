@@ -450,6 +450,12 @@ export interface AnaliseResumo {
   fluxo: Fluxo;
   estado: EstadoAnalise;
   atualizadaMs: number;
+  /** Demanda da base a que a análise está ligada (`D-0007`), quando há (#350). */
+  demanda?: string | null;
+  /** Chave da demanda no rastreador (`PROJ-123`, `#42`), quando há. */
+  chave?: string | null;
+  /** Link da issue no rastreador, quando a análise o guardou. */
+  link?: string | null;
 }
 
 export interface AnaliseCriada {

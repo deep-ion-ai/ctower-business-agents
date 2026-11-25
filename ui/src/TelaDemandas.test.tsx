@@ -23,6 +23,7 @@ function issue(parcial: Partial<IssueDoProjeto>): IssueDoProjeto {
     analise: null,
     demanda: null,
     funcionalidades: [],
+    analises: [],
     ...parcial,
   };
 }

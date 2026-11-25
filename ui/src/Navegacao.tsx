@@ -89,7 +89,7 @@ interface Props {
   abrirLink?: AbrirLink;
   /** Abre o assistente do primeiro uso. */
   aoPrimeiroUso?: () => void;
-  /** Mostra "Refazer o primeiro uso" no pé do menu lateral. */
+  /** Mostra "Refazer o primeiro uso" no cabeçalho de Configurações (#350). */
   refazerPrimeiroUso?: () => void;
   produto?: string;
   versao?: string | null;
@@ -573,14 +573,6 @@ export function Navegacao({
             atual={ativa === null ? ITEM_DA_SECAO(secao.id) : null}
             contagens={contagens}
             aoEscolher={irParaSecao}
-            aoNovaAnalise={projeto ? () => navegar({ tipo: "analise", projeto, nova: true }) : undefined}
-            rodape={
-              refazerPrimeiroUso && (
-                <button type="button" className="link menu-refazer" onClick={() => sairDaTela(refazerPrimeiroUso)}>
-                  Refazer o primeiro uso
-                </button>
-              )
-            }
           />
         </div>
         {ladoAberto && (
@@ -704,6 +696,7 @@ export function Navegacao({
                   apiConhecimento={api}
                   aoPrimeiroUso={aoPrimeiroUso}
                   aoAbrirAnalise={(p, id, abertura) => navegar({ tipo: "analise", projeto: p, aberta: { id, abertura } })}
+                  aoAbrirDemanda={(p, demanda) => navegar({ tipo: "demanda", projeto: p, demanda })}
                 />
               )}
               {secaoAVista && secao.id === "demandas" && (
@@ -745,6 +738,7 @@ export function Navegacao({
                   aoPendencia={aoPendencia}
                   listarProjetos={false}
                   aoConfigurarProjeto={(p) => navegar({ tipo: "configurar", projeto: p })}
+                  aoRefazerPrimeiroUso={refazerPrimeiroUso ? () => sairDaTela(refazerPrimeiroUso) : undefined}
                 />
               )}
               {secaoAVista && secao.id === "configurar-projeto" && (

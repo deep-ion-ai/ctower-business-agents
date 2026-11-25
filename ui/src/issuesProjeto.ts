@@ -32,6 +32,8 @@ export interface IssueDoProjeto {
   situacao: SituacaoNaBase;
   /** Análise que define a situação (a mais recente): `A-0003`. */
   analise: string | null;
+  /** Todas as análises ligadas à issue (pela demanda ou pela chave), a mais recente primeiro. */
+  analises: string[];
   /** Demanda da base que representa a issue: `D-0001`. */
   demanda: string | null;
   /** Funcionalidades a que essa demanda está ligada. */

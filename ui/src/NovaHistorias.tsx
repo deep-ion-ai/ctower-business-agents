@@ -77,6 +77,7 @@ export function NovaHistorias({
   aoCriar,
   aoCancelar,
   fluxo = "historias",
+  semTitulo = false,
 }: {
   api: ApiConhecimento;
   projetos: ProjetoResumo[];
@@ -86,6 +87,8 @@ export function NovaHistorias({
   demandaFixa?: string;
   aoCriar: (projeto: string, criada: AnaliseCriada) => void;
   aoCancelar: () => void;
+  /** Sem o título do fluxo (quem chama já mostra o tipo escolhido). */
+  semTitulo?: boolean;
 }) {
   const [projeto, setProjeto] = useState(projetos[0]?.id ?? "");
   const [analises, setAnalises] = useState<AnaliseResumo[] | null>(null);
@@ -165,23 +168,25 @@ export function NovaHistorias({
 
   return (
     <form className="nova-pergunta" onSubmit={criar} aria-label={ROTULO_FLUXO[fluxo]}>
-      <h3>{ROTULO_FLUXO[fluxo]}</h3>
+      {!semTitulo && <h3>{ROTULO_FLUXO[fluxo]}</h3>}
       <p className="muted">{textos.explicacao}</p>
       {demandaFixa ? (
         <p className="muted">
           {textos.ligadas} {demandaFixa}.
         </p>
       ) : (
-        <label>
-          Projeto{" "}
-          <select value={projeto} onChange={(e) => setProjeto(e.target.value)}>
-            {projetos.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.nome}
-              </option>
-            ))}
-          </select>
-        </label>
+        projetos.length > 1 && (
+          <label>
+            Projeto{" "}
+            <select value={projeto} onChange={(e) => setProjeto(e.target.value)}>
+              {projetos.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nome}
+                </option>
+              ))}
+            </select>
+          </label>
+        )
       )}
       {ambiente && !pronto && (
         <PrepararAmbiente api={api} projeto={projeto} ambiente={ambiente} aoConcluir={verificar} />
