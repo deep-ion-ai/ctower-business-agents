@@ -90,6 +90,7 @@ pub fn rodar() {
             inicio::criar_analise_fluxo,
             inicio::criar_analise_de_historias_app,
             inicio::criar_analise_de_cenarios_app,
+            inicio::criar_analise_de_prototipo_app,
             cobertura::cobertura_projeto_app,
             mudancas::mudancas_projeto_app,
             mudancas::exportar_nota_de_mudancas_app,

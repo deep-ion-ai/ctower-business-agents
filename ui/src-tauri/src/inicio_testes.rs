@@ -81,3 +81,52 @@ fn cenarios_a_partir_de_uma_analise_ou_do_pedido() {
     let erro = criar(None, None).unwrap_err();
     assert!(erro.contains("entrada"), "{erro}");
 }
+
+#[test]
+fn prototipo_a_partir_de_uma_analise_com_o_pedido() {
+    use cba_core::prototipo::{Fidelidade, PedidoPrototipo};
+    let c = cenario();
+    c.aprovar_analise_da_multa();
+    let pedido = PedidoPrototipo {
+        telas: vec!["Cadastro da fatura".into(), " ".into()],
+        fidelidade: Fidelidade::AltaFidelidade,
+        fora: Some("Relatório de recebíveis".into()),
+    };
+    let criada = crate::analise::criar_analise_de_prototipo(
+        &c.dados, PROJETO, "A-0001", None, pedido, None, None,
+    )
+    .unwrap();
+    assert_eq!(criada.analise.fluxo, Fluxo::Prototipo);
+    assert!(criada.analise.titulo.starts_with("Protótipo · "));
+    assert!(criada.prompt_inicial.contains(&criada.analise.id));
+    let vista = crate::analise::carregar_analise(&c.dados, PROJETO, &criada.analise.id).unwrap();
+    let p = vista.analise.prototipo.expect("pedido gravado");
+    assert_eq!(p.pedido.telas, ["Cadastro da fatura"]);
+    assert_eq!(p.pedido.fidelidade, Fidelidade::AltaFidelidade);
+    // Sem origem, recusa.
+    let erro = crate::analise::criar_analise_de_prototipo(
+        &c.dados,
+        PROJETO,
+        " ",
+        None,
+        PedidoPrototipo::default(),
+        None,
+        None,
+    )
+    .unwrap_err();
+    assert!(erro.contains("origem"), "{erro}");
+}
+
+#[test]
+fn pedido_do_prototipo_vem_da_tela_em_json() {
+    use cba_core::prototipo::{Fidelidade, PedidoPrototipo};
+    let p: PedidoPrototipo = serde_json::from_value(serde_json::json!({
+        "telas": ["Cadastro da fatura"],
+        "fidelidade": "alta_fidelidade",
+        "fora": "Relatório de recebíveis"
+    }))
+    .unwrap();
+    assert_eq!(p.fidelidade, Fidelidade::AltaFidelidade);
+    let p: PedidoPrototipo = serde_json::from_value(serde_json::json!({})).unwrap();
+    assert_eq!(p.fidelidade, Fidelidade::Wireframe);
+}
