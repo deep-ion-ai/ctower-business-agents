@@ -9,7 +9,7 @@ use crate::{
     acessos, alteracoes, ambiente_teste, analise, base, clones, cobertura, configuracoes, conversa,
     demandas, docs_externos, funcionalidades, inicio, issues_projeto, manual, mudancas,
     painel_funcionalidade, pauta, primeiro_uso, projeto, prompts, publicacao, rastreabilidade,
-    registros, repositorios, resumo, reunioes, revisao, terminal, vigia, vincular_issues,
+    registros, repositorios, resumo, reunioes, revisao, terminal, tokens, vigia, vincular_issues,
 };
 
 pub fn rodar() {
@@ -103,6 +103,10 @@ pub fn rodar() {
             funcionalidades::explicar_funcionalidade_app,
             funcionalidades::exportar_mapa_projeto,
             funcionalidades::religar_funcionalidades_app,
+            tokens::tokens_css_projeto,
+            tokens::extrair_tokens_css_projeto,
+            tokens::informar_token_css_projeto,
+            tokens::aprovar_tokens_css_projeto,
             painel_funcionalidade::painel_funcionalidade_app,
             painel_funcionalidade::criar_analise_da_funcionalidade_app,
             manual::anexar_print_manual_app,

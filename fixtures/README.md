@@ -28,6 +28,11 @@ ter:
 - várias tecnologias: scripts SQL e PL/SQL (`db/`), backend Java
   (`backend/`), tela TypeScript (`frontend/`), lote COBOL (`cobol/`) e um
   form Delphi da retaguarda (`delphi/`);
+- folhas de estilo do portal (`frontend/src/estilos/`: um tema CSS com
+  propriedades customizadas e um SCSS com variáveis, uma delas calculada pelo
+  pré-processador), para a extração dos tokens CSS do protótipo de telas
+  (#384). Faltam de propósito a cor de sucesso e o espaço pequeno, que ficam
+  "a confirmar";
 - regras de negócio espalhadas entre as camadas, com exceções e parâmetros
   lidos de tabela;
 - divergências entre camadas, como acontece em projetos que evoluíram aos

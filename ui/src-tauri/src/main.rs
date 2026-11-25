@@ -63,6 +63,7 @@ mod revisao;
 mod terminal;
 #[cfg(test)]
 mod teste_base;
+mod tokens;
 mod vigia;
 mod vincular_issues;
 
