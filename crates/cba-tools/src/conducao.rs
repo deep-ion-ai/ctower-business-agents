@@ -219,7 +219,39 @@ pub struct Estimativa {
 
 /// Estimativas medidas, por tipo. Antes da medição de um tipo, a tela mostra só o
 /// número máximo de agentes.
-pub const ESTIMATIVAS: &[Estimativa] = &[];
+///
+/// `impacto`: os quatro casos do gabarito (D-FAT-001 a 004), uma rodada com Sonnet e o
+/// Claude Code 2.1.332 (2 a 4 frentes por caso): por agente, do menor ao maior. O
+/// total foi cerca de 4,7 vezes o da condução simples, e a duração de relógio, de 3
+/// a 4 min (a simples levou cerca de 1,5 min).
+pub const ESTIMATIVAS: &[Estimativa] = &[Estimativa {
+    tipo: "impacto",
+    fases: &[
+        TokensDaFase {
+            fase: "Preparar",
+            minimo: 116_000,
+            maximo: 170_000,
+        },
+        TokensDaFase {
+            fase: "Investigar",
+            minimo: 371_000,
+            maximo: 1_300_000,
+        },
+        TokensDaFase {
+            fase: "Verificar",
+            minimo: 30_000,
+            maximo: 84_000,
+        },
+        TokensDaFase {
+            fase: "Consolidar",
+            minimo: 100_000,
+            maximo: 267_000,
+        },
+    ],
+    razao_simples: 4.7,
+    minutos: (3, 4),
+    relatorio: "docs/avaliacao/2026-11-25-workflow-impacto-sonnet.md",
+}];
 
 /// Estimativa do tipo, se já medida.
 pub fn estimativa(tipo: &str) -> Option<&'static Estimativa> {
@@ -286,6 +318,16 @@ mod tests {
         }
         assert_eq!(agentes_no_maximo(FRENTES_PADRAO), 14);
         assert_eq!(agentes_no_maximo(FRENTES_MAXIMO), 26);
+        let e = estimativa("impacto").unwrap();
+        let (min, max) = e.faixa(FRENTES_PADRAO);
+        assert!(min < max && e.razao_simples > 1.0);
+        assert!(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../..")
+                .join(e.relatorio)
+                .is_file()
+        );
+        assert!(estimativa("perguntar").is_none());
     }
 
     #[test]
