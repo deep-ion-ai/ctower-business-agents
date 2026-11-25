@@ -23,8 +23,9 @@
 //!   pelos elementos, que o app transforma em Mermaid, #118) e [`manual`]
 //!   (`registrar_passo_manual`, o passo a passo do manual do usuário de uma
 //!   funcionalidade, com os prints incluídos pelo analista, #272) e [`prototipo`]
-//!   (`registrar_tela` e `registrar_elemento_tela`, as telas do fluxo "Protótipo
-//!   de telas", com os elementos ligados às regras e aos critérios, #381) e [`mapear`]
+//!   (`registrar_tela`, `registrar_elemento_tela` e `gravar_html_tela`, as telas
+//!   do fluxo "Protótipo de telas", com os elementos ligados às regras e aos
+//!   critérios, #381, e o HTML de cada tela, #385) e [`mapear`]
 //!   (`iniciar_mapeamento`, `pontos_de_entrada`, `registrar_funcionalidade`,
 //!   `tratar_ponto_de_entrada` e `concluir_mapeamento`: o mapa de funcionalidades
 //!   do projeto, #208, fora das análises) e [`mudancas`]
@@ -159,6 +160,7 @@ pub fn registro_padrao() -> Registro {
         .registrar(manual::registrar_passo_manual())
         .registrar(prototipo::registrar_tela())
         .registrar(prototipo::registrar_elemento_tela())
+        .registrar(prototipo::gravar_html_tela())
         .registrar(mapear::iniciar_mapeamento())
         .registrar(mapear::pontos_de_entrada())
         .registrar(mapear::registrar_funcionalidade())
@@ -213,6 +215,7 @@ mod tests {
             "registrar_passo_manual",
             "registrar_tela",
             "registrar_elemento_tela",
+            "gravar_html_tela",
             "registrar_tabela_decisao",
             "registrar_cenario",
             "registrar_diagrama",
@@ -236,6 +239,7 @@ mod tests {
         assert!(!r.obter("registrar_criterio").unwrap().e_somente_leitura());
         assert!(!r.obter("registrar_cenario").unwrap().e_somente_leitura());
         assert!(!r.obter("registrar_tela").unwrap().e_somente_leitura());
+        assert!(!r.obter("gravar_html_tela").unwrap().e_somente_leitura());
         assert!(
             !r.obter("registrar_elemento_tela")
                 .unwrap()

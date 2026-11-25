@@ -12,7 +12,8 @@
 //! - [`Tela`]: tela afetada `TL-n` (número dentro da análise), marcada como nova
 //!   ou alterada ([`MudancaTela`]), com o motivo ligado à análise de origem
 //!   ([`Rastro`]: afirmações, regras e critérios de aceite) e os elementos.
-//!   [`Tela::html`] é o lugar do protótipo HTML da tela, gerado depois (#385).
+//!   [`Tela::html`] aponta para o protótipo HTML da tela, gravado depois da
+//!   lista de telas (#385, [`crate::prototipo_html`]).
 //! - [`ElementoTela`]: campo, validação, mensagem ou ação da tela (`E-n`, número
 //!   dentro da tela), com o [`Rastro`] da regra ou do critério de aceite de que
 //!   vem.
@@ -258,8 +259,9 @@ pub struct Tela {
     pub rastro: Rastro,
     #[serde(default)]
     pub elementos: Vec<ElementoTela>,
-    /// Protótipo HTML da tela, relativo à raiz da base do projeto. Gerado depois
-    /// da lista de telas (#385); `None` enquanto não houver.
+    /// Protótipo HTML da tela, relativo à raiz do projeto na base
+    /// (`analises/<id>/prototipo/TL-<n>.html`, [`cba_kb::layout::html_da_tela`]).
+    /// Gravado depois da lista de telas (#385); `None` enquanto não houver.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub html: Option<CaminhoRelativo>,
     #[serde(default)]
@@ -467,6 +469,33 @@ impl Analise {
         t.elementos.push(elemento);
         Ok(numero)
     }
+
+    /// Aponta a tela para o protótipo HTML dela (ou tira, com `None`) e devolve
+    /// o caminho anterior. O arquivo é gravado antes, por quem chama
+    /// ([`crate::prototipo_html::montar`]).
+    pub fn definir_html_da_tela(
+        &mut self,
+        tela: u32,
+        html: Option<CaminhoRelativo>,
+    ) -> Result<Option<CaminhoRelativo>, ErroModelo> {
+        self.exigir_fluxo_de_prototipo()?;
+        if self.tela(tela).is_none() {
+            return Err(ErroModelo::ItemDesconhecido {
+                tipo: "tela",
+                numero: tela,
+            });
+        }
+        self.aceitar_registro()?;
+        let t = self
+            .telas_mut()
+            .iter_mut()
+            .find(|t| t.numero == tela)
+            .ok_or(ErroModelo::ItemDesconhecido {
+                tipo: "tela",
+                numero: tela,
+            })?;
+        Ok(std::mem::replace(&mut t.html, html))
+    }
 }
 
 #[cfg(test)]
@@ -588,6 +617,28 @@ mod tests {
             .unwrap();
         assert_eq!(e, 4);
         assert!(a.tela(1).unwrap().elemento(4).unwrap().a_confirmar());
+    }
+
+    #[test]
+    fn html_da_tela() {
+        let mut a = analise();
+        a.registrar_tela(tela("Parcelar fatura", Vec::new()), 2)
+            .unwrap();
+        let caminho = cba_kb::layout::html_da_tela(&a.id, 1);
+        assert_eq!(a.definir_html_da_tela(1, Some(caminho.clone())), Ok(None));
+        assert_eq!(a.tela(1).unwrap().html.as_ref(), Some(&caminho));
+        assert_eq!(
+            a.definir_html_da_tela(2, Some(caminho.clone())),
+            Err(ErroModelo::ItemDesconhecido {
+                tipo: "tela",
+                numero: 2
+            })
+        );
+        a.estado = EstadoAnalise::Aprovada;
+        assert_eq!(
+            a.definir_html_da_tela(1, None),
+            Err(ErroModelo::AnaliseAprovada(a.id.clone()))
+        );
     }
 
     #[test]
