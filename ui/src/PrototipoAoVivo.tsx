@@ -7,6 +7,8 @@ import {
   type TipoElemento,
 } from "./analise";
 import type { Revisao } from "./AcoesRevisao";
+import { ExportacaoPrototipo } from "./ExportacaoPrototipo";
+import type { ApiExportacaoPrototipo } from "./apiExportacaoPrototipo";
 import { contar } from "./formatacao";
 import {
   ESTADOS_TELA,
@@ -221,6 +223,7 @@ function QuadroTela({
  * escolhida num visualizador isolado (sem script e sem rede), com a escolha do
  * estado, e os elementos com a origem de cada um. Na revisão, o analista pede
  * ajuste numa tela; a aprovação é a da análise. Sem `revisao`, só leitura.
+ * Com telas, "Exportar protótipo" grava a pasta HTML para compartilhar (#380).
  */
 export function PrototipoAoVivo({
   projeto,
@@ -230,6 +233,7 @@ export function PrototipoAoVivo({
   origem,
   revisao,
   api = apiVisualizadorTauri,
+  apiExportacao,
 }: {
   projeto: string;
   analise: string;
@@ -239,6 +243,7 @@ export function PrototipoAoVivo({
   origem?: string | null;
   revisao?: Revisao;
   api?: ApiVisualizador;
+  apiExportacao?: ApiExportacaoPrototipo;
 }) {
   const [escolhida, setEscolhida] = useState<number | null>(null);
   const [estado, setEstado] = useState<EstadoTela | null>(null);
@@ -260,6 +265,9 @@ export function PrototipoAoVivo({
         {origem && ` · origem ${origem}`}
       </p>
       {telas.length === 0 && <p className="muted">Nenhuma tela registrada ainda.</p>}
+      {telas.length > 0 && (
+        <ExportacaoPrototipo projeto={projeto} analise={analise} api={apiExportacao} />
+      )}
       {tela && (
         <div className="prototipo-visualizador">
           <nav aria-label="Telas do protótipo" className="prototipo-lista-telas">

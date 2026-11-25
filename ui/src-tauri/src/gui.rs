@@ -106,6 +106,7 @@ pub fn rodar() {
             funcionalidades::exportar_mapa_projeto,
             funcionalidades::religar_funcionalidades_app,
             prototipo::html_da_tela_prototipo_app,
+            prototipo::exportar_prototipo_app,
             tokens::tokens_css_projeto,
             tokens::extrair_tokens_css_projeto,
             tokens::informar_token_css_projeto,

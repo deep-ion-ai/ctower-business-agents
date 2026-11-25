@@ -232,6 +232,33 @@ describe("PrototipoAoVivo", () => {
   it("sem telas, avisa", () => {
     montar({ telas: [] });
     expect(screen.getByText("Nenhuma tela registrada ainda.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Exportar protótipo…" })).toBeNull();
+  });
+
+  it("exporta o protótipo em pasta HTML", async () => {
+    const apiExportacao = {
+      escolherPasta: vi.fn().mockResolvedValue("/exportados"),
+      exportar: vi.fn().mockResolvedValue({
+        situacao: "exportada",
+        pasta: "/exportados/A-0003-prototipo-do-parcelamento",
+        telas: 1,
+        semPrototipo: 1,
+      }),
+    };
+    montar({ apiExportacao });
+    await quadro();
+    fireEvent.click(screen.getByRole("button", { name: "Exportar protótipo…" }));
+    await waitFor(() =>
+      expect(apiExportacao.exportar).toHaveBeenCalledWith(
+        "faturamento-exemplo",
+        "A-0003",
+        "/exportados",
+        false,
+      ),
+    );
+    expect(
+      await screen.findByText(/Protótipo exportado para/, { selector: "p" }),
+    ).toHaveTextContent("1 tela sem protótipo ainda");
   });
 });
 
