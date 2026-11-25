@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { TelaAnalise } from "./TelaAnalise";
 import { apiAnaliseFalsa, apiTerminalFalsa, telaFalsa } from "./test/falsos";
-import { PROJETO, apiConhecimentoFalsa } from "./test/conhecimentoFalso";
+import { PROJETO, apiConhecimentoFalsa, painelFicticio } from "./test/conhecimentoFalso";
 import { quandoMudou } from "./TelaAnalise";
 import type { AnaliseResumo } from "./analise";
 
@@ -452,6 +452,138 @@ describe("TelaAnalise", () => {
     expect(await within(painel).findByText("Demanda D-0003 registrada.")).toBeInTheDocument();
     fireEvent.click(within(painel).getByRole("button", { name: "Analisar esta demanda" }));
     expect(within(painel).getByLabelText(/Demanda ou issue/)).toHaveValue("D-0003");
+  });
+
+  it("Perguntar ao sistema: com a demanda, mostra o título e as análises dela e liga a pergunta (#359)", async () => {
+    const conhecimento = apiConhecimentoFalsa();
+    const emAndamento: AnaliseResumo = {
+      id: "A-0003",
+      titulo: "Parcelamento para pessoa jurídica",
+      fluxo: "impacto",
+      estado: "em-andamento",
+      atualizadaMs: 9,
+    };
+    conhecimento.api.listarAnalises.mockResolvedValue([emAndamento] as never);
+    const { painel, aoAbrirAnalise } = await abrirPainelCompleto(conhecimento);
+    fireEvent.click(within(painel).getByRole("button", { name: "Perguntar ao sistema" }));
+    const form = within(painel).getByRole("form", { name: "Nova pergunta" });
+    // O foco continua na pergunta; a demanda é opcional.
+    expect(within(form).getByLabelText("Pergunta")).toHaveFocus();
+    expect(within(form).getByRole("button", { name: "Perguntar" })).toBeDisabled();
+    fireEvent.change(within(form).getByLabelText("Pergunta"), {
+      target: { value: "Como é calculada a parcela?" },
+    });
+    fireEvent.change(within(form).getByLabelText(/Issue ou demanda/), { target: { value: "D-0001" } });
+    expect(await within(form).findByText("Parcelamento PJ")).toBeInTheDocument();
+    const existentes = within(form).getByRole("list", { name: "Análises desta demanda" });
+    expect(within(existentes).getByText("Parcelamento para pessoa jurídica")).toBeInTheDocument();
+    fireEvent.click(within(existentes).getByRole("button", { name: "Continuar A-0003" }));
+    expect(aoAbrirAnalise).toHaveBeenCalledWith(PROJETO, "A-0003", { tipo: "reabrir" });
+
+    const iniciar = within(form).getByRole("button", { name: "Iniciar uma análise nova" });
+    expect(iniciar).toBeEnabled();
+    fireEvent.click(iniciar);
+    await waitFor(() =>
+      expect(conhecimento.api.criarAnalise).toHaveBeenCalledWith(
+        PROJETO,
+        "perguntar",
+        "Como é calculada a parcela?",
+        undefined,
+        "D-0001",
+      ),
+    );
+  });
+
+  it("Perguntar ao sistema: com uma issue, a pergunta continua a entrada e a issue liga o resultado (#359)", async () => {
+    const { painel, analise, conhecimento } = await abrirPainelCompleto();
+    fireEvent.click(within(painel).getByRole("button", { name: "Perguntar ao sistema" }));
+    const form = within(painel).getByRole("form", { name: "Nova pergunta" });
+    fireEvent.change(within(form).getByLabelText("Pergunta"), { target: { value: "Quem aprova o parcelamento?" } });
+    fireEvent.change(within(form).getByLabelText(/Issue ou demanda/), { target: { value: "PROJ-123" } });
+    // Texto que não é demanda nem issue segura o botão.
+    fireEvent.change(within(form).getByLabelText(/Issue ou demanda/), { target: { value: "exp" } });
+    expect(within(form).getByRole("button", { name: "Perguntar" })).toBeDisabled();
+    fireEvent.change(within(form).getByLabelText(/Issue ou demanda/), { target: { value: "PROJ-123" } });
+    expect(await within(form).findByText(/Não achei PROJ-123/)).toBeInTheDocument();
+    fireEvent.click(within(form).getByRole("button", { name: "Perguntar" }));
+    await waitFor(() =>
+      expect(conhecimento.api.criarAnaliseDeDemanda).toHaveBeenCalledWith(PROJETO, "perguntar", "PROJ-123", {
+        entrada: "Quem aprova o parcelamento?",
+        titulo: undefined,
+      }),
+    );
+    expect(analise.api.criarAnalise).not.toHaveBeenCalled();
+  });
+
+  describe("Histórias e Cenários: a demanda da análise de origem e o que ela já tem (#359)", () => {
+    /** D-0001 tem a análise de impacto (origem), uma de histórias e uma de cenários. */
+    function comDemanda() {
+      const conhecimento = apiConhecimentoFalsa();
+      const analise = (
+        id: string,
+        titulo: string,
+        fluxo: AnaliseResumo["fluxo"],
+        estado: AnaliseResumo["estado"],
+        atualizadaMs: number,
+      ): AnaliseResumo => ({ id, titulo, fluxo, estado, atualizadaMs, demanda: "D-0001" });
+      const lista = [
+        analise("A-0008", "Cenários do parcelamento", "cenarios", "concluida", 8),
+        analise("A-0007", "Histórias do parcelamento", "historias", "em-andamento", 7),
+        analise("A-0003", "Parcelamento para pessoa jurídica", "impacto", "aprovada", 3),
+      ];
+      conhecimento.api.listarAnalises.mockResolvedValue(lista as never);
+      const base = painelFicticio();
+      const item = (a: AnaliseResumo) => ({
+        tipo: "analise" as const,
+        data: "2026-11-04",
+        instanteMs: a.atualizadaMs,
+        id: a.id,
+        titulo: a.titulo,
+        fluxo: a.fluxo,
+        estado: a.estado,
+        criadaMs: a.atualizadaMs,
+      });
+      conhecimento.api.painelDemanda.mockResolvedValue({ ...base, linhaDoTempo: lista.map(item) } as never);
+      return conhecimento;
+    }
+
+    it("Histórias e critérios: mostra a demanda da origem e as histórias que ela já tem", async () => {
+      const { painel, aoAbrirAnalise } = await abrirPainelCompleto(comDemanda());
+      fireEvent.click(within(painel).getByRole("button", { name: "Histórias e critérios" }));
+      const form = within(painel).getByRole("form", { name: "Histórias e critérios" });
+      const grupo = await within(form).findByRole("group", { name: "Demanda da análise de origem" });
+      expect(within(grupo).getByText("Parcelamento PJ")).toBeInTheDocument();
+      expect(within(grupo).getByText(/já tem uma análise de histórias/)).toBeInTheDocument();
+      const existentes = within(grupo).getByRole("list", { name: "Análises desta demanda" });
+      expect(within(existentes).getAllByRole("listitem")).toHaveLength(1);
+      expect(within(existentes).getByText("Histórias do parcelamento")).toBeInTheDocument();
+      fireEvent.click(within(existentes).getByRole("button", { name: "Continuar A-0007" }));
+      expect(aoAbrirAnalise).toHaveBeenCalledWith(PROJETO, "A-0007", { tipo: "reabrir" });
+      expect(within(form).getByRole("button", { name: "Iniciar uma análise nova" })).toBeEnabled();
+    });
+
+    it("Cenários de teste: mostra a demanda da origem e os cenários que ela já tem", async () => {
+      const { painel, aoAbrirAnalise } = await abrirPainelCompleto(comDemanda());
+      fireEvent.click(within(painel).getByRole("button", { name: "Cenários de teste" }));
+      const form = within(painel).getByRole("form", { name: "Cenários de teste" });
+      const grupo = await within(form).findByRole("group", { name: "Demanda da análise de origem" });
+      expect(within(grupo).getByText("Parcelamento PJ")).toBeInTheDocument();
+      const existentes = within(grupo).getByRole("list", { name: "Análises desta demanda" });
+      expect(within(existentes).getAllByRole("listitem")).toHaveLength(1);
+      fireEvent.click(within(existentes).getByRole("button", { name: "Abrir A-0008" }));
+      expect(aoAbrirAnalise).toHaveBeenCalledWith(PROJETO, "A-0008", { tipo: "reabrir" });
+      expect(within(form).getByRole("button", { name: "Iniciar uma análise nova" })).toBeEnabled();
+    });
+
+    it("sem análises do fluxo na demanda, o botão continua o do fluxo", async () => {
+      const conhecimento = comDemanda();
+      conhecimento.api.painelDemanda.mockResolvedValue(painelFicticio() as never);
+      const { painel } = await abrirPainelCompleto(conhecimento);
+      fireEvent.click(within(painel).getByRole("button", { name: "Histórias e critérios" }));
+      const form = within(painel).getByRole("form", { name: "Histórias e critérios" });
+      expect(await within(form).findByText("Esta demanda ainda não tem histórias.")).toBeInTheDocument();
+      expect(within(form).getByRole("button", { name: "Gerar as histórias" })).toBeEnabled();
+    });
   });
 
   it("quandoMudou: minutos, horas, ontem e a data", () => {
