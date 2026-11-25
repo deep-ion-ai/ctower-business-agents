@@ -6,7 +6,9 @@
 //!   pode ser oferecida para o fluxo, com o motivo quando não pode (versão do
 //!   `claude` anterior à mínima, workflows não instalados pelo preparo, Claude
 //!   Desktop como cliente preferido), o número máximo de agentes e, depois da
-//!   medição, a faixa de tokens. [`escolher_conducao`] grava a escolha na análise
+//!   medição, a faixa de tokens. Num tipo cuja medição não mostrou ganho
+//!   ([`cba_tools::conducao::NAO_OFERECIDOS`], hoje a revisão de requisito, #373), a
+//!   escolha não aparece, e o workflow fica só instalado. [`escolher_conducao`] grava a escolha na análise
 //!   recém-criada e devolve o pedido que abre a conversa.
 //! - **Pedidos:** [`prompt_de_inicio`], [`prompt_de_retomada`] (conversa nova),
 //!   [`prompt_na_sessao`] (a sessão reaberta com `--resume` retoma o workflow pelo
@@ -129,7 +131,9 @@ pub fn disponibilidade(
     workflows_prontos: bool,
     desktop_preferido: bool,
 ) -> ConducaoDisponivel {
-    let tipo = c::tipo_do_fluxo(fluxo);
+    let instalado = c::tipo_do_fluxo(fluxo);
+    // Sem ganho medido, a escolha não aparece; o workflow continua instalado.
+    let tipo = instalado.filter(|t| c::oferecido(t));
     let frentes = c::FRENTES_PADRAO;
     let estimativa = tipo.and_then(c::estimativa).map(|e| {
         let (min, max) = e.faixa(frentes);
@@ -142,7 +146,15 @@ pub fn disponibilidade(
         }
     });
     let (m0, m1, m2) = VERSAO_MINIMA_WORKFLOWS;
-    let motivo = if tipo.is_none() {
+    let motivo = if let Some(n) =
+        instalado.and_then(|t| c::NAO_OFERECIDOS.iter().find(|n| n.tipo == t))
+    {
+        Some(format!(
+            "a avaliação deste tipo de análise não mostrou ganho do workflow sobre a \
+             condução simples ({})",
+            n.relatorio
+        ))
+    } else if tipo.is_none() {
         Some("este tipo de análise ainda não tem workflow".to_owned())
     } else if let Some(v) = versao.filter(|v| clientes::anterior_a(v, VERSAO_MINIMA_WORKFLOWS)) {
         Some(format!(
@@ -184,7 +196,7 @@ pub fn conducao_disponivel(
     projeto: &str,
     fluxo: Fluxo,
 ) -> Result<ConducaoDisponivel, String> {
-    if c::tipo_do_fluxo(fluxo).is_none() {
+    if !c::tipo_do_fluxo(fluxo).is_some_and(c::oferecido) {
         return Ok(disponibilidade(fluxo, None, false, false));
     }
     let verificacao = preparador
@@ -220,7 +232,9 @@ pub fn escolher_conducao(
                 return Err(cba_core::analise::ErroModelo::AnaliseAprovada(a.id.clone()));
             }
             a.conducao = match conducao {
-                Conducao::Workflow if c::tipo_do_fluxo(a.fluxo).is_some() => Conducao::Workflow,
+                Conducao::Workflow if c::tipo_do_fluxo(a.fluxo).is_some_and(c::oferecido) => {
+                    Conducao::Workflow
+                }
                 _ => Conducao::Simples,
             };
             Ok(())
@@ -368,5 +382,11 @@ mod tests {
 
         let pergunta = disponibilidade(Fluxo::Perguntar, Some("2.1.331"), true, false);
         assert!(!pergunta.tem_workflow && !pergunta.disponivel);
+
+        // A revisão tem workflow instalado, mas a medição não mostrou ganho: a
+        // escolha não aparece (#373).
+        let revisao = disponibilidade(Fluxo::Revisar, Some("2.1.331"), true, false);
+        assert!(!revisao.tem_workflow && !revisao.disponivel);
+        assert!(revisao.motivo.unwrap().contains("não mostrou ganho"));
     }
 }
