@@ -22,7 +22,8 @@ use cba_session::terminal::{self, ErroAbertura, RelatorioErro, ResultadoDesktop,
 use serde::Serialize;
 use tauri_plugin_opener::OpenerExt;
 
-use crate::analise::{self, prompt_de_inicio, prompt_de_retomada};
+use crate::analise;
+use crate::conducao::{prompt_de_inicio, prompt_de_retomada};
 use crate::primeiro_uso::{ClientePreferido, Preferencias};
 
 /// O que a tela da análise oferece para conversar.
@@ -38,6 +39,13 @@ pub struct OpcoesConversa {
     pub sessao: Option<String>,
     /// Pedido de uma conversa nova: iniciar a análise recém-criada ou retomá-la.
     pub pedido: String,
+    /// Pedido para a sessão retomada pelo identificador, quando ela foi interrompida
+    /// no meio do workflow (#371): retoma o workflow pelo `runId`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pedido_na_sessao: Option<String>,
+    /// Por que levar a conversa ao Desktop está bloqueado (workflow rodando, #371).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bloqueio_desktop: Option<String>,
     /// `claude://code/new?folder=…&q=<pedido>`.
     pub link_desktop: Option<String>,
     /// `claude-cli://open?cwd=…&q=<pedido>`.
@@ -75,9 +83,9 @@ fn desktop_real() -> Desktop {
 /// de `iniciar_analise`; as demais, de `retomar_analise`.
 fn pedido(analise: &cba_core::analise::Analise, tem_sessao: bool) -> String {
     if analise.estado == EstadoAnalise::Criada && analise.sessoes.is_empty() && !tem_sessao {
-        prompt_de_inicio(&analise.id)
+        prompt_de_inicio(analise)
     } else {
-        prompt_de_retomada(&analise.id)
+        prompt_de_retomada(analise)
     }
 }
 
@@ -108,6 +116,8 @@ pub fn opcoes_com_gravacao(
     // O pedido considera qualquer sessão vista (a análise já começou); a retomada
     // pelo identificador, só a gravada.
     let pedido = pedido(&vista.analise, vista.sessao.is_some());
+    let pedido_na_sessao = vista.prompt_na_sessao.clone();
+    let bloqueio_desktop = vista.bloqueio_desktop.clone();
     let sessao = vista.sessao.map(|s| s.id).filter(|id| gravada(id));
     let pasta = &alvo.diretorio;
     let mut problema = None;
@@ -138,6 +148,8 @@ pub fn opcoes_com_gravacao(
         opcoes: passagem::opcoes(preferido, desktop),
         sessao,
         pedido,
+        pedido_na_sessao,
+        bloqueio_desktop,
         link_desktop,
         link_terminal,
         comando_terminal,
@@ -288,6 +300,14 @@ pub async fn retomar_conversa_no_desktop(
                 }
                 .relatorio()
             })?;
+        // Com o workflow rodando, o Desktop levaria a sessão e a tarefa em segundo
+        // plano morreria com o CLI (#371).
+        if let Some(motivo) = analise::carregar_analise(&dados, &projeto, &analise)
+            .map_err(falha)?
+            .bloqueio_desktop
+        {
+            return Err(falha(motivo));
+        }
         // Sem sessão gravada, nada de `--continue`: ele abriria a última conversa da
         // pasta, que pode ser de outra análise (#130).
         let retomada = match sessao_da_analise(&dados, &projeto, &analise).map_err(falha)? {

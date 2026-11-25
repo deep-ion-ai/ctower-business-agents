@@ -38,8 +38,15 @@
 //! | `UserPromptSubmit`, `PreToolUse` | ativa |
 //! | `Notification` de permissão, de pergunta ao analista ou sem tipo | aguardando o analista |
 //! | `Notification` de outros tipos (`idle_prompt`, `auth_success`...) | sem mudança |
-//! | `Stop` | concluída (o agente terminou a resposta) |
+//! | `Stop` | concluída (o agente terminou a resposta), ou ativa com um workflow rodando em segundo plano (#371) |
 //! | `SessionEnd` | encerrada |
+//! | `PostToolUse`, `SubagentStart`, `SubagentStop` | sem mudança |
+//!
+//! # Workflows (#371)
+//!
+//! Os eventos de um workflow das análises (`cba-<tipo>`) vão para a execução gravada
+//! na análise ligada à sessão ([`cba_core::conducao::ExecucaoWorkflow`]): o
+//! lançamento, os agentes e o fim. Detalhes em [`workflow`].
 //!
 //! # Ligação com a análise
 //!
@@ -91,8 +98,9 @@ use crate::sessoes::{Alteracao, RegistroSessao, Sessoes, id_valido};
 ///
 /// O `PostToolUse` (só da ferramenta `Workflow`, [`matcher_do_evento`]), o
 /// `SubagentStart` e o `SubagentStop` acompanham os workflows das análises (spec
-/// `docs/specs/2026-11-25-workflows-nas-analises.md`, seções 3.3 e 3.4, #370). Por
-/// ora o receptor só os aceita, sem mudar o estado da sessão.
+/// `docs/specs/2026-11-25-workflows-nas-analises.md`, seções 3.3 e 3.4, #370): não
+/// mudam o estado da sessão, só a execução do workflow na análise ([`workflow`],
+/// #371).
 pub const EVENTOS: &[&str] = &[
     "SessionStart",
     "UserPromptSubmit",
@@ -348,6 +356,9 @@ fn destino(evento: &str, dados: &Value) -> Option<EstadoSessao> {
             }
             Some(_) => None,
         },
+        // O `Stop` chega logo depois do lançamento de um workflow, que segue em
+        // segundo plano: a sessão continua trabalhando (spike da #352, R6).
+        "Stop" if workflow::rodando_em_segundo_plano(dados) => Some(EstadoSessao::Ativa),
         "Stop" => Some(EstadoSessao::Concluida),
         "SessionEnd" => Some(EstadoSessao::Encerrada),
         _ => None,
@@ -438,6 +449,11 @@ fn receber(evento: &str, dados: &Value, contexto: &Contexto) -> Desfecho {
         .then(|| texto_de(dados, "reason").map(str::to_owned))
         .flatten();
     let diretorio = contexto.diretorio_claude.clone().or(cwd);
+    let do_workflow = workflow::evento(evento, dados);
+    let pasta_do_workflow = match &do_workflow {
+        Some(workflow::Evento::Lancado(l)) => l.transcricao.clone(),
+        _ => None,
+    };
 
     let resultado = sessoes.alterar_com(
         id,
@@ -458,6 +474,9 @@ fn receber(evento: &str, dados: &Value, contexto: &Contexto) -> Desfecho {
             }
             if let Some(a) = ligar {
                 r.analise = Some(a);
+            }
+            if pasta_do_workflow.is_some() {
+                r.workflow = pasta_do_workflow;
             }
             let mudou = anterior.as_ref() != Some(&r);
             mudou.then(|| {
@@ -484,6 +503,9 @@ fn receber(evento: &str, dados: &Value, contexto: &Contexto) -> Desfecho {
             if !negar {
                 acompanhar_alteracoes(evento, dados, id, dados_app, &contexto.fundo);
             }
+            if let (Some(ev), Some(r)) = (&do_workflow, atual) {
+                acompanhar_workflow(ev, r, dados_app, agora);
+            }
             Desfecho::Sessao {
                 inicio,
                 gravou: alteracao.mudou(),
@@ -491,6 +513,57 @@ fn receber(evento: &str, dados: &Value, contexto: &Contexto) -> Desfecho {
             }
         }
     }
+}
+
+/// Leva o evento do workflow à análise ligada à sessão (#371). Só lê o
+/// `journal.jsonl` quando o evento é de um agente ou do fim, e só grava quando a
+/// execução muda. Falhas só vão para o log.
+fn acompanhar_workflow(
+    evento: &workflow::Evento,
+    registro: &RegistroSessao,
+    dados: &DiretorioDados,
+    agora: u64,
+) {
+    let Some(id) = &registro.analise else {
+        return;
+    };
+    let journal = match evento {
+        workflow::Evento::AgenteTerminou {
+            transcricao: Some(pasta),
+        } => workflow::fases_do_journal(pasta),
+        workflow::Evento::AgenteIniciou
+        | workflow::Evento::AgenteTerminou { .. }
+        | workflow::Evento::Fim(_) => registro
+            .workflow
+            .as_deref()
+            .and_then(workflow::fases_do_journal),
+        _ => None,
+    };
+    let analises = match analises_do_projeto(dados, &registro.projeto) {
+        Ok(a) => a,
+        Err(motivo) => {
+            tracing::warn!(motivo, "workflow não levado à análise");
+            return;
+        }
+    };
+    // Lê antes, sem trava, para não gravar (nem notificar o app) sem mudança.
+    let mut teste = match analises.carregar(id) {
+        Ok(a) => a,
+        Err(e) => {
+            tracing::warn!(
+                erro = cba_core::analises::tipo_do_erro(&e),
+                "workflow não levado à análise"
+            );
+            return;
+        }
+    };
+    if !workflow::aplicar(&mut teste, evento, &registro.id, agora, journal.clone()) {
+        return;
+    }
+    alterar_analise(&analises, id, |a, _| {
+        workflow::aplicar(a, evento, &registro.id, agora, journal);
+        Ok(())
+    });
 }
 
 /// Retrato e conferência do aviso de alteração (veja o início do módulo). Falhas
@@ -717,6 +790,7 @@ fn analises_do_projeto(dados: &DiretorioDados, projeto: &str) -> Result<Analises
 }
 
 pub mod limites;
+pub mod workflow;
 
 #[cfg(test)]
 mod tests;

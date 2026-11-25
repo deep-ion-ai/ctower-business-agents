@@ -1,3 +1,4 @@
+import { ProgressoWorkflow } from "./ProgressoWorkflow";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import {
@@ -286,12 +287,15 @@ export function PainelAnalise({
    * uma conversa nova com o pedido de retomada. Nunca `--continue`, que abre a última
    * conversa da pasta, de qualquer análise (#130).
    */
+  // Interrompida no meio do workflow, a sessão retomada pede o workflow de novo pelo
+  // `runId`: o que terminou volta do cache, sem registro duplicado (#371).
+  const pedidoNaSessao = opcoes?.pedidoNaSessao ?? vista?.promptNaSessao ?? undefined;
   const pedidoRetomada = useCallback(
     (): PedidoClaude =>
       sessao
-        ? { retomada: { modo: "sessao", id: sessao } }
+        ? { retomada: { modo: "sessao", id: sessao }, promptInicial: pedidoNaSessao || undefined }
         : { retomada: { modo: "nova" }, promptInicial: opcoes?.pedido || undefined },
-    [sessao, opcoes?.pedido],
+    [sessao, opcoes?.pedido, pedidoNaSessao],
   );
 
   const retomar = useCallback(() => {
@@ -325,6 +329,16 @@ export function PainelAnalise({
   const enviar = (texto: string) => {
     setFalhaEnvio(null);
     controle.current?.enviarPrompt(texto).catch(falhar);
+  };
+
+  /** "Continuar sem workflow" (#371): o roteiro completo, na conversa aberta ou numa retomada. */
+  const continuarSemWorkflow = (pedido: string) => {
+    if (vivo) return enviar(pedido);
+    conversar(
+      sessao
+        ? { retomada: { modo: "sessao", id: sessao }, promptInicial: pedido }
+        : { retomada: { modo: "nova" }, promptInicial: pedido },
+    );
   };
 
   /** Mensagem da caixa do painel: a mesma entrada de digitar no terminal e apertar Enter. */
@@ -364,6 +378,9 @@ export function PainelAnalise({
     setMenu(null);
     setFalhaEnvio(null);
     setAviso(null);
+    // O `/desktop` encerra o CLI, e o workflow em segundo plano iria junto (#371).
+    const bloqueio = opcoes?.bloqueioDesktop ?? vista?.bloqueioDesktop;
+    if (modo === "retomar" && bloqueio) return setFalhaEnvio(bloqueio);
     if (modo === "nova") return abrirPorLink("claudeDesktop");
     if (vivo) return continuarNoDesktop();
     setOcupado(true);
@@ -752,6 +769,13 @@ export function PainelAnalise({
               aoIrPara={irParaAfirmacao}
             />
           )}
+          {vista && (
+            <ProgressoWorkflow
+              analise={vista.analise}
+              pedidoSemWorkflow={vista.promptSemWorkflow}
+              aoContinuarSemWorkflow={continuarSemWorkflow}
+            />
+          )}
           {vista?.analise.fluxo === "reuniao" && vista.analise.reuniao && (
             <AtaAoVivo
               api={apiReuniao}
@@ -821,6 +845,7 @@ export function PainelAnalise({
                     vivo={vivo}
                     ocupado={ocupado}
                     podeNova={!!vista}
+                    bloqueioDesktop={opcoes?.bloqueioDesktop ?? vista?.bloqueioDesktop ?? null}
                     aoAqui={aqui}
                     aoVoltarAqui={voltarAConversa}
                     aoDesktop={noDesktop}

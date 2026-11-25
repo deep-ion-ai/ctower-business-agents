@@ -55,7 +55,7 @@ impl Tokens {
         self.entrada + self.cache_criacao + self.cache_leitura
     }
 
-    fn somar(self, outro: Self) -> Self {
+    pub(crate) fn somar(self, outro: Self) -> Self {
         Self {
             entrada: self.entrada + outro.entrada,
             saida: self.saida + outro.saida,
@@ -78,6 +78,10 @@ pub struct SaidaClaude {
     /// `usage` da saída.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tokens: Option<Tokens>,
+    /// Soma do `modelUsage` da saída: todos os modelos, com os subagentes (o
+    /// `usage` da condução pelo workflow só traz o último turno, #371).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tokens_dos_modelos: Option<Tokens>,
 }
 
 impl SaidaClaude {
@@ -100,6 +104,10 @@ impl SaidaClaude {
             erro: self.erro || outra.erro,
             subtipo: outra.subtipo.clone().or_else(|| self.subtipo.clone()),
             tokens: match (self.tokens, outra.tokens) {
+                (None, None) => None,
+                (a, b) => Some(a.unwrap_or_default().somar(b.unwrap_or_default())),
+            },
+            tokens_dos_modelos: match (self.tokens_dos_modelos, outra.tokens_dos_modelos) {
                 (None, None) => None,
                 (a, b) => Some(a.unwrap_or_default().somar(b.unwrap_or_default())),
             },
@@ -126,6 +134,21 @@ impl SaidaClaude {
                     cache_leitura: n("cache_read_input_tokens"),
                 }
             }),
+            tokens_dos_modelos: v
+                .get("modelUsage")
+                .and_then(|m| m.as_object())
+                .filter(|m| !m.is_empty())
+                .map(|modelos| {
+                    modelos.values().fold(Tokens::default(), |acc, u| {
+                        let n = |campo: &str| u.get(campo).and_then(|x| x.as_u64()).unwrap_or(0);
+                        acc.somar(Tokens {
+                            entrada: n("inputTokens"),
+                            saida: n("outputTokens"),
+                            cache_criacao: n("cacheCreationInputTokens"),
+                            cache_leitura: n("cacheReadInputTokens"),
+                        })
+                    })
+                }),
         }
     }
 }
@@ -152,6 +175,10 @@ pub struct Execucao {
     /// documentação publicada na segunda análise (comparada em `avaliacao`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub publicacao: Option<crate::publicacao::CicloAvaliado>,
+    /// Condução pedida com `rodar --conducao` (#371): a efetiva, as contestações
+    /// e, no workflow, os agentes e os tokens por fase.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conducao: Option<crate::conducao::MedicaoConducao>,
     /// Arquivos do projeto criados, removidos ou alterados na cópia.
     pub arquivos_alterados: Vec<Diferenca>,
     pub claude: Option<SaidaClaude>,
@@ -513,6 +540,7 @@ impl Relatorio {
         if !atas.is_empty() {
             tabela_de_atas(&mut s, &atas);
         }
+        crate::conducao::secao_md(&mut s, &self.execucoes);
 
         let _ = writeln!(s, "## Execuções\n");
         for e in &self.execucoes {
@@ -1540,7 +1568,7 @@ pub fn duracao_md(segundos: f64) -> String {
     }
 }
 
-fn sim_nao(b: bool) -> &'static str {
+pub(crate) fn sim_nao(b: bool) -> &'static str {
     if b { "sim" } else { "não" }
 }
 
@@ -1583,6 +1611,7 @@ mod tests {
             transcript: None,
             mapa: None,
             publicacao: None,
+            conducao: None,
             arquivos_alterados: vec![Diferenca::Alterado("db/a.sql".into())],
             claude: Some(SaidaClaude {
                 custo_usd: Some(0.5),

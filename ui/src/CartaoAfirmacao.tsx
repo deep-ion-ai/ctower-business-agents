@@ -57,7 +57,10 @@ export function CartaoAfirmacao({
   aoFocar,
   trecho,
 }: Props) {
-  const resultado = RESULTADO[a.estado];
+  const contestada = a.estado === "a-revalidar" && !!a.contestacao;
+  const resultado = contestada
+    ? { texto: "a revalidar: contestada pela verificação independente", tom: "attention" }
+    : RESULTADO[a.estado];
   const semDecisao = !!revisao && a.estado === "registrada";
   const comentario =
     a.estado === "incorreta" ? a.comentario : a.estado === "aprofundar" ? a.pedido : undefined;
@@ -101,6 +104,12 @@ export function CartaoAfirmacao({
       </div>
       <TextoAfirmacao texto={a.texto} />
       {comentario && <p className="comentario muted">{comentario}</p>}
+      {a.contestacao && (
+        <p className="comentario contestacao" data-testid={`contestacao-${a.numero}`}>
+          <span className="muted">Contestação da verificação independente:</span>{" "}
+          {a.contestacao.motivo}
+        </p>
+      )}
       {a.evidencias.length > 0 && (
         <ul className="evidencias" aria-label="Evidências">
           {a.evidencias.map((e) => {

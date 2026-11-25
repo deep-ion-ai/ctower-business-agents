@@ -24,6 +24,10 @@ export interface OpcoesConversa {
   sessao: string | null;
   /** Pedido de uma conversa nova (iniciar ou retomar a análise). */
   pedido: string;
+  /** Pedido para a sessão retomada pelo identificador retomar o workflow (#371). */
+  pedidoNaSessao?: string | null;
+  /** Por que levar a conversa ao Desktop está bloqueado (workflow rodando, #371). */
+  bloqueioDesktop?: string | null;
   linkDesktop: string | null;
   linkTerminal: string | null;
   /** `cd <pasta> && claude '<pedido>'`. */

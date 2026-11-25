@@ -364,6 +364,7 @@ fn relatorio_da_reuniao_sem_texto_de_fala() {
         transcript: Some(TamanhoTranscript::de(&f)),
         mapa: None,
         publicacao: None,
+        conducao: None,
         arquivos_alterados: vec![],
         claude: None,
         erro: None,

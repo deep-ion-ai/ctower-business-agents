@@ -21,6 +21,9 @@
 //!   `revisar`): achados, verificação INVEST e veredito.
 //! - [`qualidade`]: critérios de qualidade de requisitos (características da
 //!   ISO/IEC/IEEE 29148, INVEST e a lista de referência de termos vagos).
+//! - [`conducao`]: condução da análise (simples ou por workflow do Claude Code), o
+//!   estado da execução do workflow e a contestação da verificação independente
+//!   (#371).
 //! - [`ambiente`]: identificação do projeto pelo diretório de trabalho do processo.
 //! - [`config`], [`dados`] e [`log`]: configuração, diretório de dados e log.
 //!
@@ -31,6 +34,7 @@ pub mod ambiente;
 pub mod analise;
 pub mod analises;
 pub mod cenarios;
+pub mod conducao;
 pub mod config;
 pub mod dados;
 pub mod diagramas;

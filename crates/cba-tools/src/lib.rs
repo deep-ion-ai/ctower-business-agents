@@ -63,6 +63,10 @@
 //!
 //! - [`workflows`]: os workflows do Claude Code das análises (`cba-<tipo>`), com o
 //!   padrão embutido que o preparo instala (#370).
+//! - [`conducao`]: a condução pelo workflow (#371): os pedidos que o app digita, o
+//!   roteiro curto do `iniciar_analise` com `conducao: workflow`, os limites e a
+//!   estimativa; e [`contestar`] (`contestar_afirmacao` e `contestar_achado`, da
+//!   verificação independente).
 //!
 //! Papel na arquitetura: seção 5 de `docs/specs/2026-11-11-mvp-standalone.md`.
 
@@ -75,7 +79,9 @@ pub mod cenarios;
 pub mod ciclo;
 pub mod cobertura;
 mod comum;
+pub mod conducao;
 pub mod conhecimento;
+pub mod contestar;
 pub mod contexto;
 pub mod dados_pessoais;
 pub mod diagramas;
@@ -150,6 +156,8 @@ pub fn registro_padrao() -> Registro {
         .registrar(parecer::registrar_achado())
         .registrar(parecer::registrar_invest())
         .registrar(parecer::registrar_veredito())
+        .registrar(contestar::contestar_afirmacao())
+        .registrar(contestar::contestar_achado())
         .registrar(historias::registrar_historia())
         .registrar(historias::registrar_criterio())
         .registrar(cenarios::registrar_tabela_decisao())
@@ -204,6 +212,8 @@ mod tests {
             "registrar_achado",
             "registrar_invest",
             "registrar_veredito",
+            "contestar_afirmacao",
+            "contestar_achado",
             "registrar_historia",
             "registrar_criterio",
             "registrar_passo_manual",
@@ -225,6 +235,8 @@ mod tests {
         // As de registro alteram a análise.
         assert!(!r.obter("afirmar").unwrap().e_somente_leitura());
         assert!(!r.obter("memorizar").unwrap().e_somente_leitura());
+        assert!(!r.obter("contestar_afirmacao").unwrap().e_somente_leitura());
+        assert!(!r.obter("contestar_achado").unwrap().e_somente_leitura());
         assert!(!r.obter("registrar_historia").unwrap().e_somente_leitura());
         assert!(!r.obter("registrar_criterio").unwrap().e_somente_leitura());
         assert!(!r.obter("registrar_cenario").unwrap().e_somente_leitura());
