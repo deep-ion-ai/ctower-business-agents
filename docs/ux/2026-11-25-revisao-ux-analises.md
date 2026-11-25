@@ -12,7 +12,7 @@ Depois da #326, a tela Análises abria com o formulário de nova análise aberto
 
 O PR #353 fez da lista o conteúdo da tela e levou "Nova análise" para um painel lateral, com a escolha do tipo explicada. A barra de título passou a ser o único lugar de escolher o projeto. Na validação no app surgiram dois pontos de entrada novos: **Demanda Negocial**, para registrar o pedido do negócio, e **Analisar demanda cadastrada**, para analisar uma demanda ou issue que já existe.
 
-Ficam quatro issues candidatas, para um épico próprio (seção 7): o tipo da demanda num campo próprio, o mesmo padrão de "demanda e análises existentes" em mais três tipos, os títulos em caixa alta nos formulários abertos fora do painel e os filtros fixos quando a lista rola.
+Ficam quatro issues, no épico #357 (seção 7): o tipo da demanda num campo próprio, o mesmo padrão de "demanda e análises existentes" em mais três tipos, os títulos em caixa alta nos formulários abertos fora do painel e os filtros fixos quando a lista rola.
 
 ## 2. Como a revisão foi feita, e os limites
 
@@ -76,7 +76,7 @@ O pedido do negócio chega antes de qualquer análise. "Demanda Negocial" é o p
 - O analista escolhe o tipo (Corrigir bug, Nova funcionalidade, Melhoria). O rótulo e o exemplo da descrição mudam com o tipo ("O que acontece e o que deveria acontecer" num bug).
 - A funcionalidade e a issue são opcionais. Com uma issue que já é demanda do projeto, o registro é bloqueado ("A issue já é a demanda D-0005: analise a que existe, em vez de registrar de novo") e o painel oferece analisar a demanda existente.
 - Depois de registrar, o painel oferece "Analisar esta demanda", que abre a análise de demanda cadastrada já preenchida.
-- Enquanto a demanda não tem campo de tipo na base, o tipo vai na primeira linha da descrição (`**Tipo:** Corrigir bug`). Ver a issue candidata 1.
+- Enquanto a demanda não tem campo de tipo na base, o tipo vai na primeira linha da descrição (`**Tipo:** Corrigir bug`). Ver a #358.
 
 ### 5.2 Demanda ou issue obrigatória na análise de demanda cadastrada
 
@@ -86,7 +86,7 @@ O pedido do negócio chega antes de qualquer análise. "Demanda Negocial" é o p
 
 ### 5.3 Título e análises existentes em todos os tipos com demanda
 
-Ao escolher ou digitar a demanda ou a issue, o formulário mostra o título dela e as análises que ela já tem, com a situação e "Continuar" (criada ou em andamento) ou "Abrir". O botão principal vira "Iniciar uma análise nova". Assim o analista não cria uma segunda análise de impacto da mesma demanda por engano. Vale para os tipos que têm o campo "Issue ou demanda": Explicar funcionalidade, Analisar impacto, Analisar reunião, Revisar requisito, a demanda cadastrada e a Demanda Negocial. Perguntar ao sistema, Histórias e critérios e Cenários de teste não têm esse campo (issue candidata 2).
+Ao escolher ou digitar a demanda ou a issue, o formulário mostra o título dela e as análises que ela já tem, com a situação e "Continuar" (criada ou em andamento) ou "Abrir". O botão principal vira "Iniciar uma análise nova". Assim o analista não cria uma segunda análise de impacto da mesma demanda por engano. Vale para os tipos que têm o campo "Issue ou demanda": Explicar funcionalidade, Analisar impacto, Analisar reunião, Revisar requisito, a demanda cadastrada e a Demanda Negocial. Perguntar ao sistema, Histórias e critérios e Cenários de teste não têm esse campo (#359).
 
 ### 5.4 "Refazer o primeiro uso" em Configurações
 
@@ -106,7 +106,7 @@ Conferido no protótipo da tela 7, com o viewport em 1280×800 no Chrome headles
 | Fim da tabela com 8 análises | 743 px, 33 px acima do fim da área de conteúdo |
 | Linhas que cabem sem rolar | 8 |
 
-O cabeçalho, os filtros e as 8 análises aparecem inteiros sem rolagem. A página ainda rola 7 px por causa da margem de baixo, depois da tabela. Com mais de 8 análises a tabela continua na rolagem, com o cabeçalho e os filtros no topo (issue candidata 4).
+O cabeçalho, os filtros e as 8 análises aparecem inteiros sem rolagem. A página ainda rola 7 px por causa da margem de baixo, depois da tabela. Com mais de 8 análises, a página rola inteira, e o total, os filtros e o cabeçalho da tabela saem de vista (#361).
 
 Ressalva: a medida é do protótipo, que copia as medidas do CSS do app. Não foi repetida no app, que abre com 1280×820 (`ui/src-tauri/tauri.conf.json`), 20 px a mais que a janela conferida.
 
@@ -115,25 +115,25 @@ Ressalva: a medida é do protótipo, que copia as medidas do CSS do app. Não fo
 | Item | Situação | Como foi conferido |
 |---|---|---|
 | Aba "mapa" em minúscula e com o nome antigo | **Resolvido.** As seções não abrem mais aba: `chaveDoObjeto` (`ui/src/Navegacao.tsx`) devolve `null` para a tela "mapa", e Funcionalidades troca no lugar. As abas ficam só para objetos abertos (análise, documento, demanda, "Vincular demandas · projeto"). | leitura do código na `develop` em `e622f79` |
-| Título em caixa alta | **Resolvido na tela Análises; falta fora dela.** "Análises" é `h2` em caixa normal, o painel tem `text-transform: none` no título, e os formulários no painel não mostram título (`semTitulo`). Mas os mesmos formulários abertos pelo painel da demanda (`PainelDemanda.tsx`), pelo painel da funcionalidade (`PainelFuncionalidade.tsx`) e por `TelaInicio.tsx` ainda mostram o tipo num `h3`, que a regra `.page h3` de `telas.css` põe em caixa alta ("ANALISAR IMPACTO"). | leitura do código; issue candidata 3 |
+| Título em caixa alta | **Resolvido na tela Análises; falta fora dela.** "Análises" é `h2` em caixa normal, o painel tem `text-transform: none` no título, e os formulários no painel não mostram título (`semTitulo`). Mas os mesmos formulários abertos pelo painel da demanda (`PainelDemanda.tsx`), pelo painel da funcionalidade (`PainelFuncionalidade.tsx`) e por `TelaInicio.tsx` ainda mostram o tipo num `h3`, que a regra `.page h3` de `telas.css` põe em caixa alta ("ANALISAR IMPACTO"). | leitura do código; #360 |
 
-## 7. Plano: issues candidatas
+## 7. Plano: épico #357
 
-Para um épico novo, separado do #317: são continuações da tela Análises e da Demanda Negocial, não da revisão da #312, que o #317 implementa. A #354 pedia ligar as candidatas ao #317; a mudança foi pedida na revisão deste relatório. Esforço: P até 1 dia, M de 2 a 4 dias. Nem o épico nem as issues foram criados.
+No épico #357, separado do #317: são continuações da tela Análises e da Demanda Negocial, não da revisão da #312, que o #317 implementa. A #354 pedia ligar as candidatas ao #317; a mudança foi pedida na revisão deste relatório. Esforço: P até 1 dia, M de 2 a 4 dias. O épico e as issues foram criados como #357 e #358 a #361.
 
 | # | Título sugerido | O que faz | Prioridade | Esforço |
 |---|---|---|---|---|
-| 1 | feat(demandas): tipo da demanda (bug, funcionalidade, melhoria) em campo próprio | Grava o tipo no frontmatter da demanda, em vez da linha `**Tipo:**` que `descricaoDaDemanda` põe no texto. Mostra o tipo no painel da demanda e filtra por ele em Demandas. As demandas já gravadas com a linha no texto são lidas como antes, ou migradas. | média | M |
-| 2 | feat(ui): Perguntar ao sistema, Histórias e critérios e Cenários de teste mostram a demanda e as análises existentes | Mesmo padrão da seção 5.3. Na pergunta, entra o campo opcional "Issue ou demanda". Em Histórias e Cenários, a análise de origem mostra a demanda dela e as histórias ou os cenários que essa demanda já tem, com "Continuar" e "Abrir". | média | M |
-| 3 | fix(ui): título dos formulários de análise em caixa normal fora do painel Nova análise | Os formulários abertos por `PainelDemanda`, `PainelFuncionalidade` e `TelaInicio` passam a mostrar o tipo como no painel (bloco "Tipo" ou título em caixa normal), sem a caixa alta de `.page h3`. | baixa | P |
-| 4 | feat(ui): Análises com o cabeçalho e os filtros fixos ao rolar a lista | Com mais de 8 análises em 1280×800 a tabela rola. O total, os filtros e o cabeçalho da tabela ficam no topo da área. | baixa | P |
+| #358 | feat(demandas): tipo da demanda (bug, funcionalidade, melhoria) em campo próprio | Grava o tipo no frontmatter da demanda, em vez da linha `**Tipo:**` que `descricaoDaDemanda` põe no texto. Mostra o tipo no painel da demanda e filtra por ele em Demandas. As demandas já gravadas com a linha no texto são lidas como antes, ou migradas. | média | M |
+| #359 | feat(ui): Perguntar ao sistema, Histórias e critérios e Cenários de teste mostram a demanda e as análises existentes | Mesmo padrão da seção 5.3. Na pergunta, entra o campo opcional "Issue ou demanda". Em Histórias e Cenários, a análise de origem mostra a demanda dela e as histórias ou os cenários que essa demanda já tem, com "Continuar" e "Abrir". | média | M |
+| #360 | fix(ui): título dos formulários de análise em caixa normal fora do painel Nova análise | Os formulários abertos por `PainelDemanda`, `PainelFuncionalidade` e `TelaInicio` passam a mostrar o tipo como no painel (bloco "Tipo" ou título em caixa normal), sem a caixa alta de `.page h3`. | baixa | P |
+| #361 | feat(ui): Análises com o cabeçalho e os filtros fixos ao rolar a lista | Com mais de 8 análises em 1280×800 a tabela rola. O total, os filtros e o cabeçalho da tabela ficam no topo da área. | baixa | P |
 
-As issues 1 e 2 são independentes. A 2 reaproveita `DemandaAchada` e `useDemandaResolvida` de `NovaAnalise.tsx`.
+As quatro são independentes. A #359 reaproveita `DemandaAchada` e `useDemandaResolvida` de `NovaAnalise.tsx`.
 
 ## 8. Critérios de aceite da #354
 
 - [x] Relatório curto com o diagnóstico, a proposta e o que foi implementado (seções 3 a 5).
 - [x] Protótipo estático em claro e escuro em `docs/ux/prototipos/` (telas 7 a 10, com prints nos dois temas).
 - [x] Registro de que a lista aparece sem rolagem em 1280×800 (seção 6.1, medida no protótipo).
-- [x] Plano de implementação do restante em issues candidatas (seção 7).
+- [x] Plano de implementação do restante em issues (seção 7): épico #357, com #358 a #361.
 - [x] Nenhum dado de projeto real no relatório nem nos prints: projeto, issues e demandas são fictícios.
