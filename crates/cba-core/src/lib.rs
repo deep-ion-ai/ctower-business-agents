@@ -21,6 +21,8 @@
 //!   `revisar`): achados, verificação INVEST e veredito.
 //! - [`qualidade`]: critérios de qualidade de requisitos (características da
 //!   ISO/IEC/IEEE 29148, INVEST e a lista de referência de termos vagos).
+//! - [`tokens`]: os tokens CSS do projeto analisado (#384), extraídos do código
+//!   da interface e revisados pelo analista antes de o protótipo de telas usar.
 //! - [`ambiente`]: identificação do projeto pelo diretório de trabalho do processo.
 //! - [`config`], [`dados`] e [`log`]: configuração, diretório de dados e log.
 //!
@@ -45,6 +47,7 @@ pub mod parecer;
 pub mod qualidade;
 pub mod requisito;
 pub mod tempo;
+pub mod tokens;
 pub mod vinculos;
 
 /// Nome da crate, para diagnóstico.

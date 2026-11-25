@@ -1,0 +1,18 @@
+// Estilos da tela de parcelamento de fatura.
+$cor-alerta: #b26a00;
+$cor-alerta-fundo: lighten($cor-alerta, 50%);
+$espaco-grande: 24px !default;
+$fonte-tamanho-titulo: 20px;
+
+.parcelamento {
+  padding: $espaco-grande;
+
+  &__titulo {
+    font-size: $fonte-tamanho-titulo;
+  }
+
+  &__aviso {
+    color: $cor-alerta;
+    background-color: $cor-alerta-fundo;
+  }
+}

@@ -27,7 +27,8 @@
 //!   `tratar_ponto_de_entrada` e `concluir_mapeamento`: o mapa de funcionalidades
 //!   do projeto, #208, fora das análises) e [`mudancas`]
 //!   (`relatorio_de_mudancas` e `propor_atualizacao_de_regra`: o que mudou no
-//!   código desde a última análise e a explicação por regra, #124).
+//!   código desde a última análise e a explicação por regra, #124) e [`tokens`]
+//!   (`tokens_css`: os tokens CSS do projeto para o protótipo de telas, #384).
 //! - Consulta, só de leitura e paginada ([`paginacao`]): [`conhecimento`] (busca no
 //!   índice da base), [`mapa`], [`estrutura`], [`banco`] (`schema`, com os indícios
 //!   de dado pessoal de [`dados_pessoais`]) e
@@ -109,6 +110,7 @@ pub mod schema;
 pub mod status_demandas;
 pub mod sugestao;
 pub mod termo;
+pub mod tokens;
 pub mod vincular;
 pub mod vinculo;
 
@@ -160,6 +162,7 @@ pub fn registro_padrao() -> Registro {
         .registrar(mapear::concluir_mapeamento())
         .registrar(mudancas::relatorio_de_mudancas())
         .registrar(mudancas::propor_atualizacao_de_regra())
+        .registrar(tokens::tokens_css())
         .registrar(ciclo::concluir_analise());
     registro
 }
@@ -214,6 +217,7 @@ mod tests {
             "concluir_mapeamento",
             "relatorio_de_mudancas",
             "propor_atualizacao_de_regra",
+            "tokens_css",
             "concluir_analise",
         ] {
             assert!(r.obter(nome).is_some(), "{nome}");
@@ -273,6 +277,7 @@ mod tests {
             "pontos_de_entrada",
             "concluir_mapeamento",
             "relatorio_de_mudancas",
+            "tokens_css",
         ] {
             assert!(r.obter(consulta).unwrap().e_somente_leitura(), "{consulta}");
         }
