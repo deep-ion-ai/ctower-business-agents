@@ -216,7 +216,8 @@ pub async fn criar_analise_de_cenarios_app(
 }
 
 /// Cria a análise de protótipo de telas (#379) a partir de uma análise de origem,
-/// com o pedido opcional do analista (telas, fidelidade, o que fica de fora).
+/// com o pedido opcional do analista (telas, fidelidade, o que fica de fora e o
+/// modo, com a confirmação do envio no modo hospedado, #383).
 #[tauri::command]
 pub async fn criar_analise_de_prototipo_app(
     projeto: String,

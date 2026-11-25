@@ -11,11 +11,14 @@ import { ROTULO_FLUXO } from "./conhecimento";
 import { PrepararAmbiente } from "./PrepararAmbiente";
 import {
   apiPrototipoTauri,
+  AVISO_ENVIO_HOSPEDADO,
   ORIGENS_PROTOTIPO,
   ROTULO_FIDELIDADE,
+  ROTULO_MODO,
   telasDoTexto,
   type ApiPrototipo,
   type Fidelidade,
+  type ModoPrototipo,
   type PedidoPrototipo,
 } from "./prototipo";
 import type { ProjetoResumo } from "./terminal";
@@ -28,28 +31,57 @@ export type ApiOrigensPrototipo = ApiAmbiente & {
 
 /**
  * Entrada opcional do analista, como os campos a guardam (#379). Para acrescentar uma
- * escolha (o modo da #383, por exemplo), ponha o campo aqui, o valor padrão em
- * {@link ENTRADA_PROTOTIPO_PADRAO}, o controle em {@link CamposPrototipo} e a conversão
- * em {@link pedidoDaEntrada}.
+ * escolha, ponha o campo aqui, o valor padrão em {@link ENTRADA_PROTOTIPO_PADRAO}, o
+ * controle em {@link CamposPrototipo} e a conversão em {@link pedidoDaEntrada}.
  */
 export interface EntradaPrototipo {
   /** Uma tela por linha; vazio deixa o agente listar as telas afetadas. */
   telas: string;
   fidelidade: Fidelidade;
   fora: string;
+  /** Como as telas são geradas (#383); o padrão é o HTML local. */
+  modo: ModoPrototipo;
+  /** O analista confirmou o envio para fora (só vale no modo hospedado). */
+  confirmaEnvio: boolean;
 }
 
 export const ENTRADA_PROTOTIPO_PADRAO: EntradaPrototipo = {
   telas: "",
   fidelidade: "wireframe",
   fora: "",
+  modo: "html",
+  confirmaEnvio: false,
 };
+
+/** O modo hospedado só segue com a confirmação explícita do envio. */
+export function entradaPronta(e: EntradaPrototipo): boolean {
+  return e.modo !== "design_hospedado" || e.confirmaEnvio;
+}
 
 /** O pedido que vai para o comando, a partir dos campos. */
 export function pedidoDaEntrada(e: EntradaPrototipo): PedidoPrototipo {
   const fora = e.fora.trim();
-  return { telas: telasDoTexto(e.telas), fidelidade: e.fidelidade, fora: fora || undefined };
+  const pedido: PedidoPrototipo = {
+    telas: telasDoTexto(e.telas),
+    fidelidade: e.fidelidade,
+    fora: fora || undefined,
+    modo: e.modo,
+  };
+  if (e.modo === "design_hospedado" && e.confirmaEnvio) {
+    pedido.confirmacaoEnvio = { aviso: AVISO_ENVIO_HOSPEDADO };
+  }
+  return pedido;
 }
+
+const DESCRICAO_MODO: Record<ModoPrototipo, string> = {
+  html: "O agente escreve o HTML de cada tela aqui no app. Nada sai do ambiente.",
+  design_local:
+    "O agente aplica o método de design do Claude (hierarquia visual, componentes, tokens) " +
+    "rodando aqui. Nada sai do ambiente.",
+  design_hospedado:
+    "O agente usa a ferramenta de design hospedada do Claude e traz cada tela de volta ao " +
+    "app. Dados do projeto saem do ambiente.",
+};
 
 const DESCRICAO_FIDELIDADE: Record<Fidelidade, string> = {
   wireframe: "Estrutura e conteúdo, sem a identidade visual.",
@@ -96,6 +128,39 @@ export function CamposPrototipo({
         ))}
       </div>
       <span className="ajuda-campo">{DESCRICAO_FIDELIDADE[valor.fidelidade]}</span>
+      <div role="radiogroup" aria-label="Como gerar as telas" className="opcoes-fidelidade">
+        {(Object.keys(ROTULO_MODO) as ModoPrototipo[]).map((m) => (
+          <label key={m} title={DESCRICAO_MODO[m]}>
+            <input
+              type="radio"
+              name="modo-prototipo"
+              value={m}
+              checked={valor.modo === m}
+              // Trocar de modo sempre pede a confirmação de novo.
+              onChange={() => aoMudar({ ...valor, modo: m, confirmaEnvio: false })}
+            />{" "}
+            {ROTULO_MODO[m]}
+          </label>
+        ))}
+      </div>
+      <span className="ajuda-campo">{DESCRICAO_MODO[valor.modo]}</span>
+      {valor.modo === "design_hospedado" && (
+        <div className="aviso-envio" role="note" aria-label="Envio para fora do ambiente">
+          <p>
+            <strong>O que sai do ambiente:</strong> {AVISO_ENVIO_HOSPEDADO} O código do projeto e
+            as evidências não vão. Sem os tokens aprovados, vai só a estrutura das telas.
+          </p>
+          <label>
+            <input
+              type="checkbox"
+              checked={valor.confirmaEnvio}
+              onChange={(e) => mudar("confirmaEnvio", e.target.checked)}
+            />{" "}
+            Confirmo o envio das telas, dos elementos e dos tokens do projeto para a ferramenta
+            hospedada
+          </label>
+        </div>
+      )}
       <label>
         O que fica de fora
         <input
@@ -189,7 +254,7 @@ export function NovaPrototipo({
   const aprovadas = analises?.filter((a) => a.estado === "aprovada") ?? [];
   const outras = analises?.filter((a) => a.estado !== "aprovada") ?? [];
   const pronto = ambiente?.pronto === true;
-  const podeCriar = !!projeto && origem !== "";
+  const podeCriar = !!projeto && origem !== "" && entradaPronta(entrada);
 
   const criar = (ev: FormEvent) => {
     ev.preventDefault();
@@ -290,6 +355,12 @@ export function NovaPrototipo({
       )}
       {ambiente && !pronto && (
         <p className="muted">Ligue o agente a este projeto antes de pedir o protótipo.</p>
+      )}
+      {!entradaPronta(entrada) && (
+        <p className="muted">
+          Para usar o design hospedado, confirme o envio. Ou escolha o HTML local ou o design local:
+          nada sai do ambiente.
+        </p>
       )}
       {falha && (
         <p className="error-text" role="alert">

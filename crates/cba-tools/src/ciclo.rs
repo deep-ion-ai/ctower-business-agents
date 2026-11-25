@@ -30,7 +30,7 @@ use cba_core::analise::{
 use cba_core::analises::NovaAnalise;
 use cba_core::eventos::Mudanca;
 use cba_core::memoria::Memoria;
-use cba_core::prototipo::{Fidelidade, PedidoPrototipo};
+use cba_core::prototipo::{Fidelidade, ModoPrototipo, PedidoPrototipo};
 use cba_docs::{EstadoAta, Templates};
 use cba_index::detectar_git;
 use cba_kb::frontmatter::{Demanda, FrontmatterAnalise, VersaoCodigo};
@@ -167,6 +167,8 @@ struct ArgsIniciar {
     fidelidade: Option<Fidelidade>,
     #[serde(default)]
     fora: Option<String>,
+    #[serde(default)]
+    modo: Option<ModoPrototipo>,
 }
 
 /// Ligações pedidas em `iniciar_analise`: a demanda (gravada em `demanda.id` no
@@ -374,6 +376,10 @@ pub fn criar_analise_de_cenarios(
 /// deixar de fora) vai para o estado ([`cba_core::prototipo::Prototipo::pedido`])
 /// e, em frases, para a entrada. Usada por `iniciar_analise` e pela tela de nova
 /// análise do app.
+///
+/// O modo `design_hospedado` (#383) exige a confirmação do envio no pedido, dada
+/// pelo analista no app; sem ela, nada é criado. A hora da confirmação é a da
+/// criação.
 pub fn criar_analise_de_prototipo(
     ambiente: &Ambiente,
     origem: Id,
@@ -400,7 +406,11 @@ pub fn criar_analise_de_prototipo(
             .and_then(|d| d.frontmatter.demanda.id)
             .and_then(|d| ler_demanda(ambiente, d).ok()),
     };
-    let pedido = pedido.conferido();
+    let mut pedido = pedido.conferido();
+    pedido.exigir_confirmacao().map_err(comum::recusa)?;
+    if let Some(c) = pedido.confirmacao_envio.as_mut() {
+        c.em_ms = cba_core::tempo::agora_ms();
+    }
     let base = entrada.filter(|e| !e.trim().is_empty()).unwrap_or_else(|| {
         format!(
             "Protótipo de telas a partir da análise {} ({}).",
@@ -448,7 +458,9 @@ pub fn iniciar_analise() -> Ferramenta {
          (uma análise do código ou de histórias), `demanda` ou `entrada` com as regras. \
          Para prototipar as telas a partir de uma análise validada, passe `fluxo: \
          \"prototipo\"` e `origem` (de preferência aprovada) e, se o analista disse, \
-         `telas`, `fidelidade` e `fora`. \
+         `telas`, `fidelidade`, `fora` e `modo` (`html`, o padrão, ou `design_local`; o \
+         `design_hospedado` envia dados para fora e só é criado pelo app, com a \
+         confirmação do analista). \
          Para explicar uma funcionalidade do mapa de funcionalidades, passe `fluxo: \
          \"explicar\"` e `funcionalidade` (F-<SIGLA>-NNN). `demanda` (D-NNNN, opcional) \
          liga a análise a uma demanda do projeto. Siga o roteiro devolvido.",
@@ -488,6 +500,11 @@ pub fn iniciar_analise() -> Ferramenta {
                     "minLength": 1,
                     "maxLength": 2000,
                     "description": "Só para criar, no fluxo prototipo: o que deixar de fora do protótipo."
+                },
+                "modo": {
+                    "type": "string",
+                    "enum": ["html", "design_local", "design_hospedado"],
+                    "description": "Só para criar, no fluxo prototipo: html (padrão; o HTML local do app), design_local (o método da ferramenta de design do Claude rodando aqui; nada sai do ambiente) ou design_hospedado (a ferramenta de design hospedada do Claude: telas, elementos e tokens saem do ambiente). O design_hospedado exige a confirmação explícita do analista, que só o app grava: por aqui ele é recusado; peça ao analista para criar o protótipo pelo app."
                 },
                 "titulo": {
                     "type": "string",
@@ -544,12 +561,15 @@ pub fn iniciar_analise() -> Ferramenta {
                         .into(),
                 ));
             }
-            if (!args.telas.is_empty() || args.fidelidade.is_some() || args.fora.is_some())
+            if (!args.telas.is_empty()
+                || args.fidelidade.is_some()
+                || args.fora.is_some()
+                || args.modo.is_some())
                 && args.fluxo != Some(Fluxo::Prototipo)
             {
                 return Err(ErroFerramenta::Argumentos(
-                    "`telas`, `fidelidade` e `fora` só valem para criar uma análise do fluxo \
-                     `prototipo`"
+                    "`telas`, `fidelidade`, `fora` e `modo` só valem para criar uma análise do \
+                     fluxo `prototipo`"
                         .into(),
                 ));
             }
@@ -695,6 +715,10 @@ pub fn iniciar_analise() -> Ferramenta {
                         telas: args.telas,
                         fidelidade: args.fidelidade.unwrap_or_default(),
                         fora: args.fora,
+                        // A confirmação do envio é do analista, no app: por aqui, o
+                        // modo hospedado é recusado.
+                        modo: args.modo.unwrap_or_default(),
+                        confirmacao_envio: None,
                     };
                     let analise = criar_analise_de_prototipo(
                         ambiente,

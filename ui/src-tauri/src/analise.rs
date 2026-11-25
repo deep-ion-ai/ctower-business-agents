@@ -377,14 +377,16 @@ pub fn criar_analise_de_cenarios(
 
 /// Cria a análise de protótipo de telas (#381, #379) a partir da análise de origem
 /// (impacto, explicação, pergunta ou histórias), com o pedido opcional do analista
-/// (telas, fidelidade, o que fica de fora). Sem demanda, herda a da origem. A
-/// conferência é a de [`cba_tools::ciclo::criar_analise_de_prototipo`].
+/// (telas, fidelidade, o que fica de fora e o modo, #383). Sem demanda, herda a da
+/// origem. A conferência é a de [`cba_tools::ciclo::criar_analise_de_prototipo`]:
+/// o modo hospedado exige a confirmação do envio, que a tela só manda depois de o
+/// analista marcá-la; aqui ela ganha o canal `app`.
 pub fn criar_analise_de_prototipo(
     dados: &DiretorioDados,
     projeto: &str,
     origem: &str,
     demanda: Option<&str>,
-    pedido: cba_core::prototipo::PedidoPrototipo,
+    mut pedido: cba_core::prototipo::PedidoPrototipo,
     entrada: Option<&str>,
     titulo: Option<&str>,
 ) -> Result<AnaliseCriada, String> {
@@ -398,6 +400,9 @@ pub fn criar_analise_de_prototipo(
     let demanda = preenchido(demanda)
         .map(|d| cba_kb::IdDemanda::analisar(d).map_err(|e| e.to_string()))
         .transpose()?;
+    if let Some(c) = pedido.confirmacao_envio.as_mut() {
+        c.canal = Some("app".to_owned());
+    }
     let analise = cba_tools::ciclo::criar_analise_de_prototipo(
         &ambiente,
         origem,
