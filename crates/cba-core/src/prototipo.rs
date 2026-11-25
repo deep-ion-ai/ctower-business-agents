@@ -9,6 +9,12 @@
 //! - [`PedidoPrototipo`]: a entrada opcional do analista: quais telas, a
 //!   fidelidade ([`Fidelidade`]: wireframe ou alta fidelidade) e o que deixar de
 //!   fora. Fica em [`Prototipo::pedido`], gravado na criação da análise.
+//! - [`ModoPrototipo`]: como as telas são geradas (#383): o HTML local do app
+//!   (padrão), o método da ferramenta de design do Claude rodando localmente ou a
+//!   ferramenta de design hospedada. O hospedado envia as telas, os elementos e os
+//!   tokens do projeto para fora do ambiente e só vale com a
+//!   [`ConfirmacaoEnvio`] do analista, gravada no pedido; cada pacote entregue ao
+//!   agente para o envio fica em [`Prototipo::envios`] ([`EnvioDesign`]).
 //! - [`Tela`]: tela afetada `TL-n` (número dentro da análise), marcada como nova
 //!   ou alterada ([`MudancaTela`]), com o motivo ligado à análise de origem
 //!   ([`Rastro`]: afirmações, regras e critérios de aceite) e os elementos.
@@ -57,6 +63,69 @@ impl Fidelidade {
     }
 }
 
+/// Como as telas do protótipo são geradas (#383). Em todos os modos o resultado
+/// volta por `gravar_html_tela`, que confere o HTML e aplica os tokens aprovados.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ModoPrototipo {
+    /// O agente escreve o HTML de cada tela, no app (padrão).
+    #[default]
+    Html,
+    /// O agente aplica o método da ferramenta de design do Claude rodando
+    /// localmente (hierarquia visual, componentes, consistência com os tokens).
+    /// Nada sai do ambiente.
+    DesignLocal,
+    /// A ferramenta de design hospedada do Claude: as telas, os elementos e os
+    /// tokens saem do ambiente. Exige [`PedidoPrototipo::confirmacao_envio`].
+    DesignHospedado,
+}
+
+impl ModoPrototipo {
+    /// Nome para o analista e para o agente.
+    pub fn rotulo(self) -> &'static str {
+        match self {
+            Self::Html => "HTML local do app",
+            Self::DesignLocal => "ferramenta de design do Claude, rodando localmente",
+            Self::DesignHospedado => "ferramenta de design do Claude, hospedada",
+        }
+    }
+
+    /// O modo envia dados do projeto para fora do ambiente.
+    pub fn envia_para_fora(self) -> bool {
+        self == Self::DesignHospedado
+    }
+}
+
+/// O que sai do ambiente no modo hospedado, como o analista confirma.
+pub const AVISO_DE_ENVIO: &str = "As telas do protótipo, os elementos de cada tela (com as \
+    regras e os critérios de aceite citados) e os tokens CSS aprovados do projeto saem do \
+    ambiente local para a ferramenta de design hospedada do Claude.";
+
+/// Confirmação explícita do analista para o envio no modo hospedado, gravada na
+/// criação da análise.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConfirmacaoEnvio {
+    /// Quando o analista confirmou (gravado pelo app na criação da análise).
+    #[serde(default)]
+    pub em_ms: u64,
+    /// O aviso que o analista leu e confirmou.
+    #[serde(default)]
+    pub aviso: String,
+    /// Onde a confirmação foi dada (`app`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub canal: Option<String>,
+}
+
+/// Pacote entregue ao agente para o envio à ferramenta de design hospedada.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EnvioDesign {
+    pub em_ms: u64,
+    /// Telas que foram no pacote (número de `TL-n`).
+    pub telas: Vec<u32>,
+    /// Se o CSS dos tokens aprovados foi junto.
+    pub tokens: bool,
+}
+
 /// Entrada opcional do analista para o protótipo.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PedidoPrototipo {
@@ -68,6 +137,12 @@ pub struct PedidoPrototipo {
     /// O que deixar de fora do protótipo.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fora: Option<String>,
+    /// Como as telas são geradas; ausente nos pedidos anteriores à #383 (HTML).
+    #[serde(default)]
+    pub modo: ModoPrototipo,
+    /// Confirmação do envio para fora, só no modo hospedado.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub confirmacao_envio: Option<ConfirmacaoEnvio>,
 }
 
 impl PedidoPrototipo {
@@ -80,16 +155,48 @@ impl PedidoPrototipo {
                 telas.push(t);
             }
         }
+        // A confirmação só vale no modo que envia; nos outros, nada sai.
+        let confirmacao_envio = self
+            .confirmacao_envio
+            .filter(|_| self.modo.envia_para_fora())
+            .map(|c| ConfirmacaoEnvio {
+                aviso: texto_opcional(Some(c.aviso)).unwrap_or_else(|| AVISO_DE_ENVIO.to_owned()),
+                canal: texto_opcional(c.canal),
+                ..c
+            });
         Self {
             telas,
             fidelidade: self.fidelidade,
             fora: texto_opcional(self.fora),
+            modo: self.modo,
+            confirmacao_envio,
+        }
+    }
+
+    /// Recusa o modo hospedado sem a confirmação do analista.
+    pub fn exigir_confirmacao(&self) -> Result<(), ErroModelo> {
+        if self.modo.envia_para_fora() && self.confirmacao_envio.is_none() {
+            Err(ErroModelo::EnvioNaoConfirmado)
+        } else {
+            Ok(())
         }
     }
 
     /// O pedido em frases, para a entrada da análise e o roteiro.
     pub fn descrever(&self) -> String {
         let mut partes = vec![format!("Fidelidade: {}.", self.fidelidade.rotulo())];
+        match self.modo {
+            ModoPrototipo::Html => {}
+            ModoPrototipo::DesignLocal => partes.push(format!(
+                "Modo: {} (nada sai do ambiente).",
+                self.modo.rotulo()
+            )),
+            ModoPrototipo::DesignHospedado => partes.push(format!(
+                "Modo: {} (o analista confirmou o envio das telas, dos elementos e dos tokens \
+                 para fora do ambiente).",
+                self.modo.rotulo()
+            )),
+        }
         if !self.telas.is_empty() {
             partes.push(format!("Telas pedidas: {}.", self.telas.join("; ")));
         }
@@ -311,6 +418,9 @@ pub struct Prototipo {
     pub pedido: PedidoPrototipo,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub telas: Vec<Tela>,
+    /// Pacotes entregues para a ferramenta de design hospedada (#383).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub envios: Vec<EnvioDesign>,
 }
 
 /// Dados de um elemento novo.
@@ -394,13 +504,54 @@ impl Analise {
         &mut self.prototipo.get_or_insert_with(Prototipo::default).telas
     }
 
-    /// Grava o pedido do analista (na criação da análise). Não muda o estado.
+    /// Grava o pedido do analista (na criação da análise). Não muda o estado. O
+    /// modo hospedado sem a confirmação do envio é recusado.
     pub fn pedir_prototipo(&mut self, pedido: PedidoPrototipo) -> Result<(), ErroModelo> {
         self.exigir_fluxo_de_prototipo()?;
         if self.estado == EstadoAnalise::Aprovada {
             return Err(ErroModelo::AnaliseAprovada(self.id.clone()));
         }
-        self.prototipo.get_or_insert_with(Prototipo::default).pedido = pedido.conferido();
+        let pedido = pedido.conferido();
+        pedido.exigir_confirmacao()?;
+        self.prototipo.get_or_insert_with(Prototipo::default).pedido = pedido;
+        Ok(())
+    }
+
+    /// O pedido do protótipo (o padrão fora do fluxo ou antes do pedido).
+    pub fn pedido_de_prototipo(&self) -> PedidoPrototipo {
+        self.prototipo
+            .as_ref()
+            .map(|p| p.pedido.clone())
+            .unwrap_or_default()
+    }
+
+    /// Confere que a análise pode entregar o pacote para a ferramenta de design
+    /// hospedada: fluxo `prototipo`, modo hospedado e confirmação gravada.
+    pub fn exigir_envio_confirmado(&self) -> Result<(), ErroModelo> {
+        self.exigir_fluxo_de_prototipo()?;
+        match self.prototipo.as_ref().map(|p| &p.pedido) {
+            Some(p) if p.modo.envia_para_fora() => p.exigir_confirmacao(),
+            _ => Err(ErroModelo::ForaDoDesignHospedado(self.id.clone())),
+        }
+    }
+
+    /// Registra a entrega de um pacote para a ferramenta de design hospedada.
+    pub fn registrar_envio_design(
+        &mut self,
+        telas: Vec<u32>,
+        tokens: bool,
+        agora_ms: u64,
+    ) -> Result<(), ErroModelo> {
+        self.exigir_envio_confirmado()?;
+        self.aceitar_registro()?;
+        self.prototipo
+            .get_or_insert_with(Prototipo::default)
+            .envios
+            .push(EnvioDesign {
+                em_ms: agora_ms,
+                telas,
+                tokens,
+            });
         Ok(())
     }
 
@@ -756,6 +907,7 @@ mod tests {
             ],
             fidelidade: Fidelidade::AltaFidelidade,
             fora: Some("  ".into()),
+            ..PedidoPrototipo::default()
         })
         .unwrap();
         assert_eq!(a.estado, EstadoAnalise::Criada);
@@ -765,6 +917,92 @@ mod tests {
         assert_eq!(
             pedido.descrever(),
             "Fidelidade: alta fidelidade. Telas pedidas: Parcelar fatura."
+        );
+    }
+
+    fn hospedado(confirmacao: Option<ConfirmacaoEnvio>) -> PedidoPrototipo {
+        PedidoPrototipo {
+            modo: ModoPrototipo::DesignHospedado,
+            confirmacao_envio: confirmacao,
+            ..PedidoPrototipo::default()
+        }
+    }
+
+    fn confirmacao() -> ConfirmacaoEnvio {
+        ConfirmacaoEnvio {
+            em_ms: 5,
+            aviso: " ".into(),
+            canal: Some("app".into()),
+        }
+    }
+
+    #[test]
+    fn modo_do_pedido_e_confirmacao_do_envio() {
+        // Design local: nada sai; a confirmação mandada por engano é descartada.
+        let mut a = analise();
+        a.pedir_prototipo(PedidoPrototipo {
+            modo: ModoPrototipo::DesignLocal,
+            confirmacao_envio: Some(confirmacao()),
+            ..PedidoPrototipo::default()
+        })
+        .unwrap();
+        let pedido = a.pedido_de_prototipo();
+        assert_eq!(pedido.modo, ModoPrototipo::DesignLocal);
+        assert!(pedido.confirmacao_envio.is_none());
+        assert!(
+            pedido
+                .descrever()
+                .contains("rodando localmente (nada sai do ambiente)")
+        );
+        assert_eq!(
+            a.exigir_envio_confirmado(),
+            Err(ErroModelo::ForaDoDesignHospedado(a.id.clone()))
+        );
+
+        // Hospedado sem confirmação: recusado, o pedido não muda.
+        let mut b = analise();
+        assert_eq!(
+            b.pedir_prototipo(hospedado(None)),
+            Err(ErroModelo::EnvioNaoConfirmado)
+        );
+        assert!(b.prototipo.is_none());
+        assert_eq!(
+            b.registrar_envio_design(vec![1], true, 6),
+            Err(ErroModelo::ForaDoDesignHospedado(b.id.clone()))
+        );
+
+        // Com a confirmação: gravada, com o aviso padrão quando vazio.
+        b.pedir_prototipo(hospedado(Some(confirmacao()))).unwrap();
+        let c = b.pedido_de_prototipo().confirmacao_envio.unwrap();
+        assert_eq!(c.aviso, AVISO_DE_ENVIO);
+        assert_eq!(c.canal.as_deref(), Some("app"));
+        assert!(b.exigir_envio_confirmado().is_ok());
+        b.registrar_envio_design(vec![1], true, 6).unwrap();
+        assert_eq!(
+            b.prototipo.as_ref().unwrap().envios,
+            [EnvioDesign {
+                em_ms: 6,
+                telas: vec![1],
+                tokens: true
+            }]
+        );
+        assert_eq!(b.estado, EstadoAnalise::EmAndamento);
+    }
+
+    #[test]
+    fn pedido_anterior_ao_modo_le_como_html() {
+        let lido: PedidoPrototipo =
+            serde_json::from_str(r#"{"telas":["Parcelar fatura"],"fidelidade":"wireframe"}"#)
+                .unwrap();
+        assert_eq!(lido.modo, ModoPrototipo::Html);
+        assert!(lido.confirmacao_envio.is_none());
+        let p: Prototipo = serde_json::from_str(r#"{"pedido":{}}"#).unwrap();
+        assert!(p.envios.is_empty());
+        let json = serde_json::to_string(&hospedado(Some(confirmacao())).conferido()).unwrap();
+        assert!(json.contains("\"modo\":\"design_hospedado\""), "{json}");
+        assert!(
+            json.contains("\"confirmacao_envio\":{\"em_ms\":5"),
+            "{json}"
         );
     }
 

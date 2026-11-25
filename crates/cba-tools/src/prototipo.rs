@@ -13,6 +13,11 @@
 //!   confere ([`cba_core::prototipo_html::conferir_corpo`]), monta o documento
 //!   com os tokens CSS aprovados ou o wireframe neutro e aponta
 //!   [`cba_core::prototipo::Tela::html`] para o arquivo.
+//! - `pacote_design_prototipo` devolve o pacote que o agente envia à ferramenta
+//!   de design hospedada do Claude (#383): as telas, os elementos com o rastro e o
+//!   CSS dos tokens aprovados. Só na análise em modo hospedado, com a confirmação
+//!   do envio gravada pelo analista no app; sem ela, recusa sem devolver dado. Cada
+//!   entrega fica registrada na análise ([`cba_core::prototipo::EnvioDesign`]).
 //!
 //! Tela e elemento citam o que os sustenta: `afirmacoes` e `regras`, conferidas
 //! por [`crate::fundamentos`], e `criterios` de aceite (`HU-NNNN/CA-n`), conferidos
@@ -986,6 +991,140 @@ fn visual(kb: &cba_kb::Projeto, avisos: &mut Vec<String>) -> Result<Visual, Erro
     Ok(Visual::escolher(aprovados.as_ref().map(TokensProjeto::css)))
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ArgsPacote {
+    analise: String,
+}
+
+/// O rastro para o pacote: as referências com o texto, sem as evidências (nada
+/// de caminho de arquivo nem trecho de código sai do ambiente).
+fn rastro_do_pacote(r: &Rastro) -> Value {
+    let mut refs: Vec<Value> = r
+        .fundamentos
+        .iter()
+        .map(|f| json!({ "ref": f.rotulo(), "texto": em_uma_linha(f.texto()) }))
+        .collect();
+    refs.extend(
+        r.criterios
+            .iter()
+            .map(|c| json!({ "ref": c.rotulo(), "texto": em_uma_linha(&c.texto) })),
+    );
+    Value::Array(refs)
+}
+
+/// As telas e os elementos que vão no pacote.
+fn telas_do_pacote(analise: &Analise) -> Vec<Value> {
+    analise
+        .telas()
+        .iter()
+        .map(|t| {
+            json!({
+                "tela": t.rotulo(),
+                "nome": t.nome,
+                "mudanca": t.mudanca,
+                "motivo": t.motivo,
+                "a_confirmar": t.a_confirmar(),
+                "rastro": rastro_do_pacote(&t.rastro),
+                "elementos": t.elementos.iter().map(|e| json!({
+                    "elemento": e.rotulo(),
+                    "tipo": e.tipo,
+                    "nome": e.nome,
+                    "descricao": e.descricao,
+                    "a_confirmar": e.a_confirmar(),
+                    "rastro": rastro_do_pacote(&e.rastro),
+                })).collect::<Vec<_>>(),
+            })
+        })
+        .collect()
+}
+
+/// `pacote_design_prototipo`: o pacote para a ferramenta de design hospedada,
+/// só com a confirmação do envio.
+pub fn pacote_design_prototipo() -> Ferramenta {
+    Ferramenta::nova(
+        "pacote_design_prototipo",
+        "Pacote para o design hospedado",
+        "Só no modo `design_hospedado`, com a confirmação do envio dada pelo analista no \
+         app: devolve o pacote que pode sair do ambiente para a ferramenta de design \
+         hospedada do Claude: as telas registradas, os elementos de cada uma com o rastro \
+         (regras e critérios de aceite, sem evidências do código) e o CSS dos tokens \
+         aprovados do projeto (nenhum CSS quando os tokens não estão aprovados: avise o \
+         analista). Registra a entrega na análise. Em outro modo, ou sem a confirmação, \
+         recusa e não devolve nada: não envie dado do projeto para fora. Envie só o \
+         conteúdo do pacote e traga o resultado de cada tela de volta por \
+         `gravar_html_tela`. Chame depois de registrar as telas e os elementos.",
+        json!({
+            "type": "object",
+            "properties": {
+                "analise": comum::schema_da_analise(),
+            },
+            "required": ["analise"],
+            "additionalProperties": false
+        }),
+        |ambiente, args| {
+            let args: ArgsPacote = ler_argumentos(args)?;
+            let id = comum::id_da_analise(&args.analise)?;
+            let atual = ambiente.analises.carregar(&id)?;
+            exigir_fluxo(&atual)?;
+            // Antes de ler qualquer dado: sem a confirmação, nada sai.
+            atual.exigir_envio_confirmado().map_err(comum::recusa)?;
+            if atual.estado == EstadoAnalise::Aprovada {
+                return Err(comum::recusa(ErroModelo::AnaliseAprovada(id)));
+            }
+            let sem_elementos: Vec<String> = atual
+                .telas()
+                .iter()
+                .filter(|t| t.elementos.is_empty())
+                .map(Tela::rotulo)
+                .collect();
+            if atual.telas().is_empty() || !sem_elementos.is_empty() {
+                return Err(ErroFerramenta::Recusa(format!(
+                    "registre as telas e os elementos de cada uma (`registrar_tela`, \
+                     `registrar_elemento_tela`) antes de montar o pacote{}",
+                    if sem_elementos.is_empty() {
+                        String::new()
+                    } else {
+                        format!("; sem elementos: {}", sem_elementos.join(", "))
+                    }
+                )));
+            }
+            let css = TokensProjeto::css_aprovado(&ambiente.kb)
+                .map_err(|e| ErroFerramenta::Interno(e.to_string()))?;
+            let mut avisos = Vec::new();
+            if css.is_none() {
+                avisos.push(
+                    "os tokens CSS do projeto não estão aprovados: o pacote vai sem CSS e as \
+                     telas saem em wireframe neutro. Avise o analista antes de desenhar: ele \
+                     extrai, revisa e aprova os tokens no app; não invente cores nem fontes"
+                        .to_owned(),
+                );
+            }
+            let numeros: Vec<u32> = atual.telas().iter().map(|t| t.numero).collect();
+            let registrado = comum::alterar(ambiente, &id, Mudanca::Tela, |a, agora| {
+                a.registrar_envio_design(numeros, css.is_some(), agora)
+            })?;
+            let pedido = registrado.analise.pedido_de_prototipo();
+            Ok(comum::resposta(
+                ambiente,
+                &registrado,
+                json!({
+                    "modo": pedido.modo,
+                    "confirmado_ms": pedido.confirmacao_envio.as_ref().map(|c| c.em_ms),
+                    "pacote": {
+                        "fidelidade": pedido.fidelidade,
+                        "telas": telas_do_pacote(&registrado.analise),
+                        "tokens_css": css,
+                        "regras_do_html": "Só o corpo de cada tela, com uma <section data-estado> para vazio, preenchido, erro e sucesso; cada elemento com data-elemento=\"E-n\"; estilo só por var(--prototipo-*); classes do CSS base (mensagem, erro, alerta, sucesso, campo-erro, acoes, secundario, a-confirmar, mudou); sem script, sem atributos on…, sem iframe, link ou meta, sem endereço externo.",
+                    },
+                    "avisos": avisos,
+                    "depois": "Envie só o `pacote` à ferramenta de design hospedada do Claude e grave o resultado de cada tela com `gravar_html_tela`.",
+                }),
+            ))
+        },
+    )
+}
+
 /// `gravar_html_tela`: o protótipo HTML de uma tela, com os quatro estados.
 pub fn gravar_html_tela() -> Ferramenta {
     Ferramenta::nova(
@@ -1005,7 +1144,9 @@ pub fn gravar_html_tela() -> Ferramenta {
          sem rede. Links entre telas: `TL-n.html`. O app monta o documento com os tokens CSS \
          aprovados (em qualquer fidelidade; o wireframe muda só o acabamento) ou, sem \
          eles, o wireframe neutro, grava em \
-         analises/<id>/prototipo/TL-n.html e liga à tela. Gravar de novo substitui.",
+         analises/<id>/prototipo/TL-n.html e liga à tela. Gravar de novo substitui. É \
+         também por aqui que volta o resultado da ferramenta de design do Claude (local \
+         ou hospedada): a mesma conferência vale para ele.",
         json!({
             "type": "object",
             "properties": {

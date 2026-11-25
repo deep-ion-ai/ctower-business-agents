@@ -4720,6 +4720,19 @@ ul.analises-existentes {
   flex-wrap: wrap;
   gap: 4px 16px;
 }
+/* Modo hospedado do protótipo (#383): o que sai do ambiente e a confirmação. */
+.aviso-envio {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--attention-border);
+  border-radius: 6px;
+  background: var(--attention-card);
+}
+.aviso-envio p {
+  margin: 0;
+}
 .identidade-visual-cabecalho {
   display: flex;
   flex-wrap: wrap;

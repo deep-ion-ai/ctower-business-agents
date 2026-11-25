@@ -15,6 +15,7 @@
 use std::fmt::Write as _;
 
 use cba_core::analise::{Analise, Fluxo};
+use cba_core::prototipo::ModoPrototipo;
 use cba_kb::{Base, CaminhoRelativo};
 
 use crate::documento::secoes_de_afirmacao;
@@ -290,6 +291,21 @@ fn citacao(entrada: &str) -> String {
         .join("\n")
 }
 
+/// Instruções do modo de design do protótipo (#383), acrescentadas ao fim do
+/// roteiro do fluxo `prototipo` (o da base ou o padrão) quando o analista pediu
+/// a ferramenta de design do Claude. No modo HTML, nada.
+pub fn instrucoes_do_modo(modo: ModoPrototipo) -> Option<&'static str> {
+    match modo {
+        ModoPrototipo::Html => None,
+        ModoPrototipo::DesignLocal => {
+            Some(include_str!("../textos/roteiros/prototipo-design-local.md"))
+        }
+        ModoPrototipo::DesignHospedado => Some(include_str!(
+            "../textos/roteiros/prototipo-design-hospedado.md"
+        )),
+    }
+}
+
 /// Título da seção acrescentada no fim quando o roteiro não usa a variável.
 fn titulo_ao_fim(variavel: &str) -> &'static str {
     match variavel {
@@ -385,9 +401,20 @@ impl Roteiros {
                 _ => return None,
             })
         };
-        self.por_fluxo[indice(fluxo)].preencher(valor, &ESSENCIAIS, |variavel, v| {
-            format!("\n\n## {}\n\n{}\n", titulo_ao_fim(variavel), v.trim_end())
-        })
+        let (mut roteiro, avisos) =
+            self.por_fluxo[indice(fluxo)].preencher(valor, &ESSENCIAIS, |variavel, v| {
+                format!("\n\n## {}\n\n{}\n", titulo_ao_fim(variavel), v.trim_end())
+            });
+        if fluxo == Fluxo::Prototipo
+            && let Some(modo) = instrucoes_do_modo(analise.pedido_de_prototipo().modo)
+        {
+            roteiro = format!(
+                "{}\n\n{}",
+                roteiro.trim_end(),
+                modo.replace("{{id}}", &analise.id.to_string())
+            );
+        }
+        (roteiro, avisos)
     }
 }
 

@@ -724,6 +724,18 @@ pub enum ErroModelo {
     TelaRepetida { nome: String, numero: u32 },
     #[error("tela recusada: {0}")]
     TelaInvalida(String),
+    #[error(
+        "o protótipo com a ferramenta de design hospedada do Claude envia as telas, os \
+         elementos e os tokens CSS do projeto para fora do ambiente e exige a confirmação \
+         explícita do analista, dada no app (Nova análise > Protótipo de telas > Design do \
+         Claude, hospedado); sem ela, use o HTML local ou o design local"
+    )]
+    EnvioNaoConfirmado,
+    #[error(
+        "a análise {0} não está no modo de design hospedado: nada é enviado para fora do \
+         ambiente. Gere as telas aqui e grave com `gravar_html_tela`"
+    )]
+    ForaDoDesignHospedado(Id),
 }
 
 fn exigir(campo: &'static str, valor: &str) -> Result<(), ErroModelo> {

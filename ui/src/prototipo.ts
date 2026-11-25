@@ -10,13 +10,40 @@ export const ROTULO_FIDELIDADE: Record<Fidelidade, string> = {
 };
 
 /**
+ * Como as telas são geradas (`cba_core::prototipo::ModoPrototipo`, #383): o HTML local do
+ * app (padrão), o método da ferramenta de design do Claude rodando localmente ou a
+ * ferramenta de design hospedada, que envia dados do projeto para fora.
+ */
+export type ModoPrototipo = "html" | "design_local" | "design_hospedado";
+
+export const ROTULO_MODO: Record<ModoPrototipo, string> = {
+  html: "HTML local",
+  design_local: "Design do Claude, local",
+  design_hospedado: "Design do Claude, hospedado",
+};
+
+/** O que sai do ambiente no modo hospedado (`cba_core::prototipo::AVISO_DE_ENVIO`). */
+export const AVISO_ENVIO_HOSPEDADO =
+  "As telas do protótipo, os elementos de cada tela (com as regras e os critérios de aceite " +
+  "citados) e os tokens CSS aprovados do projeto saem do ambiente local para a ferramenta de " +
+  "design hospedada do Claude.";
+
+/** Confirmação explícita do envio no modo hospedado: o aviso que o analista confirmou. */
+export interface ConfirmacaoEnvio {
+  aviso: string;
+}
+
+/**
  * Entrada opcional do analista para o protótipo (`cba_core::prototipo::PedidoPrototipo`):
- * as telas (vazio deixa o agente listar as afetadas), a fidelidade e o que fica de fora.
+ * as telas (vazio deixa o agente listar as afetadas), a fidelidade, o que fica de fora e
+ * o modo, com a confirmação do envio quando o modo é o hospedado.
  */
 export interface PedidoPrototipo {
   telas: string[];
   fidelidade: Fidelidade;
   fora?: string;
+  modo: ModoPrototipo;
+  confirmacaoEnvio?: ConfirmacaoEnvio;
 }
 
 /** Pedido de criação da análise de protótipo (#379). */
@@ -110,6 +137,8 @@ export const apiPrototipoTauri: ApiPrototipo = {
         telas: novo.pedido.telas,
         fidelidade: novo.pedido.fidelidade,
         fora: novo.pedido.fora ?? null,
+        modo: novo.pedido.modo,
+        confirmacao_envio: novo.pedido.confirmacaoEnvio ?? null,
       },
       entrada: novo.entrada ?? null,
       titulo: novo.titulo ?? null,

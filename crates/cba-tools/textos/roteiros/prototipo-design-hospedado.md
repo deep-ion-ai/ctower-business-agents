@@ -1,0 +1,11 @@
+## Modo: ferramenta de design do Claude, hospedada
+
+O analista pediu as telas com a ferramenta de design hospedada do Claude e **confirmou no app** o envio das telas, dos elementos e dos tokens do projeto para fora do ambiente. Só isso pode sair, e só pelo pacote:
+
+1. **Registre as telas e os elementos primeiro** (passos 3 a 5). Depois, chame `pacote_design_prototipo` (analise: "{{id}}"). Ele devolve o pacote a enviar: as telas, os elementos com o rastro (regras e critérios de aceite) e o CSS dos tokens aprovados, e registra a entrega na análise. Se ele recusar, não envie nada: desenhe aqui mesmo, com o método do item 5, grave com `gravar_html_tela` e diga o motivo ao analista.
+2. **Envie só o pacote.** Use a ferramenta de design do Claude disponível no seu cliente com o conteúdo do pacote, e nada além dele: nada de código do projeto, trechos de evidência, nomes de arquivo, dados de banco, transcripts ou outra análise. Se o seu cliente não tiver a ferramenta de design hospedada, não chame outra no lugar: diga ao analista e desenhe aqui mesmo, com o método do item 5.
+3. **Parta dos tokens.** O design usa o CSS dos tokens aprovados que vem no pacote, pelos papéis `var(--prototipo-*)`. Se o pacote avisar que os tokens não estão aprovados, avise o analista antes de desenhar: sem tokens aprovados, as telas saem em wireframe neutro e o pacote não leva CSS.
+4. **Traga o resultado de volta por `gravar_html_tela`** (analise: "{{id}}"), uma tela por chamada, com as regras do passo 6: só o `corpo`, os quatro estados em `<section data-estado>`, cada elemento com `data-elemento="E-n"`, estilo só por `var(--prototipo-*)`, sem script e sem endereço externo (imagens, fontes e folhas de estilo da ferramenta ficam de fora; o app recusa). O protótipo que vale é o gravado na base, não o que ficou na ferramenta.
+5. **Design.** Na ferramenta, peça: a ação principal em destaque e as outras secundárias; hierarquia título, informação para decidir, campos, ações; os mesmos componentes em todas as telas; os quatro estados com a mesma estrutura; em tela alterada, o desenho atual mantido e só o que muda marcado com `mudou`.
+
+Na resposta no chat, diga que o pacote foi enviado à ferramenta hospedada (quais telas e se os tokens foram) e se alguma tela voltou recusada por `gravar_html_tela`.

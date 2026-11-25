@@ -13,6 +13,7 @@ import {
   vistaFicticia,
 } from "./test/falsos";
 import { apiPrototipoFalsa } from "./test/prototipoFalso";
+import { AVISO_ENVIO_HOSPEDADO } from "./prototipo";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(), Channel: vi.fn() }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
@@ -40,12 +41,111 @@ describe("NovaPrototipo: o pedido do protótipo de telas (#379)", () => {
         telas: "Emissão da fatura\n\n emissão da fatura ;Parcelamento",
         fidelidade: "alta_fidelidade",
         fora: "  ",
+        modo: "html",
+        confirmaEnvio: false,
       }),
     ).toEqual({
       telas: ["Emissão da fatura", "Parcelamento"],
       fidelidade: "alta_fidelidade",
       fora: undefined,
+      modo: "html",
     });
+    // A confirmação só vai no modo hospedado, e só se marcada.
+    const entrada = {
+      telas: "",
+      fidelidade: "wireframe" as const,
+      fora: "",
+      confirmaEnvio: true,
+    };
+    expect(pedidoDaEntrada({ ...entrada, modo: "design_local" }).confirmacaoEnvio).toBeUndefined();
+    expect(pedidoDaEntrada({ ...entrada, modo: "design_hospedado" }).confirmacaoEnvio).toEqual({
+      aviso: AVISO_ENVIO_HOSPEDADO,
+    });
+  });
+
+  it("design hospedado: sem a confirmação do envio não pede; com ela, manda o modo e a confirmação", async () => {
+    const conhecimento = apiConhecimentoFalsa();
+    conhecimento.api.listarAnalises.mockResolvedValue(analises() as never);
+    const aoCriar = vi.fn();
+    render(
+      <NovaPrototipo
+        api={conhecimento.api}
+        apiPrototipo={conhecimento.api.prototipo}
+        projetos={[{ id: PROJETO, nome: "Faturamento Exemplo" }]}
+        aoCriar={aoCriar}
+        aoCancelar={vi.fn()}
+      />,
+    );
+    const modo = await screen.findByRole("radiogroup", { name: "Como gerar as telas" });
+    // O padrão é o HTML local; nada de aviso de envio.
+    expect(within(modo).getByRole("radio", { name: "HTML local" })).toBeChecked();
+    expect(screen.queryByRole("note", { name: "Envio para fora do ambiente" })).toBeNull();
+    const botao = screen.getByRole("button", { name: "Prototipar as telas" });
+    await waitFor(() => expect(botao).toBeEnabled());
+
+    fireEvent.click(within(modo).getByRole("radio", { name: "Design do Claude, hospedado" }));
+    const aviso = screen.getByRole("note", { name: "Envio para fora do ambiente" });
+    expect(aviso).toHaveTextContent(/tokens CSS aprovados do projeto saem do ambiente/);
+    const confirmar = within(aviso).getByRole("checkbox", { name: /Confirmo o envio/ });
+    expect(confirmar).not.toBeChecked();
+    expect(botao).toBeDisabled();
+    expect(screen.getByText(/Para usar o design hospedado, confirme o envio/)).toBeInTheDocument();
+    // O submit sem a confirmação não chega ao comando.
+    fireEvent.submit(screen.getByRole("form", { name: "Protótipo de telas" }));
+    expect(conhecimento.api.prototipo.criarAnaliseDePrototipo).not.toHaveBeenCalled();
+
+    // Trocar de modo desfaz a confirmação.
+    fireEvent.click(confirmar);
+    fireEvent.click(within(modo).getByRole("radio", { name: "Design do Claude, local" }));
+    fireEvent.click(within(modo).getByRole("radio", { name: "Design do Claude, hospedado" }));
+    expect(screen.getByRole("checkbox", { name: /Confirmo o envio/ })).not.toBeChecked();
+    expect(botao).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /Confirmo o envio/ }));
+    await waitFor(() => expect(botao).toBeEnabled());
+    fireEvent.click(botao);
+    await waitFor(() =>
+      expect(conhecimento.api.prototipo.criarAnaliseDePrototipo).toHaveBeenCalledWith(PROJETO, {
+        origem: "A-0003",
+        demanda: undefined,
+        pedido: {
+          telas: [],
+          fidelidade: "wireframe",
+          fora: undefined,
+          modo: "design_hospedado",
+          confirmacaoEnvio: { aviso: AVISO_ENVIO_HOSPEDADO },
+        },
+      }),
+    );
+    await waitFor(() => expect(aoCriar).toHaveBeenCalled());
+  });
+
+  it("design local: nada sai, sem confirmação", async () => {
+    const conhecimento = apiConhecimentoFalsa();
+    conhecimento.api.listarAnalises.mockResolvedValue(analises() as never);
+    render(
+      <NovaPrototipo
+        api={conhecimento.api}
+        apiPrototipo={conhecimento.api.prototipo}
+        projetos={[{ id: PROJETO, nome: "Faturamento Exemplo" }]}
+        aoCriar={vi.fn()}
+        aoCancelar={vi.fn()}
+      />,
+    );
+    const modo = await screen.findByRole("radiogroup", { name: "Como gerar as telas" });
+    fireEvent.click(within(modo).getByRole("radio", { name: "Design do Claude, local" }));
+    expect(screen.getByText(/rodando aqui. Nada sai do ambiente/)).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: /Confirmo o envio/ })).toBeNull();
+    const botao = screen.getByRole("button", { name: "Prototipar as telas" });
+    await waitFor(() => expect(botao).toBeEnabled());
+    fireEvent.click(botao);
+    await waitFor(() =>
+      expect(conhecimento.api.prototipo.criarAnaliseDePrototipo).toHaveBeenCalledWith(PROJETO, {
+        origem: "A-0003",
+        demanda: undefined,
+        pedido: { telas: [], fidelidade: "wireframe", fora: undefined, modo: "design_local" },
+      }),
+    );
   });
 
   it("Nova análise: origem obrigatória, aprovadas em destaque e o pedido com telas, fidelidade e o que fica de fora", async () => {
@@ -106,6 +206,7 @@ describe("NovaPrototipo: o pedido do protótipo de telas (#379)", () => {
           telas: ["Emissão da fatura", "Parcelamento da fatura"],
           fidelidade: "alta_fidelidade",
           fora: "Relatório de recebíveis",
+          modo: "html",
         },
       }),
     );
@@ -155,7 +256,7 @@ describe("NovaPrototipo: o pedido do protótipo de telas (#379)", () => {
       expect(conhecimento.api.prototipo.criarAnaliseDePrototipo).toHaveBeenCalledWith(PROJETO, {
         origem: "A-0007",
         demanda: "D-0001",
-        pedido: { telas: [], fidelidade: "wireframe", fora: undefined },
+        pedido: { telas: [], fidelidade: "wireframe", fora: undefined, modo: "html" },
       }),
     );
     await waitFor(() =>
@@ -215,7 +316,7 @@ describe("NovaPrototipo: o pedido do protótipo de telas (#379)", () => {
         expect(prototipo.api.criarAnaliseDePrototipo).toHaveBeenCalledWith(PROJETO, {
           origem: "A-0001",
           demanda: undefined,
-          pedido: { telas: [], fidelidade: "alta_fidelidade", fora: undefined },
+          pedido: { telas: [], fidelidade: "alta_fidelidade", fora: undefined, modo: "html" },
         }),
       );
       await waitFor(() =>

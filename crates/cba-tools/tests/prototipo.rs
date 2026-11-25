@@ -16,7 +16,10 @@ use cba_core::analise::{Analise, EstadoAfirmacao, EstadoAnalise, Fluxo};
 use cba_core::analises::NovaAnalise;
 use cba_core::config::Config;
 use cba_core::dados::DiretorioDados;
-use cba_core::prototipo::{Fidelidade, MudancaTela, TipoElemento};
+use cba_core::prototipo::{
+    AVISO_DE_ENVIO, ConfirmacaoEnvio, Fidelidade, ModoPrototipo, MudancaTela, PedidoPrototipo,
+    TipoElemento,
+};
 use cba_core::tokens::TokensProjeto;
 use cba_kb::frontmatter::{
     Evidencia, FrontmatterAnalise, FrontmatterRegra, Linhas, StatusRegra, TipoDocumento,
@@ -814,4 +817,166 @@ fn criacao_recusada() {
         json!({ "fluxo": "prototipo", "origem": "A-0099" }),
     );
     assert!(m.contains("A-0099"), "{m}");
+}
+
+/// Cria a análise de protótipo pelo caminho do app, com o pedido dado.
+fn criar_pelo_app(
+    c: &Cenario,
+    origem: &Id,
+    pedido: PedidoPrototipo,
+) -> Result<Analise, ErroFerramenta> {
+    cba_tools::ciclo::criar_analise_de_prototipo(&c.amb, origem.clone(), None, pedido, None, None)
+}
+
+fn registrar_parcelar_fatura(c: &Cenario, id: &str) {
+    c.chamar(
+        "registrar_tela",
+        tela(
+            id,
+            "Parcelar fatura",
+            json!([{
+                "tipo": "campo",
+                "nome": "Número de parcelas",
+                "descricao": "de 2 a 3",
+                "regras": ["RN-FAT-008"]
+            }]),
+        ),
+    )
+    .unwrap();
+}
+
+#[test]
+fn design_local_acrescenta_o_metodo_ao_roteiro_e_nada_sai() {
+    let c = cenario();
+    let origem = c.origem();
+    c.aprovar(&origem.id);
+    let r = c
+        .chamar(
+            "iniciar_analise",
+            json!({ "fluxo": "prototipo", "origem": origem.id, "modo": "design_local" }),
+        )
+        .unwrap();
+    let id = r["analise"].as_str().unwrap().to_owned();
+    let roteiro = r["roteiro"].as_str().unwrap();
+    assert!(
+        roteiro.contains("## Modo: ferramenta de design do Claude, rodando localmente"),
+        "{roteiro}"
+    );
+    assert!(roteiro.contains("Hierarquia visual"), "{roteiro}");
+    assert!(roteiro.contains(&format!("`gravar_html_tela` (analise: \"{id}\")")));
+    assert!(roteiro.contains("Se os tokens não estiverem aprovados, avise o analista"));
+    assert!(!roteiro.contains("{{id}}"));
+    let a = c.analise(&id);
+    assert_eq!(a.pedido_de_prototipo().modo, ModoPrototipo::DesignLocal);
+    assert!(a.entrada.contains("nada sai do ambiente"), "{}", a.entrada);
+
+    // O pacote para fora é recusado, sem dado.
+    registrar_parcelar_fatura(&c, &id);
+    let m = c.recusa("pacote_design_prototipo", json!({ "analise": id }));
+    assert!(m.contains("não está no modo de design hospedado"), "{m}");
+    assert!(!m.contains("Número de parcelas"), "{m}");
+    assert!(c.analise(&id).prototipo.unwrap().envios.is_empty());
+
+    // No modo HTML (padrão), o roteiro não traz seção de modo.
+    let r = c
+        .chamar(
+            "iniciar_analise",
+            json!({ "fluxo": "prototipo", "origem": origem.id }),
+        )
+        .unwrap();
+    assert!(!r["roteiro"].as_str().unwrap().contains("## Modo:"));
+}
+
+#[test]
+fn design_hospedado_exige_a_confirmacao_do_analista() {
+    let c = cenario();
+    let origem = c.origem();
+    c.aprovar(&origem.id);
+
+    // Pelo agente, o hospedado nunca é criado: a confirmação é do analista, no app.
+    let m = c.recusa(
+        "iniciar_analise",
+        json!({ "fluxo": "prototipo", "origem": origem.id, "modo": "design_hospedado" }),
+    );
+    assert!(m.contains("confirmação explícita do analista"), "{m}");
+    // Pelo app, sem a confirmação, também não; e nenhuma análise é criada.
+    let hospedado = |confirmacao| PedidoPrototipo {
+        modo: ModoPrototipo::DesignHospedado,
+        confirmacao_envio: confirmacao,
+        ..PedidoPrototipo::default()
+    };
+    let e = criar_pelo_app(&c, &origem.id, hospedado(None)).unwrap_err();
+    assert!(e.to_string().contains("confirmação explícita"), "{e}");
+    assert_eq!(c.amb.analises.listar().unwrap().len(), 1);
+
+    // Com a confirmação: criada, com a hora da criação.
+    let a = criar_pelo_app(
+        &c,
+        &origem.id,
+        hospedado(Some(ConfirmacaoEnvio {
+            em_ms: 0,
+            aviso: AVISO_DE_ENVIO.into(),
+            canal: Some("app".into()),
+        })),
+    )
+    .unwrap();
+    let id = a.id.to_string();
+    assert!(a.pedido_de_prototipo().confirmacao_envio.unwrap().em_ms > 0);
+    let r = c
+        .chamar("iniciar_analise", json!({ "analise": id }))
+        .unwrap();
+    let roteiro = r["roteiro"].as_str().unwrap();
+    assert!(
+        roteiro.contains("## Modo: ferramenta de design do Claude, hospedada"),
+        "{roteiro}"
+    );
+    assert!(roteiro.contains(&format!("`pacote_design_prototipo` (analise: \"{id}\")")));
+
+    // Sem telas, o pacote ainda não sai.
+    let m = c.recusa("pacote_design_prototipo", json!({ "analise": id }));
+    assert!(m.contains("registre as telas"), "{m}");
+    registrar_parcelar_fatura(&c, &id);
+
+    // Sem tokens aprovados: o pacote vai sem CSS, com aviso.
+    let r = c
+        .chamar("pacote_design_prototipo", json!({ "analise": id }))
+        .unwrap();
+    assert_eq!(r["modo"], "design_hospedado");
+    assert_eq!(r["pacote"]["tokens_css"], Value::Null);
+    assert!(
+        r["avisos"].to_string().contains("não estão aprovados"),
+        "{r}"
+    );
+    let tela = &r["pacote"]["telas"][0];
+    assert_eq!(tela["tela"], "TL-1");
+    assert_eq!(tela["elementos"][0]["elemento"], "E-1");
+    assert_eq!(tela["elementos"][0]["rastro"][0]["ref"], "RN-FAT-008");
+    // Nada das evidências do código vai no pacote.
+    assert!(
+        !r["pacote"].to_string().contains("02_parametros.sql"),
+        "{r}"
+    );
+
+    // Com os tokens aprovados, o CSS deles vai junto.
+    TokensProjeto::extrair(&c.amb.kb, &c.amb.escopo).unwrap();
+    TokensProjeto::alterar(&c.amb.kb, |t, agora| {
+        t.aprovar(agora);
+        Ok(())
+    })
+    .unwrap();
+    let r = c
+        .chamar("pacote_design_prototipo", json!({ "analise": id }))
+        .unwrap();
+    assert!(
+        r["pacote"]["tokens_css"]
+            .as_str()
+            .unwrap()
+            .contains("aprovado pelo analista"),
+        "{r}"
+    );
+    let envios = c.analise(&id).prototipo.unwrap().envios;
+    assert_eq!(envios.len(), 2);
+    assert_eq!(envios[0].telas, [1]);
+    assert!(!envios[0].tokens);
+    assert!(envios[1].tokens);
 }

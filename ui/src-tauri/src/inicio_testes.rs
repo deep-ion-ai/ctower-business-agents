@@ -91,6 +91,7 @@ fn prototipo_a_partir_de_uma_analise_com_o_pedido() {
         telas: vec!["Cadastro da fatura".into(), " ".into()],
         fidelidade: Fidelidade::AltaFidelidade,
         fora: Some("Relatório de recebíveis".into()),
+        ..PedidoPrototipo::default()
     };
     let criada = crate::analise::criar_analise_de_prototipo(
         &c.dados, PROJETO, "A-0001", None, pedido, None, None,
@@ -129,4 +130,43 @@ fn pedido_do_prototipo_vem_da_tela_em_json() {
     assert_eq!(p.fidelidade, Fidelidade::AltaFidelidade);
     let p: PedidoPrototipo = serde_json::from_value(serde_json::json!({})).unwrap();
     assert_eq!(p.fidelidade, Fidelidade::Wireframe);
+    assert_eq!(p.modo, cba_core::prototipo::ModoPrototipo::Html);
+}
+
+#[test]
+fn prototipo_hospedado_so_com_a_confirmacao_do_envio() {
+    use cba_core::prototipo::{ModoPrototipo, PedidoPrototipo};
+    let c = cenario();
+    c.aprovar_analise_da_multa();
+    // Como a tela manda: o modo e, no hospedado, a confirmação com o aviso lido.
+    let sem: PedidoPrototipo = serde_json::from_value(serde_json::json!({
+        "telas": [],
+        "fidelidade": "wireframe",
+        "modo": "design_hospedado"
+    }))
+    .unwrap();
+    let erro = crate::analise::criar_analise_de_prototipo(
+        &c.dados, PROJETO, "A-0001", None, sem, None, None,
+    )
+    .unwrap_err();
+    assert!(erro.contains("confirmação explícita"), "{erro}");
+
+    let com: PedidoPrototipo = serde_json::from_value(serde_json::json!({
+        "telas": [],
+        "fidelidade": "wireframe",
+        "modo": "design_hospedado",
+        "confirmacao_envio": { "aviso": "As telas e os tokens saem do ambiente." }
+    }))
+    .unwrap();
+    let criada = crate::analise::criar_analise_de_prototipo(
+        &c.dados, PROJETO, "A-0001", None, com, None, None,
+    )
+    .unwrap();
+    let vista = crate::analise::carregar_analise(&c.dados, PROJETO, &criada.analise.id).unwrap();
+    let pedido = vista.analise.prototipo.expect("pedido gravado").pedido;
+    assert_eq!(pedido.modo, ModoPrototipo::DesignHospedado);
+    let confirmacao = pedido.confirmacao_envio.expect("confirmação gravada");
+    assert!(confirmacao.em_ms > 0);
+    assert_eq!(confirmacao.canal.as_deref(), Some("app"));
+    assert_eq!(confirmacao.aviso, "As telas e os tokens saem do ambiente.");
 }
