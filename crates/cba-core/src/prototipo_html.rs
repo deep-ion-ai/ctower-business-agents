@@ -907,6 +907,7 @@ mod tests {
                 ),
             ],
             html: None,
+            ajuste_pedido: None,
             sessao: None,
             registrada_ms: 1,
         }

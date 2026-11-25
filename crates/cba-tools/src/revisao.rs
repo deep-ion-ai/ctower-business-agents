@@ -55,6 +55,7 @@ use cba_core::eventos::Mudanca;
 use cba_core::funcionalidades::MapaFuncionalidades;
 use cba_core::historias::{DecisaoHistoria, Gherkin, Narrativa, SituacaoHistoria};
 use cba_core::parecer::EstadoAchado;
+use cba_core::prototipo::DecisaoTela;
 use cba_core::requisito::{ItemRequisito, SituacaoItem};
 use cba_docs::FonteDeTrechos;
 /// Opções da exportação, para quem chama sem depender de `cba-docs`.
@@ -204,6 +205,13 @@ pub enum Decisao {
         legenda: String,
         texto_alternativo: String,
     },
+    /// Pedir um ajuste numa tela do protótipo (fluxo `prototipo`, #382) ou, com
+    /// `desfazer`, retirar o pedido.
+    Tela {
+        numero: u32,
+        #[serde(flatten)]
+        decisao: DecisaoTela,
+    },
 }
 
 impl Decisao {
@@ -226,6 +234,7 @@ impl Decisao {
             Self::EditarPasso { .. } | Self::DispensarPrint { .. } | Self::LegendaPrint { .. } => {
                 Mudanca::Passo
             }
+            Self::Tela { .. } => Mudanca::Tela,
             Self::Revalidar { item, .. } => match item {
                 ItemRequisito::Criterio { .. } => Mudanca::Historia,
                 ItemRequisito::Cenario { .. } | ItemRequisito::Tabela { .. } => Mudanca::Cenario,
@@ -290,6 +299,7 @@ impl Decisao {
                 legenda,
                 texto_alternativo,
             } => a.editar_legenda(numero, &legenda, &texto_alternativo),
+            Self::Tela { numero, decisao } => a.decidir_tela(numero, decisao),
         }
     }
 }
@@ -473,6 +483,16 @@ pub fn pendencias(analise: &Analise) -> Vec<Pendencia> {
                 tipo: "analise",
                 numero: None,
                 motivo: "não há telas registradas".into(),
+            });
+        }
+        for t in analise.telas().iter().filter(|t| t.ajuste_pedido.is_some()) {
+            lista.push(Pendencia {
+                tipo: "tela",
+                numero: Some(t.numero),
+                motivo: format!(
+                    "{}: ajuste pedido: espere o agente gravar a tela de novo ou desfaça o pedido",
+                    t.rotulo()
+                ),
             });
         }
     } else if analise.afirmacoes.is_empty() {

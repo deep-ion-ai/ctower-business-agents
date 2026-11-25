@@ -4783,3 +4783,70 @@ ul.analises-existentes {
   border: 1px solid var(--border-strong);
   border-radius: 3px;
 }
+
+/* Protótipo de telas (#382): a lista das telas ao lado do visualizador isolado. */
+.prototipo-visualizador {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) 1fr;
+  gap: 16px;
+  align-items: start;
+}
+.prototipo-lista-telas ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+.prototipo-item-tela {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 8px 10px;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.prototipo-item-tela[aria-current="true"] {
+  border-color: var(--link);
+  box-shadow: inset 3px 0 0 var(--link);
+}
+.prototipo-marcas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.prototipo-motivo {
+  font-size: 12px;
+}
+.prototipo-tela-escolhida {
+  min-width: 0;
+}
+.prototipo-estados-app {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+.prototipo-estados-app .btn[aria-pressed="true"] {
+  border-color: var(--link);
+  color: var(--link);
+}
+/* O protótipo é um documento do projeto analisado: fundo próprio, claro. */
+.prototipo-quadro {
+  width: 100%;
+  min-height: 480px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+}
+@media (max-width: 900px) {
+  .prototipo-visualizador {
+    grid-template-columns: 1fr;
+  }
+}
