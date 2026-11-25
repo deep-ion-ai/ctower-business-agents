@@ -287,7 +287,10 @@ mod tests {
         assert!(!r.projeto.unwrap().existe());
         assert_eq!(
             efetivos(None, &global),
-            vec![WorkflowEfetivo::padrao("impacto").unwrap()]
+            vec![
+                WorkflowEfetivo::padrao("impacto").unwrap(),
+                WorkflowEfetivo::padrao("revisar").unwrap()
+            ]
         );
         assert!(resolver("perguntar", None, &global).is_none());
 
@@ -308,7 +311,10 @@ mod tests {
         let r = resolver("impacto", Some(&base), &global).unwrap();
         assert_eq!(r.efetivo.origem, OrigemWorkflow::Projeto);
         assert_eq!(r.efetivo.conteudo, script("projeto"));
-        assert_eq!(efetivos(Some(&base), &global), vec![r.efetivo]);
+        assert_eq!(
+            efetivos(Some(&base), &global),
+            vec![r.efetivo, WorkflowEfetivo::padrao("revisar").unwrap()]
+        );
 
         // Cópia do projeto com erro: não é usada, vale a global.
         gravar(

@@ -31,7 +31,8 @@ pub struct MedicaoConducao {
     /// "Conduzida sem workflow: <motivo>", quando houve.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub aviso: Option<String>,
-    /// Afirmações contestadas pela verificação independente.
+    /// Afirmações (impacto) ou achados (revisar) contestados pela verificação
+    /// independente.
     pub contestadas: usize,
     /// Das contestadas, as que ficaram a revalidar.
     pub a_revalidar: usize,
@@ -76,20 +77,26 @@ pub fn medir(pedida: Conducao, analise: &Analise, sessao: Option<&Path>) -> Medi
         Conducao::Simples => "simples",
         Conducao::Workflow => "workflow",
     };
-    let contestadas: Vec<_> = analise
+    // Afirmações (impacto, `contestar_afirmacao`) e achados do parecer (revisar,
+    // `contestar_achado`): (contestados, a revalidar).
+    let afirmacoes = analise
         .afirmacoes
         .iter()
         .filter(|a| a.contestacao.is_some())
-        .collect();
+        .map(|a| a.estado == EstadoAfirmacao::ARevalidar);
+    let achados = analise
+        .parecer
+        .iter()
+        .flat_map(|p| p.achados.iter())
+        .filter(|a| a.contestacao.is_some())
+        .map(|a| a.a_revalidar());
+    let contestados: Vec<bool> = afirmacoes.chain(achados).collect();
     MedicaoConducao {
         pedida: nome(pedida).into(),
         efetiva: nome(analise.conducao).into(),
         aviso: analise.aviso_conducao.clone(),
-        contestadas: contestadas.len(),
-        a_revalidar: contestadas
-            .iter()
-            .filter(|a| a.estado == EstadoAfirmacao::ARevalidar)
-            .count(),
+        contestadas: contestados.len(),
+        a_revalidar: contestados.iter().filter(|r| **r).count(),
         situacao: analise.workflow.as_ref().map(|w| {
             serde_json::to_value(w.situacao)
                 .ok()
@@ -330,17 +337,83 @@ pub fn secao_md(s: &mut String, execucoes: &[crate::relatorio::Execucao]) {
         return;
     }
     let _ = writeln!(s, "## Condução simples e workflow\n");
-    let _ = writeln!(
-        s,
-        "| Item | Condução (pedida → efetiva) | Regras | Perguntas esperadas | Premissa corrigida | Abrangência | Afirmações | Contestadas | Agentes | Tokens (todos os modelos) | Custo (US$) | Duração (relógio) |"
-    );
-    let _ = writeln!(s, "|---|---|---|---|---|---|---|---|---|---|---|---|");
-    for e in &com {
+    // Colunas comuns do fim da linha: contestados, agentes, tokens, custo e duração.
+    let fim = |e: &crate::relatorio::Execucao, c: &MedicaoConducao| {
+        format!(
+            "{} | {} | {} | {} | {}",
+            c.contestadas,
+            c.workflow
+                .as_ref()
+                .map_or("-".into(), |w| w.agentes.to_string()),
+            mil(tokens_da_execucao(e).total()),
+            e.claude
+                .as_ref()
+                .and_then(|c| c.custo_usd)
+                .map_or("?".into(), |v| format!("{v:.2}")),
+            e.claude
+                .as_ref()
+                .and_then(|c| c.duracao_ms)
+                .map_or("?".into(), |d| crate::relatorio::duracao_md(
+                    d as f64 / 1000.0
+                )),
+        )
+    };
+    let (revisoes, outras): (Vec<&&crate::relatorio::Execucao>, Vec<_>) = com
+        .iter()
+        .partition(|e| e.avaliacao.as_ref().is_some_and(|a| a.parecer.is_some()));
+    if !revisoes.is_empty() {
+        let _ = writeln!(
+            s,
+            "| Item | Condução (pedida → efetiva) | Achados esperados | Termos vagos apontados | Veredito (esperado) | Perguntas esperadas | Achados | Contestados | Agentes | Tokens (todos os modelos) | Custo (US$) | Duração (relógio) |"
+        );
+        let _ = writeln!(s, "|---|---|---|---|---|---|---|---|---|---|---|---|");
+        for e in &revisoes {
+            let c = e.conducao.as_ref().expect("filtrado acima");
+            let a = e.avaliacao.as_ref().expect("filtrado acima");
+            let p = a.parecer.as_ref().expect("filtrado acima");
+            let nome = |v: cba_core::parecer::Veredito| v.rotulo().to_lowercase();
+            let _ = writeln!(
+                s,
+                "| {} | {} → {} | {} de {} | {} de {} | {} ({}) | {} de {} | {} | {} |",
+                e.item,
+                c.pedida,
+                c.efetiva,
+                p.achados
+                    .iter()
+                    .filter(|x| x.atendido_por.is_some())
+                    .count(),
+                p.achados.len(),
+                p.termos_vagos
+                    .iter()
+                    .filter(|t| t.apontado_por.is_some())
+                    .count(),
+                p.termos_vagos.len(),
+                p.veredito_registrado.map_or("nenhum".into(), nome),
+                nome(p.veredito_esperado),
+                a.perguntas_esperadas
+                    .iter()
+                    .filter(|q| q.atendida_por.is_some())
+                    .count(),
+                a.perguntas_esperadas.len(),
+                p.achados_registrados,
+                fim(e, c),
+            );
+        }
+        let _ = writeln!(s);
+    }
+    if !outras.is_empty() {
+        let _ = writeln!(
+            s,
+            "| Item | Condução (pedida → efetiva) | Regras | Perguntas esperadas | Premissa corrigida | Abrangência | Afirmações | Contestadas | Agentes | Tokens (todos os modelos) | Custo (US$) | Duração (relógio) |"
+        );
+        let _ = writeln!(s, "|---|---|---|---|---|---|---|---|---|---|---|---|");
+    }
+    for e in &outras {
         let c = e.conducao.as_ref().expect("filtrado acima");
         let a = e.avaliacao.as_ref();
         let _ = writeln!(
             s,
-            "| {} | {} → {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
+            "| {} | {} → {} | {} | {} | {} | {} | {} | {} |",
             e.item,
             c.pedida,
             c.efetiva,
@@ -366,24 +439,12 @@ pub fn secao_md(s: &mut String, execucoes: &[crate::relatorio::Execucao]) {
                     b.registrada.as_deref().unwrap_or("nenhuma")
                 )),
             a.map_or("-".into(), |a| a.afirmacoes.to_string()),
-            c.contestadas,
-            c.workflow
-                .as_ref()
-                .map_or("-".into(), |w| w.agentes.to_string()),
-            mil(tokens_da_execucao(e).total()),
-            e.claude
-                .as_ref()
-                .and_then(|c| c.custo_usd)
-                .map_or("?".into(), |v| format!("{v:.2}")),
-            e.claude
-                .as_ref()
-                .and_then(|c| c.duracao_ms)
-                .map_or("?".into(), |d| crate::relatorio::duracao_md(
-                    d as f64 / 1000.0
-                )),
+            fim(e, c),
         );
     }
-    let _ = writeln!(s);
+    if !outras.is_empty() {
+        let _ = writeln!(s);
+    }
     for e in &com {
         let c = e.conducao.as_ref().expect("filtrado acima");
         if let Some(aviso) = &c.aviso {

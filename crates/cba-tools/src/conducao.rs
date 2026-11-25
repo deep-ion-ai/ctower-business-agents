@@ -135,29 +135,55 @@ pub fn roteiro_curto(analise: &Analise, nome: &str, documento: &str, completo: &
          pedido.\n"
     );
     let _ = writeln!(t, "## Como conduzir\n");
-    let _ = writeln!(
-        t,
-        "O workflow `{nome}` faz a investigação: separa as frentes, investiga cada uma \
-         com um agente, verifica cada frente com um agente cético independente e \
-         consolida. Os agentes registram direto nesta análise (`afirmar`, `perguntar`, \
-         `propor_termo`, `memorizar`, `contestar_afirmacao`). Você não repete a \
-         investigação.\n"
-    );
+    let revisao = analise.fluxo == Fluxo::Revisar;
+    if revisao {
+        let _ = writeln!(
+            t,
+            "O workflow `{nome}` faz a revisão: separa os critérios de aceite e as \
+             afirmações do texto, avalia cada um contra a base e o código com um agente, \
+             verifica os achados de cada critério com um agente cético independente e \
+             consolida (a completude do texto inteiro, o INVEST, se for uma história, e o \
+             veredito). Os agentes registram direto no parecer (`registrar_achado`, \
+             `perguntar`, `afirmar`, `memorizar`, `contestar_achado`, `registrar_invest`, \
+             `registrar_veredito`). Você não repete a revisão.\n"
+        );
+    } else {
+        let _ = writeln!(
+            t,
+            "O workflow `{nome}` faz a investigação: separa as frentes, investiga cada uma \
+             com um agente, verifica cada frente com um agente cético independente e \
+             consolida. Os agentes registram direto nesta análise (`afirmar`, `perguntar`, \
+             `propor_termo`, `memorizar`, `contestar_afirmacao`). Você não repete a \
+             investigação.\n"
+        );
+    }
     let _ = writeln!(
         t,
         "1. Chame a ferramenta Workflow com name `{nome}` e os args que o analista pediu \
          (`{id}`), se ainda não chamou. Ela roda em segundo plano: espere o aviso de fim \
          sem investigar nem registrar nada enquanto isso."
     );
-    let _ = writeln!(
-        t,
-        "2. Quando o workflow terminar, chame `concluir_analise` (analise: \"{id}\"). As \
-         afirmações contestadas pela verificação independente aparecem como pendência: \
-         elas ficam para o analista decidir; não as apague nem as registre de novo. Se \
-         faltar afirmação numa seção obrigatória ({obrigatorias}), registre-a com \
-         `afirmar`, seguindo o roteiro completo (`retomar_analise` mostra o estado), e \
-         chame `concluir_analise` de novo."
-    );
+    if revisao {
+        let _ = writeln!(
+            t,
+            "2. Quando o workflow terminar, chame `concluir_analise` (analise: \"{id}\"). Os \
+             achados contestados pela verificação independente aparecem como pendência: \
+             eles ficam para o analista decidir; não os apague nem os registre de novo. Se \
+             faltar o veredito ou houver termo vago sem achado, registre o que falta \
+             seguindo o roteiro completo (`retomar_analise` mostra o estado) e chame \
+             `concluir_analise` de novo."
+        );
+    } else {
+        let _ = writeln!(
+            t,
+            "2. Quando o workflow terminar, chame `concluir_analise` (analise: \"{id}\"). As \
+             afirmações contestadas pela verificação independente aparecem como pendência: \
+             elas ficam para o analista decidir; não as apague nem as registre de novo. Se \
+             faltar afirmação numa seção obrigatória ({obrigatorias}), registre-a com \
+             `afirmar`, seguindo o roteiro completo (`retomar_analise` mostra o estado), e \
+             chame `concluir_analise` de novo."
+        );
+    }
     let _ = writeln!(
         t,
         "3. Se o workflow terminar com agentes com erro, chame `retomar_analise`, \
@@ -188,8 +214,13 @@ pub fn roteiro_curto(analise: &Analise, nome: &str, documento: &str, completo: &
     }
     let _ = writeln!(
         t,
-        "\nDiga também quantas afirmações a verificação independente contestou: o \
-         analista as revê no app."
+        "\nDiga também {} a verificação independente contestou: o analista {} revê no app.",
+        if revisao {
+            "quantos achados"
+        } else {
+            "quantas afirmações"
+        },
+        if revisao { "os" } else { "as" }
     );
     t
 }
@@ -224,48 +255,107 @@ pub struct Estimativa {
 /// Claude Code 2.1.332 (2 a 4 frentes por caso): por agente, do menor ao maior. O
 /// total foi cerca de 4,7 vezes o da condução simples, e a duração de relógio, de 3
 /// a 4 min (a simples levou cerca de 1,5 min).
-pub const ESTIMATIVAS: &[Estimativa] = &[Estimativa {
-    tipo: "impacto",
-    fases: &[
-        TokensDaFase {
-            fase: "Preparar",
-            minimo: 116_000,
-            maximo: 170_000,
-        },
-        TokensDaFase {
-            fase: "Investigar",
-            minimo: 371_000,
-            maximo: 1_300_000,
-        },
-        TokensDaFase {
-            fase: "Verificar",
-            minimo: 30_000,
-            maximo: 84_000,
-        },
-        TokensDaFase {
-            fase: "Consolidar",
-            minimo: 100_000,
-            maximo: 267_000,
-        },
-    ],
-    razao_simples: 4.7,
-    minutos: (3, 4),
-    relatorio: "docs/avaliacao/2026-11-25-workflow-impacto-sonnet.md",
-}];
+///
+/// `revisar`: o caso REV-FAT-001, uma rodada com Sonnet e o Claude Code 2.1.332 (5
+/// critérios): cerca de 2,9 vezes os tokens da condução simples e 2 min 23 s de
+/// relógio (a simples levou 1 min 20 s).
+pub const ESTIMATIVAS: &[Estimativa] = &[
+    Estimativa {
+        tipo: "impacto",
+        fases: &[
+            TokensDaFase {
+                fase: "Preparar",
+                minimo: 116_000,
+                maximo: 170_000,
+            },
+            TokensDaFase {
+                fase: "Investigar",
+                minimo: 371_000,
+                maximo: 1_300_000,
+            },
+            TokensDaFase {
+                fase: "Verificar",
+                minimo: 30_000,
+                maximo: 84_000,
+            },
+            TokensDaFase {
+                fase: "Consolidar",
+                minimo: 100_000,
+                maximo: 267_000,
+            },
+        ],
+        razao_simples: 4.7,
+        minutos: (3, 4),
+        relatorio: "docs/avaliacao/2026-11-25-workflow-impacto-sonnet.md",
+    },
+    Estimativa {
+        tipo: "revisar",
+        fases: &[
+            TokensDaFase {
+                fase: "Separar",
+                minimo: 121_000,
+                maximo: 121_000,
+            },
+            TokensDaFase {
+                fase: "Avaliar",
+                minimo: 134_000,
+                maximo: 258_000,
+            },
+            TokensDaFase {
+                fase: "Verificar",
+                minimo: 24_000,
+                maximo: 40_000,
+            },
+            TokensDaFase {
+                fase: "Consolidar",
+                minimo: 81_000,
+                maximo: 81_000,
+            },
+        ],
+        razao_simples: 2.9,
+        minutos: (2, 3),
+        relatorio: "docs/avaliacao/2026-11-25-workflow-revisar-sonnet.md",
+    },
+];
 
 /// Estimativa do tipo, se já medida.
 pub fn estimativa(tipo: &str) -> Option<&'static Estimativa> {
     ESTIMATIVAS.iter().find(|e| e.tipo == tipo)
 }
 
+/// Tipo com workflow que Nova análise não oferece: a medição não mostrou ganho sobre
+/// a condução simples. O workflow continua instalado pelo preparo e customizável em
+/// Configurações › Workflows, e o `iniciar_analise` aceita `conducao: workflow` (a
+/// avaliação usa esse caminho).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NaoOferecido {
+    pub tipo: &'static str,
+    /// Relatório da medição, em `docs/avaliacao/`.
+    pub relatorio: &'static str,
+}
+
+/// `revisar` (#373): no REV-FAT-001, a condução simples já achou os 3 achados
+/// esperados, os 4 termos vagos, a pergunta esperada e o veredito; o workflow repetiu
+/// o resultado com cerca de 2,9 vezes os tokens e 3 vezes o custo.
+pub const NAO_OFERECIDOS: &[NaoOferecido] = &[NaoOferecido {
+    tipo: "revisar",
+    relatorio: "docs/avaliacao/2026-11-25-workflow-revisar-sonnet.md",
+}];
+
+/// O tipo tem workflow e Nova análise oferece a condução Aprofundada.
+pub fn oferecido(tipo: &str) -> bool {
+    workflows::padrao(tipo).is_some() && !NAO_OFERECIDOS.iter().any(|n| n.tipo == tipo)
+}
+
 impl Estimativa {
-    /// Faixa de tokens do workflow inteiro com `frentes` frentes: Preparar e
-    /// Consolidar uma vez, Investigar e Verificar uma vez por frente.
+    /// Faixa de tokens do workflow inteiro com `frentes` frentes: a primeira e a
+    /// última fase uma vez; as por frente (Investigar ou Avaliar, e Verificar) uma
+    /// vez por frente.
     pub fn faixa(&self, frentes: u32) -> (u64, u64) {
         let mut faixa = (0, 0);
         for f in self.fases {
             let vezes = match f.fase {
-                "Investigar" | "Verificar" => u64::from(frentes),
+                "Investigar" | "Avaliar" | "Verificar" => u64::from(frentes),
                 _ => 1,
             };
             faixa.0 += f.minimo * vezes;
@@ -311,9 +401,20 @@ mod tests {
     }
 
     #[test]
-    fn so_o_impacto_tem_workflow_e_o_maximo_de_agentes() {
+    fn impacto_e_revisar_tem_workflow_e_o_maximo_de_agentes() {
         assert_eq!(tipo_do_fluxo(Fluxo::Impacto), Some("impacto"));
-        for f in [Fluxo::Perguntar, Fluxo::Explicar, Fluxo::Reuniao] {
+        assert_eq!(
+            workflow_do_fluxo(Fluxo::Revisar).as_deref(),
+            Some("cba-revisar")
+        );
+        // Histórias e cenários ficam sem workflow (spec, seção 4-D; #373).
+        for f in [
+            Fluxo::Perguntar,
+            Fluxo::Explicar,
+            Fluxo::Reuniao,
+            Fluxo::Historias,
+            Fluxo::Cenarios,
+        ] {
             assert_eq!(tipo_do_fluxo(f), None);
         }
         assert_eq!(agentes_no_maximo(FRENTES_PADRAO), 14);
@@ -328,6 +429,18 @@ mod tests {
                 .is_file()
         );
         assert!(estimativa("perguntar").is_none());
+        let raiz = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        // A revisão foi medida, e a Aprofundada não é oferecida nela (#373).
+        let r = estimativa("revisar").unwrap();
+        assert!(raiz.join(r.relatorio).is_file());
+        let (min, _) = r.faixa(2);
+        assert_eq!(min, 121_000 + 2 * (134_000 + 24_000) + 81_000);
+        assert!(oferecido("impacto"));
+        assert!(!oferecido("revisar") && !oferecido("perguntar"));
+        for n in NAO_OFERECIDOS {
+            assert!(workflows::padrao(n.tipo).is_some(), "{}", n.tipo);
+            assert!(raiz.join(n.relatorio).is_file(), "{}", n.relatorio);
+        }
     }
 
     #[test]

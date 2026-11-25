@@ -132,9 +132,9 @@ fn prepara_em_configuracao_vazia() {
     assert!(r.gravado);
     assert_eq!(r.diretorio, pasta);
     assert!(r.backups.is_empty(), "não havia arquivo antes");
-    // Servidor, confiança, hooks, as duas regras do workflow e o arquivo dele (fora
-    // do git, sem as linhas do info/exclude).
-    assert_eq!(r.alteracoes.len(), 2 + EVENTOS.len() + 2 + 1);
+    // Servidor, confiança, hooks e, por workflow (impacto e revisar), as duas regras
+    // e o arquivo (fora do git, sem as linhas do info/exclude).
+    assert_eq!(r.alteracoes.len(), 2 + EVENTOS.len() + 2 * (2 + 1));
     assert!(r.alteracoes.iter().all(|a| a.acao == Acao::Adicionado));
     assert_eq!(
         r.alteracoes[1].item,
@@ -179,20 +179,36 @@ fn prepara_em_configuracao_vazia() {
     // O workflow pelo nome, nunca `Workflow` sem nome.
     assert_eq!(
         settings["permissions"],
-        json!({ "allow": ["Workflow(cba-impacto)", "Skill(cba-impacto)"] })
+        json!({
+            "allow": [
+                "Workflow(cba-impacto)",
+                "Skill(cba-impacto)",
+                "Workflow(cba-revisar)",
+                "Skill(cba-revisar)"
+            ]
+        })
     );
     let instalado = pasta
         .join(PASTA_LOCAL)
         .join(PASTA_WORKFLOWS)
         .join("cba-impacto.js");
-    let ultima = r.alteracoes.last().unwrap();
-    assert_eq!(ultima.arquivo, instalado);
+    let arquivos: Vec<_> = r
+        .alteracoes
+        .iter()
+        .filter(|a| matches!(a.item, Item::Workflow { .. }))
+        .collect();
+    assert_eq!(arquivos.len(), 2);
+    assert_eq!(arquivos[0].arquivo, instalado);
     assert_eq!(
-        ultima.item,
+        arquivos[0].item,
         Item::Workflow {
             nome: "cba-impacto".into(),
             raiz: chave(&pasta)
         }
+    );
+    assert_eq!(
+        arquivos[1].arquivo,
+        instalado.with_file_name("cba-revisar.js")
     );
     let texto = fs::read_to_string(&instalado).unwrap();
     let padrao = WorkflowEfetivo::padrao("impacto").unwrap();
@@ -206,8 +222,8 @@ fn prepara_em_configuracao_vazia() {
     let v = c.preparador().verificar(&alvo).unwrap();
     assert!(v.pronto);
     assert!(v.workflows_prontos);
-    assert_eq!(v.workflows.len(), 1);
-    assert_eq!(v.permissoes_workflow.len(), 2);
+    assert_eq!(v.workflows.len(), 2);
+    assert_eq!(v.permissoes_workflow.len(), 4);
 }
 
 #[test]
@@ -352,6 +368,7 @@ fn preserva_a_configuracao_do_analista_e_desfaz_exatamente() {
             PathBuf::from(ARQUIVO_LOCAL),
             PathBuf::from(PASTA_WORKFLOWS),
             Path::new(PASTA_WORKFLOWS).join("cba-impacto.js"),
+            Path::new(PASTA_WORKFLOWS).join("cba-revisar.js"),
         ]
         .into()
     );
@@ -394,7 +411,9 @@ fn preserva_a_configuracao_do_analista_e_desfaz_exatamente() {
         json!([
             "Bash(git status)",
             "Workflow(cba-impacto)",
-            "Skill(cba-impacto)"
+            "Skill(cba-impacto)",
+            "Workflow(cba-revisar)",
+            "Skill(cba-revisar)"
         ])
     );
     let pre = settings["hooks"]["PreToolUse"].as_array().unwrap();
@@ -575,11 +594,9 @@ fn worktree_usa_o_repositorio_principal_como_chave() {
     let mut com_workflow = antes_wt.clone();
     com_workflow.insert(PathBuf::from(PASTA_LOCAL));
     com_workflow.insert(Path::new(PASTA_LOCAL).join(PASTA_WORKFLOWS));
-    com_workflow.insert(
-        Path::new(PASTA_LOCAL)
-            .join(PASTA_WORKFLOWS)
-            .join("cba-impacto.js"),
-    );
+    for nome in ["cba-impacto.js", "cba-revisar.js"] {
+        com_workflow.insert(Path::new(PASTA_LOCAL).join(PASTA_WORKFLOWS).join(nome));
+    }
     assert_eq!(arvore(&wt), com_workflow, "só o workflow na worktree");
     // E os arquivos ficam fora do git, pelo info/exclude do diretório comum.
     let exclude = repo.join(".git").join("info").join("exclude");
@@ -628,11 +645,9 @@ fn so_o_arquivo_local_e_criado_na_pasta_do_projeto() {
     com_local.insert(PathBuf::from(PASTA_LOCAL));
     com_local.insert(Path::new(PASTA_LOCAL).join(ARQUIVO_LOCAL));
     com_local.insert(Path::new(PASTA_LOCAL).join(PASTA_WORKFLOWS));
-    com_local.insert(
-        Path::new(PASTA_LOCAL)
-            .join(PASTA_WORKFLOWS)
-            .join("cba-impacto.js"),
-    );
+    for nome in ["cba-impacto.js", "cba-revisar.js"] {
+        com_local.insert(Path::new(PASTA_LOCAL).join(PASTA_WORKFLOWS).join(nome));
+    }
     assert_eq!(arvore(&pasta), com_local);
     p.desfazer(&alvo).unwrap();
     assert_eq!(arvore(&pasta), antes);
@@ -1691,7 +1706,8 @@ fn pasta_no_repositorio_e_outra_na_worktree_recebem_o_workflow() {
     }
     let v = p.verificar(&alvo).unwrap();
     assert!(v.pronto && v.workflows_prontos, "{v:?}");
-    assert_eq!(v.workflows.len(), 2);
+    // Dois workflows (impacto e revisar) em cada uma das duas raízes.
+    assert_eq!(v.workflows.len(), 4);
     assert!(!p.preparar(&alvo).unwrap().houve_mudanca());
 
     let r = p.desfazer(&alvo).unwrap();
@@ -1826,7 +1842,9 @@ fn regras_de_permissao_que_ja_existiam_ficam_no_desfazer() {
         regras,
         [
             ("Workflow(cba-impacto)", Acao::SemMudanca),
-            ("Skill(cba-impacto)", Acao::Adicionado)
+            ("Skill(cba-impacto)", Acao::Adicionado),
+            ("Workflow(cba-revisar)", Acao::Adicionado),
+            ("Skill(cba-revisar)", Acao::Adicionado)
         ]
     );
     p.desfazer(&alvo).unwrap();

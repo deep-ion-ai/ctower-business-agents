@@ -234,3 +234,125 @@ fn sem_a_ferramenta_workflow_volta_a_conducao_simples_com_aviso() {
     assert!(saida.texto.contains("não tem workflow"), "{}", saida.texto);
     assert_eq!(c.analise(&p.id.to_string()).conducao, Conducao::Simples);
 }
+
+/// A mesma história do gabarito (`revisoes`, REV-FAT-001).
+const HISTORIA: &str = "Cancelamento de fatura pelo atendente
+
+Como atendente da central, quero cancelar uma fatura informando o motivo, para corrigir cobranças lançadas por engano.
+
+Critérios de aceite:
+- O atendente pode cancelar fatura aberta, inclusive a que já tem pagamento parcial.
+- O motivo do cancelamento é obrigatório.
+- O cancelamento deve ser rápido e a mensagem de confirmação, adequada.
+- Vale para faturas avulsas e/ou parceladas, etc.";
+
+/// A revisão de requisito pelo workflow `cba-revisar` (#373), de ponta a ponta, com
+/// as chamadas que os agentes fazem: o roteiro curto da revisão, o achado da fase
+/// Avaliar, a contestação da fase Verificar, o INVEST e o veredito da Consolidar, e a
+/// pendência no `concluir_analise`, sem apagar o achado.
+#[test]
+fn revisao_pelo_workflow_contesta_achado_e_conclui_com_pendencia() {
+    let c = cenario();
+    let r = c.criar(Fluxo::Revisar, "Cancelamento", HISTORIA);
+    let id = r.id.to_string();
+    let saida = c
+        .saida(
+            "iniciar_analise",
+            json!({ "analise": id, "conducao": "workflow" }),
+        )
+        .unwrap();
+    let t = &saida.texto;
+    assert!(t.contains("conduzida pelo workflow cba-revisar"), "{t}");
+    assert!(t.contains("`contestar_achado`"), "{t}");
+    assert!(t.contains("`registrar_veredito`"), "{t}");
+    assert!(t.contains("Se faltar o veredito"), "{t}");
+    assert!(!t.contains("seção obrigatória"), "{t}");
+    assert!(
+        t.contains("quantos achados a verificação independente"),
+        "{t}"
+    );
+    // A resposta no chat é a do roteiro de revisão.
+    assert!(t.contains("o veredito, em uma frase"), "{t}");
+    assert_eq!(saida.dados.unwrap()["workflow"], "cba-revisar");
+    assert_eq!(c.analise(&id).conducao, Conducao::Workflow);
+
+    // Avaliar: dois achados.
+    let correcao = c.chamar(
+        "registrar_achado",
+        json!({
+            "analise": id,
+            "caracteristica": "correcao",
+            "severidade": "alta",
+            "trecho": "inclusive a que já tem pagamento parcial",
+            "problema": "O sistema só cancela fatura sem nenhum valor pago.",
+            "reescrita": "O atendente pode cancelar fatura aberta e sem nenhum valor pago.",
+            "evidencias": [{
+                "arquivo": "db/03_pkg_cobranca.sql",
+                "linha_inicial": 115,
+                "linha_final": 117,
+                "trecho": "IF V_VL_PAGO > 0 THEN"
+            }]
+        }),
+    );
+    assert_eq!(correcao["achado"], 1);
+    c.chamar(
+        "registrar_achado",
+        json!({
+            "analise": id,
+            "caracteristica": "ambiguidade",
+            "severidade": "media",
+            "trecho": "rápido",
+            "problema": "Rápido não é verificável.",
+            "reescrita": "O cancelamento termina em até 2 segundos."
+        }),
+    );
+    // Verificar: o cético contesta o segundo, também numa retomada (substitui).
+    for _ in 0..2 {
+        c.chamar(
+            "contestar_achado",
+            json!({ "analise": id, "numero": 2, "motivo": "O termo está em outro critério." }),
+        );
+    }
+    let a = c.analise(&id);
+    let achados = &a.parecer.as_ref().unwrap().achados;
+    assert_eq!(achados.len(), 2);
+    assert!(!achados[0].a_revalidar());
+    assert!(achados[1].a_revalidar());
+
+    // Consolidar: INVEST e veredito.
+    let criterios: Vec<Value> = [
+        "independente",
+        "negociavel",
+        "valiosa",
+        "estimavel",
+        "pequena",
+        "testavel",
+    ]
+    .iter()
+    .map(|c| json!({ "criterio": c, "resultado": "atende", "justificativa": "ok" }))
+    .collect();
+    c.chamar(
+        "registrar_invest",
+        json!({ "analise": id, "criterios": criterios }),
+    );
+    c.chamar(
+        "registrar_veredito",
+        json!({
+            "analise": id,
+            "veredito": "precisa_de_retrabalho",
+            "justificativa": "Contradiz a regra do pagamento parcial."
+        }),
+    );
+
+    let fim = c.chamar("concluir_analise", json!({ "analise": id }));
+    let pendencias = fim["pendencias"].to_string();
+    assert!(
+        pendencias.contains("achado 2: contestado pela verificação independente"),
+        "{pendencias}"
+    );
+    assert_eq!(
+        c.analise(&id).parecer.as_ref().unwrap().achados.len(),
+        2,
+        "nada é apagado"
+    );
+}

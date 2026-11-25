@@ -51,7 +51,7 @@ Opções principais:
 | `--permitir-edicao` | desligado | libera Edit, Write e Bash, para testar o limite "não altera o código" |
 | `--tempo-limite` | `900` | segundos por execução |
 | `--manter` | desligado | mantém as pastas temporárias, para depurar |
-| `--conducao` | (simples, sem comparação) | `simples`, `workflow` ou `simples,workflow`: roda cada item de impacto em cada condução e compara ([seção própria](#condução-pelo-workflow)) |
+| `--conducao` | (simples, sem comparação) | `simples`, `workflow` ou `simples,workflow`: roda cada item de impacto ou de revisar em cada condução e compara ([seção própria](#condução-pelo-workflow)) |
 | `--orcamento-workflow` | `8` | `--max-budget-usd` da condução pelo workflow, em US$ |
 
 O custo máximo é cerca de `orçamento x fluxos x repetições` (a reunião longa usa `--orcamento-longa`); o `claude` confere o orçamento entre os turnos e pode passar um pouco dele. O programa mostra a estimativa antes de começar. Sai com 0 sem falhas graves, 1 com falha grave e 2 em erro de uso.
@@ -314,6 +314,45 @@ Estimativa por fase (tokens por agente, do menor ao maior nos quatro casos), emb
 | Consolidar | 100 mil a 267 mil | 3 mil a 4 mil |
 
 Com as 6 frentes padrão, a faixa vai de cerca de 2,8 mi a 8,7 mi tokens (14 agentes no pior caso).
+
+### Revisão de requisito pelo workflow (#373)
+
+A revisão de requisito também pode ser conduzida pelo workflow `cba-revisar`: Separar (1 agente: os critérios de aceite e as afirmações do texto, até `limites.frentes`) → Avaliar e Verificar (1 de cada por critério, em pipeline; a verificação contesta com `contestar_achado`) → Consolidar (1: a completude do texto inteiro, o INVEST e o veredito). Nas revisões, a seção "Condução simples e workflow" do relatório troca as colunas do impacto pelas da revisão: achados esperados, termos vagos, veredito, pergunta esperada, achados registrados e contestados.
+
+```sh
+cargo run -p cba-avaliacao -- rodar --fluxos revisar --revisao REV-FAT-001 \
+  --conducao simples,workflow --orcamento 2 --orcamento-workflow 8 --tempo-limite 2700
+```
+
+Uma rodada de cada condução no REV-FAT-001, com Sonnet e o Claude Code 2.1.332 ([relatório](avaliacao/2026-11-25-workflow-revisar-sonnet.md)), US$ 1,47 no total:
+
+| | Simples | Workflow |
+|---|---|---|
+| Achados esperados | 3 de 3 | 3 de 3 |
+| Termos vagos apontados | 4 de 4 | 4 de 4 |
+| Pergunta esperada | 1 de 1 | 1 de 1 |
+| Veredito | precisa de retrabalho (confere) | precisa de retrabalho (confere) |
+| Achados registrados | 7 | 13 |
+| Contestados | – | 0 |
+| Agentes | – | 12 (5 critérios) |
+| Tokens | 525 mil | 1,5 mi (cerca de 2,9×) |
+| Custo | US$ 0,36 | US$ 1,11 (cerca de 3,1×) |
+| Duração de relógio | 1 min 20 s | 2 min 23 s |
+
+Nenhuma falha grave nas duas conduções. O workflow **não mostrou ganho**: a condução simples já atinge o teto do gabarito, e o workflow repete o resultado com mais achados, em parte mais finos (um achado por termo vago, o tamanho máximo do motivo, a consistência do termo "fatura avulsa", a singularidade do critério que junta tempo e mensagem) e em parte o mesmo problema visto por dois critérios. A verificação independente não contestou nenhum achado.
+
+**Decisão:** a opção Aprofundada **não aparece** em Nova análise para a revisão de requisito (`cba_tools::conducao::NAO_OFERECIDOS`). O `cba-revisar` continua instalado pelo preparo e customizável em Configurações › Workflows, e o `iniciar_analise` aceita `conducao: workflow` (o caminho da avaliação). Para oferecer a opção, meça de novo com casos maiores (textos com muitos critérios ou que tocam várias camadas) e tire o tipo da lista se houver ganho. A estimativa por fase também está em `ESTIMATIVAS`:
+
+| Fase | Por agente | Saída por agente |
+|---|---|---|
+| Separar | 121 mil | 3 mil |
+| Avaliar | 134 mil a 258 mil | cerca de 5 mil |
+| Verificar | 24 mil a 40 mil | menos de 1 mil |
+| Consolidar | 81 mil | 2 mil |
+
+### Histórias e cenários: sem workflow (#373)
+
+A spec (seção 4-D) condicionava um workflow de Histórias e critérios e de Cenários de teste (gerar → revisar a cobertura dos critérios → consolidar) a um ganho medido no impacto. A avaliação da #371 ([relatório](avaliacao/2026-11-25-workflow-impacto-sonnet.md)) não mostrou ganho de cobertura: a condução simples atinge o teto do gabarito, e o workflow custa cerca de 4,7 vezes os tokens. Histórias e Cenários ficam **sem workflow**, só com a condução simples. A revisão de requisito, medida na #373, confirmou o mesmo quadro.
 
 ## Ao mudar o gabarito ou a fixture
 

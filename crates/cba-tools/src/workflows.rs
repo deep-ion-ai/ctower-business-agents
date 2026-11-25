@@ -19,12 +19,13 @@ use serde::Serialize;
 pub const PREFIXO: &str = "cba-";
 
 /// Tipos de análise com workflow padrão, na ordem em que aparecem.
-pub const TIPOS: &[&str] = &["impacto"];
+pub const TIPOS: &[&str] = &["impacto", "revisar"];
 
 /// Texto padrão embutido do workflow de `tipo`.
 pub fn padrao(tipo: &str) -> Option<&'static str> {
     match tipo {
         "impacto" => Some(include_str!("../textos/workflows/impacto.js")),
+        "revisar" => Some(include_str!("../textos/workflows/revisar.js")),
         _ => None,
     }
 }
@@ -117,21 +118,49 @@ mod tests {
     /// `export const meta = {...}` literal no início, com o nome certo e as fases da
     /// spec (seção 3.1).
     #[test]
-    fn padrao_de_impacto_comeca_pelo_meta_com_as_fases() {
-        let texto = padrao("impacto").unwrap();
-        assert!(texto.starts_with("export const meta = {\n"));
-        let fim = texto.find("\n}\n").unwrap();
-        let meta = &texto[..fim];
-        assert!(meta.contains("name: 'cba-impacto'"));
-        assert!(meta.contains("description: '"));
-        for fase in ["Preparar", "Investigar", "Verificar", "Consolidar"] {
-            assert!(meta.contains(&format!("title: '{fase}'")), "{fase}");
+    fn padroes_comecam_pelo_meta_com_as_fases() {
+        for (tipo, fases) in [
+            (
+                "impacto",
+                ["Preparar", "Investigar", "Verificar", "Consolidar"],
+            ),
+            ("revisar", ["Separar", "Avaliar", "Verificar", "Consolidar"]),
+        ] {
+            let texto = padrao(tipo).unwrap();
+            assert!(texto.starts_with("export const meta = {\n"));
+            let fim = texto.find("\n}\n").unwrap();
+            let meta = &texto[..fim];
+            assert!(meta.contains(&format!("name: 'cba-{tipo}'")), "{tipo}");
+            assert!(meta.contains("description: '"));
+            for fase in fases {
+                assert!(meta.contains(&format!("title: '{fase}'")), "{tipo}: {fase}");
+            }
+            // Sem o que quebra a retomada e lendo os args (spec, seção 3.5).
+            for proibido in ["Date.now()", "Math.random()", "new Date()"] {
+                assert!(!texto.contains(proibido), "{tipo}: {proibido}");
+            }
+            assert!(texto.contains("typeof args === 'string'"), "{tipo}");
         }
-        // Sem o que quebra a retomada e lendo os args (spec, seção 3.5).
-        for proibido in ["Date.now()", "Math.random()", "new Date()"] {
-            assert!(!texto.contains(proibido), "{proibido}");
+    }
+
+    /// O revisar registra pelas ferramentas da seção 3.1: achados, perguntas e
+    /// afirmações na avaliação, a contestação na verificação e o INVEST e o veredito
+    /// na consolidação.
+    #[test]
+    fn padrao_de_revisar_usa_as_ferramentas_do_parecer() {
+        let texto = padrao("revisar").unwrap();
+        for ferramenta in [
+            "verificar_termos_vagos",
+            "registrar_achado",
+            "perguntar",
+            "afirmar",
+            "contestar_achado",
+            "registrar_invest",
+            "registrar_veredito",
+        ] {
+            assert!(texto.contains(ferramenta), "{ferramenta}");
         }
-        assert!(texto.contains("typeof args === 'string'"));
+        assert!(!texto.contains("contestar_afirmacao"));
     }
 
     #[test]
@@ -139,6 +168,7 @@ mod tests {
         let todos = padroes();
         assert_eq!(todos.len(), TIPOS.len());
         assert_eq!(todos[0].nome(), "cba-impacto");
+        assert_eq!(todos[1].nome(), "cba-revisar");
         assert_eq!(todos[0].origem, OrigemWorkflow::Padrao);
         assert!(padrao("perguntar").is_none());
         for o in [
