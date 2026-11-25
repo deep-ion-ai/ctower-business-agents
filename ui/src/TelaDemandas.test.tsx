@@ -2,7 +2,8 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { TelaDemandas, acaoDaIssue } from "./TelaDemandas";
 import type { ApiConhecimento } from "./conhecimento";
 import type { ApiIssues, FiltroIssues, IssueDoProjeto, ListaIssues } from "./issuesProjeto";
-import { PROJETO, apiConhecimentoFalsa } from "./test/conhecimentoFalso";
+import type { DemandaVista } from "./demandas";
+import { PROJETO, apiConhecimentoFalsa, demandasFicticias } from "./test/conhecimentoFalso";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(), Channel: vi.fn() }));
 
@@ -228,6 +229,31 @@ describe("TelaDemandas", () => {
     // A situação na base não existe para a demanda à mão: o filtro a esconde.
     fireEvent.click(screen.getByRole("button", { name: "Sem análise" }));
     await waitFor(() => expect(screen.queryByText("D-0002")).toBeNull());
+  });
+
+  it("mostra o tipo da demanda na linha e no painel e filtra por tipo (#358)", async () => {
+    const [base] = demandasFicticias();
+    const daBase: DemandaVista[] = [
+      { ...base, id: "D-0004", chave: "#398", tipo: "bug" },
+      { ...base, id: "D-0005", chave: "#377", tipo: "melhoria" },
+      { ...base, id: "D-0006", chave: "#352", tipo: null },
+      { ...base, id: "D-0010", titulo: "Relatório de inadimplência", chave: null, tipo: "bug", criado: atras(2).slice(0, 10) },
+    ];
+    montar(issuesFalsa(), { listarDemandas: vi.fn(() => Promise.resolve(daBase)) });
+    const lista = await screen.findByRole("list", { name: "Lista de demandas" });
+    // A issue mostra o tipo da demanda ligada a ela.
+    expect(await within(lista).findByText(/Corrigir bug · aberta há 9 dias/)).toBeInTheDocument();
+    expect(within(lista).getByText(/Melhoria · aberta há 20 dias/)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Tipo da demanda"), { target: { value: "bug" } });
+    const itens = within(lista).getAllByRole("listitem");
+    // #398 (pela demanda D-0004) e a demanda à mão D-0010; as sem tipo somem.
+    expect(itens.map((i) => within(i).getByText(/^(#|D-)\d+$/).textContent)).toEqual(["D-0010", "#398"]);
+    const painel = screen.getByRole("complementary", { name: "Demanda selecionada" });
+    expect(within(painel).getByTitle("Tipo da demanda")).toHaveTextContent("Corrigir bug");
+
+    fireEvent.change(screen.getByLabelText("Tipo da demanda"), { target: { value: "funcionalidade" } });
+    expect(await screen.findByText("Nenhuma demanda com este filtro.")).toBeInTheDocument();
   });
 
   it("o painel mostra a descrição, o link do rastreador, o que há na base e os parecidos", async () => {

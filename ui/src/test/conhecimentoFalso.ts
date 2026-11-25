@@ -280,6 +280,7 @@ export function demandasFicticias(): DemandaVista[] {
       titulo: "Parcelamento PJ",
       status: "aberta",
       statusLocal: "aberta",
+      tipo: "funcionalidade",
       rastreador: null,
       avisoRastreador: null,
       chave: "FAT-12",
@@ -293,6 +294,7 @@ export function demandasFicticias(): DemandaVista[] {
       titulo: "Multa de fatura vencida",
       status: "encerrada",
       statusLocal: "encerrada",
+      tipo: null,
       rastreador: null,
       avisoRastreador: null,
       chave: null,
@@ -536,6 +538,7 @@ export function apiConhecimentoFalsa() {
           id: "D-0003",
           titulo: nova.titulo,
           chave: nova.chave ?? null,
+          tipo: nova.tipo ?? null,
         }),
     ),
     encerrarDemanda: vi.fn(

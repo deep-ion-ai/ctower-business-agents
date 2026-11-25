@@ -8,7 +8,7 @@ use std::thread;
 
 use cba_kb::frontmatter::{
     Data, Demanda, FrontmatterAnalise, FrontmatterDemanda, FrontmatterProjeto, StatusAnalise,
-    StatusDemanda,
+    StatusDemanda, TipoDemanda,
 };
 use cba_kb::indice::{Indice, Tipo};
 use cba_kb::{
@@ -83,6 +83,7 @@ fn cria_le_e_numera_em_sequencia() {
                 descricao: Some("O cliente quer cancelar notas em até 24 h.".into()),
                 chave: Some(" FAT-12 ".into()),
                 origem: Some("https://github.com/exemplo/faturamento/issues/12".into()),
+                tipo: None,
             },
             data(3),
         )
@@ -220,6 +221,110 @@ fn preserva_campos_e_comentarios_editados_a_mao() {
     assert!(depois.contains("prioridade: alta"), "{depois}");
     assert!(depois.contains("status: encerrada"), "{depois}");
     assert!(depois.contains("encerrado: 2026-11-05"), "{depois}");
+}
+
+#[test]
+fn tipo_da_demanda_vai_no_frontmatter() {
+    let (_dir, _base, projeto) = criar_base();
+    let d = projeto
+        .criar_demanda(
+            &NovaDemanda {
+                titulo: "Parcelas seguem cobradas após cancelar a fatura".into(),
+                descricao: Some("Cancelar a fatura não cancela as parcelas.".into()),
+                tipo: Some(TipoDemanda::Bug),
+                ..Default::default()
+            },
+            data(3),
+        )
+        .unwrap();
+    let texto = fs::read_to_string(projeto.caminho(&d.arquivo)).unwrap();
+    assert!(texto.contains("\ntipo_demanda: bug\n"), "{texto}");
+    assert!(!texto.contains("**Tipo:**"), "{texto}");
+    let lida = projeto.demanda(d.id).unwrap();
+    assert_eq!(
+        lida.documento.frontmatter.tipo_demanda,
+        Some(TipoDemanda::Bug)
+    );
+    assert_eq!(lida.tipo_efetivo(), Some(TipoDemanda::Bug));
+
+    // Sem tipo (demanda de reunião ou de issue), o campo nem aparece.
+    let sem = projeto
+        .criar_demanda(&nova("Reajuste anual"), data(3))
+        .unwrap();
+    let texto = fs::read_to_string(projeto.caminho(&sem.arquivo)).unwrap();
+    assert!(!texto.contains("tipo_demanda"), "{texto}");
+    assert_eq!(projeto.demanda(sem.id).unwrap().tipo_efetivo(), None);
+}
+
+#[test]
+fn demanda_antiga_com_a_linha_do_tipo_tem_o_tipo_reconhecido() {
+    let (_dir, _base, projeto) = criar_base();
+    // Como a Demanda Negocial gravava antes do campo próprio (#350).
+    let antigas = [
+        (
+            "**Tipo:** Corrigir bug  \n**Funcionalidade:** Faturamento\n\nCancelar não cancela as parcelas.",
+            Some(TipoDemanda::Bug),
+        ),
+        (
+            "**Tipo:** Nova funcionalidade\n\nParcelar a fatura PJ.",
+            Some(TipoDemanda::Funcionalidade),
+        ),
+        (
+            "**Tipo:** melhoria\n\nMostrar o motivo da recusa.",
+            Some(TipoDemanda::Melhoria),
+        ),
+        ("**Tipo:** Outra coisa\n\nTipo desconhecido não vale.", None),
+        ("Sem a linha do tipo.", None),
+    ];
+    for (descricao, esperado) in antigas {
+        let d = projeto
+            .criar_demanda(
+                &NovaDemanda {
+                    titulo: "Antiga".into(),
+                    descricao: Some(descricao.into()),
+                    ..Default::default()
+                },
+                data(3),
+            )
+            .unwrap();
+        let lida = projeto.demanda(d.id).unwrap();
+        assert_eq!(lida.documento.frontmatter.tipo_demanda, None);
+        assert_eq!(lida.tipo_efetivo(), esperado, "{descricao}");
+    }
+
+    // O campo do frontmatter vale mais que a linha do texto.
+    let d = projeto
+        .criar_demanda(
+            &NovaDemanda {
+                titulo: "Corrigida à mão".into(),
+                descricao: Some("**Tipo:** Corrigir bug\n\nNa verdade é melhoria.".into()),
+                tipo: Some(TipoDemanda::Melhoria),
+                ..Default::default()
+            },
+            data(3),
+        )
+        .unwrap();
+    assert_eq!(
+        projeto.demanda(d.id).unwrap().tipo_efetivo(),
+        Some(TipoDemanda::Melhoria)
+    );
+}
+
+#[test]
+fn tipo_desconhecido_no_frontmatter_e_recusado() {
+    let (_dir, _base, projeto) = criar_base();
+    let d = projeto.criar_demanda(&nova("Editada"), data(3)).unwrap();
+    let caminho = projeto.caminho(&d.arquivo);
+    let texto = fs::read_to_string(&caminho).unwrap().replacen(
+        "status: aberta\n",
+        "status: aberta\ntipo_demanda: urgente\n",
+        1,
+    );
+    fs::write(&caminho, &texto).unwrap();
+    assert!(matches!(
+        projeto.demanda(d.id),
+        Err(Erro::Frontmatter { .. })
+    ));
 }
 
 #[test]

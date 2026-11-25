@@ -418,7 +418,7 @@ describe("TelaAnalise", () => {
     );
   });
 
-  it("Demanda Negocial: registra a demanda com o tipo e oferece analisá-la (#350)", async () => {
+  it("Demanda Negocial: registra a demanda com o tipo no campo próprio e oferece analisá-la (#350, #358)", async () => {
     const { painel, conhecimento } = await abrirPainelCompleto();
     fireEvent.click(within(painel).getByRole("button", { name: "Demanda Negocial" }));
     const form = within(painel).getByRole("form", { name: "Demanda Negocial" });
@@ -443,9 +443,10 @@ describe("TelaAnalise", () => {
     await waitFor(() =>
       expect(conhecimento.api.criarDemanda).toHaveBeenCalledWith(PROJETO, {
         titulo: "Parcelas seguem cobradas",
-        descricao:
-          "**Tipo:** Corrigir bug  \n**Funcionalidade:** Faturamento\n\nCancelar a fatura não cancela as parcelas.",
+        // O tipo vai no frontmatter, não mais na linha `**Tipo:**` da descrição (#358).
+        descricao: "**Funcionalidade:** Faturamento\n\nCancelar a fatura não cancela as parcelas.",
         chave: undefined,
+        tipo: "bug",
       }),
     );
     expect(await within(painel).findByText("Demanda D-0003 registrada.")).toBeInTheDocument();

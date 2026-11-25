@@ -26,6 +26,27 @@ describe("ListaDemandas", () => {
     expect(navegar).toHaveBeenCalledWith({ tipo: "demanda", projeto: PROJETO, demanda: "D-0001" });
   });
 
+  it("mostra o tipo da demanda e filtra por ele (#358)", async () => {
+    montar();
+    const lista = await screen.findByRole("region", { name: "Demandas" });
+    const itens = await within(lista).findAllByRole("listitem");
+    expect(within(itens[0]).getByText("Nova funcionalidade")).toHaveClass("badge");
+    // D-0002 não tem tipo: sem selo.
+    expect(within(itens[1]).queryByText(/Corrigir bug|Nova funcionalidade|Melhoria/)).toBeNull();
+
+    const filtro = within(lista).getByLabelText("Tipo da demanda");
+    fireEvent.change(filtro, { target: { value: "funcionalidade" } });
+    expect(within(lista).getAllByRole("listitem")).toHaveLength(1);
+    expect(within(lista).getByRole("button", { name: "D-0001: Parcelamento PJ" })).toBeInTheDocument();
+
+    fireEvent.change(filtro, { target: { value: "bug" } });
+    expect(within(lista).queryAllByRole("listitem")).toHaveLength(0);
+    expect(within(lista).getByText("Nenhuma demanda deste tipo.")).toBeInTheDocument();
+
+    fireEvent.change(filtro, { target: { value: "" } });
+    expect(within(lista).getAllByRole("listitem")).toHaveLength(2);
+  });
+
   it("mostra o status conferido no rastreador, o aviso e atualiza sem o cache (#292)", async () => {
     const [d1, d2] = demandasFicticias();
     const conferidas: DemandaVista[] = [

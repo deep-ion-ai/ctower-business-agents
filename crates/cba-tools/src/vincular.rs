@@ -124,6 +124,7 @@ pub fn demanda_da_issue_ou_nova(
                 descricao: Some(issue.descricao.clone()),
                 chave: Some(issue.chave.clone()),
                 origem: Some(issue.url.clone()).filter(|u| !u.is_empty()),
+                tipo: None,
             },
             cba_core::tempo::hoje(),
         )

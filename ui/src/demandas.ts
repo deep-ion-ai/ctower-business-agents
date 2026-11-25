@@ -18,6 +18,20 @@ export interface RastreadorVista {
 }
 export type StatusAta = "rascunho" | "aprovada";
 
+/**
+ * Tipo do pedido do negócio (#358), no campo `tipo_demanda` do frontmatter. A
+ * Demanda Negocial grava; as demandas criadas por outros caminhos podem não ter.
+ */
+export type TipoDemanda = "bug" | "funcionalidade" | "melhoria";
+
+/** Os tipos na ordem da Demanda Negocial, com o nome mostrado no filtro e nos selos. */
+export const TIPOS_DE_DEMANDA: TipoDemanda[] = ["bug", "funcionalidade", "melhoria"];
+export const ROTULO_TIPO_DEMANDA: Record<TipoDemanda, string> = {
+  bug: "Corrigir bug",
+  funcionalidade: "Nova funcionalidade",
+  melhoria: "Melhoria",
+};
+
 export interface DemandaVista {
   /** `D-0001`. */
   id: string;
@@ -26,6 +40,11 @@ export interface DemandaVista {
   status: StatusDemanda;
   /** Status gravado pelo analista (encerrar e reabrir). */
   statusLocal: StatusDemanda;
+  /**
+   * Tipo do pedido: o do frontmatter ou, na demanda antiga, o da linha `**Tipo:**`
+   * da descrição; `null` quando a demanda não tem tipo.
+   */
+  tipo: TipoDemanda | null;
   /** Estado conferido no rastreador; `null` na demanda sem chave ou ainda não conferida. */
   rastreador: RastreadorVista | null;
   /** Rastreador inacessível ou issue não encontrada na última conferência. */
@@ -45,6 +64,8 @@ export interface NovaDemanda {
   titulo: string;
   descricao?: string;
   chave?: string;
+  /** Gravado no frontmatter; a Demanda Negocial informa. */
+  tipo?: TipoDemanda;
 }
 
 /** Transcript guardado sem a ata aprovada: até quando fica no diretório de dados. */

@@ -19,6 +19,7 @@ fn nova_demanda(titulo: &str) -> NovaDemanda {
         descricao: None,
         chave: None,
         origem: None,
+        tipo: None,
     }
 }
 

@@ -24,7 +24,7 @@ use crate::documento::Documento;
 use crate::erro::{Erro, Resultado};
 use crate::frontmatter::{
     Data, ErroCampo, EstadoNoRastreador, EstadoRastreador, Frontmatter, FrontmatterDemanda,
-    StatusDemanda, TipoDocumento,
+    StatusDemanda, TipoDemanda, TipoDocumento,
 };
 use crate::id::IdDemanda;
 use crate::layout;
@@ -46,6 +46,8 @@ pub struct NovaDemanda {
     pub chave: Option<String>,
     /// Endereço da demanda no rastreador (URL da issue).
     pub origem: Option<String>,
+    /// Tipo do pedido (#358): a Demanda Negocial informa; os outros caminhos, não.
+    pub tipo: Option<TipoDemanda>,
 }
 
 /// Demanda lida da base.
@@ -76,6 +78,17 @@ impl DemandaLida {
         }
     }
 
+    /// Tipo do pedido (#358): o do frontmatter e, sem ele, o da linha
+    /// `**Tipo:** Corrigir bug` que a Demanda Negocial punha na descrição antes
+    /// do campo próprio. A demanda antiga é reconhecida na leitura, sem regravar
+    /// o arquivo.
+    pub fn tipo_efetivo(&self) -> Option<TipoDemanda> {
+        self.documento
+            .frontmatter
+            .tipo_demanda
+            .or_else(|| tipo_no_texto(&self.documento.corpo))
+    }
+
     /// Data de encerramento que acompanha o [`DemandaLida::status_efetivo`].
     pub fn encerrado_efetivo(&self) -> Option<Data> {
         let f = &self.documento.frontmatter;
@@ -85,6 +98,18 @@ impl DemandaLida {
             None => f.encerrado,
         }
     }
+}
+
+/// Marca da linha do tipo que a Demanda Negocial gravava na descrição (#350).
+const LINHA_DO_TIPO: &str = "**Tipo:**";
+
+/// O tipo da primeira linha `**Tipo:** <nome>` do corpo, quando o nome é um dos
+/// tipos conhecidos (o nome mostrado, como `Corrigir bug`, ou o valor, como `bug`).
+fn tipo_no_texto(corpo: &str) -> Option<TipoDemanda> {
+    corpo
+        .lines()
+        .filter_map(|l| l.trim().strip_prefix(LINHA_DO_TIPO))
+        .find_map(TipoDemanda::de_texto)
 }
 
 pub(crate) fn pasta_das_demandas() -> CaminhoRelativo {
@@ -188,6 +213,7 @@ impl Projeto {
                     titulo: titulo.clone(),
                     projeto: self.nome().to_owned(),
                     status: StatusDemanda::Aberta,
+                    tipo_demanda: nova.tipo,
                     chave: texto_opcional(&nova.chave),
                     origem: texto_opcional(&nova.origem),
                     criado: hoje,

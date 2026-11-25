@@ -1,10 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { mensagemDe } from "./analise";
 import type { ApiConhecimento } from "./conhecimento";
-import type { DemandaVista } from "./demandas";
+import { ROTULO_TIPO_DEMANDA, type DemandaVista, type TipoDemanda } from "./demandas";
 import { DemandaAchada, useDemandaResolvida } from "./NovaAnalise";
 
-export type TipoDemanda = "bug" | "funcionalidade" | "melhoria";
+export type { TipoDemanda };
 
 /** Os tipos de demanda negocial, com o rótulo e o exemplo da descrição de cada um. */
 export const TIPOS_DEMANDA: {
@@ -18,7 +18,7 @@ export const TIPOS_DEMANDA: {
 }[] = [
   {
     id: "bug",
-    nome: "Corrigir bug",
+    nome: ROTULO_TIPO_DEMANDA.bug,
     desc: "Algo não funciona como deveria.",
     rotulo: "O que acontece e o que deveria acontecer",
     exemplo:
@@ -28,7 +28,7 @@ export const TIPOS_DEMANDA: {
   },
   {
     id: "funcionalidade",
-    nome: "Nova funcionalidade",
+    nome: ROTULO_TIPO_DEMANDA.funcionalidade,
     desc: "Algo que o sistema ainda não faz.",
     rotulo: "O que o negócio precisa e por quê",
     exemplo:
@@ -38,7 +38,7 @@ export const TIPOS_DEMANDA: {
   },
   {
     id: "melhoria",
-    nome: "Melhoria",
+    nome: ROTULO_TIPO_DEMANDA.melhoria,
     desc: "Mudar algo que já existe.",
     rotulo: "O que muda e qual o ganho",
     exemplo:
@@ -49,14 +49,12 @@ export const TIPOS_DEMANDA: {
 ];
 
 /**
- * O corpo da demanda: o tipo e a funcionalidade em linhas próprias, antes do pedido.
- * Enquanto a demanda não tem campo de tipo na base, ele vai no texto (#350).
+ * O corpo da demanda: a funcionalidade numa linha própria, antes do pedido. O tipo
+ * vai no frontmatter (`tipo_demanda`, #358), não no texto.
  */
-export function descricaoDaDemanda(tipo: TipoDemanda, descricao: string, funcionalidade: string): string {
-  const t = TIPOS_DEMANDA.find((x) => x.id === tipo);
-  const linhas = [`**Tipo:** ${t?.nome ?? tipo}`];
-  if (funcionalidade.trim()) linhas.push(`**Funcionalidade:** ${funcionalidade.trim()}`);
-  return `${linhas.join("  \n")}\n\n${descricao.trim()}`;
+export function descricaoDaDemanda(descricao: string, funcionalidade: string): string {
+  const pedido = descricao.trim();
+  return funcionalidade.trim() ? `**Funcionalidade:** ${funcionalidade.trim()}\n\n${pedido}` : pedido;
 }
 
 /**
@@ -126,8 +124,9 @@ export function FormDemandaNegocial({
     api
       .criarDemanda(projeto, {
         titulo: titulo.trim(),
-        descricao: descricaoDaDemanda(tipo, descricao, funcionalidade),
+        descricao: descricaoDaDemanda(descricao, funcionalidade),
         chave: chave.trim() || undefined,
+        tipo,
       })
       .then(aoRegistrar)
       .catch((e: unknown) => {

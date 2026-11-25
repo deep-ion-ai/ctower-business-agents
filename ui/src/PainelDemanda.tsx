@@ -5,6 +5,7 @@ import { ROTULO_FLUXO, type ApiConhecimento } from "./conhecimento";
 import {
   ROTULO_STATUS_ATA,
   ROTULO_STATUS_DEMANDA,
+  ROTULO_TIPO_DEMANDA,
   type ItemDaAta,
   type ItemLinhaDoTempo,
   type PainelDemanda as Painel,
@@ -156,6 +157,13 @@ export function PainelDemanda({
           <span className="badge" data-tone={aberta ? "running" : "done"}>
             {ROTULO_STATUS_DEMANDA[d.status]}
           </span>{" "}
+          {d.tipo && (
+            <>
+              <span className="badge" title="Tipo da demanda">
+                {ROTULO_TIPO_DEMANDA[d.tipo]}
+              </span>{" "}
+            </>
+          )}
           {d.chave && <span className="muted">Chave {d.chave} · </span>}
           <span className="muted">
             criada em {d.criado}

@@ -348,6 +348,7 @@ export const apiConhecimentoTauri: ApiConhecimento = {
       titulo: nova.titulo,
       descricao: nova.descricao ?? null,
       chave: nova.chave ?? null,
+      tipo: nova.tipo ?? null,
     }),
   encerrarDemanda: (projeto, demanda) => invoke("encerrar_demanda_app", { projeto, demanda }),
   reabrirDemanda: (projeto, demanda) => invoke("reabrir_demanda_app", { projeto, demanda }),

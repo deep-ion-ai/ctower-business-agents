@@ -433,6 +433,52 @@ pub enum StatusDemanda {
     Encerrada,
 }
 
+/// Tipo do pedido do negócio que originou a demanda (#358): corrigir um bug,
+/// criar uma funcionalidade ou melhorar o que existe. A Demanda Negocial grava;
+/// as demandas criadas por outros caminhos podem não ter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TipoDemanda {
+    Bug,
+    Funcionalidade,
+    Melhoria,
+}
+
+impl TipoDemanda {
+    pub const TODOS: [TipoDemanda; 3] = [
+        TipoDemanda::Bug,
+        TipoDemanda::Funcionalidade,
+        TipoDemanda::Melhoria,
+    ];
+
+    /// Valor gravado no frontmatter (`bug`, `funcionalidade`, `melhoria`).
+    pub fn como_str(self) -> &'static str {
+        match self {
+            TipoDemanda::Bug => "bug",
+            TipoDemanda::Funcionalidade => "funcionalidade",
+            TipoDemanda::Melhoria => "melhoria",
+        }
+    }
+
+    /// Nome mostrado ao analista, o mesmo da Demanda Negocial.
+    pub fn nome(self) -> &'static str {
+        match self {
+            TipoDemanda::Bug => "Corrigir bug",
+            TipoDemanda::Funcionalidade => "Nova funcionalidade",
+            TipoDemanda::Melhoria => "Melhoria",
+        }
+    }
+
+    /// Reconhece o valor do frontmatter ou o nome mostrado, sem diferenciar
+    /// maiúsculas nem espaços nas pontas.
+    pub fn de_texto(texto: &str) -> Option<TipoDemanda> {
+        let t = texto.trim().to_lowercase();
+        Self::TODOS
+            .into_iter()
+            .find(|x| t == x.como_str() || t == x.nome().to_lowercase())
+    }
+}
+
 /// Estado da issue no rastreador (GitHub, GitLab ou Jira), normalizado (#292).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -880,6 +926,10 @@ pub struct FrontmatterDemanda {
     /// Slug do projeto.
     pub projeto: String,
     pub status: StatusDemanda,
+    /// Tipo do pedido (#358), quando registrado. Só é gravado quando existe:
+    /// demandas anteriores abrem sem ele (veja [`crate::DemandaLida::tipo_efetivo`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tipo_demanda: Option<TipoDemanda>,
     /// Chave no rastreador (`PROJ-123`, `#12`), quando houver.
     #[serde(default, deserialize_with = "texto_flexivel_opcional")]
     pub chave: Option<String>,
