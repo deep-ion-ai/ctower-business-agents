@@ -10,6 +10,7 @@ use crate::{
     demandas, docs_externos, funcionalidades, inicio, issues_projeto, manual, mudancas,
     painel_funcionalidade, pauta, primeiro_uso, projeto, prompts, publicacao, rastreabilidade,
     registros, repositorios, resumo, reunioes, revisao, terminal, vigia, vincular_issues,
+    workflows,
 };
 
 pub fn rodar() {
@@ -194,6 +195,14 @@ pub fn rodar() {
             configuracoes::salvar_texto_editavel,
             configuracoes::restaurar_texto_padrao,
             configuracoes::previa_exportacao_texto,
+            workflows::workflows_app,
+            workflows::ler_workflow_app,
+            workflows::validar_workflow_app,
+            workflows::diferenca_workflow_app,
+            workflows::duplicar_workflow_app,
+            workflows::salvar_workflow_app,
+            workflows::restaurar_workflow_app,
+            workflows::levar_edicao_workflow_app,
             revisao::revisar_analise_projeto,
             revisao::prontidao_aprovacao_projeto,
             revisao::aprovar_analise_projeto,

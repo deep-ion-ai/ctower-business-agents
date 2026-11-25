@@ -1847,3 +1847,72 @@ fn regras_de_permissao_que_ja_existiam_ficam_no_desfazer() {
     );
     assert!(!p.verificar(&so_hooks).unwrap().workflows_prontos);
 }
+
+/// Salvar uma cópia muda a versão efetiva: o `reinstalar_workflows` regrava, sem
+/// consentimento novo, só o que já estava instalado e intacto, e o desfazer ainda
+/// tira o arquivo. Onde não havia arquivo, nada é instalado; o editado à mão fica, a
+/// não ser que o corpo já seja a versão efetiva (edição levada para a cópia), quando
+/// só o cabeçalho muda (#372).
+#[test]
+fn reinstalar_regrava_so_o_instalado_defasado() {
+    let c = Cenario::novo();
+    let pasta = c.pasta("faturamento");
+    let outra = c.pasta("sem-preparo");
+    let p = c.preparador();
+    let alvo = c.alvo("f", &pasta);
+    p.preparar(&alvo).unwrap();
+    let arquivo = impacto_em(&pasta);
+
+    let padrao = WorkflowEfetivo::padrao("impacto").unwrap();
+    let copia = WorkflowEfetivo {
+        origem: OrigemWorkflow::Global,
+        conteudo: format!("{}// minha versão\n", padrao.conteudo),
+        ..padrao.clone()
+    };
+    let alvo = alvo.com_workflows(vec![copia.clone()]);
+    assert_eq!(
+        p.verificar(&alvo).unwrap().workflows[0].situacao,
+        Situacao::Desatualizado
+    );
+    let r = p.reinstalar_workflows(&alvo).unwrap();
+    assert_eq!(r.len(), 1);
+    assert_eq!(r[0].acao, Acao::Atualizado);
+    let instalado = fs::read_to_string(&arquivo).unwrap();
+    assert_eq!(instalado, workflows::conteudo_instalado(&copia));
+    assert_eq!(
+        workflows::ler_cabecalho(&instalado).unwrap().origem,
+        Some(OrigemWorkflow::Global)
+    );
+    assert!(p.verificar(&alvo).unwrap().workflows_prontos);
+    assert!(p.reinstalar_workflows(&alvo).unwrap().is_empty());
+
+    // Sem preparo, nada é instalado.
+    let sem = c.alvo("s", &outra).com_workflows(vec![copia.clone()]);
+    assert!(p.reinstalar_workflows(&sem).unwrap().is_empty());
+    assert!(!impacto_em(&outra).exists());
+
+    // Editado à mão com outro conteúdo: fica.
+    let editado = format!("{instalado}// minha frente\n");
+    fs::write(&arquivo, &editado).unwrap();
+    let voltar = alvo.clone().com_workflows(vec![padrao]);
+    assert!(p.reinstalar_workflows(&voltar).unwrap().is_empty());
+    assert_eq!(fs::read_to_string(&arquivo).unwrap(), editado);
+    // A edição levada para a cópia: o corpo é a versão efetiva, só o cabeçalho muda.
+    let levada = WorkflowEfetivo {
+        origem: OrigemWorkflow::Projeto,
+        conteudo: workflows::corpo(&editado).unwrap().to_string(),
+        ..copia
+    };
+    assert!(levada.conteudo.ends_with("// minha frente\n"));
+    let alvo = alvo.com_workflows(vec![levada.clone()]);
+    assert_eq!(p.reinstalar_workflows(&alvo).unwrap().len(), 1);
+    assert_eq!(
+        fs::read_to_string(&arquivo).unwrap(),
+        workflows::conteudo_instalado(&levada)
+    );
+
+    // O desfazer tira o arquivo, que o preparo criou.
+    let r = p.desfazer(&alvo).unwrap();
+    assert!(r.voltou_ao_que_era(), "{:?}", r.mantidos);
+    assert!(!arquivo.exists());
+}

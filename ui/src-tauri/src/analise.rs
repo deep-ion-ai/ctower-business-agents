@@ -65,12 +65,17 @@ pub struct AmbienteClaude {
     pub verificacao: Verificacao,
 }
 
+/// Alvo do preparo de `projeto`, com a versão efetiva de cada workflow (cópia da
+/// base > cópia para todos os projetos > padrão; #372). É o caminho do verificar, do
+/// planejar e do preparar.
 pub(crate) fn alvo(dados: &DiretorioDados, projeto: &str) -> Result<Alvo, String> {
     let cadastrado = Cadastro::em(dados.projetos())
         .obter(projeto)
         .map_err(|e| e.to_string())?
         .ok_or_else(|| format!("o projeto \"{projeto}\" não está cadastrado"))?;
-    Alvo::do_projeto(&cadastrado).map_err(|e| e.to_string())
+    Ok(Alvo::do_projeto(&cadastrado)
+        .map_err(|e| e.to_string())?
+        .com_workflows(crate::workflows::efetivos(dados)))
 }
 
 pub fn verificar_ambiente(
