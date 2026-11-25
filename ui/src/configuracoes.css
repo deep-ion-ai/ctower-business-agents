@@ -1434,3 +1434,91 @@ button.chip-variavel:hover {
   max-width: 48rem;
   margin-top: 4px;
 }
+
+/* Configurações › Workflows (#372). */
+.fases-resumo {
+  margin: 4px 0 0;
+}
+
+.config-item-workflow .acoes,
+.instalacoes-workflow .acoes {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.aviso-padrao-novo {
+  color: var(--attention);
+}
+
+.instalacoes-workflow,
+.instalacoes-workflow ul {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.instalacoes-workflow ul {
+  padding-left: 12px;
+}
+
+.aviso-workflow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--attention-border);
+  border-radius: 6px;
+  background: var(--attention-card);
+}
+
+.aviso-workflow p {
+  margin: 0;
+  flex: 1 1 20rem;
+}
+
+.editor-workflow-paineis {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.editor-workflow-paineis button[aria-selected="true"] {
+  background: var(--selected);
+  border-color: var(--accent);
+}
+
+.fases-workflow {
+  margin: 0;
+  padding-left: 1.4em;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.diferenca-workflow {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.diferenca-workflow > [data-tipo="removida"] {
+  background: var(--danger-bg);
+  color: var(--error-soft);
+}
+
+.diferenca-workflow > [data-tipo="acrescentada"] {
+  background: var(--done-bg);
+  color: var(--done);
+}
+
+.diferenca-workflow > [data-tipo="igual"] {
+  color: var(--muted);
+}
