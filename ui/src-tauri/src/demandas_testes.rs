@@ -14,6 +14,7 @@ fn nova(titulo: &str, chave: Option<&str>) -> NovaDemanda {
         descricao: Some("O cliente quer parcelar a fatura em até 3 vezes.".into()),
         chave: chave.map(str::to_owned),
         origem: None,
+        tipo: None,
     }
 }
 
@@ -90,6 +91,51 @@ fn lista_cria_encerra_e_reabre() {
     assert!(json["documento"].is_string());
 
     assert!(mudar_status_demanda(&c.dados, PROJETO, "X-1", true).is_err());
+}
+
+/// #358: o tipo vem do frontmatter e, na demanda antiga, da linha `**Tipo:**`.
+#[test]
+fn vista_traz_o_tipo_da_demanda() {
+    let c = cenario();
+    let negocial = criar_demanda(
+        &c.dados,
+        PROJETO,
+        &NovaDemanda {
+            tipo: Some(TipoDemanda::Funcionalidade),
+            ..nova("Parcelamento PJ", None)
+        },
+    )
+    .unwrap();
+    assert_eq!(negocial.tipo, Some(TipoDemanda::Funcionalidade));
+    let antiga = criar_demanda(
+        &c.dados,
+        PROJETO,
+        &NovaDemanda {
+            descricao: Some("**Tipo:** Corrigir bug  \n\nA multa sai em dobro.".into()),
+            ..nova("Multa em dobro", None)
+        },
+    )
+    .unwrap();
+    assert_eq!(antiga.tipo, Some(TipoDemanda::Bug));
+    let sem = criar_demanda(&c.dados, PROJETO, &nova("Reajuste anual", None)).unwrap();
+    assert_eq!(sem.tipo, None);
+
+    let lista = listar_demandas(&c.dados, PROJETO).unwrap();
+    let json = serde_json::to_value(&lista).unwrap();
+    let tipos: Vec<_> = json
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|d| (d["id"].clone(), d["tipo"].clone()))
+        .collect();
+    assert_eq!(
+        tipos,
+        [
+            ("D-0003".into(), serde_json::Value::Null),
+            ("D-0002".into(), "bug".into()),
+            ("D-0001".into(), "funcionalidade".into()),
+        ]
+    );
 }
 
 /// Critérios de aceite da #138: a ata e a análise aparecem na linha do tempo, em
@@ -252,4 +298,75 @@ fn analise_pelo_inicio_com_demanda_e_demanda_encerrada() {
     .unwrap();
     let p = painel_demanda(&c.dados, PROJETO, &d.id).unwrap();
     assert_eq!(p.linha_do_tempo.len(), 1);
+}
+
+/// #292: a demanda de issue fechada aparece encerrada, com a data, sem mudar o
+/// status local; sem rede, fica o último estado com o aviso; a demanda sem chave
+/// mantém o status local.
+#[cfg(unix)]
+#[test]
+fn status_conferido_no_rastreador() {
+    use cba_index::Cadastro;
+    use cba_repos::{GithubConfig, TrackerConfig};
+    use std::os::unix::fs::PermissionsExt;
+
+    let c = cenario();
+    let mut p = crate::repositorios::cadastrado(&c.dados, PROJETO).unwrap();
+    p.repositorios.tracker = Some(TrackerConfig::Github(GithubConfig { repo: "o/r".into() }));
+    Cadastro::em(c.dados.projetos()).salvar(&p).unwrap();
+    let issue = criar_demanda(&c.dados, PROJETO, &nova("Parcelamento PJ", Some("#5"))).unwrap();
+    let manual = criar_demanda(&c.dados, PROJETO, &nova("Pedido por e-mail", None)).unwrap();
+
+    let resposta = c.dir.path().join("resposta");
+    let gh = c.dir.path().join("gh");
+    std::fs::write(
+        &gh,
+        format!(
+            "#!/bin/sh\n[ -f '{0}' ] || {{ echo 'sem rede' >&2; exit 1; }}\ncat '{0}'\n",
+            resposta.display()
+        ),
+    )
+    .unwrap();
+    std::fs::set_permissions(&gh, std::fs::Permissions::from_mode(0o755)).unwrap();
+    std::fs::write(
+        &resposta,
+        r#"{"data":{"repository":{"i5":{"state":"CLOSED","closedAt":"2026-11-20T12:00:00Z"}}}}"#,
+    )
+    .unwrap();
+    let f = Ferramentas {
+        gh,
+        ..Default::default()
+    };
+
+    conferir_status(&c.dados, PROJETO, None, false, &f).unwrap();
+    let lista = listar_demandas(&c.dados, PROJETO).unwrap();
+    // As abertas primeiro: a encerrada pelo rastreador vai para o fim.
+    assert_eq!(lista[0].id, manual.id);
+    let v = &lista[1];
+    assert_eq!(v.id, issue.id);
+    assert_eq!(v.status, StatusDemanda::Encerrada);
+    assert_eq!(v.status_local, StatusDemanda::Aberta);
+    assert_eq!(v.encerrado.as_deref(), Some("2026-11-20"));
+    let r = v.rastreador.as_ref().unwrap();
+    assert_eq!(r.estado, EstadoRastreador::Encerrada);
+    assert!(r.conferido.ends_with('Z'));
+    assert_eq!(v.aviso_rastreador, None);
+    assert!(lista[0].rastreador.is_none());
+    let json = serde_json::to_value(v).unwrap();
+    assert_eq!(json["rastreador"]["estado"], "encerrada");
+    assert_eq!(json["statusLocal"], "aberta");
+
+    // Sem rede: o último estado conhecido, com o aviso, sem derrubar a tela.
+    std::fs::remove_file(&resposta).unwrap();
+    conferir_status(&c.dados, PROJETO, None, true, &f).unwrap();
+    let p = painel_demanda(&c.dados, PROJETO, &issue.id).unwrap();
+    assert_eq!(p.demanda.status, StatusDemanda::Encerrada);
+    assert!(
+        p.demanda
+            .aviso_rastreador
+            .as_deref()
+            .is_some_and(|a| a.contains("sem rede"))
+    );
+    // Demanda encerrada pelo rastreador não recebe análise nova.
+    assert!(criar_analise_ligada(&c.dados, PROJETO, &issue.id, Fluxo::Impacto, "x", None).is_err());
 }

@@ -193,7 +193,7 @@ describe("Assistente do primeiro uso", () => {
     fireEvent.click(screen.getByRole("button", { name: "Usar esta pasta" }));
     await screen.findByRole("form", { name: "Cadastrar projeto" });
     await cadastrarPeloAssistente();
-    fireEvent.click(screen.getByRole("button", { name: "Preparar o ambiente do Claude" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ligar o agente a este projeto" }));
     await screen.findByRole("region", { name: "Ambiente do Claude" });
     expect(api.configurarBase).toHaveBeenCalledWith("/Users/analista/Documents/ctower-business");
   }
@@ -232,10 +232,10 @@ describe("Assistente do primeiro uso", () => {
       await screen.findByText("o servidor MCP do app não está registrado para esta pasta"),
     ).toBeInTheDocument();
     expect(continuar()).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: "Ver o que será alterado" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ver e preparar" }));
     expect(await screen.findByText("Hook SessionStart")).toBeInTheDocument();
     expect(api.prepararAmbiente).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Concordo, preparar o ambiente" }));
+    fireEvent.click(screen.getByRole("button", { name: "Concordo, ligar o agente" }));
     await waitFor(() => expect(api.prepararAmbiente).toHaveBeenCalledWith("faturamento-exemplo"));
     expect(await screen.findByText(/O ambiente do Claude está preparado/)).toBeInTheDocument();
     fireEvent.click(continuar());
@@ -265,11 +265,11 @@ describe("Assistente do primeiro uso", () => {
     });
     render(<AssistentePrimeiroUso api={api} situacao={situacaoInicial()} aoConcluir={vi.fn()} />);
     await ateOAmbiente(api);
-    fireEvent.click(await screen.findByRole("button", { name: "Ver o que será alterado" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ver e preparar" }));
     fireEvent.click(await screen.findByRole("button", { name: "Agora não" }));
     expect(api.prepararAmbiente).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Preparar depois" }));
-    expect(await screen.findByText(/ainda não foi preparado/)).toBeInTheDocument();
+    expect(await screen.findByText(/ainda não foi ligado/)).toBeInTheDocument();
     expect(api.prepararAmbiente).not.toHaveBeenCalled();
   });
 
@@ -286,7 +286,7 @@ describe("Assistente do primeiro uso", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Fazer depois" }));
     expect(await screen.findByRole("region", { name: "Primeira análise" })).toBeInTheDocument();
-    expect(screen.getByText(/ainda não foi preparado/)).toBeInTheDocument();
+    expect(screen.getByText(/ainda não foi ligado/)).toBeInTheDocument();
     expect(api.prepararAmbiente).not.toHaveBeenCalled();
   });
 

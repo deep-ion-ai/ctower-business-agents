@@ -110,6 +110,38 @@ prontidão não bloqueia o app.
 
 - **Análise a partir de uma issue:** o campo “Issue do projeto” (`PROJ-123`, `45`) busca título e
   descrição como entrada. O link vai em `demanda.origem` e a chave em `demanda.chave`.
+- **Status das demandas (#292):** a demanda com `chave` do rastreador do projeto (e `origem` dele,
+  quando houver) tem o estado conferido em lote — `gh api graphql`, `glab api
+  projects/:id/issues?iids[]=…` e `jira issue list --jql "key in (…)"` — ao ser importada, ao abrir
+  a lista de demandas, o painel da demanda e o da funcionalidade (com cache de 5 minutos) e pelo
+  botão "Atualizar status". O estado vai para o bloco `rastreador` do `demanda.md` (`estado`:
+  `aberta`, `em-andamento` ou `encerrada`; `conferido`; `encerrado`, a data de fechamento), sem
+  mudar o `status` local, e passa a valer para a demanda estar aberta ou encerrada. No Jira, o estado
+  sai da categoria do status (`new`, `indeterminate`, `done`), não do nome. O arquivo só é regravado
+  quando o estado muda ou o dia vira. Sem rede ou sem token, a tela mostra o último estado conhecido
+  com um aviso. A demanda sem `chave` mantém o status local. Nada é escrito no rastreador.
+- **Issues do projeto (#322):** o comando `issues_do_projeto_app` lista as issues do rastreador
+  (GitHub e Jira; os últimos 6 meses, como em "Vincular demandas") a partir de um cache em
+  `<dados>/issues/<projeto>.json`, com o instante da última leitura. Com cache, abrir a lista não
+  chama `gh` nem `jira`: a leitura com mais de 5 minutos é refeita em segundo plano, e o evento
+  `issues-do-projeto-atualizadas` avisa a tela quando termina; depois dela, as demandas ligadas às
+  issues são conferidas como acima, com o mesmo cache. Sem cache, a primeira leitura é feita na
+  hora; `forcar` ("Atualizar") também. Busca por número (`41`, `#41`, `PROJ-41`) ou título, sem
+  diferença de acentos; filtros por estado no rastreador (abertas, o padrão; encerradas; todas),
+  por rótulo e pela situação na base (`sem-analise`, `em-andamento`, `em-revisao`, `aprovada`, pela
+  análise mais recente da demanda ou da chave da issue). Cada issue traz a demanda que a
+  representa e as funcionalidades ligadas a ela. Sem rede, a lista é a última leitura, com o aviso.
+  Trocar o rastreador do projeto descarta o cache. Nada é escrito no rastreador.
+- **Área Demandas e "Analisar impacto" (#323):** a seção Demandas mostra numa lista só as issues
+  acima e as demandas criadas à mão, com busca, filtros, painel da issue (descrição, link para o
+  rastreador, o que há na base, itens parecidos) e o frescor ("conferido há 5 min", "Atualizar").
+  A ação da linha acompanha a situação: "Analisar impacto" (sem análise), "Abrir a análise" (em
+  andamento ou em revisão) ou "Abrir a demanda" (aprovada). O comando `analisar_impacto_da_issue_app`
+  parte da issue da última leitura, cria a demanda da base com a chave e o endereço dela ou reaproveita
+  a que existe (pela chave), cria a análise de impacto ligada a ela, com o título e a descrição como
+  entrada, e a tela abre a análise com o agente. Issue encerrada no rastreador não é analisada. O
+  vínculo com as funcionalidades parte da própria área ("Vincular a funcionalidades"); o Mapa não
+  tem mais o botão. No formulário de impacto, "Issue do projeto" busca nesta mesma lista.
 - **Evidências exportadas:** cada nota vira um link para o arquivo e as linhas no commit da
   evidência (ou, na falta dele, o `base.commit` da análise), no repositório cuja pasta contém o
   arquivo (a mais funda, se um estiver dentro do outro); o caminho no link é relativo à pasta do

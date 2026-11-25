@@ -21,7 +21,7 @@ use cba_core::analise::{Analise, EstadoAnalise, EstadoPergunta, Fluxo};
 use cba_core::dados::DiretorioDados;
 use cba_core::eventos::Mudanca;
 use cba_core::funcionalidades::{Funcionalidade, MapaFuncionalidades, SituacaoFuncionalidade};
-use cba_kb::frontmatter::{FrontmatterAnalise, FrontmatterRegra, StatusDemanda, StatusRegra};
+use cba_kb::frontmatter::{FrontmatterAnalise, FrontmatterRegra, StatusRegra};
 use cba_kb::informada::Destinatario;
 use cba_kb::{CaminhoRelativo, IdDemanda, IdFuncionalidade, layout};
 use cba_tools::mapear;
@@ -78,7 +78,12 @@ pub struct EtapaVista {
 pub struct DemandaNoPainel {
     pub id: String,
     pub titulo: String,
+    /// Pelo status efetivo: o conferido no rastreador, quando há (#292).
     pub aberta: bool,
+    /// Estado conferido no rastreador e quando, se a demanda veio de uma issue.
+    pub rastreador: Option<crate::demandas::RastreadorVista>,
+    /// Rastreador inacessível ou issue não encontrada na última conferência.
+    pub aviso_rastreador: Option<String>,
     pub criado: String,
     /// Chave no rastreador (`#41`, `PROJ-9`), quando a demanda veio de uma issue.
     pub chave: Option<String>,
@@ -320,7 +325,10 @@ pub fn painel(
         .iter()
         .map(|d| {
             let lida = lidas.iter().find(|l| l.id == *d);
+            let vista = lida.map(|l| crate::demandas::vista(&amb.kb, l));
             DemandaNoPainel {
+                rastreador: vista.as_ref().and_then(|v| v.rastreador.clone()),
+                aviso_rastreador: vista.and_then(|v| v.aviso_rastreador),
                 id: d.to_string(),
                 titulo: lida
                     .map(|l| l.documento.frontmatter.titulo.clone())
@@ -432,7 +440,7 @@ pub fn painel(
 
     let demandas_do_projeto = lidas
         .iter()
-        .filter(|l| l.documento.frontmatter.status == StatusDemanda::Aberta)
+        .filter(|l| l.aberta())
         .map(|l| DemandaResumo {
             id: l.id.to_string(),
             titulo: l.documento.frontmatter.titulo.clone(),
@@ -619,7 +627,18 @@ pub async fn painel_funcionalidade_app(
     funcionalidade: String,
 ) -> Result<PainelVista, String> {
     let dados = dados()?;
-    bloqueante(move || painel(&dados, &projeto, &funcionalidade)).await
+    bloqueante(move || {
+        // Todas: o painel lista as ligadas e as abertas do projeto (#292).
+        crate::demandas::conferir_status(
+            &dados,
+            &projeto,
+            None,
+            false,
+            &cba_repos::demanda::Ferramentas::default(),
+        )?;
+        painel(&dados, &projeto, &funcionalidade)
+    })
+    .await
 }
 
 #[tauri::command]

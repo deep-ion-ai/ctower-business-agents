@@ -1194,6 +1194,7 @@ pub fn avisar(dados: &DiretorioDados, projeto: &str, analise: &Id) {
         // O estado da análise não muda; a tela relê o aviso, não a análise.
         versao: 0,
         processo: std::process::id(),
+        estado: None,
     };
     if let Err(e) = DiarioEventos::em(dados.eventos()).notificar(&evento) {
         tracing::warn!(erro = ?e.kind(), "aviso de alteração não notificado");

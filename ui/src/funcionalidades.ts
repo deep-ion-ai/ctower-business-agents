@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import type { AnaliseCriada, AnaliseResumo, EstadoAnalise, Fluxo } from "./analise";
 import type { StatusRegra } from "./conhecimento";
+import type { RastreadorVista } from "./demandas";
 import { contar } from "./formatacao";
 
 /**
@@ -64,6 +65,8 @@ export interface Funcionalidade {
   explicacao: AnaliseResumo | null;
   /** Nenhum ponto de entrada dela existe mais no código. */
   semPontoDeEntrada: boolean;
+  /** Tem manual do usuário aprovado, quando o mapa o informa. */
+  comManual?: boolean;
 }
 
 export interface AreaMapa {
@@ -158,7 +161,12 @@ export interface EtapaDemanda {
 export interface DemandaNoPainel {
   id: string;
   titulo: string;
+  /** Pelo status efetivo: o conferido no rastreador, quando há (#292). */
   aberta: boolean;
+  /** Estado conferido no rastreador, se a demanda veio de uma issue. */
+  rastreador: RastreadorVista | null;
+  /** Rastreador inacessível ou issue não encontrada na última conferência. */
+  avisoRastreador: string | null;
   criado: string;
   /** Chave e endereço da issue, quando a demanda veio do rastreador (#270). */
   chave: string | null;
@@ -224,7 +232,7 @@ export interface SugestaoDeIssue {
 }
 
 export interface IssueDoRastreador {
-  origem: "github" | "jira";
+  origem: "github" | "gitlab" | "jira";
   chave: string;
   titulo: string;
   descricao: string;
@@ -265,7 +273,7 @@ export interface ItemConfirmado {
 
 export interface ResultadoDoLote {
   /** A demanda da base de cada issue confirmada. */
-  demandas: { origem: "github" | "jira"; chave: string; demanda: string }[];
+  demandas: { origem: "github" | "gitlab" | "jira"; chave: string; demanda: string }[];
   criadas: string[];
   reaproveitadas: string[];
   vinculosNovos: number;

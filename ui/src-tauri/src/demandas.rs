@@ -11,24 +11,48 @@
 //!
 //! As análises são achadas pelo frontmatter dos documentos, e não pelo índice da
 //! base, para o painel refletir na hora uma análise recém-criada.
+//!
+//! O status mostrado é o efetivo (#292): o conferido no rastreador, quando a
+//! demanda veio de uma issue, e o local do analista, quando não. Os comandos da
+//! lista e do painel conferem antes ([`conferir_status`]), com o cache curto de
+//! [`cba_tools::status_demandas`]; "Atualizar status" força a conferência.
 
 use cba_core::analise::{Analise, Cliente, EstadoAnalise, EstadoSessao, Fluxo};
 use cba_core::config::Config;
 use cba_core::dados::DiretorioDados;
 use cba_core::tempo;
 use cba_docs::{EstadoAta, ItemAta, TipoItem};
-use cba_kb::frontmatter::{Demanda, FrontmatterAnalise, StatusAta, StatusDemanda};
+use cba_kb::frontmatter::{
+    Demanda, EstadoRastreador, FrontmatterAnalise, StatusAta, StatusDemanda, TipoDemanda,
+};
 use cba_kb::{DemandaLida, IdDemanda, NovaDemanda};
+use cba_repos::demanda::Ferramentas;
 use cba_reunioes::Guarda;
 use cba_session::passagem::ClientesDasSessoes;
 use cba_session::sessoes::Sessoes;
+use cba_tools::status_demandas::{CacheConferencia, conferir_demandas};
 use serde::Serialize;
+use std::sync::LazyLock;
 
 use crate::analise::{AnaliseCriada, ambiente, criar_analise_com_demanda};
 use crate::reunioes::transcript_guardado;
 
 // ---------------------------------------------------------------------------
 // Lista
+
+/// Conferências do status das demandas nesta execução do app (#292).
+pub static CONFERENCIAS: LazyLock<CacheConferencia> = LazyLock::new(CacheConferencia::default);
+
+/// Estado da demanda no rastreador, como a tela mostra.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RastreadorVista {
+    pub estado: EstadoRastreador,
+    /// Última conferência (ISO 8601, UTC).
+    pub conferido: String,
+    /// Data de fechamento no rastreador (`AAAA-MM-DD`).
+    pub encerrado: Option<String>,
+}
 
 /// Demanda na lista do projeto e no cabeçalho do painel.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -37,30 +61,85 @@ pub struct DemandaVista {
     /// `D-0001`.
     pub id: String,
     pub titulo: String,
+    /// Status efetivo: o do rastreador, quando conferido; senão, o local.
     pub status: StatusDemanda,
+    /// Status gravado pelo analista (encerrar e reabrir).
+    pub status_local: StatusDemanda,
+    /// Tipo do pedido (#358): o do frontmatter ou, na demanda antiga, o da linha
+    /// `**Tipo:**` da descrição; `None` quando a demanda não tem tipo.
+    pub tipo: Option<TipoDemanda>,
+    /// Último estado conferido no rastreador; `None` na demanda sem chave ou
+    /// ainda não conferida.
+    pub rastreador: Option<RastreadorVista>,
+    /// Por que a última conferência não trouxe o estado (rastreador
+    /// inacessível, issue não encontrada); a tela mostra o último conhecido.
+    pub aviso_rastreador: Option<String>,
     /// Chave no rastreador (`PROJ-123`).
     pub chave: Option<String>,
     /// Endereço da demanda no rastreador.
     pub origem: Option<String>,
     /// `AAAA-MM-DD`.
     pub criado: String,
+    /// Data de encerramento que acompanha o status efetivo.
     pub encerrado: Option<String>,
     /// `demanda.md`, relativo à raiz da base (para abrir na base).
     pub documento: String,
 }
 
-fn vista(kb: &cba_kb::Projeto, d: &DemandaLida) -> DemandaVista {
+pub(crate) fn vista(kb: &cba_kb::Projeto, d: &DemandaLida) -> DemandaVista {
     let f = &d.documento.frontmatter;
+    let situacao = CONFERENCIAS.situacao(kb, d.id).unwrap_or_default();
     DemandaVista {
         id: d.id.to_string(),
         titulo: f.titulo.clone(),
-        status: f.status,
+        status: d.status_efetivo(),
+        status_local: f.status,
+        tipo: d.tipo_efetivo(),
+        rastreador: f.rastreador.as_ref().map(|r| RastreadorVista {
+            estado: r.estado,
+            // A hora exata da última conferência fica no cache; o arquivo só é
+            // regravado quando o estado muda ou o dia vira.
+            conferido: situacao
+                .conferido
+                .clone()
+                .unwrap_or_else(|| r.conferido.clone()),
+            encerrado: r.encerrado.map(|e| e.to_string()),
+        }),
+        aviso_rastreador: situacao.aviso,
         chave: f.chave.clone(),
         origem: f.origem.clone(),
         criado: f.criado.to_string(),
-        encerrado: f.encerrado.map(|e| e.to_string()),
+        encerrado: d.encerrado_efetivo().map(|e| e.to_string()),
         documento: kb.na_base(&d.arquivo).as_str().to_owned(),
     }
+}
+
+/// Confere com o rastreador do projeto o status das demandas (todas ou só
+/// `ids`) que vieram de issues; com `forcar`, ignora o cache. Sem rastreador
+/// cadastrado, não faz nada. Falhas viram aviso na vista, não erro.
+pub fn conferir_status(
+    dados: &DiretorioDados,
+    projeto: &str,
+    ids: Option<&[IdDemanda]>,
+    forcar: bool,
+    ferramentas: &Ferramentas,
+) -> Result<(), String> {
+    let tracker = crate::repositorios::cadastrado(dados, projeto)
+        .ok()
+        .and_then(|p| p.repositorios.tracker);
+    if tracker.is_none() {
+        return Ok(());
+    }
+    let amb = ambiente(dados, projeto)?;
+    conferir_demandas(
+        &amb.kb,
+        tracker.as_ref(),
+        ids,
+        forcar,
+        &CONFERENCIAS,
+        ferramentas,
+    );
+    Ok(())
 }
 
 fn id_da_demanda(demanda: &str) -> Result<IdDemanda, String> {
@@ -454,7 +533,22 @@ async fn bloqueante<T: Send + 'static>(
 #[tauri::command]
 pub async fn listar_demandas_app(projeto: String) -> Result<Vec<DemandaVista>, String> {
     let dados = dados()?;
-    bloqueante(move || listar_demandas(&dados, &projeto)).await
+    bloqueante(move || {
+        conferir_status(&dados, &projeto, None, false, &Ferramentas::default())?;
+        listar_demandas(&dados, &projeto)
+    })
+    .await
+}
+
+/// "Atualizar status": confere todas as demandas com o rastreador, sem cache.
+#[tauri::command]
+pub async fn atualizar_status_demandas_app(projeto: String) -> Result<Vec<DemandaVista>, String> {
+    let dados = dados()?;
+    bloqueante(move || {
+        conferir_status(&dados, &projeto, None, true, &Ferramentas::default())?;
+        listar_demandas(&dados, &projeto)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -463,6 +557,7 @@ pub async fn criar_demanda_app(
     titulo: String,
     descricao: Option<String>,
     chave: Option<String>,
+    tipo: Option<TipoDemanda>,
 ) -> Result<DemandaVista, String> {
     let dados = dados()?;
     bloqueante(move || {
@@ -474,6 +569,7 @@ pub async fn criar_demanda_app(
                 descricao,
                 chave,
                 origem: None,
+                tipo,
             },
         )
     })
@@ -498,7 +594,19 @@ pub async fn reabrir_demanda_app(projeto: String, demanda: String) -> Result<Dem
 #[tauri::command]
 pub async fn painel_demanda_app(projeto: String, demanda: String) -> Result<PainelDemanda, String> {
     let dados = dados()?;
-    bloqueante(move || painel_demanda(&dados, &projeto, &demanda)).await
+    bloqueante(move || {
+        if let Ok(id) = id_da_demanda(&demanda) {
+            conferir_status(
+                &dados,
+                &projeto,
+                Some(&[id]),
+                false,
+                &Ferramentas::default(),
+            )?;
+        }
+        painel_demanda(&dados, &projeto, &demanda)
+    })
+    .await
 }
 
 #[cfg(test)]

@@ -25,6 +25,14 @@ import {
   type SituacaoManual,
 } from "./funcionalidades";
 import type { Tela } from "./Navegacao";
+import { ROTULO_ESTADO_RASTREADOR } from "./demandas";
+import { EstadoNoRastreador } from "./EstadoNoRastreador";
+
+/** O estado no rastreador, quando conferido (pode ser "em andamento"); senão, o local. */
+function rotuloDaDemanda(d: DemandaNoPainel): string {
+  if (d.rastreador) return ROTULO_ESTADO_RASTREADOR[d.rastreador.estado];
+  return d.aberta ? "aberta" : "encerrada";
+}
 
 type Aba = "visao" | "analises" | "demandas" | "codigo";
 
@@ -190,9 +198,10 @@ function CartaoDemanda({
         </button>
         <strong>{d.titulo}</strong>
         <span className="badge" data-tone={d.aberta ? undefined : "done"}>
-          {d.aberta ? "aberta" : "encerrada"}
+          {rotuloDaDemanda(d)}
         </span>
         {d.criado && <span className="muted">desde {d.criado}</span>}
+        <EstadoNoRastreador rastreador={d.rastreador} aviso={d.avisoRastreador} />
         {d.chave &&
           (d.origem ? (
             <a href={d.origem} target="_blank" rel="noreferrer" className="mono">
@@ -281,7 +290,7 @@ function NovaAnalise({
   return (
     <section className="cartao-painel" aria-label="Nova análise para esta funcionalidade">
       <header className="linha-cabecalho">
-        <h3>Nova análise para esta funcionalidade</h3>
+        <h3 className="titulo-formulario">Nova análise para esta funcionalidade</h3>
         <span className="muted">A entrada já vem com a funcionalidade e os pontos de entrada.</span>
       </header>
       <div className="novas-analises" role="group" aria-label="Fluxo">
@@ -827,7 +836,7 @@ export function PainelFuncionalidade({
                             onClick={() => navegar({ tipo: "demanda", projeto, demanda: d.id })}
                           >
                             <span className="mono">{d.id}</span>
-                            <span className="chip">{d.aberta ? "aberta" : "encerrada"}</span>
+                            <span className="chip">{rotuloDaDemanda(d)}</span>
                             <span className="titulo-analise">{d.titulo}</span>
                             <span className="muted">
                               {contar(d.perguntas.length, "pergunta", "perguntas")}

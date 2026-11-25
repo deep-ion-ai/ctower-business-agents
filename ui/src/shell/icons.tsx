@@ -109,6 +109,15 @@ const PATHS = {
   undo: <path d="M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3" />,
   reply: <path d="M10 8L4 13l6 5M4 13h11a5 5 0 0 1 5 5v1" />,
   trash: <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />,
+  /** Seções do projeto (#319), como nos protótipos da #312. */
+  overview: <path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-4H4zM14 8h6V4h-6z" />,
+  inbox: <path d="M4 6h16v10H8l-4 4z" />,
+  demand: (
+    <>
+      <circle cx="12" cy="12" r="8" />
+      <circle cx="12" cy="12" r="2" />
+    </>
+  ),
 } as const;
 
 export type IconName = keyof typeof PATHS;

@@ -9,6 +9,7 @@ import type {
   VisaoProjeto,
 } from "../conhecimento";
 import type { DemandaVista, NovaDemanda, PainelDemanda } from "../demandas";
+import type { ResumoProjeto } from "../resumoProjeto";
 
 /** Dados do sistema fictício "Faturamento Exemplo" depois de uma análise aprovada. */
 export const PROJETO = "faturamento-exemplo";
@@ -52,6 +53,71 @@ export function inicioFicticio(parcial: Partial<Inicio> = {}): Inicio {
     emAndamento: [impacto],
     recentes: [impacto, multa],
     ...parcial,
+  };
+}
+
+/**
+ * Resumo do projeto (#318) coerente com {@link inicioFicticio}: a A-0002 espera o
+ * analista e há uma regra a revalidar.
+ */
+export function resumoFicticio(parcial: Partial<ResumoProjeto> = {}): ResumoProjeto {
+  const nova = {
+    analise: null,
+    demanda: null,
+    titulo: null,
+    decididas: null,
+    total: null,
+    regras: null,
+    atualizadaMs: null,
+  };
+  const atividades: ResumoProjeto["atividades"] = parcial.atividades ?? [
+    {
+      ...nova,
+      tipo: "responder",
+      ordem: 0,
+      analise: "A-0002",
+      titulo: "Parcelamento para pessoa jurídica",
+      atualizadaMs: 2,
+    },
+    { ...nova, tipo: "revalidar", ordem: 1, regras: 1 },
+  ];
+  return {
+    projeto: PROJETO,
+    nome: "Faturamento Exemplo",
+    analises: {
+      total: 2,
+      porEstado: { criada: 0, emAndamento: 1, concluida: 0, aprovada: 1 },
+      porFluxo: [],
+    },
+    aguardandoRevisao: [],
+    perguntasEmAberto: { total: 0, porAnalise: [] },
+    demandas: { abertas: 0, encerradas: 0, semAnalise: 0 },
+    base: { regras: 1, aRevalidar: 1, termos: 1 },
+    sessoes: {
+      total: 1,
+      ativas: 0,
+      aguardandoAnalista: 1,
+      concluidas: 0,
+      encerradas: 0,
+      porAnalise: [{ analise: "A-0002", id: "s1", estado: "aguardando-analista", cliente: "claude-code" }],
+      vivas: [
+        {
+          id: "s1",
+          estado: "aguardando-analista",
+          cliente: "claude-code",
+          analise: "A-0002",
+          titulo: "Parcelamento para pessoa jurídica",
+          inicioMs: 0,
+          atualizadaMs: 0,
+          fimMs: null,
+        },
+      ],
+    },
+    atividadeRecente: [],
+    pedemAcao: atividades.length,
+    geradoMs: 0,
+    ...parcial,
+    atividades,
   };
 }
 
@@ -213,6 +279,10 @@ export function demandasFicticias(): DemandaVista[] {
       id: "D-0001",
       titulo: "Parcelamento PJ",
       status: "aberta",
+      statusLocal: "aberta",
+      tipo: "funcionalidade",
+      rastreador: null,
+      avisoRastreador: null,
       chave: "FAT-12",
       origem: null,
       criado: "2026-11-01",
@@ -223,6 +293,10 @@ export function demandasFicticias(): DemandaVista[] {
       id: "D-0002",
       titulo: "Multa de fatura vencida",
       status: "encerrada",
+      statusLocal: "encerrada",
+      tipo: null,
+      rastreador: null,
+      avisoRastreador: null,
       chave: null,
       origem: null,
       criado: "2026-10-01",
@@ -454,6 +528,9 @@ export function apiConhecimentoFalsa() {
       return Promise.resolve(parar);
     }),
     listarDemandas: vi.fn((): Promise<DemandaVista[]> => Promise.resolve(demandasFicticias())),
+    atualizarStatusDemandas: vi.fn(
+      (): Promise<DemandaVista[]> => Promise.resolve(demandasFicticias()),
+    ),
     criarDemanda: vi.fn(
       (_p: string, nova: NovaDemanda): Promise<DemandaVista> =>
         Promise.resolve({
@@ -461,6 +538,7 @@ export function apiConhecimentoFalsa() {
           id: "D-0003",
           titulo: nova.titulo,
           chave: nova.chave ?? null,
+          tipo: nova.tipo ?? null,
         }),
     ),
     encerrarDemanda: vi.fn(
@@ -474,6 +552,9 @@ export function apiConhecimentoFalsa() {
     painelDemanda: vi.fn((): Promise<PainelDemanda> => Promise.resolve(painelFicticio())),
     verificarAmbiente: vi.fn(
       (): Promise<AmbienteClaude> => Promise.resolve({ pronto: true, pendencias: [] }),
+    ),
+    resumoProjeto: vi.fn(
+      (projeto: string): Promise<ResumoProjeto> => Promise.resolve({ ...resumoFicticio(), projeto }),
     ),
     planejarPreparo: vi.fn(
       (): Promise<PlanoPreparo> =>

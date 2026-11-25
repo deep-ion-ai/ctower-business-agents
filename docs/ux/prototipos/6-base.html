@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>Base de conhecimento · protótipo #312</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<link rel="stylesheet" href="prototipo.css">
+<style>html,body{height:100%} .win,.win.alta{width:auto;height:100vh;min-height:640px}</style>
+</head>
+<body>
+<div class="win" id="win">
+  <header class="tb">
+    <b>Ctower Business Agents</b>
+    <button class="proj" type="button" title="Trocar de projeto">OpenCBS ▾</button>
+    <span class="sp"></span>
+    <span class="busca"><span>Buscar regra, análise, demanda…</span><span class="kbd">⌘K</span></span>
+    <span class="sp"></span>
+    <button class="btn btn-sm" type="button" id="tema">Tema escuro</button>
+  </header>
+  <div class="work">
+    <nav class="rail" aria-label="Seções do projeto">
+      <div class="grupo">Projeto</div>
+      <a href="1-visao-geral.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-4H4zM14 8h6V4h-6z"></path></svg><span>Visão geral</span></a>
+      <a href="2-atividades.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 6h16v10H8l-4 4z"></path></svg><span>Atividades</span><span class="n">7</span></a>
+      <a href="#analises" title="Fora deste protótipo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"></path><path d="M9 12h7M9 16h5"></path></svg><span>Análises</span><span class="n neutro">9</span></a>
+      <a href="3-demandas.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="2"></circle></svg><span>Demandas</span><span class="n neutro">6</span></a>
+      <div class="grupo">Conhecimento</div>
+      <a href="6-base.html" aria-current="page"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"></path></svg><span>Base</span></a>
+      <a href="5-funcionalidades.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 6v5M5 20v-5h14v5M12 11v4"></path><rect x="9" y="2" width="6" height="4"></rect></svg><span>Funcionalidades</span></a>
+      <a href="#codigo" title="Fora deste protótipo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4M13 6l-2 12"></path></svg><span>Código</span></a>
+      <a class="fim" href="#configuracoes" title="Fora deste protótipo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"></path></svg><span>Configurações</span></a>
+    </nav>
+    <main class="main">
+      <div class="page">
+        <div class="cab">
+          <div>
+            <h1>Base de conhecimento</h1>
+            <p class="sub">O que já foi confirmado sobre o OpenCBS. Evidências conferidas com o código hoje às 10:40.</p>
+          </div>
+          <div class="acoes">
+            <button class="btn" type="button">Conferir de novo</button>
+            <button class="btn" type="button">O que mudou no código</button>
+          </div>
+        </div>
+
+        <div class="barra-filtros">
+          <label class="sr-only" for="busca-base">Buscar na base</label>
+          <input id="busca-base" class="campo" style="width: 380px" type="search" value="multa carência">
+          <button class="chip" type="button" aria-pressed="true">Regras 8</button>
+          <button class="chip" type="button" aria-pressed="false">Glossário 1</button>
+          <button class="chip" type="button" aria-pressed="false">Documentos 4</button>
+          <span class="muted">·</span>
+          <button class="chip" type="button" aria-pressed="false">A revalidar 0</button>
+          <label class="sr-only" for="area-base">Área</label>
+          <select id="area-base" class="campo"><option>Todas as áreas</option><option>Multas por atraso</option><option>Cobrança</option><option>Crédito</option></select>
+        </div>
+
+        <div class="grid" style="grid-template-columns: minmax(0, 1fr) minmax(0, 1fr)">
+          <section class="panel" aria-label="Regras encontradas">
+            <h2>Multas por atraso · 7 regras</h2>
+            <ul class="linhas">
+              <li class="sel"><span class="id">RN-MUL-006</span>
+                <span class="tit"><b>Carência</b><br><span class="muted">…Sem <b>carência</b>, ou depois do primeiro lançamento, vale o cálculo normal: <b>multa</b> diária × dias…</span></span>
+                <span class="fim"><span class="chip" data-tone="done">confirmada</span></span></li>
+              <li><span class="id">RN-MUL-002</span>
+                <span class="tit"><b>Origem dos parâmetros</b><br><span class="muted">…Cada <b>multa</b> tem: faixa de dias de atraso, <b>carência</b> em dias…</span></span>
+                <span class="fim"><span class="chip" data-tone="done">confirmada</span></span></li>
+              <li><span class="id">RN-MUL-008</span>
+                <span class="tit"><b>Multa sobre principal em atraso de 36% ao ano</b><br><span class="muted">…Contrato com uma <b>multa</b> sobre principal em atraso…</span></span>
+                <span class="fim"><span class="chip" data-tone="done">confirmada</span></span></li>
+              <li><span class="id">RN-MUL-013</span>
+                <span class="tit"><b>Limite da faixa com multa fixa</b><br><span class="muted">…<b>multa</b> fixa de R$ 2,00 por dia, faixa de 1 a 30 dias, sem <b>carência</b>…</span></span>
+                <span class="fim"><span class="chip">exemplo</span><span class="chip" data-tone="done">confirmada</span></span></li>
+            </ul>
+            <h2 style="margin-top: 6px">Cobrança · 1 regra</h2>
+            <ul class="linhas">
+              <li><span class="id">RN-GER-004</span>
+                <span class="tit"><b>Lembretes de atraso no 1º e no 5º dia</b><br><span class="muted">…o sistema pega a primeira parcela em atraso e a <b>multa</b>…</span></span>
+                <span class="fim"><span class="chip" data-tone="done">confirmada</span></span></li>
+            </ul>
+            <div class="vazio">
+              <b>Não achou o que procurava?</b>
+              <span>Pergunte ao agente; a resposta aprovada entra na base.</span>
+              <button class="btn btn-sm" type="button">Perguntar: "multa carência"</button>
+            </div>
+          </section>
+
+          <section class="panel" aria-label="Regra aberta">
+            <h2>RN-MUL-006 <span class="chip" data-tone="done">confirmada</span> <a href="#aba">Abrir em aba</a></h2>
+            <h3 style="font-size: 17px; font-weight: 600">Carência</h3>
+            <p>Enquanto os dias cobrados forem menores que a carência, não há lançamento de multa. Sem carência, ou depois do primeiro lançamento, vale o cálculo normal: multa diária × dias cobrados, menos o que já foi lançado.</p>
+            <div class="legenda"><span>Área: Multas por atraso</span><span>Origem: <a href="#a1">A-0001</a></span><span>Aprovada em 16/11</span></div>
+            <h2 style="margin-top: 6px">Onde está no código</h2>
+            <ul class="linhas">
+              <li><span class="chip mono">LoanPenaltyAccrualProcessor.java:94-98</span><span class="fim"><span class="chip" data-tone="done">confere</span><button class="btn btn-sm" type="button">Ver o trecho</button></span></li>
+            </ul>
+            <h2 style="margin-top: 6px">Se esta regra mudar <span class="ajuda" title="O que foi escrito com base nesta regra e precisa ser revisto se ela mudar.">?</span></h2>
+            <div class="barra-filtros">
+              <span class="chip">2 análises</span><span class="chip">9 cenários de teste</span><span class="chip">0 demandas</span><span class="chip">0 critérios</span>
+            </div>
+            <ul class="linhas">
+              <li><span class="id">A-0008</span><span class="tit">Cenários · multa por atraso</span><span class="fim"><span class="chip" data-tone="running">em andamento</span></span></li>
+              <li><span class="id">CT-0004</span><span class="tit">Multa diária arredondada para zero</span></li>
+            </ul>
+            <div class="barra-filtros" style="margin-top: 6px">
+              <button class="btn btn-sm" type="button">Editar</button>
+              <button class="btn btn-sm" type="button">Perguntar sobre esta regra</button>
+              <button class="btn btn-sm" type="button">Detalhes do arquivo ▾</button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+  <footer class="sb"><span>Ambiente pronto</span><span class="mono">Base: ~/Documentos/ctower-business</span><span style="flex: 1"></span><span>1 sessão aguarda você</span></footer>
+</div>
+<script>
+// Tema: ?tema=escuro na URL ou o botão da barra de título; a escolha segue nos links.
+(function () {
+  var w = document.getElementById("win"), b = document.getElementById("tema");
+  var escuro = new URLSearchParams(location.search).get("tema") === "escuro";
+  function aplicar() {
+    w.classList.toggle("escuro", escuro);
+    b.textContent = escuro ? "Tema claro" : "Tema escuro";
+    document.querySelectorAll(".rail a, .page a").forEach(function (a) {
+      var h = a.getAttribute("href");
+      if (h && h.indexOf(".html") > 0) a.setAttribute("href", h.split("?")[0] + (escuro ? "?tema=escuro" : ""));
+    });
+  }
+  b.onclick = function () { escuro = !escuro; aplicar(); };
+  aplicar();
+})();
+</script>
+</body>
+</html>

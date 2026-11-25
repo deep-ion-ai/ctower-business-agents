@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>Projeto novo: primeiros passos · protótipo #312</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<link rel="stylesheet" href="prototipo.css">
+<style>html,body{height:100%} .win,.win.alta{width:auto;height:100vh;min-height:640px}</style>
+</head>
+<body>
+<div class="win" id="win">
+  <header class="tb">
+    <b>Ctower Business Agents</b>
+    <button class="proj" type="button" title="Trocar de projeto">Faturamento ▾</button>
+    <span class="sp"></span>
+    <span class="busca"><span>Buscar regra, análise, demanda…</span><span class="kbd">⌘K</span></span>
+    <span class="sp"></span>
+    <button class="btn btn-sm" type="button" id="tema">Tema escuro</button>
+  </header>
+  <div class="work">
+    <nav class="rail" aria-label="Seções do projeto">
+      <div class="grupo">Projeto</div>
+      <a href="4-projeto-novo.html" aria-current="page"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-4H4zM14 8h6V4h-6z"></path></svg><span>Visão geral</span></a>
+      <a href="#atividades" title="Fora deste protótipo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 6h16v10H8l-4 4z"></path></svg><span>Atividades</span><span class="n">1</span></a>
+      <a href="#analises" title="Fora deste protótipo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"></path><path d="M9 12h7M9 16h5"></path></svg><span>Análises</span></a>
+      <a href="#demandas" title="Fora deste protótipo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="2"></circle></svg><span>Demandas</span></a>
+      <div class="grupo">Conhecimento</div>
+      <a href="6-base.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"></path></svg><span>Base</span></a>
+      <a href="5-funcionalidades.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 6v5M5 20v-5h14v5M12 11v4"></path><rect x="9" y="2" width="6" height="4"></rect></svg><span>Funcionalidades</span></a>
+      <a href="#codigo" title="Fora deste protótipo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4M13 6l-2 12"></path></svg><span>Código</span></a>
+      <a class="fim" href="#configuracoes" title="Fora deste protótipo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"></path></svg><span>Configurações</span></a>
+    </nav>
+    <main class="main">
+      <div class="page">
+        <div class="cab">
+          <div>
+            <h1>Faturamento</h1>
+            <p class="sub">Cadastrado agora · 1 repositório · 3.180 arquivos lidos</p>
+          </div>
+          <div class="acoes">
+            <span class="chip" data-tone="attention">Agente por preparar</span>
+            <span class="chip" data-tone="done">Código acessível</span>
+            <span class="chip">Sem demandas conectadas</span>
+            <button class="btn" type="button">Configurar projeto</button>
+          </div>
+        </div>
+
+        <div class="grid g32">
+          <section class="panel passos" aria-label="Primeiros passos">
+            <h2>Primeiros passos · 2 de 5</h2>
+            <div class="pilha" role="img" aria-label="2 de 5 passos feitos"><span class="s-aprovada" style="flex: 2"></span><span class="s-neutro" style="flex: 3"></span></div>
+            <div class="check" data-ok="sim"><span class="m">✓</span><div><p class="t"><b>Escolher como conversar com a IA</b></p><p class="muted">Claude Code no terminal do app.</p></div></div>
+            <div class="check" data-ok="sim"><span class="m">✓</span><div><p class="t"><b>Cadastrar o projeto</b></p><p class="muted">O app leu a estrutura do código, sem IA e sem custo.</p></div></div>
+            <div class="check" data-agora="sim"><span class="m">3</span><div><p class="t"><b>Ligar o agente a este projeto</b></p><p class="muted">O app mostra o que muda na configuração do Claude e só grava com o seu aceite. Sem isso, o agente não consegue registrar o que encontra.</p></div><button class="btn btn-p" type="button">Ver e preparar</button></div>
+            <div class="check"><span class="m">4</span><div><p class="t"><b>Fazer a primeira pergunta</b></p><p class="muted">Ex.: "Quais são as principais regras de negócio deste projeto?"</p></div><button class="btn" type="button" disabled>Perguntar</button></div>
+            <div class="check"><span class="m">5</span><div><p class="t"><b>Revisar e aprovar a resposta</b></p><p class="muted">O que você confirmar vira regra da base de conhecimento.</p></div></div>
+          </section>
+
+          <section class="panel" aria-label="Como funciona">
+            <h2>Como o app trabalha</h2>
+            <ul class="linhas">
+              <li><span class="m chip">1</span><span>Você pergunta ou traz uma demanda.</span></li>
+              <li><span class="m chip">2</span><span>O agente lê o código e registra afirmações com a evidência.</span></li>
+              <li><span class="m chip">3</span><span>Você confirma, corrige ou pede para aprofundar.</span></li>
+              <li><span class="m chip">4</span><span>O aprovado vira regra, glossário e documento da base.</span></li>
+            </ul>
+            <p class="muted" style="font-size: 12.5px">O app só lê o código. Nada é alterado no repositório nem no rastreador.</p>
+          </section>
+        </div>
+
+        <div class="grid g2">
+          <section class="panel" aria-label="Análises">
+            <h2>Análises</h2>
+            <div class="vazio">
+              <b>Nenhuma análise ainda</b>
+              <span>Uma análise é a resposta do agente a uma pergunta, uma funcionalidade ou uma demanda, com cada afirmação ligada ao trecho de código.</span>
+              <span class="muted">Fica disponível depois do passo 3.</span>
+            </div>
+          </section>
+          <section class="panel" aria-label="Demandas">
+            <h2>Demandas</h2>
+            <div class="vazio">
+              <b>Nenhum rastreador conectado</b>
+              <span>Conecte GitHub, GitLab ou Jira para ver as issues aqui e analisar o impacto de cada uma com um clique. Também dá para colar o texto de uma demanda.</span>
+              <button class="btn btn-sm" type="button">Conectar o rastreador</button>
+            </div>
+          </section>
+          <section class="panel" aria-label="Base de conhecimento">
+            <h2>Base de conhecimento</h2>
+            <div class="vazio">
+              <b>0 regras · 0 termos</b>
+              <span>A base cresce a cada análise aprovada. Ela fica na sua pasta, em Markdown.</span>
+            </div>
+          </section>
+          <section class="panel" aria-label="Funcionalidades">
+            <h2>Funcionalidades</h2>
+            <div class="vazio">
+              <b>Mapa ainda vazio</b>
+              <span>O app achou 1.412 pontos de entrada (telas, serviços, rotinas). O agente pode agrupá-los em funcionalidades com nome de negócio.</span>
+              <span class="muted">Fica disponível depois do passo 3.</span>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+  <footer class="sb"><span>Agente por preparar</span><span class="mono">Base: ~/Documentos/ctower-business</span><span style="flex: 1"></span></footer>
+</div>
+<script>
+// Tema: ?tema=escuro na URL ou o botão da barra de título; a escolha segue nos links.
+(function () {
+  var w = document.getElementById("win"), b = document.getElementById("tema");
+  var escuro = new URLSearchParams(location.search).get("tema") === "escuro";
+  function aplicar() {
+    w.classList.toggle("escuro", escuro);
+    b.textContent = escuro ? "Tema claro" : "Tema escuro";
+    document.querySelectorAll(".rail a, .page a").forEach(function (a) {
+      var h = a.getAttribute("href");
+      if (h && h.indexOf(".html") > 0) a.setAttribute("href", h.split("?")[0] + (escuro ? "?tema=escuro" : ""));
+    });
+  }
+  b.onclick = function () { escuro = !escuro; aplicar(); };
+  aplicar();
+})();
+</script>
+</body>
+</html>

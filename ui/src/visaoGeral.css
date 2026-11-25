@@ -1,0 +1,424 @@
+/*
+ * Visão geral do projeto (#320, §6 da revisão de UX; protótipo 1-visao-geral.html).
+ * Cores só por token, então vale nos dois temas. Regra de cor da §6.1: cor só para
+ * estado (âmbar pede ação do analista, azul é o agente ou item aberto, verde é
+ * concluído) e sempre com o rótulo e o número em texto.
+ */
+.visao-geral {
+  max-width: 1180px;
+  width: 100%;
+  margin: 0 auto;
+  gap: 16px;
+}
+
+.vg-cab {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.vg-cab h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.vg-sub {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.vg-acoes {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.vg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.vg-chip[data-tone="attention"] {
+  border-color: var(--attention-border);
+  background: var(--attention-bg);
+  color: var(--attention);
+}
+
+.vg-chip[data-tone="done"] {
+  border-color: transparent;
+  background: var(--done-bg);
+  color: var(--done);
+}
+
+.vg-chip[data-tone="running"] {
+  border-color: transparent;
+  background: var(--running-bg);
+  color: var(--running);
+}
+
+.vg-chip-estatico {
+  cursor: default;
+}
+
+.vg-painel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px 18px;
+}
+
+.vg-painel > h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+.vg-painel > h3 .link {
+  margin-left: auto;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: 12.5px;
+}
+
+.vg-subtitulo {
+  margin: 6px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+/* Próximos passos */
+.vg-passos {
+  border-color: var(--attention-border);
+  background: var(--attention-card);
+}
+
+.vg-passo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+
+.vg-passo:first-of-type {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.vg-passo-texto {
+  min-width: 0;
+  flex: 1;
+}
+
+.vg-passo-titulo {
+  margin: 0;
+  font-weight: 600;
+}
+
+.vg-passo-descricao {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.vg-passo .btn {
+  flex: none;
+  margin-left: auto;
+}
+
+.vg-ponto {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+.vg-ponto[data-tone="attention"] {
+  background: var(--attention);
+}
+
+.vg-ponto[data-tone="running"] {
+  background: var(--running);
+}
+
+.vg-ponto[data-tone="done"] {
+  background: var(--done);
+}
+
+/* Grades */
+.vg-grade {
+  display: grid;
+  gap: 16px;
+}
+
+.vg-g4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.vg-g32 {
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+}
+
+.vg-g2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 1000px) {
+  .vg-g4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .vg-g32,
+  .vg-g2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Os quatro números */
+.vg-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.vg-kpi:hover {
+  border-color: var(--border-strong);
+}
+
+.vg-kpi[data-tone="attention"] {
+  border-color: var(--attention-border);
+}
+
+.vg-kpi-rotulo {
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.vg-kpi-valor {
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--text);
+}
+
+.vg-kpi-valor[data-vazio="true"] {
+  font-size: 18px;
+  color: var(--muted);
+}
+
+.vg-kpi-texto {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* Barras: o rótulo e o número ficam em texto */
+.vg-pilha {
+  display: flex;
+  gap: 2px;
+  height: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vg-pilha > li {
+  min-width: 6px;
+  border-radius: 4px;
+  background: var(--border-strong);
+}
+
+.vg-pilha > li[data-tone="attention"],
+.vg-seg[data-tone="attention"] {
+  background: var(--attention);
+}
+
+.vg-pilha > li[data-tone="running"],
+.vg-seg[data-tone="running"] {
+  background: var(--running);
+}
+
+.vg-pilha > li[data-tone="done"],
+.vg-seg[data-tone="done"] {
+  background: var(--done);
+}
+
+.vg-legenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.vg-seg {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 3px;
+  vertical-align: -1px;
+  background: var(--border-strong);
+}
+
+.vg-barras {
+  display: grid;
+  grid-template-columns: max-content 1fr max-content;
+  gap: 7px 10px;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.vg-barras > li {
+  display: contents;
+}
+
+.vg-trilho {
+  height: 10px;
+  border-radius: 4px;
+  background: var(--idle-bg);
+}
+
+.vg-trilho > span {
+  display: block;
+  height: 10px;
+  border-radius: 4px;
+  background: var(--accent);
+}
+
+.vg-valor {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  text-align: right;
+  color: var(--text-2);
+}
+
+/* Listas */
+.vg-linhas {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vg-linhas > li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 9px 0;
+  border-top: 1px solid var(--border);
+}
+
+.vg-linhas > li:first-child {
+  border-top: 0;
+}
+
+/* Até 20 linhas do histórico (#331): rola dentro do painel. */
+.vg-recentes {
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.vg-titulo {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vg-id {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.vg-fim {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.vg-quando {
+  flex: none;
+  min-width: 48px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* Estado vazio: ensina o que é o bloco e qual ação o enche */
+.vg-vazio {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 16px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.vg-vazio b {
+  color: var(--text);
+}
+
+.vg-vazio p {
+  margin: 0;
+}
+
+.vg-nota {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.vg-primeiros progress { width: 100%; margin-bottom: 8px; }
+.vg-progresso { margin-left: 8px; font-weight: normal; color: var(--muted, inherit); font-size: 0.85em; }
+.vg-lista-passos { list-style: none; margin: 0; padding: 0; }
+.vg-lista-passos li { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.vg-lista-passos li[data-feito="true"] .vg-passo-titulo { text-decoration: line-through; opacity: 0.7; }
+.vg-lista-passos .vg-passo-texto { flex: 1; }
+.vg-como { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+.motivo-bloqueio { margin: 6px 0 0; text-align: right; }

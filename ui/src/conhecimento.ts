@@ -11,6 +11,8 @@ import {
   type Situacao,
 } from "./analise";
 import type { DemandaVista, NovaDemanda, PainelDemanda } from "./demandas";
+import { apiResumoTauri, type ResumoProjeto } from "./resumoProjeto";
+import { apiIssuesTauri, type ApiIssues } from "./issuesProjeto";
 
 /**
  * Espelho dos comandos do início, do projeto e da base de conhecimento
@@ -228,9 +230,15 @@ export interface ApiConhecimento extends ApiAmbiente {
   ): Promise<AnaliseCriada>;
   /**
    * Cria a análise a partir de uma issue do rastreador do projeto (`PROJ-123`, `#12`):
-   * título e descrição viram a entrada e o link vai em `demanda.origem`.
+   * título e descrição viram a entrada e o link vai em `demanda.origem`. Com
+   * `pedido.entrada` (a pergunta, #359), ela é a entrada e a issue só liga o resultado.
    */
-  criarAnaliseDeDemanda(projeto: string, fluxo: Fluxo, referencia: string): Promise<AnaliseCriada>;
+  criarAnaliseDeDemanda(
+    projeto: string,
+    fluxo: Fluxo,
+    referencia: string,
+    pedido?: { entrada?: string; titulo?: string },
+  ): Promise<AnaliseCriada>;
   /** Análises do projeto, da mais recente para a mais antiga (a origem das histórias). */
   listarAnalises(projeto: string): Promise<AnaliseResumo[]>;
   /**
@@ -263,17 +271,27 @@ export interface ApiConhecimento extends ApiAmbiente {
   vigiarBase(aoMudar: () => void): Promise<() => void>;
   /** Demandas do projeto, as abertas primeiro. */
   listarDemandas(projeto: string): Promise<DemandaVista[]>;
+  /** Confere de novo o status de todas as demandas com o rastreador, sem cache (#292). */
+  atualizarStatusDemandas(projeto: string): Promise<DemandaVista[]>;
   criarDemanda(projeto: string, nova: NovaDemanda): Promise<DemandaVista>;
   encerrarDemanda(projeto: string, demanda: string): Promise<DemandaVista>;
   reabrirDemanda(projeto: string, demanda: string): Promise<DemandaVista>;
   painelDemanda(projeto: string, demanda: string): Promise<PainelDemanda>;
+  /**
+   * Resumo do projeto (#318): contagens e a lista de atividades do analista, para as
+   * Atividades e o selo do menu (#321).
+   */
+  resumoProjeto(projeto: string): Promise<ResumoProjeto>;
   /** Cobertura da base por área e pasta (#125); sem ela, a tela não mostra a seção. */
   cobertura?: ApiCobertura["cobertura"];
   /** O que mudou no código (#124), na tela do projeto. */
   mudancas?: ApiMudancas;
+  /** Issues do rastreador (#322, #323); sem ela, a área Demandas mostra só as demandas da base. */
+  issues?: ApiIssues;
 }
 
 export const apiConhecimentoTauri: ApiConhecimento = {
+  issues: apiIssuesTauri,
   cobertura: apiCoberturaTauri.cobertura,
   mudancas: apiMudancasTauri,
   situacao: () => invoke("situacao_app"),
@@ -286,8 +304,14 @@ export const apiConhecimentoTauri: ApiConhecimento = {
       titulo: titulo ?? null,
       demanda: demanda ?? null,
     }),
-  criarAnaliseDeDemanda: (projeto, fluxo, referencia) =>
-    invoke("criar_analise_de_demanda", { projeto, fluxo, referencia }),
+  criarAnaliseDeDemanda: (projeto, fluxo, referencia, pedido) =>
+    invoke("criar_analise_de_demanda", {
+      projeto,
+      fluxo,
+      referencia,
+      entrada: pedido?.entrada ?? null,
+      titulo: pedido?.titulo ?? null,
+    }),
   listarAnalises: apiAnaliseTauri.listarAnalises,
   criarAnaliseDeHistorias: (projeto, pedido) =>
     invoke("criar_analise_de_historias_app", {
@@ -329,17 +353,20 @@ export const apiConhecimentoTauri: ApiConhecimento = {
     };
   },
   listarDemandas: (projeto) => invoke("listar_demandas_app", { projeto }),
+  atualizarStatusDemandas: (projeto) => invoke("atualizar_status_demandas_app", { projeto }),
   criarDemanda: (projeto, nova) =>
     invoke("criar_demanda_app", {
       projeto,
       titulo: nova.titulo,
       descricao: nova.descricao ?? null,
       chave: nova.chave ?? null,
+      tipo: nova.tipo ?? null,
     }),
   encerrarDemanda: (projeto, demanda) => invoke("encerrar_demanda_app", { projeto, demanda }),
   reabrirDemanda: (projeto, demanda) => invoke("reabrir_demanda_app", { projeto, demanda }),
   painelDemanda: (projeto, demanda) => invoke("painel_demanda_app", { projeto, demanda }),
   verificarAmbiente: apiAnaliseTauri.verificarAmbiente,
+  resumoProjeto: apiResumoTauri.resumoProjeto,
   planejarPreparo: apiAnaliseTauri.planejarPreparo,
   prepararAmbiente: apiAnaliseTauri.prepararAmbiente,
 };

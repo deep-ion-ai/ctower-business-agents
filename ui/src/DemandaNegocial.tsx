@@ -1,0 +1,250 @@
+import { useEffect, useState, type FormEvent } from "react";
+import { mensagemDe } from "./analise";
+import type { ApiConhecimento } from "./conhecimento";
+import { ROTULO_TIPO_DEMANDA, type DemandaVista, type TipoDemanda } from "./demandas";
+import { DemandaAchada, useDemandaResolvida } from "./NovaAnalise";
+
+export type { TipoDemanda };
+
+/** Os tipos de demanda negocial, com o rótulo e o exemplo da descrição de cada um. */
+export const TIPOS_DEMANDA: {
+  id: TipoDemanda;
+  nome: string;
+  desc: string;
+  rotulo: string;
+  exemplo: string;
+  tituloEx: string;
+  funcionalidade: string;
+}[] = [
+  {
+    id: "bug",
+    nome: ROTULO_TIPO_DEMANDA.bug,
+    desc: "Algo não funciona como deveria.",
+    rotulo: "O que acontece e o que deveria acontecer",
+    exemplo:
+      "Ex.: Ao cancelar uma fatura parcelada, as parcelas seguintes continuam sendo cobradas. Deveriam ser canceladas junto.",
+    tituloEx: "Ex.: Parcelas seguem cobradas após cancelar a fatura",
+    funcionalidade: "Funcionalidade afetada",
+  },
+  {
+    id: "funcionalidade",
+    nome: ROTULO_TIPO_DEMANDA.funcionalidade,
+    desc: "Algo que o sistema ainda não faz.",
+    rotulo: "O que o negócio precisa e por quê",
+    exemplo:
+      "Ex.: Permitir que clientes PJ parcelem a fatura em até 3 vezes, para reduzir a inadimplência.",
+    tituloEx: "Ex.: Parcelamento de fatura para PJ",
+    funcionalidade: "Funcionalidade relacionada",
+  },
+  {
+    id: "melhoria",
+    nome: ROTULO_TIPO_DEMANDA.melhoria,
+    desc: "Mudar algo que já existe.",
+    rotulo: "O que muda e qual o ganho",
+    exemplo:
+      "Ex.: Mostrar o motivo da recusa do pagamento na tela da fatura, para o atendimento não precisar abrir chamado.",
+    tituloEx: "Ex.: Motivo da recusa na tela da fatura",
+    funcionalidade: "Funcionalidade afetada",
+  },
+];
+
+/**
+ * O corpo da demanda: a funcionalidade numa linha própria, antes do pedido. O tipo
+ * vai no frontmatter (`tipo_demanda`, #358), não no texto.
+ */
+export function descricaoDaDemanda(descricao: string, funcionalidade: string): string {
+  const pedido = descricao.trim();
+  return funcionalidade.trim() ? `**Funcionalidade:** ${funcionalidade.trim()}\n\n${pedido}` : pedido;
+}
+
+/**
+ * "Demanda Negocial" (#350): o ponto de entrada de um pedido do negócio (corrigir
+ * um bug, criar uma funcionalidade, melhorar o que existe). Registra a demanda no
+ * projeto; as análises partem dela.
+ */
+export function FormDemandaNegocial({
+  api,
+  projeto,
+  aoRegistrar,
+  aoCancelar,
+  aoAbrirAnalise,
+  aoAnalisarExistente,
+}: {
+  api: ApiConhecimento;
+  projeto: string;
+  aoRegistrar: (d: DemandaVista) => void;
+  aoCancelar: () => void;
+  /** Continua uma análise que a issue informada já tem. */
+  aoAbrirAnalise?: (id: string) => void;
+  /** A issue já é uma demanda do projeto: analisa a que existe, em vez de duplicar. */
+  aoAnalisarExistente?: (demanda: string) => void;
+}) {
+  const [tipo, setTipo] = useState<TipoDemanda | null>(null);
+  const [titulo, setTitulo] = useState("");
+  const [descricao, setDescricao] = useState("");
+  const [funcionalidade, setFuncionalidade] = useState("");
+  const [chave, setChave] = useState("");
+  const [gravando, setGravando] = useState(false);
+  const [falha, setFalha] = useState<string | null>(null);
+  const [demandas, setDemandas] = useState<DemandaVista[]>([]);
+
+  useEffect(() => {
+    let ativo = true;
+    api
+      .listarDemandas(projeto)
+      .then((l) => ativo && setDemandas(l))
+      .catch(() => undefined);
+    return () => {
+      ativo = false;
+    };
+  }, [api, projeto]);
+
+  // A issue informada: o título e, se já for demanda do projeto, as análises (#350).
+  const resolvida = useDemandaResolvida(api, projeto, chave, demandas);
+  const achada = resolvida && resolvida !== "buscando" && resolvida.achada ? resolvida : null;
+  const jaRegistrada = achada?.demanda ?? null;
+
+  const atual = TIPOS_DEMANDA.find((t) => t.id === tipo);
+  const falta = [
+    !tipo && "o tipo de demanda",
+    !titulo.trim() && "o título",
+    !descricao.trim() && "a descrição",
+  ].filter((x): x is string => !!x);
+  const motivo = jaRegistrada
+    ? `A issue já é a demanda ${jaRegistrada}: analise a que existe, em vez de registrar de novo.`
+    : falta.length === 0
+      ? null
+      : `Para registrar, falta ${falta.length === 1 ? falta[0] : `${falta.slice(0, -1).join(", ")} e ${falta[falta.length - 1]}`}.`;
+
+  const registrar = (ev: FormEvent) => {
+    ev.preventDefault();
+    if (motivo || !tipo || gravando) return;
+    setGravando(true);
+    setFalha(null);
+    api
+      .criarDemanda(projeto, {
+        titulo: titulo.trim(),
+        descricao: descricaoDaDemanda(descricao, funcionalidade),
+        chave: chave.trim() || undefined,
+        tipo,
+      })
+      .then(aoRegistrar)
+      .catch((e: unknown) => {
+        setFalha(mensagemDe(e));
+        setGravando(false);
+      });
+  };
+
+  return (
+    <form className="nova-pergunta nova-analise" onSubmit={registrar} aria-label="Demanda Negocial">
+      <fieldset className="tipos-demanda">
+        <legend>Tipo de demanda</legend>
+        <div className="tipos-demanda-opcoes">
+          {TIPOS_DEMANDA.map((t) => (
+            <label key={t.id} className="cartao-opcao" data-marcado={tipo === t.id ? "" : undefined}>
+              <input
+                type="radio"
+                name="tipo-demanda"
+                value={t.id}
+                checked={tipo === t.id}
+                onChange={() => setTipo(t.id)}
+              />
+              <strong>{t.nome}</strong>
+              <span className="muted">{t.desc}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <label>
+        Título
+        <input
+          value={titulo}
+          onChange={(e) => setTitulo(e.target.value)}
+          placeholder={atual?.tituloEx ?? "Um nome curto para o pedido"}
+        />
+      </label>
+      <label>
+        {atual?.rotulo ?? "Descrição"}
+        <textarea
+          value={descricao}
+          onChange={(e) => setDescricao(e.target.value)}
+          rows={5}
+          placeholder={atual?.exemplo ?? "Escolha o tipo de demanda acima."}
+        />
+      </label>
+      <div className="campos-lado-a-lado">
+        <label>
+          <span>
+            {atual?.funcionalidade ?? "Funcionalidade"} <span className="muted">(opcional)</span>
+          </span>
+          <input
+            value={funcionalidade}
+            onChange={(e) => setFuncionalidade(e.target.value)}
+            placeholder="Ex.: Faturamento › Parcelamento"
+          />
+        </label>
+        <label>
+          <span>
+            Issue <span className="muted">(opcional)</span>
+          </span>
+          <input
+            value={chave}
+            onChange={(e) => setChave(e.target.value)}
+            placeholder="Ex.: PROJ-123 ou #142"
+            spellCheck={false}
+          />
+        </label>
+      </div>
+      {achada && (
+        <DemandaAchada
+          achada={achada}
+          aoAbrirAnalise={aoAbrirAnalise}
+          aviso={
+            jaRegistrada
+              ? `Esta issue já está registrada como a demanda ${jaRegistrada}.`
+              : "Issue do rastreador, ainda sem demanda no projeto."
+          }
+        />
+      )}
+      {jaRegistrada && aoAnalisarExistente && (
+        <button type="button" className="btn" onClick={() => aoAnalisarExistente(jaRegistrada)}>
+          Analisar a demanda {jaRegistrada}
+        </button>
+      )}
+      {achada && !jaRegistrada && !titulo.trim() && (
+        <button type="button" className="btn" onClick={() => setTitulo(achada.titulo)}>
+          Usar o título da issue
+        </button>
+      )}
+      <p className="muted ajuda-campo">
+        A demanda ganha um código (D-0001) e aparece em Demandas. Depois de registrar, você pode
+        analisá-la daqui mesmo.
+      </p>
+      <div className="rodape-form">
+        {motivo && (
+          <p className="motivo-desabilitado" id="demanda-negocial-motivo">
+            {motivo}
+          </p>
+        )}
+        <div className="acoes">
+          <button className="btn" type="button" onClick={aoCancelar}>
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={motivo !== null || gravando}
+            aria-describedby={motivo ? "demanda-negocial-motivo" : undefined}
+          >
+            Registrar demanda
+          </button>
+        </div>
+      </div>
+      {falha && (
+        <p className="error-text" role="alert">
+          {falha}
+        </p>
+      )}
+    </form>
+  );
+}

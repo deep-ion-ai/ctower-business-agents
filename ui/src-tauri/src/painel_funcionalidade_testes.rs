@@ -48,6 +48,7 @@ fn painel_junta_analises_demandas_e_perguntas() {
                 descricao: None,
                 chave: None,
                 origem: None,
+                tipo: None,
             },
             Data::nova(2026, 11, 14).unwrap(),
         )

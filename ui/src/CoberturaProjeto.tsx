@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { mensagemDe } from "./analise";
 import { idadeEmTexto, type ApiCobertura, type Cobertura } from "./cobertura";
+import { AjudaTermo } from "./AjudaTermo";
 import { contar } from "./formatacao";
 import type { Tela } from "./Navegacao";
 
@@ -61,7 +62,12 @@ export function CoberturaProjeto({
 
   return (
     <section aria-label="Cobertura da base" className="cobertura-projeto">
-      <h3>Cobertura da base</h3>
+      <h3>
+        Cobertura da base
+        <AjudaTermo termo="cobertura">
+          Quanto do código do projeto já tem regras, termos e documentos na base.
+        </AjudaTermo>
+      </h3>
       {falha && (
         <p className="error-text" role="alert">
           {falha}

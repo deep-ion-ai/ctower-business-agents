@@ -202,12 +202,12 @@ describe("Proteção opcional no preparo do ambiente", () => {
   it("vem desligada e só liga com a caixa marcada", async () => {
     const api = apiAmbiente();
     render(<AmbienteDoProjeto api={api} projeto="faturamento-exemplo" />);
-    fireEvent.click(await screen.findByRole("button", { name: "Ver o que será alterado" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ver e preparar" }));
     const caixa = await screen.findByRole("checkbox");
     expect(caixa).not.toBeChecked();
     fireEvent.click(caixa);
     expect(screen.getByText(/Proteção contra edição: regra/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Concordo, preparar o ambiente" }));
+    fireEvent.click(screen.getByRole("button", { name: "Concordo, ligar o agente" }));
     await waitFor(() =>
       expect(api.mudarProtecao).toHaveBeenCalledWith("faturamento-exemplo", true),
     );
@@ -217,8 +217,8 @@ describe("Proteção opcional no preparo do ambiente", () => {
   it("sem marcar, prepara sem a proteção", async () => {
     const api = apiAmbiente();
     render(<AmbienteDoProjeto api={api} projeto="faturamento-exemplo" />);
-    fireEvent.click(await screen.findByRole("button", { name: "Ver o que será alterado" }));
-    const concordo = await screen.findByRole("button", { name: "Concordo, preparar o ambiente" });
+    fireEvent.click(await screen.findByRole("button", { name: "Ver e preparar" }));
+    const concordo = await screen.findByRole("button", { name: "Concordo, ligar o agente" });
     await waitFor(() => expect(concordo).toBeEnabled());
     fireEvent.click(concordo);
     await waitFor(() => expect(api.prepararAmbiente).toHaveBeenCalled());

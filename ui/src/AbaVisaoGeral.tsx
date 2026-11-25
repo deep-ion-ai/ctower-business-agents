@@ -3,7 +3,7 @@ import type { AbaProjeto, ItemSaude } from "./saudeProjeto";
 const SIMBOLO = { ok: "✓", problema: "!", neutro: "·" } as const;
 
 /**
- * Visão geral do projeto (#192): o checklist de saúde (código, demandas, o que o agente
+ * Saúde do cadastro do projeto (#192; "Visão geral" até a #319): o checklist de saúde (código, demandas, o que o agente
  * lê, agente), cada item com a ação que leva à aba certa (ou a Acessos, quando o
  * conserto é o token global do host).
  */

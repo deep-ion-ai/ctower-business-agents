@@ -502,6 +502,21 @@ export function AssistenteProjeto({
           : "Clonar e continuar"
         : "Continuar";
 
+  /** Por que o botão principal está desabilitado (`null`: pode seguir). */
+  const motivoBloqueio: string | null = clonando
+    ? "Espere o clone terminar para continuar."
+    : cadastrando
+      ? "Espere o cadastro terminar."
+      : passo === 2 && lendo
+        ? "Espere a leitura das pastas terminar para continuar."
+        : passo === 4 && lendo
+          ? "Espere a leitura das pastas terminar para cadastrar."
+          : passo === 4 && previa?.dados.jaCadastrado
+            ? `Já existe um projeto chamado “${previa.dados.nome}”.`
+            : passo === 4 && !previaAtual
+              ? "Não foi possível ler as pastas. Use “Tentar de novo” acima para cadastrar."
+              : null;
+
   return (
     <form className="assistente-projeto" aria-label="Cadastrar projeto" onSubmit={avancar} noValidate>
       <nav aria-label="Etapas do cadastro">
@@ -534,7 +549,7 @@ export function AssistenteProjeto({
           })}
         </ol>
         <div className="trilho-etapas" aria-hidden="true">
-          <div className="barra" style={{ width: `${(passo / 4) * 100}%` }} />
+          <div className="barra" style={{ width: `${((passo - 1) / 4) * 100}%` }} />
         </div>
       </nav>
 
@@ -656,16 +671,25 @@ export function AssistenteProjeto({
         <button
           type="submit"
           className="btn btn-primary"
-          disabled={
-            clonando ||
-            cadastrando ||
-            (passo === 2 && lendo) ||
-            (passo === 4 && (!previaAtual || previa.dados.jaCadastrado))
-          }
+          disabled={motivoBloqueio !== null}
+          aria-describedby={motivoBloqueio ? "motivo-continuar" : undefined}
         >
           {textoPrimario}
         </button>
       </div>
+      {motivoBloqueio && (
+        <p id="motivo-continuar" className="dica motivo-bloqueio" role="status">
+          {motivoBloqueio}
+          {passo === 4 && previa?.dados.jaCadastrado && (
+            <>
+              {" "}
+              <button type="button" className="link" onClick={() => editarDoRevisar(1)}>
+                Mudar o nome
+              </button>
+            </>
+          )}
+        </p>
+      )}
     </form>
   );
 }
@@ -838,7 +862,7 @@ function Concluido({
           Fazer depois
         </button>
         <button type="button" className="btn btn-primary" onClick={() => aoPrepararAmbiente(projeto)}>
-          Preparar o ambiente do Claude
+          Ligar o agente a este projeto
         </button>
       </div>
     </section>

@@ -871,7 +871,7 @@ pub fn cadastrar_projeto(
             .inventariar(&projeto.id)
             .map_err(|e| e.to_string())?;
         let pasta = &projeto.pastas[0].caminho;
-        let notificador = Arc::new(DiarioEventos::em(dados.eventos()));
+        let notificador = Arc::new(DiarioEventos::do_diretorio(dados));
         Ambiente::do_processo_com(pasta, Some(&projeto.id), dados, notificador)
             .map_err(|e| e.to_string())?;
         Ok::<_, String>(inventario)

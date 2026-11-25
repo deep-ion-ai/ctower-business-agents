@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { TelaProjeto } from "./TelaProjeto";
-import { ANALISE, REGRA, PROJETO, apiConhecimentoFalsa } from "./test/conhecimentoFalso";
+import { PROJETO, apiConhecimentoFalsa } from "./test/conhecimentoFalso";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(), Channel: vi.fn() }));
 vi.mock("./telaXterm", () => ({ criarTelaXterm: vi.fn() }));
@@ -19,68 +19,14 @@ function montar(falsa = apiConhecimentoFalsa()) {
 }
 
 describe("TelaProjeto", () => {
-  it("revalida ao abrir e destaca as regras a revalidar", async () => {
+  it("não mostra mais as regras, o glossário, as áreas nem a conferência (#328)", async () => {
     const { api } = montar();
-    const regras = await screen.findByRole("region", { name: "Regras" });
-    expect(api.revalidar).toHaveBeenCalledWith(PROJETO);
-    // A revalidação mudou algo: a lista é relida.
-    await waitFor(() => expect(api.visaoProjeto).toHaveBeenCalledTimes(2));
-
-    const itens = within(regras).getAllByRole("listitem");
-    // O estado vem por texto; o âmbar (tom "attention") só reforça.
-    expect(itens[0]).toHaveAttribute("data-status", "a-revalidar");
-    expect(within(itens[0]).getByText("a revalidar")).toHaveAttribute("data-tone", "attention");
-    expect(itens[1]).toHaveAttribute("data-status", "confirmada");
-    expect(within(itens[1]).getByText("confirmada")).not.toHaveAttribute("data-tone", "attention");
-
-    expect(screen.getByRole("alert")).toHaveTextContent("1 regra está a revalidar");
-    expect(await screen.findByText(/passaram a revalidar: RN-COB-002/)).toBeInTheDocument();
-  });
-
-  it("mostra o glossário e as áreas, e filtra as regras pela área", async () => {
-    montar();
-    const glossario = await screen.findByRole("region", { name: "Glossário" });
-    expect(within(glossario).getByRole("button", { name: "Carência" })).toBeInTheDocument();
-    expect(within(glossario).getByText(/prazo de tolerância/)).toBeInTheDocument();
-
-    const areas = screen.getByRole("region", { name: "Áreas" });
-    expect(within(areas).getByText("1 a revalidar")).toBeInTheDocument();
-    expect(within(areas).getByText(/fora do projeto.md/)).toBeInTheDocument();
-    fireEvent.click(within(areas).getByRole("button", { name: "Parcelamento" }));
-    const regras = screen.getByRole("region", { name: "Regras" });
-    expect(within(regras).getAllByRole("listitem")).toHaveLength(1);
-    expect(within(regras).getByText(/RN-PAR-001/)).toBeInTheDocument();
-  });
-
-  it("abre a regra e a análise de origem na base", async () => {
-    const { navegar } = montar();
-    const regras = await screen.findByRole("region", { name: "Regras" });
-    fireEvent.click(within(regras).getByRole("button", { name: /RN-COB-001/ }));
-    expect(navegar).toHaveBeenCalledWith({ tipo: "base", documento: REGRA });
-    fireEvent.click(within(regras).getAllByRole("button", { name: "origem" })[0]);
-    expect(navegar).toHaveBeenLastCalledWith({ tipo: "base", documento: ANALISE });
-  });
-
-  it("confere de novo sob demanda", async () => {
-    const { api } = montar();
-    const botao = await screen.findByRole("button", { name: "Conferir de novo" });
-    await waitFor(() => expect(botao).toBeEnabled());
-    fireEvent.click(botao);
-    await waitFor(() => expect(api.revalidar).toHaveBeenCalledTimes(2));
-  });
-
-  it("abre e fecha o que mudou no código (#124)", async () => {
-    const falsa = apiConhecimentoFalsa();
-    const relatorio = vi.fn().mockRejectedValue("informe `de`");
-    Object.assign(falsa.api, {
-      mudancas: { relatorio, propostas: vi.fn().mockResolvedValue([]) },
-    });
-    montar(falsa);
-    fireEvent.click(await screen.findByRole("button", { name: "O que mudou no código" }));
-    const painel = screen.getByRole("region", { name: "O que mudou no código" });
-    await waitFor(() => expect(relatorio).toHaveBeenCalledWith(PROJETO, null, null));
-    fireEvent.click(within(painel).getByRole("button", { name: "Fechar" }));
-    expect(screen.queryByRole("region", { name: "O que mudou no código" })).toBeNull();
+    await screen.findByRole("region", { name: "Mapa do projeto" });
+    expect(screen.queryByRole("region", { name: "Regras" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Glossário" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Áreas" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Conferir de novo" })).not.toBeInTheDocument();
+    expect(api.revalidar).not.toHaveBeenCalled();
   });
 
   it("navega pelo mapa e mapeia quando ainda não há mapa", async () => {

@@ -1,6 +1,7 @@
+import { AjudaTermo } from "./AjudaTermo";
 import { useCallback, useEffect, useState } from "react";
 import { contar } from "./formatacao";
-import { mensagemDe, type AnaliseCriada, type Fluxo } from "./analise";
+import { mensagemDe, ROTULO_ESTADO_ANALISE, type AnaliseCriada, type Fluxo } from "./analise";
 import type { ApiAssistenteProjeto } from "./AssistenteProjeto";
 import { ClientesIA, type AbrirLink } from "./ClientesIA";
 import { apiConfiguracoesTauri } from "./configuracoes";
@@ -35,12 +36,7 @@ const FLUXOS: Fluxo[] = [
   "cenarios",
 ];
 
-const ESTADO: Record<AnaliseInicio["estado"], string> = {
-  criada: "criada",
-  "em-andamento": "em andamento",
-  concluida: "concluída, aguardando revisão",
-  aprovada: "aprovada",
-};
+const ESTADO = ROTULO_ESTADO_ANALISE;
 
 interface Props {
   api: ApiConhecimento;
@@ -53,6 +49,11 @@ interface Props {
   apiProjeto?: ApiAssistenteProjeto;
   /** Um projeto foi cadastrado (o painel lateral recarrega a lista). */
   aoMudarProjetos?: () => void;
+  /**
+   * Abaixo das Atividades (#321): sem o “Próximo passo” e sem as listas “Em
+   * andamento” e “Aguardando revisão”, que os grupos das Atividades já mostram.
+   */
+  semConducao?: boolean;
 }
 
 /**
@@ -67,6 +68,7 @@ export function TelaInicio({
   apiReuniao,
   apiProjeto = apiConfiguracoesTauri,
   aoMudarProjetos,
+  semConducao = false,
 }: Props) {
   const [inicio, setInicio] = useState<Inicio | null>(null);
   const [falha, setFalha] = useState<string | null>(null);
@@ -88,7 +90,7 @@ export function TelaInicio({
 
   // O preparo do ambiente de cada projeto alimenta o “próximo passo”.
   useEffect(() => {
-    if (!inicio) return;
+    if (!inicio || semConducao) return;
     let ativo = true;
     for (const p of inicio.projetos) {
       if (p.erro) continue;
@@ -100,7 +102,7 @@ export function TelaInicio({
     return () => {
       ativo = false;
     };
-  }, [api, inicio]);
+  }, [api, inicio, semConducao]);
 
   const abrirAnalise = (a: AnaliseInicio) =>
     navegar({
@@ -125,7 +127,7 @@ export function TelaInicio({
     aoMudarProjetos?.();
   };
 
-  const passo = inicio ? proximoPasso(inicio, ambientes) : null;
+  const passo = inicio && !semConducao ? proximoPasso(inicio, ambientes) : null;
   const executarPasso = (p: PassoInicio) => {
     switch (p.tipo) {
       case "responder":
@@ -137,7 +139,8 @@ export function TelaInicio({
         navegar({ tipo: "projeto", projeto: p.projeto });
         break;
       case "preparar":
-        navegar({ tipo: "configuracoes" });
+        // O preparo do ambiente fica em "Configurar projeto" (#319).
+        navegar({ tipo: "configurar", projeto: p.projeto });
         break;
       case "primeira-analise":
         setFluxo("perguntar");
@@ -169,6 +172,7 @@ export function TelaInicio({
 
       {passo && <ProximoPassoInicio passo={passo} aoExecutar={() => executarPasso(passo)} />}
 
+      {!semConducao && (
       <section aria-label="Nova análise" className="fluxos">
         <h2>Nova análise</h2>
         <div className="botoes-fluxo">
@@ -218,16 +222,19 @@ export function TelaInicio({
           />
         )}
       </section>
+      )}
 
       {inicio && (
         <>
-          <ListaAnalises
-            titulo="Em andamento"
-            vazio="Nenhuma análise em andamento."
-            analises={inicio.emAndamento.filter(emAndamento)}
-            aoAbrir={abrirAnalise}
-          />
-          {inicio.emAndamento.some(aguardaRevisao) && (
+          {!semConducao && (
+            <ListaAnalises
+              titulo="Em andamento"
+              vazio="Nenhuma análise em andamento."
+              analises={inicio.emAndamento.filter(emAndamento)}
+              aoAbrir={abrirAnalise}
+            />
+          )}
+          {!semConducao && inicio.emAndamento.some(aguardaRevisao) && (
             <ListaAnalises
               titulo="Aguardando revisão"
               vazio=""
@@ -235,12 +242,14 @@ export function TelaInicio({
               aoAbrir={abrirAnalise}
             />
           )}
-          <ListaAnalises
-            titulo="Recentes"
-            vazio="Nenhuma análise ainda."
-            analises={inicio.recentes}
-            aoAbrir={abrirAnalise}
-          />
+          {!semConducao && (
+            <ListaAnalises
+              titulo="Recentes"
+              vazio="Nenhuma análise ainda."
+              analises={inicio.recentes}
+              aoAbrir={abrirAnalise}
+            />
+          )}
           <section aria-label="Projetos">
             <div className="titulo-com-acao">
               <h2>Projetos</h2>
@@ -287,10 +296,10 @@ export function TelaInicio({
           api={apiProjeto}
           aoFechar={() => setNovoProjeto(false)}
           aoConcluir={projetoCadastrado}
-          aoPrepararAmbiente={() => {
-            // O preparo do ambiente do Claude fica no cartão do projeto, em Configurações.
+          aoPrepararAmbiente={(p) => {
+            // O preparo do ambiente do Claude fica em "Configurar projeto" (#319).
             projetoCadastrado();
-            navegar({ tipo: "configuracoes" });
+            navegar({ tipo: "configurar", projeto: p.id });
           }}
         />
       )}
@@ -324,7 +333,7 @@ function descreverPasso(p: PassoInicio): { titulo: string; texto: string; acao: 
       };
     case "preparar":
       return {
-        titulo: `Preparar o ambiente do Claude de ${p.nome}`,
+        titulo: `Ligar o agente ao projeto ${p.nome}`,
         texto:
           "Sem o preparo, o agente não consegue registrar as afirmações da análise no documento.",
         acao: "Preparar",
@@ -373,7 +382,14 @@ function ListaAnalises({
 }) {
   return (
     <section aria-label={titulo}>
-      <h2>{titulo}</h2>
+      <h2>
+        {titulo}
+        {titulo === "Aguardando revisão" && (
+          <AjudaTermo termo="aguardando revisão">
+            O agente terminou a análise e falta você conferir e aprovar.
+          </AjudaTermo>
+        )}
+      </h2>
       {analises.length === 0 && <p className="muted">{vazio}</p>}
       {analises.length > 0 && (
         <ul className="lista-analises">

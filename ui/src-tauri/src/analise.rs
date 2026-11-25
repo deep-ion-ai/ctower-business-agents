@@ -123,7 +123,7 @@ pub(crate) fn ambiente(dados: &DiretorioDados, projeto: &str) -> Result<Ambiente
         .first()
         .map(|p| p.caminho.clone())
         .ok_or("o projeto não tem pastas cadastradas")?;
-    let notificador = Arc::new(DiarioEventos::em(dados.eventos()));
+    let notificador = Arc::new(DiarioEventos::do_diretorio(dados));
     Ambiente::do_processo_com(&pasta, Some(projeto), dados, notificador).map_err(|e| e.to_string())
 }
 
@@ -140,6 +140,15 @@ pub struct AnaliseResumo {
     pub fluxo: Fluxo,
     pub estado: EstadoAnalise,
     pub atualizada_ms: u64,
+    /// Demanda da base a que a análise está ligada (`D-0007`), quando há (#350).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub demanda: Option<String>,
+    /// Chave da demanda no rastreador (`PROJ-123`, `#42`), quando há.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chave: Option<String>,
+    /// Link da issue no rastreador, quando a análise o guardou.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub link: Option<String>,
 }
 
 impl From<&Analise> for AnaliseResumo {
@@ -150,6 +159,9 @@ impl From<&Analise> for AnaliseResumo {
             fluxo: a.fluxo,
             estado: a.estado,
             atualizada_ms: a.atualizada_ms,
+            demanda: None,
+            chave: None,
+            link: None,
         }
     }
 }
@@ -159,12 +171,32 @@ pub fn listar_analises(
     dados: &DiretorioDados,
     projeto: &str,
 ) -> Result<Vec<AnaliseResumo>, String> {
-    let mut lista: Vec<AnaliseResumo> = ambiente(dados, projeto)?
+    let amb = ambiente(dados, projeto)?;
+    let mut lista: Vec<AnaliseResumo> = amb
         .analises
         .listar()
         .map_err(|e| e.to_string())?
         .iter()
-        .map(AnaliseResumo::from)
+        .map(|a| {
+            let mut r = AnaliseResumo::from(a);
+            // A demanda vem do frontmatter; documento ilegível só fica sem ela.
+            if let Ok(doc) = amb
+                .kb
+                .ler::<cba_kb::frontmatter::FrontmatterAnalise>(&a.documento)
+            {
+                let d = doc.frontmatter.demanda;
+                r.demanda = d.id.map(|id| id.to_string());
+                r.chave = d
+                    .chave
+                    .map(|c| c.trim().to_owned())
+                    .filter(|c| !c.is_empty());
+                let origem = d.origem.trim();
+                if origem.starts_with("http://") || origem.starts_with("https://") {
+                    r.link = Some(origem.to_owned());
+                }
+            }
+            r
+        })
         .collect();
     lista.reverse();
     Ok(lista)

@@ -123,7 +123,7 @@ pub fn visao_projeto(dados: &DiretorioDados, projeto: &str) -> Result<VisaoProje
             match kb.ler::<FrontmatterRegra>(rel) {
                 Ok(Documento { frontmatter: f, .. }) => regras.push(RegraVista {
                     id: f.id.to_string(),
-                    titulo: f.titulo,
+                    titulo: cba_kb::titulo_sem_markdown(&f.titulo),
                     area: f.area,
                     status: f.status,
                     caminho,
@@ -170,7 +170,7 @@ pub fn visao_projeto(dados: &DiretorioDados, projeto: &str) -> Result<VisaoProje
     let mut areas: BTreeMap<String, AreaVista> = BTreeMap::new();
     let nova = |id: &str| AreaVista {
         id: id.to_owned(),
-        nome: id.to_owned(),
+        nome: cba_kb::nome_legivel_da_area(id),
         sigla: None,
         declarada: false,
         regras: 0,

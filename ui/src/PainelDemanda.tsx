@@ -5,11 +5,13 @@ import { ROTULO_FLUXO, type ApiConhecimento } from "./conhecimento";
 import {
   ROTULO_STATUS_ATA,
   ROTULO_STATUS_DEMANDA,
+  ROTULO_TIPO_DEMANDA,
   type ItemDaAta,
   type ItemLinhaDoTempo,
   type PainelDemanda as Painel,
   type TranscriptGuardado,
 } from "./demandas";
+import { EstadoNoRastreador } from "./EstadoNoRastreador";
 import { ROTULO_SESSAO } from "./DocumentoAoVivo";
 import type { Tela } from "./Navegacao";
 import { NovaAnalise } from "./NovaAnalise";
@@ -155,6 +157,13 @@ export function PainelDemanda({
           <span className="badge" data-tone={aberta ? "running" : "done"}>
             {ROTULO_STATUS_DEMANDA[d.status]}
           </span>{" "}
+          {d.tipo && (
+            <>
+              <span className="badge" title="Tipo da demanda">
+                {ROTULO_TIPO_DEMANDA[d.tipo]}
+              </span>{" "}
+            </>
+          )}
           {d.chave && <span className="muted">Chave {d.chave} · </span>}
           <span className="muted">
             criada em {d.criado}
@@ -163,9 +172,14 @@ export function PainelDemanda({
           <button type="button" className="link" onClick={() => abrirDocumento(d.documento)}>
             abrir o demanda.md
           </button>{" "}
-          <button type="button" className="btn" onClick={mudarStatus} disabled={mudando}>
-            {aberta ? "Encerrar a demanda" : "Reabrir a demanda"}
-          </button>
+          {!d.rastreador && (
+            <button type="button" className="btn" onClick={mudarStatus} disabled={mudando}>
+              {aberta ? "Encerrar a demanda" : "Reabrir a demanda"}
+            </button>
+          )}
+        </p>
+        <p>
+          <EstadoNoRastreador rastreador={d.rastreador} aviso={d.avisoRastreador} />
         </p>
       </header>
       {falha && (

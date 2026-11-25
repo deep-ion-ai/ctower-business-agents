@@ -222,6 +222,7 @@ mod tests {
             mudanca: Mudanca::Afirmacao,
             versao,
             processo: std::process::id(),
+            estado: None,
         }
     }
 

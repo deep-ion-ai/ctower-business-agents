@@ -7,9 +7,9 @@ use std::sync::Arc;
 
 use crate::{
     acessos, alteracoes, ambiente_teste, analise, base, clones, cobertura, configuracoes, conversa,
-    demandas, docs_externos, funcionalidades, inicio, manual, mudancas, painel_funcionalidade,
-    pauta, primeiro_uso, projeto, prompts, publicacao, rastreabilidade, registros, repositorios,
-    reunioes, revisao, terminal, vigia, vincular_issues,
+    demandas, docs_externos, funcionalidades, inicio, issues_projeto, manual, mudancas,
+    painel_funcionalidade, pauta, primeiro_uso, projeto, prompts, publicacao, rastreabilidade,
+    registros, repositorios, resumo, reunioes, revisao, terminal, vigia, vincular_issues,
 };
 
 pub fn rodar() {
@@ -85,6 +85,8 @@ pub fn rodar() {
             alteracoes::migrar_configuracoes_claude,
             alteracoes::marcar_aviso_migracao_visto,
             inicio::inicio_app,
+            resumo::resumo_projeto_app,
+            resumo::listar_sessoes_projeto_app,
             inicio::criar_analise_fluxo,
             inicio::criar_analise_de_historias_app,
             inicio::criar_analise_de_cenarios_app,
@@ -107,6 +109,8 @@ pub fn rodar() {
             manual::remover_print_manual_app,
             manual::remover_passo_manual_app,
             manual::ler_print_manual_app,
+            issues_projeto::issues_do_projeto_app,
+            issues_projeto::analisar_impacto_da_issue_app,
             vincular_issues::issues_para_vincular_app,
             vincular_issues::confirmar_vinculos_app,
             vincular_issues::justificar_issue_app,
@@ -116,6 +120,7 @@ pub fn rodar() {
             projeto::mapa_projeto_app,
             projeto::mapear_projeto_app,
             demandas::listar_demandas_app,
+            demandas::atualizar_status_demandas_app,
             demandas::criar_demanda_app,
             demandas::encerrar_demanda_app,
             demandas::reabrir_demanda_app,

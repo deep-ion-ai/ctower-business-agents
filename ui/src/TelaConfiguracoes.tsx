@@ -33,12 +33,36 @@ export function TelaConfiguracoes({
   api = apiConfiguracoesTauri,
   aoMudarProjetos,
   aoPendencia,
+  projetoFixo,
+  aoVoltar,
+  listarProjetos = true,
+  aoConfigurarProjeto,
+  aoIrParaConfiguracoes,
+  aoRefazerPrimeiroUso,
 }: {
   api?: ApiConfiguracoes;
   /** Os projetos ou a base mudaram: as outras telas devem reler. */
   aoMudarProjetos?: () => void;
   /** O editor de textos tem (ou deixou de ter) alterações sem salvar. */
   aoPendencia?: (pendente: boolean) => void;
+  /**
+   * "Configurar projeto" (#319): mostra só a página deste projeto, sem o menu. Abre
+   * pelo cabeçalho da Visão geral.
+   */
+  projetoFixo?: string;
+  /** Com {@link projetoFixo}: volta à Visão geral. */
+  aoVoltar?: () => void;
+  /**
+   * `false` tira do menu a lista de projetos (fica só "+ Novo projeto"): cada projeto
+   * se configura pela Visão geral (#319).
+   */
+  listarProjetos?: boolean;
+  /** Abre "Configurar projeto" de um projeto (sem a lista no menu, ou ao cadastrar). */
+  aoConfigurarProjeto?: (projeto: string) => void;
+  /** Com {@link projetoFixo}: leva às configurações do app, na seção já escolhida. */
+  aoIrParaConfiguracoes?: () => void;
+  /** "Refazer o primeiro uso", no cabeçalho (saiu do pé do menu lateral: #350). */
+  aoRefazerPrimeiroUso?: () => void;
 }) {
   const [cfg, setCfg] = useState<Configuracoes | null>(null);
   /** Texto aberto no editor embutido (caminho relativo à base). */
@@ -98,14 +122,30 @@ export function TelaConfiguracoes({
     (id: string, forcar?: boolean) => (forcar ? void conferirProntidao(id) : garantirProntidao(id)),
     [conferirProntidao, garantirProntidao],
   );
-  const irParaAcessos = useCallback(
-    () => escolher({ secao: "acessos", projeto: null }),
-    [escolher],
-  );
+  const irParaAcessos = useCallback(() => {
+    if (projetoFixo !== undefined && aoIrParaConfiguracoes) {
+      escolherAgora({ secao: "acessos", projeto: null });
+      aoIrParaConfiguracoes();
+    } else escolher({ secao: "acessos", projeto: null });
+  }, [escolher, escolherAgora, projetoFixo, aoIrParaConfiguracoes]);
+  /** Abre a página de um projeto: no menu, ou em "Configurar projeto" sem a lista. */
+  const abrirProjeto = (id: string) => {
+    if ((!listarProjetos || projetoFixo !== undefined) && aoConfigurarProjeto) aoConfigurarProjeto(id);
+    else escolher({ secao: "projeto", projeto: id });
+  };
 
   if (!cfg) {
     return (
       <section className="configuracoes page" aria-label="Configurações">
+        {projetoFixo === undefined && aoRefazerPrimeiroUso && (
+          // Mesmo sem as configurações lidas, o primeiro uso continua à mão.
+          <div className="cab-secao">
+            <h2>Configurações</h2>
+            <button type="button" className="btn" onClick={aoRefazerPrimeiroUso}>
+              Refazer o primeiro uso
+            </button>
+          </div>
+        )}
         {falha ? (
           <p className="error-text" role="alert">
             Não foi possível ler as configurações: {falha}
@@ -117,28 +157,59 @@ export function TelaConfiguracoes({
     );
   }
 
-  const escolha = escolhaEfetiva(lembrada, cfg.projetos);
+  const fixo = projetoFixo !== undefined;
+  const escolha: Escolha = fixo
+    ? { secao: "projeto", projeto: projetoFixo }
+    : escolhaEfetiva(lembrada, listarProjetos ? cfg.projetos : SEM_PROJETOS);
   const projeto = cfg.projetos.find((p) => p.id === escolha.projeto);
 
   return (
     <>
       {/* Escondida (não desmontada) enquanto o editor está aberto: ao voltar, tudo
           continua onde estava. */}
-      <section className="configuracoes page" aria-label="Configurações" hidden={editando !== null}>
-        <h2>Configurações</h2>
+      <section
+        className="configuracoes page"
+        aria-label={fixo ? "Configurar projeto" : "Configurações"}
+        hidden={editando !== null}
+      >
+        {fixo ? (
+          <div className="cab-secao">
+            <h2>Configurar projeto</h2>
+            {aoVoltar && (
+              <button type="button" className="link" onClick={aoVoltar}>
+                ← Visão geral
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="cab-secao">
+            <h2>Configurações</h2>
+            {aoRefazerPrimeiroUso && (
+              <button type="button" className="btn" onClick={aoRefazerPrimeiroUso}>
+                Refazer o primeiro uso
+              </button>
+            )}
+          </div>
+        )}
         {falha && (
           <p className="error-text" role="alert">
             {falha}
           </p>
         )}
-        <div className="config-layout">
-          <MenuConfiguracoes
-            escolha={escolha}
-            projetos={noMenu}
-            podeCadastrar={cfg.base !== null}
-            aoEscolher={escolher}
-            aoNovoProjeto={() => setCadastrando(true)}
-          />
+        {fixo && !projeto && (
+          <p className="muted">Este projeto não está mais cadastrado.</p>
+        )}
+        <div className={fixo ? "config-layout config-layout-fixo" : "config-layout"}>
+          {!fixo && (
+            <MenuConfiguracoes
+              escolha={escolha}
+              projetos={noMenu}
+              listarProjetos={listarProjetos}
+              podeCadastrar={cfg.base !== null}
+              aoEscolher={escolher}
+              aoNovoProjeto={() => setCadastrando(true)}
+            />
+          )}
           <div className="config-conteudo">
             {escolha.secao === "aparencia" && <ConfigAparencia />}
             {escolha.secao === "assistente" && (
@@ -148,7 +219,7 @@ export function TelaConfiguracoes({
               <SecaoAcessos
                 api={api}
                 cfg={cfg}
-                aoAbrirProjeto={(projeto) => escolher({ secao: "projeto", projeto })}
+                aoAbrirProjeto={abrirProjeto}
               />
             )}
             {escolha.secao === "pasta" && (
@@ -193,7 +264,7 @@ export function TelaConfiguracoes({
             aoConcluir={(p) => {
               // A página do projeto novo mostra o preparo do ambiente do Claude.
               setCadastrando(false);
-              escolher({ secao: "projeto", projeto: p.id });
+              abrirProjeto(p.id);
               mudou();
             }}
           />

@@ -16,6 +16,14 @@ export type Fluxo =
   | "cenarios"
   | "manual";
 export type EstadoAnalise = "criada" | "em-andamento" | "concluida" | "aprovada";
+/** O rótulo do estado da análise, o mesmo em todo o app (lista, Atividades, painéis). */
+export const ROTULO_ESTADO_ANALISE: Record<EstadoAnalise, string> = {
+  criada: "criada",
+  "em-andamento": "em andamento",
+  concluida: "aguardando revisão",
+  aprovada: "aprovada",
+};
+
 export type EstadoSessao = "ativa" | "aguardando-analista" | "concluida" | "encerrada";
 export type Cliente = "claude-code" | "claude-desktop" | "desconhecido";
 export type Confianca = "confirmado" | "inferido" | "a_confirmar";
@@ -442,6 +450,12 @@ export interface AnaliseResumo {
   fluxo: Fluxo;
   estado: EstadoAnalise;
   atualizadaMs: number;
+  /** Demanda da base a que a análise está ligada (`D-0007`), quando há (#350). */
+  demanda?: string | null;
+  /** Chave da demanda no rastreador (`PROJ-123`, `#42`), quando há. */
+  chave?: string | null;
+  /** Link da issue no rastreador, quando a análise o guardou. */
+  link?: string | null;
 }
 
 export interface AnaliseCriada {

@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>Demanda Negocial · protótipo #354</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<link rel="stylesheet" href="prototipo.css">
+<style>html,body{height:100%} .win{width:auto;height:100vh;min-height:640px;position:relative}</style>
+</head>
+<body>
+<div class="win" id="win">
+  <header class="tb">
+    <b>Ctower Business Agents</b>
+    <button class="proj" type="button" title="Trocar de projeto">Cartões (exemplo) ▾</button>
+    <span class="sp"></span>
+    <span class="busca"><span>Buscar regra, análise, demanda…</span><span class="kbd">⌘K</span></span>
+    <span class="sp"></span>
+    <button class="btn btn-sm" type="button" id="tema">Tema escuro</button>
+  </header>
+  <div class="work">
+    <nav class="rail" aria-label="Seções do projeto">
+      <div class="grupo">Projeto</div>
+      <a href="1-visao-geral.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-4H4zM14 8h6V4h-6z"></path></svg><span>Visão geral</span></a>
+      <a href="2-atividades.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 6h16v10H8l-4 4z"></path></svg><span>Atividades</span><span class="n">2</span></a>
+      <a href="7-analises.html" aria-current="page"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"></path><path d="M9 12h7M9 16h5"></path></svg><span>Análises</span><span class="n neutro">8</span></a>
+      <a href="3-demandas.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="2"></circle></svg><span>Demandas</span><span class="n neutro">6</span></a>
+      <div class="grupo">Conhecimento</div>
+      <a href="6-base.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"></path></svg><span>Base</span></a>
+      <a href="5-funcionalidades.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 6v5M5 20v-5h14v5M12 11v4"></path><rect x="9" y="2" width="6" height="4"></rect></svg><span>Funcionalidades</span></a>
+      <a href="#codigo" title="Fora deste protótipo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4M13 6l-2 12"></path></svg><span>Código</span></a>
+      <a class="fim" href="#configuracoes" title="Fora deste protótipo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"></path></svg><span>Configurações</span></a>
+    </nav>
+    <main class="main">
+      <div class="page analises">
+        <div class="analises-cab">
+          <div>
+            <h1>Análises</h1>
+            <p>8 análises em Cartões (exemplo)</p>
+          </div>
+          <a class="btn btn-p" href="8-nova-analise.html">Nova análise</a>
+        </div>
+        <section class="analises-lista" aria-label="Análises do projeto">
+          <div class="analises-filtros">
+            <div class="analises-filtros" role="group" aria-label="Situação da análise">
+              <button class="fchip" type="button" aria-pressed="true">Todas <span class="n">8</span></button><button class="fchip" type="button" aria-pressed="false">Em andamento <span class="n">2</span></button><button class="fchip" type="button" aria-pressed="false">Aguardando revisão <span class="n">2</span></button><button class="fchip" type="button" aria-pressed="false">Aprovadas <span class="n">3</span></button><button class="fchip" type="button" aria-pressed="false">Criadas <span class="n">1</span></button>
+            </div>
+            <select class="chip-select" aria-label="Tipo de análise"><option>Tipo: todos</option></select>
+            <span class="analises-busca">Buscar por número, título ou demanda</span>
+          </div>
+          <div class="tabela">
+            <div class="cabt" aria-hidden="true"><span>Análise</span><span>Demanda</span><span>Atualizada</span><span>Situação</span><span></span></div>
+            <ul>
+            <li><span class="a-tit"><b>Parcelas seguem cobradas após cancelar a fatura</b><span class="muted"><span class="id">A-0012</span> · Analisar impacto</span></span><span class="a-dem"><span class="chave">CART-118</span><a href="#demanda">D-0006</a></span><span class="a-quando">há 20 min</span><span><span class="badge" data-tone="attention">Aguardando revisão</span></span><span class="a-acao"><button class="btn btn-sm btn-p" type="button">Revisar</button></span></li>
+            <li><span class="a-tit"><b>Como é calculada a multa por atraso de pagamento?</b><span class="muted"><span class="id">A-0011</span> · Perguntar ao sistema</span></span><span class="a-dem"><span class="muted">sem demanda</span></span><span class="a-quando">há 2 h</span><span><span class="badge" data-tone="running">Em andamento</span></span><span class="a-acao"><button class="btn btn-sm" type="button">Acompanhar</button></span></li>
+            <li><span class="a-tit"><b>Parcelamento de fatura para PJ</b><span class="muted"><span class="id">A-0010</span> · Analisar impacto</span></span><span class="a-dem"><span class="chave">CART-121</span><a href="#demanda">D-0005</a></span><span class="a-quando">ontem</span><span><span class="badge" data-tone="running">Em andamento</span></span><span class="a-acao"><button class="btn btn-sm" type="button">Acompanhar</button></span></li>
+            <li><span class="a-tit"><b>Reunião de alinhamento: limite de crédito adicional</b><span class="muted"><span class="id">A-0009</span> · Analisar reunião</span></span><span class="a-dem"><a href="#demanda">D-0004</a></span><span class="a-quando">ontem</span><span><span class="badge" data-tone="attention">Aguardando revisão</span></span><span class="a-acao"><button class="btn btn-sm btn-p" type="button">Revisar</button></span></li>
+            <li><span class="a-tit"><b>Histórias · Parcelamento de fatura para PJ</b><span class="muted"><span class="id">A-0008</span> · Histórias e critérios</span></span><span class="a-dem"><span class="chave">CART-121</span><a href="#demanda">D-0005</a></span><span class="a-quando">22 nov</span><span><span class="badge">Criada</span></span><span class="a-acao"><button class="btn btn-sm" type="button">Continuar</button></span></li>
+            <li><span class="a-tit"><b>Revisão do requisito de estorno parcial</b><span class="muted"><span class="id">A-0007</span> · Revisar requisito</span></span><span class="a-dem"><span class="chave">#142</span></span><span class="a-quando">21 nov</span><span><span class="badge" data-tone="done">Aprovada</span></span><span class="a-acao"><button class="btn btn-sm" type="button">Abrir</button></span></li>
+            <li><span class="a-tit"><b>Explique o fechamento da fatura</b><span class="muted"><span class="id">A-0006</span> · Explicar funcionalidade</span></span><span class="a-dem"><span class="muted">sem demanda</span></span><span class="a-quando">19 nov</span><span><span class="badge" data-tone="done">Aprovada</span></span><span class="a-acao"><button class="btn btn-sm" type="button">Abrir</button></span></li>
+            <li><span class="a-tit"><b>Cenários · Bloqueio do cartão por suspeita de fraude</b><span class="muted"><span class="id">A-0005</span> · Cenários de teste</span></span><span class="a-dem"><a href="#demanda">D-0002</a></span><span class="a-quando">18 nov</span><span><span class="badge" data-tone="done">Aprovada</span></span><span class="a-acao"><button class="btn btn-sm" type="button">Abrir</button></span></li>
+            </ul>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+  <footer class="sb"><span>Ambiente pronto</span><span style="flex: 1"></span><span>1 análise aguarda revisão</span></footer>
+    <div class="scrim" aria-hidden="true"></div>
+    <aside class="painel" role="dialog" aria-modal="true" aria-labelledby="painel-titulo">
+      <header class="painel-topo">
+        <div>
+          <h2 id="painel-titulo">Nova análise</h2>
+          <p>Em Cartões (exemplo), o projeto da barra de título.</p>
+        </div>
+        <a class="btn-icone" href="7-analises.html" aria-label="Fechar" style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none">✕</a>
+      </header>
+      <div class="painel-corpo">
+        <div class="tipo-escolhido">
+          <div>
+            <span class="muted">Tipo</span>
+            <strong>Demanda Negocial</strong>
+            <span class="muted">Registre um pedido do negócio: corrigir um bug, criar uma funcionalidade ou melhorar o que já existe. Depois você analisa a demanda a partir dela.</span>
+          </div>
+          <a class="btn" href="8-nova-analise.html">Trocar</a>
+        </div>
+        <form class="form" aria-label="Demanda Negocial">
+          <fieldset class="tipos-demanda">
+            <legend>Tipo de demanda</legend>
+            <div class="tipos-opcoes">
+              <label class="cartao" data-marcado><strong>Corrigir bug</strong><span class="muted">Algo não funciona como deveria.</span></label>
+              <label class="cartao"><strong>Nova funcionalidade</strong><span class="muted">Algo que o sistema ainda não faz.</span></label>
+              <label class="cartao"><strong>Melhoria</strong><span class="muted">Mudar algo que já existe.</span></label>
+            </div>
+          </fieldset>
+          <label>Título<span class="in">Estorno parcial não abate o saldo da fatura</span></label>
+          <label>O que acontece e o que deveria acontecer<span class="in area foco">Ao estornar parte de uma compra, o valor estornado aparece no extrato, mas o saldo da fatura continua o mesmo. O saldo deveria cair no valor estornado.</span></label>
+          <div class="lado">
+            <label><span>Funcionalidade afetada <span class="muted">(opcional)</span></span><span class="in">Faturamento › Estornos</span></label>
+            <label><span>Issue <span class="muted">(opcional)</span></span><span class="in ph">Ex.: PROJ-123 ou #142</span></label>
+          </div>
+          <p class="ajuda-campo">A demanda ganha um código (D-0001) e aparece em Demandas. Depois de registrar, você pode analisá-la daqui mesmo.</p>
+          <div class="rodape-form">
+            <div class="acoes">
+              <a class="btn" href="7-analises.html">Cancelar</a>
+              <button class="btn btn-p" type="button">Registrar demanda</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </aside>
+</div>
+<script>
+// Tema: ?tema=escuro na URL ou o botão da barra de título; a escolha segue nos links.
+(function () {
+  var w = document.getElementById("win"), b = document.getElementById("tema");
+  var escuro = new URLSearchParams(location.search).get("tema") === "escuro";
+  function aplicar() {
+    w.classList.toggle("escuro", escuro);
+    b.textContent = escuro ? "Tema claro" : "Tema escuro";
+    document.querySelectorAll("a[href$='.html'], a[href*='.html?']").forEach(function (a) {
+      var h = a.getAttribute("href");
+      a.setAttribute("href", h.split("?")[0] + (escuro ? "?tema=escuro" : ""));
+    });
+  }
+  b.onclick = function () { escuro = !escuro; aplicar(); };
+  aplicar();
+})();</script>
+</body>
+</html>

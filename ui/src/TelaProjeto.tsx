@@ -1,25 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { contar } from "./formatacao";
 import { mensagemDe } from "./analise";
-import {
-  ROTULO_STATUS_REGRA,
-  type ApiConhecimento,
-  type MapaVista,
-  type ResumoRevalidacao,
-  type VisaoProjeto,
-} from "./conhecimento";
+import { type ApiConhecimento, type MapaVista, type VisaoProjeto } from "./conhecimento";
 import type { ApiCobertura } from "./cobertura";
 import { CoberturaProjeto } from "./CoberturaProjeto";
 import { ListaDemandas } from "./ListaDemandas";
-import { MudancasCodigo } from "./MudancasCodigo";
 import { simbolosEmNegocio } from "./mapaNegocio";
 import type { Tela } from "./Navegacao";
 import type { ProjetoResumo } from "./terminal";
-
-type Revalidacao =
-  | { tipo: "conferindo" }
-  | { tipo: "feita"; resumo: ResumoRevalidacao }
-  | { tipo: "falha"; mensagem: string };
 
 /**
  * Projeto (spec, seção 10): as demandas (#138), áreas, regras (as "a revalidar" primeiro e destacadas),
@@ -31,17 +19,21 @@ export function TelaProjeto({
   projetos,
   projetoInicial,
   navegar,
+  cabecalho,
 }: {
   api: ApiConhecimento;
   projetos: ProjetoResumo[];
   projetoInicial?: string;
   navegar: (t: Tela) => void;
+  /** Topo da tela, acima de tudo (ex.: o cabeçalho da Visão geral, #319). */
+  cabecalho?: ReactNode;
 }) {
   const [escolhido, setEscolhido] = useState(projetoInicial ?? "");
   const projeto = escolhido || projetos[0]?.id || "";
 
   return (
     <section className="tela-projeto page" aria-label="Projeto">
+      {cabecalho}
       {projetos.length > 1 && (
         <label>
           Projeto{" "}
@@ -73,9 +65,6 @@ function Projeto({
 }) {
   const [visao, setVisao] = useState<VisaoProjeto | null>(null);
   const [falha, setFalha] = useState<string | null>(null);
-  const [revalidacao, setRevalidacao] = useState<Revalidacao>({ tipo: "conferindo" });
-  const [area, setArea] = useState<string | null>(null);
-  const [mudancas, setMudancas] = useState(false);
 
   const carregar = useCallback(() => {
     api
@@ -87,22 +76,7 @@ function Projeto({
       .catch((e: unknown) => setFalha(mensagemDe(e)));
   }, [api, projeto]);
 
-  const revalidar = useCallback(() => {
-    setRevalidacao({ tipo: "conferindo" });
-    api
-      .revalidar(projeto)
-      .then((resumo) => {
-        setRevalidacao({ tipo: "feita", resumo });
-        if (resumo.mudou) carregar();
-      })
-      .catch((e: unknown) => setRevalidacao({ tipo: "falha", mensagem: mensagemDe(e) }));
-  }, [api, projeto, carregar]);
-
-  // Ao abrir: a lista na hora e a revalidação em seguida.
-  useEffect(() => {
-    carregar();
-    revalidar();
-  }, [carregar, revalidar]);
+  useEffect(carregar, [carregar]);
 
   // Edições fora do app (regra editada, `git pull` na base): relê.
   useEffect(() => {
@@ -118,8 +92,6 @@ function Projeto({
     };
   }, [api, carregar]);
 
-  const abrir = (caminho: string) => navegar({ tipo: "base", documento: caminho });
-
   if (falha) {
     return (
       <p className="error-text" role="alert">
@@ -129,167 +101,22 @@ function Projeto({
   }
   if (!visao) return <p className="muted">Carregando…</p>;
 
-  const aRevalidar = visao.regras.filter((r) => r.status === "a-revalidar").length;
-  const regras = area ? visao.regras.filter((r) => r.area === area) : visao.regras;
-  const termos = area ? visao.termos.filter((t) => t.area === area) : visao.termos;
-
+  // As regras, o glossário, as áreas e a conferência das evidências moraram aqui; agora
+  // estão na Base (#328).
   return (
     <>
       <h2>
         {visao.nome}{" "}
-        <button type="button" className="link" onClick={() => abrir(visao.documento)}>
+        <button
+          type="button"
+          className="link"
+          onClick={() => navegar({ tipo: "base", documento: visao.documento })}
+        >
           abrir o projeto.md
         </button>
       </h2>
 
-      <div className="revalidacao" role="status" aria-label="Revalidação">
-        {revalidacao.tipo === "conferindo" && (
-          <span className="muted">Conferindo as evidências com o código atual…</span>
-        )}
-        {revalidacao.tipo === "falha" && (
-          <span className="error-text">
-            Não foi possível conferir as evidências: {revalidacao.mensagem}
-          </span>
-        )}
-        {revalidacao.tipo === "feita" && <TextoRevalidacao resumo={revalidacao.resumo} />}{" "}
-        <button
-          className="btn"
-          type="button"
-          onClick={revalidar}
-          disabled={revalidacao.tipo === "conferindo"}
-        >
-          Conferir de novo
-        </button>
-        {api.mudancas && !mudancas && (
-          <button className="btn" type="button" onClick={() => setMudancas(true)}>
-            O que mudou no código
-          </button>
-        )}
-      </div>
-
-      {api.mudancas && mudancas && (
-        <MudancasCodigo api={api.mudancas} projeto={projeto} aoFechar={() => setMudancas(false)} />
-      )}
-
       <ListaDemandas api={api} projeto={projeto} navegar={navegar} />
-
-      {aRevalidar > 0 && (
-        <p className="aviso-revalidar" role="alert">
-          {aRevalidar === 1
-            ? "1 regra está a revalidar: o código citado mudou desde a aprovação."
-            : `${aRevalidar} regras estão a revalidar: o código citado mudou desde a aprovação.`}
-        </p>
-      )}
-
-      <section aria-label="Áreas">
-        <h3>Áreas</h3>
-        {visao.areas.length === 0 && <p className="muted">Nenhuma área declarada ainda.</p>}
-        <ul className="lista-areas">
-          {visao.areas.map((a) => (
-            <li key={a.id}>
-              <button
-                className="btn"
-                type="button"
-                aria-pressed={area === a.id}
-                onClick={() => setArea(area === a.id ? null : a.id)}
-              >
-                {a.nome}
-                {a.sigla && ` (${a.sigla})`}
-              </button>{" "}
-              <span className="muted">
-                {contar(a.regras, "regra", "regras")} · {contar(a.termos, "termo", "termos")}
-                {!a.declarada && " · fora do projeto.md"}
-              </span>
-              {a.aRevalidar > 0 && (
-                <span className="badge" data-tone="attention">
-                  {a.aRevalidar} a revalidar
-                </span>
-              )}
-              {a.memoria && (
-                <>
-                  {" "}
-                  <button type="button" className="link" onClick={() => abrir(a.memoria!)}>
-                    memória
-                  </button>
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section aria-label="Regras">
-        <h3>Regras{area && ` da área ${area}`}</h3>
-        {regras.length === 0 && (
-          <p className="muted">
-            Nenhuma regra ainda: as afirmações confirmadas viram regras quando a análise é
-            aprovada.
-          </p>
-        )}
-        <ul className="lista-regras">
-          {regras.map((r) => (
-            <li
-              key={r.id}
-              className="regra"
-              data-status={r.status}
-            >
-              <button type="button" className="link" onClick={() => abrir(r.caminho)}>
-                {r.id}: {r.titulo}
-              </button>{" "}
-              <span
-                className="badge"
-                data-tone={r.status === "a-revalidar" ? "attention" : r.status === "confirmada" ? "done" : undefined}
-              >
-                {ROTULO_STATUS_REGRA[r.status]}
-              </span>{" "}
-              <span className="muted">{r.area}</span>
-              {r.origem && (
-                <>
-                  {" · "}
-                  <button type="button" className="link" onClick={() => abrir(r.origem!)}>
-                    origem
-                  </button>
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section aria-label="Glossário">
-        <h3>Glossário</h3>
-        {termos.length === 0 && (
-          <p className="muted">
-            Nenhum termo ainda: os termos aceitos viram glossário quando a análise é aprovada.
-          </p>
-        )}
-        <ul className="lista-termos">
-          {termos.map((t) => (
-            <li key={t.caminho}>
-              <button type="button" className="link" onClick={() => abrir(t.caminho)}>
-                {t.termo}
-              </button>
-              {t.sinonimos.length > 0 && (
-                <span className="muted"> ({t.sinonimos.join(", ")})</span>
-              )}
-              {t.area && <span className="muted"> · {t.area}</span>}
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      {visao.problemas.length > 0 && (
-        <section aria-label="Documentos ilegíveis">
-          <h3>Documentos ilegíveis</h3>
-          <ul>
-            {visao.problemas.map((p) => (
-              <li key={p.caminho}>
-                <code>{p.caminho}</code>: {p.erro}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
 
       {api.cobertura && (
         <CoberturaProjeto
@@ -305,27 +132,8 @@ function Projeto({
   );
 }
 
-function TextoRevalidacao({ resumo }: { resumo: ResumoRevalidacao }) {
-  const marcadas = resumo.regras.filter((r) => r.depois === "a-revalidar");
-  const restauradas = resumo.regras.filter((r) => r.depois === "confirmada");
-  const partes = [`${contar(resumo.evidencias, "evidência conferida", "evidências conferidas")}`];
-  if (resumo.desatualizadas > 0) partes.push(`${resumo.desatualizadas} não confere(m)`);
-  if (marcadas.length > 0)
-    partes.push(`passaram a revalidar: ${marcadas.map((r) => r.id).join(", ")}`);
-  if (restauradas.length > 0)
-    partes.push(`voltaram a confirmadas: ${restauradas.map((r) => r.id).join(", ")}`);
-  const historias = resumo.historiasAfetadas ?? 0;
-  const cenarios = (resumo.cenariosAfetados ?? 0) + (resumo.tabelasAfetadas ?? 0);
-  if (historias > 0)
-    partes.push(`${contar(historias, "história", "histórias")} com critério a revalidar`);
-  if (cenarios > 0)
-    partes.push(`${contar(cenarios, "cenário ou tabela", "cenários e tabelas")} a revalidar`);
-  if (resumo.problemas.length > 0) partes.push(`${contar(resumo.problemas.length, "documento", "documentos")} com problema`);
-  return <span className="muted">{partes.join("; ")}.</span>;
-}
-
 /** Mapa estrutural por pasta (sem IA, sem custo), com as subpastas navegáveis. */
-function MapaProjeto({ api, projeto }: { api: ApiConhecimento; projeto: string }) {
+export function MapaProjeto({ api, projeto }: { api: ApiConhecimento; projeto: string }) {
   const [pasta, setPasta] = useState("");
   const [mapa, setMapa] = useState<MapaVista | null | undefined>(undefined);
   const [mapeando, setMapeando] = useState(false);

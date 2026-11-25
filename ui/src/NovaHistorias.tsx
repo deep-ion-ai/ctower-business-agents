@@ -1,6 +1,18 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { mensagemDe, type AmbienteClaude, type AnaliseCriada, type AnaliseResumo } from "./analise";
+import {
+  mensagemDe,
+  ROTULO_ESTADO_ANALISE,
+  type AmbienteClaude,
+  type AnaliseCriada,
+  type AnaliseResumo,
+} from "./analise";
 import { ROTULO_FLUXO, type ApiConhecimento } from "./conhecimento";
+import {
+  DemandaAchada,
+  demandaAchada,
+  useDemandaResolvida,
+  useDemandasDoProjeto,
+} from "./NovaAnalise";
 import { PrepararAmbiente } from "./PrepararAmbiente";
 import type { ProjetoResumo } from "./terminal";
 
@@ -39,7 +51,7 @@ const TEXTOS: Record<
     pedido: "O que você quer nas histórias (opcional)",
     exemplo: "Ex.: Só o parcelamento na tela; o relatório de recebíveis fica para depois.",
     botao: "Gerar as histórias",
-    preparar: "Prepare o ambiente do Claude antes de gerar as histórias.",
+    preparar: "Ligue o agente a este projeto antes de gerar as histórias.",
   },
   cenarios: {
     explicacao:
@@ -51,15 +63,24 @@ const TEXTOS: Record<
     pedido: "Regras ou o que você quer nos cenários",
     exemplo: "Ex.: Cenários do cancelamento: RN-FAT-013 e RN-FAT-014.",
     botao: "Gerar os cenários",
-    preparar: "Prepare o ambiente do Claude antes de gerar os cenários.",
+    preparar: "Ligue o agente a este projeto antes de gerar os cenários.",
   },
 };
 
-const ESTADO: Record<AnaliseResumo["estado"], string> = {
-  criada: "criada",
-  "em-andamento": "em andamento",
-  concluida: "em revisão",
-  aprovada: "aprovada",
+const ESTADO = ROTULO_ESTADO_ANALISE;
+
+/** Como o aviso da demanda da origem chama as análises do fluxo (#359). */
+const NOME_ANALISES: Record<FluxoDerivado, { uma: string; varias: string; nenhuma: string }> = {
+  historias: {
+    uma: "uma análise de histórias",
+    varias: "análises de histórias",
+    nenhuma: "histórias",
+  },
+  cenarios: {
+    uma: "uma análise de cenários de teste",
+    varias: "análises de cenários de teste",
+    nenhuma: "cenários de teste",
+  },
 };
 
 /**
@@ -68,6 +89,9 @@ const ESTADO: Record<AnaliseResumo["estado"], string> = {
  * preferência aprovada) e, se quiser, diz o que quer. Pelo painel da demanda
  * (`demandaFixa`), a origem é opcional: o fluxo pode partir só da demanda. Nos
  * cenários, a origem também é opcional fora da demanda, com as regras no pedido.
+ *
+ * Fora da demanda, a análise de origem escolhida mostra a demanda dela e as histórias
+ * ou os cenários que essa demanda já tem, com "Continuar" e "Abrir" (#359).
  */
 export function NovaHistorias({
   api,
@@ -76,6 +100,8 @@ export function NovaHistorias({
   aoCriar,
   aoCancelar,
   fluxo = "historias",
+  semTitulo = false,
+  aoAbrirAnalise,
 }: {
   api: ApiConhecimento;
   projetos: ProjetoResumo[];
@@ -85,6 +111,10 @@ export function NovaHistorias({
   demandaFixa?: string;
   aoCriar: (projeto: string, criada: AnaliseCriada) => void;
   aoCancelar: () => void;
+  /** Sem o título do fluxo (quem chama já mostra o tipo escolhido). */
+  semTitulo?: boolean;
+  /** Continua uma análise que a demanda da origem já tem. */
+  aoAbrirAnalise?: (id: string) => void;
 }) {
   const [projeto, setProjeto] = useState(projetos[0]?.id ?? "");
   const [analises, setAnalises] = useState<AnaliseResumo[] | null>(null);
@@ -133,6 +163,23 @@ export function NovaHistorias({
 
   const escolhida = analises?.find((a) => a.id === origem);
   const textos = TEXTOS[fluxo];
+
+  // A demanda da análise de origem (a da base ou a issue) e as análises deste fluxo que
+  // ela já tem (#359). Pelo painel da demanda, a demanda já está à vista.
+  const demandas = useDemandasDoProjeto(api, projeto, !demandaFixa);
+  const referenciaOrigem = demandaFixa
+    ? ""
+    : (escolhida?.demanda ?? escolhida?.chave ?? escolhida?.link ?? "");
+  const resolvida = useDemandaResolvida(api, projeto, referenciaOrigem, demandas, !demandaFixa);
+  const achada = demandaAchada(resolvida);
+  const existentes = achada?.analises.filter((a) => a.fluxo === fluxo) ?? [];
+  const nome = NOME_ANALISES[fluxo];
+  const aviso =
+    existentes.length === 0
+      ? `Esta demanda ainda não tem ${nome.nenhuma}.`
+      : existentes.length === 1
+        ? `Esta demanda já tem ${nome.uma}. Continue por ela ou inicie uma nova abaixo.`
+        : `Esta demanda já tem ${existentes.length} ${nome.varias}. Continue por uma delas ou inicie uma nova abaixo.`;
   // Nos cenários, sem origem nem demanda, o pedido diz as regras.
   const semOrigemPermitida = !!demandaFixa || fluxo === "cenarios";
   const podeCriar =
@@ -164,23 +211,25 @@ export function NovaHistorias({
 
   return (
     <form className="nova-pergunta" onSubmit={criar} aria-label={ROTULO_FLUXO[fluxo]}>
-      <h3>{ROTULO_FLUXO[fluxo]}</h3>
+      {!semTitulo && <h3 className="titulo-formulario">{ROTULO_FLUXO[fluxo]}</h3>}
       <p className="muted">{textos.explicacao}</p>
       {demandaFixa ? (
         <p className="muted">
           {textos.ligadas} {demandaFixa}.
         </p>
       ) : (
-        <label>
-          Projeto{" "}
-          <select value={projeto} onChange={(e) => setProjeto(e.target.value)}>
-            {projetos.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.nome}
-              </option>
-            ))}
-          </select>
-        </label>
+        projetos.length > 1 && (
+          <label>
+            Projeto{" "}
+            <select value={projeto} onChange={(e) => setProjeto(e.target.value)}>
+              {projetos.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nome}
+                </option>
+              ))}
+            </select>
+          </label>
+        )
       )}
       {ambiente && !pronto && (
         <PrepararAmbiente api={api} projeto={projeto} ambiente={ambiente} aoConcluir={verificar} />
@@ -203,6 +252,19 @@ export function NovaHistorias({
         </select>
       </label>
       {analises?.length === 0 && !demandaFixa && <p className="muted">{textos.vazio}</p>}
+      {achada && (
+        <div className="demanda-da-origem" role="group" aria-label="Demanda da análise de origem">
+          <span className="muted">
+            Demanda da análise de origem
+            {achada.demanda ? ` (${achada.demanda})` : ` (${referenciaOrigem})`}
+          </span>
+          <DemandaAchada
+            achada={{ ...achada, analises: existentes }}
+            aoAbrirAnalise={aoAbrirAnalise}
+            aviso={aviso}
+          />
+        </div>
+      )}
       <label>
         {textos.pedido}
         <textarea
@@ -218,7 +280,7 @@ export function NovaHistorias({
           className="btn btn-primary"
           disabled={!pronto || criando || !podeCriar}
         >
-          {textos.botao}
+          {existentes.length > 0 ? "Iniciar uma análise nova" : textos.botao}
         </button>
         <button className="btn" type="button" onClick={aoCancelar}>
           Cancelar

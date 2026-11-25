@@ -1,41 +1,52 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type KeyboardEvent as ReactKeyboardEvent,
-  type PointerEvent as ReactPointerEvent,
-  type ReactNode,
-} from "react";
-import { mensagemDe, type ApiAnalise } from "./analise";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { apiAnaliseTauri, mensagemDe, type ApiAnalise, type EstadoAnalise } from "./analise";
+import { seloAtividades, type AmbienteConferido } from "./atividades";
 import type { AbrirLink } from "./ClientesIA";
-import {
-  apiConhecimentoTauri,
-  type AnaliseInicio,
-  type ApiConhecimento,
-  type Inicio,
-} from "./conhecimento";
+import { apiConhecimentoTauri, type ApiConhecimento, type Inicio } from "./conhecimento";
 import { DialogoConfirmacao } from "./DialogoConfirmacao";
-import { ROTULO_SESSAO } from "./DocumentoAoVivo";
+import { MenuLateral } from "./MenuLateral";
 import type { Abertura, EstadoConversa } from "./PainelAnalise";
 import { PainelDemanda } from "./PainelDemanda";
+import {
+  contagensDoMenu,
+  ITEM_DA_SECAO,
+  lembrarProjeto,
+  pendenciasNoInicio,
+  ROTULO_SECAO,
+  ultimoProjeto,
+  type Secao,
+} from "./secoesProjeto";
+import { SeletorProjeto, type ProjetoNoSeletor } from "./SeletorProjeto";
+import type { SituacaoNaBase } from "./issuesProjeto";
 import { Icon, type IconName } from "./shell/icons";
 import { Titlebar } from "./shell/Titlebar";
+import type { ResumoProjeto } from "./resumoProjeto";
 import { TelaAnalise } from "./TelaAnalise";
-import type { ApiConfiguracoes } from "./configuracoes";
+import { TelaAtividades } from "./TelaAtividades";
+import { apiConfiguracoesTauri, type ApiConfiguracoes } from "./configuracoes";
 import { TelaBase } from "./TelaBase";
+import { TelaCodigo } from "./TelaCodigo";
+import { TelaDemandas } from "./TelaDemandas";
 import { TelaConfiguracoes } from "./TelaConfiguracoes";
 import { TelaInicio } from "./TelaInicio";
 import { TelaMapa } from "./TelaMapa";
 import { VincularIssues } from "./VincularIssues";
-import { apiMapaTauri } from "./funcionalidades";
-import { TelaProjeto } from "./TelaProjeto";
+import { apiMapaTauri, type ApiMapa } from "./funcionalidades";
+import { VisaoGeral } from "./VisaoGeral";
 import type { ApiTerminal, ProjetoResumo } from "./terminal";
 import type { TelaTerminal } from "./telaXterm";
 
-/** Tela visível e o que ela abre. */
+/**
+ * O que as telas pedem para abrir. Uma parte é seção (troca no lugar, no projeto da
+ * barra de título): início/Atividades, projeto/Visão geral, base sem documento,
+ * análises sem análise aberta, demandas, mapa/Funcionalidades, código, configurações
+ * e configurar. A outra é objeto e abre numa aba: a análise aberta, o documento da
+ * base, a demanda e o vínculo das issues (#319, §11.2 da revisão de UX).
+ */
 export type Tela =
-  | { tipo: "inicio" }
+  /** Atividades (#321), no projeto pedido ou no da barra de título. */
+  | { tipo: "inicio"; projeto?: string }
+  /** Visão geral do projeto; até a #320, a tela Projeto. */
   | { tipo: "projeto"; projeto?: string }
   | { tipo: "base"; documento?: string }
   | {
@@ -43,22 +54,34 @@ export type Tela =
       projeto?: string;
       pergunta?: string;
       aberta?: { id: string; abertura: Abertura };
+      /** Abre a lista já filtrada por situação (ex.: "aguardando revisão", da Visão geral). */
+      situacao?: EstadoAnalise;
+      /** Abre a lista com o painel "Nova análise" aberto. */
+      nova?: boolean;
     }
   | { tipo: "configuracoes" }
+  /** "Configurar projeto", aberto pelo cabeçalho da Visão geral (#319). */
+  | { tipo: "configurar"; projeto?: string }
   | { tipo: "demanda"; projeto: string; demanda: string }
-  /** Mapa de funcionalidades do projeto (#208): fora das análises. */
+  /** Demandas do projeto (#323): issues do rastreador e demandas à mão; `situacao` abre a lista já filtrada. */
+  | { tipo: "demandas"; projeto?: string; situacao?: SituacaoNaBase }
+  /** Mapa de funcionalidades do projeto (#208): a seção Funcionalidades. */
   | { tipo: "mapa"; projeto?: string }
+  /** Mapa estrutural e "O que mudou no código" (#319). */
+  | { tipo: "codigo"; projeto?: string }
   /** Vincular as issues do rastreador às funcionalidades (#270), em aba própria. */
   | { tipo: "vincular"; projeto: string };
 
 interface Props {
-  /** Tela ao abrir (ex.: a análise sugerida no fim do primeiro uso). */
+  /** Tela ao abrir (ex.: a análise sugerida no fim do primeiro uso). Sem ela, a Visão geral. */
   inicial?: Tela;
   api?: ApiConhecimento;
   /** Para testes. */
   apiAnalise?: ApiAnalise;
   /** Para testes. */
   apiConfiguracoes?: ApiConfiguracoes;
+  /** Para testes: o mapa de funcionalidades lido pela Visão geral. */
+  apiMapa?: Pick<ApiMapa, "mapa">;
   /** Para testes: o terminal embutido das análises. */
   apiTerminal?: ApiTerminal;
   /** Para testes. */
@@ -66,36 +89,23 @@ interface Props {
   abrirLink?: AbrirLink;
   /** Abre o assistente do primeiro uso. */
   aoPrimeiroUso?: () => void;
-  /** Mostra "Refazer o primeiro uso" no pé do painel lateral. */
+  /** Mostra "Refazer o primeiro uso" no cabeçalho de Configurações (#350). */
   refazerPrimeiroUso?: () => void;
   produto?: string;
   versao?: string | null;
-  /** Avisos do app acima das abas (ex.: falha ao ler a configuração). */
+  /** Avisos do app acima do conteúdo (ex.: falha ao ler a configuração). */
   banner?: ReactNode;
 }
 
-const AREAS: { tipo: Tela["tipo"]; rotulo: string; icone: IconName }[] = [
-  { tipo: "inicio", rotulo: "Início", icone: "home" },
-  { tipo: "projeto", rotulo: "Projeto", icone: "project" },
-  { tipo: "base", rotulo: "Base de conhecimento", icone: "book" },
-  { tipo: "analise", rotulo: "Análises", icone: "analysis" },
-  { tipo: "mapa", rotulo: "Mapa de funcionalidades", icone: "features" },
-  { tipo: "configuracoes", rotulo: "Configurações", icone: "settings" },
-];
-
-// A demanda não tem área própria na barra de atividades: abre pela tela do projeto.
-const ROTULO_AREA = {
-  ...Object.fromEntries(AREAS.map((a) => [a.tipo, a.rotulo])),
-  demanda: "Demanda",
-  vincular: "Vincular demandas",
-} as Record<Tela["tipo"], string>;
-const ICONE_AREA = {
-  ...Object.fromEntries(AREAS.map((a) => [a.tipo, a.icone])),
-  demanda: "file",
+/** Ícone da aba de cada objeto. */
+const ICONE_OBJETO: Partial<Record<Tela["tipo"], IconName>> = {
+  analise: "analysis",
+  base: "file",
+  demanda: "demand",
   vincular: "jira",
-} as Record<Tela["tipo"], IconName>;
+};
 
-/** Aba aberta na área de editor: a tela que ela mostra e o contador de remontagem. */
+/** Aba de um objeto aberto: a tela que ela mostra e o contador de remontagem. */
 interface Aba {
   chave: string;
   tela: Tela;
@@ -103,94 +113,99 @@ interface Aba {
   vez: number;
 }
 
-/** Uma aba por tela e por objeto aberto (projeto, documento ou análise). */
-export function chaveDaTela(t: Tela): string {
+/** Seção à vista: o pedido que a abriu (com a pergunta, por exemplo) e a remontagem. */
+interface SecaoAberta {
+  id: Secao;
+  tela: Tela;
+  vez: number;
+}
+
+/**
+ * A aba do objeto que a tela abre (uma por análise, documento, demanda ou vínculo);
+ * `null` quando a tela é uma seção, que troca no lugar sem abrir aba.
+ */
+export function chaveDoObjeto(t: Tela): string | null {
   switch (t.tipo) {
-    case "projeto":
-      return t.projeto ? `projeto:${t.projeto}` : "projeto";
     case "base":
-      return t.documento ? `doc:${t.documento}` : "base";
+      return t.documento ? `doc:${t.documento}` : null;
     case "analise":
-      return t.aberta ? `analise:${t.projeto ?? ""}:${t.aberta.id}` : "analise";
+      return t.aberta ? `analise:${t.projeto ?? ""}:${t.aberta.id}` : null;
     case "demanda":
       return `demanda:${t.projeto}:${t.demanda}`;
     case "vincular":
       return `vincular:${t.projeto}`;
     default:
-      return t.tipo;
+      return null;
   }
 }
 
+/** A seção de cada tela; a de um objeto é a seção de onde ele vem. */
+export function secaoDaTela(t: Tela): Secao {
+  switch (t.tipo) {
+    case "inicio":
+      return "atividades";
+    case "projeto":
+      return "visao-geral";
+    case "base":
+      return "base";
+    case "analise":
+      return "analises";
+    case "configuracoes":
+      return "configuracoes";
+    case "configurar":
+      return "configurar-projeto";
+    case "demanda":
+    case "demandas":
+      return "demandas";
+    case "mapa":
+    case "vincular":
+      return "funcionalidades";
+    case "codigo":
+      return "codigo";
+  }
+}
+
+/** O projeto que a tela pede, quando pede um. */
+const projetoDaTela = (t: Tela): string | undefined => ("projeto" in t ? t.projeto : undefined);
+
 /**
- * Aba que fica montada (escondida) quando outra está à vista: a de uma análise
- * aberta e a do mapa de funcionalidades, cujo terminal roda o agente. Desmontar
+ * Aba que fica montada (escondida) quando outra coisa está à vista: a de uma análise
+ * aberta e a do vínculo das issues, cujo terminal roda o agente. Desmontar
  * encerraria o processo (#212).
  */
 const ficaViva = (a: Aba) =>
-  (a.tela.tipo === "analise" && !!a.tela.aberta) || a.tela.tipo === "mapa" || a.tela.tipo === "vincular";
+  (a.tela.tipo === "analise" && !!a.tela.aberta) || a.tela.tipo === "vincular";
 
 const nomeDoArquivo = (caminho: string) =>
   (caminho.split("/").pop() ?? caminho).replace(/\.md$/, "");
 
-/** Largura do painel lateral (mesmos limites do Control Tower). */
-const SIDE_MIN = 170;
-const SIDE_MAX = 600;
-const SIDE_KEY = "cba.sideWidth";
-const clampWidth = (w: number) => Math.min(SIDE_MAX, Math.max(SIDE_MIN, Math.round(w)));
-
-/** De quanto em quanto tempo o explorador relê as análises. */
-const INTERVALO_EXPLORADOR = 5000;
+/** De quanto em quanto tempo o menu e o seletor releem as contagens. */
+const INTERVALO_CONTAGENS = 5000;
 
 const ESTREITA = "(max-width: 900px)";
 const telaEstreita = () => typeof matchMedia === "function" && matchMedia(ESTREITA).matches;
 
-function larguraGravada(): number {
-  try {
-    const w = Number(localStorage.getItem(SIDE_KEY));
-    return w ? clampWidth(w) : 260;
-  } catch {
-    return 260;
-  }
-}
-
 /**
- * As análises do explorador, sem repetir e em ordem estável: por projeto e número.
- * Reordenar por atividade faria o clique no lugar de antes abrir outra análise (#227).
- */
-export function analisesDoExplorador(inicio: Inicio): AnaliseInicio[] {
-  const vistas = new Map<string, AnaliseInicio>();
-  for (const a of [...inicio.emAndamento, ...inicio.recentes]) {
-    vistas.set(`${a.projeto}/${a.id}`, a);
-  }
-  return [...vistas.values()].sort(
-    (a, b) =>
-      a.projetoNome.localeCompare(b.projetoNome, "pt-BR") ||
-      a.projeto.localeCompare(b.projeto) ||
-      a.id.localeCompare(b.id, "pt-BR", { numeric: true }),
-  );
-}
-
-/** Tom do ponto da análise: âmbar só quando a sessão espera o analista. */
-function tomDaAnalise(a: AnaliseInicio): string | undefined {
-  if (a.sessao?.estado === "aguardando-analista") return "attention";
-  if (a.sessao?.estado === "ativa") return "running";
-  if (a.estado === "aprovada") return "done";
-  return undefined;
-}
-
-/**
- * Navegação depois do primeiro uso (spec, seção 10), no shell do Control Tower
- * (#85): barra de título, barra de atividades com as áreas (início, projeto, base,
- * análises e configurações), painel lateral com os projetos, as análises e os
- * documentos abertos, área de editor com abas e barra de status. Cada tela pede às
- * outras o que abrir (um projeto, um documento, uma análise) por `navegar`, que
- * abre ou foca a aba do objeto. Abaixo de 900 px o painel lateral vira gaveta.
+ * Navegação por projeto (#319, §5.2 da revisão de UX), no shell do Control Tower:
+ * barra de título com o seletor de projeto; menu lateral com as seções do projeto
+ * (Visão geral, Atividades, Análises, Demandas), do conhecimento (Base,
+ * Funcionalidades, Código) e Configurações no rodapé, com rótulos e contagens;
+ * área principal e barra de status. As seções trocam no lugar e mostram o projeto
+ * escolhido; só os objetos (análise, documento, demanda) abrem aba. O app abre no
+ * último projeto usado. Cada tela pede às outras o que abrir por `navegar`.
+ * Abaixo de 900 px o menu vira gaveta.
+ *
+ * Enquanto uma seção nova não existe, o item do menu abre a tela atual: Visão geral
+ * mostra a tela Projeto (#320).
+ * Atividades (#321) mostra os grupos do que espera o analista e, abaixo, o resto do
+ * Início (nova análise, recentes, projetos).
  */
 export function Navegacao({
-  inicial = { tipo: "inicio" },
+  inicial,
   api = apiConhecimentoTauri,
   apiAnalise,
   apiConfiguracoes,
+  apiMapa = apiMapaTauri,
   apiTerminal,
   criarTela,
   abrirLink,
@@ -200,23 +215,37 @@ export function Navegacao({
   versao = null,
   banner,
 }: Props) {
-  const [abas, setAbas] = useState<Aba[]>(() => [
-    { chave: chaveDaTela(inicial), tela: inicial, vez: 0 },
-  ]);
-  const [ativa, setAtiva] = useState<string>(() => chaveDaTela(inicial));
-  const [projetos, setProjetos] = useState<ProjetoResumo[]>([]);
-  const [inicio, setInicio] = useState<Inicio | null>(null);
-  const [documentos, setDocumentos] = useState<string[]>(
-    inicial.tipo === "base" && inicial.documento ? [inicial.documento] : [],
+  const contador = useRef(0);
+  const [projetoPedido, setProjeto] = useState<string>(
+    () => (inicial && projetoDaTela(inicial)) || ultimoProjeto(),
   );
+  const [secao, setSecao] = useState<SecaoAberta>(() => ({
+    id: inicial ? secaoDaTela(inicial) : "visao-geral",
+    tela: inicial && !chaveDoObjeto(inicial) ? inicial : { tipo: "projeto" },
+    vez: 0,
+  }));
+  const [abas, setAbas] = useState<Aba[]>(() => {
+    const chave = inicial && chaveDoObjeto(inicial);
+    return chave && inicial ? [{ chave, tela: inicial, vez: 0 }] : [];
+  });
+  /** Aba de objeto à vista; `null` mostra a seção. */
+  const [ativa, setAtiva] = useState<string | null>(() => (inicial && chaveDoObjeto(inicial)) || null);
+  /** Projetos com o mapa de funcionalidades montado: a sessão do Claude continua viva. */
+  const [mapas, setMapas] = useState<string[]>([]);
+  const [projetos, setProjetos] = useState<ProjetoResumo[]>([]);
+  const [lidos, setLidos] = useState(false);
+  const [inicio, setInicio] = useState<Inicio | null>(null);
   const [falha, setFalha] = useState<string | null>(null);
   // Muda a cada navegação e quando as configurações mexem nos projetos ou na base.
   const [recarga, setRecarga] = useState(0);
   const [ladoAberto, setLadoAberto] = useState(() => !telaEstreita());
-  const [largura, setLargura] = useState(larguraGravada);
-  const contador = useRef(0);
+  /** Resumo do projeto escolhido (#318): alimenta as Atividades e o selo do menu. */
+  const [resumo, setResumo] = useState<{ projeto: string; resumo: ResumoProjeto } | null>(null);
+  const [falhaResumo, setFalhaResumo] = useState<{ projeto: string; falha: string } | null>(null);
+  /** Ambiente do Claude conferido por projeto: o grupo "Ambiente a preparar". */
+  const [ambientes, setAmbientes] = useState<Record<string, AmbienteConferido>>({});
 
-  const aba = abas.find((a) => a.chave === ativa) ?? null;
+  const aba = ativa ? (abas.find((a) => a.chave === ativa) ?? null) : null;
 
   // Com muitas abas a faixa rola: a aba ativa sempre fica à vista.
   const faixaAbas = useRef<HTMLDivElement>(null);
@@ -224,30 +253,42 @@ export function Navegacao({
     const ativaEl = faixaAbas.current?.querySelector<HTMLElement>('.etab[data-on="true"]');
     ativaEl?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
   }, [ativa, abas.length]);
-  const tela = aba?.tela ?? null;
 
-  /** Documentos abertos nesta sessão, o mais recente primeiro (painel lateral). */
-  const lembrarDocumento = useCallback((doc: string) => {
-    setDocumentos((ds) => (ds[0] === doc ? ds : [doc, ...ds.filter((d) => d !== doc)].slice(0, 20)));
-  }, []);
+  // Projeto escolhido: o pedido, o último usado ou, se ele sumiu, o primeiro da lista.
+  // Antes de ler os projetos, nenhum: as seções esperam a lista.
+  const projeto = !lidos
+    ? ""
+    : projetos.some((p) => p.id === projetoPedido)
+      ? projetoPedido
+      : (projetos[0]?.id ?? "");
 
-  // Alterações sem salvar no editor de textos (das configurações): sair da aba, ou
-  // fechá-la, pede confirmação. `saida` guarda a ação à espera da resposta.
+  useEffect(() => {
+    if (projeto) lembrarProjeto(projeto);
+  }, [projeto]);
+
+  // O mapa de funcionalidades fica montado depois de visto: escondê-lo não encerra a
+  // sessão de mapeamento com o Claude (#257).
+  const mapaAVista = secao.id === "funcionalidades" && ativa === null && !!projeto;
+  useEffect(() => {
+    if (mapaAVista) setMapas((m) => (m.includes(projeto) ? m : [...m, projeto]));
+  }, [mapaAVista, projeto]);
+  const mapasMontados = mapaAVista && !mapas.includes(projeto) ? [...mapas, projeto] : mapas;
+
+  // Alterações sem salvar num editor (configurações, documento da base): sair da
+  // tela pede confirmação. `saida` guarda a ação à espera da resposta.
   const pendenteRef = useRef(false);
   const [saida, setSaida] = useState<(() => void) | null>(null);
   const aoPendencia = useCallback((p: boolean) => {
     pendenteRef.current = p;
   }, []);
-  const sairDaAba = useCallback((acao: () => void) => {
+  const sairDaTela = useCallback((acao: () => void) => {
     if (pendenteRef.current) setSaida(() => acao);
     else acao();
   }, []);
 
   // Conversa de cada aba de análise aberta: fechar a aba com ela viva pede confirmação.
   const conversas = useRef(new Map<string, EstadoConversa>());
-  const [fechamento, setFechamento] = useState<{ chave: string; trabalhando: boolean; mapa: boolean } | null>(
-    null,
-  );
+  const [fechamento, setFechamento] = useState<{ chave: string; trabalhando: boolean } | null>(null);
   const [fechamentoOutras, setFechamentoOutras] = useState<{
     manter: string;
     vivas: string[];
@@ -259,23 +300,30 @@ export function Navegacao({
   }, []);
 
   const navegarAgora = useCallback((t: Tela) => {
-    const chave = chaveDaTela(t);
     const vez = ++contador.current;
-    setAbas((atuais) => {
-      const existente = atuais.find((a) => a.chave === chave);
-      if (!existente) return [...atuais, { chave, tela: t, vez }];
-      // A análise já aberta só ganha o foco: abrir do zero encerraria a conversa (#212).
-      if (ficaViva(existente)) return atuais;
-      return atuais.map((a) => (a.chave === chave ? { chave, tela: t, vez } : a));
-    });
-    setAtiva(chave);
-    if (t.tipo === "base" && t.documento) lembrarDocumento(t.documento);
+    const chave = chaveDoObjeto(t);
+    if (chave) {
+      setAbas((atuais) => {
+        const existente = atuais.find((a) => a.chave === chave);
+        if (!existente) return [...atuais, { chave, tela: t, vez }];
+        // A análise já aberta só ganha o foco: abrir do zero encerraria a conversa (#212).
+        if (ficaViva(existente)) return atuais;
+        return atuais.map((a) => (a.chave === chave ? { chave, tela: t, vez } : a));
+      });
+      setAtiva(chave);
+    } else {
+      // Seção: troca no lugar; pedir outro projeto troca o projeto da barra de título.
+      const p = projetoDaTela(t);
+      if (p) setProjeto(p);
+      setSecao({ id: secaoDaTela(t), tela: t, vez });
+      setAtiva(null);
+    }
     setRecarga((r) => r + 1);
-    // Na gaveta, escolher um item fecha o painel.
+    // Na gaveta, escolher um item fecha o menu.
     if (telaEstreita()) setLadoAberto(false);
-  }, [lembrarDocumento]);
+  }, []);
 
-  const navegar = useCallback((t: Tela) => sairDaAba(() => navegarAgora(t)), [sairDaAba, navegarAgora]);
+  const navegar = useCallback((t: Tela) => sairDaTela(() => navegarAgora(t)), [sairDaTela, navegarAgora]);
 
   useEffect(() => {
     let ativo = true;
@@ -284,20 +332,25 @@ export function Navegacao({
       .then((s) => {
         if (!ativo) return;
         setProjetos(s.projetos);
+        setLidos(true);
         setFalha(null);
       })
-      .catch((e: unknown) => ativo && setFalha(mensagemDe(e)));
+      .catch((e: unknown) => {
+        if (!ativo) return;
+        setFalha(mensagemDe(e));
+        setLidos(true);
+      });
     api
       .inicio()
       .then((i) => ativo && setInicio(i))
-      // O início mostra a própria falha; o painel lateral só fica sem as listas.
+      // O início mostra a própria falha; o menu só fica sem as contagens.
       .catch(() => ativo && setInicio(null));
     return () => {
       ativo = false;
     };
   }, [api, recarga]);
 
-  // O explorador acompanha o que acontece fora das telas (análise criada, agente que
+  // As contagens acompanham o que acontece fora das telas (análise criada, agente que
   // passou a esperar o analista, base editada): relê o início quando a base muda e,
   // por garantia, a cada poucos segundos (#227).
   useEffect(() => {
@@ -307,7 +360,7 @@ export function Navegacao({
         .inicio()
         .then((i) => ativo && setInicio(i))
         .catch(() => undefined);
-    const relogio = setInterval(ler, INTERVALO_EXPLORADOR);
+    const relogio = setInterval(ler, INTERVALO_CONTAGENS);
     let parar: (() => void) | null = null;
     api
       .vigiarBase(ler)
@@ -320,23 +373,85 @@ export function Navegacao({
     };
   }, [api]);
 
+  // O resumo do projeto escolhido acompanha o diário de eventos (#321): cada aviso da
+  // vigia das análises (sessão que passou a esperar o analista, análise concluída ou
+  // aprovada) relê o resumo, e o selo de Atividades muda na hora. A base editada fora
+  // do app e o relógio das contagens também releem.
+  const vigiaAnalises = apiAnalise ?? apiAnaliseTauri;
+  useEffect(() => {
+    if (!projeto) return;
+    let ativo = true;
+    const ler = () =>
+      api
+        .resumoProjeto(projeto)
+        .then((r) => {
+          if (!ativo) return;
+          setResumo({ projeto, resumo: r });
+          setFalhaResumo(null);
+        })
+        .catch((e: unknown) => ativo && setFalhaResumo({ projeto, falha: mensagemDe(e) }));
+    ler();
+    const relogio = setInterval(ler, INTERVALO_CONTAGENS);
+    const paradas: (() => void)[] = [];
+    const guardar = (p: () => void) => (ativo ? paradas.push(p) : p());
+    vigiaAnalises
+      .vigiar(projeto, ler)
+      .then(guardar)
+      .catch(() => undefined);
+    api
+      .vigiarBase(ler)
+      .then(guardar)
+      .catch(() => undefined);
+    return () => {
+      ativo = false;
+      clearInterval(relogio);
+      paradas.forEach((p) => p());
+    };
+  }, [api, vigiaAnalises, projeto, recarga]);
+
+  // O ambiente do Claude do projeto, conferido de novo a cada navegação: o preparo
+  // feito em "Configurar projeto" some das Atividades ao voltar.
+  useEffect(() => {
+    if (!projeto) return;
+    let ativo = true;
+    api
+      .verificarAmbiente(projeto)
+      .then((a) => ativo && setAmbientes((m) => ({ ...m, [projeto]: a })))
+      .catch(() => ativo && setAmbientes((m) => ({ ...m, [projeto]: null })));
+    return () => {
+      ativo = false;
+    };
+  }, [api, projeto, recarga]);
+
   /**
-   * Barra de atividades: vai à última aba da área (ou abre uma); na área atual,
-   * mostra ou esconde o painel lateral.
+   * Item do menu: mostra a seção. A mesma seção, com uma aba na frente, só volta a
+   * ela, sem abrir do zero.
    */
-  const irParaArea = (tipo: Tela["tipo"]) => {
-    if (tela?.tipo === tipo) {
-      setLadoAberto((v) => !v);
+  const irParaSecao = (s: Secao) => {
+    if (secao.id === s) {
+      if (ativa !== null) {
+        sairDaTela(() => {
+          setAtiva(null);
+          if (telaEstreita()) setLadoAberto(false);
+        });
+      }
       return;
     }
-    const existente = [...abas].reverse().find((a) => a.tela.tipo === tipo);
-    if (existente) ativar(existente.chave);
-    else navegar({ tipo } as Tela);
+    navegar(TELA_DA_SECAO[s]);
   };
+
+  /** Seletor de projeto: as seções passam a mostrar o projeto escolhido. */
+  const trocarProjeto = (p: string) =>
+    sairDaTela(() => {
+      setProjeto(p);
+      // A seção à vista abre do zero, no projeto novo.
+      setSecao((s) => ({ id: s.id, tela: TELA_DA_SECAO[s.id], vez: ++contador.current }));
+      setAtiva(null);
+    });
 
   const ativar = (chave: string) => {
     if (chave === ativa) return;
-    sairDaAba(() => {
+    sairDaTela(() => {
       setAtiva(chave);
       if (telaEstreita()) setLadoAberto(false);
     });
@@ -345,15 +460,11 @@ export function Navegacao({
   const fechar = (chave: string) => {
     const conversa = conversas.current.get(chave);
     if (conversa) {
-      setFechamento({
-        chave,
-        trabalhando: conversa === "trabalhando",
-        mapa: abas.find((a) => a.chave === chave)?.tela.tipo === "mapa",
-      });
+      setFechamento({ chave, trabalhando: conversa === "trabalhando" });
       return;
     }
     if (chave === ativa && pendenteRef.current) {
-      sairDaAba(() => fecharAgora(chave));
+      sairDaTela(() => fecharAgora(chave));
       return;
     }
     fecharAgora(chave);
@@ -379,44 +490,62 @@ export function Navegacao({
     for (const c of chaves) conversas.current.delete(c);
     const resto = abas.filter((a) => !chaves.includes(a.chave));
     setAbas(resto);
-    if (chaves.includes(ativa)) setAtiva(resto.some((a) => a.chave === manter) ? manter : (resto[0]?.chave ?? ""));
+    if (ativa && chaves.includes(ativa)) setAtiva(resto.some((a) => a.chave === manter) ? manter : null);
   };
 
+  /** Fecha a aba; sendo a da frente, a vizinha passa à frente, ou a seção sem abas. */
   const fecharAgora = (chave: string) => {
     conversas.current.delete(chave);
     const i = abas.findIndex((a) => a.chave === chave);
     const resto = abas.filter((a) => a.chave !== chave);
     setAbas(resto);
-    if (chave === ativa) setAtiva(resto[Math.min(i, resto.length - 1)]?.chave ?? "");
-  };
-
-  const mudarLargura = (w: number) => {
-    const c = clampWidth(w);
-    setLargura(c);
-    try {
-      localStorage.setItem(SIDE_KEY, String(c));
-    } catch {
-      // Sem localStorage: vale só nesta abertura.
-    }
+    if (chave === ativa) setAtiva(resto[Math.min(i, resto.length - 1)]?.chave ?? null);
   };
 
   const nomeProjeto = (id: string) =>
-    projetos.find((s) => s.id === id)?.nome ??
-    inicio?.projetos.find((s) => s.id === id)?.nome ??
-    id;
+    projetos.find((s) => s.id === id)?.nome ?? inicio?.projetos.find((s) => s.id === id)?.nome ?? id;
 
   const tituloDaAba = (t: Tela): string => {
-    if (t.tipo === "projeto" && t.projeto) return nomeProjeto(t.projeto);
     if (t.tipo === "base" && t.documento) return nomeDoArquivo(t.documento);
     if (t.tipo === "analise" && t.aberta) return t.aberta.id;
     if (t.tipo === "demanda") return t.demanda;
     if (t.tipo === "vincular") return `Vincular demandas · ${nomeProjeto(t.projeto)}`;
-    return ROTULO_AREA[t.tipo];
+    return ROTULO_SECAO[secaoDaTela(t)];
   };
 
-  const analises = inicio ? analisesDoExplorador(inicio) : [];
+  const resumoAtual = resumo?.projeto === projeto ? resumo.resumo : null;
+  const falhaAtual = falhaResumo?.projeto === projeto ? falhaResumo.falha : null;
+  const ambienteAtual = ambientes[projeto];
+  /** O selo de Atividades do projeto escolhido, pelo resumo; `null` antes de lê-lo. */
+  const selo = resumoAtual ? seloAtividades(resumoAtual, ambienteAtual) : null;
+
+  const noSeletor: ProjetoNoSeletor[] = projetos.map((p) => {
+    const visto = inicio?.projetos.find((x) => x.id === p.id);
+    return {
+      id: p.id,
+      nome: p.nome,
+      pendencias:
+        p.id === projeto && selo !== null
+          ? selo
+          : inicio && visto
+            ? pendenciasNoInicio(inicio, visto)
+            : 0,
+      erro: !!visto?.erro,
+    };
+  });
+  const contagensDoInicio = contagensDoMenu(inicio, projeto);
+  const contagens =
+    selo === null
+      ? contagensDoInicio
+      : { ...contagensDoInicio, atividades: { n: selo, atencao: selo > 0 } };
   const aRevalidar = inicio?.projetos.reduce((n, s) => n + s.aRevalidar, 0) ?? 0;
-  const aguardando = analises.filter((a) => a.sessao?.estado === "aguardando-analista").length;
+  const sessoesAguardando =
+    inicio?.emAndamento.filter((a) => a.sessao?.estado === "aguardando-analista") ?? [];
+  const aguardando = sessoesAguardando.length;
+  // As seções esperam a lista de projetos, para não abrir num projeto que sumiu.
+  const secaoAVista = lidos && ativa === null;
+  const chaveSecao = `${secao.id}:${projeto}:${secao.vez}`;
+  const tela = secao.tela;
 
   return (
     <div className="shell">
@@ -427,209 +556,219 @@ export function Navegacao({
           <button
             type="button"
             className="ibtn"
-            aria-label={ladoAberto ? "Fechar painel lateral" : "Abrir painel lateral"}
+            aria-label={ladoAberto ? "Fechar menu lateral" : "Abrir menu lateral"}
             aria-expanded={ladoAberto}
-            aria-controls="painel-lateral"
+            aria-controls="menu-lateral"
             onClick={() => setLadoAberto((v) => !v)}
           >
             <Icon name="sidebar" />
           </button>
         }
+        meio={<SeletorProjeto projetos={noSeletor} atual={projeto} aoEscolher={trocarProjeto} />}
       />
 
       <div className="shell-work">
-        <nav className="activitybar" aria-label="Telas">
-          {AREAS.map((a) => (
-            <button
-              key={a.tipo}
-              type="button"
-              className="ab-item"
-              aria-label={a.rotulo}
-              data-tip={a.rotulo}
-              aria-current={tela?.tipo === a.tipo ? "page" : undefined}
-              onClick={() => irParaArea(a.tipo)}
-            >
-              <Icon name={a.icone} size={22} />
-            </button>
-          ))}
-        </nav>
-
-        <div
-          id="painel-lateral"
-          className="sidepanel"
-          role="region"
-          aria-label="Painel lateral"
-          hidden={!ladoAberto}
-          style={{ width: largura }}
-        >
-          <div className="sp">
-            <div className="sp-head">
-              <h2 className="sp-title">Explorador</h2>
-            </div>
-            <div className="sp-body">
-              <GrupoLateral titulo="Projetos" quantos={inicio?.projetos.length ?? projetos.length}>
-                {(inicio?.projetos ?? projetos.map((s) => ({ ...s, aRevalidar: 0, erro: null }))).map(
-                  (s) => (
-                    <LinhaLateral
-                      key={s.id}
-                      icone="project"
-                      rotulo={s.nome}
-                      sub={
-                        s.erro
-                          ? "com erro"
-                          : s.aRevalidar > 0
-                            ? `${s.aRevalidar} a revalidar`
-                            : undefined
-                      }
-                      tom={s.erro ? "error" : s.aRevalidar > 0 ? "attention" : undefined}
-                      selecionada={ativa === `projeto:${s.id}`}
-                      onClick={() => navegar({ tipo: "projeto", projeto: s.id })}
-                    />
-                  ),
-                )}
-              </GrupoLateral>
-              <GrupoLateral titulo="Análises" quantos={analises.length}>
-                {analises.map((a) => (
-                  <LinhaLateral
-                    key={`${a.projeto}/${a.id}`}
-                    ponto
-                    rotulo={`${a.id}: ${a.titulo}`}
-                    sub={
-                      a.sessao && a.sessao.estado !== "encerrada"
-                        ? `${a.projetoNome} · ${ROTULO_SESSAO[a.sessao.estado]}`
-                        : a.projetoNome
-                    }
-                    tom={tomDaAnalise(a)}
-                    selecionada={ativa === `analise:${a.projeto}:${a.id}`}
-                    onClick={() =>
-                      navegar({
-                        tipo: "analise",
-                        projeto: a.projeto,
-                        aberta: { id: a.id, abertura: { tipo: "reabrir" } },
-                      })
-                    }
-                  />
-                ))}
-              </GrupoLateral>
-              <GrupoLateral titulo="Documentos" quantos={documentos.length} vazio="Nenhum documento aberto.">
-                {documentos.map((d) => (
-                  <LinhaLateral
-                    key={d}
-                    icone="file"
-                    rotulo={nomeDoArquivo(d)}
-                    sub={d}
-                    selecionada={ativa === `doc:${d}`}
-                    onClick={() => navegar({ tipo: "base", documento: d })}
-                  />
-                ))}
-              </GrupoLateral>
-            </div>
-            {refazerPrimeiroUso && (
-              <div className="sp-foot">
-                <button
-                  type="button"
-                  className="link"
-                  onClick={() => sairDaAba(refazerPrimeiroUso)}
-                >
-                  Refazer o primeiro uso
-                </button>
-              </div>
-            )}
-          </div>
+        <div id="menu-lateral" className="sidepanel menu-painel" hidden={!ladoAberto}>
+          <MenuLateral
+            atual={ativa === null ? ITEM_DA_SECAO(secao.id) : null}
+            contagens={contagens}
+            aoEscolher={irParaSecao}
+          />
         </div>
         {ladoAberto && (
-          <>
-            <Resizer largura={largura} aoMudar={mudarLargura} />
-            {/* Gaveta (tela estreita): tocar fora fecha. */}
-            <div className="sidepanel-scrim" aria-hidden="true" onClick={() => setLadoAberto(false)} />
-          </>
+          /* Gaveta (tela estreita): tocar fora fecha. */
+          <div className="sidepanel-scrim" aria-hidden="true" onClick={() => setLadoAberto(false)} />
         )}
 
         <div className="shell-main">
           {banner}
-          {falha && tela?.tipo !== "inicio" && (
+          {falha && (ativa !== null || secao.id !== "atividades") && (
             <div className="banner" role="alert">
               {falha}
             </div>
           )}
-          <div className="etabs-bar">
-            <div className="etabs" role="tablist" aria-label="Abas abertas"
-              ref={faixaAbas}
-              onWheel={(e) => {
-                // A roda do mouse rola a faixa de abas, que não tem barra à vista.
-                if (faixaAbas.current && Math.abs(e.deltaY) > Math.abs(e.deltaX))
-                  faixaAbas.current.scrollLeft += e.deltaY;
-              }}
-            >
-              {abas.map((a) => {
-                const titulo = tituloDaAba(a.tela);
-                return (
-                  <div key={a.chave} className="etab" data-on={a.chave === ativa}>
-                    <button
-                      type="button"
-                      role="tab"
-                      className="etab-main"
-                      aria-selected={a.chave === ativa}
-                      aria-controls="area-editor"
-                      title={titulo}
-                      onClick={() => ativar(a.chave)}
-                    >
-                      <Icon name={ICONE_AREA[a.tela.tipo]} size={14} />
-                      <span className="etab-title">{titulo}</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="ibtn etab-close"
-                      aria-label={`Fechar ${titulo}`}
-                      onClick={() => fechar(a.chave)}
-                    >
-                      <Icon name="close" size={14} />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-            {abas.length > 1 && aba && (
-              <button
-                type="button"
-                className="etabs-outras"
-                title="Fecha todas as abas, menos a que está à vista"
-                onClick={() => sairDaAba(() => fecharOutras(ativa))}
+          {abas.length > 0 && (
+            <div className="etabs-bar">
+              <div
+                className="etabs"
+                role="tablist"
+                aria-label="Abas abertas"
+                ref={faixaAbas}
+                onWheel={(e) => {
+                  // A roda do mouse rola a faixa de abas, que não tem barra à vista.
+                  if (faixaAbas.current && Math.abs(e.deltaY) > Math.abs(e.deltaX))
+                    faixaAbas.current.scrollLeft += e.deltaY;
+                }}
               >
-                Fechar outras
-              </button>
-            )}
-          </div>
-          <div className="editor" role="tabpanel" id="area-editor" aria-label="Área de editor">
+                {abas.map((a) => {
+                  const titulo = tituloDaAba(a.tela);
+                  return (
+                    <div key={a.chave} className="etab" data-on={a.chave === ativa}>
+                      <button
+                        type="button"
+                        role="tab"
+                        className="etab-main"
+                        aria-selected={a.chave === ativa}
+                        aria-controls="area-editor"
+                        title={titulo}
+                        onClick={() => ativar(a.chave)}
+                      >
+                        <Icon name={ICONE_OBJETO[a.tela.tipo] ?? "file"} size={14} />
+                        <span className="etab-title">{titulo}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="ibtn etab-close"
+                        aria-label={`Fechar ${titulo}`}
+                        onClick={() => fechar(a.chave)}
+                      >
+                        <Icon name="close" size={14} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+              {abas.length > 1 && aba && (
+                <button
+                  type="button"
+                  className="etabs-outras"
+                  title="Fecha todas as abas, menos a que está à vista"
+                  onClick={() => sairDaTela(() => fecharOutras(aba.chave))}
+                >
+                  Fechar outras
+                </button>
+              )}
+            </div>
+          )}
+          <main className="editor" id="area-editor" aria-label={aba ? tituloDaAba(aba.tela) : ROTULO_SECAO[secao.id]}>
             <div className="editor-tela">
-              {!aba && (
+              {/* Seção à vista: só uma montada por vez, no projeto escolhido. */}
+              {ativa === null && !lidos && (
                 <div className="page">
-                  <p className="empty">
-                    Nenhuma aba aberta. Escolha uma área na barra de atividades ou um item do painel
-                    lateral.
-                  </p>
+                  <p className="muted">Carregando…</p>
                 </div>
               )}
-              {aba?.tela.tipo === "inicio" && (
-                <TelaInicio
-                  key={aba.vez}
+              {secaoAVista && secao.id === "visao-geral" && (
+                <VisaoGeral
+                  key={chaveSecao}
+                  projeto={projeto}
+                  nomeProjeto={nomeProjeto(projeto)}
+                  resumo={resumoAtual}
+                  falha={falhaAtual}
+                  ambiente={ambienteAtual}
                   api={api}
+                  apiConfiguracoes={apiConfiguracoes ?? apiConfiguracoesTauri}
+                  apiMapa={apiMapa}
                   navegar={navegar}
-                  abrirLink={abrirLink}
-                  aoPrimeiroUso={aoPrimeiroUso}
-                  apiProjeto={apiConfiguracoes}
-                  aoMudarProjetos={() => setRecarga((r) => r + 1)}
                 />
               )}
-              {aba?.tela.tipo === "projeto" && (
-                <TelaProjeto
-                  key={aba.vez}
+              {secaoAVista && secao.id === "atividades" && (
+                <div key={chaveSecao}>
+                  <TelaAtividades
+                    projeto={projeto}
+                    nomeProjeto={nomeProjeto(projeto)}
+                    resumo={resumoAtual}
+                    falha={falhaAtual}
+                    ambiente={ambienteAtual}
+                    navegar={navegar}
+                  />
+                  <TelaInicio
+                    api={api}
+                    navegar={navegar}
+                    abrirLink={abrirLink}
+                    aoPrimeiroUso={aoPrimeiroUso}
+                    apiProjeto={apiConfiguracoes}
+                    aoMudarProjetos={() => setRecarga((r) => r + 1)}
+                    semConducao
+                  />
+                </div>
+              )}
+              {secaoAVista && secao.id === "analises" && (
+                <TelaAnalise
+                  key={chaveSecao}
+                  api={apiAnalise}
+                  apiTerminal={apiTerminal}
+                  criarTela={criarTela}
+                  projetoInicial={projeto}
+                  perguntaInicial={tela.tipo === "analise" ? tela.pergunta : undefined}
+                  situacaoInicial={tela.tipo === "analise" ? tela.situacao : undefined}
+                  novaInicial={tela.tipo === "analise" ? tela.nova : undefined}
+                  apiConhecimento={api}
+                  aoPrimeiroUso={aoPrimeiroUso}
+                  aoAbrirAnalise={(p, id, abertura) => navegar({ tipo: "analise", projeto: p, aberta: { id, abertura } })}
+                  aoAbrirDemanda={(p, demanda) => navegar({ tipo: "demanda", projeto: p, demanda })}
+                />
+              )}
+              {secaoAVista && secao.id === "demandas" && (
+                <div className="page" key={chaveSecao}>
+                  {projeto ? (
+                    <TelaDemandas
+                      api={api}
+                      projeto={projeto}
+                      navegar={navegar}
+                      abrirLink={abrirLink}
+                      situacaoInicial={tela.tipo === "demandas" ? tela.situacao : undefined}
+                    />
+                  ) : (
+                    <>
+                      <h2>Demandas</h2>
+                      <p className="muted">Nenhum projeto cadastrado.</p>
+                    </>
+                  )}
+                </div>
+              )}
+              {secaoAVista && secao.id === "base" && (
+                <TelaBase
+                  key={chaveSecao}
                   api={api}
                   projetos={projetos}
-                  projetoInicial={aba.tela.projeto}
+                  projetoInicial={projeto}
                   navegar={navegar}
+                  aoPendencia={aoPendencia}
                 />
               )}
+              {secaoAVista && secao.id === "codigo" && (
+                <TelaCodigo key={chaveSecao} api={api} projeto={projeto} />
+              )}
+              {secaoAVista && secao.id === "configuracoes" && (
+                <TelaConfiguracoes
+                  key={chaveSecao}
+                  api={apiConfiguracoes}
+                  aoMudarProjetos={() => setRecarga((r) => r + 1)}
+                  aoPendencia={aoPendencia}
+                  listarProjetos={false}
+                  aoConfigurarProjeto={(p) => navegar({ tipo: "configurar", projeto: p })}
+                  aoRefazerPrimeiroUso={refazerPrimeiroUso ? () => sairDaTela(refazerPrimeiroUso) : undefined}
+                />
+              )}
+              {secaoAVista && secao.id === "configurar-projeto" && (
+                <TelaConfiguracoes
+                  key={chaveSecao}
+                  api={apiConfiguracoes}
+                  aoMudarProjetos={() => setRecarga((r) => r + 1)}
+                  aoPendencia={aoPendencia}
+                  projetoFixo={projeto}
+                  aoVoltar={() => navegar({ tipo: "projeto", projeto })}
+                  aoConfigurarProjeto={(p) => navegar({ tipo: "configurar", projeto: p })}
+                  aoIrParaConfiguracoes={() => navegar({ tipo: "configuracoes" })}
+                />
+              )}
+              {/* O mapa de cada projeto visto fica montado, escondido fora da vez: a
+                  sessão de mapeamento continua enquanto o analista está noutra seção. */}
+              {mapasMontados.map((p) => (
+                <div key={`mapa:${p}`} className="editor-aba" hidden={!(mapaAVista && p === projeto)}>
+                  <TelaMapa
+                    projetos={projetos.filter((x) => x.id === p)}
+                    projetoInicial={p}
+                    apiAnalise={apiAnalise}
+                    apiTerminal={apiTerminal}
+                    criarTela={criarTela}
+                    navegar={navegar}
+                  />
+                </div>
+              ))}
+
+              {/* Objetos abertos em abas. */}
               {aba?.tela.tipo === "base" && (
                 <TelaBase
                   key={aba.vez}
@@ -637,73 +776,8 @@ export function Navegacao({
                   projetos={projetos}
                   documentoInicial={aba.tela.documento}
                   navegar={navegar}
-                  aoAbrirDocumento={lembrarDocumento}
                   aoPendencia={aoPendencia}
                 />
-              )}
-              {aba?.tela.tipo === "analise" && !ficaViva(aba) && (
-                <TelaAnalise
-                  key={aba.vez}
-                  api={apiAnalise}
-                  apiTerminal={apiTerminal}
-                  criarTela={criarTela}
-                  projetoInicial={aba.tela.projeto}
-                  perguntaInicial={aba.tela.pergunta}
-                  aoPrimeiroUso={aoPrimeiroUso}
-                  aoAbrirAnalise={(projeto, id, abertura) =>
-                    navegar({ tipo: "analise", projeto, aberta: { id, abertura } })
-                  }
-                />
-              )}
-              {/* As análises abertas ficam montadas, escondidas fora da vez: o agente
-                  continua trabalhando enquanto o analista está noutra aba (#212). */}
-              {abas.filter(ficaViva).map((a) =>
-                a.tela.tipo === "analise" ? (
-                  <div key={a.chave} className="editor-aba" hidden={a.chave !== ativa}>
-                    <TelaAnalise
-                      key={a.vez}
-                      api={apiAnalise}
-                      apiTerminal={apiTerminal}
-                      criarTela={criarTela}
-                      projetoInicial={a.tela.projeto}
-                      aberturaInicial={a.tela.aberta}
-                      aoPrimeiroUso={aoPrimeiroUso}
-                      aoAbrirAnalise={(projeto, id, abertura) =>
-                        navegar({ tipo: "analise", projeto, aberta: { id, abertura } })
-                      }
-                      aoVoltar={(projeto) => navegar({ tipo: "analise", projeto })}
-                      aoMudarConversa={(estado) => aoMudarConversa(a.chave, estado)}
-                    />
-                  </div>
-                ) : a.tela.tipo === "mapa" ? (
-                  <div key={a.chave} className="editor-aba" hidden={a.chave !== ativa}>
-                    <TelaMapa
-                      key={a.vez}
-                      projetos={projetos}
-                      projetoInicial={a.tela.projeto}
-                      apiAnalise={apiAnalise}
-                      apiTerminal={apiTerminal}
-                      criarTela={criarTela}
-                      navegar={navegar}
-                      aoMudarConversa={(estado) => aoMudarConversa(a.chave, estado)}
-                    />
-                  </div>
-                ) : a.tela.tipo === "vincular" ? (
-                  <div key={a.chave} className="editor-aba" hidden={a.chave !== ativa}>
-                    <div className="page">
-                      <VincularIssues
-                        key={a.vez}
-                        projeto={a.tela.projeto}
-                        api={apiMapaTauri}
-                        // Volta à aba do mapa que já existe, sem remontá-la.
-                        aoVoltar={() => irParaArea("mapa")}
-                        aoVincular={() => undefined}
-                        apiTerminal={apiTerminal}
-                        criarTela={criarTela}
-                      />
-                    </div>
-                  </div>
-                ) : null,
               )}
               {aba?.tela.tipo === "demanda" && (
                 <PainelDemanda
@@ -714,16 +788,46 @@ export function Navegacao({
                   navegar={navegar}
                 />
               )}
-              {aba?.tela.tipo === "configuracoes" && (
-                <TelaConfiguracoes
-                  key={aba.vez}
-                  api={apiConfiguracoes}
-                  aoMudarProjetos={() => setRecarga((r) => r + 1)}
-                  aoPendencia={aoPendencia}
-                />
-              )}
+              {/* As análises abertas ficam montadas, escondidas fora da vez: o agente
+                  continua trabalhando enquanto o analista está noutra tela (#212). */}
+              {abas.filter(ficaViva).map((a) => {
+                const vinculado = a.tela.tipo === "vincular" ? a.tela.projeto : "";
+                return a.tela.tipo === "analise" ? (
+                  <div key={a.chave} className="editor-aba" hidden={a.chave !== ativa}>
+                    <TelaAnalise
+                      key={a.vez}
+                      api={apiAnalise}
+                      apiTerminal={apiTerminal}
+                      criarTela={criarTela}
+                      projetoInicial={a.tela.projeto}
+                      aberturaInicial={a.tela.aberta}
+                      aoPrimeiroUso={aoPrimeiroUso}
+                      aoAbrirAnalise={(p, id, abertura) =>
+                        navegar({ tipo: "analise", projeto: p, aberta: { id, abertura } })
+                      }
+                      aoVoltar={(p) => navegar({ tipo: "analise", projeto: p })}
+                      aoMudarConversa={(estado) => aoMudarConversa(a.chave, estado)}
+                    />
+                  </div>
+                ) : a.tela.tipo === "vincular" ? (
+                  <div key={a.chave} className="editor-aba" hidden={a.chave !== ativa}>
+                    <div className="page">
+                      <VincularIssues
+                        key={a.vez}
+                        projeto={a.tela.projeto}
+                        api={apiMapaTauri}
+                        // Volta ao mapa do projeto, que continua montado.
+                        aoVoltar={() => navegar({ tipo: "mapa", projeto: vinculado })}
+                        aoVincular={() => undefined}
+                        apiTerminal={apiTerminal}
+                        criarTela={criarTela}
+                      />
+                    </div>
+                  </div>
+                ) : null;
+              })}
             </div>
-          </div>
+          </main>
         </div>
       </div>
 
@@ -733,12 +837,7 @@ export function Navegacao({
           aoCancelar={() => setSaida(null)}
           acoes={
             <>
-              <button
-                type="button"
-                className="btn btn-primary"
-                autoFocus
-                onClick={() => setSaida(null)}
-              >
+              <button type="button" className="btn btn-primary" autoFocus onClick={() => setSaida(null)}>
                 Continuar editando
               </button>
               <button
@@ -756,25 +855,17 @@ export function Navegacao({
             </>
           }
         >
-          <p>
-            Há um editor com alterações que não foram salvas. Sair agora as
-            descarta.
-          </p>
+          <p>Há um editor com alterações que não foram salvas. Sair agora as descarta.</p>
         </DialogoConfirmacao>
       )}
 
       {fechamento && (
         <DialogoConfirmacao
-          titulo={fechamento.mapa ? "Fechar o mapa" : "Fechar a análise"}
+          titulo="Fechar a análise"
           aoCancelar={() => setFechamento(null)}
           acoes={
             <>
-              <button
-                type="button"
-                className="btn btn-primary"
-                autoFocus
-                onClick={() => setFechamento(null)}
-              >
+              <button type="button" className="btn btn-primary" autoFocus onClick={() => setFechamento(null)}>
                 Manter a conversa
               </button>
               <button
@@ -794,14 +885,11 @@ export function Navegacao({
           <p>
             {fechamento.trabalhando
               ? "O agente ainda está trabalhando. Encerrar a conversa?"
-              : fechamento.mapa
-                ? "A sessão de mapeamento com o Claude continua aberta. Encerrar a sessão?"
-                : "A conversa com o agente continua aberta nesta análise. Encerrar a conversa?"}
+              : "A conversa com o agente continua aberta nesta análise. Encerrar a conversa?"}
           </p>
           <p className="muted">
-            {fechamento.mapa
-              ? "A sessão de mapeamento com o Claude será encerrada. Uma sessão nova continua o mapa de onde parou."
-              : "Fechar a aba encerra o Claude Code desta análise. Dá para retomar a conversa depois, pela própria análise."}
+            Fechar a aba encerra o Claude Code desta análise. Dá para retomar a conversa depois, pela
+            própria análise.
           </p>
         </DialogoConfirmacao>
       )}
@@ -849,9 +937,8 @@ export function Navegacao({
             {fechamentoOutras.trabalhando && " O agente ainda está trabalhando."}
           </p>
           <p className="muted">
-            Fechar uma aba encerra o Claude Code dela: nas análises, dá para retomar a conversa
-            depois, pela própria análise; no mapa, a sessão de mapeamento será encerrada.
-            “Manter as conversas” fecha só as abas sem conversa.
+            Fechar uma aba encerra o Claude Code dela; dá para retomar a conversa depois, pela própria
+            análise. “Manter as conversas” fecha só as abas sem conversa.
           </p>
         </DialogoConfirmacao>
       )}
@@ -860,22 +947,32 @@ export function Navegacao({
         <span className="sb-item mono" title={inicio?.base ?? undefined}>
           {inicio?.base ? `Base: ${inicio.base}` : "Base não escolhida"}
         </span>
-        <span className="sb-item">
-          {projetos.length === 1 ? "1 projeto" : `${projetos.length} projetos`}
-        </span>
+        <span className="sb-item">{projetos.length === 1 ? "1 projeto" : `${projetos.length} projetos`}</span>
         <span className="sb-spacer" />
         {aguardando > 0 && (
-          <span className="sb-item sb-warn">
+          <button
+            type="button"
+            className="sb-item sb-warn"
+            title="Abre as Atividades, onde fica cada sessão que espera você"
+            onClick={() => {
+              // O projeto da barra de título, se uma das sessões é dele; senão, o da primeira.
+              const alvo = sessoesAguardando.some((a) => a.projeto === projeto)
+                ? projeto
+                : sessoesAguardando[0].projeto;
+              navegar({ tipo: "inicio", projeto: alvo });
+            }}
+          >
             <Icon name="warning" size={12} />
             {aguardando === 1 ? "1 sessão aguarda você" : `${aguardando} sessões aguardam você`}
-          </span>
+          </button>
         )}
         {aRevalidar > 0 && (
           <button
             type="button"
             className="sb-item sb-warn"
             onClick={() => {
-              const s = inicio?.projetos.find((x) => x.aRevalidar > 0);
+              const s = inicio?.projetos.find((x) => x.id === projeto && x.aRevalidar > 0) ??
+                inicio?.projetos.find((x) => x.aRevalidar > 0);
               if (s) navegar({ tipo: "projeto", projeto: s.id });
             }}
           >
@@ -888,115 +985,15 @@ export function Navegacao({
   );
 }
 
-function GrupoLateral({
-  titulo,
-  quantos,
-  vazio = "Nada ainda.",
-  children,
-}: {
-  titulo: string;
-  quantos: number;
-  vazio?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="sp-group" role="group" aria-label={titulo}>
-      <h3 className="sp-group-title">
-        {titulo}
-        <span className="sp-group-count">{quantos}</span>
-      </h3>
-      {quantos === 0 ? <p className="sp-empty">{vazio}</p> : <ul className="sp-rows">{children}</ul>}
-    </div>
-  );
-}
-
-function LinhaLateral({
-  rotulo,
-  sub,
-  icone,
-  ponto,
-  tom,
-  selecionada,
-  onClick,
-}: {
-  rotulo: string;
-  sub?: string;
-  icone?: IconName;
-  ponto?: boolean;
-  tom?: string;
-  selecionada: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <li className={sub ? "sp-row sp-row-2" : "sp-row"} data-selected={selecionada}>
-      <button
-        type="button"
-        className="sp-row-main"
-        aria-current={selecionada ? "true" : undefined}
-        onClick={onClick}
-      >
-        {ponto || !icone ? (
-          <span className="sp-dot" data-tone={tom} aria-hidden="true" />
-        ) : (
-          <Icon name={icone} size={14} />
-        )}
-        <span className="sp-row-text">
-          <span className="sp-row-label">{rotulo}</span>
-          {sub && (
-            <span className="sp-row-sub" data-tone={tom}>
-              {sub}
-            </span>
-          )}
-        </span>
-      </button>
-    </li>
-  );
-}
-
-/** Divisória arrastável do painel lateral; setas mudam a largura pelo teclado. */
-function Resizer({ largura, aoMudar }: { largura: number; aoMudar: (w: number) => void }) {
-  const inicio = useRef<{ x: number; w: number } | null>(null);
-  const onPointerDown = (e: ReactPointerEvent) => {
-    inicio.current = { x: e.clientX, w: largura };
-    (e.target as Element).setPointerCapture?.(e.pointerId);
-  };
-  const onPointerMove = (e: ReactPointerEvent) => {
-    if (inicio.current) aoMudar(inicio.current.w + e.clientX - inicio.current.x);
-  };
-  const parar = () => {
-    inicio.current = null;
-  };
-  const onKeyDown = (e: ReactKeyboardEvent) => {
-    const passo = e.shiftKey ? 64 : 16;
-    const w =
-      e.key === "ArrowLeft"
-        ? largura - passo
-        : e.key === "ArrowRight"
-          ? largura + passo
-          : e.key === "Home"
-            ? SIDE_MIN
-            : e.key === "End"
-              ? SIDE_MAX
-              : null;
-    if (w === null) return;
-    e.preventDefault();
-    aoMudar(w);
-  };
-  return (
-    <div
-      className="sidepanel-resizer"
-      role="separator"
-      aria-orientation="vertical"
-      aria-label="Largura do painel lateral"
-      aria-valuenow={largura}
-      aria-valuemin={SIDE_MIN}
-      aria-valuemax={SIDE_MAX}
-      tabIndex={0}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={parar}
-      onPointerCancel={parar}
-      onKeyDown={onKeyDown}
-    />
-  );
-}
+/** O pedido que cada item do menu faz (no projeto da barra de título). */
+const TELA_DA_SECAO: Record<Secao, Tela> = {
+  "visao-geral": { tipo: "projeto" },
+  atividades: { tipo: "inicio" },
+  analises: { tipo: "analise" },
+  demandas: { tipo: "demandas" },
+  base: { tipo: "base" },
+  funcionalidades: { tipo: "mapa" },
+  codigo: { tipo: "codigo" },
+  configuracoes: { tipo: "configuracoes" },
+  "configurar-projeto": { tipo: "configurar" },
+};

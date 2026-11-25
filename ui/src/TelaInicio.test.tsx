@@ -72,7 +72,7 @@ describe("TelaInicio", () => {
     const { navegar } = montar(falsa);
     const passo = await screen.findByRole("region", { name: "Próximo passo" });
     fireEvent.click(await within(passo).findByRole("button", { name: "Preparar" }));
-    expect(navegar).toHaveBeenCalledWith({ tipo: "configuracoes" });
+    expect(navegar).toHaveBeenCalledWith({ tipo: "configurar", projeto: base.projetos[0].id });
   });
 
   it("num projeto sem análise, sugere a primeira análise e abre a pergunta (#227)", async () => {
@@ -179,13 +179,14 @@ describe("TelaInicio", () => {
     const { api } = montar();
     fireEvent.click(await screen.findByRole("button", { name: "Perguntar ao sistema" }));
     const form = screen.getByRole("form", { name: "Perguntar ao sistema" });
-    const select = await within(form).findByLabelText("Demanda (opcional)");
-    // Só as abertas.
-    expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual([
-      "Sem demanda",
-      "D-0001: Parcelamento PJ",
+    // Issue e demanda num campo só (#350): ao focar, sugere só as demandas abertas.
+    fireEvent.focus(within(form).getByLabelText(/Issue ou demanda/));
+    const sugestoes = await within(form).findByRole("list", { name: "Demandas e issues do projeto" });
+    expect(within(sugestoes).getAllByRole("button").map((b) => b.textContent)).toEqual([
+      "D-0001Parcelamento PJ",
     ]);
-    fireEvent.change(select, { target: { value: "D-0001" } });
+    fireEvent.click(within(sugestoes).getByRole("button"));
+    expect(within(form).getByLabelText(/Issue ou demanda/)).toHaveValue("D-0001");
     fireEvent.change(within(form).getByLabelText("Pergunta"), {
       target: { value: "Como funciona o parcelamento?" },
     });
@@ -208,7 +209,7 @@ describe("TelaInicio", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Analisar impacto" }));
     const iniciar = await screen.findByRole("button", { name: "Iniciar a análise" });
     expect(iniciar).toBeDisabled();
-    fireEvent.change(screen.getByLabelText(/Issue do projeto/), { target: { value: "PROJ-123" } });
+    fireEvent.change(screen.getByLabelText(/Issue ou demanda/), { target: { value: "PROJ-123" } });
     await waitFor(() => expect(iniciar).toBeEnabled());
     fireEvent.click(iniciar);
     await waitFor(() =>
@@ -222,7 +223,7 @@ describe("TelaInicio", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Revisar requisito" }));
     const form = await screen.findByRole("form", { name: "Revisar requisito" });
     const iniciar = within(form).getByRole("button", { name: "Iniciar a análise" });
-    fireEvent.change(within(form).getByLabelText(/Chave no rastreador/), {
+    fireEvent.change(within(form).getByLabelText(/Issue ou demanda/), {
       target: { value: "PROJ-482" },
     });
     await waitFor(() => expect(iniciar).toBeEnabled());
@@ -242,7 +243,7 @@ describe("TelaInicio", () => {
     montar(falsa);
     fireEvent.click(await screen.findByRole("button", { name: "Explicar funcionalidade" }));
     expect(
-      await screen.findByText(/Prepare o ambiente do Claude antes de iniciar/),
+      await screen.findByText(/Para iniciar, ligue o agente a este projeto/),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Funcionalidade")).toBeInTheDocument();
   });

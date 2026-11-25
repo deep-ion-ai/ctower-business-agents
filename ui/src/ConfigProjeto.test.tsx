@@ -169,7 +169,7 @@ describe("ConfigProjeto", () => {
         screen.getByRole("tablist", { name: "Partes do projeto" }),
       ).getAllByRole("tab");
       expect(abas.map((a) => a.textContent)).toEqual([
-        "Visão geral",
+        "Saúde do cadastro",
         "Código e demandas",
         "O que é analisado",
         "Ambiente de teste",
@@ -185,7 +185,7 @@ describe("ConfigProjeto", () => {
 
     it("anda pelas abas com as setas, Home e End", () => {
       montar();
-      const geral = screen.getByRole("tab", { name: "Visão geral" });
+      const geral = screen.getByRole("tab", { name: "Saúde do cadastro" });
       geral.focus();
       fireEvent.keyDown(geral, { key: "ArrowRight" });
       const codigo = screen.getByRole("tab", { name: "Código e demandas" });
@@ -196,11 +196,11 @@ describe("ConfigProjeto", () => {
       fireEvent.keyDown(screen.getByRole("tab", { name: "Avançado" }), {
         key: "ArrowRight",
       });
-      expect(screen.getByRole("tab", { name: "Visão geral" })).toHaveAttribute(
+      expect(screen.getByRole("tab", { name: "Saúde do cadastro" })).toHaveAttribute(
         "aria-selected",
         "true",
       );
-      fireEvent.keyDown(screen.getByRole("tab", { name: "Visão geral" }), {
+      fireEvent.keyDown(screen.getByRole("tab", { name: "Saúde do cadastro" }), {
         key: "ArrowLeft",
       });
       expect(screen.getByRole("tab", { name: "Avançado" })).toHaveAttribute(
@@ -210,7 +210,7 @@ describe("ConfigProjeto", () => {
       fireEvent.keyDown(screen.getByRole("tab", { name: "Avançado" }), {
         key: "Home",
       });
-      expect(screen.getByRole("tab", { name: "Visão geral" })).toHaveFocus();
+      expect(screen.getByRole("tab", { name: "Saúde do cadastro" })).toHaveFocus();
     });
 
     it("confere a prontidão dos repositórios ao abrir", () => {
@@ -219,7 +219,7 @@ describe("ConfigProjeto", () => {
     });
   });
 
-  describe("Visão geral", () => {
+  describe("Saúde do cadastro", () => {
     it("lista a saúde e marca as abas com problema", () => {
       montar({
         projeto: projetoFicticio({
@@ -239,7 +239,7 @@ describe("ConfigProjeto", () => {
       ).toBeInTheDocument();
       expect(screen.getByText("Demandas não conectadas")).toBeInTheDocument();
       expect(
-        screen.getByRole("tab", { name: /Visão geral/ }),
+        screen.getByRole("tab", { name: /Saúde do cadastro/ }),
       ).toHaveTextContent("2");
       expect(
         screen.getByRole("tab", { name: /Código e demandas/ }),
@@ -265,7 +265,7 @@ describe("ConfigProjeto", () => {
         "aria-selected",
         "true",
       );
-      fireEvent.click(screen.getByRole("tab", { name: /Visão geral/ }));
+      fireEvent.click(screen.getByRole("tab", { name: /Saúde do cadastro/ }));
       fireEvent.click(
         screen.getByRole("button", { name: "Ajustar: O que o agente lê" }),
       );
@@ -326,7 +326,7 @@ describe("ConfigProjeto", () => {
         }),
       );
       expect(aoIrParaAcessos).toHaveBeenCalled();
-      expect(screen.getByRole("tab", { name: /Visão geral/ })).toHaveAttribute(
+      expect(screen.getByRole("tab", { name: /Saúde do cadastro/ })).toHaveAttribute(
         "aria-selected",
         "true",
       );
@@ -1013,10 +1013,10 @@ describe("ConfigProjeto", () => {
         painel.getByText("Ferramentas do app não conectadas"),
       ).toBeInTheDocument();
       fireEvent.click(
-        painel.getByRole("button", { name: "Ver o que será alterado" }),
+        painel.getByRole("button", { name: "Ver e preparar" }),
       );
       const concordo = await painel.findByRole("button", {
-        name: "Concordo, preparar o ambiente",
+        name: "Concordo, ligar o agente",
       });
       expect(painel.queryByRole("checkbox")).not.toBeInTheDocument();
       fireEvent.click(concordo);
