@@ -36,6 +36,7 @@ mod base;
 mod cli;
 mod clones;
 mod cobertura;
+mod conducao;
 mod configuracoes;
 #[cfg(windows)]
 mod console;

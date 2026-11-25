@@ -6,8 +6,8 @@ use cba_session::clientes::{self, EstadoClientes};
 use std::sync::Arc;
 
 use crate::{
-    acessos, alteracoes, ambiente_teste, analise, base, clones, cobertura, configuracoes, conversa,
-    demandas, docs_externos, funcionalidades, inicio, issues_projeto, manual, mudancas,
+    acessos, alteracoes, ambiente_teste, analise, base, clones, cobertura, conducao, configuracoes,
+    conversa, demandas, docs_externos, funcionalidades, inicio, issues_projeto, manual, mudancas,
     painel_funcionalidade, pauta, primeiro_uso, projeto, prompts, publicacao, rastreabilidade,
     registros, repositorios, resumo, reunioes, revisao, terminal, vigia, vincular_issues,
     workflows,
@@ -72,6 +72,8 @@ pub fn rodar() {
             analise::conferir_evidencias_analise,
             analise::link_forja_evidencia_projeto,
             conversa::opcoes_conversa_analise,
+            conducao::conducao_disponivel_projeto,
+            conducao::escolher_conducao_analise,
             conversa::abrir_conversa_por_link,
             conversa::conversa_passou_ao_desktop,
             conversa::retomar_conversa_no_desktop,

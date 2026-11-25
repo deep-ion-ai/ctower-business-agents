@@ -399,8 +399,19 @@ pub struct VistaAnalise {
     pub documento: PathBuf,
     /// Sessão mais recente ligada à análise.
     pub sessao: Option<SessaoVista>,
-    /// Pedido para uma conversa nova continuar a análise.
+    /// Pedido para uma conversa nova continuar a análise (com o workflow, quando a
+    /// análise é conduzida por ele e ele não terminou, #371).
     pub prompt_retomada: String,
+    /// Pedido para a sessão reaberta com `--resume` retomar o workflow interrompido
+    /// pelo `runId` (#371).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt_na_sessao: Option<String>,
+    /// Pedido para continuar pela condução simples ("Continuar sem workflow", #371).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt_sem_workflow: Option<String>,
+    /// Por que o "Continuar no Desktop" está bloqueado (workflow rodando, #371).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bloqueio_desktop: Option<String>,
     /// Código Mermaid de cada diagrama registrado, gerado como na montagem do
     /// documento, para a prévia desenhar a figura (#118).
     pub diagramas: Vec<DiagramaVisto>,
@@ -495,7 +506,10 @@ pub fn carregar_analise(
     Ok(VistaAnalise {
         documento: ambiente.kb.caminho(&analise.documento),
         sessao: sessao_recente(dados, &analise),
-        prompt_retomada: prompt_de_retomada(&id),
+        prompt_retomada: crate::conducao::prompt_de_retomada(&analise),
+        prompt_na_sessao: crate::conducao::prompt_na_sessao(&analise),
+        prompt_sem_workflow: crate::conducao::prompt_sem_workflow(&analise),
+        bloqueio_desktop: crate::conducao::bloqueio_do_desktop(&analise),
         diagramas: diagramas_vistos(&analise),
         secoes: secoes_do_documento(analise.fluxo),
         analise,

@@ -236,7 +236,7 @@ pub fn sem_controle(texto: &str) -> String {
 }
 
 /// `2.1.285` → `(2, 1, 285)`; o que vem depois de `-` ou `+` é ignorado.
-fn numeros(versao: &str) -> Option<(u64, u64, u64)> {
+pub(crate) fn numeros(versao: &str) -> Option<(u64, u64, u64)> {
     let nucleo = versao.split(['-', '+']).next()?;
     let mut partes = nucleo.split('.').map(|p| p.parse::<u64>().ok());
     Some((

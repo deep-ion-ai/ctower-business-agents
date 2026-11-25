@@ -1,5 +1,6 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { apiCoberturaTauri, type ApiCobertura } from "./cobertura";
+import { apiConducaoTauri, type ApiConducao } from "./conducao";
 import { apiMudancasTauri, type ApiMudancas } from "./mudancas";
 import {
   apiAnaliseTauri,
@@ -282,10 +283,13 @@ export interface ApiConhecimento extends ApiAmbiente {
   mudancas?: ApiMudancas;
   /** Issues do rastreador (#322, #323); sem ela, a área Demandas mostra só as demandas da base. */
   issues?: ApiIssues;
+  /** Condução pelo workflow em Nova análise (#371); sem ela, só a condução simples. */
+  conducao?: ApiConducao;
 }
 
 export const apiConhecimentoTauri: ApiConhecimento = {
   issues: apiIssuesTauri,
+  conducao: apiConducaoTauri,
   cobertura: apiCoberturaTauri.cobertura,
   mudancas: apiMudancasTauri,
   situacao: () => invoke("situacao_app"),

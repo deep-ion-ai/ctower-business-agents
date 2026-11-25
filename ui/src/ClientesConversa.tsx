@@ -15,6 +15,8 @@ interface Props {
   ocupado?: boolean;
   /** O pedido da conversa nova já é conhecido (a análise carregou). */
   podeNova?: boolean;
+  /** Por que levar a sessão ao Desktop está bloqueado (workflow rodando, #371). */
+  bloqueioDesktop?: string | null;
   aoAqui: (modo: Modo) => void;
   /** A conversa está fora: volta para o terminal embutido. */
   aoVoltarAqui: () => void;
@@ -46,6 +48,7 @@ export function ClientesConversa({
   vivo,
   ocupado = false,
   podeNova = true,
+  bloqueioDesktop = null,
   aoAqui,
   aoVoltarAqui,
   aoDesktop,
@@ -113,7 +116,8 @@ export function ClientesConversa({
                   <button
                     className="btn"
                     type="button"
-                    disabled={ocupado}
+                    disabled={ocupado || !!bloqueioDesktop}
+                    title={bloqueioDesktop ?? undefined}
                     onClick={() => aoDesktop("retomar")}
                   >
                     Continuar no Claude Desktop
@@ -123,7 +127,8 @@ export function ClientesConversa({
                   <button
                     className="btn"
                     type="button"
-                    disabled={ocupado}
+                    disabled={ocupado || !!bloqueioDesktop}
+                    title={bloqueioDesktop ?? undefined}
                     onClick={() => aoDesktop("retomar")}
                   >
                     Retomar no Claude Desktop
@@ -141,9 +146,11 @@ export function ClientesConversa({
                 )}
               </p>
               <p className="muted">
-                {vivo && aquiAgora
-                  ? "O Claude Code salva a conversa e a abre no Desktop."
-                  : "O Desktop pede para você confirmar a pasta e não envia o pedido sozinho."}
+                {bloqueioDesktop
+                  ? bloqueioDesktop
+                  : vivo && aquiAgora
+                    ? "O Claude Code salva a conversa e a abre no Desktop."
+                    : "O Desktop pede para você confirmar a pasta e não envia o pedido sozinho."}
               </p>
             </>
           )}

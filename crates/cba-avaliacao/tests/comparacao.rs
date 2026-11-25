@@ -65,6 +65,7 @@ fn afirmar(a: &mut Analise, secao: &str, texto: &str, confianca: Confianca, evs:
         evidencias: evs,
         estado: EstadoAfirmacao::Registrada,
         antes_de_revalidar: None,
+        contestacao: None,
         sessao: None,
         registrada_ms: 0,
     });
@@ -545,6 +546,7 @@ fn campo_pessoal_exige_evidencia_que_toca_a_coluna() {
         transcript: None,
         mapa: None,
         publicacao: None,
+        conducao: None,
         arquivos_alterados: vec![],
         claude: None,
         erro: None,
@@ -604,6 +606,7 @@ fn relatorio_resume_por_fluxo_em_json_e_markdown() {
         transcript: None,
         mapa: None,
         publicacao: None,
+        conducao: None,
         arquivos_alterados: vec![],
         claude: None,
         erro: None,

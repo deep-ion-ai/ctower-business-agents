@@ -13,7 +13,7 @@ use std::time::Duration;
 use cba_avaliacao::ata::{Transcripts, avaliar_ata};
 use cba_avaliacao::comparacao::{avaliar, nome_do_fluxo};
 use cba_avaliacao::execucao::{
-    Opcoes, escopo, executar, executar_mapeamento, executar_publicacao, executar_reuniao,
+    Opcoes, escopo, executar_com, executar_mapeamento, executar_publicacao, executar_reuniao,
     falas_da_reuniao, versao_do_claude,
 };
 use cba_avaliacao::gabarito::{Gabarito, Item, Reuniao};
@@ -21,6 +21,7 @@ use cba_avaliacao::longa::{self, OpcoesLonga, TamanhoTranscript};
 use cba_avaliacao::relatorio::{Execucao, Parametros, Relatorio};
 use cba_avaliacao::{gabarito_padrao, raiz_do_repositorio};
 use cba_core::analise::{Analise, Fluxo};
+use cba_core::conducao::Conducao;
 
 const AJUDA: &str = "\
 cba-avaliacao: avalia os fluxos do ctower contra o gabarito da fixture.
@@ -39,7 +40,13 @@ USO
       --repeticoes <n>        execuções de cada fluxo (padrão: 1)
       --pergunta <id>         item do fluxo perguntar (padrão: P-FAT-001)
       --funcionalidade <id>   item do fluxo explicar (padrão: F-FAT-002)
-      --demanda <id>          item do fluxo impacto (padrão: D-FAT-001)
+      --demanda <id>          item do fluxo impacto (padrão: D-FAT-001); aceita uma
+                              lista separada por vírgulas (D-FAT-001,D-FAT-003)
+      --conducao <lista>      simples, workflow ou simples,workflow: roda cada item de
+                              impacto em cada condução e compara (#371); sem ela, a
+                              condução simples, sem a comparação
+      --orcamento-workflow <usd>
+                              --max-budget-usd da condução pelo workflow (padrão: 8)
       --revisao <id>          item do fluxo revisar (padrão: REV-FAT-001)
       --historias <id>        item do fluxo historias (padrão: HIS-FAT-001)
       --cenarios <id>         item do fluxo cenarios (padrão: CEN-FAT-001)
@@ -222,6 +229,7 @@ fn comparar(resto: &[String]) -> Result<bool, String> {
             transcript: None,
             mapa: None,
             publicacao: None,
+            conducao: None,
             arquivos_alterados: Vec::new(),
             claude: None,
             erro: None,
@@ -281,6 +289,7 @@ fn comparar_ata(args: &Args) -> Result<bool, String> {
             transcript: Some(TamanhoTranscript::de(&lido)),
             mapa: None,
             publicacao: None,
+            conducao: None,
             arquivos_alterados: Vec::new(),
             claude: None,
             erro: None,
@@ -349,6 +358,8 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
         "--orcamento-longa",
         "--longa-minutos",
         "--longa-palavras",
+        "--conducao",
+        "--orcamento-workflow",
     ])?;
     let gabarito = carregar_gabarito(&args)?;
     let modelo = args.valor("--modelo").unwrap_or("sonnet").to_owned();
@@ -380,6 +391,32 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
         .map_err(|_| "--orcamento-longa precisa ser um número (US$, com ponto)")?;
     if orcamento_longa.is_nan() || orcamento_longa <= 0.0 {
         return Err("--orcamento-longa precisa ser maior que zero".into());
+    }
+    let orcamento_workflow: f64 = args
+        .valor("--orcamento-workflow")
+        .unwrap_or("8")
+        .parse()
+        .map_err(|_| "--orcamento-workflow precisa ser um número (US$, com ponto)")?;
+    if orcamento_workflow.is_nan() || orcamento_workflow <= 0.0 {
+        return Err("--orcamento-workflow precisa ser maior que zero".into());
+    }
+    let conducoes: Vec<Option<Conducao>> = match args.valor("--conducao") {
+        None => vec![None],
+        Some(lista) => lista
+            .split(',')
+            .map(str::trim)
+            .filter(|c| !c.is_empty())
+            .map(|c| match c {
+                "simples" => Ok(Some(Conducao::Simples)),
+                "workflow" => Ok(Some(Conducao::Workflow)),
+                outra => Err(format!(
+                    "condução desconhecida: {outra} (use simples, workflow ou simples,workflow)"
+                )),
+            })
+            .collect::<Result<_, _>>()?,
+    };
+    if conducoes.is_empty() {
+        return Err("--conducao precisa de simples, workflow ou os dois".into());
     }
     let longa = opcoes_da_longa(&args)?;
     let reuniao = gabarito
@@ -433,12 +470,29 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
                 ));
             }
         };
-        let id = args.valor(opcao).unwrap_or(padrao);
-        let item = gabarito.item(id).map_err(|e| e.to_string())?;
-        if item.fluxo != esperado {
-            return Err(format!("{opcao} {id}: o item é de outro fluxo"));
+        for id in args
+            .valor(opcao)
+            .unwrap_or(padrao)
+            .split(',')
+            .map(str::trim)
+        {
+            let item = gabarito.item(id).map_err(|e| e.to_string())?;
+            if item.fluxo != esperado {
+                return Err(format!("{opcao} {id}: o item é de outro fluxo"));
+            }
+            itens.push(item);
         }
-        itens.push(item);
+    }
+    if conducoes.contains(&Some(Conducao::Workflow))
+        && let Some(i) = itens
+            .iter()
+            .find(|i| cba_tools::conducao::tipo_do_fluxo(i.fluxo).is_none())
+    {
+        return Err(format!(
+            "--conducao workflow: o fluxo {} ({}) não tem workflow; rode só os itens de impacto",
+            nome_do_fluxo(i.fluxo),
+            i.id
+        ));
     }
     if itens.is_empty()
         && reunioes == (false, false)
@@ -479,48 +533,90 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
         manter: args.chave("--manter"),
     };
     // O ciclo de publicação roda o claude duas vezes.
+    let de_workflow = itens.len() as u32
+        * repeticoes
+        * conducoes
+            .iter()
+            .filter(|c| **c == Some(Conducao::Workflow))
+            .count() as u32;
     let normais = (itens.len() as u32
+        * conducoes
+            .iter()
+            .filter(|c| **c != Some(Conducao::Workflow))
+            .count() as u32
         + u32::from(reunioes.0)
         + u32::from(mapeamento.is_some())
         + 2 * u32::from(publicacao.is_some()))
         * repeticoes;
     let longas = u32::from(reunioes.1) * repeticoes;
-    let total = normais + longas;
+    let total = normais + longas + de_workflow;
     eprintln!(
-        "{total} execução(ões) com {modelo} ({versao}); orçamento de US$ {orcamento:.2} cada{}, até cerca de US$ {:.2} no total.",
+        "{total} execução(ões) com {modelo} ({versao}); orçamento de US$ {orcamento:.2} cada{}{}, até cerca de US$ {:.2} no total.",
         if longas > 0 {
             format!(" (US$ {orcamento_longa:.2} na reunião longa)")
         } else {
             String::new()
         },
-        orcamento * f64::from(normais) + orcamento_longa * f64::from(longas)
+        if de_workflow > 0 {
+            format!(" (US$ {orcamento_workflow:.2} na condução pelo workflow)")
+        } else {
+            String::new()
+        },
+        orcamento * f64::from(normais)
+            + orcamento_longa * f64::from(longas)
+            + orcamento_workflow * f64::from(de_workflow)
     );
 
     let mut execucoes = Vec::new();
     for item in &itens {
-        for r in 1..=repeticoes {
-            let fluxo = nome_do_fluxo(item.fluxo);
-            eprintln!("- {fluxo} {} (repetição {r})...", item.id);
-            let pasta = saida.join(format!("{fluxo}-{}-{r}", item.id));
-            let e = executar(&gabarito, item, r, &opcoes, &pasta);
-            let custo = e
-                .claude
-                .as_ref()
-                .and_then(|c| c.custo_usd)
-                .map_or("?".to_owned(), |c| format!("{c:.2}"));
-            let regras = e.avaliacao.as_ref().map_or("-".to_owned(), |a| {
-                format!("{} de {}", a.regras_encontradas, a.regras_esperadas)
-            });
-            let falhas = e.falhas();
-            eprintln!(
-                "  regras {regras}, custo US$ {custo}{}",
-                if falhas.is_empty() {
-                    String::new()
-                } else {
-                    format!(", falhas: {}", falhas.join("; "))
-                }
-            );
-            execucoes.push(e);
+        for conducao in &conducoes {
+            for r in 1..=repeticoes {
+                let fluxo = nome_do_fluxo(item.fluxo);
+                let (sufixo, rotulo) = match conducao {
+                    None => (String::new(), String::new()),
+                    Some(Conducao::Simples) => ("-simples".to_owned(), " [simples]".to_owned()),
+                    Some(Conducao::Workflow) => ("-workflow".to_owned(), " [workflow]".to_owned()),
+                };
+                eprintln!("- {fluxo} {}{rotulo} (repetição {r})...", item.id);
+                let pasta = saida.join(format!("{fluxo}-{}{sufixo}-{r}", item.id));
+                let opcoes = Opcoes {
+                    orcamento_usd: if *conducao == Some(Conducao::Workflow) {
+                        orcamento_workflow
+                    } else {
+                        orcamento
+                    },
+                    ..opcoes.clone()
+                };
+                let mut e = executar_com(&gabarito, item, r, &opcoes, &pasta, *conducao);
+                // O resumo agrupa por item: cada condução numa linha.
+                e.item = format!("{}{rotulo}", e.item);
+                let custo = e
+                    .claude
+                    .as_ref()
+                    .and_then(|c| c.custo_usd)
+                    .map_or("?".to_owned(), |c| format!("{c:.2}"));
+                let regras = e.avaliacao.as_ref().map_or("-".to_owned(), |a| {
+                    format!("{} de {}", a.regras_encontradas, a.regras_esperadas)
+                });
+                let falhas = e.falhas();
+                eprintln!(
+                    "  regras {regras}, custo US$ {custo}{}{}",
+                    e.conducao.as_ref().map_or(String::new(), |c| format!(
+                        ", condução {}, {} contestada(s){}",
+                        c.efetiva,
+                        c.contestadas,
+                        c.workflow
+                            .as_ref()
+                            .map_or(String::new(), |w| format!(", {} agentes", w.agentes))
+                    )),
+                    if falhas.is_empty() {
+                        String::new()
+                    } else {
+                        format!(", falhas: {}", falhas.join("; "))
+                    }
+                );
+                execucoes.push(e);
+            }
         }
     }
     if let Some(m) = mapeamento {

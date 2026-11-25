@@ -42,7 +42,7 @@ Opções principais:
 | `--orcamento` | `1.5` | `--max-budget-usd` de **cada** execução, em US$ |
 | `--fluxos` | `perguntar,explicar,impacto` | fluxos a rodar; também `revisar`, `historias`, `cenarios`, `ciclo-vida`, `mapear`, `publicacao`, `reuniao` e `reuniao-longa` |
 | `--repeticoes` | `1` | execuções de cada fluxo (o modelo varia de uma para outra; use 3 ou mais para comparar versões) |
-| `--pergunta`, `--funcionalidade`, `--demanda`, `--revisao`, `--historias`, `--cenarios`, `--ciclo-vida`, `--mapeamento` | `P-FAT-001`, `F-FAT-002`, `D-FAT-001`, `REV-FAT-001`, `HIS-FAT-001`, `CEN-FAT-001`, `CV-FAT-001`, `MAP-FAT-001` | item do gabarito de cada fluxo |
+| `--pergunta`, `--funcionalidade`, `--demanda` (aceita lista: `D-FAT-001,D-FAT-003`), `--revisao`, `--historias`, `--cenarios`, `--ciclo-vida`, `--mapeamento` | `P-FAT-001`, `F-FAT-002`, `D-FAT-001`, `REV-FAT-001`, `HIS-FAT-001`, `CEN-FAT-001`, `CV-FAT-001`, `MAP-FAT-001` | item do gabarito de cada fluxo |
 | `--reuniao` | `REU-FAT-001` | reunião do gabarito dos fluxos `reuniao` e `reuniao-longa` |
 | `--publicacao` | `PUB-FAT-001` | ciclo de publicação do gabarito (fluxo `publicacao`, duas execuções do `claude`) |
 | `--orcamento-longa` | `3` | `--max-budget-usd` da reunião longa, em US$ |
@@ -51,6 +51,8 @@ Opções principais:
 | `--permitir-edicao` | desligado | libera Edit, Write e Bash, para testar o limite "não altera o código" |
 | `--tempo-limite` | `900` | segundos por execução |
 | `--manter` | desligado | mantém as pastas temporárias, para depurar |
+| `--conducao` | (simples, sem comparação) | `simples`, `workflow` ou `simples,workflow`: roda cada item de impacto em cada condução e compara ([seção própria](#condução-pelo-workflow)) |
+| `--orcamento-workflow` | `8` | `--max-budget-usd` da condução pelo workflow, em US$ |
 
 O custo máximo é cerca de `orçamento x fluxos x repetições` (a reunião longa usa `--orcamento-longa`); o `claude` confere o orçamento entre os turnos e pode passar um pouco dele. O programa mostra a estimativa antes de começar. Sai com 0 sem falhas graves, 1 com falha grave e 2 em erro de uso.
 

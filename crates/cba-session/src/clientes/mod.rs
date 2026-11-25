@@ -349,6 +349,26 @@ pub fn versao_da_saida(stdout: &str) -> Option<String> {
     valida.then(|| primeira.to_string())
 }
 
+/// Versão mínima do Claude Code com os workflows nomeados das análises (spike da
+/// #352: verificada na 2.1.331; #371).
+pub const VERSAO_MINIMA_WORKFLOWS: (u64, u64, u64) = (2, 1, 331);
+
+/// Versão do Claude Code instalado, sem conferir o login. `None` se não foi achado
+/// ou se a versão não pôde ser lida.
+pub fn versao_claude_code(ambiente: &dyn Ambiente) -> Option<String> {
+    let (caminho, _) = localizar_claude(ambiente)?;
+    ambiente
+        .executar(&caminho, &["--version"], LIMITE_VERSAO)
+        .ok()
+        .filter(|s| s.codigo == Some(0))
+        .and_then(|s| versao_da_saida(&s.stdout))
+}
+
+/// A versão (de `claude --version`) é conhecida e anterior a `minima`.
+pub fn anterior_a(versao: &str, minima: (u64, u64, u64)) -> bool {
+    crate::terminal::desktop::numeros(versao).is_some_and(|n| n < minima)
+}
+
 /// Interpreta o resultado de `claude auth status --json`.
 ///
 /// Só os campos `loggedIn`, `authMethod` e `apiProvider` são lidos; o resto da
