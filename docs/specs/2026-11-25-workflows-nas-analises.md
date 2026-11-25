@@ -162,6 +162,8 @@ Na ordem de execução. A ordem da issue muda: a instalação vem antes da execu
 - `cba-revisar` com o mesmo molde. A avaliação no caso REV-FAT-001 decide se ele vira opção.
 - Histórias e cenários só se a medição da B mostrar ganho no impacto.
 
+> **Resultado (#373):** o `cba-revisar` foi implementado e medido no REV-FAT-001 ([relatório](../avaliacao/2026-11-25-workflow-revisar-sonnet.md)): mesma cobertura da condução simples, que já atinge o teto do gabarito, com cerca de 2,9 vezes os tokens. A opção Aprofundada não aparece em Nova análise para a revisão; o workflow continua instalado e customizável. A medição da B ([relatório](../avaliacao/2026-11-25-workflow-impacto-sonnet.md)) não mostrou ganho no impacto, então Histórias e Cenários ficam sem workflow. Detalhes em `docs/avaliacao.md`, seção "Condução pelo workflow".
+
 ## 5. Fora do escopo e riscos
 
 - **Formato interno:** o `journal.jsonl` e o texto do `<task-notification>` não são documentados. O app só os usa para o progresso, com o recurso às contagens dos hooks, e nunca para o resultado da análise, que está nos registros do MCP.
