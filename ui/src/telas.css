@@ -4345,6 +4345,33 @@ code[data-tone="attention"] {
   display: flex;
   justify-content: flex-end;
 }
+/* Cabeçalho da tela, filtros e cabeçalho da tabela fixos ao rolar (#361): a tela da lista
+   ocupa a altura da área de editor e só a tabela rola, com o cabeçalho dela grudado no topo
+   (a barra de rolagem fica na tabela inteira, e as colunas do cabeçalho seguem alinhadas com
+   as das linhas). Numa janela baixa demais para sobrar espaço às linhas, a tela volta a rolar
+   inteira. */
+@media (min-height: 521px) {
+  .tela-analise.page {
+    flex: 0 1 auto;
+    min-height: 0;
+  }
+  .tela-analise.page > .analises-lista {
+    min-height: 0;
+  }
+  .analises-lista > * {
+    flex: none;
+  }
+  .analises-lista > .analises-tabela {
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow: auto;
+  }
+  .analises-tabela-cabecalho {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+}
 @media (max-width: 860px) {
   .analises-tabela-cabecalho {
     display: none;
