@@ -135,29 +135,55 @@ pub fn roteiro_curto(analise: &Analise, nome: &str, documento: &str, completo: &
          pedido.\n"
     );
     let _ = writeln!(t, "## Como conduzir\n");
-    let _ = writeln!(
-        t,
-        "O workflow `{nome}` faz a investigação: separa as frentes, investiga cada uma \
-         com um agente, verifica cada frente com um agente cético independente e \
-         consolida. Os agentes registram direto nesta análise (`afirmar`, `perguntar`, \
-         `propor_termo`, `memorizar`, `contestar_afirmacao`). Você não repete a \
-         investigação.\n"
-    );
+    let revisao = analise.fluxo == Fluxo::Revisar;
+    if revisao {
+        let _ = writeln!(
+            t,
+            "O workflow `{nome}` faz a revisão: separa os critérios de aceite e as \
+             afirmações do texto, avalia cada um contra a base e o código com um agente, \
+             verifica os achados de cada critério com um agente cético independente e \
+             consolida (a completude do texto inteiro, o INVEST, se for uma história, e o \
+             veredito). Os agentes registram direto no parecer (`registrar_achado`, \
+             `perguntar`, `afirmar`, `memorizar`, `contestar_achado`, `registrar_invest`, \
+             `registrar_veredito`). Você não repete a revisão.\n"
+        );
+    } else {
+        let _ = writeln!(
+            t,
+            "O workflow `{nome}` faz a investigação: separa as frentes, investiga cada uma \
+             com um agente, verifica cada frente com um agente cético independente e \
+             consolida. Os agentes registram direto nesta análise (`afirmar`, `perguntar`, \
+             `propor_termo`, `memorizar`, `contestar_afirmacao`). Você não repete a \
+             investigação.\n"
+        );
+    }
     let _ = writeln!(
         t,
         "1. Chame a ferramenta Workflow com name `{nome}` e os args que o analista pediu \
          (`{id}`), se ainda não chamou. Ela roda em segundo plano: espere o aviso de fim \
          sem investigar nem registrar nada enquanto isso."
     );
-    let _ = writeln!(
-        t,
-        "2. Quando o workflow terminar, chame `concluir_analise` (analise: \"{id}\"). As \
-         afirmações contestadas pela verificação independente aparecem como pendência: \
-         elas ficam para o analista decidir; não as apague nem as registre de novo. Se \
-         faltar afirmação numa seção obrigatória ({obrigatorias}), registre-a com \
-         `afirmar`, seguindo o roteiro completo (`retomar_analise` mostra o estado), e \
-         chame `concluir_analise` de novo."
-    );
+    if revisao {
+        let _ = writeln!(
+            t,
+            "2. Quando o workflow terminar, chame `concluir_analise` (analise: \"{id}\"). Os \
+             achados contestados pela verificação independente aparecem como pendência: \
+             eles ficam para o analista decidir; não os apague nem os registre de novo. Se \
+             faltar o veredito ou houver termo vago sem achado, registre o que falta \
+             seguindo o roteiro completo (`retomar_analise` mostra o estado) e chame \
+             `concluir_analise` de novo."
+        );
+    } else {
+        let _ = writeln!(
+            t,
+            "2. Quando o workflow terminar, chame `concluir_analise` (analise: \"{id}\"). As \
+             afirmações contestadas pela verificação independente aparecem como pendência: \
+             elas ficam para o analista decidir; não as apague nem as registre de novo. Se \
+             faltar afirmação numa seção obrigatória ({obrigatorias}), registre-a com \
+             `afirmar`, seguindo o roteiro completo (`retomar_analise` mostra o estado), e \
+             chame `concluir_analise` de novo."
+        );
+    }
     let _ = writeln!(
         t,
         "3. Se o workflow terminar com agentes com erro, chame `retomar_analise`, \
@@ -188,8 +214,13 @@ pub fn roteiro_curto(analise: &Analise, nome: &str, documento: &str, completo: &
     }
     let _ = writeln!(
         t,
-        "\nDiga também quantas afirmações a verificação independente contestou: o \
-         analista as revê no app."
+        "\nDiga também {} a verificação independente contestou: o analista {} revê no app.",
+        if revisao {
+            "quantos achados"
+        } else {
+            "quantas afirmações"
+        },
+        if revisao { "os" } else { "as" }
     );
     t
 }
@@ -311,9 +342,20 @@ mod tests {
     }
 
     #[test]
-    fn so_o_impacto_tem_workflow_e_o_maximo_de_agentes() {
+    fn impacto_e_revisar_tem_workflow_e_o_maximo_de_agentes() {
         assert_eq!(tipo_do_fluxo(Fluxo::Impacto), Some("impacto"));
-        for f in [Fluxo::Perguntar, Fluxo::Explicar, Fluxo::Reuniao] {
+        assert_eq!(
+            workflow_do_fluxo(Fluxo::Revisar).as_deref(),
+            Some("cba-revisar")
+        );
+        // Histórias e cenários ficam sem workflow (spec, seção 4-D; #373).
+        for f in [
+            Fluxo::Perguntar,
+            Fluxo::Explicar,
+            Fluxo::Reuniao,
+            Fluxo::Historias,
+            Fluxo::Cenarios,
+        ] {
             assert_eq!(tipo_do_fluxo(f), None);
         }
         assert_eq!(agentes_no_maximo(FRENTES_PADRAO), 14);

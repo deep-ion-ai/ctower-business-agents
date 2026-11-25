@@ -43,8 +43,8 @@ USO
       --demanda <id>          item do fluxo impacto (padrão: D-FAT-001); aceita uma
                               lista separada por vírgulas (D-FAT-001,D-FAT-003)
       --conducao <lista>      simples, workflow ou simples,workflow: roda cada item de
-                              impacto em cada condução e compara (#371); sem ela, a
-                              condução simples, sem a comparação
+                              impacto ou revisar em cada condução e compara (#371,
+                              #373); sem ela, a condução simples, sem a comparação
       --orcamento-workflow <usd>
                               --max-budget-usd da condução pelo workflow (padrão: 8)
       --revisao <id>          item do fluxo revisar (padrão: REV-FAT-001)
@@ -489,7 +489,7 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
             .find(|i| cba_tools::conducao::tipo_do_fluxo(i.fluxo).is_none())
     {
         return Err(format!(
-            "--conducao workflow: o fluxo {} ({}) não tem workflow; rode só os itens de impacto",
+            "--conducao workflow: o fluxo {} ({}) não tem workflow; rode só os itens de impacto e de revisar",
             nome_do_fluxo(i.fluxo),
             i.id
         ));
