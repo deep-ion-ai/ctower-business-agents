@@ -243,6 +243,7 @@ pub async fn opcoes_conversa_analise(
 ) -> Result<OpcoesConversa, String> {
     let dados = dados()?;
     bloqueante(move || {
+        crate::conducao::reinstalar_se_preciso(&dados, &projeto, &analise);
         opcoes_com_gravacao(
             &dados,
             &projeto,

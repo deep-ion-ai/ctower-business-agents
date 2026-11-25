@@ -229,6 +229,33 @@ pub fn escolher_conducao(
     Ok(prompt_de_inicio(&gravada))
 }
 
+/// Ao abrir uma análise conduzida pelo workflow, reinstala o workflow defasado
+/// (padrão novo, cópia salva ou restaurada; spec, seção 3.3), sem novo
+/// consentimento: só os itens que o preparo já instalou. Falhas só vão para o log:
+/// a falta do workflow cai na condução simples.
+pub fn reinstalar_se_preciso(dados: &DiretorioDados, projeto: &str, analise: &str) {
+    let reinstalar = || -> Result<usize, String> {
+        let vista = analise::carregar_analise(dados, projeto, analise)?;
+        if vista.analise.conducao != Conducao::Workflow
+            || vista.analise.estado == EstadoAnalise::Aprovada
+        {
+            return Ok(0);
+        }
+        let exe =
+            std::env::current_exe().map_err(|e| format!("caminho do executável do app: {e}"))?;
+        let preparador = Preparador::padrao(exe).map_err(|e| e.to_string())?;
+        preparador
+            .reinstalar_workflows(&analise::alvo(dados, projeto)?)
+            .map(|a| a.len())
+            .map_err(|e| e.to_string())
+    };
+    match reinstalar() {
+        Ok(0) => {}
+        Ok(n) => tracing::info!(arquivos = n, "workflow defasado reinstalado"),
+        Err(e) => tracing::warn!(erro = %e, "workflow não reinstalado"),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Comandos
 
