@@ -32,6 +32,7 @@ fn matriz_consulta_reversa_e_exportacao() {
                 descricao: None,
                 chave: None,
                 origem: None,
+                tipo: None,
             },
             Data::nova(2026, 11, 13).unwrap(),
         )

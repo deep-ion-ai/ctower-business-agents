@@ -19,6 +19,7 @@ fn nova_demanda(titulo: &str) -> NovaDemanda {
         descricao: None,
         chave: None,
         origem: None,
+        tipo: None,
     }
 }
 
@@ -64,7 +65,7 @@ fn projeto_sem_nada_so_pede_a_primeira_analise() {
     assert_eq!(r.projeto, PROJETO);
     assert_eq!(r.nome, "Faturamento Exemplo");
     assert_eq!(r.analises.total, 0);
-    assert_eq!(r.analises.por_fluxo.len(), 8);
+    assert_eq!(r.analises.por_fluxo.len(), 9);
     assert!(r.analises.por_fluxo.iter().all(|f| f.total == 0));
     assert!(r.aguardando_revisao.is_empty() && r.sessoes.por_analise.is_empty());
     assert_eq!(r.perguntas_em_aberto, PerguntasEmAberto::default());

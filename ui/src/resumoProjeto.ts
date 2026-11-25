@@ -104,7 +104,8 @@ export type Mudanca =
   | "parecer"
   | "diagrama"
   | "funcionalidade"
-  | "passo";
+  | "passo"
+  | "tela";
 
 /** Uma linha da atividade recente (`AtividadeRecente`, #331): mudanças seguidas juntas. */
 export interface AtividadeRecente {

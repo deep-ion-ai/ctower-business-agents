@@ -258,6 +258,7 @@ fn demanda_da_reuniao(
                     descricao: None,
                     chave: sem_vazio(chave),
                     origem: None,
+                    tipo: None,
                 },
                 hoje,
             )

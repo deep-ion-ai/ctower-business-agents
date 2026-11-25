@@ -74,6 +74,7 @@ const SEM_DECISAO: Record<Pendencia["tipo"], [string, string]> = {
   tabela: ["tabela sem decisão", "tabelas sem decisão"],
   cenario: ["cenário sem decisão", "cenários sem decisão"],
   passo: ["passo sem decisão", "passos sem decisão"],
+  tela: ["tela com ajuste pedido", "telas com ajuste pedido"],
 };
 
 /** "14 afirmações sem decisão", uma linha por tipo de pendência. */

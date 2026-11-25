@@ -10,6 +10,7 @@ import type {
 } from "../conhecimento";
 import type { DemandaVista, NovaDemanda, PainelDemanda } from "../demandas";
 import type { ResumoProjeto } from "../resumoProjeto";
+import { apiPrototipoFalsa } from "./prototipoFalso";
 
 /** Dados do sistema fictício "Faturamento Exemplo" depois de uma análise aprovada. */
 export const PROJETO = "faturamento-exemplo";
@@ -280,6 +281,7 @@ export function demandasFicticias(): DemandaVista[] {
       titulo: "Parcelamento PJ",
       status: "aberta",
       statusLocal: "aberta",
+      tipo: "funcionalidade",
       rastreador: null,
       avisoRastreador: null,
       chave: "FAT-12",
@@ -293,6 +295,7 @@ export function demandasFicticias(): DemandaVista[] {
       titulo: "Multa de fatura vencida",
       status: "encerrada",
       statusLocal: "encerrada",
+      tipo: null,
       rastreador: null,
       avisoRastreador: null,
       chave: null,
@@ -536,6 +539,7 @@ export function apiConhecimentoFalsa() {
           id: "D-0003",
           titulo: nova.titulo,
           chave: nova.chave ?? null,
+          tipo: nova.tipo ?? null,
         }),
     ),
     encerrarDemanda: vi.fn(
@@ -550,6 +554,7 @@ export function apiConhecimentoFalsa() {
     verificarAmbiente: vi.fn(
       (): Promise<AmbienteClaude> => Promise.resolve({ pronto: true, pendencias: [] }),
     ),
+    prototipo: apiPrototipoFalsa().api,
     resumoProjeto: vi.fn(
       (projeto: string): Promise<ResumoProjeto> => Promise.resolve({ ...resumoFicticio(), projeto }),
     ),

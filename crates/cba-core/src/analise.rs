@@ -36,6 +36,7 @@ use crate::manual::PassoManual;
 use crate::parecer::{
     Achado, AvaliacaoInvest, EstadoAchado, NovoAchado, Parecer, Veredito, VereditoRegistrado,
 };
+use crate::prototipo::Prototipo;
 use crate::requisito::{Fundamento, ItemRequisito, Revalidacao};
 
 /// Versão do formato do arquivo de estado. Sobe quando um campo muda de sentido;
@@ -71,6 +72,11 @@ pub enum Fluxo {
     /// prints de tela (#272). Os passos ficam em [`Analise::passos`]
     /// ([`crate::manual`]).
     Manual,
+    /// Protótipo de telas a partir de uma análise de origem validada (#381): as
+    /// telas afetadas, novas ou alteradas, com os elementos ligados às regras e
+    /// aos critérios de aceite da origem. Ficam em [`Analise::prototipo`]
+    /// ([`crate::prototipo`]).
+    Prototipo,
 }
 
 impl Fluxo {
@@ -85,6 +91,7 @@ impl Fluxo {
             Self::Historias => TipoDocumento::Historias,
             Self::Cenarios => TipoDocumento::CenariosTeste,
             Self::Manual => TipoDocumento::Manual,
+            Self::Prototipo => TipoDocumento::Prototipo,
         }
     }
 }
@@ -593,6 +600,10 @@ pub struct Analise {
     /// ("Conduzida sem workflow: <motivo>", spec, seção 3.8).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub aviso_conducao: Option<String>,
+    /// Protótipo de telas (fluxo `prototipo`, [`crate::prototipo`]): o pedido do
+    /// analista e as telas afetadas, com os elementos.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prototipo: Option<Prototipo>,
 }
 
 /// Operação recusada pelo modelo. As mensagens se dirigem a quem chamou (o agente
@@ -717,6 +728,30 @@ pub enum ErroModelo {
     ForaDoFluxoDoManual(Id),
     #[error("passo recusado: {0}")]
     PassoInvalido(String),
+    #[error(
+        "a análise {0} não é do fluxo `prototipo`; as telas do protótipo são \
+         registradas numa análise de protótipo (iniciar_analise com fluxo `prototipo`)"
+    )]
+    ForaDoFluxoDePrototipo(Id),
+    #[error(
+        "a tela `{nome}` já foi registrada nesta análise (TL-{numero}); acrescente \
+         elementos a ela com `registrar_elemento_tela`"
+    )]
+    TelaRepetida { nome: String, numero: u32 },
+    #[error("tela recusada: {0}")]
+    TelaInvalida(String),
+    #[error(
+        "o protótipo com a ferramenta de design hospedada do Claude envia as telas, os \
+         elementos e os tokens CSS do projeto para fora do ambiente e exige a confirmação \
+         explícita do analista, dada no app (Nova análise > Protótipo de telas > Design do \
+         Claude, hospedado); sem ela, use o HTML local ou o design local"
+    )]
+    EnvioNaoConfirmado,
+    #[error(
+        "a análise {0} não está no modo de design hospedado: nada é enviado para fora do \
+         ambiente. Gere as telas aqui e grave com `gravar_html_tela`"
+    )]
+    ForaDoDesignHospedado(Id),
 }
 
 fn exigir(campo: &'static str, valor: &str) -> Result<(), ErroModelo> {
@@ -771,6 +806,7 @@ impl Analise {
             conducao: Conducao::Simples,
             workflow: None,
             aviso_conducao: None,
+            prototipo: None,
         }
     }
 

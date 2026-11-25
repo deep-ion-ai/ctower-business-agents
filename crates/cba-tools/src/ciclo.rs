@@ -31,6 +31,7 @@ use cba_core::analises::NovaAnalise;
 use cba_core::conducao::Conducao;
 use cba_core::eventos::Mudanca;
 use cba_core::memoria::Memoria;
+use cba_core::prototipo::{Fidelidade, ModoPrototipo, PedidoPrototipo};
 use cba_docs::{EstadoAta, Templates};
 use cba_index::detectar_git;
 use cba_kb::frontmatter::{Demanda, FrontmatterAnalise, VersaoCodigo};
@@ -104,6 +105,7 @@ fn contagem(analise: &Analise) -> Value {
         "historias": analise.historias_no_documento().count(),
         "tabelas": analise.tabelas_no_documento().count(),
         "cenarios": analise.cenarios_no_documento().count(),
+        "telas": analise.telas().len(),
     })
 }
 
@@ -160,6 +162,14 @@ struct ArgsIniciar {
     origem: Option<String>,
     #[serde(default)]
     funcionalidade: Option<String>,
+    #[serde(default)]
+    telas: Vec<String>,
+    #[serde(default)]
+    fidelidade: Option<Fidelidade>,
+    #[serde(default)]
+    fora: Option<String>,
+    #[serde(default)]
+    modo: Option<ModoPrototipo>,
     #[serde(default)]
     conducao: Option<Conducao>,
     #[serde(default)]
@@ -369,6 +379,78 @@ pub fn criar_analise_de_cenarios(
     )?)
 }
 
+/// Cria uma análise do fluxo `prototipo` (#381) a partir da análise de origem
+/// (`origem`, A-NNNN: uma análise do código ou uma análise de histórias, cujos
+/// critérios de aceite os elementos das telas podem citar). A origem é
+/// obrigatória e não pode ser outro protótipo nem uma análise de cenários; de
+/// preferência aprovada (sem a aprovação, `iniciar_analise` avisa). Sem `demanda`,
+/// a análise herda a da origem. O `pedido` do analista (telas, fidelidade e o que
+/// deixar de fora) vai para o estado ([`cba_core::prototipo::Prototipo::pedido`])
+/// e, em frases, para a entrada. Usada por `iniciar_analise` e pela tela de nova
+/// análise do app.
+///
+/// O modo `design_hospedado` (#383) exige a confirmação do envio no pedido, dada
+/// pelo analista no app; sem ela, nada é criado. A hora da confirmação é a da
+/// criação.
+pub fn criar_analise_de_prototipo(
+    ambiente: &Ambiente,
+    origem: Id,
+    demanda: Option<IdDemanda>,
+    pedido: PedidoPrototipo,
+    entrada: Option<String>,
+    titulo: Option<String>,
+) -> Result<Analise, ErroFerramenta> {
+    let o = ambiente.analises.carregar(&origem)?;
+    if matches!(o.fluxo, Fluxo::Prototipo | Fluxo::Cenarios) {
+        return Err(ErroFerramenta::Recusa(format!(
+            "a análise {} é de {}; a origem do protótipo é a análise de onde vêm as regras \
+             e as afirmações (impacto, explicação, pergunta) ou a de histórias",
+            o.id,
+            nome_do_fluxo(o.fluxo)
+        )));
+    }
+    let demanda = match demanda {
+        Some(d) => Some(demanda_aberta(ambiente, d)?),
+        None => ambiente
+            .kb
+            .ler::<FrontmatterAnalise>(&o.documento)
+            .ok()
+            .and_then(|d| d.frontmatter.demanda.id)
+            .and_then(|d| ler_demanda(ambiente, d).ok()),
+    };
+    let mut pedido = pedido.conferido();
+    pedido.exigir_confirmacao().map_err(comum::recusa)?;
+    if let Some(c) = pedido.confirmacao_envio.as_mut() {
+        c.em_ms = cba_core::tempo::agora_ms();
+    }
+    let base = entrada.filter(|e| !e.trim().is_empty()).unwrap_or_else(|| {
+        format!(
+            "Protótipo de telas a partir da análise {} ({}).",
+            o.id, o.titulo
+        )
+    });
+    let entrada = format!("{}\n\n{}", base.trim_end(), pedido.descrever());
+    let titulo = match titulo {
+        Some(t) if !t.trim().is_empty() => t,
+        _ => titulo_da_entrada(&format!("Protótipo · {}", o.titulo)),
+    };
+    let criada = ambiente.analises.criar_derivada(
+        NovaAnalise {
+            fluxo: Fluxo::Prototipo,
+            titulo,
+            entrada,
+            analista: None,
+            base: versao_do_codigo(ambiente),
+        },
+        demanda.as_ref().map(demanda_do_frontmatter),
+        Some(origem),
+    )?;
+    let (_, analise) = ambiente
+        .analises
+        .alterar(&criada.id, Mudanca::Tela, |a, _| a.pedir_prototipo(pedido))?;
+    Ok(analise)
+}
+
 /// `iniciar_analise`: o roteiro do fluxo, a entrada e o contexto da base.
 pub fn iniciar_analise() -> Ferramenta {
     Ferramenta::nova(
@@ -386,6 +468,11 @@ pub fn iniciar_analise() -> Ferramenta {
          `origem` (a análise A-NNNN de onde vêm as afirmações) ou `demanda`. Para \
          derivar cenários de teste das regras, passe `fluxo: \"cenarios\"` e `origem` \
          (uma análise do código ou de histórias), `demanda` ou `entrada` com as regras. \
+         Para prototipar as telas a partir de uma análise validada, passe `fluxo: \
+         \"prototipo\"` e `origem` (de preferência aprovada) e, se o analista disse, \
+         `telas`, `fidelidade`, `fora` e `modo` (`html`, o padrão, ou `design_local`; o \
+         `design_hospedado` envia dados para fora e só é criado pelo app, com a \
+         confirmação do analista). \
          Para explicar uma funcionalidade do mapa de funcionalidades, passe `fluxo: \
          \"explicar\"` e `funcionalidade` (F-<SIGLA>-NNN). `demanda` (D-NNNN, opcional) \
          liga a análise a uma demanda do projeto. Passe `conducao: \"workflow\"` quando \
@@ -399,8 +486,8 @@ pub fn iniciar_analise() -> Ferramenta {
                 "analise": comum::schema_da_analise(),
                 "fluxo": {
                     "type": "string",
-                    "enum": ["perguntar", "explicar", "impacto", "reuniao", "revisar", "historias", "cenarios", "manual"],
-                    "description": "Só para criar: perguntar (pergunta ao sistema), explicar (explicar funcionalidade, documento negocial), impacto (análise de impacto de uma demanda), reuniao (montar a ata de uma reunião a partir do transcript; exige `reuniao`), revisar (revisar a qualidade de um requisito ou história contra a base e o código; a entrada é o texto revisado) historias (histórias com critérios de aceite; exige `origem` ou `demanda`) ou cenarios (cenários de teste derivados das regras: tabela de decisão, partição de equivalência e valores-limite; exige `origem`, `demanda` ou `entrada`) ou manual (manual do usuário de uma funcionalidade do mapa, com o passo a passo; exige `funcionalidade`)."
+                    "enum": ["perguntar", "explicar", "impacto", "reuniao", "revisar", "historias", "cenarios", "manual", "prototipo"],
+                    "description": "Só para criar: perguntar (pergunta ao sistema), explicar (explicar funcionalidade, documento negocial), impacto (análise de impacto de uma demanda), reuniao (montar a ata de uma reunião a partir do transcript; exige `reuniao`), revisar (revisar a qualidade de um requisito ou história contra a base e o código; a entrada é o texto revisado) historias (histórias com critérios de aceite; exige `origem` ou `demanda`) ou cenarios (cenários de teste derivados das regras: tabela de decisão, partição de equivalência e valores-limite; exige `origem`, `demanda` ou `entrada`) ou manual (manual do usuário de uma funcionalidade do mapa, com o passo a passo; exige `funcionalidade`) ou prototipo (protótipo de telas a partir de uma análise validada: telas afetadas e elementos ligados às regras e aos critérios; exige `origem`)."
                 },
                 "entrada": {
                     "type": "string",
@@ -411,7 +498,29 @@ pub fn iniciar_analise() -> Ferramenta {
                 "origem": {
                     "type": "string",
                     "minLength": 1,
-                    "description": "Só para criar, nos fluxos historias e cenarios: a análise de origem (A-NNNN), normalmente a análise de impacto (ou, em cenarios, a de histórias), de preferência aprovada. A análise nova herda a demanda dela."
+                    "description": "Só para criar, nos fluxos historias, cenarios e prototipo: a análise de origem (A-NNNN), normalmente a análise de impacto (ou, em cenarios e prototipo, a de histórias), de preferência aprovada. A análise nova herda a demanda dela."
+                },
+                "telas": {
+                    "type": "array",
+                    "maxItems": 30,
+                    "items": { "type": "string", "minLength": 1, "maxLength": 200 },
+                    "description": "Só para criar, no fluxo prototipo: as telas que o analista quer ver. Sem elas, o agente lista as telas afetadas."
+                },
+                "fidelidade": {
+                    "type": "string",
+                    "enum": ["wireframe", "alta_fidelidade"],
+                    "description": "Só para criar, no fluxo prototipo: wireframe (padrão; estrutura e conteúdo) ou alta_fidelidade (com a identidade visual do projeto)."
+                },
+                "fora": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000,
+                    "description": "Só para criar, no fluxo prototipo: o que deixar de fora do protótipo."
+                },
+                "modo": {
+                    "type": "string",
+                    "enum": ["html", "design_local", "design_hospedado"],
+                    "description": "Só para criar, no fluxo prototipo: html (padrão; o HTML local do app), design_local (o método da ferramenta de design do Claude rodando aqui; nada sai do ambiente) ou design_hospedado (a ferramenta de design hospedada do Claude: telas, elementos e tokens saem do ambiente). O design_hospedado exige a confirmação explícita do analista, que só o app grava: por aqui ele é recusado; peça ao analista para criar o protótipo pelo app."
                 },
                 "titulo": {
                     "type": "string",
@@ -472,11 +581,26 @@ pub fn iniciar_analise() -> Ferramenta {
                 ));
             }
             if args.origem.is_some()
-                && !matches!(args.fluxo, Some(Fluxo::Historias | Fluxo::Cenarios))
+                && !matches!(
+                    args.fluxo,
+                    Some(Fluxo::Historias | Fluxo::Cenarios | Fluxo::Prototipo)
+                )
             {
                 return Err(ErroFerramenta::Argumentos(
-                    "`origem` só vale para criar uma análise dos fluxos `historias` ou \
-                     `cenarios`"
+                    "`origem` só vale para criar uma análise dos fluxos `historias`, \
+                     `cenarios` ou `prototipo`"
+                        .into(),
+                ));
+            }
+            if (!args.telas.is_empty()
+                || args.fidelidade.is_some()
+                || args.fora.is_some()
+                || args.modo.is_some())
+                && args.fluxo != Some(Fluxo::Prototipo)
+            {
+                return Err(ErroFerramenta::Argumentos(
+                    "`telas`, `fidelidade`, `fora` e `modo` só valem para criar uma análise do \
+                     fluxo `prototipo`"
                         .into(),
                 ));
             }
@@ -597,6 +721,41 @@ pub fn iniciar_analise() -> Ferramenta {
                         ambiente,
                         origem,
                         ligacao.demanda,
+                        entrada,
+                        args.titulo,
+                    )?;
+                    ligacao.demanda = None;
+                    (analise.id, true)
+                }
+                (None, Some(Fluxo::Prototipo), entrada) => {
+                    if ligacao.reuniao.is_some() {
+                        return Err(ErroFerramenta::Argumentos(
+                            "`reuniao` só vale no fluxo `reuniao`".into(),
+                        ));
+                    }
+                    let Some(origem) = args.origem.as_deref() else {
+                        return Err(ErroFerramenta::Argumentos(
+                            "no fluxo `prototipo`, informe `origem`: a análise A-NNNN, de \
+                             preferência aprovada, de onde vêm as regras, as afirmações e os \
+                             critérios das telas"
+                                .into(),
+                        ));
+                    };
+                    let origem = comum::id_da_analise(origem)?;
+                    let pedido = PedidoPrototipo {
+                        telas: args.telas,
+                        fidelidade: args.fidelidade.unwrap_or_default(),
+                        fora: args.fora,
+                        // A confirmação do envio é do analista, no app: por aqui, o
+                        // modo hospedado é recusado.
+                        modo: args.modo.unwrap_or_default(),
+                        confirmacao_envio: None,
+                    };
+                    let analise = criar_analise_de_prototipo(
+                        ambiente,
+                        origem,
+                        ligacao.demanda,
+                        pedido,
                         entrada,
                         args.titulo,
                     )?;
@@ -1077,7 +1236,8 @@ fn retomar(ambiente: &Ambiente, analise: &Analise, memoria: &Memoria) -> Saida {
     // No fluxo `historias`, a origem e as histórias vêm antes.
     let historias = (fluxo == Fluxo::Historias).then(|| crate::historias::para_retomar(analise));
     let cenarios = (fluxo == Fluxo::Cenarios).then(|| crate::cenarios::para_retomar(analise));
-    if matches!(fluxo, Fluxo::Historias | Fluxo::Cenarios) {
+    let prototipo = (fluxo == Fluxo::Prototipo).then(|| crate::prototipo::para_retomar(analise));
+    if matches!(fluxo, Fluxo::Historias | Fluxo::Cenarios | Fluxo::Prototipo) {
         match &analise.origem {
             Some(o) => {
                 let _ = writeln!(
@@ -1099,6 +1259,9 @@ fn retomar(ambiente: &Ambiente, analise: &Analise, memoria: &Memoria) -> Saida {
         t.push_str(texto);
     }
     if let Some((texto, _)) = &cenarios {
+        t.push_str(texto);
+    }
+    if let Some((texto, _)) = &prototipo {
         t.push_str(texto);
     }
     if fluxo == Fluxo::Manual {
@@ -1319,6 +1482,7 @@ fn retomar(ambiente: &Ambiente, analise: &Analise, memoria: &Memoria) -> Saida {
             "origem": analise.origem,
             "historias": historias.map(|(_, dados)| dados),
             "cenarios": cenarios.map(|(_, dados)| dados),
+            "prototipo": prototipo.map(|(_, dados)| dados),
             "afirmacoes": afirmacoes,
             "perguntas": perguntas,
             "sugestoes": sugestoes,
@@ -1530,6 +1694,8 @@ fn concluir(ambiente: &Ambiente, id: &Id) -> Result<Saida, ErroFerramenta> {
         conferir_cenarios(&atual)?;
     } else if fluxo == Fluxo::Manual {
         crate::manual::conferir_para_concluir(&atual)?;
+    } else if fluxo == Fluxo::Prototipo {
+        crate::prototipo::conferir_para_concluir(&ambiente.kb, &atual)?;
     } else if afirmacoes_validas(&atual).next().is_none() {
         return Err(ErroFerramenta::Recusa(format!(
             "a análise {id} ainda não tem afirmações. Registre o que apurou com `afirmar` \
@@ -1678,6 +1844,8 @@ fn concluir(ambiente: &Ambiente, id: &Id) -> Result<Saida, ErroFerramenta> {
                 "as tabelas de decisão, o número de cenários por técnica, os limites lidos do código e os cenários a confirmar",
             Fluxo::Manual =>
                 "o objetivo, os passos com a tela sugerida para o print de cada um e as perguntas em aberto",
+            Fluxo::Prototipo =>
+                "as telas (TL-n, nome, nova ou alterada) com o número de elementos, os elementos e as telas a confirmar",
         }
     );
     if !abertas.is_empty() {

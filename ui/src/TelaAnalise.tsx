@@ -14,8 +14,16 @@ import {
 import { ROTULO_FLUXO, type ApiConhecimento } from "./conhecimento";
 import type { DemandaVista } from "./demandas";
 import { FormDemandaNegocial } from "./DemandaNegocial";
-import { NovaAnalise } from "./NovaAnalise";
+import {
+  CampoIssueOuDemanda,
+  demandaAchada,
+  NovaAnalise,
+  origemDaReferencia,
+  useDemandaResolvida,
+  useDemandasDoProjeto,
+} from "./NovaAnalise";
 import { NovaHistorias } from "./NovaHistorias";
+import { NovaPrototipo } from "./NovaPrototipo";
 import { NovaReuniao } from "./NovaReuniao";
 import { PainelAnalise, type Abertura, type EstadoConversa } from "./PainelAnalise";
 import { PrepararAmbiente } from "./PrepararAmbiente";
@@ -78,6 +86,7 @@ const TIPOS: Fluxo[] = [
   "revisar",
   "historias",
   "cenarios",
+  "prototipo",
 ];
 
 /** O que cada tipo faz, na escolha do tipo do painel "Nova análise" (#350). */
@@ -91,6 +100,7 @@ const DESCRICAO_FLUXO: Partial<Record<Fluxo, string>> = {
     "Aponte lacunas, ambiguidades e critérios de aceite que faltam num requisito ou numa história.",
   historias: "Quebre uma análise aprovada em histórias com critérios de aceite.",
   cenarios: "Gere cenários de teste a partir de uma análise aprovada.",
+  prototipo: "Mostre ao negócio como as telas vão ficar, a partir de uma análise aprovada.",
 };
 
 /** O que se escolhe no primeiro passo do painel "Nova análise". */
@@ -716,6 +726,7 @@ function PainelNova({
       form = (
         <FormPergunta
           api={api}
+          apiConhecimento={apiConhecimento}
           projeto={projeto}
           pronto={pronto}
           ambiente={ambiente}
@@ -723,6 +734,7 @@ function PainelNova({
           aoAbrir={aoAbrir}
           aoCancelar={aoFechar}
           aoPreparado={aoPreparado}
+          aoAbrirAnalise={abrirExistente}
         />
       );
     } else if (apiConhecimento && escolha === "demanda-negocial") {
@@ -771,6 +783,18 @@ function PainelNova({
           key={escolha}
           fluxo={escolha}
           api={apiConhecimento}
+          projetos={projetos}
+          semTitulo
+          aoCancelar={aoFechar}
+          aoCriar={criada}
+          aoAbrirAnalise={abrirExistente}
+        />
+      );
+    } else if (apiConhecimento && escolha === "prototipo") {
+      form = (
+        <NovaPrototipo
+          api={apiConhecimento}
+          apiPrototipo={apiConhecimento.prototipo}
           projetos={projetos}
           semTitulo
           aoCancelar={aoFechar}
@@ -839,8 +863,14 @@ function PainelNova({
   );
 }
 
+/**
+ * Formulário de "Perguntar ao sistema". Com `apiConhecimento`, tem o campo opcional
+ * "Issue ou demanda" (#359): mostra o título e as análises que a demanda já tem, como
+ * nos outros tipos, e a pergunta nasce ligada a ela.
+ */
 function FormPergunta({
   api,
+  apiConhecimento,
   projeto,
   pronto,
   ambiente,
@@ -848,8 +878,10 @@ function FormPergunta({
   aoAbrir,
   aoCancelar,
   aoPreparado,
+  aoAbrirAnalise,
 }: {
   api: ApiAnalise;
+  apiConhecimento?: ApiConhecimento;
   projeto: string;
   pronto: boolean;
   ambiente: AmbienteClaude | null;
@@ -857,26 +889,49 @@ function FormPergunta({
   aoAbrir: (id: string, abertura: Abertura) => void;
   aoCancelar: () => void;
   aoPreparado: () => void;
+  /** Continua uma análise que a demanda já tem. */
+  aoAbrirAnalise?: (id: string) => void;
 }) {
   const [entrada, setEntrada] = useState(inicial);
   const [titulo, setTitulo] = useState("");
+  const [referencia, setReferencia] = useState("");
   const [criando, setCriando] = useState(false);
   const [falha, setFalha] = useState<string | null>(null);
+  const demandas = useDemandasDoProjeto(apiConhecimento, projeto);
+  const resolvida = useDemandaResolvida(apiConhecimento, projeto, referencia, demandas);
+  const existentes = demandaAchada(resolvida)?.analises ?? [];
+  const ref = apiConhecimento ? referencia.trim() : "";
 
   const motivo =
     ambiente && !pronto
       ? "Para perguntar, ligue o agente a este projeto (acima)."
       : !entrada.trim()
         ? "Para perguntar, escreva a pergunta."
-        : null;
+        : ref && !origemDaReferencia(ref)
+          ? "Para perguntar, escolha uma sugestão ou informe D-0012, PROJ-123, #142 ou o link da issue."
+          : null;
 
   const perguntar = (ev: FormEvent) => {
     ev.preventDefault();
-    if (!entrada.trim()) return;
+    if (motivo || criando) return;
     setCriando(true);
     setFalha(null);
-    api
-      .criarAnalise(projeto, entrada.trim(), titulo.trim() || undefined)
+    const pergunta = entrada.trim();
+    const tituloFinal = titulo.trim() || undefined;
+    let pedido: Promise<AnaliseCriada>;
+    if (apiConhecimento && /^D-\d+$/i.test(ref)) {
+      // A demanda do projeto: a pergunta nasce ligada a ela.
+      pedido = apiConhecimento.criarAnalise(projeto, "perguntar", pergunta, tituloFinal, ref.toUpperCase());
+    } else if (apiConhecimento && ref) {
+      // A issue do rastreador só liga o resultado; a entrada continua a pergunta.
+      pedido = apiConhecimento.criarAnaliseDeDemanda(projeto, "perguntar", ref, {
+        entrada: pergunta,
+        titulo: tituloFinal,
+      });
+    } else {
+      pedido = api.criarAnalise(projeto, pergunta, tituloFinal);
+    }
+    pedido
       .then((criada) =>
         aoAbrir(criada.analise.id, { tipo: "nova", promptInicial: criada.promptInicial }),
       )
@@ -901,6 +956,20 @@ function FormPergunta({
             placeholder="Ex.: Como é calculada a multa por atraso de pagamento?"
           />
         </label>
+        {/* Depois da pergunta: o foco começa nela, o essencial deste tipo. */}
+        {apiConhecimento && (
+          <CampoIssueOuDemanda
+            api={apiConhecimento}
+            projeto={projeto}
+            referencia={referencia}
+            aoMudar={setReferencia}
+            demandas={demandas}
+            resolvida={resolvida}
+            ajudaVazia="Liga a resposta à demanda ou à issue."
+            aoAbrirAnalise={aoAbrirAnalise}
+            id="pergunta-referencia"
+          />
+        )}
         <label>
           <span>
             Título <span className="muted">(opcional)</span>
@@ -924,10 +993,10 @@ function FormPergunta({
             <button
               className="btn btn-primary"
               type="submit"
-              disabled={!pronto || criando || !entrada.trim()}
+              disabled={!pronto || criando || motivo !== null}
               aria-describedby={motivo ? "pergunta-motivo" : undefined}
             >
-              Perguntar
+              {existentes.length > 0 ? "Iniciar uma análise nova" : "Perguntar"}
             </button>
           </div>
         </div>

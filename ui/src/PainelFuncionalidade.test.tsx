@@ -100,6 +100,11 @@ describe("PainelFuncionalidade", () => {
     await screen.findByRole("region", { name: "Indicadores" });
     fireEvent.click(screen.getByRole("button", { name: "Análises (2)" }));
     const nova = screen.getByRole("region", { name: "Nova análise para esta funcionalidade" });
+    // O título do formulário fica em caixa normal; o das outras seções, não (#360).
+    expect(
+      within(nova).getByRole("heading", { name: "Nova análise para esta funcionalidade" }),
+    ).toHaveClass("titulo-formulario");
+    expect(screen.getByRole("heading", { name: "Análises" })).not.toHaveClass("titulo-formulario");
     // Já explicada: Explicar desabilitado.
     expect(within(nova).getByRole("button", { name: /Explicar/ })).toBeDisabled();
     fireEvent.click(within(nova).getByRole("button", { name: /Perguntar/ }));

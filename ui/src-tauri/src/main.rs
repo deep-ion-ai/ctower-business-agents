@@ -54,6 +54,7 @@ mod pauta;
 mod primeiro_uso;
 mod projeto;
 mod prompts;
+mod prototipo;
 mod publicacao;
 mod rastreabilidade;
 mod registros;
@@ -64,6 +65,7 @@ mod revisao;
 mod terminal;
 #[cfg(test)]
 mod teste_base;
+mod tokens;
 mod vigia;
 mod vincular_issues;
 mod workflows;

@@ -14,6 +14,7 @@ fn nova(titulo: &str, chave: Option<&str>) -> NovaDemanda {
         descricao: Some("O cliente quer parcelar a fatura em até 3 vezes.".into()),
         chave: chave.map(str::to_owned),
         origem: None,
+        tipo: None,
     }
 }
 
@@ -90,6 +91,51 @@ fn lista_cria_encerra_e_reabre() {
     assert!(json["documento"].is_string());
 
     assert!(mudar_status_demanda(&c.dados, PROJETO, "X-1", true).is_err());
+}
+
+/// #358: o tipo vem do frontmatter e, na demanda antiga, da linha `**Tipo:**`.
+#[test]
+fn vista_traz_o_tipo_da_demanda() {
+    let c = cenario();
+    let negocial = criar_demanda(
+        &c.dados,
+        PROJETO,
+        &NovaDemanda {
+            tipo: Some(TipoDemanda::Funcionalidade),
+            ..nova("Parcelamento PJ", None)
+        },
+    )
+    .unwrap();
+    assert_eq!(negocial.tipo, Some(TipoDemanda::Funcionalidade));
+    let antiga = criar_demanda(
+        &c.dados,
+        PROJETO,
+        &NovaDemanda {
+            descricao: Some("**Tipo:** Corrigir bug  \n\nA multa sai em dobro.".into()),
+            ..nova("Multa em dobro", None)
+        },
+    )
+    .unwrap();
+    assert_eq!(antiga.tipo, Some(TipoDemanda::Bug));
+    let sem = criar_demanda(&c.dados, PROJETO, &nova("Reajuste anual", None)).unwrap();
+    assert_eq!(sem.tipo, None);
+
+    let lista = listar_demandas(&c.dados, PROJETO).unwrap();
+    let json = serde_json::to_value(&lista).unwrap();
+    let tipos: Vec<_> = json
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|d| (d["id"].clone(), d["tipo"].clone()))
+        .collect();
+    assert_eq!(
+        tipos,
+        [
+            ("D-0003".into(), serde_json::Value::Null),
+            ("D-0002".into(), "bug".into()),
+            ("D-0001".into(), "funcionalidade".into()),
+        ]
+    );
 }
 
 /// Critérios de aceite da #138: a ata e a análise aparecem na linha do tempo, em

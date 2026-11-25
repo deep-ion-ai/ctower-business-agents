@@ -23,7 +23,7 @@ use cba_core::dados::DiretorioDados;
 use cba_core::tempo;
 use cba_docs::{EstadoAta, ItemAta, TipoItem};
 use cba_kb::frontmatter::{
-    Demanda, EstadoRastreador, FrontmatterAnalise, StatusAta, StatusDemanda,
+    Demanda, EstadoRastreador, FrontmatterAnalise, StatusAta, StatusDemanda, TipoDemanda,
 };
 use cba_kb::{DemandaLida, IdDemanda, NovaDemanda};
 use cba_repos::demanda::Ferramentas;
@@ -65,6 +65,9 @@ pub struct DemandaVista {
     pub status: StatusDemanda,
     /// Status gravado pelo analista (encerrar e reabrir).
     pub status_local: StatusDemanda,
+    /// Tipo do pedido (#358): o do frontmatter ou, na demanda antiga, o da linha
+    /// `**Tipo:**` da descrição; `None` quando a demanda não tem tipo.
+    pub tipo: Option<TipoDemanda>,
     /// Último estado conferido no rastreador; `None` na demanda sem chave ou
     /// ainda não conferida.
     pub rastreador: Option<RastreadorVista>,
@@ -91,6 +94,7 @@ pub(crate) fn vista(kb: &cba_kb::Projeto, d: &DemandaLida) -> DemandaVista {
         titulo: f.titulo.clone(),
         status: d.status_efetivo(),
         status_local: f.status,
+        tipo: d.tipo_efetivo(),
         rastreador: f.rastreador.as_ref().map(|r| RastreadorVista {
             estado: r.estado,
             // A hora exata da última conferência fica no cache; o arquivo só é
@@ -553,6 +557,7 @@ pub async fn criar_demanda_app(
     titulo: String,
     descricao: Option<String>,
     chave: Option<String>,
+    tipo: Option<TipoDemanda>,
 ) -> Result<DemandaVista, String> {
     let dados = dados()?;
     bloqueante(move || {
@@ -564,6 +569,7 @@ pub async fn criar_demanda_app(
                 descricao,
                 chave,
                 origem: None,
+                tipo,
             },
         )
     })

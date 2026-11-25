@@ -1,7 +1,8 @@
 //! Mapeamento do sistema analisado.
 //!
 //! Cadastro do projeto, inventário dos arquivos, exclusões, extratores por
-//! linguagem ([`extrator`]) e mapa estrutural do projeto ([`Mapa`]).
+//! linguagem ([`extrator`]), mapa estrutural do projeto ([`Mapa`]) e os tokens
+//! de estilo do código da interface ([`estilo`], #384).
 //!
 //! Papel na arquitetura: seção 5 de `docs/specs/2026-11-11-mvp-standalone.md`. O
 //! cadastro e o inventário seguem a seção 4.1 (passo 4) e as exclusões padrão, a
@@ -46,6 +47,7 @@ pub mod ambiente_teste;
 mod cadastro;
 mod entradas;
 mod erro;
+pub mod estilo;
 mod exclusoes;
 pub mod extrator;
 mod git;
@@ -58,6 +60,7 @@ pub use ambiente_teste::{AmbienteTeste, UsuarioTeste};
 pub use cadastro::Cadastro;
 pub use entradas::{PontoEntrada, TipoEntrada};
 pub use erro::Erro;
+pub use estilo::{CategoriaToken, OrigemToken, TokenEstilo, extrair_estilo};
 pub use exclusoes::{Exclusao, Exclusoes, Motivo, REGRAS_PADRAO};
 pub use extrator::{
     Extracao, Extrator, Fonte, Linhas, Referencia, Registro, Simbolo, TipoReferencia, TipoSimbolo,

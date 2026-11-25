@@ -27,6 +27,8 @@ describe("PainelDemanda", () => {
     expect(api.painelDemanda).toHaveBeenCalledWith(PROJETO, "D-0001");
     expect(screen.getByText("aberta")).toHaveAttribute("data-tone", "running");
     expect(screen.getByText(/Chave FAT-12/)).toBeInTheDocument();
+    // O tipo da demanda (#358), do frontmatter.
+    expect(screen.getByTitle("Tipo da demanda")).toHaveTextContent("Nova funcionalidade");
 
     const linha = screen.getByRole("region", { name: "Linha do tempo" });
     const itens = within(linha).getAllByRole("listitem");

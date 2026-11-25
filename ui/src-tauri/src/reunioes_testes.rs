@@ -207,6 +207,7 @@ fn recusa_demanda_encerrada_e_transcript_sem_falas() {
                 descricao: None,
                 chave: None,
                 origem: None,
+                tipo: None,
             },
             tempo::hoje(),
         )
