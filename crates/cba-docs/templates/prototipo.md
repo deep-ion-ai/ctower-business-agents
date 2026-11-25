@@ -11,7 +11,9 @@ Marcadores de seção: {{pedido}}, {{telas}}, {{rastreabilidade}},
 Cada tela sai com o identificador (TL-1), se é nova ou alterada, o motivo ligado
 à análise de origem e os elementos (E-1, E-2...): campos, validações, mensagens e
 ações, cada um com as afirmações, as regras e os critérios de aceite de que vem.
-Tela ou elemento sem fundamento sai como "a confirmar". {{rastreabilidade}} é a
+Tela ou elemento sem fundamento sai como "a confirmar". Com o protótipo HTML
+gravado, a tela traz o link para ele (`A-NNNN/prototipo/TL-n.html`, com os
+estados vazio, preenchido, erro de validação e sucesso). {{rastreabilidade}} é a
 tabela tela → elemento → afirmações, regras e critérios; as evidências de código
 das afirmações e das regras citadas são as notas de rodapé.
 

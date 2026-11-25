@@ -5,7 +5,9 @@
 //! `registrar_tela` e `registrar_elemento_tela` gravam as telas afetadas (nova ou
 //! alterada, com o motivo ligado à origem) e os elementos ligados às afirmações,
 //! às regras e aos critérios de aceite; o que não tem fundamento fica "a
-//! confirmar"; referência que não existe é recusada.
+//! confirmar"; referência que não existe é recusada. `gravar_html_tela` grava o
+//! protótipo HTML de cada tela (#385), com os quatro estados, os tokens CSS
+//! aprovados ou o wireframe neutro, e recusa script e endereço externo.
 
 use std::path::{Path, PathBuf};
 
@@ -15,6 +17,7 @@ use cba_core::analises::NovaAnalise;
 use cba_core::config::Config;
 use cba_core::dados::DiretorioDados;
 use cba_core::prototipo::{Fidelidade, MudancaTela, TipoElemento};
+use cba_core::tokens::TokensProjeto;
 use cba_kb::frontmatter::{
     Evidencia, FrontmatterAnalise, FrontmatterRegra, Linhas, StatusRegra, TipoDocumento,
 };
@@ -487,10 +490,236 @@ fn prototipo_a_partir_de_uma_analise_de_impacto() {
         json!({ "analise": "A-0002", "tela": 2, "tipo": "campo", "nome": "Parcela" }),
     )
     .unwrap();
+    // E o protótipo HTML de toda tela.
+    let m = c.recusa("concluir_analise", json!({ "analise": "A-0002" }));
+    assert!(m.contains("TL-1: sem protótipo HTML"), "{m}");
+    c.chamar(
+        "gravar_html_tela",
+        json!({ "analise": "A-0002", "tela": "TL-1", "corpo": corpo(&[1, 2, 3, 4]) }),
+    )
+    .unwrap();
+    c.chamar(
+        "gravar_html_tela",
+        json!({ "analise": "A-0002", "tela": "TL-2", "corpo": corpo(&[1]) }),
+    )
+    .unwrap();
     let r = c
         .chamar("concluir_analise", json!({ "analise": "A-0002" }))
         .unwrap();
     assert_eq!(r["estado"], "concluida");
+}
+
+/// Corpo de tela com os quatro estados e os elementos dados marcados.
+fn corpo(elementos: &[u32]) -> String {
+    let marcas: String = elementos
+        .iter()
+        .map(|n| format!("<p class=\"mudou\" data-elemento=\"E-{n}\">E-{n}</p>"))
+        .collect();
+    format!(
+        "<section data-estado=\"vazio\"><form>{marcas}</form></section>\n\
+         <section data-estado=\"preenchido\"><p>3 parcelas</p></section>\n\
+         <section data-estado=\"erro\"><p class=\"erro\">Parcela abaixo do mínimo</p></section>\n\
+         <section data-estado=\"sucesso\"><p class=\"sucesso\">Parcelamento registrado</p></section>\n"
+    )
+}
+
+#[test]
+fn html_das_telas_com_estados_tokens_e_sem_rede() {
+    let c = cenario();
+    let origem = c.origem();
+    c.aprovar(&origem.id);
+    let r = c
+        .chamar(
+            "iniciar_analise",
+            json!({ "fluxo": "prototipo", "origem": origem.id, "fidelidade": "alta_fidelidade" }),
+        )
+        .unwrap();
+    let id = r["analise"].as_str().unwrap().to_owned();
+    c.chamar(
+        "registrar_tela",
+        tela(
+            &id,
+            "Parcelar fatura",
+            json!([
+                {
+                    "tipo": "campo",
+                    "nome": "Número de parcelas",
+                    "descricao": "de 2 a 3",
+                    "regras": ["RN-FAT-008"]
+                },
+                {
+                    "tipo": "mensagem",
+                    "nome": "Parcela abaixo do mínimo",
+                    "descricao": "A parcela mínima é de R$ 100,00.",
+                    "pergunta": 1
+                }
+            ]),
+        ),
+    )
+    .unwrap();
+
+    let corpo_tela = r#"<section data-estado="vazio">
+  <form>
+    <label for="parcelas">Número de parcelas</label>
+    <input id="parcelas" class="mudou" data-elemento="E-1" placeholder="2 a 3">
+    <div class="acoes"><button type="button">Simular parcelas</button></div>
+  </form>
+</section>
+<section data-estado="preenchido">
+  <input data-elemento="E-1" value="3"> <a href="TL-2.html">Consultar parcelas</a>
+</section>
+<section data-estado="erro">
+  <input class="campo-erro" value="3">
+  <p class="erro" data-elemento="E-2">A parcela mínima é de R$ 100,00.</p>
+</section>
+<section data-estado="sucesso"><p class="sucesso">Parcelamento registrado em 3 vezes.</p></section>"#;
+
+    // Sem tokens aprovados: wireframe neutro, com aviso.
+    let r = c
+        .chamar(
+            "gravar_html_tela",
+            json!({ "analise": id, "tela": "TL-1", "corpo": corpo_tela }),
+        )
+        .unwrap();
+    assert_eq!(r["tela"], "TL-1");
+    assert_eq!(r["visual"], "sem-tokens");
+    assert_eq!(r["html"], format!("analises/{id}/prototipo/TL-1.html"));
+    assert_eq!(r["elementos_marcados"], json!(["E-1", "E-2"]));
+    assert!(
+        r["avisos"].to_string().contains("não estão aprovados"),
+        "{r}"
+    );
+    let a = c.analise(&id);
+    let caminho = a.tela(1).unwrap().html.clone().unwrap();
+    let html = std::fs::read_to_string(c.amb.kb.caminho(&caminho)).unwrap();
+    assert!(html.contains("data-visual=\"sem-tokens\""), "{html}");
+    assert!(html.contains("<section id=\"estado-erro\" data-estado=\"erro\">"));
+    assert!(html.contains("var(--prototipo-cor-primaria, #5c5c5c)"));
+    assert!(!html.contains("--prototipo-cor-primaria:"));
+    assert!(html.contains("<strong>A confirmar:</strong> E-2 Parcela abaixo do mínimo"));
+
+    // O documento aponta para o HTML.
+    let texto = std::fs::read_to_string(c.amb.kb.caminho(&a.documento)).unwrap();
+    assert!(
+        texto.contains(&format!(
+            "**Protótipo:** [TL-1.html]({id}/prototipo/TL-1.html)"
+        )),
+        "{texto}"
+    );
+
+    // Script, handler e endereço externo são recusados, e nada muda.
+    let m = c.recusa(
+        "gravar_html_tela",
+        json!({
+            "analise": id,
+            "tela": 1,
+            "corpo": corpo_tela.replace(
+                "<p class=\"sucesso\">",
+                "<script>fetch('https://exemplo.invalid')</script>\
+                 <img src=\"https://exemplo.invalid/logo.png\" onerror=\"x()\"><p class=\"sucesso\">"
+            )
+        }),
+    );
+    assert!(m.contains("`<script>`"), "{m}");
+    assert!(m.contains("`onerror`"), "{m}");
+    assert!(m.contains("https://exemplo.invalid/logo.png"), "{m}");
+    let m = c.recusa(
+        "gravar_html_tela",
+        json!({
+            "analise": id,
+            "tela": 1,
+            "corpo": corpo_tela.replace("data-estado=\"sucesso\"", "data-estado=\"pronto\"")
+        }),
+    );
+    assert!(m.contains("falta a seção do(s) estado(s) sucesso"), "{m}");
+    let m = c.recusa(
+        "gravar_html_tela",
+        json!({ "analise": id, "tela": "TL-7", "corpo": corpo_tela }),
+    );
+    assert!(m.contains("tela"), "{m}");
+    assert_eq!(
+        std::fs::read_to_string(c.amb.kb.caminho(&caminho)).unwrap(),
+        html
+    );
+
+    // Tokens aprovados pelo analista: o CSS deles vai inline.
+    TokensProjeto::extrair(&c.amb.kb, &c.amb.escopo).unwrap();
+    TokensProjeto::alterar(&c.amb.kb, |t, agora| {
+        t.aprovar(agora);
+        Ok(())
+    })
+    .unwrap();
+    let r = c
+        .chamar(
+            "gravar_html_tela",
+            json!({ "analise": id, "tela": "TL-1", "corpo": corpo_tela }),
+        )
+        .unwrap();
+    assert_eq!(r["visual"], "tokens");
+    assert!(
+        r["avisos"].to_string().contains("--prototipo-cor-sucesso"),
+        "{r}"
+    );
+    let html = std::fs::read_to_string(c.amb.kb.caminho(&caminho)).unwrap();
+    assert!(html.contains("data-visual=\"tokens\""));
+    assert!(
+        html.contains("--prototipo-cor-primaria: var(--cor-primaria);"),
+        "{html}"
+    );
+    assert!(html.contains("--cor-primaria: #1f5fa8;"), "{html}");
+    assert!(
+        html.contains("/* --prototipo-cor-sucesso: a confirmar"),
+        "{html}"
+    );
+    assert!(
+        !html.contains("http:") && !html.contains("https:"),
+        "{html}"
+    );
+
+    let r = c
+        .chamar("concluir_analise", json!({ "analise": id }))
+        .unwrap();
+    assert_eq!(r["estado"], "concluida");
+
+    // Wireframe com tokens aprovados: a mesma identidade, só outro acabamento.
+    let r = c
+        .chamar(
+            "iniciar_analise",
+            json!({ "fluxo": "prototipo", "origem": origem.id, "fidelidade": "wireframe" }),
+        )
+        .unwrap();
+    let wire = r["analise"].as_str().unwrap().to_owned();
+    c.chamar(
+        "registrar_tela",
+        tela(
+            &wire,
+            "Parcelar fatura",
+            json!([{ "tipo": "campo", "nome": "Número de parcelas", "regras": ["RN-FAT-008"] }]),
+        ),
+    )
+    .unwrap();
+    let r = c
+        .chamar(
+            "gravar_html_tela",
+            json!({ "analise": wire, "tela": "TL-1", "corpo": corpo(&[1]) }),
+        )
+        .unwrap();
+    assert_eq!(r["visual"], "tokens");
+    let html = std::fs::read_to_string(c.amb.kb.caminho(&cba_kb::layout::html_da_tela(
+        &Id::analisar(&wire).unwrap(),
+        1,
+    )))
+    .unwrap();
+    assert!(html.contains("data-fidelidade=\"wireframe\""), "{html}");
+    assert!(html.contains("--cor-primaria: #1f5fa8;"), "{html}");
+
+    // Aprovada, não aceita HTML novo.
+    c.aprovar(&Id::analisar(&id).unwrap());
+    let m = c.recusa(
+        "gravar_html_tela",
+        json!({ "analise": id, "tela": "TL-1", "corpo": corpo_tela }),
+    );
+    assert!(m.contains("aprovada"), "{m}");
 }
 
 #[test]

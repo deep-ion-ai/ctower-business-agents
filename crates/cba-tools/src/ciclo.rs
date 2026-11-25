@@ -1574,7 +1574,7 @@ fn concluir(ambiente: &Ambiente, id: &Id) -> Result<Saida, ErroFerramenta> {
     } else if fluxo == Fluxo::Manual {
         crate::manual::conferir_para_concluir(&atual)?;
     } else if fluxo == Fluxo::Prototipo {
-        crate::prototipo::conferir_para_concluir(&atual)?;
+        crate::prototipo::conferir_para_concluir(&ambiente.kb, &atual)?;
     } else if afirmacoes_validas(&atual).next().is_none() {
         return Err(ErroFerramenta::Recusa(format!(
             "a análise {id} ainda não tem afirmações. Registre o que apurou com `afirmar` \

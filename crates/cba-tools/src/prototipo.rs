@@ -7,6 +7,12 @@
 //!   elementos (campos, validações, mensagens e ações). O número `TL-n` é o
 //!   próximo da análise.
 //! - `registrar_elemento_tela` acrescenta um elemento a uma tela já registrada.
+//! - `gravar_html_tela` grava o protótipo HTML de uma tela (#385): o agente
+//!   escreve o corpo, com uma seção por estado (vazio, preenchido, erro de
+//!   validação e sucesso) e os elementos marcados com `data-elemento`; o app
+//!   confere ([`cba_core::prototipo_html::conferir_corpo`]), monta o documento
+//!   com os tokens CSS aprovados ou o wireframe neutro e aponta
+//!   [`cba_core::prototipo::Tela::html`] para o arquivo.
 //!
 //! Tela e elemento citam o que os sustenta: `afirmacoes` e `regras`, conferidas
 //! por [`crate::fundamentos`], e `criterios` de aceite (`HU-NNNN/CA-n`), conferidos
@@ -15,10 +21,11 @@
 //!
 //! [`textos`] converte as telas nas seções `telas` e `rastreabilidade` do
 //! documento (template `prototipo`), com as evidências das afirmações e das
-//! regras citadas como notas de rodapé. O protótipo HTML de cada tela
-//! ([`cba_core::prototipo::Tela::html`]) não é gerado aqui (#385).
+//! regras citadas como notas de rodapé, e o link para o protótipo HTML de cada
+//! tela.
 
 use cba_core::ambiente::Ambiente;
+use cba_core::analise::EstadoAnalise;
 use cba_core::analise::{Analise, ErroModelo, Fluxo};
 use cba_core::eventos::Mudanca;
 use cba_core::historias::SituacaoHistoria;
@@ -26,7 +33,9 @@ use cba_core::prototipo::{
     CriterioCitado, ElementoTela, MAXIMO_DE_ELEMENTOS, MudancaTela, NovaTela, NovoElemento, Rastro,
     Tela, TipoElemento,
 };
+use cba_core::prototipo_html::{self, EstadoTela, TAMANHO_MAXIMO_DO_CORPO, Visual};
 use cba_core::requisito::{Fundamento, SituacaoItem};
+use cba_core::tokens::{EstadoTokens, TokensProjeto};
 use cba_docs::{Citacao, RASTREABILIDADE, TELAS, Texto};
 use cba_kb::{CaminhoRelativo, IdHistoria};
 use serde::Deserialize;
@@ -143,6 +152,12 @@ fn texto_da_tela(tela: &Tela, caminho: &CaminhoRelativo) -> Texto {
         let itens: Vec<String> = origem.iter().map(|l| format!("- {l}")).collect();
         t.push_str(&format!("\n\n_Origem:_\n\n{}", itens.join("\n")));
     }
+    if let Some(html) = &tela.html {
+        t.push_str(&format!(
+            "\n\n**Protótipo:** {}",
+            cba_docs::link(&format!("{}.html", tela.rotulo()), caminho, html)
+        ));
+    }
     t.push_str("\n\n#### Elementos\n\n");
     if tela.elementos.is_empty() {
         t.push_str("_Nenhum elemento registrado._");
@@ -214,9 +229,14 @@ pub fn textos(analise: &Analise, caminho: &CaminhoRelativo) -> Vec<Texto> {
     textos
 }
 
-/// No fluxo `prototipo`, o conteúdo são as telas: ao menos uma, e cada uma com
-/// ao menos um elemento. Usada por `concluir_analise`.
-pub fn conferir_para_concluir(analise: &Analise) -> Result<(), ErroFerramenta> {
+/// No fluxo `prototipo`, o conteúdo são as telas: ao menos uma, cada uma com
+/// ao menos um elemento e com o protótipo HTML gravado, com os quatro estados e
+/// todos os elementos marcados (um elemento registrado depois do HTML pede o HTML
+/// de novo). Usada por `concluir_analise`.
+pub fn conferir_para_concluir(
+    kb: &cba_kb::Projeto,
+    analise: &Analise,
+) -> Result<(), ErroFerramenta> {
     let id = &analise.id;
     if analise.telas().is_empty() {
         return Err(ErroFerramenta::Recusa(format!(
@@ -235,6 +255,56 @@ pub fn conferir_para_concluir(analise: &Analise) -> Result<(), ErroFerramenta> {
             "tela(s) sem elemento: {}. Registre os campos, as validações, as mensagens e as \
              ações de cada uma com `registrar_elemento_tela` e chame `concluir_analise` de novo",
             sem.join(", ")
+        )));
+    }
+    let mut problemas = Vec::new();
+    for tela in analise.telas() {
+        let Some(html) = &tela.html else {
+            problemas.push(format!("{}: sem protótipo HTML", tela.rotulo()));
+            continue;
+        };
+        let Ok(texto) = std::fs::read_to_string(kb.caminho(html)) else {
+            problemas.push(format!(
+                "{}: o arquivo {} não foi encontrado",
+                tela.rotulo(),
+                kb.na_base(html)
+            ));
+            continue;
+        };
+        let estados = prototipo_html::estados_presentes(&texto);
+        let faltam: Vec<&str> = EstadoTela::TODOS
+            .into_iter()
+            .filter(|e| !estados.contains(e))
+            .map(EstadoTela::valor)
+            .collect();
+        if !faltam.is_empty() {
+            problemas.push(format!(
+                "{}: falta(m) o(s) estado(s) {}",
+                tela.rotulo(),
+                faltam.join(", ")
+            ));
+        }
+        let marcados = prototipo_html::elementos_marcados(&texto);
+        let sem_marca: Vec<String> = tela
+            .elementos
+            .iter()
+            .filter(|e| !marcados.contains(&e.numero))
+            .map(ElementoTela::rotulo)
+            .collect();
+        if !sem_marca.is_empty() {
+            problemas.push(format!(
+                "{}: elemento(s) fora do HTML: {}",
+                tela.rotulo(),
+                sem_marca.join(", ")
+            ));
+        }
+    }
+    if !problemas.is_empty() {
+        return Err(ErroFerramenta::Recusa(format!(
+            "o protótipo HTML das telas não está completo: {}. Grave o HTML de cada tela com \
+             `gravar_html_tela` (os quatro estados, cada elemento marcado com \
+             `data-elemento=\"E-n\"`) e chame `concluir_analise` de novo",
+            problemas.join("; ")
         )));
     }
     Ok(())
@@ -260,8 +330,9 @@ pub fn para_retomar(analise: &Analise) -> (String, Value) {
             rotulos_ou_nada(&tela.rastro),
             a_confirmar_curto(&tela.rastro)
         ));
-        if tela.html.is_some() {
-            t.push_str("Protótipo HTML gerado.\n");
+        match &tela.html {
+            Some(html) => t.push_str(&format!("Protótipo HTML: `{html}`.\n")),
+            None => t.push_str("Protótipo HTML: ainda não gravado (`gravar_html_tela`).\n"),
         }
         for e in &tela.elementos {
             t.push_str(&format!(
@@ -785,6 +856,171 @@ pub fn registrar_elemento_tela() -> Ferramenta {
     )
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ArgsHtml {
+    analise: String,
+    tela: RefCitada,
+    corpo: String,
+}
+
+/// Visual das telas: os tokens aprovados, em qualquer fidelidade, e, para o
+/// agente, os avisos (sem tokens aprovados, papéis a confirmar).
+fn visual(kb: &cba_kb::Projeto, avisos: &mut Vec<String>) -> Result<Visual, ErroFerramenta> {
+    let tokens = TokensProjeto::carregar(kb).map_err(|e| ErroFerramenta::Interno(e.to_string()))?;
+    let aprovados = tokens.filter(|t| t.estado == EstadoTokens::Aprovado);
+    match &aprovados {
+        None => avisos.push(
+            "os tokens CSS do projeto não estão aprovados: a tela saiu em wireframe neutro \
+             (cinzas). Peça ao analista para extrair, revisar e aprovar os tokens no app e \
+             grave o HTML de novo para ter a identidade visual; não invente cores nem fontes"
+                .into(),
+        ),
+        Some(t) => {
+            let a_confirmar: Vec<String> =
+                t.papeis_a_confirmar().map(|p| p.propriedade()).collect();
+            if !a_confirmar.is_empty() {
+                avisos.push(format!(
+                    "papéis dos tokens a confirmar, que saem no cinza neutro: {}",
+                    a_confirmar.join(", ")
+                ));
+            }
+        }
+    }
+    Ok(Visual::escolher(aprovados.as_ref().map(TokensProjeto::css)))
+}
+
+/// `gravar_html_tela`: o protótipo HTML de uma tela, com os quatro estados.
+pub fn gravar_html_tela() -> Ferramenta {
+    Ferramenta::nova(
+        "gravar_html_tela",
+        "Gravar protótipo HTML da tela",
+        "Grava o protótipo HTML de uma tela já registrada com registrar_tela. Escreva só o \
+         `corpo` (sem <html>, <head> nem <body>): uma `<section data-estado=\"…\">` para cada \
+         estado principal (`vazio`, `preenchido`, `erro` de validação e `sucesso`), com os \
+         campos, as validações, as mensagens e as ações da tela; cada elemento registrado \
+         leva `data-elemento=\"E-n\"`. Os textos das mensagens e as validações vêm das regras \
+         e dos critérios citados nos elementos. Em tela alterada, marque com a classe `mudou` \
+         o que muda em relação à tela atual, lida no código. Use HTML semântico e as classes \
+         do CSS base (`erro`, `alerta`, `sucesso`, `mensagem`, `campo-erro`, `acoes`, \
+         `secundario`, `a-confirmar`); estilo próprio só com `var(--prototipo-*)`, nunca \
+         com cor ou fonte inventada. Recusado: <script>, atributos on…, <iframe>, <link>, \
+         <meta> e URLs externas (http:, https:, //) em src, href ou url(): o protótipo abre \
+         sem rede. Links entre telas: `TL-n.html`. O app monta o documento com os tokens CSS \
+         aprovados (em qualquer fidelidade; o wireframe muda só o acabamento) ou, sem \
+         eles, o wireframe neutro, grava em \
+         analises/<id>/prototipo/TL-n.html e liga à tela. Gravar de novo substitui.",
+        json!({
+            "type": "object",
+            "properties": {
+                "analise": comum::schema_da_analise(),
+                "tela": {
+                    "type": ["integer", "string"],
+                    "minimum": 1,
+                    "minLength": 1,
+                    "description": "Tela (TL-n), devolvida por registrar_tela."
+                },
+                "corpo": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": TAMANHO_MAXIMO_DO_CORPO,
+                    "description": "Corpo da tela em HTML: as quatro <section data-estado> (vazio, preenchido, erro, sucesso), com os elementos marcados com data-elemento=\"E-n\"."
+                }
+            },
+            "required": ["analise", "tela", "corpo"],
+            "additionalProperties": false
+        }),
+        |ambiente, args| {
+            let args: ArgsHtml = ler_argumentos(args)?;
+            let id = comum::id_da_analise(&args.analise)?;
+            let numero = numero_da_tela(&args.tela)?;
+            let atual = ambiente.analises.carregar(&id)?;
+            exigir_fluxo(&atual)?;
+            if atual.estado == EstadoAnalise::Aprovada {
+                return Err(comum::recusa(ErroModelo::AnaliseAprovada(id)));
+            }
+            let tela = atual.tela(numero).ok_or_else(|| {
+                comum::recusa(ErroModelo::ItemDesconhecido {
+                    tipo: "tela",
+                    numero,
+                })
+            })?;
+            if tela.elementos.is_empty() {
+                return Err(ErroFerramenta::Recusa(format!(
+                    "a tela {} ainda não tem elementos. Registre os campos, as validações, as \
+                     mensagens e as ações com `registrar_elemento_tela` antes do HTML",
+                    tela.rotulo()
+                )));
+            }
+            let conferido =
+                prototipo_html::conferir_corpo(&args.corpo, tela).map_err(|problemas| {
+                    ErroFerramenta::Recusa(format!(
+                        "HTML da {} recusado; corrija e grave de novo:\n- {}",
+                        tela.rotulo(),
+                        problemas.join("\n- ")
+                    ))
+                })?;
+            let mut avisos = Vec::new();
+            let visual = visual(&ambiente.kb, &mut avisos)?;
+            let fidelidade = atual
+                .prototipo
+                .as_ref()
+                .map(|p| p.pedido.fidelidade)
+                .unwrap_or_default();
+            let sem_marca: Vec<String> = tela
+                .elementos
+                .iter()
+                .filter(|e| !conferido.elementos_marcados.contains(&e.numero))
+                .map(ElementoTela::rotulo)
+                .collect();
+            if !sem_marca.is_empty() {
+                avisos.push(format!(
+                    "elemento(s) sem `data-elemento` no HTML: {}. Ponha cada um na tela (a \
+                     validação, na mensagem de erro dela); `concluir_analise` exige todos",
+                    sem_marca.join(", ")
+                ));
+            }
+            if tela.mudanca == MudancaTela::Alterada && !conferido.tem_mudanca_marcada {
+                avisos.push(
+                    "tela alterada sem nada com a classe `mudou`: destaque o que muda em \
+                     relação à tela atual"
+                        .into(),
+                );
+            }
+            let html = prototipo_html::montar(tela, &conferido, &visual, fidelidade);
+            let caminho = cba_kb::layout::html_da_tela(&id, numero);
+            cba_kb::arquivo::gravar(&ambiente.kb.caminho(&caminho), html.as_bytes()).map_err(
+                |e| {
+                    ErroFerramenta::Interno(format!(
+                        "o HTML não foi gravado em {}: {e}",
+                        ambiente.kb.na_base(&caminho)
+                    ))
+                },
+            )?;
+            let registrado = comum::alterar(ambiente, &id, Mudanca::Tela, |a, _| {
+                a.definir_html_da_tela(numero, Some(caminho.clone()))
+            })?;
+            Ok(comum::resposta(
+                ambiente,
+                &registrado,
+                json!({
+                    "tela": format!("TL-{numero}"),
+                    "html": caminho,
+                    "arquivo": ambiente.kb.na_base(&caminho),
+                    "visual": visual.valor(),
+                    "estados": EstadoTela::TODOS.map(EstadoTela::valor),
+                    "elementos_marcados": conferido
+                        .elementos_marcados
+                        .iter()
+                        .map(|n| format!("E-{n}"))
+                        .collect::<Vec<_>>(),
+                    "avisos": avisos,
+                }),
+            ))
+        },
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -965,13 +1201,74 @@ mod tests {
         assert!(numero_da_tela(&RefCitada::Texto("T-1".into())).is_err());
     }
 
+    fn projeto(tmp: &tempfile::TempDir) -> cba_kb::Projeto {
+        let base = cba_kb::Base::criar(tmp.path().join("base")).unwrap();
+        let doc = cba_kb::Documento::novo(
+            cba_kb::frontmatter::FrontmatterProjeto {
+                tipo: cba_kb::TipoDocumento::Projeto,
+                id: "faturamento-exemplo".into(),
+                nome: "Faturamento Exemplo".into(),
+                areas: Vec::new(),
+                criado: None,
+            },
+            "# Faturamento Exemplo\n",
+        );
+        base.criar_projeto(&doc).unwrap()
+    }
+
+    /// Grava o HTML da TL-1 com os elementos dados e aponta a tela para ele.
+    fn gravar_html(kb: &cba_kb::Projeto, a: &mut Analise, elementos: &[u32]) {
+        let marcas: String = elementos
+            .iter()
+            .map(|n| format!("<p data-elemento=\"E-{n}\">x</p>"))
+            .collect();
+        let corpo = format!(
+            "<section data-estado=\"vazio\">{marcas}</section>\
+             <section data-estado=\"preenchido\"></section>\
+             <section data-estado=\"erro\"></section>\
+             <section data-estado=\"sucesso\"></section>"
+        );
+        let tela = a.tela(1).unwrap().clone();
+        let conferido = prototipo_html::conferir_corpo(&corpo, &tela).unwrap();
+        let html = prototipo_html::montar(
+            &tela,
+            &conferido,
+            &Visual::SemTokens,
+            cba_core::prototipo::Fidelidade::Wireframe,
+        );
+        let caminho = cba_kb::layout::html_da_tela(&a.id, 1);
+        cba_kb::arquivo::gravar(&kb.caminho(&caminho), html.as_bytes()).unwrap();
+        a.definir_html_da_tela(1, Some(caminho)).unwrap();
+    }
+
     #[test]
-    fn concluir_exige_tela_com_elemento() {
+    fn concluir_exige_tela_com_elemento_e_html() {
+        let tmp = tempfile::tempdir().unwrap();
+        let kb = projeto(&tmp);
         let mut vazia = analise();
         vazia.prototipo = None;
-        assert!(conferir_para_concluir(&vazia).is_err());
+        assert!(conferir_para_concluir(&kb, &vazia).is_err());
         let mut a = analise();
-        assert!(conferir_para_concluir(&a).is_ok());
+        let e = conferir_para_concluir(&kb, &a).unwrap_err().to_string();
+        assert!(e.contains("TL-1: sem protótipo HTML"), "{e}");
+        gravar_html(&kb, &mut a, &[1, 3]);
+        let e = conferir_para_concluir(&kb, &a).unwrap_err().to_string();
+        assert!(e.contains("TL-1: elemento(s) fora do HTML: E-2"), "{e}");
+        gravar_html(&kb, &mut a, &[1, 2, 3]);
+        assert!(conferir_para_concluir(&kb, &a).is_ok());
+        // O documento aponta para o HTML.
+        let textos = textos(&a, &a.documento);
+        assert!(
+            textos[0]
+                .texto
+                .contains("**Protótipo:** [TL-1.html](A-0003/prototipo/TL-1.html)"),
+            "{}",
+            textos[0].texto
+        );
+        std::fs::remove_file(kb.caminho(a.tela(1).unwrap().html.as_ref().unwrap())).unwrap();
+        let e = conferir_para_concluir(&kb, &a).unwrap_err().to_string();
+        assert!(e.contains("não foi encontrado"), "{e}");
+        gravar_html(&kb, &mut a, &[1, 2, 3]);
         a.registrar_tela(
             NovaTela {
                 nome: "Consultar parcelas".into(),
@@ -984,7 +1281,7 @@ mod tests {
             3,
         )
         .unwrap();
-        let e = conferir_para_concluir(&a).unwrap_err().to_string();
+        let e = conferir_para_concluir(&kb, &a).unwrap_err().to_string();
         assert!(e.contains("TL-2"), "{e}");
     }
 }
