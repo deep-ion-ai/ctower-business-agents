@@ -171,10 +171,11 @@ const TOM_ESTADO: Record<EstadoAnalise, "attention" | "running" | "done" | undef
 
 /**
  * O título e as análises da demanda que `referencia` aponta, um instante depois de
- * digitar (#350). `null` sem referência reconhecida; `"buscando"` enquanto procura.
+ * digitar (#350). `null` sem referência reconhecida (ou sem `api`); `"buscando"`
+ * enquanto procura.
  */
 export function useDemandaResolvida(
-  api: ApiConhecimento,
+  api: ApiConhecimento | undefined,
   projeto: string,
   referencia: string,
   demandas: DemandaVista[],
@@ -183,7 +184,7 @@ export function useDemandaResolvida(
   const [resolvida, setResolvida] = useState<DemandaResolvida | "buscando" | null>(null);
   useEffect(() => {
     const ref = referencia.trim();
-    if (!ligado || !projeto || !origemDaReferencia(ref)) {
+    if (!api || !ligado || !projeto || !origemDaReferencia(ref)) {
       setResolvida(null);
       return;
     }
@@ -268,6 +269,190 @@ interface Sugestao {
 }
 
 /**
+ * Demandas do projeto, sugeridas no campo "Issue ou demanda". Vazia sem `api`, sem
+ * projeto ou desligada; sem a lista, a demanda continua valendo digitada.
+ */
+export function useDemandasDoProjeto(
+  api: ApiConhecimento | undefined,
+  projeto: string,
+  ligado = true,
+): DemandaVista[] {
+  const [demandas, setDemandas] = useState<DemandaVista[]>([]);
+  useEffect(() => {
+    if (!api || !ligado || !projeto) return;
+    let ativo = true;
+    setDemandas([]);
+    api
+      .listarDemandas(projeto)
+      .then((l) => ativo && setDemandas(l))
+      .catch(() => undefined);
+    return () => {
+      ativo = false;
+    };
+  }, [api, projeto, ligado]);
+  return demandas;
+}
+
+/** A demanda achada em `resolvida`, ou `null` (sem referência, procurando, não achada). */
+export function demandaAchada(
+  resolvida: DemandaResolvida | "buscando" | null,
+): Extract<DemandaResolvida, { achada: true }> | null {
+  return resolvida !== null && resolvida !== "buscando" && resolvida.achada ? resolvida : null;
+}
+
+/**
+ * Campo "Issue ou demanda" (#323, #350): sugere as demandas abertas do projeto e as
+ * issues abertas do rastreador, diz de onde vem o que foi digitado e, com a demanda
+ * achada, mostra o título e as análises que ela já tem (#359: também na pergunta).
+ */
+export function CampoIssueOuDemanda({
+  api,
+  projeto,
+  referencia,
+  aoMudar,
+  demandas,
+  resolvida,
+  cadastrada = false,
+  ajudaVazia,
+  aoAbrirAnalise,
+  id = "nova-analise-referencia",
+}: {
+  api: ApiConhecimento;
+  projeto: string;
+  referencia: string;
+  aoMudar: (referencia: string) => void;
+  demandas: DemandaVista[];
+  resolvida: DemandaResolvida | "buscando" | null;
+  /** Obrigatório ("Demanda ou issue"), na análise da demanda cadastrada. */
+  cadastrada?: boolean;
+  /** Ajuda com o campo vazio, fora da demanda cadastrada. */
+  ajudaVazia: string;
+  aoAbrirAnalise?: (id: string) => void;
+  id?: string;
+}) {
+  // Issues abertas do rastreador (#323), filtradas pelo que foi digitado; o que não
+  // está na lista continua valendo digitado (o app busca a issue na hora).
+  const [issues, setIssues] = useState<IssueDoProjeto[]>([]);
+  const [buscando, setBuscando] = useState(false);
+  useEffect(() => {
+    if (!api.issues || !projeto || !buscando) {
+      setIssues([]);
+      return;
+    }
+    let ativo = true;
+    api.issues
+      .listar(projeto, { busca: referencia.trim(), estado: "abertas" })
+      .then((l) => ativo && setIssues(l.issues.slice(0, 6)))
+      // Sem a lista (sem rede, sem rastreador), o campo segue como texto livre.
+      .catch(() => ativo && setIssues([]));
+    return () => {
+      ativo = false;
+    };
+  }, [api, projeto, referencia, buscando]);
+
+  const ref = referencia.trim();
+  const demandaEscolhida = DEMANDA.test(ref)
+    ? demandas.find((d) => d.id.toUpperCase() === ref.toUpperCase())
+    : undefined;
+  const achada = demandaAchada(resolvida);
+  const termo = ref.toLowerCase();
+  const sugestoes: Sugestao[] = buscando
+    ? [
+        ...demandas
+          .filter((d) => d.status === "aberta")
+          .filter((d) => !termo || `${d.id} ${d.titulo}`.toLowerCase().includes(termo))
+          .slice(0, 4)
+          .map((d) => ({ chave: d.id, titulo: d.titulo })),
+        ...issues.map((i) => ({ chave: i.chave, titulo: i.titulo })),
+      ].filter((s) => s.chave.toLowerCase() !== termo)
+    : [];
+  const origem = origemDaReferencia(referencia);
+  const ajuda = resolvida === "buscando"
+    ? "Procurando a demanda…"
+    : resolvida !== null && !achada
+      ? `Não achei ${ref} nas demandas nem nas issues do projeto. Ao iniciar, o app busca a issue no rastreador.`
+      : achada
+        ? `Reconhecida: ${achada.origem}${achada.demanda && achada.origem !== "demanda do projeto" ? `, demanda ${achada.demanda}` : ""}.`
+        : origem
+    ? `Reconhecida: ${origem}${demandaEscolhida ? ` (${demandaEscolhida.titulo})` : ""}.`
+    : ref
+      ? "Não reconhecida. Use D-0012, PROJ-123, #142 ou o link da issue."
+      : cadastrada
+        ? "Aceita a demanda do projeto (D-0012), a chave do Jira (PROJ-123), o número da issue (#142) ou o link do GitHub ou do GitLab."
+        : ajudaVazia;
+
+  return (
+    <div
+      className="busca-issue"
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) setBuscando(false);
+      }}
+    >
+      <label htmlFor={id}>
+        {cadastrada ? "Demanda ou issue" : "Issue ou demanda"}{" "}
+        <span className="muted">{cadastrada ? "(obrigatório)" : "(opcional)"}</span>
+      </label>
+      <input
+        id={id}
+        value={referencia}
+        onChange={(e) => {
+          aoMudar(e.target.value);
+          setBuscando(true);
+        }}
+        onFocus={() => setBuscando(true)}
+        placeholder={cadastrada ? "D-0012, PROJ-123, #142 ou o link da issue" : "Busque pelo número ou título"}
+        spellCheck={false}
+        autoComplete="off"
+        aria-required={cadastrada}
+        aria-describedby={`${id}-ajuda`}
+        data-invalido={cadastrada && !ref ? "" : undefined}
+      />
+      {sugestoes.length > 0 && (
+        <ul
+          className="busca-issue-opcoes"
+          aria-label="Demandas e issues do projeto"
+          // No WebKit (macOS) o clique não dá foco ao botão: sem isto, o campo perde
+          // o foco, a lista fecha no blur e o clique na sugestão se perde.
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          {sugestoes.map((o) => (
+            <li key={o.chave}>
+              <button
+                type="button"
+                onClick={() => {
+                  aoMudar(o.chave);
+                  setBuscando(false);
+                }}
+              >
+                <span className="id">{o.chave}</span>
+                <span>{o.titulo}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <span
+        id={`${id}-ajuda`}
+        className="ajuda-campo"
+        data-tom={
+          resolvida === "buscando"
+            ? undefined
+            : (resolvida !== null ? achada : origem)
+              ? "ok"
+              : ref
+                ? "atencao"
+                : undefined
+        }
+        aria-live="polite"
+      >
+        {ajuda}
+      </span>
+      {achada && <DemandaAchada achada={achada} aoAbrirAnalise={aoAbrirAnalise} />}
+    </div>
+  );
+}
+
+/**
  * Formulário de uma análise nova: a entrada do fluxo, a issue ou a demanda a que ligar
  * e, se faltar, o preparo do ambiente do Claude com consentimento. O projeto vem de
  * fora (o seletor da barra de título); só com mais de um projeto em `projetos` o
@@ -309,46 +494,11 @@ export function NovaAnalise({
   const [entrada, setEntrada] = useState("");
   const [titulo, setTitulo] = useState("");
   const [referencia, setReferencia] = useState(referenciaInicial);
-  const [demandas, setDemandas] = useState<DemandaVista[]>([]);
-  const abertas = demandas.filter((d) => d.status === "aberta");
   const [ambiente, setAmbiente] = useState<AmbienteClaude | null>(null);
   const [criando, setCriando] = useState(false);
   const [falha, setFalha] = useState<string | null>(null);
 
-  // Demandas abertas do projeto, sugeridas no campo "Issue ou demanda".
-  useEffect(() => {
-    if (demandaFixa || !projeto) return;
-    let ativo = true;
-    setDemandas([]);
-    api
-      .listarDemandas(projeto)
-      .then((l) => ativo && setDemandas(l))
-      // Sem a lista, a demanda continua valendo digitada.
-      .catch(() => undefined);
-    return () => {
-      ativo = false;
-    };
-  }, [api, projeto, demandaFixa]);
-
-  // Issues abertas do rastreador (#323), filtradas pelo que foi digitado; o que não
-  // está na lista continua valendo digitado (o app busca a issue na hora).
-  const [issues, setIssues] = useState<IssueDoProjeto[]>([]);
-  const [buscando, setBuscando] = useState(false);
-  useEffect(() => {
-    if (!api.issues || demandaFixa || !projeto || !buscando) {
-      setIssues([]);
-      return;
-    }
-    let ativo = true;
-    api.issues
-      .listar(projeto, { busca: referencia.trim(), estado: "abertas" })
-      .then((l) => ativo && setIssues(l.issues.slice(0, 6)))
-      // Sem a lista (sem rede, sem rastreador), o campo segue como texto livre.
-      .catch(() => ativo && setIssues([]));
-    return () => {
-      ativo = false;
-    };
-  }, [api, projeto, demandaFixa, referencia, buscando]);
+  const demandas = useDemandasDoProjeto(api, projeto, !demandaFixa);
 
   // O título e as análises da demanda, em todos os tipos com o campo (#350).
   const resolvida = useDemandaResolvida(api, projeto, referencia, demandas, !demandaFixa);
@@ -367,7 +517,7 @@ export function NovaAnalise({
   const ref = demandaFixa ? "" : referencia.trim();
   const ehDemanda = DEMANDA.test(ref);
   const demandaEscolhida = ehDemanda ? demandas.find((d) => d.id.toUpperCase() === ref.toUpperCase()) : undefined;
-  const achada = resolvida !== null && resolvida !== "buscando" && resolvida.achada ? resolvida : null;
+  const achada = demandaAchada(resolvida);
   const existentes = achada?.analises ?? [];
   // Com a issue, o título e a descrição dela são a entrada; com a demanda do projeto,
   // só na análise da demanda cadastrada (a entrada sai do título da demanda).
@@ -435,31 +585,6 @@ export function NovaAnalise({
       });
   };
 
-  const termo = referencia.trim().toLowerCase();
-  const sugestoes: Sugestao[] = buscando
-    ? [
-        ...abertas
-          .filter((d) => !termo || `${d.id} ${d.titulo}`.toLowerCase().includes(termo))
-          .slice(0, 4)
-          .map((d) => ({ chave: d.id, titulo: d.titulo })),
-        ...issues.map((i) => ({ chave: i.chave, titulo: i.titulo })),
-      ].filter((s) => s.chave.toLowerCase() !== termo)
-    : [];
-  const origem = origemDaReferencia(referencia);
-  const ajuda = resolvida === "buscando"
-    ? "Procurando a demanda…"
-    : resolvida !== null && !achada
-      ? `Não achei ${referencia.trim()} nas demandas nem nas issues do projeto. Ao iniciar, o app busca a issue no rastreador.`
-      : achada
-        ? `Reconhecida: ${achada.origem}${achada.demanda && achada.origem !== "demanda do projeto" ? `, demanda ${achada.demanda}` : ""}.`
-        : origem
-    ? `Reconhecida: ${origem}${demandaEscolhida ? ` (${demandaEscolhida.titulo})` : ""}.`
-    : referencia.trim()
-      ? "Não reconhecida. Use D-0012, PROJ-123, #142 ou o link da issue."
-      : cadastrada
-        ? "Aceita a demanda do projeto (D-0012), a chave do Jira (PROJ-123), o número da issue (#142) ou o link do GitHub ou do GitLab."
-        : "Liga o resultado à demanda; com uma issue, o texto dela é a entrada da análise.";
-
   return (
     <form className="nova-pergunta nova-analise" onSubmit={criar} aria-label={cadastrada ? "Analisar demanda cadastrada" : ROTULO_FLUXO[fluxo]}>
       {!semTitulo && <h3 className="titulo-formulario">{cadastrada ? "Analisar demanda cadastrada" : ROTULO_FLUXO[fluxo]}</h3>}
@@ -483,73 +608,17 @@ export function NovaAnalise({
         <PrepararAmbiente api={api} projeto={projeto} ambiente={ambiente} aoConcluir={verificar} />
       )}
       {!demandaFixa && (
-        <div
-          className="busca-issue"
-          onBlur={(e) => {
-            if (!e.currentTarget.contains(e.relatedTarget)) setBuscando(false);
-          }}
-        >
-          <label htmlFor="nova-analise-referencia">
-            {cadastrada ? "Demanda ou issue" : "Issue ou demanda"}{" "}
-            <span className="muted">{cadastrada ? "(obrigatório)" : "(opcional)"}</span>
-          </label>
-          <input
-            id="nova-analise-referencia"
-            value={referencia}
-            onChange={(e) => {
-              setReferencia(e.target.value);
-              setBuscando(true);
-            }}
-            onFocus={() => setBuscando(true)}
-            placeholder={cadastrada ? "D-0012, PROJ-123, #142 ou o link da issue" : "Busque pelo número ou título"}
-            spellCheck={false}
-            autoComplete="off"
-            aria-required={cadastrada}
-            aria-describedby="nova-analise-referencia-ajuda"
-            data-invalido={cadastrada && !ref ? "" : undefined}
-          />
-          {sugestoes.length > 0 && (
-            <ul
-              className="busca-issue-opcoes"
-              aria-label="Demandas e issues do projeto"
-              // No WebKit (macOS) o clique não dá foco ao botão: sem isto, o campo perde
-              // o foco, a lista fecha no blur e o clique na sugestão se perde.
-              onMouseDown={(e) => e.preventDefault()}
-            >
-              {sugestoes.map((o) => (
-                <li key={o.chave}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setReferencia(o.chave);
-                      setBuscando(false);
-                    }}
-                  >
-                    <span className="id">{o.chave}</span>
-                    <span>{o.titulo}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <span
-            id="nova-analise-referencia-ajuda"
-            className="ajuda-campo"
-            data-tom={
-              resolvida === "buscando"
-                ? undefined
-                : (resolvida !== null ? achada : origem)
-                  ? "ok"
-                  : referencia.trim()
-                    ? "atencao"
-                    : undefined
-            }
-            aria-live="polite"
-          >
-            {ajuda}
-          </span>
-          {achada && <DemandaAchada achada={achada} aoAbrirAnalise={aoAbrirAnalise} />}
-        </div>
+        <CampoIssueOuDemanda
+          api={api}
+          projeto={projeto}
+          referencia={referencia}
+          aoMudar={setReferencia}
+          demandas={demandas}
+          resolvida={resolvida}
+          cadastrada={cadastrada}
+          ajudaVazia="Liga o resultado à demanda; com uma issue, o texto dela é a entrada da análise."
+          aoAbrirAnalise={aoAbrirAnalise}
+        />
       )}
       <label>
         <span>

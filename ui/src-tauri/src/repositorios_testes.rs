@@ -234,8 +234,16 @@ echo '{"fields":{"summary":"Multa por atraso","description":"Revisar o cálculo 
         ),
         ..Default::default()
     };
-    let criada =
-        criar_analise_de_issue(&c.dados, PROJETO, Fluxo::Perguntar, "PROJ-123", &f).unwrap();
+    let criada = criar_analise_de_issue(
+        &c.dados,
+        PROJETO,
+        Fluxo::Perguntar,
+        "PROJ-123",
+        None,
+        None,
+        &f,
+    )
+    .unwrap();
     assert_eq!(criada.analise.titulo, "Multa por atraso");
     let vista = carregar_analise(&c.dados, PROJETO, &criada.analise.id).unwrap();
     assert!(vista.analise.entrada.contains("Multa por atraso"));
@@ -256,9 +264,55 @@ echo '{"fields":{"summary":"Multa por atraso","description":"Revisar o cálculo 
     p.repositorios = Repositorios::default();
     Cadastro::em(c.dados.projetos()).salvar(&p).unwrap();
     assert!(
-        criar_analise_de_issue(&c.dados, PROJETO, Fluxo::Perguntar, "PROJ-1", &f)
-            .unwrap_err()
-            .contains("repositório de issues")
+        criar_analise_de_issue(
+            &c.dados,
+            PROJETO,
+            Fluxo::Perguntar,
+            "PROJ-1",
+            None,
+            None,
+            &f
+        )
+        .unwrap_err()
+        .contains("repositório de issues")
+    );
+}
+
+#[test]
+fn pergunta_ligada_a_issue_usa_a_pergunta_como_entrada() {
+    let c = cenario();
+    let r = Repositorios {
+        codigo: vec![ForgeConfig::Github(GithubConfig { repo: "o/r".into() }).into()],
+        tracker: Some(TrackerConfig::Jira(jira())),
+        docs: None,
+    };
+    salvar_repositorios(&c.dados, PROJETO, r).unwrap();
+    let f = Ferramentas {
+        jira: script(
+            c.dir.path(),
+            "jira",
+            r#"echo '{"fields":{"summary":"Multa por atraso","description":"Revisar o cálculo da multa."}}'"#,
+        ),
+        ..Default::default()
+    };
+    let criada = criar_analise_de_issue(
+        &c.dados,
+        PROJETO,
+        Fluxo::Perguntar,
+        "PROJ-123",
+        Some("Como é calculada a multa?"),
+        None,
+        &f,
+    )
+    .unwrap();
+    let vista = carregar_analise(&c.dados, PROJETO, &criada.analise.id).unwrap();
+    assert_eq!(vista.analise.entrada.trim(), "Como é calculada a multa?");
+    // O título sai da pergunta, não da issue; a issue só liga o resultado.
+    assert_ne!(criada.analise.titulo, "Multa por atraso");
+    let doc = fs::read_to_string(&vista.documento).unwrap();
+    assert!(
+        doc.contains("origem: https://jira.example.com/browse/PROJ-123"),
+        "{doc}"
     );
 }
 
@@ -318,8 +372,16 @@ echo '{{"fields":{{"summary":"Cancelar fatura","description":"{historia}"}}}}'"#
             docs: None,
         };
         salvar_repositorios(&c.dados, PROJETO, r).unwrap();
-        let criada =
-            criar_analise_de_issue(&c.dados, PROJETO, Fluxo::Revisar, referencia, &f).unwrap();
+        let criada = criar_analise_de_issue(
+            &c.dados,
+            PROJETO,
+            Fluxo::Revisar,
+            referencia,
+            None,
+            None,
+            &f,
+        )
+        .unwrap();
         assert_eq!(criada.analise.fluxo, Fluxo::Revisar);
         assert_eq!(criada.analise.titulo, "Cancelar fatura");
         let vista = carregar_analise(&c.dados, PROJETO, &criada.analise.id).unwrap();

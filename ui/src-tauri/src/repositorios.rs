@@ -115,12 +115,15 @@ pub fn detectar_repositorios(pasta: &std::path::Path) -> Result<Vec<RepoDetectad
 }
 
 /// Cria a análise com título e descrição da issue como entrada e o link dela em
-/// `demanda.origem`.
+/// `demanda.origem`. Com `pedido` (a pergunta ao sistema, #359), ele é a entrada e a
+/// issue só liga o resultado (o título, sem `titulo`, sai do pedido).
 pub fn criar_analise_de_issue(
     dados: &DiretorioDados,
     projeto: &str,
     fluxo: Fluxo,
     referencia: &str,
+    pedido: Option<&str>,
+    titulo: Option<&str>,
     ferramentas: &Ferramentas,
 ) -> Result<AnaliseCriada, String> {
     if fluxo == Fluxo::Reuniao {
@@ -133,21 +136,25 @@ pub fn criar_analise_de_issue(
         .as_ref()
         .ok_or("o projeto não tem repositório de issues cadastrado")?;
     let d = buscar_demanda(tracker, referencia, ferramentas).map_err(|e| e.to_string())?;
-    let entrada = if d.descricao.trim().is_empty() {
-        d.titulo.clone()
-    } else {
-        format!("{}\n\n{}", d.titulo, d.descricao.trim())
+    let pedido = pedido.map(str::trim).filter(|t| !t.is_empty());
+    let (entrada, titulo) = match pedido {
+        Some(pedido) => (pedido.to_string(), titulo),
+        None if d.descricao.trim().is_empty() => (d.titulo.clone(), titulo.or(Some(&d.titulo))),
+        None => (
+            format!("{}\n\n{}", d.titulo, d.descricao.trim()),
+            titulo.or(Some(&d.titulo)),
+        ),
     };
     criar_analise_com_demanda(
         dados,
         projeto,
         fluxo,
         &entrada,
-        Some(&d.titulo),
+        titulo,
         Some(Demanda {
             id: None,
-            origem: d.url,
-            chave: Some(d.chave),
+            origem: d.url.clone(),
+            chave: Some(d.chave.clone()),
         }),
     )
 }
@@ -184,11 +191,15 @@ pub async fn prontidao_repositorios_app(projeto: String) -> Result<Prontidao, St
     bloqueante(move || prontidao(&dados, &projeto, &Ferramentas::default())).await
 }
 
+/// Cria a análise a partir da issue do rastreador. Com `entrada` (a pergunta, #359),
+/// ela é a entrada e a issue só liga o resultado.
 #[tauri::command]
 pub async fn criar_analise_de_demanda(
     projeto: String,
     fluxo: Fluxo,
     referencia: String,
+    entrada: Option<String>,
+    titulo: Option<String>,
 ) -> Result<AnaliseCriada, String> {
     let dados = dados()?;
     bloqueante(move || {
@@ -197,6 +208,8 @@ pub async fn criar_analise_de_demanda(
             &projeto,
             fluxo,
             &referencia,
+            entrada.as_deref(),
+            titulo.as_deref(),
             &Ferramentas::default(),
         )
     })
