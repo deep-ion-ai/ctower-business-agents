@@ -7,11 +7,11 @@
 //! O preparo (`cba_session::preparo`) instala a versão **efetiva** de cada tipo
 //! ([`WorkflowEfetivo`]) em `<raiz>/.claude/workflows/cba-<tipo>.js`.
 //!
-//! Por ora a versão efetiva é sempre o padrão ([`padroes`]). A customização (cópia do
-//! projeto em `<base>/_templates/workflows/<tipo>.js` e global em
-//! `<dados do app>/workflows/<tipo>.js`, com a precedência projeto > global > padrão)
-//! vem na tela de Configurações › Workflows (#372) e entra aqui, devolvendo
-//! [`WorkflowEfetivo`] com a [`OrigemWorkflow`] certa.
+//! A versão efetiva vem de [`efetivos`]: a cópia do projeto em
+//! `<base>/_templates/workflows/<tipo>.js`, a global em
+//! `<dados do app>/workflows/<tipo>.js` ou o padrão, nessa precedência (#372,
+//! [`copias`]). As cópias são editadas em Configurações › Workflows e validadas ao
+//! salvar ([`validar`]).
 
 use serde::Serialize;
 
@@ -103,6 +103,12 @@ pub fn padroes() -> Vec<WorkflowEfetivo> {
         .filter_map(|t| WorkflowEfetivo::padrao(t))
         .collect()
 }
+
+pub mod copias;
+pub mod validacao;
+
+pub use copias::{Copia, Resolucao, SituacaoCopia, efetivos, resolver};
+pub use validacao::{Fase, Problema, Validacao, validar};
 
 #[cfg(test)]
 mod tests {

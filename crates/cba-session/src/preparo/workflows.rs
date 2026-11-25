@@ -161,6 +161,93 @@ pub fn estado(arquivo: &Path, esperado: &str) -> Result<EstadoArquivo, Erro> {
     })
 }
 
+/// O conteúdo depois do cabeçalho de um arquivo instalado pelo app (a versão
+/// efetiva que ele leva, editada ou não); `None` se o texto não tem o cabeçalho.
+pub fn corpo(texto: &str) -> Option<&str> {
+    ler_cabecalho(texto)?;
+    let resto = texto.strip_prefix(PRIMEIRA_LINHA)?.strip_prefix('\n')?;
+    let mut posicao = 0;
+    for linha in resto.split_inclusive('\n').take(8) {
+        posicao += linha.len();
+        if linha.starts_with(MARCA_HASH) {
+            return Some(&resto[posicao..]);
+        }
+    }
+    None
+}
+
+impl super::Preparador {
+    /// Regrava, sem novo consentimento, os workflows **já instalados** que ficaram
+    /// defasados porque a versão efetiva mudou (cópia salva ou restaurada, padrão
+    /// novo; spec, seção 3.3, #372): o arquivo do app intacto de outra versão e o
+    /// editado à mão cujo conteúdo já é a versão efetiva (a edição foi levada para
+    /// uma cópia: só o cabeçalho muda). Nada é instalado onde não havia arquivo (isso
+    /// é do preparo, com o consentimento), e um arquivo editado com outro conteúdo ou
+    /// que não é do app nunca é tocado. O registro guarda o conteúdo de antes, como no
+    /// preparo, para o desfazer.
+    pub fn reinstalar_workflows(&self, alvo: &super::Alvo) -> Result<Vec<super::Alteracao>, Erro> {
+        let mut alteracoes = Vec::new();
+        if alvo.workflows.is_empty() {
+            return Ok(alteracoes);
+        }
+        let mut registro = super::Registro::ler(&self.config.registro());
+        let exe = self.executavel_texto();
+        for raiz in &alvo.raizes_workflows {
+            let chave = super::chave_do_caminho(raiz, self.plataforma);
+            for w in &alvo.workflows {
+                let nome = w.nome();
+                let arquivo = arquivo_workflow(raiz, &nome);
+                let novo = conteudo_instalado(w);
+                let antes = match estado(&arquivo, &novo)? {
+                    EstadoArquivo::Intacto {
+                        igual: false,
+                        texto,
+                    } => texto,
+                    EstadoArquivo::Editado => {
+                        let texto =
+                            fs::read_to_string(&arquivo).map_err(|e| erro_io(&arquivo, e))?;
+                        if corpo(&texto) != Some(w.conteudo.as_str()) {
+                            continue;
+                        }
+                        texto
+                    }
+                    _ => continue,
+                };
+                // Só o que esta instalação registrou; o primeiro "antes" fica.
+                if let Some(troca) = registro
+                    .instalacoes
+                    .get_mut(&exe)
+                    .and_then(|i| i.workflows.get_mut(&chave))
+                {
+                    troca
+                        .arquivos
+                        .entry(nome.clone())
+                        .or_insert(super::TrocaArquivo { antes: Some(antes) });
+                    registro.gravar(&self.config.registro())?;
+                }
+                gravar(&arquivo, &novo)?;
+                alteracoes.push(super::Alteracao {
+                    arquivo,
+                    item: super::Item::Workflow {
+                        nome,
+                        raiz: chave.clone(),
+                    },
+                    acao: super::Acao::Atualizado,
+                    outra_instalacao: None,
+                });
+            }
+        }
+        if !alteracoes.is_empty() {
+            tracing::info!(
+                projeto = alvo.projeto,
+                regravados = alteracoes.len(),
+                "workflows reinstalados na versão efetiva"
+            );
+        }
+        Ok(alteracoes)
+    }
+}
+
 /// Grava o arquivo, criando a pasta (atômico).
 pub fn gravar(arquivo: &Path, texto: &str) -> Result<(), Erro> {
     if let Some(pasta) = arquivo.parent() {
