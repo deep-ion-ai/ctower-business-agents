@@ -496,8 +496,15 @@ export interface AlteracaoPreparo {
     | { tipo: "servidorMcp"; chave: string }
     | { tipo: "confianca"; chave: string }
     | { tipo: "hook"; evento: string }
-    | { tipo: "exclusaoGit"; raiz: string };
-  acao: "adicionado" | "atualizado" | "removido" | "restaurado" | "semMudanca";
+    | { tipo: "exclusaoGit"; raiz: string }
+    | { tipo: "workflow"; nome: string; raiz: string }
+    | { tipo: "permissaoWorkflow"; regra: string }
+    | { tipo: "exclusaoWorkflows"; raiz: string };
+  /**
+   * "preservado": o workflow instalado foi editado à mão (ou não é do app) e fica como
+   * está, sem ser sobrescrito (#370).
+   */
+  acao: "adicionado" | "atualizado" | "removido" | "restaurado" | "semMudanca" | "preservado";
   /**
    * Executável de outra instalação do app: em "atualizado", para onde a entrada apontava
    * antes (o plano avisa da troca); em "restaurado", para onde voltou a apontar.

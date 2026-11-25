@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AlteracaoPreparo } from "./analise";
-import { descreverItem, outrasInstalacoes, porArquivo } from "./PrepararAmbiente";
+import { descreverAcao, descreverItem, outrasInstalacoes, porArquivo } from "./PrepararAmbiente";
 
 const local = "/codigo/fat/.claude/settings.local.json";
 const estado = "/home/ana/.claude.json";
@@ -36,6 +36,21 @@ describe("plano do preparo", () => {
       ["/codigo/fat/.git/info/exclude", 1],
     ]);
     expect(descreverItem(alteracoes[3].item)).toContain("fora do git");
+  });
+
+  it("mostra os workflows, as permissões e a linha deles no info/exclude (#370)", () => {
+    expect(
+      descreverItem({ tipo: "workflow", nome: "cba-impacto", raiz: "/codigo/wt" }),
+    ).toContain("Workflow cba-impacto das análises em /codigo/wt");
+    expect(descreverItem({ tipo: "permissaoWorkflow", regra: "Workflow(cba-impacto)" })).toContain(
+      "Workflow(cba-impacto)",
+    );
+    expect(descreverItem({ tipo: "exclusaoWorkflows", raiz: "/codigo/fat" })).toContain(
+      ".claude/workflows/cba-*.js",
+    );
+    expect(descreverAcao("preservado")).toContain("sem ser sobrescrito");
+    expect(descreverAcao("atualizado")).toBe("atualizado");
+    expect(descreverAcao("adicionado")).toBe("adicionado");
   });
 });
 

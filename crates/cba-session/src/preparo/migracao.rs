@@ -174,7 +174,7 @@ impl Preparador {
         let Some(Json::Lista(grupos)) = hooks.get_mut(evento) else {
             return Err(formato(caminho, &format!("hooks.{evento}")));
         };
-        let nosso = grupo_hook(&self.comando_hook(evento));
+        let nosso = grupo_hook(evento, &self.comando_hook(evento));
         let antes = grupos.len();
         grupos.retain(|g| !mesmo(g, &nosso));
         let tirados = antes - grupos.len();
