@@ -22,12 +22,18 @@
 //!   "Cenários de teste") e [`diagramas`] (`registrar_diagrama`, os diagramas
 //!   pelos elementos, que o app transforma em Mermaid, #118) e [`manual`]
 //!   (`registrar_passo_manual`, o passo a passo do manual do usuário de uma
-//!   funcionalidade, com os prints incluídos pelo analista, #272) e [`mapear`]
+//!   funcionalidade, com os prints incluídos pelo analista, #272) e [`prototipo`]
+//!   (`registrar_tela`, `registrar_elemento_tela`, `gravar_html_tela` e
+//!   `pacote_design_prototipo`, as telas
+//!   do fluxo "Protótipo de telas", com os elementos ligados às regras e aos
+//!   critérios, #381, o HTML de cada tela, #385, e o pacote para o design
+//!   hospedado, #383) e [`mapear`]
 //!   (`iniciar_mapeamento`, `pontos_de_entrada`, `registrar_funcionalidade`,
 //!   `tratar_ponto_de_entrada` e `concluir_mapeamento`: o mapa de funcionalidades
 //!   do projeto, #208, fora das análises) e [`mudancas`]
 //!   (`relatorio_de_mudancas` e `propor_atualizacao_de_regra`: o que mudou no
-//!   código desde a última análise e a explicação por regra, #124).
+//!   código desde a última análise e a explicação por regra, #124) e [`tokens`]
+//!   (`tokens_css`: os tokens CSS do projeto para o protótipo de telas, #384).
 //! - Consulta, só de leitura e paginada ([`paginacao`]): [`conhecimento`] (busca no
 //!   índice da base), [`mapa`], [`estrutura`], [`banco`] (`schema`, com os indícios
 //!   de dado pessoal de [`dados_pessoais`]) e
@@ -96,6 +102,8 @@ pub mod parecer;
 pub mod pauta;
 pub mod perguntar;
 pub mod prompts;
+pub mod prototipo;
+pub mod prototipo_exportacao;
 pub mod publicacao;
 pub mod rastreabilidade;
 pub mod referencias;
@@ -109,6 +117,7 @@ pub mod schema;
 pub mod status_demandas;
 pub mod sugestao;
 pub mod termo;
+pub mod tokens;
 pub mod vincular;
 pub mod vinculo;
 
@@ -152,6 +161,10 @@ pub fn registro_padrao() -> Registro {
         .registrar(cenarios::registrar_cenario())
         .registrar(diagramas::registrar_diagrama())
         .registrar(manual::registrar_passo_manual())
+        .registrar(prototipo::registrar_tela())
+        .registrar(prototipo::registrar_elemento_tela())
+        .registrar(prototipo::gravar_html_tela())
+        .registrar(prototipo::pacote_design_prototipo())
         .registrar(mapear::iniciar_mapeamento())
         .registrar(mapear::pontos_de_entrada())
         .registrar(mapear::registrar_funcionalidade())
@@ -160,6 +173,7 @@ pub fn registro_padrao() -> Registro {
         .registrar(mapear::concluir_mapeamento())
         .registrar(mudancas::relatorio_de_mudancas())
         .registrar(mudancas::propor_atualizacao_de_regra())
+        .registrar(tokens::tokens_css())
         .registrar(ciclo::concluir_analise());
     registro
 }
@@ -203,6 +217,10 @@ mod tests {
             "registrar_historia",
             "registrar_criterio",
             "registrar_passo_manual",
+            "registrar_tela",
+            "registrar_elemento_tela",
+            "gravar_html_tela",
+            "pacote_design_prototipo",
             "registrar_tabela_decisao",
             "registrar_cenario",
             "registrar_diagrama",
@@ -214,6 +232,7 @@ mod tests {
             "concluir_mapeamento",
             "relatorio_de_mudancas",
             "propor_atualizacao_de_regra",
+            "tokens_css",
             "concluir_analise",
         ] {
             assert!(r.obter(nome).is_some(), "{nome}");
@@ -224,6 +243,19 @@ mod tests {
         assert!(!r.obter("registrar_historia").unwrap().e_somente_leitura());
         assert!(!r.obter("registrar_criterio").unwrap().e_somente_leitura());
         assert!(!r.obter("registrar_cenario").unwrap().e_somente_leitura());
+        assert!(!r.obter("registrar_tela").unwrap().e_somente_leitura());
+        assert!(!r.obter("gravar_html_tela").unwrap().e_somente_leitura());
+        // Registra a entrega do pacote na análise.
+        assert!(
+            !r.obter("pacote_design_prototipo")
+                .unwrap()
+                .e_somente_leitura()
+        );
+        assert!(
+            !r.obter("registrar_elemento_tela")
+                .unwrap()
+                .e_somente_leitura()
+        );
         assert!(
             !r.obter("registrar_tabela_decisao")
                 .unwrap()
@@ -273,6 +305,7 @@ mod tests {
             "pontos_de_entrada",
             "concluir_mapeamento",
             "relatorio_de_mudancas",
+            "tokens_css",
         ] {
             assert!(r.obter(consulta).unwrap().e_somente_leitura(), "{consulta}");
         }

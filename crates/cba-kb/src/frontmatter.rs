@@ -84,10 +84,14 @@ pub enum TipoDocumento {
     /// `funcionalidades/<area>/<tema>/manual.md`, com os prints na pasta `manual/`
     /// ao lado.
     Manual,
+    /// Protótipo de telas (fluxo `prototipo`, #381), em `analises/`: as telas
+    /// afetadas pela análise de origem, cada uma nova ou alterada, com os
+    /// elementos ligados às regras e aos critérios de aceite de onde vêm.
+    Prototipo,
 }
 
 impl TipoDocumento {
-    pub const TODOS: [TipoDocumento; 23] = [
+    pub const TODOS: [TipoDocumento; 24] = [
         Self::Projeto,
         Self::AnaliseImpacto,
         Self::Pergunta,
@@ -111,6 +115,7 @@ impl TipoDocumento {
         Self::MapaFuncionalidades,
         Self::DocExterno,
         Self::Manual,
+        Self::Prototipo,
     ];
 
     /// Valor no frontmatter (`analise-impacto`).
@@ -139,6 +144,7 @@ impl TipoDocumento {
             Self::MapaFuncionalidades => "mapa-funcionalidades",
             Self::DocExterno => "doc-externo",
             Self::Manual => "manual",
+            Self::Prototipo => "prototipo",
         }
     }
 
@@ -640,6 +646,7 @@ impl Frontmatter for FrontmatterAnalise {
         TipoDocumento::Historias,
         TipoDocumento::CenariosTeste,
         TipoDocumento::Manual,
+        TipoDocumento::Prototipo,
     ];
 
     fn validar(&self) -> Result<(), ErroCampo> {

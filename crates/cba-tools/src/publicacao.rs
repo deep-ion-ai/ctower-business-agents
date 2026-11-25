@@ -100,6 +100,7 @@ pub fn aprovado(texto: &str) -> bool {
         | T::ParecerRevisao
         | T::Historias
         | T::CenariosTeste
+        | T::Prototipo
         | T::Funcionalidade
         | T::CasoDeUso
         | T::MapaFuncionalidades => status == Some("aprovada"),

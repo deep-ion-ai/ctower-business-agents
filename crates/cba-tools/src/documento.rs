@@ -46,6 +46,7 @@ fn secoes_estruturadas(fluxo: Fluxo) -> &'static [&'static str] {
             cba_docs::RASTREABILIDADE,
         ],
         Fluxo::Manual => &[cba_docs::PASSO_A_PASSO],
+        Fluxo::Prototipo => &[cba_docs::TELAS, cba_docs::RASTREABILIDADE],
         _ => &[],
     }
 }
@@ -59,7 +60,7 @@ pub fn secao_da_entrada(fluxo: Fluxo) -> Option<&'static str> {
         Fluxo::Impacto => Some("demanda_como_veio"),
         Fluxo::Reuniao => Some("reuniao"),
         Fluxo::Revisar => Some("requisito"),
-        Fluxo::Historias | Fluxo::Cenarios => Some("pedido"),
+        Fluxo::Historias | Fluxo::Cenarios | Fluxo::Prototipo => Some("pedido"),
         Fluxo::Explicar | Fluxo::Manual => None,
     }
 }
@@ -246,6 +247,11 @@ pub fn conteudo(
         conteudo
             .textos
             .push(crate::manual::texto(analise, &analise.documento));
+    }
+    if analise.fluxo == Fluxo::Prototipo {
+        conteudo
+            .textos
+            .extend(crate::prototipo::textos(analise, &analise.documento));
     }
     conteudo.afirmacoes = analise
         .afirmacoes

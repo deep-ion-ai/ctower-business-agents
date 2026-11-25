@@ -4697,3 +4697,169 @@ ul.analises-existentes {
 .nova-pergunta > .rodape-form {
   align-self: stretch;
 }
+
+/* Pedido do protótipo de telas (#379) e o cartão "Identidade visual". */
+.campos-prototipo,
+.identidade-visual {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.campos-prototipo > legend {
+  padding: 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.opcoes-fidelidade {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+/* Modo hospedado do protótipo (#383): o que sai do ambiente e a confirmação. */
+.aviso-envio {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--attention-border);
+  border-radius: 6px;
+  background: var(--attention-card);
+}
+.aviso-envio p {
+  margin: 0;
+}
+.identidade-visual-cabecalho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.identidade-visual h4,
+.identidade-visual h5,
+.identidade-visual p {
+  margin: 0;
+}
+.identidade-visual h5 {
+  font-size: 12px;
+  color: var(--muted);
+}
+.identidade-visual .acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.identidade-visual .a-confirmar {
+  color: var(--attention);
+}
+.page .papeis-token ul,
+.papeis-token ul {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.papeis-token li {
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+.papeis-token li[data-situacao="a-confirmar"] {
+  border: 1px solid var(--attention-border);
+  background: var(--attention-card);
+}
+.papel-token-linha,
+.papel-token-edicao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  font-size: 13px;
+}
+.papel-token-acoes {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+.papel-token-nota {
+  font-size: 12px;
+}
+.amostra-cor {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+}
+
+/* Protótipo de telas (#382): a lista das telas ao lado do visualizador isolado. */
+.prototipo-visualizador {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) 1fr;
+  gap: 16px;
+  align-items: start;
+}
+.prototipo-lista-telas ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+.prototipo-item-tela {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 8px 10px;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.prototipo-item-tela[aria-current="true"] {
+  border-color: var(--link);
+  box-shadow: inset 3px 0 0 var(--link);
+}
+.prototipo-marcas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.prototipo-motivo {
+  font-size: 12px;
+}
+.prototipo-tela-escolhida {
+  min-width: 0;
+}
+.prototipo-estados-app {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+.prototipo-estados-app .btn[aria-pressed="true"] {
+  border-color: var(--link);
+  color: var(--link);
+}
+/* O protótipo é um documento do projeto analisado: fundo próprio, claro. */
+.prototipo-quadro {
+  width: 100%;
+  min-height: 480px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+}
+@media (max-width: 900px) {
+  .prototipo-visualizador {
+    grid-template-columns: 1fr;
+  }
+}
