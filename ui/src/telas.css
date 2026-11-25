@@ -4105,6 +4105,10 @@ code[data-tone="attention"] {
   white-space: pre-wrap;
   color: var(--text-2);
 }
+/* A descrição é Markdown (#398): o espaço vem do próprio Markdown, não do pre-wrap. */
+.demandas-descricao.markdown {
+  white-space: normal;
+}
 .demandas-nabase {
   display: flex;
   flex-direction: column;

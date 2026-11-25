@@ -46,6 +46,7 @@ mod funcionalidades;
 mod gui;
 mod inicio;
 mod issues_projeto;
+mod links_projeto;
 mod manual;
 mod mudancas;
 mod painel_funcionalidade;
