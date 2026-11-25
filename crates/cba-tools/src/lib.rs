@@ -103,6 +103,7 @@ pub mod pauta;
 pub mod perguntar;
 pub mod prompts;
 pub mod prototipo;
+pub mod prototipo_exportacao;
 pub mod publicacao;
 pub mod rastreabilidade;
 pub mod referencias;

@@ -114,3 +114,85 @@ fn le_o_html_da_tela_e_recusa_caminho_fora_da_pasta() {
     let erro = html_da_tela(&c.dados, PROJETO, "A-0001", 1).unwrap_err();
     assert!(erro.contains("prototipo"), "{erro}");
 }
+
+#[test]
+fn exporta_a_pasta_e_pede_confirmacao_se_ja_existe() {
+    let c = cenario();
+    c.aprovar_analise_da_multa();
+    let criada = crate::analise::criar_analise_de_prototipo(
+        &c.dados,
+        PROJETO,
+        "A-0001",
+        None,
+        PedidoPrototipo::default(),
+        None,
+        None,
+    )
+    .unwrap();
+    let id = cba_kb::Id::analisar(&criada.analise.id).unwrap();
+    let amb = c.ambiente();
+    for nome in ["Cálculo da multa", "Consulta de faturas em atraso"] {
+        amb.analises
+            .alterar(&id, Mudanca::Tela, |a, agora| {
+                a.registrar_tela(
+                    NovaTela {
+                        nome: nome.into(),
+                        mudanca: MudancaTela::Alterada,
+                        motivo: "A multa por atraso aparece na fatura".into(),
+                        rastro: Rastro::default(),
+                        elementos: Vec::new(),
+                        sessao: None,
+                    },
+                    agora,
+                )
+            })
+            .unwrap();
+    }
+    let caminho = layout::html_da_tela(&id, 1);
+    let arquivo = amb.kb.caminho(&caminho);
+    std::fs::create_dir_all(arquivo.parent().unwrap()).unwrap();
+    std::fs::write(
+        &arquivo,
+        "<!doctype html><html><head><title>TL-1</title></head><body><p>Multa</p></body></html>",
+    )
+    .unwrap();
+    amb.analises
+        .alterar(&id, Mudanca::Tela, |a, _| {
+            a.definir_html_da_tela(1, Some(caminho))
+        })
+        .unwrap();
+
+    let destino = c.dados.raiz().join("exportados");
+    let destino = destino.to_str().unwrap();
+    let feita = exportar(&c.dados, PROJETO, &id.to_string(), destino, false).unwrap();
+    let ExportacaoPrototipo::Exportada {
+        pasta,
+        telas,
+        sem_prototipo,
+    } = feita.clone()
+    else {
+        panic!("esperava exportada: {feita:?}");
+    };
+    assert_eq!((telas, sem_prototipo), (1, 1));
+    let pasta = std::path::PathBuf::from(pasta);
+    assert!(pasta.join("index.html").is_file());
+    let tl1 = std::fs::read_to_string(pasta.join("TL-1.html")).unwrap();
+    assert!(tl1.contains("<a href=\"index.html\">"), "{tl1}");
+
+    // A pasta já existe: nada é gravado sem confirmar.
+    let de_novo = exportar(&c.dados, PROJETO, &id.to_string(), destino, false).unwrap();
+    assert_eq!(
+        de_novo,
+        ExportacaoPrototipo::PastaExiste {
+            pasta: pasta.display().to_string()
+        }
+    );
+    let confirmada = exportar(&c.dados, PROJETO, &id.to_string(), destino, true).unwrap();
+    assert!(
+        matches!(confirmada, ExportacaoPrototipo::Exportada { .. }),
+        "{confirmada:?}"
+    );
+
+    let erro = exportar(&c.dados, PROJETO, &id.to_string(), " ", false).unwrap_err();
+    assert!(erro.contains("pasta de destino"), "{erro}");
+}

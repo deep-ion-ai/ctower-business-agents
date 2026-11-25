@@ -603,8 +603,9 @@ pub fn escapar(texto: &str) -> String {
 }
 
 /// O CSS dos tokens para o `<style>`: sem `url()` nem `@import` (o protótipo
-/// abre sem rede) e sem nada que feche a tag `<style>`.
-fn css_dos_tokens(css: &str) -> String {
+/// abre sem rede) e sem nada que feche a tag `<style>`. Vale também para a
+/// cópia `tokens.css` da exportação em pasta (#380).
+pub fn css_dos_tokens(css: &str) -> String {
     let mut saida = String::new();
     for linha in css.lines() {
         let m = linha.to_ascii_lowercase();
