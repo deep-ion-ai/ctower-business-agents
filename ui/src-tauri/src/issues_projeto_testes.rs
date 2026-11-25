@@ -308,6 +308,7 @@ fn situacao_na_base_pela_analise_da_demanda() {
             descricao: None,
             chave: Some("#41".into()),
             origem: Some("https://github.com/o/r/issues/41".into()),
+            tipo: None,
         },
     )
     .unwrap();

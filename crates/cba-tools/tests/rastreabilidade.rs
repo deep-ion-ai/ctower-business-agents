@@ -178,6 +178,7 @@ fn caso() -> Caso {
                 ),
                 chave: Some("FAT-470".into()),
                 origem: None,
+                tipo: None,
             },
             Data::nova(2026, 11, 13).unwrap(),
         )

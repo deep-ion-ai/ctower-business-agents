@@ -75,6 +75,7 @@ fn cenario() -> Cenario {
                 ),
                 chave: Some("FAT-12".into()),
                 origem: None,
+                tipo: None,
             },
             data("2026-11-10"),
         )
