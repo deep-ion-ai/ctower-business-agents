@@ -104,3 +104,14 @@ describe("NovaAnalise: Issue do projeto vira busca sobre a lista das issues (#32
     );
   });
 });
+
+describe("NovaAnalise: título do formulário (#360)", () => {
+  it("fora do painel Nova análise mostra o tipo em caixa normal", async () => {
+    montar(vi.fn(() => Promise.resolve(lista([]))));
+    const form = screen.getByRole("form", { name: "Analisar impacto" });
+    expect(within(form).getByRole("heading", { name: "Analisar impacto" })).toHaveClass(
+      "titulo-formulario",
+    );
+    await screen.findByLabelText(/Issue ou demanda/);
+  });
+});
