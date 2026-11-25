@@ -3,7 +3,7 @@
 - **Data:** 2026-11-25
 - **Issues:** #350 (pedido da revisão) e #354 (este relatório, o protótipo e o plano)
 - **Implementação:** PR #353, na `develop` em `e622f79`
-- **Protótipos:** [`prototipos/index.html`](prototipos/index.html), telas 7 a 10 (HTML estático, claro e escuro)
+- **Protótipos:** [`prototipos/index.html`](prototipos/index.html), telas 7 a 10 (HTML estático, claro e escuro), e o canvas navegável em https://claude.ai/artifact/CkXbARY4WDbibG8Y14ossc (privado; o dono precisa compartilhar para outros abrirem)
 - **Relatório anterior:** [`2026-11-23-revisao-ux.md`](2026-11-23-revisao-ux.md) (#312), cuja issue 10 do plano ("Análises como lista com filtros") virou a #326
 
 ## 1. Resumo
@@ -12,7 +12,7 @@ Depois da #326, a tela Análises abria com o formulário de nova análise aberto
 
 O PR #353 fez da lista o conteúdo da tela e levou "Nova análise" para um painel lateral, com a escolha do tipo explicada. A barra de título passou a ser o único lugar de escolher o projeto. Na validação no app surgiram dois pontos de entrada novos: **Demanda Negocial**, para registrar o pedido do negócio, e **Analisar demanda cadastrada**, para analisar uma demanda ou issue que já existe.
 
-Ficam quatro issues candidatas (seção 7): o tipo da demanda num campo próprio, o mesmo padrão de "demanda e análises existentes" em mais três tipos, os títulos em caixa alta nos formulários abertos fora do painel e os filtros fixos quando a lista rola.
+Ficam quatro issues candidatas, para um épico próprio (seção 7): o tipo da demanda num campo próprio, o mesmo padrão de "demanda e análises existentes" em mais três tipos, os títulos em caixa alta nos formulários abertos fora do painel e os filtros fixos quando a lista rola.
 
 ## 2. Como a revisão foi feita, e os limites
 
@@ -119,7 +119,7 @@ Ressalva: a medida é do protótipo, que copia as medidas do CSS do app. Não fo
 
 ## 7. Plano: issues candidatas
 
-Para o épico #317. Esforço: P até 1 dia, M de 2 a 4 dias. Nenhuma foi criada.
+Para um épico novo, separado do #317: são continuações da tela Análises e da Demanda Negocial, não da revisão da #312, que o #317 implementa. A #354 pedia ligar as candidatas ao #317; a mudança foi pedida na revisão deste relatório. Esforço: P até 1 dia, M de 2 a 4 dias. Nem o épico nem as issues foram criados.
 
 | # | Título sugerido | O que faz | Prioridade | Esforço |
 |---|---|---|---|---|
