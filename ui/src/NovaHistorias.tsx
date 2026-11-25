@@ -168,7 +168,7 @@ export function NovaHistorias({
 
   return (
     <form className="nova-pergunta" onSubmit={criar} aria-label={ROTULO_FLUXO[fluxo]}>
-      {!semTitulo && <h3>{ROTULO_FLUXO[fluxo]}</h3>}
+      {!semTitulo && <h3 className="titulo-formulario">{ROTULO_FLUXO[fluxo]}</h3>}
       <p className="muted">{textos.explicacao}</p>
       {demandaFixa ? (
         <p className="muted">

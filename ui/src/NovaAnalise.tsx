@@ -462,7 +462,7 @@ export function NovaAnalise({
 
   return (
     <form className="nova-pergunta nova-analise" onSubmit={criar} aria-label={cadastrada ? "Analisar demanda cadastrada" : ROTULO_FLUXO[fluxo]}>
-      {!semTitulo && <h3>{cadastrada ? "Analisar demanda cadastrada" : ROTULO_FLUXO[fluxo]}</h3>}
+      {!semTitulo && <h3 className="titulo-formulario">{cadastrada ? "Analisar demanda cadastrada" : ROTULO_FLUXO[fluxo]}</h3>}
       {demandaFixa ? (
         <p className="muted">A análise fica ligada à demanda {demandaFixa}.</p>
       ) : (

@@ -22,6 +22,16 @@
   color: var(--muted);
 }
 
+/* Título de formulário de análise aberto fora do painel Nova análise (painel da
+   demanda, painel da funcionalidade, Início): fica em caixa normal, como no painel,
+   sem mudar a caixa alta dos títulos de seção acima (#360). */
+.page h3.titulo-formulario,
+h3.titulo-formulario {
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text);
+}
+
 .page p {
   margin: 0;
   line-height: 1.5;
