@@ -24,6 +24,14 @@
 //!
 //! Um projeto cuja pasta não está mais acessível não impede a migração: fica em
 //! [`AvisoMigracao::pendentes`] e será preparado quando o analista abrir o terminal.
+//!
+//! **Eventos novos** (#370): o estado guarda os eventos de [`EVENTOS`] que a
+//! migração levou às pastas. Quando o app passa a registrar eventos novos (o
+//! `PostToolUse` da ferramenta `Workflow`, o `SubagentStart` e o `SubagentStop`), a
+//! abertura seguinte refaz só o passo 1, sem aviso: os hooks dos eventos que faltam
+//! entram, e os que já estão ficam como estão, sem duplicar. A migração só leva os
+//! hooks ([`Alvo::com_workflows`] vazio): os workflows e as regras de permissão
+//! deles são itens novos do plano, que pedem o consentimento do analista no preparo.
 
 use std::fs;
 use std::io;
@@ -35,6 +43,7 @@ use cba_core::tempo;
 use cba_index::Cadastro;
 use serde::{Deserialize, Serialize};
 
+use crate::hooks::EVENTOS;
 use crate::preparo::{Acao, Alvo, Erro, Item, Preparador, Situacao};
 use crate::protecao;
 
@@ -84,6 +93,10 @@ struct Estado {
     aviso: Option<AvisoMigracao>,
     #[serde(default)]
     visto: bool,
+    /// Eventos cujos hooks a migração levou às pastas (#370). Ausente nos estados
+    /// gravados antes: a abertura seguinte leva os eventos que faltam.
+    #[serde(default)]
+    eventos: Vec<String>,
 }
 
 /// Uma migração por vez no processo (a tela pode pedir duas vezes ao abrir).
@@ -119,20 +132,86 @@ pub fn concluida(dados: &DiretorioDados) -> bool {
     ler(dados).is_some()
 }
 
+fn cadastrados(dados: &DiretorioDados) -> Result<Vec<cba_index::Projeto>, Erro> {
+    Cadastro::em(dados.projetos())
+        .listar()
+        .map_err(|e| erro_io(&dados.projetos(), io::Error::other(e.to_string())))
+}
+
+/// Eventos atuais, como vão no estado.
+fn eventos_atuais() -> Vec<String> {
+    EVENTOS.iter().map(|e| e.to_string()).collect()
+}
+
+/// A migração foi feita com menos eventos do que o app registra hoje.
+fn faltam_eventos(estado: &Estado) -> bool {
+    EVENTOS
+        .iter()
+        .any(|e| !estado.eventos.iter().any(|x| x == e))
+}
+
+/// Prepara de novo, só com os hooks, o projeto com o ambiente preparado por esta
+/// instalação (servidor MCP dela na pasta), anotando em `aviso` o que mudou.
+/// Devolve `false` se a pasta do projeto está inacessível (fica pendente).
+fn levar_hooks(
+    preparador: &Preparador,
+    projeto: &cba_index::Projeto,
+    aviso: &mut AvisoMigracao,
+) -> Result<bool, Erro> {
+    let alvo = match Alvo::do_projeto(projeto) {
+        // Só os hooks: os workflows pedem consentimento no preparo.
+        Ok(a) => a.com_workflows(Vec::new()),
+        Err(Erro::Pasta(_)) => {
+            // Sem a pasta, não há sessão a servir; o terminal prepara quando ela
+            // voltar.
+            aviso.pendentes.push(Pendente {
+                projeto: projeto.id.clone(),
+                motivo: "pasta do projeto inacessível".into(),
+            });
+            return Ok(false);
+        }
+        Err(e) => return Err(e),
+    };
+    if preparador.verificar(&alvo)?.servidor_mcp == Situacao::Ok {
+        let feito = preparador.preparar(&alvo)?;
+        for a in &feito.alteracoes {
+            if matches!(a.item, Item::Hook { .. })
+                && a.acao != Acao::SemMudanca
+                && !aviso.arquivos_locais.contains(&a.arquivo)
+            {
+                aviso.arquivos_locais.push(a.arquivo.clone());
+            }
+        }
+        aviso.projetos.push(projeto.id.clone());
+    }
+    Ok(true)
+}
+
 /// Migra, se ainda não migrou. Devolve o aviso, enquanto o analista não o viu (sem
 /// nada a migrar, não há aviso). Com erro, nada foi tirado do `settings.json` e a
-/// próxima chamada tenta de novo.
+/// próxima chamada tenta de novo. Já migrada, leva às pastas os hooks dos eventos
+/// novos de [`EVENTOS`], se houver (#370), sem aviso novo.
 pub fn migrar(
     dados: &DiretorioDados,
     preparador: &Preparador,
 ) -> Result<Option<AvisoMigracao>, Erro> {
     let _vez = EM_CURSO.lock().unwrap_or_else(|e| e.into_inner());
-    if let Some(estado) = ler(dados) {
+    if let Some(mut estado) = ler(dados) {
+        if faltam_eventos(&estado) {
+            let mut levados = AvisoMigracao::default();
+            for projeto in &cadastrados(dados)? {
+                levar_hooks(preparador, projeto, &mut levados)?;
+            }
+            estado.eventos = eventos_atuais();
+            gravar(dados, &estado)?;
+            tracing::info!(
+                projetos = levados.projetos.len(),
+                "hooks dos eventos novos levados às pastas"
+            );
+        }
         return Ok(estado.aviso.filter(|_| !estado.visto));
     }
-    let cadastrados = Cadastro::em(dados.projetos())
-        .listar()
-        .map_err(|e| erro_io(&dados.projetos(), io::Error::other(e.to_string())))?;
+    let cadastrados = cadastrados(dados)?;
 
     let mut aviso = AvisoMigracao {
         mensagem: MENSAGEM.to_string(),
@@ -140,34 +219,11 @@ pub fn migrar(
         ..Default::default()
     };
     for projeto in &cadastrados {
-        let alvo = match Alvo::do_projeto(projeto) {
-            Ok(a) => a,
-            Err(Erro::Pasta(_)) => {
-                // Sem a pasta, não há sessão a servir; o terminal prepara quando ela
-                // voltar.
-                aviso.pendentes.push(Pendente {
-                    projeto: projeto.id.clone(),
-                    motivo: "pasta do projeto inacessível".into(),
-                });
-                continue;
-            }
-            Err(e) => return Err(e),
-        };
-        if preparador.verificar(&alvo)?.servidor_mcp == Situacao::Ok {
-            let feito = preparador.preparar(&alvo)?;
-            for a in &feito.alteracoes {
-                if matches!(a.item, Item::Hook { .. })
-                    && a.acao != Acao::SemMudanca
-                    && !aviso.arquivos_locais.contains(&a.arquivo)
-                {
-                    aviso.arquivos_locais.push(a.arquivo.clone());
-                }
-            }
-            aviso.projetos.push(projeto.id.clone());
+        if levar_hooks(preparador, projeto, &mut aviso)? {
+            aviso
+                .regras_retiradas
+                .extend(protecao::migrar(dados, preparador, projeto)?);
         }
-        aviso
-            .regras_retiradas
-            .extend(protecao::migrar(dados, preparador, projeto)?);
     }
 
     // Só depois de as pastas terem as entradas novas.
@@ -190,6 +246,7 @@ pub fn migrar(
         concluida_ms: tempo::agora_ms(),
         aviso: houve.then_some(aviso),
         visto: false,
+        eventos: eventos_atuais(),
     };
     gravar(dados, &estado)?;
     tracing::info!(

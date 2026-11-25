@@ -17,6 +17,9 @@ use crate::clientes::Plataforma;
 use crate::hooks::EVENTOS;
 use crate::preparo::{ConfigClaude, arquivo_local, protecao::regra_de_protecao};
 
+/// Eventos que as versões das fixtures registravam (antes da #370).
+const EVENTOS_DA_0_1_0: usize = 6;
+
 const V010: &[(&str, &str)] = &[
     (
         "settings.json",
@@ -227,7 +230,7 @@ fn instalacao_da_0_1_0_migra_para_as_pastas() {
     let aviso = migrar(&c.dados, &c.preparador()).unwrap().expect("aviso");
     assert_eq!(aviso.mensagem, MENSAGEM);
     assert_eq!(aviso.projetos.len(), 2);
-    assert_eq!(aviso.eventos_retirados.len(), EVENTOS.len());
+    assert_eq!(aviso.eventos_retirados.len(), EVENTOS_DA_0_1_0);
     assert_eq!(aviso.regras_retiradas, vec![c.regra_a()]);
     assert!(aviso.ficaram.is_empty());
     assert!(aviso.pendentes.is_empty());
@@ -248,7 +251,7 @@ fn instalacao_com_registro_v1_devolve_o_valor_de_antes() {
     c.instalar(V050);
 
     let aviso = migrar(&c.dados, &c.preparador()).unwrap().expect("aviso");
-    assert_eq!(aviso.eventos_retirados.len(), EVENTOS.len());
+    assert_eq!(aviso.eventos_retirados.len(), EVENTOS_DA_0_1_0);
     sem_nada_do_app(&c);
     analista_intacto(&c);
     pastas_prontas(&c);
@@ -305,16 +308,19 @@ fn migracao_interrompida_termina_na_abertura_seguinte() {
 
     // Interrompida depois de preparar as pastas e levar a proteção, antes de tirar os
     // hooks globais: o estado da migração não foi gravado.
+    // Como a migração prepara: só os hooks.
     for id in ["faturamento", "estoque"] {
-        p.preparar(&Alvo::do_projeto(&c.projeto(id)).unwrap())
-            .unwrap();
+        let alvo = Alvo::do_projeto(&c.projeto(id))
+            .unwrap()
+            .com_workflows(Vec::new());
+        p.preparar(&alvo).unwrap();
     }
     protecao::migrar(&c.dados, &p, &c.projeto("faturamento")).unwrap();
     assert!(!concluida(&c.dados));
-    assert_eq!(p.hooks_globais().unwrap().len(), EVENTOS.len());
+    assert_eq!(p.hooks_globais().unwrap().len(), EVENTOS_DA_0_1_0);
 
     let aviso = migrar(&c.dados, &p).unwrap().expect("aviso");
-    assert_eq!(aviso.eventos_retirados.len(), EVENTOS.len());
+    assert_eq!(aviso.eventos_retirados.len(), EVENTOS_DA_0_1_0);
     // A proteção já tinha ido; não há regra repetida em lugar nenhum.
     assert!(aviso.regras_retiradas.is_empty());
     sem_nada_do_app(&c);
@@ -464,4 +470,63 @@ fn vale_para_claude_config_dir() {
     assert!(migrar(&c.dados, &p).unwrap().is_some());
     sem_nada_do_app(&c);
     pastas_prontas(&c);
+}
+
+/// Uma instalação migrada antes da #370 (estado sem `eventos`, pastas só com os seis
+/// eventos de antes) recebe os hooks dos eventos novos na abertura seguinte, sem
+/// duplicar os que já estavam, sem aviso novo e sem os workflows, que pedem
+/// consentimento no preparo.
+#[test]
+fn instalacao_migrada_recebe_os_eventos_novos_sem_duplicar() {
+    let c = Cenario::novo();
+    c.instalar(V010);
+    let p = c.preparador();
+    migrar(&c.dados, &p).unwrap();
+    marcar_visto(&c.dados).unwrap();
+
+    // Volta ao que a migração da #305 deixava: sem os eventos novos nas pastas e sem
+    // a lista de eventos no estado.
+    let novos = ["PostToolUse", "SubagentStart", "SubagentStop"];
+    for pasta in [&c.a, &c.b] {
+        let mut local = Cenario::json(&arquivo_local(pasta));
+        for e in novos {
+            local["hooks"].as_object_mut().unwrap().remove(e);
+        }
+        fs::write(
+            arquivo_local(pasta),
+            serde_json::to_vec_pretty(&local).unwrap(),
+        )
+        .unwrap();
+    }
+    let estado = c.dados.raiz().join(ARQUIVO);
+    let mut e: Value = Cenario::json(&estado);
+    e.as_object_mut().unwrap().remove("eventos");
+    fs::write(&estado, serde_json::to_vec_pretty(&e).unwrap()).unwrap();
+    let settings = fs::read(&c.config.settings).unwrap();
+
+    assert_eq!(migrar(&c.dados, &p).unwrap(), None);
+    for pasta in [&c.a, &c.b] {
+        let local = Cenario::json(&arquivo_local(pasta));
+        for e in EVENTOS {
+            assert_eq!(
+                local["hooks"][e].as_array().unwrap().len(),
+                1,
+                "{e} em {}",
+                pasta.display()
+            );
+        }
+        assert_eq!(local["hooks"]["PostToolUse"][0]["matcher"], "Workflow");
+        // Os workflows e as regras deles não vêm pela migração.
+        assert!(!pasta.join(".claude").join("workflows").exists());
+        assert!(local["permissions"].get("allow").is_none());
+    }
+    assert_eq!(fs::read(&c.config.settings).unwrap(), settings);
+    pastas_prontas(&c);
+
+    // Com os eventos em dia, abrir de novo não muda nada.
+    let local = fs::read(arquivo_local(&c.a)).unwrap();
+    assert_eq!(migrar(&c.dados, &p).unwrap(), None);
+    assert_eq!(fs::read(arquivo_local(&c.a)).unwrap(), local);
+    let e: Value = Cenario::json(&estado);
+    assert_eq!(e["eventos"].as_array().unwrap().len(), EVENTOS.len());
 }

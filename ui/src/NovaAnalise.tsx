@@ -4,10 +4,13 @@ import {
   ROTULO_ESTADO_ANALISE,
   type AmbienteClaude,
   type AnaliseCriada,
+  type Conducao,
   type EstadoAnalise,
   type Fluxo,
 } from "./analise";
+import { lembrarConducao, ultimaConducao } from "./conducao";
 import { ROTULO_FLUXO, type ApiConhecimento } from "./conhecimento";
+import { EscolhaConducao } from "./EscolhaConducao";
 import type { DemandaVista } from "./demandas";
 import type { IssueDoProjeto, OrigemIssue } from "./issuesProjeto";
 import { PrepararAmbiente } from "./PrepararAmbiente";
@@ -500,6 +503,8 @@ export function NovaAnalise({
   const [ambiente, setAmbiente] = useState<AmbienteClaude | null>(null);
   const [criando, setCriando] = useState(false);
   const [falha, setFalha] = useState<string | null>(null);
+  // Condução (#371): a última escolhida para o tipo; na primeira vez, a simples.
+  const [conducao, setConducao] = useState<Conducao>(() => ultimaConducao(fluxo));
 
   const demandas = useDemandasDoProjeto(api, projeto, !demandaFixa);
 
@@ -580,7 +585,16 @@ export function NovaAnalise({
     } else {
       pedido = api.criarAnalise(projeto, fluxo, entrada.trim(), tituloFinal);
     }
+    const comConducao = (criada: AnaliseCriada): Promise<AnaliseCriada> => {
+      if (!api.conducao) return Promise.resolve(criada);
+      lembrarConducao(fluxo, conducao);
+      if (conducao !== "workflow") return Promise.resolve(criada);
+      return api.conducao
+        .escolher(projeto, criada.analise.id, "workflow")
+        .then((promptInicial) => ({ ...criada, promptInicial }));
+    };
     pedido
+      .then(comConducao)
       .then((criada) => aoCriar(projeto, criada))
       .catch((e: unknown) => {
         setFalha(mensagemDe(e));
@@ -645,6 +659,15 @@ export function NovaAnalise({
           placeholder="Se ficar em branco, sai do texto"
         />
       </label>
+      {api.conducao && projeto && (
+        <EscolhaConducao
+          api={api.conducao}
+          projeto={projeto}
+          fluxo={fluxo}
+          valor={conducao}
+          aoMudar={setConducao}
+        />
+      )}
       <div className="rodape-form">
         {motivo && (
           <p className="motivo-desabilitado" id="nova-analise-motivo">

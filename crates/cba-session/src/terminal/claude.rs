@@ -205,6 +205,8 @@ pub fn pendencias(v: &Verificacao) -> Vec<String> {
         ),
         Situacao::Conflito => lista
             .push("já existe um servidor MCP chamado \"cba\" que não é do app nesta pasta".into()),
+        // Só os workflows divergem (#370).
+        Situacao::Divergente => {}
     }
     if !v.pasta_confiavel {
         lista.push(

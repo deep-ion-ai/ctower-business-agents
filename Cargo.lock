@@ -616,6 +616,7 @@ dependencies = [
  "cba-index",
  "cba-kb",
  "cba-repos",
+ "cba-tools",
  "dirs 6.0.0",
  "dunce",
  "portable-pty",

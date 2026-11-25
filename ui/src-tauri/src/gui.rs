@@ -6,11 +6,11 @@ use cba_session::clientes::{self, EstadoClientes};
 use std::sync::Arc;
 
 use crate::{
-    acessos, alteracoes, ambiente_teste, analise, base, clones, cobertura, configuracoes, conversa,
-    demandas, docs_externos, funcionalidades, inicio, issues_projeto, manual, mudancas,
+    acessos, alteracoes, ambiente_teste, analise, base, clones, cobertura, conducao, configuracoes,
+    conversa, demandas, docs_externos, funcionalidades, inicio, issues_projeto, manual, mudancas,
     painel_funcionalidade, pauta, primeiro_uso, projeto, prompts, prototipo, publicacao,
     rastreabilidade, registros, repositorios, resumo, reunioes, revisao, terminal, tokens, vigia,
-    vincular_issues,
+    vincular_issues, workflows,
 };
 
 pub fn rodar() {
@@ -72,6 +72,8 @@ pub fn rodar() {
             analise::conferir_evidencias_analise,
             analise::link_forja_evidencia_projeto,
             conversa::opcoes_conversa_analise,
+            conducao::conducao_disponivel_projeto,
+            conducao::escolher_conducao_analise,
             conversa::abrir_conversa_por_link,
             conversa::conversa_passou_ao_desktop,
             conversa::retomar_conversa_no_desktop,
@@ -202,6 +204,14 @@ pub fn rodar() {
             configuracoes::salvar_texto_editavel,
             configuracoes::restaurar_texto_padrao,
             configuracoes::previa_exportacao_texto,
+            workflows::workflows_app,
+            workflows::ler_workflow_app,
+            workflows::validar_workflow_app,
+            workflows::diferenca_workflow_app,
+            workflows::duplicar_workflow_app,
+            workflows::salvar_workflow_app,
+            workflows::restaurar_workflow_app,
+            workflows::levar_edicao_workflow_app,
             revisao::revisar_analise_projeto,
             revisao::prontidao_aprovacao_projeto,
             revisao::aprovar_analise_projeto,

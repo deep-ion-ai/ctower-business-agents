@@ -109,6 +109,12 @@ impl DiretorioDados {
     pub fn issues(&self) -> PathBuf {
         self.raiz.join("issues")
     }
+
+    /// Cópias dos workflows das análises que valem para todos os projetos
+    /// (`<dados>/workflows/<tipo>.js`, ver `cba_tools::workflows::copias`; #372).
+    pub fn workflows(&self) -> PathBuf {
+        self.raiz.join("workflows")
+    }
 }
 
 #[cfg(test)]

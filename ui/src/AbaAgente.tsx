@@ -10,6 +10,8 @@ const SITUACAO = {
   ausente: "ausente",
   desatualizado: "desatualizado",
   conflito: "conflito (há um servidor “cba” que não é do app)",
+  // Só os workflows das análises divergem (#370).
+  divergente: "editado à mão",
 } as const;
 
 /** Linhas da prévia das instruções do projeto. */

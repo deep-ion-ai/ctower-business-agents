@@ -12,7 +12,12 @@
 //! - para cada raiz de pasta preparada (#304), o que ela mudou no
 //!   `<raiz>/.claude/settings.local.json` ([`TrocaLocal`]): se o arquivo e a pasta
 //!   `.claude` já existiam, o valor de cada `hooks.<evento>` antes e o que ela gravou,
-//!   e se foi ela que pôs a linha do arquivo no `info/exclude` do git;
+//!   se foi ela que pôs a linha do arquivo no `info/exclude` do git e as regras de
+//!   permissão dos workflows que ela pôs em `permissions.allow` (#370);
+//! - para cada raiz de workflows (#370), os arquivos `.claude/workflows/cba-*.js` que
+//!   ela gravou, com o conteúdo de antes se havia, se as pastas `.claude` e
+//!   `.claude/workflows` já existiam e se foi ela que pôs a linha dos workflows no
+//!   `info/exclude` ([`TrocaWorkflows`]);
 //! - para cada evento de hook que ela mudou no `settings.json` do usuário (preparos
 //!   anteriores à #304, que gravavam os hooks no escopo do usuário), o valor de
 //!   `hooks.<evento>` antes (`None` se não existia) e o que ela gravou;
@@ -92,11 +97,54 @@ pub struct TrocaLocal {
     /// Foi esta instalação que pôs o arquivo no `info/exclude` do git.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub exclude: bool,
+    /// Regras de permissão dos workflows (`Workflow(cba-<tipo>)`, `Skill(cba-<tipo>)`)
+    /// que esta instalação pôs em `permissions.allow` (#370). As que já estavam lá
+    /// não entram: o desfazer não as tira.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub permissoes: Vec<String>,
+    /// A chave `permissions` existia no arquivo antes da primeira regra posta.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub permissoes_existia: Option<bool>,
+    /// A lista `permissions.allow` existia antes da primeira regra posta.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub allow_existia: Option<bool>,
 }
 
 impl TrocaLocal {
     pub fn vazia(&self) -> bool {
-        self.hooks.is_empty() && !self.exclude
+        self.hooks.is_empty() && !self.exclude && self.permissoes.is_empty()
+    }
+}
+
+/// Um workflow instalado por uma instalação em `<raiz>/.claude/workflows/` (#370).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct TrocaArquivo {
+    /// Conteúdo de antes da primeira gravação (um arquivo do app, de outra
+    /// instalação ou de um preparo sem registro); `None` se o arquivo não existia.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub antes: Option<String>,
+}
+
+/// O que uma instalação gravou na pasta `.claude/workflows` de uma raiz de workflows
+/// (`git rev-parse --show-toplevel` da pasta, ou a pasta fora do git; #370).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrocaWorkflows {
+    /// A pasta `.claude` da raiz já existia antes da primeira gravação.
+    pub pasta_existia: bool,
+    /// A pasta `.claude/workflows` já existia antes da primeira gravação.
+    pub pasta_workflows_existia: bool,
+    /// Por nome do workflow (`cba-impacto`).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub arquivos: BTreeMap<String, TrocaArquivo>,
+    /// Foi esta instalação que pôs a linha dos workflows no `info/exclude` do git.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub exclude: bool,
+}
+
+impl TrocaWorkflows {
+    pub fn vazia(&self) -> bool {
+        self.arquivos.is_empty() && !self.exclude
     }
 }
 
@@ -117,6 +165,9 @@ pub struct Instalacao {
     /// Por raiz (caminho, como em [`super::Alvo::raizes`]).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub locais: BTreeMap<String, TrocaLocal>,
+    /// Por raiz de workflows (caminho, como em [`super::Alvo::raizes_workflows`]).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub workflows: BTreeMap<String, TrocaWorkflows>,
 }
 
 impl Instalacao {
@@ -125,6 +176,7 @@ impl Instalacao {
             && self.mcp.is_empty()
             && self.confianca.is_empty()
             && self.locais.values().all(TrocaLocal::vazia)
+            && self.workflows.values().all(TrocaWorkflows::vazia)
     }
 }
 
@@ -146,8 +198,9 @@ fn versao() -> u32 {
     1
 }
 
-/// Versão gravada: a 2 acrescenta [`Instalacao::locais`] (#304).
-pub const VERSAO: u32 = 2;
+/// Versão gravada: a 2 acrescenta [`Instalacao::locais`] (#304); a 3, as regras de
+/// permissão dos workflows em [`TrocaLocal`] e [`Instalacao::workflows`] (#370).
+pub const VERSAO: u32 = 3;
 
 impl Registro {
     /// Lê o registro. Ausente, vazio ou ilegível vira registro vazio: o desfazer cai
@@ -184,6 +237,7 @@ impl Registro {
         atual.versao = VERSAO;
         for i in atual.instalacoes.values_mut() {
             i.locais.retain(|_, t| !t.vazia());
+            i.workflows.retain(|_, t| !t.vazia());
         }
         let mut texto = serde_json::to_string_pretty(&atual).unwrap_or_default();
         texto.push('\n');
@@ -281,7 +335,46 @@ impl Registro {
             if let (Some(a), Some(b)) = (troca.hooks_existia, saiu.hooks_existia) {
                 troca.hooks_existia = Some(a && b);
             }
-            // A linha do exclude passa a ser da que fica.
+            // A linha do exclude e as regras de permissão passam a ser da que fica.
+            troca.exclude |= saiu.exclude;
+            for r in &saiu.permissoes {
+                if !troca.permissoes.contains(r) {
+                    troca.permissoes.push(r.clone());
+                }
+            }
+            if !saiu.permissoes.is_empty() {
+                let e = |a: Option<bool>, b: Option<bool>| match (a, b) {
+                    (Some(a), Some(b)) => Some(a && b),
+                    (a, b) => a.or(b),
+                };
+                troca.permissoes_existia = e(troca.permissoes_existia, saiu.permissoes_existia);
+                troca.allow_existia = e(troca.allow_existia, saiu.allow_existia);
+            }
+        }
+        Some((saiu, outra_usa))
+    }
+
+    /// Tira do registro os workflows que a instalação `exe` gravou na raiz `raiz`.
+    /// Se outra instalação também gravou nessa raiz, os arquivos e a linha do
+    /// `info/exclude` passam a ser dela (ela os tira quando desfizer), e o segundo
+    /// valor é `true`.
+    pub fn tirar_workflows(&mut self, exe: &str, raiz: &str) -> Option<(TrocaWorkflows, bool)> {
+        let saiu = self.instalacoes.get_mut(exe)?.workflows.remove(raiz)?;
+        self.limpar(exe);
+        let mut outra_usa = false;
+        for outra in self.instalacoes.values_mut() {
+            let Some(troca) = outra.workflows.get_mut(raiz) else {
+                continue;
+            };
+            outra_usa = true;
+            for (nome, t) in &saiu.arquivos {
+                troca
+                    .arquivos
+                    .entry(nome.clone())
+                    .or_insert_with(|| t.clone());
+            }
+            troca.pasta_existia &= saiu.pasta_existia;
+            troca.pasta_workflows_existia &= saiu.pasta_workflows_existia;
             troca.exclude |= saiu.exclude;
         }
         Some((saiu, outra_usa))

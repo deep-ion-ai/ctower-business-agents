@@ -835,3 +835,101 @@ fn protecao_nega_bash_nas_sessoes_do_projeto() {
     protecao::desligar(&c.dados, &preparador, "faturamento-exemplo").unwrap();
     assert_eq!(c.enviar("PreToolUse", bash, &c.codigo), Resposta::seguir());
 }
+
+/// Workflow da análise (#371), com os payloads do Claude Code 2.1.331: o `Stop`
+/// logo depois do lançamento mantém a sessão ativa, os agentes e as fases do
+/// `journal.jsonl` vão para a análise e o aviso de fim fecha a execução.
+#[test]
+fn workflow_mantem_a_sessao_ativa_e_vai_para_a_analise() {
+    use cba_core::conducao::SituacaoWorkflow;
+
+    let c = Cenario::novo();
+    let id = c.analise.to_string();
+    let execucao = c.codigo.parent().unwrap().join("wf_1");
+    fs::create_dir_all(&execucao).unwrap();
+    c.enviar("UserPromptSubmit", json!({"prompt": "Inicie"}), &c.codigo);
+    c.enviar(
+        "PreToolUse",
+        json!({"tool_name": "mcp__cba__iniciar_analise", "tool_input": {"analise": id}}),
+        &c.codigo,
+    );
+    c.enviar(
+        "PostToolUse",
+        json!({
+            "tool_name": "Workflow",
+            "tool_input": {"name": "cba-impacto", "args": id},
+            "tool_response": {
+                "status": "async_launched",
+                "taskId": "t1",
+                "runId": "wf_1",
+                "transcriptDir": execucao,
+            }
+        }),
+        &c.codigo,
+    );
+    assert_eq!(
+        c.registro().unwrap().workflow.as_deref(),
+        Some(execucao.as_path())
+    );
+    let a = c.analises.carregar(&c.analise).unwrap();
+    assert_eq!(a.conducao, cba_core::conducao::Conducao::Workflow);
+    let w = a.workflow.unwrap();
+    assert_eq!((w.run_id.as_str(), w.sessao.as_str()), ("wf_1", SESSAO));
+    assert!(w.rodando());
+
+    // O `Stop` com o workflow em segundo plano: a sessão continua ativa.
+    let rodando = json!({"background_tasks": [
+        {"id": "t1", "type": "workflow", "status": "running", "name": "cba-impacto"}
+    ]});
+    c.enviar("Stop", rodando.clone(), &c.codigo);
+    assert_eq!(c.registro().unwrap().estado, EstadoSessao::Ativa);
+    assert_eq!(c.estado_na_analise(), Some(EstadoSessao::Ativa));
+
+    // Os agentes e as fases.
+    fs::write(
+        execucao.join("journal.jsonl"),
+        "{\"type\":\"started\",\"agentId\":\"a1\",\"phase\":\"Preparar\"}\n",
+    )
+    .unwrap();
+    c.enviar(
+        "SubagentStart",
+        json!({"agent_id": "a1", "agent_type": "workflow-subagent"}),
+        &c.codigo,
+    );
+    // Um subagente comum não conta.
+    c.enviar(
+        "SubagentStart",
+        json!({"agent_id": "x", "agent_type": "Explore"}),
+        &c.codigo,
+    );
+    let mut parada = rodando.clone();
+    parada["agent_id"] = json!("a1");
+    parada["agent_type"] = json!("workflow-subagent");
+    parada["agent_transcript_path"] = json!(execucao.join("agent-a1.jsonl"));
+    fs::write(
+        execucao.join("journal.jsonl"),
+        "{\"type\":\"started\",\"agentId\":\"a1\",\"phase\":\"Preparar\"}\n\
+         {\"type\":\"result\",\"agentId\":\"a1\",\"result\":{}}\n",
+    )
+    .unwrap();
+    c.enviar("SubagentStop", parada, &c.codigo);
+    let w = c.analises.carregar(&c.analise).unwrap().workflow.unwrap();
+    assert_eq!((w.iniciados, w.concluidos), (1, 1));
+    assert_eq!(w.fases[0].titulo, "Preparar");
+    assert_eq!((w.fases[0].iniciados, w.fases[0].concluidos), (1, 1));
+    assert_eq!(c.registro().unwrap().estado, EstadoSessao::Ativa);
+
+    // O aviso de fim fecha a execução; a sessão conclui e para.
+    c.enviar(
+        "UserPromptSubmit",
+        json!({"prompt": "<task-notification>\n<task-id>t1</task-id>\n<status>completed</status>\n<usage><agent_count>1</agent_count><subagent_tokens>900</subagent_tokens><duration_ms>50</duration_ms></usage>\n</task-notification>"}),
+        &c.codigo,
+    );
+    c.enviar("Stop", json!({"background_tasks": []}), &c.codigo);
+    assert_eq!(c.registro().unwrap().estado, EstadoSessao::Concluida);
+    let a = c.analises.carregar(&c.analise).unwrap();
+    let w = a.workflow.unwrap();
+    assert_eq!(w.situacao, SituacaoWorkflow::Concluido);
+    assert_eq!(w.uso.unwrap().tokens, 900);
+    assert_eq!(a.aviso_conducao, None);
+}

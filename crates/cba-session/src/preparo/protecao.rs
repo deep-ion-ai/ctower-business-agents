@@ -263,12 +263,12 @@ impl Preparador {
         let Some(exclude) = super::arquivo_exclude(raiz) else {
             return Ok(());
         };
-        if super::tem_linha_exclude(&exclude) {
+        if super::tem_linha(&exclude, super::e_linha_do_arquivo_local) {
             return Ok(());
         }
         let mut registro = super::registro::Registro::ler(&self.config.registro());
         let chave = super::chave_do_caminho(raiz, self.plataforma);
         self.registrar_exclude(&mut registro, &chave, true, true)?;
-        super::acrescentar_linha_exclude(&exclude)
+        super::acrescentar_linha(&exclude, super::LINHA_EXCLUDE)
     }
 }

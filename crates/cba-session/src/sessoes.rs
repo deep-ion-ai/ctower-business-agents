@@ -68,6 +68,11 @@ pub struct RegistroSessao {
     pub atualizada_ms: u64,
     #[serde(default)]
     pub fim_ms: Option<u64>,
+    /// Pasta da execução do workflow mais recente da sessão (`transcriptDir` do
+    /// `PostToolUse` da ferramenta `Workflow`, #371), de onde o receptor lê as
+    /// fases (`journal.jsonl`). Fica nos dados do app, não na análise da base.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workflow: Option<PathBuf>,
 }
 
 impl RegistroSessao {
@@ -86,6 +91,7 @@ impl RegistroSessao {
             inicio_ms: agora_ms,
             atualizada_ms: agora_ms,
             fim_ms: None,
+            workflow: None,
         }
     }
 

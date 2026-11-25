@@ -203,6 +203,11 @@ export function ParecerAoVivo({ analise, aoDecidir, ocupado }: Props) {
                       {ROTULO_SEVERIDADE[s]}
                     </span>
                     <span className="muted">achado {a.numero}</span>
+                    {a.contestacao && (
+                      <span className="badge" data-tone="attention">
+                        a revalidar
+                      </span>
+                    )}
                     {editavel && (
                       <button
                         type="button"
@@ -222,6 +227,12 @@ export function ParecerAoVivo({ analise, aoDecidir, ocupado }: Props) {
                   </div>
                   {a.trecho && <p className="achado-trecho">“{a.trecho}”</p>}
                   <p>{a.problema}</p>
+                  {a.contestacao && (
+                    <p className="comentario contestacao">
+                      <span className="muted">Contestação da verificação independente:</span>{" "}
+                      {a.contestacao.motivo}
+                    </p>
+                  )}
                   {a.regras && a.regras.length > 0 && (
                     <p className="muted">
                       Regras da base: <span className="mono">{a.regras.join(", ")}</span>
