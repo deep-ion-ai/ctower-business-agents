@@ -38,6 +38,9 @@ const ENTRADA: Record<Fluxo, { rotulo: string; exemplo: string }> = {
   cenarios: { rotulo: "Pedido", exemplo: "" },
   // O manual do usuário nasce no painel da funcionalidade (#272).
   manual: { rotulo: "Funcionalidade", exemplo: "" },
+  // O protótipo de telas parte de uma análise de origem aprovada (#381); o
+  // formulário próprio vem com as entradas na UI (#379).
+  prototipo: { rotulo: "Pedido", exemplo: "" },
 };
 
 /** Demanda do projeto (`D-0012`). */

@@ -54,7 +54,7 @@ use crate::analise::{SessaoVista, ambiente};
 use crate::projeto;
 
 /// Fluxos na ordem em que o resumo os lista (a mesma do enum).
-const FLUXOS: [Fluxo; 8] = [
+const FLUXOS: [Fluxo; 9] = [
     Fluxo::Perguntar,
     Fluxo::Explicar,
     Fluxo::Impacto,
@@ -63,6 +63,7 @@ const FLUXOS: [Fluxo; 8] = [
     Fluxo::Historias,
     Fluxo::Cenarios,
     Fluxo::Manual,
+    Fluxo::Prototipo,
 ];
 
 // ---------------------------------------------------------------------------

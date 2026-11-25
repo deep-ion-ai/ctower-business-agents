@@ -467,6 +467,14 @@ pub fn pendencias(analise: &Analise) -> Vec<Pendencia> {
         lista.extend(pendencias_dos_cenarios(analise));
     } else if analise.fluxo == Fluxo::Manual {
         lista.extend(pendencias_do_manual(None, analise));
+    } else if analise.fluxo == Fluxo::Prototipo {
+        if analise.telas().is_empty() {
+            lista.push(Pendencia {
+                tipo: "analise",
+                numero: None,
+                motivo: "não há telas registradas".into(),
+            });
+        }
     } else if analise.afirmacoes.is_empty() {
         lista.push(Pendencia {
             tipo: "analise",

@@ -14,7 +14,8 @@ export type Fluxo =
   | "revisar"
   | "historias"
   | "cenarios"
-  | "manual";
+  | "manual"
+  | "prototipo";
 export type EstadoAnalise = "criada" | "em-andamento" | "concluida" | "aprovada";
 /** O rótulo do estado da análise, o mesmo em todo o app (lista, Atividades, painéis). */
 export const ROTULO_ESTADO_ANALISE: Record<EstadoAnalise, string> = {
