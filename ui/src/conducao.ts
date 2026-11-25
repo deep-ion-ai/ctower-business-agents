@@ -15,6 +15,13 @@ export interface EstimativaConducao {
   minutosMaximo: number;
 }
 
+export interface FaseConducao {
+  titulo: string;
+  detalhe: string | null;
+  /** Um agente por frente (senão, um agente só). */
+  porFrente: boolean;
+}
+
 export interface ConducaoDisponivel {
   temWorkflow: boolean;
   workflow: string | null;
@@ -26,6 +33,8 @@ export interface ConducaoDisponivel {
   maxAgentes: number;
   /** Faixa de tokens, depois da medição com o `cba-avaliacao`. */
   estimativa: EstimativaConducao | null;
+  /** As fases do workflow efetivo, na ordem de `meta.phases`. */
+  fases: FaseConducao[];
 }
 
 export interface ApiConducao {
@@ -62,21 +71,19 @@ export function lembrarConducao(fluxo: Fluxo, conducao: Conducao): void {
   }
 }
 
-function milhares(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mi`;
-  return `${Math.round(n / 1000).toLocaleString("pt-BR")} mil`;
+/**
+ * Custo da Aprofundada ao lado da opção, só a razão arredondada ("cerca de 5× o da
+ * simples"); sem a medição, o número máximo de agentes.
+ */
+export function textoDaEstimativa(c: ConducaoDisponivel): string {
+  const e = c.estimativa;
+  if (!e) return `até ${c.maxAgentes} agentes`;
+  return `custo aproximado de ${Math.max(1, Math.round(e.razaoSimples))}× o da condução simples`;
 }
 
-/** Texto da estimativa ao lado da opção Aprofundada. */
-export function textoDaEstimativa(c: ConducaoDisponivel): string {
-  const agentes = `até ${c.maxAgentes} agentes (${c.frentes} frentes)`;
-  const e = c.estimativa;
-  if (!e) return agentes;
-  const razao = e.razaoSimples.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
-  return (
-    `${agentes}; cerca de ${milhares(e.tokensMinimo)} a ${milhares(e.tokensMaximo)} tokens ` +
-    `e ${e.minutosMinimo} a ${e.minutosMaximo} min, cerca de ${razao}× a simples`
-  );
+/** Agentes de uma fase, ao lado do título. */
+export function textoDaFase(f: FaseConducao, frentes: number): string {
+  return f.porFrente ? `${frentes} agentes, um por frente` : "1 agente";
 }
 
 /** "n de m agentes" de uma fase, ou do workflow inteiro sem as fases. */

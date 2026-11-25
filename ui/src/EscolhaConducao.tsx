@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Conducao, Fluxo } from "./analise";
-import { textoDaEstimativa, type ApiConducao, type ConducaoDisponivel } from "./conducao";
+import { textoDaEstimativa, textoDaFase, type ApiConducao, type ConducaoDisponivel } from "./conducao";
 
 interface Props {
   api: ApiConducao;
@@ -70,6 +70,28 @@ export function EscolhaConducao({ api, projeto, fluxo, valor, aoMudar }: Props) 
           ? `Aprofundada: ${textoDaEstimativa(disponivel)}.`
           : `Aprofundada indisponível: ${disponivel.motivo ?? "motivo desconhecido"}.`}
       </p>
+      {disponivel.disponivel && (
+        <p className="alerta-conducao" role="note">
+          Somente justifica o uso em análises complexas ou de funcionalidades críticas.
+        </p>
+      )}
+      {disponivel.fases.length > 0 && (
+        <details className="conducao-fases">
+          <summary>O que a Aprofundada faz, fase a fase</summary>
+          <ol aria-label="Fases do workflow">
+            {disponivel.fases.map((f) => (
+              <li key={f.titulo}>
+                <strong>{f.titulo}</strong>
+                {f.detalhe && <>: {f.detalhe}</>}
+                <span className="muted"> ({textoDaFase(f, disponivel.frentes)})</span>
+              </li>
+            ))}
+          </ol>
+          <p className="ajuda-campo">
+            A simples faz o mesmo numa conversa só, sem a verificação independente.
+          </p>
+        </details>
+      )}
     </fieldset>
   );
 }

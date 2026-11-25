@@ -352,16 +352,28 @@ impl Estimativa {
     /// última fase uma vez; as por frente (Investigar ou Avaliar, e Verificar) uma
     /// vez por frente.
     pub fn faixa(&self, frentes: u32) -> (u64, u64) {
-        let mut faixa = (0, 0);
-        for f in self.fases {
-            let vezes = match f.fase {
-                "Investigar" | "Avaliar" | "Verificar" => u64::from(frentes),
-                _ => 1,
-            };
-            faixa.0 += f.minimo * vezes;
-            faixa.1 += f.maximo * vezes;
-        }
-        faixa
+        self.fases
+            .iter()
+            .map(|f| f.faixa(frentes))
+            .fold((0, 0), |a, f| (a.0 + f.0, a.1 + f.1))
+    }
+}
+
+/// A fase roda um agente por frente (Investigar ou Avaliar, e Verificar); as outras,
+/// um agente só.
+pub fn por_frente(fase: &str) -> bool {
+    matches!(fase, "Investigar" | "Avaliar" | "Verificar")
+}
+
+impl TokensDaFase {
+    /// Faixa de tokens da fase inteira com `frentes` frentes.
+    pub fn faixa(&self, frentes: u32) -> (u64, u64) {
+        let vezes = if por_frente(self.fase) {
+            u64::from(frentes)
+        } else {
+            1
+        };
+        (self.minimo * vezes, self.maximo * vezes)
     }
 }
 
