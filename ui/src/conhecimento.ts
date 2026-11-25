@@ -230,9 +230,15 @@ export interface ApiConhecimento extends ApiAmbiente {
   ): Promise<AnaliseCriada>;
   /**
    * Cria a análise a partir de uma issue do rastreador do projeto (`PROJ-123`, `#12`):
-   * título e descrição viram a entrada e o link vai em `demanda.origem`.
+   * título e descrição viram a entrada e o link vai em `demanda.origem`. Com
+   * `pedido.entrada` (a pergunta, #359), ela é a entrada e a issue só liga o resultado.
    */
-  criarAnaliseDeDemanda(projeto: string, fluxo: Fluxo, referencia: string): Promise<AnaliseCriada>;
+  criarAnaliseDeDemanda(
+    projeto: string,
+    fluxo: Fluxo,
+    referencia: string,
+    pedido?: { entrada?: string; titulo?: string },
+  ): Promise<AnaliseCriada>;
   /** Análises do projeto, da mais recente para a mais antiga (a origem das histórias). */
   listarAnalises(projeto: string): Promise<AnaliseResumo[]>;
   /**
@@ -298,8 +304,14 @@ export const apiConhecimentoTauri: ApiConhecimento = {
       titulo: titulo ?? null,
       demanda: demanda ?? null,
     }),
-  criarAnaliseDeDemanda: (projeto, fluxo, referencia) =>
-    invoke("criar_analise_de_demanda", { projeto, fluxo, referencia }),
+  criarAnaliseDeDemanda: (projeto, fluxo, referencia, pedido) =>
+    invoke("criar_analise_de_demanda", {
+      projeto,
+      fluxo,
+      referencia,
+      entrada: pedido?.entrada ?? null,
+      titulo: pedido?.titulo ?? null,
+    }),
   listarAnalises: apiAnaliseTauri.listarAnalises,
   criarAnaliseDeHistorias: (projeto, pedido) =>
     invoke("criar_analise_de_historias_app", {
@@ -348,6 +360,7 @@ export const apiConhecimentoTauri: ApiConhecimento = {
       titulo: nova.titulo,
       descricao: nova.descricao ?? null,
       chave: nova.chave ?? null,
+      tipo: nova.tipo ?? null,
     }),
   encerrarDemanda: (projeto, demanda) => invoke("encerrar_demanda_app", { projeto, demanda }),
   reabrirDemanda: (projeto, demanda) => invoke("reabrir_demanda_app", { projeto, demanda }),

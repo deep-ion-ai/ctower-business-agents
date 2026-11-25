@@ -1,9 +1,50 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { mensagemDe } from "./analise";
 import type { ApiConhecimento } from "./conhecimento";
-import { ROTULO_STATUS_DEMANDA, type DemandaVista } from "./demandas";
+import {
+  ROTULO_STATUS_DEMANDA,
+  ROTULO_TIPO_DEMANDA,
+  TIPOS_DE_DEMANDA,
+  type DemandaVista,
+  type TipoDemanda,
+} from "./demandas";
 import { EstadoNoRastreador } from "./EstadoNoRastreador";
 import type { Tela } from "./Navegacao";
+
+/**
+ * Filtro pelo tipo da demanda (#358): todos, Corrigir bug, Nova funcionalidade ou
+ * Melhoria. A demanda sem tipo só aparece em "todos".
+ */
+export function FiltroTipoDemanda({
+  id,
+  valor,
+  aoMudar,
+}: {
+  id: string;
+  valor: TipoDemanda | null;
+  aoMudar: (t: TipoDemanda | null) => void;
+}) {
+  return (
+    <>
+      <label className="sr-only" htmlFor={id}>
+        Tipo da demanda
+      </label>
+      <select
+        id={id}
+        className="chip-select"
+        value={valor ?? ""}
+        onChange={(e) => aoMudar((e.target.value || null) as TipoDemanda | null)}
+      >
+        <option value="">Tipo: todos</option>
+        {TIPOS_DE_DEMANDA.map((t) => (
+          <option key={t} value={t}>
+            {ROTULO_TIPO_DEMANDA[t]}
+          </option>
+        ))}
+      </select>
+    </>
+  );
+}
 
 /**
  * Demandas do projeto (#138), no início da tela do projeto: as abertas primeiro,
@@ -28,6 +69,7 @@ export function ListaDemandas({
   const [criando, setCriando] = useState(false);
   const [mudando, setMudando] = useState<string | null>(null);
   const [atualizando, setAtualizando] = useState(false);
+  const [tipo, setTipo] = useState<TipoDemanda | null>(null);
 
   const carregar = useCallback(() => {
     api
@@ -51,6 +93,7 @@ export function ListaDemandas({
       .finally(() => setAtualizando(false));
   };
   const temChave = demandas?.some((d) => d.chave) ?? false;
+  const visiveis = (demandas ?? []).filter((d) => !tipo || d.tipo === tipo);
 
   const mudarStatus = (d: DemandaVista) => {
     setMudando(d.id);
@@ -85,8 +128,14 @@ export function ListaDemandas({
         </p>
       )}
       {demandas && demandas.length > 0 && (
+        <FiltroTipoDemanda id="tipo-lista-demandas" valor={tipo} aoMudar={setTipo} />
+      )}
+      {demandas && demandas.length > 0 && visiveis.length === 0 && (
+        <p className="muted">Nenhuma demanda deste tipo.</p>
+      )}
+      {visiveis.length > 0 && (
         <ul className="lista-demandas">
-          {demandas.map((d) => (
+          {visiveis.map((d) => (
             <li key={d.id} data-status={d.status}>
               <button
                 type="button"
@@ -98,6 +147,7 @@ export function ListaDemandas({
               <span className="badge" data-tone={d.status === "aberta" ? "running" : "done"}>
                 {ROTULO_STATUS_DEMANDA[d.status]}
               </span>
+              {d.tipo && <span className="badge">{ROTULO_TIPO_DEMANDA[d.tipo]}</span>}
               {d.chave && <span className="muted">{d.chave}</span>}
               <span className="muted">
                 {d.status === "encerrada" && d.encerrado

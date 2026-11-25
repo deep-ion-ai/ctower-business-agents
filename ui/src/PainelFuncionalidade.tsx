@@ -290,7 +290,7 @@ function NovaAnalise({
   return (
     <section className="cartao-painel" aria-label="Nova análise para esta funcionalidade">
       <header className="linha-cabecalho">
-        <h3>Nova análise para esta funcionalidade</h3>
+        <h3 className="titulo-formulario">Nova análise para esta funcionalidade</h3>
         <span className="muted">A entrada já vem com a funcionalidade e os pontos de entrada.</span>
       </header>
       <div className="novas-analises" role="group" aria-label="Fluxo">

@@ -168,7 +168,7 @@ export function NovaReuniao({
 
   return (
     <form className="nova-pergunta nova-reuniao" onSubmit={criar} aria-label={ROTULO_FLUXO.reuniao}>
-      {!semTitulo && <h3>{ROTULO_FLUXO.reuniao}</h3>}
+      {!semTitulo && <h3 className="titulo-formulario">{ROTULO_FLUXO.reuniao}</h3>}
       {demandaFixa ? (
         <p className="muted">A reunião fica na demanda {demandaFixa}.</p>
       ) : (

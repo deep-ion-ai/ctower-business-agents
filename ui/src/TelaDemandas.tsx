@@ -3,7 +3,12 @@ import { mensagemDe } from "./analise";
 import type { ApiConhecimento, Encontrado } from "./conhecimento";
 import type { AbrirLink } from "./ClientesIA";
 import { dobrar, parecidos } from "./demandasParecidas";
-import { ROTULO_STATUS_DEMANDA, type DemandaVista } from "./demandas";
+import {
+  ROTULO_STATUS_DEMANDA,
+  ROTULO_TIPO_DEMANDA,
+  type DemandaVista,
+  type TipoDemanda,
+} from "./demandas";
 import {
   ROTULO_SITUACAO,
   frescor,
@@ -14,7 +19,7 @@ import {
   type ListaIssues,
   type SituacaoNaBase,
 } from "./issuesProjeto";
-import { FormDemanda, ListaDemandas } from "./ListaDemandas";
+import { FiltroTipoDemanda, FormDemanda, ListaDemandas } from "./ListaDemandas";
 import type { Tela } from "./Navegacao";
 
 /** Situações do filtro, na ordem do fluxo da análise. */
@@ -26,10 +31,14 @@ const ESTADOS: { id: FiltroEstadoIssues; rotulo: string }[] = [
 ];
 const ROTULO_ORIGEM = { github: "GitHub", gitlab: "GitLab", jira: "Jira" } as const;
 
-/** Uma linha da lista única: a issue do rastreador ou a demanda criada à mão. */
-type Linha =
-  | { tipo: "issue"; id: string; criada: string; issue: IssueDoProjeto }
-  | { tipo: "demanda"; id: string; criada: string; demanda: DemandaVista };
+/**
+ * Uma linha da lista única: a issue do rastreador ou a demanda criada à mão. O
+ * `tipoDemanda` é o da demanda na base (#358): na issue, o da demanda ligada a ela.
+ */
+type Linha = { id: string; criada: string; tipoDemanda: TipoDemanda | null } & (
+  | { tipo: "issue"; issue: IssueDoProjeto }
+  | { tipo: "demanda"; demanda: DemandaVista }
+);
 
 interface Acao {
   rotulo: string;
@@ -142,7 +151,10 @@ function DemandasDoRastreador({
   const [lista, setLista] = useState<ListaIssues | null>(null);
   const [falha, setFalha] = useState<string | null>(null);
   const [lendo, setLendo] = useState(false);
-  const [manuais, setManuais] = useState<DemandaVista[]>([]);
+  const [tipo, setTipo] = useState<TipoDemanda | null>(null);
+  // Todas as demandas da base: as sem chave viram linhas; as outras dão o tipo das issues.
+  const [daBase, setDaBase] = useState<DemandaVista[]>([]);
+  const manuais = useMemo(() => daBase.filter((d) => !d.chave), [daBase]);
   const [selecionada, setSelecionada] = useState<string | null>(null);
   const [analisando, setAnalisando] = useState<string | null>(null);
   const [falhaAcao, setFalhaAcao] = useState<string | null>(null);
@@ -207,17 +219,19 @@ function DemandasDoRastreador({
   const carregarManuais = useCallback(() => {
     api
       .listarDemandas(projeto)
-      .then((l) => setManuais(l.filter((d) => !d.chave)))
+      .then(setDaBase)
       // Sem a lista da base, ficam as issues.
       .catch(() => undefined);
   }, [api, projeto]);
   useEffect(carregarManuais, [carregarManuais]);
 
   const linhas = useMemo<Linha[]>(() => {
+    const tipoDe = new Map(daBase.map((d) => [d.id, d.tipo]));
     const deIssues: Linha[] = (lista?.issues ?? []).map((issue) => ({
       tipo: "issue",
       id: issue.chave,
       criada: issue.criadaEm,
+      tipoDemanda: (issue.demanda && tipoDe.get(issue.demanda)) || null,
       issue,
     }));
     // Demanda à mão não tem situação nem rótulo: some quando o filtro os pede.
@@ -231,9 +245,18 @@ function DemandasDoRastreador({
               if (estado === "encerradas" && d.status !== "encerrada") return false;
               return !termo || dobrar(`${d.id} ${d.titulo}`).includes(termo);
             })
-            .map((demanda) => ({ tipo: "demanda", id: demanda.id, criada: demanda.criado, demanda }));
-    return [...deIssues, ...deDemandas].sort((a, b) => b.criada.localeCompare(a.criada));
-  }, [lista, manuais, busca, estado, situacao, rotulo]);
+            .map((demanda) => ({
+              tipo: "demanda",
+              id: demanda.id,
+              criada: demanda.criado,
+              tipoDemanda: demanda.tipo,
+              demanda,
+            }));
+    // O tipo é da demanda na base: a issue sem demanda não tem tipo e some com o filtro.
+    return [...deIssues, ...deDemandas]
+      .filter((l) => !tipo || l.tipoDemanda === tipo)
+      .sort((a, b) => b.criada.localeCompare(a.criada));
+  }, [lista, daBase, manuais, busca, estado, situacao, rotulo, tipo]);
 
   const escolhida = linhas.find((l) => chaveDe(l) === selecionada) ?? linhas[0] ?? null;
 
@@ -273,7 +296,8 @@ function DemandasDoRastreador({
   const atualizando = lendo || lista?.atualizando === true;
   const conferido = lista ? frescor(lista.lidaEm, agora) : "";
   const semResultado = lista !== null && linhas.length === 0;
-  const filtrando = busca.trim() !== "" || situacao !== null || rotulo !== "" || estado !== "abertas";
+  const filtrando =
+    busca.trim() !== "" || situacao !== null || rotulo !== "" || tipo !== null || estado !== "abertas";
 
   return (
     <section className="demandas" aria-label="Demandas">
@@ -367,6 +391,7 @@ function DemandasDoRastreador({
             </button>
           ))}
         </div>
+        <FiltroTipoDemanda id="tipo-demandas" valor={tipo} aoMudar={setTipo} />
         {lista && lista.rotulos.length > 0 && (
           <>
             <label className="sr-only" htmlFor="rotulo-demandas">
@@ -469,13 +494,15 @@ function LinhaDaLista({
   const mao = linha.tipo === "demanda" ? linha.demanda : null;
   const acao = issue ? acaoDaIssue(issue) : null;
   const titulo = issue?.titulo ?? mao?.titulo ?? "";
+  const tipo = linha.tipoDemanda && ROTULO_TIPO_DEMANDA[linha.tipoDemanda];
   const meta = issue
     ? [
+        tipo,
         issue.estado === "aberta" ? `aberta ${idade}` : `encerrada (criada ${idade})`,
         ...issue.rotulos,
         issue.demanda,
       ]
-    : [mao?.status === "aberta" ? `criada ${idade}` : "encerrada", "criada à mão"];
+    : [tipo, mao?.status === "aberta" ? `criada ${idade}` : "encerrada", "criada à mão"];
   return (
     <li className="linha-demanda" data-selecionada={escolhida}>
       <button
@@ -571,6 +598,11 @@ function PainelDaLinha({
         {issue && (
           <span className="badge" data-tone={issue.estado === "aberta" ? "running" : "done"}>
             {issue.estado === "aberta" ? "aberta" : "encerrada"}
+          </span>
+        )}
+        {linha.tipoDemanda && (
+          <span className="badge" title="Tipo da demanda">
+            {ROTULO_TIPO_DEMANDA[linha.tipoDemanda]}
           </span>
         )}
         {issue?.url && (
