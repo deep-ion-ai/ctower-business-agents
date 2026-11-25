@@ -1,5 +1,47 @@
 # Changelog
 
+## [0.8.0](https://github.com/deep-ion-ai/ctower-business-agents/compare/v0.7.0...v0.8.0) (2026-11-25)
+
+
+### Features
+
+* **demandas:** área Demandas com "Analisar impacto" na linha, painel da issue e vínculo com funcionalidades ([db8bc02](https://github.com/deep-ion-ai/ctower-business-agents/commit/db8bc02ad2092fc7cdfe8bec1347e28dece2aab9)), closes [#323](https://github.com/deep-ion-ai/ctower-business-agents/issues/323)
+* **demandas:** listagem das issues do rastreador com cache, busca e filtro de estado ([80d14d7](https://github.com/deep-ion-ai/ctower-business-agents/commit/80d14d7b9295cc4ac9172a76f01d1a733ac572f9)), closes [#322](https://github.com/deep-ion-ai/ctower-business-agents/issues/322)
+* **demandas:** listar issues do GitLab pelo glab ([#332](https://github.com/deep-ion-ai/ctower-business-agents/issues/332)) ([47cc506](https://github.com/deep-ion-ai/ctower-business-agents/commit/47cc50615ed3344af40d34c5eb7039911d550e33))
+* **demandas:** tipo da demanda (bug, funcionalidade, melhoria) em campo próprio ([828528c](https://github.com/deep-ion-ai/ctower-business-agents/commit/828528ce1d227bc43bf135910e11f13baace4e30))
+* **demandas:** tipo da demanda (bug, funcionalidade, melhoria) em campo próprio ([#358](https://github.com/deep-ion-ai/ctower-business-agents/issues/358)) ([4a8dc4e](https://github.com/deep-ion-ai/ctower-business-agents/commit/4a8dc4ea16617b3ce0c42fa9286ba76cfe51d7a3))
+* modo autônomo, projeto no centro do app ([#316](https://github.com/deep-ion-ai/ctower-business-agents/issues/316), [#318](https://github.com/deep-ion-ai/ctower-business-agents/issues/318) a [#332](https://github.com/deep-ion-ai/ctower-business-agents/issues/332)) ([fc29495](https://github.com/deep-ion-ai/ctower-business-agents/commit/fc294955c2bbcbfd772b6eca43cb2e4d322b8a37))
+* **resumo:** comando resumo_projeto_app com contagens de análises, pendências, demandas e sessões ([43a81ee](https://github.com/deep-ion-ai/ctower-business-agents/commit/43a81ee9053ce2572a35ae3152f0556565119c0a)), closes [#318](https://github.com/deep-ion-ai/ctower-business-agents/issues/318)
+* **sessoes:** listar as sessões do projeto com estado e histórico de atividade persistente ([879b66f](https://github.com/deep-ion-ai/ctower-business-agents/commit/879b66f01cc4b3b314e0771341f519f817ba06c5)), closes [#331](https://github.com/deep-ion-ai/ctower-business-agents/issues/331)
+* **ui:** Análises com a lista como conteúdo e "Nova análise" em painel lateral ([#350](https://github.com/deep-ion-ai/ctower-business-agents/issues/350)) ([fc46a44](https://github.com/deep-ion-ai/ctower-business-agents/commit/fc46a447263d5b68538bf0a464d0f8d79ef0f41d))
+* **ui:** Análises com a lista como conteúdo, Nova análise em painel e demanda negocial ([e622f79](https://github.com/deep-ion-ai/ctower-business-agents/commit/e622f79f8addcc31ecea98c1bcbbc1d07dbf4090))
+* **ui:** Análises com o cabeçalho e os filtros fixos ao rolar a lista ([a26227a](https://github.com/deep-ion-ai/ctower-business-agents/commit/a26227ad5e7a49f395d9ddc7935ceaadf7f6efd5))
+* **ui:** Análises com o cabeçalho e os filtros fixos ao rolar a lista ([#361](https://github.com/deep-ion-ai/ctower-business-agents/issues/361)) ([628921f](https://github.com/deep-ion-ai/ctower-business-agents/commit/628921ffa4d0313a6bfde0bb9abce52b0b1ae7bb))
+* **ui:** Análises e Demanda Negocial, depois da revisão de UX da [#350](https://github.com/deep-ion-ai/ctower-business-agents/issues/350) ([0ce1be9](https://github.com/deep-ion-ai/ctower-business-agents/commit/0ce1be903974c4094419c1f5984fc4336a524ecc))
+* **ui:** Atividades, a caixa de entrada do analista ([9dd21f6](https://github.com/deep-ion-ai/ctower-business-agents/commit/9dd21f6c1b3f8cd24518025591a6d4545328e5ec)), closes [#321](https://github.com/deep-ion-ai/ctower-business-agents/issues/321)
+* **ui:** Base em abas (regras, glossário, documentos), com filtros por área e situação e leitura com o texto primeiro ([e84e46a](https://github.com/deep-ion-ai/ctower-business-agents/commit/e84e46a7f625d2d24d940c5811465da1b1cfe00a)), closes [#328](https://github.com/deep-ion-ai/ctower-business-agents/issues/328)
+* **ui:** linguagem e ajuda no contexto ([#325](https://github.com/deep-ion-ai/ctower-business-agents/issues/325)) ([b146871](https://github.com/deep-ion-ai/ctower-business-agents/commit/b146871c5d5594408c34288508f7e42693008586))
+* **ui:** navegação por projeto, com seletor na barra de título e menu lateral com rótulos e contagens ([358e273](https://github.com/deep-ion-ai/ctower-business-agents/commit/358e2735e6b1496e219b41ff40c37417c7f7c9ee)), closes [#319](https://github.com/deep-ion-ai/ctower-business-agents/issues/319)
+* **ui:** Perguntar ao sistema, Histórias e critérios e Cenários de teste mostram a demanda e as análises existentes ([dc5e514](https://github.com/deep-ion-ai/ctower-business-agents/commit/dc5e5144fc72489b93111893d86004e612f7725f))
+* **ui:** Perguntar ao sistema, Histórias e critérios e Cenários de teste mostram a demanda e as análises existentes ([#359](https://github.com/deep-ion-ai/ctower-business-agents/issues/359)) ([10b2f8d](https://github.com/deep-ion-ai/ctower-business-agents/commit/10b2f8dc3643d39df5e872e871a3eb4d6a7d97f4))
+* **ui:** primeiros passos na Visão geral e correções do assistente de primeiro uso ([e34bf4d](https://github.com/deep-ion-ai/ctower-business-agents/commit/e34bf4ddcf94fbf03565f52c561b82255645f4aa))
+* **ui:** título e análises existentes da demanda em todos os tipos de Nova análise ([#350](https://github.com/deep-ion-ai/ctower-business-agents/issues/350)) ([3caf4e4](https://github.com/deep-ion-ai/ctower-business-agents/commit/3caf4e4b7925fd9dec963c594ed5959c59ecf64b))
+* **ui:** visão geral do projeto (dashboard) ([d1d93d1](https://github.com/deep-ion-ai/ctower-business-agents/commit/d1d93d1414bd83fb95a4c852d2b45b305d304d99))
+
+
+### Bug Fixes
+
+* **base:** título sem markdown e nome legível das áreas ([#329](https://github.com/deep-ion-ai/ctower-business-agents/issues/329)) ([688d411](https://github.com/deep-ion-ai/ctower-business-agents/commit/688d4110b8f8cbcb5bce5f379c876d82578ad938))
+* **demandas:** conferir o status da demanda com o rastreador ([#292](https://github.com/deep-ion-ai/ctower-business-agents/issues/292)) ([b60f876](https://github.com/deep-ion-ai/ctower-business-agents/commit/b60f876a0a3c781c6c0dd00117cf98cae33f78b7))
+* **demandas:** conferir o status da demanda com o rastreador ([#292](https://github.com/deep-ion-ai/ctower-business-agents/issues/292)) ([9a4bf80](https://github.com/deep-ion-ai/ctower-business-agents/commit/9a4bf8014615999acf6478143a8bf86c9832602b))
+* **ui:** 'com manual' do progresso do mapa passa a vir do backend ([#327](https://github.com/deep-ion-ai/ctower-business-agents/issues/327)) ([a2ad8a3](https://github.com/deep-ion-ai/ctower-business-agents/commit/a2ad8a3e85f13d03cb47160181e5ec8c66d17550))
+* **ui:** clicar numa sugestão de demanda ou issue seleciona no WebKit ([#350](https://github.com/deep-ion-ai/ctower-business-agents/issues/350)) ([e928068](https://github.com/deep-ion-ai/ctower-business-agents/commit/e928068bae8b5278118000fc5e3590a8917d2619))
+* **ui:** renomeia a lógica da visão geral para não colidir com o componente ([8b96f9f](https://github.com/deep-ion-ai/ctower-business-agents/commit/8b96f9f793d362a15b7161615b8d211602e11f98))
+* **ui:** rótulo da origem GitLab na tela de Demandas ([#332](https://github.com/deep-ion-ai/ctower-business-agents/issues/332)) ([33b007d](https://github.com/deep-ion-ai/ctower-business-agents/commit/33b007d5a43372ef95344d6f68cd0fdb37c39bd3))
+* **ui:** tela da análise: selos sem corte, documento em largura total e diálogo Aprovar resumido ([#330](https://github.com/deep-ion-ai/ctower-business-agents/issues/330)) ([f805175](https://github.com/deep-ion-ai/ctower-business-agents/commit/f805175f287174a815d0cb01055f5fdac92f1afa))
+* **ui:** título dos formulários de análise em caixa normal fora do painel Nova análise ([543ca81](https://github.com/deep-ion-ai/ctower-business-agents/commit/543ca81069716601f1ab3dbd4de3a61eda2dfde6))
+* **ui:** título dos formulários de análise em caixa normal fora do painel Nova análise ([#360](https://github.com/deep-ion-ai/ctower-business-agents/issues/360)) ([d6e6181](https://github.com/deep-ion-ai/ctower-business-agents/commit/d6e6181d9b25823573b4e50b9f6773d6cb07c29b))
+
 ## [0.7.0](https://github.com/deep-ion-ai/ctower-business-agents/compare/v0.6.0...v0.7.0) (2026-11-23)
 
 
