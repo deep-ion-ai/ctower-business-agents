@@ -70,6 +70,11 @@ export function EscolhaConducao({ api, projeto, fluxo, valor, aoMudar }: Props) 
           ? `Aprofundada: ${textoDaEstimativa(disponivel)}.`
           : `Aprofundada indisponível: ${disponivel.motivo ?? "motivo desconhecido"}.`}
       </p>
+      {disponivel.disponivel && (
+        <p className="alerta-conducao" role="note">
+          Somente justifica o uso em análises complexas ou de funcionalidades críticas.
+        </p>
+      )}
       {disponivel.fases.length > 0 && (
         <details className="conducao-fases">
           <summary>O que a Aprofundada faz, fase a fase</summary>
@@ -83,8 +88,7 @@ export function EscolhaConducao({ api, projeto, fluxo, valor, aoMudar }: Props) 
             ))}
           </ol>
           <p className="ajuda-campo">
-            A simples faz o mesmo numa conversa só, sem a verificação independente. Os tokens
-            são estimativas medidas e variam com o tamanho da demanda.
+            A simples faz o mesmo numa conversa só, sem a verificação independente.
           </p>
         </details>
       )}

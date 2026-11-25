@@ -1364,6 +1364,16 @@
   font-size: 13px;
 }
 
+.alerta-conducao {
+  margin: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--attention-border);
+  border-radius: 6px;
+  background: var(--attention-bg);
+  color: var(--attention);
+  font-size: 12px;
+}
+
 .conducao-fases summary {
   cursor: pointer;
   font-size: 12px;

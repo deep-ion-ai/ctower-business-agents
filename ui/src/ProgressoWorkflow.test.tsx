@@ -86,7 +86,7 @@ describe("EscolhaConducao (#371)", () => {
     render(
       <EscolhaConducao api={api(DISPONIVEL)} projeto="p" fluxo="impacto" valor="simples" aoMudar={mudar} />,
     );
-    await waitFor(() => expect(screen.getByText(/até 14 agentes \(6 frentes\)/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/até 14 agentes/)).toBeInTheDocument());
     fireEvent.click(screen.getByLabelText(/Aprofundada/));
     expect(mudar).toHaveBeenCalledWith("workflow");
   });
@@ -107,18 +107,22 @@ describe("EscolhaConducao (#371)", () => {
     expect(mudar).toHaveBeenCalledWith("simples");
   });
 
-  it("mostra as fases da Aprofundada com agentes e tokens", async () => {
+  it("mostra as fases da Aprofundada com os agentes e o alerta de uso", async () => {
     const a = api({
       ...DISPONIVEL,
       fases: [
-        { titulo: "Preparar", detalhe: "separa as frentes", porFrente: false, tokensMinimo: 116_000, tokensMaximo: 170_000 },
-        { titulo: "Investigar", detalhe: "um agente por frente", porFrente: true, tokensMinimo: null, tokensMaximo: null },
+        { titulo: "Preparar", detalhe: "separa as frentes", porFrente: false },
+        { titulo: "Investigar", detalhe: "um agente por frente", porFrente: true },
       ],
     });
     render(<EscolhaConducao api={a} projeto="p" fluxo="impacto" valor="simples" aoMudar={vi.fn()} />);
     const lista = await screen.findByRole("list", { name: "Fases do workflow" });
-    expect(lista).toHaveTextContent("Preparar: separa as frentes (1 agente; 116 mil a 170 mil tokens)");
+    expect(lista).toHaveTextContent("Preparar: separa as frentes (1 agente)");
     expect(lista).toHaveTextContent("Investigar: um agente por frente (6 agentes, um por frente)");
+    expect(lista).not.toHaveTextContent("tokens");
+    expect(screen.getByRole("note")).toHaveTextContent(
+      "Somente justifica o uso em análises complexas ou de funcionalidades críticas.",
+    );
   });
 
   it("some nos tipos sem workflow", async () => {
@@ -136,7 +140,8 @@ describe("EscolhaConducao (#371)", () => {
         ...DISPONIVEL,
         estimativa: { tokensMinimo: 900_000, tokensMaximo: 2_400_000, razaoSimples: 1.6, minutosMinimo: 6, minutosMaximo: 9 },
       }),
-    ).toBe("até 14 agentes (6 frentes); cerca de 900 mil a 2,4 mi tokens e 6 a 9 min, cerca de 1,6× a simples");
+    ).toBe("custo aproximado de 2× o da condução simples");
+    expect(textoDaEstimativa(DISPONIVEL)).toBe("até 14 agentes");
     expect(ultimaConducao("impacto")).toBe("simples");
     lembrarConducao("impacto", "workflow");
     expect(ultimaConducao("impacto")).toBe("workflow");

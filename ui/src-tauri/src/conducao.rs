@@ -111,9 +111,6 @@ pub struct FaseVista {
     pub detalhe: Option<String>,
     /// Um agente por frente (senão, um agente só).
     pub por_frente: bool,
-    /// Faixa de tokens da fase inteira, com as frentes padrão, depois da medição.
-    pub tokens_minimo: Option<u64>,
-    pub tokens_maximo: Option<u64>,
 }
 
 /// Se a condução pelo workflow pode ser oferecida para o fluxo (spec, seções 3.6 e
@@ -203,13 +200,12 @@ pub fn disponibilidade(
         frentes,
         max_agentes: c::agentes_no_maximo(frentes),
         estimativa,
-        fases: tipo.map(|t| fases(t, script, frentes)).unwrap_or_default(),
+        fases: tipo.map(|t| fases(t, script)).unwrap_or_default(),
     }
 }
 
-/// As fases de `meta.phases` do script (ou do padrão, se o script não for lido),
-/// com a estimativa medida de cada uma.
-fn fases(tipo: &str, script: Option<&str>, frentes: u32) -> Vec<FaseVista> {
+/// As fases de `meta.phases` do script (ou do padrão, se o script não for lido).
+fn fases(tipo: &str, script: Option<&str>) -> Vec<FaseVista> {
     let ler = |s: &str| cba_tools::workflows::validacao::validar(tipo, s).fases;
     let mut lidas = script.map(ler).unwrap_or_default();
     if lidas.is_empty() {
@@ -217,20 +213,12 @@ fn fases(tipo: &str, script: Option<&str>, frentes: u32) -> Vec<FaseVista> {
             .map(ler)
             .unwrap_or_default();
     }
-    let medida = c::estimativa(tipo);
     lidas
         .into_iter()
-        .map(|f| {
-            let faixa = medida
-                .and_then(|e| e.fase(&f.titulo))
-                .map(|m| m.faixa(frentes));
-            FaseVista {
-                por_frente: c::por_frente(&f.titulo),
-                tokens_minimo: faixa.map(|f| f.0),
-                tokens_maximo: faixa.map(|f| f.1),
-                titulo: f.titulo,
-                detalhe: f.detalhe,
-            }
+        .map(|f| FaseVista {
+            por_frente: c::por_frente(&f.titulo),
+            titulo: f.titulo,
+            detalhe: f.detalhe,
         })
         .collect()
 }
@@ -445,33 +433,26 @@ mod tests {
     }
 
     #[test]
-    fn fases_do_padrao_com_a_estimativa_medida() {
+    fn fases_do_padrao() {
         let d = disponibilidade(Fluxo::Impacto, Some("2.1.331"), true, false, None);
         let titulos: Vec<_> = d.fases.iter().map(|f| f.titulo.as_str()).collect();
         assert_eq!(
             titulos,
             ["Preparar", "Investigar", "Verificar", "Consolidar"]
         );
-        assert!(
-            d.fases
-                .iter()
-                .all(|f| f.detalhe.is_some() && f.tokens_maximo.is_some())
-        );
+        assert!(d.fases.iter().all(|f| f.detalhe.is_some()));
         assert!(!d.fases[0].por_frente && d.fases[1].por_frente);
-        // A soma das fases é a estimativa total.
-        let soma: u64 = d.fases.iter().filter_map(|f| f.tokens_maximo).sum();
-        assert_eq!(Some(soma), d.estimativa.map(|e| e.tokens_maximo));
     }
 
     #[test]
-    fn fases_da_copia_customizada_sem_medicao() {
+    fn fases_da_copia_customizada() {
         let script = "export const meta = { name: 'cba-impacto', description: 'd', \
                       phases: [{ title: 'Ler', detail: 'tudo' }, { title: 'Investigar' }] }\n";
         let d = disponibilidade(Fluxo::Impacto, Some("2.1.331"), true, false, Some(script));
         assert_eq!(d.fases.len(), 2);
         assert_eq!(d.fases[0].titulo, "Ler");
-        assert_eq!(d.fases[0].tokens_minimo, None);
-        assert!(d.fases[1].por_frente && d.fases[1].tokens_minimo.is_some());
+        assert_eq!(d.fases[0].detalhe.as_deref(), Some("tudo"));
+        assert!(!d.fases[0].por_frente && d.fases[1].por_frente);
 
         // Sem `phases` legível, valem as fases do padrão.
         let d = disponibilidade(Fluxo::Impacto, Some("2.1.331"), true, false, Some("x"));

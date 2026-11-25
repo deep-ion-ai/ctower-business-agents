@@ -357,11 +357,6 @@ impl Estimativa {
             .map(|f| f.faixa(frentes))
             .fold((0, 0), |a, f| (a.0 + f.0, a.1 + f.1))
     }
-
-    /// A medição da fase com o título, se houver.
-    pub fn fase(&self, titulo: &str) -> Option<&TokensDaFase> {
-        self.fases.iter().find(|f| f.fase == titulo)
-    }
 }
 
 /// A fase roda um agente por frente (Investigar ou Avaliar, e Verificar); as outras,
