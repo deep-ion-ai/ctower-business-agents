@@ -35,6 +35,7 @@ const DISPONIVEL: ConducaoDisponivel = {
   frentes: 6,
   maxAgentes: 14,
   estimativa: null,
+  fases: [],
 };
 
 describe("ProgressoWorkflow (#371)", () => {
@@ -104,6 +105,20 @@ describe("EscolhaConducao (#371)", () => {
     await waitFor(() => expect(screen.getByText(/Aprofundada indisponível: o Claude Code 2.1.300/)).toBeInTheDocument());
     expect(screen.getByLabelText(/Aprofundada/)).toBeDisabled();
     expect(mudar).toHaveBeenCalledWith("simples");
+  });
+
+  it("mostra as fases da Aprofundada com agentes e tokens", async () => {
+    const a = api({
+      ...DISPONIVEL,
+      fases: [
+        { titulo: "Preparar", detalhe: "separa as frentes", porFrente: false, tokensMinimo: 116_000, tokensMaximo: 170_000 },
+        { titulo: "Investigar", detalhe: "um agente por frente", porFrente: true, tokensMinimo: null, tokensMaximo: null },
+      ],
+    });
+    render(<EscolhaConducao api={a} projeto="p" fluxo="impacto" valor="simples" aoMudar={vi.fn()} />);
+    const lista = await screen.findByRole("list", { name: "Fases do workflow" });
+    expect(lista).toHaveTextContent("Preparar: separa as frentes (1 agente; 116 mil a 170 mil tokens)");
+    expect(lista).toHaveTextContent("Investigar: um agente por frente (6 agentes, um por frente)");
   });
 
   it("some nos tipos sem workflow", async () => {

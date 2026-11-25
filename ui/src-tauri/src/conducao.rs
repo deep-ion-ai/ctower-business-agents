@@ -102,6 +102,20 @@ pub struct EstimativaVista {
     pub minutos_maximo: u32,
 }
 
+/// Uma fase do workflow, para o analista ver o que a condução Aprofundada faz.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FaseVista {
+    pub titulo: String,
+    /// O `detail` de `meta.phases`.
+    pub detalhe: Option<String>,
+    /// Um agente por frente (senão, um agente só).
+    pub por_frente: bool,
+    /// Faixa de tokens da fase inteira, com as frentes padrão, depois da medição.
+    pub tokens_minimo: Option<u64>,
+    pub tokens_maximo: Option<u64>,
+}
+
 /// Se a condução pelo workflow pode ser oferecida para o fluxo (spec, seções 3.6 e
 /// 3.8).
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -122,14 +136,18 @@ pub struct ConducaoDisponivel {
     pub max_agentes: u32,
     /// Faixa de tokens e razão em relação à simples, depois da medição.
     pub estimativa: Option<EstimativaVista>,
+    /// As fases do workflow efetivo, na ordem de `meta.phases`.
+    pub fases: Vec<FaseVista>,
 }
 
 /// A disponibilidade a partir do que se sabe (testável sem processo nem disco).
+/// `script` é o workflow efetivo do tipo; sem ele, valem as fases do padrão.
 pub fn disponibilidade(
     fluxo: Fluxo,
     versao: Option<&str>,
     workflows_prontos: bool,
     desktop_preferido: bool,
+    script: Option<&str>,
 ) -> ConducaoDisponivel {
     let instalado = c::tipo_do_fluxo(fluxo);
     // Sem ganho medido, a escolha não aparece; o workflow continua instalado.
@@ -185,7 +203,36 @@ pub fn disponibilidade(
         frentes,
         max_agentes: c::agentes_no_maximo(frentes),
         estimativa,
+        fases: tipo.map(|t| fases(t, script, frentes)).unwrap_or_default(),
     }
+}
+
+/// As fases de `meta.phases` do script (ou do padrão, se o script não for lido),
+/// com a estimativa medida de cada uma.
+fn fases(tipo: &str, script: Option<&str>, frentes: u32) -> Vec<FaseVista> {
+    let ler = |s: &str| cba_tools::workflows::validacao::validar(tipo, s).fases;
+    let mut lidas = script.map(ler).unwrap_or_default();
+    if lidas.is_empty() {
+        lidas = cba_tools::workflows::padrao(tipo)
+            .map(ler)
+            .unwrap_or_default();
+    }
+    let medida = c::estimativa(tipo);
+    lidas
+        .into_iter()
+        .map(|f| {
+            let faixa = medida
+                .and_then(|e| e.fase(&f.titulo))
+                .map(|m| m.faixa(frentes));
+            FaseVista {
+                por_frente: c::por_frente(&f.titulo),
+                tokens_minimo: faixa.map(|f| f.0),
+                tokens_maximo: faixa.map(|f| f.1),
+                titulo: f.titulo,
+                detalhe: f.detalhe,
+            }
+        })
+        .collect()
 }
 
 /// [`disponibilidade`] do projeto: a versão do `claude`, a verificação do preparo e
@@ -197,7 +244,7 @@ pub fn conducao_disponivel(
     fluxo: Fluxo,
 ) -> Result<ConducaoDisponivel, String> {
     if !c::tipo_do_fluxo(fluxo).is_some_and(c::oferecido) {
-        return Ok(disponibilidade(fluxo, None, false, false));
+        return Ok(disponibilidade(fluxo, None, false, false, None));
     }
     let verificacao = preparador
         .verificar(&analise::alvo(dados, projeto)?)
@@ -207,11 +254,17 @@ pub fn conducao_disponivel(
         .ok()
         .and_then(|p| p.cliente)
         .is_some_and(|c| c == ClientePreferido::ClaudeDesktop);
+    let tipo = c::tipo_do_fluxo(fluxo);
+    let script = crate::workflows::efetivos(dados)
+        .into_iter()
+        .find(|w| Some(w.tipo.as_str()) == tipo)
+        .map(|w| w.conteudo);
     Ok(disponibilidade(
         fluxo,
         versao.as_deref(),
         verificacao.workflows_prontos,
         desktop,
+        script.as_deref(),
     ))
 }
 
@@ -365,28 +418,63 @@ mod tests {
 
     #[test]
     fn disponibilidade_com_os_motivos() {
-        let ok = disponibilidade(Fluxo::Impacto, Some("2.1.331"), true, false);
+        let ok = disponibilidade(Fluxo::Impacto, Some("2.1.331"), true, false, None);
         assert!(ok.disponivel && ok.tem_workflow);
         assert_eq!(ok.max_agentes, 14);
         assert_eq!(ok.workflow.as_deref(), Some("cba-impacto"));
 
-        let velha = disponibilidade(Fluxo::Impacto, Some("2.1.300"), true, false);
+        let velha = disponibilidade(Fluxo::Impacto, Some("2.1.300"), true, false, None);
         assert!(!velha.disponivel);
         assert!(velha.motivo.unwrap().contains("2.1.331"));
 
-        let sem = disponibilidade(Fluxo::Impacto, None, false, false);
+        let sem = disponibilidade(Fluxo::Impacto, None, false, false, None);
         assert!(!sem.disponivel && sem.preparar_de_novo);
 
-        let desktop = disponibilidade(Fluxo::Impacto, None, true, true);
+        let desktop = disponibilidade(Fluxo::Impacto, None, true, true, None);
         assert!(desktop.motivo.unwrap().contains("Desktop"));
 
-        let pergunta = disponibilidade(Fluxo::Perguntar, Some("2.1.331"), true, false);
+        let pergunta = disponibilidade(Fluxo::Perguntar, Some("2.1.331"), true, false, None);
         assert!(!pergunta.tem_workflow && !pergunta.disponivel);
 
         // A revisão tem workflow instalado, mas a medição não mostrou ganho: a
         // escolha não aparece (#373).
-        let revisao = disponibilidade(Fluxo::Revisar, Some("2.1.331"), true, false);
+        let revisao = disponibilidade(Fluxo::Revisar, Some("2.1.331"), true, false, None);
         assert!(!revisao.tem_workflow && !revisao.disponivel);
         assert!(revisao.motivo.unwrap().contains("não mostrou ganho"));
+        assert!(revisao.fases.is_empty());
+    }
+
+    #[test]
+    fn fases_do_padrao_com_a_estimativa_medida() {
+        let d = disponibilidade(Fluxo::Impacto, Some("2.1.331"), true, false, None);
+        let titulos: Vec<_> = d.fases.iter().map(|f| f.titulo.as_str()).collect();
+        assert_eq!(
+            titulos,
+            ["Preparar", "Investigar", "Verificar", "Consolidar"]
+        );
+        assert!(
+            d.fases
+                .iter()
+                .all(|f| f.detalhe.is_some() && f.tokens_maximo.is_some())
+        );
+        assert!(!d.fases[0].por_frente && d.fases[1].por_frente);
+        // A soma das fases é a estimativa total.
+        let soma: u64 = d.fases.iter().filter_map(|f| f.tokens_maximo).sum();
+        assert_eq!(Some(soma), d.estimativa.map(|e| e.tokens_maximo));
+    }
+
+    #[test]
+    fn fases_da_copia_customizada_sem_medicao() {
+        let script = "export const meta = { name: 'cba-impacto', description: 'd', \
+                      phases: [{ title: 'Ler', detail: 'tudo' }, { title: 'Investigar' }] }\n";
+        let d = disponibilidade(Fluxo::Impacto, Some("2.1.331"), true, false, Some(script));
+        assert_eq!(d.fases.len(), 2);
+        assert_eq!(d.fases[0].titulo, "Ler");
+        assert_eq!(d.fases[0].tokens_minimo, None);
+        assert!(d.fases[1].por_frente && d.fases[1].tokens_minimo.is_some());
+
+        // Sem `phases` legível, valem as fases do padrão.
+        let d = disponibilidade(Fluxo::Impacto, Some("2.1.331"), true, false, Some("x"));
+        assert_eq!(d.fases.len(), 4);
     }
 }

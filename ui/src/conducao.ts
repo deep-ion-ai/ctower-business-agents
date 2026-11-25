@@ -15,6 +15,16 @@ export interface EstimativaConducao {
   minutosMaximo: number;
 }
 
+export interface FaseConducao {
+  titulo: string;
+  detalhe: string | null;
+  /** Um agente por frente (senão, um agente só). */
+  porFrente: boolean;
+  /** Faixa de tokens da fase inteira, com as frentes padrão, depois da medição. */
+  tokensMinimo: number | null;
+  tokensMaximo: number | null;
+}
+
 export interface ConducaoDisponivel {
   temWorkflow: boolean;
   workflow: string | null;
@@ -26,6 +36,8 @@ export interface ConducaoDisponivel {
   maxAgentes: number;
   /** Faixa de tokens, depois da medição com o `cba-avaliacao`. */
   estimativa: EstimativaConducao | null;
+  /** As fases do workflow efetivo, na ordem de `meta.phases`. */
+  fases: FaseConducao[];
 }
 
 export interface ApiConducao {
@@ -77,6 +89,17 @@ export function textoDaEstimativa(c: ConducaoDisponivel): string {
     `${agentes}; cerca de ${milhares(e.tokensMinimo)} a ${milhares(e.tokensMaximo)} tokens ` +
     `e ${e.minutosMinimo} a ${e.minutosMaximo} min, cerca de ${razao}× a simples`
   );
+}
+
+/** Agentes e tokens de uma fase, ao lado do título. */
+export function textoDaFase(f: FaseConducao, frentes: number): string {
+  const agentes = f.porFrente ? `${frentes} agentes, um por frente` : "1 agente";
+  if (f.tokensMinimo == null || f.tokensMaximo == null) return agentes;
+  const tokens =
+    f.tokensMinimo === f.tokensMaximo
+      ? milhares(f.tokensMaximo)
+      : `${milhares(f.tokensMinimo)} a ${milhares(f.tokensMaximo)}`;
+  return `${agentes}; ${tokens} tokens`;
 }
 
 /** "n de m agentes" de uma fase, ou do workflow inteiro sem as fases. */

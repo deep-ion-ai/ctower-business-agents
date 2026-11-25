@@ -1355,6 +1355,29 @@
   opacity: 0.7;
 }
 
+/* O rótulo do rádio fica na linha do rádio (o `.nova-pergunta label` empilha). */
+.nova-pergunta .escolha-conducao label {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 4px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.conducao-fases summary {
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.conducao-fases ol {
+  margin: 6px 0;
+  padding-left: 20px;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .contestacao {
   border-left: 3px solid var(--attention-border);
   padding-left: 8px;
