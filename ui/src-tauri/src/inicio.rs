@@ -215,6 +215,32 @@ pub async fn criar_analise_de_cenarios_app(
     .await
 }
 
+/// Cria a análise de protótipo de telas (#379) a partir de uma análise de origem,
+/// com o pedido opcional do analista (telas, fidelidade, o que fica de fora).
+#[tauri::command]
+pub async fn criar_analise_de_prototipo_app(
+    projeto: String,
+    origem: String,
+    demanda: Option<String>,
+    pedido: Option<cba_core::prototipo::PedidoPrototipo>,
+    entrada: Option<String>,
+    titulo: Option<String>,
+) -> Result<AnaliseCriada, String> {
+    let dados = dados()?;
+    bloqueante(move || {
+        crate::analise::criar_analise_de_prototipo(
+            &dados,
+            &projeto,
+            &origem,
+            demanda.as_deref(),
+            pedido.unwrap_or_default(),
+            entrada.as_deref(),
+            titulo.as_deref(),
+        )
+    })
+    .await
+}
+
 #[cfg(test)]
 #[path = "inicio_testes.rs"]
 mod tests;

@@ -37,6 +37,8 @@ import {
   type OrigemEvidencia,
 } from "./DocumentoAoVivo";
 import { ExportacaoAnalise } from "./ExportacaoAnalise";
+import { NovaPrototipo } from "./NovaPrototipo";
+import { apiPrototipoTauri, ORIGENS_PROTOTIPO, type ApiPrototipo } from "./prototipo";
 import { ParecerAoVivo } from "./ParecerAoVivo";
 import { ConversaAgente, type SituacaoAgente } from "./ConversaAgente";
 import { PainelLateral, type Aba } from "./PainelLateral";
@@ -146,6 +148,8 @@ interface Props {
   apiReuniao?: ApiReuniao;
   /** Publicação dos documentos aprovados no repositório (#276); para testes. */
   apiPublicacao?: ApiPublicacao;
+  /** "Prototipar telas" a partir da análise aprovada (#379); para testes. */
+  apiPrototipo?: ApiPrototipo;
   criarTela?: () => TelaTerminal;
   /** Abre outra análise (a criada por um próximo passo da ata, #142). */
   aoAbrirAnalise?: (id: string, abertura: Abertura) => void;
@@ -195,6 +199,7 @@ export function PainelAnalise({
   apiRevisao = apiRevisaoTauri,
   apiReuniao = apiReuniaoTauri,
   apiPublicacao = apiPublicacaoTauri,
+  apiPrototipo = apiPrototipoTauri,
   aoAbrirAnalise,
   abrirUrl = openUrl,
   aoMudarConversa,
@@ -221,6 +226,7 @@ export function PainelAnalise({
   const [terminalVisivel, alternarTerminal] = useTerminalVisivel();
   const [menu, setMenu] = useState<Menu | null>(null);
   const [aprovando, setAprovando] = useState(false);
+  const [prototipando, setPrototipando] = useState(false);
   const [falhaEnvio, setFalhaEnvio] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
@@ -567,6 +573,9 @@ export function PainelAnalise({
   };
 
   const aprovada = vista?.analise.estado === "aprovada";
+  // A análise aprovada de onde as regras vêm pode virar protótipo de telas (#379).
+  const prototipavel =
+    aprovada && !!vista && ORIGENS_PROTOTIPO.has(vista.analise.fluxo) && !!aoAbrirAnalise;
   const deAta = vista?.analise.fluxo === "reuniao";
   // A mesma conta da faixa e do diálogo de aprovação (#222).
   const pendencias = !deAta && !aprovada && prontidao ? prontidao.pendencias : null;
@@ -668,6 +677,19 @@ export function PainelAnalise({
               >
                 {rotuloAprovar}
               </button>
+              {prototipavel && (
+                <button
+                  className="btn"
+                  type="button"
+                  aria-haspopup="dialog"
+                  onClick={() => {
+                    setMenu(null);
+                    setPrototipando(true);
+                  }}
+                >
+                  Prototipar telas
+                </button>
+              )}
               <BotaoPainel
                 aberto={menu === "exportar"}
                 aoAlternar={alternar("exportar")}
@@ -699,6 +721,25 @@ export function PainelAnalise({
           )}
         </div>
       </header>
+      {vista && prototipando && aoAbrirAnalise && (
+        <AprovacaoDialogo titulo="Prototipar telas" aoFechar={() => setPrototipando(false)}>
+          <NovaPrototipo
+            api={api}
+            apiPrototipo={apiPrototipo}
+            projetos={[{ id: projeto, nome: projeto }]}
+            origemFixa={{ id: analise, titulo: vista.analise.titulo }}
+            semTitulo
+            aoCancelar={() => setPrototipando(false)}
+            aoCriar={(_p, criada) => {
+              setPrototipando(false);
+              aoAbrirAnalise(criada.analise.id, {
+                tipo: "nova",
+                promptInicial: criada.promptInicial,
+              });
+            }}
+          />
+        </AprovacaoDialogo>
+      )}
       {vista && aprovando && (
         <AprovacaoDialogo titulo={tituloAprovar} aoFechar={() => setAprovando(false)}>
           {deAta ? (
