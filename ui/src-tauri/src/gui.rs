@@ -8,8 +8,9 @@ use std::sync::Arc;
 use crate::{
     acessos, alteracoes, ambiente_teste, analise, base, clones, cobertura, configuracoes, conversa,
     demandas, docs_externos, funcionalidades, inicio, issues_projeto, manual, mudancas,
-    painel_funcionalidade, pauta, primeiro_uso, projeto, prompts, publicacao, rastreabilidade,
-    registros, repositorios, resumo, reunioes, revisao, terminal, tokens, vigia, vincular_issues,
+    painel_funcionalidade, pauta, primeiro_uso, projeto, prompts, prototipo, publicacao,
+    rastreabilidade, registros, repositorios, resumo, reunioes, revisao, terminal, tokens, vigia,
+    vincular_issues,
 };
 
 pub fn rodar() {
@@ -104,6 +105,7 @@ pub fn rodar() {
             funcionalidades::explicar_funcionalidade_app,
             funcionalidades::exportar_mapa_projeto,
             funcionalidades::religar_funcionalidades_app,
+            prototipo::html_da_tela_prototipo_app,
             tokens::tokens_css_projeto,
             tokens::extrair_tokens_css_projeto,
             tokens::informar_token_css_projeto,

@@ -117,6 +117,16 @@ impl MudancaTela {
     }
 }
 
+/// Decisão do analista sobre uma tela, na revisão (#382).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "decisao", rename_all = "kebab-case")]
+pub enum DecisaoTela {
+    /// Pede ao agente um ajuste na tela, com o que ajustar.
+    Ajustar { pedido: String },
+    /// Retira o pedido de ajuste.
+    Desfazer,
+}
+
 /// Tipo de um elemento da tela.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -264,6 +274,10 @@ pub struct Tela {
     /// Gravado depois da lista de telas (#385); `None` enquanto não houver.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub html: Option<CaminhoRelativo>,
+    /// Ajuste pedido pelo analista na revisão (#382), ainda não atendido: o
+    /// agente ajusta a tela e grava o HTML de novo, o que limpa o pedido.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ajuste_pedido: Option<String>,
     #[serde(default)]
     pub sessao: Option<String>,
     pub registrada_ms: u64,
@@ -431,6 +445,7 @@ impl Analise {
             rastro: nova.rastro.conferido(),
             elementos,
             html: None,
+            ajuste_pedido: None,
             sessao: nova.sessao,
             registrada_ms: agora_ms,
         });
@@ -494,7 +509,37 @@ impl Analise {
                 tipo: "tela",
                 numero: tela,
             })?;
+        if html.is_some() {
+            // O HTML gravado de novo atende ao ajuste pedido pelo analista.
+            t.ajuste_pedido = None;
+        }
         Ok(std::mem::replace(&mut t.html, html))
+    }
+
+    /// Decisão do analista sobre uma tela (#382): pedir um ajuste ou retirar o
+    /// pedido. Não muda o estado da análise; o pedido em aberto impede a
+    /// aprovação e a conclusão até o agente gravar o HTML da tela de novo.
+    pub fn decidir_tela(&mut self, tela: u32, decisao: DecisaoTela) -> Result<(), ErroModelo> {
+        self.exigir_fluxo_de_prototipo()?;
+        if self.estado == EstadoAnalise::Aprovada {
+            return Err(ErroModelo::AnaliseAprovada(self.id.clone()));
+        }
+        let t = self
+            .telas_mut()
+            .iter_mut()
+            .find(|t| t.numero == tela)
+            .ok_or(ErroModelo::ItemDesconhecido {
+                tipo: "tela",
+                numero: tela,
+            })?;
+        t.ajuste_pedido = match decisao {
+            DecisaoTela::Ajustar { pedido } => {
+                exigir("pedido", &pedido)?;
+                Some(pedido.trim().to_owned())
+            }
+            DecisaoTela::Desfazer => None,
+        };
+        Ok(())
     }
 }
 
@@ -749,5 +794,53 @@ mod tests {
         assert!(json.contains("\"historia\":\"HU-0001\""), "{json}");
         let lida: Analise = serde_json::from_str(&json).unwrap();
         assert_eq!(lida, a);
+    }
+
+    #[test]
+    fn ajuste_pedido_numa_tela() {
+        let mut a = analise();
+        a.registrar_tela(tela("Parcelar fatura", Vec::new()), 2)
+            .unwrap();
+        let ajustar = |pedido: &str| DecisaoTela::Ajustar {
+            pedido: pedido.into(),
+        };
+        assert_eq!(
+            a.decidir_tela(1, ajustar("  ")),
+            Err(ErroModelo::CampoVazio("pedido"))
+        );
+        assert_eq!(
+            a.decidir_tela(9, ajustar("Mostrar o total")),
+            Err(ErroModelo::ItemDesconhecido {
+                tipo: "tela",
+                numero: 9
+            })
+        );
+        a.decidir_tela(1, ajustar(" Mostrar o total das parcelas "))
+            .unwrap();
+        assert_eq!(
+            a.tela(1).unwrap().ajuste_pedido.as_deref(),
+            Some("Mostrar o total das parcelas")
+        );
+        let json = serde_json::to_value(a.tela(1).unwrap()).unwrap();
+        assert_eq!(json["ajuste_pedido"], "Mostrar o total das parcelas");
+        let d: DecisaoTela =
+            serde_json::from_value(serde_json::json!({ "decisao": "ajustar", "pedido": "x" }))
+                .unwrap();
+        assert_eq!(d, ajustar("x"));
+
+        a.decidir_tela(1, DecisaoTela::Desfazer).unwrap();
+        assert!(a.tela(1).unwrap().ajuste_pedido.is_none());
+
+        // Gravar o HTML de novo atende ao pedido.
+        a.decidir_tela(1, ajustar("Mostrar o total")).unwrap();
+        let caminho = cba_kb::layout::html_da_tela(&a.id, 1);
+        a.definir_html_da_tela(1, Some(caminho)).unwrap();
+        assert!(a.tela(1).unwrap().ajuste_pedido.is_none());
+
+        a.estado = EstadoAnalise::Aprovada;
+        assert!(matches!(
+            a.decidir_tela(1, ajustar("Mais um")),
+            Err(ErroModelo::AnaliseAprovada(_))
+        ));
     }
 }

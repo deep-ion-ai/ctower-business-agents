@@ -22,6 +22,7 @@ use cba_kb::frontmatter::{
     Evidencia, FrontmatterAnalise, FrontmatterRegra, Linhas, StatusRegra, TipoDocumento,
 };
 use cba_kb::{CaminhoRelativo, Documento, Id};
+use cba_tools::revisao::{self, Decisao};
 use cba_tools::{ErroChamada, ErroFerramenta, registro_padrao};
 use serde_json::{Value, json};
 
@@ -503,6 +504,47 @@ fn prototipo_a_partir_de_uma_analise_de_impacto() {
         json!({ "analise": "A-0002", "tela": "TL-2", "corpo": corpo(&[1]) }),
     )
     .unwrap();
+    let r = c
+        .chamar("concluir_analise", json!({ "analise": "A-0002" }))
+        .unwrap();
+    assert_eq!(r["estado"], "concluida");
+
+    // Revisão (#382): o analista pede ajuste na TL-2; a aprovação espera.
+    let id = Id::analisar("A-0002").unwrap();
+    let ajuste: Decisao = serde_json::from_value(json!({
+        "tipo": "tela", "numero": 2, "decisao": "ajustar",
+        "pedido": "Mostrar o total das parcelas"
+    }))
+    .unwrap();
+    revisao::revisar(&c.amb, &id, ajuste).unwrap();
+    let p = revisao::prontidao(&c.amb, &id).unwrap();
+    assert!(!p.pode_aprovar);
+    assert!(
+        p.pendencias
+            .iter()
+            .any(|x| x.tipo == "tela" && x.numero == Some(2) && x.motivo.contains("ajuste pedido")),
+        "{:?}",
+        p.pendencias
+    );
+    let texto = std::fs::read_to_string(c.amb.kb.caminho(&a.documento)).unwrap();
+    assert!(
+        texto.contains("**Ajuste pedido pelo analista:** Mostrar o total das parcelas"),
+        "{texto}"
+    );
+    let t = c.texto("retomar_analise", json!({ "analise": "A-0002" }));
+    assert!(
+        t.contains("Ajuste pedido pelo analista: Mostrar o total das parcelas"),
+        "{t}"
+    );
+    let m = c.recusa("concluir_analise", json!({ "analise": "A-0002" }));
+    assert!(m.contains("TL-2: Mostrar o total das parcelas"), "{m}");
+    // Gravar o HTML de novo atende ao pedido.
+    c.chamar(
+        "gravar_html_tela",
+        json!({ "analise": "A-0002", "tela": "TL-2", "corpo": corpo(&[1]) }),
+    )
+    .unwrap();
+    assert!(c.analise("A-0002").tela(2).unwrap().ajuste_pedido.is_none());
     let r = c
         .chamar("concluir_analise", json!({ "analise": "A-0002" }))
         .unwrap();

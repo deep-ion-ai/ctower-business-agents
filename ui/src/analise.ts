@@ -156,6 +156,57 @@ export interface Analise {
   funcionalidade?: string | null;
   /** Passo a passo do manual do usuário (fluxo `manual`, #272). */
   passos?: PassoManual[];
+  /** Protótipo de telas (fluxo `prototipo`, #381): o pedido e as telas. */
+  prototipo?: PrototipoAnalise | null;
+}
+
+/** Critério de aceite citado (`cba_core::prototipo::CriterioCitado`): `HU-0001/CA-2`. */
+export interface CriterioCitado {
+  analise: string;
+  historia: string;
+  criterio: number;
+  texto: string;
+}
+
+/**
+ * De onde vem uma tela ou um elemento (`cba_core::prototipo::Rastro`). Sem
+ * fundamento nem critério, ou com pergunta em aberto, fica "a confirmar".
+ */
+export interface RastroTela {
+  fundamentos?: Fundamento[];
+  criterios?: CriterioCitado[];
+  pergunta?: string | null;
+}
+
+export type TipoElemento = "campo" | "validacao" | "mensagem" | "acao";
+
+/** Elemento de uma tela (`cba_core::prototipo::ElementoTela`), `E-<numero>`. */
+export interface ElementoTela extends RastroTela {
+  numero: number;
+  tipo: TipoElemento;
+  nome: string;
+  descricao?: string | null;
+  registrado_ms: number;
+}
+
+/** Tela do protótipo (`cba_core::prototipo::Tela`), `TL-<numero>`. */
+export interface TelaPrototipo extends RastroTela {
+  numero: number;
+  nome: string;
+  mudanca: "nova" | "alterada";
+  motivo: string;
+  elementos: ElementoTela[];
+  /** HTML da tela, relativo à raiz do projeto na base; ausente enquanto não gravado. */
+  html?: string | null;
+  /** Ajuste pedido pelo analista, ainda não atendido (#382). */
+  ajuste_pedido?: string | null;
+  registrada_ms: number;
+}
+
+/** Protótipo da análise (`cba_core::prototipo::Prototipo`). */
+export interface PrototipoAnalise {
+  pedido?: { telas?: string[]; fidelidade?: "wireframe" | "alta_fidelidade"; fora?: string | null };
+  telas?: TelaPrototipo[];
 }
 
 /** Print de tela de um passo do manual (`cba_core::manual::PrintDoPasso`). */

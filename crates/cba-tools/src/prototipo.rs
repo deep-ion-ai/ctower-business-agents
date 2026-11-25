@@ -23,6 +23,10 @@
 //! documento (template `prototipo`), com as evidências das afirmações e das
 //! regras citadas como notas de rodapé, e o link para o protótipo HTML de cada
 //! tela.
+//!
+//! [`ler_html_da_tela`] lê o protótipo HTML gravado de uma tela, conferindo que
+//! o arquivo fica na pasta do protótipo da análise: é o que o visualizador do
+//! app (#382) mostra e o que a exportação em pasta (#380) copia.
 
 use cba_core::ambiente::Ambiente;
 use cba_core::analise::EstadoAnalise;
@@ -158,6 +162,12 @@ fn texto_da_tela(tela: &Tela, caminho: &CaminhoRelativo) -> Texto {
             cba_docs::link(&format!("{}.html", tela.rotulo()), caminho, html)
         ));
     }
+    if let Some(p) = &tela.ajuste_pedido {
+        t.push_str(&format!(
+            "\n\n**Ajuste pedido pelo analista:** {}",
+            em_uma_linha(p)
+        ));
+    }
     t.push_str("\n\n#### Elementos\n\n");
     if tela.elementos.is_empty() {
         t.push_str("_Nenhum elemento registrado._");
@@ -257,6 +267,23 @@ pub fn conferir_para_concluir(
             sem.join(", ")
         )));
     }
+    let ajustes: Vec<String> = analise
+        .telas()
+        .iter()
+        .filter_map(|t| {
+            t.ajuste_pedido
+                .as_ref()
+                .map(|p| format!("{}: {}", t.rotulo(), em_uma_linha(p)))
+        })
+        .collect();
+    if !ajustes.is_empty() {
+        return Err(ErroFerramenta::Recusa(format!(
+            "o analista pediu ajuste em tela(s): {}. Ajuste cada tela (elementos e HTML), \
+             grave o HTML de novo com `gravar_html_tela`, o que atende ao pedido, e chame \
+             `concluir_analise` de novo",
+            ajustes.join("; ")
+        )));
+    }
     let mut problemas = Vec::new();
     for tela in analise.telas() {
         let Some(html) = &tela.html else {
@@ -334,6 +361,13 @@ pub fn para_retomar(analise: &Analise) -> (String, Value) {
             Some(html) => t.push_str(&format!("Protótipo HTML: `{html}`.\n")),
             None => t.push_str("Protótipo HTML: ainda não gravado (`gravar_html_tela`).\n"),
         }
+        if let Some(p) = &tela.ajuste_pedido {
+            t.push_str(&format!(
+                "Ajuste pedido pelo analista: {}. Ajuste a tela e grave o HTML de novo \
+                 (`gravar_html_tela`).\n",
+                em_uma_linha(p)
+            ));
+        }
         for e in &tela.elementos {
             t.push_str(&format!(
                 "- {} [{}] {}{}. Origem: {}{}\n",
@@ -356,6 +390,7 @@ pub fn para_retomar(analise: &Analise) -> (String, Value) {
             "a_confirmar": tela.a_confirmar(),
             "fundamentos": tela.rastro.rotulos(),
             "html": tela.html,
+            "ajuste_pedido": tela.ajuste_pedido,
             "elementos": tela.elementos.iter().map(|e| json!({
                 "elemento": e.rotulo(),
                 "tipo": e.tipo,
@@ -366,6 +401,67 @@ pub fn para_retomar(analise: &Analise) -> (String, Value) {
         }));
     }
     (t, Value::Array(dados))
+}
+
+/// Tamanho máximo do HTML de uma tela lido do disco: o corpo e o CSS dos tokens
+/// com folga.
+pub const TAMANHO_MAXIMO_DO_HTML: u64 = 4 * 1024 * 1024;
+
+/// O protótipo HTML gravado da tela `numero` (#382): `None` enquanto a tela
+/// não tem HTML. Recusa tela que não existe, análise fora do fluxo `prototipo`
+/// e caminho que, resolvido (inclusive por link simbólico), sai da pasta do
+/// protótipo da análise (`analises/<id>/prototipo/`,
+/// [`cba_kb::layout::prototipo_da_analise`]) ou não é `.html`.
+pub fn ler_html_da_tela(
+    kb: &cba_kb::Projeto,
+    analise: &Analise,
+    numero: u32,
+) -> Result<Option<String>, String> {
+    if analise.fluxo != Fluxo::Prototipo {
+        return Err(format!(
+            "a análise {} não é do fluxo `prototipo`",
+            analise.id
+        ));
+    }
+    let tela = analise
+        .tela(numero)
+        .ok_or_else(|| format!("a análise {} não tem a tela TL-{numero}", analise.id))?;
+    let Some(html) = &tela.html else {
+        return Ok(None);
+    };
+    let fora = || {
+        format!(
+            "o protótipo da tela {} aponta para fora da pasta do protótipo da análise: {html}",
+            tela.rotulo()
+        )
+    };
+    if !html.as_str().ends_with(".html") {
+        return Err(fora());
+    }
+    let nao_lido = |e: std::io::Error| {
+        format!(
+            "o protótipo da tela {} ({}) não pôde ser lido: {e}",
+            tela.rotulo(),
+            kb.na_base(html)
+        )
+    };
+    let pasta = kb
+        .caminho(&cba_kb::layout::prototipo_da_analise(&analise.id))
+        .canonicalize()
+        .map_err(nao_lido)?;
+    let real = kb.caminho(html).canonicalize().map_err(nao_lido)?;
+    if !real.starts_with(&pasta) || !real.is_file() {
+        return Err(fora());
+    }
+    let tamanho = std::fs::metadata(&real).map_err(nao_lido)?.len();
+    if tamanho > TAMANHO_MAXIMO_DO_HTML {
+        return Err(format!(
+            "o protótipo da tela {} passa de {} MB",
+            tela.rotulo(),
+            TAMANHO_MAXIMO_DO_HTML / (1024 * 1024)
+        ));
+    }
+    std::fs::read_to_string(&real).map(Some).map_err(nao_lido)
 }
 
 fn rotulos_ou_nada(r: &Rastro) -> String {
