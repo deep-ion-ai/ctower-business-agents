@@ -271,6 +271,50 @@ O cenário foi avaliado com o modelo real na #279 ([relatório](avaliacao/2026-1
 
 Com a documentação legível (#291, [relatório](avaliacao/2026-11-21-publicacao-legivel-sonnet.md)), o critério passou de "algum documento externo" para "uma regra recortada de página, com a âncora". Na primeira rodada, uma das três execuções consultou com quatro palavras de uma vez (`juros multa atraso carência`): a busca exige todas, só a análise publicada casou e nenhuma regra chegou. Os roteiros de perguntar, explicar, impacto e revisar passaram a pedir um conceito por chamada. Na rodada final, três execuções sem falha grave: duas consultas (`juros`, `carência`) por execução, 5 regras recortadas recebidas em cada uma (`regras/geral.md#rn-ger-00N`, com o link do trecho), a fonte citada e as regras do P-FAT-003 encontradas (2 de 2), US$ 0,44 a 0,48 por ciclo.
 
+## Condução pelo workflow
+
+A análise de impacto pode ser conduzida pelo workflow `cba-impacto` do Claude Code (#371; spec `docs/specs/2026-11-25-workflows-nas-analises.md`): Preparar (1 agente) → Investigar e Verificar (1 de cada por frente, em pipeline) → Consolidar (1). `--conducao simples,workflow` roda cada item de impacto nas duas conduções e acrescenta ao relatório a seção "Condução simples e workflow" e os tokens por fase.
+
+```sh
+cargo run -p cba-avaliacao -- rodar --fluxos impacto --demanda D-FAT-001,D-FAT-002,D-FAT-003,D-FAT-004 \
+  --conducao simples,workflow --orcamento 2 --orcamento-workflow 8 --tempo-limite 2700
+```
+
+Na condução pelo workflow, o pedido é o do app (`cba_tools::conducao::pedido_de_inicio`), o `claude` roda com `--setting-sources project,local` (o workflow instalado pelo preparo em `.claude/workflows/` da cópia só é achado com `project`) e com `--session-id`, sem `--no-session-persistence`: a avaliação lê o `journal.jsonl` da execução (a fase de cada agente) e as transcrições dos agentes (o `usage`), copia os journals para a pasta da execução e apaga a sessão gravada em `~/.claude/projects` e as tarefas em `/tmp/claude-<uid>`. O custo e o total de tokens vêm do `total_cost_usd` e do `modelUsage` da saída, que somam a sessão e os subagentes; a duração é a do relógio (o `duration_ms` da saída é só o do último turno).
+
+Colunas da comparação: as da cobertura (regras, perguntas esperadas, premissa, abrangência), as afirmações registradas, as contestadas pela verificação independente (`contestar_afirmacao`), os agentes, os tokens, o custo e a duração.
+
+### Resultado (#371)
+
+Uma rodada de cada condução nos quatro casos de impacto, com Sonnet e o Claude Code 2.1.332 ([relatório](avaliacao/2026-11-25-workflow-impacto-sonnet.md)), US$ 8,14 no total:
+
+| | Simples | Workflow |
+|---|---|---|
+| Regras do gabarito | 9 de 9 | 9 de 9 |
+| Perguntas esperadas | 9 de 9 | 9 de 9 |
+| Premissa corrigida | 3 de 3 | 3 de 3 |
+| Abrangência esperada | 4 de 4 | 3 de 4 (D-FAT-001: média, esperada pequena) |
+| Afirmações (soma) | 55 | 130 |
+| Evidências válidas (soma) | 113 | 348 |
+| Contestadas | – | 1 (D-FAT-004) |
+| Agentes por caso | – | 6 a 10 (2 a 4 frentes) |
+| Tokens (soma) | 2,4 mi | 11,1 mi (cerca de 4,7×) |
+| Custo (soma) | US$ 1,58 | US$ 6,56 (cerca de 4,2×) |
+| Duração de relógio por caso | cerca de 1,5 min | 3 a 3,6 min |
+
+Nenhuma falha grave nas duas conduções. Com este gabarito, o workflow **não mostrou ganho de cobertura**: a condução simples já encontra todas as regras, perguntas e premissas esperadas, e o workflow repete o resultado com mais afirmações e evidências (mais detalhe por frente, em parte redundante) e um erro de abrangência. A verificação independente contestou uma afirmação em 130. O gabarito está no teto para a simples: casos maiores (mais camadas, demanda com várias frentes de verdade) seriam o lugar de medir de novo.
+
+Estimativa por fase (tokens por agente, do menor ao maior nos quatro casos), embutida em `cba_tools::conducao::ESTIMATIVAS` e mostrada em Nova análise:
+
+| Fase | Por agente | Saída por agente |
+|---|---|---|
+| Preparar | 116 mil a 170 mil | 2 mil a 4 mil |
+| Investigar | 371 mil a 1,3 mi | 10 mil a 20 mil |
+| Verificar | 30 mil a 84 mil | cerca de 1 mil |
+| Consolidar | 100 mil a 267 mil | 3 mil a 4 mil |
+
+Com as 6 frentes padrão, a faixa vai de cerca de 2,8 mi a 8,7 mi tokens (14 agentes no pior caso).
+
 ## Ao mudar o gabarito ou a fixture
 
 - O teste da crate `cba-fixtures` confere o gabarito, inclusive o formato de `perguntas_esperadas` e `verificacao_da_premissa`, nas revisões, que os termos vagos esperados são exatamente os que a lista de referência acha no texto e que as regras dos achados existem, e, nas reuniões, que o transcript existe, que os participantes são os falantes dele e que as falas citadas pelos itens existem.
