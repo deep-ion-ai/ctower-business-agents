@@ -174,6 +174,7 @@ const MUDANCA: Record<Exclude<Mudanca, "criada" | "estado">, string> = {
   diagrama: "diagramas atualizados",
   funcionalidade: "funcionalidades atualizadas",
   passo: "passos do manual atualizados",
+  tela: "telas do protótipo atualizadas",
 };
 
 /** "A-0003 · Impacto do Open Finance: concluída pelo agente", "A-0001: afirmações atualizadas (3)". */

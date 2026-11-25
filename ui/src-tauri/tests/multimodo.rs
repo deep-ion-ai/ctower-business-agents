@@ -1323,6 +1323,19 @@ fn entrada_do_hook(evento: &str, sessao: &str, cwd: &Path, analise: &str) -> Val
         }),
         "Stop" => json!({"stop_hook_active": false, "last_assistant_message": "resposta secreta"}),
         "SessionEnd" => json!({"reason": "other"}),
+        // Os eventos dos workflows das análises (#370), como no spike da #352.
+        "PostToolUse" => json!({
+            "tool_name": "Workflow",
+            "tool_input": {"name": "cba-impacto", "args": analise},
+            "tool_response": {"runId": "run-1", "transcriptDir": "/tmp/projetos/wf"},
+            "tool_use_id": "toolu_01DEF"
+        }),
+        "SubagentStart" => json!({"agent_id": "a1", "agent_type": "workflow-subagent"}),
+        "SubagentStop" => json!({
+            "agent_id": "a1",
+            "agent_type": "workflow-subagent",
+            "stop_hook_active": false
+        }),
         _ => unreachable!(),
     };
     for (k, v) in extra.as_object().unwrap() {

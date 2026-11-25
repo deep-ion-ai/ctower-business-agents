@@ -299,7 +299,10 @@ pub fn registrar_diagrama() -> Ferramenta {
             let args: Args = ler_argumentos(args)?;
             let id = comum::id_da_analise(&args.analise)?;
             let analise = ambiente.analises.carregar(&id)?;
-            if matches!(analise.fluxo, Fluxo::Historias | Fluxo::Cenarios) {
+            if matches!(
+                analise.fluxo,
+                Fluxo::Historias | Fluxo::Cenarios | Fluxo::Prototipo
+            ) {
                 return Err(ErroFerramenta::Recusa(format!(
                     "a análise {id} é do fluxo `{}`, que não recebe diagramas; registre o \
                      diagrama numa análise que lê o código (pergunta, impacto, explicar)",

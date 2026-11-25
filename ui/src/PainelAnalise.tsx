@@ -1,3 +1,4 @@
+import { ProgressoWorkflow } from "./ProgressoWorkflow";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   apiAlteracoesTauri,
@@ -36,6 +37,8 @@ import {
   type OrigemEvidencia,
 } from "./DocumentoAoVivo";
 import { ExportacaoAnalise } from "./ExportacaoAnalise";
+import { NovaPrototipo } from "./NovaPrototipo";
+import { apiPrototipoTauri, ORIGENS_PROTOTIPO, type ApiPrototipo } from "./prototipo";
 import { ParecerAoVivo } from "./ParecerAoVivo";
 import { ConversaAgente, type SituacaoAgente } from "./ConversaAgente";
 import { PainelLateral, type Aba } from "./PainelLateral";
@@ -146,6 +149,8 @@ interface Props {
   apiReuniao?: ApiReuniao;
   /** Publicação dos documentos aprovados no repositório (#276); para testes. */
   apiPublicacao?: ApiPublicacao;
+  /** "Prototipar telas" a partir da análise aprovada (#379); para testes. */
+  apiPrototipo?: ApiPrototipo;
   criarTela?: () => TelaTerminal;
   /** Abre outra análise (a criada por um próximo passo da ata, #142). */
   aoAbrirAnalise?: (id: string, abertura: Abertura) => void;
@@ -195,6 +200,7 @@ export function PainelAnalise({
   apiRevisao = apiRevisaoTauri,
   apiReuniao = apiReuniaoTauri,
   apiPublicacao = apiPublicacaoTauri,
+  apiPrototipo = apiPrototipoTauri,
   aoAbrirAnalise,
   abrirUrl: abrirUrlDado,
   aoMudarConversa,
@@ -223,6 +229,7 @@ export function PainelAnalise({
   const [terminalVisivel, alternarTerminal] = useTerminalVisivel();
   const [menu, setMenu] = useState<Menu | null>(null);
   const [aprovando, setAprovando] = useState(false);
+  const [prototipando, setPrototipando] = useState(false);
   const [falhaEnvio, setFalhaEnvio] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
@@ -288,12 +295,15 @@ export function PainelAnalise({
    * uma conversa nova com o pedido de retomada. Nunca `--continue`, que abre a última
    * conversa da pasta, de qualquer análise (#130).
    */
+  // Interrompida no meio do workflow, a sessão retomada pede o workflow de novo pelo
+  // `runId`: o que terminou volta do cache, sem registro duplicado (#371).
+  const pedidoNaSessao = opcoes?.pedidoNaSessao ?? vista?.promptNaSessao ?? undefined;
   const pedidoRetomada = useCallback(
     (): PedidoClaude =>
       sessao
-        ? { retomada: { modo: "sessao", id: sessao } }
+        ? { retomada: { modo: "sessao", id: sessao }, promptInicial: pedidoNaSessao || undefined }
         : { retomada: { modo: "nova" }, promptInicial: opcoes?.pedido || undefined },
-    [sessao, opcoes?.pedido],
+    [sessao, opcoes?.pedido, pedidoNaSessao],
   );
 
   const retomar = useCallback(() => {
@@ -327,6 +337,16 @@ export function PainelAnalise({
   const enviar = (texto: string) => {
     setFalhaEnvio(null);
     controle.current?.enviarPrompt(texto).catch(falhar);
+  };
+
+  /** "Continuar sem workflow" (#371): o roteiro completo, na conversa aberta ou numa retomada. */
+  const continuarSemWorkflow = (pedido: string) => {
+    if (vivo) return enviar(pedido);
+    conversar(
+      sessao
+        ? { retomada: { modo: "sessao", id: sessao }, promptInicial: pedido }
+        : { retomada: { modo: "nova" }, promptInicial: pedido },
+    );
   };
 
   /** Mensagem da caixa do painel: a mesma entrada de digitar no terminal e apertar Enter. */
@@ -366,6 +386,9 @@ export function PainelAnalise({
     setMenu(null);
     setFalhaEnvio(null);
     setAviso(null);
+    // O `/desktop` encerra o CLI, e o workflow em segundo plano iria junto (#371).
+    const bloqueio = opcoes?.bloqueioDesktop ?? vista?.bloqueioDesktop;
+    if (modo === "retomar" && bloqueio) return setFalhaEnvio(bloqueio);
     if (modo === "nova") return abrirPorLink("claudeDesktop");
     if (vivo) return continuarNoDesktop();
     setOcupado(true);
@@ -569,6 +592,9 @@ export function PainelAnalise({
   };
 
   const aprovada = vista?.analise.estado === "aprovada";
+  // A análise aprovada de onde as regras vêm pode virar protótipo de telas (#379).
+  const prototipavel =
+    aprovada && !!vista && ORIGENS_PROTOTIPO.has(vista.analise.fluxo) && !!aoAbrirAnalise;
   const deAta = vista?.analise.fluxo === "reuniao";
   // A mesma conta da faixa e do diálogo de aprovação (#222).
   const pendencias = !deAta && !aprovada && prontidao ? prontidao.pendencias : null;
@@ -670,6 +696,19 @@ export function PainelAnalise({
               >
                 {rotuloAprovar}
               </button>
+              {prototipavel && (
+                <button
+                  className="btn"
+                  type="button"
+                  aria-haspopup="dialog"
+                  onClick={() => {
+                    setMenu(null);
+                    setPrototipando(true);
+                  }}
+                >
+                  Prototipar telas
+                </button>
+              )}
               <BotaoPainel
                 aberto={menu === "exportar"}
                 aoAlternar={alternar("exportar")}
@@ -701,6 +740,25 @@ export function PainelAnalise({
           )}
         </div>
       </header>
+      {vista && prototipando && aoAbrirAnalise && (
+        <AprovacaoDialogo titulo="Prototipar telas" aoFechar={() => setPrototipando(false)}>
+          <NovaPrototipo
+            api={api}
+            apiPrototipo={apiPrototipo}
+            projetos={[{ id: projeto, nome: projeto }]}
+            origemFixa={{ id: analise, titulo: vista.analise.titulo }}
+            semTitulo
+            aoCancelar={() => setPrototipando(false)}
+            aoCriar={(_p, criada) => {
+              setPrototipando(false);
+              aoAbrirAnalise(criada.analise.id, {
+                tipo: "nova",
+                promptInicial: criada.promptInicial,
+              });
+            }}
+          />
+        </AprovacaoDialogo>
+      )}
       {vista && aprovando && (
         <AprovacaoDialogo titulo={tituloAprovar} aoFechar={() => setAprovando(false)}>
           {deAta ? (
@@ -752,6 +810,13 @@ export function PainelAnalise({
               }}
               aoPedir={pedirRevalidacao}
               aoIrPara={irParaAfirmacao}
+            />
+          )}
+          {vista && (
+            <ProgressoWorkflow
+              analise={vista.analise}
+              pedidoSemWorkflow={vista.promptSemWorkflow}
+              aoContinuarSemWorkflow={continuarSemWorkflow}
             />
           )}
           {vista?.analise.fluxo === "reuniao" && vista.analise.reuniao && (
@@ -823,6 +888,7 @@ export function PainelAnalise({
                     vivo={vivo}
                     ocupado={ocupado}
                     podeNova={!!vista}
+                    bloqueioDesktop={opcoes?.bloqueioDesktop ?? vista?.bloqueioDesktop ?? null}
                     aoAqui={aqui}
                     aoVoltarAqui={voltarAConversa}
                     aoDesktop={noDesktop}

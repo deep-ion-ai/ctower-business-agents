@@ -14,7 +14,8 @@ export type Fluxo =
   | "revisar"
   | "historias"
   | "cenarios"
-  | "manual";
+  | "manual"
+  | "prototipo";
 export type EstadoAnalise = "criada" | "em-andamento" | "concluida" | "aprovada";
 /** O rótulo do estado da análise, o mesmo em todo o app (lista, Atividades, painéis). */
 export const ROTULO_ESTADO_ANALISE: Record<EstadoAnalise, string> = {
@@ -53,9 +54,48 @@ export type Afirmacao = {
   texto_original?: string | null;
   confianca: Confianca;
   evidencias: Evidencia[];
+  /** Contestação da verificação independente de um workflow (#371): o analista decide. */
+  contestacao?: Contestacao | null;
   sessao?: string | null;
   registrada_ms: number;
 } & EstadoAfirmacao;
+
+/** Contestação da verificação independente (`cba_core::conducao::Contestacao`, #371). */
+export interface Contestacao {
+  origem: "verificacao-independente";
+  motivo: string;
+  evidencias?: Evidencia[];
+  registrada_ms: number;
+}
+
+/** Como a sessão conduz a análise (#371). */
+export type Conducao = "simples" | "workflow";
+
+/** Situação da execução do workflow, pelos hooks (`cba_core::conducao::SituacaoWorkflow`). */
+export type SituacaoWorkflow = "rodando" | "concluido" | "falhou" | "interrompido";
+
+/** Fase do workflow com os agentes iniciados e concluídos. */
+export interface FaseWorkflow {
+  titulo: string;
+  iniciados: number;
+  concluidos: number;
+}
+
+/** Execução do workflow da análise (`cba_core::conducao::ExecucaoWorkflow`). */
+export interface ExecucaoWorkflow {
+  nome: string;
+  origem?: string | null;
+  run_id: string;
+  sessao: string;
+  situacao: SituacaoWorkflow;
+  fases: FaseWorkflow[];
+  iniciados: number;
+  concluidos: number;
+  uso?: { agentes: number; agentes_com_erro: number; tokens: number; ferramentas: number; duracao_ms: number } | null;
+  retomada?: boolean;
+  iniciado_ms: number;
+  atualizado_ms: number;
+}
 
 /**
  * Item de que o analista fez a pergunta ("Virar pergunta", `cba_core::analise::OrigemPergunta`):
@@ -155,6 +195,63 @@ export interface Analise {
   funcionalidade?: string | null;
   /** Passo a passo do manual do usuário (fluxo `manual`, #272). */
   passos?: PassoManual[];
+  /** Condução (#371); ausente é a simples. */
+  conducao?: Conducao;
+  /** Execução mais recente do workflow, pelos hooks (#371). */
+  workflow?: ExecucaoWorkflow | null;
+  /** Por que a análise pedida com workflow seguiu pela condução simples (#371). */
+  aviso_conducao?: string | null;
+  /** Protótipo de telas (fluxo `prototipo`, #381): o pedido e as telas. */
+  prototipo?: PrototipoAnalise | null;
+}
+
+/** Critério de aceite citado (`cba_core::prototipo::CriterioCitado`): `HU-0001/CA-2`. */
+export interface CriterioCitado {
+  analise: string;
+  historia: string;
+  criterio: number;
+  texto: string;
+}
+
+/**
+ * De onde vem uma tela ou um elemento (`cba_core::prototipo::Rastro`). Sem
+ * fundamento nem critério, ou com pergunta em aberto, fica "a confirmar".
+ */
+export interface RastroTela {
+  fundamentos?: Fundamento[];
+  criterios?: CriterioCitado[];
+  pergunta?: string | null;
+}
+
+export type TipoElemento = "campo" | "validacao" | "mensagem" | "acao";
+
+/** Elemento de uma tela (`cba_core::prototipo::ElementoTela`), `E-<numero>`. */
+export interface ElementoTela extends RastroTela {
+  numero: number;
+  tipo: TipoElemento;
+  nome: string;
+  descricao?: string | null;
+  registrado_ms: number;
+}
+
+/** Tela do protótipo (`cba_core::prototipo::Tela`), `TL-<numero>`. */
+export interface TelaPrototipo extends RastroTela {
+  numero: number;
+  nome: string;
+  mudanca: "nova" | "alterada";
+  motivo: string;
+  elementos: ElementoTela[];
+  /** HTML da tela, relativo à raiz do projeto na base; ausente enquanto não gravado. */
+  html?: string | null;
+  /** Ajuste pedido pelo analista, ainda não atendido (#382). */
+  ajuste_pedido?: string | null;
+  registrada_ms: number;
+}
+
+/** Protótipo da análise (`cba_core::prototipo::Prototipo`). */
+export interface PrototipoAnalise {
+  pedido?: { telas?: string[]; fidelidade?: "wireframe" | "alta_fidelidade"; fora?: string | null };
+  telas?: TelaPrototipo[];
 }
 
 /** Print de tela de um passo do manual (`cba_core::manual::PrintDoPasso`). */
@@ -279,6 +376,8 @@ export type Achado = {
   /** Regras da base (`RN-FAT-012`). */
   regras?: string[];
   evidencias: Evidencia[];
+  /** Contestação da verificação independente (#371): o achado fica a revalidar. */
+  contestacao?: Contestacao | null;
   registrada_ms: number;
 } & ({ estado: "registrado" } | { estado: "descartado"; motivo?: string | null });
 
@@ -429,6 +528,12 @@ export interface VistaAnalise {
   sessao: SessaoVista | null;
   /** Pedido para uma conversa nova continuar a análise (`retomar_analise`). */
   promptRetomada: string;
+  /** Pedido para a sessão reaberta retomar o workflow interrompido (#371). */
+  promptNaSessao?: string | null;
+  /** Pedido para continuar pela condução simples (#371). */
+  promptSemWorkflow?: string | null;
+  /** Por que levar a conversa ao Desktop está bloqueado (workflow rodando, #371). */
+  bloqueioDesktop?: string | null;
   /** Mermaid de cada diagrama (#118); ausente em respostas antigas. */
   diagramas?: DiagramaVisto[];
   /**
@@ -496,8 +601,15 @@ export interface AlteracaoPreparo {
     | { tipo: "servidorMcp"; chave: string }
     | { tipo: "confianca"; chave: string }
     | { tipo: "hook"; evento: string }
-    | { tipo: "exclusaoGit"; raiz: string };
-  acao: "adicionado" | "atualizado" | "removido" | "restaurado" | "semMudanca";
+    | { tipo: "exclusaoGit"; raiz: string }
+    | { tipo: "workflow"; nome: string; raiz: string }
+    | { tipo: "permissaoWorkflow"; regra: string }
+    | { tipo: "exclusaoWorkflows"; raiz: string };
+  /**
+   * "preservado": o workflow instalado foi editado à mão (ou não é do app) e fica como
+   * está, sem ser sobrescrito (#370).
+   */
+  acao: "adicionado" | "atualizado" | "removido" | "restaurado" | "semMudanca" | "preservado";
   /**
    * Executável de outra instalação do app: em "atualizado", para onde a entrada apontava
    * antes (o plano avisa da troca); em "restaurado", para onde voltou a apontar.

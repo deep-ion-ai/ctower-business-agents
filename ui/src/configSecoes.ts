@@ -4,7 +4,14 @@ import { useCallback, useState } from "react";
  * Seções do menu lateral das configurações (#191). "projeto" é uma só seção, com o
  * projeto escolhido à parte ({@link Escolha.projeto}).
  */
-export type SecaoConfig = "aparencia" | "assistente" | "acessos" | "pasta" | "modelos" | "projeto";
+export type SecaoConfig =
+  | "aparencia"
+  | "assistente"
+  | "acessos"
+  | "pasta"
+  | "modelos"
+  | "workflows"
+  | "projeto";
 
 export const GRUPOS_DO_MENU: { titulo: string; secoes: { id: SecaoConfig; rotulo: string }[] }[] = [
   {
@@ -20,6 +27,7 @@ export const GRUPOS_DO_MENU: { titulo: string; secoes: { id: SecaoConfig; rotulo
     secoes: [
       { id: "pasta", rotulo: "Pasta da base" },
       { id: "modelos", rotulo: "Modelos e prompts" },
+      { id: "workflows", rotulo: "Workflows" },
     ],
   },
 ];
@@ -46,6 +54,7 @@ const SECOES_SIMPLES: readonly SecaoConfig[] = [
   "acessos",
   "pasta",
   "modelos",
+  "workflows",
 ];
 
 /** `aparencia`, `pasta`… ou `projeto:<id>`; qualquer outra coisa vale como ausente. */

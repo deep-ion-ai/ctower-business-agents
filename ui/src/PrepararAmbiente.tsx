@@ -89,9 +89,11 @@ export function PrepararAmbiente({
             O app vai registrar o servidor MCP na configuração do Claude Code, marcar a pasta do
             projeto como confiável (para o Claude não perguntar isso na primeira conversa) e gravar
             os hooks no arquivo <code>.claude/settings.local.json</code> da pasta, que vale só para
-            as conversas nela e fica fora do git. É o único arquivo criado na pasta do projeto. O
-            app faz uma cópia de segurança de cada arquivo antes de gravar e, ao desfazer o
-            preparo, tudo isso sai.
+            as conversas nela e fica fora do git. Também instala os workflows das análises em{" "}
+            <code>.claude/workflows/</code>, com a permissão para o Claude rodá-los pelo nome, e
+            também fora do git. São os únicos arquivos criados na pasta do projeto. O app faz uma
+            cópia de segurança de cada arquivo antes de gravar e, ao desfazer o preparo, tudo isso
+            sai. Um workflow que você editou à mão nunca é sobrescrito.
           </p>
           <ul className="plano-preparo">
             {porArquivo(mudancas).map(([arquivo, itens]) => (
@@ -102,7 +104,7 @@ export function PrepararAmbiente({
                     <li key={`${a.item.tipo}-${chaveDoItem(a.item)}`}>
                       {descreverItem(a.item)}{" "}
                       <span className="muted">
-                        ({a.acao === "atualizado" ? "atualizado" : "adicionado"}
+                        ({descreverAcao(a.acao)}
                         {a.outraInstalacao ? "; hoje vai para outra instalação do app" : ""})
                       </span>
                     </li>
@@ -185,9 +187,26 @@ function chaveDoItem(item: AlteracaoPreparo["item"]): string {
     case "hook":
       return item.evento;
     case "exclusaoGit":
+    case "exclusaoWorkflows":
       return item.raiz;
+    case "workflow":
+      return `${item.raiz}/${item.nome}`;
+    case "permissaoWorkflow":
+      return item.regra;
     default:
       return item.chave;
+  }
+}
+
+/** Texto da ação de um item do plano. */
+export function descreverAcao(acao: AlteracaoPreparo["acao"]): string {
+  switch (acao) {
+    case "atualizado":
+      return "atualizado";
+    case "preservado":
+      return "editado à mão: fica como está, sem ser sobrescrito";
+    default:
+      return "adicionado";
   }
 }
 
@@ -213,6 +232,12 @@ export function descreverItem(item: AlteracaoPreparo["item"]): string {
       return `Pasta ${item.chave} marcada como confiável no Claude Code (sem a pergunta "Quick safety check", em inglês, na primeira conversa)`;
     case "exclusaoGit":
       return `Arquivo .claude/settings.local.json fora do git em ${item.raiz} (linha no info/exclude, que não é versionado)`;
+    case "workflow":
+      return `Workflow ${item.nome} das análises em ${item.raiz} (gerado pelo app, fora do git)`;
+    case "permissaoWorkflow":
+      return `Permissão para o Claude rodar ${item.regra} sem perguntar`;
+    case "exclusaoWorkflows":
+      return `Workflows do app (.claude/workflows/cba-*.js) fora do git em ${item.raiz} (linha no info/exclude, que não é versionado)`;
   }
 }
 

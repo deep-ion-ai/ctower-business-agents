@@ -92,6 +92,7 @@ describe("TelaConfiguracoes", () => {
         "Acessos",
         "Pasta da base",
         "Modelos e prompts",
+        "Workflows",
       ]) {
         expect(m.getByRole("button", { name: nome })).toBeInTheDocument();
       }

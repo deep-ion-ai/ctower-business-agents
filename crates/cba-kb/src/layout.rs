@@ -74,6 +74,19 @@ pub const ARQUIVO_ESTADO_EXTERNOS: &str = ".sincronizacao.json";
 /// Trava da sincronização (app e servidor MCP), em `externos/`.
 pub const TRAVA_EXTERNOS: &str = ".sincronizacao.trava";
 
+/// Protótipo de telas (#356): os tokens CSS do projeto (#384), extraídos do
+/// código da interface e revisados pelo analista. Criada na primeira extração,
+/// não em todo projeto.
+pub const PROTOTIPO: &str = "prototipo";
+/// Estado dos tokens CSS, em `prototipo/`: a fonte de verdade da revisão.
+pub const ARQUIVO_ESTADO_TOKENS: &str = "tokens.estado.json";
+/// Arquivo de variáveis CSS (`:root`) gerado do estado, em `prototipo/`.
+pub const ARQUIVO_TOKENS_CSS: &str = "tokens.css";
+/// Trava das alterações dos tokens (app e servidor MCP), em `prototipo/`.
+pub const ARQUIVO_TRAVA_TOKENS: &str = ".tokens.trava";
+/// Extensão do protótipo HTML de uma tela (#385).
+pub const EXTENSAO_HTML: &str = "html";
+
 /// Extensão dos documentos.
 pub const EXTENSAO: &str = "md";
 
@@ -161,6 +174,36 @@ pub fn funcionalidade(area: &str, tema: &str) -> Result<CaminhoRelativo, Caminho
     ))
 }
 
+/// `prototipo/tokens.estado.json`.
+pub fn estado_dos_tokens() -> CaminhoRelativo {
+    caminho(format!("{PROTOTIPO}/{ARQUIVO_ESTADO_TOKENS}")).expect("nome fixo válido")
+}
+
+/// `prototipo/tokens.css`.
+pub fn tokens_css() -> CaminhoRelativo {
+    caminho(format!("{PROTOTIPO}/{ARQUIVO_TOKENS_CSS}")).expect("nome fixo válido")
+}
+
+/// `prototipo/.tokens.trava`.
+pub fn trava_dos_tokens() -> CaminhoRelativo {
+    caminho(format!("{PROTOTIPO}/{ARQUIVO_TRAVA_TOKENS}")).expect("nome fixo válido")
+}
+
+/// `analises/<id>/prototipo/`: os protótipos HTML das telas de uma análise de
+/// protótipo (#385), um arquivo por tela. Criada no primeiro HTML gravado.
+pub fn prototipo_da_analise(id: &crate::Id) -> CaminhoRelativo {
+    caminho(format!("{ANALISES}/{id}/{PROTOTIPO}"))
+        .expect("pasta e identificador formam um caminho válido")
+}
+
+/// `analises/<id>/prototipo/TL-<numero>.html`: o protótipo HTML de uma tela.
+pub fn html_da_tela(id: &crate::Id, numero: u32) -> CaminhoRelativo {
+    caminho(format!(
+        "{ANALISES}/{id}/{PROTOTIPO}/TL-{numero}.{EXTENSAO_HTML}"
+    ))
+    .expect("pasta, identificador e número formam um caminho válido")
+}
+
 /// `externos/`.
 pub fn externos() -> CaminhoRelativo {
     CaminhoRelativo::novo(EXTERNOS).expect("nome fixo válido")
@@ -232,6 +275,18 @@ mod tests {
         assert_eq!(
             estado_dos_externos().as_str(),
             "externos/.sincronizacao.json"
+        );
+        assert_eq!(estado_dos_tokens().as_str(), "prototipo/tokens.estado.json");
+        assert_eq!(tokens_css().as_str(), "prototipo/tokens.css");
+        assert_eq!(trava_dos_tokens().as_str(), "prototipo/.tokens.trava");
+        let id = crate::Id::analisar("A-0002").unwrap();
+        assert_eq!(
+            prototipo_da_analise(&id).as_str(),
+            "analises/A-0002/prototipo"
+        );
+        assert_eq!(
+            html_da_tela(&id, 3).as_str(),
+            "analises/A-0002/prototipo/TL-3.html"
         );
     }
 }

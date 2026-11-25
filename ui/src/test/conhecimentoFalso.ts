@@ -10,6 +10,7 @@ import type {
 } from "../conhecimento";
 import type { DemandaVista, NovaDemanda, PainelDemanda } from "../demandas";
 import type { ResumoProjeto } from "../resumoProjeto";
+import { apiPrototipoFalsa } from "./prototipoFalso";
 
 /** Dados do sistema fictício "Faturamento Exemplo" depois de uma análise aprovada. */
 export const PROJETO = "faturamento-exemplo";
@@ -553,6 +554,7 @@ export function apiConhecimentoFalsa() {
     verificarAmbiente: vi.fn(
       (): Promise<AmbienteClaude> => Promise.resolve({ pronto: true, pendencias: [] }),
     ),
+    prototipo: apiPrototipoFalsa().api,
     resumoProjeto: vi.fn(
       (projeto: string): Promise<ResumoProjeto> => Promise.resolve({ ...resumoFicticio(), projeto }),
     ),

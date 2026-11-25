@@ -24,6 +24,7 @@ import { CenariosAoVivo } from "./CenariosAoVivo";
 import { DiagramaAoVivo } from "./DiagramaAoVivo";
 import { HistoriasAoVivo } from "./HistoriasAoVivo";
 import { ManualAoVivo } from "./ManualAoVivo";
+import { PrototipoAoVivo } from "./PrototipoAoVivo";
 import { FaixaRevisao } from "./FaixaRevisao";
 import {
   contagemPorFiltro,
@@ -181,8 +182,9 @@ export function DocumentoAoVivo({
 }: Props) {
   const { analise } = vista;
   const deCenarios = analise.fluxo === "cenarios";
-  // Histórias e cenários têm registros próprios, no lugar das afirmações.
-  const deHistorias = analise.fluxo === "historias" || deCenarios;
+  const dePrototipo = analise.fluxo === "prototipo";
+  // Histórias, cenários e o protótipo têm registros próprios, no lugar das afirmações.
+  const deHistorias = analise.fluxo === "historias" || deCenarios || dePrototipo;
   // O manual do usuário (#272) tem afirmações e, além delas, o passo a passo.
   const deManual = analise.fluxo === "manual";
   const rotuloEntrada = deHistorias ? "Pedido" : deManual ? "Funcionalidade" : "Pergunta";
@@ -377,7 +379,16 @@ export function DocumentoAoVivo({
             />
           )}
 
-          {deCenarios ? (
+          {dePrototipo ? (
+            <PrototipoAoVivo
+              projeto={analise.projeto}
+              analise={analise.id}
+              versao={analise.versao}
+              telas={analise.prototipo?.telas ?? []}
+              origem={analise.origem}
+              revisao={rev}
+            />
+          ) : deCenarios ? (
             <CenariosAoVivo
               tabelas={analise.tabelas ?? []}
               cenarios={analise.cenarios ?? []}
