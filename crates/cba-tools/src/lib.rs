@@ -61,6 +61,9 @@
 //! - [`publicacao`]: a publicação dos documentos aprovados no repositório da
 //!   documentação, com a prévia das mudanças e o PR/MR (#276).
 //!
+//! - [`workflows`]: os workflows do Claude Code das análises (`cba-<tipo>`), com o
+//!   padrão embutido que o preparo instala (#370).
+//!
 //! Papel na arquitetura: seção 5 de `docs/specs/2026-11-11-mvp-standalone.md`.
 
 pub mod afirmar;
@@ -111,6 +114,7 @@ pub mod sugestao;
 pub mod termo;
 pub mod vincular;
 pub mod vinculo;
+pub mod workflows;
 
 pub use registro::{
     ErroChamada, ErroFerramenta, Executar, Ferramenta, Registro, Saida, ler_argumentos,

@@ -176,7 +176,7 @@ export interface SalvoTexto {
 /** Prefixo do erro de `salvarTexto` quando o arquivo mudou fora do app. */
 export const CONFLITO = "conflito:";
 
-type Situacao = "ok" | "ausente" | "desatualizado" | "conflito";
+type Situacao = "ok" | "ausente" | "desatualizado" | "conflito" | "divergente";
 
 /** Detalhe da verificação do ambiente (`cba_session::preparo::Verificacao`). */
 export interface VerificacaoAmbiente {
@@ -188,6 +188,11 @@ export interface VerificacaoAmbiente {
   hooks: { evento: string; situacao: Situacao }[];
   hooksDesativados: boolean;
   pronto: boolean;
+  /** Workflows das análises por raiz (#370); "divergente" se editado à mão. */
+  workflows?: { nome: string; arquivo: string; situacao: Situacao }[];
+  permissoesWorkflow?: { regra: string; arquivo: string; presente: boolean }[];
+  /** Os workflows estão instalados e liberados: a condução por workflow pode ser oferecida. */
+  workflowsProntos?: boolean;
 }
 
 export interface AmbienteDetalhado extends AmbienteClaude {

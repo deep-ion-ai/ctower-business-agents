@@ -693,11 +693,17 @@ fn alvo_do_cadastrado(projeto: &cba_index::Projeto) -> Result<(Alvo, Option<Stri
             let plataforma = cba_session::clientes::Plataforma::atual();
             // As outras pastas, se existem, também têm os hooks no arquivo local.
             let mut raizes = vec![pasta.caminho.clone()];
+            let mut raizes_workflows = vec![pasta.caminho.clone()];
             for outra in &projeto.pastas {
                 if let Ok(a) = Alvo::da_pasta(&projeto.id, &outra.caminho) {
                     for r in a.raizes {
                         if !raizes.contains(&r) {
                             raizes.push(r);
+                        }
+                    }
+                    for r in a.raizes_workflows {
+                        if !raizes_workflows.contains(&r) {
+                            raizes_workflows.push(r);
                         }
                     }
                 }
@@ -709,6 +715,9 @@ fn alvo_do_cadastrado(projeto: &cba_index::Projeto) -> Result<(Alvo, Option<Stri
                     chave: preparo::chave_do_caminho(&pasta.caminho, plataforma),
                     worktree: false,
                     raizes,
+                    raizes_workflows,
+                    // O desfazer tira o que o registro diz que foi gravado.
+                    workflows: Vec::new(),
                 },
                 Some(format!(
                     "a pasta {} não existe mais; o servidor MCP foi procurado pelo caminho dela. \
@@ -783,6 +792,11 @@ fn explicar_mantido(m: &preparo::Mantido) -> String {
             "A pasta {chave} continua registrada em {} com dados que o próprio Claude Code \
              gravou ao abrir conversas nela (como o histórico de uso). O app não mexe \
              nesses dados.",
+            arquivo.display()
+        ),
+        Mantido::WorkflowEditado { arquivo } => format!(
+            "O workflow {} foi editado depois do preparo e ficou como está. Se não precisa \
+             mais da edição, apague o arquivo.",
             arquivo.display()
         ),
     }

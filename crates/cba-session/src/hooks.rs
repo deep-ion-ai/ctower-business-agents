@@ -88,6 +88,11 @@ use crate::protecao;
 use crate::sessoes::{Alteracao, RegistroSessao, Sessoes, id_valido};
 
 /// Eventos que o app registra na configuração do cliente (spec, seção 6.2).
+///
+/// O `PostToolUse` (só da ferramenta `Workflow`, [`matcher_do_evento`]), o
+/// `SubagentStart` e o `SubagentStop` acompanham os workflows das análises (spec
+/// `docs/specs/2026-11-25-workflows-nas-analises.md`, seções 3.3 e 3.4, #370). Por
+/// ora o receptor só os aceita, sem mudar o estado da sessão.
 pub const EVENTOS: &[&str] = &[
     "SessionStart",
     "UserPromptSubmit",
@@ -95,7 +100,20 @@ pub const EVENTOS: &[&str] = &[
     "Notification",
     "Stop",
     "SessionEnd",
+    "PostToolUse",
+    "SubagentStart",
+    "SubagentStop",
 ];
+
+/// `matcher` do grupo de hooks de `evento`: o `PostToolUse` só da ferramenta
+/// `Workflow`, para não chamar o app depois de toda ferramenta. Os outros eventos
+/// valem para tudo (sem `matcher`).
+pub fn matcher_do_evento(evento: &str) -> Option<&'static str> {
+    match evento {
+        "PostToolUse" => Some("Workflow"),
+        _ => None,
+    }
+}
 
 /// Variável de ambiente com a pasta em que a sessão começou (documentada pelo
 /// Claude Code para os comandos de hook).
