@@ -184,7 +184,9 @@ fn validar(tipo: TipoDocumento, relativo: &CaminhoRelativo, texto: &str) -> Resu
         | TipoDocumento::Pergunta
         | TipoDocumento::AnaliseReuniao
         | TipoDocumento::ParecerRevisao => com::<FrontmatterAnalise>(texto),
-        TipoDocumento::Historias | TipoDocumento::CenariosTeste => com::<FrontmatterAnalise>(texto),
+        TipoDocumento::Historias | TipoDocumento::CenariosTeste | TipoDocumento::Prototipo => {
+            com::<FrontmatterAnalise>(texto)
+        }
         TipoDocumento::MapaFuncionalidades => com::<FrontmatterMapa>(texto),
         // Explicação de funcionalidade: análise em `analises/`, documento negocial
         // em `funcionalidades/`.

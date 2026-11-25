@@ -78,6 +78,9 @@ pub enum Mudanca {
     /// Passo do manual do usuário registrado, editado ou removido, ou print
     /// incluído, trocado, removido ou dispensado (fluxo `manual`, #272).
     Passo,
+    /// Pedido do protótipo gravado, ou tela ou elemento de tela registrado (fluxo
+    /// `prototipo`, #381).
+    Tela,
 }
 
 /// Valor do campo `analise` dos eventos do mapa de funcionalidades.

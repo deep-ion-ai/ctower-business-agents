@@ -193,6 +193,7 @@ fn rotulo_do_roteiro(fluxo: cba_core::analise::Fluxo) -> &'static str {
         Fluxo::Historias => "Histórias e critérios",
         Fluxo::Cenarios => "Cenários de teste",
         Fluxo::Manual => "Manual do usuário",
+        Fluxo::Prototipo => "Protótipo de telas",
     }
 }
 

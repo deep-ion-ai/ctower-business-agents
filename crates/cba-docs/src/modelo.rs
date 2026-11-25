@@ -59,6 +59,10 @@ pub const RASTREABILIDADE: &str = "rastreabilidade";
 pub const TABELAS_DECISAO: &str = "tabelas_decisao";
 pub const VALORES_LIMITE: &str = "valores_limite";
 pub const CENARIOS: &str = "cenarios";
+/// Seção do protótipo de telas (#381) com as telas afetadas e os elementos,
+/// montada a partir do estado da análise. A rastreabilidade usa
+/// [`RASTREABILIDADE`].
+pub const TELAS: &str = "telas";
 /// Seções do documento negocial com os diagramas do processo e do modelo de dados
 /// (#120), registrados com `registrar_diagrama`.
 pub const FLUXO_PROCESSO: &str = "fluxo_processo";
@@ -113,7 +117,7 @@ const CAMPOS_FUNCIONALIDADE_OU_ANALISE: &[&str] = &[
 ];
 
 /// Tipos que têm template, na ordem da spec (seção 7.3).
-pub const MODELOS: [Modelo; 14] = [
+pub const MODELOS: [Modelo; 15] = [
     Modelo {
         tipo: TipoDocumento::AnaliseImpacto,
         secoes: &[
@@ -343,6 +347,27 @@ pub const MODELOS: [Modelo; 14] = [
         campos: CAMPOS_FUNCIONALIDADE_OU_ANALISE,
         padrao: include_str!("../templates/manual.md"),
     },
+    Modelo {
+        tipo: TipoDocumento::Prototipo,
+        secoes: &[
+            s("pedido", "Pedido"),
+            s(TELAS, "Telas afetadas"),
+            s(RASTREABILIDADE, "Rastreabilidade"),
+            s(PERGUNTAS, "Perguntas em aberto"),
+            EVIDENCIAS_SECAO,
+        ],
+        campos: &[
+            "id",
+            "titulo",
+            "projeto",
+            "status",
+            "criado",
+            "analista",
+            "versao_do_codigo",
+            "origem",
+        ],
+        padrao: include_str!("../templates/prototipo.md"),
+    },
 ];
 
 /// Modelo do tipo, se o tipo tiver template (`projeto` e `memoria-area` não têm).
@@ -370,6 +395,7 @@ pub(crate) fn texto_vazio(marcador: &str) -> &'static str {
         TABELAS_DECISAO => "_Nenhuma tabela de decisão registrada._",
         VALORES_LIMITE => "_Nenhum cenário de valor-limite ou de partição registrado._",
         CENARIOS => "_Nenhum cenário de teste registrado._",
+        TELAS => "_Nenhuma tela registrada._",
         FLUXO_PROCESSO => "_Fluxo do processo ainda não registrado._",
         MODELO_DADOS => "_Modelo de dados conceitual ainda não registrado._",
         FUNCIONALIDADES_MAPEADAS => "_Nenhuma funcionalidade registrada._",
@@ -448,7 +474,7 @@ impl Montavel for FrontmatterAnalise {
         // mesmo marcador para outra coisa e o mostra como ausente.
         if matches!(
             self.tipo,
-            TipoDocumento::Historias | TipoDocumento::CenariosTeste
+            TipoDocumento::Historias | TipoDocumento::CenariosTeste | TipoDocumento::Prototipo
         ) {
             let origem = match &self.origem {
                 Some(o) => link(&o.to_string(), caminho, &o.arquivo()),

@@ -319,6 +319,7 @@ impl<'a> Gerador<'a> {
             | T::ParecerRevisao
             | T::Historias
             | T::CenariosTeste
+            | T::Prototipo
             | T::AnaliseReuniao => {
                 self.analises
                     .push(ler(d, &livre, tipo, |f: &FrontmatterAnalise| {
@@ -2026,6 +2027,7 @@ fn rotulo_tipo(tipo: &str) -> (&'static str, &'static str, u8) {
         "cenarios-teste" => ("Cenários de teste", "Cenários de teste", 5),
         "parecer-revisao" => ("Parecer de revisão", "Pareceres de revisão", 6),
         "analise-reuniao" => ("Análise de reunião", "Análises de reunião", 7),
+        "prototipo" => ("Protótipo de telas", "Protótipos de telas", 8),
         _ => ("Análise", "Outras análises", 9),
     }
 }

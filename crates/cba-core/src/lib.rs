@@ -17,6 +17,9 @@
 //!   cadastro do projeto fora das análises, com identificadores estáveis.
 //! - [`manual`]: passo a passo do manual do usuário de uma funcionalidade, com
 //!   os prints de tela (fluxo `manual`, #272).
+//! - [`prototipo`]: protótipo de telas a partir de uma análise de origem
+//!   validada, com as telas afetadas e os elementos rastreados (fluxo
+//!   `prototipo`, #381).
 //! - [`parecer`]: parecer de revisão de um requisito ou história (fluxo
 //!   `revisar`): achados, verificação INVEST e veredito.
 //! - [`qualidade`]: critérios de qualidade de requisitos (características da
@@ -44,6 +47,7 @@ pub mod log;
 pub mod manual;
 pub mod memoria;
 pub mod parecer;
+pub mod prototipo;
 pub mod qualidade;
 pub mod requisito;
 pub mod tempo;

@@ -380,6 +380,7 @@ export const ROTULO_FLUXO: Record<Fluxo, string> = {
   historias: "Histórias e critérios",
   cenarios: "Cenários de teste",
   manual: "Manual do usuário",
+  prototipo: "Protótipo de telas",
 };
 
 export const ROTULO_STATUS_REGRA: Record<StatusRegra, string> = {
