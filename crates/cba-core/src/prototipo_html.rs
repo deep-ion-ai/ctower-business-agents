@@ -28,9 +28,11 @@
 //! # Visual
 //!
 //! [`Visual`]: com os tokens aprovados pelo analista (#384), o CSS deles vai
-//! inline num `<style>`; sem eles, ou no wireframe, o CSS base usa
+//! inline num `<style>`, em qualquer fidelidade; sem eles, o CSS base usa
 //! `var(--prototipo-*, <cinza neutro>)` e a tela sai em wireframe neutro. Nunca
-//! se inventa valor de identidade visual.
+//! se inventa valor de identidade visual. A [`Fidelidade`] muda só o
+//! acabamento (`data-fidelidade` no `<body>`): no wireframe, sem sombras nem
+//! imagens (blocos cinza no lugar), com a mesma identidade.
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
@@ -108,19 +110,16 @@ impl CorpoConferido {
 pub enum Visual {
     /// Tokens aprovados pelo analista: o CSS de [`crate::tokens::TokensProjeto::css`].
     Tokens(String),
-    /// Wireframe pedido pelo analista: sem a identidade visual.
-    Wireframe,
-    /// Alta fidelidade pedida, mas sem tokens aprovados: wireframe neutro.
+    /// Sem tokens aprovados: wireframe neutro (cinzas).
     SemTokens,
 }
 
 impl Visual {
-    /// O visual da tela pela fidelidade pedida e o CSS aprovado (se houver).
-    pub fn escolher(fidelidade: Fidelidade, css_aprovado: Option<String>) -> Self {
-        match (fidelidade, css_aprovado) {
-            (Fidelidade::Wireframe, _) => Self::Wireframe,
-            (Fidelidade::AltaFidelidade, Some(css)) => Self::Tokens(css),
-            (Fidelidade::AltaFidelidade, None) => Self::SemTokens,
+    /// O visual da tela pelo CSS aprovado (se houver), em qualquer fidelidade.
+    pub fn escolher(css_aprovado: Option<String>) -> Self {
+        match css_aprovado {
+            Some(css) => Self::Tokens(css),
+            None => Self::SemTokens,
         }
     }
 
@@ -128,7 +127,6 @@ impl Visual {
     pub fn valor(&self) -> &'static str {
         match self {
             Self::Tokens(_) => "tokens",
-            Self::Wireframe => "wireframe",
             Self::SemTokens => "sem-tokens",
         }
     }
@@ -714,6 +712,19 @@ th, td { text-align: left; padding: 6px 8px; border: 1px solid var(--prototipo-c
 .campo-erro, [aria-invalid="true"] { border: 2px solid var(--prototipo-cor-erro, #3d3d3d); }
 .mudou { box-shadow: 0 0 0 3px rgba(255, 196, 0, .65); border-radius: 2px; }
 .a-confirmar { outline: 2px dashed #8a8a8a; outline-offset: 2px; }
+body[data-fidelidade="wireframe"] .prototipo-tela *:not(.mudou) { box-shadow: none; text-shadow: none; }
+body[data-fidelidade="wireframe"] .prototipo-tela * { background-image: none; transition: none; animation: none; }
+body[data-fidelidade="wireframe"] .prototipo-tela img,
+body[data-fidelidade="wireframe"] .prototipo-tela svg,
+body[data-fidelidade="wireframe"] .prototipo-tela picture,
+body[data-fidelidade="wireframe"] .prototipo-tela video {
+  display: inline-block;
+  min-width: 48px;
+  min-height: 32px;
+  object-position: -9999px -9999px;
+  background: #e3e3e3;
+  border: 1px dashed #9a9a9a;
+}
 "#;
 
 /// CSS da tela: o destaque dos elementos a confirmar.
@@ -737,10 +748,23 @@ fn css_da_tela(tela: &Tela) -> String {
     )
 }
 
+/// Valor de `data-fidelidade` no `<body>`.
+fn valor_da_fidelidade(fidelidade: Fidelidade) -> &'static str {
+    match fidelidade {
+        Fidelidade::Wireframe => "wireframe",
+        Fidelidade::AltaFidelidade => "alta-fidelidade",
+    }
+}
+
 /// O documento completo da tela: cabeçalho com a tela, o motivo, os estados e
 /// o que está a confirmar; os tokens (ou o aviso do wireframe neutro), o CSS
-/// base e o corpo conferido.
-pub fn montar(tela: &Tela, corpo: &CorpoConferido, visual: &Visual) -> String {
+/// base e o corpo conferido. A `fidelidade` muda só o acabamento.
+pub fn montar(
+    tela: &Tela,
+    corpo: &CorpoConferido,
+    visual: &Visual,
+    fidelidade: Fidelidade,
+) -> String {
     let mut h = String::new();
     let titulo = format!("{} · {}", tela.rotulo(), tela.nome);
     let _ = write!(
@@ -754,9 +778,6 @@ pub fn montar(tela: &Tela, corpo: &CorpoConferido, visual: &Visual) -> String {
     );
     match visual {
         Visual::Tokens(css) => h.push_str(&css_dos_tokens(css)),
-        Visual::Wireframe => h.push_str(
-            "/* Wireframe pedido pelo analista: sem a identidade visual do projeto. */\n",
-        ),
         Visual::SemTokens => {
             h.push_str("/* Sem tokens CSS aprovados pelo analista: wireframe neutro. */\n")
         }
@@ -772,14 +793,17 @@ pub fn montar(tela: &Tela, corpo: &CorpoConferido, visual: &Visual) -> String {
     }
     let _ = write!(
         h,
-        "</head>\n<body data-tela=\"{}\" data-mudanca=\"{}\" data-visual=\"{}\">\n\
+        "</head>\n<body data-tela=\"{}\" data-mudanca=\"{}\" data-visual=\"{}\" \
+         data-fidelidade=\"{}\">\n\
          <header class=\"prototipo-cabecalho\">\n\
-         <p class=\"prototipo-rotulo\">Protótipo · {} · tela {}</p>\n<h1>{}</h1>\n",
+         <p class=\"prototipo-rotulo\">Protótipo · {} · tela {} · {}</p>\n<h1>{}</h1>\n",
         tela.rotulo(),
         tela.mudanca.rotulo(),
         visual.valor(),
+        valor_da_fidelidade(fidelidade),
         tela.rotulo(),
         tela.mudanca.rotulo(),
+        fidelidade.rotulo(),
         escapar(&tela.nome)
     );
     let mut motivo = format!("<strong>Motivo:</strong> {}", escapar(&tela.motivo));
@@ -810,9 +834,6 @@ pub fn montar(tela: &Tela, corpo: &CorpoConferido, visual: &Visual) -> String {
     }
     match visual {
         Visual::Tokens(_) => {}
-        Visual::Wireframe => {
-            let _ = writeln!(h, "<p class=\"prototipo-aviso\">Wireframe.</p>");
-        }
         Visual::SemTokens => {
             let _ = writeln!(
                 h,
@@ -978,7 +999,12 @@ mod tests {
         let css = ":root {\n  --prototipo-cor-primaria: #0b5394; /* src/tema.css:3 */\n  \
                    /* --prototipo-cor-erro: a confirmar (erro) */\n  \
                    --fonte: url(https://exemplo.invalid/f.woff);\n}\n";
-        let html = montar(&t, &c, &Visual::Tokens(css.into()));
+        let html = montar(
+            &t,
+            &c,
+            &Visual::Tokens(css.into()),
+            Fidelidade::AltaFidelidade,
+        );
         assert!(html.starts_with("<!doctype html>"));
         assert!(html.contains("<title>TL-1 · Parcelar fatura &lt;PF&gt;</title>"));
         assert!(html.contains("--prototipo-cor-primaria: #0b5394;"));
@@ -993,17 +1019,22 @@ mod tests {
         assert!(html.contains("Origem: RN-FAT-008"));
         assert!(html.ends_with("</main>\n</body>\n</html>\n"));
 
-        let neutro = montar(&t, &c, &Visual::escolher(Fidelidade::AltaFidelidade, None));
+        assert!(html.contains("data-fidelidade=\"alta-fidelidade\""));
+        let neutro = montar(&t, &c, &Visual::escolher(None), Fidelidade::AltaFidelidade);
         assert!(neutro.contains("data-visual=\"sem-tokens\""));
         assert!(neutro.contains("os tokens CSS do projeto ainda não foram aprovados"));
         assert!(!neutro.contains("--prototipo-cor-primaria:"));
+        // Wireframe com tokens aprovados: a mesma identidade, outro acabamento.
         let wire = montar(
             &t,
             &c,
-            &Visual::escolher(Fidelidade::Wireframe, Some(css.into())),
+            &Visual::escolher(Some(css.into())),
+            Fidelidade::Wireframe,
         );
-        assert!(wire.contains("data-visual=\"wireframe\""));
-        assert!(!wire.contains("#0b5394"));
+        assert!(wire.contains("data-visual=\"tokens\""));
+        assert!(wire.contains("data-fidelidade=\"wireframe\""));
+        assert!(wire.contains("--prototipo-cor-primaria: #0b5394;"));
+        assert!(wire.contains("Protótipo · TL-1 · tela alterada · wireframe"));
     }
 
     #[test]

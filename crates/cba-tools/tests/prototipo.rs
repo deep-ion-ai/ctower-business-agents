@@ -681,6 +681,38 @@ fn html_das_telas_com_estados_tokens_e_sem_rede() {
         .unwrap();
     assert_eq!(r["estado"], "concluida");
 
+    // Wireframe com tokens aprovados: a mesma identidade, só outro acabamento.
+    let r = c
+        .chamar(
+            "iniciar_analise",
+            json!({ "fluxo": "prototipo", "origem": origem.id, "fidelidade": "wireframe" }),
+        )
+        .unwrap();
+    let wire = r["analise"].as_str().unwrap().to_owned();
+    c.chamar(
+        "registrar_tela",
+        tela(
+            &wire,
+            "Parcelar fatura",
+            json!([{ "tipo": "campo", "nome": "Número de parcelas", "regras": ["RN-FAT-008"] }]),
+        ),
+    )
+    .unwrap();
+    let r = c
+        .chamar(
+            "gravar_html_tela",
+            json!({ "analise": wire, "tela": "TL-1", "corpo": corpo(&[1]) }),
+        )
+        .unwrap();
+    assert_eq!(r["visual"], "tokens");
+    let html = std::fs::read_to_string(c.amb.kb.caminho(&cba_kb::layout::html_da_tela(
+        &Id::analisar(&wire).unwrap(),
+        1,
+    )))
+    .unwrap();
+    assert!(html.contains("data-fidelidade=\"wireframe\""), "{html}");
+    assert!(html.contains("--cor-primaria: #1f5fa8;"), "{html}");
+
     // Aprovada, não aceita HTML novo.
     c.aprovar(&Id::analisar(&id).unwrap());
     let m = c.recusa(

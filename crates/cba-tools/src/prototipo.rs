@@ -864,29 +864,19 @@ struct ArgsHtml {
     corpo: String,
 }
 
-/// Visual das telas: os tokens aprovados na alta fidelidade e, para o agente,
-/// os avisos (sem tokens aprovados, papéis a confirmar).
-fn visual(
-    kb: &cba_kb::Projeto,
-    analise: &Analise,
-    avisos: &mut Vec<String>,
-) -> Result<Visual, ErroFerramenta> {
-    let fidelidade = analise
-        .prototipo
-        .as_ref()
-        .map(|p| p.pedido.fidelidade)
-        .unwrap_or_default();
+/// Visual das telas: os tokens aprovados, em qualquer fidelidade, e, para o
+/// agente, os avisos (sem tokens aprovados, papéis a confirmar).
+fn visual(kb: &cba_kb::Projeto, avisos: &mut Vec<String>) -> Result<Visual, ErroFerramenta> {
     let tokens = TokensProjeto::carregar(kb).map_err(|e| ErroFerramenta::Interno(e.to_string()))?;
     let aprovados = tokens.filter(|t| t.estado == EstadoTokens::Aprovado);
-    let visual = Visual::escolher(fidelidade, aprovados.as_ref().map(TokensProjeto::css));
-    match (&visual, &aprovados) {
-        (Visual::SemTokens, _) => avisos.push(
+    match &aprovados {
+        None => avisos.push(
             "os tokens CSS do projeto não estão aprovados: a tela saiu em wireframe neutro \
              (cinzas). Peça ao analista para extrair, revisar e aprovar os tokens no app e \
              grave o HTML de novo para ter a identidade visual; não invente cores nem fontes"
                 .into(),
         ),
-        (Visual::Tokens(_), Some(t)) => {
+        Some(t) => {
             let a_confirmar: Vec<String> =
                 t.papeis_a_confirmar().map(|p| p.propriedade()).collect();
             if !a_confirmar.is_empty() {
@@ -896,9 +886,8 @@ fn visual(
                 ));
             }
         }
-        _ => {}
     }
-    Ok(visual)
+    Ok(Visual::escolher(aprovados.as_ref().map(TokensProjeto::css)))
 }
 
 /// `gravar_html_tela`: o protótipo HTML de uma tela, com os quatro estados.
@@ -918,7 +907,8 @@ pub fn gravar_html_tela() -> Ferramenta {
          com cor ou fonte inventada. Recusado: <script>, atributos on…, <iframe>, <link>, \
          <meta> e URLs externas (http:, https:, //) em src, href ou url(): o protótipo abre \
          sem rede. Links entre telas: `TL-n.html`. O app monta o documento com os tokens CSS \
-         aprovados (alta fidelidade) ou o wireframe neutro, grava em \
+         aprovados (em qualquer fidelidade; o wireframe muda só o acabamento) ou, sem \
+         eles, o wireframe neutro, grava em \
          analises/<id>/prototipo/TL-n.html e liga à tela. Gravar de novo substitui.",
         json!({
             "type": "object",
@@ -971,7 +961,12 @@ pub fn gravar_html_tela() -> Ferramenta {
                     ))
                 })?;
             let mut avisos = Vec::new();
-            let visual = visual(&ambiente.kb, &atual, &mut avisos)?;
+            let visual = visual(&ambiente.kb, &mut avisos)?;
+            let fidelidade = atual
+                .prototipo
+                .as_ref()
+                .map(|p| p.pedido.fidelidade)
+                .unwrap_or_default();
             let sem_marca: Vec<String> = tela
                 .elementos
                 .iter()
@@ -992,7 +987,7 @@ pub fn gravar_html_tela() -> Ferramenta {
                         .into(),
                 );
             }
-            let html = prototipo_html::montar(tela, &conferido, &visual);
+            let html = prototipo_html::montar(tela, &conferido, &visual, fidelidade);
             let caminho = cba_kb::layout::html_da_tela(&id, numero);
             cba_kb::arquivo::gravar(&ambiente.kb.caminho(&caminho), html.as_bytes()).map_err(
                 |e| {
@@ -1235,7 +1230,12 @@ mod tests {
         );
         let tela = a.tela(1).unwrap().clone();
         let conferido = prototipo_html::conferir_corpo(&corpo, &tela).unwrap();
-        let html = prototipo_html::montar(&tela, &conferido, &Visual::Wireframe);
+        let html = prototipo_html::montar(
+            &tela,
+            &conferido,
+            &Visual::SemTokens,
+            cba_core::prototipo::Fidelidade::Wireframe,
+        );
         let caminho = cba_kb::layout::html_da_tela(&a.id, 1);
         cba_kb::arquivo::gravar(&kb.caminho(&caminho), html.as_bytes()).unwrap();
         a.definir_html_da_tela(1, Some(caminho)).unwrap();
