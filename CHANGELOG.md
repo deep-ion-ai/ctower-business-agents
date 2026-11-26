@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.10.0](https://github.com/deep-ion-ai/ctower-business-agents/compare/v0.9.0...v0.10.0) (2026-11-26)
+
+
+### Features
+
+* **ui:** análise, aba da issue e demandas com os componentes da identidade visual ([#410](https://github.com/deep-ion-ai/ctower-business-agents/issues/410)) ([#425](https://github.com/deep-ion-ai/ctower-business-agents/issues/425)) ([602ea88](https://github.com/deep-ion-ai/ctower-business-agents/commit/602ea882d07c56101b07534a63da001111a67557)), closes [#411](https://github.com/deep-ion-ai/ctower-business-agents/issues/411)
+* **ui:** base, funcionalidades e código com os componentes da identidade visual ([#410](https://github.com/deep-ion-ai/ctower-business-agents/issues/410)) ([#422](https://github.com/deep-ion-ai/ctower-business-agents/issues/422)) ([957eee9](https://github.com/deep-ion-ai/ctower-business-agents/commit/957eee9e257ace147b778073f17afc0111f18612)), closes [#411](https://github.com/deep-ion-ai/ctower-business-agents/issues/411)
+* **ui:** componentes compartilhados — seção, cartão, selo, ações, estado vazio, alerta e texto rico ([#406](https://github.com/deep-ion-ai/ctower-business-agents/issues/406)) ([#414](https://github.com/deep-ion-ai/ctower-business-agents/issues/414)) ([dbaa438](https://github.com/deep-ion-ai/ctower-business-agents/commit/dbaa43867039421c7be14ce8f8c3fa5baa1d791e))
+* **ui:** configurações, assistente de projeto e shell com os componentes da identidade visual ([#410](https://github.com/deep-ion-ai/ctower-business-agents/issues/410)) ([#423](https://github.com/deep-ion-ai/ctower-business-agents/issues/423)) ([3da04df](https://github.com/deep-ion-ai/ctower-business-agents/commit/3da04df321d80269dd910b337e6706e00d1057df)), closes [#411](https://github.com/deep-ion-ai/ctower-business-agents/issues/411)
+* **ui:** demanda sem rolagem com "Analisar impacto" no topo e cartão de afirmação com premissa e verificação ([#404](https://github.com/deep-ion-ai/ctower-business-agents/issues/404)) ([#418](https://github.com/deep-ion-ai/ctower-business-agents/issues/418)) ([812e5d0](https://github.com/deep-ion-ai/ctower-business-agents/commit/812e5d042ebf8e5b797cd6a482abb7c4675a4080)), closes [#411](https://github.com/deep-ion-ai/ctower-business-agents/issues/411)
+* **ui:** identidade visual única no app ([#411](https://github.com/deep-ion-ai/ctower-business-agents/issues/411)) ([1689411](https://github.com/deep-ion-ai/ctower-business-agents/commit/168941112c429b4e8c745d43c4622a6c7ebcba97))
+* **ui:** pauta de perguntas com Markdown, contexto recolhível e origem sem repetir o título ([#408](https://github.com/deep-ion-ai/ctower-business-agents/issues/408)) ([#415](https://github.com/deep-ion-ai/ctower-business-agents/issues/415)) ([e7a3523](https://github.com/deep-ion-ai/ctower-business-agents/commit/e7a3523389a5d2c5291a3a0a8406b03462fd108e)), closes [#411](https://github.com/deep-ion-ai/ctower-business-agents/issues/411)
+* **ui:** premissas, decisões, riscos e restrições em abas, com texto completo e aceite em lote ([#409](https://github.com/deep-ion-ai/ctower-business-agents/issues/409)) ([#416](https://github.com/deep-ion-ai/ctower-business-agents/issues/416)) ([672ed5b](https://github.com/deep-ion-ai/ctower-business-agents/commit/672ed5b9537d6df3f34be29fab632f6b634dd290))
+* **ui:** reuniões, documentos ao vivo e Markdown só pelo TextoRico ([#410](https://github.com/deep-ion-ai/ctower-business-agents/issues/410)) ([#421](https://github.com/deep-ion-ai/ctower-business-agents/issues/421)) ([af71f2b](https://github.com/deep-ion-ai/ctower-business-agents/commit/af71f2bf327512921a38f34544bd71469d30b939)), closes [#411](https://github.com/deep-ion-ai/ctower-business-agents/issues/411)
+* **ui:** tela da demanda reorganizada — cabeçalho com ação principal, resumo e seções vazias recolhidas ([#407](https://github.com/deep-ion-ai/ctower-business-agents/issues/407)) ([#419](https://github.com/deep-ion-ai/ctower-business-agents/issues/419)) ([804dfc7](https://github.com/deep-ion-ai/ctower-business-agents/commit/804dfc744060f71bfb63a0cfdb1fce3181543d6f))
+* **ui:** tokens de tipografia, espaçamento e raio, sem cores soltas ([#405](https://github.com/deep-ion-ai/ctower-business-agents/issues/405)) ([#412](https://github.com/deep-ion-ai/ctower-business-agents/issues/412)) ([82d5443](https://github.com/deep-ion-ai/ctower-business-agents/commit/82d54431da8b30a360900e849a225c68f893c432)), closes [#411](https://github.com/deep-ion-ai/ctower-business-agents/issues/411)
+* **ui:** visão geral, atividades e análises com os componentes da identidade visual ([#410](https://github.com/deep-ion-ai/ctower-business-agents/issues/410)) ([#424](https://github.com/deep-ion-ai/ctower-business-agents/issues/424)) ([6dc5def](https://github.com/deep-ion-ai/ctower-business-agents/commit/6dc5defcf911aa884fbd0ad0a49fc62613c6dc98)), closes [#411](https://github.com/deep-ion-ai/ctower-business-agents/issues/411)
+
+
+### Bug Fixes
+
+* **ui:** classes dos componentes compartilhados sem colidir com as classes antigas ([#406](https://github.com/deep-ion-ai/ctower-business-agents/issues/406)) ([#420](https://github.com/deep-ion-ai/ctower-business-agents/issues/420)) ([d67386e](https://github.com/deep-ion-ai/ctower-business-agents/commit/d67386ea8e13cfc3138891d2ccc96681c004e270)), closes [#411](https://github.com/deep-ion-ai/ctower-business-agents/issues/411)
+* **ui:** pergunta da análise em Markdown, sem marcadores crus e com títulos espaçados ([#403](https://github.com/deep-ion-ai/ctower-business-agents/issues/403)) ([#417](https://github.com/deep-ion-ai/ctower-business-agents/issues/417)) ([eb8dca2](https://github.com/deep-ion-ai/ctower-business-agents/commit/eb8dca2ca7133b4b03cfd8302a33f8e6e55387ac)), closes [#411](https://github.com/deep-ion-ai/ctower-business-agents/issues/411)
+
 ## [0.9.0](https://github.com/deep-ion-ai/ctower-business-agents/compare/v0.8.0...v0.9.0) (2026-11-26)
 
 
