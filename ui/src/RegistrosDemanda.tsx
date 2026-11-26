@@ -505,9 +505,6 @@ export function RegistrosDemanda({
           </ListaItens>
         )}
       </div>
-      <p className="muted registros-pasta">
-        Registros em <code>{dados.pasta}/</code>
-      </p>
     </Secao>
   );
 }

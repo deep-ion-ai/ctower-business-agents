@@ -86,8 +86,11 @@
   color: var(--attention);
 }
 
-.rastreabilidade-tabela .selo + .selo {
-  margin-left: var(--space-1);
+/* Os selos de situação de uma linha, lado a lado. */
+.rastreabilidade-selos {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
 }
 
 .rastreabilidade-rodape {

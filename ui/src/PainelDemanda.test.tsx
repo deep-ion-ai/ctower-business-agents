@@ -86,7 +86,8 @@ async function escolherNoMenu(menu: string, item: string) {
 
 describe("PainelDemanda", () => {
   it("mostra o cabeçalho com a trilha, os metadados e a ação principal", async () => {
-    const { api, navegar } = montar();
+    const registros = apiRegistrosFalsa(0);
+    const { api, navegar } = montar(apiConhecimentoFalsa(), { apiRegistros: registros });
     expect(await screen.findByRole("heading", { level: 1, name: "Parcelamento PJ" })).toBeInTheDocument();
     expect(api.painelDemanda).toHaveBeenCalledWith(PROJETO, "D-0001");
 
@@ -121,7 +122,9 @@ describe("PainelDemanda", () => {
 
     await escolherNoMenu("Mais ações", "Abrir demanda.md");
     expect(navegar).toHaveBeenLastCalledWith({ tipo: "base", documento: DEMANDA });
-    // O caminho interno da pasta não aparece na tela.
+    // O caminho interno da pasta (nem a dos registros) não aparece na tela.
+    await screen.findByRole("region", { name: "Premissas, decisões, riscos e restrições" });
+    await waitFor(() => expect(registros.registros).toHaveBeenCalled());
     expect(screen.queryByText(/demandas\/D-0001/)).toBeNull();
   });
 

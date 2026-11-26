@@ -139,7 +139,8 @@ describe("RegistrosDemanda", () => {
     expect(pr).toHaveTextContent("análise A-0001");
     fireEvent.click(within(pr).getByRole("button", { name: "abrir a origem" }));
     expect(abrir).toHaveBeenCalledWith("faturamento-exemplo/analises/A-0001.md");
-    expect(screen.getByText(new RegExp(PASTA))).toBeInTheDocument();
+    // O caminho interno da pasta não aparece na tela (#407).
+    expect(screen.queryByText(new RegExp(PASTA))).toBeNull();
 
     // Setas, Home e End trocam a aba e levam o foco (roving tabindex).
     fireEvent.keyDown(premissas, { key: "ArrowRight" });

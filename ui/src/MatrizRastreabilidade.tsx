@@ -363,12 +363,12 @@ function Evidencias({ lista }: { lista: EvidenciaRastro[] }) {
 function Situacao({ alertas }: { alertas: Alerta[] }) {
   if (alertas.length === 0) return <Selo tom="concluido">ok</Selo>;
   return (
-    <>
+    <span className="rastreabilidade-selos">
       {alertas.map((a) => (
         <Selo key={a} tom="atencao">
           {ROTULO_ALERTA[a]}
         </Selo>
       ))}
-    </>
+    </span>
   );
 }
