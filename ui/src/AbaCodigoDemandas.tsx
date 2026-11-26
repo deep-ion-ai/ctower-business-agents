@@ -1,7 +1,9 @@
 import { useRef, useState, type KeyboardEvent } from "react";
 import { mensagemDe } from "./analise";
 import { Alerta, EstadoVazio, Secao, Selo } from "./componentes";
+import { rastreadorComConexao } from "./conexoes";
 import { DestinoDocumentacao } from "./DestinoDocumentacao";
+import { SeletorConexao } from "./SeletorConexao";
 import type { PropsConfigProjeto } from "./ConfigProjeto";
 import {
   CampoRepoGithub,
@@ -397,8 +399,9 @@ function Demandas({
   const resultado = teste?.integ ?? (mudou ? undefined : integ);
   const origemTexto = valor ? ORIGEM_DEMANDAS[valor.kind] : "";
   const situacao = integ ? situacaoDasDemandas(integ) : null;
-  const hostDoToken =
-    valor?.kind === "github"
+  const hostDoToken = valor?.conexao
+    ? null
+    : valor?.kind === "github"
       ? "github.com"
       : valor?.kind === "gitlab"
         ? valor.host
@@ -467,11 +470,19 @@ function Demandas({
             dela.
           </p>
         )}
+        {valor && (
+          <SeletorConexao
+            capacidade="rastreador"
+            tipo={valor.kind}
+            valor={valor.conexao ?? ""}
+            aoMudar={(_, c) => setValor(rastreadorComConexao(valor, c))}
+          />
+        )}
         {valor?.kind === "github" && (
           <CampoRepoGithub
             rotulo="Repositório das issues (dono/repositório)"
             valor={valor}
-            aoMudar={(g) => setValor({ kind: "github", ...g })}
+            aoMudar={(g) => setValor({ ...valor, ...g })}
           />
         )}
         {valor?.kind === "gitlab" && (
@@ -479,14 +490,14 @@ function Demandas({
             parte="essenciais"
             valor={valor}
             fixo={gravado?.kind === "gitlab"}
-            aoMudar={(g) => setValor({ kind: "gitlab", ...g })}
+            aoMudar={(g) => setValor({ ...g, kind: "gitlab" })}
           />
         )}
         {valor?.kind === "jira" && (
           <CamposJira
             parte="essenciais"
             valor={valor}
-            aoMudar={(j) => setValor({ kind: "jira", ...j })}
+            aoMudar={(j) => setValor({ ...j, kind: "jira" })}
           />
         )}
         {valor && (
@@ -556,14 +567,14 @@ function Demandas({
               <CamposJira
                 parte="mais"
                 valor={valor}
-                aoMudar={(j) => setValor({ kind: "jira", ...j })}
+                aoMudar={(j) => setValor({ ...j, kind: "jira" })}
               />
             ) : (
               <CamposGitlab
                 parte="mais"
                 valor={valor}
                 fixo={gravado?.kind === "gitlab"}
-                aoMudar={(g) => setValor({ kind: "gitlab", ...g })}
+                aoMudar={(g) => setValor({ ...g, kind: "gitlab" })}
               />
             )}
           </details>

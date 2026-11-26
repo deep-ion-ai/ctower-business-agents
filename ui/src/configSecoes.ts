@@ -7,6 +7,7 @@ import { useCallback, useState } from "react";
 export type SecaoConfig =
   | "aparencia"
   | "assistente"
+  | "conexoes"
   | "acessos"
   | "pasta"
   | "modelos"
@@ -19,6 +20,7 @@ export const GRUPOS_DO_MENU: { titulo: string; secoes: { id: SecaoConfig; rotulo
     secoes: [
       { id: "aparencia", rotulo: "Aparência" },
       { id: "assistente", rotulo: "Assistente de IA" },
+      { id: "conexoes", rotulo: "Conexões" },
       { id: "acessos", rotulo: "Acessos" },
     ],
   },
@@ -51,6 +53,7 @@ const CHAVE = "cba.configuracoes.secao";
 const SECOES_SIMPLES: readonly SecaoConfig[] = [
   "aparencia",
   "assistente",
+  "conexoes",
   "acessos",
   "pasta",
   "modelos",

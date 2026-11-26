@@ -1,6 +1,8 @@
 import { useEffect, useId, useState } from "react";
 import { mensagemDe } from "./analise";
 import { Alerta, Cartao, TituloSecao } from "./componentes";
+import { jiraComConexao } from "./conexoes";
+import { SeletorConexao } from "./SeletorConexao";
 import {
   OUTRO_REPOSITORIO,
   ROTULO_FORJA,
@@ -397,15 +399,26 @@ function Jira({
       .finally(() => setTestando(false));
   };
 
+  const comConexao = Boolean(j.conexao);
   return (
     <Cartao como="div" className="campos-jira">
+      <SeletorConexao
+        capacidade="rastreador"
+        tipo={demandas.tipo}
+        valor={j.conexao ?? ""}
+        aoMudar={(_, c) =>
+          mudar((d) => ({ ...d, jira: jiraComConexao(d.jira, c), tokenJira: "" }))
+        }
+      />
       <div className="field-pair">
-        <Campo
-          rotulo="Endereço do Jira"
-          valor={j.url}
-          exemplo="https://jira.suaempresa.com"
-          aoMudar={(v) => campo("url", v)}
-        />
+        {!comConexao && (
+          <Campo
+            rotulo="Endereço do Jira"
+            valor={j.url}
+            exemplo="https://jira.suaempresa.com"
+            aoMudar={(v) => campo("url", v)}
+          />
+        )}
         <Campo
           rotulo="Chave do projeto"
           valor={j.project_key}
@@ -413,6 +426,7 @@ function Jira({
           aoMudar={(v) => campo("project_key", v.toUpperCase())}
         />
       </div>
+      {!comConexao && (
       <div className="field">
         <label htmlFor={`${idMais}-token`}>Token do Jira</label>
         <input
@@ -443,6 +457,7 @@ function Jira({
           )}
         </span>
       </div>
+      )}
       <label className="linha-checkbox">
         <input
           type="checkbox"
