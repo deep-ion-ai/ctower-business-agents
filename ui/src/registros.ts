@@ -171,3 +171,32 @@ export function rotuloReferencia(referencia: string | null): string | null {
   if (doc.startsWith("R-")) return item ? `ata ${doc}, item ${item}` : `ata ${doc}`;
   return referencia;
 }
+
+const espacos = (texto: string) => texto.split(/\s+/).filter(Boolean).join(" ");
+
+/**
+ * O texto inteiro de um registro ou proposta, para ler sem corte (#409). O agente
+ * resume o enunciado numa linha (cortada com "…" quando passa do tamanho) e guarda o
+ * texto original no detalhe: com o enunciado cortado, vale o detalhe; com um
+ * enunciado inteiro, o detalhe vem num parágrafo depois dele.
+ */
+export function textoCompleto(titulo: string, detalhe?: string | null): string {
+  const d = detalhe?.trim();
+  if (!d || espacos(d) === espacos(titulo)) return titulo;
+  if (titulo.trimEnd().endsWith("…")) {
+    const prefixo = espacos(titulo.trimEnd().slice(0, -1));
+    if (espacos(d).startsWith(prefixo)) return d;
+  }
+  return `${titulo}\n\n${d}`;
+}
+
+/** Quem originou as propostas, para o aviso: "A-0011", "ata R-0002". */
+export function rotuloFonte(fonte: FonteProposta): string {
+  return fonte.tipo === "analise" ? fonte.id : `ata ${fonte.id}`;
+}
+
+/** "a", "a e b", "a, b e c". */
+export function listaPorExtenso(itens: string[]): string {
+  if (itens.length <= 1) return itens.join("");
+  return `${itens.slice(0, -1).join(", ")} e ${itens[itens.length - 1]}`;
+}
