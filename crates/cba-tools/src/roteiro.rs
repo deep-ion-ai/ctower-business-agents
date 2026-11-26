@@ -418,6 +418,21 @@ impl Roteiros {
     }
 }
 
+/// Orientação que vai ao fim do roteiro quando a análise nasceu de uma issue do
+/// rastreador do projeto (#351): ler os comentários no início pela
+/// `ler_issue_da_demanda` e citar o que mudar o entendimento.
+pub fn orientacao_da_issue(id: &cba_kb::Id, chave: &str) -> String {
+    format!(
+        "\n\n## Issue da demanda no rastreador\n\n\
+         A análise nasceu da issue {chave}. Logo no início, antes de investigar o código, \
+         chame `ler_issue_da_demanda` com `analise: \"{id}\"` e leia os comentários: eles \
+         trazem decisões, esclarecimentos e mudanças de escopo que não estão na entrada. \
+         Quando um comentário mudar o entendimento do pedido, cite-o (autor e data) na \
+         afirmação ou na pergunta correspondente. Se a ferramenta recusar (sem rede ou sem \
+         token), siga com a entrada e avise o analista.\n"
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

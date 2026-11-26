@@ -1017,10 +1017,13 @@ fn iniciar(
     let workflow = (analise.conducao == Conducao::Workflow)
         .then(|| crate::conducao::workflow_do_fluxo(analise.fluxo))
         .flatten();
-    let roteiro = match &workflow {
+    let mut roteiro = match &workflow {
         Some(nome) => crate::conducao::roteiro_curto(analise, nome, &documento, &completo),
         None => completo,
     };
+    if let Some(chave) = crate::issue_da_demanda::chave_no_rastreador(ambiente, analise) {
+        roteiro.push_str(&crate::roteiro::orientacao_da_issue(&analise.id, &chave));
+    }
 
     let mut texto = String::new();
     if criada {
@@ -1381,12 +1384,16 @@ fn retomar(ambiente: &Ambiente, analise: &Analise, memoria: &Memoria) -> Saida {
         avisos.extend(a.iter().chain(&b).map(aviso_do_roteiro));
         // Conduzida pelo workflow: a sessão que retoma espera o workflow e conclui
         // (#371).
-        match crate::conducao::workflow_do_fluxo(analise.fluxo)
+        let mut roteiro = match crate::conducao::workflow_do_fluxo(analise.fluxo)
             .filter(|_| analise.conducao == Conducao::Workflow)
         {
             Some(nome) => crate::conducao::roteiro_curto(analise, &nome, &documento, &roteiro),
             None => roteiro,
+        };
+        if let Some(chave) = crate::issue_da_demanda::chave_no_rastreador(ambiente, analise) {
+            roteiro.push_str(&crate::roteiro::orientacao_da_issue(&analise.id, &chave));
         }
+        roteiro
     });
     if let Some(r) = &roteiro {
         t.push_str(r);
