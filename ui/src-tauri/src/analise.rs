@@ -171,6 +171,23 @@ impl From<&Analise> for AnaliseResumo {
     }
 }
 
+/// O endereço da issue de origem da demanda (`origem` no frontmatter), quando é um
+/// link web; uma referência que não é endereço fica de fora.
+fn link_de_origem(origem: &str) -> Option<String> {
+    let origem = origem.trim();
+    (origem.starts_with("http://") || origem.starts_with("https://")).then(|| origem.to_owned())
+}
+
+/// O link da issue de que a análise nasceu, pelo frontmatter do documento (#403):
+/// os links desse host, na entrada, abrem no navegador. Documento ilegível fica sem.
+fn link_da_issue(amb: &Ambiente, analise: &Analise) -> Option<String> {
+    let doc = amb
+        .kb
+        .ler::<cba_kb::frontmatter::FrontmatterAnalise>(&analise.documento)
+        .ok()?;
+    link_de_origem(&doc.frontmatter.demanda.origem)
+}
+
 /// Análises do projeto, da mais recente para a mais antiga.
 pub fn listar_analises(
     dados: &DiretorioDados,
@@ -195,10 +212,7 @@ pub fn listar_analises(
                     .chave
                     .map(|c| c.trim().to_owned())
                     .filter(|c| !c.is_empty());
-                let origem = d.origem.trim();
-                if origem.starts_with("http://") || origem.starts_with("https://") {
-                    r.link = Some(origem.to_owned());
-                }
+                r.link = link_de_origem(&d.origem);
             }
             r
         })
@@ -461,6 +475,9 @@ pub struct VistaAnalise {
     /// Seções do documento do fluxo, na ordem do template, com o título do `.md`:
     /// a tela mostra o título, nunca o marcador (#222).
     pub secoes: Vec<SecaoVista>,
+    /// Link da issue de origem no rastreador, quando a análise nasceu de uma (#403).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub link: Option<String>,
 }
 
 /// Seção do documento da análise: o marcador (`atores_e_telas`), que as
@@ -555,6 +572,7 @@ pub fn carregar_analise(
         bloqueio_desktop: crate::conducao::bloqueio_do_desktop(&analise),
         diagramas: diagramas_vistos(&analise),
         secoes: secoes_do_documento(analise.fluxo),
+        link: link_da_issue(&ambiente, &analise),
         analise,
     })
 }
