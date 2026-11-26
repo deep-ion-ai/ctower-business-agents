@@ -68,6 +68,16 @@ describe("MenuAcoes (#406)", () => {
     fireEvent.mouseDown(document.body);
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
+
+  it("só de ícone (⋯): o rótulo vira o nome acessível e a dica, sem a seta (#407)", () => {
+    render(<MenuAcoes rotulo="Mais ações" icone={<IconeConfirmar />} itens={acoes("Abrir")} />);
+    const botao = screen.getByRole("button", { name: "Mais ações" });
+    expect(botao).toHaveAttribute("title", "Mais ações");
+    expect(botao).toHaveClass("menu-acoes-icone");
+    expect(botao).not.toHaveTextContent("▾");
+    fireEvent.click(botao);
+    expect(screen.getByRole("menu", { name: "Mais ações" })).toBeInTheDocument();
+  });
 });
 
 describe("BarraAcoes (#406)", () => {

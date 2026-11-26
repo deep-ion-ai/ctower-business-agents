@@ -161,7 +161,8 @@ describe("Nova reunião pelo painel da demanda e pelo início", () => {
         navegar={navegar}
       />,
     );
-    fireEvent.click(await screen.findByRole("button", { name: "Analisar reunião" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Nova análise" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Analisar reunião" }));
     const form = screen.getByRole("form", { name: "Analisar reunião" });
     // Fora do painel Nova análise o tipo segue como título, mas em caixa normal (#360).
     expect(within(form).getByRole("heading", { name: "Analisar reunião" })).toHaveClass(

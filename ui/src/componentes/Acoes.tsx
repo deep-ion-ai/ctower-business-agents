@@ -29,6 +29,7 @@ export function MenuAcoes({
   itens,
   principal,
   desabilitado,
+  icone,
 }: {
   /** Texto do botão (e nome do menu). */
   rotulo: string;
@@ -36,6 +37,11 @@ export function MenuAcoes({
   /** O botão é a ação principal da tela. */
   principal?: boolean;
   desabilitado?: boolean;
+  /**
+   * Botão só de ícone ("⋯"): o ícone fica no lugar do texto e da seta, e o `rotulo`
+   * vira o nome acessível e a dica.
+   */
+  icone?: ReactNode;
 }) {
   const [aberto, setAberto] = useState<false | "primeiro" | "ultimo">(false);
   const raiz = useRef<HTMLDivElement>(null);
@@ -100,7 +106,9 @@ export function MenuAcoes({
       <button
         ref={botao}
         type="button"
-        className={principal ? "btn btn-primary" : "btn"}
+        className={`${principal ? "btn btn-primary" : "btn"}${icone ? " menu-acoes-icone" : ""}`}
+        aria-label={icone ? rotulo : undefined}
+        title={icone ? rotulo : undefined}
         aria-haspopup="menu"
         aria-expanded={!!aberto}
         aria-controls={aberto ? idLista : undefined}
@@ -108,10 +116,14 @@ export function MenuAcoes({
         onClick={() => setAberto((a) => (a ? false : "primeiro"))}
         onKeyDown={teclasBotao}
       >
-        {rotulo}
-        <span aria-hidden="true" className="menu-acoes-seta">
-          ▾
-        </span>
+        {icone ?? (
+          <>
+            {rotulo}
+            <span aria-hidden="true" className="menu-acoes-seta">
+              ▾
+            </span>
+          </>
+        )}
       </button>
       {aberto && (
         <ul id={idLista} className="menu-acoes-lista" role="menu" aria-label={rotulo} onKeyDown={teclasMenu}>
