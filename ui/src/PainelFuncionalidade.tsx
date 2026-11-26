@@ -1,9 +1,8 @@
-import Markdown from "markdown-to-jsx";
 import { useEffect, useRef, useState } from "react";
 import { mensagemDe, type Fluxo } from "./analise";
 import { apiConhecimentoTauri, type ApiConhecimento } from "./conhecimento";
 import { contar } from "./formatacao";
-import { OPCOES_MARKDOWN_BASE } from "./markdownOpcoes";
+import { TextoRico } from "./componentes";
 import {
   ESTADO_ANALISE,
   FormDividir,
@@ -871,7 +870,7 @@ export function PainelFuncionalidade({
                             </span>
                           </div>
                           <div className="enunciado-regra">
-                            <Markdown options={OPCOES_MARKDOWN_BASE}>{r.enunciado}</Markdown>
+                            <TextoRico texto={r.enunciado} />
                           </div>
                         </li>
                       ))}
