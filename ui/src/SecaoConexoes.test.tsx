@@ -106,6 +106,17 @@ describe("Configurações › Conexões (#437)", () => {
     expect(api.removerConexao).toHaveBeenCalledWith("jira-da-empresa");
   });
 
+  it("mostra o erro da migração dos cadastros antigos (#438)", async () => {
+    const api = apiConexoesFalsa();
+    api.erroMigracaoConexoes.mockResolvedValue(
+      "a migração dos cadastros para conexões falhou e foi desfeita (os cadastros antigos continuam valendo): disco cheio",
+    );
+    montar(api);
+    expect(
+      await screen.findByText(/falhou e foi desfeita \(os cadastros antigos continuam valendo\)/),
+    ).toBeInTheDocument();
+  });
+
   it("editar não troca o tipo e mostra que há token guardado", async () => {
     montar();
     const gitlab = await cartao("GitLab interno");

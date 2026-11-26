@@ -37,6 +37,17 @@ O projeto referencia a conexão pelo `id` no campo `conexao` do rastreador (`Git
 
 Uma conexão em uso não pode ser removida, nem trocar de tipo ou de endereço: o app diz quais projetos a usam. Trocar o token na conexão vale para todos os projetos que a usam, inclusive para os clones e a publicação.
 
+### Migração dos cadastros antigos
+
+Na primeira abertura com a versão das conexões (#438), antes de a janela abrir, o app converte os cadastros de hoje (`ui/src-tauri/src/migracao_conexoes.rs`):
+
+1. Antes de qualquer gravação, faz um backup datado ao lado dos originais: `config/app.json`, `config/conexoes.json` e o `projeto.json` de cada projeto a migrar ganham uma cópia `<arquivo>.antes-conexoes-<AAAA-MM-DDTHH-MM-SSZ>`.
+2. Agrupa e cria uma conexão por grupo: o rastreador e os repositórios (de código e da documentação) por tipo, endereço, comando de credencial e arquivo do jira-cli. O nome vem do host ("GitLab gitlab.example.com"), e o analista pode renomear depois.
+3. A credencial não é copiada: o token global do host (`host:<host>` no chaveiro) vira a fonte `Chaveiro` daquela mesma conta; o `credential_cmd`, o comando do repositório ou o `comando:host:<host>` viram `Comando`; o token próprio de um repositório (`repo:<host>/<caminho>`) fica onde está e vale como sobrescrita.
+4. Reescreve os projetos para apontar para as conexões, com os campos próprios intactos.
+
+Rodar de novo não cria nada: um cadastro que já aponta para uma conexão não muda, e uma conexão igual à que seria criada é reaproveitada. Um projeto cujo cadastro não se converte (pasta que sumiu, endereço inválido) fica como estava. Se algo falhar no meio, todos os arquivos voltam ao backup, o app abre com os cadastros antigos e **Configurações › Conexões** mostra o erro. O log registra o resumo, sem segredos: as conexões criadas e os projetos migrados.
+
 Enquanto um cadastro ainda não referencia uma conexão nomeada, `providers::legado` monta uma conexão implícita a partir do cadastro de hoje (`credential_cmd`, token global por host, token próprio do repositório) e resolve por esse mesmo caminho.
 
 ## Passo a passo

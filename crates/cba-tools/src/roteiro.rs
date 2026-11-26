@@ -620,6 +620,11 @@ mod tests {
             );
         }
         assert!(r.contains("a premissa corrigida"), "{r}");
+        // Mudanças em andamento antes de concluir, registradas em riscos (#441).
+        assert!(
+            r.contains("chame `mudancas_em_andamento` (analise: \"A-0003\""),
+            "{r}"
+        );
         assert!(r.ends_with("## Contexto da base\n\nNada.\n"), "{r}");
     }
 

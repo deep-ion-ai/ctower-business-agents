@@ -53,6 +53,7 @@ macro_rules! str_enum {
 }
 
 pub mod acessos;
+pub mod andamento;
 pub mod cache_issues;
 pub mod chaveiro;
 pub mod clone;

@@ -41,7 +41,9 @@
 //!   [`consultar_dados`] (o banco ligado na análise, com a aprovação do analista
 //!   por consulta e os dados pessoais mascarados por [`mascaramento`], #440),
 //!   [`issue_da_demanda`] (`ler_issue_da_demanda`: a issue da demanda no
-//!   rastreador, com os comentários, #351) e
+//!   rastreador, com os comentários, #351), [`andamento`]
+//!   (`mudancas_em_andamento`: os PRs e MRs abertos nos arquivos da análise,
+//!   #441) e
 //!   [`rastreabilidade`] (matriz da demanda e consulta reversa por regra ou
 //!   arquivo, #121, que também exporta a matriz para Excel e Word).
 //! - [`roteiro`] e [`contexto`]: o roteiro do fluxo e o contexto da base que
@@ -82,6 +84,7 @@
 
 pub mod afirmar;
 pub mod analises;
+pub mod andamento;
 pub mod aprovacao;
 pub mod aprovacao_ata;
 pub mod banco;
@@ -161,6 +164,7 @@ pub fn registro_padrao() -> Registro {
         .registrar(banco::schema())
         .registrar(consultar_dados::consultar_dados())
         .registrar(issue_da_demanda::ler_issue_da_demanda())
+        .registrar(andamento::mudancas_em_andamento())
         .registrar(afirmar::afirmar())
         .registrar(perguntar::perguntar())
         .registrar(sugestao::registrar_sugestao())
@@ -223,6 +227,7 @@ mod tests {
             "estrutura",
             "schema",
             "ler_issue_da_demanda",
+            "mudancas_em_andamento",
             "afirmar",
             "perguntar",
             "registrar_sugestao",
@@ -326,6 +331,7 @@ mod tests {
             "estrutura",
             "schema",
             "ler_issue_da_demanda",
+            "mudancas_em_andamento",
             "ler_transcript",
             "sugerir_demanda",
             "verificar_termos_vagos",
