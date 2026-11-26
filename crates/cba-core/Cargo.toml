@@ -9,6 +9,7 @@ publish = false
 
 [dependencies]
 cba-index.workspace = true
+cba-repos.workspace = true
 cba-kb.workspace = true
 dirs.workspace = true
 dunce = "1"

@@ -15,10 +15,15 @@
 //! registrá-lo, seguindo o `docs/providers.md`, sem `match` por tipo fora dele.
 
 mod descritores;
+pub mod legado;
+pub mod mascara;
+mod resolvedor;
 
 pub use descritores::{
     DescritorGithub, DescritorGitlab, DescritorJira, DescritorMysql, DescritorPostgres,
 };
+
+pub use resolvedor::{ErroCredencial, Recusada, Resolvedor, com_nova_tentativa, texto_de_recusa};
 
 use crate::{ParseEnumError, Secret};
 use serde::{Deserialize, Serialize};
@@ -285,6 +290,11 @@ pub trait DescritorProvider: Send + Sync {
     }
     /// Passos de prontidão, na ordem em que rodam.
     fn passos_prontidao(&self) -> &'static [PassoProntidao];
+    /// Programa e argumentos que imprimem a credencial guardada pela própria CLI
+    /// do provider (fonte `Cli`). `None` nos tipos que não aceitam `Cli`.
+    fn credencial_pela_cli(&self, _conexao: &Conexao) -> Option<(&'static str, Vec<String>)> {
+        None
+    }
     /// Validação própria do tipo, além do endereço, da fonte e das opções.
     fn validar_extra(&self, _conexao: &Conexao) -> Result<(), String> {
         Ok(())
