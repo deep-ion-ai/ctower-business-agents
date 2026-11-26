@@ -129,7 +129,7 @@ O workflow `ci` roda em todo PR e em push na `develop` e na `main`. Push numa `w
   - `politicas`: `crates/**`, `ui/**`, `fixtures/**`, `scripts/**`, `Cargo.*`, `rust-toolchain.toml`, `release-please-config.json` e `.release-please-manifest.json`;
   - `instalador-sh` e `instalador-ps1`: `packaging/**`.
 - Mudança em `.github/workflows/**` roda tudo. Push na `develop` ou `main` e execução manual (`workflow_dispatch`) também rodam tudo.
-- Um PR só de `docs/`, dos `*.md` da raiz, `LICENSE` e afins não roda nenhum desses jobs; `titulo`, `CLA` e `ci-ok` continuam. Se um job novo ler um caminho novo, inclua-o no filtro do `mudancas`.
+- Um PR só de `docs/`, de `site/`, dos `*.md` da raiz, `LICENSE` e afins não roda nenhum desses jobs; `titulo`, `CLA` e `ci-ok` continuam. O site tem build próprio no `site-pages.yml`, que também não dispara o CI completo. Se um job novo ler um caminho novo, inclua-o no filtro do `mudancas`.
 - O job `ci-ok` sempre roda e reúne o resultado dos outros: falha se algum falhou ou foi cancelado, e conta os pulados como sucesso. **O `ci-ok` é o único check do CI marcado como obrigatório** na `develop` e na `main` (Settings → Branches ou Rules), no lugar da lista de jobs. Um job novo no `ci.yml` precisa entrar no `needs` do `ci-ok`.
 
 ## CLA
