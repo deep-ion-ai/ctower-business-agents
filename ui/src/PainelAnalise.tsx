@@ -849,6 +849,10 @@ export function PainelAnalise({
               origemTrecho={origemTrecho}
               revisao={revisao}
               pendencias={pendencias}
+              aoAbrirLink={(url) => {
+                setFalhaEnvio(null);
+                abrirUrl(url).catch(() => setFalhaEnvio("Não foi possível abrir o link."));
+              }}
             />
           )}
         </section>
