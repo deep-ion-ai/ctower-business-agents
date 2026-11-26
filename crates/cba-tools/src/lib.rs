@@ -38,6 +38,8 @@
 //!   índice da base), [`mapa`], [`estrutura`], [`banco`] (`schema`, com os indícios
 //!   de dado pessoal de [`dados_pessoais`]) e
 //!   [`referencias`], a partir do mapa estrutural do projeto ([`fontes`]),
+//!   [`consultar_dados`] (o banco ligado na análise, com a aprovação do analista
+//!   por consulta e os dados pessoais mascarados por [`mascaramento`], #440),
 //!   [`issue_da_demanda`] (`ler_issue_da_demanda`: a issue da demanda no
 //!   rastreador, com os comentários, #351), [`andamento`]
 //!   (`mudancas_em_andamento`: os PRs e MRs abertos nos arquivos da análise,
@@ -93,6 +95,7 @@ pub mod cobertura;
 mod comum;
 pub mod conducao;
 pub mod conhecimento;
+pub mod consultar_dados;
 pub mod contestar;
 pub mod contexto;
 pub mod dados_pessoais;
@@ -110,6 +113,7 @@ pub mod issue_da_demanda;
 pub mod manual;
 pub mod mapa;
 pub mod mapear;
+pub mod mascaramento;
 pub mod memoria;
 mod modelo_dados;
 pub mod mudancas;
@@ -158,6 +162,7 @@ pub fn registro_padrao() -> Registro {
         .registrar(mapa::mapa())
         .registrar(estrutura::estrutura())
         .registrar(banco::schema())
+        .registrar(consultar_dados::consultar_dados())
         .registrar(issue_da_demanda::ler_issue_da_demanda())
         .registrar(andamento::mudancas_em_andamento())
         .registrar(afirmar::afirmar())

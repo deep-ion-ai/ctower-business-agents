@@ -45,6 +45,7 @@ pub mod banco;
 pub mod cenarios;
 pub mod conducao;
 pub mod config;
+pub mod consultas;
 pub mod dados;
 pub mod diagramas;
 pub mod eventos;

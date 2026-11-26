@@ -166,11 +166,31 @@ A só leitura é imposta pelo app, além do que o usuário do banco permite:
 - **MySQL/MariaDB:** `SET SESSION TRANSACTION READ ONLY`, `max_execution_time` (MySQL) ou `max_statement_time` (MariaDB) e `lock_wait_timeout`, com cada consulta em `START TRANSACTION READ ONLY … ROLLBACK`;
 - o app corta o resultado no `limite_linhas` (marcando `cortada`) e cancela a consulta que passar do tempo limite, mesmo se o servidor não responder.
 
-A prontidão (`cba_banco::testar`) roda os passos do descritor: conectar, versão do servidor, só leitura (tenta criar uma tabela, temporária no PostgreSQL e comum no MySQL, porque a transação só de leitura do MySQL aceita tabelas temporárias, e espera a recusa do banco) e esquemas visíveis.
+A prontidão (`cba_banco::testar`) roda os passos do descritor: conectar, versão do servidor, só leitura (tenta criar uma tabela, temporária no PostgreSQL e comum no MySQL, porque a transação só de leitura do MySQL aceita tabelas temporárias, e espera a recusa do banco) e esquemas visíveis. O **Testar** da conexão nas Configurações usa esses passos de verdade (`cba_banco::prontidao::prontidao`, chamado pelo app para os tipos com a capacidade `banco`, porque `cba-repos` não depende do driver): cadastro, senha do banco, conectar, versão, só leitura e esquemas, com a orientação de quem falhou e os seguintes pulados.
 
 A senha nunca monta uma string de conexão: vai só para as opções do driver. Ela entra no mascaramento do processo, o `Debug` da configuração mostra `***` e toda mensagem de erro passa pelo mascaramento.
 
 A ferramenta `schema` lê o banco conectado à sessão com `origem: "banco"` (tabelas, colunas, tipos, chaves primárias e estrangeiras, pelo catálogo do servidor), com os indícios de dado pessoal pelos nomes e tipos reais. O banco chega às ferramentas por `Ambiente::banco` (o trait `cba_core::banco::BancoConectado`, implementado por `cba_banco::BancoDaConexao`).
+
+## Bancos: `consultar_dados` numa análise (#440)
+
+**Bancos do projeto.** Em Configurações › projeto › Código e demandas, a seção **Bancos de dados** escolhe quais conexões de banco o projeto usa (campo `bancos` do cadastro, com os `id`). A conexão em uso por um projeto aparece nos usos dela e não pode ser removida.
+
+**Banco da análise.** No painel da análise, "Usar o banco <nome> nesta análise" liga uma dessas conexões na análise (`banco` no estado `A-NNNN.estado.json`). Só então a ferramenta MCP `consultar_dados` aparece para o agente. O servidor MCP guarda a análise da sessão (a do último argumento `analise`), relê o estado antes de cada chamada e preenche `Ambiente::banco` com o banco ligado, aberto por `cba_banco::FonteDoCatalogo` (catálogo de conexões e resolvedor de credenciais). Quando a lista de ferramentas visíveis muda, o servidor envia `notifications/tools/list_changed` e o cliente pede a lista de novo. Sem o banco ligado, o agente não vê a ferramenta, e a chamada direta é recusada.
+
+**Aprovação por consulta.** A chamada (`analise`, `objetivo`, `sql`) valida o SQL (só leitura, uma instrução) e grava o pedido pendente na análise, com o objetivo, o SQL, a conexão e o ambiente. O painel da análise mostra "Consulta N ao banco — aguardando sua aprovação", e a conversa mostra "Consulta ao banco aguardando sua aprovação". O analista escolhe **Executar**, **Editar e executar** (roda o SQL editado; o registro guarda os dois) ou **Recusar**, com um motivo que volta ao agente na resposta. Sem decisão em 15 minutos, a consulta expira. Enquanto espera, o servidor MCP não atende outra requisição.
+
+**Execução e mascaramento.** A consulta aprovada roda pela sessão só leitura da conexão, com a validação, o tempo limite e o limite de linhas dela. Antes de o resultado chegar ao agente, sempre e sem exceção (`cba_tools::mascaramento`):
+
+- a coluna com indício de dado pessoal pelo nome e pelo tipo reais (`dados_pessoais.rs`) sai inteira como `[mascarado]`; as tabelas do `FROM`/`JOIN` fazem o papel da tabela da coluna (`nome` numa consulta a `cliente` é pessoal, a `produto` não);
+- em qualquer coluna de texto, CPF, CNPJ, e-mail e telefone viram `[cpf]`, `[cnpj]`, `[e-mail]` e `[telefone]`, e nomes próprios ao lado de um documento (no mesmo texto ou na mesma linha) viram `[nome]`;
+- os nulos continuam nulos; a resposta lista as colunas mascaradas e o motivo.
+
+**Registro.** Todas as consultas, aprovadas, editadas, recusadas, expiradas ou com falha, ficam no estado da análise (`consultas`): o objetivo, a conexão, o SQL proposto e o aprovado, quem decidiu (o usuário do sistema), quando, o motivo da recusa, a quantidade de linhas, os nomes das colunas e as mascaradas. Os valores nunca são gravados. O painel mostra o registro em "Consultas ao banco nesta análise".
+
+**Evidência de dados.** O agente cita o resultado em `afirmar` com `dados: [{consulta, resumo}]` (só de consulta executada). Uma afirmação confirmada pode ter só a evidência de dados. No documento, o resumo entra no texto da afirmação, "(em dados, AAAA-MM-DD: resumo)", com a nota `[^dados-N]` na seção de evidências: conexão, ambiente, data e hora (UTC), SQL e linhas. A seção avisa que a evidência vale para a data em que foi tirada: a revalidação confere o código e não reexecuta consultas. A exportação sem evidências tira as notas e fica só o resumo.
+
+**Roteiro.** Com o banco ligado, o roteiro orienta o agente a confirmar o diagnóstico no caso relatado e medir a abrangência com agregados (`COUNT`, `GROUP BY`) e amostras pequenas, sem trazer linhas inteiras de pessoas. Na análise de impacto sem banco, orienta a deixar as consultas prontas (objetivo, SQL e significado do resultado) para quem tem acesso.
 
 Os testes de integração sobem PostgreSQL, MySQL e MariaDB em contêiner:
 

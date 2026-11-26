@@ -41,6 +41,7 @@ mod conexoes;
 mod configuracoes;
 #[cfg(windows)]
 mod console;
+mod consultas;
 mod conversa;
 mod demandas;
 mod docs_externos;

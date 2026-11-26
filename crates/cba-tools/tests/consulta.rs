@@ -570,6 +570,10 @@ impl cba_core::banco::BancoConectado for BancoFalso {
         }
     }
 
+    fn consultar(&self, _sql: &str) -> Result<cba_core::banco::ResultadoDados, String> {
+        Err("não usado".into())
+    }
+
     fn ler_schema(&self) -> Result<cba_core::banco::SchemaBanco, String> {
         use cba_core::banco::{ChaveEstrangeira, ColunaBanco, SchemaBanco, TabelaBanco};
         if self.falha {

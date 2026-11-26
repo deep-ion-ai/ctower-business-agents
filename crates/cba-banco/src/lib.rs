@@ -27,6 +27,7 @@
 
 mod conectado;
 mod introspeccao;
+pub mod prontidao;
 mod sessao;
 pub mod validacao;
 
@@ -40,7 +41,7 @@ use cba_repos::providers::{
 };
 use serde::Serialize;
 
-pub use conectado::BancoDaConexao;
+pub use conectado::{BancoDaConexao, FonteDoCatalogo};
 pub use introspeccao::ler_schema;
 pub use sessao::{ColunaResultado, ResultadoConsulta, consultar, testar};
 pub use validacao::{Recusa, validar};

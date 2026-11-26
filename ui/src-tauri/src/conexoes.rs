@@ -139,6 +139,13 @@ pub fn usos(dados: &DiretorioDados) -> Result<BTreeMap<String, Vec<UsoConexao>>,
                 onde,
             });
         }
+        for id in &p.bancos {
+            m.entry(id.clone()).or_default().push(UsoConexao {
+                projeto: p.id.clone(),
+                nome_projeto: p.nome.clone(),
+                onde: "banco de dados".into(),
+            });
+        }
     }
     Ok(m)
 }
@@ -317,7 +324,13 @@ pub fn testar(dados: &DiretorioDados, id: &str, f: &Ferramentas) -> Result<Integ
         .into_iter()
         .find(|c| c.id == id)
         .ok_or_else(|| format!("a conexão \"{id}\" não está cadastrada"))?;
-    let i = cba_repos::providers::prontidao::testar(&c, f);
+    // Os bancos rodam os passos de verdade pelo driver (#440); os demais tipos,
+    // pelo descritor.
+    let i = if cba_banco::prontidao::e_de_banco(&c) {
+        cba_banco::prontidao::prontidao(&c, f.chaveiro.as_ref())
+    } else {
+        cba_repos::providers::prontidao::testar(&c, f)
+    };
     let falha = i
         .passos
         .iter()

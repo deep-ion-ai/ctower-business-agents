@@ -81,6 +81,9 @@ pub enum Mudanca {
     /// Pedido do protótipo gravado, ou tela ou elemento de tela registrado (fluxo
     /// `prototipo`, #381).
     Tela,
+    /// Banco ligado ou desligado, ou consulta ao banco pedida, decidida pelo
+    /// analista ou executada (#440).
+    Consulta,
 }
 
 /// Valor do campo `analise` dos eventos do mapa de funcionalidades.
