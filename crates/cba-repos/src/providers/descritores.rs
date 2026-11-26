@@ -1,11 +1,11 @@
 //! Descritores dos tipos que o app conhece: GitHub, GitLab, Jira, PostgreSQL e
-//! MySQL/MariaDB. Os de banco descrevem a conexão; o acesso vem na sub-issue de
-//! banco (#439).
+//! MySQL/MariaDB. Os de banco descrevem a conexão e o dialeto; o acesso fica na
+//! crate `cba-banco` (#439).
 
 use super::prontidao::{ContextoProntidao, versao_e_caminho};
 use super::{
-    CampoOpcao, Capacidade, Conexao, DescritorProvider, OpcaoEscolha, PassoProntidao, TipoCampo,
-    TipoFonte, VariavelAmbiente, host_de, host_valido,
+    CampoOpcao, Capacidade, Conexao, DescritorProvider, DialetoSql, OpcaoEscolha, PassoProntidao,
+    TipoCampo, TipoFonte, VariavelAmbiente, host_de, host_valido,
 };
 use crate::ForgeKind;
 use crate::acessos::{ErroVerificacao, VerificacaoToken, verificar_token_host};
@@ -437,7 +437,48 @@ const CAMPOS_BANCO: &[CampoOpcao] = &[
         padrao: None,
         obrigatorio: false,
     },
+    CampoOpcao {
+        chave: CONFIRMACAO_PRODUCAO,
+        rotulo: "Confirmo o uso de um banco de produção",
+        ajuda: "Exigido quando o ambiente é produção. Prefira uma réplica de leitura ou \
+                a base de sustentação: as consultas competem com o uso real.",
+        tipo: TipoCampo::Booleano,
+        padrao: None,
+        obrigatorio: false,
+    },
 ];
+
+/// Opção que confirma o uso de um banco rotulado como produção (#439).
+pub const CONFIRMACAO_PRODUCAO: &str = "confirmo_producao";
+
+/// O rótulo do ambiente indica produção (`produção`, `PRD`, `prod`,
+/// `production`), sem diferenciar maiúsculas nem acentos.
+pub fn ambiente_de_producao(rotulo: &str) -> bool {
+    let r = rotulo
+        .trim()
+        .to_lowercase()
+        .replace('ç', "c")
+        .replace('ã', "a");
+    r.split(|c: char| !c.is_alphanumeric())
+        .any(|p| matches!(p, "producao" | "prod" | "prd" | "production"))
+}
+
+/// Conexão de banco rotulada como produção só com a confirmação explícita.
+fn validar_banco(descritor: &dyn DescritorProvider, conexao: &Conexao) -> Result<(), String> {
+    let producao = conexao
+        .opcao(descritor, "ambiente")
+        .is_some_and(ambiente_de_producao);
+    let confirmado = conexao.opcao(descritor, CONFIRMACAO_PRODUCAO) == Some("true");
+    if producao && !confirmado {
+        return Err(
+            "o ambiente desta conexão é produção: confirme o uso marcando \"Confirmo o uso \
+             de um banco de produção\". Prefira uma réplica de leitura ou a base de \
+             sustentação, porque as consultas competem com o uso real"
+                .into(),
+        );
+    }
+    Ok(())
+}
 
 const PASSOS_BANCO: &[PassoProntidao] = &[
     PassoProntidao {
@@ -542,6 +583,12 @@ impl DescritorProvider for DescritorPostgres {
     fn passos_prontidao(&self) -> &'static [PassoProntidao] {
         PASSOS_BANCO
     }
+    fn dialeto_sql(&self) -> Option<DialetoSql> {
+        Some(DialetoSql::Postgres)
+    }
+    fn validar_extra(&self, conexao: &Conexao) -> Result<(), String> {
+        validar_banco(self, conexao)
+    }
 }
 
 /// MySQL e MariaDB, com driver nativo (#439).
@@ -581,5 +628,11 @@ impl DescritorProvider for DescritorMysql {
     }
     fn passos_prontidao(&self) -> &'static [PassoProntidao] {
         PASSOS_BANCO
+    }
+    fn dialeto_sql(&self) -> Option<DialetoSql> {
+        Some(DialetoSql::Mysql)
+    }
+    fn validar_extra(&self, conexao: &Conexao) -> Result<(), String> {
+        validar_banco(self, conexao)
     }
 }

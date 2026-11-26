@@ -22,7 +22,8 @@ pub mod prontidao;
 mod resolvedor;
 
 pub use descritores::{
-    DescritorGithub, DescritorGitlab, DescritorJira, DescritorMysql, DescritorPostgres,
+    CONFIRMACAO_PRODUCAO, DescritorGithub, DescritorGitlab, DescritorJira, DescritorMysql,
+    DescritorPostgres, ambiente_de_producao,
 };
 
 pub use catalogo::{ArquivoConexoes, Catalogo, conexao_referenciada};
@@ -144,6 +145,11 @@ impl TipoFonte {
         }
     }
 }
+
+str_enum!(DialetoSql, "dialeto_sql", {
+    Postgres => "postgres",
+    Mysql => "mysql",
+});
 
 str_enum!(Capacidade, "capacidade", {
     Rastreador => "rastreador",
@@ -308,6 +314,11 @@ pub trait DescritorProvider: Send + Sync {
     /// Programa e argumentos que imprimem a credencial guardada pela própria CLI
     /// do provider (fonte `Cli`). `None` nos tipos que não aceitam `Cli`.
     fn credencial_pela_cli(&self, _conexao: &Conexao) -> Option<(&'static str, Vec<String>)> {
+        None
+    }
+    /// Dialeto SQL do driver nativo, nos tipos com a capacidade `Banco`. O
+    /// acesso ao banco (`cba-banco`) escolhe o driver por ele, nunca pelo tipo.
+    fn dialeto_sql(&self) -> Option<DialetoSql> {
         None
     }
     /// Validação própria do tipo, além do endereço, da fonte e das opções.

@@ -21,6 +21,7 @@ use cba_kb::frontmatter::{FrontmatterProjeto, TipoDocumento};
 use cba_kb::{Base, Documento};
 
 use crate::analises::Analises;
+use crate::banco::BancoConectado;
 use crate::config::Config;
 use crate::dados::DiretorioDados;
 use crate::eventos::{DiarioEventos, Notificador};
@@ -91,6 +92,10 @@ pub struct Ambiente {
     pub analises: Analises,
     /// Diretório de dados do app (índice da base, cadastro e mapa do projeto).
     pub dados: DiretorioDados,
+    /// Banco conectado a esta sessão, só de leitura (#439). `None` quando o
+    /// projeto não tem conexão de banco ligada: as ferramentas seguem só com os
+    /// scripts do código.
+    pub banco: Option<Arc<dyn BancoConectado>>,
 }
 
 impl Ambiente {
@@ -147,6 +152,7 @@ impl Ambiente {
             base,
             kb,
             dados: dados.clone(),
+            banco: None,
         })
     }
 }

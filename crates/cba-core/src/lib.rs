@@ -41,6 +41,7 @@
 pub mod ambiente;
 pub mod analise;
 pub mod analises;
+pub mod banco;
 pub mod cenarios;
 pub mod conducao;
 pub mod config;

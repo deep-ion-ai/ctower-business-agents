@@ -153,4 +153,27 @@ Acrescente o tipo na tabela de tipos abaixo e, se ele tiver CLI, as variáveis d
 | `postgres` | PostgreSQL | banco | `host:porta/banco` (porta 5432) | chaveiro, comando, arquivo, nenhuma | (driver nativo) |
 | `mysql` | MySQL/MariaDB | banco | `host:porta/banco` (porta 3306) | chaveiro, comando, arquivo, nenhuma | (driver nativo) |
 
-As conexões de banco têm as opções `usuario` (obrigatória), `esquema`, `tempo_limite_s` (padrão 30), `limite_linhas` (padrão 200), `tls` (`exigir`, `preferir` ou `desligar`; padrão `preferir`) e `ambiente`.
+As conexões de banco têm as opções `usuario` (obrigatória), `esquema`, `tempo_limite_s` (padrão 30), `limite_linhas` (padrão 200), `tls` (`exigir`, `preferir` ou `desligar`; padrão `preferir`), `ambiente` e `confirmo_producao`. Um `ambiente` que indica produção (`produção`, `prod`, `PRD`, `production`) só é aceito com `confirmo_producao = true`; a mensagem recomenda uma réplica de leitura ou a base de sustentação.
+
+## Bancos: acesso só de leitura
+
+O acesso fica na crate `cba-banco`, com driver nativo (`sqlx`), sem cliente instalado na máquina. O descritor diz o dialeto (`DescritorProvider::dialeto_sql`); a crate escolhe o driver por ele, nunca pelo tipo. Um banco novo (Oracle, SQL Server) precisa do descritor com o dialeto e do driver em `cba-banco` (abertura da sessão só de leitura, versão, escrita de teste e consultas do catálogo).
+
+A só leitura é imposta pelo app, além do que o usuário do banco permite:
+
+- **validação antes de enviar** (`cba_banco::validar`), com o parser SQL do dialeto: uma instrução só, `SELECT` ou `WITH … SELECT`. Recusa escrita e DDL (também dentro de um `WITH`), `CALL`, `SET`, `LOCK`, `SELECT … INTO`, `FOR UPDATE`/`FOR SHARE`, funções com efeito fora da consulta (arquivos do servidor, travas consultivas, sequências, `dblink`, `query_to_xml`, `SLEEP`…), comentários executáveis do MySQL (`/*! … */`) e comentários com `;`;
+- **PostgreSQL:** a sessão abre com `default_transaction_read_only = on`, `statement_timeout`, `lock_timeout` e `idle_in_transaction_session_timeout`, e cada consulta roda em `BEGIN READ ONLY … ROLLBACK`;
+- **MySQL/MariaDB:** `SET SESSION TRANSACTION READ ONLY`, `max_execution_time` (MySQL) ou `max_statement_time` (MariaDB) e `lock_wait_timeout`, com cada consulta em `START TRANSACTION READ ONLY … ROLLBACK`;
+- o app corta o resultado no `limite_linhas` (marcando `cortada`) e cancela a consulta que passar do tempo limite, mesmo se o servidor não responder.
+
+A prontidão (`cba_banco::testar`) roda os passos do descritor: conectar, versão do servidor, só leitura (tenta criar uma tabela, temporária no PostgreSQL e comum no MySQL, porque a transação só de leitura do MySQL aceita tabelas temporárias, e espera a recusa do banco) e esquemas visíveis.
+
+A senha nunca monta uma string de conexão: vai só para as opções do driver. Ela entra no mascaramento do processo, o `Debug` da configuração mostra `***` e toda mensagem de erro passa pelo mascaramento.
+
+A ferramenta `schema` lê o banco conectado à sessão com `origem: "banco"` (tabelas, colunas, tipos, chaves primárias e estrangeiras, pelo catálogo do servidor), com os indícios de dado pessoal pelos nomes e tipos reais. O banco chega às ferramentas por `Ambiente::banco` (o trait `cba_core::banco::BancoConectado`, implementado por `cba_banco::BancoDaConexao`).
+
+Os testes de integração sobem PostgreSQL, MySQL e MariaDB em contêiner:
+
+```sh
+cargo test -p cba-banco --test conteiner -- --ignored --test-threads=1
+```
