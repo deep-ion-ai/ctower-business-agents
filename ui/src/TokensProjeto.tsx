@@ -204,6 +204,8 @@ function LinhaPapel({
   const [valor, setValor] = useState(papel.valor ?? "");
   const aConfirmar = papel.situacao === "a-confirmar";
   const propriedade = `--prototipo-${papel.nome}`;
+  // Exemplo do valor que o analista digita, não uma cor desta tela.
+  const exemplo = papel.categoria === "cor" ? "Ex.: #1f6feb" : "Ex.: 8px"; // estilos:ignorar
 
   const salvar = (ev: FormEvent) => {
     ev.preventDefault();
@@ -274,7 +276,7 @@ function LinhaPapel({
           <input
             aria-label={`Valor de ${propriedade}`}
             value={valor}
-            placeholder={papel.categoria === "cor" ? "Ex.: #1f6feb" : "Ex.: 8px"}
+            placeholder={exemplo}
             onChange={(e) => setValor(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") salvar(e);

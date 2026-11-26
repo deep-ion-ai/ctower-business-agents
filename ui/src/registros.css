@@ -68,7 +68,7 @@
 
 .registro-meta {
   margin-top: 4px;
-  font-size: 13px;
+  font-size: var(--fs-support);
 }
 
 .registro-acoes {
@@ -81,7 +81,7 @@
 .matriz-riscos {
   border-collapse: collapse;
   margin: 8px 0;
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .matriz-riscos th,
@@ -114,5 +114,5 @@
 }
 
 .registros-pasta {
-  font-size: 12px;
+  font-size: var(--fs-small);
 }

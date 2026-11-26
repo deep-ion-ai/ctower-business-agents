@@ -17,14 +17,14 @@
 }
 
 .assistente-projeto .dica {
-  font-size: 12px;
+  font-size: var(--fs-small);
   line-height: 1.5;
   color: var(--muted);
 }
 
 .assistente-projeto input.caminho {
   font-family: var(--mono);
-  font-size: 13px;
+  font-size: var(--fs-support);
 }
 
 /* ---- Etapas ---- */
@@ -65,8 +65,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--fs-support);
+  font-weight: var(--fw-strong);
   border: 1.5px solid var(--faint);
   color: var(--faint);
 }
@@ -94,11 +94,11 @@
 }
 
 .etapas-cadastro .rotulo {
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 .etapas-cadastro .sub {
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--muted);
 }
 
@@ -125,8 +125,8 @@
 
 .cabecalho-passo h2 {
   margin: 0 0 4px;
-  font-size: 18px;
-  font-weight: 600;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-strong);
 }
 
 .cabecalho-passo h2:focus {
@@ -141,8 +141,8 @@
 .subtitulo-passo {
   margin: 0 0 8px;
   padding: 0;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--fs-support);
+  font-weight: var(--fw-strong);
   color: var(--text-2);
 }
 
@@ -225,8 +225,8 @@ fieldset.sem-borda {
 }
 
 .escolher-pasta-grande .titulo-botao {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--fs-reading);
+  font-weight: var(--fw-strong);
   color: var(--link);
 }
 
@@ -325,7 +325,7 @@ fieldset.sem-borda {
   float: left;
   margin-right: 10px;
   padding: 0;
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--muted);
 }
 
@@ -338,8 +338,8 @@ fieldset.sem-borda {
   border: 1px solid var(--border-strong);
   background: var(--btn-bg);
   color: var(--text-2);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-medium);
   cursor: pointer;
 }
 
@@ -411,7 +411,7 @@ fieldset.sem-borda {
 
 .texto-progresso {
   flex: 0 0 auto;
-  font-size: 12px;
+  font-size: var(--fs-small);
   font-family: var(--mono);
 }
 
@@ -502,8 +502,8 @@ fieldset.sem-borda {
 }
 
 .numero-destaque strong {
-  font-size: 28px;
-  font-weight: 600;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-strong);
   font-variant-numeric: tabular-nums;
 }
 
@@ -526,7 +526,7 @@ fieldset.sem-borda {
   grid-template-columns: minmax(6rem, 9rem) 1fr auto;
   align-items: center;
   gap: 10px;
-  font-size: 13px;
+  font-size: var(--fs-support);
 }
 
 .barras-linguagem .trilho {
@@ -546,7 +546,7 @@ fieldset.sem-borda {
 .barras-linguagem .numero,
 .motivos-fora .numero {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   text-align: right;
 }
 
@@ -554,7 +554,7 @@ fieldset.sem-borda {
   display: flex;
   justify-content: space-between;
   gap: 10px;
-  font-size: 13px;
+  font-size: var(--fs-support);
 }
 
 .aviso-segredos {
@@ -610,7 +610,7 @@ fieldset.sem-borda {
   background: none;
   color: var(--text);
   font: inherit;
-  font-weight: 600;
+  font-weight: var(--fw-strong);
   text-align: left;
   cursor: pointer;
 }
@@ -718,7 +718,7 @@ fieldset.sem-borda {
 
 .linha-resumo dt {
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--fs-support);
 }
 
 .linha-resumo dd {
@@ -758,7 +758,7 @@ fieldset.sem-borda {
 
 .assistente-projeto.concluido h2 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--fs-section);
 }
 
 .assistente-projeto.concluido h2:focus {
@@ -772,7 +772,7 @@ fieldset.sem-borda {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 26px;
+  font-size: var(--fs-title);
   background: var(--done-bg);
 }
 

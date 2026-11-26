@@ -43,7 +43,7 @@
 }
 
 .pauta-texto {
-  font-weight: 600;
+  font-weight: var(--fw-strong);
   overflow-wrap: anywhere;
 }
 

@@ -9,22 +9,20 @@
 
 .page h2 {
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-strong);
 }
 
 .page h3 {
   margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: var(--fs-support);
+  font-weight: var(--fw-strong);
   color: var(--muted);
 }
 
 /* Título de formulário de análise aberto fora do painel Nova análise (painel da
-   demanda, painel da funcionalidade, Início): fica em caixa normal, como no painel,
-   sem mudar a caixa alta dos títulos de seção acima (#360). */
+   demanda, painel da funcionalidade, Início): na cor do texto, como no painel (#360).
+   Título de seção nunca vai em caixa-alta; só o rótulo de campo (#405). */
 .page h3.titulo-formulario,
 h3.titulo-formulario {
   letter-spacing: 0;
@@ -55,10 +53,8 @@ h3.titulo-formulario {
 .tela-inicio > section > h2,
 .tela-projeto > section > h3,
 .tela-analise.page > section > h3 {
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: var(--fs-support);
+  font-weight: var(--fw-strong);
   color: var(--muted);
 }
 
@@ -162,7 +158,7 @@ h3.titulo-formulario {
 
 .resultados-base li[aria-current="true"] {
   background: var(--selected);
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 /* Regra a revalidar (spec, seção 6.5): o código citado mudou; pede o analista. */
@@ -188,12 +184,12 @@ h3.titulo-formulario {
 
 .aviso-transcript[data-tone="attention"] {
   color: var(--attention);
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 .aviso-revalidar {
   color: var(--attention);
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 .link-externo {
@@ -220,8 +216,8 @@ h3.titulo-formulario {
 
 .titulo-assistente {
   margin: 0;
-  font-size: 18px;
-  font-weight: 600;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-strong);
 }
 
 .etapas {
@@ -235,7 +231,7 @@ h3.titulo-formulario {
 
 .etapas .atual {
   color: var(--text);
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 .etapas .feita::marker {
@@ -255,8 +251,8 @@ h3.titulo-formulario {
 
 .passo-assistente h2 {
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-strong);
 }
 
 .passo-assistente p {
@@ -324,7 +320,7 @@ h3.titulo-formulario {
 
 .resumo-inventario h3 {
   margin: 0 0 8px;
-  font-size: 14px;
+  font-size: var(--fs-base);
 }
 
 .resumo-inventario .numero {
@@ -338,7 +334,7 @@ h3.titulo-formulario {
   overflow: auto;
   padding-left: 20px;
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 /* ---- Clientes de IA ---- */
@@ -351,10 +347,8 @@ h3.titulo-formulario {
 
 .clientes h2 {
   margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: var(--fs-support);
+  font-weight: var(--fw-strong);
   color: var(--muted);
 }
 
@@ -375,8 +369,8 @@ h3.titulo-formulario {
 .cliente h3,
 .cliente-conversa h3 {
   margin: 0 0 4px;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-strong);
   letter-spacing: normal;
   text-transform: none;
   color: var(--text);
@@ -509,7 +503,7 @@ h3.titulo-formulario {
 .abas-base .btn[aria-selected="true"] {
   background: var(--selected);
   border-color: var(--accent);
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 .contagem {
@@ -531,7 +525,7 @@ h3.titulo-formulario {
 
 .grupo-base li .id {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .grupo-base li[data-status="a-revalidar"] {
@@ -602,7 +596,7 @@ h3.titulo-formulario {
   flex-basis: 100%;
   margin: 2px 0 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--fs-support);
 }
 
 .documento-base header h2 {
@@ -613,7 +607,7 @@ h3.titulo-formulario {
   display: grid;
   grid-template-columns: max-content 1fr;
   gap: 2px 12px;
-  font-size: 13px;
+  font-size: var(--fs-support);
 }
 
 .campos-documento div {
@@ -627,14 +621,14 @@ h3.titulo-formulario {
 .campos-documento dd {
   margin: 0;
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .ligacoes {
   display: flex;
   flex-wrap: wrap;
   gap: 24px;
-  font-size: 13px;
+  font-size: var(--fs-support);
 }
 
 .ligacoes h3 {
@@ -686,14 +680,14 @@ h3.titulo-formulario {
   flex-direction: column;
   width: 100%;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--muted);
 }
 
 .nova-pergunta textarea {
   width: 100%;
   font-family: var(--sans);
-  font-size: 14px;
+  font-size: var(--fs-base);
   color: var(--text);
 }
 
@@ -754,8 +748,8 @@ h3.titulo-formulario {
   text-overflow: ellipsis;
   align-items: baseline;
   gap: 10px;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--fs-reading);
+  font-weight: var(--fw-strong);
   letter-spacing: normal;
   text-transform: none;
   color: var(--text);
@@ -772,7 +766,7 @@ h3.titulo-formulario {
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 12px;
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .painel-subtitulo .selo-sessao {
@@ -848,11 +842,11 @@ h3.titulo-formulario {
   height: 18px;
   padding: 0 5px;
   box-sizing: border-box;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--attention);
   color: var(--on-attention);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
   line-height: 18px;
   text-align: center;
 }
@@ -946,7 +940,7 @@ h3.titulo-formulario {
 .publicacao-grupo summary {
   cursor: pointer;
   margin: 8px 0 2px;
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 .publicacao-destino {
@@ -973,7 +967,7 @@ h3.titulo-formulario {
 
 .nota-alteracao {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 /* Documento ao vivo à esquerda, com a maior largura; conversa à direita, mais
@@ -1094,7 +1088,7 @@ h3.titulo-formulario {
 .conversa-estado {
   flex: 1;
   min-width: 0;
-  font-size: 13px;
+  font-size: var(--fs-support);
   color: var(--text);
 }
 
@@ -1149,7 +1143,7 @@ h3.titulo-formulario {
 .aba-lateral[aria-selected="true"] {
   color: var(--text);
   border-bottom-color: var(--accent);
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 .aba-lateral[data-aberta="true"]:not([aria-selected="true"])::after {
@@ -1215,7 +1209,7 @@ h3.titulo-formulario {
 .nota-terminal {
   margin-top: 0;
   margin-bottom: 0;
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .mensagem-agente {
@@ -1249,8 +1243,8 @@ h3.titulo-formulario {
 .trecho-caminho {
   margin: 0;
   min-width: 0;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--fs-support);
+  font-weight: var(--fw-medium);
   word-break: break-all;
 }
 
@@ -1371,7 +1365,7 @@ h3.titulo-formulario {
   align-items: baseline;
   gap: 4px;
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--fs-support);
 }
 
 .alerta-conducao {
@@ -1381,18 +1375,18 @@ h3.titulo-formulario {
   border-radius: 6px;
   background: var(--attention-bg);
   color: var(--attention);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .conducao-fases summary {
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .conducao-fases ol {
   margin: 6px 0;
   padding-left: 20px;
-  font-size: 12px;
+  font-size: var(--fs-small);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -1420,22 +1414,20 @@ h3.titulo-formulario {
 
 .documento-ao-vivo h2 {
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-strong);
 }
 
 .documento-ao-vivo h3 {
   margin: 0 0 6px;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: var(--fs-support);
+  font-weight: var(--fw-strong);
   color: var(--muted);
 }
 
 .documento-ao-vivo h4 {
   margin: 8px 0 4px;
-  font-size: 14px;
+  font-size: var(--fs-base);
 }
 
 .documento-ao-vivo blockquote {
@@ -1480,7 +1472,7 @@ h3.titulo-formulario {
 /* Estado da sessão: ponto colorido + texto. */
 .selo-sessao {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--fs-support);
   color: var(--text-2);
 }
 
@@ -1496,7 +1488,7 @@ h3.titulo-formulario {
 
 .selo-sessao[data-estado="aguardando-analista"] {
   color: var(--attention);
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 .selo-sessao[data-estado="aguardando-analista"]::before {
@@ -1518,7 +1510,7 @@ h3.titulo-formulario {
 
 .evidencia {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .trecho-evidencia {
@@ -1545,7 +1537,7 @@ h3.titulo-formulario {
   border-collapse: collapse;
   width: 100%;
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .trecho-codigo .numero {
@@ -1569,7 +1561,7 @@ h3.titulo-formulario {
 
 .trecho-codigo .linha[data-citada="true"] .numero {
   color: var(--accent);
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 .documento-caminho code {
@@ -1589,7 +1581,7 @@ h3.titulo-formulario {
 
 .aviso-alteracao h3 {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--fs-base);
   color: var(--attention);
 }
 
@@ -1675,7 +1667,7 @@ h3.titulo-formulario {
 .afirmacao .texto code,
 .codigo-afirmacao {
   font-family: var(--mono);
-  font-size: 0.86em;
+  font-size: var(--fs-small);
   background: var(--hover);
   border-radius: 4px;
 }
@@ -1692,7 +1684,7 @@ h3.titulo-formulario {
   background: none;
   color: var(--accent);
   font: inherit;
-  font-size: 0.9em;
+  font-size: var(--fs-support);
   text-decoration: underline;
   cursor: pointer;
 }
@@ -1739,7 +1731,7 @@ h3.titulo-formulario {
 }
 
 .contador-codigo {
-  font-size: 11px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1770,7 +1762,7 @@ h3.titulo-formulario {
 .afirmacao .texto table {
   margin-top: 6px;
   border-collapse: collapse;
-  font-size: 0.92em;
+  font-size: var(--fs-support);
 }
 
 .afirmacao .texto th,
@@ -1834,7 +1826,7 @@ h3.titulo-formulario {
 .nova-reuniao .aceite {
   flex-direction: row;
   align-items: center;
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 .aviso-privacidade {
@@ -1860,7 +1852,7 @@ h3.titulo-formulario {
 
 .citacoes-fala-bloco > summary {
   cursor: pointer;
-  font-size: 0.9em;
+  font-size: var(--fs-support);
   width: fit-content;
 }
 
@@ -1929,7 +1921,7 @@ h3.titulo-formulario {
 .parecer-ao-vivo .legenda-marcas {
   display: flex;
   gap: 16px;
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .parecer-ao-vivo .contagem-achados {
@@ -2013,8 +2005,8 @@ h3.titulo-formulario {
   width: 22px;
   height: 20px;
   border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
   font-family: var(--mono);
 }
 .invest-ok {
@@ -2044,7 +2036,7 @@ h3.titulo-formulario {
   margin: 6px 0;
 }
 .gherkin dt {
-  font-weight: 600;
+  font-weight: var(--fw-strong);
   color: var(--epic);
 }
 .gherkin dd {
@@ -2056,7 +2048,7 @@ h3.titulo-formulario {
   border: 1px solid var(--border-strong);
   border-radius: 10px;
   color: var(--link);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 .form-historia,
 .form-criterio,
@@ -2100,7 +2092,7 @@ h3.titulo-formulario {
 }
 .cenarios-ao-vivo .evidencia-condicao {
   display: block;
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--muted);
 }
 .cenarios-ao-vivo .limite {
@@ -2166,7 +2158,7 @@ h3.titulo-formulario {
   overflow-x: auto;
   margin: 0;
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 .aviso-diagrama {
   margin: 12px 0;
@@ -2183,7 +2175,7 @@ h3.titulo-formulario {
   margin: 0;
   overflow-x: auto;
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 .legenda-diagrama {
   margin: 8px 0 0;
@@ -2192,7 +2184,7 @@ h3.titulo-formulario {
   width: 100%;
   border-collapse: collapse;
   margin: 8px 0;
-  font-size: 13px;
+  font-size: var(--fs-support);
 }
 .tabela-diagrama th,
 .tabela-diagrama td {
@@ -2203,7 +2195,7 @@ h3.titulo-formulario {
 }
 .tabela-diagrama th {
   color: var(--muted);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
 }
 .tabela-diagrama tr[data-selecionada] {
   background: var(--selected);
@@ -2323,7 +2315,7 @@ h3.titulo-formulario {
 
 .faixa-revisao-contagem {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--fs-base);
   white-space: nowrap;
 }
 
@@ -2380,7 +2372,7 @@ h3.titulo-formulario {
   flex-wrap: wrap;
   gap: 4px 10px;
   margin: 0 0 0 auto;
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .atalho kbd {
@@ -2392,7 +2384,7 @@ h3.titulo-formulario {
   background: var(--btn-bg);
   color: var(--text-2);
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
   text-align: center;
 }
 
@@ -2446,7 +2438,7 @@ h3.titulo-formulario {
   background: none;
   color: var(--text-2);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--fs-support);
   text-align: left;
   cursor: pointer;
 }
@@ -2467,8 +2459,8 @@ h3.titulo-formulario {
   border-radius: 10px;
   background: var(--attention-bg);
   color: var(--attention);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
@@ -2544,8 +2536,8 @@ h3.titulo-formulario {
   border-radius: 11px;
   background: var(--idle-bg);
   color: var(--text-2);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
   font-variant-numeric: tabular-nums;
 }
 
@@ -2630,7 +2622,7 @@ h3.titulo-formulario {
 }
 
 .para-quem {
-  font-size: 13px;
+  font-size: var(--fs-support);
 }
 
 .form-resposta {
@@ -2661,7 +2653,7 @@ h3.titulo-formulario {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 .regra-texto {
@@ -2714,9 +2706,9 @@ h3.titulo-formulario {
   gap: 4px;
   padding: 2px 4px 2px 10px;
   border: 1px solid var(--border-strong);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--surface-2);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .chip-funcionalidade button {
@@ -2748,7 +2740,7 @@ h3.titulo-formulario {
   margin: 4px 0 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 /* Mapa e catálogo de funcionalidades (#208). */
@@ -2836,7 +2828,7 @@ h3.titulo-formulario {
   overflow: auto;
   border-right: 1px solid var(--border);
   padding-right: 8px;
-  font-size: 0.9em;
+  font-size: var(--fs-support);
 }
 .arvore-mapa ul {
   list-style: none;
@@ -2862,7 +2854,7 @@ h3.titulo-formulario {
   white-space: nowrap;
 }
 .arvore-area {
-  font-weight: 600;
+  font-weight: var(--fw-strong);
   margin-top: 6px;
 }
 .arvore-area:hover,
@@ -2932,7 +2924,7 @@ h3.titulo-formulario {
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface);
-  font-size: 0.85em;
+  font-size: var(--fs-small);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -3008,7 +3000,7 @@ h3.titulo-formulario {
 }
 .pf-titulo h3 {
   margin: 0;
-  font-size: 1.6em;
+  font-size: var(--fs-title);
 }
 .pf-titulo p {
   margin: 0;
@@ -3053,16 +3045,16 @@ button.indicador:hover {
   background: var(--hover);
 }
 .indicador > span {
-  font-size: 0.85em;
+  font-size: var(--fs-small);
   color: var(--muted);
 }
 .indicador > strong {
-  font-size: 1.6em;
+  font-size: var(--fs-title);
 }
 .atencao,
 .indicador > span.atencao {
   color: var(--attention);
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 .alerta-revalidar {
   display: flex;
@@ -3093,7 +3085,7 @@ button.indicador:hover {
 .aba-painel[aria-current="page"] {
   color: var(--accent);
   border-bottom-color: var(--accent);
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 .pf-colunas {
   display: flex;
@@ -3126,7 +3118,7 @@ button.indicador:hover {
 }
 .cartao-painel h3 {
   margin: 0;
-  font-size: 1.05em;
+  font-size: var(--fs-reading);
 }
 .cartao-painel p {
   margin: 0;
@@ -3242,7 +3234,7 @@ button.indicador:hover {
   cursor: pointer;
 }
 .opcao-fluxo > span {
-  font-size: 0.85em;
+  font-size: var(--fs-small);
   color: var(--muted);
 }
 .opcao-fluxo[aria-pressed="true"] {
@@ -3262,7 +3254,7 @@ button.indicador:hover {
 }
 .tabela-painel th {
   text-align: left;
-  font-size: 0.85em;
+  font-size: var(--fs-small);
   color: var(--muted);
   padding: 6px 8px;
 }
@@ -3295,7 +3287,7 @@ button.indicador:hover {
   gap: 2px;
   padding: 8px 10px;
   border-radius: 8px;
-  font-size: 0.9em;
+  font-size: var(--fs-support);
   background: var(--idle-bg);
 }
 .etapa-em-andamento,
@@ -3408,10 +3400,10 @@ button.indicador:hover {
   min-width: 16px;
   height: 16px;
   padding: 0 4px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--attention);
   color: var(--on-attention);
-  font-size: 10px;
+  font-size: var(--fs-small);
   font-weight: 700;
   line-height: 16px;
   box-sizing: border-box;
@@ -3531,7 +3523,7 @@ button.indicador:hover {
 }
 .vincular-barra {
   height: 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--idle-bg);
   overflow: hidden;
 }
@@ -3553,11 +3545,11 @@ button.indicador:hover {
   gap: 6px;
   padding: 4px 10px;
   border: 1px solid var(--border-strong);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: transparent;
   color: var(--text-2);
   font: inherit;
-  font-size: 0.9em;
+  font-size: var(--fs-support);
   cursor: pointer;
 }
 .vincular-chip:hover {
@@ -3571,9 +3563,9 @@ button.indicador:hover {
 .vincular-chip-n {
   min-width: 1.6em;
   padding: 0 5px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--idle-bg);
-  font-size: 0.85em;
+  font-size: var(--fs-small);
   font-weight: 700;
   text-align: center;
 }
@@ -3688,7 +3680,7 @@ button.indicador:hover {
   align-items: center;
   gap: 3px;
   font-family: var(--mono);
-  font-size: 0.9em;
+  font-size: var(--fs-support);
   color: var(--link);
   text-decoration: none;
   white-space: nowrap;
@@ -3706,7 +3698,7 @@ button.indicador:hover {
 .vincular-tipo {
   padding: 0 6px;
   border-radius: 4px;
-  font-size: 0.78em;
+  font-size: var(--fs-small);
   line-height: 1.6;
   white-space: nowrap;
 }
@@ -3735,10 +3727,10 @@ button.indicador:hover {
   margin-right: 6px;
   padding: 1px 8px;
   border: 1px solid var(--ok);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--ok);
-  font-size: 0.8em;
-  font-weight: 600;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
   white-space: nowrap;
 }
 .vincular-selo svg {
@@ -3752,7 +3744,7 @@ button.indicador:hover {
   gap: 6px;
   margin: 0;
   color: var(--text-2);
-  font-size: 0.9em;
+  font-size: var(--fs-support);
 }
 .vincular-ligada svg {
   color: var(--ok);
@@ -3767,7 +3759,7 @@ button.indicador:hover {
 }
 .vincular-sem {
   margin: 0;
-  font-size: 0.9em;
+  font-size: var(--fs-support);
 }
 
 /* Sugestões: uma linha por funcionalidade, com o medidor de pontos. */
@@ -3799,7 +3791,7 @@ button.indicador:hover {
 }
 .vincular-fid {
   font-family: var(--mono);
-  font-size: 0.85em;
+  font-size: var(--fs-small);
   color: var(--muted);
   white-space: nowrap;
 }
@@ -3821,8 +3813,8 @@ button.indicador:hover {
   border-radius: 4px;
   background: color-mix(in srgb, var(--epic) 18%, transparent);
   color: var(--epic);
-  font-size: 0.78em;
-  font-weight: 600;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
 }
 .vincular-ia svg {
   width: 12px;
@@ -3832,7 +3824,7 @@ button.indicador:hover {
   max-width: 28rem;
   overflow: hidden;
   color: var(--text-2);
-  font-size: 0.85em;
+  font-size: var(--fs-small);
   font-style: italic;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3842,13 +3834,13 @@ button.indicador:hover {
   align-items: center;
   gap: 6px;
   color: var(--muted);
-  font-size: 0.8em;
+  font-size: var(--fs-small);
   white-space: nowrap;
 }
 .vincular-medidor {
   width: 56px;
   height: 4px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--idle-bg);
   overflow: hidden;
 }
@@ -3902,7 +3894,7 @@ button.indicador:hover {
 }
 .escolher-area summary {
   cursor: pointer;
-  font-weight: 600;
+  font-weight: var(--fw-strong);
   padding: 0.25rem 0;
 }
 .escolher-area ul {
@@ -3938,7 +3930,7 @@ code[data-tone="attention"] {
 .figura-passo figcaption {
   color: var(--muted);
   font-style: italic;
-  font-size: 0.9em;
+  font-size: var(--fs-support);
   margin-top: 4px;
 }
 .print-passo {
@@ -3992,12 +3984,12 @@ code[data-tone="attention"] {
 
 /* Estado da demanda no rastreador (#292). */
 .estado-rastreador {
-  font-size: 0.85em;
+  font-size: var(--fs-small);
 }
 
 .aviso-rastreador {
   color: var(--attention);
-  font-size: 0.85em;
+  font-size: var(--fs-small);
 }
 
 /* Atividades (#321): a caixa de entrada do analista. */
@@ -4037,7 +4029,7 @@ code[data-tone="attention"] {
 .atividades-id {
   flex: 0 0 auto;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .atividades-texto {
@@ -4116,7 +4108,7 @@ code[data-tone="attention"] {
 .demandas .linhas .id {
   min-width: 4.5em;
   font-family: "IBM Plex Mono", monospace;
-  font-size: 0.9em;
+  font-size: var(--fs-support);
   color: var(--text-2);
 }
 .demandas .linhas .tit {
@@ -4160,9 +4152,7 @@ code[data-tone="attention"] {
 }
 .demandas-painel h4 {
   margin-top: 6px;
-  font-size: 13px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: var(--fs-support);
   color: var(--muted);
 }
 .demandas-painel-cab {
@@ -4173,8 +4163,8 @@ code[data-tone="attention"] {
 }
 .demandas-painel-titulo {
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-strong);
 }
 .demandas-descricao {
   margin: 0;
@@ -4197,7 +4187,7 @@ code[data-tone="attention"] {
 }
 .demandas-rodape {
   margin: 8px 0 0;
-  font-size: 12.5px;
+  font-size: var(--fs-support);
 }
 .busca-issue {
   position: relative;
@@ -4316,11 +4306,11 @@ code[data-tone="attention"] {
 }
 .page .analises-cabecalho h2 {
   margin: 0;
-  font-size: 20px;
+  font-size: var(--fs-title);
 }
 .page .analises-cabecalho p {
   margin: 4px 0 0;
-  font-size: 13px;
+  font-size: var(--fs-support);
 }
 .analises-lista {
   display: flex;
@@ -4339,11 +4329,11 @@ code[data-tone="attention"] {
   height: 30px;
   padding: 0 10px;
   border: 1px solid var(--border-strong);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: transparent;
   color: var(--text-2);
   font: inherit;
-  font-size: 0.9em;
+  font-size: var(--fs-support);
 }
 .analises-busca {
   margin-left: auto;
@@ -4374,8 +4364,8 @@ code[data-tone="attention"] {
   padding-block: 8px;
   background: var(--surface-2);
   color: var(--muted);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-medium);
 }
 .analises-tabela li:last-child {
   border-bottom: 0;
@@ -4389,20 +4379,20 @@ code[data-tone="attention"] {
   align-items: flex-start;
   gap: 2px;
   min-width: 0;
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 .analise-chave {
   max-width: 100%;
   font-family: var(--mono);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .analise-demanda .link {
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 .analise-titulo {
   display: flex;
@@ -4411,7 +4401,7 @@ code[data-tone="attention"] {
   min-width: 0;
 }
 .analise-titulo .muted {
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 .link-titulo {
   padding: 0;
@@ -4419,7 +4409,7 @@ code[data-tone="attention"] {
   background: none;
   color: var(--text);
   font: inherit;
-  font-weight: 600;
+  font-weight: var(--fw-strong);
   text-align: left;
   white-space: nowrap;
   overflow: hidden;
@@ -4431,7 +4421,7 @@ code[data-tone="attention"] {
   text-decoration: underline;
 }
 .analise-quando {
-  font-size: 13px;
+  font-size: var(--fs-support);
 }
 .analise-acao {
   display: flex;
@@ -4508,14 +4498,14 @@ code[data-tone="attention"] {
 .page .painel-nova-topo h3,
 .painel-nova-topo h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--fs-section);
   letter-spacing: 0;
   text-transform: none;
   color: var(--text);
 }
 .painel-nova-topo p {
   margin: 4px 0 0;
-  font-size: 13px;
+  font-size: var(--fs-support);
 }
 .painel-nova-corpo {
   flex: 1;
@@ -4528,13 +4518,13 @@ code[data-tone="attention"] {
 }
 .painel-nova-pergunta {
   margin: 0 0 4px;
-  font-weight: 600;
+  font-weight: var(--fw-strong);
   color: var(--text-2);
 }
 .painel-nova-grupo {
   margin: 12px 0 2px;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
   color: var(--muted);
 }
 .opcoes-tipo {
@@ -4558,7 +4548,7 @@ code[data-tone="attention"] {
   cursor: pointer;
 }
 .opcao-tipo .muted {
-  font-size: 12px;
+  font-size: var(--fs-small);
   line-height: 1.4;
 }
 .opcao-tipo:hover,
@@ -4572,7 +4562,7 @@ code[data-tone="attention"] {
   background: var(--surface-2);
 }
 .opcao-destaque strong {
-  font-size: 15px;
+  font-size: var(--fs-reading);
 }
 .tipo-escolhido {
   display: flex;
@@ -4591,7 +4581,7 @@ code[data-tone="attention"] {
   gap: 3px;
 }
 .tipo-escolhido .muted {
-  font-size: 12px;
+  font-size: var(--fs-small);
   line-height: 1.4;
 }
 .nova-analise {
@@ -4599,8 +4589,8 @@ code[data-tone="attention"] {
   align-items: stretch;
 }
 .nova-analise label {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--fs-support);
+  font-weight: var(--fw-strong);
   color: var(--text);
 }
 .nova-analise label .muted {
@@ -4622,7 +4612,7 @@ code[data-tone="attention"] {
   border-color: var(--attention-border);
 }
 .ajuda-campo {
-  font-size: 12px;
+  font-size: var(--fs-small);
   line-height: 1.4;
   color: var(--muted);
 }
@@ -4647,7 +4637,7 @@ code[data-tone="attention"] {
 .page .motivo-desabilitado,
 .motivo-desabilitado {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--fs-support);
   color: var(--attention);
 }
 .tipos-demanda {
@@ -4658,8 +4648,8 @@ code[data-tone="attention"] {
 .tipos-demanda legend {
   padding: 0;
   margin-bottom: 8px;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--fs-support);
+  font-weight: var(--fw-strong);
 }
 .tipos-demanda-opcoes {
   display: grid;
@@ -4681,7 +4671,7 @@ code[data-tone="attention"] {
   pointer-events: none;
 }
 .cartao-opcao .muted {
-  font-size: 12px;
+  font-size: var(--fs-small);
   line-height: 1.35;
 }
 .cartao-opcao[data-marcado] {
@@ -4724,11 +4714,11 @@ code[data-tone="attention"] {
   background: var(--surface-2);
 }
 .demanda-achada strong {
-  font-size: 14px;
+  font-size: var(--fs-base);
   color: var(--text);
 }
 .demanda-achada .muted {
-  font-size: 12px;
+  font-size: var(--fs-small);
   font-weight: 400;
 }
 .page ul.analises-existentes,
@@ -4770,7 +4760,7 @@ ul.analises-existentes {
   flex: none;
   min-width: 7.5em;
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   white-space: nowrap;
 }
 .nova-analise > .btn {
@@ -4794,8 +4784,8 @@ ul.analises-existentes {
 }
 .campos-prototipo > legend {
   padding: 0 4px;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--fs-support);
+  font-weight: var(--fw-strong);
 }
 .opcoes-fidelidade {
   display: flex;
@@ -4827,7 +4817,7 @@ ul.analises-existentes {
   margin: 0;
 }
 .identidade-visual h5 {
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--muted);
 }
 .identidade-visual .acoes {
@@ -4861,7 +4851,7 @@ ul.analises-existentes {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 8px;
-  font-size: 13px;
+  font-size: var(--fs-support);
 }
 .papel-token-acoes {
   display: flex;
@@ -4869,7 +4859,7 @@ ul.analises-existentes {
   margin-left: auto;
 }
 .papel-token-nota {
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 .amostra-cor {
   flex: none;
@@ -4917,7 +4907,7 @@ ul.analises-existentes {
   align-items: center;
 }
 .prototipo-motivo {
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 .prototipo-tela-escolhida {
   min-width: 0;
@@ -4938,7 +4928,7 @@ ul.analises-existentes {
   min-height: 480px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--paper);
 }
 @media (max-width: 900px) {
   .prototipo-visualizador {
