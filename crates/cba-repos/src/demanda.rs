@@ -4,13 +4,11 @@
 //! `jira issue view --raw` (JSON da API v2). O token chega ao processo filho só
 //! no ambiente. Sem escrita no rastreador.
 
-use crate::chaveiro::{Chaveiro, ChaveiroNativo, ErroToken, token_global};
+use crate::chaveiro::{Chaveiro, ChaveiroNativo, ErroToken};
 use crate::codigo::HOST_GITHUB;
 use crate::process::{self, RunError, cite};
-use crate::{
-    CREDENTIAL_DEADLINE, CredentialError, GithubConfig, GitlabConfig, JiraConfig, Secret,
-    TrackerConfig, run_credential,
-};
+use crate::providers::{Recusada, com_nova_tentativa, legado, texto_de_recusa};
+use crate::{CredentialError, GithubConfig, GitlabConfig, JiraConfig, Secret, TrackerConfig};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt;
@@ -67,39 +65,34 @@ impl From<ErroToken> for DemandaErro {
 }
 
 /// Token do GitLab de issues: o do comando de credencial, se cadastrado; senão,
-/// o token global do host (chaveiro ou comando do host, #179 e #193).
+/// o token global do host (chaveiro ou comando do host, #179 e #193). Sai pelo
+/// resolvedor (#436).
 pub fn token_gitlab(g: &GitlabConfig, f: &Ferramentas) -> Result<Secret, DemandaErro> {
-    if !g.credential_cmd.trim().is_empty() {
-        return Ok(run_credential(
-            "GitLab",
-            &g.credential_cmd,
-            CREDENTIAL_DEADLINE,
-        )?);
-    }
-    token_global(&g.host, "GitLab", f.chaveiro.as_ref())?
+    legado::token_gitlab(g, f.chaveiro.as_ref())
+        .map_err(ErroToken::from)?
         .ok_or_else(|| DemandaErro::SemToken(g.host.trim().to_string()))
 }
 
 /// Token do Jira: o do comando de credencial, se cadastrado; senão, o do host
-/// do Jira no chaveiro (#180).
+/// do Jira no chaveiro (#180). Sai pelo resolvedor (#436).
 pub fn token_jira(j: &JiraConfig, f: &Ferramentas) -> Result<Secret, DemandaErro> {
-    if !j.credential_cmd.trim().is_empty() {
-        return Ok(run_credential(
-            "Jira",
-            &j.credential_cmd,
-            CREDENTIAL_DEADLINE,
-        )?);
-    }
-    let host = j.host();
-    token_global(&host, "Jira", f.chaveiro.as_ref())?.ok_or(DemandaErro::SemToken(host))
+    legado::token_jira(j, f.chaveiro.as_ref())
+        .map_err(ErroToken::from)?
+        .ok_or_else(|| DemandaErro::SemToken(j.host()))
 }
 
 /// Token global do GitHub (chaveiro ou comando do host), se houver; sem ele,
 /// vale o `gh auth`.
 pub fn token_github(f: &Ferramentas) -> Option<Secret> {
-    token_global(HOST_GITHUB, "GitHub", f.chaveiro.as_ref())
+    legado::token_do_host(HOST_GITHUB, "GitHub", f.chaveiro.as_ref())
         .ok()
         .flatten()
+}
+
+impl Recusada for DemandaErro {
+    fn recusada(&self) -> bool {
+        matches!(self, DemandaErro::Falhou { detalhe, .. } if texto_de_recusa(detalhe))
+    }
 }
 
 /// Issue lida do rastreador.
@@ -190,21 +183,25 @@ pub fn buscar_github(
     let n = numero(ref_)?;
     // Com token do GitHub no chaveiro, ele vai no ambiente (`GH_TOKEN`); sem ele,
     // o gh usa a própria autenticação (`gh auth login`).
-    let token = token_github(f);
-    let mut c = Command::new(&f.gh);
-    if let Some(t) = &token {
-        c.env("GH_TOKEN", t.expose());
-    }
-    c.args([
-        "issue",
-        "view",
-        &n.to_string(),
-        "-R",
-        g.repo.trim(),
-        "--json",
-        "title,body,url",
-    ]);
-    let v = rodar_json("gh", c, token.as_ref().unwrap_or(&Secret::new("")))?;
+    let v = com_nova_tentativa(
+        || Ok(token_github(f)),
+        |token| {
+            let mut c = Command::new(&f.gh);
+            if let Some(t) = token {
+                c.env("GH_TOKEN", t.expose());
+            }
+            c.args([
+                "issue",
+                "view",
+                &n.to_string(),
+                "-R",
+                g.repo.trim(),
+                "--json",
+                "title,body,url",
+            ]);
+            rodar_json("gh", c, token.unwrap_or(&Secret::new("")))
+        },
+    )?;
     Ok(Demanda {
         chave: format!("#{n}"),
         titulo: texto(&v, &["title"]).to_string(),
@@ -219,13 +216,18 @@ pub fn buscar_gitlab(
     f: &Ferramentas,
 ) -> Result<Demanda, DemandaErro> {
     let n = numero(ref_)?;
-    let token = token_gitlab(g, f)?;
     let id = g.path.trim_matches('/').replace('/', "%2F");
-    let mut c = Command::new(&f.glab);
-    c.args(["api", &format!("projects/{id}/issues/{n}")])
-        .env("GITLAB_HOST", g.host.trim())
-        .env("GITLAB_TOKEN", token.expose());
-    let v = rodar_json("glab", c, &token)?;
+    let v = com_nova_tentativa(
+        || token_gitlab(g, f).map(Some),
+        |token| {
+            let token = token.ok_or_else(|| DemandaErro::SemToken(g.host.trim().into()))?;
+            let mut c = Command::new(&f.glab);
+            c.args(["api", &format!("projects/{id}/issues/{n}")])
+                .env("GITLAB_HOST", g.host.trim())
+                .env("GITLAB_TOKEN", token.expose());
+            rodar_json("glab", c, token)
+        },
+    )?;
     Ok(Demanda {
         chave: format!("#{n}"),
         titulo: texto(&v, &["title"]).to_string(),
@@ -239,14 +241,19 @@ pub fn buscar_jira(j: &JiraConfig, ref_: &str, f: &Ferramentas) -> Result<Demand
     if j.number_from_key(&chave).is_none() {
         return Err(DemandaErro::Referencia(ref_.to_string()));
     }
-    let token = token_jira(j, f)?;
-    let mut c = Command::new(&f.jira);
-    c.args(["issue", "view", &chave, "--raw"])
-        .env("JIRA_API_TOKEN", token.expose());
-    if !j.config_file.trim().is_empty() {
-        c.env("JIRA_CONFIG_FILE", j.config_file.trim());
-    }
-    let v = rodar_json("jira", c, &token)?;
+    let v = com_nova_tentativa(
+        || token_jira(j, f).map(Some),
+        |token| {
+            let token = token.ok_or_else(|| DemandaErro::SemToken(j.host()))?;
+            let mut c = Command::new(&f.jira);
+            c.args(["issue", "view", &chave, "--raw"])
+                .env("JIRA_API_TOKEN", token.expose());
+            if !j.config_file.trim().is_empty() {
+                c.env("JIRA_CONFIG_FILE", j.config_file.trim());
+            }
+            rodar_json("jira", c, token)
+        },
+    )?;
     Ok(Demanda {
         titulo: texto(&v, &["fields", "summary"]).to_string(),
         descricao: wiki_para_markdown(texto(&v, &["fields", "description"])),
