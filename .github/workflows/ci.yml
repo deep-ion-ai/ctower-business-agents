@@ -3,8 +3,11 @@ name: ci
 on:
   pull_request:
   # Sem `wip/**`: cada merge numa wip já passou pelo CI do PR, atualizado com a base.
+  # Push só do site (site/ e o workflow dele) não roda o CI: o site tem build e
+  # deploy próprios no site-pages.yml. Em PR, o job `mudancas` faz o mesmo.
   push:
     branches: [develop, main]
+    paths-ignore: ['site/**', '.github/workflows/site-pages.yml']
   workflow_dispatch:
 
 permissions:
