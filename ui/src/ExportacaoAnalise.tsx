@@ -1,5 +1,6 @@
 import { useEffect, useState, type ChangeEvent } from "react";
 import { mensagemDe } from "./analise";
+import { Alerta, TituloSecao } from "./componentes";
 import { pngDoMermaid, type FiguraPng } from "./mermaid";
 import type { ApiRevisao, FiguraPedida, FormatoExportacao, OpcoesExportacao } from "./revisao";
 
@@ -151,7 +152,7 @@ export function ExportacaoAnalise({
 
   return (
     <section className="exportacao" aria-label="Exportação">
-      <h3>Exportar</h3>
+      <TituloSecao nivel={3}>Exportar</TituloSecao>
       {!aprovada && (
         <p className="muted">A análise ainda não foi aprovada: o documento sai como rascunho.</p>
       )}
@@ -228,7 +229,7 @@ export function ExportacaoAnalise({
           Código dos diagramas (anexo do Word e do HTML)
         </label>
       </fieldset>
-      <button className="btn" type="button" disabled={ocupado} onClick={exportar}>
+      <button className="btn btn-primary" type="button" disabled={ocupado} onClick={exportar}>
         Exportar…
       </button>
       {feito && (
@@ -236,25 +237,18 @@ export function ExportacaoAnalise({
           Exportado para <code>{feito}</code>
         </p>
       )}
-      {aviso && <p className="attention-text">{aviso}</p>}
+      {aviso && <Alerta tom="atencao" role="note" titulo={aviso} />}
       {avisosTemplate.length > 0 && (
-        <div className="attention-text" role="status">
-          <p>
-            O template da exportação em HTML tem avisos (o arquivo foi gravado; corrija em
-            Configurações, Modelos e prompts):
-          </p>
+        <Alerta tom="atencao" titulo="O template da exportação em HTML tem avisos">
+          (o arquivo foi gravado; corrija em Configurações, Modelos e prompts):
           <ul>
             {avisosTemplate.map((a) => (
               <li key={a}>{a}</li>
             ))}
           </ul>
-        </div>
+        </Alerta>
       )}
-      {erro && (
-        <p className="error-text" role="alert">
-          {erro}
-        </p>
-      )}
+      {erro && <Alerta tom="erro" titulo={erro} />}
     </section>
   );
 }

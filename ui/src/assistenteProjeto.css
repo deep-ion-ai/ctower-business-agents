@@ -17,14 +17,14 @@
 }
 
 .assistente-projeto .dica {
-  font-size: 12px;
+  font-size: var(--fs-small);
   line-height: 1.5;
   color: var(--muted);
 }
 
 .assistente-projeto input.caminho {
   font-family: var(--mono);
-  font-size: 13px;
+  font-size: var(--fs-support);
 }
 
 /* ---- Etapas ---- */
@@ -65,8 +65,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--fs-support);
+  font-weight: var(--fw-strong);
   border: 1.5px solid var(--faint);
   color: var(--faint);
 }
@@ -94,11 +94,11 @@
 }
 
 .etapas-cadastro .rotulo {
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 .etapas-cadastro .sub {
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--muted);
 }
 
@@ -125,8 +125,8 @@
 
 .cabecalho-passo h2 {
   margin: 0 0 4px;
-  font-size: 18px;
-  font-weight: 600;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-strong);
 }
 
 .cabecalho-passo h2:focus {
@@ -141,14 +141,15 @@
 .subtitulo-passo {
   margin: 0 0 8px;
   padding: 0;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--fs-support);
+  font-weight: var(--fw-strong);
   color: var(--text-2);
 }
 
 .secao-passo {
   display: flex;
   flex-direction: column;
+  gap: var(--space-2);
 }
 
 fieldset.sem-borda {
@@ -159,16 +160,6 @@ fieldset.sem-borda {
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.cartao-assistente {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-2);
 }
 
 /* Opções em cartão (radio de verdade, navegável pelas setas). */
@@ -225,8 +216,8 @@ fieldset.sem-borda {
 }
 
 .escolher-pasta-grande .titulo-botao {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--fs-reading);
+  font-weight: var(--fw-strong);
   color: var(--link);
 }
 
@@ -245,20 +236,12 @@ fieldset.sem-borda {
   overflow-wrap: anywhere;
 }
 
-.lista-repos {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.lista-repos li {
+/* Repositório na lista (encontrado na pasta ou clonado): nome, selo e branch. */
+.linha-repo-lido {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 /* ---- Clonar ---- */
@@ -325,7 +308,7 @@ fieldset.sem-borda {
   float: left;
   margin-right: 10px;
   padding: 0;
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--muted);
 }
 
@@ -338,8 +321,8 @@ fieldset.sem-borda {
   border: 1px solid var(--border-strong);
   background: var(--btn-bg);
   color: var(--text-2);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-medium);
   cursor: pointer;
 }
 
@@ -369,7 +352,7 @@ fieldset.sem-borda {
   gap: 6px;
 }
 
-.token-proprio p:empty {
+.token-proprio > div:empty {
   display: none;
 }
 
@@ -411,15 +394,8 @@ fieldset.sem-borda {
 
 .texto-progresso {
   flex: 0 0 auto;
-  font-size: 12px;
+  font-size: var(--fs-small);
   font-family: var(--mono);
-}
-
-.falha-clone {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
 }
 
 /* Cancelar o clone em andamento. */
@@ -430,23 +406,7 @@ fieldset.sem-borda {
   gap: 10px;
 }
 
-/* Tokens globais. */
-.lista-tokens {
-  list-style: none;
-  margin: 0;
-  gap: 0;
-  padding: 0;
-}
-
-.lista-tokens > li {
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--border);
-}
-
-.lista-tokens > li:last-child {
-  border-bottom: 0;
-}
-
+/* Tokens globais: uma linha por host. */
 .linha-token {
   display: flex;
   align-items: center;
@@ -477,13 +437,6 @@ fieldset.sem-borda {
   vertical-align: middle;
 }
 
-.falha-previa {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
 .previa-leitura {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
@@ -502,8 +455,8 @@ fieldset.sem-borda {
 }
 
 .numero-destaque strong {
-  font-size: 28px;
-  font-weight: 600;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-strong);
   font-variant-numeric: tabular-nums;
 }
 
@@ -526,7 +479,7 @@ fieldset.sem-borda {
   grid-template-columns: minmax(6rem, 9rem) 1fr auto;
   align-items: center;
   gap: 10px;
-  font-size: 13px;
+  font-size: var(--fs-support);
 }
 
 .barras-linguagem .trilho {
@@ -546,7 +499,7 @@ fieldset.sem-borda {
 .barras-linguagem .numero,
 .motivos-fora .numero {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   text-align: right;
 }
 
@@ -554,45 +507,18 @@ fieldset.sem-borda {
   display: flex;
   justify-content: space-between;
   gap: 10px;
-  font-size: 13px;
-}
-
-.aviso-segredos {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px;
-  border: 1px solid var(--attention-border);
-  border-radius: 8px;
-  background: var(--attention-card);
-}
-
-.aviso-segredos ul,
-.lista-incluiveis {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.aviso-segredos li,
-.lista-incluiveis li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  overflow-wrap: anywhere;
+  font-size: var(--fs-support);
 }
 
 /* Lista de grupos de itens fora: rola dentro do cartão em vez de esticar o passo. */
-.ajustes-leitura .lista-incluiveis {
+.rolagem-incluiveis {
   max-height: 320px;
   overflow-y: auto;
+  overflow-wrap: anywhere;
 }
 
-.ajustes-leitura {
+/* O cartão do ajuste fino: o botão de abrir ocupa a largura toda, sem a margem do cartão. */
+.assistente-projeto .ajustes-leitura {
   padding: 0;
   gap: 0;
 }
@@ -610,7 +536,7 @@ fieldset.sem-borda {
   background: none;
   color: var(--text);
   font: inherit;
-  font-weight: 600;
+  font-weight: var(--fw-strong);
   text-align: left;
   cursor: pointer;
 }
@@ -637,7 +563,7 @@ fieldset.sem-borda {
 
 /* ---- Demandas ---- */
 
-.linha-info {
+.assistente-projeto .linha-info {
   flex-direction: row;
   align-items: flex-start;
 }
@@ -697,10 +623,13 @@ fieldset.sem-borda {
 
 /* ---- Revisar ---- */
 
-.resumo-cadastro {
-  margin: 0;
+.assistente-projeto .resumo-cadastro {
   gap: 0;
   padding: 0;
+}
+
+.resumo-cadastro dl {
+  margin: 0;
 }
 
 .linha-resumo {
@@ -718,7 +647,7 @@ fieldset.sem-borda {
 
 .linha-resumo dt {
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--fs-support);
 }
 
 .linha-resumo dd {
@@ -758,7 +687,7 @@ fieldset.sem-borda {
 
 .assistente-projeto.concluido h2 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--fs-section);
 }
 
 .assistente-projeto.concluido h2:focus {
@@ -772,15 +701,13 @@ fieldset.sem-borda {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 26px;
+  font-size: var(--fs-title);
   background: var(--done-bg);
 }
 
-.assistente-projeto.concluido .acoes {
+.acoes-concluido {
   display: flex;
-  flex-wrap: wrap;
   justify-content: center;
-  gap: 10px;
 }
 
 @media (max-width: 40rem) {
@@ -792,6 +719,32 @@ fieldset.sem-borda {
     grid-column: 1 / -1;
     grid-row: 2;
   }
+}
+
+/* ---- Passos do primeiro uso (cliente de IA, base, ambiente, primeira análise) ---- */
+
+.passo-primeiro-uso p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.passo-primeiro-uso textarea,
+.escolha-base input.caminho {
+  width: 100%;
+}
+
+.escolha-base {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.escolha-base p {
+  margin: 0;
+}
+
+.escolha-base input.caminho {
+  max-width: 36rem;
 }
 
 /* ---- Modal “Novo projeto” (Início e Configurações) ---- */
@@ -847,14 +800,3 @@ fieldset.sem-borda {
   border: 0;
 }
 
-/* Título da seção com a ação ao lado (Projetos no Início). */
-.titulo-com-acao {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.titulo-com-acao h2 {
-  margin: 0;
-}

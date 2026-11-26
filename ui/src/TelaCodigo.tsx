@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { BarraAcoes, EstadoVazio } from "./componentes";
 import type { ApiConhecimento } from "./conhecimento";
 import { MudancasCodigo } from "./MudancasCodigo";
 import { MapaProjeto } from "./TelaProjeto";
@@ -13,13 +14,12 @@ export function TelaCodigo({ api, projeto }: { api: ApiConhecimento; projeto: st
   return (
     <section className="page" aria-label="Código">
       <h2>Código</h2>
-      {!projeto && <p className="muted">Nenhum projeto cadastrado.</p>}
+      {!projeto && <EstadoVazio>Nenhum projeto cadastrado.</EstadoVazio>}
       {projeto && api.mudancas && !mudancas && (
-        <p>
-          <button className="btn" type="button" onClick={() => setMudancas(true)}>
-            O que mudou no código
-          </button>
-        </p>
+        <BarraAcoes
+          secundarias={[{ texto: "O que mudou no código", aoEscolher: () => setMudancas(true) }]}
+          rotulo="Ações do código"
+        />
       )}
       {projeto && api.mudancas && mudancas && (
         <MudancasCodigo api={api.mudancas} projeto={projeto} aoFechar={() => setMudancas(false)} />

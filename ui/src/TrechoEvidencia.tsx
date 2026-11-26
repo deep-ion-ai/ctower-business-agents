@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { LinkForja, Trecho } from "./analise";
+import { Alerta } from "./componentes";
 
 export type CargaTrecho =
   | { tipo: "carregando"; chave: string }
@@ -93,9 +94,7 @@ export function TrechoEvidencia({
       )}
       {carga.tipo === "carregando" && <p className="muted">Abrindo o trecho…</p>}
       {carga.tipo === "erro" && (
-        <p className="error-text" role="alert">
-          {carga.mensagem}
-        </p>
+        <Alerta tom="erro" titulo={carga.mensagem} />
       )}
       {carga.tipo === "pronto" && (
         <div className="trecho-codigo">

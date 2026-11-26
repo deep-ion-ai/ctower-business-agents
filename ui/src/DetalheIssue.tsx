@@ -1,12 +1,19 @@
-import Markdown from "markdown-to-jsx";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { abrirLinkDoProjeto } from "./abrirLinkProjeto";
 import { mensagemDe } from "./analise";
 import type { ApiConhecimento, Encontrado } from "./conhecimento";
 import { situacaoEmTexto, type Acao } from "./acaoIssue";
 import type { Tela } from "./Navegacao";
 import type { IssueDoProjeto } from "./issuesProjeto";
-import { OPCOES_MARKDOWN_BASE } from "./markdownOpcoes";
+import {
+  Alerta,
+  BarraAcoes,
+  EstadoVazio,
+  Selo,
+  TextoRico,
+  TituloSecao,
+  type Acao as AcaoBotao,
+} from "./componentes";
 
 export const ROTULO_ORIGEM = { github: "GitHub", gitlab: "GitLab", jira: "Jira" } as const;
 
@@ -37,90 +44,89 @@ export function useAbrirLink(projeto: string) {
 export function AvisoAbrirLink({ falha }: { falha: FalhaLink | null }) {
   if (!falha) return null;
   return (
-    <p className="error-text" role="alert">
-      Não foi possível abrir o link no navegador. {falha.motivo}{" "}
-      <button
-        type="button"
-        className="link"
-        onClick={() => {
-          void navigator.clipboard?.writeText(falha.url).catch(() => undefined);
-        }}
-      >
-        Copiar a URL
-      </button>
-    </p>
+    <Alerta
+      tom="erro"
+      titulo="Não foi possível abrir o link no navegador."
+      acoes={
+        <button
+          type="button"
+          className="link"
+          onClick={() => {
+            void navigator.clipboard?.writeText(falha.url).catch(() => undefined);
+          }}
+        >
+          Copiar a URL
+        </button>
+      }
+    >
+      {falha.motivo}
+    </Alerta>
   );
 }
 
-/** Dois endereços do mesmo host (o da issue e o do link da descrição). */
-function mesmoHost(link: string, base: string): boolean {
-  try {
-    return new URL(link).host.toLowerCase() === new URL(base).host.toLowerCase();
-  } catch {
-    return false;
-  }
+/**
+ * A descrição da issue em Markdown (#398), pelo {@link TextoRico}: os links do host
+ * da issue abrem no navegador do sistema; os de outro host aparecem como texto, com
+ * o endereço no title. Imagens não carregam: viram o link delas, com o texto
+ * alternativo.
+ */
+export function DescricaoIssue({ issue, abrir }: { issue: IssueDoProjeto; abrir: (link: string) => void }) {
+  if (!issue.descricao.trim()) return <EstadoVazio>A issue não tem descrição.</EstadoVazio>;
+  return (
+    <TextoRico
+      texto={issue.descricao}
+      hostPermitido={issue.url}
+      aoAbrirLink={abrir}
+      className="demandas-descricao"
+    />
+  );
 }
 
 /**
- * A descrição da issue em Markdown (#398). Os links do host da issue abrem no
- * navegador do sistema; os de outro host aparecem como texto, com o endereço no
- * title. Imagens não carregam: viram o link delas, com o texto alternativo.
+ * A ação principal da demanda, no topo (#404): "Analisar impacto" (ou o rótulo que a
+ * situação der) e, quando houver, "Abrir em nova aba". O motivo do bloqueio fica
+ * junto do botão. No topo, ela não some numa descrição longa.
  */
-export function DescricaoIssue({ issue, abrir }: { issue: IssueDoProjeto; abrir: (link: string) => void }) {
-  const overrides = useMemo(() => {
-    const Link = ({ href, children }: { href?: string; children?: ReactNode }) => {
-      if (!href || !mesmoHost(href, issue.url)) {
-        return (
-          <span className="link-externo" title={href}>
-            {children}
-          </span>
-        );
-      }
-      return (
-        <a
-          href={href}
-          className="link"
-          onClick={(e) => {
-            e.preventDefault();
-            abrir(href);
-          }}
-        >
-          {children}
-        </a>
-      );
-    };
-    const Imagem = ({ src, alt }: { src?: string; alt?: string }) => <Link href={src}>{alt || src}</Link>;
-    return { a: { component: Link }, img: { component: Imagem } };
-  }, [issue.url, abrir]);
-
-  if (!issue.descricao.trim()) return <p className="muted">A issue não tem descrição.</p>;
+export function AcoesDaIssue({
+  acao,
+  analisando = false,
+  aoAgir,
+  secundarias,
+}: {
+  acao: Acao;
+  analisando?: boolean;
+  aoAgir: () => void;
+  /** Ações a mais na mesma fileira (ex.: "Abrir em nova aba"). */
+  secundarias?: AcaoBotao[];
+}) {
   return (
-    <div className="markdown demandas-descricao">
-      <Markdown options={{ ...OPCOES_MARKDOWN_BASE, overrides }}>{issue.descricao}</Markdown>
+    <div className="demandas-acoes">
+      <BarraAcoes
+        rotulo="Ações da demanda"
+        alinhamento="fim"
+        principal={{
+          texto: analisando ? "Analisando…" : acao.rotulo,
+          aoEscolher: aoAgir,
+          desabilitado: analisando || !!acao.bloqueio,
+        }}
+        secundarias={secundarias}
+      />
+      {acao.bloqueio && <p className="muted demandas-bloqueio">{acao.bloqueio}</p>}
     </div>
   );
 }
 
-/** O que a issue tem na base e as ações dela: situação, demanda, análise e funcionalidades. */
+/** O que a issue tem na base: situação, demanda, análise e funcionalidades. */
 export function NaBaseIssue({
   issue,
   projeto,
-  acao,
-  analisando,
-  aoAgir,
   navegar,
   aoAbrirAnalise,
-  acoesExtra,
 }: {
   issue: IssueDoProjeto;
   projeto: string;
-  acao: Acao;
-  analisando: boolean;
-  aoAgir: () => void;
   navegar: (t: Tela) => void;
   aoAbrirAnalise: (id: string) => void;
-  /** Botões a mais na mesma fileira da ação (ex.: "Abrir em nova aba"). */
-  acoesExtra?: ReactNode;
 }) {
   return (
     <div className="demandas-nabase">
@@ -162,13 +168,27 @@ export function NaBaseIssue({
           Vincular a funcionalidades
         </button>
       </p>
-      <div className="acoes">
-        <button type="button" className="btn btn-primary" disabled={analisando || !!acao.bloqueio} onClick={aoAgir}>
-          {analisando ? "Analisando…" : acao.rotulo}
-        </button>
-        {acoesExtra}
-      </div>
-      {acao.bloqueio && <p className="muted">{acao.bloqueio}</p>}
+    </div>
+  );
+}
+
+/**
+ * Uma parte da issue ("Descrição", "Na base", "Parecidas"): o título de seção e o
+ * conteúdo, afastados da parte de cima.
+ */
+export function ParteIssue({
+  titulo,
+  nivel,
+  children,
+}: {
+  titulo: string;
+  nivel: 3 | 4;
+  children: ReactNode;
+}) {
+  return (
+    <div className="demandas-parte">
+      <TituloSecao nivel={nivel}>{titulo}</TituloSecao>
+      {children}
     </div>
   );
 }
@@ -185,23 +205,25 @@ export function ParecidasLista({
   itens,
   regras,
   navegar,
+  nivel,
 }: {
   itens: ItemParecido[];
   regras: Encontrado[];
   navegar: (t: Tela) => void;
+  /** Nível do título "Parecidas" (abaixo do cabeçalho de quem mostra). */
+  nivel: 3 | 4;
 }) {
   return (
-    <>
-      <h4>Parecidas</h4>
+    <ParteIssue titulo="Parecidas" nivel={nivel}>
       {itens.length === 0 && regras.length === 0 ? (
-        <p className="muted">Nada parecido na lista nem nas regras da base.</p>
+        <EstadoVazio>Nada parecido na lista nem nas regras da base.</EstadoVazio>
       ) : (
         <ul className="linhas demandas-parecidas" aria-label="Itens parecidos">
           {itens.map((s) => (
             <li key={s.chave}>
               <span className="id">{s.id}</span>
               <span className="tit">{s.titulo}</span>
-              {s.analise && <span className="badge">{s.analise}</span>}
+              {s.analise && <Selo tom="neutro">{s.analise}</Selo>}
             </li>
           ))}
           {regras.map((r) => (
@@ -214,7 +236,7 @@ export function ParecidasLista({
           ))}
         </ul>
       )}
-    </>
+    </ParteIssue>
   );
 }
 

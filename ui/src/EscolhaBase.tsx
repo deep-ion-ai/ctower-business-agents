@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { mensagemDe } from "./analise";
+import { Alerta, Secao } from "./componentes";
 import type { ApiPrimeiroUso, AvaliacaoBase, EstadoPasta } from "./primeiroUso";
+import "./assistenteProjeto.css";
 
 type Api = Pick<ApiPrimeiroUso, "avaliarBase" | "configurarBase" | "escolherPasta">;
 
@@ -70,18 +72,8 @@ export function EscolhaBase({
 
   const recusa = avaliacao?.recusa ?? null;
 
-  return (
-    <form className="passo-assistente" onSubmit={salvar} aria-label="Pasta da base de conhecimento">
-      {!compacto && (
-        <>
-          <h2>Onde guardar os documentos?</h2>
-          <p>
-            A base de conhecimento é uma pasta comum com os documentos das análises, em Markdown.
-            Pode ser uma pasta sincronizada (OneDrive, Google Drive) ou um repositório git seu, mas
-            não a pasta do código do projeto.
-          </p>
-        </>
-      )}
+  const formulario = (
+    <form className="escolha-base" onSubmit={salvar} aria-label="Pasta da base de conhecimento">
       <label>
         Pasta da base (caminho completo){" "}
         <input
@@ -126,11 +118,30 @@ export function EscolhaBase({
           {avaliacao.git && " Ela está num repositório git."}
         </p>
       )}
-      {(recusa ?? falha) && (
-        <p className="error-text" role="alert">
-          {recusa ?? falha}
-        </p>
+      {recusa ? (
+        <Alerta tom="erro" titulo="Esta pasta não serve para a base.">
+          {recusa}
+        </Alerta>
+      ) : (
+        falha && (
+          <Alerta tom="erro" titulo="Não deu para usar a pasta.">
+            {falha}
+          </Alerta>
+        )
       )}
     </form>
+  );
+
+  // Compacto: dentro de um diálogo que já tem o título e a explicação.
+  if (compacto) return formulario;
+  return (
+    <Secao titulo="Onde guardar os documentos?" className="passo-primeiro-uso">
+      <p>
+        A base de conhecimento é uma pasta comum com os documentos das análises, em Markdown. Pode
+        ser uma pasta sincronizada (OneDrive, Google Drive) ou um repositório git seu, mas não a
+        pasta do código do projeto.
+      </p>
+      {formulario}
+    </Secao>
   );
 }

@@ -1,14 +1,13 @@
-import Markdown from "markdown-to-jsx";
 import { useEffect, useState, type ClipboardEvent, type DragEvent, type FormEvent } from "react";
 import type { Revisao } from "./AcoesRevisao";
 import { mensagemDe, type PassoManual } from "./analise";
+import { Alerta, EstadoVazio, Selo, TextoRico, TituloSecao } from "./componentes";
 import {
   AVISO_DADOS_SENSIVEIS,
   apiManualTauri,
   comoPng,
   type ApiManual,
 } from "./manual";
-import { OPCOES_MARKDOWN_BASE } from "./markdownOpcoes";
 
 /** Imagem de um print da base, lida pelo app (o arquivo não é servido à tela). */
 export function ImagemDaBase({
@@ -113,9 +112,9 @@ function FormPrint({
 
   return (
     <form className="form-print" aria-label={`Print do passo ${passo.numero}`} onSubmit={salvar}>
-      <p className="aviso-dados" role="note">
+      <Alerta tom="atencao" titulo="Dados sensíveis." role="note">
         {AVISO_DADOS_SENSIVEIS}
-      </p>
+      </Alerta>
       <div
         className="area-print"
         tabIndex={0}
@@ -150,7 +149,7 @@ function FormPrint({
         <input value={alt} onChange={(e) => setAlt(e.target.value)} />
       </label>
       {erro && (
-        <p className="erro" role="alert">
+        <p className="error-text" role="alert">
           {erro}
         </p>
       )}
@@ -303,12 +302,8 @@ function CartaoPasso({
         <strong>
           Passo {p.numero} · {p.titulo}
         </strong>
-        {pendente && (
-          <span className="badge" data-tone="attention">
-            sem print
-          </span>
-        )}
-        {p.print_dispensado && <span className="chip">print dispensado</span>}
+        {pendente && <Selo tom="atencao">sem print</Selo>}
+        {p.print_dispensado && <Selo tom="neutro">print dispensado</Selo>}
       </div>
       {form === "passo" && revisao ? (
         <FormPasso
@@ -327,9 +322,7 @@ function CartaoPasso({
           }
         />
       ) : (
-        <div className="markdown">
-          <Markdown options={OPCOES_MARKDOWN_BASE}>{p.instrucao}</Markdown>
-        </div>
+        <TextoRico texto={p.instrucao} />
       )}
       {p.print ? (
         <figure className="figura-passo">
@@ -376,7 +369,7 @@ function CartaoPasso({
         />
       )}
       {erro && (
-        <p className="erro" role="alert">
+        <p className="error-text" role="alert">
           {erro}
         </p>
       )}
@@ -464,16 +457,20 @@ export function ManualAoVivo({
   const semPrint = passos.filter((p) => !p.print && !p.print_dispensado).length;
   return (
     <section aria-label="Passo a passo" className="manual-ao-vivo">
-      <header className="linha-cabecalho">
-        <h3>Passo a passo</h3>
-        {semPrint > 0 && (
-          <span className="badge" data-tone="attention">
-            {semPrint === 1 ? "1 passo sem print" : `${semPrint} passos sem print`}
-          </span>
-        )}
-      </header>
+      <TituloSecao
+        nivel={3}
+        acoes={
+          semPrint > 0 && (
+            <Selo tom="atencao">
+              {semPrint === 1 ? "1 passo sem print" : `${semPrint} passos sem print`}
+            </Selo>
+          )
+        }
+      >
+        Passo a passo
+      </TituloSecao>
       {passos.length === 0 ? (
-        <p className="muted">Nenhum passo registrado ainda.</p>
+        <EstadoVazio>Nenhum passo registrado ainda.</EstadoVazio>
       ) : (
         <ol className="passos-manual">
           {passos.map((p) => (

@@ -1,5 +1,6 @@
 import type { Analise } from "./analise";
 import { agentesDaFase, ROTULO_SITUACAO } from "./conducao";
+import { Alerta, Selo } from "./componentes";
 
 interface Props {
   analise: Analise;
@@ -29,9 +30,9 @@ export function ProgressoWorkflow({ analise, pedidoSemWorkflow, aoContinuarSemWo
   return (
     <section className="progresso-workflow" aria-label="Workflow da análise">
       {aviso && (
-        <p className="aviso-conducao" role="status">
-          Conduzida sem workflow: {aviso}
-        </p>
+        <Alerta tom="atencao" titulo="Conduzida sem workflow:">
+          {aviso}
+        </Alerta>
       )}
       {w && (
         <>
@@ -41,18 +42,17 @@ export function ProgressoWorkflow({ analise, pedidoSemWorkflow, aoContinuarSemWo
               (workflow {w.nome}
               {w.retomada ? ", retomado" : ""})
             </span>{" "}
-            <span
-              className="badge"
-              data-tone={
+            <Selo
+              tom={
                 w.situacao === "concluido"
-                  ? "done"
+                  ? "concluido"
                   : w.situacao === "rodando"
-                    ? "running"
-                    : "attention"
+                    ? "andamento"
+                    : "atencao"
               }
             >
               {ROTULO_SITUACAO[w.situacao]}
-            </span>
+            </Selo>
           </p>
           {w.fases.length > 0 ? (
             <ol className="fases-workflow" aria-label="Fases do workflow">

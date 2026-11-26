@@ -1,10 +1,27 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { mensagemDe } from "./analise";
+import {
+  Alerta,
+  Cartao,
+  EstadoVazio,
+  MenuAcoes,
+  Secao,
+  Selo,
+  TextoRico,
+} from "./componentes";
 import {
   agrupar,
   apiPautaTauri,
   destinatarioDoValor,
   hojeLocal,
+  origemCurta,
   valorDestinatario,
   type Agrupamento,
   type ApiPauta,
@@ -12,7 +29,6 @@ import {
   type FormatoPauta,
   type ItemDaPauta,
   type Pauta,
-  type PerguntaDaPauta,
   type RespostaRegistrada,
 } from "./pauta";
 import { ROTULO_STATUS_PREMISSA, type StatusPremissa } from "./registros";
@@ -24,15 +40,19 @@ const ROTULO_AGRUPAMENTO: Record<Agrupamento, string> = {
   tema: "Tema",
 };
 
-function origem(p: PerguntaDaPauta): string {
-  return p.fonte.tipo === "analise"
-    ? `${p.referencia} · ${p.fonte.titulo}`
-    : `${p.referencia} · reunião de ${p.fonte.data}`;
-}
+/**
+ * Quantas perguntas cada grupo mostra antes do "Mostrar as outras N" (prancheta
+ * Demanda reorganizada). Sobrando só uma, ela aparece direto.
+ */
+export const PERGUNTAS_VISIVEIS = 3;
 
 function idade(dias: number): string {
   if (dias === 0) return "aberta hoje";
   return dias === 1 ? "há 1 dia" : `há ${dias} dias`;
+}
+
+function quantas(n: number): string {
+  return n === 1 ? "1 pergunta" : `${n} perguntas`;
 }
 
 /**
@@ -43,6 +63,11 @@ function idade(dias: number): string {
  * analista escolhe o destinatário, copia o e-mail de um grupo, exporta a pauta e
  * registra a resposta, que fecha a pergunta em cada análise de origem e pode virar
  * regra (informada, sem evidência no código) ou validar uma premissa.
+ *
+ * Desenho (#408): cada pergunta é um cartão com o número, a pergunta em destaque e o
+ * selo da idade; "O que o sistema faz hoje" fica recolhido e, aberto, sai em
+ * Markdown; a origem é um link curto (`A-0011 · pergunta 1`), na mesma linha do
+ * "Para" e do "Registrar resposta".
  */
 export function PautaPerguntas({
   projeto,
@@ -115,35 +140,43 @@ export function PautaPerguntas({
         gravado && setAviso(`Pauta exportada em ${String(gravado)}.`),
     );
 
-  const titulo = <h3>Pauta de perguntas</h3>;
+  const erro = falha && (
+    <Alerta tom="erro" titulo="Não foi possível concluir.">
+      {falha}
+    </Alerta>
+  );
+
   if (!pauta) {
     return (
-      <section aria-label="Pauta de perguntas" className="pauta-perguntas">
-        {titulo}
-        {falha ? (
-          <p className="error-text" role="alert">
-            {falha}
-          </p>
-        ) : (
-          <p className="muted">Carregando…</p>
-        )}
-      </section>
+      <Secao titulo="Pauta de perguntas" nivel={3} className="pauta-perguntas">
+        {erro || <p className="muted">Carregando…</p>}
+      </Secao>
     );
   }
 
   const grupos = agrupar(pauta, modo);
+  const semPerguntas = ocupado || pauta.total === 0;
   return (
-    <section aria-label="Pauta de perguntas" className="pauta-perguntas">
-      <header className="pauta-cabecalho">
-        {titulo}
-        <span className="badge">{pauta.total} em aberto</span>
-        {pauta.antigas > 0 && (
-          <span className="badge" data-tone="attention">
-            {pauta.antigas} antiga{pauta.antigas > 1 ? "s" : ""}
-          </span>
-        )}
-        <div className="pauta-acoes">
-          <label>
+    <Secao
+      rotulo="Pauta de perguntas"
+      nivel={3}
+      className="pauta-perguntas"
+      titulo={
+        <>
+          Pauta de perguntas <Selo>{`${pauta.total} em aberto`}</Selo>
+          {pauta.antigas > 0 && (
+            <>
+              {" "}
+              <Selo tom="atencao">
+                {`${pauta.antigas} antiga${pauta.antigas > 1 ? "s" : ""}`}
+              </Selo>
+            </>
+          )}
+        </>
+      }
+      acoes={
+        <>
+          <label className="pauta-agrupar">
             Agrupar por{" "}
             <select
               value={modo}
@@ -156,29 +189,18 @@ export function PautaPerguntas({
               ))}
             </select>
           </label>
-          <button
-            type="button"
-            className="btn"
-            disabled={ocupado || pauta.total === 0}
-            onClick={() => exportar("markdown")}
-          >
-            Exportar Markdown
-          </button>
-          <button
-            type="button"
-            className="btn"
-            disabled={ocupado || pauta.total === 0}
-            onClick={() => exportar("word")}
-          >
-            Exportar Word
-          </button>
-        </div>
-      </header>
-      {falha && (
-        <p className="error-text" role="alert">
-          {falha}
-        </p>
-      )}
+          <MenuAcoes
+            rotulo="Exportar"
+            desabilitado={semPerguntas}
+            itens={[
+              { texto: "Markdown", aoEscolher: () => exportar("markdown") },
+              { texto: "Word", aoEscolher: () => exportar("word") },
+            ]}
+          />
+        </>
+      }
+    >
+      {erro}
       {aviso && (
         <p className="muted" role="status">
           {aviso}
@@ -186,153 +208,278 @@ export function PautaPerguntas({
       )}
 
       {pauta.total === 0 ? (
-        <p className="muted">
+        <EstadoVazio>
           Nenhuma pergunta em aberto: as perguntas para o solicitante das
           análises e as dúvidas das atas aprovadas aparecem aqui.
-        </p>
+        </EstadoVazio>
       ) : (
-        grupos.map((g, i) => (
-          <section key={g.rotulo} aria-label={g.rotulo} className="pauta-grupo">
-            <h4>
-              {g.rotulo} <span className="badge">{g.itens.length}</span>
-              {modo === "destinatario" && pauta.emails[i] && (
-                <button
-                  type="button"
-                  className="link"
-                  onClick={() =>
-                    executar(
-                      () => api.copiar(pauta.emails[i]),
-                      () => setAviso(`E-mail para ${g.rotulo} copiado.`),
+        grupos.map((g, i) => {
+          const email = modo === "destinatario" ? pauta.emails[i] : undefined;
+          return (
+            <GrupoPauta
+              key={`${modo}:${g.rotulo}`}
+              rotulo={g.rotulo}
+              itens={g.itens}
+              aoCopiar={
+                email
+                  ? () =>
+                      executar(
+                        () => api.copiar(email),
+                        () => setAviso(`E-mail para ${g.rotulo} copiado.`),
+                      )
+                  : undefined
+              }
+              ocupado={ocupado}
+              renderizar={(item, n) => (
+                <CartaoPergunta
+                  key={item.perguntas.map((p) => p.referencia).join(",")}
+                  numero={n}
+                  item={item}
+                  pauta={pauta}
+                  ocupado={ocupado}
+                  abrirOrigem={(p) =>
+                    p.fonte.tipo === "analise"
+                      ? abrirAnalise?.(p.fonte.id)
+                      : abrirDocumento?.(p.documento)
+                  }
+                  aoDefinirDestinatario={(valor) =>
+                    executar(() =>
+                      api.definirDestinatario(
+                        projeto,
+                        item.perguntas.map((p) => p.referencia),
+                        destinatarioDoValor(valor),
+                      ),
                     )
                   }
-                >
-                  copiar e-mail
-                </button>
-              )}
-            </h4>
-            <ul className="pauta-itens">
-              {g.itens.map((item) => (
-                <li
-                  key={item.perguntas.map((p) => p.referencia).join(",")}
-                  data-antiga={item.antiga || undefined}
-                >
-                  <p className="pauta-texto">
-                    {item.texto}{" "}
-                    <span
-                      className="badge"
-                      data-tone={item.antiga ? "attention" : undefined}
-                    >
-                      {idade(item.idadeDias)}
-                    </span>
-                    {item.perguntas.length > 1 && (
-                      <span className="badge" data-tone="running">
-                        {item.perguntas.length} perguntas iguais
-                      </span>
-                    )}
-                  </p>
-                  {[
-                    ...new Set(
-                      item.perguntas.map((p) => p.contexto).filter(Boolean),
-                    ),
-                  ].map((c) => (
-                    <p key={c} className="pauta-contexto">
-                      <strong>O que o sistema faz hoje:</strong> {c}
-                    </p>
-                  ))}
-                  <ul className="pauta-origens">
-                    {item.perguntas.map((p) => (
-                      <li key={p.referencia}>
-                        <button
-                          type="button"
-                          className="link"
-                          onClick={() =>
-                            p.fonte.tipo === "analise"
-                              ? abrirAnalise?.(p.fonte.id)
-                              : abrirDocumento?.(p.documento)
-                          }
-                        >
-                          {origem(p)}
-                        </button>
-                        {p.texto !== item.texto && (
-                          <span className="muted"> · “{p.texto}”</span>
-                        )}
-                        {p.bloqueia.length > 0 && (
-                          <span className="muted">
-                            {" "}
-                            · bloqueia {p.bloqueia.join(", ")}
-                          </span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="pauta-item-acoes">
-                    <label>
-                      Para{" "}
-                      <select
-                        aria-label={`Destinatário de ${item.perguntas[0].referencia}`}
-                        value={valorDestinatario(item.destinatario)}
-                        disabled={ocupado}
-                        onChange={(e) =>
-                          executar(() =>
-                            api.definirDestinatario(
-                              projeto,
-                              item.perguntas.map((p) => p.referencia),
-                              destinatarioDoValor(e.target.value),
-                            ),
+                  aoResponder={() => setRespondendo(item)}
+                  formulario={
+                    respondendo === item && (
+                      <FormResposta
+                        item={item}
+                        pauta={pauta}
+                        ocupado={ocupado}
+                        aoCancelar={() => setRespondendo(null)}
+                        aoEnviar={(resposta) =>
+                          executar(
+                            () => api.registrarResposta(projeto, resposta),
+                            (r) => {
+                              setRespondendo(null);
+                              setAviso(resumo(r as RespostaRegistrada));
+                            },
                           )
                         }
-                      >
-                        <option value="">sem destinatário</option>
-                        <optgroup label="Pessoas">
-                          {pauta.pessoas.map((p) => (
-                            <option key={p.slug} value={`pessoa:${p.slug}`}>
-                              {p.nome}
-                              {p.papel ? ` (${p.papel})` : ""}
-                            </option>
-                          ))}
-                        </optgroup>
-                        <optgroup label="Papéis">
-                          {pauta.papeis.map((p) => (
-                            <option key={p} value={`papel:${p}`}>
-                              {p}
-                            </option>
-                          ))}
-                        </optgroup>
-                      </select>
-                    </label>
-                    <button
-                      type="button"
-                      className="btn"
-                      disabled={ocupado}
-                      onClick={() => setRespondendo(item)}
-                    >
-                      Registrar resposta
-                    </button>
-                  </div>
-                  {respondendo === item && (
-                    <FormResposta
-                      item={item}
-                      pauta={pauta}
-                      ocupado={ocupado}
-                      aoCancelar={() => setRespondendo(null)}
-                      aoEnviar={(resposta) =>
-                        executar(
-                          () => api.registrarResposta(projeto, resposta),
-                          (r) => {
-                            setRespondendo(null);
-                            setAviso(resumo(r as RespostaRegistrada));
-                          },
-                        )
-                      }
-                    />
-                  )}
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))
+                      />
+                    )
+                  }
+                />
+              )}
+            />
+          );
+        })
+      )}
+    </Secao>
+  );
+}
+
+/**
+ * Um grupo da pauta: o título, a quantidade e "Copiar como e-mail"; as primeiras
+ * {@link PERGUNTAS_VISIVEIS} perguntas e "Mostrar as outras N" (um botão, com
+ * `aria-expanded`, que fica no lugar e vira "Mostrar menos": o foco não se perde).
+ */
+function GrupoPauta({
+  rotulo,
+  itens,
+  aoCopiar,
+  ocupado,
+  renderizar,
+}: {
+  rotulo: string;
+  itens: ItemDaPauta[];
+  aoCopiar?: () => void;
+  ocupado: boolean;
+  renderizar: (item: ItemDaPauta, numero: number) => ReactNode;
+}) {
+  const idLista = useId();
+  const [todas, setTodas] = useState(false);
+  const recolhe = itens.length > PERGUNTAS_VISIVEIS + 1;
+  const visiveis = recolhe && !todas ? itens.slice(0, PERGUNTAS_VISIVEIS) : itens;
+  const outras = itens.length - PERGUNTAS_VISIVEIS;
+  return (
+    <section aria-label={rotulo} className="pauta-grupo">
+      <div className="pauta-grupo-cabecalho">
+        <h4>{rotulo}</h4>
+        <span className="pauta-grupo-qtd">{quantas(itens.length)}</span>
+        {aoCopiar && (
+          <button
+            type="button"
+            className="link"
+            disabled={ocupado}
+            onClick={aoCopiar}
+          >
+            Copiar como e-mail
+          </button>
+        )}
+      </div>
+      <ol id={idLista} className="pauta-itens">
+        {visiveis.map((item, i) => renderizar(item, i + 1))}
+      </ol>
+      {recolhe && (
+        <button
+          type="button"
+          className="link pauta-mais"
+          aria-expanded={todas}
+          aria-controls={idLista}
+          onClick={() => setTodas((t) => !t)}
+        >
+          {todas ? "Mostrar menos" : `Mostrar as outras ${outras} perguntas`}
+        </button>
       )}
     </section>
+  );
+}
+
+/**
+ * O cartão de uma pergunta (ou de perguntas iguais juntas): número, pergunta e
+ * idade; "O que o sistema faz hoje" recolhido; a origem curta, o "Para" e o
+ * "Registrar resposta" numa linha só.
+ */
+function CartaoPergunta({
+  numero,
+  item,
+  pauta,
+  ocupado,
+  abrirOrigem,
+  aoDefinirDestinatario,
+  aoResponder,
+  formulario,
+}: {
+  numero: number;
+  item: ItemDaPauta;
+  pauta: Pauta;
+  ocupado: boolean;
+  abrirOrigem: (p: ItemDaPauta["perguntas"][number]) => void;
+  aoDefinirDestinatario: (valor: string) => void;
+  aoResponder: () => void;
+  formulario: ReactNode;
+}) {
+  const idContexto = useId();
+  const [contextoAberto, setContextoAberto] = useState(false);
+  const contextos = [
+    ...new Set(
+      item.perguntas
+        .map((p) => p.contexto?.trim())
+        .filter((c): c is string => !!c),
+    ),
+  ];
+  return (
+    <Cartao
+      como="li"
+      className={item.antiga ? "pauta-item pauta-item-antiga" : "pauta-item"}
+    >
+      <div className="pauta-item-topo">
+        <span className="pauta-numero" aria-hidden="true">
+          {numero}
+        </span>
+        <p className="pauta-texto">{item.texto}</p>
+        <span className="pauta-selos">
+          <Selo tom={item.antiga ? "atencao" : undefined}>
+            {idade(item.idadeDias)}
+          </Selo>
+          {item.perguntas.length > 1 && (
+            <Selo>{`${item.perguntas.length} perguntas iguais`}</Selo>
+          )}
+        </span>
+      </div>
+      <div className="pauta-item-corpo">
+        {contextos.length > 0 && (
+          <div className="pauta-contexto">
+            <button
+              type="button"
+              className="link pauta-alternar"
+              aria-expanded={contextoAberto}
+              aria-controls={contextoAberto ? idContexto : undefined}
+              onClick={() => setContextoAberto((a) => !a)}
+            >
+              <span aria-hidden="true">{contextoAberto ? "▾" : "▸"}</span>{" "}
+              O que o sistema faz hoje
+            </button>
+            {contextoAberto && (
+              <div id={idContexto} className="pauta-contexto-texto">
+                {contextos.map((c) => (
+                  <TextoRico key={c} texto={c} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        <div className="pauta-rodape">
+          <ul className="pauta-origens" aria-label="Origem">
+            {item.perguntas.map((p) => (
+              <li key={p.referencia}>
+                <button
+                  type="button"
+                  className="link pauta-origem"
+                  title={
+                    p.fonte.tipo === "analise"
+                      ? `${p.fonte.id}: ${p.fonte.titulo}`
+                      : `Reunião de ${p.fonte.data}`
+                  }
+                  onClick={() => abrirOrigem(p)}
+                >
+                  {origemCurta(p)}
+                </button>
+                {p.texto !== item.texto && (
+                  <span className="muted"> · “{p.texto}”</span>
+                )}
+                {p.bloqueia.length > 0 && (
+                  <span className="muted">
+                    {" "}
+                    · bloqueia {p.bloqueia.join(", ")}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+          <div className="pauta-item-acoes">
+            <label>
+              Para{" "}
+              <select
+                aria-label={`Destinatário de ${item.perguntas[0].referencia}`}
+                value={valorDestinatario(item.destinatario)}
+                disabled={ocupado}
+                onChange={(e) => aoDefinirDestinatario(e.target.value)}
+              >
+                <option value="">sem destinatário</option>
+                <optgroup label="Pessoas">
+                  {pauta.pessoas.map((p) => (
+                    <option key={p.slug} value={`pessoa:${p.slug}`}>
+                      {p.nome}
+                      {p.papel ? ` (${p.papel})` : ""}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Papéis">
+                  {pauta.papeis.map((p) => (
+                    <option key={p} value={`papel:${p}`}>
+                      {p}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            </label>
+            <button
+              type="button"
+              className="btn"
+              disabled={ocupado}
+              onClick={aoResponder}
+            >
+              Registrar resposta
+            </button>
+          </div>
+        </div>
+        {formulario}
+      </div>
+    </Cartao>
   );
 }
 
@@ -480,7 +627,7 @@ function FormResposta({
               checked={fechar.includes(p.referencia)}
               onChange={() => alternar(p.referencia)}
             />{" "}
-            {origem(p)}
+            {origemCurta(p)}
           </label>
         ))}
       </fieldset>

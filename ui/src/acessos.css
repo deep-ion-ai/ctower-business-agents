@@ -1,28 +1,5 @@
 /* Seção Acessos das configurações (#193). Cores só por token de theme.css. */
 
-.acessos-cartao {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-2);
-}
-
-.acessos-cabecalho {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
-  background: var(--bg-header);
-  border-bottom: 1px solid var(--border);
-  border-radius: 8px 8px 0 0;
-}
-
-.acessos-cabecalho h4 {
-  flex: 1;
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-}
-
 .acessos-lista {
   list-style: none;
   margin: 0;
@@ -30,7 +7,7 @@
 }
 
 .acessos-linha {
-  padding: 12px 16px;
+  padding: var(--space-3) 0;
   border-bottom: 1px solid var(--border);
 }
 
@@ -55,45 +32,7 @@
 }
 
 .acessos-texto .muted {
-  font-size: 12px;
-}
-
-.acessos-forja {
-  min-width: 54px;
-  padding: 2px 8px;
-  border: 1px solid var(--border-strong);
-  border-radius: 999px;
-  background: var(--idle-bg);
-  color: var(--text-2);
-  font-size: 12px;
-  text-align: center;
-}
-
-.acessos-chip {
-  padding: 2px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--idle-bg);
-  color: var(--text-2);
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.acessos-chip[data-tom="ok"] {
-  background: var(--done-bg);
-  color: var(--ok);
-}
-
-.acessos-chip[data-tom="atencao"] {
-  background: var(--attention-bg);
-  border-color: var(--attention-border);
-  color: var(--attention);
-}
-
-.acessos-chip[data-tom="erro"] {
-  background: var(--error-bg);
-  border-color: var(--error-border);
-  color: var(--error-soft);
+  font-size: var(--fs-small);
 }
 
 .acessos-acoes {
@@ -123,7 +62,7 @@
 }
 
 .acessos-novo {
-  margin: 12px 16px;
+  margin: 0;
   padding: 0;
   border: none;
   background: none;
@@ -136,7 +75,7 @@
 }
 
 .acessos-form .field {
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--muted);
 }
 
@@ -147,15 +86,6 @@
   margin: 0;
   padding: 0;
   border: none;
-}
-
-.acessos-vazio {
-  margin: 0;
-  padding: 12px 16px;
-}
-
-.acessos-comando {
-  padding: 12px 16px;
 }
 
 .acessos-comando summary {

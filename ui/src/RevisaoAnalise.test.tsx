@@ -268,8 +268,8 @@ describe("Revisão, aprovação e exportação", () => {
     // Aprovada: o documento fica só de leitura, e a incorreta segue registrada.
     // O estado da análise fica na barra do topo.
     expect(await within(screen.getByRole("banner")).findByText("aprovada")).toHaveAttribute(
-      "data-tone",
-      "done",
+      "data-tom",
+      "concluido",
     );
     expect(screen.queryByRole("group", { name: "Revisão da afirmação 1" })).not.toBeInTheDocument();
     expect(c.estado().afirmacoes[1]).toMatchObject({
@@ -296,6 +296,11 @@ describe("Revisão, aprovação e exportação", () => {
     );
     expect(await screen.findByText("Depois da carência, a multa é de 2%.")).toBeInTheDocument();
     expect(screen.getByText(/texto editado pelo analista/)).toBeInTheDocument();
+    fireEvent.click(
+      within(afirmacao(1).closest("li")!).getByRole("button", {
+        name: "Ver a evidência no código",
+      }),
+    );
     expect(
       within(afirmacao(1).closest("li")!).getByRole("button", {
         name: "03_pkg_cobranca.sql:71-72",

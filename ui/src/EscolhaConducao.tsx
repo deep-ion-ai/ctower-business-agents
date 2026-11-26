@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Conducao, Fluxo } from "./analise";
 import { textoDaEstimativa, textoDaFase, type ApiConducao, type ConducaoDisponivel } from "./conducao";
+import { Alerta } from "./componentes";
 
 interface Props {
   api: ApiConducao;
@@ -71,9 +72,11 @@ export function EscolhaConducao({ api, projeto, fluxo, valor, aoMudar }: Props) 
           : `Aprofundada indisponível: ${disponivel.motivo ?? "motivo desconhecido"}.`}
       </p>
       {disponivel.disponivel && (
-        <p className="alerta-conducao" role="note">
-          Somente justifica o uso em análises complexas ou de funcionalidades críticas.
-        </p>
+        <Alerta
+          tom="atencao"
+          role="note"
+          titulo="Somente justifica o uso em análises complexas ou de funcionalidades críticas."
+        />
       )}
       {disponivel.fases.length > 0 && (
         <details className="conducao-fases">

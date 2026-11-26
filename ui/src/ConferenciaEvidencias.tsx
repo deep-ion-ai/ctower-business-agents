@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { mensagemDe } from "./analise";
+import { Alerta, BarraAcoes, type Acao } from "./componentes";
 import type { ApiConhecimento, ResumoRevalidacao } from "./conhecimento";
 import { contar } from "./formatacao";
 import { MudancasCodigo } from "./MudancasCodigo";
@@ -46,33 +47,28 @@ export function ConferenciaEvidencias({
     // `aoMudar` troca a cada render do pai; só o projeto e a api disparam de novo.
   }, [api, projeto]);
 
+  const acoes: Acao[] = [
+    { texto: "Conferir de novo", aoEscolher: revalidar, desabilitado: revalidacao.tipo === "conferindo" },
+    ...(api.mudancas && !mudancas
+      ? [{ texto: "O que mudou no código", aoEscolher: () => setMudancas(true) }]
+      : []),
+  ];
+
   return (
     <>
+      {revalidacao.tipo === "falha" && (
+        <Alerta tom="erro" titulo="Não foi possível conferir as evidências.">
+          {revalidacao.mensagem}
+        </Alerta>
+      )}
       <div className="revalidacao" role="status" aria-label="Revalidação">
         {revalidacao.tipo === "conferindo" && (
           <span className="muted">Conferindo as evidências com o código atual…</span>
         )}
-        {revalidacao.tipo === "falha" && (
-          <span className="error-text">
-            Não foi possível conferir as evidências: {revalidacao.mensagem}
-          </span>
-        )}
         {revalidacao.tipo === "feita" && (
           <TextoRevalidacao resumo={revalidacao.resumo} em={revalidacao.em} />
-        )}{" "}
-        <button
-          className="btn"
-          type="button"
-          onClick={revalidar}
-          disabled={revalidacao.tipo === "conferindo"}
-        >
-          Conferir de novo
-        </button>
-        {api.mudancas && !mudancas && (
-          <button className="btn" type="button" onClick={() => setMudancas(true)}>
-            O que mudou no código
-          </button>
         )}
+        <BarraAcoes secundarias={acoes} rotulo="Conferência das evidências" />
       </div>
       {api.mudancas && mudancas && (
         <MudancasCodigo api={api.mudancas} projeto={projeto} aoFechar={() => setMudancas(false)} />

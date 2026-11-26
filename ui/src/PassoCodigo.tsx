@@ -1,5 +1,7 @@
 import { useEffect, useState, type ClipboardEvent } from "react";
 import { mensagemDe } from "./analise";
+import { Alerta, BotaoIcone, Cartao, ItemLista, ListaItens, Selo } from "./componentes";
+import { IconeDescartar } from "./icones";
 import {
   ROTULO_FORJA,
   clonesPreenchidos,
@@ -214,9 +216,9 @@ function PastaExistente({
           </span>
         </button>
         {falha && (
-          <p className="error-text" role="alert">
+          <Alerta tom="erro" titulo="Não deu para escolher a pasta.">
             {falha}
-          </p>
+          </Alerta>
         )}
       </div>
     );
@@ -225,7 +227,7 @@ function PastaExistente({
   const detectados = codigo.detectados;
   return (
     <div className="pasta-existente">
-      <div className="cartao-assistente">
+      <Cartao como="div">
         <div className="linha-pasta-escolhida">
           <code className="caminho-escolhido">{codigo.pasta}</code>
           <button
@@ -252,24 +254,26 @@ function PastaExistente({
           )}
         </div>
         {detectados && detectados.length > 0 && (
-          <ul className="lista-repos" aria-label="Repositórios git encontrados">
+          <ListaItens rotulo="Repositórios git encontrados">
             {detectados.map((d) => (
-              <li key={d.caminho}>
-                <code>{nomeDaPasta(d.caminho)}/</code>
-                {d.forja && d.host ? (
-                  <span className="badge" data-tone="running">
-                    {ROTULO_FORJA[d.forja]} · {d.host}
+              <ItemLista key={d.caminho}>
+                <span className="linha-repo-lido">
+                  <code>{nomeDaPasta(d.caminho)}/</code>
+                  {d.forja && d.host ? (
+                    <Selo tom="neutro">
+                      {ROTULO_FORJA[d.forja]} · {d.host}
+                    </Selo>
+                  ) : (
+                    <Selo tom="neutro">sem remoto conhecido</Selo>
+                  )}
+                  <span className="muted">
+                    {d.branch ? `branch ${d.branch}` : "sem branch"}
+                    {d.caminhoRepo ? ` · ${d.caminhoRepo}` : ""}
                   </span>
-                ) : (
-                  <span className="badge">sem remoto conhecido</span>
-                )}
-                <span className="muted">
-                  {d.branch ? `branch ${d.branch}` : "sem branch"}
-                  {d.caminhoRepo ? ` · ${d.caminhoRepo}` : ""}
                 </span>
-              </li>
+              </ItemLista>
             ))}
-          </ul>
+          </ListaItens>
         )}
         {detectados !== null &&
           repositoriosDetectados(detectados).length < detectados.length &&
@@ -278,11 +282,11 @@ function PastaExistente({
               Os sem remoto do GitHub ou do GitLab entram só como pastas do código.
             </p>
           )}
-      </div>
+      </Cartao>
       {falha && (
-        <p className="error-text" role="alert">
+        <Alerta tom="erro" titulo="Não deu para escolher a pasta.">
           {falha}
-        </p>
+        </Alerta>
       )}
       <CampoNome
         codigo={codigo}
@@ -339,7 +343,7 @@ function Clonar({
   if (todosClonados(codigo) && !codigo.editandoClones) {
     return (
       <div className="clonar">
-        <div className="cartao-assistente" role="group" aria-label="Repositórios clonados">
+        <Cartao rotulo="Repositórios clonados">
           <div className="linha-resumo-clone">
             <span className="ok-text" aria-hidden="true">
               ✓
@@ -356,21 +360,21 @@ function Clonar({
               Alterar repositórios
             </button>
           </div>
-          <ul className="lista-repos">
+          <ListaItens>
             {preenchidos.map((c) => (
-              <li key={c.chave}>
-                <code>{nomeDaPasta(c.repo.pasta ?? "")}/</code>
-                <span className="badge" data-tone="running">
-                  {ROTULO_FORJA[c.repo.forja]}
+              <ItemLista key={c.chave}>
+                <span className="linha-repo-lido">
+                  <code>{nomeDaPasta(c.repo.pasta ?? "")}/</code>
+                  <Selo tom="neutro">{ROTULO_FORJA[c.repo.forja]}</Selo>
+                  <span className="muted">
+                    {c.repo.branch ? `branch ${c.repo.branch}` : "branch padrão"} ·{" "}
+                    {textoToken(c.repo, guardados)}
+                  </span>
                 </span>
-                <span className="muted">
-                  {c.repo.branch ? `branch ${c.repo.branch}` : "branch padrão"} ·{" "}
-                  {textoToken(c.repo, guardados)}
-                </span>
-              </li>
+              </ItemLista>
             ))}
-          </ul>
-        </div>
+          </ListaItens>
+        </Cartao>
         <CampoNome codigo={codigo} mudar={mudar} dica={dicaNome} nomeEmUso={nomeEmUso} />
       </div>
     );
@@ -566,7 +570,7 @@ function CartaoRepo({
   const urlInvalida = r.url_clone.trim() !== "" && !r.caminho;
 
   return (
-    <li className="cartao-assistente cartao-repo" aria-label={`Repositório ${n}`}>
+    <Cartao como="li" rotulo={`Repositório ${n}`}>
       <div className="linha-repo">
         <div className="field campo-url">
           <label htmlFor={`${id}-url`}>URL do repositório {n}</label>
@@ -595,21 +599,16 @@ function CartaoRepo({
             onChange={(ev) => mudarRepo({ branch: ev.target.value }, false)}
           />
         </div>
-        <button
-          type="button"
-          className="btn btn-sm"
-          aria-label={`Remover o repositório ${n}`}
-          onClick={aoRemover}
-        >
-          Remover
-        </button>
+        <BotaoIcone rotulo={`Remover o repositório ${n}`} dica="Remover" tom="perigo" onClick={aoRemover}>
+          <IconeDescartar />
+        </BotaoIcone>
       </div>
       <div className="linha-chip" id={`${id}-chip`}>
         {r.caminho ? (
           <>
-            <span className="badge" data-tone="running">
+            <Selo tom="neutro">
               {ROTULO_FORJA[r.forja]} · {r.host}
-            </span>
+            </Selo>
             <span className="dica">
               — vira a pasta <code>{pastaDoClone(r)}</code>
             </span>
@@ -695,10 +694,15 @@ function CartaoRepo({
             Use quando este repositório pede outro acesso que não o do host (outro grupo, conta de
             serviço). Basta permissão de leitura. Fica no chaveiro do sistema ao clonar.
           </span>
-          <p role="status" aria-live="polite">
+          <div role="status" aria-live="polite">
             {testando && <span className="muted">Testando o acesso…</span>}
-            {teste && <span className={teste.ok ? "ok-text" : "error-text"}>{teste.texto}</span>}
-          </p>
+            {teste?.ok && <span className="ok-text">{teste.texto}</span>}
+            {teste && !teste.ok && (
+              <Alerta tom="erro" titulo="Sem acesso ao repositório.">
+                {teste.texto}
+              </Alerta>
+            )}
+          </div>
         </div>
       )}
 
@@ -710,7 +714,7 @@ function CartaoRepo({
           clonando={clonando}
         />
       )}
-    </li>
+    </Cartao>
   );
 }
 
@@ -756,20 +760,23 @@ function ProgressoDoClone({
         <span className="muted texto-progresso">{texto}</span>
       </div>
       {progresso.situacao === "falhou" && (
-        <div className="falha-clone">
-          <p className="error-text" role="alert">
-            Não deu para clonar {nome}: {progresso.erro}
-          </p>
-          <button
-            type="button"
-            className="btn btn-sm"
-            disabled={clonando}
-            aria-label={`Tentar de novo o clone de ${nome}`}
-            onClick={aoTentarDeNovo}
-          >
-            Tentar de novo
-          </button>
-        </div>
+        <Alerta
+          tom="erro"
+          titulo={`Não deu para clonar ${nome}:`}
+          acoes={
+            <button
+              type="button"
+              className="btn btn-sm"
+              disabled={clonando}
+              aria-label={`Tentar de novo o clone de ${nome}`}
+              onClick={aoTentarDeNovo}
+            >
+              Tentar de novo
+            </button>
+          }
+        >
+          {progresso.erro}
+        </Alerta>
       )}
     </div>
   );
@@ -836,28 +843,30 @@ function TokensGlobais({
         Um token por host vale para todos os repositórios dele, neste e nos próximos projetos.
         Fica no chaveiro do sistema, nunca na base.
       </p>
-      <ul className="cartao-assistente lista-tokens">
-        {hosts.map((host) => {
-          const deste = repos.filter((r) => r.host.toLowerCase() === host);
-          const usam = deste.filter((r) => r.token === "global");
-          return (
-            <TokenDoHost
-              key={host}
-              api={api}
-              host={host}
-              guardado={guardados[host]}
-              usadoPor={usam.map(pastaDoClone)}
-              semUso={deste.map(pastaDoClone)}
-              aoSalvar={() => setVez((v) => v + 1)}
-              aoPreferirComando={usam.length > 0 ? () => usarComando(host) : undefined}
-            />
-          );
-        })}
-        <li className="dica">
+      <Cartao como="div">
+        <ListaItens rotulo="Tokens por host">
+          {hosts.map((host) => {
+            const deste = repos.filter((r) => r.host.toLowerCase() === host);
+            const usam = deste.filter((r) => r.token === "global");
+            return (
+              <TokenDoHost
+                key={host}
+                api={api}
+                host={host}
+                guardado={guardados[host]}
+                usadoPor={usam.map(pastaDoClone)}
+                semUso={deste.map(pastaDoClone)}
+                aoSalvar={() => setVez((v) => v + 1)}
+                aoPreferirComando={usam.length > 0 ? () => usarComando(host) : undefined}
+              />
+            );
+          })}
+        </ListaItens>
+        <p className="dica">
           Escopo mínimo: <code>read_repository</code> no GitLab, <code>Contents: read</code> no
           GitHub.
-        </li>
-      </ul>
+        </p>
+      </Cartao>
     </fieldset>
   );
 }
@@ -907,73 +916,78 @@ function TokenDoHost({
       : `sem uso aqui: ${semUso.join(", ")} ${semUso.length === 1 ? "tem" : "têm"} token próprio ou comando`;
 
   return (
-    <li className="linha-token">
-      <strong className="mono">{host}</strong>
-      {guardado && !trocando ? (
-        <>
-          <span className="badge" data-tone="done">
-            configurado
-          </span>
-          <span className="dica">{uso}</span>
-          <button
-            type="button"
-            className="btn btn-sm"
-            aria-label={`Trocar o token de ${host}`}
-            onClick={() => setTrocando(true)}
-          >
-            Trocar
-          </button>
-        </>
-      ) : (
-        <>
-          <span className="badge" data-tone={guardado === undefined ? undefined : "attention"}>
-            {guardado === undefined ? "verificando…" : guardado ? "trocar token" : "sem token"}
-          </span>
-          <input
-            id={id}
-            type="password"
-            className="caminho"
-            autoComplete="off"
-            spellCheck={false}
-            placeholder="cole o token"
-            aria-label={`Token global de ${host}`}
-            value={token}
-            onChange={(ev) => setToken(ev.target.value)}
-            onKeyDown={(ev) => {
-              if (ev.key === "Enter") {
-                ev.preventDefault();
-                salvar();
-              }
-            }}
-          />
-          <button
-            type="button"
-            className="btn btn-sm btn-primary"
-            aria-label={`Salvar o token de ${host}`}
-            disabled={!token.trim() || salvando}
-            onClick={salvar}
-          >
-            Salvar
-          </button>
-        </>
-      )}
-      {aoPreferirComando && (
-        <button
-          type="button"
-          className="link"
-          aria-label={`Prefiro um comando que imprime o token de ${host}`}
-          onClick={aoPreferirComando}
-        >
-          Prefiro um comando que imprime o token
-        </button>
-      )}
-      <span className="aviso-token" role="status" aria-live="polite">
-        {aviso && <span className={aviso.ok ? "ok-text" : "error-text"}>{aviso.texto}</span>}
-        {!aviso && guardado === false && host === "github.com" && (
-          <span className="dica">Sem token, vale o login do gh (gh auth), se houver.</span>
+    <ItemLista>
+      <div className="linha-token">
+        <strong className="mono">{host}</strong>
+        {guardado && !trocando ? (
+          <>
+            <Selo tom="concluido">configurado</Selo>
+            <span className="dica">{uso}</span>
+            <button
+              type="button"
+              className="btn btn-sm"
+              aria-label={`Trocar o token de ${host}`}
+              onClick={() => setTrocando(true)}
+            >
+              Trocar
+            </button>
+          </>
+        ) : (
+          <>
+            <Selo tom={guardado === undefined ? "neutro" : "atencao"}>
+              {guardado === undefined ? "verificando…" : guardado ? "trocar token" : "sem token"}
+            </Selo>
+            <input
+              id={id}
+              type="password"
+              className="caminho"
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="cole o token"
+              aria-label={`Token global de ${host}`}
+              value={token}
+              onChange={(ev) => setToken(ev.target.value)}
+              onKeyDown={(ev) => {
+                if (ev.key === "Enter") {
+                  ev.preventDefault();
+                  salvar();
+                }
+              }}
+            />
+            <button
+              type="button"
+              className="btn btn-sm btn-primary"
+              aria-label={`Salvar o token de ${host}`}
+              disabled={!token.trim() || salvando}
+              onClick={salvar}
+            >
+              Salvar
+            </button>
+          </>
         )}
-      </span>
-    </li>
+        {aoPreferirComando && (
+          <button
+            type="button"
+            className="link"
+            aria-label={`Prefiro um comando que imprime o token de ${host}`}
+            onClick={aoPreferirComando}
+          >
+            Prefiro um comando que imprime o token
+          </button>
+        )}
+        <div className="aviso-token" role="status" aria-live="polite">
+          {aviso?.ok && <span className="ok-text">{aviso.texto}</span>}
+          {aviso && !aviso.ok && (
+            <Alerta tom="erro" titulo={`Não deu para guardar o token de ${host}.`}>
+              {aviso.texto}
+            </Alerta>
+          )}
+          {!aviso && guardado === false && host === "github.com" && (
+            <span className="dica">Sem token, vale o login do gh (gh auth), se houver.</span>
+          )}
+        </div>
+      </div>
+    </ItemLista>
   );
 }
 

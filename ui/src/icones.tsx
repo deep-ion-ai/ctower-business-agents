@@ -46,6 +46,14 @@ export const IconeMais = () => (
     <path d="M5 12h14" />
   </Svg>
 );
+/** "⋯": o menu de mais ações. */
+export const IconeReticencias = () => (
+  <Svg>
+    <circle cx="5" cy="12" r="1" />
+    <circle cx="12" cy="12" r="1" />
+    <circle cx="19" cy="12" r="1" />
+  </Svg>
+);
 export const IconeDescartar = () => (
   <Svg>
     <path d="M18 6L6 18" />
@@ -98,36 +106,22 @@ export const IconeInfo = () => (
   </Svg>
 );
 
-/**
- * Botão só de ícone: o `rotulo` é o nome acessível e a dica (`title`) ao passar o
- * mouse. `tom` destaca a ação principal do item.
- */
-export function BotaoIcone({
-  rotulo,
-  dica,
-  onClick,
-  disabled,
-  tom,
-  children,
-}: {
-  rotulo: string;
-  /** Dica mais longa que o rótulo, quando ajuda. */
-  dica?: string;
-  onClick: () => void;
-  disabled?: boolean;
-  tom?: "principal" | "perigo";
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      className={tom ? `icone-acao icone-${tom}` : "icone-acao"}
-      aria-label={rotulo}
-      title={dica ?? rotulo}
-      disabled={disabled}
-      onClick={onClick}
-    >
-      {children}
-    </button>
-  );
-}
+/** Atenção: triângulo com exclamação (alerta de atenção). */
+export const IconeAtencao = () => (
+  <Svg tamanho={18}>
+    <path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+    <path d="M12 9v4" />
+    <path d="M12 17h.01" />
+  </Svg>
+);
+/** Erro: círculo com exclamação (alerta de erro). */
+export const IconeErro = () => (
+  <Svg tamanho={18}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 8v5" />
+    <path d="M12 16h.01" />
+  </Svg>
+);
+
+// O botão só de ícone mora nos componentes compartilhados (#406).
+export { BotaoIcone } from "./componentes/BotaoIcone";

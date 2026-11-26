@@ -19,7 +19,11 @@ import {
   type ComandoAfirmacao,
   type Revisao,
 } from "./AcoesRevisao";
-import { CartaoAfirmacao, ROTULO_CONFIANCA } from "./CartaoAfirmacao";
+import {
+  CartaoAfirmacao,
+  ROTULO_CONFIANCA,
+  SeletorEvidencias,
+} from "./CartaoAfirmacao";
 import { CenariosAoVivo } from "./CenariosAoVivo";
 import { DiagramaAoVivo } from "./DiagramaAoVivo";
 import { HistoriasAoVivo } from "./HistoriasAoVivo";
@@ -37,7 +41,9 @@ import type { Pendencia } from "./revisao";
 import { ordenarSecoes, tituloDaSecao } from "./secoesAnalise";
 import { SumarioAnalise, type ItemSumario } from "./SumarioAnalise";
 import { useAtalhosRevisao } from "./useAtalhosRevisao";
-import { Icon } from "./shell/icons";
+import { BotaoCodigo } from "./BotaoCodigo";
+import { useEvidenciasVisiveis } from "./preferenciaEvidencias";
+import { Cartao, EstadoVazio, Selo, TextoRico, TituloSecao, type TomSelo } from "./componentes";
 
 export { ROTULO_CONFIANCA };
 
@@ -53,6 +59,14 @@ export const ROTULO_ANALISE: Record<EstadoAnalise, string> = {
   "em-andamento": "em andamento",
   concluida: "concluída, aguardando revisão",
   aprovada: "aprovada",
+};
+
+/** Tom do selo do estado da análise: concluída espera a revisão (atenção, como na demanda). */
+export const TOM_ANALISE: Record<EstadoAnalise, TomSelo> = {
+  criada: "neutro",
+  "em-andamento": "andamento",
+  concluida: "atencao",
+  aprovada: "concluido",
 };
 
 export function SeloSessao({ sessao }: { sessao: SessaoVista | null }) {
@@ -80,6 +94,32 @@ export function SeloSessao({ sessao }: { sessao: SessaoVista | null }) {
       {ROTULO_SESSAO[sessao.estado]}
     </p>
   );
+}
+
+/** Uma linha sem as marcas de Markdown nem o rótulo "Título:", para comparar. */
+function linhaComparavel(linha: string): string {
+  return linha
+    .replace(/[#*_`>]/g, "")
+    .replace(/^\s*t[íi]tulo\s*:/i, "")
+    .replace(/:\s*$/, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * A entrada sem o título repetido (#403): a análise que nasce de uma issue tem o
+ * título e, depois, a descrição; quando a descrição começa pelo mesmo título
+ * (`# Título`, `**Título:** Título`), ele aparece uma vez só, na forma da descrição.
+ */
+export function semTituloRepetido(entrada: string): string {
+  const linhas = entrada.trim().split("\n");
+  const titulo = linhaComparavel(linhas[0]);
+  const seguinte = linhas.findIndex((l, i) => i > 0 && l.trim() !== "");
+  if (!titulo || seguinte < 0 || linhaComparavel(linhas[seguinte]) !== titulo) {
+    return entrada.trim();
+  }
+  return linhas.slice(seguinte).join("\n");
 }
 
 export function chaveEvidencia(e: Evidencia): string {
@@ -135,34 +175,11 @@ interface Props {
    * conta do cabeçalho e do diálogo de aprovação (#222).
    */
   pendencias?: Pendencia[] | null;
-}
-
-/** Ícone que mostra ou esconde as evidências no código de uma afirmação ou sugestão. */
-function BotaoCodigo({
-  quantidade,
-  aberto,
-  aoAlternar,
-}: {
-  quantidade: number;
-  aberto: boolean;
-  aoAlternar: () => void;
-}) {
-  const rotulo = `${aberto ? "Ocultar" : "Ver"} ${
-    quantidade === 1 ? "a evidência" : `as ${quantidade} evidências`
-  } no código`;
-  return (
-    <button
-      type="button"
-      className="btn-icone btn-acao btn-codigo"
-      aria-label={rotulo}
-      title={rotulo}
-      aria-expanded={aberto}
-      onClick={aoAlternar}
-    >
-      <Icon name="code" />
-      <span className="contador-codigo">{quantidade}</span>
-    </button>
-  );
+  /**
+   * Abre um link da entrada no navegador do sistema: só os do host da issue de
+   * origem (`vista.link`); os outros aparecem como texto (#403).
+   */
+  aoAbrirLink?: (link: string) => void;
 }
 
 const ID_PERGUNTAS = "secao-perguntas";
@@ -179,6 +196,7 @@ export function DocumentoAoVivo({
   revisao,
   semCabecalho = false,
   pendencias,
+  aoAbrirLink,
 }: Props) {
   const { analise } = vista;
   const deCenarios = analise.fluxo === "cenarios";
@@ -208,13 +226,27 @@ export function DocumentoAoVivo({
   const [comCodigo, setComCodigo] = useState<ReadonlySet<OrigemEvidencia>>(
     new Set(),
   );
+  // As das afirmações também (#404), salvo quando o seletor global as mostra: aí o
+  // conjunto guarda as afirmações em que o analista as escondeu.
+  const [evidenciasVisiveis, alternarEvidenciasVisiveis] =
+    useEvidenciasVisiveis();
+  const invertido = (o: OrigemEvidencia) =>
+    evidenciasVisiveis && o.startsWith("afirmacao-");
   const codigoVisivel = (o: OrigemEvidencia) =>
-    comCodigo.has(o) || origemTrecho === o;
+    comCodigo.has(o) !== invertido(o) || origemTrecho === o;
+  const alternarTodasEvidencias = () => {
+    alternarEvidenciasVisiveis();
+    setComCodigo(
+      (atual) =>
+        new Set([...atual].filter((o) => !o.startsWith("afirmacao-"))),
+    );
+  };
   const alternarCodigo = (o: OrigemEvidencia) => {
     setComCodigo((atual) => {
       const novo = new Set(atual);
-      if (codigoVisivel(o)) novo.delete(o);
-      else novo.add(o);
+      const marcar = codigoVisivel(o) ? invertido(o) : !invertido(o);
+      if (marcar) novo.add(o);
+      else novo.delete(o);
       return novo;
     });
     // Fechar o código fecha também o trecho aberto dali.
@@ -335,9 +367,9 @@ export function DocumentoAoVivo({
     <article className="documento-ao-vivo" aria-label="Documento da análise">
       {!semCabecalho && (
         <header>
-          <h2>
+          <TituloSecao>
             {analise.id}: {analise.titulo}
-          </h2>
+          </TituloSecao>
           <p className="muted">
             Análise {ROTULO_ANALISE[analise.estado]} · versão {analise.versao}
           </p>
@@ -364,9 +396,16 @@ export function DocumentoAoVivo({
         <div className="documento-conteudo">
           {/* Na revisão, o texto revisado já aparece no parecer, com as marcas. */}
           {analise.fluxo !== "revisar" && (
-            <section aria-label={rotuloEntrada}>
-              <h3>{rotuloEntrada}</h3>
-              <blockquote>{analise.entrada}</blockquote>
+            <section aria-label={rotuloEntrada} className="documento-entrada">
+              <TituloSecao nivel={3}>{rotuloEntrada}</TituloSecao>
+              {/* Markdown, como no rastreador: os links seguem a regra da descrição da issue. */}
+              <blockquote>
+                <TextoRico
+                  texto={semTituloRepetido(analise.entrada)}
+                  hostPermitido={vista.link ?? undefined}
+                  aoAbrirLink={aoAbrirLink}
+                />
+              </blockquote>
             </section>
           )}
 
@@ -403,16 +442,22 @@ export function DocumentoAoVivo({
             />
           ) : (
             <section aria-label="Afirmações">
-              <h3>Afirmações</h3>
+              <TituloSecao nivel={3}>Afirmações</TituloSecao>
+              {analise.afirmacoes.some((a) => a.evidencias.length > 0) && (
+                <SeletorEvidencias
+                  ligado={evidenciasVisiveis}
+                  aoAlternar={alternarTodasEvidencias}
+                />
+              )}
               {secoes.length === 0 && (
-                <p className="muted">Nenhuma afirmação registrada ainda.</p>
+                <EstadoVazio>Nenhuma afirmação registrada ainda.</EstadoVazio>
               )}
               {secoes.map(([secao, afirmacoes]) => {
                 const mostradas = afirmacoes.filter((a) =>
                   passaNoFiltro(a, filtro),
                 );
                 return (
-                  <div key={secao} className="secao">
+                  <div key={secao} className="secao-afirmacoes">
                     <h4 id={`secao-${secao}`} tabIndex={-1}>
                       {titulo(secao)}
                     </h4>
@@ -435,9 +480,9 @@ export function DocumentoAoVivo({
                         />
                       ))}
                     {afirmacoes.length > 0 && mostradas.length === 0 && (
-                      <p className="muted">
+                      <EstadoVazio>
                         Nenhuma afirmação desta seção neste filtro.
-                      </p>
+                      </EstadoVazio>
                     )}
                     {mostradas.length > 0 && (
                       <ol className="afirmacoes cartoes">
@@ -451,6 +496,12 @@ export function DocumentoAoVivo({
                             evidenciaAberta={evidenciaAberta}
                             aoAbrirEvidencia={(e) =>
                               aoAbrirEvidencia(e, `afirmacao-${a.numero}`)
+                            }
+                            evidenciasAbertas={codigoVisivel(
+                              `afirmacao-${a.numero}`,
+                            )}
+                            aoAlternarEvidencias={() =>
+                              alternarCodigo(`afirmacao-${a.numero}`)
                             }
                             aoFocar={() => setAtual(a.numero)}
                             trecho={
@@ -468,12 +519,10 @@ export function DocumentoAoVivo({
             </section>
           )}
 
-          <section id={ID_PERGUNTAS} aria-label="Perguntas em aberto">
-            <h3 tabIndex={-1} id={`${ID_PERGUNTAS}-titulo`}>
-              Perguntas para o negócio
-            </h3>
+          <section id={ID_PERGUNTAS} aria-label="Perguntas em aberto" tabIndex={-1}>
+            <TituloSecao nivel={3}>Perguntas para o negócio</TituloSecao>
             {perguntas.length === 0 ? (
-              <p className="muted">Nenhuma pergunta registrada.</p>
+              <EstadoVazio>Nenhuma pergunta registrada.</EstadoVazio>
             ) : (
               <ol className="perguntas cartoes">
                 {perguntas.map((p) => (
@@ -490,28 +539,24 @@ export function DocumentoAoVivo({
           </section>
 
           {comPropostas && (
-            <section id={ID_PROPOSTAS} aria-label="Propostas para a base">
-              <h3 tabIndex={-1} id={`${ID_PROPOSTAS}-titulo`}>
-                Propostas para a base
-              </h3>
+            <section id={ID_PROPOSTAS} aria-label="Propostas para a base" tabIndex={-1}>
+              <TituloSecao nivel={3}>Propostas para a base</TituloSecao>
               {analise.termos.length + sugestoes.length === 0 ? (
-                <p className="muted">Nenhuma proposta registrada.</p>
+                <EstadoVazio>Nenhuma proposta registrada.</EstadoVazio>
               ) : (
                 <ol className="propostas cartoes">
                   {analise.termos.map((t) => (
-                    <li
+                    <Cartao
+                      como="li"
                       key={`termo-${t.numero}`}
-                      className={`termo cartao estado-${t.estado}`}
+                      className={`termo estado-${t.estado}`}
                     >
-                      <div className="cartao-cabeca">
-                        <span className="badge">termo do glossário</span>
+                      <div className="revisao-cabeca">
+                        <Selo tom="agente">termo do glossário</Selo>
                         {t.estado !== "proposto" && (
-                          <span
-                            className="badge"
-                            data-tone={t.estado === "aceito" ? "done" : "error"}
-                          >
+                          <Selo tom={t.estado === "aceito" ? "concluido" : "erro"}>
                             {t.estado}
-                          </span>
+                          </Selo>
                         )}
                       </div>
                       <p>
@@ -526,20 +571,17 @@ export function DocumentoAoVivo({
                         </span>
                       )}
                       {rev && <AcoesTermo termo={t} revisao={rev} />}
-                    </li>
+                    </Cartao>
                   ))}
                   {sugestoes.map((s) => (
-                    <li
+                    <Cartao
+                      como="li"
                       key={`sugestao-${s.numero}`}
-                      className="sugestao cartao"
+                      className="sugestao"
                     >
-                      <div className="cartao-cabeca">
-                        <span className="badge">alteração sugerida</span>
-                        {s.estado === "aceita" && (
-                          <span className="badge" data-tone="done">
-                            aceita
-                          </span>
-                        )}
+                      <div className="revisao-cabeca">
+                        <Selo tom="agente">alteração sugerida</Selo>
+                        {s.estado === "aceita" && <Selo>aceita</Selo>}
                       </div>
                       <p>
                         <strong>{s.titulo || s.arquivo}</strong>
@@ -582,7 +624,7 @@ export function DocumentoAoVivo({
                           revisao={rev}
                         />
                       )}
-                    </li>
+                    </Cartao>
                   ))}
                 </ol>
               )}
@@ -616,12 +658,13 @@ function CartaoPergunta({
   const rotulo = (c: string) =>
     diagrama?.nos.find((n) => n.chave === c)?.rotulo ?? c;
   return (
-    <li
-      className={`pergunta cartao estado-${p.estado}`}
+    <Cartao
+      como="li"
+      className={`pergunta estado-${p.estado}`}
       data-testid={`pergunta-${p.numero}`}
     >
-      <div className="cartao-cabeca">
-        <span className="cartao-numero" title={`Pergunta ${p.numero}`}>
+      <div className="revisao-cabeca">
+        <span className="revisao-numero" title={`Pergunta ${p.numero}`}>
           {p.numero}
         </span>
         {p.para && (
@@ -630,12 +673,8 @@ function CartaoPergunta({
             {p.para.papel && <span className="muted"> ({p.para.papel})</span>}
           </span>
         )}
-        {p.estado === "aberta" && (
-          <span className="badge" data-tone="attention">
-            aguardando resposta
-          </span>
-        )}
-        {p.estado === "descartada" && <span className="badge">descartada</span>}
+        {p.estado === "aberta" && <Selo>aguardando resposta</Selo>}
+        {p.estado === "descartada" && <Selo tom="neutro">descartada</Selo>}
       </div>
       <p className="texto-pergunta">{p.texto}</p>
       {p.origem?.tipo === "achado-diagrama" && (
@@ -658,7 +697,7 @@ function CartaoPergunta({
         </p>
       )}
       {revisao && <AcoesPergunta pergunta={p} revisao={revisao} />}
-    </li>
+    </Cartao>
   );
 }
 

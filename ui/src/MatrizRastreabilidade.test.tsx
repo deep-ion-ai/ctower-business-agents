@@ -1,7 +1,11 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ConsultaReversa } from "./ConsultaReversa";
 import { MatrizRastreabilidade } from "./MatrizRastreabilidade";
-import { PROJETO_BASE, apiRastreabilidadeFalsa } from "./test/rastreabilidadeFalsa";
+import {
+  PROJETO_BASE,
+  apiRastreabilidadeFalsa,
+  matrizFicticia,
+} from "./test/rastreabilidadeFalsa";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(), Channel: vi.fn() }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
@@ -42,6 +46,10 @@ describe("MatrizRastreabilidade", () => {
     expect(lacunas).toHaveTextContent("Evidência mudou sob história aprovada");
     expect(lacunas).toHaveTextContent("Regra afetada sem história");
     expect(lacunas).toHaveTextContent("História sem cenário");
+    // Cada lacuna num alerta fixo (não anunciado).
+    expect(within(lacunas).getAllByRole("note")).toHaveLength(3);
+    // Sem filtro, nada de "Mostrando N de N".
+    expect(screen.queryByText(/Mostrando/)).toBeNull();
 
     // Cada célula abre o documento ou a análise.
     fireEvent.click(within(linhas[0]).getByRole("button", { name: "RN-FAT-007" }));
@@ -77,7 +85,8 @@ describe("MatrizRastreabilidade", () => {
   it("exporta para Excel e Word", async () => {
     const { api } = montar();
     await screen.findByRole("table", { name: "Matriz por história" });
-    fireEvent.click(screen.getByRole("button", { name: "Exportar matriz (.xlsx)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Exportar" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Excel (.xlsx)" }));
     expect(await screen.findByRole("status")).toHaveTextContent(
       "Matriz exportada em /tmp/matriz-D-0001.xlsx.",
     );
@@ -89,7 +98,8 @@ describe("MatrizRastreabilidade", () => {
       "/tmp/matriz-D-0001.xlsx",
     );
     api.escolherDestino.mockResolvedValueOnce(null);
-    fireEvent.click(screen.getByRole("button", { name: "Exportar Word" }));
+    fireEvent.click(screen.getByRole("button", { name: "Exportar" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Word (.docx)" }));
     await waitFor(() => expect(api.escolherDestino).toHaveBeenCalledWith("matriz-D-0001", "word"));
     expect(api.exportar).toHaveBeenCalledTimes(1);
   });
@@ -107,10 +117,64 @@ describe("MatrizRastreabilidade", () => {
       <MatrizRastreabilidade projeto="p" demanda="D-0001" navegar={vi.fn()} api={api} />,
     );
     expect(await screen.findByText(/Nenhuma análise ligada à demanda/)).toBeInTheDocument();
+    // Sem linhas, nem tabela nem controles.
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Exportar" })).toBeNull();
     unmount();
     api.matriz.mockRejectedValueOnce("índice da base: ilegível");
     render(<MatrizRastreabilidade projeto="p" demanda="D-0001" navegar={vi.fn()} api={api} />);
     expect(await screen.findByRole("alert")).toHaveTextContent("índice da base: ilegível");
+  });
+
+  it("sem histórias, mostra as lacunas em alerta e o link para gerá-las, sem tabela", async () => {
+    const api = apiRastreabilidadeFalsa();
+    const base = matrizFicticia();
+    api.matriz.mockResolvedValueOnce({
+      ...base,
+      historias: [],
+      lacunas: base.lacunas.filter((l) => l.alerta === "regra-sem-historia"),
+    });
+    const gerar = vi.fn();
+    const aoCarregar = vi.fn();
+    render(
+      <MatrizRastreabilidade
+        projeto="p"
+        demanda="D-0001"
+        navegar={vi.fn()}
+        api={api}
+        aoGerarHistorias={gerar}
+        aoCarregar={aoCarregar}
+      />,
+    );
+    const secao = await screen.findByRole("region", { name: "Matriz de rastreabilidade" });
+    const alerta = await within(secao).findByRole("note");
+    expect(alerta).toHaveTextContent(
+      "Regra afetada sem história RN-FAT-009 aparece em A-0001 e não entrou em nenhuma história.",
+    );
+    expect(secao).toHaveTextContent(
+      "Ainda não há histórias. A matriz aparece quando a primeira história for criada.",
+    );
+    expect(within(secao).queryByRole("table")).toBeNull();
+    expect(within(secao).queryByRole("button", { name: "Exportar" })).toBeNull();
+    expect(secao).not.toHaveTextContent(/Mostrando/);
+    fireEvent.click(within(secao).getByRole("button", { name: "Gerar histórias e critérios" }));
+    expect(gerar).toHaveBeenCalled();
+    expect(aoCarregar).toHaveBeenCalledWith(expect.objectContaining({ historias: [] }));
+  });
+
+  it("com o filtro sem resultado, mostra uma linha em vez da tabela vazia", async () => {
+    const api = apiRastreabilidadeFalsa();
+    const base = matrizFicticia();
+    api.matriz.mockResolvedValueOnce({
+      ...base,
+      historias: base.historias.map((h) => ({ ...h, alertas: [] })),
+    });
+    render(<MatrizRastreabilidade projeto="p" demanda="D-0001" navegar={vi.fn()} api={api} />);
+    await screen.findByRole("table", { name: "Matriz por história" });
+    fireEvent.click(screen.getByRole("checkbox", { name: /só lacunas e alertas/ }));
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.getByText("Nenhuma linha com lacuna ou alerta.")).toBeInTheDocument();
+    expect(screen.queryByText(/Mostrando 0/)).toBeNull();
   });
 });
 
@@ -135,9 +199,9 @@ describe("ConsultaReversa", () => {
     });
     expect(secao).toHaveTextContent("1 demanda");
     expect(secao).toHaveTextContent("1 critério");
-    const criterios = within(secao).getByRole("region", { name: "Histórias e critérios" });
+    const criterios = within(secao).getByRole("article", { name: "Histórias e critérios" });
     expect(criterios).toHaveTextContent("HU-0001 CA-1 são geradas 3 parcelas revisar");
-    const cenarios = within(secao).getByRole("region", { name: "Cenários de teste" });
+    const cenarios = within(secao).getByRole("article", { name: "Cenários de teste" });
     expect(cenarios).toHaveTextContent("CT-0001");
     expect(secao).toHaveTextContent('rastreabilidade(regra: "RN-FAT-007")');
 
@@ -155,7 +219,7 @@ describe("ConsultaReversa", () => {
       valor: SERVICO,
     });
     expect(
-      within(doArquivo).getByRole("region", { name: "Regras com evidência no arquivo" }),
+      within(doArquivo).getByRole("article", { name: "Regras com evidência no arquivo" }),
     ).toHaveTextContent("RN-FAT-008");
     expect(within(doArquivo).getByRole("button", { name: "Regra" })).toHaveAttribute(
       "aria-pressed",

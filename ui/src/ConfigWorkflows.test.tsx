@@ -88,7 +88,7 @@ describe("ConfigWorkflows", () => {
   it("mostra a origem em uso, as cópias e o que está instalado em cada projeto", async () => {
     const aoEditar = vi.fn();
     render(<ConfigWorkflows api={apiFalsa()} temBase recarga={0} aoEditar={aoEditar} />);
-    const cartao = await screen.findByRole("region", { name: "Analisar impacto" });
+    const cartao = await screen.findByRole("article", { name: "Analisar impacto" });
     const c = within(cartao);
     expect(c.getByText("Em uso: padrão do app")).toBeInTheDocument();
     expect(c.getByText(/Fases: Preparar/)).toBeInTheDocument();

@@ -3,34 +3,25 @@ import type { Afirmacao, OrigemPergunta, Pergunta, TermoProposto } from "./anali
 import { DialogoConfirmacao } from "./DialogoConfirmacao";
 import type { DecisaoRevisao } from "./revisao";
 import { TextoAfirmacao } from "./TextoAfirmacao";
+import { Alerta, BotaoIcone, Selo } from "./componentes";
 import { Icon, type IconName } from "./shell/icons";
 
 /** Botão de ação da revisão: só o ícone, com o rótulo no nome acessível e na dica (#130). */
 function BotaoAcao({
   icone,
   rotulo,
-  tom,
   desabilitado,
   aoClicar,
 }: {
   icone: IconName;
   rotulo: string;
-  tom?: "ok" | "erro";
   desabilitado?: boolean;
   aoClicar: () => void;
 }) {
   return (
-    <button
-      className="btn-icone btn-acao"
-      type="button"
-      aria-label={rotulo}
-      title={rotulo}
-      data-tom={tom}
-      disabled={desabilitado}
-      onClick={aoClicar}
-    >
+    <BotaoIcone rotulo={rotulo} disabled={desabilitado} onClick={aoClicar}>
       <Icon name={icone} />
-    </button>
+    </BotaoIcone>
   );
 }
 
@@ -415,9 +406,9 @@ export function VirarPergunta({
   const ja = perguntas.find((p) => mesmaOrigem(p.origem, origem));
   if (ja) {
     return (
-      <span className="badge" data-tone="done" title={ja.texto}>
+      <Selo tom="concluido" titulo={ja.texto}>
         virou a pergunta {ja.numero}
-      </span>
+      </Selo>
     );
   }
   if (!revisao) return null;
@@ -436,11 +427,7 @@ export function VirarPergunta({
       >
         <label htmlFor={id}>Pergunta</label>
         <textarea id={id} value={texto} rows={3} onChange={(e) => setTexto(e.target.value)} />
-        {erro && (
-          <p className="erro" role="alert">
-            {erro}
-          </p>
-        )}
+        {erro && <Alerta tom="erro" titulo={erro} />}
         <div>
           <button className="btn" type="submit" disabled={revisao.ocupado || !texto.trim()}>
             Registrar pergunta

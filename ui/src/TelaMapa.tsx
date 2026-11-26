@@ -9,6 +9,17 @@ import {
   type Form,
   type Revisao,
 } from "./FormulariosFuncionalidade";
+import {
+  Alerta,
+  BarraAcoes,
+  ItemLista,
+  ListaItens,
+  MenuAcoes,
+  Secao,
+  Selo,
+  TituloSecao,
+  type Acao,
+} from "./componentes";
 import { contar } from "./formatacao";
 import {
   apiMapaTauri,
@@ -26,12 +37,10 @@ import type { ApiConhecimento } from "./conhecimento";
 import { PainelFuncionalidade } from "./PainelFuncionalidade";
 import { TerminalClaude, type EstadoTerminal } from "./TerminalClaude";
 import { AjudaTermo } from "./AjudaTermo";
-import { MenuMais, type ItemMenuMais } from "./MenuMais";
+import { IconeReticencias } from "./icones";
 import { lacunasPorPasta, passaNoFiltro, progressoDoMapa } from "./progressoMapa";
 import type { ApiTerminal, ProjetoResumo } from "./terminal";
 import type { TelaTerminal } from "./telaXterm";
-
-
 
 /** Pontos ainda sem funcionalidade mostrados de uma vez (projetos grandes têm milhares). */
 const MOSTRADOS = 100;
@@ -96,7 +105,7 @@ function LinhaFuncionalidade({
   else if (s === "descartada")
     principal = { texto: "Voltar a revisar", aoClicar: () => void decidir("desfazer") };
 
-  const itens: ItemMenuMais[] = [{ texto: "Abrir o painel", aoEscolher: () => aoAbrir(f) }];
+  const itens: Acao[] = [{ texto: "Abrir o painel", aoEscolher: () => aoAbrir(f) }];
   if (aberta) {
     itens.push({ texto: "Editar", aoEscolher: () => setForm("editar") });
     if (outras.length > 0) itens.push({ texto: "Juntar", aoEscolher: () => setForm("juntar") });
@@ -130,15 +139,9 @@ function LinhaFuncionalidade({
           <span className="painel-id">{f.id}</span> <strong>{f.nome}</strong>
         </button>
         <span className="linha-etiquetas">
-          {f.documento ? (
-            <span className="chip">documentada</span>
-          ) : (
-            f.explicacao && <span className="chip">em explicação</span>
-          )}
-          {f.semPontoDeEntrada && <span className="chip">sem ponto de entrada</span>}
-          <span className="badge" data-tone={s === "aceita" ? "done" : undefined}>
-            {s === "juntada" && f.juntadaEm ? `juntada em ${f.juntadaEm}` : SITUACAO[s]}
-          </span>
+          {f.documento ? <Selo>documentada</Selo> : f.explicacao && <Selo>em explicação</Selo>}
+          {f.semPontoDeEntrada && <Selo>sem ponto de entrada</Selo>}
+          <Selo>{s === "juntada" && f.juntadaEm ? `juntada em ${f.juntadaEm}` : SITUACAO[s]}</Selo>
         </span>
         {principal && (
           <button
@@ -151,7 +154,7 @@ function LinhaFuncionalidade({
             {principal.texto}
           </button>
         )}
-        <MenuMais rotulo={`Mais ações para ${f.id}`} itens={menu} />
+        <MenuAcoes rotulo={`Mais ações para ${f.id}`} icone={<IconeReticencias />} itens={menu} />
       </div>
       {form === "editar" && (
         <FormEditar
@@ -291,13 +294,17 @@ function SessaoDeMapeamento({
   }, [estadoConversa]);
   useEffect(() => () => avisarConversa.current?.("nenhuma"), []);
   return (
-    <section className="sessao-mapeamento" aria-label="Sessão de mapeamento">
-      <header className="sessao-cabecalho">
-        <h3>Mapear com o Claude</h3>
+    <Secao
+      titulo="Mapear com o Claude"
+      nivel={3}
+      rotulo="Sessão de mapeamento"
+      className="sessao-mapeamento"
+      acoes={
         <button type="button" className="btn" onClick={aoFechar}>
           {pedido ? "Encerrar a sessão" : "Cancelar"}
         </button>
-      </header>
+      }
+    >
       {pedido === null ? (
         <form
           className="form-mapeamento"
@@ -345,7 +352,7 @@ function SessaoDeMapeamento({
               onChange={(e) => setOrientacao(e.target.value)}
             />
           </label>
-          {erro && <p className="erro">{erro}</p>}
+          {erro && <Alerta tom="erro" titulo={erro} />}
           <div className="acoes-form-mapeamento">
             <button type="submit" className="btn btn-primary">
               Começar
@@ -363,7 +370,7 @@ function SessaoDeMapeamento({
           />
         </div>
       )}
-    </section>
+    </Secao>
   );
 }
 
@@ -516,6 +523,14 @@ function MapaDoProjeto({
     setSessao(true);
   };
   const contagem = (valor: Filtro) => abertas.filter((f) => passaNoFiltro(f, valor)).length;
+  const documento = mapa?.documento;
+  const documentoDoMapa: Acao[] = documento
+    ? [
+        { texto: "Abrir o documento", aoEscolher: () => abrirDocumento(documento) },
+        { texto: "Exportar Markdown", aoEscolher: () => exportar("markdown") },
+        { texto: "Exportar Word", aoEscolher: () => exportar("word") },
+      ]
+    : [];
 
   return (
     <div className={sessao ? "mapa-colunas com-sessao" : "mapa-colunas"}>
@@ -544,35 +559,25 @@ function MapaDoProjeto({
                   .join(" · ")
               : "Carregando…"}
           </p>
-          <div className="acoes">
-            <label className="opcao-evidencias">
-              <input
-                type="checkbox"
-                checked={evidencias}
-                onChange={(e) => setEvidencias(e.target.checked)}
-              />
-              Mostrar evidências de código
-            </label>
-            {!sessao && (
-              <button type="button" className="btn btn-primary" onClick={() => mapearPasta("")}>
-                Mapear com o Claude
-              </button>
-            )}
-            {mapa?.documento && (
-              <>
-                <button type="button" className="btn" onClick={() => abrirDocumento(mapa.documento!)}>
-                  Abrir o documento
-                </button>
-                <button type="button" className="btn" onClick={() => exportar("markdown")}>
-                  Exportar Markdown
-                </button>
-                <button type="button" className="btn" onClick={() => exportar("word")}>
-                  Exportar Word
-                </button>
-              </>
-            )}
-            <MenuMais
+          <label className="opcao-evidencias">
+            <input
+              type="checkbox"
+              checked={evidencias}
+              onChange={(e) => setEvidencias(e.target.checked)}
+            />
+            Mostrar evidências de código
+          </label>
+          <BarraAcoes
+            principal={
+              sessao ? undefined : { texto: "Mapear com o Claude", aoEscolher: () => mapearPasta("") }
+            }
+            secundarias={documentoDoMapa}
+            rotulo="Ações do mapa"
+            alinhamento="fim"
+          >
+            <MenuAcoes
               rotulo="Mais"
+              icone={<IconeReticencias />}
               itens={[
                 ...(api.religar && mapa && mapa.total > 0
                   ? [{ texto: "Religar documentos", aoEscolher: religar }]
@@ -580,12 +585,16 @@ function MapaDoProjeto({
                 { texto: "Atualizar", aoEscolher: recarregar },
               ]}
             />
-          </div>
+          </BarraAcoes>
         </header>
-        {erro && <p className="erro">Não foi possível ler o mapa: {erro}</p>}
-        {falha && <p className="erro">{falha}</p>}
+        {erro && (
+          <Alerta tom="erro" titulo="Não foi possível ler o mapa.">
+            {erro}
+          </Alerta>
+        )}
+        {falha && <Alerta tom="erro" titulo={falha} />}
         {aviso && <p className="muted">{aviso}</p>}
-        {mapa?.erroCompletude && <p className="aviso">{mapa.erroCompletude}</p>}
+        {mapa?.erroCompletude && <Alerta tom="atencao" titulo={mapa.erroCompletude} />}
 
         {progresso && (
           <section className="progresso-mapa" aria-label="Progresso do mapa">
@@ -622,7 +631,7 @@ function MapaDoProjeto({
         )}
 
         {mapa && mapa.total === 0 && (
-          <section className="mapa-vazio empty" aria-label="Mapa vazio">
+          <Secao rotulo="Mapa vazio" className="mapa-vazio">
             <p>
               <strong>O mapa ainda está vazio.</strong> Ele é o inventário, em linguagem de negócio,
               do que o sistema faz.
@@ -657,7 +666,7 @@ function MapaDoProjeto({
                 )}
               </details>
             )}
-          </section>
+          </Secao>
         )}
 
         {pagina ? (
@@ -677,7 +686,7 @@ function MapaDoProjeto({
         ) : (
           <>
             {mapa && mapa.total > 0 && (
-              <section aria-label="Funcionalidades" className="funcionalidades-ao-vivo">
+              <Secao rotulo="Funcionalidades">
                 <div className="mapa-filtros" role="group" aria-label="Filtro">
                   {FILTROS.map((f) => (
                     <button
@@ -703,12 +712,12 @@ function MapaDoProjeto({
                   if (lista.length === 0) return null;
                   return (
                     <div key={a.area} className="area-funcionalidades">
-                      <h4>
+                      <TituloSecao nivel={3}>
                         {a.nome}{" "}
                         <span className="muted">
                           ({contar(a.funcionalidades.length, "funcionalidade", "funcionalidades")})
                         </span>
-                      </h4>
+                      </TituloSecao>
                       <ul className="lista-compacta" aria-label={`Funcionalidades de ${a.nome}`}>
                         {lista.map((f) => (
                           <LinhaFuncionalidade
@@ -744,20 +753,25 @@ function MapaDoProjeto({
                     </ul>
                   </details>
                 )}
-              </section>
+              </Secao>
             )}
 
             {mapa && mapa.total > 0 && (lacunas.length > 0 || mapa.justificados.length > 0) && (
-              <section aria-label="Ainda sem mapa" className="pontos-sem-funcionalidade">
-                <h4>
-                  Ainda sem mapa
-                  <AjudaTermo termo="ponto de entrada">
-                    Telas, serviços e rotinas por onde o sistema é usado.
-                  </AjudaTermo>
-                </h4>
+              <Secao
+                rotulo="Ainda sem mapa"
+                className="pontos-sem-funcionalidade"
+                titulo={
+                  <>
+                    Ainda sem mapa
+                    <AjudaTermo termo="ponto de entrada">
+                      Telas, serviços e rotinas por onde o sistema é usado.
+                    </AjudaTermo>
+                  </>
+                }
+              >
                 {lacunas.length > 0 && (
                   <>
-                    <p className="aviso">
+                    <p>
                       {contar(
                         semTratamento.length,
                         "ponto de entrada ainda sem funcionalidade",
@@ -765,23 +779,27 @@ function MapaDoProjeto({
                       )}
                       , nestas pastas:
                     </p>
-                    <ul aria-label="Lacunas da cobertura">
+                    <ListaItens rotulo="Lacunas da cobertura">
                       {lacunas.slice(0, LACUNAS_MOSTRADAS).map((l) => (
-                        <li key={l.pasta}>
-                          <code>{l.pasta}</code>{" "}
-                          <span className="muted">{contar(l.pontos, "ponto", "pontos")}</span>{" "}
-                          <button
-                            type="button"
-                            className="btn btn-sm"
-                            disabled={sessao}
-                            aria-label={`Mapear ${l.pasta}`}
-                            onClick={() => mapearPasta(l.pasta)}
-                          >
-                            Mapear
-                          </button>
-                        </li>
+                        <ItemLista
+                          key={l.pasta}
+                          meta={contar(l.pontos, "ponto", "pontos")}
+                          acoes={
+                            <button
+                              type="button"
+                              className="btn btn-sm"
+                              disabled={sessao}
+                              aria-label={`Mapear ${l.pasta}`}
+                              onClick={() => mapearPasta(l.pasta)}
+                            >
+                              Mapear
+                            </button>
+                          }
+                        >
+                          <code>{l.pasta}</code>
+                        </ItemLista>
                       ))}
-                    </ul>
+                    </ListaItens>
                     <button
                       type="button"
                       className="btn btn-link"
@@ -821,7 +839,7 @@ function MapaDoProjeto({
                     </ul>
                   </details>
                 )}
-              </section>
+              </Secao>
             )}
           </>
         )}

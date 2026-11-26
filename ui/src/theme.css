@@ -40,6 +40,14 @@
   --danger-bg: #2a1714;
   --danger-border: #6a3328;
   --epic-border: #4a3a66;
+  /* Tom "agente" dos selos (#405): o roxo do --epic, com fundo próprio.
+     --agent sobre --agent-bg: 7,24:1 (AA). */
+  --agent: var(--epic);
+  --agent-bg: #2a2140;
+  --agent-border: #4a3a66;
+  /* Documento do projeto analisado (protótipo, prévia da exportação): sempre
+     sobre papel claro, nos dois temas. */
+  --paper: #ffffff;
   --shadow: #0a0c10;
   --scrim: #0a0c10;
   /* Alvo de toque mínimo no celular (épico #205 §10.3). */
@@ -64,10 +72,36 @@
   --hover: var(--idle-bg);
   --selected: var(--running-bg);
   --accent: var(--running);
+  /* Texto sobre --accent (ação principal, #410): 9,34:1 sobre o azul (AA). */
+  --on-accent: #0f1115;
   --statusbar-bg: var(--surface-3);
   /* Fallbacks com os símbolos que o Plex Mono não tem (ex.: ⎿ do Claude Code). */
   --mono: "IBM Plex Mono", "Cascadia Mono", Consolas, "Segoe UI Symbol", "DejaVu Sans Mono", ui-monospace, monospace;
   --sans: "IBM Plex Sans", system-ui, sans-serif;
+
+  /* Identidade visual (#405, épico #411), iguais nos dois temas. Escala de
+     tipografia: só estes tamanhos (a checagem em estilos.test.ts garante). */
+  --fs-title: 22px;
+  --fs-section: 16px;
+  --fs-reading: 15px;
+  --fs-base: 14px;
+  --fs-support: 13px;
+  --fs-small: 12px;
+  --fw-strong: 600;
+  --fw-medium: 500;
+  --lh-reading: 1.55;
+  /* Espaçamento em passos de 4 px. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  /* Raio: seção e cartão, botão e campo, selo. */
+  --radius-card: 10px;
+  --radius-control: 8px;
+  --radius-pill: 999px;
+  /* Largura máxima do texto de leitura (cerca de 90 caracteres por linha). */
+  --reading-width: 1040px;
   color-scheme: dark;
 }
 
@@ -109,6 +143,13 @@
   --danger-bg: #fdecea;
   --danger-border: #e3a397;
   --epic-border: #cdb8ee;
+  /* --agent sobre --agent-bg: 5,15:1 (AA). */
+  --agent: var(--epic);
+  --agent-bg: #efe6fb;
+  --agent-border: #cdb8ee;
+  --paper: #ffffff;
+  /* Texto sobre --accent (ação principal, #410): 6,09:1 sobre o azul (AA). */
+  --on-accent: #ffffff;
   --shadow: #10182829;
   --scrim: #1b1f27;
   color-scheme: light;
@@ -132,7 +173,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--sans);
-  font-size: 14px;
+  font-size: var(--fs-base);
 }
 
 a {
@@ -152,17 +193,6 @@ a {
   color: var(--muted);
 }
 
-.count {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 0 7px;
-  border-radius: 10px;
-  font-size: 12px;
-  font-weight: 700;
-  background: var(--error);
-  color: var(--on-error);
-}
-
 .btn {
   min-height: 36px;
   padding: 0 14px;
@@ -180,7 +210,7 @@ a {
 .btn-sm {
   min-height: 28px;
   padding: 0 10px;
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .btn:disabled,
@@ -189,53 +219,19 @@ a {
   cursor: not-allowed;
 }
 
+/* Ação principal (prancheta Padrões, #410): azul do --accent; o âmbar fica para o
+   significado de atenção (selos, alertas, contadores), não para a ação. */
 .btn-primary {
   border: none;
-  background: var(--attention);
-  color: var(--on-attention);
-  font-weight: 700;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: var(--fw-strong);
 }
 
 .btn-danger {
   border-color: var(--danger-border);
   background: var(--danger-bg);
   color: var(--error-soft);
-}
-
-.badge {
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-  background: var(--idle-bg);
-  color: var(--text-2);
-}
-
-.badge[data-tone="attention"] {
-  background: var(--attention-bg);
-  color: var(--attention);
-}
-.badge[data-tone="running"] {
-  background: var(--running-bg);
-  color: var(--running);
-}
-.badge[data-tone="done"] {
-  background: var(--done-bg);
-  color: var(--done);
-}
-.badge[data-tone="error"] {
-  background: var(--danger-bg);
-  color: var(--error-soft);
-}
-
-.section-title {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
 }
 
 .panel {
@@ -260,7 +256,7 @@ a {
 
 .field > label,
 .field > .label {
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--muted);
 }
 
@@ -286,7 +282,7 @@ textarea {
 
 textarea {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   line-height: 1.5;
   resize: vertical;
 }
@@ -296,11 +292,6 @@ textarea {
   background: var(--danger-bg);
   color: var(--error-soft);
   border-bottom: 1px solid var(--error-border);
-}
-
-.empty {
-  color: var(--muted);
-  padding: 24px 0;
 }
 
 .sr-only {
@@ -322,7 +313,7 @@ textarea {
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--attention);
+  background: var(--accent);
   filter: brightness(1.08);
 }
 
@@ -375,7 +366,7 @@ code,
 pre,
 kbd {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 pre {
@@ -423,7 +414,7 @@ mark {
   align-items: center;
   gap: 6px;
   margin-left: 6px;
-  font-size: 12px;
+  font-size: var(--fs-small);
   font-weight: 400;
 }
 .ajuda-termo-botao {
@@ -434,8 +425,8 @@ mark {
   border-radius: 50%;
   background: transparent;
   color: var(--text-2);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
   line-height: 1;
   cursor: help;
 }

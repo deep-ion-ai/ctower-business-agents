@@ -2,7 +2,9 @@ import { useState } from "react";
 import { mensagemDe } from "./analise";
 import type { EstadoClientes } from "./clientes";
 import { CartaoClaudeCode, CartaoClaudeDesktop, useEstadoClientes } from "./ClientesIA";
+import { Alerta, BarraAcoes, Secao, Selo } from "./componentes";
 import type { ApiPrimeiroUso, ClientePreferido } from "./primeiroUso";
+import "./assistenteProjeto.css";
 
 type Api = Pick<ApiPrimeiroUso, "estadoClientes" | "escolherCliente" | "abrirLink">;
 
@@ -74,8 +76,7 @@ export function EscolhaCliente({
   };
 
   return (
-    <section className="passo-assistente" aria-label="Cliente de IA">
-      <h2>Como você prefere conversar com a IA?</h2>
+    <Secao titulo="Como você prefere conversar com a IA?" rotulo="Cliente de IA" className="passo-primeiro-uso">
       <fieldset className="opcoes-cliente">
         <legend className="muted">Você pode trocar depois, nas configurações.</legend>
         <label className={cliente === "terminalEmbutido" ? "opcao escolhida" : "opcao"}>
@@ -86,7 +87,9 @@ export function EscolhaCliente({
             checked={cliente === "terminalEmbutido"}
             onChange={() => setCliente("terminalEmbutido")}
           />
-          <strong>Claude Code no terminal do app (recomendado)</strong>
+          <strong>
+            Claude Code no terminal do app <Selo tom="neutro">recomendado</Selo>
+          </strong>
           <span className="muted">Tudo numa janela só: a conversa ao lado do documento.</span>
         </label>
         <label className={cliente === "claudeDesktop" ? "opcao escolhida" : "opcao"}>
@@ -109,10 +112,9 @@ export function EscolhaCliente({
 
       {carga.tipo === "verificando" && <p className="muted">Verificando o cliente…</p>}
       {carga.tipo === "erro" && (
-        <p className="error-text" role="alert">
-          Não foi possível verificar os clientes de IA. Você pode seguir assim mesmo e conferir
-          depois.
-        </p>
+        <Alerta tom="erro" titulo="Não foi possível verificar os clientes de IA.">
+          Você pode seguir assim mesmo e conferir depois.
+        </Alerta>
       )}
       {estado && cliente === "terminalEmbutido" && (
         <CartaoClaudeCode estado={estado} abrirLink={api.abrirLink} titulo="Claude Code" />
@@ -139,37 +141,30 @@ export function EscolhaCliente({
         </p>
       )}
       {pendencia && (
-        <p className="attention-text" role="status">
+        <Alerta tom="atencao" titulo="Falta um passo para continuar.">
           {pendencia}
-        </p>
+        </Alerta>
       )}
       {falha && (
-        <p className="error-text" role="alert">
+        <Alerta tom="erro" titulo="Não deu para guardar a escolha do cliente.">
           {falha}
-        </p>
+        </Alerta>
       )}
-      <div className="acoes">
-        <button
-          className="btn"
-          type="button"
-          onClick={verificar}
-          disabled={carga.tipo === "verificando"}
-        >
-          Verificar de novo
-        </button>
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={continuar}
-          disabled={
+      <BarraAcoes
+        rotulo="Ações do cliente de IA"
+        alinhamento="fim"
+        principal={{
+          texto: rotuloContinuar,
+          aoEscolher: continuar,
+          desabilitado:
             gravando ||
             carga.tipo === "verificando" ||
-            (carga.tipo === "pronto" && pendencia !== null)
-          }
-        >
-          {rotuloContinuar}
-        </button>
-      </div>
-    </section>
+            (carga.tipo === "pronto" && pendencia !== null),
+        }}
+        secundarias={[
+          { texto: "Verificar de novo", aoEscolher: verificar, desabilitado: carga.tipo === "verificando" },
+        ]}
+      />
+    </Secao>
   );
 }

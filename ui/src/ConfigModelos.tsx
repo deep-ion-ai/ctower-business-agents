@@ -1,13 +1,25 @@
 import { useState } from "react";
 import { mensagemDe } from "./analise";
 import {
+  Alerta,
+  BarraAcoes,
+  Cartao,
+  EstadoVazio,
+  ItemLista,
+  ListaItens,
+  MenuAcoes,
+  Secao,
+  Selo,
+  type TomSelo,
+} from "./componentes";
+import {
   ESTADO_DO_TEXTO,
   type ApiConfiguracoes,
   type GrupoTexto,
   type TextoEditavel,
 } from "./configuracoes";
 import { DialogoConfirmacao } from "./DialogoConfirmacao";
-import { MenuMais } from "./MenuMais";
+import { IconeReticencias } from "./icones";
 
 const GRUPOS: { grupo: GrupoTexto; titulo: string; descricao: string }[] = [
   {
@@ -142,25 +154,17 @@ export function ConfigModelos({
   };
 
   return (
-    <section className="config-secao" aria-labelledby="config-modelos">
-      <header className="config-secao-topo">
-        <h2 id="config-modelos">Modelos, roteiros e prompts</h2>
-        <p className="muted">
-          Textos que o agente usa. Ao editar, o app guarda a sua versão na base (
-          <code>_templates/</code>) e passa a usá-la no lugar do padrão.
-        </p>
-      </header>
+    <Secao titulo="Modelos, roteiros e prompts">
+      <p className="muted">
+        Textos que o agente usa. Ao editar, o app guarda a sua versão na base (
+        <code>_templates/</code>) e passa a usá-la no lugar do padrão.
+      </p>
 
       {!temBase ? (
-        <div className="config-cartao config-vazio" role="status">
-          <p>Sem a pasta da base, não há onde guardar as suas versões dos textos.</p>
-          <p className="muted">Escolha a pasta da base para ver e editar os modelos.</p>
-          <div className="acoes config-acoes-inicio">
-            <button className="btn btn-primary" type="button" onClick={aoEscolherBase}>
-              Ir para a pasta da base
-            </button>
-          </div>
-        </div>
+        <EstadoVazio acao={{ texto: "Ir para a pasta da base", aoEscolher: aoEscolherBase }}>
+          Sem a pasta da base, não há onde guardar as suas versões dos textos. Escolha a pasta da
+          base para ver e editar os modelos.
+        </EstadoVazio>
       ) : (
         <>
           <div className="config-filtros" role="group" aria-label="Filtrar textos">
@@ -179,67 +183,66 @@ export function ConfigModelos({
             );
             if (soEditados && itens.length === 0) return null;
             return (
-              <section key={g.grupo} className="config-cartao" aria-label={g.titulo}>
+              <Cartao key={g.grupo} rotulo={g.titulo}>
                 <div className="config-cartao-topo">
                   <h3>{g.titulo}</h3>
                   <span className="muted">{g.descricao}</span>
                 </div>
-                <ul className="config-lista">
+                <ListaItens>
                   {itens.map((t) => (
-                    <li key={t.arquivo} className="config-item">
+                    <ItemLista
+                      key={t.arquivo}
+                      meta={<Selo tom={tomDoEstado(t)}>{ESTADO_DO_TEXTO[t.estado]}</Selo>}
+                      acoes={
+                        <BarraAcoes rotulo={`Ações de ${t.rotulo}`} alinhamento="fim">
+                          <button
+                            className="btn btn-sm"
+                            type="button"
+                            aria-label={`Editar ${t.rotulo}`}
+                            onClick={() => aoEditar(t.arquivo)}
+                          >
+                            Editar
+                          </button>
+                          <MenuAcoes
+                            rotulo={`Mais ações para ${t.rotulo}`}
+                            icone={<IconeReticencias />}
+                            itens={[
+                              {
+                                texto:
+                                  t.estado === "padrao"
+                                    ? "Criar a cópia e abrir no computador"
+                                    : "Abrir no editor do computador",
+                                aoEscolher: () => abrirNoComputador(t),
+                              },
+                              {
+                                texto: "Voltar ao padrão do app",
+                                desabilitado: t.estado === "padrao",
+                                aoEscolher: () => setRestaurando(t),
+                              },
+                            ]}
+                          />
+                        </BarraAcoes>
+                      }
+                    >
                       <span className="config-item-texto">
                         <span className="config-item-nome">{t.rotulo}</span>
                         <span className="muted">{descricaoDe(t) ?? g.descricao}</span>
                       </span>
-                      <span className={`badge estado-texto ${t.estado}`} data-tone={tomDoEstado(t)}>
-                        {ESTADO_DO_TEXTO[t.estado]}
-                      </span>
-                      <button
-                        className="btn btn-sm btn-primary"
-                        type="button"
-                        aria-label={`Editar ${t.rotulo}`}
-                        onClick={() => aoEditar(t.arquivo)}
-                      >
-                        Editar
-                      </button>
-                      <MenuMais
-                        rotulo={`Mais ações para ${t.rotulo}`}
-                        itens={[
-                          {
-                            texto:
-                              t.estado === "padrao"
-                                ? "Criar a cópia e abrir no computador"
-                                : "Abrir no editor do computador",
-                            aoEscolher: () => abrirNoComputador(t),
-                          },
-                          {
-                            texto: "Voltar ao padrão do app",
-                            desabilitado: t.estado === "padrao",
-                            aoEscolher: () => setRestaurando(t),
-                          },
-                        ]}
-                      />
-                    </li>
+                    </ItemLista>
                   ))}
-                </ul>
-              </section>
+                </ListaItens>
+              </Cartao>
             );
           })}
           {soEditados && !textos.some((t) => t.grupo !== "regrasDoProjeto" && t.estado === "editado") && (
-            <p className="muted" role="status">
-              Você ainda não editou nenhum texto: todos usam o padrão do app.
-            </p>
+            <EstadoVazio>Você ainda não editou nenhum texto: todos usam o padrão do app.</EstadoVazio>
           )}
           {aberto && (
             <p className="muted" role="status">
               Aberto: {aberto}
             </p>
           )}
-          {falha && (
-            <p className="error-text" role="alert">
-              {falha}
-            </p>
-          )}
+          {falha && <Alerta tom="erro" titulo={falha} />}
         </>
       )}
 
@@ -275,12 +278,13 @@ export function ConfigModelos({
           </p>
         </DialogoConfirmacao>
       )}
-    </section>
+    </Secao>
   );
 }
 
-function tomDoEstado(t: TextoEditavel): "attention" | "running" | undefined {
-  if (t.estado === "editado") return "running";
-  if (t.estado === "ilegivel") return "attention";
-  return undefined;
+/** O selo do estado do texto: editado em andamento, ilegível em atenção. */
+function tomDoEstado(t: TextoEditavel): TomSelo {
+  if (t.estado === "editado") return "andamento";
+  if (t.estado === "ilegivel") return "atencao";
+  return "neutro";
 }
