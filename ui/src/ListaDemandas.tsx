@@ -9,6 +9,7 @@ import {
   type TipoDemanda,
 } from "./demandas";
 import { EstadoNoRastreador } from "./EstadoNoRastreador";
+import { Alerta, EstadoVazio, Selo, TituloSecao } from "./componentes";
 import type { Tela } from "./Navegacao";
 
 /**
@@ -109,29 +110,31 @@ export function ListaDemandas({
 
   return (
     <section aria-label="Demandas">
-      <h3>Demandas</h3>
-      {temChave && (
-        <button type="button" className="btn" disabled={atualizando} onClick={atualizarStatus}>
-          {atualizando ? "Atualizando o status…" : "Atualizar status"}
-        </button>
-      )}
-      {falha && (
-        <p className="error-text" role="alert">
-          {falha}
-        </p>
-      )}
+      <TituloSecao
+        nivel={3}
+        acoes={
+          temChave && (
+            <button type="button" className="btn" disabled={atualizando} onClick={atualizarStatus}>
+              {atualizando ? "Atualizando o status…" : "Atualizar status"}
+            </button>
+          )
+        }
+      >
+        Demandas
+      </TituloSecao>
+      {falha && <Alerta tom="erro" titulo={falha} />}
       {demandas === null && !falha && <p className="muted">Carregando…</p>}
       {demandas?.length === 0 && (
-        <p className="muted">
+        <EstadoVazio>
           Nenhuma demanda ainda. Crie uma para juntar as atas, as análises e as sessões do pedido do
           cliente.
-        </p>
+        </EstadoVazio>
       )}
       {demandas && demandas.length > 0 && (
         <FiltroTipoDemanda id="tipo-lista-demandas" valor={tipo} aoMudar={setTipo} />
       )}
       {demandas && demandas.length > 0 && visiveis.length === 0 && (
-        <p className="muted">Nenhuma demanda deste tipo.</p>
+        <EstadoVazio>Nenhuma demanda deste tipo.</EstadoVazio>
       )}
       {visiveis.length > 0 && (
         <ul className="lista-demandas">
@@ -144,10 +147,8 @@ export function ListaDemandas({
               >
                 {d.id}: {d.titulo}
               </button>{" "}
-              <span className="badge" data-tone={d.status === "aberta" ? "running" : "done"}>
-                {ROTULO_STATUS_DEMANDA[d.status]}
-              </span>
-              {d.tipo && <span className="badge">{ROTULO_TIPO_DEMANDA[d.tipo]}</span>}
+              <Selo>{ROTULO_STATUS_DEMANDA[d.status]}</Selo>{" "}
+              {d.tipo && <Selo tom="neutro">{ROTULO_TIPO_DEMANDA[d.tipo]}</Selo>}
               {d.chave && <span className="muted">{d.chave}</span>}
               <span className="muted">
                 {d.status === "encerrada" && d.encerrado
@@ -259,11 +260,7 @@ export function FormDemanda({
           Cancelar
         </button>
       </div>
-      {falha && (
-        <p className="error-text" role="alert">
-          {falha}
-        </p>
-      )}
+      {falha && <Alerta tom="erro" titulo={falha} />}
     </form>
   );
 }

@@ -95,7 +95,6 @@ h3.titulo-formulario {
 }
 
 .botoes-fluxo,
-.terminal-controles,
 .acoes-revisao,
 .revalidacao,
 .busca-base {
@@ -108,12 +107,7 @@ h3.titulo-formulario {
 /* Listas de itens (projetos, análises, regras, termos, pastas, resultados). */
 .lista-projetos,
 .lista-analises,
-.lista-regras,
-.lista-termos,
-.lista-areas,
 .lista-demandas,
-.lista-itens-ata,
-.linha-do-tempo,
 .resultados-base ul {
   list-style: none;
   padding: 0;
@@ -123,12 +117,7 @@ h3.titulo-formulario {
 
 .lista-projetos > li,
 .lista-analises > li,
-.lista-regras > li,
-.lista-termos > li,
-.lista-areas > li,
 .lista-demandas > li,
-.lista-itens-ata > li,
-.linha-do-tempo > li,
 .resultados-base li {
   display: flex;
   flex-wrap: wrap;
@@ -140,12 +129,7 @@ h3.titulo-formulario {
 
 .lista-projetos > li:last-child,
 .lista-analises > li:last-child,
-.lista-regras > li:last-child,
-.lista-termos > li:last-child,
-.lista-areas > li:last-child,
 .lista-demandas > li:last-child,
-.lista-itens-ata > li:last-child,
-.linha-do-tempo > li:last-child,
 .resultados-base li:last-child {
   border-bottom: 0;
 }
@@ -177,11 +161,6 @@ h3.titulo-formulario {
 }
 
 .aviso-transcript[data-tone="attention"] {
-  color: var(--attention);
-  font-weight: var(--fw-strong);
-}
-
-.aviso-revalidar {
   color: var(--attention);
   font-weight: var(--fw-strong);
 }
@@ -255,19 +234,6 @@ h3.titulo-formulario {
 .opcao.escolhida {
   border-color: var(--accent);
   background: var(--selected);
-}
-
-.pastas-projeto {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
-
-.pastas-projeto > button {
-  align-self: flex-start;
 }
 
 .resumo-inventario {
@@ -650,12 +616,6 @@ h3.titulo-formulario {
   min-width: 0;
 }
 
-.painel-titulo-linha .badge {
-  flex: 0 0 auto;
-  max-width: 100%;
-  white-space: nowrap;
-}
-
 .painel-titulo-linha .painel-titulo {
   flex: 0 1 auto;
   min-width: 0;
@@ -832,9 +792,9 @@ h3.titulo-formulario {
   max-height: min(70vh, 640px);
 }
 
-.publicacao > h3 {
-  margin: 0;
-  flex: none;
+.publicacao-conferido {
+  display: block;
+  margin-top: var(--space-2);
 }
 
 .publicacao-corpo {
@@ -877,8 +837,11 @@ h3.titulo-formulario {
   overflow-wrap: anywhere;
 }
 
-.publicacao-grupo h4 {
-  margin: 8px 0 2px;
+div.publicacao-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
 }
 
 .publicacao-grupo ul {
@@ -1158,10 +1121,6 @@ h3.titulo-formulario {
   outline-offset: 1px;
 }
 
-.sem-evidencia {
-  margin-top: 12px;
-}
-
 .trecho-caminho {
   margin: 0;
   min-width: 0;
@@ -1182,18 +1141,6 @@ h3.titulo-formulario {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.sem-conversa {
-  margin-top: 12px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-}
-
-.sem-conversa p {
-  margin: 0;
 }
 
 .painel-terminal,
@@ -1224,8 +1171,7 @@ h3.titulo-formulario {
 }
 
 .terminal-situacao,
-.preparar-ambiente,
-.aviso-desktop {
+.preparar-ambiente {
   padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -1253,10 +1199,6 @@ h3.titulo-formulario {
 
 .progresso-workflow p {
   margin: 4px 0;
-}
-
-.aviso-conducao {
-  color: var(--attention);
 }
 
 .fases-workflow {
@@ -1288,16 +1230,6 @@ h3.titulo-formulario {
   gap: 4px;
   color: var(--text);
   font-size: var(--fs-support);
-}
-
-.alerta-conducao {
-  margin: 0;
-  padding: 6px 10px;
-  border: 1px solid var(--attention-border);
-  border-radius: 6px;
-  background: var(--attention-bg);
-  color: var(--attention);
-  font-size: var(--fs-small);
 }
 
 .conducao-fases summary {
@@ -1374,31 +1306,9 @@ h3.titulo-formulario {
   padding-left: 20px;
 }
 
-.afirmacao,
-.pergunta,
-.termo {
-  margin-bottom: 8px;
-  padding: 4px 8px;
-  border-radius: 4px;
-}
-
-/* Afirmação sem decisão do analista: âmbar (o texto diz "sem decisão"). */
-.afirmacao[data-pendente="true"] {
-  background: var(--attention-card);
-  box-shadow: inset 3px 0 0 var(--attention);
-}
-
-.afirmacao[data-estado="a-revalidar"] .estado-afirmacao {
-  color: var(--attention);
-}
-
 .afirmacao[data-estado="incorreta"] .texto {
   text-decoration: line-through;
   color: var(--muted);
-}
-
-.afirmacao[data-estado="confirmada"] .estado-afirmacao {
-  color: var(--ok);
 }
 
 /* Estado da sessão: ponto colorido + texto. */
@@ -1511,12 +1421,6 @@ h3.titulo-formulario {
   gap: 8px;
 }
 
-.aviso-alteracao h3 {
-  margin: 0;
-  font-size: var(--fs-base);
-  color: var(--attention);
-}
-
 .arquivos-alterados {
   list-style: none;
   padding: 0;
@@ -1564,8 +1468,6 @@ h3.titulo-formulario {
   width: 100%;
   margin: 4px 0;
 }
-
-
 
 /* Ações da revisão: ícones compactos, com a dica no title (#130). */
 .acoes-revisao {
@@ -1631,24 +1533,6 @@ h3.titulo-formulario {
   overflow-wrap: anywhere;
 }
 
-/* Rodapé da afirmação: o ícone do código e as ações da revisão numa linha (#130). */
-.rodape-afirmacao {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
-  margin-top: 6px;
-}
-
-.rodape-afirmacao .acoes-revisao {
-  margin-top: 0;
-}
-
-.rodape-afirmacao .acoes-revisao:has(.form-revisao) {
-  flex-basis: 100%;
-  order: 1;
-}
-
 .acoes-revisao .form-revisao {
   flex: 1 1 100%;
 }
@@ -1711,7 +1595,7 @@ h3.titulo-formulario {
 
 /* Evidências de uma afirmação: ocultas por padrão, abertas pelo `</> N` ou pelo
    seletor global, sob o título, antes das ações (#404). */
-.cartao-cabeca .btn-codigo {
+.revisao-cabeca .btn-codigo {
   margin-left: auto;
 }
 
@@ -1719,7 +1603,6 @@ h3.titulo-formulario {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  margin-top: var(--space-2);
 }
 
 .evidencias-titulo {
@@ -1727,7 +1610,7 @@ h3.titulo-formulario {
   color: var(--muted);
 }
 
-.cartao .evidencias-afirmacao .evidencias {
+.evidencias-afirmacao .evidencias {
   margin-top: 0;
 }
 
@@ -2213,10 +2096,6 @@ h3.titulo-formulario {
   overflow-y: auto;
 }
 
-.dialogo-aprovacao .aprovacao > h3 {
-  display: none;
-}
-
 .btn-link {
   min-height: 0;
   padding: 0 4px;
@@ -2227,6 +2106,7 @@ h3.titulo-formulario {
 }
 
 .selo-aprovacao {
+  flex: 0 0 auto;
   align-self: center;
 }
 
@@ -2235,32 +2115,18 @@ h3.titulo-formulario {
   padding-left: 18px;
 }
 
+/* O código citado mudou: o `Alerta` dá a caixa; a lista dos arquivos fica abaixo do título. */
 .faixa-codigo {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px 16px;
-  margin-bottom: 12px;
-  padding: 10px 12px;
-  border: 1px solid var(--attention-border);
-  border-radius: 6px;
-  background: var(--attention-card);
+  margin-bottom: var(--space-3);
 }
 
 .faixa-codigo ul {
-  margin: 4px 0 0;
+  margin: var(--space-1) 0 0;
   padding-left: 18px;
 }
 
 .faixa-codigo p {
-  margin: 4px 0 0;
-}
-
-.faixa-codigo-acoes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  margin: var(--space-1) 0 0;
 }
 
 .painel-lateral .trecho-codigo {
@@ -2484,33 +2350,25 @@ h3.titulo-formulario {
   padding-left: 0;
 }
 
-.cartao {
-  margin: 0;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-}
-
-.cartao:focus-visible,
-.cartao[data-atual] {
+/* Cartões da revisão (afirmação, pergunta, termo, sugestão): o `Cartao` dá a caixa. */
+.afirmacao:focus-visible,
+.afirmacao[data-atual] {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 
-.cartao:focus:not(:focus-visible):not([data-atual]) {
+.afirmacao:focus:not(:focus-visible):not([data-atual]) {
   outline: none;
 }
 
-.cartao-cabeca {
+.revisao-cabeca {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px 8px;
-  margin-bottom: 6px;
+  gap: var(--space-1) var(--space-2);
 }
 
-.cartao-numero {
+.revisao-numero {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2525,19 +2383,15 @@ h3.titulo-formulario {
   font-variant-numeric: tabular-nums;
 }
 
-.cartao > p {
-  margin: 4px 0;
+.cartoes > li > p {
+  margin: 0;
 }
 
-.cartao .comentario {
-  margin: 6px 0 0;
+.afirmacao .comentario {
+  margin: 0;
   padding-left: 10px;
   border-left: 2px solid var(--border-strong);
   overflow-wrap: anywhere;
-}
-
-.cartao .evidencias {
-  margin-top: 8px;
 }
 
 .chip-evidencia {
@@ -2549,12 +2403,12 @@ h3.titulo-formulario {
   background: var(--selected);
 }
 
-.cartao .acoes-revisao {
+.cartoes .acoes-revisao {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  margin-top: 10px;
+  margin-top: var(--space-1);
 }
 
 .btn-acao-rotulada {
@@ -2578,29 +2432,30 @@ h3.titulo-formulario {
   cursor: default;
 }
 
-.cartao.afirmacao[data-pendente="true"] {
+/* Afirmação sem decisão do analista: âmbar (o selo diz "sem decisão"). */
+.afirmacao[data-pendente="true"] {
   background: var(--attention-card);
   border-color: var(--attention-border);
   box-shadow: inset 3px 0 0 var(--attention);
 }
 
-.cartao.afirmacao[data-estado="confirmada"] {
+.afirmacao[data-estado="confirmada"] {
   box-shadow: inset 3px 0 0 var(--ok);
 }
 
-.cartao.afirmacao[data-estado="incorreta"] {
+.afirmacao[data-estado="incorreta"] {
   box-shadow: inset 3px 0 0 var(--error);
 }
 
-.cartao.afirmacao[data-estado="aprofundar"] {
+.afirmacao[data-estado="aprofundar"] {
   box-shadow: inset 3px 0 0 var(--running);
 }
 
-.cartao.afirmacao[data-estado="a-revalidar"] {
+.afirmacao[data-estado="a-revalidar"] {
   box-shadow: inset 3px 0 0 var(--attention);
 }
 
-.cartao.pergunta[data-estado="descartada"] .texto-pergunta {
+.pergunta.estado-descartada .texto-pergunta {
   color: var(--muted);
   text-decoration: line-through;
 }
@@ -3269,14 +3124,15 @@ button.indicador:hover {
   opacity: 0.35;
   cursor: default;
 }
+/* A ação principal do item, no tom da ação principal da tela (#410). */
 .icone-acao.icone-principal:not(:disabled) {
-  background: var(--attention);
-  color: var(--on-attention);
+  background: var(--accent);
+  color: var(--on-accent);
 }
 .icone-acao.icone-principal:hover:not(:disabled) {
   filter: brightness(1.08);
-  background: var(--attention);
-  color: var(--on-attention);
+  background: var(--accent);
+  color: var(--on-accent);
 }
 .icone-contador {
   position: absolute;
@@ -3944,20 +3800,13 @@ code[data-tone="attention"] {
   flex-direction: column;
   gap: var(--space-2);
 }
-.demandas-painel h3,
-.demandas-painel h4 {
-  margin: 0;
-}
-/* Rótulos de seção ("Descrição", "Na base", "Parecidas"): afastados do bloco de cima,
-   colados no próprio texto, nunca por cima dele (#404). */
-.demandas-painel h4,
-.demandas-aba h3.demandas-rotulo,
-.demandas-aba h4 {
-  margin: var(--space-3) 0 0;
-  font-size: var(--fs-support);
-  font-weight: var(--fw-strong);
-  line-height: 1.4;
-  color: var(--muted);
+/* Partes da issue ("Descrição", "Na base", "Parecidas"): o título de seção afastado do
+   bloco de cima e colado no próprio texto, nunca por cima dele (#404, #410). */
+.demandas-parte {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
 }
 /* Cabeçalho: chave, estado e link à esquerda; a ação principal à direita (#404). */
 .demandas-topo {
@@ -3968,6 +3817,7 @@ code[data-tone="attention"] {
   gap: var(--space-2) var(--space-3);
 }
 .demandas-painel-cab {
+  margin: 0;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -4617,17 +4467,9 @@ ul.analises-existentes {
   gap: 4px 16px;
 }
 /* Modo hospedado do protótipo (#383): o que sai do ambiente e a confirmação. */
-.aviso-envio {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px 10px;
-  border: 1px solid var(--attention-border);
-  border-radius: 6px;
-  background: var(--attention-card);
-}
-.aviso-envio p {
-  margin: 0;
+.aviso-envio-confirma {
+  display: block;
+  margin-top: var(--space-2);
 }
 .identidade-visual h5,
 .identidade-visual p {

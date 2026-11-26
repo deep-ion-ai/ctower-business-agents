@@ -1,5 +1,5 @@
-import Markdown from "markdown-to-jsx";
-import { createContext, Fragment, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
+import { TextoRico } from "./componentes";
 
 /** Trecho do texto de uma afirmação: prosa ou código. */
 export type Segmento = { tipo: "texto"; valor: string } | { tipo: "codigo"; valor: string };
@@ -167,11 +167,6 @@ function Destaque({ children }: { children?: ReactNode }) {
   return <strong className="destaque-afirmacao">{children}</strong>;
 }
 
-/** Links não navegam dentro do app: viram texto. */
-function SemLink({ children }: { children?: ReactNode }) {
-  return <span className="link-externo">{children}</span>;
-}
-
 /**
  * O código recolhido e os títulos como destaque, também para o {@link TextoRico} dos
  * blocos de premissa e verificação (#404). Fora do componente: um objeto novo a cada
@@ -188,25 +183,12 @@ export const OVERRIDES_TEXTO_AFIRMACAO = {
   h6: { component: Destaque },
 } as const;
 
-const OPCOES = {
-  disableParsingRawHTML: true,
-  wrapper: Fragment,
-  overrides: {
-    ...OVERRIDES_TEXTO_AFIRMACAO,
-    a: { component: SemLink },
-    img: { component: ({ alt }: { alt?: string }) => <span>{alt}</span> },
-  },
-} as const;
-
 /**
- * Texto de uma afirmação (#130): Markdown simples (listas, negrito, código), sem HTML
- * cru; o código, entre crases ou colado sem elas, aparece formatado e, quando longo,
- * recolhido.
+ * Texto de uma afirmação (#130): Markdown simples (listas, negrito, código) pelo
+ * {@link TextoRico}, sem HTML cru e com a regra única de links (sem host permitido,
+ * viram texto); o código, entre crases ou colado sem elas, aparece formatado e,
+ * quando longo, recolhido.
  */
 export function TextoAfirmacao({ texto }: { texto: string }) {
-  return (
-    <span className="texto">
-      <Markdown options={OPCOES}>{comCodigoMarcado(texto)}</Markdown>
-    </span>
-  );
+  return <TextoRico texto={comCodigoMarcado(texto)} overrides={OVERRIDES_TEXTO_AFIRMACAO} className="texto" />;
 }

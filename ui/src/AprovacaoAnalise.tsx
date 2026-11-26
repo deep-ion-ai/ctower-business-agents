@@ -13,6 +13,7 @@ import type {
   RegraPrevista,
 } from "./revisao";
 import { contarPendencias } from "./resumoRevisao";
+import { Alerta } from "./componentes";
 
 /** O que o analista mudou na regra de uma afirmação; `titulo` nulo é o sugerido. */
 interface Ajuste {
@@ -223,7 +224,7 @@ export function AprovacaoAnalise({
     if (unica) setArea((a) => a || unica);
   }, [unica]);
 
-  if (!prontidao) return erro ? <p className="error-text">{erro}</p> : null;
+  if (!prontidao) return erro ? <Alerta tom="erro" titulo={erro} /> : null;
 
   // Vínculo com o mapa (#287): só quando o app manda a proposta.
   const comVinculo = Array.isArray(prontidao.funcionalidades);
@@ -292,11 +293,25 @@ export function AprovacaoAnalise({
 
   return (
     <section className="aprovacao" aria-label="Aprovação">
-      <h3>Aprovação</h3>
       {aprovada && !feita && <p role="status">Análise aprovada: as regras já estão na base.</p>}
       {!aprovada && prontidao.pendencias.length > 0 && (
-        <div className="pendencias">
-          <p>Antes de aprovar:</p>
+        <Alerta
+          tom="atencao"
+          role="note"
+          titulo="Antes de aprovar:"
+          acoes={
+            aoRevisarPendentes &&
+            pendentes > 0 && (
+              <button
+                className="btn"
+                type="button"
+                onClick={() => aoRevisarPendentes(prontidao.pendencias)}
+              >
+                {pendentes === 1 ? "Revisar a pendente" : `Revisar as ${pendentes} pendentes`}
+              </button>
+            )
+          }
+        >
           <ul aria-label="Pendências" className={resumir ? "resumo-pendencias" : undefined}>
             {resumir
               ? resumoPendencias(prontidao.pendencias).map((g) => <li key={g}>{g}</li>)
@@ -319,16 +334,7 @@ export function AprovacaoAnalise({
                   </li>
                 ))}
           </ul>
-          {aoRevisarPendentes && pendentes > 0 && (
-            <button
-              className="btn"
-              type="button"
-              onClick={() => aoRevisarPendentes(prontidao.pendencias)}
-            >
-              {pendentes === 1 ? "Revisar a pendente" : `Revisar as ${pendentes} pendentes`}
-            </button>
-          )}
-        </div>
+        </Alerta>
       )}
       {!aprovada && prontidao.avisos.length > 0 && (
         <ul className="muted" aria-label="Avisos da aprovação">
@@ -440,7 +446,7 @@ export function AprovacaoAnalise({
             <p className="muted">O projeto tem mais de uma área: escolha a das regras.</p>
           )}
           <button
-            className="btn"
+            className="btn btn-primary"
             type="button"
             disabled={!prontidao.podeAprovar || faltaArea || ocupado}
             onClick={aprovar}
@@ -449,11 +455,7 @@ export function AprovacaoAnalise({
           </button>
         </>
       )}
-      {erro && (
-        <p className="error-text" role="alert">
-          {erro}
-        </p>
-      )}
+      {erro && <Alerta tom="erro" titulo={erro} />}
       {feita && (
         <div role="status" aria-label="Resultado da aprovação">
           <p>{feita.jaAprovada ? "A base foi conferida." : "Análise aprovada."}</p>

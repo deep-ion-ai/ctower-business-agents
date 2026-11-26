@@ -20,7 +20,7 @@ const ROTULO_CAMPO: Record<string, string> = {
  * links para outros `.md` da base abrem o documento no app; os demais ficam como
  * texto, porque o app não abre endereços externos daqui.
  *
- * Renderizador: o {@link TextoRico} (`markdown-to-jsx` 7, MIT, sem dependências). Ele
+ * Renderizador: o {@link TextoRico}, o único do app (MIT, sem dependências). Ele
  * monta elementos React (nada de `innerHTML`), com `disableParsingRawHTML` o HTML do
  * arquivo vira texto e o sanitizador embutido descarta URLs `javascript:`/`data:`. O
  * `react-markdown` faria o mesmo com dezenas de pacotes do ecosprojeto unified.

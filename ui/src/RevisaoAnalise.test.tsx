@@ -268,8 +268,8 @@ describe("Revisão, aprovação e exportação", () => {
     // Aprovada: o documento fica só de leitura, e a incorreta segue registrada.
     // O estado da análise fica na barra do topo.
     expect(await within(screen.getByRole("banner")).findByText("aprovada")).toHaveAttribute(
-      "data-tone",
-      "done",
+      "data-tom",
+      "concluido",
     );
     expect(screen.queryByRole("group", { name: "Revisão da afirmação 1" })).not.toBeInTheDocument();
     expect(c.estado().afirmacoes[1]).toMatchObject({

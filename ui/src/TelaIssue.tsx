@@ -2,12 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { acaoDaIssue } from "./acaoIssue";
 import { mensagemDe } from "./analise";
 import type { ApiConhecimento } from "./conhecimento";
+import { Alerta, EstadoVazio, Selo } from "./componentes";
 import {
   AcoesDaIssue,
   AvisoAbrirLink,
   DescricaoIssue,
   NaBaseIssue,
   ParecidasLista,
+  ParteIssue,
   ROTULO_ORIGEM,
   useAbrirLink,
   useRegrasParecidas,
@@ -86,15 +88,15 @@ export function TelaIssue({
   if (carga.estado === "falha")
     return (
       <div className="page">
-        <p className="error-text" role="alert">{carga.mensagem}</p>
+        <Alerta tom="erro" titulo={carga.mensagem} />
       </div>
     );
   if (carga.estado === "ausente")
     return (
       <div className="page">
-        <p className="muted">
+        <EstadoVazio>
           A issue {chave} não está na lista do rastreador. Use Atualizar na tela Demandas e abra a aba de novo.
-        </p>
+        </EstadoVazio>
       </div>
     );
 
@@ -135,32 +137,26 @@ export function TelaIssue({
         <div className="demandas-topo">
           <h2 className="demandas-painel-cab">
             <span className="id">{issue.chave}</span>
-            <span className="badge" data-tone={issue.estado === "aberta" ? "running" : "done"}>
-              {issue.estado === "aberta" ? "aberta" : "encerrada"}
-            </span>
+            <Selo>{issue.estado === "aberta" ? "aberta" : "encerrada"}</Selo>
             <button type="button" className="link" onClick={() => void abrir(issue.url)}>
               Abrir no {ROTULO_ORIGEM[issue.origem]} ↗
             </button>
           </h2>
           <AcoesDaIssue acao={acao} analisando={analisando} aoAgir={agir} />
         </div>
-        {falhaAcao && (
-          <p className="error-text" role="alert">
-            {falhaAcao}
-          </p>
-        )}
+        {falhaAcao && <Alerta tom="erro" titulo={falhaAcao} />}
         <p className="demandas-painel-titulo">{issue.titulo}</p>
         <p className="muted">
           {[`criada ${idadeDe(issue.criadaEm)}`, ...issue.rotulos.map((r) => `rótulo ${r}`)].join(" · ")}
         </p>
         <AvisoAbrirLink falha={falha} />
 
-        <h3 className="demandas-rotulo">Descrição</h3>
-        <DescricaoIssue issue={issue} abrir={(link) => void abrir(link)} />
-
-        <h3 className="demandas-rotulo">Na base</h3>
-        <NaBaseIssue issue={issue} projeto={projeto} navegar={navegar} aoAbrirAnalise={abrirAnalise} />
-
+        <ParteIssue titulo="Descrição" nivel={3}>
+          <DescricaoIssue issue={issue} abrir={(link) => void abrir(link)} />
+        </ParteIssue>
+        <ParteIssue titulo="Na base" nivel={3}>
+          <NaBaseIssue issue={issue} projeto={projeto} navegar={navegar} aoAbrirAnalise={abrirAnalise} />
+        </ParteIssue>
 
         <ParecidasLista
           itens={similares.map((s) => ({
@@ -171,6 +167,7 @@ export function TelaIssue({
           }))}
           regras={regras}
           navegar={navegar}
+          nivel={3}
         />
       </section>
     </div>

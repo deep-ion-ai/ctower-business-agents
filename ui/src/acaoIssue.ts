@@ -1,5 +1,6 @@
 import type { IssueDoProjeto, SituacaoNaBase } from "./issuesProjeto";
 import { ROTULO_SITUACAO } from "./issuesProjeto";
+import type { TomSelo } from "./componentes";
 
 export interface Acao {
   rotulo: string;
@@ -38,9 +39,10 @@ export const situacaoEmTexto = (i: IssueDoProjeto) =>
     ? ROTULO_SITUACAO[i.situacao]
     : `${i.analise} ${ROTULO_SITUACAO[i.situacao]}`;
 
-export const TOM_SITUACAO: Record<SituacaoNaBase, "attention" | "running" | "done" | undefined> = {
-  "sem-analise": "attention",
-  "em-andamento": "running",
-  "em-revisao": undefined,
-  aprovada: "done",
+/** Tom do selo da situação na base: em revisão espera o analista (atenção). */
+export const TOM_SITUACAO: Record<SituacaoNaBase, TomSelo> = {
+  "sem-analise": "atencao",
+  "em-andamento": "andamento",
+  "em-revisao": "atencao",
+  aprovada: "concluido",
 };

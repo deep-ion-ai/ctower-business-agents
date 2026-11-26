@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import { mensagemDe, type AnaliseCriada } from "./analise";
 import type { AcaoProximoPasso, ApiReuniao } from "./reunioes";
+import { Alerta } from "./componentes";
 
 /** O que o botão precisa saber do próximo passo (da ata ou do painel da demanda). */
 export interface PassoDaAta {
@@ -108,11 +109,7 @@ export function BotoesProximoPasso({
           </div>
         </form>
       )}
-      {falha && (
-        <p className="error-text" role="alert">
-          {falha}
-        </p>
-      )}
+      {falha && <Alerta tom="erro" titulo={falha} />}
     </div>
   );
 }

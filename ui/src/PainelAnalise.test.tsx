@@ -142,7 +142,7 @@ describe("PainelAnalise", () => {
       }),
     );
     expect(await screen.findByText(AFIRMACAO_MULTA.texto)).toBeInTheDocument();
-    expect(screen.getByText("com evidência")).toHaveAttribute("data-tone", "done");
+    expect(screen.getByText("com evidência")).toHaveAttribute("data-tom", "concluido");
     expect(api.carregarAnalise).toHaveBeenCalledTimes(2);
 
     // Reinício da vigia: relê, mesmo sem versão nova.

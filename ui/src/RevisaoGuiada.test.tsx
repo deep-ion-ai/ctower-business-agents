@@ -256,9 +256,9 @@ describe("Cartão de afirmação", () => {
     montar();
     const c = within(cartao(1));
     expect(c.getByTitle("Afirmação 1")).toHaveTextContent("1");
-    expect(c.getByText("com evidência")).toHaveAttribute("data-tone", "done");
-    expect(within(cartao(2)).getByText("inferido")).toHaveAttribute("data-tone", "running");
-    expect(within(cartao(6)).getByText("a confirmar")).toHaveAttribute("data-tone", "attention");
+    expect(c.getByText("com evidência")).toHaveAttribute("data-tom", "concluido");
+    expect(within(cartao(2)).getByText("inferido")).toHaveAttribute("data-tom", "andamento");
+    expect(within(cartao(6)).getByText("a confirmar")).toHaveAttribute("data-tom", "atencao");
     expect(c.getByText("Passada a carência, a multa é de 2%.")).toBeInTheDocument();
     expect(c.getByRole("button", { name: "Confirmar" })).toHaveTextContent("Confirmar");
     expect(c.getByRole("button", { name: "Incorreta" })).toHaveTextContent("Incorreta");
@@ -281,7 +281,7 @@ describe("Cartão de afirmação", () => {
   it("depois da decisão mostra o selo do resultado, o comentário e Desfazer", async () => {
     const { decisoes } = montar();
     const c = within(cartao(4));
-    expect(c.getByText("marcada como incorreta")).toHaveAttribute("data-tone", "error");
+    expect(c.getByText("marcada como incorreta")).toHaveAttribute("data-tom", "erro");
     expect(c.getByText("Não vale.")).toBeInTheDocument();
     expect(within(cartao(5)).getByText("Mostre o perfil.")).toBeInTheDocument();
     expect(within(cartao(6)).getByText("a revalidar: o código mudou")).toBeInTheDocument();

@@ -72,6 +72,8 @@
   --hover: var(--idle-bg);
   --selected: var(--running-bg);
   --accent: var(--running);
+  /* Texto sobre --accent (ação principal, #410): 9,34:1 sobre o azul (AA). */
+  --on-accent: #0f1115;
   --statusbar-bg: var(--surface-3);
   /* Fallbacks com os símbolos que o Plex Mono não tem (ex.: ⎿ do Claude Code). */
   --mono: "IBM Plex Mono", "Cascadia Mono", Consolas, "Segoe UI Symbol", "DejaVu Sans Mono", ui-monospace, monospace;
@@ -146,6 +148,8 @@
   --agent-bg: #efe6fb;
   --agent-border: #cdb8ee;
   --paper: #ffffff;
+  /* Texto sobre --accent (ação principal, #410): 6,09:1 sobre o azul (AA). */
+  --on-accent: #ffffff;
   --shadow: #10182829;
   --scrim: #1b1f27;
   color-scheme: light;
@@ -189,17 +193,6 @@ a {
   color: var(--muted);
 }
 
-.count {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 0 7px;
-  border-radius: 10px;
-  font-size: var(--fs-small);
-  font-weight: 700;
-  background: var(--error);
-  color: var(--on-error);
-}
-
 .btn {
   min-height: 36px;
   padding: 0 14px;
@@ -226,11 +219,13 @@ a {
   cursor: not-allowed;
 }
 
+/* Ação principal (prancheta Padrões, #410): azul do --accent; o âmbar fica para o
+   significado de atenção (selos, alertas, contadores), não para a ação. */
 .btn-primary {
   border: none;
-  background: var(--attention);
-  color: var(--on-attention);
-  font-weight: 700;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: var(--fw-strong);
 }
 
 .btn-danger {
@@ -264,13 +259,6 @@ a {
 .badge[data-tone="error"] {
   background: var(--danger-bg);
   color: var(--error-soft);
-}
-
-.section-title {
-  margin: 0;
-  font-size: var(--fs-support);
-  font-weight: var(--fw-strong);
-  color: var(--muted);
 }
 
 .panel {
@@ -333,11 +321,6 @@ textarea {
   border-bottom: 1px solid var(--error-border);
 }
 
-.empty {
-  color: var(--muted);
-  padding: 24px 0;
-}
-
 .sr-only {
   position: absolute;
   width: 1px;
@@ -357,7 +340,7 @@ textarea {
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--attention);
+  background: var(--accent);
   filter: brightness(1.08);
 }
 

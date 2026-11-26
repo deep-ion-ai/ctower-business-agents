@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { Afirmacao, Evidencia } from "./analise";
 import type { OrigemEvidencia } from "./DocumentoAoVivo";
+import { Alerta } from "./componentes";
 
 /** Arquivo de código cuja mudança afeta afirmações (evidências marcadas a revalidar). */
 export interface CodigoAlterado {
@@ -56,9 +57,26 @@ export function FaixaCodigoAlterado({
   if (alterados.length === 0 || dispensada === chave) return null;
 
   return (
-    <section className="faixa-codigo" role="region" aria-label="Código alterado" data-tone="attention">
-      <div className="faixa-codigo-texto">
-        <strong>O código citado na análise mudou.</strong>
+    <section className="faixa-codigo" aria-label="Código alterado">
+      <Alerta
+        tom="atencao"
+        role="note"
+        titulo="O código citado na análise mudou."
+        acoes={
+          <>
+            <button
+              className="btn"
+              type="button"
+              onClick={() => aoPedir(alterados) && setPedida(chave)}
+            >
+              Pedir revalidação ao agente
+            </button>
+            <button className="btn" type="button" onClick={() => setDispensada(chave)}>
+              Dispensar
+            </button>
+          </>
+        }
+      >
         <ul>
           {alterados.map((c) => (
             <li key={c.arquivo}>
@@ -97,19 +115,7 @@ export function FaixaCodigoAlterado({
             Pedido de revalidação enviado ao agente.
           </p>
         )}
-      </div>
-      <div className="faixa-codigo-acoes">
-        <button
-          className="btn"
-          type="button"
-          onClick={() => aoPedir(alterados) && setPedida(chave)}
-        >
-          Pedir revalidação ao agente
-        </button>
-        <button className="btn" type="button" onClick={() => setDispensada(chave)}>
-          Dispensar
-        </button>
-      </div>
+      </Alerta>
     </section>
   );
 }
