@@ -157,6 +157,21 @@ prontidão não bloqueia o app.
   Com issue no rastreador, o roteiro da análise (`iniciar_analise` e `retomar_analise`) termina com a
   orientação de ler os comentários no início e citar o comentário (autor e data) que mudar o
   entendimento do pedido.
+- **Mudanças em andamento (#441):** a ferramenta MCP `mudancas_em_andamento` (só leitura) recebe
+  arquivos do projeto (por padrão, os citados nas evidências da análise), acha o repositório de
+  código de cada um (pela pasta, como os links das evidências) e devolve os PRs e MRs abertos que
+  os alteram: número, título, branch, autor, data, chaves de demanda no título e na branch (`FAT-12`,
+  `#41`, `feat/41-…`; com rastreador cadastrado, só as que valem nele), link e os arquivos em comum.
+  `gh pr list` e `glab mr list` não filtram por arquivo: a lista dos abertos sai de `gh api
+  repos/:dono/:repo/pulls` e `glab api projects/:id/merge_requests` (os 50 mais recentes por
+  repositório, até 100 se o agente pedir, em páginas, com aviso quando há mais), e os arquivos de
+  cada um de `gh api …/pulls/N/files` (paginado) e `glab api …/merge_requests/N/changes`. O token
+  do repositório sai do resolvedor e vai só no ambiente da CLI. Cache por sessão: a lista vale 5
+  minutos; os arquivos de um PR/MR, enquanto a ponta dele não mudar. Sem repositório cadastrado,
+  sem rede ou sem acesso, a resposta traz o aviso e a análise segue. O roteiro de impacto manda
+  consultar antes de concluir, com os arquivos da correção, e registrar cada PR/MR encontrado em
+  `riscos` (dependência ou conflito, com número, título e link), conferindo se ele já cobre a
+  demanda.
 - **Evidências exportadas:** cada nota vira um link para o arquivo e as linhas no commit da
   evidência (ou, na falta dele, o `base.commit` da análise), no repositório cuja pasta contém o
   arquivo (a mais funda, se um estiver dentro do outro); o caminho no link é relativo à pasta do
