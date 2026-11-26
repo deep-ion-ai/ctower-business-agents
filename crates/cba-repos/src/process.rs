@@ -179,6 +179,8 @@ pub fn cite(text: &str, token: Option<&Secret>) -> String {
         Some(t) => t.redact(&plain),
         None => plain,
     };
+    // Mascaramento central (#436): todo segredo já resolvido pelo app.
+    let plain = crate::providers::mascara::mascarar(&plain);
     let one_line = plain
         .replace('✗', "")
         .split_whitespace()

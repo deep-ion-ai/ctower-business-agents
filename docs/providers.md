@@ -20,6 +20,17 @@ FonteCredencial = Chaveiro { conta } | Comando { cmd } | Cli | Arquivo { caminho
 - `credencial`: **de onde** vem a credencial, nunca o valor.
 - `opcoes`: mapa de texto com as chaves declaradas em `campos_opcoes()`.
 
+## Resolvedor de credenciais
+
+A credencial de uma conexão sai sempre pelo resolvedor (`providers::Resolvedor::global()`), nunca lida direto do chaveiro ou de um comando:
+
+- `resolver(conexao, chaveiro, cli)` lê a fonte e devolve um `Secret`. O resultado fica em cache em memória durante a vida do processo (menos a fonte `Arquivo`, lida a cada vez). Gravar ou apagar um token no chaveiro esvazia o cache.
+- `resolver_com_sobrescrita` aceita a conta do token próprio de um repositório, que vale no lugar da credencial da conexão.
+- `com_nova_tentativa(obter, operacao)`: se a operação falhar com credencial recusada (401, 403, `Unauthorized`, `Forbidden`), a credencial sai do cache e a operação roda mais uma vez, com a credencial lida de novo. O erro do consumidor diz se é recusa pelo trait `Recusada`.
+- Todo segredo resolvido entra no **mascaramento central** (`providers::mascara`): o terminal embutido, o log em arquivo e as mensagens de erro (`process::cite`) trocam o valor por `***`. Uma senha de banco que não passa pelo resolvedor entra com `mascara::registrar_texto`.
+
+Enquanto os projetos ainda não referenciam conexões nomeadas, `providers::legado` monta uma conexão implícita a partir do cadastro de hoje (`credential_cmd`, token global por host, token próprio do repositório) e resolve por esse mesmo caminho.
+
 ## Passo a passo
 
 O exemplo é um provider fictício, o **Rastreador Exemplo**, que existe só nos testes (`crates/cba-repos/src/providers/tests.rs`, `DescritorFicticio`).
