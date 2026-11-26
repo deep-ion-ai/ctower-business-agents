@@ -121,6 +121,7 @@ function useAlturaAteOFim<T extends HTMLElement>() {
  * e dados pessoais e devolve o link. O corpo rola; as ações ficam no rodapé.
  */
 export function PublicacaoDocs({ api, projeto, abrirUrl }: Props) {
+  const [falhaLink, setFalhaLink] = useState<string | null>(null);
   const [previa, setPrevia] = useState<PreviaPublicacao | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [conferido, setConferido] = useState(false);
@@ -274,12 +275,20 @@ export function PublicacaoDocs({ api, projeto, abrirUrl }: Props) {
                   href={link}
                   onClick={(e) => {
                     e.preventDefault();
-                    void abrirUrl(link);
+                    setFalhaLink(null);
+                    Promise.resolve(abrirUrl(link)).catch((err: unknown) =>
+                      setFalhaLink(`Não foi possível abrir o link. ${mensagemDe(err)}`),
+                    );
                   }}
                 >
                   Abrir o PR/MR
                 </a>{" "}
                 <span className="muted">{link}</span>
+              </p>
+            )}
+            {falhaLink && (
+              <p className="error-text" role="alert">
+                {falhaLink}
               </p>
             )}
           </div>

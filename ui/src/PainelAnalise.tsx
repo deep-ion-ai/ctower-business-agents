@@ -1,5 +1,4 @@
 import { ProgressoWorkflow } from "./ProgressoWorkflow";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   apiAlteracoesTauri,
@@ -56,6 +55,7 @@ import { TrechoEvidencia, type CargaTrecho } from "./TrechoEvidencia";
 import type { CodigoAlterado } from "./FaixaCodigoAlterado";
 import type { ApiTerminal, PedidoClaude } from "./terminal";
 import type { TelaTerminal } from "./telaXterm";
+import { abrirLinkDoProjeto } from "./abrirLinkProjeto";
 import { useAnaliseAoVivo } from "./useAnaliseAoVivo";
 
 /** Como a tela chegou à análise. */
@@ -202,9 +202,11 @@ export function PainelAnalise({
   apiPublicacao = apiPublicacaoTauri,
   apiPrototipo = apiPrototipoTauri,
   aoAbrirAnalise,
-  abrirUrl = openUrl,
+  abrirUrl: abrirUrlDado,
   aoMudarConversa,
 }: Props) {
+  // Links da forja do projeto (PR, evidência) pelo comando que confere o host (#398).
+  const abrirUrl = abrirUrlDado ?? ((url: string) => abrirLinkDoProjeto(projeto, url));
   const { vista, erro, recarregar } = useAnaliseAoVivo(api, projeto, analise);
   const [revisando, setRevisando] = useState(false);
   const colunas = useRef<HTMLDivElement>(null);

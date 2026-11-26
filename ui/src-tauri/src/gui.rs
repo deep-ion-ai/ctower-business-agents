@@ -7,10 +7,10 @@ use std::sync::Arc;
 
 use crate::{
     acessos, alteracoes, ambiente_teste, analise, base, clones, cobertura, conducao, configuracoes,
-    conversa, demandas, docs_externos, funcionalidades, inicio, issues_projeto, manual, mudancas,
-    painel_funcionalidade, pauta, primeiro_uso, projeto, prompts, prototipo, publicacao,
-    rastreabilidade, registros, repositorios, resumo, reunioes, revisao, terminal, tokens, vigia,
-    vincular_issues, workflows,
+    conversa, demandas, docs_externos, funcionalidades, inicio, issues_projeto, links_projeto,
+    manual, mudancas, painel_funcionalidade, pauta, primeiro_uso, projeto, prompts, prototipo,
+    publicacao, rastreabilidade, registros, repositorios, resumo, reunioes, revisao, terminal,
+    tokens, vigia, vincular_issues, workflows,
 };
 
 pub fn rodar() {
@@ -121,6 +121,7 @@ pub fn rodar() {
             manual::ler_print_manual_app,
             issues_projeto::issues_do_projeto_app,
             issues_projeto::analisar_impacto_da_issue_app,
+            links_projeto::abrir_link_do_projeto_app,
             vincular_issues::issues_para_vincular_app,
             vincular_issues::confirmar_vinculos_app,
             vincular_issues::justificar_issue_app,
