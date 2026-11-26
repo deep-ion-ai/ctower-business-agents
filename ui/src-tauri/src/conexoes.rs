@@ -52,7 +52,7 @@ pub fn carregar(dados: &DiretorioDados) -> Result<(), String> {
     Catalogo::global().usar_arquivo(arquivo(dados))
 }
 
-fn gravar(dados: &DiretorioDados, lista: &[Conexao]) -> Result<(), String> {
+pub(crate) fn gravar(dados: &DiretorioDados, lista: &[Conexao]) -> Result<(), String> {
     todos().validar_lista(lista)?;
     let json = serde_json::to_vec_pretty(&ArquivoConexoes {
         conexoes: lista.to_vec(),
@@ -496,6 +496,13 @@ pub async fn guardar_credencial_conexao_app(id: String, valor: String) -> Result
 pub async fn testar_conexao_app(id: String) -> Result<Integracao, String> {
     let dados = dados()?;
     bloqueante(move || testar(&dados, &id, &Ferramentas::default())).await
+}
+
+/// O erro da migração dos cadastros para conexões nesta abertura (#438), se
+/// houve: os cadastros antigos continuam valendo.
+#[tauri::command]
+pub fn erro_migracao_conexoes_app() -> Option<String> {
+    crate::migracao_conexoes::erro()
 }
 
 #[cfg(all(test, unix))]

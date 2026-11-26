@@ -50,6 +50,7 @@ mod inicio;
 mod issues_projeto;
 mod links_projeto;
 mod manual;
+mod migracao_conexoes;
 mod mudancas;
 mod painel_funcionalidade;
 mod pauta;
