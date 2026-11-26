@@ -1,0 +1,36 @@
+name: site-pages
+
+# Teste do site no GitHub Pages (alternativa ao Cloudflare Pages da #427).
+on:
+  push:
+    branches: [develop, exp/427-site-github-pages]
+    paths: ['site/**', '.github/workflows/site-pages.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: site-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: withastro/action@v6
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
