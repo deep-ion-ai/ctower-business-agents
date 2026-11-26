@@ -3,7 +3,7 @@
     "lang": "pt-BR",
     "title": "Ctower Business Agents: entenda sistemas legados a partir do código",
     "description": "Assistente desktop para analistas de requisitos e de negócio: responde perguntas, explica funcionalidades e analisa o impacto de demandas, com evidência para cada afirmação. Open source, Apache-2.0.",
-    "imageAlt": "Visão geral de um projeto no Ctower Business Agents, com próximos passos, análises, regras e cobertura da base por área"
+    "imageAlt": "Visão geral de um projeto no Ctower Business Agents, com próximos passos, análises por situação e atividade recente do agente"
   },
   "header": {
     "skip": "Pular para o conteúdo",
@@ -56,8 +56,13 @@
       },
       {
         "title": "Análise de reunião",
-        "text": "Cole o transcript do Teams ou anexe o .vtt ou o .docx da reunião. O agente tira as decisões, as pendências e as demandas, e o transcript é apagado quando você aprova a ata.",
-        "alt": "Formulário de análise de reunião, com a demanda, o campo do transcript, o anexo .vtt ou .docx e o aviso de privacidade"
+        "text": "Cole o transcript do Teams ou anexe o .vtt ou o .docx. O agente monta a ata com objetivo, resumo, decisões, necessidades, pendências com responsável e prazo, dúvidas em aberto e próximos passos, cada item com as falas de origem. Você confirma os participantes e aprova a ata.",
+        "alt": "Ata de uma reunião sobre portabilidade de crédito, com pendências com responsável e prazo, dúvidas em aberto e próximos passos"
+      },
+      {
+        "title": "Demandas do rastreador",
+        "text": "As issues do GitHub, do GitLab ou do Jira aparecem como demandas, ao lado das criadas à mão. Daí sai a análise de impacto, com as regras parecidas que já estão na base.",
+        "alt": "Lista de demandas com issues do GitHub e o detalhe de uma demanda sobre consentimento no Open Finance"
       },
       {
         "title": "Mapa de funcionalidades",

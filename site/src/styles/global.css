@@ -372,6 +372,7 @@ details + details { margin-top: 0; }
   .steps, .cards { grid-template-columns: repeat(3, 1fr); }
   .faq { grid-template-columns: repeat(2, 1fr); }
   .flow { grid-template-columns: 1fr 2fr; align-items: center; gap: 48px; }
+  .flow:nth-child(even) { grid-template-columns: 2fr 1fr; }
   .flow:nth-child(even) .flow-text { order: 2; }
   .split { grid-template-columns: 1fr 1fr; }
   .foot { grid-template-columns: 1fr auto; align-items: center; }
