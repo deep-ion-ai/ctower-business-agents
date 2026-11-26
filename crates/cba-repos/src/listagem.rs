@@ -234,7 +234,7 @@ pub fn listar_github(
 ) -> Result<Listagem, DemandaErro> {
     let desde = periodo.data_a_partir_de(hoje())?;
     let teto = teto.max(1);
-    let token = token_github(f);
+    let token = token_github(g, f);
     let mut c = Command::new(&f.gh);
     if let Some(t) = &token {
         c.env("GH_TOKEN", t.expose());
@@ -540,7 +540,10 @@ echo '[{"number":3,"title":"C","body":"c","url":"u3","createdAt":"2026-10-01T00:
             gh,
             ..Default::default()
         };
-        let g = GithubConfig { repo: "o/r".into() };
+        let g = GithubConfig {
+            repo: "o/r".into(),
+            ..Default::default()
+        };
         let l = listar_github(&g, &Periodo::default(), 2, &f).unwrap();
         assert!(l.excedeu_teto);
         assert_eq!(l.issues.len(), 2);
@@ -573,7 +576,10 @@ echo '[{"number":5,"title":"A","body":"a","url":"u5","createdAt":"2026-10-01T00:
             gh,
             ..Default::default()
         };
-        let g = GithubConfig { repo: "o/r".into() };
+        let g = GithubConfig {
+            repo: "o/r".into(),
+            ..Default::default()
+        };
         let l = listar_github(&g, &Periodo::default(), 10, &f).unwrap();
         assert_eq!(
             l.issues[0].arquivos,
@@ -596,7 +602,10 @@ echo '[{"number":5,"title":"A","body":"a","url":"u5","createdAt":"2026-10-01T00:
             gh,
             ..Default::default()
         };
-        let g = GithubConfig { repo: "o/r".into() };
+        let g = GithubConfig {
+            repo: "o/r".into(),
+            ..Default::default()
+        };
         let l = listar_github(&g, &Periodo::default(), 10, &f).unwrap();
         assert_eq!(l.issues.len(), 1);
         assert!(l.issues[0].arquivos.is_empty());

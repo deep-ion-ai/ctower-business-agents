@@ -5,7 +5,6 @@
 //! no ambiente. Sem escrita no rastreador.
 
 use crate::chaveiro::{Chaveiro, ChaveiroNativo, ErroToken};
-use crate::codigo::HOST_GITHUB;
 use crate::process::{self, RunError, cite};
 use crate::providers::{Recusada, com_nova_tentativa, legado, texto_de_recusa};
 use crate::{CredentialError, GithubConfig, GitlabConfig, JiraConfig, Secret, TrackerConfig};
@@ -81,10 +80,11 @@ pub fn token_jira(j: &JiraConfig, f: &Ferramentas) -> Result<Secret, DemandaErro
         .ok_or_else(|| DemandaErro::SemToken(j.host()))
 }
 
-/// Token global do GitHub (chaveiro ou comando do host), se houver; sem ele,
-/// vale o `gh auth`.
-pub fn token_github(f: &Ferramentas) -> Option<Secret> {
-    legado::token_do_host(HOST_GITHUB, "GitHub", f.chaveiro.as_ref())
+/// Token do GitHub de issues: o da conexão referenciada ou, sem ela, o global
+/// do github.com (chaveiro ou comando do host), se houver; sem token, vale o
+/// `gh auth`.
+pub fn token_github(g: &GithubConfig, f: &Ferramentas) -> Option<Secret> {
+    legado::token_github(g, f.chaveiro.as_ref(), Some(&f.gh))
         .ok()
         .flatten()
 }
@@ -184,7 +184,7 @@ pub fn buscar_github(
     // Com token do GitHub no chaveiro, ele vai no ambiente (`GH_TOKEN`); sem ele,
     // o gh usa a própria autenticação (`gh auth login`).
     let v = com_nova_tentativa(
-        || Ok(token_github(f)),
+        || Ok(token_github(g, f)),
         |token| {
             let mut c = Command::new(&f.gh);
             if let Some(t) = token {
@@ -462,7 +462,10 @@ echo '{"title":"T","body":"B","url":"u"}'"#,
             )
             .unwrap();
         assert_eq!(buscar_gitlab(&g, "1", &f).unwrap().titulo, "T");
-        let gh = GithubConfig { repo: "o/r".into() };
+        let gh = GithubConfig {
+            repo: "o/r".into(),
+            ..Default::default()
+        };
         assert!(buscar_github(&gh, "1", &f).is_err());
         chaveiro
             .gravar(&conta_global("github.com"), &Secret::new("gh-do-chaveiro"))
@@ -483,18 +486,40 @@ echo '{"title":"T","body":"B","url":"https://github.com/o/r/issues/5"}'"#,
             gh,
             ..Default::default()
         };
-        let dem = buscar_github(&GithubConfig { repo: "o/r".into() }, "5", &f).unwrap();
+        let dem = buscar_github(
+            &GithubConfig {
+                repo: "o/r".into(),
+                ..Default::default()
+            },
+            "5",
+            &f,
+        )
+        .unwrap();
         assert_eq!(dem.url, "https://github.com/o/r/issues/5");
         let sem = Ferramentas {
             gh: d.path().join("nao-existe"),
             ..Default::default()
         };
         assert!(matches!(
-            buscar_github(&GithubConfig { repo: "o/r".into() }, "5", &sem),
+            buscar_github(
+                &GithubConfig {
+                    repo: "o/r".into(),
+                    ..Default::default()
+                },
+                "5",
+                &sem
+            ),
             Err(DemandaErro::SemFerramenta { .. })
         ));
         assert!(matches!(
-            buscar_github(&GithubConfig { repo: "o/r".into() }, "abc", &f),
+            buscar_github(
+                &GithubConfig {
+                    repo: "o/r".into(),
+                    ..Default::default()
+                },
+                "abc",
+                &f
+            ),
             Err(DemandaErro::Referencia(_))
         ));
     }

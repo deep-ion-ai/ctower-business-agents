@@ -107,7 +107,10 @@ fn github_encerra_reabre_e_sem_rede_fica_o_ultimo_estado() {
         gh: gh_falso(fdir),
         ..Default::default()
     };
-    let tracker = TrackerConfig::Github(GithubConfig { repo: "o/r".into() });
+    let tracker = TrackerConfig::Github(GithubConfig {
+        repo: "o/r".into(),
+        ..Default::default()
+    });
     let cache = CacheConferencia::default();
     responder(
         fdir,
@@ -200,7 +203,10 @@ fn cache_vencido_rele_o_rastreador() {
         ..Default::default()
     };
     responder(fdir, r#"{"data":{"repository":{"i5":{"state":"OPEN"}}}}"#);
-    let tracker = TrackerConfig::Github(GithubConfig { repo: "o/r".into() });
+    let tracker = TrackerConfig::Github(GithubConfig {
+        repo: "o/r".into(),
+        ..Default::default()
+    });
     let cache = CacheConferencia::com_validade(Duration::ZERO);
     conferir_demandas(&kb, Some(&tracker), None, false, &cache, &f);
     conferir_demandas(&kb, Some(&tracker), None, false, &cache, &f);
@@ -218,7 +224,10 @@ fn issue_nao_encontrada_avisa_e_mantem_o_estado() {
         ..Default::default()
     };
     responder(fdir, r#"{"data":{"repository":{"i9":null}}}"#);
-    let tracker = TrackerConfig::Github(GithubConfig { repo: "o/r".into() });
+    let tracker = TrackerConfig::Github(GithubConfig {
+        repo: "o/r".into(),
+        ..Default::default()
+    });
     let s = conferir_demandas(
         &kb,
         Some(&tracker),

@@ -185,7 +185,7 @@ pub fn token_do_repositorio(
     chaveiro: &dyn Chaveiro,
 ) -> Result<Option<Secret>, ErroToken> {
     match legado::token_repositorio(repo, chaveiro)? {
-        None if repo.token == OrigemToken::Proprio => {
+        None if repo.token == OrigemToken::Proprio && repo.conexao.trim().is_empty() => {
             Err(ErroToken::SemTokenProprio(repo.rotulo()))
         }
         t => Ok(t),

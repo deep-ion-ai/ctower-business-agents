@@ -6,11 +6,11 @@ use cba_session::clientes::{self, EstadoClientes};
 use std::sync::Arc;
 
 use crate::{
-    acessos, alteracoes, ambiente_teste, analise, base, clones, cobertura, conducao, configuracoes,
-    conversa, demandas, docs_externos, funcionalidades, inicio, issues_projeto, links_projeto,
-    manual, mudancas, painel_funcionalidade, pauta, primeiro_uso, projeto, prompts, prototipo,
-    publicacao, rastreabilidade, registros, repositorios, resumo, reunioes, revisao, terminal,
-    tokens, vigia, vincular_issues, workflows,
+    acessos, alteracoes, ambiente_teste, analise, base, clones, cobertura, conducao, conexoes,
+    configuracoes, conversa, demandas, docs_externos, funcionalidades, inicio, issues_projeto,
+    links_projeto, manual, mudancas, painel_funcionalidade, pauta, primeiro_uso, projeto, prompts,
+    prototipo, publicacao, rastreabilidade, registros, repositorios, resumo, reunioes, revisao,
+    terminal, tokens, vigia, vincular_issues, workflows,
 };
 
 pub fn rodar() {
@@ -54,6 +54,12 @@ pub fn rodar() {
             terminal::enviar_prompt_terminal,
             terminal::encerrar_terminal,
             terminal::ultima_sessao_terminal,
+            conexoes::descritores_conexao_app,
+            conexoes::listar_conexoes_app,
+            conexoes::salvar_conexao_app,
+            conexoes::remover_conexao_app,
+            conexoes::guardar_credencial_conexao_app,
+            conexoes::testar_conexao_app,
             primeiro_uso::situacao_app,
             primeiro_uso::escolher_cliente_app,
             primeiro_uso::avaliar_base_app,
