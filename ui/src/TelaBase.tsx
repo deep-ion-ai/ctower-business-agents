@@ -13,6 +13,7 @@ import {
   type Grupo,
   type ResultadoBase,
 } from "./baseLista";
+import { Alerta, BarraAcoes, EstadoVazio, Secao, Selo, TituloSecao, type Acao } from "./componentes";
 import { ConferenciaEvidencias } from "./ConferenciaEvidencias";
 import {
   partesDoTrecho,
@@ -34,20 +35,10 @@ import type { ProjetoResumo } from "./terminal";
 
 const ABAS: AbaBase[] = ["regras", "glossario", "documentos"];
 
-/** Situação de uma regra, com o tom que o âmbar reforça só em "a revalidar". */
+/** Situação de uma regra: o tom vem do significado ("a revalidar" pede o analista). */
 function SeloSituacao({ status }: { status: string | null }) {
   if (!status) return null;
-  const rotulo = ROTULO_STATUS_REGRA[status as StatusRegra] ?? status;
-  return (
-    <span
-      className="badge"
-      data-tone={
-        status === "a-revalidar" ? "attention" : status === "confirmada" ? "done" : undefined
-      }
-    >
-      {rotulo}
-    </span>
-  );
+  return <Selo>{ROTULO_STATUS_REGRA[status as StatusRegra] ?? status}</Selo>;
 }
 
 /**
@@ -182,24 +173,20 @@ export function TelaBase({
   const abrirAnalise = (s: string, id: string) =>
     navegar({ tipo: "analise", projeto: s, aberta: { id, abertura: { tipo: "reabrir" } } });
 
+  const navegacaoDocumento: Acao[] = [
+    ...(historico.length > 1 ? [{ texto: "Voltar", aoEscolher: voltar }] : []),
+    ...(!soDocumento ? [{ texto: "Fechar o documento", aoEscolher: () => setHistorico([]) }] : []),
+  ];
+
   const painelDocumento = (
     <div className="documento-aberto" ref={topo}>
-      <div className="acoes" hidden={editando}>
-        {historico.length > 1 && (
-          <button className="btn" type="button" onClick={voltar}>
-            Voltar
-          </button>
-        )}
-        {!soDocumento && (
-          <button className="btn" type="button" onClick={() => setHistorico([])}>
-            Fechar o documento
-          </button>
-        )}
-      </div>
+      {!editando && navegacaoDocumento.length > 0 && (
+        <BarraAcoes secundarias={navegacaoDocumento} rotulo="Documento aberto" alinhamento="fim" />
+      )}
       {falhaDocumento && (
-        <p className="error-text" role="alert">
-          Não foi possível abrir {aberto}: {falhaDocumento}
-        </p>
+        <Alerta tom="erro" titulo={`Não foi possível abrir ${aberto}.`}>
+          {falhaDocumento}
+        </Alerta>
       )}
       {documento && !falhaDocumento && editando && (
         <EditorDocumento
@@ -274,33 +261,33 @@ export function TelaBase({
 
   return (
     <section className="tela-base page" aria-label="Base de conhecimento">
-      <div className="cab-secao">
-        <h2>Base de conhecimento</h2>
-      </div>
+      <h2>Base de conhecimento</h2>
       {projeto && <ConferenciaEvidencias api={api} projeto={projeto} aoMudar={recarregar} />}
 
       {visao && visao.problemas.length > 0 && (
-        <section className="aviso-documentos" aria-label="Documentos com problema" role="alert">
-          <h3>
-            {contar(visao.problemas.length, "documento com problema", "documentos com problema")}
-          </h3>
-          <ul>
-            {visao.problemas.map((p) => (
-              <li key={p.caminho}>
-                <span className="mono" title={p.caminho}>
-                  {p.caminho.split("/").pop()}
-                </span>
-                : <ErroTecnico mensagem={p.erro} />{" "}
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => navegar({ tipo: "base", documento: p.caminho })}
-                >
-                  Abrir para corrigir
-                </button>
-              </li>
-            ))}
-          </ul>
+        <section aria-label="Documentos com problema">
+          <Alerta
+            tom="erro"
+            titulo={contar(visao.problemas.length, "documento com problema", "documentos com problema")}
+          >
+            <ul className="documentos-com-problema">
+              {visao.problemas.map((p) => (
+                <li key={p.caminho}>
+                  <span className="mono" title={p.caminho}>
+                    {p.caminho.split("/").pop()}
+                  </span>
+                  : <ErroTecnico mensagem={p.erro} />{" "}
+                  <button
+                    type="button"
+                    className="link"
+                    onClick={() => navegar({ tipo: "base", documento: p.caminho })}
+                  >
+                    Abrir para corrigir
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </Alerta>
         </section>
       )}
 
@@ -386,14 +373,10 @@ export function TelaBase({
           </button>
         )}
       </div>
-      {falha && (
-        <p className="error-text" role="alert">
-          {falha}
-        </p>
-      )}
+      {falha && <Alerta tom="erro" titulo={falha} />}
 
       <div className="base-colunas" data-editando={editando || undefined}>
-        <section aria-label="Resultados" className="resultados-base">
+        <Secao rotulo="Resultados" className="resultados-base">
           <div role="tabpanel" id="painel-base" aria-labelledby={`aba-base-${aba}`}>
             <p className="muted" role="status">
               {!resultado
@@ -412,9 +395,9 @@ export function TelaBase({
             </p>
             {gruposDaAba.map((g) => (
               <div key={g.chave || "sem-area"} className="grupo-base">
-                <h3>
+                <TituloSecao nivel={3}>
                   {g.titulo} <span className="muted">· {g.itens.length}</span>
-                </h3>
+                </TituloSecao>
                 <ul>
                   {g.itens.map((r) => (
                     <li
@@ -436,9 +419,9 @@ export function TelaBase({
                         <span className="muted">{r.status}</span>
                       )}
                       {r.externo && (
-                        <span className="badge" title={r.externo.caminho}>
+                        <Selo tom="neutro" titulo={r.externo.caminho}>
                           {rotuloOrigem(r.externo)}
-                        </span>
+                        </Selo>
                       )}
                       {r.trecho && (
                         <p className="trecho-busca">
@@ -457,25 +440,22 @@ export function TelaBase({
               </div>
             ))}
             {resultado && naAba === 0 && filtrando && consulta === "" && totalGeral > 0 && (
-              <p className="muted">Nenhum item com estes filtros.</p>
+              <EstadoVazio>Nenhum item com estes filtros.</EstadoVazio>
             )}
             {resultado && consulta !== "" && (
-              <div className="vazio-base">
-                <b>Não achou o que procurava?</b>
-                <span>Pergunte ao agente; a resposta aprovada entra na base.</span>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() =>
-                    navegar({ tipo: "analise", projeto: projeto || undefined, pergunta: consulta })
-                  }
-                >
-                  Perguntar: "{consulta}"
-                </button>
-              </div>
+              <EstadoVazio
+                acao={{
+                  texto: `Perguntar: "${consulta}"`,
+                  aoEscolher: () =>
+                    navegar({ tipo: "analise", projeto: projeto || undefined, pergunta: consulta }),
+                }}
+              >
+                <strong>Não achou o que procurava?</strong> Pergunte ao agente; a resposta aprovada
+                entra na base.
+              </EstadoVazio>
             )}
           </div>
-        </section>
+        </Secao>
 
         {aberto && painelDocumento}
       </div>

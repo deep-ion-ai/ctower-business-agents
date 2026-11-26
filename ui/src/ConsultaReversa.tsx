@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { mensagemDe } from "./analise";
+import { Alerta, Cartao, EstadoVazio, Selo, TituloSecao, type TomSelo } from "./componentes";
 import {
   apiRastreabilidadeTauri,
   type AlvoReverso,
@@ -15,6 +16,14 @@ const ROTULO_ESTADO: Record<string, string> = {
   aprovada: "aprovada",
   rascunho: "rascunho",
   "em-revisao": "em revisão",
+};
+
+/** O tom do selo da análise pelo significado: concluída ainda aguarda a revisão. */
+const TOM_ESTADO: Record<string, TomSelo> = {
+  "em-andamento": "andamento",
+  concluida: "atencao",
+  "em-revisao": "atencao",
+  aprovada: "concluido",
 };
 
 /**
@@ -75,9 +84,9 @@ export function ConsultaReversa({
   if (falha && !dependentes) {
     return (
       <section className="consulta-reversa" aria-label="O que depende desta regra">
-        <p className="error-text" role="alert">
-          Não foi possível consultar o que depende de {regra}: {falha}
-        </p>
+        <Alerta tom="erro" titulo={`Não foi possível consultar o que depende de ${regra}.`}>
+          {falha}
+        </Alerta>
       </section>
     );
   }
@@ -90,9 +99,9 @@ export function ConsultaReversa({
     <>
       {comCodigo && (
         <section className="onde-no-codigo" aria-label="Onde está no código">
-          <h3>Onde está no código</h3>
+          <TituloSecao nivel={3}>Onde está no código</TituloSecao>
           {arquivos.length === 0 ? (
-            <p className="muted">Esta regra não cita trechos de código.</p>
+            <EstadoVazio>Esta regra não cita trechos de código.</EstadoVazio>
           ) : (
             <ul>
               {arquivos.map((a) => (
@@ -111,11 +120,13 @@ export function ConsultaReversa({
         aria-label={doArquivo ? "O que depende deste arquivo" : "O que depende desta regra"}
       >
         <header className="consulta-reversa-cabecalho">
-          <h3>{doArquivo ? "O que depende deste arquivo" : "Se esta regra mudar"}</h3>
-          <span className="badge">{contagem(d.demandas.length, "demanda", "demandas")}</span>
-          <span className="badge">{contagem(d.analises.length, "análise", "análises")}</span>
-          <span className="badge">{contagem(d.criterios.length, "critério", "critérios")}</span>
-          <span className="badge">{contagem(d.cenarios.length, "cenário", "cenários")}</span>
+          <TituloSecao nivel={3}>
+            {doArquivo ? "O que depende deste arquivo" : "Se esta regra mudar"}
+          </TituloSecao>
+          <Selo>{contagem(d.demandas.length, "demanda", "demandas")}</Selo>
+          <Selo>{contagem(d.analises.length, "análise", "análises")}</Selo>
+          <Selo>{contagem(d.criterios.length, "critério", "critérios")}</Selo>
+          <Selo>{contagem(d.cenarios.length, "cenário", "cenários")}</Selo>
           <div className="consulta-reversa-alvo" role="group" aria-label="Consultar por">
             <button
               type="button"
@@ -141,16 +152,12 @@ export function ConsultaReversa({
             ))}
           </div>
         </header>
-        {falha && (
-          <p className="error-text" role="alert">
-            {falha}
-          </p>
-        )}
+        {falha && <Alerta tom="erro" titulo={falha} />}
         {d.demandas.length + d.analises.length + d.criterios.length + d.cenarios.length === 0 ? (
-          <p className="muted">
+          <EstadoVazio>
             Nada na base depende {doArquivo ? "deste arquivo" : "desta regra"} ainda: nenhuma
             demanda, análise, critério ou cenário a cita.
-          </p>
+          </EstadoVazio>
         ) : (
           <>
             <p className="muted">
@@ -194,12 +201,7 @@ export function ConsultaReversa({
                     )}{" "}
                     {x.titulo}{" "}
                     {x.status && (
-                      <span
-                        className="badge"
-                        data-tone={x.status === "aberta" ? "running" : "done"}
-                      >
-                        {x.status}
-                      </span>
+                      <Selo tom={x.status === "aberta" ? "andamento" : "concluido"}>{x.status}</Selo>
                     )}
                   </li>
                 ))}
@@ -216,12 +218,9 @@ export function ConsultaReversa({
                     </button>{" "}
                     {a.titulo}{" "}
                     {a.estado && (
-                      <span
-                        className="badge"
-                        data-tone={a.estado === "aprovada" ? "done" : "running"}
-                      >
+                      <Selo tom={TOM_ESTADO[a.estado] ?? "neutro"}>
                         {ROTULO_ESTADO[a.estado] ?? a.estado}
-                      </span>
+                      </Selo>
                     )}
                   </li>
                 ))}
@@ -237,11 +236,7 @@ export function ConsultaReversa({
                       {c.historia} {c.criterio}
                     </button>{" "}
                     {c.texto}{" "}
-                    {c.aRevalidar && (
-                      <span className="badge" data-tone="attention">
-                        revisar
-                      </span>
-                    )}
+                    {c.aRevalidar && <Selo tom="atencao">revisar</Selo>}
                   </li>
                 ))}
               </Grupo>
@@ -256,9 +251,9 @@ export function ConsultaReversa({
                       {c.id}
                     </button>{" "}
                     {c.titulo}{" "}
-                    <span className="badge" data-tone={c.aRevalidar ? "attention" : "done"}>
+                    <Selo tom={c.aRevalidar ? "atencao" : "concluido"}>
                       {c.aRevalidar ? "revisar" : "ok"}
-                    </span>
+                    </Selo>
                   </li>
                 ))}
               </Grupo>
@@ -279,9 +274,9 @@ export function ConsultaReversa({
 
 function Grupo({ titulo, children }: { titulo: string; children: ReactNode[] }) {
   return (
-    <section aria-label={titulo} className="consulta-reversa-grupo">
-      <h4>{titulo}</h4>
-      {children.length === 0 ? <p className="muted">Nenhum.</p> : <ul>{children}</ul>}
-    </section>
+    <Cartao rotulo={titulo} className="consulta-reversa-grupo">
+      <TituloSecao nivel={4}>{titulo}</TituloSecao>
+      {children.length === 0 ? <EstadoVazio>Nenhum.</EstadoVazio> : <ul>{children}</ul>}
+    </Cartao>
   );
 }

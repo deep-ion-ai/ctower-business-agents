@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { contar } from "./formatacao";
 import { mensagemDe } from "./analise";
+import { Alerta, BarraAcoes, EstadoVazio, ItemLista, ListaItens, Secao, TituloSecao } from "./componentes";
 import { type ApiConhecimento, type MapaVista, type VisaoProjeto } from "./conhecimento";
 import type { ApiCobertura } from "./cobertura";
 import { CoberturaProjeto } from "./CoberturaProjeto";
@@ -185,17 +186,10 @@ export function MapaProjeto({ api, projeto }: { api: ApiConhecimento; projeto: s
   const trilha = pasta ? pasta.split("/") : [];
 
   return (
-    <section aria-label="Mapa do projeto" className="mapa-projeto">
-      <h3>Mapa</h3>
-      {falha && (
-        <p className="error-text" role="alert">
-          {falha}
-        </p>
-      )}
+    <Secao titulo="Mapa" nivel={3} rotulo="Mapa do projeto">
+      {falha && <Alerta tom="erro" titulo={falha} />}
       {mapa === undefined && !falha && <p className="muted">Carregando…</p>}
-      {mapa === null && (
-        <p className="muted">O mapa do projeto ainda não foi gerado.</p>
-      )}
+      {mapa === null && <EstadoVazio>O mapa do projeto ainda não foi gerado.</EstadoVazio>}
       {mapa && (
         <>
           <nav aria-label="Pasta do mapa" className="trilha">
@@ -229,29 +223,28 @@ export function MapaProjeto({ api, projeto }: { api: ApiConhecimento; projeto: s
             </p>
           )}
           {mapa.modulo.subpastas.length > 0 && (
-            <ul className="lista-pastas">
+            <ListaItens>
               {mapa.modulo.subpastas.map((s) => (
-                <li key={s.caminho}>
+                <ItemLista key={s.caminho} meta={contar(s.arquivos, "arquivo", "arquivos")}>
                   <button type="button" className="link" onClick={() => void entrar(s.caminho)}>
                     {s.caminho.split("/").pop()}/
-                  </button>{" "}
-                  <span className="muted">{contar(s.arquivos, "arquivo", "arquivos")}</span>
-                </li>
+                  </button>
+                </ItemLista>
               ))}
-            </ul>
+            </ListaItens>
           )}
           {mapa.modulo.arquivosDiretos.length > 0 && (
-            <ul className="lista-arquivos">
+            <ListaItens>
               {mapa.modulo.arquivosDiretos.map((a) => (
-                <li key={a}>
+                <ItemLista key={a}>
                   <code>{a.split("/").pop()}</code>
-                </li>
+                </ItemLista>
               ))}
-            </ul>
+            </ListaItens>
           )}
           {mapa.modulo.dependencias.length > 0 && (
             <>
-              <h4>Dependências entre as pastas</h4>
+              <TituloSecao nivel={4}>Dependências entre as pastas</TituloSecao>
               <ul>
                 {mapa.modulo.dependencias.map((d) => (
                   <li key={`${d.de}->${d.para}`}>
@@ -267,9 +260,16 @@ export function MapaProjeto({ api, projeto }: { api: ApiConhecimento; projeto: s
           </p>
         </>
       )}
-      <button className="btn" type="button" onClick={mapear} disabled={mapeando}>
-        {mapeando ? "Mapeando…" : mapa ? "Mapear de novo" : "Mapear agora"}
-      </button>
-    </section>
+      <BarraAcoes
+        secundarias={[
+          {
+            texto: mapeando ? "Mapeando…" : mapa ? "Mapear de novo" : "Mapear agora",
+            aoEscolher: mapear,
+            desabilitado: mapeando,
+          },
+        ]}
+        rotulo="Ações do mapa"
+      />
+    </Secao>
   );
 }

@@ -14,7 +14,7 @@ export const SITUACAO: Record<SituacaoFuncionalidade, string> = {
 export const ESTADO_ANALISE: Record<EstadoAnalise, string> = {
   criada: "criada",
   "em-andamento": "em andamento",
-  concluida: "concluída",
+  concluida: "aguardando revisão",
   aprovada: "aprovada",
 };
 

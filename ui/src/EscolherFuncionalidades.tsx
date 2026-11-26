@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { EstadoVazio } from "./componentes";
 import { DialogoConfirmacao } from "./DialogoConfirmacao";
 
 export interface FuncionalidadeEscolhivel {
@@ -68,7 +69,7 @@ export function EscolherFuncionalidades({
         onChange={(e) => setBusca(e.target.value)}
       />
       <div className="escolher-funcionalidades" role="tree" aria-label="Funcionalidades do mapa">
-        {areas.length === 0 && <p className="muted">Nenhuma funcionalidade encontrada.</p>}
+        {areas.length === 0 && <EstadoVazio>Nenhuma funcionalidade encontrada.</EstadoVazio>}
         {areas.map(([area, itens]) => (
           <details key={area} open={q !== "" || undefined} className="escolher-area">
             <summary>
