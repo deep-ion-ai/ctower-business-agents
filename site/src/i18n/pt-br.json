@@ -47,12 +47,17 @@
   },
   "flows": {
     "title": "Fluxos",
-    "lead": "Telas reais do app, capturadas com um projeto de referência de código aberto (OpenCBS-Cloud). Nenhum dado de cliente aparece aqui.",
+    "lead": "Telas reais do app, capturadas com um projeto de referência de código aberto (OpenCBS-Cloud).",
     "items": [
       {
         "title": "Respostas com evidência",
         "text": "Cada afirmação da análise aponta o arquivo e as linhas de onde saiu. Você confirma ou corrige, e só o que aprova vira regra da base do projeto.",
         "alt": "Análise aprovada com as afirmações e as evidências no código, como LoanPenaltyAccrualProcessor.java:62-72"
+      },
+      {
+        "title": "Análise de reunião",
+        "text": "Cole o transcript do Teams ou anexe o .vtt ou o .docx da reunião. O agente tira as decisões, as pendências e as demandas, e o transcript é apagado quando você aprova a ata.",
+        "alt": "Formulário de análise de reunião, com a demanda, o campo do transcript, o anexo .vtt ou .docx e o aviso de privacidade"
       },
       {
         "title": "Mapa de funcionalidades",
