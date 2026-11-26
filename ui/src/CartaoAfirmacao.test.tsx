@@ -66,7 +66,8 @@ describe("Cartão de afirmação: premissa e verificação (#404)", () => {
     const { li } = cartao(afirmacao(AFIRMACAO_MULTA.texto));
     expect(within(li).getByText(AFIRMACAO_MULTA.texto)).toBeInTheDocument();
     expect(within(li).queryByTestId("premissa")).not.toBeInTheDocument();
-    expect(li.querySelector(".selo")).toBeNull();
+    // Só o selo de confiança: nenhum selo de veredito.
+    expect(li.querySelector(".selo-icone")).toBeNull();
   });
 });
 

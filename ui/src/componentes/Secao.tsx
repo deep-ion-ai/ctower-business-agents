@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from "react";
+import { useId, type HTMLAttributes, type ReactNode } from "react";
 import "./componentes.css";
 
 type Nivel = 2 | 3 | 4;
@@ -69,23 +69,29 @@ export function Secao({
 
 /**
  * Cartão: um item com decisão própria (uma pergunta, uma afirmação). Com `rotulo`,
- * vira um `<article>` nomeado.
+ * vira um `<article>` nomeado. Os demais atributos (`data-*`, `tabIndex`, `onFocus`,
+ * `aria-current`...) passam para o elemento.
  */
 export function Cartao({
   rotulo,
   como = "article",
   className,
   children,
+  ...outros
 }: {
   rotulo?: string;
   /** Elemento do cartão: `article` (padrão), `div` ou `li` (dentro de uma lista). */
   como?: "article" | "div" | "li";
   className?: string;
   children: ReactNode;
-}) {
+} & Omit<HTMLAttributes<HTMLElement>, "className" | "children" | "aria-label">) {
   const Elemento = como;
   return (
-    <Elemento className={className ? `bloco-cartao ${className}` : "bloco-cartao"} aria-label={rotulo}>
+    <Elemento
+      {...outros}
+      className={className ? `bloco-cartao ${className}` : "bloco-cartao"}
+      aria-label={rotulo}
+    >
       {children}
     </Elemento>
   );

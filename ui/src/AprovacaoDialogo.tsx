@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
+import { TituloSecao } from "./componentes";
 
 const FOCAVEIS =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -64,7 +65,7 @@ export function AprovacaoDialogo({
         tabIndex={-1}
         onKeyDown={tecla}
       >
-        <h3>{titulo}</h3>
+        <TituloSecao nivel={3}>{titulo}</TituloSecao>
         {children}
         <div className="dialogo-acoes">
           <button className="btn" type="button" onClick={aoFechar}>

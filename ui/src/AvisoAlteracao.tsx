@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BotaoPainel } from "./BotaoPainel";
+import { Alerta, Selo, type TomSelo } from "./componentes";
 import {
   mensagemDe,
   type ApiAlteracoes,
@@ -10,10 +11,10 @@ import {
 } from "./analise";
 
 /** Tom do selo: a modificação pede o olhar do analista (âmbar); o texto diz o tipo. */
-const TOM_TIPO: Record<ArquivoAlterado["tipo"], string> = {
-  criado: "done",
-  modificado: "attention",
-  removido: "error",
+const TOM_TIPO: Record<ArquivoAlterado["tipo"], TomSelo> = {
+  criado: "concluido",
+  modificado: "atencao",
+  removido: "erro",
 };
 
 const ROTULO_TIPO: Record<ArquivoAlterado["tipo"], string> = {
@@ -183,20 +184,17 @@ export function AvisoAlteracao({
     >
       {arquivos.length > 0 && (
         <>
-          <h3>A pasta do projeto foi alterada nesta análise</h3>
-          <p>
+          <Alerta tom="atencao" role="note" titulo="A pasta do projeto foi alterada nesta análise">
             Durante a conversa,{" "}
             {arquivos.length === 1 ? "um arquivo" : `${arquivos.length} arquivos`} do projeto{" "}
             {arquivos.length === 1 ? "foi alterado" : "foram alterados"}. O produto analisa e não
             altera o projeto; a decisão sobre essas pastas é sua. Confira o diff e desfaça o que não
             deveria ter mudado.
-          </p>
+          </Alerta>
           <ul className="arquivos-alterados">
             {arquivos.map((a) => (
               <li key={chave(a)}>
-                <span className="badge" data-tone={TOM_TIPO[a.tipo]}>
-                  {ROTULO_TIPO[a.tipo]}
-                </span>{" "}
+                <Selo tom={TOM_TIPO[a.tipo]}>{ROTULO_TIPO[a.tipo]}</Selo>{" "}
                 <code>{a.caminho}</code>{" "}
                 {a.diff !== null && (
                   <button className="btn" type="button" onClick={() => alternar(a)}>
@@ -270,11 +268,7 @@ export function AvisoAlteracao({
           {t}
         </p>
       ))}
-      {falha && (
-        <p className="error-text" role="status">
-          {falha}
-        </p>
-      )}
+      {falha && <Alerta tom="erro" role="status" titulo={falha} />}
       <p className="nota-alteracao muted">{NOTA_CODIGO_FONTE}</p>
     </BotaoPainel>
   );

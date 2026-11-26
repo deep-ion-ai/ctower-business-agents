@@ -1,11 +1,19 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { abrirLinkDoProjeto } from "./abrirLinkProjeto";
 import { mensagemDe } from "./analise";
 import type { ApiConhecimento, Encontrado } from "./conhecimento";
 import { situacaoEmTexto, type Acao } from "./acaoIssue";
 import type { Tela } from "./Navegacao";
 import type { IssueDoProjeto } from "./issuesProjeto";
-import { BarraAcoes, TextoRico, type Acao as AcaoBotao } from "./componentes";
+import {
+  Alerta,
+  BarraAcoes,
+  EstadoVazio,
+  Selo,
+  TextoRico,
+  TituloSecao,
+  type Acao as AcaoBotao,
+} from "./componentes";
 
 export const ROTULO_ORIGEM = { github: "GitHub", gitlab: "GitLab", jira: "Jira" } as const;
 
@@ -36,18 +44,23 @@ export function useAbrirLink(projeto: string) {
 export function AvisoAbrirLink({ falha }: { falha: FalhaLink | null }) {
   if (!falha) return null;
   return (
-    <p className="error-text" role="alert">
-      Não foi possível abrir o link no navegador. {falha.motivo}{" "}
-      <button
-        type="button"
-        className="link"
-        onClick={() => {
-          void navigator.clipboard?.writeText(falha.url).catch(() => undefined);
-        }}
-      >
-        Copiar a URL
-      </button>
-    </p>
+    <Alerta
+      tom="erro"
+      titulo="Não foi possível abrir o link no navegador."
+      acoes={
+        <button
+          type="button"
+          className="link"
+          onClick={() => {
+            void navigator.clipboard?.writeText(falha.url).catch(() => undefined);
+          }}
+        >
+          Copiar a URL
+        </button>
+      }
+    >
+      {falha.motivo}
+    </Alerta>
   );
 }
 
@@ -58,7 +71,7 @@ export function AvisoAbrirLink({ falha }: { falha: FalhaLink | null }) {
  * alternativo.
  */
 export function DescricaoIssue({ issue, abrir }: { issue: IssueDoProjeto; abrir: (link: string) => void }) {
-  if (!issue.descricao.trim()) return <p className="muted">A issue não tem descrição.</p>;
+  if (!issue.descricao.trim()) return <EstadoVazio>A issue não tem descrição.</EstadoVazio>;
   return (
     <TextoRico
       texto={issue.descricao}
@@ -159,6 +172,27 @@ export function NaBaseIssue({
   );
 }
 
+/**
+ * Uma parte da issue ("Descrição", "Na base", "Parecidas"): o título de seção e o
+ * conteúdo, afastados da parte de cima.
+ */
+export function ParteIssue({
+  titulo,
+  nivel,
+  children,
+}: {
+  titulo: string;
+  nivel: 3 | 4;
+  children: ReactNode;
+}) {
+  return (
+    <div className="demandas-parte">
+      <TituloSecao nivel={nivel}>{titulo}</TituloSecao>
+      {children}
+    </div>
+  );
+}
+
 /** Uma linha de "Parecidas": a issue (com a análise, se tiver) ou a regra da base. */
 export interface ItemParecido {
   chave: string;
@@ -171,23 +205,25 @@ export function ParecidasLista({
   itens,
   regras,
   navegar,
+  nivel,
 }: {
   itens: ItemParecido[];
   regras: Encontrado[];
   navegar: (t: Tela) => void;
+  /** Nível do título "Parecidas" (abaixo do cabeçalho de quem mostra). */
+  nivel: 3 | 4;
 }) {
   return (
-    <>
-      <h4>Parecidas</h4>
+    <ParteIssue titulo="Parecidas" nivel={nivel}>
       {itens.length === 0 && regras.length === 0 ? (
-        <p className="muted">Nada parecido na lista nem nas regras da base.</p>
+        <EstadoVazio>Nada parecido na lista nem nas regras da base.</EstadoVazio>
       ) : (
         <ul className="linhas demandas-parecidas" aria-label="Itens parecidos">
           {itens.map((s) => (
             <li key={s.chave}>
               <span className="id">{s.id}</span>
               <span className="tit">{s.titulo}</span>
-              {s.analise && <span className="badge">{s.analise}</span>}
+              {s.analise && <Selo tom="neutro">{s.analise}</Selo>}
             </li>
           ))}
           {regras.map((r) => (
@@ -200,7 +236,7 @@ export function ParecidasLista({
           ))}
         </ul>
       )}
-    </>
+    </ParteIssue>
   );
 }
 

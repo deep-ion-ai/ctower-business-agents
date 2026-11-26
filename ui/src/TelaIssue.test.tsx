@@ -121,9 +121,9 @@ describe("TelaIssue (aba da issue, #398)", () => {
     expect(within(aba).getByText("Parágrafo 40 da demanda.")).toBeInTheDocument();
     const regra = /\.demandas-descricao\s*\{([^}]*)\}/.exec(telasCss)![1];
     expect(regra).not.toMatch(/max-height|overflow/);
-    // Os rótulos de seção.
-    expect(within(aba).getByRole("heading", { name: "Descrição" })).toHaveClass("demandas-rotulo");
-    expect(within(aba).getByRole("heading", { name: "Na base" })).toHaveClass("demandas-rotulo");
+    // Os títulos de seção (#410): o TituloSecao, abaixo do cabeçalho da aba.
+    expect(within(aba).getByRole("heading", { name: "Descrição", level: 3 }).closest(".titulo-secao")).not.toBeNull();
+    expect(within(aba).getByRole("heading", { name: "Na base", level: 3 }).closest(".titulo-secao")).not.toBeNull();
   });
 
   it("no topo, mostra Analisando… enquanto cria a análise", async () => {

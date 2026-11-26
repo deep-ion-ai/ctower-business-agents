@@ -2,9 +2,9 @@ import { useState, type ReactNode } from "react";
 import { rotuloDaEvidencia, type Afirmacao, type Confianca, type Evidencia } from "./analise";
 import { AcoesAfirmacao, type ComandoAfirmacao, type Revisao } from "./AcoesRevisao";
 import { BotaoCodigo } from "./BotaoCodigo";
-import { Selo, TextoRico, type TomSelo } from "./componentes";
+import { Cartao, Selo, type TomSelo } from "./componentes";
 import { premissaDaAfirmacao, ROTULO_VEREDITO, type Veredito } from "./premissaAfirmacao";
-import { comCodigoMarcado, OVERRIDES_TEXTO_AFIRMACAO, TextoAfirmacao } from "./TextoAfirmacao";
+import { TextoAfirmacao } from "./TextoAfirmacao";
 import "./configuracoes.css";
 
 export const ROTULO_CONFIANCA: Record<Confianca, string> = {
@@ -13,19 +13,19 @@ export const ROTULO_CONFIANCA: Record<Confianca, string> = {
   a_confirmar: "a confirmar",
 };
 
-/** Cor do selo de confiança: confirmado (verde), inferido (azul), a confirmar (âmbar). */
-const TOM_CONFIANCA: Record<Confianca, "done" | "running" | "attention"> = {
-  confirmado: "done",
-  inferido: "running",
-  a_confirmar: "attention",
+/** Tom do selo de confiança: com evidência (concluído), inferido (andamento), a confirmar (atenção). */
+export const TOM_CONFIANCA: Record<Confianca, TomSelo> = {
+  confirmado: "concluido",
+  inferido: "andamento",
+  a_confirmar: "atencao",
 };
 
 /** Resultado da decisão do analista, no selo do cartão. */
-const RESULTADO: Partial<Record<Afirmacao["estado"], { texto: string; tom: string }>> = {
-  confirmada: { texto: "confirmada por você", tom: "done" },
-  incorreta: { texto: "marcada como incorreta", tom: "error" },
-  aprofundar: { texto: "aprofundamento pedido", tom: "running" },
-  "a-revalidar": { texto: "a revalidar: o código mudou", tom: "attention" },
+const RESULTADO: Partial<Record<Afirmacao["estado"], { texto: string; tom: TomSelo }>> = {
+  confirmada: { texto: "confirmada por você", tom: "concluido" },
+  incorreta: { texto: "marcada como incorreta", tom: "erro" },
+  aprofundar: { texto: "aprofundamento pedido", tom: "andamento" },
+  "a-revalidar": { texto: "a revalidar: o código mudou", tom: "atencao" },
 };
 
 export function chaveDaEvidencia(e: Evidencia): string {
@@ -38,17 +38,6 @@ const SELO_VEREDITO: Record<Veredito, { tom: TomSelo; icone: string }> = {
   "confere-em-parte": { tom: "atencao", icone: "–" },
   confere: { tom: "concluido", icone: "✓" },
 };
-
-/** Texto de um bloco da afirmação: Markdown com o código recolhido, parágrafos preservados. */
-function TextoDoBloco({ texto }: { texto: string }) {
-  return (
-    <TextoRico
-      texto={comCodigoMarcado(texto)}
-      overrides={OVERRIDES_TEXTO_AFIRMACAO}
-      className="texto"
-    />
-  );
-}
 
 /**
  * O texto da afirmação. No formato "Premissa do solicitante: …. Verificação: …"
@@ -64,7 +53,7 @@ function CorpoAfirmacao({ texto }: { texto: string }) {
     <div className="afirmacao-blocos">
       <div className="afirmacao-bloco" data-testid="premissa">
         <span className="afirmacao-rotulo">Premissa do solicitante</span>
-        <TextoDoBloco texto={premissa} />
+        <TextoAfirmacao texto={premissa} />
       </div>
       {verificacao && (
         <div className="afirmacao-bloco afirmacao-verificacao" data-testid="verificacao">
@@ -79,7 +68,7 @@ function CorpoAfirmacao({ texto }: { texto: string }) {
               </Selo>
             )}
           </div>
-          {verificacao.texto && <TextoDoBloco texto={verificacao.texto} />}
+          {verificacao.texto && <TextoAfirmacao texto={verificacao.texto} />}
         </div>
       )}
     </div>
@@ -155,18 +144,16 @@ export function CartaoAfirmacao({
   const abertas = controlado ? !!evidenciasAbertas : abertasAqui;
   const alternarEvidencias = controlado ? aoAlternarEvidencias : () => setAbertasAqui((v) => !v);
   const contestada = a.estado === "a-revalidar" && !!a.contestacao;
-  const resultado = contestada
-    ? {
-        texto: "a revalidar: contestada pela verificação independente",
-        tom: "attention",
-      }
+  const resultado: { texto: string; tom: TomSelo } | undefined = contestada
+    ? { texto: "a revalidar: contestada pela verificação independente", tom: "atencao" }
     : RESULTADO[a.estado];
   const semDecisao = !!revisao && a.estado === "registrada";
   const comentario =
     a.estado === "incorreta" ? a.comentario : a.estado === "aprofundar" ? a.pedido : undefined;
   return (
-    <li
-      className="afirmacao cartao"
+    <Cartao
+      como="li"
+      className="afirmacao"
       data-estado={a.estado}
       data-pendente={semDecisao || undefined}
       data-atual={atual || undefined}
@@ -175,27 +162,13 @@ export function CartaoAfirmacao({
       tabIndex={-1}
       onFocus={aoFocar}
     >
-      <div className="cartao-cabeca">
-        <span className="cartao-numero" title={`Afirmação ${a.numero}`}>
+      <div className="revisao-cabeca">
+        <span className="revisao-numero" title={`Afirmação ${a.numero}`}>
           {a.numero}
         </span>
-        <span
-          className="badge selo-confianca"
-          data-tone={TOM_CONFIANCA[a.confianca]}
-          data-confianca={a.confianca}
-        >
-          {ROTULO_CONFIANCA[a.confianca]}
-        </span>
-        {semDecisao && (
-          <span className="badge" data-tone="attention">
-            sem decisão
-          </span>
-        )}
-        {resultado && (
-          <span className="badge selo-resultado" data-tone={resultado.tom}>
-            {resultado.texto}
-          </span>
-        )}
+        <Selo tom={TOM_CONFIANCA[a.confianca]}>{ROTULO_CONFIANCA[a.confianca]}</Selo>
+        {semDecisao && <Selo tom="atencao">sem decisão</Selo>}
+        {resultado && <Selo tom={resultado.tom}>{resultado.texto}</Selo>}
         {a.texto_original && (
           <span className="muted editada" title={`Texto do agente: ${a.texto_original}`}>
             (texto editado pelo analista)
@@ -249,6 +222,6 @@ export function CartaoAfirmacao({
       )}
       {revisao && <AcoesAfirmacao afirmacao={a} revisao={revisao} comando={comando} />}
       {trecho}
-    </li>
+    </Cartao>
   );
 }

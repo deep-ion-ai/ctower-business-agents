@@ -79,7 +79,7 @@ describe("AvisoAlteracao", () => {
     expect(icone).toHaveAttribute("aria-expanded", "true");
     expect(icone).toHaveAttribute("aria-controls", aviso.id);
     expect(within(aviso).getByText("db/03_pkg_cobranca.sql")).toBeInTheDocument();
-    expect(within(aviso).getByText("modificado")).toHaveAttribute("data-tone", "attention");
+    expect(within(aviso).getByText("modificado")).toHaveAttribute("data-tom", "atencao");
     expect(within(aviso).getByText(NOTA_CODIGO_FONTE)).toBeInTheDocument();
   });
 

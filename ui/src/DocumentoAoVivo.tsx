@@ -43,7 +43,7 @@ import { SumarioAnalise, type ItemSumario } from "./SumarioAnalise";
 import { useAtalhosRevisao } from "./useAtalhosRevisao";
 import { BotaoCodigo } from "./BotaoCodigo";
 import { useEvidenciasVisiveis } from "./preferenciaEvidencias";
-import { TextoRico, TituloSecao } from "./componentes";
+import { Cartao, EstadoVazio, Selo, TextoRico, TituloSecao, type TomSelo } from "./componentes";
 
 export { ROTULO_CONFIANCA };
 
@@ -59,6 +59,14 @@ export const ROTULO_ANALISE: Record<EstadoAnalise, string> = {
   "em-andamento": "em andamento",
   concluida: "concluída, aguardando revisão",
   aprovada: "aprovada",
+};
+
+/** Tom do selo do estado da análise: concluída espera a revisão (atenção, como na demanda). */
+export const TOM_ANALISE: Record<EstadoAnalise, TomSelo> = {
+  criada: "neutro",
+  "em-andamento": "andamento",
+  concluida: "atencao",
+  aprovada: "concluido",
 };
 
 export function SeloSessao({ sessao }: { sessao: SessaoVista | null }) {
@@ -359,9 +367,9 @@ export function DocumentoAoVivo({
     <article className="documento-ao-vivo" aria-label="Documento da análise">
       {!semCabecalho && (
         <header>
-          <h2>
+          <TituloSecao>
             {analise.id}: {analise.titulo}
-          </h2>
+          </TituloSecao>
           <p className="muted">
             Análise {ROTULO_ANALISE[analise.estado]} · versão {analise.versao}
           </p>
@@ -434,7 +442,7 @@ export function DocumentoAoVivo({
             />
           ) : (
             <section aria-label="Afirmações">
-              <h3>Afirmações</h3>
+              <TituloSecao nivel={3}>Afirmações</TituloSecao>
               {analise.afirmacoes.some((a) => a.evidencias.length > 0) && (
                 <SeletorEvidencias
                   ligado={evidenciasVisiveis}
@@ -442,14 +450,14 @@ export function DocumentoAoVivo({
                 />
               )}
               {secoes.length === 0 && (
-                <p className="muted">Nenhuma afirmação registrada ainda.</p>
+                <EstadoVazio>Nenhuma afirmação registrada ainda.</EstadoVazio>
               )}
               {secoes.map(([secao, afirmacoes]) => {
                 const mostradas = afirmacoes.filter((a) =>
                   passaNoFiltro(a, filtro),
                 );
                 return (
-                  <div key={secao} className="secao">
+                  <div key={secao} className="secao-afirmacoes">
                     <h4 id={`secao-${secao}`} tabIndex={-1}>
                       {titulo(secao)}
                     </h4>
@@ -472,9 +480,9 @@ export function DocumentoAoVivo({
                         />
                       ))}
                     {afirmacoes.length > 0 && mostradas.length === 0 && (
-                      <p className="muted">
+                      <EstadoVazio>
                         Nenhuma afirmação desta seção neste filtro.
-                      </p>
+                      </EstadoVazio>
                     )}
                     {mostradas.length > 0 && (
                       <ol className="afirmacoes cartoes">
@@ -511,12 +519,10 @@ export function DocumentoAoVivo({
             </section>
           )}
 
-          <section id={ID_PERGUNTAS} aria-label="Perguntas em aberto">
-            <h3 tabIndex={-1} id={`${ID_PERGUNTAS}-titulo`}>
-              Perguntas para o negócio
-            </h3>
+          <section id={ID_PERGUNTAS} aria-label="Perguntas em aberto" tabIndex={-1}>
+            <TituloSecao nivel={3}>Perguntas para o negócio</TituloSecao>
             {perguntas.length === 0 ? (
-              <p className="muted">Nenhuma pergunta registrada.</p>
+              <EstadoVazio>Nenhuma pergunta registrada.</EstadoVazio>
             ) : (
               <ol className="perguntas cartoes">
                 {perguntas.map((p) => (
@@ -533,28 +539,24 @@ export function DocumentoAoVivo({
           </section>
 
           {comPropostas && (
-            <section id={ID_PROPOSTAS} aria-label="Propostas para a base">
-              <h3 tabIndex={-1} id={`${ID_PROPOSTAS}-titulo`}>
-                Propostas para a base
-              </h3>
+            <section id={ID_PROPOSTAS} aria-label="Propostas para a base" tabIndex={-1}>
+              <TituloSecao nivel={3}>Propostas para a base</TituloSecao>
               {analise.termos.length + sugestoes.length === 0 ? (
-                <p className="muted">Nenhuma proposta registrada.</p>
+                <EstadoVazio>Nenhuma proposta registrada.</EstadoVazio>
               ) : (
                 <ol className="propostas cartoes">
                   {analise.termos.map((t) => (
-                    <li
+                    <Cartao
+                      como="li"
                       key={`termo-${t.numero}`}
-                      className={`termo cartao estado-${t.estado}`}
+                      className={`termo estado-${t.estado}`}
                     >
-                      <div className="cartao-cabeca">
-                        <span className="badge">termo do glossário</span>
+                      <div className="revisao-cabeca">
+                        <Selo tom="agente">termo do glossário</Selo>
                         {t.estado !== "proposto" && (
-                          <span
-                            className="badge"
-                            data-tone={t.estado === "aceito" ? "done" : "error"}
-                          >
+                          <Selo tom={t.estado === "aceito" ? "concluido" : "erro"}>
                             {t.estado}
-                          </span>
+                          </Selo>
                         )}
                       </div>
                       <p>
@@ -569,20 +571,17 @@ export function DocumentoAoVivo({
                         </span>
                       )}
                       {rev && <AcoesTermo termo={t} revisao={rev} />}
-                    </li>
+                    </Cartao>
                   ))}
                   {sugestoes.map((s) => (
-                    <li
+                    <Cartao
+                      como="li"
                       key={`sugestao-${s.numero}`}
-                      className="sugestao cartao"
+                      className="sugestao"
                     >
-                      <div className="cartao-cabeca">
-                        <span className="badge">alteração sugerida</span>
-                        {s.estado === "aceita" && (
-                          <span className="badge" data-tone="done">
-                            aceita
-                          </span>
-                        )}
+                      <div className="revisao-cabeca">
+                        <Selo tom="agente">alteração sugerida</Selo>
+                        {s.estado === "aceita" && <Selo>aceita</Selo>}
                       </div>
                       <p>
                         <strong>{s.titulo || s.arquivo}</strong>
@@ -625,7 +624,7 @@ export function DocumentoAoVivo({
                           revisao={rev}
                         />
                       )}
-                    </li>
+                    </Cartao>
                   ))}
                 </ol>
               )}
@@ -659,12 +658,13 @@ function CartaoPergunta({
   const rotulo = (c: string) =>
     diagrama?.nos.find((n) => n.chave === c)?.rotulo ?? c;
   return (
-    <li
-      className={`pergunta cartao estado-${p.estado}`}
+    <Cartao
+      como="li"
+      className={`pergunta estado-${p.estado}`}
       data-testid={`pergunta-${p.numero}`}
     >
-      <div className="cartao-cabeca">
-        <span className="cartao-numero" title={`Pergunta ${p.numero}`}>
+      <div className="revisao-cabeca">
+        <span className="revisao-numero" title={`Pergunta ${p.numero}`}>
           {p.numero}
         </span>
         {p.para && (
@@ -673,12 +673,8 @@ function CartaoPergunta({
             {p.para.papel && <span className="muted"> ({p.para.papel})</span>}
           </span>
         )}
-        {p.estado === "aberta" && (
-          <span className="badge" data-tone="attention">
-            aguardando resposta
-          </span>
-        )}
-        {p.estado === "descartada" && <span className="badge">descartada</span>}
+        {p.estado === "aberta" && <Selo>aguardando resposta</Selo>}
+        {p.estado === "descartada" && <Selo tom="neutro">descartada</Selo>}
       </div>
       <p className="texto-pergunta">{p.texto}</p>
       {p.origem?.tipo === "achado-diagrama" && (
@@ -701,7 +697,7 @@ function CartaoPergunta({
         </p>
       )}
       {revisao && <AcoesPergunta pergunta={p} revisao={revisao} />}
-    </li>
+    </Cartao>
   );
 }
 
