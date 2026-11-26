@@ -312,7 +312,10 @@ fn status_conferido_no_rastreador() {
 
     let c = cenario();
     let mut p = crate::repositorios::cadastrado(&c.dados, PROJETO).unwrap();
-    p.repositorios.tracker = Some(TrackerConfig::Github(GithubConfig { repo: "o/r".into() }));
+    p.repositorios.tracker = Some(TrackerConfig::Github(GithubConfig {
+        repo: "o/r".into(),
+        ..Default::default()
+    }));
     Cadastro::em(c.dados.projetos()).salvar(&p).unwrap();
     let issue = criar_demanda(&c.dados, PROJETO, &nova("Parcelamento PJ", Some("#5"))).unwrap();
     let manual = criar_demanda(&c.dados, PROJETO, &nova("Pedido por e-mail", None)).unwrap();

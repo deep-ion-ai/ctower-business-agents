@@ -32,6 +32,7 @@ fn gitlab() -> GitlabConfig {
         path: "grupo/projeto/app".into(),
         clone_url: "https://gitlab.example.com/grupo/projeto/app.git".into(),
         credential_cmd: "echo tok-gitlab".into(),
+        ..Default::default()
     }
 }
 
@@ -41,6 +42,7 @@ fn cadastra_codigo_no_github_e_issues_no_jira_e_codigo_no_gitlab_e_issues_no_jir
     for forge in [
         ForgeConfig::Github(GithubConfig {
             repo: "deep-ion-ai/app".into(),
+            ..Default::default()
         }),
         ForgeConfig::Gitlab(gitlab()),
     ] {
@@ -78,7 +80,13 @@ fn recusa_cadastro_invalido_e_troca_de_tipo() {
             .contains("chave")
     );
     let r = Repositorios {
-        codigo: vec![ForgeConfig::Github(GithubConfig { repo: "o/r".into() }).into()],
+        codigo: vec![
+            ForgeConfig::Github(GithubConfig {
+                repo: "o/r".into(),
+                ..Default::default()
+            })
+            .into(),
+        ],
         tracker: Some(TrackerConfig::Jira(jira())),
         docs: None,
     };
@@ -220,7 +228,13 @@ fn nenhum_token_vai_para_o_cadastro_em_disco() {
 fn analise_a_partir_de_uma_issue_traz_titulo_descricao_e_link() {
     let c = cenario();
     let r = Repositorios {
-        codigo: vec![ForgeConfig::Github(GithubConfig { repo: "o/r".into() }).into()],
+        codigo: vec![
+            ForgeConfig::Github(GithubConfig {
+                repo: "o/r".into(),
+                ..Default::default()
+            })
+            .into(),
+        ],
         tracker: Some(TrackerConfig::Jira(jira())),
         docs: None,
     };
@@ -287,7 +301,13 @@ echo '{"fields":{"summary":"Multa por atraso","description":"Revisar o cálculo 
 fn pergunta_ligada_a_issue_usa_a_pergunta_como_entrada() {
     let c = cenario();
     let r = Repositorios {
-        codigo: vec![ForgeConfig::Github(GithubConfig { repo: "o/r".into() }).into()],
+        codigo: vec![
+            ForgeConfig::Github(GithubConfig {
+                repo: "o/r".into(),
+                ..Default::default()
+            })
+            .into(),
+        ],
         tracker: Some(TrackerConfig::Jira(jira())),
         docs: None,
     };
@@ -353,7 +373,10 @@ echo '{{"fields":{{"summary":"Cancelar fatura","description":"{historia}"}}}}'"#
     };
     for (tracker, referencia, fonte) in [
         (
-            TrackerConfig::Github(GithubConfig { repo: "o/r".into() }),
+            TrackerConfig::Github(GithubConfig {
+                repo: "o/r".into(),
+                ..Default::default()
+            }),
             "7",
             "Fonte: [#7](https://github.com/o/r/issues/7)",
         ),
@@ -439,6 +462,7 @@ fn exportacao_liga_cada_evidencia_ao_seu_repositorio() {
         pasta: Some(c.codigo.join("db")),
         ..ForgeConfig::Github(GithubConfig {
             repo: "deep-ion-ai/banco".into(),
+            ..Default::default()
         })
         .into()
     };

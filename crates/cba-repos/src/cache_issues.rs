@@ -343,7 +343,10 @@ echo '[{{"number":3,"title":"C","body":"","url":"u3","createdAt":"2026-10-01T00:
             gh,
             ..Default::default()
         };
-        let t = TrackerConfig::Github(GithubConfig { repo: "o/r".into() });
+        let t = TrackerConfig::Github(GithubConfig {
+            repo: "o/r".into(),
+            ..Default::default()
+        });
         let arq = arquivo(&d.path().join("issues"), "faturamento/exemplo");
         assert!(arq.ends_with("issues/faturamento_exemplo.json"));
         assert!(ler(&arq, &t).is_none());

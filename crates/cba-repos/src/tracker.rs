@@ -45,6 +45,10 @@ fn default_max_issues() -> u32 {
 pub struct GithubConfig {
     /// `owner/repo`.
     pub repo: String,
+    /// Conexão das Configurações que este cadastro usa (#437). Com ela, o
+    /// endereço e a credencial vêm da conexão; vazio = cadastro antigo.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub conexao: String,
 }
 
 /// Configuração do Jira. Mesmos campos e regras do ctower-agents.
@@ -76,6 +80,10 @@ pub struct JiraConfig {
     pub sprint_field: String,
     /// Nome do tipo de issue → papel.
     pub type_map: BTreeMap<String, JiraTypeRole>,
+    /// Conexão das Configurações que este cadastro usa (#437). Com ela, o
+    /// endereço e a credencial vêm da conexão; vazio = cadastro antigo.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub conexao: String,
 }
 
 impl Default for JiraConfig {
@@ -93,6 +101,7 @@ impl Default for JiraConfig {
             epic_name_field: String::new(),
             sprint_field: String::new(),
             type_map: default_type_map(),
+            conexao: String::new(),
         }
     }
 }
@@ -156,6 +165,10 @@ pub struct GitlabConfig {
     pub clone_url: String,
     /// Comando que imprime o token (`pass show gitlab | head -1`).
     pub credential_cmd: String,
+    /// Conexão das Configurações que este cadastro usa (#437). Com ela, o
+    /// endereço e a credencial vêm da conexão; vazio = cadastro antigo.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub conexao: String,
 }
 
 /// Rastreador do projeto com a configuração dele.
@@ -434,12 +447,14 @@ mod tests {
             path: "grupo/projeto/app".into(),
             clone_url: "https://gitlab.example.com/grupo/projeto/app.git".into(),
             credential_cmd: "pass show gitlab | head -1".into(),
+            ..Default::default()
         }
     }
 
     fn github() -> GithubConfig {
         GithubConfig {
             repo: "deep-ion-ai/app".into(),
+            ..Default::default()
         }
     }
 
@@ -616,7 +631,11 @@ mod tests {
         );
         for r in ["", "app", "a/b/c", "a/", "/b", "a b/c"] {
             assert!(
-                f(ForgeConfig::Github(GithubConfig { repo: r.into() })).is_err(),
+                f(ForgeConfig::Github(GithubConfig {
+                    repo: r.into(),
+                    ..Default::default()
+                }))
+                .is_err(),
                 "{r:?}"
             );
         }
