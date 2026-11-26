@@ -26,7 +26,8 @@
     "githubCta": "Ver no GitHub",
     "versionNote": "Versão atual nas releases do GitHub. Os instaladores ainda não têm assinatura: veja a seção Instalação.",
     "zoom": "Ampliar imagem",
-    "close": "Fechar"
+    "close": "Fechar",
+    "zoomHint": "Clique ou toque na imagem para ampliar."
   },
   "howItWorks": {
     "title": "Como funciona",

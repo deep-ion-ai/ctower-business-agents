@@ -1,19 +1,20 @@
 name: site-pages
 
-# Teste do site no GitHub Pages (alternativa ao Cloudflare Pages da #427).
+# Landing page (site/) no GitHub Pages: https://deep-ion-ai.github.io/ctower-business-agents/
+# Push na develop publica; PR que mexe no site só roda o build.
 on:
   push:
-    branches: [develop, exp/427-site-github-pages]
+    branches: [develop]
+    paths: ['site/**', '.github/workflows/site-pages.yml']
+  pull_request:
     paths: ['site/**', '.github/workflows/site-pages.yml']
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: site-pages
+  group: site-pages-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -26,8 +27,12 @@ jobs:
           path: site
 
   deploy:
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

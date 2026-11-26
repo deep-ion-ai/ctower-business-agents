@@ -107,7 +107,9 @@ a:focus-visible, button:focus-visible, summary:focus-visible {
 
 section { padding: 72px 0; }
 h1, h2, h3 { line-height: 1.2; color: var(--text); margin: 0; letter-spacing: -0.01em; }
-h1 { font-size: clamp(2rem, 5vw, 3.2rem); font-weight: 700; letter-spacing: -0.025em; }
+h1 { font-size: clamp(2rem, 5vw, 3.2rem); font-weight: 700; letter-spacing: -0.025em; text-wrap: balance; }
+.hero-copy h1 { margin-bottom: 20px; }
+h2 { text-wrap: balance; }
 h2 { font-size: clamp(1.6rem, 3.4vw, 2.2rem); font-weight: 700; margin-bottom: 14px; }
 h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 8px; }
 p { margin: 0 0 12px; color: var(--text-2); }
@@ -140,7 +142,7 @@ li + li { margin-top: 6px; }
   position: sticky;
   top: 0;
   z-index: 5;
-  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  background: color-mix(in srgb, var(--bg) 96%, transparent);
   backdrop-filter: saturate(160%) blur(12px);
   -webkit-backdrop-filter: saturate(160%) blur(12px);
   border-bottom: 1px solid var(--border);
@@ -228,6 +230,8 @@ li + li { margin-top: 6px; }
   position: relative;
 }
 .zoom img { width: 100%; }
+.zoom-hint { margin: 8px 0 0; font-size: 0.85rem; color: var(--muted); }
+.hero-shot + .zoom-hint { text-align: center; }
 .zoom::after {
   content: '⤢';
   position: absolute;
@@ -285,27 +289,31 @@ li + li { margin-top: 6px; }
 
 /* Comandos */
 .cmd {
-  position: relative;
+  display: flex;
+  flex-direction: column;
   background: var(--code-bg);
   color: var(--code-text);
   border-radius: 12px;
-  padding: 16px;
   margin: 8px 0 0;
-  overflow-x: auto;
+  overflow: hidden;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
 }
 .cmd code {
   display: block;
-  padding-right: 96px;
+  order: 2;
+  padding: 14px 16px 16px;
   font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
   font-size: 0.88rem;
-  white-space: pre;
-  min-width: max-content;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.cmd .copy {
+  order: 1;
+  align-self: flex-end;
+  margin: 8px 8px 0;
 }
 .copy {
-  position: absolute;
-  top: 10px;
-  right: 10px;
   min-height: 34px;
   padding: 4px 12px;
   border-radius: 999px;
@@ -318,12 +326,33 @@ li + li { margin-top: 6px; }
 }
 .copy:hover { background: #262d3e; }
 
-details.card { padding: 18px 22px; }
-details[open] summary { margin-bottom: 10px; }
-summary { cursor: pointer; font-weight: 600; color: var(--text); min-height: 32px; list-style-position: outside; }
-details p { margin: 6px 0 0; }
+.faq details, details.card { padding: 0; }
+summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text);
+  min-height: 52px;
+  padding: 12px 20px;
+  list-style: none;
+}
+summary::-webkit-details-marker { display: none; }
+summary::before {
+  content: '';
+  flex: none;
+  width: 8px; height: 8px;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease;
+}
+details[open] > summary::before { transform: rotate(45deg); }
+details > :not(summary) { margin: 4px 20px 12px; }
+details > :last-child { margin-bottom: 18px; }
 details + details { margin-top: 0; }
-.faq { margin-top: 28px; }
+.faq { margin-top: 28px; align-items: start; }
 
 .links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
 
@@ -370,6 +399,7 @@ details + details { margin-top: 0; }
 /* Telas grandes */
 @media (min-width: 720px) {
   .steps, .cards { grid-template-columns: repeat(3, 1fr); }
+  .cards-2 { grid-template-columns: repeat(2, 1fr); max-width: 860px; }
   .faq { grid-template-columns: repeat(2, 1fr); }
   .flow { grid-template-columns: 1fr 2fr; align-items: center; gap: 48px; }
   .flow:nth-child(even) { grid-template-columns: 2fr 1fr; }
@@ -382,8 +412,8 @@ details + details { margin-top: 0; }
 @media (max-width: 719px) {
   section { padding: 56px 0; }
   .bar { gap: 12px; }
-  .nav { order: 3; width: 100%; overflow-x: auto; flex-wrap: nowrap; }
-  .btn-sm { display: none; }
+  .nav { display: none; }
+  .bar { min-height: 56px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

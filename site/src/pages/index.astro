@@ -58,6 +58,7 @@ const full = {
             <Image src={projeto} alt={t.meta.imageAlt} widths={[800, 1200, 1600]} sizes="(min-width: 1280px) 1240px, 100vw" loading="eager" />
           </button>
         </figure>
+        <p class="zoom-hint">{t.hero.zoomHint}</p>
       </div>
     </section>
 
@@ -88,6 +89,7 @@ const full = {
               <div class="flow-text">
                 <h3>{item.title}</h3>
                 <p>{item.text}</p>
+                <p class="zoom-hint">{t.hero.zoomHint}</p>
               </div>
               <figure class="window">
                 <button class="zoom" type="button" aria-label={`${t.hero.zoom}: ${item.alt}`} data-full={full.shots[i]}>
@@ -185,7 +187,7 @@ const full = {
         <p class="eyebrow">{t.openSource.title}</p>
         <h2 id="h-oss">Código aberto: melhore ou faça o seu fork</h2>
         <p class="lead">{t.openSource.lead}</p>
-        <ul class="cards">
+        <ul class="cards cards-2">
           {t.openSource.items.map((item) => (
             <li class="card">
               <h3>{item.title}</h3>
