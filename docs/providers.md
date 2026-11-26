@@ -29,7 +29,15 @@ A credencial de uma conexão sai sempre pelo resolvedor (`providers::Resolvedor:
 - `com_nova_tentativa(obter, operacao)`: se a operação falhar com credencial recusada (401, 403, `Unauthorized`, `Forbidden`), a credencial sai do cache e a operação roda mais uma vez, com a credencial lida de novo. O erro do consumidor diz se é recusa pelo trait `Recusada`.
 - Todo segredo resolvido entra no **mascaramento central** (`providers::mascara`): o terminal embutido, o log em arquivo e as mensagens de erro (`process::cite`) trocam o valor por `***`. Uma senha de banco que não passa pelo resolvedor entra com `mascara::registrar_texto`.
 
-Enquanto os projetos ainda não referenciam conexões nomeadas, `providers::legado` monta uma conexão implícita a partir do cadastro de hoje (`credential_cmd`, token global por host, token próprio do repositório) e resolve por esse mesmo caminho.
+## Onde as conexões ficam
+
+As conexões cadastradas em **Configurações › Conexões** ficam em `<dados do app>/config/conexoes.json` (com o resultado do último **Testar** em `conexoes_testes.json`), nunca na base do projeto. A janela e o servidor MCP apontam o catálogo do processo (`providers::Catalogo::global()`) para esse arquivo na abertura, e ele é relido quando muda: uma conexão editada na janela vale também para as ferramentas do agente.
+
+O projeto referencia a conexão pelo `id` no campo `conexao` do rastreador (`GithubConfig`, `GitlabConfig`, `JiraConfig`), de cada repositório de código e do repositório próprio da documentação, e guarda só o que é dele (chave do projeto Jira, JQL, campos, `owner/repo` ou caminho, pasta local, branch, subpasta). Ao gravar o projeto, o host e a URL vêm da conexão e a credencial antiga (`credential_cmd`, comando do repositório) sai. O token próprio de um repositório (`repo:<host>/<caminho>` no chaveiro) continua valendo como **sobrescrita** da credencial da conexão.
+
+Uma conexão em uso não pode ser removida, nem trocar de tipo ou de endereço: o app diz quais projetos a usam. Trocar o token na conexão vale para todos os projetos que a usam, inclusive para os clones e a publicação.
+
+Enquanto um cadastro ainda não referencia uma conexão nomeada, `providers::legado` monta uma conexão implícita a partir do cadastro de hoje (`credential_cmd`, token global por host, token próprio do repositório) e resolve por esse mesmo caminho.
 
 ## Passo a passo
 
@@ -88,6 +96,10 @@ impl DescritorProvider for DescritorRastreadorExemplo {
 - para bancos: conectar, versão do servidor, sessão só de leitura confirmada e esquemas visíveis.
 
 A orientação diz **o que fazer**, não só o que deu errado.
+
+Cada passo é executado pelo próprio descritor, em `executar_passo(id, ctx)`, que devolve o detalhe (versão e caminho da CLI, "conectado como ana") ou o motivo da falha. O `ContextoProntidao` traz a conexão, as CLIs e a credencial: `ctx.resolver_credencial(cli)` é o passo de credencial pronto (lê a fonte pelo resolvedor e diz de onde ela veio, nunca o valor), `ctx.comando(programa)` monta o comando com as variáveis de ambiente do descritor e `ctx.saida(cmd)` roda e mascara o erro. `providers::prontidao::versao_e_caminho` é o passo da CLI. Um passo que o descritor ainda não executa (`None`) aparece como pulado.
+
+O mesmo caminho serve ao **Testar** das Configurações (`providers::prontidao::testar`) e à saúde do projeto: a integração de um repositório ou do rastreador que referencia uma conexão começa pelos passos dela e acrescenta só o que é do projeto (acesso ao repositório, issues ligadas).
 
 ### 4. Capacidades
 

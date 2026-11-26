@@ -2,10 +2,82 @@
 //! MySQL/MariaDB. Os de banco descrevem a conexão; o acesso vem na sub-issue de
 //! banco (#439).
 
+use super::prontidao::{ContextoProntidao, versao_e_caminho};
 use super::{
     CampoOpcao, Capacidade, Conexao, DescritorProvider, OpcaoEscolha, PassoProntidao, TipoCampo,
     TipoFonte, VariavelAmbiente, host_de, host_valido,
 };
+use crate::ForgeKind;
+use crate::acessos::{ErroVerificacao, VerificacaoToken, verificar_token_host};
+use std::path::{Path, PathBuf};
+
+/// Resultado de um passo de prontidão: o detalhe ou o motivo da falha.
+type Resultado = Option<Result<Option<String>, String>>;
+
+/// O "quem sou eu" de uma forja pela API (`gh api user`, `glab api user`).
+/// Sem credencial, não há o que conferir.
+fn quem_sou_eu_na_forja(
+    forja: ForgeKind,
+    ctx: &ContextoProntidao<'_>,
+) -> Result<Option<String>, String> {
+    let Some(t) = ctx.credencial() else {
+        return Ok(Some("sem credencial: acesso anônimo".into()));
+    };
+    let host = host_de(&ctx.conexao.endereco);
+    match verificar_token_host(forja, &host, t, ctx.ferramentas) {
+        Ok(VerificacaoToken { usuario, expira }) => {
+            let mut d = usuario.map_or_else(
+                || "token aceito".to_string(),
+                |u| format!("conectado como {u}"),
+            );
+            if let Some(e) = expira {
+                d.push_str(&format!(", token válido até {e}"));
+            }
+            Ok(Some(d))
+        }
+        Err(ErroVerificacao::SemFerramenta(cli)) => Err(format!("{cli} não encontrado")),
+        Err(ErroVerificacao::Recusado(m)) => Err(m),
+    }
+}
+
+/// `glab api version` (a versão do servidor) e, com token, quem é o dono dele.
+fn versao_do_gitlab(glab: &Path, ctx: &ContextoProntidao<'_>) -> Result<Option<String>, String> {
+    let mut c = ctx.comando(glab);
+    c.args(["api", "version"]);
+    let linha = ctx.saida(c)?;
+    let versao = serde_json::from_str::<serde_json::Value>(&linha)
+        .ok()
+        .and_then(|v| v["version"].as_str().map(str::to_string))
+        .unwrap_or(linha);
+    Ok(Some(match quem_sou_eu_na_forja(ForgeKind::Gitlab, ctx)? {
+        Some(q) => format!("GitLab {versao}, {q}"),
+        None => format!("GitLab {versao}"),
+    }))
+}
+
+/// Arquivo de configuração do jira-cli: o da conexão ou o padrão.
+pub(crate) fn arquivo_de_config_jira(informado: Option<&str>) -> PathBuf {
+    if let Some(f) = informado.map(str::trim).filter(|f| !f.is_empty()) {
+        return f.into();
+    }
+    let home = std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
+        .unwrap_or_default();
+    home.join(".config/.jira/.config.yml")
+}
+
+/// O `server` do arquivo de configuração do jira-cli é a URL da conexão.
+fn servidor_do_jira(cfg: &Path, url: &str) -> Result<Option<String>, String> {
+    let yml = std::fs::read_to_string(cfg).map_err(|e| e.to_string())?;
+    let s = crate::prontidao::servidor_do_config(&yml).ok_or("sem \"server\" na configuração")?;
+    let url = url.trim().trim_end_matches('/');
+    if s == url {
+        Ok(Some(s))
+    } else {
+        Err(format!("a configuração usa {s}, a conexão usa {url}"))
+    }
+}
 
 /// Normaliza um endereço que é só um host (`GitLab.Example.com` →
 /// `gitlab.example.com`). Aceita a URL colada (`https://host/...`) e fica com o
@@ -16,6 +88,11 @@ fn normalizar_host(endereco: &str, rotulo: &str) -> Result<String, String> {
         Ok(host)
     } else if endereco.trim().is_empty() {
         Err(format!("informe o host do {rotulo}"))
+    } else if endereco.contains('@') {
+        // Pode ter usuário e senha embutidos: a mensagem não repete o endereço.
+        Err(format!(
+            "host do {rotulo} inválido: informe só o host, sem usuário nem senha"
+        ))
     } else {
         Err(format!("host do {rotulo} inválido: {}", endereco.trim()))
     }
@@ -94,6 +171,15 @@ impl DescritorProvider for DescritorGithub {
             },
         ]
     }
+    fn executar_passo(&self, passo: &str, ctx: &mut ContextoProntidao<'_>) -> Resultado {
+        let gh = ctx.ferramentas.gh.clone();
+        Some(match passo {
+            "cli" => versao_e_caminho(&gh, &["--version"]),
+            "credencial" => ctx.resolver_credencial(Some(&gh)),
+            "quem_sou_eu" => quem_sou_eu_na_forja(ForgeKind::Github, ctx),
+            _ => return None,
+        })
+    }
 }
 
 // ---------------------------------------------------------------- GitLab
@@ -156,6 +242,15 @@ impl DescritorProvider for DescritorGitlab {
                 orientacao: "Confira o host e se o token vale para ele.",
             },
         ]
+    }
+    fn executar_passo(&self, passo: &str, ctx: &mut ContextoProntidao<'_>) -> Resultado {
+        let glab = ctx.ferramentas.glab.clone();
+        Some(match passo {
+            "cli" => versao_e_caminho(&glab, &["version"]),
+            "credencial" => ctx.resolver_credencial(None),
+            "versao_servidor" => versao_do_gitlab(&glab, ctx),
+            _ => return None,
+        })
     }
 }
 
@@ -253,6 +348,25 @@ impl DescritorProvider for DescritorJira {
                 orientacao: "Confira se o token vale para o servidor.",
             },
         ]
+    }
+    fn executar_passo(&self, passo: &str, ctx: &mut ContextoProntidao<'_>) -> Resultado {
+        let jira = ctx.ferramentas.jira.clone();
+        let cfg = arquivo_de_config_jira(ctx.conexao.opcao(self, "config_file"));
+        Some(match passo {
+            "cli" => versao_e_caminho(&jira, &["version"]),
+            "config" => cfg
+                .is_file()
+                .then(|| Some(cfg.display().to_string()))
+                .ok_or_else(|| format!("{} não existe", cfg.display())),
+            "servidor" => servidor_do_jira(&cfg, &ctx.conexao.endereco),
+            "credencial" => ctx.resolver_credencial(None),
+            "quem_sou_eu" => {
+                let mut c = ctx.comando(&jira);
+                c.arg("me");
+                ctx.saida(c).map(|u| Some(format!("conectado como {u}")))
+            }
+            _ => return None,
+        })
     }
 }
 

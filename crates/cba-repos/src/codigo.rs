@@ -43,6 +43,10 @@ pub struct RepositorioCodigo {
     /// Comando que imprime o token, com `token = comando`. Texto do cadastro, não
     /// secret.
     pub comando_credencial: String,
+    /// Conexão das Configurações que este repositório usa (#437). Com ela, o
+    /// host e a credencial vêm da conexão; vazio = cadastro antigo.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub conexao: String,
 }
 
 impl Default for RepositorioCodigo {
@@ -56,6 +60,7 @@ impl Default for RepositorioCodigo {
             branch: String::new(),
             token: OrigemToken::Global,
             comando_credencial: String::new(),
+            conexao: String::new(),
         }
     }
 }
@@ -417,13 +422,18 @@ mod tests {
 
     #[test]
     fn migra_a_forja_antiga_sem_perda() {
-        let r: RepositorioCodigo = ForgeConfig::Github(GithubConfig { repo: "o/r".into() }).into();
+        let r: RepositorioCodigo = ForgeConfig::Github(GithubConfig {
+            repo: "o/r".into(),
+            ..Default::default()
+        })
+        .into();
         assert_eq!(r, gh("o/r"));
         let r: RepositorioCodigo = ForgeConfig::Gitlab(GitlabConfig {
             host: "gitlab.example.com".into(),
             path: "g/p/app".into(),
             clone_url: "git@gitlab.example.com:g/p/app.git".into(),
             credential_cmd: "pass show gitlab | head -1".into(),
+            ..Default::default()
         })
         .into();
         assert_eq!(r.forja, ForgeKind::Gitlab);
