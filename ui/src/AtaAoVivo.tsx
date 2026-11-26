@@ -1,7 +1,6 @@
-import Markdown from "markdown-to-jsx";
 import { contar } from "./formatacao";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { OPCOES_MARKDOWN_BASE } from "./markdownOpcoes";
+import { TextoRico } from "./componentes";
 import { mensagemDe, type AnaliseCriada, type AvisoAnalise } from "./analise";
 import { ROTULO_STATUS_ATA } from "./demandas";
 import { AvisoTranscriptGuardado } from "./PainelDemanda";
@@ -139,13 +138,13 @@ export function AtaAoVivo({
       {ata.objetivo && (
         <section aria-label="Objetivo">
           <h3>Objetivo</h3>
-          <Markdown options={OPCOES_MARKDOWN_BASE}>{ata.objetivo}</Markdown>
+          <TextoRico texto={ata.objetivo} />
         </section>
       )}
       {ata.resumo && (
         <section aria-label="Resumo">
           <h3>Resumo</h3>
-          <Markdown options={OPCOES_MARKDOWN_BASE}>{ata.resumo}</Markdown>
+          <TextoRico texto={ata.resumo} />
         </section>
       )}
 
