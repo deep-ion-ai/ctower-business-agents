@@ -6,10 +6,11 @@ import {
   within,
 } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { PautaPerguntas } from "./PautaPerguntas";
+import { PautaPerguntas, PERGUNTAS_VISIVEIS } from "./PautaPerguntas";
 import {
   agrupar,
   destinatarioDoValor,
+  origemCurta,
   valorDestinatario,
   type ApiPauta,
   type Pauta,
@@ -59,7 +60,8 @@ function pautaFicticia(): Pauta {
                   fluxo: "impacto",
                 },
                 texto: "O limite de parcelas vale para PJ?",
-                contexto: "O parcelamento aceita até 6 parcelas para PJ.",
+                contexto:
+                  "Hoje há **dois caminhos**:\n\n- **Acordo de cobrança**: mantém a fatura.\n- **Renegociação**: apaga o histórico.",
                 destinatario: { tipo: "pessoa", pessoa: "maria-silva" },
                 tema: "como e hoje",
                 desde: "2026-11-17",
@@ -173,19 +175,31 @@ describe("PautaPerguntas", () => {
       name: "Maria Silva (PO)",
     });
     expect(within(maria).getByText("2 perguntas iguais")).toBeInTheDocument();
+    // A origem é curta, sem o título da análise.
     expect(
-      within(maria).getByText(/A-0001\/1 · Impacto do parcelamento/),
+      within(maria).getByRole("button", { name: "A-0001 · pergunta 1" }),
     ).toBeInTheDocument();
     expect(
-      within(maria).getByText(/A-0002\/1 · Impacto na remessa/),
+      within(maria).getByRole("button", { name: "A-0002 · pergunta 1" }),
     ).toBeInTheDocument();
+    expect(
+      within(maria).getByRole("button", { name: "R-0001 · dúvida 1" }),
+    ).toBeInTheDocument();
+    expect(
+      within(maria).queryByText(/Impacto do parcelamento|Impacto na remessa/),
+    ).not.toBeInTheDocument();
     expect(
       within(maria).getByText(/bloqueia HU-0001 · CA-2/),
     ).toBeInTheDocument();
     expect(within(maria).getByText("há 17 dias")).toHaveAttribute(
-      "data-tone",
-      "attention",
+      "data-tom",
+      "atencao",
     );
+    expect(screen.getByText("aberta hoje")).toHaveAttribute(
+      "data-tom",
+      "neutro",
+    );
+    expect(within(maria).getByText("2 perguntas")).toBeInTheDocument();
     expect(
       screen.getByRole("region", { name: "Sem destinatário" }),
     ).toBeInTheDocument();
@@ -193,7 +207,7 @@ describe("PautaPerguntas", () => {
     expect(api.pauta).toHaveBeenCalledWith(PROJETO, "D-0001");
 
     fireEvent.click(
-      within(maria).getByRole("button", { name: "copiar e-mail" }),
+      within(maria).getByRole("button", { name: "Copiar como e-mail" }),
     );
     await waitFor(() =>
       expect(api.copiar).toHaveBeenCalledWith(pautaFicticia().emails[0]),
@@ -251,12 +265,103 @@ describe("PautaPerguntas", () => {
     );
   });
 
-  it("exporta a pauta em Word", async () => {
+  it("mostra o que o sistema faz hoje recolhido e, aberto, em Markdown", async () => {
     const api = apiFalsa();
     render(<PautaPerguntas projeto={PROJETO} demanda="D-0001" api={api} />);
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Exportar Word" }),
+    const maria = await screen.findByRole("region", {
+      name: "Maria Silva (PO)",
+    });
+    // Só a pergunta com contexto tem o botão.
+    const alternar = within(maria).getByRole("button", {
+      name: "O que o sistema faz hoje",
+    });
+    expect(alternar.tagName).toBe("BUTTON");
+    expect(alternar).toHaveAttribute("aria-expanded", "false");
+    expect(alternar).toHaveTextContent("▸ O que o sistema faz hoje");
+    expect(within(maria).queryByText("dois caminhos")).not.toBeInTheDocument();
+
+    fireEvent.click(alternar);
+    expect(alternar).toHaveAttribute("aria-expanded", "true");
+    const contexto = document.getElementById(
+      alternar.getAttribute("aria-controls")!,
+    )!;
+    expect(within(contexto).getByText("dois caminhos").tagName).toBe("STRONG");
+    expect(within(contexto).getAllByRole("listitem")).toHaveLength(2);
+    expect(contexto).not.toHaveTextContent("**");
+    expect(contexto).not.toHaveTextContent("- ");
+
+    fireEvent.click(alternar);
+    expect(alternar).toHaveAttribute("aria-expanded", "false");
+    expect(within(maria).queryByText("dois caminhos")).not.toBeInTheDocument();
+  });
+
+  it("mostra as primeiras perguntas de cada grupo e um botão para as outras", async () => {
+    const api = apiFalsa();
+    const base = pautaFicticia();
+    const modelo = base.grupos[1].itens[0];
+    const itens = Array.from({ length: PERGUNTAS_VISIVEIS + 3 }, (_, i) => ({
+      ...modelo,
+      texto: `Pergunta ${i + 1}?`,
+      perguntas: [
+        {
+          ...modelo.perguntas[0],
+          referencia: `A-0003/${i + 1}`,
+          texto: `Pergunta ${i + 1}?`,
+        },
+      ],
+    }));
+    vi.mocked(api.pauta).mockResolvedValue({
+      ...base,
+      total: itens.length,
+      antigas: 0,
+      emails: [],
+      grupos: [{ destinatario: null, rotulo: "Sem destinatário", itens }],
+    });
+    render(<PautaPerguntas projeto={PROJETO} demanda="D-0001" api={api} />);
+    const grupo = await screen.findByRole("region", {
+      name: "Sem destinatário",
+    });
+    expect(within(grupo).getByText("6 perguntas")).toBeInTheDocument();
+    expect(
+      within(grupo).queryByRole("button", { name: "Copiar como e-mail" }),
+    ).not.toBeInTheDocument();
+    const lista = grupo.querySelector("ol")!;
+    expect(within(grupo).getAllByText(/^Pergunta \d\?$/)).toHaveLength(
+      PERGUNTAS_VISIVEIS,
     );
+    const mais = within(grupo).getByRole("button", {
+      name: "Mostrar as outras 3 perguntas",
+    });
+    expect(mais).toHaveAttribute("aria-expanded", "false");
+    expect(mais).toHaveAttribute("aria-controls", lista.id);
+
+    mais.focus();
+    fireEvent.click(mais);
+    expect(within(grupo).getAllByText(/^Pergunta \d\?$/)).toHaveLength(6);
+    // O mesmo botão fica no lugar: o foco não se perde.
+    expect(mais).toHaveFocus();
+    expect(mais).toHaveAttribute("aria-expanded", "true");
+    expect(mais).toHaveTextContent("Mostrar menos");
+
+    fireEvent.click(mais);
+    expect(within(grupo).getAllByText(/^Pergunta \d\?$/)).toHaveLength(
+      PERGUNTAS_VISIVEIS,
+    );
+  });
+
+  it("exporta a pauta em Word pelo menu Exportar", async () => {
+    const api = apiFalsa();
+    render(<PautaPerguntas projeto={PROJETO} demanda="D-0001" api={api} />);
+    const exportar = await screen.findByRole("button", { name: /^Exportar/ });
+    expect(exportar).toHaveAttribute("aria-haspopup", "menu");
+    fireEvent.click(exportar);
+    const menu = screen.getByRole("menu", { name: "Exportar" });
+    expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .map((b) => b.textContent),
+    ).toEqual(["Markdown", "Word"]);
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Word" }));
     await waitFor(() =>
       expect(api.exportar).toHaveBeenCalledWith(
         PROJETO,
@@ -283,6 +388,15 @@ describe("pauta", () => {
       "Impacto do parcelamento",
       "Reunião R-0001",
     ]);
+  });
+
+  it("origem curta, sem o título da análise", () => {
+    const [maria] = pautaFicticia().grupos;
+    const [a1, a2] = maria.itens[0].perguntas;
+    expect(origemCurta(a1)).toBe("A-0001 · pergunta 1");
+    expect(origemCurta(a2)).toBe("A-0002 · pergunta 1");
+    expect(origemCurta(maria.itens[1].perguntas[0])).toBe("R-0001 · dúvida 1");
+    expect(origemCurta({ ...a1, referencia: "A-0001" })).toBe("A-0001");
   });
 
   it("destinatário no select", () => {

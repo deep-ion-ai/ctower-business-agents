@@ -38,6 +38,7 @@ import { ordenarSecoes, tituloDaSecao } from "./secoesAnalise";
 import { SumarioAnalise, type ItemSumario } from "./SumarioAnalise";
 import { useAtalhosRevisao } from "./useAtalhosRevisao";
 import { Icon } from "./shell/icons";
+import { TextoRico, TituloSecao } from "./componentes";
 
 export { ROTULO_CONFIANCA };
 
@@ -80,6 +81,32 @@ export function SeloSessao({ sessao }: { sessao: SessaoVista | null }) {
       {ROTULO_SESSAO[sessao.estado]}
     </p>
   );
+}
+
+/** Uma linha sem as marcas de Markdown nem o rótulo "Título:", para comparar. */
+function linhaComparavel(linha: string): string {
+  return linha
+    .replace(/[#*_`>]/g, "")
+    .replace(/^\s*t[íi]tulo\s*:/i, "")
+    .replace(/:\s*$/, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * A entrada sem o título repetido (#403): a análise que nasce de uma issue tem o
+ * título e, depois, a descrição; quando a descrição começa pelo mesmo título
+ * (`# Título`, `**Título:** Título`), ele aparece uma vez só, na forma da descrição.
+ */
+export function semTituloRepetido(entrada: string): string {
+  const linhas = entrada.trim().split("\n");
+  const titulo = linhaComparavel(linhas[0]);
+  const seguinte = linhas.findIndex((l, i) => i > 0 && l.trim() !== "");
+  if (!titulo || seguinte < 0 || linhaComparavel(linhas[seguinte]) !== titulo) {
+    return entrada.trim();
+  }
+  return linhas.slice(seguinte).join("\n");
 }
 
 export function chaveEvidencia(e: Evidencia): string {
@@ -135,6 +162,11 @@ interface Props {
    * conta do cabeçalho e do diálogo de aprovação (#222).
    */
   pendencias?: Pendencia[] | null;
+  /**
+   * Abre um link da entrada no navegador do sistema: só os do host da issue de
+   * origem (`vista.link`); os outros aparecem como texto (#403).
+   */
+  aoAbrirLink?: (link: string) => void;
 }
 
 /** Ícone que mostra ou esconde as evidências no código de uma afirmação ou sugestão. */
@@ -179,6 +211,7 @@ export function DocumentoAoVivo({
   revisao,
   semCabecalho = false,
   pendencias,
+  aoAbrirLink,
 }: Props) {
   const { analise } = vista;
   const deCenarios = analise.fluxo === "cenarios";
@@ -364,9 +397,16 @@ export function DocumentoAoVivo({
         <div className="documento-conteudo">
           {/* Na revisão, o texto revisado já aparece no parecer, com as marcas. */}
           {analise.fluxo !== "revisar" && (
-            <section aria-label={rotuloEntrada}>
-              <h3>{rotuloEntrada}</h3>
-              <blockquote>{analise.entrada}</blockquote>
+            <section aria-label={rotuloEntrada} className="documento-entrada">
+              <TituloSecao nivel={3}>{rotuloEntrada}</TituloSecao>
+              {/* Markdown, como no rastreador: os links seguem a regra da descrição da issue. */}
+              <blockquote>
+                <TextoRico
+                  texto={semTituloRepetido(analise.entrada)}
+                  hostPermitido={vista.link ?? undefined}
+                  aoAbrirLink={aoAbrirLink}
+                />
+              </blockquote>
             </section>
           )}
 
