@@ -1,12 +1,11 @@
-import Markdown from "markdown-to-jsx";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { abrirLinkDoProjeto } from "./abrirLinkProjeto";
 import { mensagemDe } from "./analise";
 import type { ApiConhecimento, Encontrado } from "./conhecimento";
 import { situacaoEmTexto, type Acao } from "./acaoIssue";
 import type { Tela } from "./Navegacao";
 import type { IssueDoProjeto } from "./issuesProjeto";
-import { OPCOES_MARKDOWN_BASE } from "./markdownOpcoes";
+import { TextoRico } from "./componentes";
 
 export const ROTULO_ORIGEM = { github: "GitHub", gitlab: "GitLab", jira: "Jira" } as const;
 
@@ -52,52 +51,21 @@ export function AvisoAbrirLink({ falha }: { falha: FalhaLink | null }) {
   );
 }
 
-/** Dois endereços do mesmo host (o da issue e o do link da descrição). */
-function mesmoHost(link: string, base: string): boolean {
-  try {
-    return new URL(link).host.toLowerCase() === new URL(base).host.toLowerCase();
-  } catch {
-    return false;
-  }
-}
-
 /**
- * A descrição da issue em Markdown (#398). Os links do host da issue abrem no
- * navegador do sistema; os de outro host aparecem como texto, com o endereço no
- * title. Imagens não carregam: viram o link delas, com o texto alternativo.
+ * A descrição da issue em Markdown (#398), pelo {@link TextoRico}: os links do host
+ * da issue abrem no navegador do sistema; os de outro host aparecem como texto, com
+ * o endereço no title. Imagens não carregam: viram o link delas, com o texto
+ * alternativo.
  */
 export function DescricaoIssue({ issue, abrir }: { issue: IssueDoProjeto; abrir: (link: string) => void }) {
-  const overrides = useMemo(() => {
-    const Link = ({ href, children }: { href?: string; children?: ReactNode }) => {
-      if (!href || !mesmoHost(href, issue.url)) {
-        return (
-          <span className="link-externo" title={href}>
-            {children}
-          </span>
-        );
-      }
-      return (
-        <a
-          href={href}
-          className="link"
-          onClick={(e) => {
-            e.preventDefault();
-            abrir(href);
-          }}
-        >
-          {children}
-        </a>
-      );
-    };
-    const Imagem = ({ src, alt }: { src?: string; alt?: string }) => <Link href={src}>{alt || src}</Link>;
-    return { a: { component: Link }, img: { component: Imagem } };
-  }, [issue.url, abrir]);
-
   if (!issue.descricao.trim()) return <p className="muted">A issue não tem descrição.</p>;
   return (
-    <div className="markdown demandas-descricao">
-      <Markdown options={{ ...OPCOES_MARKDOWN_BASE, overrides }}>{issue.descricao}</Markdown>
-    </div>
+    <TextoRico
+      texto={issue.descricao}
+      hostPermitido={issue.url}
+      aoAbrirLink={abrir}
+      className="demandas-descricao"
+    />
   );
 }
 

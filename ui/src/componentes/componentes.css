@@ -1,0 +1,276 @@
+/*
+ * Componentes compartilhados da identidade visual (issue 406, prancheta Padrões).
+ * Só tokens da fundação (issue 405): nenhuma cor nem tamanho de fonte escrito à mão.
+ */
+
+/* ---- Seção, cartão e item de lista ---- */
+
+.titulo-secao {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.titulo-secao > :is(h2, h3, h4) {
+  margin: 0;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-strong);
+  color: var(--text);
+}
+
+.titulo-secao-acoes {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.secao {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-6);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+}
+
+.cartao {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  font-size: var(--fs-base);
+}
+
+.lista-itens {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item-lista {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-1);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-base);
+}
+
+.item-lista:last-child {
+  border-bottom: 0;
+}
+
+.item-lista-corpo {
+  flex: 1;
+  min-width: 0;
+}
+
+.item-lista-meta {
+  color: var(--muted);
+  font-size: var(--fs-support);
+  white-space: nowrap;
+}
+
+.item-lista-acoes {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  align-self: center;
+}
+
+/* ---- Selo: uma forma, seis tons ---- */
+
+.selo {
+  display: inline-block;
+  padding: calc(var(--space-1) / 2) var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
+  line-height: 1.5;
+  white-space: nowrap;
+  background: var(--idle-bg);
+  color: var(--text-2);
+}
+
+.selo[data-tom="andamento"] {
+  background: var(--running-bg);
+  color: var(--running);
+}
+
+.selo[data-tom="concluido"] {
+  background: var(--done-bg);
+  color: var(--done);
+}
+
+.selo[data-tom="atencao"] {
+  background: var(--attention-bg);
+  color: var(--attention);
+}
+
+.selo[data-tom="erro"] {
+  background: var(--error-bg);
+  color: var(--error);
+}
+
+.selo[data-tom="agente"] {
+  background: var(--agent-bg);
+  color: var(--agent);
+}
+
+/* ---- Ações ---- */
+
+.barra-acoes {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.barra-acoes[data-alinhamento="fim"] {
+  justify-content: flex-end;
+}
+
+.menu-acoes {
+  position: relative;
+  display: inline-block;
+}
+
+.menu-acoes-seta {
+  font-size: var(--fs-small);
+}
+
+.menu-acoes-lista {
+  position: absolute;
+  left: 0;
+  top: calc(100% + var(--space-1));
+  z-index: 20;
+  min-width: 14rem;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  box-shadow: 0 var(--space-2) var(--space-6) var(--shadow);
+}
+
+/* Na fileira encostada à direita, o menu abre para a esquerda e não sai da tela. */
+.barra-acoes[data-alinhamento="fim"] .menu-acoes-lista {
+  left: auto;
+  right: 0;
+}
+
+.menu-acoes-lista button {
+  display: block;
+  width: 100%;
+  min-height: 32px;
+  padding: var(--space-1) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-base);
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu-acoes-lista button[data-perigo] {
+  color: var(--error);
+}
+
+.menu-acoes-lista button:hover:not(:disabled),
+.menu-acoes-lista button:focus-visible {
+  background: var(--hover);
+}
+
+.menu-acoes-lista button:disabled {
+  color: var(--faint);
+  cursor: not-allowed;
+}
+
+/* ---- Estado vazio e alerta ---- */
+
+.estado-vazio {
+  padding: var(--space-3) var(--space-4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-card);
+  color: var(--muted);
+  font-size: var(--fs-base);
+  text-align: center;
+}
+
+.alerta {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--attention-border);
+  border-radius: var(--radius-control);
+  background: var(--attention-card);
+  color: var(--text);
+  font-size: var(--fs-base);
+}
+
+.alerta[data-tom="erro"] {
+  border-color: var(--error-border);
+  background: var(--error-bg);
+}
+
+.alerta-icone {
+  flex: none;
+  display: inline-flex;
+  margin-top: 1px;
+  color: var(--attention);
+}
+
+.alerta[data-tom="erro"] .alerta-icone {
+  color: var(--error);
+}
+
+.alerta-texto {
+  flex: 1;
+  min-width: 0;
+}
+
+.alerta-titulo {
+  font-weight: var(--fw-strong);
+}
+
+.alerta-acoes {
+  display: flex;
+  gap: var(--space-2);
+  flex: none;
+}
+
+/* ---- Texto rico ---- */
+
+.texto-rico-recolhivel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.texto-rico-recolhido {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--texto-rico-linhas);
+  line-clamp: var(--texto-rico-linhas);
+  overflow: hidden;
+}
+
+.texto-rico-recolhido > :first-child {
+  margin-top: 0;
+}
+
+.texto-rico-alternar {
+  align-self: flex-start;
+  font-size: var(--fs-support);
+}
