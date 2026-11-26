@@ -234,33 +234,6 @@ a {
   color: var(--error-soft);
 }
 
-.badge {
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: var(--fs-small);
-  font-weight: var(--fw-strong);
-  white-space: nowrap;
-  background: var(--idle-bg);
-  color: var(--text-2);
-}
-
-.badge[data-tone="attention"] {
-  background: var(--attention-bg);
-  color: var(--attention);
-}
-.badge[data-tone="running"] {
-  background: var(--running-bg);
-  color: var(--running);
-}
-.badge[data-tone="done"] {
-  background: var(--done-bg);
-  color: var(--done);
-}
-.badge[data-tone="error"] {
-  background: var(--danger-bg);
-  color: var(--error-soft);
-}
-
 .panel {
   padding: 18px;
   border: 1px solid var(--border);

@@ -4,6 +4,7 @@ import { idadeEmTexto, type ApiCobertura, type Cobertura } from "./cobertura";
 import { AjudaTermo } from "./AjudaTermo";
 import { contar } from "./formatacao";
 import type { Tela } from "./Navegacao";
+import { Selo } from "./componentes";
 
 const PASTAS_VISIVEIS = 8;
 
@@ -107,7 +108,7 @@ export function CoberturaProjeto({
                     style={{ background: fundo(a.calor) }}
                   >
                     <strong>{a.nome}</strong>
-                    {a.lacuna && <span className="badge" data-tone="attention">lacuna</span>}
+                    {a.lacuna && <Selo tom="atencao">lacuna</Selo>}
                     <div>
                       {contar(a.regras, "regra", "regras")} · {contar(a.termos, "termo", "termos")} ·{" "}
                       {contar(a.documentos, "documento", "documentos")}
@@ -136,7 +137,7 @@ export function CoberturaProjeto({
                 {pastasMostradas.map((p) => (
                   <li key={p.pasta} style={{ background: fundo(p.calor) }}>
                     <code>{p.pasta || "(raiz)"}</code>{" "}
-                    {p.lacuna && <span className="badge" data-tone="attention">lacuna</span>}{" "}
+                    {p.lacuna && <Selo tom="atencao">lacuna</Selo>}{" "}
                     <span className="muted">
                       referenciada {contar(p.centralidade, "vez", "vezes")} ·{" "}
                       {contar(p.regras, "regra", "regras")} · {contar(p.arquivos, "arquivo", "arquivos")}

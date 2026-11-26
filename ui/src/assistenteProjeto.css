@@ -800,14 +800,3 @@ fieldset.sem-borda {
   border: 0;
 }
 
-/* Título da seção com a ação ao lado (Projetos no Início). */
-.titulo-com-acao {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.titulo-com-acao h2 {
-  margin: 0;
-}

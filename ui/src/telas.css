@@ -38,10 +38,7 @@ h3.titulo-formulario {
 }
 
 /* Seções de uma tela: painéis. */
-.tela-inicio > section,
-.tela-projeto > section,
-.tela-analise.page > section,
-.tela-analise.page > form {
+.tela-projeto > section {
   padding: 18px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -51,9 +48,7 @@ h3.titulo-formulario {
   gap: 10px;
 }
 
-.tela-inicio > section > h2,
-.tela-projeto > section > h3,
-.tela-analise.page > section > h3 {
+.tela-projeto > section > h3 {
   font-size: var(--fs-support);
   font-weight: var(--fw-strong);
   color: var(--muted);
@@ -104,9 +99,7 @@ h3.titulo-formulario {
   gap: 8px;
 }
 
-/* Listas de itens (projetos, análises, regras, termos, pastas, resultados). */
-.lista-projetos,
-.lista-analises,
+/* Listas de itens (demandas, resultados da busca na base). */
 .lista-demandas,
 .resultados-base ul {
   list-style: none;
@@ -115,8 +108,6 @@ h3.titulo-formulario {
   flex-direction: column;
 }
 
-.lista-projetos > li,
-.lista-analises > li,
 .lista-demandas > li,
 .resultados-base li {
   display: flex;
@@ -127,8 +118,6 @@ h3.titulo-formulario {
   border-bottom: 1px solid var(--border);
 }
 
-.lista-projetos > li:last-child,
-.lista-analises > li:last-child,
 .lista-demandas > li:last-child,
 .resultados-base li:last-child {
   border-bottom: 0;
@@ -3637,38 +3626,23 @@ code[data-tone="attention"] {
   font-size: var(--fs-small);
 }
 
-/* Atividades (#321): a caixa de entrada do analista. */
-.atividades-grupo {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+/* Atividades (#321): a caixa de entrada do analista. Seções, listas, selos e vazios
+   são os componentes compartilhados (#410). */
+.page .atividades-titulo {
+  font-size: var(--fs-title);
 }
 
 .atividades-grupo h2 {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-2);
 }
 
-.atividades-linhas {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.atividades-linha {
   display: flex;
-  flex-direction: column;
-}
-
-.atividades-linhas li {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 0;
-  border-top: 1px solid var(--border);
-}
-
-.atividades-linhas li:first-child {
-  border-top: 0;
-  padding-top: 0;
+  align-items: baseline;
+  gap: var(--space-3);
+  min-width: 0;
 }
 
 .atividades-id {
@@ -3689,19 +3663,9 @@ code[data-tone="attention"] {
   overflow-wrap: anywhere;
 }
 
-.atividades-linhas .btn {
-  flex: 0 0 auto;
-}
-
 /* A tela Início continua abaixo dos grupos, sem repetir o espaço do topo. */
 .atividades + .tela-inicio {
   padding-top: 0;
-}
-
-@media (max-width: 600px) {
-  .atividades-linhas li {
-    flex-wrap: wrap;
-  }
 }
 
 /* Área Demandas (#323): lista única de issues e demandas, com o painel ao lado. */
@@ -4365,11 +4329,6 @@ code[data-tone="attention"] {
 .demanda-registrada {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-}
-.demanda-registrada .acoes {
-  display: flex;
-  flex-wrap: wrap;
   gap: 8px;
 }
 @media (max-width: 560px) {

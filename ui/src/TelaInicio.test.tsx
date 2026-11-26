@@ -126,7 +126,7 @@ describe("TelaInicio", () => {
 
     const projetos = screen.getByRole("region", { name: "Projetos" });
     expect(within(projetos).getByText(/1 regra · 1 termo/)).toBeInTheDocument();
-    expect(within(projetos).getByText("1 a revalidar")).toHaveAttribute("data-tone", "attention");
+    expect(within(projetos).getByText("1 a revalidar")).toHaveAttribute("data-tom", "atencao");
 
     const clientes = screen.getByRole("region", { name: "Clientes de IA" });
     expect(await within(clientes).findByText("Instalado, versão 2.1.0")).toBeInTheDocument();
