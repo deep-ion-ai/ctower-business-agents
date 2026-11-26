@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { mensagemDe } from "./analise";
+import { Alerta as AlertaLacuna, EstadoVazio, MenuAcoes, Secao, Selo } from "./componentes";
 import type { Tela } from "./Navegacao";
 import {
   apiRastreabilidadeTauri,
@@ -11,6 +12,7 @@ import {
   type CenarioRastro,
   type EvidenciaRastro,
   type FormatoMatriz,
+  type Lacuna,
   type Matriz,
   type RegraRastro,
 } from "./rastreabilidade";
@@ -25,6 +27,9 @@ type Linhas = "historia" | "regra";
  * alertas", exportação para Excel e Word, e o painel das lacunas: evidência que
  * mudou sob história aprovada, regra afetada sem história, história sem cenário e
  * história sem regra.
+ *
+ * Sem histórias (#407), a tabela não aparece: ficam as lacunas, em alerta, e uma linha
+ * com o próximo passo ("Gerar histórias e critérios").
  */
 export function MatrizRastreabilidade({
   projeto,
@@ -32,6 +37,8 @@ export function MatrizRastreabilidade({
   navegar,
   api = apiRastreabilidadeTauri,
   atualizacao,
+  aoGerarHistorias,
+  aoCarregar,
 }: {
   projeto: string;
   demanda: string;
@@ -39,6 +46,10 @@ export function MatrizRastreabilidade({
   api?: ApiRastreabilidade;
   /** Muda quando o painel relê a demanda (a base mudou): relê a matriz junto. */
   atualizacao?: unknown;
+  /** Abre a análise de histórias e critérios ligada à demanda; sem ela, não há o link. */
+  aoGerarHistorias?: () => void;
+  /** Avisa a matriz lida (o painel da demanda conta as lacunas no resumo). */
+  aoCarregar?: (m: Matriz) => void;
 }) {
   const [matriz, setMatriz] = useState<Matriz | null>(null);
   const [falha, setFalha] = useState<string | null>(null);
@@ -46,6 +57,9 @@ export function MatrizRastreabilidade({
   const [soLacunas, setSoLacunas] = useState(false);
   const [exportando, setExportando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
+  // Na ref, para não reler a matriz quando o painel troca a função a cada render.
+  const avisarCarga = useRef(aoCarregar);
+  avisarCarga.current = aoCarregar;
 
   const carregar = useCallback(() => {
     let ativo = true;
@@ -55,6 +69,7 @@ export function MatrizRastreabilidade({
         if (!ativo || !m) return;
         setMatriz(m);
         setFalha(null);
+        avisarCarga.current?.(m);
       })
       .catch((e: unknown) => ativo && setFalha(mensagemDe(e)));
     return () => {
@@ -117,50 +132,43 @@ export function MatrizRastreabilidade({
     </button>
   );
 
+  // A tabela só aparece com histórias: sem elas, as linhas por regra repetem as lacunas.
+  const comLinhas = !!matriz && matriz.historias.length > 0;
   const total = matriz ? (linhas === "historia" ? matriz.historias : matriz.regras).length : 0;
   const historias = matriz?.historias.filter((h) => !soLacunas || h.alertas.length > 0) ?? [];
   const regras = matriz?.regras.filter((r) => !soLacunas || r.alertas.length > 0) ?? [];
   const mostradas = linhas === "historia" ? historias.length : regras.length;
 
+  const controles = comLinhas && (
+    <>
+      <label className="rastreabilidade-controle">
+        Linhas por{" "}
+        <select value={linhas} onChange={(e) => setLinhas(e.target.value as Linhas)}>
+          <option value="historia">História</option>
+          <option value="regra">Regra</option>
+        </select>
+      </label>
+      <label className="rastreabilidade-controle">
+        <input
+          type="checkbox"
+          checked={soLacunas}
+          onChange={(e) => setSoLacunas(e.target.checked)}
+        />{" "}
+        só lacunas e alertas
+      </label>
+      <MenuAcoes
+        rotulo="Exportar"
+        desabilitado={exportando}
+        itens={[
+          { texto: "Excel (.xlsx)", aoEscolher: () => exportar("xlsx") },
+          { texto: "Word (.docx)", aoEscolher: () => exportar("word") },
+        ]}
+      />
+    </>
+  );
+
   return (
-    <section className="rastreabilidade" aria-label="Rastreabilidade">
-      <header className="rastreabilidade-cabecalho">
-        <h3>Matriz de rastreabilidade</h3>
-        <span className="muted">derivada do índice; reconstruída a cada mudança</span>
-        <div className="rastreabilidade-controles">
-          <label>
-            Linhas por{" "}
-            <select value={linhas} onChange={(e) => setLinhas(e.target.value as Linhas)}>
-              <option value="historia">História</option>
-              <option value="regra">Regra</option>
-            </select>
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={soLacunas}
-              onChange={(e) => setSoLacunas(e.target.checked)}
-            />{" "}
-            só lacunas e alertas
-          </label>
-          <button
-            type="button"
-            className="btn"
-            disabled={!matriz || exportando}
-            onClick={() => exportar("xlsx")}
-          >
-            Exportar matriz (.xlsx)
-          </button>
-          <button
-            type="button"
-            className="btn"
-            disabled={!matriz || exportando}
-            onClick={() => exportar("word")}
-          >
-            Exportar Word
-          </button>
-        </div>
-      </header>
+    <Secao titulo="Matriz de rastreabilidade" acoes={controles} className="rastreabilidade">
       {falha && (
         <p className="error-text" role="alert">
           {falha}
@@ -170,14 +178,32 @@ export function MatrizRastreabilidade({
       {!matriz ? (
         !falha && <p className="muted">Carregando a matriz…</p>
       ) : matriz.analises.length === 0 ? (
-        <p className="muted">
+        <EstadoVazio>
           Nenhuma análise ligada à demanda ainda. A matriz se monta sozinha a partir das
           análises, histórias e cenários ligados a ela.
-        </p>
+        </EstadoVazio>
+      ) : !comLinhas ? (
+        <>
+          <Lacunas lacunas={matriz.lacunas} />
+          <EstadoVazio
+            acao={
+              aoGerarHistorias
+                ? { texto: "Gerar histórias e critérios", aoEscolher: aoGerarHistorias }
+                : undefined
+            }
+          >
+            Ainda não há histórias. A matriz aparece quando a primeira história for criada.
+          </EstadoVazio>
+        </>
       ) : (
-        <div className="rastreabilidade-corpo">
+        <div
+          className="rastreabilidade-corpo"
+          data-sem-lacunas={matriz.lacunas.length === 0 ? "" : undefined}
+        >
           <div className="rastreabilidade-tabela">
-            {linhas === "historia" ? (
+            {mostradas === 0 ? (
+              <EstadoVazio>Nenhuma linha com lacuna ou alerta.</EstadoVazio>
+            ) : linhas === "historia" ? (
               <table aria-label="Matriz por história">
                 <thead>
                   <tr>
@@ -200,17 +226,8 @@ export function MatrizRastreabilidade({
                         >
                           {h.id}
                         </button>{" "}
-                        {h.titulo}{" "}
-                        {h.aprovada && (
-                          <span className="badge" data-tone="done">
-                            aprovada
-                          </span>
-                        )}{" "}
-                        {h.aConfirmar && (
-                          <span className="badge" data-tone="attention">
-                            a confirmar
-                          </span>
-                        )}
+                        {h.titulo} {h.aprovada && <Selo tom="concluido">aprovada</Selo>}{" "}
+                        {h.aConfirmar && <Selo tom="atencao">a confirmar</Selo>}
                       </td>
                       <td>
                         <Lista itens={h.analises.map((a) => <Analise key={a} id={a} />)} />
@@ -255,9 +272,7 @@ export function MatrizRastreabilidade({
                       <td>
                         <Regra r={r.regra} /> {r.regra.titulo}{" "}
                         {r.regra.status === "a-revalidar" && (
-                          <span className="badge" data-tone="attention">
-                            a revalidar
-                          </span>
+                          <Selo tom="atencao">a revalidar</Selo>
                         )}
                       </td>
                       <td>
@@ -287,30 +302,36 @@ export function MatrizRastreabilidade({
                 </tbody>
               </table>
             )}
-            <p className="muted">
-              Mostrando {mostradas} de {total} linha(s)
-              {soLacunas && " (filtro: só lacunas e alertas)"}. Cada célula abre o documento ou
-              a análise; nada aqui é editado à mão.
-            </p>
-          </div>
-          <aside className="rastreabilidade-lacunas" aria-label="Lacunas e alertas">
-            <h4>Lacunas e alertas</h4>
-            {matriz.lacunas.length === 0 ? (
-              <p className="muted">Nenhuma lacuna.</p>
-            ) : (
-              <ul>
-                {matriz.lacunas.map((l) => (
-                  <li key={`${l.alerta}:${l.alvo}`} data-alerta={l.alerta}>
-                    <strong>{TITULO_LACUNA[l.alerta]}</strong>
-                    <p>{l.descricao}</p>
-                  </li>
-                ))}
-              </ul>
+            {soLacunas && mostradas > 0 && (
+              <p className="muted rastreabilidade-rodape">
+                Mostrando {mostradas} de {total} linha(s) (filtro: só lacunas e alertas).
+              </p>
             )}
-          </aside>
+          </div>
+          {matriz.lacunas.length > 0 && (
+            <aside className="rastreabilidade-lacunas" aria-label="Lacunas e alertas">
+              <Lacunas lacunas={matriz.lacunas} />
+            </aside>
+          )}
         </div>
       )}
-    </section>
+    </Secao>
+  );
+}
+
+/** As lacunas da matriz, cada uma num alerta de atenção (fixo: não é anunciado). */
+function Lacunas({ lacunas }: { lacunas: Lacuna[] }) {
+  if (lacunas.length === 0) return null;
+  return (
+    <ul className="rastreabilidade-alertas" aria-label="Lacunas da rastreabilidade">
+      {lacunas.map((l) => (
+        <li key={`${l.alerta}:${l.alvo}`} data-alerta={l.alerta}>
+          <AlertaLacuna tom="atencao" titulo={TITULO_LACUNA[l.alerta]} role="note">
+            {l.descricao}
+          </AlertaLacuna>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -340,19 +361,13 @@ function Evidencias({ lista }: { lista: EvidenciaRastro[] }) {
 }
 
 function Situacao({ alertas }: { alertas: Alerta[] }) {
-  if (alertas.length === 0) {
-    return (
-      <span className="badge" data-tone="done">
-        ok
-      </span>
-    );
-  }
+  if (alertas.length === 0) return <Selo tom="concluido">ok</Selo>;
   return (
     <>
       {alertas.map((a) => (
-        <span key={a} className="badge" data-tone="attention">
+        <Selo key={a} tom="atencao">
           {ROTULO_ALERTA[a]}
-        </span>
+        </Selo>
       ))}
     </>
   );

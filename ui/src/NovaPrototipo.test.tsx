@@ -241,8 +241,9 @@ describe("NovaPrototipo: o pedido do protótipo de telas (#379)", () => {
     render(
       <PainelDemanda api={conhecimento.api} projeto={PROJETO} demanda="D-0001" navegar={navegar} />,
     );
-    const secao = await screen.findByRole("region", { name: "Nova análise da demanda" });
-    fireEvent.click(within(secao).getByRole("button", { name: "Protótipo de telas" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Nova análise" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Protótipo de telas" }));
+    const secao = screen.getByRole("region", { name: "Nova análise da demanda" });
     const form = within(secao).getByRole("form", { name: "Protótipo de telas" });
     expect(within(form).getByText("O protótipo fica ligado à demanda D-0001.")).toBeInTheDocument();
     const origem = within(form).getByLabelText("Análise de origem") as HTMLSelectElement;

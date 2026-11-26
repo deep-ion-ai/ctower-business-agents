@@ -1,0 +1,163 @@
+/*
+ * Painel da demanda reorganizado (#407, prancheta "Demanda reorganizada"): largura de
+ * leitura centralizada, cabeçalho com a ação principal à direita, resumo de
+ * contadores e seções em `Secao`. Só tokens de theme.css.
+ */
+
+.painel-demanda.page {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: calc(var(--reading-width) + 2 * var(--space-6));
+  margin-inline: auto;
+  padding: var(--space-6);
+  gap: var(--space-6);
+}
+
+/* ---- Cabeçalho ---- */
+
+.painel-demanda-cabecalho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.painel-demanda-identidade {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex: 1 1 32rem;
+  min-width: 0;
+}
+
+.painel-demanda-trilha {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--fs-support);
+  color: var(--muted);
+}
+
+.painel-demanda-trilha button.link {
+  font-size: inherit;
+}
+
+.painel-demanda h1 {
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-strong);
+  line-height: 1.3;
+  color: var(--text);
+}
+
+.painel-demanda-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--fs-support);
+  color: var(--muted);
+}
+
+.painel-demanda-meta button.link {
+  font-size: inherit;
+}
+
+/* "·" entre os metadados de texto (os selos já se separam pela forma). */
+.painel-demanda-meta-item + .painel-demanda-meta-item::before {
+  content: "·";
+  margin-right: var(--space-2);
+  color: var(--muted);
+}
+
+/* ---- Resumo ---- */
+
+.painel-demanda-resumo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--space-3);
+}
+
+.painel-demanda-contador {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: calc(var(--space-1) / 2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--fs-base);
+  text-align: left;
+  cursor: pointer;
+}
+
+.painel-demanda-contador:hover {
+  border-color: var(--border-strong);
+}
+
+.painel-demanda-contador:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.painel-demanda-contador-numero {
+  font-size: var(--fs-title);
+  font-weight: var(--fw-strong);
+  color: var(--text);
+}
+
+.painel-demanda-contador[data-tom="atencao"] {
+  border-color: var(--attention-border);
+  background: var(--attention-card);
+}
+
+.painel-demanda-contador[data-tom="atencao"] .painel-demanda-contador-numero {
+  color: var(--attention);
+}
+
+/* Destino dos contadores: recebe o foco ao chegar, sem contorno de caixa. */
+.painel-demanda-ancora {
+  scroll-margin-top: var(--space-4);
+}
+
+.painel-demanda-ancora:focus {
+  outline: none;
+}
+
+/* ---- Linha do tempo ---- */
+
+.painel-demanda-evento {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+}
+
+.painel-demanda-data {
+  flex: none;
+  min-width: 6rem;
+  font-size: var(--fs-support);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.painel-demanda-evento-link {
+  font-weight: var(--fw-medium);
+}
+
+/* ---- Fim da página ---- */
+
+.painel-demanda-problemas {
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-4);
+}
+
+.painel-demanda-fim {
+  text-align: center;
+  font-size: var(--fs-support);
+  color: var(--muted);
+}

@@ -46,6 +46,14 @@ export const IconeMais = () => (
     <path d="M5 12h14" />
   </Svg>
 );
+/** "⋯": o menu de mais ações. */
+export const IconeReticencias = () => (
+  <Svg>
+    <circle cx="5" cy="12" r="1" />
+    <circle cx="12" cy="12" r="1" />
+    <circle cx="19" cy="12" r="1" />
+  </Svg>
+);
 export const IconeDescartar = () => (
   <Svg>
     <path d="M18 6L6 18" />

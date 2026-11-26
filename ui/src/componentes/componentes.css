@@ -146,6 +146,13 @@
   font-size: var(--fs-small);
 }
 
+/* Menu só de ícone ("⋯"): botão quadrado. */
+.menu-acoes-icone {
+  justify-content: center;
+  min-width: 36px;
+  padding: 0;
+}
+
 .menu-acoes-lista {
   position: absolute;
   left: 0;
