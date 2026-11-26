@@ -1,4 +1,3 @@
-import Markdown from "markdown-to-jsx";
 import {
   Children,
   createContext,
@@ -8,7 +7,7 @@ import {
   type ComponentType,
   type ReactNode,
 } from "react";
-import { OPCOES_MARKDOWN_BASE } from "./markdownOpcoes";
+import { TextoRico } from "./componentes";
 
 /** Nomes que o texto aceita; vazio quando o texto não tem variáveis (não marca nenhum). */
 const NomesAceitos = createContext<ReadonlySet<string>>(new Set());
@@ -102,9 +101,9 @@ const OVERRIDES = {
 };
 
 /**
- * Prévia do texto editado: o mesmo renderizador do {@link DocumentoBase}
- * (`markdown-to-jsx`, sem HTML cru), com o comentário inicial como nota e os
- * marcadores `{{nome}}` como chips (destacados quando o texto não os aceita).
+ * Prévia do texto editado: o renderizador único ({@link TextoRico}, sem HTML cru),
+ * com o comentário inicial como nota e os marcadores `{{nome}}` como chips
+ * (destacados quando o texto não os aceita). Na prévia nenhum link navega.
  */
 export const PreviaMarkdown = memo(function PreviaMarkdown({
   texto,
@@ -132,11 +131,7 @@ export const PreviaMarkdown = memo(function PreviaMarkdown({
             <p>{comChips(notaFichada, nomes)}</p>
           </aside>
         )}
-        <div className="markdown">
-          <Markdown options={{ ...OPCOES_MARKDOWN_BASE, overrides: OVERRIDES }}>
-            {corpoFichado}
-          </Markdown>
-        </div>
+        <TextoRico texto={corpoFichado} overrides={OVERRIDES} />
       </NomesDaPrevia.Provider>
     </NomesAceitos.Provider>
   );

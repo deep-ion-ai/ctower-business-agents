@@ -274,6 +274,7 @@ function Painel({
     <Secao
       titulo={titulo}
       rotulo={rotulo}
+      nivel={3}
       className={className ? `vg-painel ${className}` : "vg-painel"}
       acoes={
         extra ??

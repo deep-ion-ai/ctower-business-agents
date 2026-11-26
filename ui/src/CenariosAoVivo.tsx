@@ -11,6 +11,7 @@ import type {
   Tecnica,
 } from "./analise";
 import type { Revisao } from "./AcoesRevisao";
+import { Cartao, EstadoVazio, Selo, TituloSecao } from "./componentes";
 import type { DecisaoRevisao, ItemRequisito } from "./revisao";
 import { BotaoRevalidar, ChipFundamento, SeloRevalidar, aRevalidar } from "./MarcaRevalidar";
 
@@ -141,13 +142,11 @@ function CartaoTabela({
       .map((c) => c.id);
   const impossiveis = t.colunas.filter((c) => c.impossivel);
   return (
-    <section className={`tabela-decisao situacao-${t.situacao}`} aria-label={`${rotulo}: ${t.titulo}`}>
+    <Cartao className={`tabela-decisao situacao-${t.situacao}`} rotulo={`${rotulo}: ${t.titulo}`}>
       <header className="historia-cabecalho">
         <span className="painel-id">{rotulo}</span>
         <strong>{t.titulo}</strong>
-        <span className="badge" data-tone={t.situacao === "aceito" ? "done" : undefined}>
-          {SITUACAO[t.situacao]}
-        </span>
+        <Selo tom={t.situacao === "aceito" ? "concluido" : "neutro"}>{SITUACAO[t.situacao]}</Selo>
         <SeloRevalidar marca={t} />
       </header>
       <div className="tabela-rolagem">
@@ -224,7 +223,7 @@ function CartaoTabela({
           }
         />
       )}
-    </section>
+    </Cartao>
   );
 }
 
@@ -257,9 +256,9 @@ function TabelaLimites({ cenarios }: { cenarios: Cenario[] }) {
                   <td>
                     <strong className="limite">{l.valor}</strong>
                     {l.configuracao && (
-                      <span className="badge" data-tone="attention" title={l.configuracao}>
+                      <Selo tom="atencao" titulo={l.configuracao}>
                         a confirmar
-                      </span>
+                      </Selo>
                     )}
                   </td>
                   <td>{c.valor ?? "—"}</td>
@@ -339,20 +338,18 @@ function CartaoCenario({ cenario, revisao }: { cenario: Cenario; revisao?: Revis
     <li className={`criterio situacao-${c.situacao}`} aria-label={`${c.id}: ${c.titulo}`}>
       <div className="criterio-cabecalho">
         <strong>{c.id}</strong> {c.titulo}
-        <span className="chip">{ROTULO_TECNICA[c.tecnica]}</span>
+        <Selo tom="neutro">{ROTULO_TECNICA[c.tecnica]}</Selo>
         {c.coluna && (
-          <span className="chip">
+          <Selo tom="neutro">
             TD-{c.coluna.tabela}/R{c.coluna.coluna}
-          </span>
+          </Selo>
         )}
-        {c.historia && <span className="chip">{c.historia}</span>}
-        {c.pergunta && (
-          <span className="badge" data-tone="attention">
-            a confirmar: pergunta {c.pergunta}
-          </span>
-        )}
+        {c.historia && <Selo tom="neutro">{c.historia}</Selo>}
+        {c.pergunta && <Selo tom="atencao">a confirmar: pergunta {c.pergunta}</Selo>}
         <SeloRevalidar marca={c} />
-        {c.situacao !== "pendente" && <span className="muted">{SITUACAO[c.situacao]}</span>}
+        {c.situacao !== "pendente" && (
+          <Selo tom={c.situacao === "aceito" ? "concluido" : "neutro"}>{SITUACAO[c.situacao]}</Selo>
+        )}
         {c.original && <span className="muted editada">(editado pelo analista)</span>}
       </div>
       {c.limite && (
@@ -431,7 +428,7 @@ export function CenariosAoVivo({
     tabelas.filter((t) => t.situacao !== "descartado" && aRevalidar(t)).length;
   return (
     <section aria-label="Cenários de teste" className="historias-ao-vivo cenarios-ao-vivo">
-      <h3>Cenários de teste</h3>
+      <TituloSecao nivel={3}>Cenários de teste</TituloSecao>
       <p className="muted">
         {contar(tabelas.length, "tabela", "tabelas")} de decisão · {contar(vigentes.length, "cenário", "cenários")}
         {aConfirmar > 0 && ` · ${aConfirmar} a confirmar`}
@@ -439,7 +436,7 @@ export function CenariosAoVivo({
         {origem && ` · origem ${origem}`}
       </p>
       {tabelas.length === 0 && cenarios.length === 0 && (
-        <p className="muted">Nenhum cenário registrado ainda.</p>
+        <EstadoVazio>Nenhum cenário registrado ainda.</EstadoVazio>
       )}
       {tabelas.map((t) => (
         <CartaoTabela key={t.numero} tabela={t} cenarios={cenarios} revisao={revisao} />

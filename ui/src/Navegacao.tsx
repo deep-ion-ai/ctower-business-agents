@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { apiAnaliseTauri, mensagemDe, type ApiAnalise, type EstadoAnalise } from "./analise";
 import { seloAtividades, type AmbienteConferido } from "./atividades";
 import type { AbrirLink } from "./ClientesIA";
+import { EstadoVazio, Secao as SecaoTela } from "./componentes";
 import { apiConhecimentoTauri, type ApiConhecimento, type Inicio } from "./conhecimento";
 import { DialogoConfirmacao } from "./DialogoConfirmacao";
 import { MenuLateral } from "./MenuLateral";
@@ -717,10 +718,9 @@ export function Navegacao({
                       situacaoInicial={tela.tipo === "demandas" ? tela.situacao : undefined}
                     />
                   ) : (
-                    <>
-                      <h2>Demandas</h2>
-                      <p className="muted">Nenhum projeto cadastrado.</p>
-                    </>
+                    <SecaoTela titulo="Demandas">
+                      <EstadoVazio>Nenhum projeto cadastrado.</EstadoVazio>
+                    </SecaoTela>
                   )}
                 </div>
               )}

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
 import { mensagemDe } from "./analise";
+import { Alerta, BarraAcoes, Cartao, type Acao } from "./componentes";
 import {
   DEMANDAS_INICIAIS,
   ROTULO_FORJA,
@@ -517,6 +518,32 @@ export function AssistenteProjeto({
               ? "Não foi possível ler as pastas. Use “Tentar de novo” acima para cadastrar."
               : null;
 
+  const ocupado = clonando || cadastrando;
+  const secundarias: Acao[] = [];
+  if (passo > 1) {
+    secundarias.push({
+      texto: "Voltar",
+      desabilitado: ocupado,
+      aoEscolher: () => irPara((passo - 1) as Passo),
+    });
+  }
+  if (vindoDoRevisar && passo < 4) {
+    secundarias.push({
+      texto: "Voltar ao Revisar",
+      desabilitado: ocupado || (passo === 2 && lendo),
+      aoEscolher: voltarAoRevisar,
+    });
+  }
+  if (passo === 3) {
+    secundarias.push({
+      texto: "Pular esta etapa",
+      aoEscolher: () => {
+        setDemandas((d) => ({ ...d, tipo: "nenhum" }));
+        irPara(4);
+      },
+    });
+  }
+
   return (
     <form className="assistente-projeto" aria-label="Cadastrar projeto" onSubmit={avancar} noValidate>
       <nav aria-label="Etapas do cadastro">
@@ -622,11 +649,7 @@ export function AssistenteProjeto({
             projeto…
           </p>
         )}
-        {falha && (
-          <p className="error-text" role="alert">
-            {falha}
-          </p>
-        )}
+        {falha && <Alerta tom="erro" titulo={falha} />}
       </section>
 
       <div className="rodape-assistente">
@@ -636,46 +659,17 @@ export function AssistenteProjeto({
           </button>
         )}
         <span className="espaco" />
-        {passo > 1 && (
+        {/* O botão principal é o submit do formulário (Enter também avança): entra no fim. */}
+        <BarraAcoes rotulo="Navegação do cadastro" secundarias={secundarias}>
           <button
-            type="button"
-            className="btn"
-            disabled={clonando || cadastrando}
-            onClick={() => irPara((passo - 1) as Passo)}
+            type="submit"
+            className="btn btn-primary"
+            disabled={motivoBloqueio !== null}
+            aria-describedby={motivoBloqueio ? "motivo-continuar" : undefined}
           >
-            Voltar
+            {textoPrimario}
           </button>
-        )}
-        {vindoDoRevisar && passo < 4 && (
-          <button
-            type="button"
-            className="btn"
-            disabled={clonando || cadastrando || (passo === 2 && lendo)}
-            onClick={voltarAoRevisar}
-          >
-            Voltar ao Revisar
-          </button>
-        )}
-        {passo === 3 && (
-          <button
-            type="button"
-            className="btn"
-            onClick={() => {
-              setDemandas((d) => ({ ...d, tipo: "nenhum" }));
-              irPara(4);
-            }}
-          >
-            Pular esta etapa
-          </button>
-        )}
-        <button
-          type="submit"
-          className="btn btn-primary"
-          disabled={motivoBloqueio !== null}
-          aria-describedby={motivoBloqueio ? "motivo-continuar" : undefined}
-        >
-          {textoPrimario}
-        </button>
+        </BarraAcoes>
       </div>
       {motivoBloqueio && (
         <p id="motivo-continuar" className="dica motivo-bloqueio" role="status">
@@ -785,41 +779,46 @@ function Revisao({
   }
   return (
     <>
-      <dl className="cartao-assistente resumo-cadastro">
-        {linhasResumo.map((l) => (
-          <div key={l.rotulo} className="linha-resumo">
-            <dt>{l.rotulo}</dt>
-            <dd>{l.valor}</dd>
-            <button
-              type="button"
-              className="link"
-              aria-label={`Editar ${l.rotulo.toLowerCase()}`}
-              onClick={() => aoEditar(l.passo)}
-            >
-              Editar
-            </button>
-          </div>
-        ))}
-      </dl>
+      <Cartao como="div" className="resumo-cadastro">
+        <dl>
+          {linhasResumo.map((l) => (
+            <div key={l.rotulo} className="linha-resumo">
+              <dt>{l.rotulo}</dt>
+              <dd>{l.valor}</dd>
+              <button
+                type="button"
+                className="link"
+                aria-label={`Editar ${l.rotulo.toLowerCase()}`}
+                onClick={() => aoEditar(l.passo)}
+              >
+                Editar
+              </button>
+            </div>
+          ))}
+        </dl>
+      </Cartao>
       {lendo && (
         <p role="status" className="progresso">
           <progress aria-label="Lendo as pastas do projeto" /> Lendo as pastas do projeto…
         </p>
       )}
       {falhaPrevia && !lendo && (
-        <div className="falha-previa">
-          <p className="error-text" role="alert">
-            {falhaPrevia}
-          </p>
-          <button type="button" className="btn btn-sm" onClick={aoTentarDeNovo}>
-            Tentar de novo
-          </button>
-        </div>
+        <Alerta
+          tom="erro"
+          titulo="Não deu para ler as pastas."
+          acoes={
+            <button type="button" className="btn btn-sm" onClick={aoTentarDeNovo}>
+              Tentar de novo
+            </button>
+          }
+        >
+          {falhaPrevia}
+        </Alerta>
       )}
       {previa?.jaCadastrado && (
-        <p className="error-text" role="alert">
-          Já existe um projeto cadastrado com o nome “{previa.nome}”. Edite o nome no passo 1.
-        </p>
+        <Alerta tom="erro" titulo={`Já existe um projeto cadastrado com o nome “${previa.nome}”.`}>
+          Edite o nome no passo 1.
+        </Alerta>
       )}
       <p className="dica nota-seguranca">
         O app só lê as pastas do código. Os tokens ficam no chaveiro do sistema.
@@ -857,13 +856,12 @@ function Concluido({
         {plural(projeto.inventario.analisados, "arquivo inventariado", "arquivos inventariados")} em{" "}
         {onde}. Falta um passo: deixar o Claude conversar com o app.
       </p>
-      <div className="acoes">
-        <button type="button" className="btn" onClick={() => aoConcluir(projeto)}>
-          Fazer depois
-        </button>
-        <button type="button" className="btn btn-primary" onClick={() => aoPrepararAmbiente(projeto)}>
-          Ligar o agente a este projeto
-        </button>
+      <div className="acoes-concluido">
+        <BarraAcoes
+          rotulo="Próximo passo"
+          principal={{ texto: "Ligar o agente a este projeto", aoEscolher: () => aoPrepararAmbiente(projeto) }}
+          secundarias={[{ texto: "Fazer depois", aoEscolher: () => aoConcluir(projeto) }]}
+        />
       </div>
     </section>
   );

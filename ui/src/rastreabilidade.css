@@ -7,10 +7,6 @@
   gap: 8px 12px;
 }
 
-.consulta-reversa-cabecalho h3 {
-  margin: 0;
-}
-
 .consulta-reversa-alvo {
   display: flex;
   flex-wrap: wrap;
@@ -98,10 +94,6 @@
   font-size: var(--fs-support);
 }
 
-.consulta-reversa-grupo h4 {
-  margin: 0 0 8px;
-}
-
 /* As lacunas, cada uma num `Alerta`. */
 .rastreabilidade-alertas {
   list-style: none;
@@ -121,13 +113,6 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 12px;
-}
-
-.consulta-reversa-grupo {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 8px 12px;
-  background: var(--surface);
 }
 
 .consulta-reversa-grupo ul {

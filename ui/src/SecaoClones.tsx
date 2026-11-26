@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { mensagemDe } from "./analise";
+import { Alerta, BarraAcoes, Secao } from "./componentes";
 import type { ApiRepositorios } from "./repositorios";
 
 type Api = Pick<ApiRepositorios, "pastaClones" | "definirPastaClones">;
@@ -10,10 +11,9 @@ type Api = Pick<ApiRepositorios, "pastaClones" | "definirPastaClones">;
  */
 export function SecaoClones({ api }: { api: Api }) {
   return (
-    <section className="secao-config" aria-label="Clones">
-      <h3>Clones</h3>
+    <Secao titulo="Clones">
       <PastaClones api={api} />
-    </section>
+    </Secao>
   );
 }
 
@@ -75,24 +75,21 @@ function PastaClones({ api }: { api: Api }) {
           Onde o app clona os repositórios de código, um por subpasta. Caminho completo.
         </p>
       </div>
-      <div className="acoes">
-        <button
-          className="btn btn-sm"
-          type="button"
-          disabled={ocupado || !pasta.trim() || pasta.trim() === gravada}
-          onClick={salvar}
-        >
-          Salvar a pasta
-        </button>
+      <BarraAcoes
+        rotulo="Ações da pasta dos clones"
+        secundarias={[
+          {
+            texto: "Salvar a pasta",
+            aoEscolher: salvar,
+            desabilitado: ocupado || !pasta.trim() || pasta.trim() === gravada,
+          },
+        ]}
+      >
         <span role="status" aria-live="polite">
           {salvo && <span className="ok-text"> Salvo.</span>}
         </span>
-      </div>
-      {falha && (
-        <p className="error-text" role="alert">
-          {falha}
-        </p>
-      )}
+      </BarraAcoes>
+      {falha && <Alerta tom="erro" titulo={falha} />}
     </div>
   );
 }

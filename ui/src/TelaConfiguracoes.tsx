@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { mensagemDe } from "./analise";
+import { Alerta } from "./componentes";
 import { ConfigAparencia } from "./ConfigAparencia";
 import { ConfigAssistente } from "./ConfigAssistente";
 import { ConfigModelos } from "./ConfigModelos";
@@ -162,9 +163,9 @@ export function TelaConfiguracoes({
           </div>
         )}
         {falha ? (
-          <p className="error-text" role="alert">
-            Não foi possível ler as configurações: {falha}
-          </p>
+          <Alerta tom="erro" titulo="Não foi possível ler as configurações:">
+            {falha}
+          </Alerta>
         ) : (
           <p className="muted">Carregando as configurações…</p>
         )}
@@ -206,14 +207,8 @@ export function TelaConfiguracoes({
             )}
           </div>
         )}
-        {falha && (
-          <p className="error-text" role="alert">
-            {falha}
-          </p>
-        )}
-        {fixo && !projeto && (
-          <p className="muted">Este projeto não está mais cadastrado.</p>
-        )}
+        {falha && <Alerta tom="erro" titulo={falha} />}
+        {fixo && !projeto && <Alerta tom="atencao" titulo="Este projeto não está mais cadastrado." />}
         <div className={fixo ? "config-layout config-layout-fixo" : "config-layout"}>
           {!fixo && (
             <MenuConfiguracoes

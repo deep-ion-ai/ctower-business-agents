@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { mensagemDe } from "./analise";
+import { Alerta, EstadoVazio, Selo } from "./componentes";
 import { EscolherFuncionalidades } from "./EscolherFuncionalidades";
 import {
   BotaoIcone,
@@ -395,7 +396,7 @@ export function VincularIssues({
         </form>
       </header>
 
-      {falha && <p className="erro">{falha}</p>}
+      {falha && <Alerta tom="erro" titulo={falha} />}
       {resultado && (
         <p className="vincular-resultado" role="status">
           <IconeConfirmar />
@@ -417,10 +418,9 @@ export function VincularIssues({
       )}
 
       {!vista && !lendo && (
-        <div className="vincular-vazio">
-          <IconeBuscar />
-          <p>Escolha o período e busque as issues do rastreador para vincular às funcionalidades.</p>
-        </div>
+        <EstadoVazio>
+          Escolha o período e busque as issues do rastreador para vincular às funcionalidades.
+        </EstadoVazio>
       )}
 
       {vista && (
@@ -474,17 +474,16 @@ export function VincularIssues({
           </div>
 
           {vista.excedeuTeto && (
-            <p className="vincular-aviso">
-              <IconeInfo />
-              O período tem mais issues que o limite de leitura: só as mais recentes foram trazidas.
-              Reduza o período para ver as demais.
-            </p>
+            <Alerta tom="atencao" titulo="Só as issues mais recentes foram trazidas." role="note">
+              O período tem mais issues que o limite de leitura. Reduza o período para ver as demais.
+            </Alerta>
           )}
           {vista.funcionalidades.length === 0 && (
-            <p className="vincular-aviso">
-              <IconeInfo />
-              O mapa ainda não tem funcionalidades abertas para receber demandas.
-            </p>
+            <Alerta
+              tom="atencao"
+              titulo="O mapa ainda não tem funcionalidades abertas para receber demandas."
+              role="note"
+            />
           )}
 
           <div className="vincular-barra-acoes">
@@ -566,7 +565,11 @@ export function VincularIssues({
                 aoJustificar={(j) => justificar(i, j)}
               />
             ))}
-            {visiveis.length === 0 && <li className="empty">Nenhuma issue com esses filtros.</li>}
+            {visiveis.length === 0 && (
+              <li>
+                <EstadoVazio>Nenhuma issue com esses filtros.</EstadoVazio>
+              </li>
+            )}
           </ul>
         </>
       )}
@@ -646,19 +649,19 @@ function LinhaDaIssue({
           </a>
           <strong>{i.titulo}</strong>
           <span className="vincular-meta">
-            <span className={`vincular-estado ${i.estado}`}>{i.estado === "aberta" ? "aberta" : "fechada"}</span>
+            <Selo>{i.estado === "aberta" ? "aberta" : "fechada"}</Selo>
             {i.rotulos.map((r) => (
-              <span key={r} className="vincular-rotulo">
+              <Selo key={r} tom="neutro">
                 {r}
-              </span>
+              </Selo>
             ))}
           </span>
         </div>
         <div className="vincular-acoes" role="group" aria-label={`Ações de ${i.chave}`}>
           {ok && (
-            <span className="vincular-selo" title={`Demanda ${i.demanda}`}>
-              <IconeConfirmar /> Confirmada
-            </span>
+            <Selo tom="concluido" titulo={`Demanda ${i.demanda}`}>
+              Confirmada
+            </Selo>
           )}
           {e.descartada ? (
             <BotaoIcone rotulo="Desfazer" dica="Desfazer o descarte" onClick={() => aoMudar((a) => ({ ...a, descartada: false }))}>
@@ -738,15 +741,15 @@ function LinhaDaIssue({
                     </label>
                     <span className="vincular-evidencia">
                       {s?.ia && (
-                        <span className="vincular-ia" title={ia}>
-                          <IconeIa /> IA
-                        </span>
+                        <Selo tom="agente" titulo={ia}>
+                          IA
+                        </Selo>
                       )}
                       {s &&
                         tiposDeEvidencia(s.evidencias).map((t) => (
-                          <span key={t} className="vincular-tipo">
+                          <Selo key={t} tom="neutro">
                             {t}
-                          </span>
+                          </Selo>
                         ))}
                       {ia && <span className="vincular-ia-texto">{ia.replace(/^IA:\s*/, "")}</span>}
                       {s && s.pontuacao > 0 && (

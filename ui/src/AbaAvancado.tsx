@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { mensagemDe } from "./analise";
+import { Alerta, ItemLista, ListaItens, Secao } from "./componentes";
 import type { PropsConfigProjeto } from "./ConfigProjeto";
 import type { AmbienteDesfeito, AmbienteDetalhado } from "./configuracoes";
 import { DialogoConfirmacao } from "./DialogoConfirmacao";
@@ -84,49 +85,54 @@ export function AbaAvancado({
             </p>
           )}
           {feito.avisos.map((a) => (
-            <p key={a} className="attention-text">
-              {a}
-            </p>
+            <Alerta key={a} tom="atencao" role="note" titulo={a} />
           ))}
         </div>
       )}
-      <section className="zona-cuidado" aria-label="Zona de cuidado">
-        <h4>Zona de cuidado</h4>
-        {preparo && (
-          <div className="linha-config zona-cuidado-item">
+      <Secao titulo="Zona de cuidado" nivel={4} className="zona-cuidado">
+        <ListaItens>
+          {preparo && (
+            <ItemLista
+              acoes={
+                <button
+                  className="btn btn-sm btn-danger"
+                  type="button"
+                  onClick={() => setDialogo("desfazer")}
+                >
+                  Desfazer o preparo…
+                </button>
+              }
+            >
+              <div className="saude-texto">
+                <strong>Desfazer o preparo do agente</strong>
+                <span className="muted">
+                  Tira deste projeto as ferramentas e os avisos do app na configuração do Claude.
+                  Suas análises e a base não mudam; dá para preparar de novo depois.
+                </span>
+              </div>
+            </ItemLista>
+          )}
+          <ItemLista
+            acoes={
+              <button
+                className="btn btn-sm btn-danger"
+                type="button"
+                onClick={() => setDialogo("descadastrar")}
+              >
+                Descadastrar…
+              </button>
+            }
+          >
             <div className="saude-texto">
-              <strong>Desfazer o preparo do agente</strong>
+              <strong>Descadastrar o projeto</strong>
               <span className="muted">
-                Tira deste projeto as ferramentas e os avisos do app na configuração do Claude. Suas
-                análises e a base não mudam; dá para preparar de novo depois.
+                O projeto some do app e o preparo do agente é desfeito. Os documentos na base e as
+                pastas do código continuam no computador.
               </span>
             </div>
-            <button
-              className="btn btn-sm btn-danger"
-              type="button"
-              onClick={() => setDialogo("desfazer")}
-            >
-              Desfazer o preparo…
-            </button>
-          </div>
-        )}
-        <div className="linha-config zona-cuidado-item">
-          <div className="saude-texto">
-            <strong>Descadastrar o projeto</strong>
-            <span className="muted">
-              O projeto some do app e o preparo do agente é desfeito. Os documentos na base e as
-              pastas do código continuam no computador.
-            </span>
-          </div>
-          <button
-            className="btn btn-sm btn-danger"
-            type="button"
-            onClick={() => setDialogo("descadastrar")}
-          >
-            Descadastrar…
-          </button>
-        </div>
-      </section>
+          </ItemLista>
+        </ListaItens>
+      </Secao>
 
       {dialogo === "desfazer" && (
         <DialogoConfirmacao
@@ -154,11 +160,7 @@ export function AbaAvancado({
             do preparo, a menos que outro projeto ainda os use. Sem o servidor, as conversas nesta
             pasta não enxergam o app.
           </p>
-          {falha && (
-            <p className="error-text" role="alert">
-              {falha}
-            </p>
-          )}
+          {falha && <Alerta tom="erro" titulo={falha} />}
         </DialogoConfirmacao>
       )}
 
@@ -212,11 +214,7 @@ export function AbaAvancado({
               onChange={(e) => setNome(e.target.value)}
             />
           </label>
-          {falha && (
-            <p className="error-text" role="alert">
-              {falha}
-            </p>
-          )}
+          {falha && <Alerta tom="erro" titulo={falha} />}
         </DialogoConfirmacao>
       )}
     </div>

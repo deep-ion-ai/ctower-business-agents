@@ -285,6 +285,38 @@ describe("TelaDemandas", () => {
     expect(navegar).toHaveBeenCalledWith({ tipo: "vincular", projeto: PROJETO });
   });
 
+  it("o painel traz a ação principal no topo, com Abrir em nova aba, e a descrição inteira (#404)", async () => {
+    const longa = Array.from({ length: 40 }, (_, i) => `Parágrafo ${i + 1} da demanda.`).join("\n\n");
+    const { api } = montar(issuesFalsa(lista({ issues: [issue({ descricao: longa }), ...ISSUES.slice(1)] })));
+    await screen.findByRole("list", { name: "Lista de demandas" });
+    const painel = screen.getByRole("complementary", { name: "Demanda selecionada" });
+    const topo = within(painel).getByRole("group", { name: "Ações da demanda" });
+    expect(within(topo).getByRole("button", { name: "Abrir em nova aba" })).toBeInTheDocument();
+    // Só no topo: o bloco Na base fica com a situação, a demanda e as funcionalidades.
+    expect(within(painel).getAllByRole("button", { name: "Analisar impacto" })).toHaveLength(1);
+    expect(
+      within(painel.querySelector(".demandas-nabase") as HTMLElement).queryByRole("button", {
+        name: "Analisar impacto",
+      }),
+    ).toBeNull();
+    expect(within(painel).getByText("Parágrafo 40 da demanda.")).toBeInTheDocument();
+    expect(within(painel).getByRole("heading", { name: "Descrição" })).toBeInTheDocument();
+
+    api.analisarImpacto.mockReturnValue(new Promise(() => undefined));
+    fireEvent.click(within(topo).getByRole("button", { name: "Analisar impacto" }));
+    expect(api.analisarImpacto).toHaveBeenCalledWith(PROJETO, "github", "#412");
+    expect(await within(topo).findByRole("button", { name: "Analisando…" })).toBeDisabled();
+  });
+
+  it("no painel, a issue encerrada sem demanda mostra o motivo junto do botão do topo", async () => {
+    montar(issuesFalsa(lista({ issues: [issue({ estado: "fechada" })] })));
+    await screen.findByRole("list", { name: "Lista de demandas" });
+    const painel = screen.getByRole("complementary", { name: "Demanda selecionada" });
+    const acoes = painel.querySelector(".demandas-acoes") as HTMLElement;
+    expect(within(acoes).getByRole("button", { name: "Analisar impacto" })).toBeDisabled();
+    expect(within(acoes).getByText(/A issue está encerrada no rastreador/)).toBeInTheDocument();
+  });
+
   it("selecionar outra linha troca o painel e mostra as funcionalidades ligadas", async () => {
     montar();
     await screen.findByRole("list", { name: "Lista de demandas" });

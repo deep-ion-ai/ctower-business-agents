@@ -199,9 +199,9 @@ describe("ConsultaReversa", () => {
     });
     expect(secao).toHaveTextContent("1 demanda");
     expect(secao).toHaveTextContent("1 critério");
-    const criterios = within(secao).getByRole("region", { name: "Histórias e critérios" });
+    const criterios = within(secao).getByRole("article", { name: "Histórias e critérios" });
     expect(criterios).toHaveTextContent("HU-0001 CA-1 são geradas 3 parcelas revisar");
-    const cenarios = within(secao).getByRole("region", { name: "Cenários de teste" });
+    const cenarios = within(secao).getByRole("article", { name: "Cenários de teste" });
     expect(cenarios).toHaveTextContent("CT-0001");
     expect(secao).toHaveTextContent('rastreabilidade(regra: "RN-FAT-007")');
 
@@ -219,7 +219,7 @@ describe("ConsultaReversa", () => {
       valor: SERVICO,
     });
     expect(
-      within(doArquivo).getByRole("region", { name: "Regras com evidência no arquivo" }),
+      within(doArquivo).getByRole("article", { name: "Regras com evidência no arquivo" }),
     ).toHaveTextContent("RN-FAT-008");
     expect(within(doArquivo).getByRole("button", { name: "Regra" })).toHaveAttribute(
       "aria-pressed",

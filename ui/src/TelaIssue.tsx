@@ -3,6 +3,7 @@ import { acaoDaIssue } from "./acaoIssue";
 import { mensagemDe } from "./analise";
 import type { ApiConhecimento } from "./conhecimento";
 import {
+  AcoesDaIssue,
   AvisoAbrirLink,
   DescricaoIssue,
   NaBaseIssue,
@@ -131,39 +132,35 @@ export function TelaIssue({
   return (
     <div className="page">
       <section className="demandas-aba" aria-label={`Issue ${issue.chave}`}>
-        <h2 className="demandas-painel-cab">
-          <span className="id">{issue.chave}</span>
-          <span className="badge" data-tone={issue.estado === "aberta" ? "running" : "done"}>
-            {issue.estado === "aberta" ? "aberta" : "encerrada"}
-          </span>
-          <button type="button" className="link" onClick={() => void abrir(issue.url)}>
-            Abrir no {ROTULO_ORIGEM[issue.origem]} ↗
-          </button>
-        </h2>
+        <div className="demandas-topo">
+          <h2 className="demandas-painel-cab">
+            <span className="id">{issue.chave}</span>
+            <span className="badge" data-tone={issue.estado === "aberta" ? "running" : "done"}>
+              {issue.estado === "aberta" ? "aberta" : "encerrada"}
+            </span>
+            <button type="button" className="link" onClick={() => void abrir(issue.url)}>
+              Abrir no {ROTULO_ORIGEM[issue.origem]} ↗
+            </button>
+          </h2>
+          <AcoesDaIssue acao={acao} analisando={analisando} aoAgir={agir} />
+        </div>
+        {falhaAcao && (
+          <p className="error-text" role="alert">
+            {falhaAcao}
+          </p>
+        )}
         <p className="demandas-painel-titulo">{issue.titulo}</p>
         <p className="muted">
           {[`criada ${idadeDe(issue.criadaEm)}`, ...issue.rotulos.map((r) => `rótulo ${r}`)].join(" · ")}
         </p>
         <AvisoAbrirLink falha={falha} />
 
-        <h3>Descrição</h3>
+        <h3 className="demandas-rotulo">Descrição</h3>
         <DescricaoIssue issue={issue} abrir={(link) => void abrir(link)} />
 
-        <h3>Na base</h3>
-        <NaBaseIssue
-          issue={issue}
-          projeto={projeto}
-          acao={acao}
-          analisando={analisando}
-          aoAgir={agir}
-          navegar={navegar}
-          aoAbrirAnalise={abrirAnalise}
-        />
-        {falhaAcao && (
-          <p className="error-text" role="alert">
-            {falhaAcao}
-          </p>
-        )}
+        <h3 className="demandas-rotulo">Na base</h3>
+        <NaBaseIssue issue={issue} projeto={projeto} navegar={navegar} aoAbrirAnalise={abrirAnalise} />
+
 
         <ParecidasLista
           itens={similares.map((s) => ({

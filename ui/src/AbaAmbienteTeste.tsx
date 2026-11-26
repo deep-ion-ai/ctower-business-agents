@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { mensagemDe } from "./analise";
+import { Alerta, BarraAcoes, EstadoVazio, Secao, Selo } from "./componentes";
 import { problemaDaUrl, type SituacaoAmbienteTeste } from "./ambienteTeste";
 import type { PropsConfigProjeto } from "./ConfigProjeto";
 import { DialogoConfirmacao } from "./DialogoConfirmacao";
@@ -194,12 +195,13 @@ export function AbaAmbienteTeste({ api, projeto, aoPendencia }: PropsConfigProje
         aplicações web com login por usuário e senha.
       </p>
 
-      <section className="cartao-config" aria-label="Aplicação em teste">
-        <div className="cartao-config-topo">
-          <h4>Aplicação</h4>
-          <span className="badge">Web · usuário e senha</span>
-        </div>
-        <div className="linha-config ambiente-teste-campos">
+      <Secao
+        titulo="Aplicação"
+        nivel={4}
+        rotulo="Aplicação em teste"
+        acoes={<Selo>Web · usuário e senha</Selo>}
+      >
+        <div className="ambiente-teste-campos">
           <label className="field">
             URL do ambiente de teste
             <input
@@ -223,23 +225,25 @@ export function AbaAmbienteTeste({ api, projeto, aoPendencia }: PropsConfigProje
             />
           </label>
         </div>
-      </section>
+      </Secao>
 
-      <section className="cartao-config" aria-label="Usuários de teste">
-        <div className="cartao-config-topo">
-          <h4>Usuários de teste</h4>
-          {form.linhas.length > 0 && (
-            <span className="badge">
+      <Secao
+        titulo="Usuários de teste"
+        nivel={4}
+        acoes={
+          form.linhas.length > 0 && (
+            <Selo>
               {form.linhas.length} {form.linhas.length === 1 ? "usuário" : "usuários"} ·{" "}
               {perfis.size} {perfis.size === 1 ? "perfil" : "perfis"}
-            </span>
-          )}
-        </div>
+            </Selo>
+          )
+        }
+      >
         {form.linhas.length === 0 ? (
-          <p className="linha-config muted">
+          <EstadoVazio>
             Nenhum usuário cadastrado. Cadastre um usuário para cada perfil que a análise precisa
             simular (por exemplo, atendente, gestor e auditor).
-          </p>
+          </EstadoVazio>
         ) : (
           <ul className="lista-config lista-usuarios-teste">
             {form.linhas.map((l, i) => {
@@ -318,16 +322,16 @@ export function AbaAmbienteTeste({ api, projeto, aoPendencia }: PropsConfigProje
             })}
           </ul>
         )}
-        <div className="linha-config">
-          <button
-            className="btn btn-sm"
-            type="button"
-            onClick={() => setForm((f) => ({ ...f, linhas: [...f.linhas, linhaNova()] }))}
-          >
-            + Adicionar usuário
-          </button>
-        </div>
-      </section>
+        <BarraAcoes
+          rotulo="Ações dos usuários de teste"
+          secundarias={[
+            {
+              texto: "+ Adicionar usuário",
+              aoEscolher: () => setForm((f) => ({ ...f, linhas: [...f.linhas, linhaNova()] })),
+            },
+          ]}
+        />
+      </Secao>
 
       <p className="muted aviso-senhas">
         As senhas ficam no chaveiro do sistema (Keychain no macOS, Gerenciador de Credenciais no
@@ -336,17 +340,15 @@ export function AbaAmbienteTeste({ api, projeto, aoPendencia }: PropsConfigProje
       </p>
 
       {tentou && problemas.length > 0 && (
-        <ul className="error-text" role="alert">
-          {problemas.map((p) => (
-            <li key={p}>{p}</li>
-          ))}
-        </ul>
+        <Alerta tom="erro" titulo="Falta acertar antes de salvar:">
+          <ul>
+            {problemas.map((p) => (
+              <li key={p}>{p}</li>
+            ))}
+          </ul>
+        </Alerta>
       )}
-      {falha && (
-        <p className="error-text" role="alert">
-          {falha}
-        </p>
-      )}
+      {falha && <Alerta tom="erro" titulo={falha} />}
       {aviso && !pendente && (
         <p className="ok-text" role="status">
           {aviso}
@@ -355,7 +357,7 @@ export function AbaAmbienteTeste({ api, projeto, aoPendencia }: PropsConfigProje
         </p>
       )}
 
-      <div className="acoes-ambiente-teste">
+      <BarraAcoes rotulo="Ações do ambiente de teste">
         <button className="btn btn-primary" type="submit" disabled={ocupado || !pendente}>
           {ocupado ? "Salvando…" : "Salvar"}
         </button>
@@ -383,7 +385,7 @@ export function AbaAmbienteTeste({ api, projeto, aoPendencia }: PropsConfigProje
             Remover o ambiente…
           </button>
         )}
-      </div>
+      </BarraAcoes>
 
       {remover && (
         <DialogoConfirmacao

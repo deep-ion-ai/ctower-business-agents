@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { mensagemDe } from "./analise";
+import { EstadoVazio } from "./componentes";
 import { ErroTecnico } from "./erroTecnico";
 import { Icon } from "./shell/icons";
 import {
@@ -557,7 +558,7 @@ export function FormRepositorios({
         <h4>
           <Icon name="project" /> Repositórios de código
         </h4>
-        {valor.codigo.length === 0 && <p className="muted">Nenhum repositório de código.</p>}
+        {valor.codigo.length === 0 && <EstadoVazio>Nenhum repositório de código.</EstadoVazio>}
         {valor.codigo.map((c, i) => (
           <ItemRepositorioCodigo
             key={i}

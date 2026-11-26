@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { mensagemDe } from "./analise";
+import { Alerta, BarraAcoes, Cartao, EstadoVazio, Secao, Selo, TituloSecao } from "./componentes";
 import { contar } from "./formatacao";
 import {
   mudou,
@@ -96,13 +97,15 @@ export function MudancasCodigo({
   const pendentes = propostas.filter((p) => p.situacao === "pendente");
 
   return (
-    <section className="mudancas-codigo" aria-label="O que mudou no código">
-      <header>
-        <h3>O que mudou no código</h3>
+    <Secao
+      titulo="O que mudou no código"
+      nivel={3}
+      acoes={
         <button type="button" className="btn" onClick={aoFechar}>
           Fechar
         </button>
-      </header>
+      }
+    >
 
       <form
         className="mudancas-intervalo"
@@ -135,11 +138,7 @@ export function MudancasCodigo({
         </p>
       )}
       {estado.tipo === "carregando" && <p className="muted">Comparando as versões do código…</p>}
-      {estado.tipo === "falha" && (
-        <p className="error-text" role="alert">
-          {estado.mensagem}
-        </p>
-      )}
+      {estado.tipo === "falha" && <Alerta tom="erro" titulo={estado.mensagem} />}
       {estado.tipo === "pronto" && (
         <Relatorio
           relatorio={estado.relatorio}
@@ -160,19 +159,23 @@ export function MudancasCodigo({
 
       {pedido !== null && (
         <section aria-label="Explicar mudanças com o Claude">
-          <header>
-            <h4>Explicar mudanças com o Claude</h4>
-            <button
-              type="button"
-              className="btn"
-              onClick={() => {
-                setPedido(null);
-                carregarPropostas();
-              }}
-            >
-              Encerrar a sessão
-            </button>
-          </header>
+          <TituloSecao
+            nivel={4}
+            acoes={
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  setPedido(null);
+                  carregarPropostas();
+                }}
+              >
+                Encerrar a sessão
+              </button>
+            }
+          >
+            Explicar mudanças com o Claude
+          </TituloSecao>
           <p className="muted">
             O agente registra uma proposta por regra; confirme ou descarte cada uma acima.
           </p>
@@ -186,7 +189,7 @@ export function MudancasCodigo({
           </div>
         </section>
       )}
-    </section>
+    </Secao>
   );
 }
 
@@ -214,16 +217,15 @@ function Relatorio({
         {contar(r.com_evidencias.length, "citado pela base", "citados pela base")},{" "}
         {contar(mudaram, "regra com o trecho alterado", "regras com o trecho alterado")}.
       </p>
-      <div className="acoes">
-        <button type="button" className="btn" onClick={aoExportar}>
-          Exportar a nota de mudanças
-        </button>
-        {aoExplicar && r.regras.length > 0 && (
-          <button type="button" className="btn btn-primary" onClick={aoExplicar}>
-            Explicar mudanças com o Claude
-          </button>
-        )}
-      </div>
+      <BarraAcoes
+        principal={
+          aoExplicar && r.regras.length > 0
+            ? { texto: "Explicar mudanças com o Claude", aoEscolher: aoExplicar }
+            : undefined
+        }
+        secundarias={[{ texto: "Exportar a nota de mudanças", aoEscolher: aoExportar }]}
+        rotulo="Ações do relatório"
+      />
       {r.problemas.length > 0 && (
         <ul className="muted" aria-label="Problemas">
           {r.problemas.map((p) => (
@@ -233,9 +235,9 @@ function Relatorio({
       )}
 
       <section aria-label="Regras afetadas">
-        <h4>Regras afetadas</h4>
+        <TituloSecao nivel={4}>Regras afetadas</TituloSecao>
         {r.regras.length === 0 && (
-          <p className="muted">Nenhuma regra documentada cita os arquivos alterados.</p>
+          <EstadoVazio>Nenhuma regra documentada cita os arquivos alterados.</EstadoVazio>
         )}
         {r.regras.map((regra) => (
           <Regra key={regra.id} regra={regra} />
@@ -243,8 +245,8 @@ function Relatorio({
       </section>
 
       <section aria-label="Arquivos alterados citados pela base">
-        <h4>Arquivos alterados citados pela base</h4>
-        {r.com_evidencias.length === 0 && <p className="muted">Nenhum.</p>}
+        <TituloSecao nivel={4}>Arquivos alterados citados pela base</TituloSecao>
+        {r.com_evidencias.length === 0 && <EstadoVazio>Nenhum.</EstadoVazio>}
         <ul>
           {r.com_evidencias.map((a) => (
             <li key={a.arquivo}>
@@ -261,9 +263,9 @@ function Relatorio({
       </section>
 
       <section aria-label="Arquivos sem evidência">
-        <h4>Arquivos alterados sem evidência na base</h4>
+        <TituloSecao nivel={4}>Arquivos alterados sem evidência na base</TituloSecao>
         {r.sem_evidencias.length === 0 ? (
-          <p className="muted">Nenhum.</p>
+          <EstadoVazio>Nenhum.</EstadoVazio>
         ) : (
           <p className="muted">Possíveis regras novas, ainda não documentadas.</p>
         )}
@@ -291,9 +293,7 @@ function Regra({ regra }: { regra: RegraAfetada }) {
         <strong>
           {regra.id} · {regra.titulo}
         </strong>{" "}
-        <span className="badge" data-tone={mudou(regra.classe) ? "attention" : undefined}>
-          {ROTULO_CLASSE[regra.classe]}
-        </span>
+        <Selo tom={mudou(regra.classe) ? "atencao" : "neutro"}>{ROTULO_CLASSE[regra.classe]}</Selo>
       </div>
       {regra.trechos.map((t) => (
         <div key={`${t.arquivo}:${t.linhas}`}>
@@ -322,8 +322,8 @@ function Propostas({
 }) {
   return (
     <section aria-label="Propostas do agente">
-      <h4>Propostas do agente</h4>
-      {pendentes.length === 0 && <p className="muted">Nenhuma proposta pendente.</p>}
+      <TituloSecao nivel={4}>Propostas do agente</TituloSecao>
+      {pendentes.length === 0 && <EstadoVazio>Nenhuma proposta pendente.</EstadoVazio>}
       {pendentes.map((p) => (
         <Proposta key={p.numero} api={api} projeto={projeto} proposta={p} aoMudar={aoMudar} />
       ))}
@@ -354,7 +354,7 @@ function Proposta({
       .finally(() => setOcupado(false));
   };
   return (
-    <article className="mudancas-proposta" aria-label={`Proposta para ${p.regra}`}>
+    <Cartao rotulo={`Proposta para ${p.regra}`} className="mudancas-proposta">
       <p>
         <strong>{p.regra}</strong>:{" "}
         {p.comportamento_mudou ? "o comportamento mudou" : "o comportamento não mudou"}.{" "}
@@ -364,17 +364,12 @@ function Proposta({
         Texto da regra (deixe vazio para manter o atual)
         <textarea rows={3} value={texto} onChange={(e) => setTexto(e.target.value)} />
       </label>
-      {erro && (
-        <p className="error-text" role="alert">
-          {erro}
-        </p>
-      )}
-      <div className="acoes">
-        <button
-          type="button"
-          className="btn btn-primary"
-          disabled={ocupado}
-          onClick={() =>
+      {erro && <Alerta tom="erro" titulo={erro} />}
+      <BarraAcoes
+        principal={{
+          texto: "Confirmar",
+          desabilitado: ocupado,
+          aoEscolher: () =>
             agir(() =>
               api
                 .confirmar(projeto, p.numero, null, vazio(texto))
@@ -382,22 +377,18 @@ function Proposta({
                   (r) =>
                     `${r.id} atualizada; a versão anterior ficou no histórico (${contar(r.versoes_anteriores, "versão", "versões")}).`,
                 ),
-            )
-          }
-        >
-          Confirmar
-        </button>
-        <button
-          type="button"
-          className="btn"
-          disabled={ocupado}
-          onClick={() =>
-            agir(() => api.descartar(projeto, p.numero).then(() => `Proposta para ${p.regra} descartada.`))
-          }
-        >
-          Descartar
-        </button>
-      </div>
-    </article>
+            ),
+        }}
+        secundarias={[
+          {
+            texto: "Descartar",
+            desabilitado: ocupado,
+            aoEscolher: () =>
+              agir(() => api.descartar(projeto, p.numero).then(() => `Proposta para ${p.regra} descartada.`)),
+          },
+        ]}
+        rotulo={`Ações da proposta para ${p.regra}`}
+      />
+    </Cartao>
   );
 }

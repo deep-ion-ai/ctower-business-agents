@@ -13,7 +13,9 @@
   font-weight: var(--fw-strong);
 }
 
-.page h3 {
+/* Sem peso de classe no h3: o `TituloSecao` (componentes.css, que entra antes desta folha)
+   e os títulos das telas ganham deste padrão antigo (#410). */
+.page :where(h3) {
   margin: 0;
   font-size: var(--fs-support);
   font-weight: var(--fw-strong);
@@ -36,8 +38,7 @@ h3.titulo-formulario {
 }
 
 /* Seções de uma tela: painéis. */
-.tela-projeto > section,
-.tela-base > section {
+.tela-projeto > section {
   padding: 18px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -88,7 +89,6 @@ h3.titulo-formulario {
   gap: 8px;
 }
 
-.sugestoes,
 .botoes-fluxo,
 .terminal-controles,
 .acoes-revisao,
@@ -104,8 +104,6 @@ h3.titulo-formulario {
 .lista-regras,
 .lista-termos,
 .lista-areas,
-.lista-pastas,
-.lista-arquivos,
 .lista-demandas,
 .lista-itens-ata,
 .linha-do-tempo,
@@ -119,8 +117,6 @@ h3.titulo-formulario {
 .lista-regras > li,
 .lista-termos > li,
 .lista-areas > li,
-.lista-pastas > li,
-.lista-arquivos > li,
 .lista-demandas > li,
 .lista-itens-ata > li,
 .linha-do-tempo > li,
@@ -136,8 +132,6 @@ h3.titulo-formulario {
 .lista-regras > li:last-child,
 .lista-termos > li:last-child,
 .lista-areas > li:last-child,
-.lista-pastas > li:last-child,
-.lista-arquivos > li:last-child,
 .lista-demandas > li:last-child,
 .lista-itens-ata > li:last-child,
 .linha-do-tempo > li:last-child,
@@ -203,12 +197,6 @@ h3.titulo-formulario {
   gap: 16px;
 }
 
-.titulo-assistente {
-  margin: 0;
-  font-size: var(--fs-section);
-  font-weight: var(--fw-strong);
-}
-
 .etapas {
   display: flex;
   flex-wrap: wrap;
@@ -226,36 +214,6 @@ h3.titulo-formulario {
 .etapas .feita::marker {
   content: "✓ ";
   color: var(--ok);
-}
-
-.passo-assistente {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 18px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-}
-
-.passo-assistente h2 {
-  margin: 0;
-  font-size: var(--fs-section);
-  font-weight: var(--fw-strong);
-}
-
-.passo-assistente p {
-  margin: 0;
-  line-height: 1.5;
-}
-
-.passo-assistente textarea,
-.passo-assistente input.caminho {
-  width: 100%;
-}
-
-.passo-assistente input.caminho {
-  max-width: 36rem;
 }
 
 .opcoes-cliente,
@@ -334,7 +292,6 @@ h3.titulo-formulario {
   gap: 12px;
 }
 
-.cliente,
 .cliente-conversa {
   padding: 12px 14px;
   border: 1px solid var(--border);
@@ -353,11 +310,7 @@ h3.titulo-formulario {
 }
 
 .cliente p {
-  margin: 4px 0;
-}
-
-.clientes button {
-  align-self: flex-start;
+  margin: 0;
 }
 
 .clientes-conversa {
@@ -388,12 +341,10 @@ h3.titulo-formulario {
 
 /* ---- Projeto ---- */
 
-.mapa-projeto,
-.resultados-base,
 .documento-aberto {
-  padding: 14px 16px;
+  padding: var(--space-4) var(--space-6);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-card);
   background: var(--surface);
 }
 
@@ -495,8 +446,8 @@ h3.titulo-formulario {
   margin: 8px 0;
 }
 
-.grupo-base h3 {
-  margin: 12px 0 4px;
+.grupo-base {
+  margin-top: var(--space-3);
 }
 
 .grupo-base li .id {
@@ -509,27 +460,9 @@ h3.titulo-formulario {
   box-shadow: inset 3px 0 0 var(--attention);
 }
 
-.vazio-base {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  margin-top: 12px;
-  padding: 10px 12px;
-  border: 1px dashed var(--border-strong);
-  border-radius: 8px;
-}
-
-.aviso-documentos {
-  margin: 8px 0;
-  padding: 10px 12px;
-  border: 1px solid var(--attention);
-  border-radius: 8px;
-  background: var(--attention-card);
-}
-
-.aviso-documentos h3 {
-  margin: 0 0 4px;
+.documentos-com-problema {
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-4);
 }
 
 .detalhes-arquivo {
@@ -541,8 +474,14 @@ h3.titulo-formulario {
   cursor: pointer;
 }
 
-.onde-no-codigo h3 {
-  margin: 16px 0 4px;
+.onde-no-codigo,
+.ligacoes > div {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.onde-no-codigo {
+  margin-top: var(--space-4);
 }
 
 .onde-no-codigo ul {
@@ -605,10 +544,6 @@ h3.titulo-formulario {
   flex-wrap: wrap;
   gap: 24px;
   font-size: var(--fs-support);
-}
-
-.ligacoes h3 {
-  margin: 8px 0 4px;
 }
 
 .ligacoes ul {
@@ -1721,6 +1656,81 @@ h3.titulo-formulario {
   font-variant-numeric: tabular-nums;
 }
 
+/* Afirmação no formato premissa/verificação (#404): dois blocos com rótulo, o selo do
+   veredito e uma linha tracejada entre eles. */
+.afirmacao-blocos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.afirmacao-bloco {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.afirmacao-verificacao {
+  padding-top: var(--space-3);
+  border-top: 1px dashed var(--border-strong);
+}
+
+.afirmacao-verificacao-cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.afirmacao-rotulo {
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.afirmacao-bloco .texto {
+  line-height: var(--lh-reading);
+}
+
+.selo-icone {
+  font-weight: var(--fw-strong);
+}
+
+/* Evidências de uma afirmação: ocultas por padrão, abertas pelo `</> N` ou pelo
+   seletor global, sob o título, antes das ações (#404). */
+.cartao-cabeca .btn-codigo {
+  margin-left: auto;
+}
+
+.evidencias-afirmacao {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.evidencias-titulo {
+  font-size: var(--fs-small);
+  color: var(--muted);
+}
+
+.cartao .evidencias-afirmacao .evidencias {
+  margin-top: 0;
+}
+
+.seletor-evidencias {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  align-self: flex-start;
+  min-height: 36px;
+  font-size: var(--fs-support);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
 /* Texto da afirmação em Markdown (#130): o primeiro parágrafo abre o texto; listas e
    parágrafos seguintes vêm abaixo. */
 .afirmacao .texto > p {
@@ -1816,13 +1826,18 @@ h3.titulo-formulario {
 }
 
 .aviso-privacidade {
-  border-left: 3px solid var(--attention);
-  padding: 4px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
-.aviso-privacidade h4,
-.previa-transcript h4 {
-  margin: 4px 0;
+.aviso-privacidade p {
+  margin: var(--space-1) 0;
+}
+
+.aviso-privacidade ul {
+  margin: 0;
+  padding-left: 20px;
 }
 
 .previa-transcript .falantes,
@@ -1842,27 +1857,12 @@ h3.titulo-formulario {
   width: fit-content;
 }
 
-.avisos-transcript li,
-.citacoes-fala-bloco [data-tone="attention"],
-.citacoes-fala [data-tone="attention"] {
-  color: var(--attention);
+/* A lista de itens (participantes, itens da ata) não herda o recuo das listas do texto. */
+.documento-ao-vivo .lista-itens {
+  padding-left: 0;
 }
 
-.lista-participantes {
-  list-style: none;
-  padding: 0;
-}
-
-.lista-participantes > li {
-  padding: 8px 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.lista-participantes > li:last-child {
-  border-bottom: 0;
-}
-
-.lista-participantes p {
+.participante-reuniao p {
   margin: 4px 0;
 }
 
@@ -1876,10 +1876,6 @@ h3.titulo-formulario {
   display: flex;
   flex-direction: column;
   gap: 2px;
-}
-
-.itens-ata > li {
-  margin-bottom: 6px;
 }
 
 /* Parecer de revisão de requisito (#116) */
@@ -1924,24 +1920,14 @@ h3.titulo-formulario {
   gap: 10px;
 }
 
-.parecer-ao-vivo .achado {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-  padding: 10px 14px;
-}
-
-.parecer-ao-vivo .achado[data-caracteristica="correcao"] {
+.parecer-ao-vivo .achado-correcao {
   border-color: var(--error-border);
 }
 
 /* Histórias e critérios de aceite (#115). */
-.historias-ao-vivo .historia {
-  margin: 12px 0;
-  padding: 12px 16px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
+.historias-ao-vivo .historia,
+.cenarios-ao-vivo .tabela-decisao {
+  margin: var(--space-3) 0;
 }
 .historias-ao-vivo .historia.situacao-descartada,
 .historias-ao-vivo .historia.situacao-quebrada {
@@ -1956,7 +1942,7 @@ h3.titulo-formulario {
   gap: 8px;
 }
 
-.parecer-ao-vivo .achado-cabecalho .btn {
+.parecer-ao-vivo .achado-cabecalho > button {
   margin-left: auto;
 }
 
@@ -2045,13 +2031,6 @@ h3.titulo-formulario {
 }
 
 /* Cenários de teste (#117). */
-.cenarios-ao-vivo .tabela-decisao {
-  margin: 12px 0;
-  padding: 12px 16px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-}
 .cenarios-ao-vivo .tabela-decisao.situacao-descartado {
   opacity: 0.6;
 }
@@ -2201,7 +2180,6 @@ h3.titulo-formulario {
 .achado-diagrama {
   margin-bottom: 0.5rem;
 }
-.achado-diagrama .badge,
 .achado-diagrama > .btn {
   margin-left: 0.5rem;
 }
@@ -2739,24 +2717,11 @@ h3.titulo-formulario {
 }
 
 /* Mapa e catálogo de funcionalidades (#208). */
-.funcionalidades-ao-vivo .funcionalidade {
-  margin: 12px 0;
-  padding: 12px 16px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-}
-.funcionalidades-ao-vivo .funcionalidade.situacao-descartada,
-.funcionalidades-ao-vivo .funcionalidade.situacao-juntada {
-  opacity: 0.6;
-}
-.funcionalidades-ao-vivo .pontos-entrada {
-  margin: 6px 0;
-  padding-left: 18px;
-}
-.funcionalidades-ao-vivo .pontos-entrada li,
 .pontos-sem-funcionalidade li {
   overflow-wrap: anywhere;
+}
+.pontos-sem-funcionalidade > .btn-link {
+  align-self: flex-start;
 }
 .form-funcionalidade {
   display: grid;
@@ -2775,9 +2740,6 @@ h3.titulo-formulario {
   align-items: center;
   gap: 6px;
   overflow-wrap: anywhere;
-}
-.funcionalidades-fechadas .funcionalidade {
-  opacity: 0.6;
 }
 
 /* Tela do mapa de funcionalidades (#208): revisão à esquerda, sessão do Claude à direita. */
@@ -2870,21 +2832,11 @@ h3.titulo-formulario {
 .arvore-funcionalidade.situacao-aceita .arvore-marca {
   color: var(--accent);
 }
-.pagina-funcionalidade h3 {
-  margin: 4px 0 8px;
-}
-.pagina-funcionalidade .funcionalidade {
-  margin-top: 0;
-}
 .pagina-trilha {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px;
-}
-.funcionalidades-ao-vivo .funcionalidade.selecionada {
-  border-color: var(--accent);
-  scroll-margin-top: 8px;
 }
 .mapa-cabecalho {
   display: flex;
@@ -2893,7 +2845,6 @@ h3.titulo-formulario {
   justify-content: space-between;
   gap: 8px;
 }
-.mapa-cabecalho .acoes,
 .mapa-filtros {
   display: flex;
   flex-wrap: wrap;
@@ -2926,14 +2877,7 @@ h3.titulo-formulario {
 .sessao-mapeamento {
   position: sticky;
   top: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
   min-width: 0;
-  padding: 16px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
 }
 /* Formulário de início da sessão (#268): rótulo acima do campo, no padrão `.field`. */
 .form-mapeamento {
@@ -2952,15 +2896,6 @@ h3.titulo-formulario {
 .acoes-form-mapeamento {
   display: flex;
   justify-content: flex-end;
-}
-.sessao-cabecalho {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.sessao-cabecalho h3 {
-  margin: 0;
 }
 .terminal-mapeamento {
   height: 70vh;
@@ -3000,16 +2935,11 @@ h3.titulo-formulario {
 .pf-titulo p {
   margin: 0;
 }
-.painel-cabecalho > .acoes,
 .linha-cabecalho {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
-}
-.linha-cabecalho h3 {
-  margin: 0;
-  flex: 1 1 auto;
 }
 .indicadores {
   display: grid;
@@ -3051,17 +2981,6 @@ button.indicador:hover {
   color: var(--attention);
   font-weight: var(--fw-strong);
 }
-.alerta-revalidar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 14px;
-  border-radius: 10px;
-  background: var(--attention-bg);
-  border: 1px solid var(--attention-border);
-}
 .abas-painel {
   display: flex;
   flex-wrap: wrap;
@@ -3101,22 +3020,6 @@ button.indicador:hover {
   display: flex;
   flex-direction: column;
   gap: 16px;
-}
-.cartao-painel {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface);
-}
-.cartao-painel h3 {
-  margin: 0;
-  font-size: var(--fs-reading);
-}
-.cartao-painel p {
-  margin: 0;
 }
 .pf-passos {
   list-style: none;
@@ -3184,31 +3087,6 @@ button.indicador:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.menu-revisar {
-  position: relative;
-}
-.menu-revisar > summary {
-  list-style: none;
-  cursor: pointer;
-}
-.menu-revisar > summary::-webkit-details-marker {
-  display: none;
-}
-.menu-itens {
-  position: absolute;
-  right: 0;
-  z-index: 5;
-  margin-top: 4px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 180px;
-  padding: 6px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-  box-shadow: var(--shadow);
-}
 .novas-analises {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -3258,7 +3136,8 @@ button.indicador:hover {
   padding: 8px;
 }
 .ligar-demanda {
-  flex-direction: row;
+  display: flex;
+  gap: var(--space-2);
   flex-wrap: wrap;
   align-items: flex-end;
 }
@@ -3468,38 +3347,6 @@ button.indicador:hover {
   cursor: pointer;
 }
 
-.vincular-aviso {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  padding: 8px 12px;
-  border: 1px solid var(--attention-border);
-  border-radius: 8px;
-  background: var(--attention-card);
-  color: var(--text-2);
-}
-.vincular-aviso svg {
-  color: var(--attention);
-  flex-shrink: 0;
-}
-
-.vincular-vazio {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 48px 16px;
-  border: 1px dashed var(--border-strong);
-  border-radius: 12px;
-  color: var(--muted);
-  text-align: center;
-}
-.vincular-vazio svg {
-  width: 28px;
-  height: 28px;
-}
-
 /* Progresso e chips de situação, que também filtram. */
 .vincular-painel {
   display: flex;
@@ -3688,49 +3535,11 @@ button.indicador:hover {
   flex-wrap: wrap;
   gap: 4px;
 }
-.vincular-estado,
-.vincular-rotulo,
-.vincular-tipo {
-  padding: 0 6px;
-  border-radius: 4px;
-  font-size: var(--fs-small);
-  line-height: 1.6;
-  white-space: nowrap;
-}
-.vincular-estado {
-  background: var(--running-bg);
-  color: var(--running);
-}
-.vincular-estado.fechada {
-  background: var(--idle-bg);
-  color: var(--muted);
-}
-.vincular-rotulo {
-  border: 1px solid var(--border-strong);
-  color: var(--muted);
-}
 .vincular-acoes {
   display: flex;
   align-items: center;
   gap: 2px;
   flex-shrink: 0;
-}
-.vincular-selo {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-right: 6px;
-  padding: 1px 8px;
-  border: 1px solid var(--ok);
-  border-radius: var(--radius-pill);
-  color: var(--ok);
-  font-size: var(--fs-small);
-  font-weight: var(--fw-strong);
-  white-space: nowrap;
-}
-.vincular-selo svg {
-  width: 12px;
-  height: 12px;
 }
 .vincular-ligada,
 .vincular-justificada {
@@ -3795,25 +3604,6 @@ button.indicador:hover {
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 6px;
-}
-.vincular-tipo {
-  background: var(--idle-bg);
-  color: var(--text-2);
-}
-.vincular-ia {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 0 6px;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--epic) 18%, transparent);
-  color: var(--epic);
-  font-size: var(--fs-small);
-  font-weight: var(--fw-strong);
-}
-.vincular-ia svg {
-  width: 12px;
-  height: 12px;
 }
 .vincular-ia-texto {
   max-width: 28rem;
@@ -3964,13 +3754,6 @@ code[data-tone="attention"] {
 .area-print:focus {
   outline: 2px solid var(--link);
 }
-.aviso-dados {
-  background: var(--attention-card);
-  border: 1px solid var(--attention-border);
-  border-radius: 4px;
-  padding: 6px 10px;
-  margin: 0;
-}
 .motivos-revisar {
   margin: 4px 0 8px;
   padding-left: 18px;
@@ -4109,39 +3892,77 @@ code[data-tone="attention"] {
   text-align: left;
   cursor: pointer;
 }
+/* O painel acompanha a lista e rola inteiro: a descrição não tem rolagem própria (#404). */
 .demandas-painel {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
   position: sticky;
   top: 0;
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+}
+/* Aba da issue: as partes em coluna, com o mesmo espaço do painel. */
+.demandas-aba {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 .demandas-painel h3,
 .demandas-painel h4 {
   margin: 0;
 }
-.demandas-painel h4 {
-  margin-top: 6px;
+/* Rótulos de seção ("Descrição", "Na base", "Parecidas"): afastados do bloco de cima,
+   colados no próprio texto, nunca por cima dele (#404). */
+.demandas-painel h4,
+.demandas-aba h3.demandas-rotulo,
+.demandas-aba h4 {
+  margin: var(--space-3) 0 0;
   font-size: var(--fs-support);
+  font-weight: var(--fw-strong);
+  line-height: 1.4;
   color: var(--muted);
+}
+/* Cabeçalho: chave, estado e link à esquerda; a ação principal à direita (#404). */
+.demandas-topo {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
 }
 .demandas-painel-cab {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
+  min-height: 36px;
+}
+.demandas-acoes {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+.demandas-bloqueio {
+  max-width: 32em;
+  font-size: var(--fs-support);
+  text-align: right;
 }
 .demandas-painel-titulo {
   margin: 0;
   font-size: var(--fs-section);
   font-weight: var(--fw-strong);
 }
+/* A descrição inteira, sem altura máxima: rola com a página ou com o painel (#404). */
 .demandas-descricao {
   margin: 0;
-  max-height: 14em;
-  overflow: auto;
   white-space: pre-wrap;
   color: var(--text-2);
+}
+.demandas-descricao > :first-child {
+  margin-top: 0;
 }
 /* A descrição é Markdown (#398): o espaço vem do próprio Markdown, não do pre-wrap. */
 .demandas-descricao.markdown {
@@ -4259,10 +4080,8 @@ code[data-tone="attention"] {
   flex-wrap: wrap;
   gap: 4px;
 }
-.mapa-vazio ol {
-  text-align: left;
-  margin: 8px auto;
-  max-width: 480px;
+.mapa-vazio {
+  align-items: flex-start;
 }
 
 /* Análises (#350): a lista é o conteúdo; "Nova análise" abre um painel lateral. */
@@ -4736,8 +4555,7 @@ ul.analises-existentes {
 }
 
 /* Pedido do protótipo de telas (#379) e o cartão "Identidade visual". */
-.campos-prototipo,
-.identidade-visual {
+.campos-prototipo {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -4770,13 +4588,6 @@ ul.analises-existentes {
 .aviso-envio p {
   margin: 0;
 }
-.identidade-visual-cabecalho {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-.identidade-visual h4,
 .identidade-visual h5,
 .identidade-visual p {
   margin: 0;
@@ -4784,11 +4595,6 @@ ul.analises-existentes {
 .identidade-visual h5 {
   font-size: var(--fs-small);
   color: var(--muted);
-}
-.identidade-visual .acoes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
 }
 .identidade-visual .a-confirmar {
   color: var(--attention);

@@ -19,7 +19,11 @@ import {
   type ComandoAfirmacao,
   type Revisao,
 } from "./AcoesRevisao";
-import { CartaoAfirmacao, ROTULO_CONFIANCA } from "./CartaoAfirmacao";
+import {
+  CartaoAfirmacao,
+  ROTULO_CONFIANCA,
+  SeletorEvidencias,
+} from "./CartaoAfirmacao";
 import { CenariosAoVivo } from "./CenariosAoVivo";
 import { DiagramaAoVivo } from "./DiagramaAoVivo";
 import { HistoriasAoVivo } from "./HistoriasAoVivo";
@@ -37,7 +41,8 @@ import type { Pendencia } from "./revisao";
 import { ordenarSecoes, tituloDaSecao } from "./secoesAnalise";
 import { SumarioAnalise, type ItemSumario } from "./SumarioAnalise";
 import { useAtalhosRevisao } from "./useAtalhosRevisao";
-import { Icon } from "./shell/icons";
+import { BotaoCodigo } from "./BotaoCodigo";
+import { useEvidenciasVisiveis } from "./preferenciaEvidencias";
 import { TextoRico, TituloSecao } from "./componentes";
 
 export { ROTULO_CONFIANCA };
@@ -169,34 +174,6 @@ interface Props {
   aoAbrirLink?: (link: string) => void;
 }
 
-/** Ícone que mostra ou esconde as evidências no código de uma afirmação ou sugestão. */
-function BotaoCodigo({
-  quantidade,
-  aberto,
-  aoAlternar,
-}: {
-  quantidade: number;
-  aberto: boolean;
-  aoAlternar: () => void;
-}) {
-  const rotulo = `${aberto ? "Ocultar" : "Ver"} ${
-    quantidade === 1 ? "a evidência" : `as ${quantidade} evidências`
-  } no código`;
-  return (
-    <button
-      type="button"
-      className="btn-icone btn-acao btn-codigo"
-      aria-label={rotulo}
-      title={rotulo}
-      aria-expanded={aberto}
-      onClick={aoAlternar}
-    >
-      <Icon name="code" />
-      <span className="contador-codigo">{quantidade}</span>
-    </button>
-  );
-}
-
 const ID_PERGUNTAS = "secao-perguntas";
 const ID_PROPOSTAS = "secao-propostas";
 
@@ -241,13 +218,27 @@ export function DocumentoAoVivo({
   const [comCodigo, setComCodigo] = useState<ReadonlySet<OrigemEvidencia>>(
     new Set(),
   );
+  // As das afirmações também (#404), salvo quando o seletor global as mostra: aí o
+  // conjunto guarda as afirmações em que o analista as escondeu.
+  const [evidenciasVisiveis, alternarEvidenciasVisiveis] =
+    useEvidenciasVisiveis();
+  const invertido = (o: OrigemEvidencia) =>
+    evidenciasVisiveis && o.startsWith("afirmacao-");
   const codigoVisivel = (o: OrigemEvidencia) =>
-    comCodigo.has(o) || origemTrecho === o;
+    comCodigo.has(o) !== invertido(o) || origemTrecho === o;
+  const alternarTodasEvidencias = () => {
+    alternarEvidenciasVisiveis();
+    setComCodigo(
+      (atual) =>
+        new Set([...atual].filter((o) => !o.startsWith("afirmacao-"))),
+    );
+  };
   const alternarCodigo = (o: OrigemEvidencia) => {
     setComCodigo((atual) => {
       const novo = new Set(atual);
-      if (codigoVisivel(o)) novo.delete(o);
-      else novo.add(o);
+      const marcar = codigoVisivel(o) ? invertido(o) : !invertido(o);
+      if (marcar) novo.add(o);
+      else novo.delete(o);
       return novo;
     });
     // Fechar o código fecha também o trecho aberto dali.
@@ -444,6 +435,12 @@ export function DocumentoAoVivo({
           ) : (
             <section aria-label="Afirmações">
               <h3>Afirmações</h3>
+              {analise.afirmacoes.some((a) => a.evidencias.length > 0) && (
+                <SeletorEvidencias
+                  ligado={evidenciasVisiveis}
+                  aoAlternar={alternarTodasEvidencias}
+                />
+              )}
               {secoes.length === 0 && (
                 <p className="muted">Nenhuma afirmação registrada ainda.</p>
               )}
@@ -491,6 +488,12 @@ export function DocumentoAoVivo({
                             evidenciaAberta={evidenciaAberta}
                             aoAbrirEvidencia={(e) =>
                               aoAbrirEvidencia(e, `afirmacao-${a.numero}`)
+                            }
+                            evidenciasAbertas={codigoVisivel(
+                              `afirmacao-${a.numero}`,
+                            )}
+                            aoAlternarEvidencias={() =>
+                              alternarCodigo(`afirmacao-${a.numero}`)
                             }
                             aoFocar={() => setAtual(a.numero)}
                             trecho={

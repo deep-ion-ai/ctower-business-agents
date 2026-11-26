@@ -23,6 +23,8 @@ const PERMITIDOS = new Set([
   // #403: o TituloSecao no documento ao vivo ganha espaço abaixo.
   ".documento-ao-vivo .titulo-secao",
   ".documento-ao-vivo .titulo-secao > h3",
+  // #410: a lista de itens no documento ao vivo não herda o recuo das listas do texto.
+  ".documento-ao-vivo .lista-itens",
 ]);
 
 const semComentarios = (t: string) => t.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "));

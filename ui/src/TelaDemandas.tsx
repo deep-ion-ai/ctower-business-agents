@@ -4,6 +4,7 @@ import type { ApiConhecimento } from "./conhecimento";
 import { acaoDaIssue, situacaoEmTexto, TOM_SITUACAO } from "./acaoIssue";
 import { dobrar, parecidos } from "./demandasParecidas";
 import {
+  AcoesDaIssue,
   AvisoAbrirLink,
   DescricaoIssue,
   NaBaseIssue,
@@ -571,61 +572,53 @@ function PainelDaLinha({
 
   return (
     <aside className="panel demandas-painel" aria-label="Demanda selecionada">
-      <h3 className="demandas-painel-cab">
-        <span className="id">{linha.id}</span>
-        {issue && (
-          <span className="badge" data-tone={issue.estado === "aberta" ? "running" : "done"}>
-            {issue.estado === "aberta" ? "aberta" : "encerrada"}
-          </span>
-        )}
-        {linha.tipoDemanda && (
-          <span className="badge" title="Tipo da demanda">
-            {ROTULO_TIPO_DEMANDA[linha.tipoDemanda]}
-          </span>
-        )}
-        {issue?.url && (
-          <button type="button" className="link" onClick={abrirNoRastreador}>
-            Abrir no {ROTULO_ORIGEM[issue.origem]} ↗
-          </button>
-        )}
-      </h3>
+      <div className="demandas-topo">
+        <h3 className="demandas-painel-cab">
+          <span className="id">{linha.id}</span>
+          {issue && (
+            <span className="badge" data-tone={issue.estado === "aberta" ? "running" : "done"}>
+              {issue.estado === "aberta" ? "aberta" : "encerrada"}
+            </span>
+          )}
+          {linha.tipoDemanda && (
+            <span className="badge" title="Tipo da demanda">
+              {ROTULO_TIPO_DEMANDA[linha.tipoDemanda]}
+            </span>
+          )}
+          {issue?.url && (
+            <button type="button" className="link" onClick={abrirNoRastreador}>
+              Abrir no {ROTULO_ORIGEM[issue.origem]} ↗
+            </button>
+          )}
+        </h3>
+        <AcoesDaIssue
+          acao={issue ? acaoDaIssue(issue) : { rotulo: "Abrir a demanda", tipo: "demanda" }}
+          analisando={analisando}
+          aoAgir={aoAgir}
+          secundarias={
+            issue
+              ? [{ texto: "Abrir em nova aba", aoEscolher: () => abrirIssueEmAba(navegar, projeto, issue) }]
+              : undefined
+          }
+        />
+      </div>
       <p className="demandas-painel-titulo">{titulo}</p>
       {issue ? (
         <>
-          <DescricaoIssue issue={issue} abrir={(link) => void abrir(link)} />
           <p className="muted">
             {[`criada ${idadeDe(issue.criadaEm, agora)}`, ...issue.rotulos.map((r) => `rótulo ${r}`)].join(" · ")}
           </p>
           <AvisoAbrirLink falha={falha} />
-          <h4>Na base</h4>
-          <NaBaseIssue
-            issue={issue}
-            projeto={projeto}
-            acao={acaoDaIssue(issue)}
-            analisando={analisando}
-            aoAgir={aoAgir}
-            navegar={navegar}
-            aoAbrirAnalise={aoAbrirAnalise}
-            acoesExtra={
-              <button type="button" className="btn" onClick={() => abrirIssueEmAba(navegar, projeto, issue)}>
-                Abrir em nova aba
-              </button>
-            }
-          />
+          <h4 className="demandas-rotulo">Descrição</h4>
+          <DescricaoIssue issue={issue} abrir={(link) => void abrir(link)} />
+          <h4 className="demandas-rotulo">Na base</h4>
+          <NaBaseIssue issue={issue} projeto={projeto} navegar={navegar} aoAbrirAnalise={aoAbrirAnalise} />
         </>
       ) : (
-        <>
-          <p className="muted">
-            Demanda criada à mão em {mao?.criado}. Abra a demanda para ver as atas, as
-            análises e as sessões, e para ligar uma análise nova.
-          </p>
-          <h4>Na base</h4>
-          <div className="acoes">
-            <button type="button" className="btn btn-primary" onClick={aoAgir}>
-              Abrir a demanda
-            </button>
-          </div>
-        </>
+        <p className="muted">
+          Demanda criada à mão em {mao?.criado}. Abra a demanda para ver as atas, as
+          análises e as sessões, e para ligar uma análise nova.
+        </p>
       )}
 
       <ParecidasLista
