@@ -10,6 +10,7 @@ import type {
   SituacaoHistoria,
 } from "./analise";
 import type { Revisao } from "./AcoesRevisao";
+import { Cartao, EstadoVazio, Selo, TituloSecao } from "./componentes";
 import type { DecisaoRevisao } from "./revisao";
 import { BotaoRevalidar, ChipFundamento, SeloRevalidar, aRevalidar } from "./MarcaRevalidar";
 
@@ -198,13 +199,11 @@ function ItemCriterio({
     <li className={`criterio situacao-${c.situacao}`} aria-label={`CA-${c.numero}`}>
       <div className="criterio-cabecalho">
         <strong>CA-{c.numero}</strong>
-        {c.pergunta && (
-          <span className="badge" data-tone="attention">
-            a confirmar: pergunta {c.pergunta}
-          </span>
-        )}
+        {c.pergunta && <Selo tom="atencao">a confirmar: pergunta {c.pergunta}</Selo>}
         <SeloRevalidar marca={c} />
-        {c.situacao !== "pendente" && <span className="muted">{c.situacao}</span>}
+        {c.situacao !== "pendente" && (
+          <Selo tom={c.situacao === "aceito" ? "concluido" : "neutro"}>{c.situacao}</Selo>
+        )}
         {c.original && <span className="muted editada">(editado pelo analista)</span>}
       </div>
       {editando && revisao ? (
@@ -330,16 +329,16 @@ function CartaoHistoria({ historia, revisao }: { historia: Historia; revisao?: R
       .catch(() => undefined);
   const alertas = alertasInvest(h);
   return (
-    <section className={`historia situacao-${h.situacao}`} aria-label={`${h.id}: ${h.titulo}`}>
+    <Cartao className={`historia situacao-${h.situacao}`} rotulo={`${h.id}: ${h.titulo}`}>
       <header className="historia-cabecalho">
         <span className="painel-id">{h.id}</span>
         <strong>{h.titulo}</strong>
         <SeloInvest historia={h} />
-        <span className="badge" data-tone={h.situacao === "aceita" ? "done" : undefined}>
+        <Selo tom={h.situacao === "aceita" ? "concluido" : "neutro"}>
           {h.situacao === "pendente" && h.quebra_pedida != null
             ? "quebra pedida"
             : SITUACAO[h.situacao]}
-        </span>
+        </Selo>
       </header>
       {form === "editar" && revisao ? (
         <FormNarrativa
@@ -486,7 +485,7 @@ function CartaoHistoria({ historia, revisao }: { historia: Historia; revisao?: R
           )}
         </div>
       )}
-    </section>
+    </Cartao>
   );
 }
 
@@ -513,7 +512,7 @@ export function HistoriasAoVivo({
   const revalidar = criterios.filter(aRevalidar).length;
   return (
     <section aria-label="Histórias" className="historias-ao-vivo">
-      <h3>Histórias</h3>
+      <TituloSecao nivel={3}>Histórias</TituloSecao>
       <p className="muted">
         {contar(historias.length, "história", "histórias")} · {contar(criterios.length, "critério", "critérios")}
         {aConfirmar > 0 && ` · ${aConfirmar} a confirmar`}
@@ -523,7 +522,7 @@ export function HistoriasAoVivo({
       <p className="muted legenda-invest">
         INVEST: I independente · N negociável · V valiosa · E estimável · S pequena · T testável
       </p>
-      {historias.length === 0 && <p className="muted">Nenhuma história registrada ainda.</p>}
+      {historias.length === 0 && <EstadoVazio>Nenhuma história registrada ainda.</EstadoVazio>}
       {historias.map((h) => (
         <CartaoHistoria key={h.id} historia={h} revisao={revisao} />
       ))}

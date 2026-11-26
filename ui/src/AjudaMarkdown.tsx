@@ -1,6 +1,5 @@
-import Markdown from "markdown-to-jsx";
 import { useEffect, useRef, type KeyboardEvent, type ReactNode, type RefObject } from "react";
-import { OPCOES_MARKDOWN_BASE } from "./markdownOpcoes";
+import { TextoRico } from "./componentes";
 
 /** Exemplos do Markdown básico: o que se escreve e, ao lado, como aparece. */
 export const EXEMPLOS_MARKDOWN: readonly { nome: string; fonte: string }[] = [
@@ -109,14 +108,8 @@ export function AjudaMarkdown({
                     </pre>
                   </td>
                   <td>
-                    <div
-                      className="markdown ajuda-exemplo"
-                      role="group"
-                      aria-label={`${x.nome}: como aparece`}
-                    >
-                      <Markdown options={{ ...OPCOES_MARKDOWN_BASE, overrides: SEM_LINK }}>
-                        {x.fonte}
-                      </Markdown>
+                    <div role="group" aria-label={`${x.nome}: como aparece`}>
+                      <TextoRico texto={x.fonte} overrides={SEM_LINK} className="ajuda-exemplo" />
                     </div>
                   </td>
                 </tr>
