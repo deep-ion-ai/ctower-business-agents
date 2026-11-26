@@ -66,6 +66,7 @@ pub mod link;
 pub mod listagem;
 pub mod process;
 pub mod prontidao;
+pub mod providers;
 mod secret;
 pub mod tracker;
 
