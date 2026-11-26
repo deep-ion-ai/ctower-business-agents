@@ -1,4 +1,6 @@
-//! Busca de uma issue (título e descrição) para iniciar uma análise.
+//! Busca de uma issue (título e descrição) para iniciar uma análise e, em
+//! [`leitura`], a leitura completa dela (comentários, anexos, ligadas) para o
+//! agente (#351).
 //!
 //! Pelas CLIs, sem HTTP próprio: `gh issue view`, `glab api` e
 //! `jira issue view --raw` (JSON da API v2). O token chega ao processo filho só
@@ -16,6 +18,10 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Arc;
 use std::time::Duration;
+
+mod leitura;
+
+pub use leitura::{Anexo, Comentario, IssueLida, IssueLigada, LimitesIssue, ler_issue};
 
 /// Prazo de uma chamada às CLIs.
 pub const PRAZO_CLI: Duration = Duration::from_secs(60);

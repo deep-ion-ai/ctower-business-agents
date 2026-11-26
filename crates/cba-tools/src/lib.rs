@@ -37,7 +37,9 @@
 //! - Consulta, só de leitura e paginada ([`paginacao`]): [`conhecimento`] (busca no
 //!   índice da base), [`mapa`], [`estrutura`], [`banco`] (`schema`, com os indícios
 //!   de dado pessoal de [`dados_pessoais`]) e
-//!   [`referencias`], a partir do mapa estrutural do projeto ([`fontes`]), e
+//!   [`referencias`], a partir do mapa estrutural do projeto ([`fontes`]),
+//!   [`issue_da_demanda`] (`ler_issue_da_demanda`: a issue da demanda no
+//!   rastreador, com os comentários, #351) e
 //!   [`rastreabilidade`] (matriz da demanda e consulta reversa por regra ou
 //!   arquivo, #121, que também exporta a matriz para Excel e Word).
 //! - [`roteiro`] e [`contexto`]: o roteiro do fluxo e o contexto da base que
@@ -100,6 +102,7 @@ pub mod evidencias;
 mod fontes;
 pub mod fundamentos;
 pub mod historias;
+pub mod issue_da_demanda;
 pub mod manual;
 pub mod mapa;
 pub mod mapear;
@@ -151,6 +154,7 @@ pub fn registro_padrao() -> Registro {
         .registrar(mapa::mapa())
         .registrar(estrutura::estrutura())
         .registrar(banco::schema())
+        .registrar(issue_da_demanda::ler_issue_da_demanda())
         .registrar(afirmar::afirmar())
         .registrar(perguntar::perguntar())
         .registrar(sugestao::registrar_sugestao())
@@ -212,6 +216,7 @@ mod tests {
             "mapa",
             "estrutura",
             "schema",
+            "ler_issue_da_demanda",
             "afirmar",
             "perguntar",
             "registrar_sugestao",
@@ -314,6 +319,7 @@ mod tests {
             "mapa",
             "estrutura",
             "schema",
+            "ler_issue_da_demanda",
             "ler_transcript",
             "sugerir_demanda",
             "verificar_termos_vagos",
