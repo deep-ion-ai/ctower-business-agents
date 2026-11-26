@@ -1,0 +1,199 @@
+---
+import { Image } from 'astro:assets';
+import Base from '../layouts/Base.astro';
+import { messages as t } from '../i18n';
+import projeto from '../assets/prints/projeto.jpg';
+import demanda from '../assets/prints/demanda.jpg';
+import analiseRevisao from '../assets/prints/analise-revisao.jpg';
+import funcionalidades from '../assets/prints/funcionalidades.jpg';
+import base from '../assets/prints/base.jpg';
+
+const repo = 'https://github.com/deep-ion-ai/ctower-business-agents';
+const releases = `${repo}/releases/latest/download`;
+const shots = [demanda, analiseRevisao, funcionalidades, base];
+---
+<Base>
+  <header class="header">
+    <div class="wrap">
+      <a class="brand" href="/">Ctower Business Agents</a>
+      <nav class="nav" aria-label="Seções">
+        <a href="#como-funciona">{t.header.nav.howItWorks}</a>
+        <a href="#fluxos">{t.header.nav.flows}</a>
+        <a href="#instalacao">{t.header.nav.install}</a>
+        <a href="#codigo-aberto">{t.header.nav.openSource}</a>
+        <a href="#perguntas">{t.header.nav.faq}</a>
+        <a href={repo}>{t.header.github}</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="conteudo">
+    <section class="hero" aria-labelledby="titulo">
+      <div class="wrap hero-grid">
+        <div>
+          <p class="eyebrow">{t.hero.eyebrow}</p>
+          <h1 id="titulo">{t.hero.title}</h1>
+          <p class="lead">{t.hero.lead}</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" data-os="mac" href={`${releases}/cba-macos-universal.dmg`}>{t.hero.downloadMac}</a>
+            <a class="btn btn-primary" data-os="windows" href={`${releases}/cba-windows-x64-setup.exe`}>{t.hero.downloadWindows}</a>
+            <a class="btn btn-ghost" href={repo}>{t.hero.githubCta}</a>
+          </div>
+          <p class="note">{t.hero.versionNote}</p>
+        </div>
+        <figure class="shot">
+          <Image src={projeto} alt={t.meta.imageAlt} widths={[640, 1200]} sizes="(min-width: 720px) 55vw, 100vw" loading="eager" />
+        </figure>
+      </div>
+    </section>
+
+    <section id="como-funciona" aria-labelledby="h-como">
+      <div class="wrap">
+        <h2 id="h-como">{t.howItWorks.title}</h2>
+        <ol class="steps">
+          {t.howItWorks.steps.map((step, i) => (
+            <li class="step">
+              <span class="num" aria-hidden="true">{i + 1}</span>
+              <h3>{step.title}</h3>
+              <p>{step.text}</p>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </section>
+
+    <section id="fluxos" aria-labelledby="h-fluxos">
+      <div class="wrap">
+        <h2 id="h-fluxos">{t.flows.title}</h2>
+        <p class="lead">{t.flows.lead}</p>
+        <div class="flows">
+          {t.flows.items.map((item, i) => (
+            <article class="flow">
+              <h3>{item.title}</h3>
+              <p>{item.text}</p>
+              <figure class="shot">
+                <Image src={shots[i]} alt={item.alt} widths={[640, 960]} sizes="(min-width: 720px) 50vw, 100vw" />
+              </figure>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <section id="diferenciais" aria-labelledby="h-dif">
+      <div class="wrap">
+        <h2 id="h-dif">{t.differentials.title}</h2>
+        <ul class="cards">
+          {t.differentials.items.map((item) => (
+            <li class="card">
+              <h3>{item.title}</h3>
+              <p>{item.text}</p>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+
+    <section id="privacidade" aria-labelledby="h-priv">
+      <div class="wrap">
+        <h2 id="h-priv">{t.privacy.title}</h2>
+        <p class="lead">{t.privacy.lead}</p>
+        <div class="split">
+          <div class="card">
+            <h3>{t.privacy.onMachine.title}</h3>
+            <ul>{t.privacy.onMachine.items.map((x) => <li>{x}</li>)}</ul>
+          </div>
+          <div class="card">
+            <h3>{t.privacy.toProvider.title}</h3>
+            <ul>{t.privacy.toProvider.items.map((x) => <li>{x}</li>)}</ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="instalacao" aria-labelledby="h-inst">
+      <div class="wrap">
+        <h2 id="h-inst">{t.install.title}</h2>
+        <p>{t.install.lead}</p>
+        <div class="warn" role="note">
+          <p>{t.install.warning}</p>
+        </div>
+
+        <h3>{t.install.macTitle}</h3>
+        <p>{t.install.macText}</p>
+        <div class="cmd">
+          <code>{t.install.macCommand}</code>
+          <button class="copy" type="button" data-copy={t.install.macCommand} data-label={t.install.copy} data-copied-label={t.install.copied}>{t.install.copy}</button>
+        </div>
+
+        <h3>{t.install.windowsTitle}</h3>
+        <p>{t.install.windowsText}</p>
+        <div class="cmd">
+          <code>{t.install.windowsCommand}</code>
+          <button class="copy" type="button" data-copy={t.install.windowsCommand} data-label={t.install.copy} data-copied-label={t.install.copied}>{t.install.copy}</button>
+        </div>
+
+        <p class="note">{t.install.readFirst}</p>
+
+        <details>
+          <summary>{t.install.manualTitle}</summary>
+          <p>{t.install.manualText}</p>
+          <div class="cmd">
+            <code>{t.install.manualCommand}</code>
+            <button class="copy" type="button" data-copy={t.install.manualCommand} data-label={t.install.copy} data-copied-label={t.install.copied}>{t.install.copy}</button>
+          </div>
+          <p>{t.install.manualWindows}</p>
+        </details>
+
+        <div class="links">
+          <a href={`${repo}/tree/develop/packaging/install`}>{t.install.detailsLink}</a>
+          <a href={`${repo}/releases`}>{t.install.releasesLink}</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="codigo-aberto" aria-labelledby="h-oss">
+      <div class="wrap">
+        <h2 id="h-oss">{t.openSource.title}</h2>
+        <p class="lead">{t.openSource.lead}</p>
+        <ul class="cards">
+          {t.openSource.items.map((item) => (
+            <li class="card">
+              <h3>{item.title}</h3>
+              <p>{item.text}</p>
+            </li>
+          ))}
+        </ul>
+        <div class="links">
+          <a href={`${repo}/blob/develop/CONTRIBUTING.md`}>{t.openSource.contributing}</a>
+          <a href={`${repo}/fork`}>{t.openSource.fork}</a>
+          <a href={`${repo}/blob/develop/LICENSE`}>{t.openSource.license}</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="perguntas" aria-labelledby="h-faq">
+      <div class="wrap">
+        <h2 id="h-faq">{t.faq.title}</h2>
+        {t.faq.items.map((item) => (
+          <details>
+            <summary>{item.q}</summary>
+            <p>{item.a}</p>
+          </details>
+        ))}
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <div class="links">
+        <a href={repo}>{t.footer.github}</a>
+        <a href={`${repo}/blob/develop/LICENSE`}>{t.footer.license}</a>
+        <a href={`${repo}/blob/develop/CONTRIBUTING.md`}>{t.footer.contributing}</a>
+        <a href={`${repo}/blob/develop/SECURITY.md`}>{t.footer.security}</a>
+      </div>
+      <p>© {new Date().getFullYear()} {t.footer.rights}</p>
+    </div>
+  </footer>
+</Base>

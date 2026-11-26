@@ -1,0 +1,166 @@
+{
+  "meta": {
+    "lang": "pt-BR",
+    "title": "Ctower Business Agents: entenda sistemas legados a partir do código",
+    "description": "Assistente desktop para analistas de requisitos e de negócio: responde perguntas, explica funcionalidades e analisa o impacto de demandas, com evidência para cada afirmação. Open source, Apache-2.0.",
+    "imageAlt": "Tela do Ctower Business Agents com a documentação de um projeto de referência"
+  },
+  "header": {
+    "skip": "Pular para o conteúdo",
+    "nav": {
+      "howItWorks": "Como funciona",
+      "flows": "Fluxos",
+      "install": "Instalação",
+      "openSource": "Código aberto",
+      "faq": "Perguntas"
+    },
+    "github": "GitHub"
+  },
+  "hero": {
+    "eyebrow": "Para analistas de requisitos e de negócio",
+    "title": "Entenda sistemas legados a partir do código, com evidência para cada afirmação.",
+    "lead": "O Ctower Business Agents responde perguntas, explica funcionalidades e analisa o impacto de uma demanda, citando o trecho de código de onde cada resposta saiu.",
+    "downloadMac": "Baixar para macOS",
+    "downloadWindows": "Baixar para Windows",
+    "detected": "Seu sistema",
+    "githubCta": "Ver no GitHub",
+    "versionNote": "Versão atual nas releases do GitHub. Os instaladores ainda não têm assinatura: veja a seção Instalação."
+  },
+  "howItWorks": {
+    "title": "Como funciona",
+    "steps": [
+      {
+        "title": "Instale",
+        "text": "Rode um comando no terminal ou baixe o instalador. O app não exige servidor nem conta."
+      },
+      {
+        "title": "Aponte para a pasta do projeto",
+        "text": "Escolha a pasta do código-fonte do sistema que você analisa. Nada é alterado nela."
+      },
+      {
+        "title": "Pergunte ou analise uma demanda",
+        "text": "Faça uma pergunta, peça a explicação de uma funcionalidade ou o impacto de uma demanda. O resultado vem com as evidências do código."
+      }
+    ]
+  },
+  "flows": {
+    "title": "Fluxos",
+    "lead": "Telas reais do app, capturadas com um projeto de referência de código aberto (OpenCBS-Cloud). Nenhum dado de cliente aparece aqui.",
+    "items": [
+      {
+        "title": "Demandas do rastreador",
+        "text": "Uma demanda reúne linha do tempo, reuniões, análises e a matriz de rastreabilidade num só lugar.",
+        "alt": "Painel de uma demanda, com a linha do tempo, reuniões e a matriz de rastreabilidade"
+      },
+      {
+        "title": "Revisão e aprovação",
+        "text": "Cada afirmação da análise traz o nível de confiança e a evidência. Só o que você aprova vira regra da base do projeto.",
+        "alt": "Análise em revisão, com as afirmações e as evidências"
+      },
+      {
+        "title": "Mapa de funcionalidades",
+        "text": "O agente agrupa os pontos de entrada do código em funcionalidades de negócio, para você revisar, juntar ou dividir.",
+        "alt": "Mapa de funcionalidades agrupadas por área, com status de aceitação"
+      },
+      {
+        "title": "Base de conhecimento",
+        "text": "Busca em regras, termos, análises e documentos externos do projeto, com trechos destacados.",
+        "alt": "Busca na base de conhecimento do projeto com trechos destacados"
+      }
+    ]
+  },
+  "differentials": {
+    "title": "Diferenciais",
+    "items": [
+      { "title": "Standalone", "text": "Sem servidor e sem conta nossa. O app roda na sua máquina." },
+      { "title": "Usa a assinatura de IA que você já tem", "text": "Funciona com o Claude Code no terminal embutido ou com o Claude Desktop." },
+      { "title": "Analisa, não altera código", "text": "O agente é orientado a não modificar o código nem publicar nada sem sua aprovação." },
+      { "title": "Evidência validada", "text": "Cada afirmação aponta para o arquivo e as linhas. O app confere as evidências antes de você aprovar." },
+      { "title": "Base de conhecimento local", "text": "As regras, termos e análises aprovados ficam no projeto, para as análises seguintes." },
+      { "title": "Exportação e publicação", "text": "Exporta em Markdown, Word ou HTML, e pode publicar a documentação num repositório git, por branch e PR." }
+    ]
+  },
+  "privacy": {
+    "title": "Privacidade",
+    "lead": "Sem exageros: o que fica na sua máquina e o que sai dela depende do provedor de IA que você escolhe.",
+    "onMachine": {
+      "title": "Fica na sua máquina",
+      "items": [
+        "O aplicativo, a base de conhecimento e as análises do projeto.",
+        "O código-fonte, que o app lê a partir da pasta que você escolheu."
+      ]
+    },
+    "toProvider": {
+      "title": "Vai para o provedor de IA escolhido",
+      "items": [
+        "As perguntas e os trechos de código que o agente precisa ler para responder, enviados pela sua assinatura do Claude Code ou do Claude Desktop.",
+        "Guarda e usa esses dados nas condições do provedor que você escolheu."
+      ]
+    }
+  },
+  "install": {
+    "title": "Instalação",
+    "lead": "Os instaladores para macOS (.dmg) e Windows (.exe) ainda não são assinados. Por isso, o caminho recomendado é o script de instalação pelo terminal: ele baixa o app com o curl ou o irm, que não marcam o arquivo como baixado pelo navegador, e confere o SHA-256 contra o SHA256SUMS da mesma release.",
+    "warning": "Sem certificado assinado, o macOS (Gatekeeper) e o Windows (SmartScreen) avisam ao abrir um instalador baixado pelo navegador. Os scripts evitam esse aviso, mas leia o script antes de rodar, se quiser conferir o que ele faz.",
+    "macTitle": "macOS",
+    "macText": "Cole no Terminal:",
+    "macCommand": "curl -fsSL https://github.com/deep-ion-ai/ctower-business-agents/releases/latest/download/install.sh | sh",
+    "windowsTitle": "Windows",
+    "windowsText": "Cole no PowerShell:",
+    "windowsCommand": "irm https://github.com/deep-ion-ai/ctower-business-agents/releases/latest/download/install.ps1 | iex",
+    "copy": "Copiar",
+    "copied": "Copiado",
+    "readFirst": "Prefere ler antes? Baixe o script, leia e rode depois. O cabeçalho explica as opções.",
+    "manualTitle": "Instalação manual",
+    "manualText": "Se preferir baixar o instalador pelo navegador, o macOS vai bloquear a primeira abertura. Depois de arrastar o app para Aplicativos, rode no Terminal:",
+    "manualCommand": "xattr -dr com.apple.quarantine \"/Applications/Ctower Business Agents.app\"",
+    "manualWindows": "No Windows, na tela do SmartScreen, clique em \"Mais informações\" e depois em \"Executar assim mesmo\".",
+    "detailsLink": "Opções, Linux e instalação pelo código-fonte: packaging/install",
+    "releasesLink": "Instaladores e notas em todas as releases"
+  },
+  "openSource": {
+    "title": "Código aberto",
+    "lead": "O projeto é open source, sob a licença Apache-2.0. Isso quer dizer que você não depende só do que vem pronto.",
+    "items": [
+      {
+        "title": "Proponha melhorias",
+        "text": "Viu algo que pode ser melhor? Abra uma issue descrevendo o problema e a necessidade, ou um PR com a mudança. Antes de contribuir, leia o CONTRIBUTING e assine o CLA."
+      },
+      {
+        "title": "Crie o seu fork",
+        "text": "Quer uma versão com o seu jeito de trabalhar, os seus roteiros de análise ou a sua integração? Faça um fork do repositório e customize. A licença permite."
+      }
+    ],
+    "contributing": "Contribuir",
+    "fork": "Como fazer um fork",
+    "license": "Ler a licença"
+  },
+  "faq": {
+    "title": "Perguntas frequentes",
+    "items": [
+      {
+        "q": "O que preciso ter instalado?",
+        "a": "Um computador com macOS ou Windows e uma assinatura de IA. O instalador cuida do git e, no Windows 10, do WebView2. Os requisitos completos estão em packaging/install."
+      },
+      {
+        "q": "Preciso do Claude Code ou do Claude Desktop?",
+        "a": "Um dos dois. O Claude Code no terminal embutido é o recomendado, porque mostra a conversa, o documento e as evidências numa janela só. Quem não quer usar o terminal pode usar o Claude Desktop."
+      },
+      {
+        "q": "Quais sistemas operacionais são suportados?",
+        "a": "macOS e Windows, com instalador. No Linux, por enquanto, só pelo código-fonte."
+      },
+      {
+        "q": "Por que os instaladores não são assinados?",
+        "a": "O projeto ainda não tem certificado de assinatura de código. Os scripts de instalação pelo terminal são o caminho recomendado até lá."
+      }
+    ]
+  },
+  "footer": {
+    "github": "GitHub",
+    "license": "Licença Apache-2.0",
+    "contributing": "Contribuir",
+    "security": "Segurança",
+    "rights": "Ctower Business Agents. Código aberto sob a licença Apache-2.0."
+  }
+}

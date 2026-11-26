@@ -1,0 +1,58 @@
+---
+import '../styles/global.css';
+import { messages as t } from '../i18n';
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+const { title = t.meta.title, description = t.meta.description } = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+const ogImage = new URL('/og.jpg', Astro.site);
+---
+<!doctype html>
+<html lang={t.meta.lang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:locale" content="pt_BR" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <a class="skip" href="#conteudo">{t.header.skip}</a>
+    <slot />
+    <script>
+      // Destaca o download do sistema do visitante e copia os comandos de instalação.
+      const isWindows = /Windows/i.test(navigator.userAgent);
+      document.querySelectorAll<HTMLElement>('[data-os]').forEach((el) => {
+        const match = el.dataset.os === 'windows' ? isWindows : !isWindows;
+        el.classList.toggle('is-detected', match);
+        if (match) el.dataset.detected = 'true';
+      });
+      document.querySelectorAll<HTMLButtonElement>('[data-copy]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const text = btn.dataset.copy ?? '';
+          try {
+            await navigator.clipboard.writeText(text);
+            btn.textContent = btn.dataset.copiedLabel ?? 'Copiado';
+            setTimeout(() => (btn.textContent = btn.dataset.label ?? 'Copiar'), 1800);
+          } catch {
+            btn.textContent = 'Selecione e copie';
+          }
+        });
+      });
+    </script>
+  </body>
+</html>
