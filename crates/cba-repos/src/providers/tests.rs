@@ -154,6 +154,56 @@ fn opcoes_validadas_pelos_campos_do_descritor() {
 }
 
 #[test]
+fn banco_de_producao_exige_confirmacao() {
+    let r = todos();
+    for tipo in ["postgres", "mysql"] {
+        let mut c = conexao(tipo, "db.example.com/faturamento");
+        c.opcoes.insert("usuario".into(), "leitura".into());
+        c.opcoes.insert("ambiente".into(), "Produção".into());
+        let e = r.validar(&c).unwrap_err();
+        assert!(e.contains("réplica"), "{e}");
+        c.opcoes.insert(CONFIRMACAO_PRODUCAO.into(), "true".into());
+        r.validar(&c).unwrap();
+        c.opcoes.remove(CONFIRMACAO_PRODUCAO);
+        c.opcoes.insert("ambiente".into(), "homologação".into());
+        r.validar(&c).unwrap();
+    }
+    for sim in [
+        "produção",
+        "PRODUCAO",
+        "prd",
+        "Prod (réplica)",
+        "production",
+    ] {
+        assert!(ambiente_de_producao(sim), "{sim}");
+    }
+    for nao in ["homologação", "sustentação", "produto", "", "dev"] {
+        assert!(!ambiente_de_producao(nao), "{nao}");
+    }
+}
+
+#[test]
+fn dialeto_so_nos_bancos() {
+    let r = todos();
+    assert_eq!(
+        r.get("postgres").unwrap().dialeto_sql(),
+        Some(DialetoSql::Postgres)
+    );
+    assert_eq!(
+        r.get("mysql").unwrap().dialeto_sql(),
+        Some(DialetoSql::Mysql)
+    );
+    for d in r.iter() {
+        assert_eq!(
+            d.dialeto_sql().is_some(),
+            d.tem(Capacidade::Banco),
+            "{}",
+            d.tipo()
+        );
+    }
+}
+
+#[test]
 fn lista_sem_id_nem_nome_repetido() {
     let r = todos();
     let a = conexao("gitlab", "gitlab.example.com");

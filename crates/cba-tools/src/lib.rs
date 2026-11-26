@@ -83,6 +83,7 @@ pub mod analises;
 pub mod aprovacao;
 pub mod aprovacao_ata;
 pub mod banco;
+mod banco_conectado;
 pub mod cenarios;
 pub mod ciclo;
 pub mod cobertura;

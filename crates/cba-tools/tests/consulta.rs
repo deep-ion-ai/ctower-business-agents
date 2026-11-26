@@ -554,6 +554,121 @@ fn schema_aponta_indicios_de_dado_pessoal() {
     assert_eq!(fatura["colunas_com_dado_pessoal"], 0);
 }
 
+/// Banco conectado de teste: o schema fixo de um banco de clientes.
+#[derive(Debug)]
+struct BancoFalso {
+    falha: bool,
+}
+
+impl cba_core::banco::BancoConectado for BancoFalso {
+    fn origem(&self) -> cba_core::banco::OrigemBanco {
+        cba_core::banco::OrigemBanco {
+            conexao: "banco-hml".into(),
+            nome: "Banco de homologação".into(),
+            tipo: "PostgreSQL".into(),
+            ambiente: Some("homologação".into()),
+        }
+    }
+
+    fn ler_schema(&self) -> Result<cba_core::banco::SchemaBanco, String> {
+        use cba_core::banco::{ChaveEstrangeira, ColunaBanco, SchemaBanco, TabelaBanco};
+        if self.falha {
+            return Err("o servidor não respondeu".into());
+        }
+        let col = |nome: &str, tipo: &str| ColunaBanco {
+            nome: nome.into(),
+            tipo: tipo.into(),
+            nula: true,
+            comentario: None,
+        };
+        Ok(SchemaBanco {
+            tabelas: vec![
+                TabelaBanco {
+                    esquema: "app".into(),
+                    nome: "cliente".into(),
+                    tipo: "tabela".into(),
+                    comentario: Some("Clientes".into()),
+                    colunas: vec![
+                        col("id", "integer"),
+                        col("nome", "character varying(120)"),
+                        col("cpf", "character(11)"),
+                        col("dt_nascimento", "date"),
+                    ],
+                    chave_primaria: vec!["id".into()],
+                    chaves_estrangeiras: vec![],
+                },
+                TabelaBanco {
+                    esquema: "app".into(),
+                    nome: "fatura".into(),
+                    tipo: "tabela".into(),
+                    comentario: None,
+                    colunas: vec![col("id", "integer"), col("cliente_id", "integer")],
+                    chave_primaria: vec!["id".into()],
+                    chaves_estrangeiras: vec![ChaveEstrangeira {
+                        nome: "fk_fatura_cliente".into(),
+                        colunas: vec!["cliente_id".into()],
+                        referencia: "app.cliente".into(),
+                        colunas_referencia: vec!["id".into()],
+                    }],
+                },
+            ],
+        })
+    }
+}
+
+/// `schema` com `origem: "banco"` lê o banco conectado e marca os indícios de
+/// dado pessoal pelos nomes e tipos reais (#439).
+#[test]
+fn schema_do_banco_conectado() {
+    let mut c = cenario();
+    let m = c.recusa("schema", json!({ "origem": "banco" }));
+    assert!(m.contains("nenhum banco está conectado"), "{m}");
+    let (_, dados) = c.chamar("schema", json!({}));
+    assert_eq!(dados["origem"]["tipo"], "scripts");
+
+    c.amb.banco = Some(std::sync::Arc::new(BancoFalso { falha: false }));
+    let (texto, _) = c.chamar("schema", json!({}));
+    assert!(texto.contains("origem: \"banco\""), "{texto}");
+
+    let (texto, dados) = c.chamar("schema", json!({ "origem": "banco" }));
+    assert_eq!(dados["origem"]["tipo"], "banco");
+    assert_eq!(dados["origem"]["conexao"]["conexao"], "banco-hml");
+    assert!(
+        texto.starts_with("Origem: banco conectado Banco de homologação (PostgreSQL, homologação)"),
+        "{texto}"
+    );
+    assert!(
+        texto.contains("tabela app.cliente, 4 colunas (3 com indício de dado pessoal) — Clientes"),
+        "{texto}"
+    );
+    assert_eq!(dados["pagina"]["total"], 2);
+
+    let (texto, dados) = c.chamar("schema", json!({ "origem": "banco", "tabela": "CLIENTE" }));
+    let pessoais: Vec<&str> = dados["colunas"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|c| !c["dado_pessoal"].is_null())
+        .map(|c| c["nome"].as_str().unwrap())
+        .collect();
+    assert_eq!(pessoais, ["nome", "cpf", "dt_nascimento"]);
+    assert!(texto.contains("Chave primária: id"), "{texto}");
+    assert!(texto.contains("Referenciada por: app.fatura"), "{texto}");
+    assert_eq!(dados["colunas"][0]["chave_primaria"], true);
+
+    let (texto, _) = c.chamar(
+        "schema",
+        json!({ "origem": "banco", "tabela": "app.fatura" }),
+    );
+    assert!(texto.contains("(cliente_id) → app.cliente (id)"), "{texto}");
+    let m = c.recusa("schema", json!({ "origem": "banco", "tabela": "clientes" }));
+    assert!(m.contains("Nomes parecidos: app.cliente"), "{m}");
+
+    c.amb.banco = Some(std::sync::Arc::new(BancoFalso { falha: true }));
+    let m = c.recusa("schema", json!({ "origem": "banco" }));
+    assert!(m.contains("não respondeu"), "{m}");
+}
+
 #[test]
 fn mapa_do_projeto_e_de_um_modulo() {
     let c = cenario();
