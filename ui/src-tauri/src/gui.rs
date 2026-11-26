@@ -8,9 +8,9 @@ use std::sync::Arc;
 use crate::{
     acessos, alteracoes, ambiente_teste, analise, base, clones, cobertura, conducao, conexoes,
     configuracoes, conversa, demandas, docs_externos, funcionalidades, inicio, issues_projeto,
-    links_projeto, manual, mudancas, painel_funcionalidade, pauta, primeiro_uso, projeto, prompts,
-    prototipo, publicacao, rastreabilidade, registros, repositorios, resumo, reunioes, revisao,
-    terminal, tokens, vigia, vincular_issues, workflows,
+    links_projeto, manual, migracao_conexoes, mudancas, painel_funcionalidade, pauta, primeiro_uso,
+    projeto, prompts, prototipo, publicacao, rastreabilidade, registros, repositorios, resumo,
+    reunioes, revisao, terminal, tokens, vigia, vincular_issues, workflows,
 };
 
 pub fn rodar() {
@@ -20,6 +20,11 @@ pub fn rodar() {
         let _ = cba_core::log::iniciar(&dados.logs(), "app");
     }
     tracing::info!(versao = cba_core::VERSAO, "app iniciado");
+    if let Some(dados) = &dados {
+        // Cadastros de antes das conexões (#438): migra antes de a janela abrir;
+        // uma falha volta ao backup e o erro aparece em Configurações › Conexões.
+        migracao_conexoes::na_abertura(dados, &cba_repos::chaveiro::ChaveiroNativo);
+    }
     if let Some(dados) = dados {
         // Retenção dos transcripts das reuniões (#136): apaga os de prazo vencido,
         // fora da thread da interface. O aviso dos que vencem fica para as telas
@@ -60,6 +65,7 @@ pub fn rodar() {
             conexoes::remover_conexao_app,
             conexoes::guardar_credencial_conexao_app,
             conexoes::testar_conexao_app,
+            conexoes::erro_migracao_conexoes_app,
             primeiro_uso::situacao_app,
             primeiro_uso::escolher_cliente_app,
             primeiro_uso::avaliar_base_app,

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { mensagemDe } from "./analise";
 import { Alerta, EstadoVazio, Secao, Selo } from "./componentes";
 import { useConexoes } from "./ConexoesContexto";
@@ -22,6 +22,15 @@ export function SecaoConexoes() {
   const [removendo, setRemovendo] = useState<ConexaoVista | null>(null);
   const [falha, setFalha] = useState<string | null>(null);
   const [testes, setTestes] = useState<Record<string, IntegracaoProntidao | "testando">>({});
+  const [erroMigracao, setErroMigracao] = useState<string | null>(null);
+  const apiCtx = ctx?.api;
+  useEffect(() => {
+    if (!apiCtx) return;
+    Promise.resolve()
+      .then(() => apiCtx.erroMigracaoConexoes())
+      .then((e) => setErroMigracao(e ?? null))
+      .catch(() => undefined);
+  }, [apiCtx]);
   if (!ctx) return null;
   const { api, descritores, conexoes, carregando, recarregar } = ctx;
 
@@ -70,6 +79,11 @@ export function SecaoConexoes() {
         nunca no cadastro.
       </p>
       {ctx.falha && <Alerta tom="erro" titulo="Não deu para ler as conexões." >{ctx.falha}</Alerta>}
+      {erroMigracao && (
+        <Alerta tom="erro" titulo="Os cadastros antigos não foram convertidos em conexões.">
+          {erroMigracao}
+        </Alerta>
+      )}
       {falha && <Alerta tom="erro" titulo={falha} />}
       {editando === "nova" && (
         <FormConexao

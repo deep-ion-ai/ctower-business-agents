@@ -106,6 +106,8 @@ export interface ApiConexoes {
   guardarCredencialConexao(id: string, valor: string): Promise<void>;
   /** Os passos de prontidão do descritor, com a orientação de quem falhou. */
   testarConexao(id: string): Promise<IntegracaoProntidao>;
+  /** O erro da migração dos cadastros antigos nesta abertura (#438), se houve. */
+  erroMigracaoConexoes(): Promise<string | null>;
 }
 
 export const apiConexoesTauri: ApiConexoes = {
@@ -116,6 +118,7 @@ export const apiConexoesTauri: ApiConexoes = {
   guardarCredencialConexao: (id, valor) =>
     invoke("guardar_credencial_conexao_app", { id, valor }),
   testarConexao: (id) => invoke("testar_conexao_app", { id }),
+  erroMigracaoConexoes: () => invoke("erro_migracao_conexoes_app"),
 };
 
 /** Os descritores que servem para um lugar (`forja`, `rastreador`). */
