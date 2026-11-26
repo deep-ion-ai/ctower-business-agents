@@ -4,6 +4,7 @@ import { contar } from "./formatacao";
 import { mensagemDe, ROTULO_ESTADO_ANALISE, type AnaliseCriada, type Fluxo } from "./analise";
 import type { ApiAssistenteProjeto } from "./AssistenteProjeto";
 import { ClientesIA, type AbrirLink } from "./ClientesIA";
+import { Alerta, BarraAcoes, EstadoVazio, ItemLista, ListaItens, Secao, Selo } from "./componentes";
 import { apiConfiguracoesTauri } from "./configuracoes";
 import {
   ROTULO_FLUXO,
@@ -153,28 +154,22 @@ export function TelaInicio({
   return (
     <section className="tela-inicio page" aria-label="Início">
       {falha && (
-        <p className="error-text" role="alert">
-          Não foi possível carregar o início: {falha}
-        </p>
+        <Alerta tom="erro" titulo="Não foi possível carregar o início.">
+          {falha}
+        </Alerta>
       )}
       {semProjeto && (
-        <p>
+        <EstadoVazio acao={aoPrimeiroUso && { texto: "Abrir o primeiro uso", aoEscolher: aoPrimeiroUso }}>
           {inicio.base === null
             ? "Falta escolher a pasta da base de conhecimento."
-            : "Nenhum projeto cadastrado."}{" "}
-          {aoPrimeiroUso && (
-            <button className="btn" type="button" onClick={aoPrimeiroUso}>
-              Abrir o primeiro uso
-            </button>
-          )}
-        </p>
+            : "Nenhum projeto cadastrado."}
+        </EstadoVazio>
       )}
 
       {passo && <ProximoPassoInicio passo={passo} aoExecutar={() => executarPasso(passo)} />}
 
       {!semConducao && (
-      <section aria-label="Nova análise" className="fluxos">
-        <h2>Nova análise</h2>
+      <Secao titulo="Nova análise" rotulo="Nova análise">
         <div className="botoes-fluxo">
           {FLUXOS.map((f) => (
             <button
@@ -221,7 +216,7 @@ export function TelaInicio({
             aoCriar={abrirCriada}
           />
         )}
-      </section>
+      </Secao>
       )}
 
       {inicio && (
@@ -250,42 +245,45 @@ export function TelaInicio({
               aoAbrir={abrirAnalise}
             />
           )}
-          <section aria-label="Projetos">
-            <div className="titulo-com-acao">
-              <h2>Projetos</h2>
-              {inicio.base !== null && (
+          <Secao
+            titulo="Projetos"
+            rotulo="Projetos"
+            acoes={
+              inicio.base !== null && (
                 <button className="btn" type="button" onClick={() => setNovoProjeto(true)}>
                   + Novo projeto
                 </button>
-              )}
-            </div>
-            {inicio.projetos.length === 0 && <p className="muted">Nenhum projeto cadastrado.</p>}
-            <ul className="lista-projetos">
-              {inicio.projetos.map((s) => (
-                <li key={s.id}>
-                  <button
-                    className="link"
-                    type="button"
-                    onClick={() => navegar({ tipo: "projeto", projeto: s.id })}
+              )
+            }
+          >
+            {inicio.projetos.length === 0 ? (
+              <EstadoVazio>Nenhum projeto cadastrado.</EstadoVazio>
+            ) : (
+              <ListaItens>
+                {inicio.projetos.map((s) => (
+                  <ItemLista
+                    key={s.id}
+                    meta={s.aRevalidar > 0 && <Selo tom="atencao">{`${s.aRevalidar} a revalidar`}</Selo>}
                   >
-                    {s.nome}
-                  </button>{" "}
-                  {s.erro ? (
-                    <span className="error-text">{s.erro}</span>
-                  ) : (
-                    <span className="muted">
-                      {contar(s.analises, "análise", "análises")} · {contar(s.regras, "regra", "regras")} · {contar(s.termos, "termo", "termos")}
-                    </span>
-                  )}
-                  {s.aRevalidar > 0 && (
-                    <span className="badge" data-tone="attention">
-                      {s.aRevalidar} a revalidar
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </section>
+                    <button
+                      className="link"
+                      type="button"
+                      onClick={() => navegar({ tipo: "projeto", projeto: s.id })}
+                    >
+                      {s.nome}
+                    </button>{" "}
+                    {s.erro ? (
+                      <span className="error-text">{s.erro}</span>
+                    ) : (
+                      <span className="muted">
+                        {contar(s.analises, "análise", "análises")} · {contar(s.regras, "regra", "regras")} · {contar(s.termos, "termo", "termos")}
+                      </span>
+                    )}
+                  </ItemLista>
+                ))}
+              </ListaItens>
+            )}
+          </Secao>
         </>
       )}
 
@@ -356,16 +354,13 @@ function descreverPasso(p: PassoInicio): { titulo: string; texto: string; acao: 
 function ProximoPassoInicio({ passo, aoExecutar }: { passo: PassoInicio; aoExecutar: () => void }) {
   const { titulo, texto, acao } = descreverPasso(passo);
   return (
-    <section aria-label="Próximo passo" className="proximo-passo-inicio">
-      <h2>Próximo passo</h2>
+    <Secao titulo="Próximo passo" rotulo="Próximo passo" className="proximo-passo-inicio">
       <p>
         <strong>{titulo}</strong>
       </p>
       <p className="muted">{texto}</p>
-      <button type="button" className="btn btn-primary" onClick={aoExecutar}>
-        {acao}
-      </button>
-    </section>
+      <BarraAcoes rotulo="Ação do próximo passo" principal={{ texto: acao, aoEscolher: aoExecutar }} />
+    </Secao>
   );
 }
 
@@ -381,31 +376,35 @@ function ListaAnalises({
   aoAbrir: (a: AnaliseInicio) => void;
 }) {
   return (
-    <section aria-label={titulo}>
-      <h2>
-        {titulo}
-        {titulo === "Aguardando revisão" && (
-          <AjudaTermo termo="aguardando revisão">
-            O agente terminou a análise e falta você conferir e aprovar.
-          </AjudaTermo>
-        )}
-      </h2>
-      {analises.length === 0 && <p className="muted">{vazio}</p>}
+    <Secao
+      rotulo={titulo}
+      titulo={
+        <>
+          {titulo}
+          {titulo === "Aguardando revisão" && (
+            <AjudaTermo termo="aguardando revisão">
+              O agente terminou a análise e falta você conferir e aprovar.
+            </AjudaTermo>
+          )}
+        </>
+      }
+    >
+      {analises.length === 0 && vazio && <EstadoVazio>{vazio}</EstadoVazio>}
       {analises.length > 0 && (
-        <ul className="lista-analises">
+        <ListaItens>
           {analises.map((a) => (
-            <li key={`${a.projeto}/${a.id}`}>
+            <ItemLista key={`${a.projeto}/${a.id}`} meta={<Selo>{ESTADO[a.estado]}</Selo>}>
               <button className="link" type="button" onClick={() => aoAbrir(a)}>
                 {a.id}: {a.titulo}
               </button>{" "}
               <span className="muted">
-                {a.projetoNome} · {ROTULO_FLUXO[a.fluxo].toLowerCase()} · {ESTADO[a.estado]}
+                {a.projetoNome} · {ROTULO_FLUXO[a.fluxo].toLowerCase()}
                 {a.sessao && a.sessao.estado !== "encerrada" && ` · ${ROTULO_SESSAO[a.sessao.estado]}`}
               </span>
-            </li>
+            </ItemLista>
           ))}
-        </ul>
+        </ListaItens>
       )}
-    </section>
+    </Secao>
   );
 }
