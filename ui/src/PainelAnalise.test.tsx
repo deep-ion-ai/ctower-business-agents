@@ -75,6 +75,11 @@ async function terminalAberto(t: ReturnType<typeof apiTerminalFalsa>, id = 1) {
   await act(async () => t.aberturas[t.aberturas.length - 1].resolver(id));
 }
 
+/** O seletor "Mostrar evidências de código" ligado, como guardado pelo app (#404). */
+function mostrarEvidencias() {
+  localStorage.setItem("cba.evidenciasVisiveis", "1");
+}
+
 beforeEach(() => {
   localStorage.clear();
 });
@@ -204,6 +209,7 @@ describe("PainelAnalise", () => {
   });
 
   it("abre o trecho da evidência com as linhas citadas destacadas", async () => {
+    mostrarEvidencias();
     const { api } = montar(
       { tipo: "reabrir" },
       vistaFicticia({}, { afirmacoes: [AFIRMACAO_MULTA] }),
@@ -299,6 +305,7 @@ describe("PainelAnalise", () => {
   });
 
   it("o chip de evidência abre a aba Código, não o meio do documento", async () => {
+    mostrarEvidencias();
     montar(
       { tipo: "reabrir" },
       vistaFicticia({}, { afirmacoes: [AFIRMACAO_MULTA] }),
@@ -339,6 +346,7 @@ describe("PainelAnalise", () => {
   });
 
   it("anterior e próxima navegam entre as evidências da mesma afirmação", async () => {
+    mostrarEvidencias();
     const segunda = {
       arquivo: "db/03_pkg_cobranca.sql",
       linhas: "90-91",
@@ -403,6 +411,7 @@ describe("PainelAnalise", () => {
   });
 
   it("abre as linhas citadas na forja do repositório", async () => {
+    mostrarEvidencias();
     const abrirUrl = vi.fn(() => Promise.resolve());
     const { api } = montar(
       { tipo: "reabrir" },
@@ -435,6 +444,7 @@ describe("PainelAnalise", () => {
   });
 
   it("sem repositório de código cadastrado, a aba Código fica sem o link da forja", async () => {
+    mostrarEvidencias();
     montar(
       { tipo: "reabrir" },
       vistaFicticia({}, { afirmacoes: [AFIRMACAO_MULTA] }),
@@ -468,18 +478,22 @@ describe("PainelAnalise", () => {
     expect(codigo).toHaveAttribute("aria-selected", "true");
   });
 
-  it("mostra as evidências como chips arquivo:linhas, sem esconder atrás de ícone", async () => {
+  it("evidências ocultas por padrão: o </> do cartão mostra os chips arquivo:linhas (#404)", async () => {
     const { api } = montar(
       { tipo: "reabrir" },
       vistaFicticia({}, { afirmacoes: [AFIRMACAO_MULTA] }),
     );
-    const chip = await screen.findByRole("button", {
+    const ver = await screen.findByRole("button", {
+      name: "Ver a evidência no código",
+    });
+    expect(
+      screen.queryByRole("button", { name: "03_pkg_cobranca.sql:71-72" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(ver);
+    const chip = screen.getByRole("button", {
       name: "03_pkg_cobranca.sql:71-72",
     });
     expect(chip).toHaveAttribute("aria-pressed", "false");
-    expect(
-      screen.queryByRole("button", { name: /no código$/ }),
-    ).not.toBeInTheDocument();
     fireEvent.click(chip);
     expect(
       await screen.findByRole("region", { name: "Trecho da evidência" }),
@@ -501,6 +515,7 @@ describe("PainelAnalise", () => {
   });
 
   it("mostra a recusa de um trecho fora do escopo", async () => {
+    mostrarEvidencias();
     const { api } = montar(
       { tipo: "reabrir" },
       vistaFicticia({}, { afirmacoes: [AFIRMACAO_MULTA] }),
