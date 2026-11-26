@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Secao } from "./componentes";
 import { THEME_PREFS, useTheme, type ThemePref } from "./shell/theme";
 
 const DESCRICAO: Record<ThemePref, string> = {
@@ -37,11 +38,8 @@ export function ConfigAparencia() {
   const rotulo = THEME_PREFS.find((t) => t.pref === aplicado)?.rotulo;
 
   return (
-    <section className="config-secao" aria-labelledby="config-aparencia">
-      <header className="config-secao-topo">
-        <h2 id="config-aparencia">Aparência</h2>
-        <p className="muted">Muda na hora e vale para este computador.</p>
-      </header>
+    <Secao titulo="Aparência">
+      <p className="muted">Muda na hora e vale para este computador.</p>
       <fieldset className="cartoes-tema">
         <legend className="sr-only">Tema</legend>
         {THEME_PREFS.map((t) => (
@@ -65,6 +63,6 @@ export function ConfigAparencia() {
       <p className="ok-text confirmacao-tema" role="status">
         {rotulo ? `Tema “${rotulo}” aplicado.` : ""}
       </p>
-    </section>
+    </Secao>
   );
 }

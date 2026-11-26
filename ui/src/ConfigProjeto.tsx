@@ -5,6 +5,7 @@ import { AbaAvancado } from "./AbaAvancado";
 import { AbaCodigoDemandas } from "./AbaCodigoDemandas";
 import { AbaLeitura } from "./AbaLeitura";
 import { AbaVisaoGeral } from "./AbaVisaoGeral";
+import { Secao, Selo } from "./componentes";
 import type {
   AmbienteDetalhado,
   ApiConfiguracoes,
@@ -113,21 +114,21 @@ export function ConfigProjeto(props: PropsConfigProjeto) {
   const idPainel = (a: AbaProjeto) => `${base}-painel-${a}`;
 
   return (
-    <section className="config-secao pagina-projeto" aria-label={`Projeto ${projeto.nome}`}>
+    <Secao
+      titulo={projeto.nome}
+      rotulo={`Projeto ${projeto.nome}`}
+      className="pagina-projeto"
+      acoes={
+        <Selo tom={verificando ? "neutro" : problemas > 0 ? "atencao" : "concluido"}>
+          {verificando
+            ? "Verificando…"
+            : problemas > 0
+              ? `${problemas} ${problemas === 1 ? "pendência" : "pendências"}`
+              : SELO.ok}
+        </Selo>
+      }
+    >
       <header className="pagina-projeto-topo">
-        <div className="pagina-projeto-titulo">
-          <h3>{projeto.nome}</h3>
-          <span
-            className="badge"
-            data-tone={verificando ? undefined : problemas > 0 ? "attention" : "done"}
-          >
-            {verificando
-              ? "Verificando…"
-              : problemas > 0
-                ? `${problemas} ${problemas === 1 ? "pendência" : "pendências"}`
-                : SELO.ok}
-          </span>
-        </div>
         <p className="muted">{resumoDoProjeto(projeto)}</p>
         <div className="abas-projeto" role="tablist" aria-label="Partes do projeto">
           {ABAS_DO_PROJETO.map((a) => {
@@ -209,6 +210,6 @@ export function ConfigProjeto(props: PropsConfigProjeto) {
           </p>
         </DialogoConfirmacao>
       )}
-    </section>
+    </Secao>
   );
 }

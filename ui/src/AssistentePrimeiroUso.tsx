@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { mensagemDe } from "./analise";
 import { AssistenteProjeto } from "./AssistenteProjeto";
+import { Alerta, BarraAcoes, Secao, TituloSecao } from "./componentes";
 import { ResumoDoInventario } from "./ResumoDoInventario";
 import { EscolhaBase } from "./EscolhaBase";
 import { EscolhaCliente } from "./EscolhaCliente";
@@ -59,7 +60,7 @@ export function AssistentePrimeiroUso({
 
   return (
     <section className="assistente" aria-label="Primeiro uso">
-      <h2 className="titulo-assistente">Vamos preparar o app</h2>
+      <TituloSecao>Vamos preparar o app</TituloSecao>
       <ol className="etapas" aria-label="Etapas">
         {ETAPAS.map((e, i) => (
           <li
@@ -119,8 +120,11 @@ export function AssistentePrimeiroUso({
       )}
 
       {etapa === "ambiente" && projeto && (
-        <section className="passo-assistente" aria-label="Ambiente do Claude">
-          <h2>Ligar o agente a este projeto</h2>
+        <Secao
+          titulo="Ligar o agente a este projeto"
+          rotulo="Ambiente do Claude"
+          className="passo-primeiro-uso"
+        >
           {cadastrado && (
             <details className="cadastrado">
               <summary>
@@ -136,12 +140,15 @@ export function AssistentePrimeiroUso({
             grava com a sua concordância.
           </p>
           <AmbienteDoProjeto api={api} projeto={projeto.id} aoMudar={aoMudarAmbiente} />
-          <div className="acoes">
-            {!ambientePronto && (
-              <button className="btn" type="button" onClick={() => setEtapa("pronto")}>
-                Preparar depois
-              </button>
-            )}
+          {/* "Continuar" é a principal, mas leva o motivo do bloqueio (aria-describedby):
+              entra como botão próprio, no fim da fileira. */}
+          <BarraAcoes
+            rotulo="Ações do ambiente"
+            alinhamento="fim"
+            secundarias={
+              ambientePronto ? [] : [{ texto: "Preparar depois", aoEscolher: () => setEtapa("pronto") }]
+            }
+          >
             <button
               type="button"
               className="btn btn-primary"
@@ -151,14 +158,14 @@ export function AssistentePrimeiroUso({
             >
               Continuar
             </button>
-          </div>
+          </BarraAcoes>
           {!ambientePronto && (
             <p id="motivo-ambiente" className="dica motivo-bloqueio">
               Continuar fica liberado depois de ligar o agente (use “Ver e preparar” acima). Se
               preferir, escolha “Preparar depois”.
             </p>
           )}
-        </section>
+        </Secao>
       )}
 
       {etapa === "pronto" && projeto && (
@@ -247,39 +254,41 @@ function Pronto({
   };
 
   return (
-    <section className="passo-assistente" aria-label="Primeira análise">
-      <h2>
-        {ambientePronto
+    <Secao
+      titulo={
+        ambientePronto
           ? `Tudo pronto para analisar “${projeto.nome}”`
-          : `“${projeto.nome}” está cadastrado, falta ligar o agente`}
-      </h2>
+          : `“${projeto.nome}” está cadastrado, falta ligar o agente`
+      }
+      rotulo="Primeira análise"
+      className="passo-primeiro-uso"
+    >
       {!ambientePronto && (
-        <p className="attention-text" role="status">
-          O agente ainda não foi ligado a este projeto. Os primeiros passos na Visão geral mostram
-          o que falta, e a tela da análise pede o preparo antes da primeira pergunta.
-        </p>
+        <Alerta tom="atencao" titulo="O agente ainda não foi ligado a este projeto.">
+          Os primeiros passos na Visão geral mostram o que falta, e a tela da análise pede o preparo
+          antes da primeira pergunta.
+        </Alerta>
       )}
       <p>Que tal começar com uma pergunta? Escolha uma sugestão ou escreva a sua.</p>
-      <div className="sugestoes" role="group" aria-label="Sugestões">
-        {SUGESTOES_PRIMEIRA_ANALISE.map((s) => (
-          <button className="btn" key={s} type="button" onClick={() => setPergunta(s)}>
-            {s}
-          </button>
-        ))}
-      </div>
+      <BarraAcoes
+        rotulo="Sugestões"
+        secundarias={SUGESTOES_PRIMEIRA_ANALISE.map((s) => ({ texto: s, aoEscolher: () => setPergunta(s) }))}
+      />
       <label>
         Primeira pergunta
         <textarea rows={3} value={pergunta} onChange={(e) => setPergunta(e.target.value)} />
       </label>
       {falha && (
-        <p className="error-text" role="alert">
+        <Alerta tom="erro" titulo="Não deu para concluir o primeiro uso.">
           {falha}
-        </p>
+        </Alerta>
       )}
-      <div className="acoes">
-        <button className="btn" type="button" onClick={() => concluir(false)} disabled={gravando}>
-          Ir para o início
-        </button>
+      {/* A principal leva o motivo do bloqueio (aria-describedby): botão próprio, no fim. */}
+      <BarraAcoes
+        rotulo="Ações da primeira análise"
+        alinhamento="fim"
+        secundarias={[{ texto: "Ir para o início", aoEscolher: () => concluir(false), desabilitado: gravando }]}
+      >
         <button
           type="button"
           className="btn btn-primary"
@@ -289,12 +298,12 @@ function Pronto({
         >
           Fazer a primeira análise
         </button>
-      </div>
+      </BarraAcoes>
       {!pergunta.trim() && (
         <p id="motivo-pergunta" className="dica motivo-bloqueio">
           Escreva uma pergunta ou escolha uma sugestão acima para fazer a primeira análise.
         </p>
       )}
-    </section>
+    </Secao>
   );
 }

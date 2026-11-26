@@ -426,7 +426,7 @@ describe("TelaConfiguracoes", () => {
 
   describe("Modelos e prompts", () => {
     function grupo(nome: string) {
-      return within(screen.getByRole("region", { name: nome }));
+      return within(screen.getByRole("article", { name: nome }));
     }
 
     it("lista os grupos com descrição e estado de cada item", async () => {
@@ -456,7 +456,7 @@ describe("TelaConfiguracoes", () => {
       expect(filtro).toHaveAttribute("aria-pressed", "true");
       expect(screen.getByText("Análise de impacto")).toBeInTheDocument();
       expect(screen.queryByText("Perguntar ao sistema")).not.toBeInTheDocument();
-      expect(screen.queryByRole("region", { name: "Prompts prontos" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("article", { name: "Prompts prontos" })).not.toBeInTheDocument();
       fireEvent.click(filtro);
       expect(screen.getByText("Perguntar ao sistema")).toBeInTheDocument();
     });

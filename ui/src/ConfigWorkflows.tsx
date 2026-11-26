@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { mensagemDe } from "./analise";
+import {
+  Alerta,
+  BarraAcoes,
+  Cartao,
+  EstadoVazio,
+  ItemLista,
+  ListaItens,
+  Secao,
+  Selo,
+  type TomSelo,
+} from "./componentes";
 import { DialogoConfirmacao } from "./DialogoConfirmacao";
 import type { PainelWorkflow } from "./EditorWorkflow";
 import {
@@ -108,22 +119,15 @@ export function ConfigWorkflows({
     });
 
   return (
-    <section className="config-secao" aria-labelledby="config-workflows">
-      <header className="config-secao-topo">
-        <h2 id="config-workflows">Workflows das análises</h2>
-        <p className="muted">
-          Na condução aprofundada, o agente roda um workflow do Claude Code: um script com as fases
-          da análise. O app traz um padrão para cada tipo. Você pode duplicá-lo e ajustar a cópia; a
-          cópia na base vale antes da cópia para todos os projetos, e as duas antes do padrão.
-          Atualizar o app nunca muda as suas cópias.
-        </p>
-      </header>
+    <Secao titulo="Workflows das análises">
+      <p className="muted">
+        Na condução aprofundada, o agente roda um workflow do Claude Code: um script com as fases da
+        análise. O app traz um padrão para cada tipo. Você pode duplicá-lo e ajustar a cópia; a cópia
+        na base vale antes da cópia para todos os projetos, e as duas antes do padrão. Atualizar o
+        app nunca muda as suas cópias.
+      </p>
 
-      {falha && (
-        <p className="error-text" role="alert">
-          {falha}
-        </p>
-      )}
+      {falha && <Alerta tom="erro" titulo={falha} />}
       {recado && (
         <p className="muted" role="status">
           {recado}
@@ -132,33 +136,36 @@ export function ConfigWorkflows({
       {lista === null && !falha && <p className="muted">Carregando os workflows…</p>}
 
       {lista?.map((w) => (
-        <section key={w.tipo} className="config-cartao" aria-label={w.rotulo}>
+        <Cartao key={w.tipo} rotulo={w.rotulo}>
           <div className="config-cartao-topo">
             <h3>
               {w.rotulo} <code>{w.nome}</code>
             </h3>
-            <span className="badge" data-tone={w.origemEfetiva === "padrao" ? undefined : "running"}>
+            <Selo tom={w.origemEfetiva === "padrao" ? "neutro" : "andamento"}>
               Em uso: {ORIGEM[w.origemEfetiva]}
-            </span>
+            </Selo>
           </div>
           {w.fases.length > 0 && (
             <p className="muted fases-resumo">Fases: {w.fases.map((f) => f.titulo).join(" → ")}</p>
           )}
-          <ul className="config-lista">
-            <li className="config-item">
+          <ListaItens>
+            <ItemLista
+              acoes={
+                <button
+                  className="btn btn-sm"
+                  type="button"
+                  aria-label={`Ver o padrão de ${w.nome}`}
+                  onClick={() => aoEditar(w.tipo, null)}
+                >
+                  Ver o padrão
+                </button>
+              }
+            >
               <span className="config-item-texto">
                 <span className="config-item-nome">Padrão do app</span>
                 <span className="muted">Vem com o app e muda quando ele é atualizado.</span>
               </span>
-              <button
-                className="btn btn-sm"
-                type="button"
-                aria-label={`Ver o padrão de ${w.nome}`}
-                onClick={() => aoEditar(w.tipo, null)}
-              >
-                Ver o padrão
-              </button>
-            </li>
+            </ItemLista>
             <LinhaCopia
               w={w}
               destino="global"
@@ -178,11 +185,11 @@ export function ConfigWorkflows({
               aoEditar={aoEditar}
               aoRestaurar={() => setRestaurando({ w, destino: "projeto" })}
             />
-          </ul>
+          </ListaItens>
           <div className="linha-config">
             <h4>Nos projetos</h4>
             {w.instalacoes.length === 0 ? (
-              <p className="muted">Nenhum projeto cadastrado.</p>
+              <EstadoVazio>Nenhum projeto cadastrado.</EstadoVazio>
             ) : (
               <ul className="instalacoes-workflow">
                 {w.instalacoes.map((i) => (
@@ -194,9 +201,7 @@ export function ConfigWorkflows({
                       <ul>
                         {i.arquivos.map((a) => (
                           <li key={a.arquivo}>
-                            <span className="badge" data-tone={tomDaInstalacao(a)}>
-                              {SITUACAO[a.situacao]}
-                            </span>{" "}
+                            <Selo tom={tomDaInstalacao(a)}>{SITUACAO[a.situacao]}</Selo>{" "}
                             {textoDaInstalacao(a)} <code className="caminho">{a.arquivo}</code>
                             {a.situacao === "divergente" && (
                               <span className="acoes">
@@ -226,7 +231,7 @@ export function ConfigWorkflows({
               </ul>
             )}
           </div>
-        </section>
+        </Cartao>
       ))}
 
       {restaurando && (
@@ -297,7 +302,7 @@ export function ConfigWorkflows({
           </p>
         </DialogoConfirmacao>
       )}
-    </section>
+    </Secao>
   );
 }
 
@@ -327,7 +332,50 @@ function LinhaCopia({
   const existe = copia !== null && copia.situacao !== "ausente";
   const rotulo = `${DESTINO[destino]} de ${w.nome}`;
   return (
-    <li className="config-item config-item-workflow">
+    <ItemLista
+      meta={<Selo tom={tomDaCopia(w, copia)}>{estadoDaCopia(w, copia)}</Selo>}
+      acoes={
+        !existe ? (
+          <button
+            className="btn btn-sm"
+            type="button"
+            disabled={ocupado || semBase}
+            aria-label={`Duplicar ${w.nome}: ${DESTINO[destino].toLowerCase()}`}
+            onClick={aoDuplicar}
+          >
+            Duplicar
+          </button>
+        ) : (
+          <BarraAcoes rotulo={`Ações da ${rotulo.charAt(0).toLowerCase()}${rotulo.slice(1)}`} alinhamento="fim">
+            <button
+              className="btn btn-sm"
+              type="button"
+              aria-label={`Editar a ${rotulo.charAt(0).toLowerCase()}${rotulo.slice(1)}`}
+              onClick={() => aoEditar(w.tipo, destino)}
+            >
+              Editar
+            </button>
+            <button
+              className="btn btn-sm"
+              type="button"
+              aria-label={`Ver a diferença da ${rotulo.charAt(0).toLowerCase()}${rotulo.slice(1)} com o padrão`}
+              onClick={() => aoEditar(w.tipo, destino, "diferenca")}
+            >
+              Ver a diferença
+            </button>
+            <button
+              className="btn btn-sm"
+              type="button"
+              disabled={ocupado}
+              aria-label={`Restaurar o padrão no lugar da ${rotulo.charAt(0).toLowerCase()}${rotulo.slice(1)}`}
+              onClick={aoRestaurar}
+            >
+              Restaurar o padrão
+            </button>
+          </BarraAcoes>
+        )
+      }
+    >
       <span className="config-item-texto">
         <span className="config-item-nome">{DESTINO[destino]}</span>
         <span className="muted">{EXPLICACAO[destino]}</span>
@@ -352,49 +400,7 @@ function LinhaCopia({
         )}
         {semBase && <span className="muted">Escolha a pasta da base para ter uma cópia nela.</span>}
       </span>
-      <span className="badge" data-tone={tomDaCopia(w, copia)}>
-        {estadoDaCopia(w, copia)}
-      </span>
-      {!existe ? (
-        <button
-          className="btn btn-sm btn-primary"
-          type="button"
-          disabled={ocupado || semBase}
-          aria-label={`Duplicar ${w.nome}: ${DESTINO[destino].toLowerCase()}`}
-          onClick={aoDuplicar}
-        >
-          Duplicar
-        </button>
-      ) : (
-        <span className="acoes">
-          <button
-            className="btn btn-sm btn-primary"
-            type="button"
-            aria-label={`Editar a ${rotulo.charAt(0).toLowerCase()}${rotulo.slice(1)}`}
-            onClick={() => aoEditar(w.tipo, destino)}
-          >
-            Editar
-          </button>
-          <button
-            className="btn btn-sm"
-            type="button"
-            aria-label={`Ver a diferença da ${rotulo.charAt(0).toLowerCase()}${rotulo.slice(1)} com o padrão`}
-            onClick={() => aoEditar(w.tipo, destino, "diferenca")}
-          >
-            Ver a diferença
-          </button>
-          <button
-            className="btn btn-sm"
-            type="button"
-            disabled={ocupado}
-            aria-label={`Restaurar o padrão no lugar da ${rotulo.charAt(0).toLowerCase()}${rotulo.slice(1)}`}
-            onClick={aoRestaurar}
-          >
-            Restaurar o padrão
-          </button>
-        </span>
-      )}
-    </li>
+    </ItemLista>
   );
 }
 
@@ -406,11 +412,11 @@ function estadoDaCopia(w: WorkflowVista, c: Copia | null): string {
   return "substituída pela cópia na base";
 }
 
-function tomDaCopia(w: WorkflowVista, c: Copia | null): "running" | "attention" | "error" | undefined {
-  if (c === null || c.situacao === "ausente") return undefined;
-  if (c.situacao !== "valida") return "error";
-  if (c.padraoMudou) return "attention";
-  return w.origemEfetiva === c.origem ? "running" : undefined;
+function tomDaCopia(w: WorkflowVista, c: Copia | null): TomSelo {
+  if (c === null || c.situacao === "ausente") return "neutro";
+  if (c.situacao !== "valida") return "erro";
+  if (c.padraoMudou) return "atencao";
+  return w.origemEfetiva === c.origem ? "andamento" : "neutro";
 }
 
 const SITUACAO: Record<ArquivoInstalado["situacao"], string> = {
@@ -436,8 +442,8 @@ function textoDaInstalacao(a: ArquivoInstalado): string {
   }
 }
 
-function tomDaInstalacao(a: ArquivoInstalado): "done" | "attention" | "error" | undefined {
-  if (a.situacao === "ok") return "done";
-  if (a.situacao === "conflito") return "error";
-  return "attention";
+function tomDaInstalacao(a: ArquivoInstalado): TomSelo {
+  if (a.situacao === "ok") return "concluido";
+  if (a.situacao === "conflito") return "erro";
+  return "atencao";
 }

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { mensagemDe } from "./analise";
 import type { EstadoClientes } from "./clientes";
+import { Alerta, BarraAcoes, Secao, Selo } from "./componentes";
 import { Passos, textoLogin, useEstadoClientes } from "./ClientesIA";
 import type { ApiConfiguracoes } from "./configuracoes";
 import { pendenciaDoCliente } from "./EscolhaCliente";
@@ -86,20 +87,17 @@ export function ConfigAssistente({
     estado && escolhido === c ? (
       <span className="config-linha-chips">
         {chipsDoCliente(c, estado).map((x) => (
-          <span key={x.texto} className="badge" data-tone={x.ok ? "done" : "attention"}>
+          <Selo key={x.texto} tom={x.ok ? "concluido" : "atencao"}>
             {x.ok ? "✓ " : ""}
             {x.texto}
-          </span>
+          </Selo>
         ))}
       </span>
     ) : null;
 
   return (
-    <section className="config-secao" aria-labelledby="config-assistente">
-      <header className="config-secao-topo">
-        <h2 id="config-assistente">Assistente de IA</h2>
-        <p className="muted">Onde você conversa com o agente durante as análises.</p>
-      </header>
+    <Secao titulo="Assistente de IA">
+      <p className="muted">Onde você conversa com o agente durante as análises.</p>
       <fieldset className="cartoes-opcao">
         <legend className="sr-only">Onde conversar</legend>
         <label className="cartao-opcao" data-escolhido={escolhido === "terminalEmbutido"}>
@@ -114,7 +112,7 @@ export function ConfigAssistente({
           <span className="cartao-opcao-corpo">
             <span className="cartao-opcao-titulo">
               <strong>No terminal do app</strong>
-              <span className="badge">Claude Code · recomendado</span>
+              <Selo>Claude Code · recomendado</Selo>
               {!cliente && <span className="muted">(padrão)</span>}
             </span>
             <span className="muted">A conversa fica ao lado do documento, numa janela só.</span>
@@ -153,15 +151,14 @@ export function ConfigAssistente({
 
       {carga.tipo === "verificando" && <p className="muted">Verificando o cliente…</p>}
       {carga.tipo === "erro" && (
-        <p className="error-text" role="alert">
-          Não foi possível verificar os clientes de IA. A escolha vale mesmo assim; confira depois.
-        </p>
+        <Alerta tom="erro" titulo="Não foi possível verificar os clientes de IA.">
+          A escolha vale mesmo assim; confira depois.
+        </Alerta>
       )}
       {pendencia && (
-        <div className="config-aviso" role="status">
-          <p className="attention-text">{pendencia}</p>
+        <Alerta tom="atencao" titulo={pendencia}>
           <Passos passos={orientacao} abrirLink={api.abrirLink} />
-        </div>
+        </Alerta>
       )}
       {salvo && (
         <p className="ok-text" role="status">
@@ -169,20 +166,14 @@ export function ConfigAssistente({
         </p>
       )}
       {falha && (
-        <p className="error-text" role="alert">
-          {falha}
-        </p>
+        <Alerta tom="erro" titulo={falha} />
       )}
-      <div className="acoes config-acoes-inicio">
-        <button
-          className="btn"
-          type="button"
-          onClick={verificar}
-          disabled={carga.tipo === "verificando"}
-        >
-          Verificar de novo
-        </button>
-      </div>
-    </section>
+      <BarraAcoes
+        rotulo="Ações do assistente de IA"
+        secundarias={[
+          { texto: "Verificar de novo", aoEscolher: verificar, desabilitado: carga.tipo === "verificando" },
+        ]}
+      />
+    </Secao>
   );
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { mensagemDe } from "./analise";
+import { Alerta, BarraAcoes, Secao, Selo } from "./componentes";
 import {
   ROTULO_CATEGORIA_TOKEN,
   type ApiPrototipo,
@@ -90,15 +91,18 @@ export function TokensProjeto({
   const aprovado = tokens?.estado === "aprovado";
 
   return (
-    <section className="identidade-visual" aria-label="Identidade visual">
-      <div className="identidade-visual-cabecalho">
-        <h4>Identidade visual</h4>
-        {tokens && (
-          <span className="badge" data-tone={aprovado ? "done" : "attention"}>
+    <Secao
+      titulo="Identidade visual"
+      nivel={4}
+      className="identidade-visual"
+      acoes={
+        tokens && (
+          <Selo tom={aprovado ? "concluido" : "atencao"}>
             {aprovado ? "Aprovada" : "Rascunho, aguarda sua revisão"}
-          </span>
-        )}
-      </div>
+          </Selo>
+        )
+      }
+    >
       {tokens === undefined ? (
         <p className="muted">Carregando os tokens do projeto…</p>
       ) : tokens === null ? (
@@ -107,11 +111,10 @@ export function TokensProjeto({
             Os tokens CSS (cores, tipografia, espaçamento e raio) ainda não foram extraídos do
             código da interface deste projeto.
           </p>
-          <div className="acoes">
-            <button type="button" className="btn" disabled={ocupado} onClick={extrair}>
-              Extrair do código
-            </button>
-          </div>
+          <BarraAcoes
+            rotulo="Ações da identidade visual"
+            secundarias={[{ texto: "Extrair do código", aoEscolher: extrair, desabilitado: ocupado }]}
+          />
         </>
       ) : (
         <>
@@ -125,7 +128,7 @@ export function TokensProjeto({
             )}
             . Arquivo: <span className="mono">{tokens.arquivo}</span>
           </p>
-          <div className="acoes">
+          <BarraAcoes rotulo="Ações da identidade visual">
             <button
               type="button"
               className="btn"
@@ -145,7 +148,7 @@ export function TokensProjeto({
             >
               {aprovado ? "Identidade visual aprovada" : "Aprovar a identidade visual"}
             </button>
-          </div>
+          </BarraAcoes>
           {aberto &&
             CATEGORIAS.map((c) => {
               const papeis = tokens.papeis.filter((p) => p.categoria === c);
@@ -176,12 +179,8 @@ export function TokensProjeto({
           {AVISO_WIREFRAME}
         </p>
       )}
-      {falha && (
-        <p className="error-text" role="alert">
-          {falha}
-        </p>
-      )}
-    </section>
+      {falha && <Alerta tom="erro" titulo={falha} />}
+    </Secao>
   );
 }
 
@@ -225,9 +224,7 @@ function LinhaPapel({
         <span className="mono">{propriedade}</span>
         <span className="muted">{papel.descricao}</span>
         {aConfirmar ? (
-          <span className="badge" data-tone="attention">
-            a confirmar
-          </span>
+          <Selo tom="atencao">a confirmar</Selo>
         ) : (
           <span>
             <span className="mono">{papel.valor}</span>{" "}

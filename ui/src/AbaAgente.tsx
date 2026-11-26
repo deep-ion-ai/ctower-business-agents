@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { mensagemDe, type SituacaoProtecao } from "./analise";
 import { AbrirTexto } from "./AbrirTexto";
+import { Alerta, BarraAcoes, Secao, Selo } from "./componentes";
 import type { PropsConfigProjeto } from "./ConfigProjeto";
 import { ESTADO_DO_TEXTO, type AmbienteDetalhado } from "./configuracoes";
 import { PrepararAmbiente } from "./PrepararAmbiente";
@@ -70,13 +71,12 @@ function PreparoDoAgente({ api, cfg, projeto, estado, aoReverificarAmbiente }: P
   const ambiente = estado.ambiente;
   const v = ambiente?.verificacao;
   return (
-    <section className="cartao-config" aria-label="Preparo do agente">
-      <div className="cartao-config-topo">
-        <h4>O agente neste projeto</h4>
-        <span
-          className="badge"
-          data-tone={!ambiente ? undefined : ambiente.pronto ? "done" : "attention"}
-        >
+    <Secao
+      titulo="O agente neste projeto"
+      nivel={4}
+      rotulo="Preparo do agente"
+      acoes={
+        <Selo tom={!ambiente ? "neutro" : ambiente.pronto ? "concluido" : "atencao"}>
           {ambiente === undefined
             ? "verificando…"
             : ambiente === null
@@ -84,26 +84,30 @@ function PreparoDoAgente({ api, cfg, projeto, estado, aoReverificarAmbiente }: P
               : ambiente.pronto
                 ? "✓ preparado"
                 : "não preparado"}
-        </span>
-      </div>
+        </Selo>
+      }
+    >
       <div className="linha-config preparo-corpo">
         {ambiente === null && (
-          <p className="error-text" role="alert">
-            Não foi possível verificar a configuração do Claude deste projeto.{" "}
-            <button
-              type="button"
-              className="link"
-              onClick={() => void aoReverificarAmbiente(projeto.id)}
-            >
-              Verificar de novo
-            </button>
-          </p>
+          <Alerta
+            tom="erro"
+            titulo="Não foi possível verificar a configuração do Claude deste projeto."
+            acoes={
+              <button
+                type="button"
+                className="link"
+                onClick={() => void aoReverificarAmbiente(projeto.id)}
+              >
+                Verificar de novo
+              </button>
+            }
+          />
         )}
         {ambiente && (
           <ul className="itens-preparo">
             {itensDoPreparo(ambiente).map((i) => (
-              <li key={i.titulo} data-estado={i.ok ? "ok" : "problema"}>
-                <span className="saude-icone" aria-hidden="true">
+              <li key={i.titulo}>
+                <span className="saude-icone" data-estado={i.ok ? "ok" : "problema"} aria-hidden="true">
                   {i.ok ? "✓" : "!"}
                 </span>
                 <div className="saude-texto">
@@ -155,7 +159,7 @@ function PreparoDoAgente({ api, cfg, projeto, estado, aoReverificarAmbiente }: P
           </details>
         )}
       </div>
-    </section>
+    </Secao>
   );
 }
 
@@ -191,7 +195,7 @@ function Protecao({ api, projeto }: PropsConfigProjeto) {
 
   const ligada = situacao?.ligada ?? false;
   return (
-    <section className="cartao-config" aria-label="Proteção contra edição">
+    <Secao rotulo="Proteção contra edição">
       <div className="linha-config protecao-corpo">
         <div className="protecao-texto">
           <h4 id={`protecao-${projeto.id}`}>Impedir que o agente altere arquivos</h4>
@@ -263,12 +267,8 @@ function Protecao({ api, projeto }: PropsConfigProjeto) {
           <span aria-hidden="true" />
         </button>
       </div>
-      {falha && (
-        <p className="error-text linha-config" role="alert">
-          {falha}
-        </p>
-      )}
-    </section>
+      {falha && <Alerta tom="erro" titulo={falha} />}
+    </Secao>
   );
 }
 
@@ -296,11 +296,12 @@ function InstrucoesDoProjeto({
   const linhas = (texto ?? "").split("\n").filter((l) => l.trim() !== "");
   const resto = linhas.length - LINHAS_DA_PREVIA;
   return (
-    <section className="cartao-config" aria-label={`Instruções do projeto ${projeto.nome}`}>
-      <div className="cartao-config-topo">
-        <h4>Instruções para o agente</h4>
-        <span className="badge">{ESTADO_DO_TEXTO[regras.estado]}</span>
-      </div>
+    <Secao
+      titulo="Instruções para o agente"
+      nivel={4}
+      rotulo={`Instruções do projeto ${projeto.nome}`}
+      acoes={<Selo>{ESTADO_DO_TEXTO[regras.estado]}</Selo>}
+    >
       <div className="linha-config instrucoes-corpo">
         <p className="muted">
           Valem em toda análise deste projeto, além das regras gerais ({regras.arquivo}).
@@ -311,10 +312,10 @@ function InstrucoesDoProjeto({
             {resto > 0 && `\n… mais ${resto} ${resto === 1 ? "linha" : "linhas"}`}
           </pre>
         )}
-        <div className="acoes">
+        <BarraAcoes rotulo="Ações das instruções">
           <AbrirTexto api={api} texto={regras} aoAbrir={aoAbrirTexto} aoEditar={aoEditar} />
-        </div>
+        </BarraAcoes>
       </div>
-    </section>
+    </Secao>
   );
 }

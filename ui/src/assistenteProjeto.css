@@ -149,6 +149,7 @@
 .secao-passo {
   display: flex;
   flex-direction: column;
+  gap: var(--space-2);
 }
 
 fieldset.sem-borda {
@@ -159,16 +160,6 @@ fieldset.sem-borda {
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.cartao-assistente {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-2);
 }
 
 /* Opções em cartão (radio de verdade, navegável pelas setas). */
@@ -245,20 +236,12 @@ fieldset.sem-borda {
   overflow-wrap: anywhere;
 }
 
-.lista-repos {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.lista-repos li {
+/* Repositório na lista (encontrado na pasta ou clonado): nome, selo e branch. */
+.linha-repo-lido {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 /* ---- Clonar ---- */
@@ -369,7 +352,7 @@ fieldset.sem-borda {
   gap: 6px;
 }
 
-.token-proprio p:empty {
+.token-proprio > div:empty {
   display: none;
 }
 
@@ -415,13 +398,6 @@ fieldset.sem-borda {
   font-family: var(--mono);
 }
 
-.falha-clone {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
 /* Cancelar o clone em andamento. */
 .acoes-clone {
   display: flex;
@@ -430,23 +406,7 @@ fieldset.sem-borda {
   gap: 10px;
 }
 
-/* Tokens globais. */
-.lista-tokens {
-  list-style: none;
-  margin: 0;
-  gap: 0;
-  padding: 0;
-}
-
-.lista-tokens > li {
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--border);
-}
-
-.lista-tokens > li:last-child {
-  border-bottom: 0;
-}
-
+/* Tokens globais: uma linha por host. */
 .linha-token {
   display: flex;
   align-items: center;
@@ -475,13 +435,6 @@ fieldset.sem-borda {
 
 .status-previa progress {
   vertical-align: middle;
-}
-
-.falha-previa {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
 }
 
 .previa-leitura {
@@ -557,42 +510,15 @@ fieldset.sem-borda {
   font-size: var(--fs-support);
 }
 
-.aviso-segredos {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px;
-  border: 1px solid var(--attention-border);
-  border-radius: 8px;
-  background: var(--attention-card);
-}
-
-.aviso-segredos ul,
-.lista-incluiveis {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.aviso-segredos li,
-.lista-incluiveis li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+/* Lista de grupos de itens fora: rola dentro do cartão em vez de esticar o passo. */
+.rolagem-incluiveis {
+  max-height: 320px;
+  overflow-y: auto;
   overflow-wrap: anywhere;
 }
 
-/* Lista de grupos de itens fora: rola dentro do cartão em vez de esticar o passo. */
-.ajustes-leitura .lista-incluiveis {
-  max-height: 320px;
-  overflow-y: auto;
-}
-
-.ajustes-leitura {
+/* O cartão do ajuste fino: o botão de abrir ocupa a largura toda, sem a margem do cartão. */
+.assistente-projeto .ajustes-leitura {
   padding: 0;
   gap: 0;
 }
@@ -637,7 +563,7 @@ fieldset.sem-borda {
 
 /* ---- Demandas ---- */
 
-.linha-info {
+.assistente-projeto .linha-info {
   flex-direction: row;
   align-items: flex-start;
 }
@@ -697,10 +623,13 @@ fieldset.sem-borda {
 
 /* ---- Revisar ---- */
 
-.resumo-cadastro {
-  margin: 0;
+.assistente-projeto .resumo-cadastro {
   gap: 0;
   padding: 0;
+}
+
+.resumo-cadastro dl {
+  margin: 0;
 }
 
 .linha-resumo {
@@ -776,11 +705,9 @@ fieldset.sem-borda {
   background: var(--done-bg);
 }
 
-.assistente-projeto.concluido .acoes {
+.acoes-concluido {
   display: flex;
-  flex-wrap: wrap;
   justify-content: center;
-  gap: 10px;
 }
 
 @media (max-width: 40rem) {
@@ -792,6 +719,32 @@ fieldset.sem-borda {
     grid-column: 1 / -1;
     grid-row: 2;
   }
+}
+
+/* ---- Passos do primeiro uso (cliente de IA, base, ambiente, primeira análise) ---- */
+
+.passo-primeiro-uso p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.passo-primeiro-uso textarea,
+.escolha-base input.caminho {
+  width: 100%;
+}
+
+.escolha-base {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.escolha-base p {
+  margin: 0;
+}
+
+.escolha-base input.caminho {
+  max-width: 36rem;
 }
 
 /* ---- Modal “Novo projeto” (Início e Configurações) ---- */
