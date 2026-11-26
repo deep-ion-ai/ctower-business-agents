@@ -8,6 +8,7 @@ import type {
   Multiplicidade,
   Pergunta,
 } from "./analise";
+import { Selo } from "./componentes";
 import { DiagramaMermaid } from "./DiagramaMermaid";
 import type { ElementoDoDiagrama } from "./mermaid";
 
@@ -112,9 +113,10 @@ function ItemAchado({
       <strong>{TIPO_ACHADO[achado.tipo] ?? achado.tipo}:</strong> {achado.texto}{" "}
       {botoes}
       {pergunta ? (
-        <span className="badge" data-tone="done">
-          virou a pergunta {pergunta.numero}
-        </span>
+        <>
+          {" "}
+          <Selo tom="concluido">virou a pergunta {pergunta.numero}</Selo>
+        </>
       ) : (
         revisao &&
         (editando ? (
@@ -316,20 +318,13 @@ export function DiagramaAoVivo({
                   <>
                     <code>{n.entidade.tabela}</code>{" "}
                     {n.entidade.termo ? (
-                      <span
-                        className="badge"
-                        data-tone="done"
-                        title="Termo do glossário"
-                      >
+                      <Selo tom="concluido" titulo="Termo do glossário">
                         glossário: {n.entidade.termo}
-                      </span>
+                      </Selo>
                     ) : (
-                      <span
-                        className="badge"
-                        title="A tabela não tem termo no glossário"
-                      >
+                      <Selo tom="neutro" titulo="A tabela não tem termo no glossário">
                         fora do glossário
-                      </span>
+                      </Selo>
                     )}
                   </>
                 ) : (
@@ -375,18 +370,17 @@ export function DiagramaAoVivo({
                   <>
                     {MULTIPLICIDADE[a.relacao.de]}:
                     {MULTIPLICIDADE[a.relacao.para]}{" "}
-                    <span
-                      className="badge"
-                      data-tone={
+                    <Selo
+                      tom={
                         a.relacao.origem === "chave_estrangeira"
-                          ? "done"
-                          : undefined
+                          ? "concluido"
+                          : "neutro"
                       }
                     >
                       {a.relacao.origem === "chave_estrangeira"
                         ? "chave estrangeira"
                         : "inferida de join no código"}
-                    </span>
+                    </Selo>
                   </>
                 ) : (
                   a.rotulo
@@ -418,12 +412,17 @@ export function DiagramaAoVivo({
                 )}
               </td>
               <td>
-                <span
-                  className="badge"
-                  data-tone={a.confianca === "confirmado" ? "done" : undefined}
+                <Selo
+                  tom={
+                    a.confianca === "confirmado"
+                      ? "concluido"
+                      : a.confianca === "a_confirmar"
+                        ? "atencao"
+                        : "neutro"
+                  }
                 >
                   {CONFIANCA[a.confianca] ?? a.confianca}
-                </span>
+                </Selo>
               </td>
               <td>{botoes(a.evidencias)}</td>
             </tr>

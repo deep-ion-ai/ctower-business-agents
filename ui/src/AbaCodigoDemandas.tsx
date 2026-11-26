@@ -1,5 +1,6 @@
 import { useRef, useState, type KeyboardEvent } from "react";
 import { mensagemDe } from "./analise";
+import { Alerta, EstadoVazio, Secao, Selo } from "./componentes";
 import { DestinoDocumentacao } from "./DestinoDocumentacao";
 import type { PropsConfigProjeto } from "./ConfigProjeto";
 import {
@@ -118,11 +119,7 @@ function RepositoriosDeCodigo({
           fixo={fixo}
           aoMudar={(valor) => setEdicao({ ...edicao, valor })}
         />
-        {falha && (
-          <p className="error-text" role="alert">
-            {falha}
-          </p>
-        )}
+        {falha && <Alerta tom="erro" titulo={falha} />}
         <div className="acoes">
           <button
             className="btn"
@@ -148,34 +145,38 @@ function RepositoriosDeCodigo({
     );
 
   return (
-    <section className="cartao-config" aria-label="Repositórios de código">
-      <div className="cartao-config-topo">
-        <h4>Repositórios de código</h4>
-        {codigo.length > 0 && (
+    <Secao
+      titulo="Repositórios de código"
+      nivel={4}
+      acoes={
+        <>
+          {codigo.length > 0 && (
+            <button
+              className="btn btn-sm"
+              type="button"
+              disabled={prontidao === undefined}
+              onClick={() => aoConferirProntidao(projeto.id, true)}
+            >
+              Conferir de novo
+            </button>
+          )}
           <button
             className="btn btn-sm"
             type="button"
-            disabled={prontidao === undefined}
-            onClick={() => aoConferirProntidao(projeto.id, true)}
+            disabled={edicao !== null}
+            onClick={() => {
+              setAviso(null);
+              setFalha(null);
+              setEdicao({ indice: null, valor: { ...REPOSITORIO_CODIGO_VAZIO } });
+            }}
           >
-            Conferir de novo
+            + Adicionar repositório
           </button>
-        )}
-        <button
-          className="btn btn-sm"
-          type="button"
-          disabled={edicao !== null}
-          onClick={() => {
-            setAviso(null);
-            setFalha(null);
-            setEdicao({ indice: null, valor: { ...REPOSITORIO_CODIGO_VAZIO } });
-          }}
-        >
-          + Adicionar repositório
-        </button>
-      </div>
+        </>
+      }
+    >
       {codigo.length === 0 && edicao?.indice !== null && (
-        <p className="muted linha-config">Nenhum repositório de código.</p>
+        <EstadoVazio>Nenhum repositório de código.</EstadoVazio>
       )}
       <ul className="lista-config">
         {codigo.map((r, i) => {
@@ -198,7 +199,7 @@ function RepositoriosDeCodigo({
               key={`${r.host}/${r.caminho}`}
               className="linha-config linha-repositorio"
             >
-              <span className="badge">{FORJA[r.forja]}</span>
+              <Selo>{FORJA[r.forja]}</Selo>
               <div className="linha-config-texto">
                 <span className="caminho">
                   {r.url_clone || `${r.host}/${r.caminho}`}
@@ -220,16 +221,15 @@ function RepositoriosDeCodigo({
                   </span>
                 )}
               </div>
-              <span
-                className="badge"
-                data-tone={
+              <Selo
+                tom={
                   prontidao === undefined
-                    ? "running"
+                    ? "andamento"
                     : comFalha
-                      ? "error"
+                      ? "erro"
                       : integ
-                        ? "done"
-                        : undefined
+                        ? "concluido"
+                        : "neutro"
                 }
               >
                 {prontidao === undefined
@@ -239,7 +239,7 @@ function RepositoriosDeCodigo({
                     : integ
                       ? "✓ acesso ok"
                       : "não conferido"}
-              </span>
+              </Selo>
               {trocarToken ? (
                 <button
                   className="btn btn-sm btn-primary"
@@ -277,9 +277,7 @@ function RepositoriosDeCodigo({
         </p>
       )}
       {prontidao === null && (
-        <p className="error-text linha-config" role="alert">
-          Não foi possível conferir o acesso aos repositórios.
-        </p>
+        <Alerta tom="erro" titulo="Não foi possível conferir o acesso aos repositórios." />
       )}
       <p className="muted linha-config">
         O acesso é conferido sozinho ao abrir esta página. Endereço e forja não
@@ -291,7 +289,7 @@ function RepositoriosDeCodigo({
         </button>
         .
       </p>
-    </section>
+    </Secao>
   );
 }
 
@@ -311,7 +309,7 @@ function trackerVazio(kind: Origem): TrackerConfig | null {
   return null;
 }
 
-const TOM_PASSO = { ok: "done", falhou: "error", pulado: "attention" } as const;
+const TOM_PASSO = { ok: "concluido", falhou: "erro", pulado: "atencao" } as const;
 
 function Demandas({
   api,
@@ -407,20 +405,22 @@ function Demandas({
         : null;
 
   return (
-    <section className="cartao-config" aria-label="Demandas">
-      <div className="cartao-config-topo">
-        <h4>De onde vêm as demandas</h4>
-        {gravado && !mudou && (
-          <span
-            className="badge"
-            data-tone={
+    <Secao
+      titulo="De onde vêm as demandas"
+      nivel={4}
+      rotulo="Demandas"
+      acoes={
+        gravado &&
+        !mudou && (
+          <Selo
+            tom={
               estado.prontidao === undefined && !teste
-                ? "running"
+                ? "andamento"
                 : falhou(integ)
-                  ? "error"
+                  ? "erro"
                   : integ
-                    ? "done"
-                    : undefined
+                    ? "concluido"
+                    : "neutro"
             }
           >
             {estado.prontidao === undefined && !teste
@@ -432,9 +432,10 @@ function Demandas({
                     ? `✓ conectado · testado em ${dataDoTeste(teste.em)}`
                     : "✓ conectado"
                   : "não conferido"}
-          </span>
-        )}
-      </div>
+          </Selo>
+        )
+      }
+    >
       <div className="linha-config demandas-corpo">
         <div
           className="pilulas"
@@ -528,13 +529,13 @@ function Demandas({
           <ul className="passos-prontidao" aria-label="Resultado do teste">
             {resultado.passos.map((p) => (
               <li key={p.id}>
-                <span className="badge" data-tone={TOM_PASSO[p.situacao]}>
+                <Selo tom={TOM_PASSO[p.situacao]}>
                   {p.situacao === "ok"
                     ? "ok"
                     : p.situacao === "falhou"
                       ? "falhou"
                       : "não conferido"}
-                </span>{" "}
+                </Selo>{" "}
                 {p.rotulo}
                 {p.detalhe && <span className="muted"> · {p.detalhe}</span>}
                 {p.orientacao && p.situacao === "falhou" && (
@@ -567,11 +568,7 @@ function Demandas({
             )}
           </details>
         )}
-        {falha && (
-          <p className="error-text" role="alert">
-            {falha}
-          </p>
-        )}
+        {falha && <Alerta tom="erro" titulo={falha} />}
         {aviso && !mudou && (
           <p className="ok-text" role="status">
             {aviso}
@@ -602,6 +599,6 @@ function Demandas({
           </div>
         )}
       </div>
-    </section>
+    </Secao>
   );
 }

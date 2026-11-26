@@ -3,6 +3,7 @@ import { useDeferredValue, useEffect, useRef, useState } from "react";
 import { mensagemDe } from "./analise";
 import { AjudaMarkdown } from "./AjudaMarkdown";
 import { BarraFormatacao } from "./BarraFormatacao";
+import { Alerta } from "./componentes";
 import { CONFLITO_DOCUMENTO, rotuloTipo, type DocumentoAberto } from "./conhecimento";
 import { CorpoMarkdown } from "./DocumentoBase";
 import { DialogoConfirmacao } from "./DialogoConfirmacao";
@@ -213,11 +214,7 @@ export function EditorDocumento({
         </div>
       </header>
 
-      {falha && (
-        <p className="error-text" role="alert">
-          {falha}
-        </p>
-      )}
+      {falha && <Alerta tom="erro" titulo={falha} />}
       {recado && (
         <p className="muted" role="status">
           {recado}

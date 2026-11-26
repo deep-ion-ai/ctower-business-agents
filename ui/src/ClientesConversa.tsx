@@ -1,4 +1,5 @@
 import type { ClienteConversa, OpcaoCliente, OpcoesConversa } from "./conversa";
+import { Alerta, Selo } from "./componentes";
 
 export type Modo = "retomar" | "nova";
 
@@ -61,9 +62,7 @@ export function ClientesConversa({
   return (
     <div className="clientes-conversa" role="group" aria-label="Clientes da conversa">
       {opcoes?.problema && (
-        <p className="muted" role="alert">
-          {opcoes.problema}
-        </p>
+        <Alerta tom="erro" titulo={opcoes.problema} />
       )}
       {lista.map((o) => (
         <section
@@ -76,12 +75,17 @@ export function ClientesConversa({
           <h3>
             {TITULO_CLIENTE[o.cliente]}
             {onde === o.cliente && (
-              <span className="badge" data-tone="done">
+              <>
                 {" "}
-                agora
-              </span>
+                <Selo tom="concluido">agora</Selo>
+              </>
             )}
-            {opcoes?.preferido === o.cliente && <span className="badge"> preferido</span>}
+            {opcoes?.preferido === o.cliente && (
+              <>
+                {" "}
+                <Selo tom="neutro">preferido</Selo>
+              </>
+            )}
           </h3>
           {!o.disponivel && <p className="muted">{o.motivo}</p>}
           {o.disponivel && o.cliente === "terminalEmbutido" && (

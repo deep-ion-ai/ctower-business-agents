@@ -100,11 +100,13 @@ describe("PainelFuncionalidade", () => {
     await screen.findByRole("region", { name: "Indicadores" });
     fireEvent.click(screen.getByRole("button", { name: "Análises (2)" }));
     const nova = screen.getByRole("region", { name: "Nova análise para esta funcionalidade" });
-    // O título do formulário fica em caixa normal; o das outras seções, não (#360).
+    // O título do formulário e o das outras seções são o mesmo título de seção (#360, #410).
     expect(
-      within(nova).getByRole("heading", { name: "Nova análise para esta funcionalidade" }),
-    ).toHaveClass("titulo-formulario");
-    expect(screen.getByRole("heading", { name: "Análises" })).not.toHaveClass("titulo-formulario");
+      within(nova)
+        .getByRole("heading", { name: "Nova análise para esta funcionalidade" })
+        .closest(".titulo-secao"),
+    ).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Análises" }).closest(".titulo-secao")).not.toBeNull();
     // Já explicada: Explicar desabilitado.
     expect(within(nova).getByRole("button", { name: /Explicar/ })).toBeDisabled();
     fireEvent.click(within(nova).getByRole("button", { name: /Perguntar/ }));
@@ -204,7 +206,7 @@ describe("PainelFuncionalidade", () => {
     const { api, aoRevisar } = abrir();
     await screen.findByRole("region", { name: "Indicadores" });
     fireEvent.click(screen.getByRole("button", { name: "Demandas (1)" }));
-    const cartao = screen.getByRole("region", { name: "D-0004: Permitir cancelamento parcial" });
+    const cartao = screen.getByRole("article", { name: "D-0004: Permitir cancelamento parcial" });
     expect(within(cartao).getByRole("list", { name: "Etapas de D-0004" })).toHaveTextContent(
       "ImpactoA-0019 · em andamento",
     );
@@ -248,9 +250,9 @@ describe("PainelFuncionalidade", () => {
         decisao: "aceitar",
       }),
     );
-    fireEvent.click(screen.getByText("Revisar mapeamento"));
-    const menu = screen.getByRole("group", { name: "Revisão de F-COB-001" });
-    fireEvent.click(within(menu).getByRole("button", { name: "Dividir" }));
+    fireEvent.click(screen.getByRole("button", { name: "Revisar mapeamento" }));
+    const menu = screen.getByRole("menu", { name: "Revisar mapeamento" });
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Dividir" }));
     expect(screen.getByRole("form", { name: "Dividir F-COB-001" })).toBeInTheDocument();
   });
 

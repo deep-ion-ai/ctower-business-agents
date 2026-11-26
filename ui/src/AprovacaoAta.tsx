@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { contar } from "./formatacao";
 import { mensagemDe } from "./analise";
+import { Alerta, BarraAcoes } from "./componentes";
 import { DialogoConfirmacao } from "./DialogoConfirmacao";
 import type { ApiReuniao, AtaAprovada, ProntidaoAta } from "./reunioes";
 
@@ -71,19 +72,18 @@ export function AprovacaoAta({ api, projeto, analise, versao, aoAprovar }: Props
       {!prontidao.concluida && (
         <>
           {incompleta && (
-            <p className="error-text" role="alert">
-              A aprovação da ata ficou incompleta. Aprove de novo para concluir.
-            </p>
+            <Alerta tom="erro" titulo="A aprovação da ata ficou incompleta.">
+              Aprove de novo para concluir.
+            </Alerta>
           )}
           {prontidao.pendencias.length > 0 && (
-            <div className="pendencias">
-              <p>Antes de aprovar:</p>
+            <Alerta tom="atencao" titulo="Antes de aprovar:" role="note">
               <ul aria-label="Pendências">
                 {prontidao.pendencias.map((p) => (
                   <li key={p}>{p}</li>
                 ))}
               </ul>
-            </div>
+            </Alerta>
           )}
           {prontidao.avisos.length > 0 && (
             <ul className="muted" aria-label="Avisos da aprovação">
@@ -98,14 +98,14 @@ export function AprovacaoAta({ api, projeto, analise, versao, aoAprovar }: Props
               ? " Ao aprovar, o transcript é apagado."
               : " O transcript já não está guardado."}
           </p>
-          <button
-            className="btn"
-            type="button"
-            disabled={!prontidao.podeAprovar || ocupado}
-            onClick={() => setConfirmando(true)}
-          >
-            Aprovar a ata
-          </button>
+          <BarraAcoes
+            rotulo="Ações da aprovação"
+            principal={{
+              texto: "Aprovar a ata",
+              aoEscolher: () => setConfirmando(true),
+              desabilitado: !prontidao.podeAprovar || ocupado,
+            }}
+          />
         </>
       )}
       {confirmando && (

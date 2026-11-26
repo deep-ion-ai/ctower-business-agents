@@ -42,7 +42,8 @@ describe("AtaAoVivo", () => {
 
     const joao = screen.getByTestId("participante-João Pereira");
     expect(joao).toHaveTextContent("Catálogo: pessoa nova");
-    expect(joao).toHaveTextContent("Agente propõe: Desenvolvedor");
+    expect(within(joao).getByText("proposta do agente")).toHaveAttribute("data-tom", "agente");
+    expect(joao).toHaveTextContent("proposta do agente Desenvolvedor");
     expect(joao).toHaveTextContent("Explica onde fica a trava no código.");
     expect(within(joao).getByRole("list", { name: "Falas de origem" })).toHaveTextContent(
       "00:00:30 João Pereira: “a trava dos 30 dias só existe na tela de retaguarda” (conferida)",
@@ -109,7 +110,7 @@ describe("AtaAoVivo", () => {
     expect(screen.queryByTestId("participante-Maria S")).toBeNull();
     expect(
       within(screen.getByTestId("participante-João Pereira")).getByText("Arquiteto do legado", {
-        selector: ".badge",
+        selector: ".selo",
       }),
     ).toBeInTheDocument();
   });
@@ -150,7 +151,7 @@ describe("AtaAoVivo", () => {
     const bloco = li.querySelector("details")!;
     expect(bloco.open).toBe(false);
     const resumo = within(li).getByText(/Ver as 2 falas de origem/);
-    expect(resumo).toHaveTextContent("· 1 não confere");
+    expect(within(resumo).getByText("1 não confere")).toHaveAttribute("data-tom", "erro");
     fireEvent.click(resumo);
     expect(bloco.open).toBe(true);
     expect(within(li).getByRole("list", { name: "Falas de origem" })).toHaveTextContent(

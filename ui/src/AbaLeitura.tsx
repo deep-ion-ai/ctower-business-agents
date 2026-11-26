@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { mensagemDe } from "./analise";
+import { Alerta, Cartao, Secao } from "./componentes";
 import { plural } from "./estadoCadastro";
 import type { PropsConfigProjeto } from "./ConfigProjeto";
 import { numero } from "./formatacao";
@@ -129,7 +130,7 @@ export function AbaLeitura({
   return (
     <div className={pendente ? "aba-leitura com-barra" : "aba-leitura"}>
       <div className="resumo-leitura" aria-busy={lendo}>
-        <div className="cartao-config resumo-cartao" role="group" aria-label="Será analisado">
+        <Cartao rotulo="Será analisado" className="resumo-cartao">
           <span className="muted">Será analisado</span>
           <strong className="resumo-numero">
             {inv ? `${numero(inv.analisados)} arquivos` : "…"}
@@ -140,8 +141,8 @@ export function AbaLeitura({
               {inv.porLinguagem.map((l) => `${l.rotulo} ${l.quantidade}`).join(" · ")}
             </span>
           )}
-        </div>
-        <div className="cartao-config resumo-cartao" role="group" aria-label="Fica fora">
+        </Cartao>
+        <Cartao rotulo="Fica fora" className="resumo-cartao">
           <span className="muted">Fica fora</span>
           <strong className="resumo-numero">{inv ? plural(inv.ignorados, "arquivo", "arquivos") : "…"}</strong>
           {inv && inv.porMotivo.length > 0 && (
@@ -173,11 +174,11 @@ export function AbaLeitura({
               {verFora ? "Esconder a lista" : "Ver a lista e reincluir itens"}
             </button>
           )}
-        </div>
+        </Cartao>
       </div>
       {inv && verFora && (
-        <section className="cartao-config" aria-label="Itens que ficam fora">
-          <ul className="lista-ignorados linha-config">
+        <Secao rotulo="Itens que ficam fora">
+          <ul className="lista-ignorados">
             {inv.itensIgnorados.map((i) => (
               <li key={i.caminho}>
                 <code>
@@ -207,20 +208,23 @@ export function AbaLeitura({
             ))}
           </ul>
           {inv.totalItensIgnorados > inv.itensIgnorados.length && (
-            <p className="muted linha-config">
+            <p className="muted">
               E mais {inv.totalItensIgnorados - inv.itensIgnorados.length} itens.
             </p>
           )}
-        </section>
+        </Secao>
       )}
 
-      <section className="cartao-config" aria-label="Pastas do projeto">
-        <div className="cartao-config-topo">
-          <h4>Pastas</h4>
+      <Secao
+        titulo="Pastas"
+        nivel={4}
+        rotulo="Pastas do projeto"
+        acoes={
           <button className="btn btn-sm" type="button" onClick={adicionarPasta}>
             + Adicionar pasta
           </button>
-        </div>
+        }
+      >
         <ul className="lista-config">
           {rascunho.pastas.map((caminho) => {
             const gravada = projeto.pastas.find((p) => p.caminho === caminho);
@@ -256,24 +260,17 @@ export function AbaLeitura({
             );
           })}
         </ul>
-        {avisoPasta && (
-          <p className="attention-text linha-config" role="alert">
-            {avisoPasta}
-          </p>
-        )}
-        <p className="muted linha-config">
+        {avisoPasta && <Alerta tom="atencao" role="alert" titulo={avisoPasta} />}
+        <p className="muted">
           Remover uma pasta não apaga nada no computador: ela só deixa de ser lida. As pastas que
           ficam guardam o prefixo, e as evidências das análises continuam apontando para o mesmo
           lugar.
         </p>
-      </section>
+      </Secao>
 
-      <section className="cartao-config" aria-label="Suas exclusões">
-        <div className="cartao-config-topo">
-          <h4>Deixar de fora também</h4>
-          <span className="muted">um padrão por item, como no .gitignore</span>
-        </div>
-        <div className="linha-config exclusoes-corpo">
+      <Secao titulo="Deixar de fora também" nivel={4} rotulo="Suas exclusões">
+        <p className="muted">Um padrão por item, como no .gitignore.</p>
+        <div className="exclusoes-corpo">
           {rascunho.exclusoes.length > 0 && (
             <ul className="chips-exclusao">
               {rascunho.exclusoes.map((e) => (
@@ -332,13 +329,9 @@ export function AbaLeitura({
             </div>
           )}
         </div>
-      </section>
+      </Secao>
 
-      {falha && (
-        <p className="error-text" role="alert">
-          {falha}
-        </p>
-      )}
+      {falha && <Alerta tom="erro" titulo={falha} />}
       {aviso && !pendente && (
         <p className="ok-text" role="status">
           {aviso}

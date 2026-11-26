@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { Selo } from "./componentes";
 import { Icon } from "./shell/icons";
 
 /** Projeto na lista do seletor, com o que espera o analista nele. */
@@ -145,13 +146,9 @@ export function SeletorProjeto({
             >
               <span className="seletor-projeto-opcao-nome">{p.nome}</span>
               {p.erro ? (
-                <span className="badge" data-tone="error">
-                  com erro
-                </span>
+                <Selo tom="erro">com erro</Selo>
               ) : p.pendencias > 0 ? (
-                <span className="badge" data-tone="attention">
-                  {plural(p.pendencias)}
-                </span>
+                <Selo tom="atencao">{plural(p.pendencias)}</Selo>
               ) : (
                 <span className="muted seletor-projeto-ok">em dia</span>
               )}

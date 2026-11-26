@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { Alerta, TituloSecao } from "./componentes";
 import { contar } from "./formatacao";
 import { mensagemDe, type AmbienteClaude, type AnaliseCriada } from "./analise";
 import { ROTULO_FLUXO, type ApiConhecimento } from "./conhecimento";
@@ -261,19 +262,20 @@ export function NovaReuniao({
       {previa && <Previa previa={previa} />}
 
       <section className="aviso-privacidade" aria-label="Aviso de privacidade">
-        <h4>Aviso de privacidade</h4>
-        <p>O transcript tem dados pessoais: nomes e falas dos participantes. Ao seguir:</p>
-        <ul>
-          <li>o conteúdo vai ao provedor de IA que você usa no Claude Code;</li>
-          <li>
-            fica guardado só no diretório de dados do app, fora da base de conhecimento e do
-            repositório;
-          </li>
-          <li>
-            é apagado ao aprovar a ata ou, sem aprovação, depois do prazo de retenção (30 dias,
-            configurável). Depois disso, as citações da ata deixam de ser conferíveis.
-          </li>
-        </ul>
+        <Alerta tom="atencao" titulo="Aviso de privacidade" role="note">
+          <p>O transcript tem dados pessoais: nomes e falas dos participantes. Ao seguir:</p>
+          <ul>
+            <li>o conteúdo vai ao provedor de IA que você usa no Claude Code;</li>
+            <li>
+              fica guardado só no diretório de dados do app, fora da base de conhecimento e do
+              repositório;
+            </li>
+            <li>
+              é apagado ao aprovar a ata ou, sem aprovação, depois do prazo de retenção (30 dias,
+              configurável). Depois disso, as citações da ata deixam de ser conferíveis.
+            </li>
+          </ul>
+        </Alerta>
         <label className="aceite">
           <input type="checkbox" checked={aceito} onChange={(e) => setAceito(e.target.checked)} />{" "}
           Li o aviso e quero seguir
@@ -309,7 +311,7 @@ export function NovaReuniao({
 function Previa({ previa }: { previa: PreviaTranscript }) {
   return (
     <section className="previa-transcript" aria-label="Prévia do transcript">
-      <h4>Prévia</h4>
+      <TituloSecao nivel={4}>Prévia</TituloSecao>
       <p>
         {ROTULO_FORMATO[previa.formato]} · {contar(previa.falas, "fala", "falas")} · {contar(previa.falantes.length, "falante", "falantes")}
         {previa.semFalante > 0 && ` · ${contar(previa.semFalante, "fala", "falas")} sem falante`}
@@ -324,16 +326,18 @@ function Previa({ previa }: { previa: PreviaTranscript }) {
         </ul>
       )}
       {previa.avisos.length > 0 && (
-        <ul className="avisos-transcript" aria-label="Avisos da leitura">
-          {previa.avisos.map((a) => (
-            <li key={a.codigo} data-tone="attention">
-              {a.mensagem}
-            </li>
-          ))}
-        </ul>
+        <Alerta tom="atencao" titulo="Avisos da leitura" role="note">
+          <ul className="avisos-transcript" aria-label="Avisos da leitura">
+            {previa.avisos.map((a) => (
+              <li key={a.codigo}>{a.mensagem}</li>
+            ))}
+          </ul>
+        </Alerta>
       )}
       {!previa.podeCriar && (
-        <p className="error-text">Nenhuma fala encontrada: confira o transcript.</p>
+        <Alerta tom="erro" titulo="Nenhuma fala encontrada." role="note">
+          Confira o transcript.
+        </Alerta>
       )}
     </section>
   );

@@ -1,5 +1,6 @@
 import { useDeferredValue, useEffect, useRef, useState } from "react";
 import { mensagemDe } from "./analise";
+import { Alerta, BarraAcoes, Selo } from "./componentes";
 import { CONFLITO } from "./configuracoes";
 import { DialogoConfirmacao } from "./DialogoConfirmacao";
 import { irParaLinha } from "./inserirNoCursor";
@@ -246,9 +247,9 @@ export function EditorWorkflow({
           </button>
         </header>
         {falha ? (
-          <p className="error-text" role="alert">
-            Não foi possível abrir o workflow: {falha}
-          </p>
+          <Alerta tom="erro" titulo="Não foi possível abrir o workflow:">
+            {falha}
+          </Alerta>
         ) : (
           <p className="muted">Carregando o workflow…</p>
         )}
@@ -280,33 +281,24 @@ export function EditorWorkflow({
                 : "salva"}
         </span>
         {!somenteLeitura && (
-          <div className="editor-texto-acoes">
-            <button
-              className="btn btn-primary"
-              type="button"
-              disabled={!pendente || ocupado}
-              onClick={() => void gravar()}
-              title="Ctrl+S"
-            >
-              Salvar
-            </button>
-            <button
-              className="btn"
-              type="button"
-              disabled={!pendente || ocupado}
-              onClick={() => setDialogo("descartar")}
-            >
-              Descartar alterações
-            </button>
-            <button
-              className="btn"
-              type="button"
-              disabled={ocupado}
-              onClick={() => setDialogo("restaurar")}
-            >
-              Restaurar o padrão
-            </button>
-          </div>
+          <BarraAcoes
+            rotulo="Ações do workflow"
+            alinhamento="fim"
+            principal={{
+              texto: "Salvar",
+              aoEscolher: () => void gravar(),
+              desabilitado: !pendente || ocupado,
+              dica: "Ctrl+S",
+            }}
+            secundarias={[
+              {
+                texto: "Descartar alterações",
+                aoEscolher: () => setDialogo("descartar"),
+                desabilitado: !pendente || ocupado,
+              },
+              { texto: "Restaurar o padrão", aoEscolher: () => setDialogo("restaurar"), desabilitado: ocupado },
+            ]}
+          />
         )}
       </header>
 
@@ -317,34 +309,37 @@ export function EditorWorkflow({
         </p>
       )}
       {leitura.existe && leitura.padraoMudou && (
-        <div className="aviso-workflow" role="status">
-          <p>
-            <strong>O padrão do app mudou desde a sua cópia.</strong> A cópia continua valendo como
-            está: o app não mescla. Veja a diferença e traga para a cópia o que quiser.
-          </p>
-          <div className="acoes">
-            <button className="btn btn-sm" type="button" onClick={() => {
-              setPainel("diferenca");
-              setAba("previa");
-            }}>
-              Ver a diferença
-            </button>
-            <button
-              className="btn btn-sm"
-              type="button"
-              disabled={ocupado}
-              onClick={() => void gravar(true)}
-            >
-              {pendente ? "Salvar e marcar como revista" : "Já revi: marcar como revista"}
-            </button>
-          </div>
-        </div>
+        <Alerta
+          tom="atencao"
+          titulo="O padrão do app mudou desde a sua cópia."
+          acoes={
+            <>
+              <button
+                className="btn btn-sm"
+                type="button"
+                onClick={() => {
+                  setPainel("diferenca");
+                  setAba("previa");
+                }}
+              >
+                Ver a diferença
+              </button>
+              <button
+                className="btn btn-sm"
+                type="button"
+                disabled={ocupado}
+                onClick={() => void gravar(true)}
+              >
+                {pendente ? "Salvar e marcar como revista" : "Já revi: marcar como revista"}
+              </button>
+            </>
+          }
+        >
+          A cópia continua valendo como está: o app não mescla. Veja a diferença e traga para a
+          cópia o que quiser.
+        </Alerta>
       )}
-      {falha && (
-        <p className="error-text" role="alert">
-          {falha}
-        </p>
-      )}
+      {falha && <Alerta tom="erro" titulo={falha} />}
       {recado && (
         <p className="muted" role="status">
           {recado}
@@ -411,9 +406,7 @@ export function EditorWorkflow({
               <ul className="lista-avisos">
                 {validacao.problemas.map((p, i) => (
                   <li key={`${i}:${p.linha ?? ""}`} data-erro={p.erro}>
-                    <span className="badge" data-tone={p.erro ? "error" : "attention"}>
-                      {p.erro ? "Erro" : "Aviso"}
-                    </span>{" "}
+                    <Selo tom={p.erro ? "erro" : "atencao"}>{p.erro ? "Erro" : "Aviso"}</Selo>{" "}
                     {p.linha !== null && (
                       <button type="button" className="link" onClick={() => irPara(p.linha!)}>
                         Linha {p.linha}

@@ -34,8 +34,10 @@ import {
   evidenciasDaOrigem,
   ROTULO_ANALISE,
   SeloSessao,
+  TOM_ANALISE,
   type OrigemEvidencia,
 } from "./DocumentoAoVivo";
+import { Alerta, EstadoVazio, Selo } from "./componentes";
 import { ExportacaoAnalise } from "./ExportacaoAnalise";
 import { NovaPrototipo } from "./NovaPrototipo";
 import { apiPrototipoTauri, ORIGENS_PROTOTIPO, type ApiPrototipo } from "./prototipo";
@@ -644,23 +646,23 @@ export function PainelAnalise({
               {vista && <span>{vista.analise.titulo}</span>}
             </h2>
             {vista && (
-              <span
-                className="badge"
-                title={ROTULO_ANALISE[vista.analise.estado]}
-                data-tone={vista.analise.estado === "aprovada" ? "done" : undefined}
+              <Selo
+                tom={TOM_ANALISE[vista.analise.estado]}
+                titulo={ROTULO_ANALISE[vista.analise.estado]}
               >
                 {ROTULO_ANALISE[vista.analise.estado]}
-              </span>
+              </Selo>
             )}
             {vista && selo && (
               <span
-                className="badge selo-aprovacao"
+                className="selo-aprovacao"
                 role="status"
                 aria-label="Situação da aprovação"
                 title={selo}
-                data-tone={pronta ? "done" : agenteTrabalhando ? "running" : "attention"}
               >
-                {selo}
+                <Selo tom={pronta ? "concluido" : agenteTrabalhando ? "andamento" : "atencao"}>
+                  {selo}
+                </Selo>
               </span>
             )}
           </div>
@@ -790,17 +792,9 @@ export function PainelAnalise({
         style={{ "--largura-conversa": `${larguraConversa}px` } as CSSProperties}
       >
         <section className="painel-documento" aria-label="Documento ao vivo">
-          {erro && (
-            <p className="error-text" role="alert">
-              {erro}
-            </p>
-          )}
+          {erro && <Alerta tom="erro" titulo={erro} />}
           {!vista && !erro && <p className="muted">Carregando a análise…</p>}
-          {falhaRevisao && (
-            <p className="error-text" role="alert">
-              {falhaRevisao}
-            </p>
-          )}
+          {falhaRevisao && <Alerta tom="erro" titulo={falhaRevisao} />}
           {vista && (
             <FaixaCodigoAlterado
               afirmacoes={vista.analise.afirmacoes}
@@ -849,6 +843,10 @@ export function PainelAnalise({
               origemTrecho={origemTrecho}
               revisao={revisao}
               pendencias={pendencias}
+              aoAbrirLink={(url) => {
+                setFalhaEnvio(null);
+                abrirUrl(url).catch(() => setFalhaEnvio("Não foi possível abrir o link."));
+              }}
             />
           )}
         </section>
@@ -931,31 +929,29 @@ export function PainelAnalise({
               aoAlternarTerminal={alternarTerminal}
               aoEscrever={escreverAoAgente}
             >
-              {falhaEnvio && (
-                <p className="error-text" role="alert">
-                  {falhaEnvio}
-                </p>
-              )}
+              {falhaEnvio && <Alerta tom="erro" titulo={falhaEnvio} />}
               {aviso && (
                 <p className="muted" role="status">
                   {aviso}
                 </p>
               )}
               {fora && (
-                <div className="aviso-desktop" role="status">
-                  <p>{fora.aviso}</p>
-                  <button className="btn" type="button" onClick={voltarAConversa}>
-                    Voltar à conversa aqui
-                  </button>
-                </div>
+                <Alerta
+                  tom="atencao"
+                  titulo={fora.aviso}
+                  acoes={
+                    <button className="btn" type="button" onClick={voltarAConversa}>
+                      Voltar à conversa aqui
+                    </button>
+                  }
+                />
               )}
               {!conversa && !fora && (abertura.tipo === "reabrir" || opcoesProntas) && (
-                <div className="sem-conversa">
-                  <p className="muted">Nenhuma conversa aberta nesta análise.</p>
-                  <button className="btn" type="button" onClick={() => setMenu("continuar")}>
-                    Escolher onde continuar
-                  </button>
-                </div>
+                <EstadoVazio
+                  acao={{ texto: "Escolher onde continuar", aoEscolher: () => setMenu("continuar") }}
+                >
+                  Nenhuma conversa aberta nesta análise.
+                </EstadoVazio>
               )}
               {conversa && (
                 // Escondido (e não desmontado) fora daqui ou pela preferência: desmontar
@@ -994,10 +990,10 @@ export function PainelAnalise({
                 }}
               />
             ) : (
-              <p className="muted sem-evidencia">
+              <EstadoVazio>
                 Nenhuma evidência aberta. Escolha uma evidência no documento para ver o código
                 citado, com as linhas em destaque.
-              </p>
+              </EstadoVazio>
             )
           }
         />

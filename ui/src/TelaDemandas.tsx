@@ -4,10 +4,12 @@ import type { ApiConhecimento } from "./conhecimento";
 import { acaoDaIssue, situacaoEmTexto, TOM_SITUACAO } from "./acaoIssue";
 import { dobrar, parecidos } from "./demandasParecidas";
 import {
+  AcoesDaIssue,
   AvisoAbrirLink,
   DescricaoIssue,
   NaBaseIssue,
   ParecidasLista,
+  ParteIssue,
   ROTULO_ORIGEM,
   useAbrirLink,
   useRegrasParecidas,
@@ -30,6 +32,7 @@ import {
 } from "./issuesProjeto";
 import { FiltroTipoDemanda, FormDemanda, ListaDemandas } from "./ListaDemandas";
 import type { Tela } from "./Navegacao";
+import { Alerta, BarraAcoes, EstadoVazio, Selo, TituloSecao } from "./componentes";
 
 /** Situações do filtro, na ordem do fluxo da análise. */
 const SITUACOES: SituacaoNaBase[] = ["sem-analise", "em-andamento", "em-revisao", "aprovada"];
@@ -83,7 +86,7 @@ export function TelaDemandas({
   if (!api.issues) {
     return (
       <>
-        <h2>Demandas</h2>
+        <TituloSecao>Demandas</TituloSecao>
         <ListaDemandas api={api} projeto={projeto} navegar={navegar} />
       </>
     );
@@ -269,25 +272,28 @@ function DemandasDoRastreador({
 
   return (
     <section className="demandas" aria-label="Demandas">
-      <div className="cab-secao">
-        <h2>Demandas</h2>
-        <div className="acoes">
-          <button
-            type="button"
-            className="btn"
-            title="Liga as demandas às funcionalidades do mapa"
-            onClick={() => navegar({ tipo: "vincular", projeto })}
-          >
-            Vincular a funcionalidades
-          </button>
-          <button type="button" className="btn" onClick={() => setCriando((v) => !v)}>
-            Nova demanda à mão
-          </button>
-          <button type="button" className="btn" disabled={atualizando} onClick={() => carregar(true)}>
-            {atualizando ? "Atualizando…" : "Atualizar"}
-          </button>
-        </div>
-      </div>
+      <TituloSecao
+        acoes={
+          <BarraAcoes
+            rotulo="Ações das demandas"
+            secundarias={[
+              {
+                texto: "Vincular a funcionalidades",
+                dica: "Liga as demandas às funcionalidades do mapa",
+                aoEscolher: () => navegar({ tipo: "vincular", projeto }),
+              },
+              { texto: "Nova demanda à mão", aoEscolher: () => setCriando((v) => !v) },
+              {
+                texto: atualizando ? "Atualizando…" : "Atualizar",
+                desabilitado: atualizando,
+                aoEscolher: () => carregar(true),
+              },
+            ]}
+          />
+        }
+      >
+        Demandas
+      </TituloSecao>
       <p className="muted demandas-sub">
         Issues do rastreador e demandas criadas à mão
         {conferido && (
@@ -299,15 +305,11 @@ function DemandasDoRastreador({
       </p>
 
       {lista?.aviso && (
-        <p className="banner" role="status">
-          Não foi possível atualizar a lista: {lista.aviso} Mostrando a última leitura, {conferido || "antiga"}.
-        </p>
+        <Alerta tom="atencao" titulo="Não foi possível atualizar a lista:">
+          {lista.aviso} Mostrando a última leitura, {conferido || "antiga"}.
+        </Alerta>
       )}
-      {falha && (
-        <p className="error-text" role="alert">
-          {falha}
-        </p>
-      )}
+      {falha && <Alerta tom="erro" titulo={falha} />}
       {criando && (
         <FormDemanda
           api={api}
@@ -378,21 +380,17 @@ function DemandasDoRastreador({
       </div>
 
       {lista === null && !falha && <p className="muted">Carregando…</p>}
-      {falhaAcao && (
-        <p className="error-text" role="alert">
-          {falhaAcao}
-        </p>
-      )}
+      {falhaAcao && <Alerta tom="erro" titulo={falhaAcao} />}
 
       {(lista !== null || manuais.length > 0) && (
         <div className="demandas-grade">
           <div className="panel demandas-lista">
             {semResultado ? (
-              <p className="muted">
+              <EstadoVazio>
                 {filtrando
                   ? "Nenhuma demanda com este filtro."
                   : "Nenhuma issue aberta. Use Atualizar para ler o rastreador de novo."}
-              </p>
+              </EstadoVazio>
             ) : (
               <ul className="linhas" aria-label="Lista de demandas">
                 {linhas.map((l) => (
@@ -502,14 +500,10 @@ function LinhaDaLista({
       </button>
       <span className="fim">
         {issue ? (
-          <span className="badge" data-tone={TOM_SITUACAO[issue.situacao]}>
-            {situacaoEmTexto(issue)}
-          </span>
+          <Selo tom={TOM_SITUACAO[issue.situacao]}>{situacaoEmTexto(issue)}</Selo>
         ) : (
           mao && (
-            <span className="badge" data-tone={mao.status === "aberta" ? "running" : "done"}>
-              {ROTULO_STATUS_DEMANDA[mao.status]}
-            </span>
+            <Selo>{ROTULO_STATUS_DEMANDA[mao.status]}</Selo>
           )
         )}
         <button
@@ -571,61 +565,53 @@ function PainelDaLinha({
 
   return (
     <aside className="panel demandas-painel" aria-label="Demanda selecionada">
-      <h3 className="demandas-painel-cab">
-        <span className="id">{linha.id}</span>
-        {issue && (
-          <span className="badge" data-tone={issue.estado === "aberta" ? "running" : "done"}>
-            {issue.estado === "aberta" ? "aberta" : "encerrada"}
-          </span>
-        )}
-        {linha.tipoDemanda && (
-          <span className="badge" title="Tipo da demanda">
-            {ROTULO_TIPO_DEMANDA[linha.tipoDemanda]}
-          </span>
-        )}
-        {issue?.url && (
-          <button type="button" className="link" onClick={abrirNoRastreador}>
-            Abrir no {ROTULO_ORIGEM[issue.origem]} ↗
-          </button>
-        )}
-      </h3>
+      <div className="demandas-topo">
+        <h3 className="demandas-painel-cab">
+          <span className="id">{linha.id}</span>
+          {issue && (
+            <Selo>{issue.estado === "aberta" ? "aberta" : "encerrada"}</Selo>
+          )}
+          {linha.tipoDemanda && (
+            <Selo tom="neutro" titulo="Tipo da demanda">
+              {ROTULO_TIPO_DEMANDA[linha.tipoDemanda]}
+            </Selo>
+          )}
+          {issue?.url && (
+            <button type="button" className="link" onClick={abrirNoRastreador}>
+              Abrir no {ROTULO_ORIGEM[issue.origem]} ↗
+            </button>
+          )}
+        </h3>
+        <AcoesDaIssue
+          acao={issue ? acaoDaIssue(issue) : { rotulo: "Abrir a demanda", tipo: "demanda" }}
+          analisando={analisando}
+          aoAgir={aoAgir}
+          secundarias={
+            issue
+              ? [{ texto: "Abrir em nova aba", aoEscolher: () => abrirIssueEmAba(navegar, projeto, issue) }]
+              : undefined
+          }
+        />
+      </div>
       <p className="demandas-painel-titulo">{titulo}</p>
       {issue ? (
         <>
-          <DescricaoIssue issue={issue} abrir={(link) => void abrir(link)} />
           <p className="muted">
             {[`criada ${idadeDe(issue.criadaEm, agora)}`, ...issue.rotulos.map((r) => `rótulo ${r}`)].join(" · ")}
           </p>
           <AvisoAbrirLink falha={falha} />
-          <h4>Na base</h4>
-          <NaBaseIssue
-            issue={issue}
-            projeto={projeto}
-            acao={acaoDaIssue(issue)}
-            analisando={analisando}
-            aoAgir={aoAgir}
-            navegar={navegar}
-            aoAbrirAnalise={aoAbrirAnalise}
-            acoesExtra={
-              <button type="button" className="btn" onClick={() => abrirIssueEmAba(navegar, projeto, issue)}>
-                Abrir em nova aba
-              </button>
-            }
-          />
+          <ParteIssue titulo="Descrição" nivel={4}>
+            <DescricaoIssue issue={issue} abrir={(link) => void abrir(link)} />
+          </ParteIssue>
+          <ParteIssue titulo="Na base" nivel={4}>
+            <NaBaseIssue issue={issue} projeto={projeto} navegar={navegar} aoAbrirAnalise={aoAbrirAnalise} />
+          </ParteIssue>
         </>
       ) : (
-        <>
-          <p className="muted">
-            Demanda criada à mão em {mao?.criado}. Abra a demanda para ver as atas, as
-            análises e as sessões, e para ligar uma análise nova.
-          </p>
-          <h4>Na base</h4>
-          <div className="acoes">
-            <button type="button" className="btn btn-primary" onClick={aoAgir}>
-              Abrir a demanda
-            </button>
-          </div>
-        </>
+        <p className="muted">
+          Demanda criada à mão em {mao?.criado}. Abra a demanda para ver as atas, as
+          análises e as sessões, e para ligar uma análise nova.
+        </p>
       )}
 
       <ParecidasLista
@@ -637,6 +623,7 @@ function PainelDaLinha({
         }))}
         regras={regras}
         navegar={navegar}
+        nivel={4}
       />
     </aside>
   );

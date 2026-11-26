@@ -541,6 +541,11 @@ export interface VistaAnalise {
    * ausente em respostas antigas.
    */
   secoes?: SecaoDocumento[];
+  /**
+   * Link da issue de origem no rastreador, quando a análise nasceu de uma (#403): os
+   * links desse host, na entrada, abrem no navegador.
+   */
+  link?: string | null;
 }
 
 /** Seção do documento: o marcador que as afirmações citam e o título do `.md`. */

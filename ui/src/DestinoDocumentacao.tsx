@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { mensagemDe } from "./analise";
+import { Alerta, Secao, Selo } from "./componentes";
 import type { PropsConfigProjeto } from "./ConfigProjeto";
 import { CampoTexto, ItemRepositorioCodigo } from "./FormRepositorios";
 import {
@@ -142,20 +143,22 @@ export function DestinoDocumentacao({
   };
 
   return (
-    <section className="cartao-config" aria-label="Destino da documentação">
-      <div className="cartao-config-topo">
-        <h4>Onde a documentação é publicada</h4>
-        {gravado && !mudou && (
-          <span
-            className="badge"
-            data-tone={
+    <Secao
+      titulo="Onde a documentação é publicada"
+      nivel={4}
+      rotulo="Destino da documentação"
+      acoes={
+        gravado &&
+        !mudou && (
+          <Selo
+            tom={
               estado.prontidao === undefined
-                ? "running"
+                ? "andamento"
                 : comFalha
-                  ? "error"
+                  ? "erro"
                   : integ
-                    ? "done"
-                    : undefined
+                    ? "concluido"
+                    : "neutro"
             }
           >
             {estado.prontidao === undefined
@@ -165,9 +168,10 @@ export function DestinoDocumentacao({
                 : integ
                   ? "✓ acesso ok"
                   : "não conferido"}
-          </span>
-        )}
-      </div>
+          </Selo>
+        )
+      }
+    >
       <div className="linha-config demandas-corpo">
         <div className="pilulas" role="radiogroup" aria-label="Destino da documentação">
           {MODOS.map((m) => (
@@ -222,9 +226,11 @@ export function DestinoDocumentacao({
         )}
         {valor?.modo === "subpasta" &&
           (codigo.length === 0 ? (
-            <p className="muted" role="alert">
-              Cadastre antes um repositório de código, ou escolha um repositório próprio.
-            </p>
+            <Alerta
+              tom="atencao"
+              role="alert"
+              titulo="Cadastre antes um repositório de código, ou escolha um repositório próprio."
+            />
           ) : (
             <>
               <div className="field">
@@ -310,11 +316,7 @@ export function DestinoDocumentacao({
             </p>
           </>
         )}
-        {falha && (
-          <p className="error-text" role="alert">
-            {falha}
-          </p>
-        )}
+        {falha && <Alerta tom="erro" titulo={falha} />}
         {aviso && !mudou && (
           <p className="ok-text" role="status">
             {aviso}
@@ -344,7 +346,7 @@ export function DestinoDocumentacao({
           </div>
         )}
       </div>
-    </section>
+    </Secao>
   );
 }
 
@@ -414,16 +416,8 @@ export function SincronizacaoDocs({
         Os documentos externos ficam em <span className="caminho">externos/</span>, só para
         leitura.
       </p>
-      {s?.aviso && !falha && (
-        <p className="attention-text" role="status">
-          {s.aviso}
-        </p>
-      )}
-      {falha && (
-        <p className="error-text" role="alert">
-          {falha}
-        </p>
-      )}
+      {s?.aviso && !falha && <Alerta tom="atencao" titulo={s.aviso} />}
+      {falha && <Alerta tom="erro" titulo={falha} />}
       {s && s.pulados.length > 0 && (
         <details>
           <summary>

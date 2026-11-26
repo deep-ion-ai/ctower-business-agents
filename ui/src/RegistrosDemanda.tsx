@@ -1,5 +1,18 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { mensagemDe } from "./analise";
+import {
+  Alerta,
+  BotaoIcone,
+  EstadoVazio,
+  ItemLista,
+  ListaItens,
+  MenuAcoes,
+  Secao,
+  Selo,
+  TextoRico,
+  type TomSelo,
+} from "./componentes";
+import { IconeConfirmar, IconeDescartar } from "./icones";
 import {
   CATEGORIAS,
   NOME_CATEGORIA,
@@ -8,7 +21,10 @@ import {
   ROTULO_STATUS_PREMISSA,
   TITULO_CATEGORIA,
   apiRegistrosTauri,
+  listaPorExtenso,
+  rotuloFonte,
   rotuloReferencia,
+  textoCompleto,
   type ApiRegistros,
   type Categoria,
   type DadosRegistro,
@@ -25,6 +41,11 @@ import "./registros.css";
 const NIVEIS: Nivel[] = ["baixo", "medio", "alto"];
 const RESTRICOES: TipoRestricao[] = ["prazo", "legal", "tecnica"];
 
+const TITULO = "Premissas, decisões, riscos e restrições";
+
+/** Linhas do texto de um registro antes do "ver mais". */
+const LINHAS_DO_TEXTO = 4;
+
 const QUEM: Record<Categoria, string> = {
   premissa: "Quem assumiu",
   decisao: "Quem decidiu",
@@ -32,14 +53,38 @@ const QUEM: Record<Categoria, string> = {
   restricao: "Quem informou",
 };
 
-const TOM_STATUS: Record<StatusPremissa, string> = {
-  "nao-validada": "attention",
-  validada: "done",
-  invalidada: "error",
+const TOM_STATUS: Record<StatusPremissa, TomSelo> = {
+  "nao-validada": "atencao",
+  validada: "concluido",
+  invalidada: "erro",
 };
+
+/** "Nova premissa", "Novo risco". */
+const novo = (c: Categoria) => `${c === "risco" ? "Novo" : "Nova"} ${NOME_CATEGORIA[c]}`;
 
 function riscoAlto(r: { probabilidade?: Nivel | null; impacto?: Nivel | null }) {
   return r.probabilidade === "alto" || r.impacto === "alto";
+}
+
+/** Lápis do "Ajustar" e do "Editar", no traço de `icones.tsx`. */
+function IconeAjustar() {
+  return (
+    <svg
+      width={16}
+      height={16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+    </svg>
+  );
 }
 
 /** Formulário aberto: criar, editar, ajustar uma proposta ou validar uma premissa. */
@@ -77,14 +122,29 @@ function vazio(categoria: Categoria): DadosRegistro {
   };
 }
 
+/** Quantos itens (registros e propostas) a categoria tem. */
+function contagem(dados: RegistrosDaDemanda, c: Categoria): number {
+  return (
+    dados.registros.filter((r) => r.categoria === c).length +
+    dados.propostas.filter((p) => p.categoria === c).length
+  );
+}
+
+/** A aba que abre: a primeira com itens (sem itens, a de premissas). */
+function abaInicial(dados: RegistrosDaDemanda): Categoria {
+  return CATEGORIAS.find((c) => contagem(dados, c) > 0) ?? CATEGORIAS[0];
+}
+
 /**
- * Premissas, decisões, riscos e restrições da demanda (#122), no painel da demanda:
- * a faixa das propostas do agente (das análises de impacto e das atas) para o
- * analista aceitar, ajustar ou recusar; as premissas com status, quem assumiu e a
- * origem, as não validadas em destaque e os botões de validar; as decisões com quem
- * decidiu, a data, o item da ata e as alternativas; os riscos numa matriz
- * probabilidade × impacto, os altos em destaque; e as restrições por tipo. Os
- * registros ficam na pasta da demanda, em Markdown com frontmatter.
+ * Premissas, decisões, riscos e restrições da demanda (#122), no painel da demanda,
+ * em abas por tipo com a contagem (#409; abre na primeira com itens). Em cada aba,
+ * as propostas do agente (das análises de impacto e das atas) com o aviso, a seleção
+ * e o "Aceitar as selecionadas", e cada uma com aceitar, ajustar e recusar; depois
+ * os registros: as premissas com status, quem assumiu, a origem e os botões de
+ * validar; as decisões com quem decidiu, a data, o item da ata e as alternativas;
+ * os riscos numa matriz probabilidade × impacto; e as restrições por tipo. O texto
+ * sai inteiro, em Markdown, recolhido em 4 linhas com "ver mais". Os registros ficam
+ * na pasta da demanda, em Markdown com frontmatter.
  */
 export function RegistrosDemanda({
   projeto,
@@ -102,24 +162,44 @@ export function RegistrosDemanda({
   abrirDocumento?: (caminho: string) => void;
   podeEditar?: boolean;
 }) {
-  const [aba, setAba] = useState<RegistrosDaDemanda | null>(null);
+  const [dados, setDados] = useState<RegistrosDaDemanda | null>(null);
   const [falha, setFalha] = useState<string | null>(null);
   const [edicao, setEdicao] = useState<Edicao | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  const [ativa, setAtiva] = useState<Categoria | null>(null);
+  const [selecionadas, setSelecionadas] = useState<ReadonlySet<string>>(new Set());
+  const base = useId();
+  const abas = useRef<Partial<Record<Categoria, HTMLButtonElement | null>>>({});
 
-  const carregar = useCallback(() => {
-    api
-      .registros(projeto, demanda)
-      .then((r) => {
-        if (r && Array.isArray(r.registros)) {
-          setAba(r);
-          setFalha(null);
-        }
-      })
-      .catch((e: unknown) => setFalha(mensagemDe(e)));
-  }, [api, projeto, demanda]);
+  // Outra demanda: a aba volta a abrir na primeira com itens, sem seleção.
+  useEffect(() => {
+    setAtiva(null);
+    setSelecionadas(new Set());
+  }, [projeto, demanda]);
 
-  useEffect(carregar, [carregar, atualizacao]);
+  const carregar = useCallback(
+    () =>
+      api
+        .registros(projeto, demanda)
+        .then((r) => {
+          if (r && Array.isArray(r.registros)) {
+            setDados(r);
+            setFalha(null);
+            setAtiva((a) => a ?? abaInicial(r));
+            // A seleção guarda só as propostas que ainda esperam o analista.
+            setSelecionadas((s) => {
+              const abertas = new Set(r.propostas.map((p) => p.referencia));
+              return new Set([...s].filter((ref) => abertas.has(ref)));
+            });
+          }
+        })
+        .catch((e: unknown) => setFalha(mensagemDe(e))),
+    [api, projeto, demanda],
+  );
+
+  useEffect(() => {
+    void carregar();
+  }, [carregar, atualizacao]);
 
   const executar = (acao: () => Promise<unknown>) => {
     setOcupado(true);
@@ -127,92 +207,140 @@ export function RegistrosDemanda({
     acao()
       .then(() => {
         setEdicao(null);
-        carregar();
+        void carregar();
       })
       .catch((e: unknown) => setFalha(mensagemDe(e)))
       .finally(() => setOcupado(false));
   };
 
-  const aceitar = (p: Proposta, ajustes?: DadosRegistro) =>
-    executar(() => api.aceitarProposta(projeto, demanda, p.referencia, ajustes));
+  /** A gravação de um aceite: a mesma no aceite individual, no ajuste e no lote. */
+  const gravarAceite = (p: Proposta, ajustes?: DadosRegistro) =>
+    api.aceitarProposta(projeto, demanda, p.referencia, ajustes);
+
+  const aceitar = (p: Proposta, ajustes?: DadosRegistro) => executar(() => gravarAceite(p, ajustes));
   const recusar = (p: Proposta) =>
     executar(() => api.recusarProposta(projeto, demanda, p.referencia));
 
-  if (!aba) {
+  /**
+   * Aceita as propostas selecionadas, uma de cada vez e como o aceite individual
+   * (sem ajustes). Uma que falha não para as outras: as aceitas saem da seleção, as
+   * que falharam ficam selecionadas e o erro diz quais foram.
+   */
+  const aceitarEmLote = (propostas: Proposta[]) => {
+    if (propostas.length === 0) return;
+    setOcupado(true);
+    setFalha(null);
+    void (async () => {
+      const falhas: string[] = [];
+      for (const p of propostas) {
+        try {
+          await gravarAceite(p);
+          setSelecionadas((s) => {
+            const n = new Set(s);
+            n.delete(p.referencia);
+            return n;
+          });
+        } catch (e) {
+          falhas.push(`${p.referencia}: ${mensagemDe(e)}`);
+        }
+      }
+      // Relê antes de avisar: a releitura limpa o erro anterior.
+      await carregar();
+      if (falhas.length > 0) {
+        const aceitas = propostas.length - falhas.length;
+        setFalha(
+          `${aceitas} de ${propostas.length} propostas aceitas. Não foi possível aceitar ${falhas.join("; ")}`,
+        );
+      }
+      setOcupado(false);
+    })();
+  };
+
+  if (!dados) {
     return (
-      <section aria-label="Premissas, decisões, riscos e restrições" className="registros-demanda">
-        <h3>Premissas, decisões, riscos e restrições</h3>
-        {falha ? (
-          <p className="error-text" role="alert">
-            {falha}
-          </p>
-        ) : (
-          <p className="muted">Carregando…</p>
-        )}
-      </section>
+      <Secao titulo={TITULO} nivel={3} className="registros-demanda">
+        {falha ? <Alerta tom="erro" titulo={falha} /> : <p className="muted">Carregando…</p>}
+      </Secao>
     );
   }
 
-  const daCategoria = (c: Categoria) => aba.registros.filter((r) => r.categoria === c);
-  const propostasDa = (c: Categoria) => aba.propostas.filter((p) => p.categoria === c);
-  const naoValidadas = daCategoria("premissa").filter((r) => r.status === "nao-validada").length;
-  const altos = daCategoria("risco").filter(riscoAlto).length;
+  const aba = ativa ?? abaInicial(dados);
+  const registrosDa = (c: Categoria) => dados.registros.filter((r) => r.categoria === c);
+  const propostasDa = (c: Categoria) => dados.propostas.filter((p) => p.categoria === c);
+  const registros = registrosDa(aba);
+  const propostas = propostasDa(aba);
+  const escolhidas = propostas.filter((p) => selecionadas.has(p.referencia));
+  const todasEscolhidas = propostas.length > 0 && escolhidas.length === propostas.length;
 
-  const salvar = (dados: DadosRegistro) => {
+  const criar = (c: Categoria) => {
+    setAtiva(c);
+    setEdicao({ tipo: "nova", categoria: c });
+  };
+
+  const alternar = (referencias: string[], marcar: boolean) =>
+    setSelecionadas((s) => {
+      const n = new Set(s);
+      for (const ref of referencias) {
+        if (marcar) n.add(ref);
+        else n.delete(ref);
+      }
+      return n;
+    });
+
+  const salvar = (d: DadosRegistro) => {
     if (!edicao) return;
     switch (edicao.tipo) {
       case "nova":
-        return executar(() => api.criar(projeto, demanda, edicao.categoria, dados));
+        return executar(() => api.criar(projeto, demanda, edicao.categoria, d));
       case "editar":
-        return executar(() => api.editar(projeto, edicao.registro.id, dados));
+        return executar(() => api.editar(projeto, edicao.registro.id, d));
       case "proposta":
-        return aceitar(edicao.proposta, dados);
+        return aceitar(edicao.proposta, d);
     }
   };
 
-  const contador = (c: Categoria) => {
-    if (c === "premissa" && naoValidadas > 0)
-      return (
-        <span className="badge" data-tone="attention">
-          {naoValidadas} não validada{naoValidadas > 1 ? "s" : ""}
-        </span>
-      );
-    if (c === "risco" && altos > 0)
-      return (
-        <span className="badge" data-tone="error">
-          {altos} alto{altos > 1 ? "s" : ""}
-        </span>
-      );
-    return <span className="badge">{daCategoria(c).length}</span>;
+  const idAba = (c: Categoria) => `${base}-aba-${c}`;
+  const idPainel = (c: Categoria) => `${base}-painel-${c}`;
+
+  // Tablist com ativação automática: setas, Home e End trocam a aba e levam o foco.
+  const teclado = (e: KeyboardEvent<HTMLButtonElement>) => {
+    const atual = CATEGORIAS.indexOf(aba);
+    const n = CATEGORIAS.length;
+    const destino =
+      e.key === "ArrowRight"
+        ? (atual + 1) % n
+        : e.key === "ArrowLeft"
+          ? (atual - 1 + n) % n
+          : e.key === "Home"
+            ? 0
+            : e.key === "End"
+              ? n - 1
+              : -1;
+    if (destino < 0) return;
+    e.preventDefault();
+    const nova = CATEGORIAS[destino];
+    setAtiva(nova);
+    abas.current[nova]?.focus();
   };
 
-  return (
-    <section aria-label="Premissas, decisões, riscos e restrições" className="registros-demanda">
-      <header className="registros-cabecalho">
-        <h3>Premissas, decisões, riscos e restrições</h3>
-        {podeEditar && (
-          <div className="registros-novos">
-            {CATEGORIAS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                className="btn"
-                onClick={() => setEdicao({ tipo: "nova", categoria: c })}
-              >
-                {c === "premissa" || c === "decisao" || c === "restricao" ? "Nova" : "Novo"}{" "}
-                {NOME_CATEGORIA[c]}
-              </button>
-            ))}
-          </div>
-        )}
-      </header>
-      {falha && (
-        <p className="error-text" role="alert">
-          {falha}
-        </p>
-      )}
+  const fontes = listaPorExtenso([...new Set(propostas.map((p) => rotuloFonte(p.fonte)))]);
+  const n = propostas.length;
 
-      {aba.propostas.length > 0 && <FaixaPropostas propostas={aba.propostas} />}
+  return (
+    <Secao
+      titulo={TITULO}
+      nivel={3}
+      className="registros-demanda"
+      acoes={
+        podeEditar && (
+          <MenuAcoes
+            rotulo="Novo registro"
+            itens={CATEGORIAS.map((c) => ({ texto: novo(c), aoEscolher: () => criar(c) }))}
+          />
+        )
+      }
+    >
+      {falha && <Alerta tom="erro" titulo={falha} />}
 
       {edicao && edicao.tipo !== "validar" && (
         <FormRegistro
@@ -232,7 +360,7 @@ export function RegistrosDemanda({
           }
           titulo={
             edicao.tipo === "nova"
-              ? `${edicao.categoria === "risco" ? "Novo" : "Nova"} ${NOME_CATEGORIA[edicao.categoria]}`
+              ? novo(edicao.categoria)
               : edicao.tipo === "editar"
                 ? `Editar ${edicao.registro.id}`
                 : `Ajustar a proposta ${edicao.proposta.referencia}`
@@ -245,7 +373,7 @@ export function RegistrosDemanda({
                 : edicao.proposta.dados
           }
           botao={edicao.tipo === "proposta" ? "Aceitar" : "Salvar"}
-          pessoas={aba.pessoas}
+          pessoas={dados.pessoas}
           ocupado={ocupado}
           aoSalvar={salvar}
           aoCancelar={() => setEdicao(null)}
@@ -268,118 +396,207 @@ export function RegistrosDemanda({
         />
       )}
 
-      <div className="registros-grade">
+      <div className="registros-abas" role="tablist" aria-label="Tipo de registro">
         {CATEGORIAS.map((c) => (
-          <section key={c} aria-label={TITULO_CATEGORIA[c]} className="registros-cartao">
-            <h4>
-              {TITULO_CATEGORIA[c]} {contador(c)}
-            </h4>
-            {c === "risco" && daCategoria(c).length > 0 && <MatrizRiscos riscos={daCategoria(c)} />}
-            <ul className="registros-lista">
-              {daCategoria(c).map((r) => (
-                <LinhaRegistro
-                  key={r.id}
-                  registro={r}
-                  podeEditar={podeEditar}
-                  ocupado={ocupado}
-                  abrirDocumento={abrirDocumento}
-                  editar={() => setEdicao({ tipo: "editar", registro: r })}
-                  validar={(status) => {
-                    if (status === "nao-validada") {
-                      executar(() => api.validarPremissa(projeto, r.id, { status }));
-                    } else {
-                      setEdicao({ tipo: "validar", registro: r, status });
-                    }
-                  }}
-                />
-              ))}
-              {propostasDa(c).map((p) => (
-                <li key={p.referencia} className="registro-proposta" data-proposta>
-                  <span>{p.dados.titulo}</span>
-                  <div className="muted registro-meta">
-                    <span className="badge" data-tone="running">
-                      proposta do agente
-                    </span>{" "}
-                    {rotuloReferencia(p.referencia)}
-                    {p.dados.quem && ` · ${p.dados.quem}`}
-                    {p.dados.status && ` · sugere ${ROTULO_STATUS_PREMISSA[p.dados.status]}`}
-                  </div>
-                  {podeEditar && (
-                    <div className="registro-acoes">
-                      <button
-                        type="button"
-                        className="btn"
-                        disabled={ocupado}
-                        onClick={() => aceitar(p)}
-                        aria-label={`Aceitar ${p.referencia}`}
-                      >
-                        Aceitar
-                      </button>
-                      <button
-                        type="button"
-                        className="btn"
-                        disabled={ocupado}
-                        onClick={() => setEdicao({ tipo: "proposta", proposta: p })}
-                        aria-label={`Ajustar ${p.referencia}`}
-                      >
-                        Ajustar
-                      </button>
-                      <button
-                        type="button"
-                        className="btn"
-                        disabled={ocupado}
-                        onClick={() => recusar(p)}
-                        aria-label={`Recusar ${p.referencia}`}
-                      >
-                        Recusar
-                      </button>
-                    </div>
-                  )}
-                </li>
-              ))}
-              {daCategoria(c).length === 0 && propostasDa(c).length === 0 && (
-                <li className="muted">Nenhum registro.</li>
-              )}
-            </ul>
-          </section>
+          <button
+            key={c}
+            ref={(el) => {
+              abas.current[c] = el;
+            }}
+            id={idAba(c)}
+            type="button"
+            role="tab"
+            className="registros-aba"
+            aria-selected={aba === c}
+            aria-controls={idPainel(c)}
+            tabIndex={aba === c ? 0 : -1}
+            onClick={() => setAtiva(c)}
+            onKeyDown={teclado}
+          >
+            {TITULO_CATEGORIA[c]} <span className="registros-aba-contagem">{contagem(dados, c)}</span>
+          </button>
         ))}
       </div>
-      <p className="muted registros-pasta">
-        Registros em <code>{aba.pasta}/</code>
-      </p>
-    </section>
+
+      <div
+        className="registros-painel"
+        role="tabpanel"
+        id={idPainel(aba)}
+        aria-labelledby={idAba(aba)}
+        tabIndex={0}
+      >
+        {n > 0 && (
+          <Alerta
+            tom="atencao"
+            role="note"
+            titulo={`${n} ${n > 1 ? "propostas" : "proposta"} do agente`}
+            acoes={
+              podeEditar && (
+                <>
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={ocupado}
+                    onClick={() =>
+                      alternar(
+                        propostas.map((p) => p.referencia),
+                        !todasEscolhidas,
+                      )
+                    }
+                  >
+                    {todasEscolhidas ? "Limpar a seleção" : "Selecionar todas"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={ocupado || escolhidas.length === 0}
+                    onClick={() => aceitarEmLote(escolhidas)}
+                  >
+                    Aceitar as selecionadas{escolhidas.length > 0 && ` (${escolhidas.length})`}
+                  </button>
+                </>
+              )
+            }
+          >
+            {n > 1 ? "vindas" : "vinda"} de {fontes}. Revise antes de valerem para a demanda.
+          </Alerta>
+        )}
+
+        {aba === "risco" && registros.length > 0 && <MatrizRiscos riscos={registros} />}
+
+        {n === 0 && registros.length === 0 ? (
+          <EstadoVazio
+            acao={podeEditar ? { texto: "Criar o primeiro", aoEscolher: () => criar(aba) } : undefined}
+          >
+            Nenhum registro deste tipo.
+          </EstadoVazio>
+        ) : (
+          <ListaItens rotulo={TITULO_CATEGORIA[aba]}>
+            {propostas.map((p) => (
+              <ItemProposta
+                key={p.referencia}
+                proposta={p}
+                podeEditar={podeEditar}
+                ocupado={ocupado}
+                selecionada={selecionadas.has(p.referencia)}
+                selecionar={(marcar) => alternar([p.referencia], marcar)}
+                aceitar={() => aceitar(p)}
+                ajustar={() => setEdicao({ tipo: "proposta", proposta: p })}
+                recusar={() => recusar(p)}
+              />
+            ))}
+            {registros.map((r) => (
+              <ItemRegistro
+                key={r.id}
+                registro={r}
+                podeEditar={podeEditar}
+                ocupado={ocupado}
+                abrirDocumento={abrirDocumento}
+                editar={() => setEdicao({ tipo: "editar", registro: r })}
+                validar={(status) => {
+                  if (status === "nao-validada") {
+                    executar(() => api.validarPremissa(projeto, r.id, { status }));
+                  } else {
+                    setEdicao({ tipo: "validar", registro: r, status });
+                  }
+                }}
+              />
+            ))}
+          </ListaItens>
+        )}
+      </div>
+    </Secao>
   );
 }
 
-function FaixaPropostas({ propostas }: { propostas: Proposta[] }) {
-  const fontes = new Map<string, { rotulo: string; contagem: Map<Categoria, number> }>();
-  for (const p of propostas) {
-    const chave = `${p.fonte.tipo}:${p.fonte.id}`;
-    const rotulo =
-      p.fonte.tipo === "analise"
-        ? `${p.fonte.id} (impacto)`
-        : `ata ${p.fonte.id} (reunião de ${p.fonte.data})`;
-    const f = fontes.get(chave) ?? { rotulo, contagem: new Map() };
-    f.contagem.set(p.categoria, (f.contagem.get(p.categoria) ?? 0) + 1);
-    fontes.set(chave, f);
-  }
-  const partes = [...fontes.values()].map(({ rotulo, contagem }) => {
-    const itens = [...contagem.entries()].map(
-      ([c, n]) => `${n} ${n > 1 ? TITULO_CATEGORIA[c].toLowerCase() : NOME_CATEGORIA[c]}`,
-    );
-    return `De ${rotulo}: ${itens.join(", ")}.`;
-  });
+/** O que o agente sugere além do texto: status, quem, probabilidade × impacto, tipo. */
+function sugestao(p: Proposta): string | null {
+  const d = p.dados;
+  const partes: string[] = [];
+  if (d.quem) partes.push(d.quem);
+  if (d.status) partes.push(`sugere ${ROTULO_STATUS_PREMISSA[d.status]}`);
+  if (d.probabilidade && d.impacto)
+    partes.push(`sugere ${ROTULO_NIVEL[d.probabilidade]} × ${ROTULO_NIVEL[d.impacto]}`);
+  if (d.restricao) partes.push(`sugere ${ROTULO_RESTRICAO[d.restricao]}`);
+  return partes.length > 0 ? partes.join(" · ") : null;
+}
+
+function ItemProposta({
+  proposta: p,
+  podeEditar,
+  ocupado,
+  selecionada,
+  selecionar,
+  aceitar,
+  ajustar,
+  recusar,
+}: {
+  proposta: Proposta;
+  podeEditar: boolean;
+  ocupado: boolean;
+  selecionada: boolean;
+  selecionar: (marcar: boolean) => void;
+  aceitar: () => void;
+  ajustar: () => void;
+  recusar: () => void;
+}) {
+  const origem = rotuloReferencia(p.referencia);
+  const sugere = sugestao(p);
   return (
-    <p className="registros-faixa" role="status">
-      <span className="badge" data-tone="running">
-        {propostas.length} proposta{propostas.length > 1 ? "s" : ""} do agente
-      </span>{" "}
-      {partes.join(" ")}
-    </p>
+    <ItemLista
+      acoes={
+        podeEditar && (
+          <>
+            <BotaoIcone
+              rotulo={`Aceitar ${p.referencia}`}
+              dica="Aceitar"
+              data-acao="aceitar"
+              disabled={ocupado}
+              onClick={aceitar}
+            >
+              <IconeConfirmar />
+            </BotaoIcone>
+            <BotaoIcone rotulo={`Ajustar ${p.referencia}`} dica="Ajustar" disabled={ocupado} onClick={ajustar}>
+              <IconeAjustar />
+            </BotaoIcone>
+            <BotaoIcone
+              rotulo={`Recusar ${p.referencia}`}
+              dica="Recusar"
+              tom="perigo"
+              disabled={ocupado}
+              onClick={recusar}
+            >
+              <IconeDescartar />
+            </BotaoIcone>
+          </>
+        )
+      }
+    >
+      <div className="registro-item" data-proposta={p.referencia}>
+        {podeEditar && (
+          <input
+            type="checkbox"
+            className="registro-selecao"
+            aria-label={`Selecionar ${p.referencia}`}
+            checked={selecionada}
+            disabled={ocupado}
+            onChange={(e) => selecionar(e.target.checked)}
+          />
+        )}
+        <div className="registro-corpo">
+          <TextoRico texto={textoCompleto(p.dados.titulo, p.dados.detalhe)} linhas={LINHAS_DO_TEXTO} />
+          <div className="registro-meta">
+            <Selo tom="agente">proposta do agente</Selo>
+            {origem && <span>{origem}</span>}
+            {sugere && <span>{sugere}</span>}
+          </div>
+        </div>
+      </div>
+    </ItemLista>
   );
 }
 
-function LinhaRegistro({
+function ItemRegistro({
   registro: r,
   podeEditar,
   ocupado,
@@ -394,71 +611,81 @@ function LinhaRegistro({
   editar: () => void;
   validar: (status: StatusPremissa) => void;
 }) {
-  const destaque =
-    (r.categoria === "premissa" && r.status === "nao-validada") ||
-    (r.categoria === "risco" && riscoAlto(r));
   const origem = rotuloReferencia(r.referencia);
+  const detalhes: string[] = [];
+  if (r.categoria === "premissa" && r.quem) detalhes.push(`assumida por ${r.quem}`);
+  if (r.categoria === "decisao" && r.quem) detalhes.push(`decidiu ${r.quem}`);
+  if (r.categoria === "decisao" && r.decididoEm) detalhes.push(r.decididoEm);
+  if (r.categoria === "risco" && r.probabilidade && r.impacto)
+    detalhes.push(`${ROTULO_NIVEL[r.probabilidade]} × ${ROTULO_NIVEL[r.impacto]}`);
+  if (r.categoria === "risco" && r.quem) detalhes.push(`resp. ${r.quem}`);
+  if (r.categoria === "risco" && r.resposta) detalhes.push(r.resposta);
+  if (r.categoria === "restricao" && r.quem) detalhes.push(`informada por ${r.quem}`);
+  if (origem) detalhes.push(origem);
+  if (r.categoria === "decisao" && r.alternativas.length > 0)
+    detalhes.push(`alternativas: ${r.alternativas.join(", ")}`);
+  if (r.validacao) detalhes.push(`${r.validacao.como} (${r.validacao.em})`);
   return (
-    <li data-destaque={destaque ? "sim" : undefined} data-registro={r.id}>
-      <span className="mono registro-id">{r.id}</span>{" "}
-      {r.categoria === "restricao" && r.restricao && (
-        <span className="badge">{ROTULO_RESTRICAO[r.restricao]}</span>
-      )}{" "}
-      <span>{r.titulo}</span>
-      <div className="muted registro-meta">
-        {r.categoria === "premissa" && r.status && (
-          <span className="badge" data-tone={TOM_STATUS[r.status]}>
-            {ROTULO_STATUS_PREMISSA[r.status]}
-          </span>
-        )}
-        {r.categoria === "premissa" && r.quem && ` assumida por ${r.quem}`}
-        {r.categoria === "decisao" && r.quem && <> decidiu <strong>{r.quem}</strong></>}
-        {r.categoria === "decisao" && r.decididoEm && ` · ${r.decididoEm}`}
-        {r.categoria === "risco" &&
-          r.probabilidade &&
-          r.impacto &&
-          ` ${ROTULO_NIVEL[r.probabilidade]} × ${ROTULO_NIVEL[r.impacto]}`}
-        {r.categoria === "risco" && r.quem && ` · resp. ${r.quem}`}
-        {r.categoria === "risco" && r.resposta && ` · ${r.resposta}`}
-        {r.categoria === "restricao" && r.quem && ` informada por ${r.quem}`}
-        {origem && ` · ${origem}`}
-        {r.categoria === "decisao" && r.alternativas.length > 0 &&
-          ` · alternativas: ${r.alternativas.join(", ")}`}
-        {r.validacao && ` · ${r.validacao.como} (${r.validacao.em})`}
+    <ItemLista
+      acoes={
+        podeEditar && (
+          <>
+            {r.categoria === "premissa" && r.status !== "validada" && (
+              <BotaoIcone
+                rotulo={`Validar ${r.id}`}
+                dica="Validar"
+                data-acao="aceitar"
+                disabled={ocupado}
+                onClick={() => validar("validada")}
+              >
+                <IconeConfirmar />
+              </BotaoIcone>
+            )}
+            {r.categoria === "premissa" && r.status !== "invalidada" && (
+              <BotaoIcone
+                rotulo={`Invalidar ${r.id}`}
+                dica="Invalidar"
+                tom="perigo"
+                disabled={ocupado}
+                onClick={() => validar("invalidada")}
+              >
+                <IconeDescartar />
+              </BotaoIcone>
+            )}
+            <BotaoIcone rotulo={`Editar ${r.id}`} dica="Editar" disabled={ocupado} onClick={editar}>
+              <IconeAjustar />
+            </BotaoIcone>
+          </>
+        )
+      }
+    >
+      <div className="registro-item" data-registro={r.id}>
+        <div className="registro-corpo">
+          <TextoRico texto={textoCompleto(r.titulo, r.detalhe)} linhas={LINHAS_DO_TEXTO} />
+          <div className="registro-meta">
+            <span className="mono">{r.id}</span>
+            {r.categoria === "premissa" && r.status && (
+              <Selo tom={TOM_STATUS[r.status]}>{ROTULO_STATUS_PREMISSA[r.status]}</Selo>
+            )}
+            {r.categoria === "risco" && riscoAlto(r) && <Selo tom="atencao">risco alto</Selo>}
+            {r.categoria === "restricao" && r.restricao && (
+              <Selo>{ROTULO_RESTRICAO[r.restricao]}</Selo>
+            )}
+            {detalhes.length > 0 && <span>{detalhes.join(" · ")}</span>}
+            {abrirDocumento && (
+              <button type="button" className="link" onClick={() => abrirDocumento(r.documento)}>
+                abrir
+              </button>
+            )}
+            {abrirDocumento && r.origem && (
+              <button type="button" className="link" onClick={() => abrirDocumento(r.origem!)}>
+                abrir a origem
+              </button>
+            )}
+          </div>
+        </div>
       </div>
-      <div className="registro-acoes">
-        {podeEditar && r.categoria === "premissa" && r.status !== "validada" && (
-          <button type="button" className="btn" disabled={ocupado} onClick={() => validar("validada")}>
-            Validar
-          </button>
-        )}
-        {podeEditar && r.categoria === "premissa" && r.status !== "invalidada" && (
-          <button
-            type="button"
-            className="btn"
-            disabled={ocupado}
-            onClick={() => validar("invalidada")}
-          >
-            Invalidar
-          </button>
-        )}
-        {podeEditar && (
-          <button type="button" className="btn" disabled={ocupado} onClick={editar}>
-            Editar
-          </button>
-        )}
-        {abrirDocumento && (
-          <button type="button" className="link" onClick={() => abrirDocumento(r.documento)}>
-            abrir
-          </button>
-        )}
-        {abrirDocumento && r.origem && (
-          <button type="button" className="link" onClick={() => abrirDocumento(r.origem!)}>
-            abrir a origem
-          </button>
-        )}
-      </div>
-    </li>
+    </ItemLista>
   );
 }
 

@@ -4,13 +4,14 @@ import { idadeEmTexto, type ApiCobertura, type Cobertura } from "./cobertura";
 import { AjudaTermo } from "./AjudaTermo";
 import { contar } from "./formatacao";
 import type { Tela } from "./Navegacao";
+import { Selo } from "./componentes";
 
 const PASTAS_VISIVEIS = 8;
 
 /** Cor do mapa de calor: só reforça; os números e o texto "lacuna" dizem o mesmo. */
 function fundo(calor: number): string {
   return calor > 0
-    ? `color-mix(in srgb, var(--attention, #f2a33a) ${Math.round(calor * 60) + 10}%, transparent)`
+    ? `color-mix(in srgb, var(--attention) ${Math.round(calor * 60) + 10}%, transparent)`
     : "transparent";
 }
 
@@ -107,7 +108,7 @@ export function CoberturaProjeto({
                     style={{ background: fundo(a.calor) }}
                   >
                     <strong>{a.nome}</strong>
-                    {a.lacuna && <span className="badge" data-tone="attention">lacuna</span>}
+                    {a.lacuna && <Selo tom="atencao">lacuna</Selo>}
                     <div>
                       {contar(a.regras, "regra", "regras")} · {contar(a.termos, "termo", "termos")} ·{" "}
                       {contar(a.documentos, "documento", "documentos")}
@@ -136,7 +137,7 @@ export function CoberturaProjeto({
                 {pastasMostradas.map((p) => (
                   <li key={p.pasta} style={{ background: fundo(p.calor) }}>
                     <code>{p.pasta || "(raiz)"}</code>{" "}
-                    {p.lacuna && <span className="badge" data-tone="attention">lacuna</span>}{" "}
+                    {p.lacuna && <Selo tom="atencao">lacuna</Selo>}{" "}
                     <span className="muted">
                       referenciada {contar(p.centralidade, "vez", "vezes")} ·{" "}
                       {contar(p.regras, "regra", "regras")} · {contar(p.arquivos, "arquivo", "arquivos")}

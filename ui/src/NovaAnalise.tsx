@@ -11,6 +11,7 @@ import {
 import { lembrarConducao, ultimaConducao } from "./conducao";
 import { ROTULO_FLUXO, type ApiConhecimento } from "./conhecimento";
 import { EscolhaConducao } from "./EscolhaConducao";
+import { Alerta, Selo, TituloSecao, type TomSelo } from "./componentes";
 import type { DemandaVista } from "./demandas";
 import type { IssueDoProjeto, OrigemIssue } from "./issuesProjeto";
 import { PrepararAmbiente } from "./PrepararAmbiente";
@@ -168,11 +169,11 @@ export async function resolverDemanda(
   return { achada: true, titulo, origem, demanda, issue: issueAchada, analises };
 }
 
-const TOM_ESTADO: Record<EstadoAnalise, "attention" | "running" | "done" | undefined> = {
-  criada: undefined,
-  "em-andamento": "running",
-  concluida: "attention",
-  aprovada: "done",
+const TOM_ESTADO: Record<EstadoAnalise, TomSelo> = {
+  criada: "neutro",
+  "em-andamento": "andamento",
+  concluida: "atencao",
+  aprovada: "concluido",
 };
 
 /**
@@ -244,9 +245,9 @@ export function DemandaAchada({
                     <span className="id">{a.id}</span> · {ROTULO_FLUXO[a.fluxo]}
                   </span>
                 </div>
-                <span className="badge" data-tone={TOM_ESTADO[a.estado]}>
+                <Selo tom={TOM_ESTADO[a.estado]}>
                   {ROTULO_ESTADO_ANALISE[a.estado][0].toUpperCase() + ROTULO_ESTADO_ANALISE[a.estado].slice(1)}
-                </span>
+                </Selo>
                 {aoAbrirAnalise && (
                   <button
                     type="button"
@@ -604,7 +605,9 @@ export function NovaAnalise({
 
   return (
     <form className="nova-pergunta nova-analise" onSubmit={criar} aria-label={cadastrada ? "Analisar demanda cadastrada" : ROTULO_FLUXO[fluxo]}>
-      {!semTitulo && <h3 className="titulo-formulario">{cadastrada ? "Analisar demanda cadastrada" : ROTULO_FLUXO[fluxo]}</h3>}
+      {!semTitulo && (
+        <TituloSecao nivel={3}>{cadastrada ? "Analisar demanda cadastrada" : ROTULO_FLUXO[fluxo]}</TituloSecao>
+      )}
       {demandaFixa ? (
         <p className="muted">A análise fica ligada à demanda {demandaFixa}.</p>
       ) : (
@@ -688,11 +691,7 @@ export function NovaAnalise({
           </button>
         </div>
       </div>
-      {falha && (
-        <p className="error-text" role="alert">
-          {falha}
-        </p>
-      )}
+      {falha && <Alerta tom="erro" titulo={falha} />}
     </form>
   );
 }

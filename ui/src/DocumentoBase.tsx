@@ -1,12 +1,10 @@
-import Markdown from "markdown-to-jsx";
-import { useMemo, type MouseEvent, type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { resolverLink, rotuloTipo, type DocumentoAberto, type LigacaoVista } from "./conhecimento";
+import { Alerta, BarraAcoes, Selo, TextoRico, TituloSecao, type Acao } from "./componentes";
 import { ConsultaReversa } from "./ConsultaReversa";
 import { ErroTecnico } from "./erroTecnico";
 import { resolverImagem } from "./manual";
 import { ImagemDaBase } from "./ManualAoVivo";
-import { OPCOES_MARKDOWN_BASE } from "./markdownOpcoes";
-import { separarNotasSeguidas } from "./notasDeRodape";
 
 /** Campos do frontmatter que já aparecem no cabeçalho. */
 const NO_CABECALHO = new Set(["tipo", "titulo", "termo", "status"]);
@@ -22,9 +20,9 @@ const ROTULO_CAMPO: Record<string, string> = {
  * links para outros `.md` da base abrem o documento no app; os demais ficam como
  * texto, porque o app não abre endereços externos daqui.
  *
- * Renderizador: `markdown-to-jsx` 7 (MIT, sem dependências). Ele monta elementos
- * React (nada de `innerHTML`), com `disableParsingRawHTML` o HTML do arquivo vira
- * texto e o sanitizador embutido descarta URLs `javascript:`/`data:`. O
+ * Renderizador: o {@link TextoRico}, o único do app (MIT, sem dependências). Ele
+ * monta elementos React (nada de `innerHTML`), com `disableParsingRawHTML` o HTML do
+ * arquivo vira texto e o sanitizador embutido descarta URLs `javascript:`/`data:`. O
  * `react-markdown` faria o mesmo com dezenas de pacotes do ecosprojeto unified.
  */
 export function DocumentoBase({
@@ -52,6 +50,19 @@ export function DocumentoBase({
   const regra = documento.campos.find((c) => c.chave === "id")?.valor;
   const ehRegra = documento.tipo === "regra" && !!documento.projeto && !!regra;
   const area = documento.campos.find((c) => c.chave === "area")?.valor;
+  const analise = documento.analise;
+  const acoes: Acao[] = [
+    ...(aoEditar ? [{ texto: "Editar", aoEscolher: aoEditar }] : []),
+    ...(aoAbrirEmAba ? [{ texto: "Abrir em aba", aoEscolher: aoAbrirEmAba }] : []),
+    ...(analise && aoAbrirAnalise
+      ? [
+          {
+            texto: "Abrir na tela da análise",
+            aoEscolher: () => aoAbrirAnalise(analise.projeto, analise.id),
+          },
+        ]
+      : []),
+  ];
 
   return (
     <article className="documento-base" aria-label={documento.titulo}>
@@ -65,35 +76,12 @@ export function DocumentoBase({
         <h2>
           {documento.titulo}{" "}
           {documento.status && (
-            <span
-              className="badge"
-              data-tone={documento.status === "a-revalidar" ? "attention" : undefined}
-            >
-              {documento.status === "a-revalidar" ? "a revalidar" : documento.status}
-            </span>
+            <Selo>{documento.status === "a-revalidar" ? "a revalidar" : documento.status}</Selo>
           )}
         </h2>
-        <div className="acoes">
-          {aoEditar && (
-            <button className="btn" type="button" onClick={aoEditar}>
-              Editar
-            </button>
-          )}
-          {aoAbrirEmAba && (
-            <button className="btn" type="button" onClick={aoAbrirEmAba}>
-              Abrir em aba
-            </button>
-          )}
-          {documento.analise && aoAbrirAnalise && (
-            <button
-              className="btn"
-              type="button"
-              onClick={() => aoAbrirAnalise(documento.analise!.projeto, documento.analise!.id)}
-            >
-              Abrir na tela da análise
-            </button>
-          )}
-        </div>
+        {acoes.length > 0 && (
+          <BarraAcoes secundarias={acoes} rotulo="Ações do documento" alinhamento="fim" />
+        )}
         {documento.somenteLeitura && (
           <p className="muted" role="note">
             Documento externo, só leitura: cópia do repositório de docs
@@ -113,10 +101,9 @@ export function DocumentoBase({
           </p>
         )}
         {documento.problema && (
-          <p className="error-text" role="alert">
-            Este documento tem um problema e não pôde ser lido por inteiro:{" "}
+          <Alerta tom="erro" titulo="Este documento tem um problema e não pôde ser lido por inteiro.">
             <ErroTecnico mensagem={documento.problema} />
-          </p>
+          </Alerta>
         )}
       </header>
 
@@ -221,25 +208,8 @@ export function CorpoMarkdown({
     return { a: { component: Link }, img: { component: Imagem } };
   }, [caminho, aoAbrirDocumento]);
 
-  // A nota de rodapé leva à sua linha no fim do documento, sem mexer no endereço da janela.
-  const irParaNota = (e: MouseEvent<HTMLDivElement>) => {
-    const link = (e.target as HTMLElement).closest("a");
-    const href = link?.getAttribute("href");
-    if (!href?.startsWith("#") || href.length < 2) return;
-    const alvo = Array.from(e.currentTarget.querySelectorAll("[id]")).find(
-      (el) => el.id === href.slice(1),
-    );
-    e.preventDefault();
-    alvo?.scrollIntoView?.({ block: "center" });
-  };
-
-  return (
-    <div className="markdown" onClick={irParaNota}>
-      <Markdown options={{ ...OPCOES_MARKDOWN_BASE, overrides }}>
-        {separarNotasSeguidas(markdown)}
-      </Markdown>
-    </div>
-  );
+  // As notas de rodapé (inclusive as coladas) e a ida até elas ficam no TextoRico.
+  return <TextoRico texto={markdown} overrides={overrides} />;
 }
 
 function Ligacoes({
@@ -253,7 +223,7 @@ function Ligacoes({
 }) {
   return (
     <div>
-      <h3>{titulo}</h3>
+      <TituloSecao nivel={3}>{titulo}</TituloSecao>
       <ul>
         {ligacoes.map((l) => (
           <li key={`${l.campo}:${l.caminho}`}>

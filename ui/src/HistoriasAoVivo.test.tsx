@@ -67,7 +67,7 @@ describe("HistoriasAoVivo", () => {
   it("mostra a narrativa, o INVEST, os critérios Gherkin e as origens", () => {
     render(<HistoriasAoVivo historias={historias()} origem="A-0001" revisao={revisaoFalsa()} />);
     expect(screen.getByText(/2 histórias · 2 critérios · 1 a confirmar · origem A-0001/));
-    const hu1 = screen.getByRole("region", { name: /HU-0001/ });
+    const hu1 = screen.getByRole("article", { name: /HU-0001/ });
     expect(hu1).toHaveTextContent("Como atendente do faturamento, quero parcelar");
     expect(within(hu1).getByText("RN-FAT-008")).toHaveAttribute("title", "Quantidade de parcelas");
     expect(within(hu1).getByText("af. A-0001/4")).toBeInTheDocument();
@@ -75,7 +75,7 @@ describe("HistoriasAoVivo", () => {
     const invest = within(hu1).getByLabelText("Verificação INVEST");
     expect(within(invest).getByLabelText("testável: atende")).toBeInTheDocument();
 
-    const hu2 = screen.getByRole("region", { name: /HU-0002/ });
+    const hu2 = screen.getByRole("article", { name: /HU-0002/ });
     expect(within(hu2).getByLabelText("pequena: não atende")).toBeInTheDocument();
     // Sem critério, não é testável.
     expect(within(hu2).getByLabelText("testável: não atende")).toBeInTheDocument();

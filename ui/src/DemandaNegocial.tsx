@@ -3,6 +3,7 @@ import { mensagemDe } from "./analise";
 import type { ApiConhecimento } from "./conhecimento";
 import { ROTULO_TIPO_DEMANDA, type DemandaVista, type TipoDemanda } from "./demandas";
 import { DemandaAchada, useDemandaResolvida } from "./NovaAnalise";
+import { Alerta } from "./componentes";
 
 export type { TipoDemanda };
 
@@ -240,11 +241,7 @@ export function FormDemandaNegocial({
           </button>
         </div>
       </div>
-      {falha && (
-        <p className="error-text" role="alert">
-          {falha}
-        </p>
-      )}
+      {falha && <Alerta tom="erro" titulo={falha} />}
     </form>
   );
 }

@@ -4,6 +4,7 @@ import { TelaIssue } from "./TelaIssue";
 import { chaveDoObjeto } from "./Navegacao";
 import type { ApiIssues, IssueDoProjeto, ListaIssues } from "./issuesProjeto";
 import { PROJETO, apiConhecimentoFalsa } from "./test/conhecimentoFalso";
+import telasCss from "./telas.css?raw";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(), Channel: vi.fn() }));
 
@@ -103,6 +104,43 @@ describe("TelaIssue (aba da issue, #398)", () => {
       projeto: PROJETO,
       link: "https://github.com/o/r/issues/412",
     });
+  });
+
+  it("a ação principal fica no topo, ao lado da chave, e não no fim do bloco Na base (#404)", async () => {
+    const longa = Array.from({ length: 40 }, (_, i) => `Parágrafo ${i + 1} da demanda.`).join("\n\n");
+    montar([issue({ descricao: longa })]);
+    const aba = await screen.findByRole("region", { name: "Issue #412" });
+    const topo = within(aba).getByRole("group", { name: "Ações da demanda" });
+    expect(within(topo).getByRole("button", { name: "Analisar impacto" })).toBeInTheDocument();
+    expect(within(aba).getAllByRole("button", { name: "Analisar impacto" })).toHaveLength(1);
+    // O topo vem antes da descrição; o bloco Na base não tem mais o botão.
+    const descricao = aba.querySelector(".demandas-descricao")!;
+    expect(topo.compareDocumentPosition(descricao) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(aba.querySelector(".demandas-nabase") as HTMLElement).queryByRole("button", { name: "Analisar impacto" })).toBeNull();
+    // A descrição inteira, sem caixa de rolagem.
+    expect(within(aba).getByText("Parágrafo 40 da demanda.")).toBeInTheDocument();
+    const regra = /\.demandas-descricao\s*\{([^}]*)\}/.exec(telasCss)![1];
+    expect(regra).not.toMatch(/max-height|overflow/);
+    // Os títulos de seção (#410): o TituloSecao, abaixo do cabeçalho da aba.
+    expect(within(aba).getByRole("heading", { name: "Descrição", level: 3 }).closest(".titulo-secao")).not.toBeNull();
+    expect(within(aba).getByRole("heading", { name: "Na base", level: 3 }).closest(".titulo-secao")).not.toBeNull();
+  });
+
+  it("no topo, mostra Analisando… enquanto cria a análise", async () => {
+    const { api } = montar([issue()]);
+    vi.mocked(api.analisarImpacto).mockReturnValue(new Promise(() => undefined));
+    const aba = await screen.findByRole("region", { name: "Issue #412" });
+    fireEvent.click(within(aba).getByRole("button", { name: "Analisar impacto" }));
+    const topo = within(aba).getByRole("group", { name: "Ações da demanda" });
+    expect(within(topo).getByRole("button", { name: "Analisando…" })).toBeDisabled();
+  });
+
+  it("issue encerrada sem demanda: o botão do topo fica bloqueado, com o motivo junto", async () => {
+    montar([issue({ estado: "fechada" })]);
+    const aba = await screen.findByRole("region", { name: "Issue #412" });
+    const acoes = aba.querySelector(".demandas-acoes") as HTMLElement;
+    expect(within(acoes).getByRole("button", { name: "Analisar impacto" })).toBeDisabled();
+    expect(within(acoes).getByText(/A issue está encerrada no rastreador/)).toBeInTheDocument();
   });
 
   it("issue que não está na lista avisa para atualizar, em vez de mostrar vazio", async () => {

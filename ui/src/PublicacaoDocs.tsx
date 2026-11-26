@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { mensagemDe } from "./analise";
+import { Alerta, TituloSecao } from "./componentes";
 import type {
   ApiPublicacao,
   MudancaDeDocumento,
@@ -47,9 +48,9 @@ function ListaDocumentos({ tipo, itens }: { tipo: TipoMudanca; itens: MudancaDeD
   if (itens.length === 0) return null;
   return (
     <div className="publicacao-grupo">
-      <h4>
+      <TituloSecao nivel={4}>
         {ROTULO_DOCUMENTOS[tipo]} ({itens.length})
-      </h4>
+      </TituloSecao>
       <ul aria-label={ROTULO_DOCUMENTOS[tipo]}>
         {itens.slice(0, MAX_POR_TIPO).map((d) => (
           <li key={`${d.tipo}:${d.id}`}>
@@ -175,7 +176,7 @@ export function PublicacaoDocs({ api, projeto, abrirUrl }: Props) {
       aria-label="Publicação da documentação"
       style={altura === undefined ? undefined : { maxHeight: `${altura}px` }}
     >
-      <h3>Publicar a documentação</h3>
+      <TituloSecao nivel={3}>Publicar a documentação</TituloSecao>
       <div className="publicacao-corpo" data-testid="publicacao-corpo">
         <p className="muted">
           A documentação aprovada do projeto vira páginas legíveis (índice, funcionalidades, regras,
@@ -231,7 +232,7 @@ export function PublicacaoDocs({ api, projeto, abrirUrl }: Props) {
             )}
             {previa.avisos.length > 0 && (
               <div className="publicacao-grupo">
-                <h4>Ficaram de fora ({previa.avisos.length})</h4>
+                <TituloSecao nivel={4}>Ficaram de fora ({previa.avisos.length})</TituloSecao>
                 <ul aria-label="Ficaram de fora">
                   {previa.avisos.map((a) => (
                     <li key={a}>{a}</li>
@@ -245,17 +246,15 @@ export function PublicacaoDocs({ api, projeto, abrirUrl }: Props) {
       <div className="publicacao-acoes" data-testid="publicacao-acoes">
         {podePublicar && (
           <>
-            <div className="attention-text" role="note">
-              <p>
-                As páginas mostram os documentos como estão na base. Antes de publicar, confira se não
-                há segredos (senhas, tokens, chaves, endereços internos) nem dados pessoais (nomes,
-                CPF, e-mails, telefones) que não podem ir para o repositório.
-              </p>
-              <label>
+            <Alerta tom="atencao" role="note" titulo="As páginas mostram os documentos como estão na base.">
+              Antes de publicar, confira se não há segredos (senhas, tokens, chaves, endereços
+              internos) nem dados pessoais (nomes, CPF, e-mails, telefones) que não podem ir para o
+              repositório.
+              <label className="publicacao-conferido">
                 <input type="checkbox" checked={conferido} onChange={(e) => setConferido(e.target.checked)} />{" "}
                 Conferi: não há segredos nem dados pessoais nos documentos
               </label>
-            </div>
+            </Alerta>
             <button
               className="btn btn-primary"
               type="button"
@@ -286,21 +285,20 @@ export function PublicacaoDocs({ api, projeto, abrirUrl }: Props) {
                 <span className="muted">{link}</span>
               </p>
             )}
-            {falhaLink && (
-              <p className="error-text" role="alert">
-                {falhaLink}
-              </p>
-            )}
+            {falhaLink && <Alerta tom="erro" titulo={falhaLink} />}
           </div>
         )}
         {erro && (
           <>
-            <p className="error-text" role="alert">
-              {erro}
-            </p>
-            <button className="btn" type="button" disabled={carregando} onClick={carregar}>
-              Tentar de novo
-            </button>
+            <Alerta
+              tom="erro"
+              titulo={erro}
+              acoes={
+                <button className="btn" type="button" disabled={carregando} onClick={carregar}>
+                  Tentar de novo
+                </button>
+              }
+            />
           </>
         )}
       </div>

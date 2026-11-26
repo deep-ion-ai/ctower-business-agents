@@ -1,93 +1,129 @@
-/* Premissas, decisões, riscos e restrições da demanda (#122). Cores só por token de theme.css. */
+/* Premissas, decisões, riscos e restrições da demanda (#122, em abas desde a #409).
+   Cores só por token de theme.css. */
 
-.registros-cabecalho {
+/* ---- Abas por tipo, com a contagem ---- */
+
+.registros-abas {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 16px;
-  justify-content: space-between;
-}
-
-.registros-novos {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.registros-faixa {
-  padding: 10px 14px;
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  background: var(--running-bg);
-}
-
-.registros-grade {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 16px;
-}
-
-.registros-cartao {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-2);
-  padding: 4px 16px 12px;
-  min-width: 0;
-}
-
-.registros-cartao h4 {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.registros-lista {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.registros-lista > li {
-  padding: 10px 0;
+  gap: var(--space-1);
   border-bottom: 1px solid var(--border);
+}
+
+.registros-aba {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 40px;
+  padding: 0 var(--space-3);
+  margin-bottom: -1px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--fs-base);
+  cursor: pointer;
+}
+
+.registros-aba:hover {
+  color: var(--text);
+}
+
+.registros-aba[aria-selected="true"] {
+  border-bottom-color: var(--accent);
+  color: var(--text);
+  font-weight: var(--fw-strong);
+}
+
+.registros-aba:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.registros-aba-contagem {
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--idle-bg);
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
+}
+
+.registros-painel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.registros-painel:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---- Item: seleção, texto inteiro e a linha de metadados ---- */
+
+.registro-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.registro-selecao {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: var(--space-1) 0 0;
+}
+
+.registro-corpo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--fs-base);
+  line-height: var(--lh-reading);
   overflow-wrap: anywhere;
 }
 
-.registros-lista > li:last-child {
-  border-bottom: none;
+.registro-corpo .texto-rico > :first-child {
+  margin-top: 0;
 }
 
-.registros-lista > li[data-destaque="sim"] {
-  border-left: 3px solid var(--attention);
-  padding-left: 8px;
-}
-
-.registro-id {
-  color: var(--muted);
+.registro-corpo .texto-rico > :last-child {
+  margin-bottom: 0;
 }
 
 .registro-meta {
-  margin-top: 4px;
-  font-size: 13px;
-}
-
-.registro-acoes {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 6px;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  color: var(--muted);
+  font-size: var(--fs-support);
 }
+
+/* Aceitar e validar em verde; recusar e invalidar em vermelho (prancheta). */
+.registros-demanda .icone-acao[data-acao="aceitar"]:not(:disabled) {
+  color: var(--done);
+}
+
+.registros-demanda .icone-acao.icone-perigo:not(:disabled) {
+  color: var(--error);
+}
+
+/* ---- Matriz de riscos ---- */
 
 .matriz-riscos {
   border-collapse: collapse;
-  margin: 8px 0;
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .matriz-riscos th,
 .matriz-riscos td {
   border: 1px solid var(--border);
-  padding: 4px 8px;
+  padding: var(--space-1) var(--space-2);
   text-align: center;
 }
 
@@ -95,24 +131,32 @@
   background: var(--attention-card);
 }
 
+/* ---- Formulários ---- */
+
 .form-registro {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
   max-width: 640px;
-  padding: 12px 16px;
-  margin: 12px 0;
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--border-strong);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--surface-3);
+}
+
+.form-registro h4 {
+  margin: 0;
 }
 
 .form-registro label {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
-.registros-pasta {
-  font-size: 12px;
+.registro-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
 }

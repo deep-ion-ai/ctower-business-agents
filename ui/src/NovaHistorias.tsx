@@ -14,6 +14,7 @@ import {
   useDemandasDoProjeto,
 } from "./NovaAnalise";
 import { PrepararAmbiente } from "./PrepararAmbiente";
+import { Alerta, TituloSecao } from "./componentes";
 import type { ProjetoResumo } from "./terminal";
 
 /** Fluxos derivados de uma análise de origem: histórias (#115) e cenários (#117). */
@@ -211,7 +212,7 @@ export function NovaHistorias({
 
   return (
     <form className="nova-pergunta" onSubmit={criar} aria-label={ROTULO_FLUXO[fluxo]}>
-      {!semTitulo && <h3 className="titulo-formulario">{ROTULO_FLUXO[fluxo]}</h3>}
+      {!semTitulo && <TituloSecao nivel={3}>{ROTULO_FLUXO[fluxo]}</TituloSecao>}
       <p className="muted">{textos.explicacao}</p>
       {demandaFixa ? (
         <p className="muted">
@@ -288,19 +289,14 @@ export function NovaHistorias({
       </div>
       {/* Abaixo dos botões: o aviso não empurra “Gerar” (#219). */}
       {escolhida && escolhida.estado !== "aprovada" && (
-        <p className="muted" role="note">
-          A análise {escolhida.id} ainda não foi aprovada: o agente prefere as afirmações que você
-          já confirmou e trata as demais como a confirmar.
-        </p>
+        <Alerta tom="atencao" role="note" titulo={`A análise ${escolhida.id} ainda não foi aprovada:`}>
+          o agente prefere as afirmações que você já confirmou e trata as demais como a confirmar.
+        </Alerta>
       )}
       {ambiente && !pronto && (
         <p className="muted">{textos.preparar}</p>
       )}
-      {falha && (
-        <p className="error-text" role="alert">
-          {falha}
-        </p>
-      )}
+      {falha && <Alerta tom="erro" titulo={falha} />}
     </form>
   );
 }

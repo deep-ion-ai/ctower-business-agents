@@ -11,6 +11,7 @@ import {
   type Situacao,
   ROTULO_ESTADO_ANALISE,
 } from "./analise";
+import { Alerta, BarraAcoes, BotaoIcone, EstadoVazio, Secao, Selo, type TomSelo } from "./componentes";
 import { ROTULO_FLUXO, type ApiConhecimento } from "./conhecimento";
 import type { DemandaVista } from "./demandas";
 import { FormDemandaNegocial } from "./DemandaNegocial";
@@ -240,23 +241,14 @@ export function TelaAnalise({
   return (
     <section className="tela-analise page" aria-label="Análises">
       {!carregou && <h2>Análises</h2>}
-      {erro && (
-        <p className="error-text" role="alert">
-          {erro}
-        </p>
-      )}
+      {erro && <Alerta tom="erro" titulo={erro} />}
       {!situacao && !erro && <p className="muted">Carregando…</p>}
       {situacao && (!situacao.base || situacao.projetos.length === 0) && (
-        <p>
+        <EstadoVazio acao={aoPrimeiroUso && { texto: "Abrir o primeiro uso", aoEscolher: aoPrimeiroUso }}>
           {!situacao.base
             ? "Falta escolher a pasta da base de conhecimento."
-            : "Nenhum projeto cadastrado."}{" "}
-          {aoPrimeiroUso && (
-            <button className="btn" type="button" onClick={aoPrimeiroUso}>
-              Abrir o primeiro uso
-            </button>
-          )}
-        </p>
+            : "Nenhum projeto cadastrado."}
+        </EstadoVazio>
       )}
       {carregou && projeto && (
         <Projeto
@@ -382,20 +374,16 @@ function Projeto({
       </div>
 
       {falhaAmbiente && (
-        <p className="error-text" role="alert">
-          Não foi possível verificar se o agente está ligado a este projeto: {falhaAmbiente}
-        </p>
+        <Alerta tom="erro" titulo="Não foi possível verificar se o agente está ligado a este projeto.">
+          {falhaAmbiente}
+        </Alerta>
       )}
       {ambiente && !pronto && novo === null && (
         <PrepararAmbiente api={api} projeto={projeto} ambiente={ambiente} aoConcluir={verificar} />
       )}
-      {falha && (
-        <p className="error-text" role="alert">
-          {falha}
-        </p>
-      )}
+      {falha && <Alerta tom="erro" titulo={falha} />}
 
-      <section aria-label="Análises do projeto" className="analises-lista">
+      <Secao rotulo="Análises do projeto" className="analises-lista">
         {analises && analises.length > 0 && (
           <div className="analises-filtros">
             <div className="vincular-chips" role="group" aria-label="Situação da análise">
@@ -455,11 +443,9 @@ function Projeto({
             />
           </div>
         )}
-        {analises?.length === 0 && (
-          <p className="muted">Nenhuma análise ainda. Comece por “Nova análise”.</p>
-        )}
+        {analises?.length === 0 && <EstadoVazio>Nenhuma análise ainda. Comece por “Nova análise”.</EstadoVazio>}
         {analises && analises.length > 0 && visiveis.length === 0 && (
-          <p className="muted">Nenhuma análise com este filtro.</p>
+          <EstadoVazio>Nenhuma análise com este filtro.</EstadoVazio>
         )}
         {visiveis.length > 0 && (
           <div className="analises-tabela">
@@ -517,9 +503,7 @@ function Projeto({
                   {quandoMudou(a.atualizadaMs)}
                 </span>
                 <span className="analise-situacao">
-                  <span className="badge" data-tone={TOM[a.estado]}>
-                    {ESTADO[a.estado][0].toUpperCase() + ESTADO[a.estado].slice(1)}
-                  </span>
+                  <Selo tom={TOM[a.estado]}>{ESTADO[a.estado][0].toUpperCase() + ESTADO[a.estado].slice(1)}</Selo>
                 </span>
                 <span className="analise-acao">
                   <button
@@ -549,7 +533,7 @@ function Projeto({
             Limpar filtros
           </button>
         )}
-      </section>
+      </Secao>
 
       {novo !== null && (
         <PainelNova
@@ -573,11 +557,12 @@ function Projeto({
   );
 }
 
-const TOM: Record<EstadoAnalise, "attention" | "running" | "done" | undefined> = {
-  criada: undefined,
-  "em-andamento": "running",
-  concluida: "attention",
-  aprovada: "done",
+/** O tom do selo de cada situação, pelo significado (#410): o mesmo do rótulo dela. */
+const TOM: Record<EstadoAnalise, TomSelo> = {
+  criada: "neutro",
+  "em-andamento": "andamento",
+  concluida: "atencao",
+  aprovada: "concluido",
 };
 
 /**
@@ -648,27 +633,21 @@ function PainelNova({
           <strong>Demanda {registrada.id} registrada.</strong> Ela já aparece em Demandas.
         </p>
         <p className="muted">{registrada.titulo}</p>
-        <div className="acoes">
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => {
+        <BarraAcoes
+          rotulo="Próximo passo da demanda"
+          principal={{
+            texto: "Analisar esta demanda",
+            aoEscolher: () => {
               setReferencia(registrada.id);
               setRegistrada(null);
               aoEscolher("cadastrada");
-            }}
-          >
-            Analisar esta demanda
-          </button>
-          {aoAbrirDemanda && (
-            <button type="button" className="btn" onClick={() => aoAbrirDemanda(registrada.id)}>
-              Abrir a demanda
-            </button>
-          )}
-          <button type="button" className="btn" onClick={aoFechar}>
-            Fechar
-          </button>
-        </div>
+            },
+          }}
+          secundarias={[
+            ...(aoAbrirDemanda ? [{ texto: "Abrir a demanda", aoEscolher: () => aoAbrirDemanda(registrada.id) }] : []),
+            { texto: "Fechar", aoEscolher: aoFechar },
+          ]}
+        />
       </div>
     );
   } else if (escolha === "escolha") {
@@ -853,9 +832,9 @@ function PainelNova({
             <h3 id="painel-nova-titulo">Nova análise</h3>
             <p className="muted">Em {nomeProjeto}, o projeto da barra de título.</p>
           </div>
-          <button type="button" className="btn-icone" aria-label="Fechar" onClick={aoFechar}>
-            ✕
-          </button>
+          <BotaoIcone rotulo="Fechar" onClick={aoFechar}>
+            <span aria-hidden="true">✕</span>
+          </BotaoIcone>
         </header>
         <div className="painel-nova-corpo">{corpo}</div>
       </aside>
@@ -1001,11 +980,7 @@ function FormPergunta({
           </div>
         </div>
       </form>
-      {falha && (
-        <p className="error-text" role="alert">
-          {falha}
-        </p>
-      )}
+      {falha && <Alerta tom="erro" titulo={falha} />}
     </>
   );
 }

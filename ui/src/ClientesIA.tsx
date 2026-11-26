@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { estadoClientes, type EstadoClientes, type Passo } from "./clientes";
+import { Alerta, BarraAcoes, Cartao, Secao } from "./componentes";
 
 export type CargaClientes =
   { tipo: "verificando" } | { tipo: "pronto"; estado: EstadoClientes } | { tipo: "erro" };
@@ -38,27 +39,22 @@ export function ClientesIA({ abrirLink = abrirPeloTauri }: { abrirLink?: AbrirLi
   const { carga, verificar } = useEstadoClientes();
 
   return (
-    <section className="clientes" aria-label="Clientes de IA">
-      <h2>Clientes de IA</h2>
+    <Secao titulo="Clientes de IA">
       {carga.tipo === "verificando" && <p className="muted">Verificando…</p>}
-      {carga.tipo === "erro" && (
-        <p className="muted">Não foi possível verificar os clientes de IA.</p>
-      )}
+      {carga.tipo === "erro" && <Alerta tom="erro" titulo="Não foi possível verificar os clientes de IA." />}
       {carga.tipo === "pronto" && (
         <div className="clientes-lista">
           <CartaoClaudeCode estado={carga.estado} abrirLink={abrirLink} />
           <CartaoClaudeDesktop estado={carga.estado} abrirLink={abrirLink} />
         </div>
       )}
-      <button
-        className="btn"
-        type="button"
-        onClick={verificar}
-        disabled={carga.tipo === "verificando"}
-      >
-        Verificar de novo
-      </button>
-    </section>
+      <BarraAcoes
+        rotulo="Ações dos clientes de IA"
+        secundarias={[
+          { texto: "Verificar de novo", aoEscolher: verificar, desabilitado: carga.tipo === "verificando" },
+        ]}
+      />
+    </Secao>
   );
 }
 
@@ -89,7 +85,7 @@ export function CartaoClaudeCode({
   const instalado = instalacao.estado === "encontrado";
   const login = textoLogin(estado);
   return (
-    <article className="cliente" aria-label="Claude Code">
+    <Cartao className="cliente" rotulo="Claude Code">
       <h3>{titulo}</h3>
       <p>
         {instalado
@@ -98,7 +94,7 @@ export function CartaoClaudeCode({
       </p>
       {login && <p>{login}</p>}
       <Passos passos={orientacao} abrirLink={abrirLink} />
-    </article>
+    </Cartao>
   );
 }
 
@@ -112,18 +108,18 @@ export function CartaoClaudeDesktop({
   const { instalacao, orientacao } = estado.claudeDesktop;
   if (instalacao.estado === "naoSuportado") {
     return (
-      <article className="cliente" aria-label="Claude Desktop">
+      <Cartao className="cliente" rotulo="Claude Desktop">
         <h3>Claude Desktop</h3>
         <p>Não disponível neste projeto (só macOS e Windows).</p>
-      </article>
+      </Cartao>
     );
   }
   return (
-    <article className="cliente" aria-label="Claude Desktop">
+    <Cartao className="cliente" rotulo="Claude Desktop">
       <h3>Claude Desktop</h3>
       <p>{instalacao.estado === "encontrado" ? "Instalado" : "Não instalado"}</p>
       <Passos passos={orientacao} abrirLink={abrirLink} />
-    </article>
+    </Cartao>
   );
 }
 

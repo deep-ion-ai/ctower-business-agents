@@ -30,7 +30,7 @@ describe("ListaDemandas", () => {
     montar();
     const lista = await screen.findByRole("region", { name: "Demandas" });
     const itens = await within(lista).findAllByRole("listitem");
-    expect(within(itens[0]).getByText("Nova funcionalidade")).toHaveClass("badge");
+    expect(within(itens[0]).getByText("Nova funcionalidade")).toHaveClass("selo");
     // D-0002 não tem tipo: sem selo.
     expect(within(itens[1]).queryByText(/Corrigir bug|Nova funcionalidade|Melhoria/)).toBeNull();
 

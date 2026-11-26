@@ -9,6 +9,7 @@ import {
 } from "./analise";
 import { ROTULO_FLUXO } from "./conhecimento";
 import { PrepararAmbiente } from "./PrepararAmbiente";
+import { Alerta, TituloSecao } from "./componentes";
 import {
   apiPrototipoTauri,
   AVISO_ENVIO_HOSPEDADO,
@@ -145,20 +146,20 @@ export function CamposPrototipo({
       </div>
       <span className="ajuda-campo">{DESCRICAO_MODO[valor.modo]}</span>
       {valor.modo === "design_hospedado" && (
-        <div className="aviso-envio" role="note" aria-label="Envio para fora do ambiente">
-          <p>
-            <strong>O que sai do ambiente:</strong> {AVISO_ENVIO_HOSPEDADO} O código do projeto e
-            as evidências não vão. Sem os tokens aprovados, vai só a estrutura das telas.
-          </p>
-          <label>
-            <input
-              type="checkbox"
-              checked={valor.confirmaEnvio}
-              onChange={(e) => mudar("confirmaEnvio", e.target.checked)}
-            />{" "}
-            Confirmo o envio das telas, dos elementos e dos tokens do projeto para a ferramenta
-            hospedada
-          </label>
+        <div role="note" aria-label="Envio para fora do ambiente">
+          <Alerta tom="atencao" role="none" titulo="O que sai do ambiente:">
+            {AVISO_ENVIO_HOSPEDADO} O código do projeto e as evidências não vão. Sem os tokens
+            aprovados, vai só a estrutura das telas.
+            <label className="aviso-envio-confirma">
+              <input
+                type="checkbox"
+                checked={valor.confirmaEnvio}
+                onChange={(e) => mudar("confirmaEnvio", e.target.checked)}
+              />{" "}
+              Confirmo o envio das telas, dos elementos e dos tokens do projeto para a ferramenta
+              hospedada
+            </label>
+          </Alerta>
         </div>
       )}
       <label>
@@ -282,7 +283,7 @@ export function NovaPrototipo({
 
   return (
     <form className="nova-pergunta" onSubmit={criar} aria-label={ROTULO_FLUXO.prototipo}>
-      {!semTitulo && <h3 className="titulo-formulario">{ROTULO_FLUXO.prototipo}</h3>}
+      {!semTitulo && <TituloSecao nivel={3}>{ROTULO_FLUXO.prototipo}</TituloSecao>}
       <p className="muted">
         O agente lê a análise de origem, lista as telas afetadas (novas ou alteradas) e registra
         os campos, as validações, as mensagens e as ações de cada tela, ligados às regras e aos
@@ -348,10 +349,9 @@ export function NovaPrototipo({
       </div>
       {/* Abaixo dos botões: o aviso não empurra o botão principal (#219). */}
       {escolhida && escolhida.estado !== "aprovada" && (
-        <p className="muted" role="note">
-          A análise {escolhida.id} ainda não foi aprovada: o agente prefere as afirmações que você
-          já confirmou e trata as demais como a confirmar.
-        </p>
+        <Alerta tom="atencao" role="note" titulo={`A análise ${escolhida.id} ainda não foi aprovada:`}>
+          o agente prefere as afirmações que você já confirmou e trata as demais como a confirmar.
+        </Alerta>
       )}
       {ambiente && !pronto && (
         <p className="muted">Ligue o agente a este projeto antes de pedir o protótipo.</p>
@@ -362,11 +362,7 @@ export function NovaPrototipo({
           nada sai do ambiente.
         </p>
       )}
-      {falha && (
-        <p className="error-text" role="alert">
-          {falha}
-        </p>
-      )}
+      {falha && <Alerta tom="erro" titulo={falha} />}
     </form>
   );
 }

@@ -1,7 +1,13 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { RegistrosDemanda } from "./RegistrosDemanda";
-import type { ApiRegistros, RegistroVista, RegistrosDaDemanda } from "./registros";
+import {
+  textoCompleto,
+  type ApiRegistros,
+  type Proposta,
+  type RegistroVista,
+  type RegistrosDaDemanda,
+} from "./registros";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(), Channel: vi.fn() }));
 
@@ -28,6 +34,15 @@ function registro(r: Partial<RegistroVista> & Pick<RegistroVista, "id" | "catego
     documento: `${PASTA}/${r.id}.md`,
     ...r,
   } satisfies RegistroVista;
+}
+
+function propostaDeRisco(n: number, titulo = `Risco proposto ${n}.`): Proposta {
+  return {
+    referencia: `A-0001/${n}`,
+    categoria: "risco",
+    fonte: { tipo: "analise", id: "A-0001", titulo: "Parcelamento PJ" },
+    dados: { titulo, probabilidade: "medio", impacto: "medio" },
+  };
 }
 
 function abaFicticia(): RegistrosDaDemanda {
@@ -69,12 +84,7 @@ function abaFicticia(): RegistrosDaDemanda {
       }),
     ],
     propostas: [
-      {
-        referencia: "A-0001/4",
-        categoria: "risco",
-        fonte: { tipo: "analise", id: "A-0001", titulo: "Parcelamento PJ" },
-        dados: { titulo: "Faturas antigas sem coluna de parcela.", probabilidade: "medio", impacto: "medio" },
-      },
+      propostaDeRisco(4, "Faturas antigas sem coluna de parcela."),
       {
         referencia: "R-0001/D-2",
         categoria: "decisao",
@@ -99,53 +109,134 @@ function apiFalsa(aba = abaFicticia()) {
   return api;
 }
 
+const aba = (nome: RegExp) => screen.getByRole("tab", { name: nome });
+const painel = () => screen.getByRole("tabpanel");
+
 describe("RegistrosDemanda", () => {
-  it("mostra as quatro seções com destaques, a matriz e a faixa das propostas", async () => {
+  it("abas por tipo com contagem, no padrão tablist, abrindo na primeira com itens", async () => {
     const api = apiFalsa();
     const abrir = vi.fn();
     render(<RegistrosDemanda projeto={PROJETO} demanda="D-0001" api={api} abrirDocumento={abrir} />);
-    const premissas = await screen.findByRole("region", { name: "Premissas" });
+    const lista = await screen.findByRole("tablist", { name: "Tipo de registro" });
     expect(api.registros).toHaveBeenCalledWith(PROJETO, "D-0001");
-    expect(within(premissas).getByText("1 não validada")).toBeInTheDocument();
-    const pr = premissas.querySelector('[data-registro="PR-0001"]')!;
-    expect(pr).toHaveAttribute("data-destaque", "sim");
+    expect(within(lista).getAllByRole("tab").map((t) => t.textContent)).toEqual([
+      "Premissas 1",
+      "Decisões 2",
+      "Riscos 2",
+      "Restrições 1",
+    ]);
+    const premissas = aba(/Premissas/);
+    expect(premissas).toHaveAttribute("aria-selected", "true");
+    expect(premissas).toHaveAttribute("tabIndex", "0");
+    expect(aba(/Decisões/)).toHaveAttribute("aria-selected", "false");
+    expect(aba(/Decisões/)).toHaveAttribute("tabIndex", "-1");
+    expect(painel()).toHaveAttribute("aria-labelledby", premissas.id);
+    expect(premissas).toHaveAttribute("aria-controls", painel().id);
+
+    const pr = painel().querySelector('[data-registro="PR-0001"]') as HTMLElement;
+    expect(within(pr).getByText("não validada")).toHaveAttribute("data-tom", "atencao");
     expect(pr).toHaveTextContent("assumida por Ana Exemplo");
     expect(pr).toHaveTextContent("análise A-0001");
-
-    const decisoes = screen.getByRole("region", { name: "Decisões" });
-    expect(decisoes).toHaveTextContent("decidiu Maria Silva");
-    expect(decisoes).toHaveTextContent("ata R-0001, item D-1");
-    expect(decisoes).toHaveTextContent("alternativas: 6 parcelas, sem limite");
-
-    const riscos = screen.getByRole("region", { name: "Riscos" });
-    expect(within(riscos).getByText("1 alto")).toBeInTheDocument();
-    const matriz = within(riscos).getByRole("table", { name: /probabilidade × impacto/ });
-    expect(matriz).toHaveTextContent("RI-0001");
-
-    expect(screen.getByRole("region", { name: "Restrições" })).toHaveTextContent("técnica");
-
-    const faixa = screen.getByRole("status");
-    expect(faixa).toHaveTextContent("2 propostas do agente");
-    expect(faixa).toHaveTextContent("De A-0001 (impacto): 1 risco.");
-    expect(faixa).toHaveTextContent("De ata R-0001 (reunião de 2026-11-10): 1 decisão.");
-    expect(screen.getByText(new RegExp(PASTA))).toBeInTheDocument();
-
-    fireEvent.click(within(pr as HTMLElement).getByRole("button", { name: "abrir a origem" }));
+    fireEvent.click(within(pr).getByRole("button", { name: "abrir a origem" }));
     expect(abrir).toHaveBeenCalledWith("faturamento-exemplo/analises/A-0001.md");
+    // O caminho interno da pasta não aparece na tela (#407).
+    expect(screen.queryByText(new RegExp(PASTA))).toBeNull();
+
+    // Setas, Home e End trocam a aba e levam o foco (roving tabindex).
+    fireEvent.keyDown(premissas, { key: "ArrowRight" });
+    expect(aba(/Decisões/)).toHaveAttribute("aria-selected", "true");
+    expect(aba(/Decisões/)).toHaveFocus();
+    expect(premissas).toHaveAttribute("tabIndex", "-1");
+    expect(painel()).toHaveTextContent("decidiu Maria Silva");
+    expect(painel()).toHaveTextContent("ata R-0001, item D-1");
+    expect(painel()).toHaveTextContent("alternativas: 6 parcelas, sem limite");
+    expect(painel()).not.toHaveTextContent("Clientes PJ");
+
+    fireEvent.keyDown(aba(/Decisões/), { key: "End" });
+    expect(aba(/Restrições/)).toHaveFocus();
+    expect(painel()).toHaveTextContent("técnica");
+    fireEvent.keyDown(aba(/Restrições/), { key: "ArrowRight" });
+    expect(aba(/Premissas/)).toHaveFocus();
+    fireEvent.keyDown(aba(/Premissas/), { key: "ArrowLeft" });
+    expect(aba(/Restrições/)).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(aba(/Restrições/), { key: "Home" });
+    expect(aba(/Premissas/)).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.click(aba(/Riscos/));
+    const matriz = within(painel()).getByRole("table", { name: /probabilidade × impacto/ });
+    expect(matriz).toHaveTextContent("RI-0001");
+    expect(within(painel()).getByText("risco alto")).toBeInTheDocument();
   });
 
-  it("aceita, ajusta e recusa propostas", async () => {
+  it("propostas do agente: aviso com a origem, selo de tom agente, sugestão e ações em ícone", async () => {
+    render(<RegistrosDemanda projeto={PROJETO} demanda="D-0001" api={apiFalsa()} />);
+    fireEvent.click(await screen.findByRole("tab", { name: /Decisões/ }));
+    const aviso = within(painel()).getByRole("note");
+    expect(aviso).toHaveTextContent(
+      "1 proposta do agente vinda de ata R-0001. Revise antes de valerem para a demanda.",
+    );
+    const item = painel().querySelector('[data-proposta="R-0001/D-2"]') as HTMLElement;
+    expect(within(item).getByText("proposta do agente")).toHaveAttribute("data-tom", "agente");
+    expect(item).toHaveTextContent("ata R-0001, item D-2");
+    expect(item).toHaveTextContent("Maria Silva");
+    for (const nome of ["Aceitar", "Ajustar", "Recusar"]) {
+      expect(screen.getByRole("button", { name: `${nome} R-0001/D-2` })).toHaveClass("icone-acao");
+    }
+
+    fireEvent.click(aba(/Riscos/));
+    expect(within(painel()).getByRole("note")).toHaveTextContent("1 proposta do agente vinda de A-0001.");
+    const risco = painel().querySelector('[data-proposta="A-0001/4"]') as HTMLElement;
+    expect(within(risco).getByText("análise A-0001")).toBeInTheDocument();
+    expect(within(risco).getByText("sugere médio × médio")).toBeInTheDocument();
+  });
+
+  it("texto inteiro em Markdown, recolhido em 4 linhas com ver mais", async () => {
+    const longo = `A remessa **CNAB 240** do banco ${"rejeita parcelas com vencimentos distintos no mesmo lote ".repeat(8)}e isso trava o faturamento.`;
+    const dados = abaFicticia();
+    dados.propostas = [propostaDeRisco(7, `${longo.slice(0, 159)}…`)];
+    dados.propostas[0].dados.detalhe = longo;
+    render(<RegistrosDemanda projeto={PROJETO} demanda="D-0001" api={apiFalsa(dados)} />);
+    fireEvent.click(await screen.findByRole("tab", { name: /Riscos/ }));
+    const item = painel().querySelector('[data-proposta="A-0001/7"]') as HTMLElement;
+    expect(within(item).getByText("CNAB 240").tagName).toBe("STRONG");
+    expect(item).not.toHaveTextContent("**");
+    expect(item).not.toHaveTextContent("…");
+    expect(item).toHaveTextContent("e isso trava o faturamento.");
+    const verMais = within(item).getByRole("button", { name: "ver mais" });
+    expect(verMais).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(verMais);
+    expect(within(item).getByRole("button", { name: "ver menos" })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("aba vazia mostra o estado vazio com Criar o primeiro", async () => {
+    const dados = abaFicticia();
+    dados.registros = dados.registros.filter((r) => r.categoria === "risco");
+    dados.propostas = [];
+    const api = apiFalsa(dados);
+    render(<RegistrosDemanda projeto={PROJETO} demanda="D-0001" api={api} />);
+    // A primeira aba com itens é a de riscos.
+    expect(await screen.findByRole("tab", { name: "Riscos 1" })).toHaveAttribute("aria-selected", "true");
+    fireEvent.click(aba(/Decisões/));
+    expect(painel()).toHaveTextContent("Nenhum registro deste tipo.");
+    fireEvent.click(within(painel()).getByRole("button", { name: "Criar o primeiro" }));
+    expect(screen.getByRole("form", { name: "Nova decisão" })).toBeInTheDocument();
+  });
+
+  it("aceita, ajusta e recusa propostas uma a uma", async () => {
     const api = apiFalsa();
     render(<RegistrosDemanda projeto={PROJETO} demanda="D-0001" api={api} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Aceitar R-0001/D-2" }));
+    fireEvent.click(await screen.findByRole("tab", { name: /Decisões/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Aceitar R-0001/D-2" }));
     await waitFor(() =>
       expect(api.aceitarProposta).toHaveBeenCalledWith(PROJETO, "D-0001", "R-0001/D-2", undefined),
     );
+    await waitFor(() => expect(screen.getByRole("button", { name: "Recusar R-0001/D-2" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Recusar R-0001/D-2" }));
     await waitFor(() =>
       expect(api.recusarProposta).toHaveBeenCalledWith(PROJETO, "D-0001", "R-0001/D-2"),
     );
 
+    fireEvent.click(aba(/Riscos/));
     fireEvent.click(screen.getByRole("button", { name: "Ajustar A-0001/4" }));
     const form = screen.getByRole("form", { name: "Ajustar a proposta A-0001/4" });
     fireEvent.change(within(form).getByLabelText("Probabilidade"), { target: { value: "alto" } });
@@ -160,10 +251,52 @@ describe("RegistrosDemanda", () => {
     );
   });
 
-  it("cria à mão e valida uma premissa dizendo como", async () => {
+  it("aceita em lote as selecionadas como o aceite individual, e diz qual falhou", async () => {
+    const dados = abaFicticia();
+    dados.propostas = [propostaDeRisco(1), propostaDeRisco(2), propostaDeRisco(3)];
+    const api = apiFalsa(dados);
+    api.aceitarProposta = vi.fn(async (_p, _d, referencia) => {
+      if (referencia === "A-0001/2") throw new Error("o registro já existe");
+      return registro({ id: "RI-0009", categoria: "risco", titulo: "x" });
+    });
+    render(<RegistrosDemanda projeto={PROJETO} demanda="D-0001" api={api} />);
+    fireEvent.click(await screen.findByRole("tab", { name: /Riscos/ }));
+    const aviso = within(painel()).getByRole("note");
+    expect(aviso).toHaveTextContent("3 propostas do agente vindas de A-0001.");
+    const emLote = within(aviso).getByRole("button", { name: /Aceitar as selecionadas/ });
+    expect(emLote).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar A-0001/1" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar A-0001/2" }));
+    expect(emLote).toHaveTextContent("Aceitar as selecionadas (2)");
+    fireEvent.click(emLote);
+
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("1 de 2 propostas aceitas"));
+    expect(screen.getByRole("alert")).toHaveTextContent("A-0001/2: o registro já existe");
+    expect(api.aceitarProposta).toHaveBeenCalledTimes(2);
+    expect(api.aceitarProposta).toHaveBeenNthCalledWith(1, PROJETO, "D-0001", "A-0001/1", undefined);
+    expect(api.aceitarProposta).toHaveBeenNthCalledWith(2, PROJETO, "D-0001", "A-0001/2", undefined);
+    // A aceita sai da seleção; a que falhou fica marcada para tentar de novo.
+    expect(screen.getByRole("checkbox", { name: "Selecionar A-0001/1" })).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Selecionar A-0001/2" })).toBeChecked();
+
+    // "Selecionar todas" marca as da aba.
+    fireEvent.click(within(aviso).getByRole("button", { name: "Selecionar todas" }));
+    expect(screen.getAllByRole("checkbox").every((c) => (c as HTMLInputElement).checked)).toBe(true);
+    expect(within(aviso).getByRole("button", { name: "Limpar a seleção" })).toBeInTheDocument();
+  });
+
+  it("cria pelo menu Novo registro e valida uma premissa dizendo como", async () => {
     const api = apiFalsa();
     render(<RegistrosDemanda projeto={PROJETO} demanda="D-0001" api={api} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Nova premissa" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Novo registro" }));
+    expect(screen.getAllByRole("menuitem").map((i) => i.textContent)).toEqual([
+      "Nova premissa",
+      "Nova decisão",
+      "Novo risco",
+      "Nova restrição",
+    ]);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Nova premissa" }));
     const form = screen.getByRole("form", { name: "Nova premissa" });
     fireEvent.change(within(form).getByLabelText("Enunciado da premissa"), {
       target: { value: "O banco aceita vencimentos distintos." },
@@ -186,8 +319,8 @@ describe("RegistrosDemanda", () => {
       ),
     );
 
-    const premissas = screen.getByRole("region", { name: "Premissas" });
-    fireEvent.click(within(premissas).getByRole("button", { name: "Validar" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Validar PR-0001" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Validar PR-0001" }));
     const validar = screen.getByRole("form", { name: "Validar PR-0001" });
     fireEvent.change(within(validar).getByLabelText("Como foi validada"), {
       target: { value: "Confirmado pelo financeiro" },
@@ -199,5 +332,30 @@ describe("RegistrosDemanda", () => {
         como: "Confirmado pelo financeiro",
       }),
     );
+  });
+
+  it("sem edição, não mostra o menu, a seleção nem as ações", async () => {
+    render(<RegistrosDemanda projeto={PROJETO} demanda="D-0001" api={apiFalsa()} podeEditar={false} />);
+    fireEvent.click(await screen.findByRole("tab", { name: /Riscos/ }));
+    expect(screen.queryByRole("button", { name: "Novo registro" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Aceitar/ })).not.toBeInTheDocument();
+    expect(within(painel()).getByRole("note")).toHaveTextContent("1 proposta do agente");
+  });
+});
+
+describe("textoCompleto", () => {
+  it("troca o enunciado cortado pelo detalhe inteiro", () => {
+    expect(textoCompleto("O banco rejeita…", "O banco  rejeita\nremessas com parcelas.")).toBe(
+      "O banco  rejeita\nremessas com parcelas.",
+    );
+  });
+
+  it("junta enunciado e detalhe diferentes; sem detalhe, só o enunciado", () => {
+    expect(textoCompleto("Máximo de 3 parcelas.", "Pedido do financeiro.")).toBe(
+      "Máximo de 3 parcelas.\n\nPedido do financeiro.",
+    );
+    expect(textoCompleto("Máximo de 3 parcelas.", null)).toBe("Máximo de 3 parcelas.");
+    expect(textoCompleto("Máximo de 3 parcelas.", " Máximo de 3 parcelas. ")).toBe("Máximo de 3 parcelas.");
   });
 });
