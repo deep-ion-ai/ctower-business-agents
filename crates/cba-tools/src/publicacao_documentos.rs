@@ -228,7 +228,7 @@ impl Categoria {
             "termo" => Self::Termo,
             "funcionalidade" | "caso-de-uso" => Self::Funcionalidade,
             "analise-impacto" | "pergunta" | "parecer-revisao" | "historias" | "cenarios-teste"
-            | "analise-reuniao" => Self::Analise,
+            | "prototipo" | "analise-reuniao" => Self::Analise,
             "sugestao" => Self::Sugestao,
             _ => Self::Outro,
         }

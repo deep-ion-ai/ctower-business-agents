@@ -28,8 +28,10 @@ use cba_core::analise::{
     Analise, Confianca, EstadoAfirmacao, EstadoAnalise, EstadoEvidencia, EstadoPergunta, Fluxo,
 };
 use cba_core::analises::NovaAnalise;
+use cba_core::conducao::Conducao;
 use cba_core::eventos::Mudanca;
 use cba_core::memoria::Memoria;
+use cba_core::prototipo::{Fidelidade, ModoPrototipo, PedidoPrototipo};
 use cba_docs::{EstadoAta, Templates};
 use cba_index::detectar_git;
 use cba_kb::frontmatter::{Demanda, FrontmatterAnalise, VersaoCodigo};
@@ -103,6 +105,7 @@ fn contagem(analise: &Analise) -> Value {
         "historias": analise.historias_no_documento().count(),
         "tabelas": analise.tabelas_no_documento().count(),
         "cenarios": analise.cenarios_no_documento().count(),
+        "telas": analise.telas().len(),
     })
 }
 
@@ -159,6 +162,25 @@ struct ArgsIniciar {
     origem: Option<String>,
     #[serde(default)]
     funcionalidade: Option<String>,
+    #[serde(default)]
+    telas: Vec<String>,
+    #[serde(default)]
+    fidelidade: Option<Fidelidade>,
+    #[serde(default)]
+    fora: Option<String>,
+    #[serde(default)]
+    modo: Option<ModoPrototipo>,
+    #[serde(default)]
+    conducao: Option<Conducao>,
+    #[serde(default)]
+    motivo: Option<String>,
+}
+
+/// Condução pedida em `iniciar_analise` (#371).
+#[derive(Debug, Clone, Default)]
+struct PedidoDeConducao {
+    conducao: Option<Conducao>,
+    motivo: Option<String>,
 }
 
 /// Ligações pedidas em `iniciar_analise`: a demanda (gravada em `demanda.id` no
@@ -357,6 +379,78 @@ pub fn criar_analise_de_cenarios(
     )?)
 }
 
+/// Cria uma análise do fluxo `prototipo` (#381) a partir da análise de origem
+/// (`origem`, A-NNNN: uma análise do código ou uma análise de histórias, cujos
+/// critérios de aceite os elementos das telas podem citar). A origem é
+/// obrigatória e não pode ser outro protótipo nem uma análise de cenários; de
+/// preferência aprovada (sem a aprovação, `iniciar_analise` avisa). Sem `demanda`,
+/// a análise herda a da origem. O `pedido` do analista (telas, fidelidade e o que
+/// deixar de fora) vai para o estado ([`cba_core::prototipo::Prototipo::pedido`])
+/// e, em frases, para a entrada. Usada por `iniciar_analise` e pela tela de nova
+/// análise do app.
+///
+/// O modo `design_hospedado` (#383) exige a confirmação do envio no pedido, dada
+/// pelo analista no app; sem ela, nada é criado. A hora da confirmação é a da
+/// criação.
+pub fn criar_analise_de_prototipo(
+    ambiente: &Ambiente,
+    origem: Id,
+    demanda: Option<IdDemanda>,
+    pedido: PedidoPrototipo,
+    entrada: Option<String>,
+    titulo: Option<String>,
+) -> Result<Analise, ErroFerramenta> {
+    let o = ambiente.analises.carregar(&origem)?;
+    if matches!(o.fluxo, Fluxo::Prototipo | Fluxo::Cenarios) {
+        return Err(ErroFerramenta::Recusa(format!(
+            "a análise {} é de {}; a origem do protótipo é a análise de onde vêm as regras \
+             e as afirmações (impacto, explicação, pergunta) ou a de histórias",
+            o.id,
+            nome_do_fluxo(o.fluxo)
+        )));
+    }
+    let demanda = match demanda {
+        Some(d) => Some(demanda_aberta(ambiente, d)?),
+        None => ambiente
+            .kb
+            .ler::<FrontmatterAnalise>(&o.documento)
+            .ok()
+            .and_then(|d| d.frontmatter.demanda.id)
+            .and_then(|d| ler_demanda(ambiente, d).ok()),
+    };
+    let mut pedido = pedido.conferido();
+    pedido.exigir_confirmacao().map_err(comum::recusa)?;
+    if let Some(c) = pedido.confirmacao_envio.as_mut() {
+        c.em_ms = cba_core::tempo::agora_ms();
+    }
+    let base = entrada.filter(|e| !e.trim().is_empty()).unwrap_or_else(|| {
+        format!(
+            "Protótipo de telas a partir da análise {} ({}).",
+            o.id, o.titulo
+        )
+    });
+    let entrada = format!("{}\n\n{}", base.trim_end(), pedido.descrever());
+    let titulo = match titulo {
+        Some(t) if !t.trim().is_empty() => t,
+        _ => titulo_da_entrada(&format!("Protótipo · {}", o.titulo)),
+    };
+    let criada = ambiente.analises.criar_derivada(
+        NovaAnalise {
+            fluxo: Fluxo::Prototipo,
+            titulo,
+            entrada,
+            analista: None,
+            base: versao_do_codigo(ambiente),
+        },
+        demanda.as_ref().map(demanda_do_frontmatter),
+        Some(origem),
+    )?;
+    let (_, analise) = ambiente
+        .analises
+        .alterar(&criada.id, Mudanca::Tela, |a, _| a.pedir_prototipo(pedido))?;
+    Ok(analise)
+}
+
 /// `iniciar_analise`: o roteiro do fluxo, a entrada e o contexto da base.
 pub fn iniciar_analise() -> Ferramenta {
     Ferramenta::nova(
@@ -374,17 +468,26 @@ pub fn iniciar_analise() -> Ferramenta {
          `origem` (a análise A-NNNN de onde vêm as afirmações) ou `demanda`. Para \
          derivar cenários de teste das regras, passe `fluxo: \"cenarios\"` e `origem` \
          (uma análise do código ou de histórias), `demanda` ou `entrada` com as regras. \
+         Para prototipar as telas a partir de uma análise validada, passe `fluxo: \
+         \"prototipo\"` e `origem` (de preferência aprovada) e, se o analista disse, \
+         `telas`, `fidelidade`, `fora` e `modo` (`html`, o padrão, ou `design_local`; o \
+         `design_hospedado` envia dados para fora e só é criado pelo app, com a \
+         confirmação do analista). \
          Para explicar uma funcionalidade do mapa de funcionalidades, passe `fluxo: \
          \"explicar\"` e `funcionalidade` (F-<SIGLA>-NNN). `demanda` (D-NNNN, opcional) \
-         liga a análise a uma demanda do projeto. Siga o roteiro devolvido.",
+         liga a análise a uma demanda do projeto. Passe `conducao: \"workflow\"` quando \
+         o analista pedir a análise conduzida pelo workflow (ele também pede a \
+         ferramenta Workflow); o roteiro devolvido é então o curto, da sessão que \
+         espera o workflow e conclui. Se o workflow não puder rodar, chame de novo com \
+         `conducao: \"simples\"` e `motivo`. Siga o roteiro devolvido.",
         json!({
             "type": "object",
             "properties": {
                 "analise": comum::schema_da_analise(),
                 "fluxo": {
                     "type": "string",
-                    "enum": ["perguntar", "explicar", "impacto", "reuniao", "revisar", "historias", "cenarios", "manual"],
-                    "description": "Só para criar: perguntar (pergunta ao sistema), explicar (explicar funcionalidade, documento negocial), impacto (análise de impacto de uma demanda), reuniao (montar a ata de uma reunião a partir do transcript; exige `reuniao`), revisar (revisar a qualidade de um requisito ou história contra a base e o código; a entrada é o texto revisado) historias (histórias com critérios de aceite; exige `origem` ou `demanda`) ou cenarios (cenários de teste derivados das regras: tabela de decisão, partição de equivalência e valores-limite; exige `origem`, `demanda` ou `entrada`) ou manual (manual do usuário de uma funcionalidade do mapa, com o passo a passo; exige `funcionalidade`)."
+                    "enum": ["perguntar", "explicar", "impacto", "reuniao", "revisar", "historias", "cenarios", "manual", "prototipo"],
+                    "description": "Só para criar: perguntar (pergunta ao sistema), explicar (explicar funcionalidade, documento negocial), impacto (análise de impacto de uma demanda), reuniao (montar a ata de uma reunião a partir do transcript; exige `reuniao`), revisar (revisar a qualidade de um requisito ou história contra a base e o código; a entrada é o texto revisado) historias (histórias com critérios de aceite; exige `origem` ou `demanda`) ou cenarios (cenários de teste derivados das regras: tabela de decisão, partição de equivalência e valores-limite; exige `origem`, `demanda` ou `entrada`) ou manual (manual do usuário de uma funcionalidade do mapa, com o passo a passo; exige `funcionalidade`) ou prototipo (protótipo de telas a partir de uma análise validada: telas afetadas e elementos ligados às regras e aos critérios; exige `origem`)."
                 },
                 "entrada": {
                     "type": "string",
@@ -395,7 +498,29 @@ pub fn iniciar_analise() -> Ferramenta {
                 "origem": {
                     "type": "string",
                     "minLength": 1,
-                    "description": "Só para criar, nos fluxos historias e cenarios: a análise de origem (A-NNNN), normalmente a análise de impacto (ou, em cenarios, a de histórias), de preferência aprovada. A análise nova herda a demanda dela."
+                    "description": "Só para criar, nos fluxos historias, cenarios e prototipo: a análise de origem (A-NNNN), normalmente a análise de impacto (ou, em cenarios e prototipo, a de histórias), de preferência aprovada. A análise nova herda a demanda dela."
+                },
+                "telas": {
+                    "type": "array",
+                    "maxItems": 30,
+                    "items": { "type": "string", "minLength": 1, "maxLength": 200 },
+                    "description": "Só para criar, no fluxo prototipo: as telas que o analista quer ver. Sem elas, o agente lista as telas afetadas."
+                },
+                "fidelidade": {
+                    "type": "string",
+                    "enum": ["wireframe", "alta_fidelidade"],
+                    "description": "Só para criar, no fluxo prototipo: wireframe (padrão; estrutura e conteúdo) ou alta_fidelidade (com a identidade visual do projeto)."
+                },
+                "fora": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000,
+                    "description": "Só para criar, no fluxo prototipo: o que deixar de fora do protótipo."
+                },
+                "modo": {
+                    "type": "string",
+                    "enum": ["html", "design_local", "design_hospedado"],
+                    "description": "Só para criar, no fluxo prototipo: html (padrão; o HTML local do app), design_local (o método da ferramenta de design do Claude rodando aqui; nada sai do ambiente) ou design_hospedado (a ferramenta de design hospedada do Claude: telas, elementos e tokens saem do ambiente). O design_hospedado exige a confirmação explícita do analista, que só o app grava: por aqui ele é recusado; peça ao analista para criar o protótipo pelo app."
                 },
                 "titulo": {
                     "type": "string",
@@ -413,12 +538,27 @@ pub fn iniciar_analise() -> Ferramenta {
                     "type": "string",
                     "minLength": 1,
                     "description": "Só para criar, nos fluxos explicar e manual: a funcionalidade do mapa (F-<SIGLA>-NNN) a explicar ou cujo manual do usuário será escrito. A entrada vem do mapa, e o documento aprovado fica ligado a ela."
+                },
+                "conducao": {
+                    "type": "string",
+                    "enum": ["simples", "workflow"],
+                    "description": "simples (padrão): você segue o roteiro completo. workflow: só quando o pedido do analista manda chamar a ferramenta Workflow; a investigação fica com o workflow do tipo, e você conclui."
+                },
+                "motivo": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500,
+                    "description": "Com conducao simples numa análise pedida com workflow: por que o workflow não rodou (ferramenta ausente ou recusada, erro ao carregar o script), em uma frase. Vai para o aviso que o analista vê."
                 }
             },
             "additionalProperties": false
         }),
         |ambiente, args| {
             let args: ArgsIniciar = ler_argumentos(args)?;
+            let conducao = PedidoDeConducao {
+                conducao: args.conducao,
+                motivo: args.motivo.clone(),
+            };
             let mut ligacao = Ligacao {
                 demanda: args
                     .demanda
@@ -441,11 +581,26 @@ pub fn iniciar_analise() -> Ferramenta {
                 ));
             }
             if args.origem.is_some()
-                && !matches!(args.fluxo, Some(Fluxo::Historias | Fluxo::Cenarios))
+                && !matches!(
+                    args.fluxo,
+                    Some(Fluxo::Historias | Fluxo::Cenarios | Fluxo::Prototipo)
+                )
             {
                 return Err(ErroFerramenta::Argumentos(
-                    "`origem` só vale para criar uma análise dos fluxos `historias` ou \
-                     `cenarios`"
+                    "`origem` só vale para criar uma análise dos fluxos `historias`, \
+                     `cenarios` ou `prototipo`"
+                        .into(),
+                ));
+            }
+            if (!args.telas.is_empty()
+                || args.fidelidade.is_some()
+                || args.fora.is_some()
+                || args.modo.is_some())
+                && args.fluxo != Some(Fluxo::Prototipo)
+            {
+                return Err(ErroFerramenta::Argumentos(
+                    "`telas`, `fidelidade`, `fora` e `modo` só valem para criar uma análise do \
+                     fluxo `prototipo`"
                         .into(),
                 ));
             }
@@ -572,6 +727,41 @@ pub fn iniciar_analise() -> Ferramenta {
                     ligacao.demanda = None;
                     (analise.id, true)
                 }
+                (None, Some(Fluxo::Prototipo), entrada) => {
+                    if ligacao.reuniao.is_some() {
+                        return Err(ErroFerramenta::Argumentos(
+                            "`reuniao` só vale no fluxo `reuniao`".into(),
+                        ));
+                    }
+                    let Some(origem) = args.origem.as_deref() else {
+                        return Err(ErroFerramenta::Argumentos(
+                            "no fluxo `prototipo`, informe `origem`: a análise A-NNNN, de \
+                             preferência aprovada, de onde vêm as regras, as afirmações e os \
+                             critérios das telas"
+                                .into(),
+                        ));
+                    };
+                    let origem = comum::id_da_analise(origem)?;
+                    let pedido = PedidoPrototipo {
+                        telas: args.telas,
+                        fidelidade: args.fidelidade.unwrap_or_default(),
+                        fora: args.fora,
+                        // A confirmação do envio é do analista, no app: por aqui, o
+                        // modo hospedado é recusado.
+                        modo: args.modo.unwrap_or_default(),
+                        confirmacao_envio: None,
+                    };
+                    let analise = criar_analise_de_prototipo(
+                        ambiente,
+                        origem,
+                        ligacao.demanda,
+                        pedido,
+                        entrada,
+                        args.titulo,
+                    )?;
+                    ligacao.demanda = None;
+                    (analise.id, true)
+                }
                 (None, Some(fluxo), Some(entrada)) => {
                     if ligacao.reuniao.is_some() {
                         return Err(ErroFerramenta::Argumentos(
@@ -608,7 +798,7 @@ pub fn iniciar_analise() -> Ferramenta {
                     ));
                 }
             };
-            iniciar(ambiente, &id, criada, ligacao)
+            iniciar(ambiente, &id, criada, ligacao, conducao)
         },
     )
 }
@@ -685,11 +875,47 @@ fn gravar_demanda(
     kb.gravar(&analise.documento, &doc)
 }
 
+/// Aplica a condução pedida (#371). Com `workflow` num fluxo que tem workflow, a
+/// análise passa a ser conduzida por ele. Com `simples` (ou sem `conducao`) numa
+/// análise conduzida pelo workflow, a sessão voltou à condução simples: grava o
+/// aviso com o motivo (spec, seção 3.8). Devolve o aviso para o agente quando o
+/// fluxo não tem workflow.
+fn aplicar_conducao(a: &mut Analise, pedido: &PedidoDeConducao) -> Option<String> {
+    match pedido.conducao.unwrap_or_default() {
+        Conducao::Workflow => {
+            if crate::conducao::tipo_do_fluxo(a.fluxo).is_none() {
+                return Some(format!(
+                    "a {} não tem workflow: siga o roteiro completo abaixo, sem chamar a \
+                     ferramenta Workflow",
+                    nome_do_fluxo(a.fluxo)
+                ));
+            }
+            a.conducao = Conducao::Workflow;
+            a.aviso_conducao = None;
+            None
+        }
+        Conducao::Simples => {
+            if a.conducao == Conducao::Workflow {
+                a.conducao = Conducao::Simples;
+                let motivo = pedido
+                    .motivo
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|m| !m.is_empty())
+                    .unwrap_or("a sessão seguiu pelo roteiro completo");
+                a.aviso_conducao = Some(motivo.to_owned());
+            }
+            None
+        }
+    }
+}
+
 fn iniciar(
     ambiente: &Ambiente,
     id: &Id,
     criada: bool,
     ligacao: Ligacao,
+    conducao: PedidoDeConducao,
 ) -> Result<Saida, ErroFerramenta> {
     let atual = ambiente.analises.carregar(id)?;
     if atual.estado == EstadoAnalise::Aprovada {
@@ -764,7 +990,7 @@ fn iniciar(
             if reuniao.is_some() {
                 a.reuniao = reuniao;
             }
-            Ok(())
+            Ok(aplicar_conducao(a, &conducao))
         },
         |a| {
             if let Some(d) = demanda
@@ -781,12 +1007,20 @@ fn iniciar(
         )));
     }
     avisos.extend(registrado.aviso.clone());
+    avisos.extend(registrado.resultado.clone());
     let analise = &registrado.analise;
     let contexto = Contexto::da_analise(ambiente, analise);
     let documento = documento(ambiente, analise);
     let (roteiros, a) = Roteiros::da_base(&ambiente.base);
-    let (roteiro, b) = roteiros.montar(analise, &documento, &contexto.markdown());
+    let (completo, b) = roteiros.montar(analise, &documento, &contexto.markdown());
     avisos.extend(a.iter().chain(&b).map(aviso_do_roteiro));
+    let workflow = (analise.conducao == Conducao::Workflow)
+        .then(|| crate::conducao::workflow_do_fluxo(analise.fluxo))
+        .flatten();
+    let roteiro = match &workflow {
+        Some(nome) => crate::conducao::roteiro_curto(analise, nome, &documento, &completo),
+        None => completo,
+    };
 
     let mut texto = String::new();
     if criada {
@@ -815,7 +1049,9 @@ fn iniciar(
         );
     }
     texto.push_str(&roteiro);
-    if let Some(lembrete) = lembrete_da_memoria(&roteiro, id) {
+    if workflow.is_none()
+        && let Some(lembrete) = lembrete_da_memoria(&roteiro, id)
+    {
         texto.push_str(&lembrete);
     }
     for aviso in &avisos {
@@ -837,6 +1073,8 @@ fn iniciar(
         "origem": analise.origem,
         "contexto": contexto.json(),
         "roteiro": roteiro,
+        "conducao": analise.conducao,
+        "workflow": workflow,
     });
     if !avisos.is_empty() {
         dados["avisos"] = json!(avisos);
@@ -998,7 +1236,8 @@ fn retomar(ambiente: &Ambiente, analise: &Analise, memoria: &Memoria) -> Saida {
     // No fluxo `historias`, a origem e as histórias vêm antes.
     let historias = (fluxo == Fluxo::Historias).then(|| crate::historias::para_retomar(analise));
     let cenarios = (fluxo == Fluxo::Cenarios).then(|| crate::cenarios::para_retomar(analise));
-    if matches!(fluxo, Fluxo::Historias | Fluxo::Cenarios) {
+    let prototipo = (fluxo == Fluxo::Prototipo).then(|| crate::prototipo::para_retomar(analise));
+    if matches!(fluxo, Fluxo::Historias | Fluxo::Cenarios | Fluxo::Prototipo) {
         match &analise.origem {
             Some(o) => {
                 let _ = writeln!(
@@ -1022,6 +1261,9 @@ fn retomar(ambiente: &Ambiente, analise: &Analise, memoria: &Memoria) -> Saida {
     if let Some((texto, _)) = &cenarios {
         t.push_str(texto);
     }
+    if let Some((texto, _)) = &prototipo {
+        t.push_str(texto);
+    }
     if fluxo == Fluxo::Manual {
         t.push_str(&crate::manual::para_retomar(analise));
     }
@@ -1042,14 +1284,22 @@ fn retomar(ambiente: &Ambiente, analise: &Analise, memoria: &Memoria) -> Saida {
         let _ = writeln!(t, "### {} (`{secao}`)", titulo_da_secao(fluxo, secao));
         let _ = writeln!(t);
         for a in daqui {
+            let estado = match (&a.estado, &a.contestacao) {
+                (EstadoAfirmacao::ARevalidar, Some(_)) => {
+                    "a revalidar: contestada pela verificação independente"
+                }
+                (e, _) => rotulo_do_estado(e),
+            };
             let _ = writeln!(
                 t,
-                "{}. [{}; {}] {}",
+                "{}. [{}; {estado}] {}",
                 a.numero,
                 rotulo_da_confianca(a.confianca),
-                rotulo_do_estado(&a.estado),
                 a.texto
             );
+            if let Some(c) = &a.contestacao {
+                let _ = writeln!(t, "   Contestação ({}): {}", c.origem.rotulo(), c.motivo);
+            }
             match &a.estado {
                 EstadoAfirmacao::Incorreta { comentario } => {
                     let _ = writeln!(t, "   Comentário do analista: {comentario}");
@@ -1129,11 +1379,20 @@ fn retomar(ambiente: &Ambiente, analise: &Analise, memoria: &Memoria) -> Saida {
         let (roteiros, a) = Roteiros::da_base(&ambiente.base);
         let (roteiro, b) = roteiros.montar(analise, &documento, &contexto.markdown());
         avisos.extend(a.iter().chain(&b).map(aviso_do_roteiro));
-        roteiro
+        // Conduzida pelo workflow: a sessão que retoma espera o workflow e conclui
+        // (#371).
+        match crate::conducao::workflow_do_fluxo(analise.fluxo)
+            .filter(|_| analise.conducao == Conducao::Workflow)
+        {
+            Some(nome) => crate::conducao::roteiro_curto(analise, &nome, &documento, &roteiro),
+            None => roteiro,
+        }
     });
     if let Some(r) = &roteiro {
         t.push_str(r);
-        if let Some(lembrete) = lembrete_da_memoria(r, &analise.id) {
+        if analise.conducao == Conducao::Simples
+            && let Some(lembrete) = lembrete_da_memoria(r, &analise.id)
+        {
             t.push_str(&lembrete);
         }
     }
@@ -1151,6 +1410,7 @@ fn retomar(ambiente: &Ambiente, analise: &Analise, memoria: &Memoria) -> Saida {
                 "texto": a.texto,
                 "confianca": a.confianca,
                 "estado": a.estado,
+                "contestacao": a.contestacao.as_ref().map(|c| &c.motivo),
                 "evidencias": a.evidencias.iter().map(|e| json!({
                     "arquivo": e.arquivo,
                     "linhas": e.linhas,
@@ -1222,6 +1482,7 @@ fn retomar(ambiente: &Ambiente, analise: &Analise, memoria: &Memoria) -> Saida {
             "origem": analise.origem,
             "historias": historias.map(|(_, dados)| dados),
             "cenarios": cenarios.map(|(_, dados)| dados),
+            "prototipo": prototipo.map(|(_, dados)| dados),
             "afirmacoes": afirmacoes,
             "perguntas": perguntas,
             "sugestoes": sugestoes,
@@ -1433,6 +1694,8 @@ fn concluir(ambiente: &Ambiente, id: &Id) -> Result<Saida, ErroFerramenta> {
         conferir_cenarios(&atual)?;
     } else if fluxo == Fluxo::Manual {
         crate::manual::conferir_para_concluir(&atual)?;
+    } else if fluxo == Fluxo::Prototipo {
+        crate::prototipo::conferir_para_concluir(&ambiente.kb, &atual)?;
     } else if afirmacoes_validas(&atual).next().is_none() {
         return Err(ErroFerramenta::Recusa(format!(
             "a análise {id} ainda não tem afirmações. Registre o que apurou com `afirmar` \
@@ -1502,7 +1765,16 @@ fn concluir(ambiente: &Ambiente, id: &Id) -> Result<Saida, ErroFerramenta> {
         }
     }
     for a in afirmacoes_validas(analise) {
-        if a.estado == EstadoAfirmacao::ARevalidar {
+        if let Some(c) = &a.contestacao
+            && a.estado == EstadoAfirmacao::ARevalidar
+        {
+            pendencias.push(format!(
+                "afirmação {}: contestada pela {}: {}; o analista decide na revisão",
+                a.numero,
+                c.origem.rotulo(),
+                c.motivo
+            ));
+        } else if a.estado == EstadoAfirmacao::ARevalidar {
             pendencias.push(format!(
                 "afirmação {}: o código citado mudou desde o registro; registre de novo com \
                  o trecho atual, se a afirmação ainda vale",
@@ -1522,6 +1794,21 @@ fn concluir(ambiente: &Ambiente, id: &Id) -> Result<Saida, ErroFerramenta> {
                 ),
                 None => format!("afirmação {}: o analista pediu para aprofundar", a.numero),
             });
+        }
+    }
+    for achado in analise
+        .parecer
+        .iter()
+        .flat_map(|p| p.achados.iter())
+        .filter(|a| a.a_revalidar())
+    {
+        if let Some(c) = &achado.contestacao {
+            pendencias.push(format!(
+                "achado {}: contestado pela {}: {}; o analista decide na revisão",
+                achado.numero,
+                c.origem.rotulo(),
+                c.motivo
+            ));
         }
     }
     pendencias.extend(diagramas_faltando(analise));
@@ -1557,6 +1844,8 @@ fn concluir(ambiente: &Ambiente, id: &Id) -> Result<Saida, ErroFerramenta> {
                 "as tabelas de decisão, o número de cenários por técnica, os limites lidos do código e os cenários a confirmar",
             Fluxo::Manual =>
                 "o objetivo, os passos com a tela sugerida para o print de cada um e as perguntas em aberto",
+            Fluxo::Prototipo =>
+                "as telas (TL-n, nome, nova ou alterada) com o número de elementos, os elementos e as telas a confirmar",
         }
     );
     if !abertas.is_empty() {

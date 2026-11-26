@@ -29,12 +29,14 @@ use cba_kb::{CaminhoRelativo, Id, IdCenario, IdFuncionalidade, IdHistoria, IdReu
 use serde::{Deserialize, Serialize};
 
 use crate::cenarios::{Cenario, TabelaDecisao};
+use crate::conducao::{Conducao, Contestacao, ExecucaoWorkflow};
 use crate::diagramas::Diagrama;
 use crate::historias::Historia;
 use crate::manual::PassoManual;
 use crate::parecer::{
     Achado, AvaliacaoInvest, EstadoAchado, NovoAchado, Parecer, Veredito, VereditoRegistrado,
 };
+use crate::prototipo::Prototipo;
 use crate::requisito::{Fundamento, ItemRequisito, Revalidacao};
 
 /// Versão do formato do arquivo de estado. Sobe quando um campo muda de sentido;
@@ -70,6 +72,11 @@ pub enum Fluxo {
     /// prints de tela (#272). Os passos ficam em [`Analise::passos`]
     /// ([`crate::manual`]).
     Manual,
+    /// Protótipo de telas a partir de uma análise de origem validada (#381): as
+    /// telas afetadas, novas ou alteradas, com os elementos ligados às regras e
+    /// aos critérios de aceite da origem. Ficam em [`Analise::prototipo`]
+    /// ([`crate::prototipo`]).
+    Prototipo,
 }
 
 impl Fluxo {
@@ -84,6 +91,7 @@ impl Fluxo {
             Self::Historias => TipoDocumento::Historias,
             Self::Cenarios => TipoDocumento::CenariosTeste,
             Self::Manual => TipoDocumento::Manual,
+            Self::Prototipo => TipoDocumento::Prototipo,
         }
     }
 }
@@ -258,6 +266,10 @@ pub struct Afirmacao {
     /// Só existe enquanto a marca for da revalidação: a decisão do analista apaga.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub antes_de_revalidar: Option<EstadoAfirmacao>,
+    /// Contestação da verificação independente de um workflow
+    /// ([`Analise::contestar_afirmacao`]): fica até o analista decidir.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub contestacao: Option<Contestacao>,
     /// Sessão que registrou, quando conhecida.
     #[serde(default)]
     pub sessao: Option<String>,
@@ -577,6 +589,21 @@ pub struct Analise {
     /// Passo a passo do manual do usuário (fluxo `manual`, [`crate::manual`]).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub passos: Vec<PassoManual>,
+    /// Como a sessão conduz a análise (#371): simples, pelo roteiro, ou pelo
+    /// workflow `cba-<tipo>`.
+    #[serde(default, skip_serializing_if = "Conducao::simples")]
+    pub conducao: Conducao,
+    /// Execução mais recente do workflow, gravada pelo receptor de hooks.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workflow: Option<ExecucaoWorkflow>,
+    /// Por que a análise pedida com workflow seguiu pela condução simples
+    /// ("Conduzida sem workflow: <motivo>", spec, seção 3.8).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aviso_conducao: Option<String>,
+    /// Protótipo de telas (fluxo `prototipo`, [`crate::prototipo`]): o pedido do
+    /// analista e as telas afetadas, com os elementos.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prototipo: Option<Prototipo>,
 }
 
 /// Operação recusada pelo modelo. As mensagens se dirigem a quem chamou (o agente
@@ -701,6 +728,30 @@ pub enum ErroModelo {
     ForaDoFluxoDoManual(Id),
     #[error("passo recusado: {0}")]
     PassoInvalido(String),
+    #[error(
+        "a análise {0} não é do fluxo `prototipo`; as telas do protótipo são \
+         registradas numa análise de protótipo (iniciar_analise com fluxo `prototipo`)"
+    )]
+    ForaDoFluxoDePrototipo(Id),
+    #[error(
+        "a tela `{nome}` já foi registrada nesta análise (TL-{numero}); acrescente \
+         elementos a ela com `registrar_elemento_tela`"
+    )]
+    TelaRepetida { nome: String, numero: u32 },
+    #[error("tela recusada: {0}")]
+    TelaInvalida(String),
+    #[error(
+        "o protótipo com a ferramenta de design hospedada do Claude envia as telas, os \
+         elementos e os tokens CSS do projeto para fora do ambiente e exige a confirmação \
+         explícita do analista, dada no app (Nova análise > Protótipo de telas > Design do \
+         Claude, hospedado); sem ela, use o HTML local ou o design local"
+    )]
+    EnvioNaoConfirmado,
+    #[error(
+        "a análise {0} não está no modo de design hospedado: nada é enviado para fora do \
+         ambiente. Gere as telas aqui e grave com `gravar_html_tela`"
+    )]
+    ForaDoDesignHospedado(Id),
 }
 
 fn exigir(campo: &'static str, valor: &str) -> Result<(), ErroModelo> {
@@ -752,6 +803,10 @@ impl Analise {
             diagramas: Vec::new(),
             funcionalidade: None,
             passos: Vec::new(),
+            conducao: Conducao::Simples,
+            workflow: None,
+            aviso_conducao: None,
+            prototipo: None,
         }
     }
 
@@ -888,10 +943,79 @@ impl Analise {
             evidencias: nova.evidencias,
             estado: EstadoAfirmacao::Registrada,
             antes_de_revalidar: None,
+            contestacao: None,
             sessao: nova.sessao,
             registrada_ms: agora_ms,
         });
         Ok(numero)
+    }
+
+    /// Contestação da verificação independente (`contestar_afirmacao`, #371): guarda
+    /// a [`Contestacao`] na afirmação e a marca como a revalidar, sem apagar nada. A
+    /// marca é como a do analista (sem [`Afirmacao::antes_de_revalidar`]): a
+    /// revalidação pelo hash não a desfaz. Uma afirmação já decidida pelo analista
+    /// (confirmada ou incorreta) fica no estado dele, só com a contestação ao lado.
+    /// Contestar de novo substitui a contestação anterior (a retomada do workflow não
+    /// duplica nada). Devolve se a afirmação passou a a revalidar.
+    pub fn contestar_afirmacao(
+        &mut self,
+        numero: u32,
+        contestacao: Contestacao,
+    ) -> Result<bool, ErroModelo> {
+        exigir("motivo", &contestacao.motivo)?;
+        if self.estado == EstadoAnalise::Aprovada {
+            return Err(ErroModelo::AnaliseAprovada(self.id.clone()));
+        }
+        let a = self
+            .afirmacoes
+            .iter_mut()
+            .find(|a| a.numero == numero)
+            .ok_or(ErroModelo::ItemDesconhecido {
+                tipo: "afirmação",
+                numero,
+            })?;
+        let marcou = matches!(
+            a.estado,
+            EstadoAfirmacao::Registrada | EstadoAfirmacao::Aprofundar { .. }
+        );
+        if marcou {
+            a.estado = EstadoAfirmacao::ARevalidar;
+            a.antes_de_revalidar = None;
+        }
+        a.contestacao = Some(Contestacao {
+            motivo: contestacao.motivo.trim().to_owned(),
+            ..contestacao
+        });
+        Ok(marcou)
+    }
+
+    /// Contestação da verificação independente de um achado da revisão
+    /// (`contestar_achado`, #371). O achado fica no parecer, a revalidar, com a
+    /// contestação ao lado, até o analista descartá-lo ou mantê-lo. Contestar de novo
+    /// substitui a contestação anterior.
+    pub fn contestar_achado(
+        &mut self,
+        numero: u32,
+        contestacao: Contestacao,
+    ) -> Result<(), ErroModelo> {
+        exigir("motivo", &contestacao.motivo)?;
+        if self.estado == EstadoAnalise::Aprovada {
+            return Err(ErroModelo::AnaliseAprovada(self.id.clone()));
+        }
+        let achado = self
+            .parecer_mut()?
+            .achados
+            .iter_mut()
+            .find(|a| a.numero == numero)
+            .ok_or(ErroModelo::ItemDesconhecido {
+                tipo: "achado",
+                numero,
+            })?;
+        achado.contestacao = Some(Contestacao {
+            motivo: contestacao.motivo.trim().to_owned(),
+            ..contestacao
+        });
+        Ok(())
     }
 
     /// Decisão do analista sobre uma afirmação (ou marcação de revalidação).
@@ -1528,6 +1652,7 @@ impl Analise {
             regras: novo.regras,
             evidencias: novo.evidencias,
             estado: EstadoAchado::Registrado,
+            contestacao: None,
             sessao: novo.sessao,
             registrada_ms: agora_ms,
         });
@@ -1645,6 +1770,98 @@ mod tests {
             evidencias,
             sessao: None,
         }
+    }
+
+    fn contestacao(motivo: &str) -> Contestacao {
+        Contestacao {
+            origem: crate::conducao::OrigemContestacao::VerificacaoIndependente,
+            motivo: motivo.into(),
+            evidencias: Vec::new(),
+            sessao: Some("s1".into()),
+            registrada_ms: 5,
+        }
+    }
+
+    /// A contestação marca a afirmação a revalidar sem apagar nada; a revalidação
+    /// pelo hash não desfaz a marca, a decisão do analista vale e contestar de novo
+    /// substitui (#371).
+    #[test]
+    fn contestar_afirmacao_marca_a_revalidar_sem_apagar() {
+        let mut a = analise();
+        let n = a
+            .registrar_afirmacao(afirmacao(Confianca::Confirmado, vec![evidencia()]), 2)
+            .unwrap();
+        assert!(
+            a.contestar_afirmacao(n, contestacao("  O trecho é de outra regra. "))
+                .unwrap()
+        );
+        let af = &a.afirmacoes[0];
+        assert_eq!(af.estado, EstadoAfirmacao::ARevalidar);
+        assert_eq!(af.antes_de_revalidar, None);
+        assert_eq!(
+            af.contestacao.as_ref().unwrap().motivo,
+            "O trecho é de outra regra."
+        );
+        assert_eq!(af.texto, "A multa é de 2%.");
+        // Evidências conferem: a marca da contestação fica.
+        assert!(!a.revalidar(|_| Some(true)).mudou());
+        assert_eq!(a.afirmacoes[0].estado, EstadoAfirmacao::ARevalidar);
+        // De novo: substitui, sem duplicar.
+        a.contestar_afirmacao(n, contestacao("Outro motivo."))
+            .unwrap();
+        assert_eq!(
+            a.afirmacoes[0].contestacao.as_ref().unwrap().motivo,
+            "Outro motivo."
+        );
+        // Decidida pelo analista: fica no estado dele, com a contestação ao lado.
+        a.marcar_afirmacao(n, EstadoAfirmacao::Confirmada).unwrap();
+        assert!(!a.contestar_afirmacao(n, contestacao("Terceiro.")).unwrap());
+        assert_eq!(a.afirmacoes[0].estado, EstadoAfirmacao::Confirmada);
+        assert_eq!(
+            a.contestar_afirmacao(n, contestacao(" ")),
+            Err(ErroModelo::CampoVazio("motivo"))
+        );
+        assert!(matches!(
+            a.contestar_afirmacao(9, contestacao("x")),
+            Err(ErroModelo::ItemDesconhecido { .. })
+        ));
+        let json = serde_json::to_value(&a).unwrap();
+        assert_eq!(
+            json["afirmacoes"][0]["contestacao"]["origem"],
+            "verificacao-independente"
+        );
+        // Sem condução nem workflow, o arquivo fica como antes.
+        assert!(json.get("conducao").is_none() && json.get("workflow").is_none());
+    }
+
+    #[test]
+    fn contestar_achado_fica_no_parecer_a_revalidar() {
+        let mut a = analise();
+        a.fluxo = Fluxo::Revisar;
+        let n = a
+            .registrar_achado(
+                NovoAchado {
+                    caracteristica: crate::qualidade::Caracteristica::Ambiguidade,
+                    severidade: crate::qualidade::Severidade::Media,
+                    trecho: "rápido".into(),
+                    problema: "Não diz o tempo.".into(),
+                    reescrita: None,
+                    regras: Vec::new(),
+                    evidencias: Vec::new(),
+                    sessao: None,
+                },
+                2,
+            )
+            .unwrap();
+        a.contestar_achado(n, contestacao("O texto define o tempo adiante."))
+            .unwrap();
+        let achado = &a.parecer.as_ref().unwrap().achados[0];
+        assert!(achado.ativo() && achado.a_revalidar());
+        let mut b = analise();
+        assert_eq!(
+            b.contestar_achado(1, contestacao("x")),
+            Err(ErroModelo::ForaDaRevisao(b.id.clone()))
+        );
     }
 
     #[test]

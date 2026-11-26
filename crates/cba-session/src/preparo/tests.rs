@@ -132,7 +132,9 @@ fn prepara_em_configuracao_vazia() {
     assert!(r.gravado);
     assert_eq!(r.diretorio, pasta);
     assert!(r.backups.is_empty(), "não havia arquivo antes");
-    assert_eq!(r.alteracoes.len(), 2 + EVENTOS.len());
+    // Servidor, confiança, hooks e, por workflow (impacto e revisar), as duas regras
+    // e o arquivo (fora do git, sem as linhas do info/exclude).
+    assert_eq!(r.alteracoes.len(), 2 + EVENTOS.len() + 2 * (2 + 1));
     assert!(r.alteracoes.iter().all(|a| a.acao == Acao::Adicionado));
     assert_eq!(
         r.alteracoes[1].item,
@@ -158,23 +160,70 @@ fn prepara_em_configuracao_vazia() {
     // Nada no settings.json do usuário: os hooks ficam no arquivo local da pasta.
     assert!(!c.config.settings.exists());
     assert!(
-        r.alteracoes[2..]
+        r.alteracoes[2..2 + EVENTOS.len() + 2]
             .iter()
             .all(|a| a.arquivo == arquivo_local(&pasta))
     );
     let settings = Cenario::local(&pasta);
     for evento in EVENTOS {
-        assert_eq!(
-            settings["hooks"][evento],
-            json!([{ "hooks": [{
-                "type": "command",
-                "command": comando(&c.exe, evento),
-                "timeout": LIMITE_HOOK_S
-            }]}]),
-            "{evento}"
-        );
+        let mut grupo = json!({ "hooks": [{
+            "type": "command",
+            "command": comando(&c.exe, evento),
+            "timeout": LIMITE_HOOK_S
+        }]});
+        if *evento == "PostToolUse" {
+            grupo["matcher"] = json!("Workflow");
+        }
+        assert_eq!(settings["hooks"][evento], json!([grupo]), "{evento}");
     }
-    assert!(c.preparador().verificar(&alvo).unwrap().pronto);
+    // O workflow pelo nome, nunca `Workflow` sem nome.
+    assert_eq!(
+        settings["permissions"],
+        json!({
+            "allow": [
+                "Workflow(cba-impacto)",
+                "Skill(cba-impacto)",
+                "Workflow(cba-revisar)",
+                "Skill(cba-revisar)"
+            ]
+        })
+    );
+    let instalado = pasta
+        .join(PASTA_LOCAL)
+        .join(PASTA_WORKFLOWS)
+        .join("cba-impacto.js");
+    let arquivos: Vec<_> = r
+        .alteracoes
+        .iter()
+        .filter(|a| matches!(a.item, Item::Workflow { .. }))
+        .collect();
+    assert_eq!(arquivos.len(), 2);
+    assert_eq!(arquivos[0].arquivo, instalado);
+    assert_eq!(
+        arquivos[0].item,
+        Item::Workflow {
+            nome: "cba-impacto".into(),
+            raiz: chave(&pasta)
+        }
+    );
+    assert_eq!(
+        arquivos[1].arquivo,
+        instalado.with_file_name("cba-revisar.js")
+    );
+    let texto = fs::read_to_string(&instalado).unwrap();
+    let padrao = WorkflowEfetivo::padrao("impacto").unwrap();
+    assert!(texto.starts_with("// Gerado pelo CBA"));
+    assert!(texto.contains("// cba-origem: padrao\n"));
+    assert!(texto.contains(&format!(
+        "// cba-sha256: {}\n",
+        workflows::sha256(&padrao.conteudo)
+    )));
+    assert!(texto.ends_with(&padrao.conteudo));
+    let v = c.preparador().verificar(&alvo).unwrap();
+    assert!(v.pronto);
+    assert!(v.workflows_prontos);
+    assert_eq!(v.workflows.len(), 2);
+    assert_eq!(v.permissoes_workflow.len(), 4);
 }
 
 #[test]
@@ -315,7 +364,13 @@ fn preserva_a_configuracao_do_analista_e_desfaz_exatamente() {
     );
     assert_eq!(
         arvore(&pasta.join(PASTA_LOCAL)),
-        [PathBuf::from(ARQUIVO_LOCAL)].into()
+        [
+            PathBuf::from(ARQUIVO_LOCAL),
+            PathBuf::from(PASTA_WORKFLOWS),
+            Path::new(PASTA_WORKFLOWS).join("cba-impacto.js"),
+            Path::new(PASTA_WORKFLOWS).join("cba-revisar.js"),
+        ]
+        .into()
     );
     assert!(!c.config.settings.exists());
 
@@ -343,9 +398,23 @@ fn preserva_a_configuracao_do_analista_e_desfaz_exatamente() {
 
     let settings = Cenario::local(&pasta);
     assert_eq!(settings["theme"], "dark");
+    let post = settings["hooks"]["PostToolUse"].as_array().unwrap();
     assert_eq!(
-        settings["hooks"]["PostToolUse"].as_array().unwrap().len(),
-        1
+        post.len(),
+        2,
+        "o do analista fica, o nosso (do Workflow) entra"
+    );
+    assert!(post[0].get("matcher").is_none());
+    assert_eq!(post[1]["matcher"], "Workflow");
+    assert_eq!(
+        settings["permissions"]["allow"],
+        json!([
+            "Bash(git status)",
+            "Workflow(cba-impacto)",
+            "Skill(cba-impacto)",
+            "Workflow(cba-revisar)",
+            "Skill(cba-revisar)"
+        ])
     );
     let pre = settings["hooks"]["PreToolUse"].as_array().unwrap();
     assert_eq!(
@@ -370,11 +439,17 @@ fn preserva_a_configuracao_do_analista_e_desfaz_exatamente() {
         };
         assert_eq!(a.acao, esperada, "{a:?}");
     }
+    assert!(r.voltou_ao_que_era());
     assert_eq!(
         fs::read_to_string(&c.config.estado).unwrap(),
         estado_original
     );
     assert_eq!(fs::read_to_string(&local).unwrap(), SETTINGS_DO_ANALISTA);
+    // O workflow e a pasta dele saem; a `.claude` do analista fica.
+    assert_eq!(
+        arvore(&pasta.join(PASTA_LOCAL)),
+        [PathBuf::from(ARQUIVO_LOCAL)].into()
+    );
 }
 
 #[test]
@@ -514,15 +589,26 @@ fn worktree_usa_o_repositorio_principal_como_chave() {
     // Os hooks vão para a raiz do repositório principal, que a worktree lê.
     assert_eq!(alvo.raizes, std::slice::from_ref(&repo));
     assert!(Cenario::local(&repo)["hooks"]["Stop"].is_array());
-    assert_eq!(arvore(&wt), antes_wt, "nada na worktree");
-    // E o arquivo fica fora do git, pelo info/exclude do diretório comum.
+    // Na worktree, só o workflow: ela não acha os da raiz do repositório principal.
+    assert_eq!(alvo.raizes_workflows, std::slice::from_ref(&wt));
+    let mut com_workflow = antes_wt.clone();
+    com_workflow.insert(PathBuf::from(PASTA_LOCAL));
+    com_workflow.insert(Path::new(PASTA_LOCAL).join(PASTA_WORKFLOWS));
+    for nome in ["cba-impacto.js", "cba-revisar.js"] {
+        com_workflow.insert(Path::new(PASTA_LOCAL).join(PASTA_WORKFLOWS).join(nome));
+    }
+    assert_eq!(arvore(&wt), com_workflow, "só o workflow na worktree");
+    // E os arquivos ficam fora do git, pelo info/exclude do diretório comum.
     let exclude = repo.join(".git").join("info").join("exclude");
     assert_eq!(
         fs::read_to_string(&exclude).unwrap(),
-        format!("{LINHA_EXCLUDE}\n")
+        format!("{LINHA_EXCLUDE}\n{LINHA_EXCLUDE_WORKFLOWS}\n")
     );
     assert!(r.alteracoes.iter().any(|a| a.arquivo == exclude
         && matches!(a.item, Item::ExclusaoGit { .. })
+        && a.acao == Acao::Adicionado));
+    assert!(r.alteracoes.iter().any(|a| a.arquivo == exclude
+        && a.item == Item::ExclusaoWorkflows { raiz: chave(&wt) }
         && a.acao == Acao::Adicionado));
     assert!(c.preparador().verificar(&alvo).unwrap().pronto);
     // Preparar de novo não duplica a linha.
@@ -558,6 +644,10 @@ fn so_o_arquivo_local_e_criado_na_pasta_do_projeto() {
     let mut com_local = antes.clone();
     com_local.insert(PathBuf::from(PASTA_LOCAL));
     com_local.insert(Path::new(PASTA_LOCAL).join(ARQUIVO_LOCAL));
+    com_local.insert(Path::new(PASTA_LOCAL).join(PASTA_WORKFLOWS));
+    for nome in ["cba-impacto.js", "cba-revisar.js"] {
+        com_local.insert(Path::new(PASTA_LOCAL).join(PASTA_WORKFLOWS).join(nome));
+    }
     assert_eq!(arvore(&pasta), com_local);
     p.desfazer(&alvo).unwrap();
     assert_eq!(arvore(&pasta), antes);
@@ -593,8 +683,18 @@ fn outro_executavel_e_substituido_sem_duplicar() {
     assert!(
         r.alteracoes
             .iter()
-            .filter(|a| !matches!(a.item, Item::Confianca { .. }))
+            .filter(|a| matches!(a.item, Item::ServidorMcp { .. } | Item::Hook { .. }))
             .all(|a| a.acao == Acao::Atualizado)
+    );
+    // O workflow e as regras não dependem do executável: ficam como estão.
+    assert!(
+        r.alteracoes
+            .iter()
+            .filter(|a| matches!(
+                a.item,
+                Item::Workflow { .. } | Item::PermissaoWorkflow { .. }
+            ))
+            .all(|a| a.acao == Acao::SemMudanca)
     );
     assert_eq!(r.alteracoes[1].acao, Acao::SemMudanca, "já era confiável");
     let settings = Cenario::local(&c.raiz.join("projetos").join("s"));
@@ -1506,4 +1606,331 @@ fn worktree_fica_confiavel_pela_chave_do_repositorio_principal() {
         c.estado()["projects"][&chave(&repo)]["hasTrustDialogAccepted"],
         true
     );
+}
+
+// ---------------------------------------------------------------------------
+// Workflows das análises (#370)
+
+fn git(pasta: &Path, args: &[&str]) -> String {
+    let saida = std::process::Command::new("git")
+        .arg("-C")
+        .arg(pasta)
+        .args(args)
+        .env("GIT_AUTHOR_NAME", "Teste")
+        .env("GIT_AUTHOR_EMAIL", "teste@example.com")
+        .env("GIT_COMMITTER_NAME", "Teste")
+        .env("GIT_COMMITTER_EMAIL", "teste@example.com")
+        .output()
+        .unwrap();
+    assert!(saida.status.success(), "git {args:?}: {saida:?}");
+    String::from_utf8(saida.stdout).unwrap()
+}
+
+/// `<raiz>/.claude/workflows/cba-impacto.js`.
+fn impacto_em(raiz: &Path) -> PathBuf {
+    workflows::arquivo_workflow(raiz, "cba-impacto")
+}
+
+/// Uma pasta num repositório git de verdade e outra numa worktree dele: o workflow
+/// vai para as duas raízes, o plano mostra cada item antes do consentimento, o
+/// `git status` fica limpo e o desfazer volta tudo ao que era.
+#[test]
+fn pasta_no_repositorio_e_outra_na_worktree_recebem_o_workflow() {
+    let c = Cenario::novo();
+    let repo = c.raiz.join("git").join("repo");
+    fs::create_dir_all(repo.join("src")).unwrap();
+    fs::write(repo.join("src").join("a.sql"), "select 1;\n").unwrap();
+    git(&repo, &["init", "-q", "-b", "main"]);
+    git(&repo, &["config", "core.autocrlf", "false"]);
+    git(&repo, &["add", "-A"]);
+    git(&repo, &["commit", "-q", "-m", "inicial"]);
+    git(&repo, &["worktree", "add", "-q", "-b", "outra", "../wt"]);
+    let wt = dunce::canonicalize(c.raiz.join("git").join("wt")).unwrap();
+    let exclude = repo.join(".git").join("info").join("exclude");
+    let exclude_antes = fs::read(&exclude).unwrap();
+
+    let projeto = cba_index::Projeto::novo("Faturamento", [&repo, &wt]).unwrap();
+    let alvo = Alvo::do_projeto(&projeto).unwrap();
+    // O arquivo local fica só na raiz principal; o workflow, em cada raiz.
+    assert_eq!(alvo.raizes, std::slice::from_ref(&repo));
+    assert_eq!(alvo.raizes_workflows, [repo.clone(), wt.clone()]);
+
+    let p = c.preparador();
+    let plano = p.planejar(&alvo).unwrap();
+    assert!(!plano.gravado);
+    for raiz in [&repo, &wt] {
+        assert!(
+            plano
+                .alteracoes
+                .iter()
+                .any(|a| a.arquivo == impacto_em(raiz)
+                    && a.item
+                        == Item::Workflow {
+                            nome: "cba-impacto".into(),
+                            raiz: chave(raiz)
+                        }
+                    && a.acao == Acao::Adicionado),
+            "{raiz:?}"
+        );
+        assert!(!raiz.join(PASTA_LOCAL).exists(), "o plano não grava");
+    }
+    for regra in ["Workflow(cba-impacto)", "Skill(cba-impacto)"] {
+        assert!(plano.alteracoes.iter().any(|a| a.item
+            == Item::PermissaoWorkflow {
+                regra: regra.into()
+            }
+            && a.arquivo == arquivo_local(&repo)
+            && a.acao == Acao::Adicionado));
+    }
+    // A linha dos workflows serve às duas raízes (o diretório comum é um só).
+    assert_eq!(
+        plano
+            .alteracoes
+            .iter()
+            .filter(|a| matches!(a.item, Item::ExclusaoWorkflows { .. }))
+            .count(),
+        1
+    );
+    assert_eq!(fs::read(&exclude).unwrap(), exclude_antes);
+
+    let feito = p.preparar(&alvo).unwrap();
+    // O que foi feito é o que o plano mostrou.
+    assert_eq!(feito.alteracoes, plano.alteracoes);
+    for raiz in [&repo, &wt] {
+        assert!(impacto_em(raiz).is_file(), "{raiz:?}");
+        assert_eq!(
+            git(raiz, &["status", "--porcelain", "--untracked-files=all"]),
+            "",
+            "{raiz:?}"
+        );
+    }
+    let v = p.verificar(&alvo).unwrap();
+    assert!(v.pronto && v.workflows_prontos, "{v:?}");
+    // Dois workflows (impacto e revisar) em cada uma das duas raízes.
+    assert_eq!(v.workflows.len(), 4);
+    assert!(!p.preparar(&alvo).unwrap().houve_mudanca());
+
+    let r = p.desfazer(&alvo).unwrap();
+    assert!(r.voltou_ao_que_era(), "{:?}", r.mantidos);
+    assert_eq!(fs::read(&exclude).unwrap(), exclude_antes);
+    for raiz in [&repo, &wt] {
+        assert!(!raiz.join(PASTA_LOCAL).exists(), "{raiz:?}");
+        assert_eq!(git(raiz, &["status", "--porcelain"]), "");
+    }
+    assert!(!c.config.registro().exists());
+}
+
+/// Um `cba-impacto.js` instalado e editado à mão não é sobrescrito nem apagado, e o
+/// `verificar` avisa; um arquivo com o mesmo nome que não é do app, também não.
+#[test]
+fn workflow_editado_a_mao_nao_e_sobrescrito_e_o_verificar_avisa() {
+    let c = Cenario::novo();
+    let pasta = c.pasta("faturamento");
+    let alvo = c.alvo("f", &pasta);
+    let p = c.preparador();
+    p.preparar(&alvo).unwrap();
+    let arquivo = impacto_em(&pasta);
+    let mut editado = fs::read_to_string(&arquivo).unwrap();
+    editado.push_str("// uma frente a mais\n");
+    fs::write(&arquivo, &editado).unwrap();
+
+    let v = p.verificar(&alvo).unwrap();
+    assert_eq!(v.workflows[0].situacao, Situacao::Divergente);
+    assert_eq!(v.workflows[0].arquivo, arquivo);
+    assert!(!v.workflows_prontos);
+    assert!(v.pronto, "a falta do workflow não bloqueia a análise");
+
+    for r in [p.planejar(&alvo).unwrap(), p.preparar(&alvo).unwrap()] {
+        let a = r.alteracoes.iter().find(|a| a.arquivo == arquivo).unwrap();
+        assert_eq!(a.acao, Acao::Preservado);
+        assert!(!r.houve_mudanca());
+    }
+    assert_eq!(fs::read_to_string(&arquivo).unwrap(), editado);
+
+    let r = p.desfazer(&alvo).unwrap();
+    assert_eq!(
+        r.mantidos,
+        vec![Mantido::WorkflowEditado {
+            arquivo: arquivo.clone()
+        }]
+    );
+    assert_eq!(fs::read_to_string(&arquivo).unwrap(), editado);
+    assert!(!arquivo_local(&pasta).exists(), "o resto sai");
+
+    // Sem o cabeçalho do app: não é nosso.
+    fs::write(&arquivo, "export const meta = { name: 'cba-impacto' }\n").unwrap();
+    let v = p.verificar(&alvo).unwrap();
+    assert_eq!(v.workflows[0].situacao, Situacao::Conflito);
+    let r = p.preparar(&alvo).unwrap();
+    assert!(
+        r.alteracoes
+            .iter()
+            .any(|a| a.arquivo == arquivo && a.acao == Acao::Preservado)
+    );
+    assert_eq!(
+        fs::read_to_string(&arquivo).unwrap(),
+        "export const meta = { name: 'cba-impacto' }\n"
+    );
+}
+
+/// Um workflow do app intacto, de outra versão, é regravado com a versão efetiva, e
+/// o desfazer devolve o de antes byte a byte.
+#[test]
+fn workflow_de_outra_versao_e_regravado_e_o_desfazer_devolve_o_de_antes() {
+    let c = Cenario::novo();
+    let pasta = c.pasta("faturamento");
+    let antigo = WorkflowEfetivo {
+        conteudo: "export const meta = { name: 'cba-impacto', description: 'antigo' }\n".into(),
+        ..WorkflowEfetivo::padrao("impacto").unwrap()
+    };
+    let arquivo = impacto_em(&pasta);
+    workflows::gravar(&arquivo, &workflows::conteudo_instalado(&antigo)).unwrap();
+    let bytes_antes = fs::read(&arquivo).unwrap();
+    let alvo = c.alvo("f", &pasta);
+    let p = c.preparador();
+
+    assert_eq!(
+        p.verificar(&alvo).unwrap().workflows[0].situacao,
+        Situacao::Desatualizado
+    );
+    let r = p.preparar(&alvo).unwrap();
+    assert!(
+        r.alteracoes
+            .iter()
+            .any(|a| a.arquivo == arquivo && a.acao == Acao::Atualizado)
+    );
+    assert!(
+        fs::read_to_string(&arquivo)
+            .unwrap()
+            .ends_with(&WorkflowEfetivo::padrao("impacto").unwrap().conteudo)
+    );
+    assert!(p.verificar(&alvo).unwrap().workflows_prontos);
+
+    let r = p.desfazer(&alvo).unwrap();
+    assert!(
+        r.alteracoes
+            .iter()
+            .any(|a| a.arquivo == arquivo && a.acao == Acao::Restaurado)
+    );
+    assert!(r.voltou_ao_que_era());
+    assert_eq!(fs::read(&arquivo).unwrap(), bytes_antes);
+}
+
+/// Regra que o analista já tinha fica no desfazer; só sai a que o app pôs. Sem
+/// workflows no alvo, nem regra nem arquivo.
+#[test]
+fn regras_de_permissao_que_ja_existiam_ficam_no_desfazer() {
+    let c = Cenario::novo();
+    let pasta = c.pasta("faturamento");
+    let local = arquivo_local(&pasta);
+    fs::create_dir_all(local.parent().unwrap()).unwrap();
+    let original = "{\n  \"permissions\": {\n    \"allow\": [\n      \"Workflow(cba-impacto)\"\n    ]\n  }\n}\n";
+    fs::write(&local, original).unwrap();
+    let alvo = c.alvo("f", &pasta);
+    let p = c.preparador();
+
+    let r = p.preparar(&alvo).unwrap();
+    let regras: Vec<_> = r
+        .alteracoes
+        .iter()
+        .filter_map(|a| match &a.item {
+            Item::PermissaoWorkflow { regra } => Some((regra.as_str(), a.acao)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        regras,
+        [
+            ("Workflow(cba-impacto)", Acao::SemMudanca),
+            ("Skill(cba-impacto)", Acao::Adicionado),
+            ("Workflow(cba-revisar)", Acao::Adicionado),
+            ("Skill(cba-revisar)", Acao::Adicionado)
+        ]
+    );
+    p.desfazer(&alvo).unwrap();
+    assert_eq!(fs::read_to_string(&local).unwrap(), original);
+
+    // Só os hooks (a migração): nada de workflow.
+    let so_hooks = c.alvo("g", &c.pasta("g")).com_workflows(Vec::new());
+    let r = p.preparar(&so_hooks).unwrap();
+    assert!(r.alteracoes.iter().all(|a| !matches!(
+        a.item,
+        Item::Workflow { .. } | Item::PermissaoWorkflow { .. } | Item::ExclusaoWorkflows { .. }
+    )));
+    assert!(
+        !so_hooks.raizes_workflows[0]
+            .join(PASTA_LOCAL)
+            .join(PASTA_WORKFLOWS)
+            .exists()
+    );
+    assert!(!p.verificar(&so_hooks).unwrap().workflows_prontos);
+}
+
+/// Salvar uma cópia muda a versão efetiva: o `reinstalar_workflows` regrava, sem
+/// consentimento novo, só o que já estava instalado e intacto, e o desfazer ainda
+/// tira o arquivo. Onde não havia arquivo, nada é instalado; o editado à mão fica, a
+/// não ser que o corpo já seja a versão efetiva (edição levada para a cópia), quando
+/// só o cabeçalho muda (#372).
+#[test]
+fn reinstalar_regrava_so_o_instalado_defasado() {
+    let c = Cenario::novo();
+    let pasta = c.pasta("faturamento");
+    let outra = c.pasta("sem-preparo");
+    let p = c.preparador();
+    let alvo = c.alvo("f", &pasta);
+    p.preparar(&alvo).unwrap();
+    let arquivo = impacto_em(&pasta);
+
+    let padrao = WorkflowEfetivo::padrao("impacto").unwrap();
+    let copia = WorkflowEfetivo {
+        origem: OrigemWorkflow::Global,
+        conteudo: format!("{}// minha versão\n", padrao.conteudo),
+        ..padrao.clone()
+    };
+    let alvo = alvo.com_workflows(vec![copia.clone()]);
+    assert_eq!(
+        p.verificar(&alvo).unwrap().workflows[0].situacao,
+        Situacao::Desatualizado
+    );
+    let r = p.reinstalar_workflows(&alvo).unwrap();
+    assert_eq!(r.len(), 1);
+    assert_eq!(r[0].acao, Acao::Atualizado);
+    let instalado = fs::read_to_string(&arquivo).unwrap();
+    assert_eq!(instalado, workflows::conteudo_instalado(&copia));
+    assert_eq!(
+        workflows::ler_cabecalho(&instalado).unwrap().origem,
+        Some(OrigemWorkflow::Global)
+    );
+    assert!(p.verificar(&alvo).unwrap().workflows_prontos);
+    assert!(p.reinstalar_workflows(&alvo).unwrap().is_empty());
+
+    // Sem preparo, nada é instalado.
+    let sem = c.alvo("s", &outra).com_workflows(vec![copia.clone()]);
+    assert!(p.reinstalar_workflows(&sem).unwrap().is_empty());
+    assert!(!impacto_em(&outra).exists());
+
+    // Editado à mão com outro conteúdo: fica.
+    let editado = format!("{instalado}// minha frente\n");
+    fs::write(&arquivo, &editado).unwrap();
+    let voltar = alvo.clone().com_workflows(vec![padrao]);
+    assert!(p.reinstalar_workflows(&voltar).unwrap().is_empty());
+    assert_eq!(fs::read_to_string(&arquivo).unwrap(), editado);
+    // A edição levada para a cópia: o corpo é a versão efetiva, só o cabeçalho muda.
+    let levada = WorkflowEfetivo {
+        origem: OrigemWorkflow::Projeto,
+        conteudo: workflows::corpo(&editado).unwrap().to_string(),
+        ..copia
+    };
+    assert!(levada.conteudo.ends_with("// minha frente\n"));
+    let alvo = alvo.com_workflows(vec![levada.clone()]);
+    assert_eq!(p.reinstalar_workflows(&alvo).unwrap().len(), 1);
+    assert_eq!(
+        fs::read_to_string(&arquivo).unwrap(),
+        workflows::conteudo_instalado(&levada)
+    );
+
+    // O desfazer tira o arquivo, que o preparo criou.
+    let r = p.desfazer(&alvo).unwrap();
+    assert!(r.voltou_ao_que_era(), "{:?}", r.mantidos);
+    assert!(!arquivo.exists());
 }

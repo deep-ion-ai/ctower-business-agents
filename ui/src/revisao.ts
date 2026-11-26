@@ -54,7 +54,10 @@ export type DecisaoRevisao =
       resultado?: string | null;
     }
   | { tipo: "dispensar-print"; numero: number; dispensado: boolean }
-  | { tipo: "legenda-print"; numero: number; legenda: string; texto_alternativo: string };
+  | { tipo: "legenda-print"; numero: number; legenda: string; texto_alternativo: string }
+  /** Protótipo de telas (#382): pedir um ajuste numa tela ou retirar o pedido. */
+  | { tipo: "tela"; numero: number; decisao: "ajustar"; pedido: string }
+  | { tipo: "tela"; numero: number; decisao: "desfazer" };
 
 export interface Area {
   id: string;
@@ -71,7 +74,8 @@ export interface Pendencia {
     | "criterio"
     | "tabela"
     | "cenario"
-    | "passo";
+    | "passo"
+    | "tela";
   numero: number | null;
   motivo: string;
 }

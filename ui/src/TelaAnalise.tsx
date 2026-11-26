@@ -23,6 +23,7 @@ import {
   useDemandasDoProjeto,
 } from "./NovaAnalise";
 import { NovaHistorias } from "./NovaHistorias";
+import { NovaPrototipo } from "./NovaPrototipo";
 import { NovaReuniao } from "./NovaReuniao";
 import { PainelAnalise, type Abertura, type EstadoConversa } from "./PainelAnalise";
 import { PrepararAmbiente } from "./PrepararAmbiente";
@@ -85,6 +86,7 @@ const TIPOS: Fluxo[] = [
   "revisar",
   "historias",
   "cenarios",
+  "prototipo",
 ];
 
 /** O que cada tipo faz, na escolha do tipo do painel "Nova análise" (#350). */
@@ -98,6 +100,7 @@ const DESCRICAO_FLUXO: Partial<Record<Fluxo, string>> = {
     "Aponte lacunas, ambiguidades e critérios de aceite que faltam num requisito ou numa história.",
   historias: "Quebre uma análise aprovada em histórias com critérios de aceite.",
   cenarios: "Gere cenários de teste a partir de uma análise aprovada.",
+  prototipo: "Mostre ao negócio como as telas vão ficar, a partir de uma análise aprovada.",
 };
 
 /** O que se escolhe no primeiro passo do painel "Nova análise". */
@@ -785,6 +788,17 @@ function PainelNova({
           aoCancelar={aoFechar}
           aoCriar={criada}
           aoAbrirAnalise={abrirExistente}
+        />
+      );
+    } else if (apiConhecimento && escolha === "prototipo") {
+      form = (
+        <NovaPrototipo
+          api={apiConhecimento}
+          apiPrototipo={apiConhecimento.prototipo}
+          projetos={projetos}
+          semTitulo
+          aoCancelar={aoFechar}
+          aoCriar={criada}
         />
       );
     } else if (apiConhecimento && escolha !== "demanda-negocial" && escolha !== "cadastrada") {

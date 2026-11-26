@@ -36,6 +36,7 @@ mod base;
 mod cli;
 mod clones;
 mod cobertura;
+mod conducao;
 mod configuracoes;
 #[cfg(windows)]
 mod console;
@@ -46,6 +47,7 @@ mod funcionalidades;
 mod gui;
 mod inicio;
 mod issues_projeto;
+mod links_projeto;
 mod manual;
 mod mudancas;
 mod painel_funcionalidade;
@@ -53,6 +55,7 @@ mod pauta;
 mod primeiro_uso;
 mod projeto;
 mod prompts;
+mod prototipo;
 mod publicacao;
 mod rastreabilidade;
 mod registros;
@@ -63,8 +66,10 @@ mod revisao;
 mod terminal;
 #[cfg(test)]
 mod teste_base;
+mod tokens;
 mod vigia;
 mod vincular_issues;
+mod workflows;
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();

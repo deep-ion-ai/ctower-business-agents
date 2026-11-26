@@ -113,6 +113,14 @@ pub fn afirmar() -> Ferramenta {
                      `registrar_cenario`, citando as regras e as afirmações de origem"
                 )));
             }
+            if analise.fluxo == cba_core::analise::Fluxo::Prototipo {
+                return Err(ErroFerramenta::Recusa(format!(
+                    "a análise {id} é de protótipo de telas e não recebe afirmações: registre \
+                     as telas com `registrar_tela` e os elementos com \
+                     `registrar_elemento_tela`, citando as regras, as afirmações e os \
+                     critérios de origem"
+                )));
+            }
             if !secoes.contains(&secao) {
                 let dica = match secao {
                     "perguntas" => " Para perguntas ao solicitante, use `perguntar`.",

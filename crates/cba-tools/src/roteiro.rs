@@ -15,13 +15,14 @@
 use std::fmt::Write as _;
 
 use cba_core::analise::{Analise, Fluxo};
+use cba_core::prototipo::ModoPrototipo;
 use cba_kb::{Base, CaminhoRelativo};
 
 use crate::documento::secoes_de_afirmacao;
 use crate::editavel::{self, Aviso, Padrao, Texto};
 
 /// Os fluxos, na ordem em que aparecem para o analista.
-pub const FLUXOS: [Fluxo; 8] = [
+pub const FLUXOS: [Fluxo; 9] = [
     Fluxo::Perguntar,
     Fluxo::Explicar,
     Fluxo::Impacto,
@@ -30,6 +31,7 @@ pub const FLUXOS: [Fluxo; 8] = [
     Fluxo::Historias,
     Fluxo::Cenarios,
     Fluxo::Manual,
+    Fluxo::Prototipo,
 ];
 
 /// Pasta dos roteiros dentro de `_templates/`.
@@ -62,6 +64,7 @@ pub fn nome_do_fluxo(fluxo: Fluxo) -> &'static str {
         Fluxo::Historias => "histórias de usuário com critérios de aceite",
         Fluxo::Cenarios => "cenários de teste derivados das regras",
         Fluxo::Manual => "manual do usuário de uma funcionalidade",
+        Fluxo::Prototipo => "protótipo de telas a partir da análise de origem",
     }
 }
 
@@ -77,6 +80,7 @@ pub fn nome_do_arquivo(fluxo: Fluxo) -> &'static str {
         Fluxo::Historias => "historias",
         Fluxo::Cenarios => "cenarios",
         Fluxo::Manual => "manual",
+        Fluxo::Prototipo => "prototipo",
     }
 }
 
@@ -86,7 +90,8 @@ pub fn nome_do_arquivo(fluxo: Fluxo) -> &'static str {
 /// revisão (#116), histórias (#115) e cenários (#117), na #168, depois da
 /// avaliação com o modelo real (`cba-avaliacao rodar --fluxos
 /// revisar,historias,cenarios`). O do manual do usuário (#272) ainda é
-/// provisório: entra aqui depois da avaliação com o modelo real.
+/// provisório: entra aqui depois da avaliação com o modelo real, como o do
+/// protótipo de telas (#381).
 pub fn revisado(fluxo: Fluxo) -> bool {
     matches!(
         fluxo,
@@ -110,6 +115,7 @@ pub(crate) fn padrao(fluxo: Fluxo) -> Padrao {
         Fluxo::Historias => include_str!("../textos/roteiros/historias.md"),
         Fluxo::Cenarios => include_str!("../textos/roteiros/cenarios.md"),
         Fluxo::Manual => include_str!("../textos/roteiros/manual.md"),
+        Fluxo::Prototipo => include_str!("../textos/roteiros/prototipo.md"),
     };
     Padrao {
         pasta: PASTA,
@@ -238,6 +244,8 @@ pub fn secoes_obrigatorias(fluxo: Fluxo) -> &'static [&'static str] {
         Fluxo::Cenarios => &[],
         // Os passos têm ferramenta própria; `concluir_analise` confere os passos.
         Fluxo::Manual => &["objetivo"],
+        // As telas têm ferramentas próprias; `concluir_analise` confere as telas.
+        Fluxo::Prototipo => &[],
     }
 }
 
@@ -283,6 +291,21 @@ fn citacao(entrada: &str) -> String {
         .join("\n")
 }
 
+/// Instruções do modo de design do protótipo (#383), acrescentadas ao fim do
+/// roteiro do fluxo `prototipo` (o da base ou o padrão) quando o analista pediu
+/// a ferramenta de design do Claude. No modo HTML, nada.
+pub fn instrucoes_do_modo(modo: ModoPrototipo) -> Option<&'static str> {
+    match modo {
+        ModoPrototipo::Html => None,
+        ModoPrototipo::DesignLocal => {
+            Some(include_str!("../textos/roteiros/prototipo-design-local.md"))
+        }
+        ModoPrototipo::DesignHospedado => Some(include_str!(
+            "../textos/roteiros/prototipo-design-hospedado.md"
+        )),
+    }
+}
+
 /// Título da seção acrescentada no fim quando o roteiro não usa a variável.
 fn titulo_ao_fim(variavel: &str) -> &'static str {
     match variavel {
@@ -295,7 +318,7 @@ fn titulo_ao_fim(variavel: &str) -> &'static str {
 /// Os roteiros dos fluxos.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Roteiros {
-    por_fluxo: [Texto; 8],
+    por_fluxo: [Texto; 9],
 }
 
 fn indice(fluxo: Fluxo) -> usize {
@@ -308,6 +331,7 @@ fn indice(fluxo: Fluxo) -> usize {
         Fluxo::Historias => 5,
         Fluxo::Cenarios => 6,
         Fluxo::Manual => 7,
+        Fluxo::Prototipo => 8,
     }
 }
 
@@ -377,9 +401,20 @@ impl Roteiros {
                 _ => return None,
             })
         };
-        self.por_fluxo[indice(fluxo)].preencher(valor, &ESSENCIAIS, |variavel, v| {
-            format!("\n\n## {}\n\n{}\n", titulo_ao_fim(variavel), v.trim_end())
-        })
+        let (mut roteiro, avisos) =
+            self.por_fluxo[indice(fluxo)].preencher(valor, &ESSENCIAIS, |variavel, v| {
+                format!("\n\n## {}\n\n{}\n", titulo_ao_fim(variavel), v.trim_end())
+            });
+        if fluxo == Fluxo::Prototipo
+            && let Some(modo) = instrucoes_do_modo(analise.pedido_de_prototipo().modo)
+        {
+            roteiro = format!(
+                "{}\n\n{}",
+                roteiro.trim_end(),
+                modo.replace("{{id}}", &analise.id.to_string())
+            );
+        }
+        (roteiro, avisos)
     }
 }
 
@@ -672,11 +707,12 @@ mod tests {
         let base = Base::criar(dir.path()).unwrap();
         let criados = Roteiros::copiar_padrao(&base).unwrap();
         // Os roteiros revisados (os de revisão, histórias e cenários, na #168)
-        // vão para a base; o do manual do usuário (#272) ainda é provisório.
+        // vão para a base; os do manual do usuário (#272) e do protótipo de telas
+        // (#381) ainda são provisórios.
         assert!(
             FLUXOS
                 .into_iter()
-                .all(|f| revisado(f) == (f != Fluxo::Manual))
+                .all(|f| revisado(f) == !matches!(f, Fluxo::Manual | Fluxo::Prototipo))
         );
         assert_eq!(
             criados,

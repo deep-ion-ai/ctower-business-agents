@@ -1,0 +1,373 @@
+{
+  "formato": 1,
+  "parametros": {
+    "data": "2026-11-25-163526",
+    "modelo": "sonnet",
+    "orcamento_por_execucao_usd": 2.0,
+    "repeticoes": 1,
+    "itens": [
+      "REV-FAT-001"
+    ],
+    "permitir_edicao": false,
+    "versao_do_claude": "2.1.332 (Claude Code)",
+    "commit": "c4cc478"
+  },
+  "resumo": [
+    {
+      "fluxo": "revisar",
+      "item": "REV-FAT-001 [simples]",
+      "execucoes": 1,
+      "avaliadas": 1,
+      "concluidas": 1,
+      "regras_esperadas": 0,
+      "regras_media": 1.0,
+      "regras_min": 1.0,
+      "regras_max": 1.0,
+      "evidencias": 11,
+      "evidencias_validas": 11,
+      "confirmado_sem_evidencia_valida": 0,
+      "perguntas_media": 1.0,
+      "premissa_corrigida": null,
+      "abrangencia_confere": null,
+      "arquivos_media": null,
+      "execucoes_com_arquivos_alterados": 0,
+      "execucoes_com_falha": 0,
+      "custo_usd": 0.3626123,
+      "duracao_s": 79.623,
+      "tokens": {
+        "entrada": 24,
+        "saida": 11537,
+        "cache_criacao": 50221,
+        "cache_leitura": 463103
+      }
+    },
+    {
+      "fluxo": "revisar",
+      "item": "REV-FAT-001 [workflow]",
+      "execucoes": 1,
+      "avaliadas": 1,
+      "concluidas": 1,
+      "regras_esperadas": 0,
+      "regras_media": 1.0,
+      "regras_min": 1.0,
+      "regras_max": 1.0,
+      "evidencias": 2,
+      "evidencias_validas": 2,
+      "confirmado_sem_evidencia_valida": 0,
+      "perguntas_media": 1.0,
+      "premissa_corrigida": null,
+      "abrangencia_confere": null,
+      "arquivos_media": null,
+      "execucoes_com_arquivos_alterados": 0,
+      "execucoes_com_falha": 0,
+      "custo_usd": 1.1071750000000002,
+      "duracao_s": 143.141,
+      "tokens": {
+        "entrada": 6,
+        "saida": 1068,
+        "cache_criacao": 3431,
+        "cache_leitura": 78995
+      }
+    }
+  ],
+  "execucoes": [
+    {
+      "fluxo": "revisar",
+      "item": "REV-FAT-001 [simples]",
+      "repeticao": 1,
+      "avaliacao": {
+        "item": "REV-FAT-001",
+        "fluxo": "revisar",
+        "analise": "A-0001",
+        "estado": "concluida",
+        "concluida": true,
+        "afirmacoes": 5,
+        "por_confianca": {
+          "confirmado": 5,
+          "inferido": 0,
+          "a_confirmar": 0
+        },
+        "perguntas_registradas": 5,
+        "sugestoes": 0,
+        "termos": 0,
+        "evidencias": 11,
+        "evidencias_validas": 11,
+        "evidencias_invalidas": [],
+        "confirmado_sem_evidencia_valida": [],
+        "regras": [],
+        "regras_encontradas": 0,
+        "regras_esperadas": 0,
+        "outras_regras_encontradas": [
+          "RN-FAT-012",
+          "RN-FAT-013",
+          "RN-FAT-014"
+        ],
+        "afirmacoes_fora_do_gabarito": [],
+        "arquivos": [],
+        "perguntas_esperadas": [
+          {
+            "tema": "A história muda a regra que proíbe cancelar fatura com pagamento parcial, ou o texto está errado?",
+            "atendida_por": 1
+          }
+        ],
+        "premissa": null,
+        "abrangencia": null,
+        "parecer": {
+          "veredito_esperado": "precisa_de_retrabalho",
+          "veredito_registrado": "precisa_de_retrabalho",
+          "achados_registrados": 7,
+          "achados": [
+            {
+              "id": "REV-FAT-001-C1",
+              "descricao": "Contradição plantada: a história permite cancelar fatura com pagamento parcial; a regra RN-FAT-012 só cancela fatura sem nenhum valor pago.",
+              "atendido_por": 1
+            },
+            {
+              "id": "REV-FAT-001-L1",
+              "descricao": "O motivo é obrigatório, mas o sistema exige ao menos 10 caracteres (RN-FAT-013); a história não diz.",
+              "atendido_por": 3
+            },
+            {
+              "id": "REV-FAT-001-L2",
+              "descricao": "Fatura emitida há mais de 30 dias só pode ser cancelada por supervisor (RN-FAT-014); a história não trata o perfil.",
+              "atendido_por": 4
+            }
+          ],
+          "termos_vagos": [
+            {
+              "termo": "rápido",
+              "apontado_por": 5
+            },
+            {
+              "termo": "adequado",
+              "apontado_por": 5
+            },
+            {
+              "termo": "e/ou",
+              "apontado_por": 6
+            },
+            {
+              "termo": "etc.",
+              "apontado_por": 6
+            }
+          ],
+          "evidencias": 7,
+          "evidencias_invalidas": [],
+          "correcao_sem_evidencia_valida": []
+        }
+      },
+      "conducao": {
+        "pedida": "simples",
+        "efetiva": "simples",
+        "contestadas": 0,
+        "a_revalidar": 0
+      },
+      "arquivos_alterados": [],
+      "claude": {
+        "custo_usd": 0.3626123,
+        "turnos": 34,
+        "duracao_ms": 79623,
+        "erro": false,
+        "subtipo": "success",
+        "tokens": {
+          "entrada": 24,
+          "saida": 11537,
+          "cache_criacao": 50221,
+          "cache_leitura": 463103
+        },
+        "tokens_dos_modelos": {
+          "entrada": 24,
+          "saida": 11537,
+          "cache_criacao": 50221,
+          "cache_leitura": 463103
+        }
+      },
+      "erro": null
+    },
+    {
+      "fluxo": "revisar",
+      "item": "REV-FAT-001 [workflow]",
+      "repeticao": 1,
+      "avaliacao": {
+        "item": "REV-FAT-001",
+        "fluxo": "revisar",
+        "analise": "A-0001",
+        "estado": "concluida",
+        "concluida": true,
+        "afirmacoes": 1,
+        "por_confianca": {
+          "confirmado": 1,
+          "inferido": 0,
+          "a_confirmar": 0
+        },
+        "perguntas_registradas": 5,
+        "sugestoes": 0,
+        "termos": 0,
+        "evidencias": 2,
+        "evidencias_validas": 2,
+        "evidencias_invalidas": [],
+        "confirmado_sem_evidencia_valida": [],
+        "regras": [],
+        "regras_encontradas": 0,
+        "regras_esperadas": 0,
+        "outras_regras_encontradas": [
+          "RN-FAT-013"
+        ],
+        "afirmacoes_fora_do_gabarito": [],
+        "arquivos": [],
+        "perguntas_esperadas": [
+          {
+            "tema": "A história muda a regra que proíbe cancelar fatura com pagamento parcial, ou o texto está errado?",
+            "atendida_por": 2
+          }
+        ],
+        "premissa": null,
+        "abrangencia": null,
+        "parecer": {
+          "veredito_esperado": "precisa_de_retrabalho",
+          "veredito_registrado": "precisa_de_retrabalho",
+          "achados_registrados": 13,
+          "achados": [
+            {
+              "id": "REV-FAT-001-C1",
+              "descricao": "Contradição plantada: a história permite cancelar fatura com pagamento parcial; a regra RN-FAT-012 só cancela fatura sem nenhum valor pago.",
+              "atendido_por": 4
+            },
+            {
+              "id": "REV-FAT-001-L1",
+              "descricao": "O motivo é obrigatório, mas o sistema exige ao menos 10 caracteres (RN-FAT-013); a história não diz.",
+              "atendido_por": 3
+            },
+            {
+              "id": "REV-FAT-001-L2",
+              "descricao": "Fatura emitida há mais de 30 dias só pode ser cancelada por supervisor (RN-FAT-014); a história não trata o perfil.",
+              "atendido_por": 1
+            }
+          ],
+          "termos_vagos": [
+            {
+              "termo": "rápido",
+              "apontado_por": 2
+            },
+            {
+              "termo": "adequado",
+              "apontado_por": 7
+            },
+            {
+              "termo": "e/ou",
+              "apontado_por": 8
+            },
+            {
+              "termo": "etc.",
+              "apontado_por": 10
+            }
+          ],
+          "evidencias": 23,
+          "evidencias_invalidas": [],
+          "correcao_sem_evidencia_valida": []
+        }
+      },
+      "conducao": {
+        "pedida": "workflow",
+        "efetiva": "workflow",
+        "contestadas": 0,
+        "a_revalidar": 0,
+        "situacao": "concluido",
+        "workflow": {
+          "agentes": 12,
+          "fases": [
+            {
+              "fase": "Separar",
+              "agentes": 1,
+              "tokens": {
+                "entrada": 14,
+                "saida": 2970,
+                "cache_criacao": 20473,
+                "cache_leitura": 97607
+              },
+              "por_agente": [
+                121064
+              ]
+            },
+            {
+              "fase": "Avaliar",
+              "agentes": 5,
+              "tokens": {
+                "entrada": 74,
+                "saida": 23773,
+                "cache_criacao": 145697,
+                "cache_leitura": 833514
+              },
+              "por_agente": [
+                188546,
+                134208,
+                165535,
+                257730,
+                257039
+              ]
+            },
+            {
+              "fase": "Verificar",
+              "agentes": 5,
+              "tokens": {
+                "entrada": 22,
+                "saida": 1821,
+                "cache_criacao": 46582,
+                "cache_leitura": 97171
+              },
+              "por_agente": [
+                24468,
+                25259,
+                29723,
+                26364,
+                39782
+              ]
+            },
+            {
+              "fase": "Consolidar",
+              "agentes": 1,
+              "tokens": {
+                "entrada": 8,
+                "saida": 1757,
+                "cache_criacao": 25823,
+                "cache_leitura": 53863
+              },
+              "por_agente": [
+                81451
+              ]
+            }
+          ],
+          "tokens": {
+            "entrada": 118,
+            "saida": 30321,
+            "cache_criacao": 238575,
+            "cache_leitura": 1082155
+          }
+        }
+      },
+      "arquivos_alterados": [],
+      "claude": {
+        "custo_usd": 1.1071750000000002,
+        "turnos": 3,
+        "duracao_ms": 143141,
+        "erro": false,
+        "subtipo": "success",
+        "tokens": {
+          "entrada": 6,
+          "saida": 1068,
+          "cache_criacao": 3431,
+          "cache_leitura": 78995
+        },
+        "tokens_dos_modelos": {
+          "entrada": 132,
+          "saida": 31925,
+          "cache_criacao": 255397,
+          "cache_leitura": 1239355
+        }
+      },
+      "erro": null
+    }
+  ],
+  "custo_total_usd": 1.4697873000000001,
+  "sem_falhas_graves": true
+}

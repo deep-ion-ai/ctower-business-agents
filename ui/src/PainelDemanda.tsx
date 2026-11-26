@@ -16,6 +16,7 @@ import { ROTULO_SESSAO } from "./DocumentoAoVivo";
 import type { Tela } from "./Navegacao";
 import { NovaAnalise } from "./NovaAnalise";
 import { NovaHistorias } from "./NovaHistorias";
+import { NovaPrototipo } from "./NovaPrototipo";
 import { MatrizRastreabilidade } from "./MatrizRastreabilidade";
 import { PautaPerguntas } from "./PautaPerguntas";
 import type { ApiPauta } from "./pauta";
@@ -34,6 +35,7 @@ const FLUXOS: Fluxo[] = [
   "revisar",
   "historias",
   "cenarios",
+  "prototipo",
 ];
 
 const ESTADO_ANALISE: Record<EstadoAnalise, string> = {
@@ -226,10 +228,21 @@ export function PainelDemanda({
                 aoCriar={abrirCriada}
               />
             )}
+            {fluxo === "prototipo" && (
+              <NovaPrototipo
+                api={api}
+                apiPrototipo={api.prototipo}
+                projetos={[{ id: projeto, nome: projeto }]}
+                demandaFixa={d.id}
+                aoCancelar={() => setFluxo(null)}
+                aoCriar={abrirCriada}
+              />
+            )}
             {fluxo &&
-          fluxo !== "reuniao" &&
-          fluxo !== "historias" &&
-          fluxo !== "cenarios" && (
+              fluxo !== "reuniao" &&
+              fluxo !== "historias" &&
+              fluxo !== "cenarios" &&
+              fluxo !== "prototipo" && (
               <NovaAnalise
                 key={fluxo}
                 api={api}

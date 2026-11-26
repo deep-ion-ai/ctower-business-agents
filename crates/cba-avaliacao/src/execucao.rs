@@ -38,6 +38,7 @@ use std::time::{Duration, Instant};
 use cba_core::ambiente::Ambiente;
 use cba_core::analise::{Analise, EstadoAnalise, Fluxo};
 use cba_core::analises::NovaAnalise;
+use cba_core::conducao::Conducao;
 use cba_core::config::Config;
 use cba_core::dados::DiretorioDados;
 use cba_docs::EstadoAta;
@@ -217,6 +218,9 @@ struct Preparado {
     pedido: String,
     mcp: PathBuf,
     settings: PathBuf,
+    /// Condução pelo workflow (#371): o identificador da sessão, que fica gravada
+    /// para a medição dos agentes ([`crate::conducao`]) e é apagada depois.
+    sessao: Option<String>,
 }
 
 /// Versão do `claude` instalado.
@@ -263,9 +267,22 @@ fn rodar_claude_como(
         .arg("--strict-mcp-config")
         .arg("--settings")
         .arg(&p.settings)
-        .args(["--setting-sources", "local"])
-        .arg("--no-session-persistence")
         .args(["--allowedTools", &permitidas]);
+    match &p.sessao {
+        // O workflow só é achado com a origem `project` (spike da #352, R1): o
+        // `.claude/workflows/` da cópia, instalado pelo preparo. A cópia não tem
+        // `.claude/settings.json`, então nada mais entra.
+        Some(id) => {
+            comando
+                .args(["--setting-sources", "project,local"])
+                .args(["--session-id", id]);
+        }
+        None => {
+            comando
+                .args(["--setting-sources", "local"])
+                .arg("--no-session-persistence");
+        }
+    }
     if !o.permitir_edicao {
         comando.args(["--disallowedTools", FERRAMENTAS_DE_EDICAO]);
     }
@@ -355,6 +372,20 @@ pub fn executar(
     opcoes: &Opcoes,
     pasta_saida: &Path,
 ) -> Execucao {
+    executar_com(gabarito, item, repeticao, opcoes, pasta_saida, None)
+}
+
+/// Como [`executar`], com a condução pedida (`rodar --conducao`, #371). Com
+/// `Some`, o relatório traz a medição da condução ([`crate::conducao`]); com
+/// [`Conducao::Workflow`], o pedido é o do app para o workflow do fluxo.
+pub fn executar_com(
+    gabarito: &Gabarito,
+    item: &Item,
+    repeticao: u32,
+    opcoes: &Opcoes,
+    pasta_saida: &Path,
+    conducao: Option<Conducao>,
+) -> Execucao {
     let mut execucao = Execucao {
         fluxo: nome_do_fluxo(item.fluxo).to_owned(),
         item: item.id.clone(),
@@ -364,6 +395,7 @@ pub fn executar(
         transcript: None,
         mapa: None,
         publicacao: None,
+        conducao: None,
         arquivos_alterados: Vec::new(),
         claude: None,
         erro: None,
@@ -424,12 +456,25 @@ pub fn executar(
                 .map_err(erro("criação da análise"))?,
         };
         let (mcp, settings) = preparar_claude(&raiz, &p, &opcoes.cba)?;
+        let (pedido, sessao) = match conducao {
+            Some(Conducao::Workflow) => {
+                let nome = cba_tools::conducao::workflow_do_fluxo(analise.fluxo).ok_or(
+                    "o fluxo não tem workflow: use --conducao simples ou só a análise de impacto",
+                )?;
+                (
+                    cba_tools::conducao::pedido_de_inicio(&analise.id, &nome),
+                    Some(crate::conducao::novo_id_de_sessao()),
+                )
+            }
+            _ => (format!("Inicie a análise {} pelo ctower", analise.id), None),
+        };
         Ok::<_, String>((
             Preparado {
                 projeto: p,
-                pedido: format!("Inicie a análise {} pelo ctower", analise.id),
+                pedido,
                 mcp,
                 settings,
+                sessao,
             },
             analise.id,
         ))
@@ -446,9 +491,32 @@ pub fn executar(
         .ambiente
         .kb
         .caminho(&cba_core::analises::Analises::arquivo_de_estado(&id));
+    let relogio = Instant::now();
     match rodar_claude(&preparado, opcoes, pasta_saida) {
-        Ok(saida) => execucao.claude = Some(SaidaClaude::do_json(&saida)),
+        Ok(saida) => {
+            let mut c = SaidaClaude::do_json(&saida);
+            // Na condução pelo workflow, o `duration_ms` é só o do último turno (o
+            // que concluiu depois do aviso de fim): vale o tempo de relógio.
+            if conducao.is_some() {
+                c.duracao_ms = Some(relogio.elapsed().as_millis() as u64);
+            }
+            execucao.claude = Some(c);
+        }
         Err(e) => execucao.erro = Some(e),
+    }
+    // A sessão gravada (condução pelo workflow): os journals vão para a saída, os
+    // agentes são medidos e a sessão é apagada.
+    let sessao = preparado
+        .sessao
+        .as_deref()
+        .and_then(crate::conducao::pasta_da_sessao);
+    let pasta_da_sessao = preparado
+        .sessao
+        .as_deref()
+        .zip(sessao.as_deref())
+        .map(|(id, projeto)| projeto.join(id));
+    if let Some(p) = &pasta_da_sessao {
+        crate::conducao::copiar_journals(p, pasta_saida);
     }
 
     match pastas::diferencas(&projeto, &preparado.projeto.codigo) {
@@ -462,6 +530,13 @@ pub fn executar(
             match serde_json::from_slice::<Analise>(&bytes) {
                 Ok(analise) => {
                     copiar_documento(&raiz, &analise, pasta_saida);
+                    if let Some(c) = conducao {
+                        execucao.conducao = Some(crate::conducao::medir(
+                            c,
+                            &analise,
+                            pasta_da_sessao.as_deref(),
+                        ));
+                    }
                     match escopo(gabarito) {
                         Ok(escopo) => {
                             execucao.avaliacao = Some(avaliar(&analise, item, gabarito, &escopo))
@@ -479,6 +554,11 @@ pub fn executar(
         }
     }
 
+    if let Some(p) = &sessao
+        && !opcoes.manter
+    {
+        crate::conducao::apagar_sessao(p);
+    }
     manter_se_pedido(temporaria, opcoes, pasta_saida);
     execucao
 }
@@ -503,6 +583,7 @@ pub fn executar_mapeamento(
         transcript: None,
         mapa: None,
         publicacao: None,
+        conducao: None,
         arquivos_alterados: Vec::new(),
         claude: None,
         erro: None,
@@ -527,6 +608,7 @@ pub fn executar_mapeamento(
             pedido: cba_tools::mapear::pedido_de_mapeamento(None, None, None),
             mcp,
             settings,
+            sessao: None,
         })
     })();
     let preparado = match preparado {
@@ -620,6 +702,7 @@ pub fn executar_reuniao(
         transcript: None,
         mapa: None,
         publicacao: None,
+        conducao: None,
         arquivos_alterados: Vec::new(),
         claude: None,
         erro: None,
@@ -686,6 +769,7 @@ pub fn executar_reuniao(
                 ),
                 mcp,
                 settings,
+                sessao: None,
             },
             ata.id,
         ))
@@ -817,6 +901,7 @@ pub fn executar_publicacao(
         transcript: None,
         mapa: None,
         publicacao: None,
+        conducao: None,
         arquivos_alterados: Vec::new(),
         claude: None,
         erro: None,
@@ -861,6 +946,7 @@ pub fn executar_publicacao(
             pedido: format!("Inicie a análise {} pelo ctower", analise_a.id),
             mcp,
             settings,
+            sessao: None,
         };
         let saida = rodar_claude_como(&preparado, opcoes, pasta_saida, "claude-1", true)?;
         resultado.primeira = Some(ciclo::saida_da_transcricao(&saida));
@@ -927,6 +1013,7 @@ pub fn executar_publicacao(
             pedido: format!("Inicie a análise {} pelo ctower", analise_b.id),
             mcp,
             settings,
+            sessao: None,
         };
         let saida = rodar_claude_como(&preparado, opcoes, pasta_saida, "claude-2", true)?;
         resultado.segunda = Some(ciclo::saida_da_transcricao(&saida));

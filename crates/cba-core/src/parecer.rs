@@ -92,6 +92,10 @@ pub struct Achado {
     pub evidencias: Vec<Evidencia>,
     #[serde(flatten)]
     pub estado: EstadoAchado,
+    /// Contestação da verificação independente de um workflow (#371): o achado fica
+    /// a revalidar até o analista decidir ([`Achado::a_revalidar`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub contestacao: Option<crate::conducao::Contestacao>,
     #[serde(default)]
     pub sessao: Option<String>,
     pub registrada_ms: u64,
@@ -101,6 +105,11 @@ impl Achado {
     /// Achado que vai para o parecer (não descartado).
     pub fn ativo(&self) -> bool {
         self.estado == EstadoAchado::Registrado
+    }
+
+    /// Ativo e contestado pela verificação independente: o analista decide.
+    pub fn a_revalidar(&self) -> bool {
+        self.ativo() && self.contestacao.is_some()
     }
 }
 
@@ -172,6 +181,7 @@ mod tests {
             regras: Vec::new(),
             evidencias: Vec::new(),
             estado,
+            contestacao: None,
             sessao: None,
             registrada_ms: 1,
         }

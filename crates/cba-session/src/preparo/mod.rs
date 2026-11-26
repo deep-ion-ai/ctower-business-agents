@@ -14,6 +14,9 @@
 //! | Confiança na pasta (`hasTrustDialogAccepted: true`, #218) | `~/.claude.json`, em `projects["<chave>"]` | local: só sessões nessa pasta |
 //! | Hooks dos eventos de [`crate::hooks::EVENTOS`] (`"<executável>" hook <evento>`) | `<raiz>/.claude/settings.local.json`, em `hooks`, para cada raiz de [`Alvo::raizes`] | local: só sessões nessa raiz |
 //! | Linha [`LINHA_EXCLUDE`], se a raiz é de um repositório git | `info/exclude` do diretório comum do git | não versionado |
+//! | Regras `Workflow(cba-<tipo>)` e `Skill(cba-<tipo>)` em `permissions.allow`, uma de cada por workflow ([`workflows`], #370) | `<raiz>/.claude/settings.local.json`, para cada raiz de [`Alvo::raizes`] | local: só sessões nessa raiz |
+//! | Workflows das análises, com o cabeçalho de origem e hash ([`workflows`], #370) | `<raiz de workflows>/.claude/workflows/cba-<tipo>.js`, para cada raiz de [`Alvo::raizes_workflows`] | a pasta (e as subpastas) |
+//! | Linha [`LINHA_EXCLUDE_WORKFLOWS`], se a raiz de workflows é de um repositório git | `info/exclude` do diretório comum do git | não versionado |
 //!
 //! | Opcional: proteção contra edição, `Edit(//<pasta>/**)` em `permissions.deny` ([`protecao`]) | `<raiz>/.claude/settings.local.json` da pasta | local, com caminho absoluto |
 //!
@@ -90,9 +93,13 @@
 //!   [`ConfigClaude::backup_de`]), veja [`arquivo`].
 //! - **Sem credenciais:** os arquivos são tratados como JSON genérico; nenhum campo
 //!   além dos nossos é interpretado, registrado no log ou copiado para outro lugar.
-//! - **Na pasta do projeto, só o arquivo local:** além do `.claude/settings.local.json`
-//!   (e do `info/exclude`, dentro do `.git`), nada é escrito nas pastas do projeto. A
+//! - **Na pasta do projeto, só os arquivos locais:** além do
+//!   `.claude/settings.local.json`, dos `.claude/workflows/cba-*.js` (e do
+//!   `info/exclude`, dentro do `.git`), nada é escrito nas pastas do projeto. A
 //!   indentação e as quebras de linha de cada arquivo são mantidas.
+//! - **Workflow editado à mão fica:** um `cba-*.js` instalado que não confere com o
+//!   hash do cabeçalho (ou que não é do app) não é sobrescrito nem apagado
+//!   ([`Acao::Preservado`], [`Situacao::Divergente`], [`Mantido::WorkflowEditado`]).
 //!
 //! O consentimento do analista fica com a interface: [`Preparador::planejar`] mostra
 //! o que seria alterado sem gravar nada.
@@ -119,7 +126,9 @@ mod json;
 mod migracao;
 pub mod protecao;
 pub mod registro;
+pub mod workflows;
 
+pub use cba_tools::workflows::{OrigemWorkflow, WorkflowEfetivo};
 pub use migracao::RetiradaGlobal;
 
 #[cfg(test)]
@@ -134,7 +143,10 @@ use serde::Serialize;
 use crate::clientes::{Ambiente, AmbienteReal, Plataforma};
 use crate::hooks::EVENTOS;
 use json::{Json, Objeto};
-use registro::{Registro, TrocaConfianca, TrocaHook, TrocaLocal, TrocaMcp};
+use registro::{
+    Registro, TrocaArquivo, TrocaConfianca, TrocaHook, TrocaLocal, TrocaMcp, TrocaWorkflows,
+};
+use workflows::EstadoArquivo;
 
 /// Nome do servidor MCP na configuração (as ferramentas aparecem como `mcp__cba__*`).
 pub const NOME_SERVIDOR: &str = "cba";
@@ -154,6 +166,10 @@ pub const ARQUIVO_LOCAL: &str = "settings.local.json";
 pub const LINHA_EXCLUDE: &str = "/.claude/settings.local.json";
 /// Pasta das cópias de segurança dos arquivos locais, ao lado do `settings.json`.
 pub const PASTA_BACKUPS: &str = "cba-backups";
+/// Pasta dos workflows do Claude Code dentro de `.claude` (#370).
+pub const PASTA_WORKFLOWS: &str = "workflows";
+/// Linha do `info/exclude` do git que tira os workflows do app do versionamento.
+pub const LINHA_EXCLUDE_WORKFLOWS: &str = "/.claude/workflows/cba-*.js";
 
 /// `<raiz>/.claude/settings.local.json`.
 pub fn arquivo_local(raiz: &Path) -> PathBuf {
@@ -167,6 +183,16 @@ fn raiz_local(diretorio: &Path) -> (PathBuf, bool) {
     match cba_index::detectar_git(diretorio) {
         Some(repo) => (repo.raiz_principal, repo.worktree),
         None => (diretorio.to_path_buf(), false),
+    }
+}
+
+/// Raiz dos workflows de uma pasta (já canônica): o `git rev-parse --show-toplevel`
+/// (numa worktree, a própria worktree), ou a pasta fora do git. Pelo spike da #352
+/// (R2), uma worktree não acha os workflows da raiz do repositório principal.
+fn raiz_de_workflows(diretorio: &Path) -> PathBuf {
+    match cba_index::detectar_git(diretorio) {
+        Some(repo) => repo.raiz,
+        None => diretorio.to_path_buf(),
     }
 }
 
@@ -283,6 +309,17 @@ pub struct Alvo {
     /// `.claude/settings.local.json` com os hooks e a proteção (#304). A primeira é a
     /// da `chave`.
     pub raizes: Vec<PathBuf>,
+    /// Raízes dos workflows das pastas do projeto, sem repetição: o
+    /// `git rev-parse --show-toplevel` de cada pasta (numa worktree, a própria
+    /// worktree), ou a pasta fora do git. É onde ficam os `.claude/workflows/cba-*.js`
+    /// (#370).
+    pub raizes_workflows: Vec<PathBuf>,
+    /// Workflows a instalar, na versão efetiva de cada tipo. Por padrão, os padrões
+    /// embutidos ([`cba_tools::workflows::padroes`]); a customização troca com
+    /// [`Alvo::com_workflows`]. Vazio, o preparo não instala workflows nem as regras
+    /// de permissão (a migração dos hooks, [`crate::migracao`]).
+    #[serde(skip)]
+    pub workflows: Vec<WorkflowEfetivo>,
 }
 
 impl Alvo {
@@ -307,8 +344,19 @@ impl Alvo {
             if !alvo.raizes.contains(&raiz) {
                 alvo.raizes.push(raiz);
             }
+            let raiz = raiz_de_workflows(&dir);
+            if !alvo.raizes_workflows.contains(&raiz) {
+                alvo.raizes_workflows.push(raiz);
+            }
         }
         Ok(alvo)
+    }
+
+    /// O mesmo alvo, instalando `workflows` no lugar dos padrões (a versão efetiva de
+    /// cada tipo, com a customização, #372; vazio, só os hooks).
+    pub fn com_workflows(mut self, workflows: Vec<WorkflowEfetivo>) -> Self {
+        self.workflows = workflows;
+        self
     }
 
     /// Alvo de uma pasta, na plataforma atual.
@@ -326,9 +374,11 @@ impl Alvo {
         Ok(Self {
             projeto: projeto.to_string(),
             chave: chave_do_caminho(&raiz, plataforma),
+            raizes_workflows: vec![raiz_de_workflows(&diretorio)],
             diretorio,
             worktree,
             raizes: vec![raiz],
+            workflows: cba_tools::workflows::padroes(),
         })
     }
 }
@@ -367,6 +417,9 @@ pub enum Acao {
     /// O valor de antes do preparo voltou, com a entrada de outra instalação do app.
     Restaurado,
     SemMudanca,
+    /// Um workflow instalado foi editado à mão (não confere com o hash do cabeçalho)
+    /// ou não é do app: ficou como está, sem ser sobrescrito (#370).
+    Preservado,
 }
 
 /// Item da configuração.
@@ -388,6 +441,14 @@ pub enum Item {
     /// Linha `/.claude/settings.local.json` no `info/exclude` do git da raiz: o
     /// arquivo local fica fora do versionamento.
     ExclusaoGit { raiz: String },
+    /// Arquivo `.claude/workflows/<nome>.js` de uma raiz de workflows (#370).
+    Workflow { nome: String, raiz: String },
+    /// Regra `Workflow(<nome>)` ou `Skill(<nome>)` em `permissions.allow` do
+    /// `settings.local.json` de uma raiz (#370).
+    PermissaoWorkflow { regra: String },
+    /// Linha `/.claude/workflows/cba-*.js` no `info/exclude` do git da raiz: os
+    /// workflows instalados ficam fora do versionamento (#370).
+    ExclusaoWorkflows { raiz: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -429,6 +490,9 @@ pub enum Mantido {
     /// A entrada da pasta não existia antes do preparo e fica, porque guarda dados que
     /// o próprio Claude Code gravou ao abrir conversas nela (como o histórico de uso).
     EntradaDoClaude { arquivo: PathBuf, chave: String },
+    /// O workflow instalado foi editado à mão depois do preparo (não confere com o
+    /// hash do cabeçalho) e ficou como está.
+    WorkflowEditado { arquivo: PathBuf },
 }
 
 /// Resultado de [`Preparador::planejar`], [`Preparador::preparar`] e
@@ -452,7 +516,9 @@ pub struct Resultado {
 impl Resultado {
     /// Se algum item mudou (ou mudaria, no plano).
     pub fn houve_mudanca(&self) -> bool {
-        self.alteracoes.iter().any(|a| a.acao != Acao::SemMudanca)
+        self.alteracoes
+            .iter()
+            .any(|a| !matches!(a.acao, Acao::SemMudanca | Acao::Preservado))
     }
 
     /// No desfazer: a configuração do Claude voltou a ser a de antes do preparo.
@@ -488,6 +554,33 @@ pub enum Situacao {
     Desatualizado,
     /// Entrada com o nosso nome que não é do app.
     Conflito,
+    /// Workflow instalado pelo app e editado à mão: não confere com o hash do
+    /// cabeçalho, e o preparo não o sobrescreve (#370).
+    Divergente,
+}
+
+/// Situação de um workflow instalado numa raiz (#370).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SituacaoWorkflow {
+    /// `cba-<tipo>`.
+    pub nome: String,
+    /// `<raiz>/.claude/workflows/<nome>.js`.
+    pub arquivo: PathBuf,
+    /// [`Situacao::Ok`] se é a versão efetiva intacta; [`Situacao::Desatualizado`] se
+    /// é do app, intacto, mas de outra versão (o preparo regrava);
+    /// [`Situacao::Divergente`] se foi editado à mão; [`Situacao::Conflito`] se não é
+    /// do app.
+    pub situacao: Situacao,
+}
+
+/// Regra de permissão de um workflow num `settings.local.json` (#370).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SituacaoPermissao {
+    pub regra: String,
+    pub arquivo: PathBuf,
+    pub presente: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -514,8 +607,16 @@ pub struct Verificacao {
     /// `disableAllHooks: true` nas configurações do usuário (sem `false` no arquivo
     /// local) ou no arquivo local de alguma raiz: os hooks não rodam.
     pub hooks_desativados: bool,
-    /// Tudo no lugar (com a pasta confiável) e os hooks ativos.
+    /// Tudo no lugar (com a pasta confiável) e os hooks ativos. Não depende dos
+    /// workflows: a falta deles nunca bloqueia a análise ([`Verificacao::workflows_prontos`]).
     pub pronto: bool,
+    /// Por raiz de workflows e workflow (#370).
+    pub workflows: Vec<SituacaoWorkflow>,
+    /// Por raiz e regra (#370).
+    pub permissoes_workflow: Vec<SituacaoPermissao>,
+    /// Os workflows do alvo estão instalados, intactos e na versão efetiva, com as
+    /// regras de permissão no lugar: a condução por workflow pode ser oferecida.
+    pub workflows_prontos: bool,
 }
 
 /// Prepara, verifica e desfaz o ambiente de um projeto.
@@ -599,12 +700,20 @@ impl Preparador {
             matches!(settings.raiz.get("disableAllHooks"), Some(Json::Bool(true)));
         let mut hooks_desativados = false;
         let mut hooks = Vec::new();
+        let regras = workflows::regras_de_permissao(&alvo.workflows);
+        let mut permissoes_workflow = Vec::new();
         for raiz in &alvo.raizes {
             let local = arquivo::ler(&arquivo_local(raiz))?;
             hooks_desativados |= match local.raiz.get("disableAllHooks") {
                 Some(Json::Bool(b)) => *b,
                 _ => desativados_no_usuario,
             };
+            let allow = lista_allow(&local.raiz);
+            permissoes_workflow.extend(regras.iter().map(|r| SituacaoPermissao {
+                regra: r.clone(),
+                arquivo: arquivo_local(raiz),
+                presente: allow.is_some_and(|a| a.iter().any(|v| v.como_texto() == Some(r))),
+            }));
             for evento in EVENTOS {
                 let esperado = self.comando_hook(evento);
                 let comandos = comandos_nossos(&local.raiz, evento, &local.caminho)?;
@@ -627,6 +736,31 @@ impl Preparador {
             && !hooks_desativados
             && !hooks.is_empty()
             && hooks.iter().all(|h| h.situacao == Situacao::Ok);
+
+        let mut situacoes_workflows = Vec::new();
+        for raiz in &alvo.raizes_workflows {
+            for w in &alvo.workflows {
+                let arquivo = workflows::arquivo_workflow(raiz, &w.nome());
+                let situacao = match workflows::estado(&arquivo, &workflows::conteudo_instalado(w))?
+                {
+                    EstadoArquivo::Ausente => Situacao::Ausente,
+                    EstadoArquivo::Alheio => Situacao::Conflito,
+                    EstadoArquivo::Editado => Situacao::Divergente,
+                    EstadoArquivo::Intacto { igual: true, .. } => Situacao::Ok,
+                    EstadoArquivo::Intacto { igual: false, .. } => Situacao::Desatualizado,
+                };
+                situacoes_workflows.push(SituacaoWorkflow {
+                    nome: w.nome(),
+                    arquivo,
+                    situacao,
+                });
+            }
+        }
+        let workflows_prontos = !situacoes_workflows.is_empty()
+            && situacoes_workflows
+                .iter()
+                .all(|w| w.situacao == Situacao::Ok)
+            && permissoes_workflow.iter().all(|p| p.presente);
         Ok(Verificacao {
             diretorio: alvo.diretorio.clone(),
             chave: alvo.chave.clone(),
@@ -635,6 +769,9 @@ impl Preparador {
             hooks,
             hooks_desativados,
             pronto,
+            workflows: situacoes_workflows,
+            permissoes_workflow,
+            workflows_prontos,
         })
     }
 
@@ -692,6 +829,10 @@ impl Preparador {
         });
         resultado.mantidos.append(&mut mantidos);
 
+        // Antes dos arquivos locais: a pasta `.claude` só sai vazia.
+        for raiz in &alvo.raizes_workflows {
+            self.desfazer_workflows(raiz, &pastas_minhas, &mut registro, &mut resultado)?;
+        }
         for raiz in &alvo.raizes {
             self.desfazer_local(
                 raiz,
@@ -751,6 +892,7 @@ impl Preparador {
         let mut mudaram = Vec::new();
         let mut em_uso = false;
         let mut exclude_meu = false;
+        let mut regras_tiradas = Vec::new();
         let backup = self.config.backup_de(&arq);
         if let Some(b) = self.editar_registrando(
             &arq,
@@ -769,6 +911,11 @@ impl Preparador {
                     .unwrap_or((None, BTreeMap::new()));
                 (acoes, mudaram, em_uso) =
                     self.restaurar_hooks(obj, caminho, existia, trocas, nenhuma_usa)?;
+                // Com outra instalação na raiz, as regras passaram a ser dela.
+                regras_tiradas = match &troca {
+                    Some(t) if !outra_usa => restaurar_permissoes(obj, caminho, t)?,
+                    _ => Vec::new(),
+                };
                 exclude_meu = troca.is_some_and(|t| t.exclude) && !outra_usa;
                 Ok(())
             },
@@ -782,6 +929,14 @@ impl Preparador {
                 item: Item::Hook { evento },
                 acao,
                 outra_instalacao: outra,
+            }));
+        resultado
+            .alteracoes
+            .extend(regras_tiradas.into_iter().map(|regra| Alteracao {
+                arquivo: arq.clone(),
+                item: Item::PermissaoWorkflow { regra },
+                acao: Acao::Removido,
+                outra_instalacao: None,
             }));
         if !mudaram.is_empty() {
             resultado.mantidos.push(Mantido::HooksMudaramDepois {
@@ -804,7 +959,7 @@ impl Preparador {
         if exclude_meu
             && !arq.exists()
             && let Some(exclude) = arquivo_exclude(raiz)
-            && remover_linha_exclude(&exclude)?
+            && remover_linha(&exclude, LINHA_EXCLUDE)?
         {
             resultado.alteracoes.push(Alteracao {
                 arquivo: exclude,
@@ -814,6 +969,113 @@ impl Preparador {
             });
         }
         Ok(())
+    }
+
+    /// Tira de `raiz` os workflows que esta instalação gravou (o arquivo de antes
+    /// volta, se havia), as pastas `.claude/workflows` e `.claude` se só existiam por
+    /// causa deles e ficaram vazias, e a linha do `info/exclude` se foi ela que a pôs.
+    /// Um workflow editado à mão fica ([`Mantido::WorkflowEditado`]), com a linha.
+    /// Nada muda se a raiz é a pasta de outra pasta preparada por esta instalação, ou
+    /// se outra instalação também gravou nela (os arquivos passam a ser dela).
+    fn desfazer_workflows(
+        &self,
+        raiz: &Path,
+        pastas_minhas: &[String],
+        registro: &mut Registro,
+        resultado: &mut Resultado,
+    ) -> Result<(), Erro> {
+        let exe = self.executavel_texto();
+        let chave = chave_do_caminho(raiz, self.plataforma);
+        if pastas_minhas
+            .iter()
+            .any(|k| mesma_chave(k, &chave, self.plataforma))
+        {
+            return Ok(());
+        }
+        let Some((troca, outra_usa)) = registro.tirar_workflows(&exe, &chave) else {
+            return Ok(());
+        };
+        if outra_usa {
+            return registro.gravar(&self.config.registro());
+        }
+        let mut ficaram = BTreeMap::new();
+        for (nome, t) in &troca.arquivos {
+            let arquivo = workflows::arquivo_workflow(raiz, nome);
+            let texto = match std::fs::read(&arquivo) {
+                Ok(b) => b,
+                Err(e) if e.kind() == io::ErrorKind::NotFound => continue,
+                Err(e) => return Err(erro_io(&arquivo, e)),
+            };
+            let intacto = String::from_utf8(texto)
+                .ok()
+                .and_then(|t| workflows::ler_cabecalho(&t))
+                .is_some_and(|c| c.intacto);
+            if !intacto {
+                resultado.mantidos.push(Mantido::WorkflowEditado {
+                    arquivo: arquivo.clone(),
+                });
+                ficaram.insert(nome.clone(), t.clone());
+                continue;
+            }
+            let acao = match &t.antes {
+                Some(antes) => {
+                    workflows::gravar(&arquivo, antes)?;
+                    Acao::Restaurado
+                }
+                None => {
+                    std::fs::remove_file(&arquivo).map_err(|e| erro_io(&arquivo, e))?;
+                    Acao::Removido
+                }
+            };
+            resultado.alteracoes.push(Alteracao {
+                arquivo,
+                item: Item::Workflow {
+                    nome: nome.clone(),
+                    raiz: chave.clone(),
+                },
+                acao,
+                outra_instalacao: None,
+            });
+        }
+        // Só saem vazias: nunca apaga o que o analista pôs lá.
+        if !troca.pasta_workflows_existia {
+            let _ = std::fs::remove_dir(workflows::pasta_workflows(raiz));
+        }
+        if !troca.pasta_existia {
+            let _ = std::fs::remove_dir(raiz.join(PASTA_LOCAL));
+        }
+        if troca.exclude
+            && ficaram.is_empty()
+            && let Some(exclude) = arquivo_exclude(raiz)
+            && !transferir_exclude_workflows(registro, &exclude)
+            && remover_linha(&exclude, LINHA_EXCLUDE_WORKFLOWS)?
+        {
+            resultado.alteracoes.push(Alteracao {
+                arquivo: exclude,
+                item: Item::ExclusaoWorkflows {
+                    raiz: chave.clone(),
+                },
+                acao: Acao::Removido,
+                outra_instalacao: None,
+            });
+        }
+        if !ficaram.is_empty() {
+            // O editado continua fora do versionamento, e o registro, com ele: um
+            // desfazer depois de o analista resolver a edição ainda o encontra.
+            registro
+                .instalacoes
+                .entry(exe)
+                .or_default()
+                .workflows
+                .insert(
+                    chave,
+                    TrocaWorkflows {
+                        arquivos: ficaram,
+                        ..troca
+                    },
+                );
+        }
+        registro.gravar(&self.config.registro())
     }
 
     /// Tira do `settings.json` do usuário os hooks que preparos anteriores à #304
@@ -936,8 +1198,14 @@ impl Preparador {
             outra_instalacao: None,
         });
 
+        let regras = workflows::regras_de_permissao(&alvo.workflows);
         for raiz in &alvo.raizes {
-            self.aplicar_local(raiz, modo, &mut registro, &mut resultado)?;
+            self.aplicar_local(raiz, modo, &regras, &mut registro, &mut resultado)?;
+        }
+        // Depois dos arquivos locais: na mesma raiz, a pasta `.claude` fica sendo
+        // deles, e o desfazer (na ordem inversa) a tira por último.
+        for raiz in &alvo.raizes_workflows {
+            self.aplicar_workflows(raiz, &alvo.workflows, modo, &mut registro, &mut resultado)?;
         }
 
         if modo == Modo::Gravar {
@@ -952,12 +1220,14 @@ impl Preparador {
         Ok(resultado)
     }
 
-    /// Hooks no `settings.local.json` de `raiz` e, se a raiz é de um repositório git,
-    /// a linha do arquivo no `info/exclude`.
+    /// Hooks e as `regras` de permissão dos workflows no `settings.local.json` de
+    /// `raiz` e, se a raiz é de um repositório git, a linha do arquivo no
+    /// `info/exclude`.
     fn aplicar_local(
         &self,
         raiz: &Path,
         modo: Modo,
+        regras: &[String],
         registro: &mut Registro,
         resultado: &mut Resultado,
     ) -> Result<(), Erro> {
@@ -967,6 +1237,7 @@ impl Preparador {
         let pasta_existia = raiz.join(PASTA_LOCAL).is_dir();
         let arquivo_existia = arq.exists();
         let mut acoes = Vec::new();
+        let mut acoes_regras = Vec::new();
         let backup = self.config.backup_de(&arq);
         if let Some(b) = self.editar_registrando(
             &arq,
@@ -983,6 +1254,7 @@ impl Preparador {
                 });
                 acoes =
                     self.registrar_hooks(obj, caminho, &mut troca.hooks, &mut troca.hooks_existia)?;
+                acoes_regras = registrar_permissoes(obj, caminho, &mut troca, regras)?;
                 if !troca.vazia() {
                     instalacao.locais.insert(chave.clone(), troca);
                 }
@@ -1002,17 +1274,119 @@ impl Preparador {
                 acao,
                 outra_instalacao: outra,
             }));
+        resultado
+            .alteracoes
+            .extend(acoes_regras.into_iter().map(|(regra, acao)| Alteracao {
+                arquivo: arq.clone(),
+                item: Item::PermissaoWorkflow { regra },
+                acao,
+                outra_instalacao: None,
+            }));
 
         if let Some(exclude) = arquivo_exclude(raiz)
-            && !tem_linha_exclude(&exclude)
+            && !tem_linha(&exclude, e_linha_do_arquivo_local)
         {
             if modo == Modo::Gravar {
                 self.registrar_exclude(registro, &chave, arquivo_existia, pasta_existia)?;
-                acrescentar_linha_exclude(&exclude)?;
+                acrescentar_linha(&exclude, LINHA_EXCLUDE)?;
             }
             resultado.alteracoes.push(Alteracao {
                 arquivo: exclude,
                 item: Item::ExclusaoGit { raiz: chave },
+                acao: Acao::Adicionado,
+                outra_instalacao: None,
+            });
+        }
+        Ok(())
+    }
+
+    /// Grava em `raiz` a versão efetiva de cada workflow (`.claude/workflows/<nome>.js`,
+    /// com o cabeçalho) e, se a raiz é de um repositório git, a linha
+    /// [`LINHA_EXCLUDE_WORKFLOWS`] no `info/exclude`. Um arquivo editado à mão, ou que
+    /// não é do app, fica como está ([`Acao::Preservado`]).
+    fn aplicar_workflows(
+        &self,
+        raiz: &Path,
+        lista: &[WorkflowEfetivo],
+        modo: Modo,
+        registro: &mut Registro,
+        resultado: &mut Resultado,
+    ) -> Result<(), Erro> {
+        if lista.is_empty() {
+            return Ok(());
+        }
+        let exe = self.executavel_texto();
+        let chave = chave_do_caminho(raiz, self.plataforma);
+        let pasta_existia = raiz.join(PASTA_LOCAL).is_dir();
+        let pasta_workflows_existia = workflows::pasta_workflows(raiz).is_dir();
+        let nova_troca = || TrocaWorkflows {
+            pasta_existia,
+            pasta_workflows_existia,
+            ..TrocaWorkflows::default()
+        };
+        for w in lista {
+            let nome = w.nome();
+            let arquivo = workflows::arquivo_workflow(raiz, &nome);
+            let novo = workflows::conteudo_instalado(w);
+            let (acao, antes) = match workflows::estado(&arquivo, &novo)? {
+                EstadoArquivo::Ausente => (Acao::Adicionado, None),
+                EstadoArquivo::Intacto { igual: true, .. } => (Acao::SemMudanca, None),
+                EstadoArquivo::Intacto {
+                    igual: false,
+                    texto,
+                } => (Acao::Atualizado, Some(texto)),
+                EstadoArquivo::Editado | EstadoArquivo::Alheio => (Acao::Preservado, None),
+            };
+            if modo == Modo::Gravar && matches!(acao, Acao::Adicionado | Acao::Atualizado) {
+                // O registro vai antes do arquivo: nunca há gravação sem o de antes
+                // guardado. O primeiro "antes" fica.
+                registro
+                    .instalacoes
+                    .entry(exe.clone())
+                    .or_default()
+                    .workflows
+                    .entry(chave.clone())
+                    .or_insert_with(nova_troca)
+                    .arquivos
+                    .entry(nome.clone())
+                    .or_insert(TrocaArquivo { antes });
+                registro.gravar(&self.config.registro())?;
+                workflows::gravar(&arquivo, &novo)?;
+            }
+            resultado.alteracoes.push(Alteracao {
+                arquivo,
+                item: Item::Workflow {
+                    nome,
+                    raiz: chave.clone(),
+                },
+                acao,
+                outra_instalacao: None,
+            });
+        }
+
+        if let Some(exclude) = arquivo_exclude(raiz)
+            && !tem_linha(&exclude, e_linha_dos_workflows)
+            // Raízes que dividem o diretório comum do git (uma worktree e o
+            // principal) dividem a linha: no plano, ela aparece uma vez só.
+            && !resultado.alteracoes.iter().any(|a| {
+                a.arquivo == exclude && matches!(a.item, Item::ExclusaoWorkflows { .. })
+            })
+        {
+            if modo == Modo::Gravar {
+                registro
+                    .instalacoes
+                    .entry(exe)
+                    .or_default()
+                    .workflows
+                    .entry(chave.clone())
+                    .or_insert_with(nova_troca)
+                    .exclude = true;
+                registro.gravar(&self.config.registro())?;
+                acrescentar_linha(&exclude, LINHA_EXCLUDE_WORKFLOWS)?;
+            }
+            resultado.alteracoes.push(Alteracao {
+                arquivo: exclude,
+                item: Item::ExclusaoWorkflows { raiz: chave },
                 acao: Acao::Adicionado,
                 outra_instalacao: None,
             });
@@ -1386,7 +1760,7 @@ impl Preparador {
         let mut acoes = Vec::new();
         for evento in EVENTOS {
             let comando = self.comando_hook(evento);
-            let grupo = grupo_hook(&comando);
+            let grupo = grupo_hook(evento, &comando);
             let antes = hooks.get(evento).cloned();
             if antes.is_none() {
                 hooks.inserir(evento, Json::Lista(Vec::new()));
@@ -1591,8 +1965,17 @@ fn e_linha_do_arquivo_local(linha: &str) -> bool {
     )
 }
 
-fn tem_linha_exclude(exclude: &Path) -> bool {
-    std::fs::read_to_string(exclude).is_ok_and(|t| t.lines().any(e_linha_do_arquivo_local))
+/// Linhas do `info/exclude` que já tiram os workflows do app do versionamento.
+fn e_linha_dos_workflows(linha: &str) -> bool {
+    matches!(
+        linha.trim(),
+        LINHA_EXCLUDE_WORKFLOWS | ".claude/workflows/cba-*.js" | "**/.claude/workflows/cba-*.js"
+    )
+}
+
+/// O `info/exclude` tem alguma linha que `e_a_linha` reconhece.
+fn tem_linha(exclude: &Path, e_a_linha: fn(&str) -> bool) -> bool {
+    std::fs::read_to_string(exclude).is_ok_and(|t| t.lines().any(e_a_linha))
 }
 
 fn erro_io(arquivo: &Path, e: io::Error) -> Erro {
@@ -1602,8 +1985,8 @@ fn erro_io(arquivo: &Path, e: io::Error) -> Erro {
     }
 }
 
-/// Acrescenta [`LINHA_EXCLUDE`] ao `info/exclude`, criando-o se preciso.
-fn acrescentar_linha_exclude(exclude: &Path) -> Result<(), Erro> {
+/// Acrescenta `linha` ao `info/exclude`, criando-o se preciso.
+fn acrescentar_linha(exclude: &Path, linha: &str) -> Result<(), Erro> {
     let mut texto = match std::fs::read_to_string(exclude) {
         Ok(t) => t,
         Err(e) if e.kind() == io::ErrorKind::NotFound => String::new(),
@@ -1612,7 +1995,7 @@ fn acrescentar_linha_exclude(exclude: &Path) -> Result<(), Erro> {
     if !texto.is_empty() && !texto.ends_with('\n') {
         texto.push('\n');
     }
-    texto.push_str(LINHA_EXCLUDE);
+    texto.push_str(linha);
     texto.push('\n');
     if let Some(pasta) = exclude.parent() {
         std::fs::create_dir_all(pasta).map_err(|e| erro_io(pasta, e))?;
@@ -1620,8 +2003,8 @@ fn acrescentar_linha_exclude(exclude: &Path) -> Result<(), Erro> {
     std::fs::write(exclude, texto).map_err(|e| erro_io(exclude, e))
 }
 
-/// Tira [`LINHA_EXCLUDE`] do `info/exclude`. Devolve se tirou.
-fn remover_linha_exclude(exclude: &Path) -> Result<bool, Erro> {
+/// Tira `linha` do `info/exclude`. Devolve se tirou.
+fn remover_linha(exclude: &Path, linha: &str) -> Result<bool, Erro> {
     let Ok(texto) = std::fs::read_to_string(exclude) else {
         return Ok(false);
     };
@@ -1629,15 +2012,15 @@ fn remover_linha_exclude(exclude: &Path) -> Result<bool, Erro> {
     let ficam: Vec<&str> = linhas
         .iter()
         .copied()
-        .filter(|l| l.trim() != LINHA_EXCLUDE)
+        .filter(|l| l.trim() != linha)
         .collect();
     if ficam.len() == linhas.len() {
         return Ok(false);
     }
     if ficam.iter().all(|l| l.trim().is_empty()) {
-        // Só tinha a nossa linha: o arquivo (e a pasta `info`, se vazia) saem. O git
-        // cria o `info/exclude` com comentários, então isso só acontece quando foi o
-        // app que o criou.
+        // Só tinha as linhas do app: o arquivo (e a pasta `info`, se vazia) saem. O
+        // git cria o `info/exclude` com comentários, então isso só acontece quando
+        // foi o app que o criou.
         std::fs::remove_file(exclude).map_err(|e| erro_io(exclude, e))?;
         if let Some(info) = exclude.parent() {
             let _ = std::fs::remove_dir(info);
@@ -1648,6 +2031,130 @@ fn remover_linha_exclude(exclude: &Path) -> Result<bool, Erro> {
     novo.push('\n');
     std::fs::write(exclude, novo).map_err(|e| erro_io(exclude, e))?;
     Ok(true)
+}
+
+/// Passa a linha dos workflows no `exclude` para outra raiz de workflows registrada
+/// (de qualquer instalação) que use o mesmo `info/exclude` (uma worktree e o
+/// repositório principal). Devolve se passou: a linha fica.
+fn transferir_exclude_workflows(registro: &mut Registro, exclude: &Path) -> bool {
+    for instalacao in registro.instalacoes.values_mut() {
+        for (raiz, troca) in instalacao.workflows.iter_mut() {
+            if arquivo_exclude(Path::new(raiz)).as_deref() == Some(exclude) {
+                troca.exclude = true;
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// `permissions.allow` do arquivo, se existe e é uma lista.
+fn lista_allow(raiz: &Objeto) -> Option<&Vec<Json>> {
+    raiz.get("permissions")?
+        .como_objeto()?
+        .get("allow")?
+        .como_lista()
+}
+
+/// Põe as `regras` que faltam em `permissions.allow`, anotando em `troca` as que pôs
+/// e se `permissions` e `allow` já existiam. Devolve a ação de cada regra.
+fn registrar_permissoes(
+    raiz: &mut Objeto,
+    caminho: &Path,
+    troca: &mut TrocaLocal,
+    regras: &[String],
+) -> Result<Vec<(String, Acao)>, Erro> {
+    if regras.is_empty() {
+        return Ok(Vec::new());
+    }
+    let permissoes_existia = raiz.get("permissions").is_some();
+    let faltam: Vec<&String> = {
+        let allow = match raiz.get("permissions") {
+            None => None,
+            Some(Json::Objeto(p)) => match p.get("allow") {
+                None => None,
+                Some(Json::Lista(a)) => Some(a),
+                Some(_) => return Err(formato(caminho, "permissions.allow")),
+            },
+            Some(_) => return Err(formato(caminho, "permissions")),
+        };
+        regras
+            .iter()
+            .filter(|r| !allow.is_some_and(|a| a.iter().any(|v| v.como_texto() == Some(r))))
+            .collect()
+    };
+    let acoes = regras
+        .iter()
+        .map(|r| {
+            let acao = if faltam.contains(&r) {
+                Acao::Adicionado
+            } else {
+                Acao::SemMudanca
+            };
+            (r.clone(), acao)
+        })
+        .collect();
+    if faltam.is_empty() {
+        return Ok(acoes);
+    }
+    let permissoes = raiz
+        .objeto_mut("permissions")
+        .ok_or_else(|| formato(caminho, "permissions"))?;
+    let allow_existia = permissoes.get("allow").is_some();
+    if !allow_existia {
+        permissoes.inserir("allow", Json::Lista(Vec::new()));
+    }
+    let Some(Json::Lista(allow)) = permissoes.get_mut("allow") else {
+        return Err(formato(caminho, "permissions.allow"));
+    };
+    troca.permissoes_existia.get_or_insert(permissoes_existia);
+    troca.allow_existia.get_or_insert(allow_existia);
+    for r in faltam {
+        allow.push(Json::texto(r));
+        if !troca.permissoes.contains(r) {
+            troca.permissoes.push(r.clone());
+        }
+    }
+    Ok(acoes)
+}
+
+/// Tira de `permissions.allow` as regras que `troca` pôs; `allow` e `permissions`
+/// saem se ficaram vazios e não existiam antes. Devolve as regras tiradas.
+fn restaurar_permissoes(
+    raiz: &mut Objeto,
+    caminho: &Path,
+    troca: &TrocaLocal,
+) -> Result<Vec<String>, Erro> {
+    if troca.permissoes.is_empty() {
+        return Ok(Vec::new());
+    }
+    let Some(Json::Objeto(permissoes)) = raiz.get_mut("permissions") else {
+        return match raiz.get("permissions") {
+            None => Ok(Vec::new()),
+            Some(_) => Err(formato(caminho, "permissions")),
+        };
+    };
+    let Some(Json::Lista(allow)) = permissoes.get_mut("allow") else {
+        return match permissoes.get("allow") {
+            None => Ok(Vec::new()),
+            Some(_) => Err(formato(caminho, "permissions.allow")),
+        };
+    };
+    let mut tiradas = Vec::new();
+    allow.retain(|v| match v.como_texto() {
+        Some(t) if troca.permissoes.iter().any(|r| r == t) => {
+            tiradas.push(t.to_owned());
+            false
+        }
+        _ => true,
+    });
+    if !tiradas.is_empty() && allow.is_empty() && troca.allow_existia == Some(false) {
+        permissoes.remover("allow");
+    }
+    if !tiradas.is_empty() && permissoes.is_empty() && troca.permissoes_existia == Some(false) {
+        raiz.remover("permissions");
+    }
+    Ok(tiradas)
 }
 
 fn servidores<'a>(projeto: &'a Objeto, caminho: &Path) -> Result<Option<&'a Objeto>, Erro> {
@@ -1710,12 +2217,17 @@ fn executaveis_dos_hooks(grupos: &[Json]) -> Vec<&str> {
     v
 }
 
-fn grupo_hook(comando: &str) -> Json {
+/// Grupo de hooks de `evento` com o comando, e o `matcher` do evento, se ele tem
+/// ([`crate::hooks::matcher_do_evento`]).
+fn grupo_hook(evento: &str, comando: &str) -> Json {
     let mut h = Objeto::default();
     h.inserir("type", Json::texto("command"));
     h.inserir("command", Json::texto(comando));
     h.inserir("timeout", Json::Numero(LIMITE_HOOK_S.into()));
     let mut g = Objeto::default();
+    if let Some(m) = crate::hooks::matcher_do_evento(evento) {
+        g.inserir("matcher", Json::texto(m));
+    }
     g.inserir("hooks", Json::Lista(vec![Json::Objeto(h)]));
     Json::Objeto(g)
 }

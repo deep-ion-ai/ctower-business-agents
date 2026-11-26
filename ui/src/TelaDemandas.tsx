@@ -1,8 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { mensagemDe } from "./analise";
-import type { ApiConhecimento, Encontrado } from "./conhecimento";
-import type { AbrirLink } from "./ClientesIA";
+import type { ApiConhecimento } from "./conhecimento";
+import { acaoDaIssue, situacaoEmTexto, TOM_SITUACAO } from "./acaoIssue";
 import { dobrar, parecidos } from "./demandasParecidas";
+import {
+  AvisoAbrirLink,
+  DescricaoIssue,
+  NaBaseIssue,
+  ParecidasLista,
+  ROTULO_ORIGEM,
+  useAbrirLink,
+  useRegrasParecidas,
+} from "./DetalheIssue";
 import {
   ROTULO_STATUS_DEMANDA,
   ROTULO_TIPO_DEMANDA,
@@ -29,7 +38,6 @@ const ESTADOS: { id: FiltroEstadoIssues; rotulo: string }[] = [
   { id: "encerradas", rotulo: "Encerradas" },
   { id: "todas", rotulo: "Todas" },
 ];
-const ROTULO_ORIGEM = { github: "GitHub", gitlab: "GitLab", jira: "Jira" } as const;
 
 /**
  * Uma linha da lista única: a issue do rastreador ou a demanda criada à mão. O
@@ -40,49 +48,14 @@ type Linha = { id: string; criada: string; tipoDemanda: TipoDemanda | null } & (
   | { tipo: "demanda"; demanda: DemandaVista }
 );
 
-interface Acao {
-  rotulo: string;
-  /** `analisar` cria a demanda e a análise; as outras só abrem. */
-  tipo: "analisar" | "analise" | "demanda";
-  /** Motivo de não poder agir, junto do botão. */
-  bloqueio?: string;
+/** A ação da issue mora em `acaoIssue.ts`; a re-exportação mantém o nome nesta tela. */
+export { acaoDaIssue };
+
+/** Abre a issue numa aba do app, ou a demanda dela quando a issue já tem uma (#398). */
+function abrirIssueEmAba(navegar: (t: Tela) => void, projeto: string, i: IssueDoProjeto) {
+  if (i.demanda) navegar({ tipo: "demanda", projeto, demanda: i.demanda });
+  else navegar({ tipo: "issue", projeto, origem: i.origem, chave: i.chave });
 }
-
-/**
- * O que a linha oferece, pela situação na base: "Analisar impacto" sem análise,
- * "Abrir a análise" com análise em andamento ou em revisão e "Abrir a demanda" com a
- * análise aprovada. A issue encerrada no rastreador não se analisa (a base só liga
- * análise nova a demanda aberta): com demanda, abre-a; sem, explica.
- */
-export function acaoDaIssue(i: IssueDoProjeto): Acao {
-  if (i.situacao === "sem-analise") {
-    if (i.estado === "aberta") return { rotulo: "Analisar impacto", tipo: "analisar" };
-    if (i.demanda) return { rotulo: "Abrir a demanda", tipo: "demanda" };
-    return {
-      rotulo: "Analisar impacto",
-      tipo: "analisar",
-      bloqueio: "A issue está encerrada no rastreador; a análise de impacto parte de uma issue aberta.",
-    };
-  }
-  if (i.situacao === "aprovada" && i.demanda) return { rotulo: "Abrir a demanda", tipo: "demanda" };
-  if (i.analise) return { rotulo: "Abrir a análise", tipo: "analise" };
-  return i.demanda
-    ? { rotulo: "Abrir a demanda", tipo: "demanda" }
-    : { rotulo: "Analisar impacto", tipo: "analisar" };
-}
-
-/** "A-0003 em revisão", "sem análise". */
-const situacaoEmTexto = (i: IssueDoProjeto) =>
-  i.situacao === "sem-analise" || !i.analise
-    ? ROTULO_SITUACAO[i.situacao]
-    : `${i.analise} ${ROTULO_SITUACAO[i.situacao]}`;
-
-const TOM_SITUACAO: Record<SituacaoNaBase, "attention" | "running" | "done" | undefined> = {
-  "sem-analise": "attention",
-  "em-andamento": "running",
-  "em-revisao": undefined,
-  aprovada: "done",
-};
 
 const chaveDe = (l: Linha) => `${l.tipo}:${l.id}`;
 
@@ -100,13 +73,11 @@ export function TelaDemandas({
   api,
   projeto,
   navegar,
-  abrirLink,
   situacaoInicial,
 }: {
   api: ApiConhecimento;
   projeto: string;
   navegar: (t: Tela) => void;
-  abrirLink?: AbrirLink;
   situacaoInicial?: SituacaoNaBase;
 }) {
   if (!api.issues) {
@@ -123,7 +94,6 @@ export function TelaDemandas({
       issues={api.issues}
       projeto={projeto}
       navegar={navegar}
-      abrirLink={abrirLink}
       situacaoInicial={situacaoInicial}
     />
   );
@@ -134,14 +104,12 @@ function DemandasDoRastreador({
   issues,
   projeto,
   navegar,
-  abrirLink,
   situacaoInicial,
 }: {
   api: ApiConhecimento;
   issues: ApiIssues;
   projeto: string;
   navegar: (t: Tela) => void;
-  abrirLink?: AbrirLink;
   situacaoInicial?: SituacaoNaBase;
 }) {
   const [busca, setBusca] = useState("");
@@ -436,6 +404,9 @@ function DemandasDoRastreador({
                     analisando={l.tipo === "issue" && analisando === l.issue.chave}
                     aoEscolher={() => setSelecionada(chaveDe(l))}
                     aoAgir={() => (l.tipo === "issue" ? agir(l.issue) : abrirDemanda(l.demanda.id))}
+                    aoAbrirAba={() =>
+                      l.tipo === "issue" ? abrirIssueEmAba(navegar, projeto, l.issue) : abrirDemanda(l.demanda.id)
+                    }
                   />
                 ))}
               </ul>
@@ -450,12 +421,12 @@ function DemandasDoRastreador({
           </div>
           {escolhida && (
             <PainelDaLinha
+              key={chaveDe(escolhida)}
               api={api}
               linha={escolhida}
               todas={linhas}
               agora={agora}
               analisando={escolhida.tipo === "issue" && analisando === escolhida.issue.chave}
-              abrirLink={abrirLink}
               navegar={navegar}
               projeto={projeto}
               aoAgir={() =>
@@ -481,6 +452,7 @@ function LinhaDaLista({
   analisando,
   aoEscolher,
   aoAgir,
+  aoAbrirAba,
 }: {
   linha: Linha;
   agora: number;
@@ -488,6 +460,8 @@ function LinhaDaLista({
   analisando: boolean;
   aoEscolher: () => void;
   aoAgir: () => void;
+  /** Clique do meio na linha: abre a demanda numa aba do app (#398). */
+  aoAbrirAba: () => void;
 }) {
   const idade = idadeDe(linha.criada, agora);
   const issue = linha.tipo === "issue" ? linha.issue : null;
@@ -504,7 +478,15 @@ function LinhaDaLista({
       ]
     : [tipo, mao?.status === "aberta" ? `criada ${idade}` : "encerrada", "criada à mão"];
   return (
-    <li className="linha-demanda" data-selecionada={escolhida}>
+    <li
+      className="linha-demanda"
+      data-selecionada={escolhida}
+      onAuxClick={(e) => {
+        if (e.button !== 1) return;
+        e.preventDefault();
+        aoAbrirAba();
+      }}
+    >
       <button
         type="button"
         className="linha-demanda-main"
@@ -551,7 +533,6 @@ function PainelDaLinha({
   todas,
   agora,
   analisando,
-  abrirLink,
   navegar,
   projeto,
   aoAgir,
@@ -562,7 +543,6 @@ function PainelDaLinha({
   todas: Linha[];
   agora: number;
   analisando: boolean;
-  abrirLink?: AbrirLink;
   navegar: (t: Tela) => void;
   projeto: string;
   aoAgir: () => void;
@@ -570,12 +550,10 @@ function PainelDaLinha({
 }) {
   const issue = linha.tipo === "issue" ? linha.issue : null;
   const mao = linha.tipo === "demanda" ? linha.demanda : null;
-  const acao = issue ? acaoDaIssue(issue) : null;
   const titulo = issue?.titulo ?? mao?.titulo ?? "";
+  const { abrir, falha } = useAbrirLink(projeto);
   const abrirNoRastreador = () => {
-    if (!issue?.url) return;
-    if (abrirLink) abrirLink(issue.url).catch(() => undefined);
-    else window.open(issue.url, "_blank", "noopener");
+    if (issue?.url) void abrir(issue.url);
   };
   const similares = useMemo(
     () =>
@@ -614,124 +592,52 @@ function PainelDaLinha({
       <p className="demandas-painel-titulo">{titulo}</p>
       {issue ? (
         <>
-          <p className="demandas-descricao">
-            {issue.descricao.trim() || <span className="muted">A issue não tem descrição.</span>}
-          </p>
+          <DescricaoIssue issue={issue} abrir={(link) => void abrir(link)} />
           <p className="muted">
             {[`criada ${idadeDe(issue.criadaEm, agora)}`, ...issue.rotulos.map((r) => `rótulo ${r}`)].join(" · ")}
           </p>
+          <AvisoAbrirLink falha={falha} />
+          <h4>Na base</h4>
+          <NaBaseIssue
+            issue={issue}
+            projeto={projeto}
+            acao={acaoDaIssue(issue)}
+            analisando={analisando}
+            aoAgir={aoAgir}
+            navegar={navegar}
+            aoAbrirAnalise={aoAbrirAnalise}
+            acoesExtra={
+              <button type="button" className="btn" onClick={() => abrirIssueEmAba(navegar, projeto, issue)}>
+                Abrir em nova aba
+              </button>
+            }
+          />
         </>
       ) : (
-        <p className="muted">
-          Demanda criada à mão em {mao?.criado}. Abra a demanda para ver as atas, as
-          análises e as sessões, e para ligar uma análise nova.
-        </p>
-      )}
-
-      <h4>Na base</h4>
-      {issue ? (
-        <div className="demandas-nabase">
-          {issue.situacao === "sem-analise" ? (
-            <p>
-              <b>Ainda sem análise.</b> A análise de impacto verifica no código o que o solicitante
-              afirmou e lista o que muda em regras, dados e telas.
-            </p>
-          ) : (
-            <p>
-              <b>{situacaoEmTexto(issue)}.</b>
-            </p>
-          )}
-          {issue.demanda && (
-            <p className="muted">
-              Demanda{" "}
-              <button
-                type="button"
-                className="link"
-                onClick={() => navegar({ tipo: "demanda", projeto, demanda: issue.demanda! })}
-              >
-                {issue.demanda}
-              </button>
-              {issue.analise && issue.situacao !== "sem-analise" && (
-                <>
-                  {" · análise "}
-                  <button type="button" className="link" onClick={() => aoAbrirAnalise(issue.analise!)}>
-                    {issue.analise}
-                  </button>
-                </>
-              )}
-            </p>
-          )}
+        <>
           <p className="muted">
-            {issue.funcionalidades.length > 0
-              ? `Funcionalidades: ${issue.funcionalidades.join(", ")}.`
-              : "Ainda sem funcionalidade ligada."}{" "}
-            <button type="button" className="link" onClick={() => navegar({ tipo: "vincular", projeto })}>
-              Vincular a funcionalidades
-            </button>
+            Demanda criada à mão em {mao?.criado}. Abra a demanda para ver as atas, as
+            análises e as sessões, e para ligar uma análise nova.
           </p>
+          <h4>Na base</h4>
           <div className="acoes">
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={analisando || !!acao?.bloqueio}
-              onClick={aoAgir}
-            >
-              {analisando ? "Analisando…" : acao?.rotulo}
+            <button type="button" className="btn btn-primary" onClick={aoAgir}>
+              Abrir a demanda
             </button>
           </div>
-          {acao?.bloqueio && <p className="muted">{acao.bloqueio}</p>}
-        </div>
-      ) : (
-        <div className="acoes">
-          <button type="button" className="btn btn-primary" onClick={aoAgir}>
-            Abrir a demanda
-          </button>
-        </div>
+        </>
       )}
 
-      <h4>Parecidas</h4>
-      {similares.length === 0 && regras.length === 0 ? (
-        <p className="muted">Nada parecido na lista nem nas regras da base.</p>
-      ) : (
-        <ul className="linhas demandas-parecidas" aria-label="Itens parecidos">
-          {similares.map((s) => (
-            <li key={chaveDe(s.linha)}>
-              <span className="id">{s.id}</span>
-              <span className="tit">{s.titulo}</span>
-              {s.linha.tipo === "issue" && s.linha.issue.analise && (
-                <span className="badge">{s.linha.issue.analise}</span>
-              )}
-            </li>
-          ))}
-          {regras.map((r) => (
-            <li key={r.caminho}>
-              <span className="id">{r.identificador ?? "regra"}</span>
-              <button type="button" className="link" onClick={() => navegar({ tipo: "base", documento: r.caminho })}>
-                {r.titulo}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      <ParecidasLista
+        itens={similares.map((s) => ({
+          chave: chaveDe(s.linha),
+          id: s.id,
+          titulo: s.titulo,
+          analise: s.linha.tipo === "issue" ? s.linha.issue.analise : null,
+        }))}
+        regras={regras}
+        navegar={navegar}
+      />
     </aside>
   );
-}
-
-/** Regras da base com palavras do título, para o analista ver se já existe. */
-function useRegrasParecidas(api: ApiConhecimento, projeto: string, titulo: string): Encontrado[] {
-  const [regras, setRegras] = useState<Encontrado[]>([]);
-  useEffect(() => {
-    let ativo = true;
-    setRegras([]);
-    if (!api.buscar || !titulo.trim()) return;
-    api
-      .buscar(titulo, { projeto, tipos: ["regra"] })
-      .then((b) => ativo && setRegras(b.resultados.slice(0, 3)))
-      // Sem a busca, o painel só não lista as regras.
-      .catch(() => undefined);
-    return () => {
-      ativo = false;
-    };
-  }, [api, projeto, titulo]);
-  return regras;
 }

@@ -5,6 +5,7 @@ import { ConfigAssistente } from "./ConfigAssistente";
 import { ConfigModelos } from "./ConfigModelos";
 import { ConfigPastaBase } from "./ConfigPastaBase";
 import { ConfigProjeto } from "./ConfigProjeto";
+import { ConfigWorkflows } from "./ConfigWorkflows";
 import {
   apiConfiguracoesTauri,
   type ApiConfiguracoes,
@@ -14,16 +15,19 @@ import {
 import { escolhaEfetiva, useEscolhaLembrada, type Escolha } from "./configSecoes";
 import { DialogoConfirmacao } from "./DialogoConfirmacao";
 import { EditorTexto } from "./EditorTexto";
+import { EditorWorkflow, type PainelWorkflow } from "./EditorWorkflow";
 import { MenuConfiguracoes } from "./MenuConfiguracoes";
 import { ModalNovoProjeto } from "./ModalNovoProjeto";
 import { useEstadoProjetos } from "./pendenciasProjetos";
 import { SecaoAcessos } from "./SecaoAcessos";
 import { SecaoClones } from "./SecaoClones";
+import { apiWorkflowsTauri, type ApiWorkflows, type Destino } from "./workflows";
 import "./configuracoes.css";
 
 /**
  * Configurações (spec, seção 10; #191): menu lateral com App (aparência, assistente de
- * IA, acessos), Base de conhecimento (pasta, modelos e prompts) e Projetos (um item por
+ * IA, acessos), Base de conhecimento (pasta, modelos e prompts, workflows das análises:
+ * #372) e Projetos (um item por
  * projeto, mais “+ Novo projeto”, que abre o assistente de cadastro). O conteúdo da
  * direita mostra só a seção escolhida, lembrada ao voltar para a tela. Cada seção é um
  * componente próprio (`Config*`); aqui ficam a leitura das configurações, o editor de
@@ -31,6 +35,7 @@ import "./configuracoes.css";
  */
 export function TelaConfiguracoes({
   api = apiConfiguracoesTauri,
+  apiWorkflows = apiWorkflowsTauri,
   aoMudarProjetos,
   aoPendencia,
   projetoFixo,
@@ -41,6 +46,8 @@ export function TelaConfiguracoes({
   aoRefazerPrimeiroUso,
 }: {
   api?: ApiConfiguracoes;
+  /** Configurações › Workflows (#372). */
+  apiWorkflows?: ApiWorkflows;
   /** Os projetos ou a base mudaram: as outras telas devem reler. */
   aoMudarProjetos?: () => void;
   /** O editor de textos tem (ou deixou de ter) alterações sem salvar. */
@@ -67,6 +74,14 @@ export function TelaConfiguracoes({
   const [cfg, setCfg] = useState<Configuracoes | null>(null);
   /** Texto aberto no editor embutido (caminho relativo à base). */
   const [editando, setEditando] = useState<string | null>(null);
+  /** Workflow aberto no editor (#372); `destino` `null` é o padrão, só leitura. */
+  const [workflow, setWorkflow] = useState<{
+    tipo: string;
+    destino: Destino | null;
+    painel?: PainelWorkflow;
+  } | null>(null);
+  /** Muda a cada mudança num workflow, para a seção reler. */
+  const [recargaWorkflows, setRecargaWorkflows] = useState(0);
   const [textos, setTextos] = useState<TextoEditavel[]>([]);
   const [falha, setFalha] = useState<string | null>(null);
   const [cadastrando, setCadastrando] = useState(false);
@@ -170,7 +185,7 @@ export function TelaConfiguracoes({
       <section
         className="configuracoes page"
         aria-label={fixo ? "Configurar projeto" : "Configurações"}
-        hidden={editando !== null}
+        hidden={editando !== null || workflow !== null}
       >
         {fixo ? (
           <div className="cab-secao">
@@ -238,6 +253,14 @@ export function TelaConfiguracoes({
                 aoEscolherBase={() => escolher({ secao: "pasta", projeto: null })}
               />
             )}
+            {escolha.secao === "workflows" && (
+              <ConfigWorkflows
+                api={apiWorkflows}
+                temBase={cfg.base !== null}
+                recarga={recargaWorkflows}
+                aoEditar={(tipo, destino, painel) => setWorkflow({ tipo, destino, painel })}
+              />
+            )}
             {escolha.secao === "projeto" && projeto && (
               <ConfigProjeto
                 key={projeto.id}
@@ -280,6 +303,21 @@ export function TelaConfiguracoes({
             carregar();
           }}
           aoAlterado={carregar}
+          aoPendencia={pendenciaDoEditor}
+        />
+      )}
+      {workflow !== null && (
+        <EditorWorkflow
+          key={`${workflow.tipo}:${workflow.destino ?? "padrao"}`}
+          api={apiWorkflows}
+          tipo={workflow.tipo}
+          destino={workflow.destino}
+          painelInicial={workflow.painel}
+          aoSair={() => {
+            setWorkflow(null);
+            setRecargaWorkflows((n) => n + 1);
+          }}
+          aoAlterado={() => setRecargaWorkflows((n) => n + 1)}
           aoPendencia={pendenciaDoEditor}
         />
       )}

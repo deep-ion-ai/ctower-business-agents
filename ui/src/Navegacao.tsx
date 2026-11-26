@@ -17,7 +17,7 @@ import {
   type Secao,
 } from "./secoesProjeto";
 import { SeletorProjeto, type ProjetoNoSeletor } from "./SeletorProjeto";
-import type { SituacaoNaBase } from "./issuesProjeto";
+import type { OrigemIssue, SituacaoNaBase } from "./issuesProjeto";
 import { Icon, type IconName } from "./shell/icons";
 import { Titlebar } from "./shell/Titlebar";
 import type { ResumoProjeto } from "./resumoProjeto";
@@ -27,6 +27,7 @@ import { apiConfiguracoesTauri, type ApiConfiguracoes } from "./configuracoes";
 import { TelaBase } from "./TelaBase";
 import { TelaCodigo } from "./TelaCodigo";
 import { TelaDemandas } from "./TelaDemandas";
+import { TelaIssue } from "./TelaIssue";
 import { TelaConfiguracoes } from "./TelaConfiguracoes";
 import { TelaInicio } from "./TelaInicio";
 import { TelaMapa } from "./TelaMapa";
@@ -63,6 +64,8 @@ export type Tela =
   /** "Configurar projeto", aberto pelo cabeçalho da Visão geral (#319). */
   | { tipo: "configurar"; projeto?: string }
   | { tipo: "demanda"; projeto: string; demanda: string }
+  /** Issue do rastreador numa aba própria (#398); a chave é `#385` ou `PROJ-123`. */
+  | { tipo: "issue"; projeto: string; origem: OrigemIssue; chave: string }
   /** Demandas do projeto (#323): issues do rastreador e demandas à mão; `situacao` abre a lista já filtrada. */
   | { tipo: "demandas"; projeto?: string; situacao?: SituacaoNaBase }
   /** Mapa de funcionalidades do projeto (#208): a seção Funcionalidades. */
@@ -102,6 +105,7 @@ const ICONE_OBJETO: Partial<Record<Tela["tipo"], IconName>> = {
   analise: "analysis",
   base: "file",
   demanda: "demand",
+  issue: "demand",
   vincular: "jira",
 };
 
@@ -132,6 +136,8 @@ export function chaveDoObjeto(t: Tela): string | null {
       return t.aberta ? `analise:${t.projeto ?? ""}:${t.aberta.id}` : null;
     case "demanda":
       return `demanda:${t.projeto}:${t.demanda}`;
+    case "issue":
+      return `issue:${t.projeto}:${t.origem}:${t.chave}`;
     case "vincular":
       return `vincular:${t.projeto}`;
     default:
@@ -155,6 +161,7 @@ export function secaoDaTela(t: Tela): Secao {
     case "configurar":
       return "configurar-projeto";
     case "demanda":
+    case "issue":
     case "demandas":
       return "demandas";
     case "mapa":
@@ -509,6 +516,7 @@ export function Navegacao({
     if (t.tipo === "base" && t.documento) return nomeDoArquivo(t.documento);
     if (t.tipo === "analise" && t.aberta) return t.aberta.id;
     if (t.tipo === "demanda") return t.demanda;
+    if (t.tipo === "issue") return t.chave;
     if (t.tipo === "vincular") return `Vincular demandas · ${nomeProjeto(t.projeto)}`;
     return ROTULO_SECAO[secaoDaTela(t)];
   };
@@ -706,7 +714,6 @@ export function Navegacao({
                       api={api}
                       projeto={projeto}
                       navegar={navegar}
-                      abrirLink={abrirLink}
                       situacaoInicial={tela.tipo === "demandas" ? tela.situacao : undefined}
                     />
                   ) : (
@@ -785,6 +792,17 @@ export function Navegacao({
                   api={api}
                   projeto={aba.tela.projeto}
                   demanda={aba.tela.demanda}
+                  navegar={navegar}
+                />
+              )}
+              {aba?.tela.tipo === "issue" && api.issues && (
+                <TelaIssue
+                  key={aba.vez}
+                  api={api}
+                  issues={api.issues}
+                  projeto={aba.tela.projeto}
+                  origem={aba.tela.origem}
+                  chave={aba.tela.chave}
                   navegar={navegar}
                 />
               )}

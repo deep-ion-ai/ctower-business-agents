@@ -17,10 +17,21 @@
 //!   cadastro do projeto fora das análises, com identificadores estáveis.
 //! - [`manual`]: passo a passo do manual do usuário de uma funcionalidade, com
 //!   os prints de tela (fluxo `manual`, #272).
+//! - [`prototipo`]: protótipo de telas a partir de uma análise de origem
+//!   validada, com as telas afetadas e os elementos rastreados (fluxo
+//!   `prototipo`, #381).
+//! - [`prototipo_html`]: o protótipo HTML de cada tela (#385): conferência do
+//!   corpo escrito pelo agente (estados, elementos, nada que execute ou vá à
+//!   rede) e montagem do documento com os tokens aprovados ou o wireframe neutro.
 //! - [`parecer`]: parecer de revisão de um requisito ou história (fluxo
 //!   `revisar`): achados, verificação INVEST e veredito.
 //! - [`qualidade`]: critérios de qualidade de requisitos (características da
 //!   ISO/IEC/IEEE 29148, INVEST e a lista de referência de termos vagos).
+//! - [`conducao`]: condução da análise (simples ou por workflow do Claude Code), o
+//!   estado da execução do workflow e a contestação da verificação independente
+//!   (#371).
+//! - [`tokens`]: os tokens CSS do projeto analisado (#384), extraídos do código
+//!   da interface e revisados pelo analista antes de o protótipo de telas usar.
 //! - [`ambiente`]: identificação do projeto pelo diretório de trabalho do processo.
 //! - [`config`], [`dados`] e [`log`]: configuração, diretório de dados e log.
 //!
@@ -31,6 +42,7 @@ pub mod ambiente;
 pub mod analise;
 pub mod analises;
 pub mod cenarios;
+pub mod conducao;
 pub mod config;
 pub mod dados;
 pub mod diagramas;
@@ -42,9 +54,12 @@ pub mod log;
 pub mod manual;
 pub mod memoria;
 pub mod parecer;
+pub mod prototipo;
+pub mod prototipo_html;
 pub mod qualidade;
 pub mod requisito;
 pub mod tempo;
+pub mod tokens;
 pub mod vinculos;
 
 /// Nome da crate, para diagnóstico.

@@ -1,5 +1,6 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { apiCoberturaTauri, type ApiCobertura } from "./cobertura";
+import { apiConducaoTauri, type ApiConducao } from "./conducao";
 import { apiMudancasTauri, type ApiMudancas } from "./mudancas";
 import {
   apiAnaliseTauri,
@@ -13,6 +14,7 @@ import {
 import type { DemandaVista, NovaDemanda, PainelDemanda } from "./demandas";
 import { apiResumoTauri, type ResumoProjeto } from "./resumoProjeto";
 import { apiIssuesTauri, type ApiIssues } from "./issuesProjeto";
+import { apiPrototipoTauri, type ApiPrototipo } from "./prototipo";
 
 /**
  * Espelho dos comandos do início, do projeto e da base de conhecimento
@@ -288,10 +290,16 @@ export interface ApiConhecimento extends ApiAmbiente {
   mudancas?: ApiMudancas;
   /** Issues do rastreador (#322, #323); sem ela, a área Demandas mostra só as demandas da base. */
   issues?: ApiIssues;
+  /** Condução pelo workflow em Nova análise (#371); sem ela, só a condução simples. */
+  conducao?: ApiConducao;
+  /** Protótipo de telas e tokens CSS do projeto (#379); sem ela, os comandos do app. */
+  prototipo?: ApiPrototipo;
 }
 
 export const apiConhecimentoTauri: ApiConhecimento = {
   issues: apiIssuesTauri,
+  conducao: apiConducaoTauri,
+  prototipo: apiPrototipoTauri,
   cobertura: apiCoberturaTauri.cobertura,
   mudancas: apiMudancasTauri,
   situacao: () => invoke("situacao_app"),
@@ -380,6 +388,7 @@ export const ROTULO_FLUXO: Record<Fluxo, string> = {
   historias: "Histórias e critérios",
   cenarios: "Cenários de teste",
   manual: "Manual do usuário",
+  prototipo: "Protótipo de telas",
 };
 
 export const ROTULO_STATUS_REGRA: Record<StatusRegra, string> = {

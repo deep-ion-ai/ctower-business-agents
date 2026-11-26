@@ -1000,7 +1000,7 @@ fn demanda_do_caminho(caminho: &str) -> Option<String> {
     IdDemanda::de_pasta(partes.next()?).map(|d| d.to_string())
 }
 
-const TIPOS_DE_ANALISE: [&str; 7] = [
+const TIPOS_DE_ANALISE: [&str; 8] = [
     "analise-impacto",
     "pergunta",
     "funcionalidade",
@@ -1008,6 +1008,7 @@ const TIPOS_DE_ANALISE: [&str; 7] = [
     "parecer-revisao",
     "historias",
     "cenarios-teste",
+    "prototipo",
 ];
 
 impl Modelo {

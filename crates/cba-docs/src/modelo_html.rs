@@ -437,6 +437,7 @@ pub fn rotulo_do_tipo(tipo: TipoDocumento) -> &'static str {
         T::MapaFuncionalidades => "Mapa de funcionalidades",
         T::DocExterno => "Documento externo",
         T::Manual => "Manual do usuário",
+        T::Prototipo => "Protótipo de telas",
     }
 }
 

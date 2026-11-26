@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { invoke } from "@tauri-apps/api/core";
 import { TelaDemandas, acaoDaIssue } from "./TelaDemandas";
 import type { ApiConhecimento } from "./conhecimento";
 import type { ApiIssues, FiltroIssues, IssueDoProjeto, ListaIssues } from "./issuesProjeto";
@@ -102,12 +103,12 @@ function issuesFalsa(l: ListaIssues = lista()) {
   return { api, avisar: (p = PROJETO) => avisos.forEach((f) => f(p)) };
 }
 
-function montar(issues = issuesFalsa(), extra: Partial<ApiConhecimento> = {}, abrirLink = vi.fn(() => Promise.resolve())) {
+function montar(issues = issuesFalsa(), extra: Partial<ApiConhecimento> = {}) {
   const falsa = apiConhecimentoFalsa();
   const api: ApiConhecimento = { ...falsa.api, issues: issues.api, ...extra };
   const navegar = vi.fn();
-  render(<TelaDemandas api={api} projeto={PROJETO} navegar={navegar} abrirLink={abrirLink} />);
-  return { ...issues, conhecimento: falsa.api, navegar, abrirLink };
+  render(<TelaDemandas api={api} projeto={PROJETO} navegar={navegar} />);
+  return { ...issues, conhecimento: falsa.api, navegar };
 }
 
 const linha = (nome: RegExp | string) =>
@@ -257,7 +258,8 @@ describe("TelaDemandas", () => {
   });
 
   it("o painel mostra a descrição, o link do rastreador, o que há na base e os parecidos", async () => {
-    const { navegar, abrirLink, conhecimento } = montar();
+    vi.mocked(invoke).mockResolvedValue(undefined);
+    const { navegar, conhecimento } = montar();
     await screen.findByRole("list", { name: "Lista de demandas" });
     const painel = screen.getByRole("complementary", { name: "Demanda selecionada" });
     expect(within(painel).getByText("O Open Finance exige o saldo devedor atualizado.")).toBeInTheDocument();
@@ -273,7 +275,12 @@ describe("TelaDemandas", () => {
     });
 
     fireEvent.click(within(painel).getByRole("button", { name: /Abrir no GitHub/ }));
-    expect(abrirLink).toHaveBeenCalledWith("https://github.com/o/r/issues/412");
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("abrir_link_do_projeto_app", {
+        projeto: PROJETO,
+        link: "https://github.com/o/r/issues/412",
+      }),
+    );
     fireEvent.click(within(painel).getByRole("button", { name: "Vincular a funcionalidades" }));
     expect(navegar).toHaveBeenCalledWith({ tipo: "vincular", projeto: PROJETO });
   });
@@ -368,5 +375,82 @@ describe("TelaDemandas", () => {
       ),
     );
     expect(screen.getByRole("button", { name: "Sem análise" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("a descrição da issue sai em Markdown, sem marcadores crus (#398)", async () => {
+    montar(
+      issuesFalsa(
+        lista({
+          issues: [
+            issue({
+              descricao: "## O que fazer\n\n- item **forte**\n- outro `código`\n\nVeja a [wiki](https://github.com/o/r/wiki).",
+            }),
+          ],
+        }),
+      ),
+    );
+    const painel = await screen.findByRole("complementary", { name: "Demanda selecionada" });
+    expect(within(painel).getByRole("heading", { name: "O que fazer", level: 2 })).toBeInTheDocument();
+    expect(within(painel).getByText("forte").tagName).toBe("STRONG");
+    expect(painel.querySelectorAll(".demandas-descricao li")).toHaveLength(2);
+    expect(within(painel).queryByText(/\*\*forte\*\*/)).not.toBeInTheDocument();
+    expect(within(painel).queryByText(/^## /)).not.toBeInTheDocument();
+  });
+
+  it("link da descrição do host da issue abre pelo comando; outro host não abre", async () => {
+    vi.mocked(invoke).mockResolvedValue(undefined);
+    montar(
+      issuesFalsa(
+        lista({
+          issues: [
+            issue({
+              descricao: "Ver [a wiki](https://github.com/o/r/wiki) e [um site](https://exemplo.com/x).",
+            }),
+          ],
+        }),
+      ),
+    );
+    const painel = await screen.findByRole("complementary", { name: "Demanda selecionada" });
+    fireEvent.click(within(painel).getByRole("link", { name: "a wiki" }));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("abrir_link_do_projeto_app", {
+        projeto: PROJETO,
+        link: "https://github.com/o/r/wiki",
+      }),
+    );
+    // De outro host, é texto: sem link clicável, com o endereço no title.
+    expect(within(painel).queryByRole("link", { name: "um site" })).not.toBeInTheDocument();
+    expect(within(painel).getByText("um site")).toHaveAttribute("title", "https://exemplo.com/x");
+  });
+
+  it("se o link não abre, mostra a mensagem com a URL para copiar, e não some em silêncio", async () => {
+    vi.mocked(invoke).mockRejectedValue("o link é de evil.com, que não é o rastreador nem um repositório deste projeto");
+    const copiar = vi.fn(() => Promise.resolve());
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: copiar }, configurable: true });
+    montar();
+    const painel = await screen.findByRole("complementary", { name: "Demanda selecionada" });
+    fireEvent.click(within(painel).getByRole("button", { name: /Abrir no GitHub/ }));
+    const aviso = await within(painel).findByRole("alert");
+    expect(aviso).toHaveTextContent("Não foi possível abrir o link no navegador.");
+    expect(aviso).toHaveTextContent("o link é de evil.com");
+    fireEvent.click(within(aviso).getByRole("button", { name: "Copiar a URL" }));
+    expect(copiar).toHaveBeenCalledWith("https://github.com/o/r/issues/412");
+  });
+
+  it("clique do meio na linha e o botão do painel abrem numa aba; a issue com demanda abre a demanda", async () => {
+    const { navegar } = montar();
+    await screen.findByRole("list", { name: "Lista de demandas" });
+
+    // #412 não tem demanda: abre a aba da issue, pelo clique do meio na linha.
+    const lista = screen.getByRole("list", { name: "Lista de demandas" });
+    const meio = new MouseEvent("auxclick", { bubbles: true, cancelable: true, button: 1 });
+    fireEvent(within(lista).getByText("#412").closest("li")!, meio);
+    expect(navegar).toHaveBeenLastCalledWith({ tipo: "issue", projeto: PROJETO, origem: "github", chave: "#412" });
+
+    // #398 tem a demanda D-0004: a aba é a dela, pelo botão do painel.
+    fireEvent.click(within(lista).getByText("#398"));
+    const painel = screen.getByRole("complementary", { name: "Demanda selecionada" });
+    fireEvent.click(within(painel).getByRole("button", { name: "Abrir em nova aba" }));
+    expect(navegar).toHaveBeenLastCalledWith({ tipo: "demanda", projeto: PROJETO, demanda: "D-0004" });
   });
 });

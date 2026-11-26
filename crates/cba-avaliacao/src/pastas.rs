@@ -10,8 +10,11 @@ use serde::Serialize;
 /// Pastas ignoradas na comparação (o repositório git criado na cópia).
 const IGNORADAS: &[&str] = &[".git"];
 /// Arquivos ignorados na comparação: o `.claude/settings.local.json` com os hooks
-/// que o preparo grava na cópia (#304).
+/// que o preparo grava na cópia (#304) e os workflows das análises que ele instala
+/// (`.claude/workflows/cba-*.js`, #370).
 const ARQUIVOS_IGNORADOS: &[&str] = &[".claude/settings.local.json"];
+/// Prefixo dos workflows que o preparo instala (#370).
+const PREFIXO_WORKFLOWS: &str = ".claude/workflows/cba-";
 
 /// Diferença entre a pasta original e a cópia em que o agente trabalhou.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -44,7 +47,9 @@ fn arquivos(raiz: &Path) -> io::Result<BTreeMap<String, PathBuf>> {
                     .map(|c| c.as_os_str().to_string_lossy().into_owned())
                     .collect::<Vec<_>>()
                     .join("/");
-                if ARQUIVOS_IGNORADOS.contains(&relativo.as_str()) {
+                if ARQUIVOS_IGNORADOS.contains(&relativo.as_str())
+                    || (relativo.starts_with(PREFIXO_WORKFLOWS) && relativo.ends_with(".js"))
+                {
                     continue;
                 }
                 saida.insert(relativo, caminho);

@@ -327,7 +327,7 @@ fn contar_arquivos(pasta: &Path) -> usize {
         .max(1)
 }
 
-fn relativo(raiz: &Path, prefixo: Option<&str>, caminho: &Path) -> Option<String> {
+pub(crate) fn relativo(raiz: &Path, prefixo: Option<&str>, caminho: &Path) -> Option<String> {
     let resto = caminho.strip_prefix(raiz).ok()?;
     let mut s = prefixo.map(str::to_string).unwrap_or_default();
     for c in resto.components() {

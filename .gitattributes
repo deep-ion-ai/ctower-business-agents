@@ -13,3 +13,8 @@ fixtures/**/*.docx binary
 # Modelos padrão da exportação em HTML (embutidos no binário com include_str!):
 # o HTML gerado é comparado byte a byte com os gabaritos, então precisam ter LF.
 crates/cba-docs/exportacao/** text eol=lf
+
+# Workflows padrão das análises (embutidos com include_str!, #370): o preparo grava
+# o SHA-256 do conteúdo no cabeçalho do arquivo instalado, que fica o mesmo em
+# qualquer sistema operacional.
+crates/cba-tools/textos/workflows/** text eol=lf

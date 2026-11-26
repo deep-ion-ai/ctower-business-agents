@@ -42,7 +42,7 @@ Opções principais:
 | `--orcamento` | `1.5` | `--max-budget-usd` de **cada** execução, em US$ |
 | `--fluxos` | `perguntar,explicar,impacto` | fluxos a rodar; também `revisar`, `historias`, `cenarios`, `ciclo-vida`, `mapear`, `publicacao`, `reuniao` e `reuniao-longa` |
 | `--repeticoes` | `1` | execuções de cada fluxo (o modelo varia de uma para outra; use 3 ou mais para comparar versões) |
-| `--pergunta`, `--funcionalidade`, `--demanda`, `--revisao`, `--historias`, `--cenarios`, `--ciclo-vida`, `--mapeamento` | `P-FAT-001`, `F-FAT-002`, `D-FAT-001`, `REV-FAT-001`, `HIS-FAT-001`, `CEN-FAT-001`, `CV-FAT-001`, `MAP-FAT-001` | item do gabarito de cada fluxo |
+| `--pergunta`, `--funcionalidade`, `--demanda` (aceita lista: `D-FAT-001,D-FAT-003`), `--revisao`, `--historias`, `--cenarios`, `--ciclo-vida`, `--mapeamento` | `P-FAT-001`, `F-FAT-002`, `D-FAT-001`, `REV-FAT-001`, `HIS-FAT-001`, `CEN-FAT-001`, `CV-FAT-001`, `MAP-FAT-001` | item do gabarito de cada fluxo |
 | `--reuniao` | `REU-FAT-001` | reunião do gabarito dos fluxos `reuniao` e `reuniao-longa` |
 | `--publicacao` | `PUB-FAT-001` | ciclo de publicação do gabarito (fluxo `publicacao`, duas execuções do `claude`) |
 | `--orcamento-longa` | `3` | `--max-budget-usd` da reunião longa, em US$ |
@@ -51,6 +51,8 @@ Opções principais:
 | `--permitir-edicao` | desligado | libera Edit, Write e Bash, para testar o limite "não altera o código" |
 | `--tempo-limite` | `900` | segundos por execução |
 | `--manter` | desligado | mantém as pastas temporárias, para depurar |
+| `--conducao` | (simples, sem comparação) | `simples`, `workflow` ou `simples,workflow`: roda cada item de impacto ou de revisar em cada condução e compara ([seção própria](#condução-pelo-workflow)) |
+| `--orcamento-workflow` | `8` | `--max-budget-usd` da condução pelo workflow, em US$ |
 
 O custo máximo é cerca de `orçamento x fluxos x repetições` (a reunião longa usa `--orcamento-longa`); o `claude` confere o orçamento entre os turnos e pode passar um pouco dele. O programa mostra a estimativa antes de começar. Sai com 0 sem falhas graves, 1 com falha grave e 2 em erro de uso.
 
@@ -268,6 +270,89 @@ Falha grave (ciclo): primeira análise não aprovada, nada publicado, nada sincr
 O cenário foi avaliado com o modelo real na #279 ([relatório](avaliacao/2026-11-20-publicacao-sonnet.md)). Na primeira rodada, o agente viu só os títulos da documentação publicada no contexto e não a consultou; os roteiros de perguntar, explicar, impacto e revisar e o contexto de `iniciar_analise` passaram a pedir a consulta antes de explorar o código. Na rodada final, três execuções sem falha grave: a documentação publicada consultada e a fonte citada nas três, as regras do P-FAT-003 encontradas (2 de 2), US$ 0,42 a 0,47 por ciclo. Os demais fluxos com os roteiros novos foram conferidos numa execução cada ([relatório](avaliacao/2026-11-20-roteiros-278-sonnet.md)).
 
 Com a documentação legível (#291, [relatório](avaliacao/2026-11-21-publicacao-legivel-sonnet.md)), o critério passou de "algum documento externo" para "uma regra recortada de página, com a âncora". Na primeira rodada, uma das três execuções consultou com quatro palavras de uma vez (`juros multa atraso carência`): a busca exige todas, só a análise publicada casou e nenhuma regra chegou. Os roteiros de perguntar, explicar, impacto e revisar passaram a pedir um conceito por chamada. Na rodada final, três execuções sem falha grave: duas consultas (`juros`, `carência`) por execução, 5 regras recortadas recebidas em cada uma (`regras/geral.md#rn-ger-00N`, com o link do trecho), a fonte citada e as regras do P-FAT-003 encontradas (2 de 2), US$ 0,44 a 0,48 por ciclo.
+
+## Condução pelo workflow
+
+A análise de impacto pode ser conduzida pelo workflow `cba-impacto` do Claude Code (#371; spec `docs/specs/2026-11-25-workflows-nas-analises.md`): Preparar (1 agente) → Investigar e Verificar (1 de cada por frente, em pipeline) → Consolidar (1). `--conducao simples,workflow` roda cada item de impacto nas duas conduções e acrescenta ao relatório a seção "Condução simples e workflow" e os tokens por fase.
+
+```sh
+cargo run -p cba-avaliacao -- rodar --fluxos impacto --demanda D-FAT-001,D-FAT-002,D-FAT-003,D-FAT-004 \
+  --conducao simples,workflow --orcamento 2 --orcamento-workflow 8 --tempo-limite 2700
+```
+
+Na condução pelo workflow, o pedido é o do app (`cba_tools::conducao::pedido_de_inicio`), o `claude` roda com `--setting-sources project,local` (o workflow instalado pelo preparo em `.claude/workflows/` da cópia só é achado com `project`) e com `--session-id`, sem `--no-session-persistence`: a avaliação lê o `journal.jsonl` da execução (a fase de cada agente) e as transcrições dos agentes (o `usage`), copia os journals para a pasta da execução e apaga a sessão gravada em `~/.claude/projects` e as tarefas em `/tmp/claude-<uid>`. O custo e o total de tokens vêm do `total_cost_usd` e do `modelUsage` da saída, que somam a sessão e os subagentes; a duração é a do relógio (o `duration_ms` da saída é só o do último turno).
+
+Colunas da comparação: as da cobertura (regras, perguntas esperadas, premissa, abrangência), as afirmações registradas, as contestadas pela verificação independente (`contestar_afirmacao`), os agentes, os tokens, o custo e a duração.
+
+### Resultado (#371)
+
+Uma rodada de cada condução nos quatro casos de impacto, com Sonnet e o Claude Code 2.1.332 ([relatório](avaliacao/2026-11-25-workflow-impacto-sonnet.md)), US$ 8,14 no total:
+
+| | Simples | Workflow |
+|---|---|---|
+| Regras do gabarito | 9 de 9 | 9 de 9 |
+| Perguntas esperadas | 9 de 9 | 9 de 9 |
+| Premissa corrigida | 3 de 3 | 3 de 3 |
+| Abrangência esperada | 4 de 4 | 3 de 4 (D-FAT-001: média, esperada pequena) |
+| Afirmações (soma) | 55 | 130 |
+| Evidências válidas (soma) | 113 | 348 |
+| Contestadas | – | 1 (D-FAT-004) |
+| Agentes por caso | – | 6 a 10 (2 a 4 frentes) |
+| Tokens (soma) | 2,4 mi | 11,1 mi (cerca de 4,7×) |
+| Custo (soma) | US$ 1,58 | US$ 6,56 (cerca de 4,2×) |
+| Duração de relógio por caso | cerca de 1,5 min | 3 a 3,6 min |
+
+Nenhuma falha grave nas duas conduções. Com este gabarito, o workflow **não mostrou ganho de cobertura**: a condução simples já encontra todas as regras, perguntas e premissas esperadas, e o workflow repete o resultado com mais afirmações e evidências (mais detalhe por frente, em parte redundante) e um erro de abrangência. A verificação independente contestou uma afirmação em 130. O gabarito está no teto para a simples: casos maiores (mais camadas, demanda com várias frentes de verdade) seriam o lugar de medir de novo.
+
+Estimativa por fase (tokens por agente, do menor ao maior nos quatro casos), embutida em `cba_tools::conducao::ESTIMATIVAS` e mostrada em Nova análise:
+
+| Fase | Por agente | Saída por agente |
+|---|---|---|
+| Preparar | 116 mil a 170 mil | 2 mil a 4 mil |
+| Investigar | 371 mil a 1,3 mi | 10 mil a 20 mil |
+| Verificar | 30 mil a 84 mil | cerca de 1 mil |
+| Consolidar | 100 mil a 267 mil | 3 mil a 4 mil |
+
+Com as 6 frentes padrão, a faixa vai de cerca de 2,8 mi a 8,7 mi tokens (14 agentes no pior caso).
+
+### Revisão de requisito pelo workflow (#373)
+
+A revisão de requisito também pode ser conduzida pelo workflow `cba-revisar`: Separar (1 agente: os critérios de aceite e as afirmações do texto, até `limites.frentes`) → Avaliar e Verificar (1 de cada por critério, em pipeline; a verificação contesta com `contestar_achado`) → Consolidar (1: a completude do texto inteiro, o INVEST e o veredito). Nas revisões, a seção "Condução simples e workflow" do relatório troca as colunas do impacto pelas da revisão: achados esperados, termos vagos, veredito, pergunta esperada, achados registrados e contestados.
+
+```sh
+cargo run -p cba-avaliacao -- rodar --fluxos revisar --revisao REV-FAT-001 \
+  --conducao simples,workflow --orcamento 2 --orcamento-workflow 8 --tempo-limite 2700
+```
+
+Uma rodada de cada condução no REV-FAT-001, com Sonnet e o Claude Code 2.1.332 ([relatório](avaliacao/2026-11-25-workflow-revisar-sonnet.md)), US$ 1,47 no total:
+
+| | Simples | Workflow |
+|---|---|---|
+| Achados esperados | 3 de 3 | 3 de 3 |
+| Termos vagos apontados | 4 de 4 | 4 de 4 |
+| Pergunta esperada | 1 de 1 | 1 de 1 |
+| Veredito | precisa de retrabalho (confere) | precisa de retrabalho (confere) |
+| Achados registrados | 7 | 13 |
+| Contestados | – | 0 |
+| Agentes | – | 12 (5 critérios) |
+| Tokens | 525 mil | 1,5 mi (cerca de 2,9×) |
+| Custo | US$ 0,36 | US$ 1,11 (cerca de 3,1×) |
+| Duração de relógio | 1 min 20 s | 2 min 23 s |
+
+Nenhuma falha grave nas duas conduções. O workflow **não mostrou ganho**: a condução simples já atinge o teto do gabarito, e o workflow repete o resultado com mais achados, em parte mais finos (um achado por termo vago, o tamanho máximo do motivo, a consistência do termo "fatura avulsa", a singularidade do critério que junta tempo e mensagem) e em parte o mesmo problema visto por dois critérios. A verificação independente não contestou nenhum achado.
+
+**Decisão:** a opção Aprofundada **não aparece** em Nova análise para a revisão de requisito (`cba_tools::conducao::NAO_OFERECIDOS`). O `cba-revisar` continua instalado pelo preparo e customizável em Configurações › Workflows, e o `iniciar_analise` aceita `conducao: workflow` (o caminho da avaliação). Para oferecer a opção, meça de novo com casos maiores (textos com muitos critérios ou que tocam várias camadas) e tire o tipo da lista se houver ganho. A estimativa por fase também está em `ESTIMATIVAS`:
+
+| Fase | Por agente | Saída por agente |
+|---|---|---|
+| Separar | 121 mil | 3 mil |
+| Avaliar | 134 mil a 258 mil | cerca de 5 mil |
+| Verificar | 24 mil a 40 mil | menos de 1 mil |
+| Consolidar | 81 mil | 2 mil |
+
+### Histórias e cenários: sem workflow (#373)
+
+A spec (seção 4-D) condicionava um workflow de Histórias e critérios e de Cenários de teste (gerar → revisar a cobertura dos critérios → consolidar) a um ganho medido no impacto. A avaliação da #371 ([relatório](avaliacao/2026-11-25-workflow-impacto-sonnet.md)) não mostrou ganho de cobertura: a condução simples atinge o teto do gabarito, e o workflow custa cerca de 4,7 vezes os tokens. Histórias e Cenários ficam **sem workflow**, só com a condução simples. A revisão de requisito, medida na #373, confirmou o mesmo quadro.
 
 ## Ao mudar o gabarito ou a fixture
 

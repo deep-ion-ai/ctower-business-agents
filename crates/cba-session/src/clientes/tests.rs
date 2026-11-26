@@ -126,6 +126,15 @@ const LOGADO: &str = r#"{"loggedIn":true,"authMethod":"claude.ai","apiProvider":
 const DESLOGADO: &str = r#"{"loggedIn":false,"authMethod":"none","apiProvider":"firstParty"}"#;
 
 #[test]
+fn versao_minima_dos_workflows() {
+    assert!(anterior_a("2.1.329", VERSAO_MINIMA_WORKFLOWS));
+    assert!(!anterior_a("2.1.331", VERSAO_MINIMA_WORKFLOWS));
+    assert!(!anterior_a("2.2.0-beta", VERSAO_MINIMA_WORKFLOWS));
+    // Versão desconhecida não bloqueia.
+    assert!(!anterior_a("dev", VERSAO_MINIMA_WORKFLOWS));
+}
+
+#[test]
 fn code_no_path_logado() {
     let amb = Falso::new(Plataforma::Linux).com_code(LOGADO);
     let estado = detectar_claude_code(&amb);
