@@ -57,7 +57,10 @@ fn le_sugere_confirma_e_repetir_nao_duplica() {
             .contains("repositório de issues")
     );
     let mut p = cadastrado(&c.dados, PROJETO).unwrap();
-    p.repositorios.tracker = Some(TrackerConfig::Github(GithubConfig { repo: "o/r".into() }));
+    p.repositorios.tracker = Some(TrackerConfig::Github(GithubConfig {
+        repo: "o/r".into(),
+        ..Default::default()
+    }));
     Cadastro::em(c.dados.projetos()).salvar(&p).unwrap();
 
     let amb = ambiente(&c.dados, PROJETO).unwrap();

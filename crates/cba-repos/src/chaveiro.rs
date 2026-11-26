@@ -12,7 +12,8 @@
 //! chaveiro como [`Secret`] e vai para o ambiente do processo filho.
 
 use crate::codigo::{OrigemToken, RepositorioCodigo};
-use crate::{CREDENTIAL_DEADLINE, CredentialError, Secret, run_credential};
+use crate::providers::{ErroCredencial, Resolvedor, legado};
+use crate::{CredentialError, Secret};
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Mutex;
@@ -27,6 +28,11 @@ pub trait Chaveiro: Send + Sync {
     fn gravar(&self, conta: &str, token: &Secret) -> Result<(), String>;
     /// Apaga o token; sem token, não faz nada.
     fn apagar(&self, conta: &str) -> Result<(), String>;
+    /// O resolvedor pode guardar em cache o que este chaveiro devolve? O nativo
+    /// pode (e esvazia o cache a cada gravação); os de teste, não.
+    fn cacheavel(&self) -> bool {
+        false
+    }
 }
 
 /// Chaveiro do sistema operacional.
@@ -58,16 +64,23 @@ impl Chaveiro for ChaveiroNativo {
     }
 
     fn gravar(&self, conta: &str, token: &Secret) -> Result<(), String> {
+        Resolvedor::global().esquecer_tudo();
+        crate::providers::mascara::registrar(token);
         Self::entrada(conta)?
             .set_password(token.expose())
             .map_err(|e| erro_chaveiro(&e))
     }
 
     fn apagar(&self, conta: &str) -> Result<(), String> {
+        Resolvedor::global().esquecer_tudo();
         match Self::entrada(conta)?.delete_credential() {
             Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
             Err(e) => Err(erro_chaveiro(&e)),
         }
+    }
+
+    fn cacheavel(&self) -> bool {
+        true
     }
 }
 
@@ -126,23 +139,14 @@ pub fn comando_global(host: &str, chaveiro: &dyn Chaveiro) -> Result<Option<Stri
 }
 
 /// Token global do host: o guardado no chaveiro ou, sem ele, o que o comando
-/// do host imprime. `None`: nenhum dos dois. `what` nomeia o host nas
-/// mensagens do comando ("GitHub", "GitLab", "Jira").
+/// do host imprime, pelo resolvedor (#436). `None`: nenhum dos dois. `what`
+/// nomeia o host nas mensagens do comando ("GitHub", "GitLab", "Jira").
 pub fn token_global(
     host: &str,
     what: &'static str,
     chaveiro: &dyn Chaveiro,
 ) -> Result<Option<Secret>, ErroToken> {
-    if let Some(t) = chaveiro
-        .ler(&conta_global(host))
-        .map_err(ErroToken::Chaveiro)?
-    {
-        return Ok(Some(t));
-    }
-    match comando_global(host, chaveiro).map_err(ErroToken::Chaveiro)? {
-        Some(cmd) => Ok(Some(run_credential(what, &cmd, CREDENTIAL_DEADLINE)?)),
-        None => Ok(None),
-    }
+    Ok(legado::token_do_host(host, what, chaveiro)?)
 }
 
 /// Conta do token próprio de um repositório.
@@ -163,31 +167,29 @@ pub enum ErroToken {
     Comando(#[from] CredentialError),
 }
 
+impl From<ErroCredencial> for ErroToken {
+    fn from(e: ErroCredencial) -> Self {
+        match e {
+            ErroCredencial::Comando(c) => ErroToken::Comando(c),
+            e => ErroToken::Chaveiro(e.to_string()),
+        }
+    }
+}
+
 /// Token de um repositório: o próprio (se houver) tem precedência sobre o
 /// global do host; com `token = comando`, o que o comando imprime. `None`: sem
 /// token (repositório público, SSH ou credencial do próprio git do analista).
+/// Sai pelo resolvedor (#436).
 pub fn token_do_repositorio(
     repo: &RepositorioCodigo,
     chaveiro: &dyn Chaveiro,
 ) -> Result<Option<Secret>, ErroToken> {
-    if repo.token == OrigemToken::Comando {
-        let what = repo.forja.label();
-        return Ok(Some(run_credential(
-            what,
-            &repo.comando_credencial,
-            CREDENTIAL_DEADLINE,
-        )?));
+    match legado::token_repositorio(repo, chaveiro)? {
+        None if repo.token == OrigemToken::Proprio && repo.conexao.trim().is_empty() => {
+            Err(ErroToken::SemTokenProprio(repo.rotulo()))
+        }
+        t => Ok(t),
     }
-    if let Some(t) = chaveiro
-        .ler(&conta_propria(repo))
-        .map_err(ErroToken::Chaveiro)?
-    {
-        return Ok(Some(t));
-    }
-    if repo.token == OrigemToken::Proprio {
-        return Err(ErroToken::SemTokenProprio(repo.rotulo()));
-    }
-    token_global(&repo.host, repo.forja.label(), chaveiro)
 }
 
 #[cfg(test)]

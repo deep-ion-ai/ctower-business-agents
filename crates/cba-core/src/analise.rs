@@ -30,6 +30,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::cenarios::{Cenario, TabelaDecisao};
 use crate::conducao::{Conducao, Contestacao, ExecucaoWorkflow};
+use crate::consultas::{BancoLigado, ConsultaDados, EvidenciaDados};
 use crate::diagramas::Diagrama;
 use crate::historias::Historia;
 use crate::manual::PassoManual;
@@ -259,6 +260,10 @@ pub struct Afirmacao {
     pub confianca: Confianca,
     #[serde(default)]
     pub evidencias: Vec<Evidencia>,
+    /// Evidências de dados: resultados de consultas ao banco citados (#440). Valem
+    /// para a data em que foram tiradas; a revalidação não as reexecuta.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dados: Vec<EvidenciaDados>,
     #[serde(flatten)]
     pub estado: EstadoAfirmacao,
     /// Estado da afirmação antes de a revalidação a marcar como a revalidar. Volta a
@@ -604,6 +609,14 @@ pub struct Analise {
     /// analista e as telas afetadas, com os elementos.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub prototipo: Option<Prototipo>,
+    /// Banco ligado pelo analista nesta análise (#440): só com ele o agente vê
+    /// `consultar_dados` ([`crate::consultas`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub banco: Option<BancoLigado>,
+    /// Todas as consultas ao banco pedidas nesta análise, aprovadas ou recusadas,
+    /// sem os valores ([`crate::consultas`]).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub consultas: Vec<ConsultaDados>,
 }
 
 /// Operação recusada pelo modelo. As mensagens se dirigem a quem chamou (o agente
@@ -714,6 +727,8 @@ pub enum ErroModelo {
          registrada; {0}"
     )]
     ColunaInvalida(String),
+    #[error("consulta recusada: {0}")]
+    ConsultaRecusada(String),
     #[error("diagrama recusado: {0}")]
     DiagramaInvalido(String),
     #[error("o {origem} já virou a pergunta {numero}")]
@@ -807,6 +822,8 @@ impl Analise {
             workflow: None,
             aviso_conducao: None,
             prototipo: None,
+            banco: None,
+            consultas: Vec::new(),
         }
     }
 
@@ -927,9 +944,21 @@ impl Analise {
         nova: NovaAfirmacao,
         agora_ms: u64,
     ) -> Result<u32, ErroModelo> {
+        self.registrar_afirmacao_com_dados(nova, Vec::new(), agora_ms)
+    }
+
+    /// Como [`Analise::registrar_afirmacao`], com evidências de dados (#440). Uma
+    /// afirmação confirmada precisa de ao menos uma evidência, de código ou de dados.
+    pub fn registrar_afirmacao_com_dados(
+        &mut self,
+        nova: NovaAfirmacao,
+        dados: Vec<EvidenciaDados>,
+        agora_ms: u64,
+    ) -> Result<u32, ErroModelo> {
         exigir("secao", &nova.secao)?;
         exigir("texto", &nova.texto)?;
-        if nova.confianca == Confianca::Confirmado && nova.evidencias.is_empty() {
+        if nova.confianca == Confianca::Confirmado && nova.evidencias.is_empty() && dados.is_empty()
+        {
             return Err(ErroModelo::ConfirmadoSemEvidencia);
         }
         self.aceitar_registro()?;
@@ -941,6 +970,7 @@ impl Analise {
             texto_original: None,
             confianca: nova.confianca,
             evidencias: nova.evidencias,
+            dados,
             estado: EstadoAfirmacao::Registrada,
             antes_de_revalidar: None,
             contestacao: None,

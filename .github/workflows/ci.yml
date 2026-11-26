@@ -128,6 +128,12 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
+      # Acesso a banco só de leitura com PostgreSQL, MySQL e MariaDB em contêiner
+      # (#439). Só no Linux, onde o runner tem Docker.
+      - name: Testes de banco em contêiner
+        if: runner.os == 'Linux'
+        timeout-minutes: 20
+        run: cargo test -p cba-banco --test conteiner --locked -- --ignored --test-threads=1
 
   # Frontend do app: tipos, testes de componentes e build do Vite.
   ui:

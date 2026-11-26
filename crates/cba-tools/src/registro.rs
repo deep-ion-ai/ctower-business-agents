@@ -140,6 +140,9 @@ pub fn ler_argumentos<T: DeserializeOwned>(argumentos: Value) -> Result<T, ErroF
     serde_json::from_value(argumentos).map_err(|e| ErroFerramenta::Argumentos(e.to_string()))
 }
 
+/// Condição para uma ferramenta aparecer na sessão.
+pub type Condicao = fn(&Ambiente) -> bool;
+
 /// Uma ferramenta registrada.
 pub struct Ferramenta {
     nome: &'static str,
@@ -147,6 +150,9 @@ pub struct Ferramenta {
     descricao: &'static str,
     schema: Value,
     somente_leitura: bool,
+    /// Condição para a ferramenta aparecer na sessão e a mensagem quando não
+    /// aparece (#440).
+    visivel: Option<(Condicao, &'static str)>,
     executar: Box<Executar>,
 }
 
@@ -189,6 +195,7 @@ impl Ferramenta {
             descricao,
             schema,
             somente_leitura: false,
+            visivel: None,
             executar: Box::new(executar),
         }
     }
@@ -197,6 +204,28 @@ impl Ferramenta {
     pub fn somente_leitura(mut self) -> Self {
         self.somente_leitura = true;
         self
+    }
+
+    /// A ferramenta só aparece na sessão quando `condicao` vale para o ambiente
+    /// (`consultar_dados`, só com o banco ligado na análise). Chamada sem a
+    /// condição, ela recusa com `indisponivel`.
+    pub fn visivel_se(
+        mut self,
+        condicao: fn(&Ambiente) -> bool,
+        indisponivel: &'static str,
+    ) -> Self {
+        self.visivel = Some((condicao, indisponivel));
+        self
+    }
+
+    /// Se a ferramenta aparece para o agente neste ambiente. Fora de um projeto,
+    /// só as que não têm condição.
+    pub fn e_visivel(&self, ambiente: Result<&Ambiente, &ErroAmbiente>) -> bool {
+        match (self.visivel, ambiente) {
+            (None, _) => true,
+            (Some((condicao, _)), Ok(a)) => condicao(a),
+            (Some(_), Err(_)) => false,
+        }
     }
 
     pub fn nome(&self) -> &'static str {
@@ -265,6 +294,14 @@ impl Registro {
         self.ferramentas.iter().find(|f| f.nome == nome)
     }
 
+    /// As ferramentas que aparecem para o agente neste ambiente (`tools/list`).
+    pub fn visiveis(&self, ambiente: Result<&Ambiente, &ErroAmbiente>) -> Vec<&Ferramenta> {
+        self.ferramentas
+            .iter()
+            .filter(|f| f.e_visivel(ambiente))
+            .collect()
+    }
+
     /// Chama uma ferramenta: confere os argumentos contra o schema, exige o ambiente
     /// do projeto e executa. Sem argumentos, a ferramenta recebe `{}`. Um pânico na
     /// ferramenta vira [`ErroFerramenta::Interno`], sem derrubar o processo.
@@ -280,6 +317,11 @@ impl Registro {
         let argumentos = argumentos.unwrap_or_else(|| Value::Object(Default::default()));
         schema::validar(&argumentos, &ferramenta.schema).map_err(ErroFerramenta::Argumentos)?;
         let ambiente = ambiente.map_err(|e| ErroFerramenta::SemProjeto(e.to_string()))?;
+        if let Some((condicao, indisponivel)) = ferramenta.visivel
+            && !condicao(ambiente)
+        {
+            return Err(ErroFerramenta::Recusa(indisponivel.to_owned()).into());
+        }
         catch_unwind(AssertUnwindSafe(|| {
             (ferramenta.executar)(ambiente, argumentos)
         }))

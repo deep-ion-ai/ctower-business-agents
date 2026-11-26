@@ -36,6 +36,15 @@ struct Args {
     evidencias: Vec<EvidenciaCitada>,
     #[serde(default)]
     pergunta: Option<String>,
+    #[serde(default)]
+    dados: Vec<DadoCitado>,
+}
+
+/// Resultado de uma consulta citado como evidência de dados (#440).
+#[derive(Debug, Deserialize)]
+struct DadoCitado {
+    consulta: u32,
+    resumo: String,
 }
 
 /// `afirmar`: o conteúdo de uma análise é feito de afirmações, cada uma com seção,
@@ -56,7 +65,9 @@ pub fn afirmar() -> Ferramenta {
          `inferido` (dedução a partir das evidências listadas) ou `a_confirmar` (sem \
          evidência suficiente; cria também uma pergunta para o solicitante). Registre \
          uma regra ou fato por afirmação. Na seção `abrangencia` da análise de impacto, \
-         o texto começa pela estimativa (\"Pequena:\", \"Média:\" ou \"Grande:\").",
+         o texto começa pela estimativa (\"Pequena:\", \"Média:\" ou \"Grande:\"). \
+         O resultado de uma consulta ao banco (`consultar_dados`) entra em `dados`, como \
+         evidência de dados, separada da evidência de código.",
         json!({
             "type": "object",
             "properties": {
@@ -88,6 +99,20 @@ pub fn afirmar() -> Ferramenta {
                     "minLength": 1,
                     "maxLength": 4000,
                     "description": "Pergunta para o solicitante ligada à afirmação. Com a_confirmar, se omitida, é criada a partir do texto."
+                },
+                "dados": {
+                    "type": "array",
+                    "maxItems": 10,
+                    "description": "Resultados de consultas executadas por `consultar_dados` que sustentam a afirmação: viram evidências de dados no documento, com a conexão, o ambiente, a data e hora e o SQL. Valem para a data da consulta.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "consulta": { "type": "integer", "minimum": 1, "description": "Número da consulta devolvido por consultar_dados." },
+                            "resumo": { "type": "string", "minLength": 1, "maxLength": 500, "description": "O que o resultado mostra, sem dado pessoal (\"312 faturas vencidas com multa zerada\")." }
+                        },
+                        "required": ["consulta", "resumo"],
+                        "additionalProperties": false
+                    }
                 }
             },
             "required": ["analise", "secao", "texto", "confianca"],
@@ -144,7 +169,10 @@ pub fn afirmar() -> Ferramenta {
                         .to_owned(),
                 ));
             }
-            if args.confianca == Confianca::Confirmado && args.evidencias.is_empty() {
+            if args.confianca == Confianca::Confirmado
+                && args.evidencias.is_empty()
+                && args.dados.is_empty()
+            {
                 return Err(comum::recusa(ErroModelo::ConfirmadoSemEvidencia));
             }
             let evidencias = evidencias::validar_todas(&ambiente.escopo, &args.evidencias)
@@ -165,7 +193,12 @@ pub fn afirmar() -> Ferramenta {
                 sessao: None,
             };
             let registrado = comum::alterar(ambiente, &id, Mudanca::Afirmacao, |a, agora| {
-                let numero = a.registrar_afirmacao(nova, agora)?;
+                let dados = args
+                    .dados
+                    .iter()
+                    .map(|d| a.evidencia_de_dados(d.consulta, &d.resumo))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let numero = a.registrar_afirmacao_com_dados(nova, dados, agora)?;
                 let pergunta = match &pergunta {
                     Some(p) => Some(a.registrar_pergunta(p, Some(numero), None, agora)?),
                     None => None,
@@ -199,6 +232,7 @@ pub fn afirmar() -> Ferramenta {
                     "secao": afirmacao.secao,
                     "confianca": afirmacao.confianca,
                     "evidencias": evidencias,
+                    "dados": afirmacao.dados.iter().map(|d| d.consulta).collect::<Vec<_>>(),
                     "pergunta": pergunta,
                 }),
             ))

@@ -14,6 +14,7 @@ use std::sync::mpsc;
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
+use cba_repos::providers::mascara::MascaradorFluxo;
 use portable_pty::{ChildKiller, CommandBuilder, MasterPty, PtySize, native_pty_system};
 use serde::{Deserialize, Serialize};
 
@@ -332,18 +333,22 @@ impl Drop for Terminal {
 fn ler(mut leitor: Box<dyn Read + Send>, ao_evento: &AoEvento) {
     let mut buf = [0u8; 16 * 1024];
     let mut decodificador = DecodificadorUtf8::default();
+    // Mascaramento central (#436): nenhum segredo resolvido pelo app aparece no
+    // terminal embutido, mesmo dividido entre duas leituras.
+    let mut mascarador = MascaradorFluxo::default();
     loop {
         match leitor.read(&mut buf) {
             Ok(0) | Err(_) => break,
             Ok(n) => {
-                let texto = decodificador.decodificar(&buf[..n]);
+                let texto = mascarador.mascarar(&decodificador.decodificar(&buf[..n]));
                 if !texto.is_empty() {
                     ao_evento(Evento::Saida { texto });
                 }
             }
         }
     }
-    let resto = decodificador.terminar();
+    let mut resto = mascarador.mascarar(&decodificador.terminar());
+    resto.push_str(&mascarador.terminar());
     if !resto.is_empty() {
         ao_evento(Evento::Saida { texto: resto });
     }
@@ -399,6 +404,37 @@ impl DecodificadorUtf8 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Leitor que entrega um pedaço por `read`, como o PTY.
+    struct Partes(Vec<&'static [u8]>);
+
+    impl Read for Partes {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            if self.0.is_empty() {
+                return Ok(0);
+            }
+            let p = self.0.remove(0);
+            buf[..p.len()].copy_from_slice(p);
+            Ok(p.len())
+        }
+    }
+
+    #[test]
+    fn segredo_resolvido_nao_aparece_no_terminal() {
+        cba_repos::providers::mascara::registrar_texto("glpat-do-terminal-99");
+        let saida = Arc::new(Mutex::new(String::new()));
+        let s = saida.clone();
+        let ao_evento: AoEvento = Box::new(move |e| {
+            if let Evento::Saida { texto } = e {
+                s.lock().unwrap().push_str(&texto);
+            }
+        });
+        ler(
+            Box::new(Partes(vec![b"token: glpat-do-", b"terminal-99\r\n$ "])),
+            &ao_evento,
+        );
+        assert_eq!(*saida.lock().unwrap(), "token: ***\r\n$ ");
+    }
 
     #[test]
     fn caractere_dividido_entre_leituras() {

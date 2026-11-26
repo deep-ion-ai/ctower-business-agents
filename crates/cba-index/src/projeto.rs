@@ -49,6 +49,11 @@ pub struct Projeto {
     /// uso. Opcional. Nunca guarda a senha, que fica no chaveiro do sistema.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ambiente_teste: Option<AmbienteTeste>,
+    /// Conexões de banco do projeto (#440), pelo `id` da conexão cadastrada nas
+    /// Configurações. Cada análise escolhe se usa uma delas ("Usar o banco
+    /// <nome> nesta análise"); sem isso, o agente nem vê `consultar_dados`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bancos: Vec<String>,
 }
 
 impl Projeto {
@@ -80,6 +85,7 @@ impl Projeto {
             inclusoes: Vec::new(),
             repositorios: Repositorios::default(),
             ambiente_teste: None,
+            bancos: Vec::new(),
         };
         projeto.validar()?;
         Ok(projeto)

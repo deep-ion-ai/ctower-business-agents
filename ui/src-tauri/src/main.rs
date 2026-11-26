@@ -37,9 +37,11 @@ mod cli;
 mod clones;
 mod cobertura;
 mod conducao;
+mod conexoes;
 mod configuracoes;
 #[cfg(windows)]
 mod console;
+mod consultas;
 mod conversa;
 mod demandas;
 mod docs_externos;
@@ -49,6 +51,7 @@ mod inicio;
 mod issues_projeto;
 mod links_projeto;
 mod manual;
+mod migracao_conexoes;
 mod mudancas;
 mod painel_funcionalidade;
 mod pauta;
@@ -73,7 +76,16 @@ mod workflows;
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    match cli::Modo::dos_argumentos(&args) {
+    let modo = cli::Modo::dos_argumentos(&args);
+    // As conexões das Configurações (#437) valem para a janela e para as
+    // ferramentas do agente (servidor MCP): o catálogo as relê quando mudam.
+    if matches!(modo, cli::Modo::Janela | cli::Modo::Mcp)
+        && let Ok(dados) = cba_core::dados::DiretorioDados::padrao()
+        && let Err(e) = conexoes::carregar(&dados)
+    {
+        eprintln!("conexões não carregadas: {e}");
+    }
+    match modo {
         cli::Modo::Janela => gui::rodar(),
         modo => {
             #[cfg(windows)]

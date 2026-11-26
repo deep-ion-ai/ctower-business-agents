@@ -37,6 +37,9 @@ pub fn salvar_repositorios(
 ) -> Result<Repositorios, String> {
     let mut p = cadastrado(dados, projeto)?;
     novos.docs = novos.docs.as_ref().map(|d| d.normalizado());
+    // Cadastros que apontam para conexões (#437) recebem delas o host e a URL,
+    // e deixam a credencial antiga.
+    crate::conexoes::aplicar_conexoes(&mut novos, &crate::conexoes::conexoes(dados)?)?;
     p.repositorios.validar_troca(&novos)?;
     novos.validar()?;
     let docs_mudou = p.repositorios.docs != novos.docs;

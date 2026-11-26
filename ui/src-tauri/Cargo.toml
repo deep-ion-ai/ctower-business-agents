@@ -17,6 +17,7 @@ path = "src/main.rs"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+cba-banco.workspace = true
 cba-core.workspace = true
 cba-docs.workspace = true
 cba-index.workspace = true

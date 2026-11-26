@@ -163,7 +163,7 @@ fn estados_github(
         .trim()
         .split_once('/')
         .ok_or_else(|| DemandaErro::Referencia(g.repo.clone()))?;
-    let token = token_github(f);
+    let token = token_github(g, f);
     let vazio = Secret::new("");
     let mut saida = HashMap::new();
     for lote in numeros(chaves).chunks(LOTE_GITHUB) {
@@ -379,7 +379,10 @@ mod tests {
 
     #[test]
     fn chave_e_origem_do_rastreador() {
-        let gh = TrackerConfig::Github(GithubConfig { repo: "o/r".into() });
+        let gh = TrackerConfig::Github(GithubConfig {
+            repo: "o/r".into(),
+            ..Default::default()
+        });
         assert_eq!(chave_normalizada(&gh, "#12").as_deref(), Some("#12"));
         assert_eq!(chave_normalizada(&gh, "12").as_deref(), Some("#12"));
         assert_eq!(chave_normalizada(&gh, "PROJ-1"), None);
@@ -420,7 +423,10 @@ exit 1"#,
             gh,
             ..Default::default()
         };
-        let t = TrackerConfig::Github(GithubConfig { repo: "o/r".into() });
+        let t = TrackerConfig::Github(GithubConfig {
+            repo: "o/r".into(),
+            ..Default::default()
+        });
         let r = conferir_estados(
             &t,
             &["#5".into(), "7".into(), "#9".into(), "PROJ-1".into()],
@@ -447,7 +453,10 @@ exit 1"#,
             gh,
             ..Default::default()
         };
-        let t = TrackerConfig::Github(GithubConfig { repo: "o/r".into() });
+        let t = TrackerConfig::Github(GithubConfig {
+            repo: "o/r".into(),
+            ..Default::default()
+        });
         let e = conferir_estados(&t, &["#1".into()], &f).unwrap_err();
         assert!(e.to_string().contains("error connecting"), "{e}");
     }

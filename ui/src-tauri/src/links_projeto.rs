@@ -136,7 +136,10 @@ mod testes {
     #[test]
     fn hosts_juntam_codigo_e_rastreador_de_cada_forma() {
         let codigo = vec!["GitLab.Exemplo.com".to_string()];
-        let github = TrackerConfig::Github(GithubConfig { repo: "o/r".into() });
+        let github = TrackerConfig::Github(GithubConfig {
+            repo: "o/r".into(),
+            ..Default::default()
+        });
         assert_eq!(
             hosts_do_projeto(&codigo, Some(&github)),
             vec!["github.com", "gitlab.exemplo.com"]

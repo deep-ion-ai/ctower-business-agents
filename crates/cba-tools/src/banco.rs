@@ -2,6 +2,9 @@
 //! scripts de banco, com as colunas e os relacionamentos de uma tabela, a partir do
 //! mapa estrutural (`cba_index::Mapa::schema`, `filhos` e as referências).
 //!
+//! Com `origem: "banco"`, lê o banco conectado à sessão (#439), em
+//! [`crate::banco_conectado`].
+//!
 //! O módulo se chama `banco` porque `schema` já é a validação dos argumentos.
 
 use std::collections::BTreeMap;
@@ -11,6 +14,7 @@ use cba_index::{Achado, Mapa, TipoReferencia};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
+use crate::banco_conectado;
 use crate::dados_pessoais;
 use crate::fontes;
 use crate::paginacao::{ArgsPagina, Item, Pagina, com_paginacao, curto, nome};
@@ -23,11 +27,23 @@ const SUGESTOES: usize = 10;
 struct Args {
     #[serde(default)]
     tabela: Option<String>,
+    #[serde(default)]
+    origem: Option<Origem>,
     #[serde(flatten)]
     pagina: ArgsPagina,
 }
 
-/// `schema(tabela?)`: o modelo de dados do projeto ou de uma tabela.
+/// De onde vem o modelo de dados.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum Origem {
+    /// Scripts de banco do código (`db/`), com arquivo e linhas.
+    Scripts,
+    /// Banco conectado à sessão, pelo catálogo do servidor.
+    Banco,
+}
+
+/// `schema(tabela?, origem?)`: o modelo de dados do projeto ou de uma tabela.
 pub fn schema() -> Ferramenta {
     Ferramenta::nova(
         "schema",
@@ -38,7 +54,10 @@ pub fn schema() -> Ferramenta {
          `tabela`: as colunas (tipo e comentário), as chaves estrangeiras de e para a \
          tabela e quantas vezes ela é lida e gravada no código. Colunas cujo nome e \
          tipo sugerem dado pessoal ou sensível (LGPD) vêm marcadas com a categoria: é \
-         um indício por nome, sem IA; confirme no código antes de afirmar. Resposta \
+         um indício por nome, sem IA; confirme no código antes de afirmar. Com \
+         `origem: \"banco\"`, lê as tabelas, colunas, tipos e chaves do banco conectado \
+         à sessão (só existe quando o analista ligou uma conexão de banco), com os \
+         indícios pelos nomes e tipos reais. A origem aparece no resultado. Resposta \
          paginada.",
         com_paginacao(json!({
             "type": "object",
@@ -47,20 +66,49 @@ pub fn schema() -> Ferramenta {
                     "type": "string",
                     "minLength": 1,
                     "description": "Nome da tabela ou visão, com ou sem esquema (\"FATURA\", \"APP.FATURA\"). Sem o campo: todas."
+                },
+                "origem": {
+                    "type": "string",
+                    "enum": ["scripts", "banco"],
+                    "description": "\"scripts\" (padrão): o modelo dos scripts de banco do código, com arquivo e linha. \"banco\": o schema real do banco conectado à sessão."
                 }
             },
             "additionalProperties": false
         })),
         |ambiente, args| {
             let args: Args = ler_argumentos(args)?;
+            let tabela = args.tabela.as_deref().map(str::trim).filter(|t| !t.is_empty());
+            if args.origem == Some(Origem::Banco) {
+                let banco = ambiente.banco.as_deref().ok_or_else(|| {
+                    ErroFerramenta::Recusa(
+                        "nenhum banco está conectado a esta sessão. Use `schema` sem \
+                         `origem` para o modelo dos scripts do projeto"
+                            .into(),
+                    )
+                })?;
+                let (texto, dados) = banco_conectado::do_banco(banco, tabela, args.pagina)?;
+                return Ok(Saida {
+                    texto,
+                    dados: Some(dados),
+                });
+            }
             let carregado = fontes::mapa(ambiente)?;
             let mapa = &carregado.mapa;
-            let (mut texto, mut dados) = match args.tabela.as_deref().map(str::trim) {
-                Some(tabela) if !tabela.is_empty() => da_tabela(mapa, tabela, args.pagina)?,
-                _ => de_todas(mapa, args.pagina),
+            let (mut texto, mut dados) = match tabela {
+                Some(tabela) => da_tabela(mapa, tabela, args.pagina)?,
+                None => de_todas(mapa, args.pagina),
             };
             let _ = writeln!(texto, "\n{}", carregado.nota());
+            if let Some(banco) = &ambiente.banco {
+                let _ = writeln!(
+                    texto,
+                    "Há um banco conectado a esta sessão ({}): para o schema real, chame \
+                     `schema` com `origem: \"banco\"`.",
+                    banco.origem()
+                );
+            }
             dados["mapa"] = carregado.json();
+            dados["origem"] = json!({ "tipo": "scripts" });
             Ok(Saida {
                 texto,
                 dados: Some(dados),

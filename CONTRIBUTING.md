@@ -115,6 +115,7 @@ Os dados do app (índice, configuração, logs) ficam no diretório de dados do 
 - Mudanças de comportamento atualizam a spec ou o documento correspondente em `docs/`.
 - Mudanças em roteiros, limites, descrições das ferramentas MCP, fixture ou gabarito passam pela [avaliação dos fluxos contra o gabarito](docs/avaliacao.md) antes e depois da mudança (`cargo run -p cba-avaliacao -- rodar`, com o Claude Code logado; usa a sua assinatura e não roda no CI). Ponha o resumo do relatório e o custo no PR.
 - O título do PR segue os Conventional Commits.
+- Um provider novo (rastreador, forja ou banco) segue o [guia de providers](docs/providers.md): só um descritor novo, sem `match` por tipo fora dele.
 - Exemplos e testes usam só o sistema fictício.
 
 O CI roda nos runners do GitHub. Em PRs de fork, um mantenedor precisa aprovar a execução dos workflows.

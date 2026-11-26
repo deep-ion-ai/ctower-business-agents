@@ -64,21 +64,32 @@ impl Prontidao {
     }
 }
 
-struct Construtor {
-    passos: Vec<Passo>,
-    falhou: bool,
+pub(crate) struct Construtor {
+    pub(crate) passos: Vec<Passo>,
+    pub(crate) falhou: bool,
 }
 
 impl Construtor {
-    fn novo() -> Self {
+    pub(crate) fn novo() -> Self {
         Construtor {
             passos: vec![],
             falhou: false,
         }
     }
 
+    /// Registra um passo que não rodou, com o motivo, sem contar como falha.
+    pub(crate) fn pular(&mut self, id: &'static str, rotulo: &str, motivo: &str) {
+        self.passos.push(Passo {
+            id: id.into(),
+            rotulo: rotulo.into(),
+            situacao: Situacao::Pulado,
+            detalhe: Some(motivo.into()),
+            orientacao: None,
+        });
+    }
+
     /// Roda o passo, a menos que um anterior já tenha falhado.
-    fn passo(
+    pub(crate) fn passo(
         &mut self,
         id: &'static str,
         rotulo: &str,
@@ -118,7 +129,7 @@ impl Construtor {
 }
 
 /// Roda a CLI e devolve a primeira linha do `stdout`.
-fn saida(c: Command, token: Option<&Secret>) -> Result<String, String> {
+pub(crate) fn saida(c: Command, token: Option<&Secret>) -> Result<String, String> {
     let o = run(c, PRAZO_CLI).map_err(|e| match e {
         RunError::NotFound => "não encontrado".to_string(),
         e => cite(&e.to_string(), token),
@@ -150,7 +161,7 @@ fn arquivo_de_config_jira(j: &JiraConfig) -> PathBuf {
 }
 
 /// O `server:` do `.config.yml` do jira-cli, sem barra final.
-fn servidor_do_config(yml: &str) -> Option<String> {
+pub(crate) fn servidor_do_config(yml: &str) -> Option<String> {
     yml.lines().find_map(|l| {
         let v = l.strip_prefix("server:")?.trim().trim_matches(['"', '\'']);
         Some(v.trim_end_matches('/').to_string())
@@ -314,20 +325,14 @@ fn prontidao_gh(g: &GithubConfig, f: &Ferramentas, titulo: &str) -> Integracao {
         "gh autenticado (token do chaveiro ou gh auth token)",
         "Cadastre o token do github.com em Configurações › Acessos ou rode `gh auth login` num terminal.",
         || {
-            if let Some(t) = crate::demanda::token_github(f) {
+            if let Some(t) = crate::demanda::token_github(g, f) {
                 *cred.borrow_mut() = Some(t);
                 return Ok(Some("token global do github.com (chaveiro)".into()));
             }
-            let mut c = Command::new(&f.gh);
-            c.args(["auth", "token"]);
-            // Só interessa que haja token; o valor não é guardado nem mostrado.
-            saida(c, None).and_then(|t| {
-                if t.is_empty() {
-                    Err("sem token".into())
-                } else {
-                    Ok(None)
-                }
-            })
+            // Só interessa que haja token; o valor não é mostrado.
+            crate::providers::legado::token_cli(HOST_GITHUB, "GitHub", &f.gh, f.chaveiro.as_ref())
+                .map(|_| None)
+                .map_err(|e| e.to_string())
         },
     );
     let token = cred.borrow();
@@ -360,7 +365,7 @@ fn prontidao_gh(g: &GithubConfig, f: &Ferramentas, titulo: &str) -> Integracao {
 
 /// O repositório das demandas existe, o token o enxerga e as issues estão ligadas
 /// (`gh api repos/{repo}`, campo `has_issues`). Um fork vem com elas desligadas.
-fn issues_ligadas_github(
+pub(crate) fn issues_ligadas_github(
     g: &GithubConfig,
     f: &Ferramentas,
     token: Option<&Secret>,
@@ -412,6 +417,9 @@ fn motivo_da_falha_do_github(repo: &str, erro: &str) -> String {
 /// Repositório de código: git instalado, token (chaveiro, comando ou nenhum),
 /// token aceito pela API da forja (#215) e acesso de leitura (`git ls-remote`).
 fn prontidao_codigo(repo: &RepositorioCodigo, f: &Ferramentas) -> Integracao {
+    if !repo.conexao.trim().is_empty() {
+        return prontidao_codigo_conexao(repo, f, &format!("Código {}", repo.caminho.trim()));
+    }
     let mut b = Construtor::novo();
     let cred: std::cell::RefCell<Option<Secret>> = Default::default();
     b.passo(
@@ -495,12 +503,84 @@ fn proprio_no_chaveiro(repo: &RepositorioCodigo, f: &Ferramentas) -> bool {
 
 /// Prontidão só das demandas (o "Testar conexão" do cadastro e da página do
 /// projeto): a mesma integração que [`conferir`] traz por último.
+///
+/// Com uma conexão referenciada (#437), os passos são os do descritor da
+/// conexão ([`crate::providers::prontidao`]), mais os do projeto.
 pub fn prontidao_tracker(t: &TrackerConfig, f: &Ferramentas) -> Integracao {
     match t {
+        TrackerConfig::Github(g) if !g.conexao.trim().is_empty() => {
+            por_conexao(&g.conexao, "Issues", f, |b, token| {
+                b.passo(
+                    "issues",
+                    "Repositório com as issues ligadas",
+                    "Ligue as Issues do repositório no GitHub (Settings › General › Features) ou \
+                     escolha outro repositório, e confira se o token tem acesso a ele.",
+                    || issues_ligadas_github(g, f, token.as_ref()),
+                );
+            })
+        }
+        TrackerConfig::Gitlab(g) if !g.conexao.trim().is_empty() => {
+            por_conexao(&g.conexao, "Issues", f, |_, _| {})
+        }
+        TrackerConfig::Jira(j) if !j.conexao.trim().is_empty() => {
+            por_conexao(&j.conexao, "Issues", f, |_, _| {})
+        }
         TrackerConfig::Github(g) => prontidao_gh(g, f, "Issues (GitHub)"),
         TrackerConfig::Gitlab(g) => prontidao_glab(g, f, "Issues (GitLab)"),
         TrackerConfig::Jira(j) => prontidao_jira(j, f),
     }
+}
+
+/// Integração de um cadastro que referencia a conexão `id`: os passos da
+/// conexão e, depois, os do projeto (`extra`, com a credencial lida).
+fn por_conexao(
+    id: &str,
+    onde: &str,
+    f: &Ferramentas,
+    extra: impl FnOnce(&mut Construtor, Option<Secret>),
+) -> Integracao {
+    let mut b = Construtor::novo();
+    let titulo = match crate::providers::conexao_referenciada(id) {
+        Ok(c) => {
+            let token = crate::providers::prontidao::rodar(&c, f, &mut b);
+            extra(&mut b, token);
+            format!("{onde} ({})", c.nome.trim())
+        }
+        Err(e) => {
+            b.passo(
+                "conexao",
+                "Conexão cadastrada",
+                "Escolha outra conexão no cadastro do projeto ou cadastre-a em Configurações › \
+                 Conexões.",
+                || Err(e),
+            );
+            format!("{onde} ({})", id.trim())
+        }
+    };
+    Integracao {
+        titulo,
+        passos: b.passos,
+    }
+}
+
+/// Repositório de código que referencia uma conexão: os passos da conexão e o
+/// acesso ao repositório (API da forja e `git ls-remote`), com o token próprio
+/// do repositório, se houver, no lugar do da conexão.
+fn prontidao_codigo_conexao(repo: &RepositorioCodigo, f: &Ferramentas, onde: &str) -> Integracao {
+    por_conexao(&repo.conexao, onde, f, |b, _| {
+        b.passo(
+            "acesso",
+            &format!("Acesso ao repositório {}", repo.caminho.trim()),
+            "Confira o caminho e a URL de clone, e se a credencial da conexão (ou o token \
+             próprio do repositório) tem leitura do repositório.",
+            || {
+                let token =
+                    token_do_repositorio(repo, f.chaveiro.as_ref()).map_err(|e| e.to_string())?;
+                crate::acessos::testar_acesso_repositorio(f, repo, token.as_ref())?;
+                Ok(proprio_no_chaveiro(repo, f).then(|| "token próprio do repositório".into()))
+            },
+        );
+    })
 }
 
 /// Confere as integrações cadastradas do projeto.
@@ -509,11 +589,8 @@ pub fn conferir(r: &Repositorios, f: &Ferramentas) -> Prontidao {
     for repo in &r.codigo {
         integracoes.push(prontidao_codigo(repo, f));
     }
-    match &r.tracker {
-        Some(TrackerConfig::Github(g)) => integracoes.push(prontidao_gh(g, f, "Issues (GitHub)")),
-        Some(TrackerConfig::Gitlab(g)) => integracoes.push(prontidao_glab(g, f, "Issues (GitLab)")),
-        Some(TrackerConfig::Jira(j)) => integracoes.push(prontidao_jira(j, f)),
-        None => {}
+    if let Some(t) = &r.tracker {
+        integracoes.push(prontidao_tracker(t, f));
     }
     if let Some(d) = &r.docs {
         integracoes.push(prontidao_docs(d, &r.codigo, f));
@@ -721,7 +798,10 @@ esac"#,
                 },
                 web.clone(),
             ],
-            tracker: Some(TrackerConfig::Github(GithubConfig { repo: "o/r".into() })),
+            tracker: Some(TrackerConfig::Github(GithubConfig {
+                repo: "o/r".into(),
+                ..Default::default()
+            })),
             docs: None,
         };
         let p = conferir(&r, &f);
@@ -868,7 +948,10 @@ esac"#,
             chaveiro: chaveiro.clone(),
             ..Default::default()
         };
-        let cfg = |repo: &str| GithubConfig { repo: repo.into() };
+        let cfg = |repo: &str| GithubConfig {
+            repo: repo.into(),
+            ..Default::default()
+        };
         let i = prontidao_gh(&cfg("o/r"), &f, "Issues (GitHub)");
         assert_eq!(i.passos[2].id, "token");
         assert_eq!(i.passos[2].situacao, Situacao::Falhou);

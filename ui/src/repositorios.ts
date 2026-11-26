@@ -8,6 +8,8 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 export interface GithubConfig {
   /** `dono/repositório`. */
   repo: string;
+  /** Conexão das Configurações (#437); vazio ou ausente = cadastro sem conexão. */
+  conexao?: string;
 }
 
 export interface GitlabConfig {
@@ -15,6 +17,8 @@ export interface GitlabConfig {
   path: string;
   clone_url: string;
   credential_cmd: string;
+  /** Conexão das Configurações (#437); vazio ou ausente = cadastro sem conexão. */
+  conexao?: string;
 }
 
 export type PapelTipoJira = "epic" | "issue" | "bug" | "chore" | "ignore";
@@ -31,6 +35,8 @@ export interface JiraConfig {
   epic_name_field: string;
   sprint_field: string;
   type_map: Record<string, PapelTipoJira>;
+  /** Conexão das Configurações (#437); vazio ou ausente = cadastro sem conexão. */
+  conexao?: string;
 }
 
 export type ForgeKind = "github" | "gitlab";
@@ -57,6 +63,8 @@ export interface RepositorioCodigo {
   token: OrigemToken;
   /** Usado quando `token === "comando"`. */
   comando_credencial: string;
+  /** Conexão das Configurações (#437); vazio ou ausente = cadastro sem conexão. */
+  conexao?: string;
 }
 
 export type TrackerConfig =
