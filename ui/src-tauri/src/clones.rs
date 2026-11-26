@@ -130,6 +130,13 @@ pub fn testar_jira(
     jira: &cba_repos::JiraConfig,
     token: Option<&str>,
 ) -> cba_repos::prontidao::Integracao {
+    // Com conexão (#437), os passos e a credencial são os dela.
+    if !jira.conexao.trim().is_empty() {
+        return cba_repos::prontidao::prontidao_tracker(
+            &cba_repos::TrackerConfig::Jira(jira.clone()),
+            f,
+        );
+    }
     match token.map(str::trim).filter(|t| !t.is_empty()) {
         Some(t) => {
             let memoria = cba_repos::chaveiro::ChaveiroMemoria::default();

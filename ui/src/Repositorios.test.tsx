@@ -19,6 +19,7 @@ import {
   apiConfiguracoesFalsa,
   configuracoesFicticias,
 } from "./test/configuracoesFalso";
+import { apiConexoesFalsa } from "./test/conexoesFalso";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(), Channel: vi.fn() }));
 
@@ -443,6 +444,84 @@ describe("repositórios nas configurações", () => {
     );
     // A prontidão é conferida de novo depois de salvar.
     await waitFor(() => expect(api.prontidaoRepositorios).toHaveBeenCalledTimes(2));
+  });
+
+  it("o repositório de código escolhe a conexão, que traz a forja e o host (#437)", async () => {
+    const api = apiConfiguracoesFalsa();
+    render(
+      <TelaConfiguracoes api={api} apiConexoes={apiConexoesFalsa()} aoMudarProjetos={vi.fn()} />,
+    );
+    const aba = await abaCodigo();
+    fireEvent.click(aba.getByRole("button", { name: "+ Adicionar repositório" }));
+    const conexao = await aba.findByLabelText("Conexão");
+    // Só as conexões que servem de forja: o Jira não aparece.
+    expect(within(conexao).queryByRole("option", { name: /Jira da empresa/ })).toBeNull();
+    fireEvent.change(conexao, { target: { value: "gitlab-interno" } });
+    expect(aba.queryByLabelText("Forja")).not.toBeInTheDocument();
+    expect(aba.queryByLabelText("Host")).not.toBeInTheDocument();
+    fireEvent.change(aba.getByLabelText(/URL de clone/), {
+      target: { value: "https://gitlab.example.com/g/fat.git" },
+    });
+    fireEvent.click(aba.getByRole("button", { name: "Adicionar" }));
+    await waitFor(() => expect(api.salvarRepositorios).toHaveBeenCalled());
+    const [, enviado] = api.salvarRepositorios.mock.calls[0]!;
+    expect(enviado.codigo[0]).toMatchObject({
+      conexao: "gitlab-interno",
+      forja: "gitlab",
+      host: "gitlab.example.com",
+      caminho: "g/fat",
+      token: "global",
+      comando_credencial: "",
+    });
+  });
+
+  it("as demandas do Jira escolhem a conexão e guardam só a chave do projeto (#437)", async () => {
+    const api = apiConfiguracoesFalsa();
+    render(
+      <TelaConfiguracoes api={api} apiConexoes={apiConexoesFalsa()} aoMudarProjetos={vi.fn()} />,
+    );
+    const aba = await abaCodigo();
+    fireEvent.click(aba.getByRole("radio", { name: "Jira" }));
+    const conexao = await aba.findByLabelText("Conexão");
+    expect(within(conexao).queryByRole("option", { name: /GitLab interno/ })).toBeNull();
+    fireEvent.change(conexao, { target: { value: "jira-da-empresa" } });
+    expect(aba.queryByLabelText("URL do Jira")).not.toBeInTheDocument();
+    fireEvent.change(aba.getByLabelText("Chave do projeto"), { target: { value: "FAT" } });
+    fireEvent.click(aba.getByRole("button", { name: "Salvar as demandas" }));
+    await waitFor(() => expect(api.salvarRepositorios).toHaveBeenCalled());
+    const [, enviado] = api.salvarRepositorios.mock.calls[0]!;
+    expect(enviado.tracker).toMatchObject({
+      kind: "jira",
+      conexao: "jira-da-empresa",
+      url: "https://jira.example.com",
+      project_key: "FAT",
+      credential_cmd: "",
+      config_file: "/home/analista/.config/.jira/.config.yml",
+    });
+  });
+
+  it("“Nova conexão…” cria a conexão ali mesmo e já a escolhe (#437)", async () => {
+    const conexoes = apiConexoesFalsa([]);
+    render(
+      <TelaConfiguracoes
+        api={apiConfiguracoesFalsa()}
+        apiConexoes={conexoes}
+        aoMudarProjetos={vi.fn()}
+      />,
+    );
+    const aba = await abaCodigo();
+    fireEvent.click(aba.getByRole("radio", { name: "Jira" }));
+    fireEvent.change(await aba.findByLabelText("Conexão"), { target: { value: "__nova__" } });
+    const form = within(aba.getByRole("group", { name: "Nova conexão" }));
+    // O seletor do Jira só cria Jira.
+    expect(within(form.getByLabelText("Tipo")).getAllByRole("option")).toHaveLength(1);
+    fireEvent.change(form.getByLabelText("Nome"), { target: { value: "Jira novo" } });
+    fireEvent.change(form.getByLabelText("Endereço"), {
+      target: { value: "https://jira.example.com" },
+    });
+    fireEvent.click(form.getByRole("button", { name: "Criar conexão" }));
+    await waitFor(() => expect(aba.getByLabelText("Conexão")).toHaveValue("jira-novo"));
+    expect(aba.queryByRole("group", { name: "Nova conexão" })).not.toBeInTheDocument();
   });
 
   it("não envia cadastro inválido", async () => {
