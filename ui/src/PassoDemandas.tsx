@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from "react";
 import { mensagemDe } from "./analise";
+import { Alerta, Cartao, TituloSecao } from "./componentes";
 import {
   OUTRO_REPOSITORIO,
   ROTULO_FORJA,
@@ -86,8 +87,8 @@ export function PassoDemandas({
   return (
     <>
       <div className="secao-passo">
-        <h3 className="subtitulo-passo">Código-fonte</h3>
-        <div className="cartao-assistente linha-info">
+        <TituloSecao nivel={3}>Código-fonte</TituloSecao>
+        <Cartao como="div" className="linha-info">
           <span className="ok-text" aria-hidden="true">
             ✓
           </span>
@@ -109,7 +110,7 @@ export function PassoDemandas({
               </p>
             </div>
           )}
-        </div>
+        </Cartao>
       </div>
 
       <fieldset className="opcoes-cartao opcoes-demandas">
@@ -224,7 +225,7 @@ function IssuesDoRepositorio({
       ? tracker?.kind === "github" && !tracker.repo
       : tracker?.kind === "gitlab" && !tracker.path;
   return (
-    <div className="cartao-assistente">
+    <Cartao como="div">
       <div className="field">
         <label htmlFor={id}>Repositório das issues</label>
         <select
@@ -296,7 +297,11 @@ function IssuesDoRepositorio({
         {testando && (
           <span className="muted">Testando a conexão com o {origem}…</span>
         )}
-        {falha && <p className="error-text">{falha}</p>}
+        {falha && (
+          <Alerta tom="erro" titulo={`Não deu para testar a conexão com o ${origem}.`}>
+            {falha}
+          </Alerta>
+        )}
         {resultado && (
           <>
             <p className={falhou(resultado) ? "error-text" : "ok-text"}>
@@ -319,7 +324,7 @@ function IssuesDoRepositorio({
           </>
         )}
       </div>
-    </div>
+    </Cartao>
   );
 }
 
@@ -393,7 +398,7 @@ function Jira({
   };
 
   return (
-    <div className="cartao-assistente campos-jira">
+    <Cartao como="div" className="campos-jira">
       <div className="field-pair">
         <Campo
           rotulo="Endereço do Jira"
@@ -463,7 +468,11 @@ function Jira({
         {testando && (
           <span className="muted">Testando a conexão com o Jira…</span>
         )}
-        {falha && <p className="error-text">{falha}</p>}
+        {falha && (
+          <Alerta tom="erro" titulo="Não deu para testar a conexão com o Jira.">
+            {falha}
+          </Alerta>
+        )}
         {resultado && (
           <ul
             className="passos-teste"
@@ -582,6 +591,6 @@ function Jira({
           />
         </div>
       </div>
-    </div>
+    </Cartao>
   );
 }

@@ -389,7 +389,7 @@ describe("Assistente de projeto: passo 1, clonar", () => {
     // De volta ao passo 1: o resumo do clone.
     fireEvent.click(botao("Voltar"));
     const resumo = within(
-      await screen.findByRole("group", { name: "Repositórios clonados" }),
+      await screen.findByRole("article", { name: "Repositórios clonados" }),
     );
     expect(resumo.getByText(/3 repositórios clonados em/)).toBeInTheDocument();
     expect(resumo.getByText("faturamento-web/")).toBeInTheDocument();
@@ -1176,7 +1176,7 @@ describe("Assistente de projeto: ajustes do teste de uso (#224)", () => {
     // O resumo do passo 1 diz o mesmo.
     fireEvent.click(botao("Editar código"));
     const resumo = within(
-      await screen.findByRole("group", { name: "Repositórios clonados" }),
+      await screen.findByRole("article", { name: "Repositórios clonados" }),
     );
     await waitFor(() =>
       expect(resumo.getByText(/branch padrão · sem token/)).toBeInTheDocument(),

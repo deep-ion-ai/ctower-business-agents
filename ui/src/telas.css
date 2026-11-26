@@ -94,7 +94,6 @@ h3.titulo-formulario {
   gap: 8px;
 }
 
-.sugestoes,
 .botoes-fluxo,
 .terminal-controles,
 .acoes-revisao,
@@ -209,12 +208,6 @@ h3.titulo-formulario {
   gap: 16px;
 }
 
-.titulo-assistente {
-  margin: 0;
-  font-size: var(--fs-section);
-  font-weight: var(--fw-strong);
-}
-
 .etapas {
   display: flex;
   flex-wrap: wrap;
@@ -232,36 +225,6 @@ h3.titulo-formulario {
 .etapas .feita::marker {
   content: "✓ ";
   color: var(--ok);
-}
-
-.passo-assistente {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 18px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-}
-
-.passo-assistente h2 {
-  margin: 0;
-  font-size: var(--fs-section);
-  font-weight: var(--fw-strong);
-}
-
-.passo-assistente p {
-  margin: 0;
-  line-height: 1.5;
-}
-
-.passo-assistente textarea,
-.passo-assistente input.caminho {
-  width: 100%;
-}
-
-.passo-assistente input.caminho {
-  max-width: 36rem;
 }
 
 .opcoes-cliente,
@@ -334,26 +297,12 @@ h3.titulo-formulario {
 
 /* ---- Clientes de IA ---- */
 
-.clientes {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.clientes h2 {
-  margin: 0;
-  font-size: var(--fs-support);
-  font-weight: var(--fw-strong);
-  color: var(--muted);
-}
-
 .clientes-lista {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
   gap: 12px;
 }
 
-.cliente,
 .cliente-conversa {
   padding: 12px 14px;
   border: 1px solid var(--border);
@@ -372,11 +321,7 @@ h3.titulo-formulario {
 }
 
 .cliente p {
-  margin: 4px 0;
-}
-
-.clientes button {
-  align-self: flex-start;
+  margin: 0;
 }
 
 .clientes-conversa {
@@ -4651,8 +4596,7 @@ ul.analises-existentes {
 }
 
 /* Pedido do protótipo de telas (#379) e o cartão "Identidade visual". */
-.campos-prototipo,
-.identidade-visual {
+.campos-prototipo {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -4685,13 +4629,6 @@ ul.analises-existentes {
 .aviso-envio p {
   margin: 0;
 }
-.identidade-visual-cabecalho {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-.identidade-visual h4,
 .identidade-visual h5,
 .identidade-visual p {
   margin: 0;
@@ -4699,11 +4636,6 @@ ul.analises-existentes {
 .identidade-visual h5 {
   font-size: var(--fs-small);
   color: var(--muted);
-}
-.identidade-visual .acoes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
 }
 .identidade-visual .a-confirmar {
   color: var(--attention);

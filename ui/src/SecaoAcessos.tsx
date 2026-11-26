@@ -12,6 +12,7 @@ import {
   type SituacaoToken,
 } from "./acessos";
 import { mensagemDe } from "./analise";
+import { Alerta, EstadoVazio, Secao, Selo } from "./componentes";
 import { ErroTecnico } from "./erroTecnico";
 import type { Configuracoes } from "./configuracoes";
 import { DialogoConfirmacao } from "./DialogoConfirmacao";
@@ -100,23 +101,21 @@ export function SecaoAcessos({
   }, [api, chaveAlvos, recarga]);
 
   return (
-    <section className="secao-config acessos" aria-label="Acessos">
-      <div>
-        <h3>Acessos ao GitHub e GitLab</h3>
-        <p className="muted">
-          Tokens usados para clonar repositórios e ler demandas. Ficam no chaveiro do sistema; o app
-          nunca mostra o valor.
-        </p>
-      </div>
+    <Secao titulo="Acessos ao GitHub e GitLab" rotulo="Acessos">
+      <p className="muted">
+        Tokens usados para clonar repositórios e ler demandas. Ficam no chaveiro do sistema; o app
+        nunca mostra o valor.
+      </p>
       {falha && (
-        <p className="error-text" role="alert">
+        <Alerta tom="erro" titulo="Não foi possível ler os acessos.">
           <ErroTecnico mensagem={falha} />
-        </p>
+        </Alerta>
       )}
 
-      <section className="acessos-cartao" aria-label="Token global por host">
-        <div className="acessos-cabecalho">
-          <h4>Token global por host</h4>
+      <Secao
+        titulo="Token global por host"
+        nivel={3}
+        acoes={
           <button
             className="btn btn-sm"
             type="button"
@@ -125,7 +124,8 @@ export function SecaoAcessos({
           >
             + Adicionar host
           </button>
-        </div>
+        }
+      >
         {adicionando && (
           <FormAdicionarHost
             api={api}
@@ -149,17 +149,14 @@ export function SecaoAcessos({
             />
           ))}
         </ul>
-      </section>
+      </Secao>
 
-      <section className="acessos-cartao" aria-label="Repositórios com token próprio">
-        <div className="acessos-cabecalho">
-          <h4>Repositórios com token próprio</h4>
-        </div>
+      <Secao titulo="Repositórios com token próprio" nivel={3}>
         {proprios.length === 0 ? (
-          <p className="muted acessos-vazio">
+          <EstadoVazio>
             Nenhum repositório usa token próprio. Para usar um token só de um repositório, escolha
             “Token só deste repositório” no cadastro dele, na página do projeto.
-          </p>
+          </EstadoVazio>
         ) : (
           <ul className="acessos-lista">
             {proprios.map((p) => (
@@ -174,9 +171,9 @@ export function SecaoAcessos({
             ))}
           </ul>
         )}
-      </section>
+      </Secao>
 
-      <details className="acessos-cartao acessos-comando">
+      <details className="acessos-comando">
         <summary>Prefiro um comando que imprime o token (pass, 1Password, gopass…)</summary>
         <p className="muted">
           Em vez de guardar o token, o app roda o comando quando precisa e usa a primeira linha que
@@ -185,7 +182,7 @@ export function SecaoAcessos({
           <code className="mono">pass show github/pat | head -1</code>.
         </p>
       </details>
-    </section>
+    </Secao>
   );
 }
 
@@ -203,11 +200,7 @@ function estadoDoRepositorio(
 }
 
 function ChipSituacao({ situacao }: { situacao: SituacaoToken }) {
-  return (
-    <span className="acessos-chip" data-tom={situacao.tom}>
-      {situacao.texto}
-    </span>
-  );
+  return <Selo tom={situacao.tom === "ok" ? "concluido" : situacao.tom}>{situacao.texto}</Selo>;
 }
 
 function LinhaHost({
@@ -253,7 +246,7 @@ function LinhaHost({
   return (
     <li className="acessos-linha" aria-label={host.host}>
       <div className="acessos-principal">
-        <span className="acessos-forja">{FORJA[host.forja]}</span>
+        <Selo>{FORJA[host.forja]}</Selo>
         <div className="acessos-texto">
           <span className="mono">{host.host}</span>
           <span className="muted">
@@ -401,7 +394,7 @@ function LinhaRepositorio({
   return (
     <li className="acessos-linha" aria-label={nome}>
       <div className="acessos-principal">
-        <span className="acessos-forja">{FORJA[r.forja]}</span>
+        <Selo>{FORJA[r.forja]}</Selo>
         <div className="acessos-texto">
           <span className="mono">{nome}</span>
           <span className="muted">
@@ -443,9 +436,9 @@ function LinhaRepositorio({
         </div>
       </div>
       {falha && (
-        <p className="error-text acessos-aviso" role="alert">
+        <Alerta tom="erro" titulo="Não foi possível testar o token.">
           <ErroTecnico mensagem={falha} />
-        </p>
+        </Alerta>
       )}
     </li>
   );
@@ -612,9 +605,9 @@ function FormAdicionarHost({
         }}
       />
       {falha && (
-        <p className="error-text" role="alert">
+        <Alerta tom="erro" titulo="Não foi possível adicionar o host.">
           <ErroTecnico mensagem={falha} />
-        </p>
+        </Alerta>
       )}
     </div>
   );

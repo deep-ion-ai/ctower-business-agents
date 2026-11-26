@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { Alerta, BarraAcoes, Secao, Selo, type TomSelo } from "./componentes";
 import { contar } from "./formatacao";
 import { mensagemDe } from "./analise";
 import type {
@@ -25,14 +26,14 @@ export function quandoLegivel(segundos: number, agora = new Date()): string {
 }
 
 function resumoDaBase(info: InfoBase) {
-  const chips: { texto: string; tom?: "done" | "attention" }[] = [];
+  const chips: { texto: string; tom?: TomSelo }[] = [];
   if (!info.existe) {
-    chips.push({ texto: "A pasta não existe mais", tom: "attention" });
+    chips.push({ texto: "A pasta não existe mais", tom: "atencao" });
     return chips;
   }
   chips.push({
     texto: `${info.arquivos} ${info.arquivos === 1 ? "documento" : "documentos"} · ${tamanhoLegivel(info.bytes)}`,
-    tom: "done",
+    tom: "concluido",
   });
   chips.push({ texto: info.git ? "versionada com git" : "sem git" });
   chips.push({
@@ -63,7 +64,6 @@ export function ConfigPastaBase({
   const [feito, setFeito] = useState<TrocaBase | null>(null);
   const [aberta, setAberta] = useState(false);
   const [falha, setFalha] = useState<string | null>(null);
-  const botao = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     let ativo = true;
@@ -79,6 +79,11 @@ export function ConfigPastaBase({
     };
   }, [api, cfg.base]);
 
+  const trocar = () => {
+    setFeito(null);
+    setTrocando(true);
+  };
+
   const abrir = () => {
     setFalha(null);
     api
@@ -88,67 +93,54 @@ export function ConfigPastaBase({
   };
 
   return (
-    <section className="config-secao" aria-labelledby="config-pasta">
-      <header className="config-secao-topo">
-        <h2 id="config-pasta">Pasta da base de conhecimento</h2>
-        <p className="muted">
-          Onde ficam as regras, o glossário, as atas e as análises aprovadas de todos os projetos.
-        </p>
-      </header>
-      <div className="config-cartao">
-        {cfg.base ? (
-          <code className="config-caminho">{cfg.base}</code>
-        ) : (
-          <>
-            <p>
-              <span className="muted">Ainda não escolhida.</span>
-            </p>
-            <p className="muted">
-              Sem a pasta da base não há onde guardar os documentos: escolha uma para cadastrar
-              projetos e editar os modelos.
-            </p>
-          </>
-        )}
-        {info && (
-          <div className="config-linha-chips">
-            {resumoDaBase(info).map((c) => (
-              <span key={c.texto} className="badge" data-tone={c.tom}>
-                {c.tom === "done" ? "✓ " : ""}
-                {c.texto}
-              </span>
-            ))}
-          </div>
-        )}
-        {feito && <ResultadoTroca feito={feito} />}
-        <div className="acoes config-acoes-inicio">
-          {cfg.base && (
-            <button className="btn" type="button" onClick={abrir}>
-              Abrir no computador
-            </button>
-          )}
-          <button
-            ref={botao}
-            className={cfg.base ? "btn" : "btn btn-primary"}
-            type="button"
-            onClick={() => {
-              setFeito(null);
-              setTrocando(true);
-            }}
-          >
-            {cfg.base ? "Trocar a pasta…" : "Escolher a pasta…"}
-          </button>
+    <Secao titulo="Pasta da base de conhecimento">
+      <p className="muted">
+        Onde ficam as regras, o glossário, as atas e as análises aprovadas de todos os projetos.
+      </p>
+      {cfg.base ? (
+        <code className="config-caminho">{cfg.base}</code>
+      ) : (
+        <>
+          <p>
+            <span className="muted">Ainda não escolhida.</span>
+          </p>
+          <p className="muted">
+            Sem a pasta da base não há onde guardar os documentos: escolha uma para cadastrar
+            projetos e editar os modelos.
+          </p>
+        </>
+      )}
+      {info && (
+        <div className="config-linha-chips">
+          {resumoDaBase(info).map((c) => (
+            <Selo key={c.texto} tom={c.tom ?? "neutro"}>
+              {c.tom === "concluido" ? "✓ " : ""}
+              {c.texto}
+            </Selo>
+          ))}
         </div>
-        {aberta && !falha && (
-          <p className="muted" role="status">
-            Pasta aberta no gerenciador de arquivos.
-          </p>
-        )}
-        {falha && (
-          <p className="error-text" role="alert">
-            {falha}
-          </p>
-        )}
-      </div>
+      )}
+      {feito && <ResultadoTroca feito={feito} />}
+      <BarraAcoes
+        rotulo="Ações da pasta da base"
+        principal={
+          cfg.base ? undefined : { texto: "Escolher a pasta…", aoEscolher: () => trocar() }
+        }
+        secundarias={
+          cfg.base
+            ? [
+                { texto: "Abrir no computador", aoEscolher: abrir },
+                { texto: "Trocar a pasta…", aoEscolher: () => trocar() },
+              ]
+            : []
+        }
+      />
+      {aberta && !falha && (
+        <p className="muted" role="status">
+          Pasta aberta no gerenciador de arquivos.
+        </p>
+      )}
+      {falha && <Alerta tom="erro" titulo={falha} />}
       {trocando && (
         <DialogoTrocaBase
           api={api}
@@ -161,7 +153,7 @@ export function ConfigPastaBase({
           }}
         />
       )}
-    </section>
+    </Secao>
   );
 }
 
@@ -401,10 +393,12 @@ function ConfirmarTroca({
             </label>
           </fieldset>
           {avaliacao.sessoesAbertas > 0 && (
-            <p className="attention-text" role="status">
-              Há {contar(avaliacao.sessoesAbertas, "conversa", "conversas")} com o Claude que podem estar abertas. Feche
-              as conversas antes de trocar a base, para nada ser gravado na pasta antiga.
-            </p>
+            <Alerta
+              tom="atencao"
+              titulo={`Há ${contar(avaliacao.sessoesAbertas, "conversa", "conversas")} com o Claude que podem estar abertas.`}
+            >
+              Feche as conversas antes de trocar a base, para nada ser gravado na pasta antiga.
+            </Alerta>
           )}
           {modo && (
             <label>
@@ -419,11 +413,7 @@ function ConfirmarTroca({
                 : "Confirmo: passar a usar a pasta nova, deixando os documentos atuais onde estão"}
             </label>
           )}
-          {!modo && (
-            <p className="error-text" role="alert">
-              {recusa("reapontar") ?? recusa("mover")}
-            </p>
-          )}
+          {!modo && <Alerta tom="erro" titulo={recusa("reapontar") ?? recusa("mover")} />}
         </>
       )}
       {ocupado && (
@@ -432,11 +422,7 @@ function ConfirmarTroca({
           {modo === "mover" ? "Copiando e conferindo os documentos…" : "Trocando a base…"}
         </div>
       )}
-      {falha && (
-        <p className="error-text" role="alert">
-          {falha}
-        </p>
-      )}
+      {falha && <Alerta tom="erro" titulo={falha} />}
       <div className="dialogo-acoes dialogo-acoes-troca">
         <button className="btn" type="button" onClick={aoVoltar} disabled={ocupado}>
           ← Voltar
@@ -470,9 +456,7 @@ function ResultadoTroca({ feito }: { feito: TrocaBase }) {
         {feito.indexados !== null && `Índice reconstruído com ${feito.indexados} documentos.`}
       </p>
       {feito.avisos.map((a) => (
-        <p key={a} className="attention-text">
-          {a}
-        </p>
+        <Alerta key={a} tom="atencao" role="note" titulo={a} />
       ))}
     </div>
   );

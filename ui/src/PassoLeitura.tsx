@@ -1,5 +1,7 @@
 import { useId, useState } from "react";
+import { Alerta, BotaoIcone, Cartao, ItemLista, ListaItens } from "./componentes";
 import { numero, plural } from "./estadoCadastro";
+import { IconeDesfazer, IconeMais } from "./icones";
 import {
   tamanhoLegivel,
   type GrupoIgnorado,
@@ -96,20 +98,22 @@ export function PassoLeitura({
         )}
       </div>
       {falha && !lendo && (
-        <div className="falha-previa">
-          <p className="error-text" role="alert">
-            {falha}
-          </p>
-          <button type="button" className="btn btn-sm" onClick={aoTentarDeNovo}>
-            Tentar de novo
-          </button>
-        </div>
+        <Alerta
+          tom="erro"
+          titulo="Não deu para ler as pastas."
+          acoes={
+            <button type="button" className="btn btn-sm" onClick={aoTentarDeNovo}>
+              Tentar de novo
+            </button>
+          }
+        >
+          {falha}
+        </Alerta>
       )}
       {previa?.jaCadastrado && (
-        <p className="error-text" role="alert">
-          Já existe um projeto cadastrado com o nome “{previa.nome}”. Volte ao passo 1 e use outro
-          nome.
-        </p>
+        <Alerta tom="erro" titulo={`Já existe um projeto cadastrado com o nome “${previa.nome}”.`}>
+          Volte ao passo 1 e use outro nome.
+        </Alerta>
       )}
 
       {inv && (
@@ -118,7 +122,7 @@ export function PassoLeitura({
           aria-label="Prévia do inventário"
           aria-busy={lendo || undefined}
         >
-          <div className="cartao-assistente" role="group" aria-label="O que será analisado">
+          <Cartao rotulo="O que será analisado">
             <p className="numero-destaque">
               <strong>{numero(inv.analisados)}</strong>{" "}
               <span>arquivos serão analisados · {tamanhoLegivel(inv.bytesAnalisados)}</span>
@@ -137,9 +141,9 @@ export function PassoLeitura({
                 </li>
               ))}
             </ul>
-          </div>
+          </Cartao>
 
-          <div className="cartao-assistente" role="group" aria-label="O que fica fora">
+          <Cartao rotulo="O que fica fora">
             <p className="numero-destaque">
               <strong>{numero(inv.ignorados)}</strong> <span>arquivos ficam fora</span>
             </p>
@@ -154,25 +158,28 @@ export function PassoLeitura({
               </ul>
             )}
             {segredos.length > 0 && (
-              <div className="aviso-segredos" role="group" aria-label="Podem conter segredos">
-                <p>
-                  <ListaDeCaminhos itens={segredos} />{" "}
-                  {segredos.length === 1
-                    ? "ficou fora por parecer ter senhas ou tokens. Se não tiver, você pode incluí-lo."
-                    : "ficaram fora por parecerem ter senhas ou tokens. Se não tiverem, você pode incluí-los."}
-                </p>
-                <ul>
-                  {segredos.map((i) => (
-                    <ItemIncluivel key={i.caminho} item={i} aoIncluir={aoIncluir} ocupado={lendo} />
-                  ))}
-                </ul>
+              <div role="group" aria-label="Podem conter segredos">
+                {/* Aviso fixo da prévia: "note", para não ser anunciado a cada releitura. */}
+                <Alerta tom="atencao" titulo="Podem conter segredos." role="note">
+                  <p>
+                    <ListaDeCaminhos itens={segredos} />{" "}
+                    {segredos.length === 1
+                      ? "ficou fora por parecer ter senhas ou tokens. Se não tiver, você pode incluí-lo."
+                      : "ficaram fora por parecerem ter senhas ou tokens. Se não tiverem, você pode incluí-los."}
+                  </p>
+                  <ListaItens>
+                    {segredos.map((i) => (
+                      <ItemIncluivel key={i.caminho} item={i} aoIncluir={aoIncluir} ocupado={lendo} />
+                    ))}
+                  </ListaItens>
+                </Alerta>
               </div>
             )}
-          </div>
+          </Cartao>
         </section>
       )}
 
-      <div className="cartao-assistente ajustes-leitura">
+      <Cartao como="div" className="ajustes-leitura">
         <button
           type="button"
           className="disclosure"
@@ -200,16 +207,18 @@ export function PassoLeitura({
                   onChange={(e) => setBusca(e.target.value)}
                 />
               </div>
-              <ul className="lista-incluiveis">
-                {visiveis.map((g) => (
-                  <GrupoIncluivel
-                    key={`${g.pasta}|${g.tipo}|${g.motivo}`}
-                    grupo={g}
-                    aoIncluir={aoIncluirGrupo}
-                    ocupado={lendo}
-                  />
-                ))}
-              </ul>
+              <div className="rolagem-incluiveis">
+                <ListaItens>
+                  {visiveis.map((g) => (
+                    <GrupoIncluivel
+                      key={`${g.pasta}|${g.tipo}|${g.motivo}`}
+                      grupo={g}
+                      aoIncluir={aoIncluirGrupo}
+                      ocupado={lendo}
+                    />
+                  ))}
+                </ListaItens>
+              </div>
               <p className="muted" role="status">
                 {encontrados.length === 0
                   ? "Nada encontrado com essa busca."
@@ -222,29 +231,30 @@ export function PassoLeitura({
           {inclusoes.length > 0 && (
             <div role="group" aria-label="Reincluídos">
               <p className="subtitulo-passo">Incluídos por você (ficam visíveis para a IA)</p>
-              <ul className="lista-incluiveis">
+              <ListaItens>
                 {inclusoes.map((x) => (
-                  <li key={x}>
-                    <span>
-                      <code>{x}</code>
-                      {vistas.get(x) && (
-                        <>
-                          {" "}
-                          <span className="muted">· {efeitoDaInclusao(vistas.get(x)!)}</span>
-                        </>
-                      )}
-                    </span>
-                    <button
-                      className="btn btn-sm"
-                      type="button"
-                      aria-label={`Tirar a reinclusão de ${x}`}
-                      onClick={() => aoTirarInclusao(x)}
-                    >
-                      Desfazer
-                    </button>
-                  </li>
+                  <ItemLista
+                    key={x}
+                    acoes={
+                      <BotaoIcone
+                        rotulo={`Tirar a reinclusão de ${x}`}
+                        dica="Desfazer a reinclusão"
+                        onClick={() => aoTirarInclusao(x)}
+                      >
+                        <IconeDesfazer />
+                      </BotaoIcone>
+                    }
+                  >
+                    <code>{x}</code>
+                    {vistas.get(x) && (
+                      <>
+                        {" "}
+                        <span className="muted">· {efeitoDaInclusao(vistas.get(x)!)}</span>
+                      </>
+                    )}
+                  </ItemLista>
                 ))}
-              </ul>
+              </ListaItens>
             </div>
           )}
           <div className="field">
@@ -261,7 +271,7 @@ export function PassoLeitura({
             />
           </div>
         </div>
-      </div>
+      </Cartao>
     </>
   );
 }
@@ -292,24 +302,24 @@ function ItemIncluivel({
   ocupado: boolean;
 }) {
   return (
-    <li>
-      <span>
-        <code>
-          {item.caminho}
-          {item.pasta ? "/" : ""}
-        </code>{" "}
-        <span className="muted">· {item.rotulo}</span>
-      </span>
-      <button
-        className="btn btn-sm"
-        type="button"
-        disabled={ocupado}
-        aria-label={`Incluir ${item.caminho} na análise`}
-        onClick={() => aoIncluir(item.caminho)}
-      >
-        Incluir
-      </button>
-    </li>
+    <ItemLista
+      acoes={
+        <BotaoIcone
+          rotulo={`Incluir ${item.caminho} na análise`}
+          dica="Incluir na análise"
+          disabled={ocupado}
+          onClick={() => aoIncluir(item.caminho)}
+        >
+          <IconeMais />
+        </BotaoIcone>
+      }
+    >
+      <code>
+        {item.caminho}
+        {item.pasta ? "/" : ""}
+      </code>{" "}
+      <span className="muted">· {item.rotulo}</span>
+    </ItemLista>
   );
 }
 
@@ -324,22 +334,22 @@ function GrupoIncluivel({
 }) {
   const nome = rotuloDoGrupo(grupo);
   return (
-    <li>
-      <span>
-        <code>{nome}</code>{" "}
-        <span className="muted">
-          · {grupo.rotulo} · {plural(grupo.arquivos, "arquivo", "arquivos")}
-        </span>
+    <ItemLista
+      acoes={
+        <BotaoIcone
+          rotulo={`Incluir ${nome} na análise`}
+          dica="Incluir na análise"
+          disabled={ocupado}
+          onClick={() => aoIncluir(grupo.padroes)}
+        >
+          <IconeMais />
+        </BotaoIcone>
+      }
+    >
+      <code>{nome}</code>{" "}
+      <span className="muted">
+        · {grupo.rotulo} · {plural(grupo.arquivos, "arquivo", "arquivos")}
       </span>
-      <button
-        className="btn btn-sm"
-        type="button"
-        disabled={ocupado}
-        aria-label={`Incluir ${nome} na análise`}
-        onClick={() => aoIncluir(grupo.padroes)}
-      >
-        Incluir
-      </button>
-    </li>
+    </ItemLista>
   );
 }
