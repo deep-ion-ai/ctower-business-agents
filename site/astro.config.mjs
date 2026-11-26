@@ -6,6 +6,7 @@ import { defineConfig } from 'astro/config';
 export default defineConfig({
   site: 'https://ctower-business-agents.pages.dev',
   output: 'static',
+  devToolbar: { enabled: false },
   // pt-BR na raiz. /en/ fica reservado: adicionar 'en' aqui e um arquivo src/i18n/en.json.
   i18n: {
     defaultLocale: 'pt-br',

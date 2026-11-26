@@ -3,7 +3,7 @@
     "lang": "pt-BR",
     "title": "Ctower Business Agents: entenda sistemas legados a partir do código",
     "description": "Assistente desktop para analistas de requisitos e de negócio: responde perguntas, explica funcionalidades e analisa o impacto de demandas, com evidência para cada afirmação. Open source, Apache-2.0.",
-    "imageAlt": "Tela do Ctower Business Agents com a documentação de um projeto de referência"
+    "imageAlt": "Visão geral de um projeto no Ctower Business Agents, com próximos passos, análises, regras e cobertura da base por área"
   },
   "header": {
     "skip": "Pular para o conteúdo",
@@ -24,7 +24,9 @@
     "downloadWindows": "Baixar para Windows",
     "detected": "Seu sistema",
     "githubCta": "Ver no GitHub",
-    "versionNote": "Versão atual nas releases do GitHub. Os instaladores ainda não têm assinatura: veja a seção Instalação."
+    "versionNote": "Versão atual nas releases do GitHub. Os instaladores ainda não têm assinatura: veja a seção Instalação.",
+    "zoom": "Ampliar imagem",
+    "close": "Fechar"
   },
   "howItWorks": {
     "title": "Como funciona",
@@ -48,36 +50,54 @@
     "lead": "Telas reais do app, capturadas com um projeto de referência de código aberto (OpenCBS-Cloud). Nenhum dado de cliente aparece aqui.",
     "items": [
       {
-        "title": "Demandas do rastreador",
-        "text": "Uma demanda reúne linha do tempo, reuniões, análises e a matriz de rastreabilidade num só lugar.",
-        "alt": "Painel de uma demanda, com a linha do tempo, reuniões e a matriz de rastreabilidade"
-      },
-      {
-        "title": "Revisão e aprovação",
-        "text": "Cada afirmação da análise traz o nível de confiança e a evidência. Só o que você aprova vira regra da base do projeto.",
-        "alt": "Análise em revisão, com as afirmações e as evidências"
+        "title": "Respostas com evidência",
+        "text": "Cada afirmação da análise aponta o arquivo e as linhas de onde saiu. Você confirma ou corrige, e só o que aprova vira regra da base do projeto.",
+        "alt": "Análise aprovada com as afirmações e as evidências no código, como LoanPenaltyAccrualProcessor.java:62-72"
       },
       {
         "title": "Mapa de funcionalidades",
-        "text": "O agente agrupa os pontos de entrada do código em funcionalidades de negócio, para você revisar, juntar ou dividir.",
-        "alt": "Mapa de funcionalidades agrupadas por área, com status de aceitação"
+        "text": "O agente agrupa os pontos de entrada do código em funcionalidades de negócio, por área, para você revisar, aceitar, juntar ou dividir.",
+        "alt": "Mapa de funcionalidades agrupadas por área, com a situação de cada uma"
       },
       {
         "title": "Base de conhecimento",
-        "text": "Busca em regras, termos, análises e documentos externos do projeto, com trechos destacados.",
-        "alt": "Busca na base de conhecimento do projeto com trechos destacados"
+        "text": "Regras, glossário e documentos do projeto num só lugar, com as evidências conferidas de novo contra o código.",
+        "alt": "Base de conhecimento com as regras confirmadas do projeto"
+      },
+      {
+        "title": "Mapa do código",
+        "text": "Linguagens, pastas, telas, tabelas e dependências do sistema, levantadas a partir do código-fonte.",
+        "alt": "Mapa do código com a contagem de arquivos por linguagem e as dependências entre as pastas"
       }
     ]
   },
   "differentials": {
     "title": "Diferenciais",
     "items": [
-      { "title": "Standalone", "text": "Sem servidor e sem conta nossa. O app roda na sua máquina." },
-      { "title": "Usa a assinatura de IA que você já tem", "text": "Funciona com o Claude Code no terminal embutido ou com o Claude Desktop." },
-      { "title": "Analisa, não altera código", "text": "O agente é orientado a não modificar o código nem publicar nada sem sua aprovação." },
-      { "title": "Evidência validada", "text": "Cada afirmação aponta para o arquivo e as linhas. O app confere as evidências antes de você aprovar." },
-      { "title": "Base de conhecimento local", "text": "As regras, termos e análises aprovados ficam no projeto, para as análises seguintes." },
-      { "title": "Exportação e publicação", "text": "Exporta em Markdown, Word ou HTML, e pode publicar a documentação num repositório git, por branch e PR." }
+      {
+        "title": "Standalone",
+        "text": "Sem servidor e sem conta nossa. O app roda na sua máquina."
+      },
+      {
+        "title": "Usa a assinatura de IA que você já tem",
+        "text": "Funciona com o Claude Code no terminal embutido ou com o Claude Desktop."
+      },
+      {
+        "title": "Analisa, não altera código",
+        "text": "O agente é orientado a não modificar o código nem publicar nada sem sua aprovação."
+      },
+      {
+        "title": "Evidência validada",
+        "text": "Cada afirmação aponta para o arquivo e as linhas. O app confere as evidências antes de você aprovar."
+      },
+      {
+        "title": "Base de conhecimento local",
+        "text": "As regras, termos e análises aprovados ficam no projeto, para as análises seguintes."
+      },
+      {
+        "title": "Exportação e publicação",
+        "text": "Exporta em Markdown, Word ou HTML, e pode publicar a documentação num repositório git, por branch e PR."
+      }
     ]
   },
   "privacy": {
