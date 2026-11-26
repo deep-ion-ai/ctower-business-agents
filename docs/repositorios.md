@@ -148,7 +148,7 @@ prontidão não bloqueia o app.
   (autor, data e texto, do mais antigo ao mais recente; no Jira, o wiki vira Markdown), anexos
   (nome e tipo, sem baixar; no GitHub e no GitLab, os links de upload do texto) e issues ligadas
   (Jira e GitLab). Usa `jira issue view --raw --comments`, `gh issue view --json …,comments` e
-  `glab api …/issues/N`, `…/notes` (sem as notas do sistema) e `…/links`, com o token do resolvedor
+  `glab api …/issues/N`, `…/notes` (sem as notas automáticas) e `…/links`, com o token do resolvedor
   só no ambiente da CLI: o agente recebe o conteúdo, nunca a credencial, e os erros passam pelo
   mascaramento. Limites: os 30 comentários mais recentes (o agente pode pedir até 100), 4 mil
   caracteres por comentário, 40 mil nos comentários somados (saem os mais antigos) e 20 mil na

@@ -782,7 +782,7 @@ FIM"#,
     }
 
     #[test]
-    fn gitlab_traz_notas_sem_as_do_sistema_ligadas_e_anexos() {
+    fn gitlab_traz_comentarios_sem_notas_automaticas_ligadas_e_anexos() {
         let d = tempfile::tempdir().unwrap();
         let glab = script(
             d.path(),
