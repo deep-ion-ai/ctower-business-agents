@@ -1,5 +1,4 @@
 use super::*;
-use std::process::Command;
 
 fn conexao(tipo: &str, endereco: &str) -> Conexao {
     Conexao {
@@ -217,6 +216,7 @@ fn variaveis_de_ambiente_das_clis() {
 #[cfg(unix)]
 #[test]
 fn credencial_so_no_ambiente_do_filho() {
+    use std::process::Command;
     let c = conexao("gitlab", "gitlab.example.com");
     let d = todos().de(&c).unwrap();
     let mut cmd = Command::new("/bin/sh");
