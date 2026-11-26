@@ -3,8 +3,11 @@ name: ci
 on:
   pull_request:
   # Sem `wip/**`: cada merge numa wip já passou pelo CI do PR, atualizado com a base.
+  # Push só do site (site/ e o workflow dele) não roda o CI: o site tem build e
+  # deploy próprios no site-pages.yml. Em PR, o job `mudancas` faz o mesmo.
   push:
     branches: [develop, main]
+    paths-ignore: ['site/**', '.github/workflows/site-pages.yml']
   workflow_dispatch:
 
 permissions:
@@ -18,8 +21,9 @@ concurrency:
 jobs:
   # Decide quais jobs rodam, um output por área, em qualquer PR (inclusive para
   # develop e main). Push em develop ou main e execução manual rodam tudo, e um PR
-  # que mexe em .github/workflows/** também. O diff é contra a base do PR, sem ação
-  # de terceiros:
+  # que mexe em .github/workflows/** também, menos o site-pages.yml (o site tem
+  # build próprio nele e não afeta estes jobs). O diff é contra a base do PR, sem
+  # ação de terceiros:
   #   rust       crates/, ui/ (o cba-app embute ui/dist), fixtures/, Cargo.toml,
   #              Cargo.lock, rust-toolchain.toml
   #   ui         ui/
@@ -32,8 +36,8 @@ jobs:
   #              main, e o push na develop depois do merge roda tudo de novo. Então
   #              rust, ui e instaladores são pulados; `politicas` e `ci-ok` seguem.
   #              Qualquer outro arquivo (ex.: hotfix na main) volta ao CI completo.
-  # PR só de docs/, *.md da raiz, LICENSE e afins não roda nenhum deles; `titulo`,
-  # CLA e `ci-ok` continuam.
+  # PR só de docs/, site/, *.md da raiz, LICENSE e afins não roda nenhum deles;
+  # `titulo`, CLA e `ci-ok` continuam. O build do site roda no site-pages.yml.
   mudancas:
     runs-on: ubuntu-latest
     outputs:
@@ -61,7 +65,7 @@ jobs:
             alterados=$(git diff --name-only HEAD^1 HEAD)
             printf '%s\n' "$alterados"
             tudo=false
-            if printf '%s\n' "$alterados" | grep -Eq '^\.github/workflows/'; then tudo=true; fi
+            if printf '%s\n' "$alterados" | grep -Ev '^\.github/workflows/site-pages\.yml$' | grep -Eq '^\.github/workflows/'; then tudo=true; fi
           fi
           # Back-merge da release: só arquivos gerados pelo release-please.
           codigo=true

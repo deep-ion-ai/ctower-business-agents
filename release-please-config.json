@@ -8,6 +8,7 @@
     ".": {
       "release-type": "simple",
       "changelog-path": "CHANGELOG.md",
+      "exclude-paths": ["site", ".github/workflows/site-pages.yml"],
       "extra-files": [
         { "type": "toml", "path": "Cargo.toml", "jsonpath": "$.workspace.package.version" },
         { "type": "json", "path": "ui/package.json", "jsonpath": "$.version" },

@@ -1,0 +1,41 @@
+name: site-pages
+
+# Landing page (site/) no GitHub Pages: https://deep-ion-ai.github.io/ctower-business-agents/
+# Push na develop publica; PR que mexe no site só roda o build.
+on:
+  push:
+    branches: [develop]
+    paths: ['site/**', '.github/workflows/site-pages.yml']
+  pull_request:
+    paths: ['site/**', '.github/workflows/site-pages.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: site-pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: withastro/action@v6
+        with:
+          path: site
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
