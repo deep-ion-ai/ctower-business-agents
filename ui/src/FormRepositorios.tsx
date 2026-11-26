@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { mensagemDe } from "./analise";
 import { EstadoVazio } from "./componentes";
 import { ErroTecnico } from "./erroTecnico";
+import { rastreadorComConexao, repositorioComConexao } from "./conexoes";
+import { SeletorConexao } from "./SeletorConexao";
 import { Icon } from "./shell/icons";
 import {
   GITHUB_VAZIO,
@@ -79,13 +81,15 @@ export function CamposGitlab({
     <>
       {parte !== "mais" && (
         <div className="field-pair">
-          <CampoTexto
-            rotulo="Host do GitLab"
-            valor={valor.host}
-            exemplo="gitlab.example.com"
-            desabilitado={fixo}
-            aoMudar={(host) => aoMudar({ ...valor, host })}
-          />
+          {!valor.conexao && (
+            <CampoTexto
+              rotulo="Host do GitLab"
+              valor={valor.host}
+              exemplo="gitlab.example.com"
+              desabilitado={fixo}
+              aoMudar={(host) => aoMudar({ ...valor, host })}
+            />
+          )}
           <CampoTexto
             rotulo="Caminho do projeto"
             valor={valor.path}
@@ -103,17 +107,21 @@ export function CamposGitlab({
             exemplo="https://gitlab.example.com/grupo/projeto/app.git"
             aoMudar={(clone_url) => aoMudar({ ...valor, clone_url })}
           />
-          <CampoTexto
-            rotulo="Comando de credencial (opcional, imprime o token)"
-            valor={valor.credential_cmd}
-            exemplo="pass show gitlab | head -1"
-            mono
-            aoMudar={(credential_cmd) => aoMudar({ ...valor, credential_cmd })}
-          />
-          <p className="muted">
-            Vazio: vale o token global do host guardado no chaveiro do sistema (Configurações ›
-            Acessos).
-          </p>
+          {!valor.conexao && (
+            <>
+              <CampoTexto
+                rotulo="Comando de credencial (opcional, imprime o token)"
+                valor={valor.credential_cmd}
+                exemplo="pass show gitlab | head -1"
+                mono
+                aoMudar={(credential_cmd) => aoMudar({ ...valor, credential_cmd })}
+              />
+              <p className="muted">
+                Vazio: vale o token global do host guardado no chaveiro do sistema
+                (Configurações › Acessos).
+              </p>
+            </>
+          )}
         </>
       )}
     </>
@@ -137,12 +145,14 @@ export function CamposJira({
     <>
       {essenciais && (
         <div className="field-pair">
-          <CampoTexto
-            rotulo="URL do Jira"
-            valor={valor.url}
-            exemplo="https://jira.example.com"
-            aoMudar={(v) => campo("url", v)}
-          />
+          {!valor.conexao && (
+            <CampoTexto
+              rotulo="URL do Jira"
+              valor={valor.url}
+              exemplo="https://jira.example.com"
+              aoMudar={(v) => campo("url", v)}
+            />
+          )}
           <CampoTexto
             rotulo="Chave do projeto"
             valor={valor.project_key}
@@ -188,20 +198,24 @@ export function CamposJira({
       )}
       {mais && (
         <>
-          <CampoTexto
-            rotulo="Comando de credencial (imprime o token)"
-            valor={valor.credential_cmd}
-            exemplo="pass show jira | head -1"
-            mono
-            aoMudar={(v) => campo("credential_cmd", v)}
-          />
-          <CampoTexto
-            rotulo="Configuração do jira-cli"
-            valor={valor.config_file}
-            exemplo="~/.config/.jira/.config.yml"
-            mono
-            aoMudar={(v) => campo("config_file", v)}
-          />
+          {!valor.conexao && (
+            <>
+              <CampoTexto
+                rotulo="Comando de credencial (imprime o token)"
+                valor={valor.credential_cmd}
+                exemplo="pass show jira | head -1"
+                mono
+                aoMudar={(v) => campo("credential_cmd", v)}
+              />
+              <CampoTexto
+                rotulo="Configuração do jira-cli"
+                valor={valor.config_file}
+                exemplo="~/.config/.jira/.config.yml"
+                mono
+                aoMudar={(v) => campo("config_file", v)}
+              />
+            </>
+          )}
           <div className="field-pair">
             <CampoTexto
               rotulo="Campo do Epic Link (opcional)"
@@ -261,6 +275,12 @@ const ORIGENS_TOKEN: { valor: OrigemToken; rotulo: string }[] = [
   { valor: "global", rotulo: "Token global do host" },
   { valor: "proprio", rotulo: "Token só deste repositório" },
   { valor: "comando", rotulo: "Comando que imprime o token" },
+];
+
+/** Com conexão, o token é o dela, ou um só deste repositório (sobrescrita). */
+const ORIGENS_COM_CONEXAO: { valor: OrigemToken; rotulo: string }[] = [
+  { valor: "global", rotulo: "Da conexão" },
+  { valor: "proprio", rotulo: "Só deste repositório" },
 ];
 
 export type ApiToken = Pick<ApiRepositorios, "salvarToken" | "tokensGuardados" | "testarAcesso">;
@@ -415,11 +435,17 @@ export function ItemRepositorioCodigo({
       forja,
       host: forja === "github" ? "github.com" : valor.host === "github.com" ? "" : valor.host,
     });
+  const comConexao = Boolean(valor.conexao);
   return (
     <fieldset className="repositorio-codigo" aria-label={nome}>
       <legend>
         <Icon name={valor.forja} /> {nome}
       </legend>
+      <SeletorConexao
+        capacidade="forja"
+        valor={valor.conexao ?? ""}
+        aoMudar={(_, c) => aoMudar(repositorioComConexao(valor, c))}
+      />
       <CampoTexto
         rotulo="URL de clone (HTTPS ou SSH)"
         valor={valor.url_clone}
@@ -428,26 +454,30 @@ export function ItemRepositorioCodigo({
         aoMudar={mudarUrl}
       />
       <div className="field-pair">
-        <div className="field">
-          <label>
-            Forja
-            <select
-              value={valor.forja}
-              disabled={fixo}
-              onChange={(e) => mudarForja(e.target.value as ForgeKind)}
-            >
-              <option value="github">GitHub</option>
-              <option value="gitlab">GitLab</option>
-            </select>
-          </label>
-        </div>
-        <CampoTexto
-          rotulo="Host"
-          valor={valor.host}
-          exemplo={valor.forja === "github" ? "github.com" : "gitlab.example.com"}
-          desabilitado={fixo}
-          aoMudar={(host) => aoMudar({ ...valor, host })}
-        />
+        {!comConexao && (
+          <>
+            <div className="field">
+              <label>
+                Forja
+                <select
+                  value={valor.forja}
+                  disabled={fixo}
+                  onChange={(e) => mudarForja(e.target.value as ForgeKind)}
+                >
+                  <option value="github">GitHub</option>
+                  <option value="gitlab">GitLab</option>
+                </select>
+              </label>
+            </div>
+            <CampoTexto
+              rotulo="Host"
+              valor={valor.host}
+              exemplo={valor.forja === "github" ? "github.com" : "gitlab.example.com"}
+              desabilitado={fixo}
+              aoMudar={(host) => aoMudar({ ...valor, host })}
+            />
+          </>
+        )}
         <CampoTexto
           rotulo="Caminho"
           valor={valor.caminho}
@@ -470,7 +500,7 @@ export function ItemRepositorioCodigo({
               value={valor.token}
               onChange={(e) => aoMudar({ ...valor, token: e.target.value as OrigemToken })}
             >
-              {ORIGENS_TOKEN.map((o) => (
+              {(comConexao ? ORIGENS_COM_CONEXAO : ORIGENS_TOKEN).map((o) => (
                 <option key={o.valor} value={o.valor}>
                   {o.rotulo}
                 </option>
@@ -479,10 +509,10 @@ export function ItemRepositorioCodigo({
           </label>
         </div>
       </div>
-      {(valor.token === "global" || valor.token === "proprio") && (
+      {(comConexao ? valor.token === "proprio" : valor.token === "global" || valor.token === "proprio") && (
         <TokenDoRepositorio api={api} valor={valor} />
       )}
-      {valor.token === "comando" && (
+      {!comConexao && valor.token === "comando" && (
         <CampoTexto
           rotulo="Comando de credencial (imprime o token)"
           valor={valor.comando_credencial}
@@ -594,11 +624,19 @@ export function FormRepositorios({
           </select>
         </label>
       </div>
+      {tracker && (
+        <SeletorConexao
+          capacidade="rastreador"
+          tipo={tracker.kind}
+          valor={tracker.conexao ?? ""}
+          aoMudar={(_, c) => aoMudar({ ...valor, tracker: rastreadorComConexao(tracker, c) })}
+        />
+      )}
       {tracker?.kind === "github" && (
         <CampoRepoGithub
           rotulo="Repositório das issues (dono/repositório)"
           valor={tracker}
-          aoMudar={(g) => aoMudar({ ...valor, tracker: { kind: "github", ...g } })}
+          aoMudar={(g) => aoMudar({ ...valor, tracker: { ...tracker, ...g } })}
         />
       )}
       {tracker?.kind === "gitlab" && (

@@ -18,6 +18,12 @@
 //! - os diagramas registrados ([`diagrama`]), que a montagem transforma em
 //!   Mermaid, com legenda e tabela de elementos.
 //!
+//! - as evidências de dados (#440): o resumo entra no texto da afirmação, com uma
+//!   nota de rodapé (`[^dados-n]`) que leva a conexão, o ambiente, a data e hora, o
+//!   SQL e as linhas; as notas ficam na seção de evidências, avisando que valem
+//!   para a data em que foram tiradas. A exportação sem evidências tira as notas
+//!   e fica só o resumo.
+//!
 //! Os termos propostos ficam no estado e viram glossário na aprovação (#11).
 //!
 //! No parecer de revisão (fluxo `revisar`), o veredito, os achados e a
@@ -25,6 +31,7 @@
 //! achados descartados pelo analista ficam de fora.
 
 use cba_core::analise::{Analise, Confianca, EstadoAfirmacao, EstadoPergunta, Evidencia, Fluxo};
+use cba_core::consultas::EvidenciaDados;
 use cba_docs::{Citacao, Conteudo, Templates, Texto};
 use cba_kb::frontmatter::{Abrangencia, FrontmatterAnalise, StatusSugestao};
 use cba_kb::{Base, Documento};
@@ -253,17 +260,40 @@ pub fn conteudo(
             .textos
             .extend(crate::prototipo::textos(analise, &analise.documento));
     }
+    let mut notas_de_dados: Vec<String> = Vec::new();
+    let mut citadas: Vec<u32> = Vec::new();
     conteudo.afirmacoes = analise
         .afirmacoes
         .iter()
         .filter(|a| !matches!(a.estado, EstadoAfirmacao::Incorreta { .. }))
-        .map(|a| cba_docs::Afirmacao {
-            secao: a.secao.clone(),
-            texto: a.texto.clone(),
-            confianca: confianca(a.confianca),
-            evidencias: a.evidencias.iter().map(citacao).collect(),
+        .map(|a| {
+            let mut texto = a.texto.clone();
+            for d in &a.dados {
+                texto.push_str(&em_dados(d));
+                if !citadas.contains(&d.consulta) {
+                    citadas.push(d.consulta);
+                    notas_de_dados.push(nota_de_dados(d));
+                }
+            }
+            cba_docs::Afirmacao {
+                secao: a.secao.clone(),
+                texto,
+                confianca: confianca(a.confianca),
+                evidencias: a.evidencias.iter().map(citacao).collect(),
+            }
         })
         .collect();
+    if !notas_de_dados.is_empty() {
+        conteudo.textos.push(Texto::novo(
+            "evidencias",
+            format!(
+                "**Evidências de dados.** Consultas ao banco aprovadas pelo analista. Cada \
+                 uma vale para a data e hora em que foi tirada: a revalidação confere o \
+                 código, não reexecuta consultas.\n\n{}",
+                notas_de_dados.join("\n\n")
+            ),
+        ));
+    }
     conteudo.diagramas = analise.diagramas.iter().map(diagrama).collect();
     conteudo.perguntas = analise
         .perguntas
@@ -287,6 +317,46 @@ pub fn conteudo(
         })
         .collect();
     conteudo
+}
+
+/// Data e hora de uma evidência de dados (`2026-11-26 14:03 UTC`).
+fn quando(ms: u64) -> String {
+    let iso = cba_core::tempo::instante_iso(ms);
+    format!("{} {} UTC", &iso[..10], &iso[11..16])
+}
+
+/// O resumo de uma evidência de dados no texto da afirmação, com a nota de
+/// rodapé: a exportação sem evidências tira a nota e fica só o resumo.
+fn em_dados(d: &EvidenciaDados) -> String {
+    format!(
+        " (em dados, {}: {})[^dados-{}]",
+        &quando(d.executada_ms)[..10],
+        d.resumo.trim(),
+        d.consulta
+    )
+}
+
+/// Código em linha com uma cerca de crases maior que qualquer sequência dentro.
+fn codigo_em_linha(texto: &str) -> String {
+    let maior = texto.split(|c| c != '`').map(str::len).max().unwrap_or(0);
+    let cerca = "`".repeat(maior + 1);
+    format!("{cerca} {texto} {cerca}")
+}
+
+/// A nota de rodapé da evidência de dados: conexão, ambiente, data e hora, SQL e
+/// quantidade de linhas.
+fn nota_de_dados(d: &EvidenciaDados) -> String {
+    let sql = d.sql.split_whitespace().collect::<Vec<_>>().join(" ");
+    let quando = quando(d.executada_ms);
+    format!(
+        "[^dados-{n}]: Evidência de dados, consulta {n} em {origem}, {quando}: {linhas} \
+         linha(s). SQL: {sql}. Vale para {dia}.",
+        n = d.consulta,
+        origem = d.origem,
+        linhas = d.linhas,
+        sql = codigo_em_linha(&sql),
+        dia = &quando[..10],
+    )
 }
 
 /// Remonta e grava o documento da análise a partir do estado, com os templates da

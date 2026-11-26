@@ -206,6 +206,8 @@ Operam só dentro das pastas cadastradas do projeto, respeitam a lista de exclus
 | `schema` | Consulta tabelas, colunas e relacionamentos extraídos dos scripts de banco. |
 | `referencias` | Onde um identificador (rotina, tabela, campo, componente) é usado. |
 | `rastreabilidade` | Só leitura (#121): o que depende de uma regra ou de um arquivo (demandas, análises, critérios, cenários) ou a matriz de uma demanda, com as lacunas. |
+| `ler_issue_da_demanda` | Só leitura (#351): a issue da demanda da análise no rastreador (situação, responsáveis, rótulos, comentários, anexos e issues ligadas), com limites e o token só no ambiente da CLI ([repositorios.md](../repositorios.md), seção "Uso nas análises"). |
+| `mudancas_em_andamento` | Só leitura (#441): os PRs e MRs abertos que alteram os arquivos informados (por padrão, os das evidências), com número, título, branch, autor, data, chaves de demanda e link; o token só no ambiente da CLI ([repositorios.md](../repositorios.md), seção "Uso nas análises"). |
 | `afirmar` | Registra uma afirmação: `secao`, texto, confiança e evidências (6.5). |
 | `perguntar` | Registra uma pergunta em aberto para o solicitante. |
 | `registrar_sugestao` | Registra uma sugestão de alteração: arquivo, trecho atual, trecho proposto, motivo, impacto. |

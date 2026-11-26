@@ -1,4 +1,10 @@
 import { ProgressoWorkflow } from "./ProgressoWorkflow";
+import { PainelBancoAnalise } from "./PainelBancoAnalise";
+import {
+  apiConsultasBancoTauri,
+  pendentes as consultasPendentes,
+  type ApiConsultasBanco,
+} from "./consultasBanco";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   apiAlteracoesTauri,
@@ -104,7 +110,11 @@ function situacaoDoAgente(
   temConversa: boolean,
   terminal: EstadoTerminal | null,
   sessao: EstadoSessao | undefined,
+  aguardandoAprovacao = false,
 ): SituacaoAgente {
+  // Uma consulta ao banco espera a decisão do analista (#440).
+  if (aguardandoAprovacao)
+    return { texto: "Consulta ao banco aguardando sua aprovação", tom: "attention" };
   if (fora)
     return {
       texto: `Conversa ${ONDE_TEXTO[fora.cliente]}`,
@@ -153,6 +163,8 @@ interface Props {
   apiPublicacao?: ApiPublicacao;
   /** "Prototipar telas" a partir da análise aprovada (#379); para testes. */
   apiPrototipo?: ApiPrototipo;
+  /** Banco ligado na análise e aprovação das consultas (#440); para testes. */
+  apiConsultasBanco?: ApiConsultasBanco;
   criarTela?: () => TelaTerminal;
   /** Abre outra análise (a criada por um próximo passo da ata, #142). */
   aoAbrirAnalise?: (id: string, abertura: Abertura) => void;
@@ -203,6 +215,7 @@ export function PainelAnalise({
   apiReuniao = apiReuniaoTauri,
   apiPublicacao = apiPublicacaoTauri,
   apiPrototipo = apiPrototipoTauri,
+  apiConsultasBanco = apiConsultasBancoTauri,
   aoAbrirAnalise,
   abrirUrl: abrirUrlDado,
   aoMudarConversa,
@@ -807,6 +820,16 @@ export function PainelAnalise({
             />
           )}
           {vista && (
+            <PainelBancoAnalise
+              api={apiConsultasBanco}
+              projeto={projeto}
+              analise={analise}
+              aprovada={vista.analise.estado === "aprovada"}
+              banco={vista.analise.banco}
+              consultas={vista.analise.consultas}
+            />
+          )}
+          {vista && (
             <ProgressoWorkflow
               analise={vista.analise}
               pedidoSemWorkflow={vista.promptSemWorkflow}
@@ -861,7 +884,13 @@ export function PainelAnalise({
           codigoAberto={trecho !== null}
           conversa={
             <ConversaAgente
-              situacao={situacaoDoAgente(fora, !!conversa, estadoTerminal, vista?.sessao?.estado)}
+              situacao={situacaoDoAgente(
+                fora,
+                !!conversa,
+                estadoTerminal,
+                vista?.sessao?.estado,
+                consultasPendentes(vista?.analise.consultas).length > 0,
+              )}
               onde={onde}
               seletor={
                 <BotaoPainel

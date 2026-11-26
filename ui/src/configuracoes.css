@@ -1261,3 +1261,30 @@ section.zona-cuidado {
 .diferenca-workflow > [data-tipo="igual"] {
   color: var(--muted);
 }
+
+/* Conexões (#437): a lista nas Configurações e o formulário montado pelo descritor. */
+.lista-conexoes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.lista-conexoes > .conexao {
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.cab-conexao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.form-conexao {
+  margin: var(--space-3) 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}

@@ -14,6 +14,8 @@ import {
   type TextoEditavel,
 } from "./configuracoes";
 import { escolhaEfetiva, useEscolhaLembrada, type Escolha } from "./configSecoes";
+import { apiConexoesTauri, type ApiConexoes } from "./conexoes";
+import { ProvedorConexoes } from "./ConexoesContexto";
 import { DialogoConfirmacao } from "./DialogoConfirmacao";
 import { EditorTexto } from "./EditorTexto";
 import { EditorWorkflow, type PainelWorkflow } from "./EditorWorkflow";
@@ -22,30 +24,11 @@ import { ModalNovoProjeto } from "./ModalNovoProjeto";
 import { useEstadoProjetos } from "./pendenciasProjetos";
 import { SecaoAcessos } from "./SecaoAcessos";
 import { SecaoClones } from "./SecaoClones";
+import { SecaoConexoes } from "./SecaoConexoes";
 import { apiWorkflowsTauri, type ApiWorkflows, type Destino } from "./workflows";
 import "./configuracoes.css";
 
-/**
- * Configurações (spec, seção 10; #191): menu lateral com App (aparência, assistente de
- * IA, acessos), Base de conhecimento (pasta, modelos e prompts, workflows das análises:
- * #372) e Projetos (um item por
- * projeto, mais “+ Novo projeto”, que abre o assistente de cadastro). O conteúdo da
- * direita mostra só a seção escolhida, lembrada ao voltar para a tela. Cada seção é um
- * componente próprio (`Config*`); aqui ficam a leitura das configurações, o editor de
- * textos embutido e a escolha da seção.
- */
-export function TelaConfiguracoes({
-  api = apiConfiguracoesTauri,
-  apiWorkflows = apiWorkflowsTauri,
-  aoMudarProjetos,
-  aoPendencia,
-  projetoFixo,
-  aoVoltar,
-  listarProjetos = true,
-  aoConfigurarProjeto,
-  aoIrParaConfiguracoes,
-  aoRefazerPrimeiroUso,
-}: {
+interface PropsTela {
   api?: ApiConfiguracoes;
   /** Configurações › Workflows (#372). */
   apiWorkflows?: ApiWorkflows;
@@ -71,7 +54,42 @@ export function TelaConfiguracoes({
   aoIrParaConfiguracoes?: () => void;
   /** "Refazer o primeiro uso", no cabeçalho (saiu do pé do menu lateral: #350). */
   aoRefazerPrimeiroUso?: () => void;
-}) {
+}
+
+/**
+ * Configurações (spec, seção 10; #191): menu lateral com App (aparência, assistente de
+ * IA, acessos), Base de conhecimento (pasta, modelos e prompts, workflows das análises:
+ * #372) e Projetos (um item por
+ * projeto, mais “+ Novo projeto”, que abre o assistente de cadastro). O conteúdo da
+ * direita mostra só a seção escolhida, lembrada ao voltar para a tela. Cada seção é um
+ * componente próprio (`Config*`); aqui ficam a leitura das configurações, o editor de
+ * textos embutido e a escolha da seção.
+ */
+export function TelaConfiguracoes({
+  apiConexoes = apiConexoesTauri,
+  ...props
+}: PropsTela & { apiConexoes?: ApiConexoes }) {
+  // O provedor fica por fora da tela inteira (inclusive do “Carregando”), para a
+  // estrutura não mudar quando as configurações chegam.
+  return (
+    <ProvedorConexoes api={apiConexoes}>
+      <TelaConfiguracoesSemConexoes {...props} />
+    </ProvedorConexoes>
+  );
+}
+
+function TelaConfiguracoesSemConexoes({
+  api = apiConfiguracoesTauri,
+  apiWorkflows = apiWorkflowsTauri,
+  aoMudarProjetos,
+  aoPendencia,
+  projetoFixo,
+  aoVoltar,
+  listarProjetos = true,
+  aoConfigurarProjeto,
+  aoIrParaConfiguracoes,
+  aoRefazerPrimeiroUso,
+}: PropsTela) {
   const [cfg, setCfg] = useState<Configuracoes | null>(null);
   /** Texto aberto no editor embutido (caminho relativo à base). */
   const [editando, setEditando] = useState<string | null>(null);
@@ -225,6 +243,7 @@ export function TelaConfiguracoes({
             {escolha.secao === "assistente" && (
               <ConfigAssistente api={api} cliente={cfg.cliente} aoMudar={carregar} />
             )}
+            {escolha.secao === "conexoes" && <SecaoConexoes />}
             {escolha.secao === "acessos" && (
               <SecaoAcessos
                 api={api}

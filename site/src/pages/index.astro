@@ -1,0 +1,268 @@
+---
+import { Image, getImage } from 'astro:assets';
+import Base from '../layouts/Base.astro';
+import { messages as t } from '../i18n';
+import projeto from '../assets/prints/visao-geral.png';
+import analise from '../assets/prints/analise.png';
+import funcionalidades from '../assets/prints/funcionalidades.png';
+import base from '../assets/prints/base.png';
+import codigo from '../assets/prints/codigo.png';
+import reuniao from '../assets/prints/reuniao.png';
+import demanda from '../assets/prints/demanda.png';
+
+const repo = 'https://github.com/deep-ion-ai/ctower-business-agents';
+const releases = `${repo}/releases/latest/download`;
+const shots = [analise, reuniao, demanda, funcionalidades, base, codigo];
+
+// Ampliação: a imagem inteira, sem redução, em WebP de alta qualidade.
+const fullSize = async (src: ImageMetadata) =>
+  (await getImage({ src, width: src.width, format: 'webp', quality: 95 })).src;
+const full = {
+  projeto: await fullSize(projeto),
+  shots: await Promise.all(shots.map(fullSize)),
+};
+---
+<Base>
+  <header class="header">
+    <div class="wrap bar">
+      <a class="brand" href={import.meta.env.BASE_URL}>
+        <span class="logo" aria-hidden="true"></span>
+        Ctower Business Agents
+      </a>
+      <nav class="nav" aria-label="Seções">
+        <a href="#como-funciona">{t.header.nav.howItWorks}</a>
+        <a href="#fluxos">{t.header.nav.flows}</a>
+        <a href="#instalacao">{t.header.nav.install}</a>
+        <a href="#codigo-aberto">{t.header.nav.openSource}</a>
+        <a href="#perguntas">{t.header.nav.faq}</a>
+      </nav>
+      <a class="btn btn-ghost btn-sm" href={repo}>{t.header.github}</a>
+    </div>
+  </header>
+
+  <main id="conteudo">
+    <section class="hero" aria-labelledby="titulo">
+      <div class="wrap hero-stack">
+        <div class="hero-copy">
+          <p class="pill">{t.hero.eyebrow}</p>
+          <h1 id="titulo">{t.hero.title}</h1>
+          <p class="lead">{t.hero.lead}</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" data-os="mac" href={`${releases}/cba-macos-universal.dmg`}>{t.hero.downloadMac}</a>
+            <a class="btn btn-primary" data-os="windows" href={`${releases}/cba-windows-x64-setup.exe`}>{t.hero.downloadWindows}</a>
+          </div>
+          <p class="note">{t.hero.versionNote}</p>
+        </div>
+        <figure class="window hero-shot">
+          <button class="zoom" type="button" aria-label={`${t.hero.zoom}: ${t.meta.imageAlt}`} data-full={full.projeto}>
+            <Image src={projeto} alt={t.meta.imageAlt} widths={[800, 1200, 1600]} sizes="(min-width: 1280px) 1240px, 100vw" loading="eager" />
+          </button>
+        </figure>
+        <p class="zoom-hint">{t.hero.zoomHint}</p>
+      </div>
+    </section>
+
+    <section id="como-funciona" aria-labelledby="h-como">
+      <div class="wrap">
+        <p class="eyebrow">{t.howItWorks.title}</p>
+        <h2 id="h-como">Três passos e você já está analisando</h2>
+        <ol class="steps">
+          {t.howItWorks.steps.map((step, i) => (
+            <li class="card step">
+              <span class="num" aria-hidden="true">{i + 1}</span>
+              <h3>{step.title}</h3>
+              <p>{step.text}</p>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </section>
+
+    <section id="fluxos" aria-labelledby="h-fluxos">
+      <div class="wrap">
+        <p class="eyebrow">{t.flows.title}</p>
+        <h2 id="h-fluxos">Veja o app em uso</h2>
+        <p class="lead">{t.flows.lead}</p>
+        <div class="flows">
+          {t.flows.items.map((item, i) => (
+            <article class="card flow">
+              <div class="flow-text">
+                <h3>{item.title}</h3>
+                <p>{item.text}</p>
+                <p class="zoom-hint">{t.hero.zoomHint}</p>
+              </div>
+              <figure class="window">
+                <button class="zoom" type="button" aria-label={`${t.hero.zoom}: ${item.alt}`} data-full={full.shots[i]}>
+                  <Image src={shots[i]} alt={item.alt} widths={[800, 1200, 1600]} sizes="(min-width: 1024px) 800px, 100vw" />
+                </button>
+              </figure>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <section id="diferenciais" aria-labelledby="h-dif">
+      <div class="wrap">
+        <p class="eyebrow">{t.differentials.title}</p>
+        <h2 id="h-dif">Feito para quem analisa, não para quem programa</h2>
+        <ul class="cards">
+          {t.differentials.items.map((item) => (
+            <li class="card">
+              <h3>{item.title}</h3>
+              <p>{item.text}</p>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+
+    <section id="privacidade" aria-labelledby="h-priv">
+      <div class="wrap">
+        <p class="eyebrow">{t.privacy.title}</p>
+        <h2 id="h-priv">Sabendo o que sai da sua máquina</h2>
+        <p class="lead">{t.privacy.lead}</p>
+        <div class="split">
+          <div class="card">
+            <h3>{t.privacy.onMachine.title}</h3>
+            <ul>{t.privacy.onMachine.items.map((x) => <li>{x}</li>)}</ul>
+          </div>
+          <div class="card">
+            <h3>{t.privacy.toProvider.title}</h3>
+            <ul>{t.privacy.toProvider.items.map((x) => <li>{x}</li>)}</ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="instalacao" aria-labelledby="h-inst">
+      <div class="wrap">
+        <p class="eyebrow">{t.install.title}</p>
+        <h2 id="h-inst">Instale pelo terminal em um comando</h2>
+        <p class="lead">{t.install.lead}</p>
+        <div class="warn" role="note">
+          <p>{t.install.warning}</p>
+        </div>
+
+        <div class="split">
+          <div class="card">
+            <h3>{t.install.macTitle}</h3>
+            <p>{t.install.macText}</p>
+            <div class="cmd">
+              <code>{t.install.macCommand}</code>
+              <button class="copy" type="button" data-copy={t.install.macCommand} data-label={t.install.copy} data-copied-label={t.install.copied}>{t.install.copy}</button>
+            </div>
+          </div>
+          <div class="card">
+            <h3>{t.install.windowsTitle}</h3>
+            <p>{t.install.windowsText}</p>
+            <div class="cmd">
+              <code>{t.install.windowsCommand}</code>
+              <button class="copy" type="button" data-copy={t.install.windowsCommand} data-label={t.install.copy} data-copied-label={t.install.copied}>{t.install.copy}</button>
+            </div>
+          </div>
+        </div>
+
+        <p class="note">{t.install.readFirst}</p>
+
+        <details class="card">
+          <summary>{t.install.manualTitle}</summary>
+          <p>{t.install.manualText}</p>
+          <div class="cmd">
+            <code>{t.install.manualCommand}</code>
+            <button class="copy" type="button" data-copy={t.install.manualCommand} data-label={t.install.copy} data-copied-label={t.install.copied}>{t.install.copy}</button>
+          </div>
+          <p>{t.install.manualWindows}</p>
+        </details>
+
+        <div class="links">
+          <a href={`${repo}/tree/develop/packaging/install`}>{t.install.detailsLink}</a>
+          <a href={`${repo}/releases`}>{t.install.releasesLink}</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="codigo-aberto" aria-labelledby="h-oss">
+      <div class="wrap">
+        <p class="eyebrow">{t.openSource.title}</p>
+        <h2 id="h-oss">Código aberto: melhore ou faça o seu fork</h2>
+        <p class="lead">{t.openSource.lead}</p>
+        <ul class="cards cards-2">
+          {t.openSource.items.map((item) => (
+            <li class="card">
+              <h3>{item.title}</h3>
+              <p>{item.text}</p>
+            </li>
+          ))}
+        </ul>
+        <div class="links">
+          <a class="btn btn-ghost btn-sm" href={`${repo}/blob/develop/CONTRIBUTING.md`}>{t.openSource.contributing}</a>
+          <a class="btn btn-ghost btn-sm" href={`${repo}/fork`}>{t.openSource.fork}</a>
+          <a class="btn btn-ghost btn-sm" href={`${repo}/blob/develop/LICENSE`}>{t.openSource.license}</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="perguntas" aria-labelledby="h-faq">
+      <div class="wrap">
+        <p class="eyebrow">{t.faq.title}</p>
+        <h2 id="h-faq">Perguntas frequentes</h2>
+        <div class="faq">
+          {t.faq.items.map((item) => (
+            <details class="card">
+              <summary>{item.q}</summary>
+              <p>{item.a}</p>
+            </details>
+          ))}
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap foot">
+      <div class="links">
+        <a href={repo}>{t.footer.github}</a>
+        <a href={`${repo}/blob/develop/LICENSE`}>{t.footer.license}</a>
+        <a href={`${repo}/blob/develop/CONTRIBUTING.md`}>{t.footer.contributing}</a>
+        <a href={`${repo}/blob/develop/SECURITY.md`}>{t.footer.security}</a>
+      </div>
+      <p>© {new Date().getFullYear()} {t.footer.rights}</p>
+    </div>
+  </footer>
+
+  <dialog id="lightbox" class="lightbox" aria-label={t.hero.zoom}>
+    <form method="dialog" class="lb-top">
+      <button class="lb-close" value="close" aria-label={t.hero.close}>×</button>
+    </form>
+    <img id="lb-img" alt="" />
+    <p id="lb-cap"></p>
+  </dialog>
+
+  <script>
+    // Ampliação: abre a maior versão da imagem clicada num <dialog> nativo (Esc e clique fora fecham).
+    const dialog = document.getElementById('lightbox') as HTMLDialogElement | null;
+    const big = document.getElementById('lb-img') as HTMLImageElement | null;
+    const cap = document.getElementById('lb-cap');
+
+    const largest = (img: HTMLImageElement) => {
+      const candidates = (img.srcset || '').split(',').map((s) => s.trim().split(' ')[0]);
+      return candidates[candidates.length - 1] || img.currentSrc || img.src;
+    };
+
+    document.querySelectorAll<HTMLButtonElement>('.zoom').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const img = btn.querySelector('img');
+        if (!dialog || !big || !img) return;
+        big.src = btn.dataset.full || largest(img);
+        big.alt = img.alt;
+        if (cap) cap.textContent = img.alt;
+        dialog.showModal();
+      });
+    });
+
+    dialog?.addEventListener('click', (e) => {
+      if (e.target === dialog) dialog.close();
+    });
+  </script>
+</Base>

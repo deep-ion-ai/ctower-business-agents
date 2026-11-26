@@ -1,5 +1,6 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import type { ProjetoResumo } from "./terminal";
+import type { BancoLigado, ConsultaDados, EvidenciaDados } from "./consultasBanco";
 
 /**
  * Espelho do estado da análise (`cba_core::analise::Analise`), no formato do arquivo
@@ -54,6 +55,8 @@ export type Afirmacao = {
   texto_original?: string | null;
   confianca: Confianca;
   evidencias: Evidencia[];
+  /** Evidências de dados: resultados de consultas ao banco citados (#440). */
+  dados?: EvidenciaDados[];
   /** Contestação da verificação independente de um workflow (#371): o analista decide. */
   contestacao?: Contestacao | null;
   sessao?: string | null;
@@ -203,6 +206,10 @@ export interface Analise {
   aviso_conducao?: string | null;
   /** Protótipo de telas (fluxo `prototipo`, #381): o pedido e as telas. */
   prototipo?: PrototipoAnalise | null;
+  /** Banco ligado pelo analista nesta análise (#440). */
+  banco?: BancoLigado | null;
+  /** Consultas ao banco pedidas pelo agente, com a decisão do analista (#440). */
+  consultas?: ConsultaDados[];
 }
 
 /** Critério de aceite citado (`cba_core::prototipo::CriterioCitado`): `HU-0001/CA-2`. */

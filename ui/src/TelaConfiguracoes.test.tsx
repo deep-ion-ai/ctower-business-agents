@@ -180,9 +180,11 @@ describe("TelaConfiguracoes", () => {
       fireEvent.keyDown(aparencia, { key: "ArrowDown" });
       expect(m.getByRole("button", { name: "Assistente de IA" })).toHaveFocus();
       fireEvent.keyDown(m.getByRole("button", { name: "Assistente de IA" }), { key: "ArrowDown" });
+      expect(m.getByRole("button", { name: "Conexões" })).toHaveFocus();
+      fireEvent.keyDown(m.getByRole("button", { name: "Conexões" }), { key: "ArrowDown" });
       expect(m.getByRole("button", { name: "Acessos" })).toHaveFocus();
       fireEvent.keyDown(m.getByRole("button", { name: "Acessos" }), { key: "ArrowUp" });
-      expect(m.getByRole("button", { name: "Assistente de IA" })).toHaveFocus();
+      expect(m.getByRole("button", { name: "Conexões" })).toHaveFocus();
       // Itens são botões de verdade: Tab e Enter/Espaço do navegador valem.
       expect(m.getByRole("button", { name: "Assistente de IA" }).tagName).toBe("BUTTON");
     });

@@ -1,16 +1,15 @@
-//! Busca de uma issue (título e descrição) para iniciar uma análise.
+//! Busca de uma issue (título e descrição) para iniciar uma análise e, em
+//! [`leitura`], a leitura completa dela (comentários, anexos, ligadas) para o
+//! agente (#351).
 //!
 //! Pelas CLIs, sem HTTP próprio: `gh issue view`, `glab api` e
 //! `jira issue view --raw` (JSON da API v2). O token chega ao processo filho só
 //! no ambiente. Sem escrita no rastreador.
 
-use crate::chaveiro::{Chaveiro, ChaveiroNativo, ErroToken, token_global};
-use crate::codigo::HOST_GITHUB;
+use crate::chaveiro::{Chaveiro, ChaveiroNativo, ErroToken};
 use crate::process::{self, RunError, cite};
-use crate::{
-    CREDENTIAL_DEADLINE, CredentialError, GithubConfig, GitlabConfig, JiraConfig, Secret,
-    TrackerConfig, run_credential,
-};
+use crate::providers::{Recusada, com_nova_tentativa, legado, texto_de_recusa};
+use crate::{CredentialError, GithubConfig, GitlabConfig, JiraConfig, Secret, TrackerConfig};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt;
@@ -18,6 +17,10 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Arc;
 use std::time::Duration;
+
+mod leitura;
+
+pub use leitura::{Anexo, Comentario, IssueLida, IssueLigada, LimitesIssue, ler_issue};
 
 /// Prazo de uma chamada às CLIs.
 pub const PRAZO_CLI: Duration = Duration::from_secs(60);
@@ -67,39 +70,35 @@ impl From<ErroToken> for DemandaErro {
 }
 
 /// Token do GitLab de issues: o do comando de credencial, se cadastrado; senão,
-/// o token global do host (chaveiro ou comando do host, #179 e #193).
+/// o token global do host (chaveiro ou comando do host, #179 e #193). Sai pelo
+/// resolvedor (#436).
 pub fn token_gitlab(g: &GitlabConfig, f: &Ferramentas) -> Result<Secret, DemandaErro> {
-    if !g.credential_cmd.trim().is_empty() {
-        return Ok(run_credential(
-            "GitLab",
-            &g.credential_cmd,
-            CREDENTIAL_DEADLINE,
-        )?);
-    }
-    token_global(&g.host, "GitLab", f.chaveiro.as_ref())?
+    legado::token_gitlab(g, f.chaveiro.as_ref())
+        .map_err(ErroToken::from)?
         .ok_or_else(|| DemandaErro::SemToken(g.host.trim().to_string()))
 }
 
 /// Token do Jira: o do comando de credencial, se cadastrado; senão, o do host
-/// do Jira no chaveiro (#180).
+/// do Jira no chaveiro (#180). Sai pelo resolvedor (#436).
 pub fn token_jira(j: &JiraConfig, f: &Ferramentas) -> Result<Secret, DemandaErro> {
-    if !j.credential_cmd.trim().is_empty() {
-        return Ok(run_credential(
-            "Jira",
-            &j.credential_cmd,
-            CREDENTIAL_DEADLINE,
-        )?);
-    }
-    let host = j.host();
-    token_global(&host, "Jira", f.chaveiro.as_ref())?.ok_or(DemandaErro::SemToken(host))
+    legado::token_jira(j, f.chaveiro.as_ref())
+        .map_err(ErroToken::from)?
+        .ok_or_else(|| DemandaErro::SemToken(j.host()))
 }
 
-/// Token global do GitHub (chaveiro ou comando do host), se houver; sem ele,
-/// vale o `gh auth`.
-pub fn token_github(f: &Ferramentas) -> Option<Secret> {
-    token_global(HOST_GITHUB, "GitHub", f.chaveiro.as_ref())
+/// Token do GitHub de issues: o da conexão referenciada ou, sem ela, o global
+/// do github.com (chaveiro ou comando do host), se houver; sem token, vale o
+/// `gh auth`.
+pub fn token_github(g: &GithubConfig, f: &Ferramentas) -> Option<Secret> {
+    legado::token_github(g, f.chaveiro.as_ref(), Some(&f.gh))
         .ok()
         .flatten()
+}
+
+impl Recusada for DemandaErro {
+    fn recusada(&self) -> bool {
+        matches!(self, DemandaErro::Falhou { detalhe, .. } if texto_de_recusa(detalhe))
+    }
 }
 
 /// Issue lida do rastreador.
@@ -190,21 +189,25 @@ pub fn buscar_github(
     let n = numero(ref_)?;
     // Com token do GitHub no chaveiro, ele vai no ambiente (`GH_TOKEN`); sem ele,
     // o gh usa a própria autenticação (`gh auth login`).
-    let token = token_github(f);
-    let mut c = Command::new(&f.gh);
-    if let Some(t) = &token {
-        c.env("GH_TOKEN", t.expose());
-    }
-    c.args([
-        "issue",
-        "view",
-        &n.to_string(),
-        "-R",
-        g.repo.trim(),
-        "--json",
-        "title,body,url",
-    ]);
-    let v = rodar_json("gh", c, token.as_ref().unwrap_or(&Secret::new("")))?;
+    let v = com_nova_tentativa(
+        || Ok(token_github(g, f)),
+        |token| {
+            let mut c = Command::new(&f.gh);
+            if let Some(t) = token {
+                c.env("GH_TOKEN", t.expose());
+            }
+            c.args([
+                "issue",
+                "view",
+                &n.to_string(),
+                "-R",
+                g.repo.trim(),
+                "--json",
+                "title,body,url",
+            ]);
+            rodar_json("gh", c, token.unwrap_or(&Secret::new("")))
+        },
+    )?;
     Ok(Demanda {
         chave: format!("#{n}"),
         titulo: texto(&v, &["title"]).to_string(),
@@ -219,13 +222,18 @@ pub fn buscar_gitlab(
     f: &Ferramentas,
 ) -> Result<Demanda, DemandaErro> {
     let n = numero(ref_)?;
-    let token = token_gitlab(g, f)?;
     let id = g.path.trim_matches('/').replace('/', "%2F");
-    let mut c = Command::new(&f.glab);
-    c.args(["api", &format!("projects/{id}/issues/{n}")])
-        .env("GITLAB_HOST", g.host.trim())
-        .env("GITLAB_TOKEN", token.expose());
-    let v = rodar_json("glab", c, &token)?;
+    let v = com_nova_tentativa(
+        || token_gitlab(g, f).map(Some),
+        |token| {
+            let token = token.ok_or_else(|| DemandaErro::SemToken(g.host.trim().into()))?;
+            let mut c = Command::new(&f.glab);
+            c.args(["api", &format!("projects/{id}/issues/{n}")])
+                .env("GITLAB_HOST", g.host.trim())
+                .env("GITLAB_TOKEN", token.expose());
+            rodar_json("glab", c, token)
+        },
+    )?;
     Ok(Demanda {
         chave: format!("#{n}"),
         titulo: texto(&v, &["title"]).to_string(),
@@ -239,14 +247,19 @@ pub fn buscar_jira(j: &JiraConfig, ref_: &str, f: &Ferramentas) -> Result<Demand
     if j.number_from_key(&chave).is_none() {
         return Err(DemandaErro::Referencia(ref_.to_string()));
     }
-    let token = token_jira(j, f)?;
-    let mut c = Command::new(&f.jira);
-    c.args(["issue", "view", &chave, "--raw"])
-        .env("JIRA_API_TOKEN", token.expose());
-    if !j.config_file.trim().is_empty() {
-        c.env("JIRA_CONFIG_FILE", j.config_file.trim());
-    }
-    let v = rodar_json("jira", c, &token)?;
+    let v = com_nova_tentativa(
+        || token_jira(j, f).map(Some),
+        |token| {
+            let token = token.ok_or_else(|| DemandaErro::SemToken(j.host()))?;
+            let mut c = Command::new(&f.jira);
+            c.args(["issue", "view", &chave, "--raw"])
+                .env("JIRA_API_TOKEN", token.expose());
+            if !j.config_file.trim().is_empty() {
+                c.env("JIRA_CONFIG_FILE", j.config_file.trim());
+            }
+            rodar_json("jira", c, token)
+        },
+    )?;
     Ok(Demanda {
         titulo: texto(&v, &["fields", "summary"]).to_string(),
         descricao: wiki_para_markdown(texto(&v, &["fields", "description"])),
@@ -455,7 +468,10 @@ echo '{"title":"T","body":"B","url":"u"}'"#,
             )
             .unwrap();
         assert_eq!(buscar_gitlab(&g, "1", &f).unwrap().titulo, "T");
-        let gh = GithubConfig { repo: "o/r".into() };
+        let gh = GithubConfig {
+            repo: "o/r".into(),
+            ..Default::default()
+        };
         assert!(buscar_github(&gh, "1", &f).is_err());
         chaveiro
             .gravar(&conta_global("github.com"), &Secret::new("gh-do-chaveiro"))
@@ -476,18 +492,40 @@ echo '{"title":"T","body":"B","url":"https://github.com/o/r/issues/5"}'"#,
             gh,
             ..Default::default()
         };
-        let dem = buscar_github(&GithubConfig { repo: "o/r".into() }, "5", &f).unwrap();
+        let dem = buscar_github(
+            &GithubConfig {
+                repo: "o/r".into(),
+                ..Default::default()
+            },
+            "5",
+            &f,
+        )
+        .unwrap();
         assert_eq!(dem.url, "https://github.com/o/r/issues/5");
         let sem = Ferramentas {
             gh: d.path().join("nao-existe"),
             ..Default::default()
         };
         assert!(matches!(
-            buscar_github(&GithubConfig { repo: "o/r".into() }, "5", &sem),
+            buscar_github(
+                &GithubConfig {
+                    repo: "o/r".into(),
+                    ..Default::default()
+                },
+                "5",
+                &sem
+            ),
             Err(DemandaErro::SemFerramenta { .. })
         ));
         assert!(matches!(
-            buscar_github(&GithubConfig { repo: "o/r".into() }, "abc", &f),
+            buscar_github(
+                &GithubConfig {
+                    repo: "o/r".into(),
+                    ..Default::default()
+                },
+                "abc",
+                &f
+            ),
             Err(DemandaErro::Referencia(_))
         ));
     }
