@@ -6,6 +6,8 @@ import type {
   Severidade,
   Veredito,
 } from "./analise";
+import { BotaoIcone, Cartao, EstadoVazio, Selo, TituloSecao, type TomSelo } from "./componentes";
+import { IconeDescartar, IconeRestaurar } from "./icones";
 import type { DecisaoRevisao } from "./revisao";
 
 /** Rótulos da revisão de requisito (#116), espelho de `cba_core::qualidade`. */
@@ -32,10 +34,16 @@ export const ROTULO_VEREDITO: Record<Veredito, string> = {
   precisa_de_retrabalho: "Precisa de retrabalho",
 };
 
-const TOM_VEREDITO: Record<Veredito, string> = {
-  pronta: "done",
-  pronta_com_ressalvas: "attention",
-  precisa_de_retrabalho: "error",
+const TOM_VEREDITO: Record<Veredito, TomSelo> = {
+  pronta: "concluido",
+  pronta_com_ressalvas: "atencao",
+  precisa_de_retrabalho: "erro",
+};
+
+const TOM_SEVERIDADE: Record<Severidade, TomSelo> = {
+  alta: "erro",
+  media: "atencao",
+  baixa: "neutro",
 };
 
 const ROTULO_INVEST: Record<AvaliacaoInvest["criterio"], string> = {
@@ -142,8 +150,8 @@ export function ParecerAoVivo({ analise, aoDecidir, ocupado }: Props) {
 
   return (
     <article className="documento-ao-vivo parecer-ao-vivo" aria-label="Parecer de revisão">
-      <section className="secao" aria-label="Requisito revisado">
-        <h3>Requisito revisado</h3>
+      <section aria-label="Requisito revisado">
+        <TituloSecao nivel={3}>Requisito revisado</TituloSecao>
         <p className="requisito-revisado">
           {partes.map((p, i) =>
             p.marca ? (
@@ -161,57 +169,50 @@ export function ParecerAoVivo({ analise, aoDecidir, ocupado }: Props) {
         </p>
       </section>
 
-      <section className="secao veredito" aria-label="Veredito">
-        <h3>Veredito</h3>
+      <section aria-label="Veredito">
+        <TituloSecao nivel={3}>Veredito</TituloSecao>
         {veredito ? (
           <p>
-            <span className="badge" data-tone={TOM_VEREDITO[veredito.veredito]}>
-              {ROTULO_VEREDITO[veredito.veredito]}
-            </span>{" "}
+            <Selo tom={TOM_VEREDITO[veredito.veredito]}>{ROTULO_VEREDITO[veredito.veredito]}</Selo>{" "}
             {veredito.justificativa}
           </p>
         ) : (
-          <p className="muted">Veredito ainda não registrado.</p>
+          <EstadoVazio>Veredito ainda não registrado.</EstadoVazio>
         )}
         {contagem.length > 0 && (
           <p className="contagem-achados">
             {contagem.map(([c, n]) => (
-              <span key={c} className="badge">
+              <Selo key={c} tom="neutro">
                 {n} {CONTAGEM[c][n === 1 ? 0 : 1]}
-              </span>
+              </Selo>
             ))}
           </p>
         )}
       </section>
 
-      <section className="secao" aria-label="Achados">
-        <h3>Achados</h3>
-        {ativos.length === 0 && <p className="muted">Nenhum achado registrado.</p>}
+      <section aria-label="Achados">
+        <TituloSecao nivel={3}>Achados</TituloSecao>
+        {ativos.length === 0 && <EstadoVazio>Nenhum achado registrado.</EstadoVazio>}
         {SEVERIDADES.map((s) => {
           const daqui = ativos.filter((a) => a.severidade === s);
           if (daqui.length === 0) return null;
           return (
             <ol key={s} className="achados" aria-label={`Severidade ${ROTULO_SEVERIDADE[s]}`}>
               {daqui.map((a) => (
-                <li key={a.numero} className="achado" data-caracteristica={a.caracteristica}>
+                <Cartao
+                  key={a.numero}
+                  como="li"
+                  className={a.caracteristica === "correcao" ? "achado achado-correcao" : "achado"}
+                >
                   <div className="achado-cabecalho">
                     <strong>{ROTULO_CARACTERISTICA[a.caracteristica]}</strong>
-                    <span
-                      className="badge"
-                      data-tone={s === "alta" ? "error" : s === "media" ? "attention" : undefined}
-                    >
-                      {ROTULO_SEVERIDADE[s]}
-                    </span>
+                    <Selo tom={TOM_SEVERIDADE[s]}>{ROTULO_SEVERIDADE[s]}</Selo>
                     <span className="muted">achado {a.numero}</span>
-                    {a.contestacao && (
-                      <span className="badge" data-tone="attention">
-                        a revalidar
-                      </span>
-                    )}
+                    {a.contestacao && <Selo>a revalidar</Selo>}
                     {editavel && (
-                      <button
-                        type="button"
-                        className="btn btn-sm"
+                      <BotaoIcone
+                        rotulo="Descartar"
+                        dica={`Descartar o achado ${a.numero}`}
                         disabled={ocupado}
                         onClick={() =>
                           decidir({
@@ -221,8 +222,8 @@ export function ParecerAoVivo({ analise, aoDecidir, ocupado }: Props) {
                           })
                         }
                       >
-                        Descartar
-                      </button>
+                        <IconeDescartar />
+                      </BotaoIcone>
                     )}
                   </div>
                   {a.trecho && <p className="achado-trecho">“{a.trecho}”</p>}
@@ -243,11 +244,7 @@ export function ParecerAoVivo({ analise, aoDecidir, ocupado }: Props) {
                       {a.evidencias.map((e) => (
                         <li key={`${e.arquivo}:${e.linhas}`} className="mono">
                           {e.arquivo}:{e.linhas}
-                          {e.estado === "a-revalidar" && (
-                            <span className="badge" data-tone="attention">
-                              a revalidar
-                            </span>
-                          )}
+                          {e.estado === "a-revalidar" && <Selo>a revalidar</Selo>}
                         </li>
                       ))}
                     </ul>
@@ -257,7 +254,7 @@ export function ParecerAoVivo({ analise, aoDecidir, ocupado }: Props) {
                       <span className="muted">Reescrita sugerida:</span> {a.reescrita}
                     </p>
                   )}
-                </li>
+                </Cartao>
               ))}
             </ol>
           );
@@ -273,9 +270,9 @@ export function ParecerAoVivo({ analise, aoDecidir, ocupado }: Props) {
                   </span>{" "}
                   {a.problema}
                   {editavel && (
-                    <button
-                      type="button"
-                      className="btn btn-sm"
+                    <BotaoIcone
+                      rotulo="Restaurar"
+                      dica={`Restaurar o achado ${a.numero}`}
                       disabled={ocupado}
                       onClick={() =>
                         decidir({
@@ -285,8 +282,8 @@ export function ParecerAoVivo({ analise, aoDecidir, ocupado }: Props) {
                         })
                       }
                     >
-                      Restaurar
-                    </button>
+                      <IconeRestaurar />
+                    </BotaoIcone>
                   )}
                 </li>
               ))}
@@ -296,8 +293,8 @@ export function ParecerAoVivo({ analise, aoDecidir, ocupado }: Props) {
       </section>
 
       {parecer?.invest && parecer.invest.length > 0 && (
-        <section className="secao" aria-label="Verificação INVEST">
-          <h3>Verificação INVEST</h3>
+        <section aria-label="Verificação INVEST">
+          <TituloSecao nivel={3}>Verificação INVEST</TituloSecao>
           <table className="tabela-invest">
             <thead>
               <tr>

@@ -1,6 +1,14 @@
 import { contar } from "./formatacao";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { TextoRico } from "./componentes";
+import {
+  BarraAcoes,
+  EstadoVazio,
+  ItemLista,
+  ListaItens,
+  Selo,
+  TextoRico,
+  TituloSecao,
+} from "./componentes";
 import { mensagemDe, type AnaliseCriada, type AvisoAnalise } from "./analise";
 import { ROTULO_STATUS_ATA } from "./demandas";
 import { AvisoTranscriptGuardado } from "./PainelDemanda";
@@ -123,9 +131,7 @@ export function AtaAoVivo({
         <h2>Ata da reunião {ata.id}</h2>
         <p className="muted">
           Demanda {ata.demanda} · {ata.data} ·{" "}
-          <span className="badge" data-tone={aprovada ? "done" : "attention"}>
-            ata {ROTULO_STATUS_ATA[ata.status]}
-          </span>{" "}
+          <Selo tom={aprovada ? "concluido" : "atencao"}>ata {ROTULO_STATUS_ATA[ata.status]}</Selo>{" "}
           · {contar(ata.itens.length, "item", "itens")} {ata.itens.length === 1 ? "registrado" : "registrados"}
         </p>
         {ata.transcript && <AvisoTranscriptGuardado guardado={ata.transcript} />}
@@ -137,13 +143,13 @@ export function AtaAoVivo({
       )}
       {ata.objetivo && (
         <section aria-label="Objetivo">
-          <h3>Objetivo</h3>
+          <TituloSecao nivel={3}>Objetivo</TituloSecao>
           <TextoRico texto={ata.objetivo} />
         </section>
       )}
       {ata.resumo && (
         <section aria-label="Resumo">
-          <h3>Resumo</h3>
+          <TituloSecao nivel={3}>Resumo</TituloSecao>
           <TextoRico texto={ata.resumo} />
         </section>
       )}
@@ -158,51 +164,53 @@ export function AtaAoVivo({
       />
 
       <section aria-label="Itens da ata">
-        <h3>Itens</h3>
+        <TituloSecao nivel={3}>Itens</TituloSecao>
         {ata.itens.length === 0 && (
-          <p className="muted">
+          <EstadoVazio>
             Nenhum item registrado ainda: eles aparecem aqui a cada registro do agente.
-          </p>
+          </EstadoVazio>
         )}
         {TIPOS_ITEM.map((tipo) => {
           const itens = ata.itens.filter((i) => i.tipo === tipo);
           if (itens.length === 0) return null;
           return (
-            <div key={tipo} className="secao">
+            <div key={tipo}>
               <h4>{TITULO_TIPO_ITEM[tipo]}</h4>
-              <ol className="itens-ata">
+              <ListaItens rotulo={TITULO_TIPO_ITEM[tipo]}>
                 {itens.map((i) => (
-                  <li key={i.id} data-testid={`item-${i.id}`}>
-                    <span className="badge mono">{i.id}</span> <span>{i.texto}</span>
-                    {i.responsavel && (
-                      <span className="muted"> · responsável: {i.responsavel}</span>
-                    )}
-                    {i.prazo && <span className="muted"> · prazo: {i.prazo}</span>}
-                    {i.referencias.length > 0 && (
-                      <span className="muted"> · ligado a {i.referencias.join(", ")}</span>
-                    )}
-                    <Citacoes citacoes={i.citacoes} />
-                    {aprovada && i.tipo === "proximo_passo" && aoCriarAnalise && (
-                      <BotoesProximoPasso
-                        api={api}
-                        projeto={projeto}
-                        reuniao={ata.id}
-                        passo={i}
-                        aoCriar={aoCriarAnalise}
-                      />
-                    )}
-                    {i.evidencias.length > 0 && (
-                      <ul className="evidencias" aria-label="Evidências">
-                        {i.evidencias.map((e) => (
-                          <li key={e}>
-                            <code>{e}</code>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </li>
+                  <ItemLista key={i.id}>
+                    <div data-testid={`item-${i.id}`}>
+                      <span className="mono muted">{i.id}</span> <span>{i.texto}</span>
+                      {i.responsavel && (
+                        <span className="muted"> · responsável: {i.responsavel}</span>
+                      )}
+                      {i.prazo && <span className="muted"> · prazo: {i.prazo}</span>}
+                      {i.referencias.length > 0 && (
+                        <span className="muted"> · ligado a {i.referencias.join(", ")}</span>
+                      )}
+                      <Citacoes citacoes={i.citacoes} />
+                      {aprovada && i.tipo === "proximo_passo" && aoCriarAnalise && (
+                        <BotoesProximoPasso
+                          api={api}
+                          projeto={projeto}
+                          reuniao={ata.id}
+                          passo={i}
+                          aoCriar={aoCriarAnalise}
+                        />
+                      )}
+                      {i.evidencias.length > 0 && (
+                        <ul className="evidencias" aria-label="Evidências">
+                          {i.evidencias.map((e) => (
+                            <li key={e}>
+                              <code>{e}</code>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </ItemLista>
                 ))}
-              </ol>
+              </ListaItens>
             </div>
           );
         })}
@@ -225,15 +233,22 @@ function Citacoes({ citacoes }: { citacoes: CitacaoVista[] }) {
     <details className="citacoes-fala-bloco">
       <summary className="muted">
         {citacoes.length === 1 ? "Ver a fala de origem" : `Ver as ${citacoes.length} falas de origem`}
-        {naoConferem > 0 && <span data-tone="attention"> · {naoConferem} não confere</span>}
+        {naoConferem > 0 && (
+          <>
+            {" "}
+            <Selo tom="erro">{naoConferem} não confere</Selo>
+          </>
+        )}
       </summary>
       <ul className="citacoes-fala" aria-label="Falas de origem">
         {citacoes.map((c, n) => (
           <li key={n}>
             <span className="mono">{c.inicio}</span> {c.falante}: “{c.trecho}”{" "}
-            <span className="muted" data-tone={c.status === "não confere" ? "attention" : undefined}>
-              ({c.status})
-            </span>
+            {c.status === "não confere" ? (
+              <Selo tom="erro">{c.status}</Selo>
+            ) : (
+              <span className="muted">({c.status})</span>
+            )}
           </li>
         ))}
       </ul>
@@ -333,10 +348,25 @@ function Participantes({
   };
 
   return (
-    <section aria-label="Participantes" className="participantes-reuniao">
-      <h3>Participantes</h3>
-      {ata.participantes.length === 0 && (
-        <p className="muted">Nenhum participante identificado no transcript.</p>
+    <section aria-label="Participantes">
+      <TituloSecao nivel={3}>Participantes</TituloSecao>
+      {ata.participantes.length === 0 ? (
+        <EstadoVazio>Nenhum participante identificado no transcript.</EstadoVazio>
+      ) : (
+        <ListaItens rotulo="Participantes">
+          {ata.participantes.map((p) => (
+            <ItemLista key={p.nome}>
+              <Participante
+                p={p}
+                ata={ata}
+                idLista={idLista}
+                r={rascunho(p)}
+                somenteLeitura={somenteLeitura}
+                mudar={(m) => mudar(p, m)}
+              />
+            </ItemLista>
+          ))}
+        </ListaItens>
       )}
       <datalist id={idLista}>
         {ata.papeis.map((p) => (
@@ -345,102 +375,15 @@ function Participantes({
           </option>
         ))}
       </datalist>
-      <ul className="lista-participantes">
-        {ata.participantes.map((p) => {
-          const r = rascunho(p);
-          return (
-            <li key={p.nome} data-testid={`participante-${p.nome}`}>
-              <strong>{p.nome}</strong>{" "}
-              {p.papel ? (
-                <span className="badge" data-tone="done">
-                  {p.papel}
-                </span>
-              ) : (
-                <span className="badge" data-tone="attention">
-                  papel a confirmar
-                </span>
-              )}
-              <p className="muted">
-                Catálogo:{" "}
-                {p.catalogo
-                  ? p.catalogo.papel
-                    ? `${p.catalogo.pessoa.nome}, ${p.catalogo.papel}${
-                        p.catalogo.reuniao ? ` (confirmado em ${p.catalogo.reuniao})` : ""
-                      }`
-                    : `${p.catalogo.pessoa.nome}, sem papel confirmado`
-                  : p.candidatos.length > 0
-                    ? "mais de uma pessoa com esse nome"
-                    : "pessoa nova"}
-              </p>
-              {p.proposta && (
-                <div className="proposta-agente">
-                  <p>
-                    Agente propõe: <strong>{p.proposta.papel}</strong>
-                    {p.proposta.justificativa && (
-                      <span className="muted"> · {p.proposta.justificativa}</span>
-                    )}
-                  </p>
-                  <Citacoes citacoes={p.proposta.citacoes} />
-                </div>
-              )}
-              {!somenteLeitura && (
-                <div className="confirmacao-participante">
-                  <label>
-                    Papel de {p.nome}
-                    <input
-                      list={idLista}
-                      value={r.papel}
-                      disabled={r.mesmoQue !== null}
-                      onChange={(e) => mudar(p, { papel: e.target.value })}
-                      placeholder="PO, gerente, usuário-chave ou outro"
-                    />
-                  </label>
-                  {p.candidatos.length > 0 && (
-                    <label>
-                      Pessoa do catálogo ({p.nome})
-                      <select
-                        value={r.pessoa ?? ""}
-                        onChange={(e) => mudar(p, { pessoa: e.target.value || null })}
-                      >
-                        <option value="">Escolha</option>
-                        {p.candidatos.map((c) => (
-                          <option key={c.slug} value={c.slug}>
-                            {c.nome} ({c.slug})
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  )}
-                  {ata.participantes.length > 1 && (
-                    <label>
-                      É a mesma pessoa que ({p.nome})
-                      <select
-                        value={r.mesmoQue ?? ""}
-                        onChange={(e) => mudar(p, { mesmoQue: e.target.value || null })}
-                      >
-                        <option value="">Ninguém: é outra pessoa</option>
-                        {ata.participantes
-                          .filter((o) => o.nome !== p.nome)
-                          .map((o) => (
-                            <option key={o.nome} value={o.nome}>
-                              {o.nome}
-                            </option>
-                          ))}
-                      </select>
-                    </label>
-                  )}
-                </div>
-              )}
-            </li>
-          );
-        })}
-      </ul>
       {!somenteLeitura && ata.participantes.length > 0 && (
-        <div className="acoes">
-          <button type="button" className="btn btn-primary" disabled={enviando} onClick={confirmar}>
-            Confirmar os participantes
-          </button>
-        </div>
+        <BarraAcoes
+          rotulo="Ações dos participantes"
+          principal={{
+            texto: "Confirmar os participantes",
+            aoEscolher: confirmar,
+            desabilitado: enviando,
+          }}
+        />
       )}
       {feito && (
         <p className="muted" role="status">
@@ -453,5 +396,105 @@ function Participantes({
         </p>
       )}
     </section>
+  );
+}
+
+/** Um participante: o papel, o catálogo, a proposta do agente e a confirmação. */
+function Participante({
+  p,
+  ata,
+  idLista,
+  r,
+  somenteLeitura,
+  mudar,
+}: {
+  p: ParticipanteVista;
+  ata: AtaVista;
+  /** A lista de papéis do `<datalist>`. */
+  idLista: string;
+  r: Rascunho;
+  somenteLeitura: boolean;
+  mudar: (m: Partial<Rascunho>) => void;
+}) {
+  return (
+    <div className="participante-reuniao" data-testid={`participante-${p.nome}`}>
+      <strong>{p.nome}</strong>{" "}
+      {p.papel ? (
+        <Selo tom="concluido">{p.papel}</Selo>
+      ) : (
+        <Selo tom="atencao">papel a confirmar</Selo>
+      )}
+      <p className="muted">
+        Catálogo:{" "}
+        {p.catalogo
+          ? p.catalogo.papel
+            ? `${p.catalogo.pessoa.nome}, ${p.catalogo.papel}${
+                p.catalogo.reuniao ? ` (confirmado em ${p.catalogo.reuniao})` : ""
+              }`
+            : `${p.catalogo.pessoa.nome}, sem papel confirmado`
+          : p.candidatos.length > 0
+            ? "mais de uma pessoa com esse nome"
+            : "pessoa nova"}
+      </p>
+      {p.proposta && (
+        <div>
+          <p>
+            <Selo tom="agente">proposta do agente</Selo> <strong>{p.proposta.papel}</strong>
+            {p.proposta.justificativa && (
+              <span className="muted"> · {p.proposta.justificativa}</span>
+            )}
+          </p>
+          <Citacoes citacoes={p.proposta.citacoes} />
+        </div>
+      )}
+      {!somenteLeitura && (
+        <div className="confirmacao-participante">
+          <label>
+            Papel de {p.nome}
+            <input
+              list={idLista}
+              value={r.papel}
+              disabled={r.mesmoQue !== null}
+              onChange={(e) => mudar({ papel: e.target.value })}
+              placeholder="PO, gerente, usuário-chave ou outro"
+            />
+          </label>
+          {p.candidatos.length > 0 && (
+            <label>
+              Pessoa do catálogo ({p.nome})
+              <select
+                value={r.pessoa ?? ""}
+                onChange={(e) => mudar({ pessoa: e.target.value || null })}
+              >
+                <option value="">Escolha</option>
+                {p.candidatos.map((c) => (
+                  <option key={c.slug} value={c.slug}>
+                    {c.nome} ({c.slug})
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {ata.participantes.length > 1 && (
+            <label>
+              É a mesma pessoa que ({p.nome})
+              <select
+                value={r.mesmoQue ?? ""}
+                onChange={(e) => mudar({ mesmoQue: e.target.value || null })}
+              >
+                <option value="">Ninguém: é outra pessoa</option>
+                {ata.participantes
+                  .filter((o) => o.nome !== p.nome)
+                  .map((o) => (
+                    <option key={o.nome} value={o.nome}>
+                      {o.nome}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

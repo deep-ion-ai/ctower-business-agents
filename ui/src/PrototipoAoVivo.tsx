@@ -7,6 +7,7 @@ import {
   type TipoElemento,
 } from "./analise";
 import type { Revisao } from "./AcoesRevisao";
+import { Alerta, EstadoVazio, Selo, TituloSecao } from "./componentes";
 import { ExportacaoPrototipo } from "./ExportacaoPrototipo";
 import type { ApiExportacaoPrototipo } from "./apiExportacaoPrototipo";
 import { contar } from "./formatacao";
@@ -31,9 +32,9 @@ const ROTULO_TIPO: Record<TipoElemento, string> = {
 function SeloAConfirmar({ rastro }: { rastro: RastroTela }) {
   if (!aConfirmar(rastro)) return null;
   return (
-    <span className="badge" data-tone="attention">
+    <Selo tom="atencao">
       {rastro.pergunta ? `a confirmar: pergunta ${rastro.pergunta}` : "a confirmar"}
-    </span>
+    </Selo>
   );
 }
 
@@ -56,7 +57,7 @@ function Origens({ rastro }: { rastro: RastroTela }) {
 function ListaElementos({ tela }: { tela: TelaPrototipo }) {
   const rotulo = `TL-${tela.numero}`;
   if (tela.elementos.length === 0) {
-    return <p className="muted">Nenhum elemento registrado nesta tela.</p>;
+    return <EstadoVazio>Nenhum elemento registrado nesta tela.</EstadoVazio>;
   }
   return (
     <ol className="criterios elementos-tela" aria-label={`Elementos de ${rotulo}`}>
@@ -64,7 +65,7 @@ function ListaElementos({ tela }: { tela: TelaPrototipo }) {
         <li key={e.numero} className="criterio" aria-label={`E-${e.numero}: ${e.nome}`}>
           <div className="criterio-cabecalho">
             <strong>E-{e.numero}</strong> {e.nome}
-            <span className="chip">{ROTULO_TIPO[e.tipo]}</span>
+            <Selo tom="neutro">{ROTULO_TIPO[e.tipo]}</Selo>
             <SeloAConfirmar rastro={e} />
           </div>
           {e.descricao && <p className="muted">{e.descricao}</p>}
@@ -192,10 +193,9 @@ function QuadroTela({
   const rotulo = `TL-${tela.numero}`;
   if (!comHtml) {
     return (
-      <p className="aviso-prototipo attention-text" role="status">
-        A tela {rotulo} ainda não tem protótipo HTML: o agente grava o HTML depois de
-        registrar os elementos.
-      </p>
+      <Alerta tom="atencao" titulo={`A tela ${rotulo} ainda não tem protótipo HTML:`}>
+        o agente grava o HTML depois de registrar os elementos.
+      </Alerta>
     );
   }
   if (falha) {
@@ -256,7 +256,7 @@ export function PrototipoAoVivo({
 
   return (
     <section aria-label="Protótipo de telas" className="historias-ao-vivo prototipo-ao-vivo">
-      <h3>Protótipo de telas</h3>
+      <TituloSecao nivel={3}>Protótipo de telas</TituloSecao>
       <p className="muted">
         {contar(telas.length, "tela", "telas")}
         {aConfirmarTelas > 0 && ` · ${aConfirmarTelas} com itens a confirmar`}
@@ -264,7 +264,7 @@ export function PrototipoAoVivo({
         {comAjuste > 0 && ` · ${contar(comAjuste, "ajuste pedido", "ajustes pedidos")}`}
         {origem && ` · origem ${origem}`}
       </p>
-      {telas.length === 0 && <p className="muted">Nenhuma tela registrada ainda.</p>}
+      {telas.length === 0 && <EstadoVazio>Nenhuma tela registrada ainda.</EstadoVazio>}
       {telas.length > 0 && (
         <ExportacaoPrototipo projeto={projeto} analise={analise} api={apiExportacao} />
       )}
@@ -284,17 +284,9 @@ export function PrototipoAoVivo({
                     >
                       <span className="painel-id">TL-{t.numero}</span> <strong>{t.nome}</strong>
                       <span className="prototipo-marcas">
-                        <span className="chip">{t.mudanca}</span>
-                        {aConfirmar(t) && (
-                          <span className="badge" data-tone="attention">
-                            a confirmar
-                          </span>
-                        )}
-                        {t.ajuste_pedido && (
-                          <span className="badge" data-tone="attention">
-                            ajuste pedido
-                          </span>
-                        )}
+                        <Selo tom="neutro">{t.mudanca}</Selo>
+                        {aConfirmar(t) && <Selo tom="atencao">a confirmar</Selo>}
+                        {t.ajuste_pedido && <Selo tom="atencao">ajuste pedido</Selo>}
                         {!t.html && <span className="muted">sem HTML</span>}
                       </span>
                       <span className="muted prototipo-motivo">{t.motivo}</span>
@@ -312,7 +304,7 @@ export function PrototipoAoVivo({
             <header className="historia-cabecalho">
               <span className="painel-id">TL-{tela.numero}</span>
               <strong>{tela.nome}</strong>
-              <span className="chip">{tela.mudanca}</span>
+              <Selo tom="neutro">{tela.mudanca}</Selo>
               <SeloAConfirmar rastro={tela} />
             </header>
             <p>

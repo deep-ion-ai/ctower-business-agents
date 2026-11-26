@@ -1,4 +1,5 @@
 import type { Fundamento, MarcaRevalidacao } from "./analise";
+import { Selo } from "./componentes";
 import type { DecisaoRevisao, ItemRequisito } from "./revisao";
 
 /** O item está "a revalidar" (#169). */
@@ -23,9 +24,9 @@ function explicacao(m: MarcaRevalidacao): string {
 export function SeloRevalidar({ marca }: { marca: MarcaRevalidacao }) {
   if (!aRevalidar(marca)) return null;
   return (
-    <span className="badge" data-tone="attention" title={explicacao(marca)}>
+    <Selo tom="atencao" titulo={explicacao(marca)}>
       a revalidar{doAnalista(marca) ? " (analista)" : ""}
-    </span>
+    </Selo>
   );
 }
 
