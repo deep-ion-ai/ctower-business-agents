@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.11.0](https://github.com/deep-ion-ai/ctower-business-agents/compare/v0.10.0...v0.11.0) (2026-11-26)
+
+
+### Features
+
+* **agente:** consultar_dados com aprovação por consulta e dados pessoais sempre mascarados ([#440](https://github.com/deep-ion-ai/ctower-business-agents/issues/440)) ([#466](https://github.com/deep-ion-ai/ctower-business-agents/issues/466)) ([4ce7ad2](https://github.com/deep-ion-ai/ctower-business-agents/commit/4ce7ad2363b3e06c1307f40814d2324169a00b35))
+* **agente:** ler a issue da demanda no rastreador, com os comentários ([#351](https://github.com/deep-ion-ai/ctower-business-agents/issues/351)) ([#444](https://github.com/deep-ion-ai/ctower-business-agents/issues/444)) ([1ac324d](https://github.com/deep-ion-ai/ctower-business-agents/commit/1ac324dc7578b2d83e36e59255ed7b317ec3ee87))
+* **agente:** mudanças em andamento, PRs e MRs abertos nos arquivos da análise ([#441](https://github.com/deep-ion-ai/ctower-business-agents/issues/441)) ([#458](https://github.com/deep-ion-ai/ctower-business-agents/issues/458)) ([617c980](https://github.com/deep-ion-ai/ctower-business-agents/commit/617c98015bb4f929de83c72afcd4d3a17df9d962))
+* **providers:** conexão de banco só leitura para PostgreSQL e MySQL/MariaDB ([#439](https://github.com/deep-ion-ai/ctower-business-agents/issues/439)) ([#456](https://github.com/deep-ion-ai/ctower-business-agents/issues/456)) ([dc4fdcd](https://github.com/deep-ion-ai/ctower-business-agents/commit/dc4fdcd0caa2889d466722d1235261b5512243c5))
+* **providers:** conexões externas e de banco com configuração e credencial padronizadas ([#442](https://github.com/deep-ion-ai/ctower-business-agents/issues/442)) ([a8863f9](https://github.com/deep-ion-ai/ctower-business-agents/commit/a8863f9099da42c56afae6d6e210cce7694bbed7))
+* **providers:** conexões nas Configurações, projetos que referenciam conexões e prontidão pelo descritor ([#437](https://github.com/deep-ion-ai/ctower-business-agents/issues/437)) ([#446](https://github.com/deep-ion-ai/ctower-business-agents/issues/446)) ([00e9819](https://github.com/deep-ion-ai/ctower-business-agents/commit/00e9819b9e7524e3fbd038278a088760c6fea2f2))
+* **providers:** migrar os cadastros atuais para conexões, idempotente e com backup ([#438](https://github.com/deep-ion-ai/ctower-business-agents/issues/438)) ([#457](https://github.com/deep-ion-ai/ctower-business-agents/issues/457)) ([8354c88](https://github.com/deep-ion-ai/ctower-business-agents/commit/8354c888a0d7b5856e28dfc478047ad847536aea))
+* **providers:** modelo de conexão e descritor por tipo ([#435](https://github.com/deep-ion-ai/ctower-business-agents/issues/435)) ([#443](https://github.com/deep-ion-ai/ctower-business-agents/issues/443)) ([4cbe5a3](https://github.com/deep-ion-ai/ctower-business-agents/commit/4cbe5a3c8f68bb75d9d8a2fe9b91909c2f1c45fa))
+* **providers:** resolvedor único de credenciais com cache, nova tentativa e mascaramento ([#436](https://github.com/deep-ion-ai/ctower-business-agents/issues/436)) ([#448](https://github.com/deep-ion-ai/ctower-business-agents/issues/448)) ([b95bb51](https://github.com/deep-ion-ai/ctower-business-agents/commit/b95bb5169c9376fa0d2c78f993d1192cc91adcf0))
+
+
+### Bug Fixes
+
+* **site:** ajustes da revisão visual e publicação no GitHub Pages ([b6164e9](https://github.com/deep-ion-ai/ctower-business-agents/commit/b6164e98dd210a70fff92c52f143901ca7c9da27)), closes [#427](https://github.com/deep-ion-ai/ctower-business-agents/issues/427)
+
 ## [0.10.0](https://github.com/deep-ion-ai/ctower-business-agents/compare/v0.9.0...v0.10.0) (2026-11-26)
 
 
