@@ -9,6 +9,7 @@ import {
 import { AssistenteProjeto } from "./AssistenteProjeto";
 import type { RepoDetectado, ResultadoClone } from "./repositorios";
 import { PASTA_CLONES, apiConfiguracoesFalsa } from "./test/configuracoesFalso";
+import { apiConexoesFalsa } from "./test/conexoesFalso";
 import { inventarioFicticio } from "./test/falsos";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(), Channel: vi.fn() }));
@@ -796,6 +797,62 @@ describe("Assistente de projeto: passo 3, demandas", () => {
         }),
       ),
     );
+  });
+
+  it("o Jira pode vir de uma conexão das Configurações, sem URL nem token (#437)", async () => {
+    const api = apiConfiguracoesFalsa();
+    const conexoes = apiConexoesFalsa();
+    render(
+      <AssistenteProjeto
+        api={api}
+        apiConexoes={conexoes}
+        aoConcluir={vi.fn()}
+        aoPrepararAmbiente={vi.fn()}
+        aoCancelar={vi.fn()}
+      />,
+    );
+    await ateOPasso3();
+    fireEvent.click(screen.getByRole("radio", { name: /Jira/ }));
+    const conexao = await screen.findByLabelText("Conexão");
+    // Só as conexões de rastreador do tipo escolhido.
+    expect(within(conexao).queryByRole("option", { name: /GitLab interno/ })).toBeNull();
+    fireEvent.change(conexao, { target: { value: "jira-da-empresa" } });
+    expect(screen.queryByLabelText("Endereço do Jira")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Token do Jira")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Chave do projeto"), {
+      target: { value: "FAT" },
+    });
+    fireEvent.click(botao("Continuar"));
+    // Sem pedir token: segue para a revisão.
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    expect(api.salvarToken).not.toHaveBeenCalled();
+  });
+
+  it("“Nova conexão…” no passo das demandas cria a conexão e já a escolhe (#437)", async () => {
+    const conexoes = apiConexoesFalsa([]);
+    render(
+      <AssistenteProjeto
+        api={apiConfiguracoesFalsa()}
+        apiConexoes={conexoes}
+        aoConcluir={vi.fn()}
+        aoPrepararAmbiente={vi.fn()}
+        aoCancelar={vi.fn()}
+      />,
+    );
+    await ateOPasso3();
+    fireEvent.click(screen.getByRole("radio", { name: /Jira/ }));
+    fireEvent.change(await screen.findByLabelText("Conexão"), {
+      target: { value: "__nova__" },
+    });
+    const form = within(screen.getByRole("group", { name: "Nova conexão" }));
+    fireEvent.change(form.getByLabelText("Nome"), { target: { value: "Jira novo" } });
+    fireEvent.change(form.getByLabelText("Endereço"), {
+      target: { value: "https://jira.example.com" },
+    });
+    fireEvent.change(form.getByLabelText("Token ou senha"), { target: { value: "tok-ficticio" } });
+    fireEvent.click(form.getByRole("button", { name: "Criar conexão" }));
+    await waitFor(() => expect(screen.getByLabelText("Conexão")).toHaveValue("jira-novo"));
+    expect(conexoes.guardarCredencialConexao).toHaveBeenCalledWith("jira-novo", "tok-ficticio");
   });
 
   it("conecta o Jira com URL, chave e token, testa a conexão e guarda o token", async () => {

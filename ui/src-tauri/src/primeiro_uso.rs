@@ -479,6 +479,10 @@ fn montar_projeto(
     projeto.exclusoes = limpar(&pedido.exclusoes);
     projeto.inclusoes = limpar(&pedido.inclusoes);
     projeto.repositorios = pedido.repositorios.clone();
+    crate::conexoes::aplicar_conexoes(
+        &mut projeto.repositorios,
+        &crate::conexoes::conexoes(dados)?,
+    )?;
     projeto.validar().map_err(|e| e.to_string())?;
     let config = Config::ler(dados).map_err(|e| e.to_string())?;
     if let Some(base) = config.base()

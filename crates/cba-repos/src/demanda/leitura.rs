@@ -272,7 +272,7 @@ fn tipo_pela_extensao(nome: &str) -> Option<&'static str> {
 fn ler_github(g: &GithubConfig, ref_: &str, f: &Ferramentas) -> Result<Bruta, DemandaErro> {
     let n = numero(ref_)?;
     let v = com_nova_tentativa(
-        || Ok(token_github(f)),
+        || Ok(token_github(g, f)),
         |token| {
             let mut c = Command::new(&f.gh);
             if let Some(t) = token {
@@ -736,7 +736,10 @@ FIM"#,
             chaveiro,
             ..Default::default()
         };
-        let tracker = TrackerConfig::Github(GithubConfig { repo: "o/r".into() });
+        let tracker = TrackerConfig::Github(GithubConfig {
+            repo: "o/r".into(),
+            ..Default::default()
+        });
         let i = ler_issue(&tracker, "#5", &LimitesIssue::default(), &f).unwrap();
         assert_eq!(i.situacao, "OPEN");
         assert_eq!(i.responsaveis, ["ana"]);
@@ -757,7 +760,10 @@ FIM"#,
             ),
             ..Default::default()
         };
-        let tracker = TrackerConfig::Github(GithubConfig { repo: "o/r".into() });
+        let tracker = TrackerConfig::Github(GithubConfig {
+            repo: "o/r".into(),
+            ..Default::default()
+        });
         let i = ler_issue(&tracker, "5", &LimitesIssue::default(), &f).unwrap();
         assert!(i.comentarios.is_empty() && i.avisos.is_empty());
         let off = Ferramentas {

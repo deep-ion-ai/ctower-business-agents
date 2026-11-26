@@ -125,7 +125,10 @@ fn sugere_confirma_e_repetir_nao_duplica() {
         ..Default::default()
     };
     let lista = listar_github(
-        &GithubConfig { repo: "o/r".into() },
+        &GithubConfig {
+            repo: "o/r".into(),
+            ..Default::default()
+        },
         &Periodo::default(),
         50,
         &f,

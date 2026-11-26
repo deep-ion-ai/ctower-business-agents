@@ -47,7 +47,10 @@ fn listagens(dir: &Path) -> usize {
 
 fn com_rastreador(c: &crate::teste_base::Cenario) {
     let mut p = cadastrado(&c.dados, PROJETO).unwrap();
-    p.repositorios.tracker = Some(TrackerConfig::Github(GithubConfig { repo: "o/r".into() }));
+    p.repositorios.tracker = Some(TrackerConfig::Github(GithubConfig {
+        repo: "o/r".into(),
+        ..Default::default()
+    }));
     Cadastro::em(c.dados.projetos()).salvar(&p).unwrap();
 }
 

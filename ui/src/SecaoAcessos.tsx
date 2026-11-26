@@ -106,6 +106,11 @@ export function SecaoAcessos({
         Tokens usados para clonar repositórios e ler demandas. Ficam no chaveiro do sistema; o app
         nunca mostra o valor.
       </p>
+      <p className="muted">
+        Os tokens daqui valem para os cadastros que ainda não usam uma conexão. Num projeto que
+        escolhe uma conexão (Configurações › Conexões), vale a credencial dela, e o token próprio
+        de um repositório continua valendo no lugar dela.
+      </p>
       {falha && (
         <Alerta tom="erro" titulo="Não foi possível ler os acessos.">
           <ErroTecnico mensagem={falha} />

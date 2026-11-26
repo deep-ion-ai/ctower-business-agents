@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
+import { apiConexoesTauri, type ApiConexoes } from "./conexoes";
+import { ComConexoes } from "./ConexoesContexto";
 import { mensagemDe } from "./analise";
 import { Alerta, BarraAcoes, Cartao, type Acao } from "./componentes";
 import {
@@ -86,18 +88,35 @@ function chaveDoPedido(p: PedidoProjeto): string {
  * (prévia automática), 3. demandas (opcional), 4. revisar e cadastrar, 5. concluído,
  * que leva ao preparo do ambiente do Claude.
  */
-export function AssistenteProjeto({
-  api,
-  aoConcluir,
-  aoPrepararAmbiente,
-  aoCancelar,
-}: {
+interface PropsAssistente {
   api: ApiAssistenteProjeto;
   /** “Fazer depois” no fim (e “Preparar o ambiente”, se não houver {@link aoPrepararAmbiente}). */
   aoConcluir: (projeto: ProjetoCadastrado) => void;
   aoPrepararAmbiente?: (projeto: ProjetoCadastrado) => void;
   aoCancelar?: () => void;
-}) {
+}
+
+/**
+ * O assistente com as conexões das Configurações (#437) à mão: os passos que pedem o
+ * rastreador e os repositórios escolhem a conexão, com “Nova conexão…” ali mesmo.
+ */
+export function AssistenteProjeto({
+  apiConexoes = apiConexoesTauri,
+  ...props
+}: PropsAssistente & { apiConexoes?: ApiConexoes }) {
+  return (
+    <ComConexoes api={apiConexoes}>
+      <AssistenteProjetoSemConexoes {...props} />
+    </ComConexoes>
+  );
+}
+
+function AssistenteProjetoSemConexoes({
+  api,
+  aoConcluir,
+  aoPrepararAmbiente,
+  aoCancelar,
+}: PropsAssistente) {
   const [passo, setPasso] = useState<Passo>(1);
   const [codigo, setCodigo] = useState<EstadoCodigo>(codigoInicial);
   const [clonando, setClonando] = useState(false);
@@ -404,6 +423,8 @@ export function AssistenteProjeto({
     if (invalido) return invalido;
     if (
       tracker?.kind === "jira" &&
+      // Com conexão (#437), a credencial é a dela.
+      !tracker.conexao &&
       !tracker.credential_cmd.trim() &&
       !demandas.tokenJira.trim() &&
       demandas.jiraGuardado !== true

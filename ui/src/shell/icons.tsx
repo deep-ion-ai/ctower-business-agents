@@ -122,6 +122,12 @@ const PATHS = {
 
 export type IconName = keyof typeof PATHS;
 
+/** O ícone pelo nome que vem do backend (o `icone` de um descritor de conexão); um nome
+ * desconhecido vira `reserva`. */
+export function iconeDoNome(nome: string, reserva: IconName = "project"): IconName {
+  return Object.prototype.hasOwnProperty.call(PATHS, nome) ? (nome as IconName) : reserva;
+}
+
 export function Icon({ name, size = 16 }: { name: IconName; size?: number }) {
   return (
     <svg
