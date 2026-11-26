@@ -107,7 +107,12 @@ fn mcp() -> i32 {
         },
         cba_tools::registro_padrao(),
         ambiente,
-    );
+    )
+    // O banco ligado na análise (#440), aberto pela conexão do catálogo, com a
+    // senha do resolvedor de credenciais.
+    .com_bancos(std::sync::Arc::new(cba_banco::FonteDoCatalogo::new(
+        cba_repos::demanda::Ferramentas::default().chaveiro,
+    )));
     match cba_mcp::servir(io::stdin().lock(), io::stdout().lock(), &mut servidor) {
         Ok(()) => {
             tracing::info!("servidor MCP encerrado: fim da entrada");

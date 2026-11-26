@@ -433,6 +433,45 @@ pub fn orientacao_da_issue(id: &cba_kb::Id, chave: &str) -> String {
     )
 }
 
+/// Orientação sobre o banco que vai ao fim do roteiro (#440).
+///
+/// - Com o banco ligado na análise (e na sessão), usar `consultar_dados` para
+///   confirmar o diagnóstico no caso relatado e medir a abrangência, com
+///   agregados e amostras pequenas, cada consulta aprovada pelo analista.
+/// - Sem ele, na análise de impacto, deixar o SQL pronto no documento para quem
+///   tem acesso ao banco.
+/// - Nos outros fluxos sem banco, nada.
+pub fn orientacao_dos_dados(
+    analise: &Analise,
+    banco: Option<&cba_core::banco::OrigemBanco>,
+) -> String {
+    let id = &analise.id;
+    match banco {
+        Some(origem) => format!(
+            "\n\n## Banco de dados ligado\n\n\
+             O analista ligou o banco {origem} nesta análise. Use `consultar_dados` (com \
+             `analise: \"{id}\"`) para confirmar o diagnóstico no caso relatado e para \
+             medir quantos registros estão na mesma situação. Cada consulta passa pela \
+             aprovação do analista: declare o objetivo em uma frase e escreva o SQL \
+             formatado. Prefira agregados (`COUNT`, `GROUP BY`, `SUM`) e amostras \
+             pequenas (`LIMIT`); nunca traga linhas inteiras de pessoas. Os dados pessoais \
+             chegam mascarados. Se o analista recusar, leve o motivo em conta. Cite o \
+             resultado com `afirmar` e `dados: [{{consulta, resumo}}]`: vira uma \
+             evidência de dados, que vale para a data da consulta.\n"
+        ),
+        None if analise.fluxo == Fluxo::Impacto => format!(
+            "\n\n## Verificação em dados\n\n\
+             Esta análise não tem banco ligado: siga só com o código. Quando a confirmação \
+             do diagnóstico ou a medida da abrangência depender dos dados, escreva as \
+             consultas prontas para quem tem acesso ao banco: registre cada uma com \
+             `perguntar` (`analise: \"{id}\"`), com o objetivo, o SQL só de leitura em \
+             bloco ```sql``` (agregados, sem trazer dados pessoais) e o que cada resultado \
+             significa para a análise.\n"
+        ),
+        None => String::new(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

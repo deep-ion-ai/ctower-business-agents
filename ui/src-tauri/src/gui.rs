@@ -7,10 +7,10 @@ use std::sync::Arc;
 
 use crate::{
     acessos, alteracoes, ambiente_teste, analise, base, clones, cobertura, conducao, conexoes,
-    configuracoes, conversa, demandas, docs_externos, funcionalidades, inicio, issues_projeto,
-    links_projeto, manual, mudancas, painel_funcionalidade, pauta, primeiro_uso, projeto, prompts,
-    prototipo, publicacao, rastreabilidade, registros, repositorios, resumo, reunioes, revisao,
-    terminal, tokens, vigia, vincular_issues, workflows,
+    configuracoes, consultas, conversa, demandas, docs_externos, funcionalidades, inicio,
+    issues_projeto, links_projeto, manual, mudancas, painel_funcionalidade, pauta, primeiro_uso,
+    projeto, prompts, prototipo, publicacao, rastreabilidade, registros, repositorios, resumo,
+    reunioes, revisao, terminal, tokens, vigia, vincular_issues, workflows,
 };
 
 pub fn rodar() {
@@ -194,6 +194,10 @@ pub fn rodar() {
             ambiente_teste::ambiente_teste_app,
             ambiente_teste::salvar_ambiente_teste_app,
             ambiente_teste::remover_ambiente_teste_app,
+            consultas::bancos_projeto_app,
+            consultas::salvar_bancos_projeto_app,
+            consultas::ligar_banco_analise_app,
+            consultas::decidir_consulta_app,
             repositorios::criar_analise_de_demanda,
             configuracoes::configuracoes_app,
             configuracoes::info_base_app,

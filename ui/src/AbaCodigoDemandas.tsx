@@ -2,6 +2,7 @@ import { useRef, useState, type KeyboardEvent } from "react";
 import { mensagemDe } from "./analise";
 import { Alerta, EstadoVazio, Secao, Selo } from "./componentes";
 import { rastreadorComConexao } from "./conexoes";
+import { BancosDoProjeto } from "./BancosDoProjeto";
 import { DestinoDocumentacao } from "./DestinoDocumentacao";
 import { SeletorConexao } from "./SeletorConexao";
 import type { PropsConfigProjeto } from "./ConfigProjeto";
@@ -50,8 +51,8 @@ type Edicao =
 /**
  * Aba “Código e demandas” (#192): os repositórios de código, com o acesso conferido
  * sozinho ao abrir a página, de onde vêm as demandas (origem em pílulas, campos
- * essenciais, “Mais opções” e “Testar conexão”) e onde a documentação é publicada
- * (#274).
+ * essenciais, “Mais opções” e “Testar conexão”), onde a documentação é publicada
+ * (#274) e os bancos de dados que as análises podem consultar (#440).
  */
 export function AbaCodigoDemandas(props: PropsConfigProjeto) {
   return (
@@ -59,6 +60,7 @@ export function AbaCodigoDemandas(props: PropsConfigProjeto) {
       <RepositoriosDeCodigo {...props} />
       <Demandas {...props} />
       <DestinoDocumentacao {...props} />
+      <BancosDoProjeto projeto={props.projeto.id} />
     </div>
   );
 }

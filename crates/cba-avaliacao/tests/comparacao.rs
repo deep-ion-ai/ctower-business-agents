@@ -63,6 +63,7 @@ fn afirmar(a: &mut Analise, secao: &str, texto: &str, confianca: Confianca, evs:
         texto_original: None,
         confianca,
         evidencias: evs,
+        dados: Vec::new(),
         estado: EstadoAfirmacao::Registrada,
         antes_de_revalidar: None,
         contestacao: None,

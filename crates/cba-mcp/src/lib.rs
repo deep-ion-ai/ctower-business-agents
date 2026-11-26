@@ -37,11 +37,26 @@
 //!
 //! O log registra só o método, a ferramenta, o tipo de erro e a duração, nunca os
 //! argumentos nem o resultado (spec, seção 9).
+//!
+//! # Ferramentas que dependem da análise (#440)
+//!
+//! `consultar_dados` só aparece quando o banco está ligado na análise da sessão.
+//! O servidor guarda a análise corrente (a do último argumento `analise`, como em
+//! `iniciar_analise` e `retomar_analise`) e, antes de cada chamada, preenche
+//! [`Ambiente::banco`] com o banco ligado nela, aberto pela [`FonteBancos`]
+//! ([`Servidor::com_bancos`]). Quando o conjunto de ferramentas visíveis muda, o
+//! servidor manda `notifications/tools/list_changed` logo depois da resposta, e
+//! o cliente pede a lista de novo.
+//!
+//! Enquanto `consultar_dados` espera a aprovação do analista, o servidor não
+//! atende outra requisição: o cliente espera a resposta da chamada.
 
 use std::io::{self, BufRead, Write};
+use std::sync::Arc;
 use std::time::Instant;
 
 use cba_core::ambiente::{Ambiente, ErroAmbiente};
+use cba_core::banco::FonteBancos;
 use cba_tools::{ErroChamada, Registro};
 use serde_json::{Value, json};
 
@@ -74,6 +89,14 @@ pub struct Servidor {
     info: InfoServidor,
     registro: Registro,
     ambiente: Result<Ambiente, ErroAmbiente>,
+    /// Abre o banco ligado na análise (#440). Sem ela, nenhum banco.
+    bancos: Option<Arc<dyn FonteBancos>>,
+    /// Análise da sessão: a do último argumento `analise`.
+    analise: Option<String>,
+    /// Ferramentas da última lista enviada ao cliente.
+    anunciadas: Option<Vec<&'static str>>,
+    /// Notificações a enviar depois da resposta.
+    notificacoes: Vec<Value>,
 }
 
 impl Servidor {
@@ -88,6 +111,71 @@ impl Servidor {
             info,
             registro,
             ambiente,
+            bancos: None,
+            analise: None,
+            anunciadas: None,
+            notificacoes: Vec::new(),
+        }
+    }
+
+    /// Usa `fonte` para abrir o banco ligado na análise da sessão (#440).
+    pub fn com_bancos(mut self, fonte: Arc<dyn FonteBancos>) -> Self {
+        self.bancos = Some(fonte);
+        self
+    }
+
+    /// Notificações pendentes (como `notifications/tools/list_changed`), para
+    /// enviar depois da resposta. Esvazia a fila.
+    pub fn notificacoes(&mut self) -> Vec<Value> {
+        std::mem::take(&mut self.notificacoes)
+    }
+
+    /// Preenche [`Ambiente::banco`] com o banco ligado na análise da sessão, ou
+    /// o esvazia.
+    fn atualizar_banco(&mut self) {
+        let (Some(fonte), Ok(ambiente)) = (&self.bancos, &mut self.ambiente) else {
+            return;
+        };
+        let conexao = self
+            .analise
+            .as_deref()
+            .and_then(|a| cba_tools::consultar_dados::conexao_da_analise(ambiente, a));
+        match conexao {
+            None => ambiente.banco = None,
+            Some(c) => {
+                if ambiente.banco.as_ref().map(|b| b.origem().conexao) != Some(c.clone()) {
+                    ambiente.banco = match fonte.abrir(&c) {
+                        Ok(b) => Some(b),
+                        Err(e) => {
+                            tracing::warn!(erro = %e, "banco ligado na análise não abriu");
+                            None
+                        }
+                    };
+                }
+            }
+        }
+    }
+
+    fn visiveis(&self) -> Vec<&'static str> {
+        self.registro
+            .visiveis(self.ambiente.as_ref())
+            .iter()
+            .map(|f| f.nome())
+            .collect()
+    }
+
+    /// Avisa o cliente se o conjunto de ferramentas mudou desde a última lista.
+    fn avisar_mudanca_da_lista(&mut self) {
+        let Some(anunciadas) = &self.anunciadas else {
+            return;
+        };
+        let agora = self.visiveis();
+        if *anunciadas != agora {
+            self.anunciadas = Some(agora);
+            self.notificacoes.push(json!({
+                "jsonrpc": "2.0",
+                "method": "notifications/tools/list_changed",
+            }));
         }
     }
 
@@ -141,7 +229,10 @@ impl Servidor {
         let resultado = match metodo {
             "initialize" => Ok(self.initialize(objeto.get("params"))),
             "ping" => Ok(json!({})),
-            "tools/list" => Ok(self.tools_list()),
+            "tools/list" => {
+                self.atualizar_banco();
+                Ok(self.tools_list())
+            }
             "tools/call" => self.tools_call(objeto.get("params")),
             _ => Err((
                 erro::METODO_NAO_ENCONTRADO,
@@ -161,10 +252,11 @@ impl Servidor {
         }
     }
 
-    fn tools_list(&self) -> Value {
+    fn tools_list(&mut self) -> Value {
+        self.anunciadas = Some(self.visiveis());
         let tools: Vec<Value> = self
             .registro
-            .ferramentas()
+            .visiveis(self.ambiente.as_ref())
             .iter()
             .map(|f| {
                 json!({
@@ -184,7 +276,24 @@ impl Servidor {
         json!({ "tools": tools })
     }
 
-    fn tools_call(&self, params: Option<&Value>) -> Result<Value, (i64, String)> {
+    fn tools_call(&mut self, params: Option<&Value>) -> Result<Value, (i64, String)> {
+        if let Some(a) = params
+            .and_then(|p| p.get("arguments"))
+            .and_then(|a| a.get("analise"))
+            .and_then(Value::as_str)
+        {
+            self.analise = Some(a.trim().to_owned());
+        }
+        self.atualizar_banco();
+        let r = self.tools_call_com_banco(params);
+        // A chamada pode ter ligado a sessão a outra análise (ou o analista pode
+        // ter ligado ou desligado o banco nela).
+        self.atualizar_banco();
+        self.avisar_mudanca_da_lista();
+        r
+    }
+
+    fn tools_call_com_banco(&self, params: Option<&Value>) -> Result<Value, (i64, String)> {
         let nome = params
             .and_then(|p| p.get("name"))
             .and_then(Value::as_str)
@@ -251,7 +360,7 @@ impl Servidor {
             .unwrap_or(VERSOES_DO_PROTOCOLO[0]);
         json!({
             "protocolVersion": versao,
-            "capabilities": { "tools": { "listChanged": false } },
+            "capabilities": { "tools": { "listChanged": true } },
             "serverInfo": {
                 "name": self.info.nome,
                 "title": self.info.titulo,
@@ -279,6 +388,11 @@ pub fn servir(
     for linha in entrada.lines() {
         if let Some(resposta) = servidor.tratar_linha(&linha?) {
             serde_json::to_writer(&mut saida, &resposta)?;
+            saida.write_all(b"\n")?;
+            saida.flush()?;
+        }
+        for n in servidor.notificacoes() {
+            serde_json::to_writer(&mut saida, &n)?;
             saida.write_all(b"\n")?;
             saida.flush()?;
         }
@@ -397,7 +511,7 @@ mod tests {
 
     #[test]
     fn tools_list_traz_nome_schema_e_anotacoes() {
-        let s = Servidor::new(
+        let mut s = Servidor::new(
             info(),
             cba_tools::registro_padrao(),
             Err(ErroAmbiente::BaseNaoConfigurada),
@@ -463,6 +577,126 @@ mod tests {
         assert_eq!(r["error"]["code"], erro::PARAMETROS_INVALIDOS);
         let msg = r["error"]["message"].as_str().unwrap();
         assert!(msg.contains("listar_analises"), "{msg}");
+    }
+
+    /// Banco e fonte de teste: só a origem (#440).
+    #[derive(Debug)]
+    struct BancoDeTeste;
+
+    impl cba_core::banco::BancoConectado for BancoDeTeste {
+        fn origem(&self) -> cba_core::banco::OrigemBanco {
+            cba_core::banco::OrigemBanco {
+                conexao: "banco-hml".into(),
+                nome: "Banco de homologação".into(),
+                tipo: "PostgreSQL".into(),
+                ambiente: None,
+            }
+        }
+        fn ler_schema(&self) -> Result<cba_core::banco::SchemaBanco, String> {
+            Ok(Default::default())
+        }
+        fn consultar(&self, _sql: &str) -> Result<cba_core::banco::ResultadoDados, String> {
+            Err("não usado".into())
+        }
+    }
+
+    #[derive(Debug)]
+    struct FonteDeTeste;
+
+    impl FonteBancos for FonteDeTeste {
+        fn abrir(&self, conexao: &str) -> Result<Arc<dyn cba_core::banco::BancoConectado>, String> {
+            assert_eq!(conexao, "banco-hml");
+            Ok(Arc::new(BancoDeTeste))
+        }
+    }
+
+    fn nomes(r: &Value) -> Vec<String> {
+        r["result"]["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["name"].as_str().unwrap().to_owned())
+            .collect()
+    }
+
+    #[test]
+    fn consultar_dados_aparece_quando_o_banco_e_ligado_na_analise() {
+        use cba_core::eventos::Mudanca;
+        let dir = tempfile::tempdir().unwrap();
+        let amb = ambiente(dir.path());
+        let mut projeto = amb.projeto.clone();
+        projeto.bancos = vec!["banco-hml".into()];
+        cba_index::Cadastro::em(amb.dados.projetos())
+            .salvar(&projeto)
+            .unwrap();
+        let analise = amb
+            .analises
+            .criar(cba_core::analises::NovaAnalise {
+                fluxo: cba_core::analise::Fluxo::Impacto,
+                titulo: "Multa zerada".into(),
+                entrada: "Faturas sem multa".into(),
+                analista: None,
+                base: None,
+            })
+            .unwrap();
+        let analises = amb.analises.clone();
+        let mut s = Servidor::new(info(), cba_tools::registro_padrao(), Ok(amb))
+            .com_bancos(Arc::new(FonteDeTeste));
+        let r = pedir(
+            &mut s,
+            json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize" }),
+        );
+        assert_eq!(r["result"]["capabilities"]["tools"]["listChanged"], true);
+        let lista = pedir(
+            &mut s,
+            json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/list" }),
+        );
+        assert!(!nomes(&lista).contains(&"consultar_dados".to_owned()));
+
+        // A sessão passa a trabalhar na análise, ainda sem o banco: nada muda.
+        let id = analise.id.to_string();
+        chamar(
+            &mut s,
+            json!({ "name": "iniciar_analise", "arguments": { "analise": id } }),
+        );
+        assert!(s.notificacoes().is_empty());
+
+        // O analista liga o banco: na chamada seguinte, o cliente é avisado.
+        analises
+            .alterar(&analise.id, Mudanca::Consulta, |a, agora| {
+                a.ligar_banco("banco-hml", "Banco de homologação", None, agora)
+            })
+            .unwrap();
+        chamar(
+            &mut s,
+            json!({ "name": "retomar_analise", "arguments": { "analise": id } }),
+        );
+        let n = s.notificacoes();
+        assert_eq!(n.len(), 1);
+        assert_eq!(n[0]["method"], "notifications/tools/list_changed");
+        let lista = pedir(
+            &mut s,
+            json!({ "jsonrpc": "2.0", "id": 3, "method": "tools/list" }),
+        );
+        assert!(nomes(&lista).contains(&"consultar_dados".to_owned()));
+
+        // Desligado, some de novo.
+        analises
+            .alterar(&analise.id, Mudanca::Consulta, |a, agora| {
+                a.desligar_banco(agora);
+                Ok(())
+            })
+            .unwrap();
+        chamar(
+            &mut s,
+            json!({ "name": "retomar_analise", "arguments": { "analise": id } }),
+        );
+        assert_eq!(s.notificacoes().len(), 1);
+        let lista = pedir(
+            &mut s,
+            json!({ "jsonrpc": "2.0", "id": 4, "method": "tools/list" }),
+        );
+        assert!(!nomes(&lista).contains(&"consultar_dados".to_owned()));
     }
 
     #[test]

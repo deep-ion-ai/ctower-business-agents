@@ -1024,6 +1024,10 @@ fn iniciar(
     if let Some(chave) = crate::issue_da_demanda::chave_no_rastreador(ambiente, analise) {
         roteiro.push_str(&crate::roteiro::orientacao_da_issue(&analise.id, &chave));
     }
+    roteiro.push_str(&crate::roteiro::orientacao_dos_dados(
+        analise,
+        banco_da_sessao(ambiente, analise).as_ref(),
+    ));
 
     let mut texto = String::new();
     if criada {
@@ -1393,6 +1397,10 @@ fn retomar(ambiente: &Ambiente, analise: &Analise, memoria: &Memoria) -> Saida {
         if let Some(chave) = crate::issue_da_demanda::chave_no_rastreador(ambiente, analise) {
             roteiro.push_str(&crate::roteiro::orientacao_da_issue(&analise.id, &chave));
         }
+        roteiro.push_str(&crate::roteiro::orientacao_dos_dados(
+            analise,
+            banco_da_sessao(ambiente, analise).as_ref(),
+        ));
         roteiro
     });
     if let Some(r) = &roteiro {
@@ -1879,6 +1887,17 @@ fn concluir(ambiente: &Ambiente, id: &Id) -> Result<Saida, ErroFerramenta> {
             "pendencias": pendencias,
         }),
     ))
+}
+
+/// O banco da sessão, quando é o ligado nesta análise (#440).
+fn banco_da_sessao(
+    ambiente: &Ambiente,
+    analise: &cba_core::analise::Analise,
+) -> Option<cba_core::banco::OrigemBanco> {
+    let origem = ambiente.banco.as_ref()?.origem();
+    (crate::consultar_dados::conexao_ligada(ambiente, analise).as_deref()
+        == Some(origem.conexao.as_str()))
+    .then_some(origem)
 }
 
 #[cfg(test)]

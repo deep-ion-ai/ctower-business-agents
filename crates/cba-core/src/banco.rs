@@ -7,8 +7,10 @@
 //! decide se há um banco conectado ([`Ambiente::banco`](crate::ambiente::Ambiente::banco)).
 
 use std::fmt;
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 /// De onde vem o banco: a conexão cadastrada, sem endereço nem usuário.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -93,4 +95,40 @@ pub trait BancoConectado: Send + Sync + fmt::Debug {
     fn origem(&self) -> OrigemBanco;
     /// Tabelas, colunas, tipos e chaves do banco.
     fn ler_schema(&self) -> Result<SchemaBanco, String>;
+    /// Roda uma consulta só de leitura, validada, com o tempo limite e o limite
+    /// de linhas da conexão (#440). Quem chama já tem a aprovação do analista.
+    fn consultar(&self, sql: &str) -> Result<ResultadoDados, String>;
+    /// Confere a instrução antes de pedir a aprovação do analista (só leitura,
+    /// uma instrução): o erro diz ao agente o que corrigir.
+    fn validar(&self, _sql: &str) -> Result<(), String> {
+        Ok(())
+    }
+}
+
+/// Coluna do resultado de uma consulta.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ColunaDados {
+    pub nome: String,
+    /// Tipo como o driver o nomeia (`INT8`, `VARCHAR`).
+    pub tipo: String,
+}
+
+/// Resultado de uma consulta ao banco, antes do mascaramento.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ResultadoDados {
+    pub colunas: Vec<ColunaDados>,
+    /// Valores na ordem das colunas: número, booleano, texto ou `null`.
+    pub linhas: Vec<Vec<Value>>,
+    /// Havia mais linhas que o limite; só as primeiras vieram.
+    pub cortada: bool,
+    pub limite_linhas: usize,
+    pub duracao_ms: u64,
+}
+
+/// Abre o banco de uma conexão cadastrada pelo `id` (#440). A implementação (em
+/// `cba-banco`) lê o catálogo de conexões e a credencial; o servidor MCP a usa
+/// para preencher [`crate::ambiente::Ambiente::banco`] com o banco ligado na
+/// análise.
+pub trait FonteBancos: Send + Sync + fmt::Debug {
+    fn abrir(&self, conexao: &str) -> Result<Arc<dyn BancoConectado>, String>;
 }
