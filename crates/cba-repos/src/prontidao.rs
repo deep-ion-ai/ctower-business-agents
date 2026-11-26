@@ -318,16 +318,10 @@ fn prontidao_gh(g: &GithubConfig, f: &Ferramentas, titulo: &str) -> Integracao {
                 *cred.borrow_mut() = Some(t);
                 return Ok(Some("token global do github.com (chaveiro)".into()));
             }
-            let mut c = Command::new(&f.gh);
-            c.args(["auth", "token"]);
-            // Só interessa que haja token; o valor não é guardado nem mostrado.
-            saida(c, None).and_then(|t| {
-                if t.is_empty() {
-                    Err("sem token".into())
-                } else {
-                    Ok(None)
-                }
-            })
+            // Só interessa que haja token; o valor não é mostrado.
+            crate::providers::legado::token_cli(HOST_GITHUB, "GitHub", &f.gh, f.chaveiro.as_ref())
+                .map(|_| None)
+                .map_err(|e| e.to_string())
         },
     );
     let token = cred.borrow();

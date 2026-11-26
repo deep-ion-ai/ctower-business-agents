@@ -64,6 +64,17 @@ impl DescritorProvider for DescritorGithub {
             VariavelAmbiente::texto("GH_HOST", host_de(&conexao.endereco)),
         ]
     }
+    fn credencial_pela_cli(&self, conexao: &Conexao) -> Option<(&'static str, Vec<String>)> {
+        Some((
+            "gh",
+            vec![
+                "auth".into(),
+                "token".into(),
+                "--hostname".into(),
+                host_de(&conexao.endereco),
+            ],
+        ))
+    }
     fn passos_prontidao(&self) -> &'static [PassoProntidao] {
         &[
             PassoProntidao {

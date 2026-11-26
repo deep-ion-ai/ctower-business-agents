@@ -29,6 +29,12 @@ impl Secret {
     }
 }
 
+impl Clone for Secret {
+    fn clone(&self) -> Self {
+        Secret(self.0.clone())
+    }
+}
+
 impl fmt::Debug for Secret {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("***")
