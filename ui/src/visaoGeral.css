@@ -20,13 +20,13 @@
 
 .vg-cab h2 {
   margin: 0;
-  font-size: 20px;
-  font-weight: 600;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-strong);
 }
 
 .vg-sub {
   margin: 2px 0 0;
-  font-size: 13px;
+  font-size: var(--fs-support);
   color: var(--muted);
 }
 
@@ -43,12 +43,12 @@
   align-items: center;
   gap: 5px;
   padding: 1px 9px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid var(--border-strong);
   background: var(--surface);
   color: var(--text-2);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--fs-small);
   white-space: nowrap;
   cursor: pointer;
 }
@@ -88,10 +88,8 @@
   align-items: center;
   gap: 8px;
   margin: 0;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
   color: var(--text-2);
 }
 
@@ -100,15 +98,13 @@
   font-weight: 400;
   letter-spacing: 0;
   text-transform: none;
-  font-size: 12.5px;
+  font-size: var(--fs-support);
 }
 
 .vg-subtitulo {
   margin: 6px 0 0;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
   color: var(--text-2);
 }
 
@@ -138,12 +134,12 @@
 
 .vg-passo-titulo {
   margin: 0;
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 .vg-passo-descricao {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--fs-support);
   color: var(--text-2);
 }
 
@@ -222,24 +218,24 @@
 }
 
 .vg-kpi-rotulo {
-  font-size: 12.5px;
+  font-size: var(--fs-support);
   color: var(--text-2);
 }
 
 .vg-kpi-valor {
-  font-size: 28px;
-  font-weight: 600;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-strong);
   line-height: 1.15;
   color: var(--text);
 }
 
 .vg-kpi-valor[data-vazio="true"] {
-  font-size: 18px;
+  font-size: var(--fs-section);
   color: var(--muted);
 }
 
 .vg-kpi-texto {
-  font-size: 12.5px;
+  font-size: var(--fs-support);
   color: var(--muted);
 }
 
@@ -281,7 +277,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 12.5px;
+  font-size: var(--fs-support);
   color: var(--text-2);
 }
 
@@ -303,7 +299,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 13px;
+  font-size: var(--fs-support);
 }
 
 .vg-barras > li {
@@ -325,7 +321,7 @@
 
 .vg-valor {
   font-family: var(--mono);
-  font-size: 12.5px;
+  font-size: var(--fs-support);
   text-align: right;
   color: var(--text-2);
 }
@@ -366,7 +362,7 @@
 .vg-id {
   flex: none;
   font-family: var(--mono);
-  font-size: 12.5px;
+  font-size: var(--fs-support);
   color: var(--muted);
 }
 
@@ -382,7 +378,7 @@
   flex: none;
   min-width: 48px;
   font-family: var(--mono);
-  font-size: 12.5px;
+  font-size: var(--fs-support);
   color: var(--muted);
 }
 
@@ -397,7 +393,7 @@
   border-radius: 8px;
   background: var(--surface-2);
   color: var(--text-2);
-  font-size: 13px;
+  font-size: var(--fs-support);
 }
 
 .vg-vazio b {
@@ -410,12 +406,12 @@
 
 .vg-nota {
   margin: 0;
-  font-size: 12.5px;
+  font-size: var(--fs-support);
   color: var(--muted);
 }
 
 .vg-primeiros progress { width: 100%; margin-bottom: 8px; }
-.vg-progresso { margin-left: 8px; font-weight: normal; color: var(--muted, inherit); font-size: 0.85em; }
+.vg-progresso { margin-left: 8px; font-weight: normal; color: var(--muted, inherit); font-size: var(--fs-small); }
 .vg-lista-passos { list-style: none; margin: 0; padding: 0; }
 .vg-lista-passos li { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
 .vg-lista-passos li[data-feito="true"] .vg-passo-titulo { text-decoration: line-through; opacity: 0.7; }

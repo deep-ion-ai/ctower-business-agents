@@ -12,6 +12,7 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
-    css: false,
+    // Sem processar CSS nos testes; o texto cru (?raw) passa, para o estilos.test.ts.
+    css: { include: [/\.css\?raw$/] },
   },
 });

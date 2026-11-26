@@ -19,8 +19,8 @@
 .acessos-cabecalho h4 {
   flex: 1;
   margin: 0;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-strong);
 }
 
 .acessos-lista {
@@ -55,27 +55,27 @@
 }
 
 .acessos-texto .muted {
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .acessos-forja {
   min-width: 54px;
   padding: 2px 8px;
   border: 1px solid var(--border-strong);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--idle-bg);
   color: var(--text-2);
-  font-size: 12px;
+  font-size: var(--fs-small);
   text-align: center;
 }
 
 .acessos-chip {
   padding: 2px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid var(--border);
   background: var(--idle-bg);
   color: var(--text-2);
-  font-size: 12px;
+  font-size: var(--fs-small);
   white-space: nowrap;
 }
 
@@ -136,7 +136,7 @@
 }
 
 .acessos-form .field {
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--muted);
 }
 

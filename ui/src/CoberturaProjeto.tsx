@@ -10,7 +10,7 @@ const PASTAS_VISIVEIS = 8;
 /** Cor do mapa de calor: só reforça; os números e o texto "lacuna" dizem o mesmo. */
 function fundo(calor: number): string {
   return calor > 0
-    ? `color-mix(in srgb, var(--attention, #f2a33a) ${Math.round(calor * 60) + 10}%, transparent)`
+    ? `color-mix(in srgb, var(--attention) ${Math.round(calor * 60) + 10}%, transparent)`
     : "transparent";
 }
 
