@@ -54,7 +54,7 @@ describe("Seção, cartão e item de lista (#406)", () => {
         </ListaItens>
       </>,
     );
-    expect(screen.getByRole("article", { name: "Pergunta 1" })).toHaveClass("cartao");
+    expect(screen.getByRole("article", { name: "Pergunta 1" })).toHaveClass("bloco-cartao");
     const lista = screen.getByRole("list", { name: "Linha do tempo" });
     const item = within(lista).getByRole("listitem");
     expect(item).toHaveTextContent("Ata aprovada");

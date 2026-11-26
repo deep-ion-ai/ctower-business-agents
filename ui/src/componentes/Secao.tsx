@@ -53,7 +53,7 @@ export function Secao({
   const nomeado = titulo !== undefined && !rotulo;
   return (
     <section
-      className={className ? `secao ${className}` : "secao"}
+      className={className ? `bloco-secao ${className}` : "bloco-secao"}
       aria-labelledby={nomeado ? id : undefined}
       aria-label={rotulo}
     >
@@ -85,7 +85,7 @@ export function Cartao({
 }) {
   const Elemento = como;
   return (
-    <Elemento className={className ? `cartao ${className}` : "cartao"} aria-label={rotulo}>
+    <Elemento className={className ? `bloco-cartao ${className}` : "bloco-cartao"} aria-label={rotulo}>
       {children}
     </Elemento>
   );
