@@ -1,6 +1,16 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { AjudaTermo } from "./AjudaTermo";
 import { mensagemDe } from "./analise";
+import {
+  Alerta,
+  BarraAcoes,
+  EstadoVazio,
+  ItemLista,
+  ListaItens,
+  Secao,
+  Selo,
+  type TomSelo,
+} from "./componentes";
 import type { ApiConhecimento } from "./conhecimento";
 import type { Cobertura, CoberturaArea } from "./cobertura";
 import type { ApiConfiguracoes, ProjetoConfig } from "./configuracoes";
@@ -38,9 +48,9 @@ const AREAS_VISIVEIS = 6;
 const DEMANDAS_VISIVEIS = 3;
 
 const SIMBOLO_SAUDE = { ok: "✓", problema: "!", neutro: "·" } as const;
-const TOM_SAUDE: Record<ItemSaude["estado"], Tom> = {
-  ok: "done",
-  problema: "attention",
+const TOM_SAUDE: Record<ItemSaude["estado"], TomSelo> = {
+  ok: "concluido",
+  problema: "atencao",
   neutro: "neutro",
 };
 
@@ -194,38 +204,32 @@ export function VisaoGeral({
         </div>
         <div className="vg-acoes">
           {itens.length > 0 && (
-            <ul className="vg-legenda" aria-label="Saúde do projeto">
+            <ul className="vg-saude" aria-label="Saúde do projeto">
               {itens.map((i) => (
                 <li key={i.id}>
-                  <button
-                    type="button"
-                    className="vg-chip"
-                    data-tone={TOM_SAUDE[i.estado]}
-                    title={i.texto}
-                    onClick={ir.configurar}
-                  >
-                    <span aria-hidden="true">{SIMBOLO_SAUDE[i.estado]}</span> {i.titulo}
+                  {/* O selo leva ao cadastro: o botão só embrulha o selo, sem forma própria. */}
+                  <button type="button" className="vg-saude-botao" title={i.texto} onClick={ir.configurar}>
+                    <Selo tom={TOM_SAUDE[i.estado]}>
+                      <span aria-hidden="true">{SIMBOLO_SAUDE[i.estado]}</span> {i.titulo}
+                    </Selo>
                   </button>
                 </li>
               ))}
             </ul>
           )}
-          <button type="button" className="btn" onClick={ir.configurar}>
-            Configurar projeto
-          </button>
-          <button type="button" className="btn btn-primary" onClick={ir.novaAnalise}>
-            Nova análise
-          </button>
+          <BarraAcoes
+            rotulo="Ações do projeto"
+            alinhamento="fim"
+            principal={{ texto: "Nova análise", aoEscolher: ir.novaAnalise }}
+            secundarias={[{ texto: "Configurar projeto", aoEscolher: ir.configurar }]}
+          />
         </div>
       </header>
 
       {falha && !resumo && (
-        <div className="vg-vazio" role="alert">
-          <p>
-            <b>Não foi possível ler o resumo do projeto.</b> {falha}
-          </p>
-          <p>O app tenta de novo sozinho em alguns segundos.</p>
-        </div>
+        <Alerta tom="erro" titulo="Não foi possível ler o resumo do projeto.">
+          {falha} O app tenta de novo sozinho em alguns segundos.
+        </Alerta>
       )}
       {!resumo && !falha && <p className="muted">Carregando…</p>}
 
@@ -253,26 +257,35 @@ function Painel({
   rotulo,
   link,
   aoLink,
+  extra,
+  className,
   children,
 }: {
   titulo: ReactNode;
   rotulo: string;
   link?: string;
   aoLink?: () => void;
+  /** À direita do título, no lugar do link (ex.: o progresso). */
+  extra?: ReactNode;
+  className?: string;
   children: ReactNode;
 }) {
   return (
-    <section className="panel vg-painel" aria-label={rotulo}>
-      <h3>
-        {titulo}
-        {link && aoLink && (
+    <Secao
+      titulo={titulo}
+      rotulo={rotulo}
+      className={className ? `vg-painel ${className}` : "vg-painel"}
+      acoes={
+        extra ??
+        (link && aoLink ? (
           <button type="button" className="link" onClick={aoLink}>
             {link}
           </button>
-        )}
-      </h3>
+        ) : undefined)
+      }
+    >
       {children}
-    </section>
+    </Secao>
   );
 }
 
@@ -292,11 +305,12 @@ function PrimeirosPassos({
   const proximo = passos.find((p) => !p.feito)?.chave;
   return (
     <div className="vg-grade vg-g32">
-      <section className="panel vg-painel vg-primeiros" aria-label="Primeiros passos">
-        <h3>
-          Primeiros passos
-          <span className="vg-progresso">{`${feitos} de ${passos.length}`}</span>
-        </h3>
+      <Painel
+        titulo="Primeiros passos"
+        rotulo="Primeiros passos"
+        className="vg-primeiros"
+        extra={<span className="vg-progresso">{`${feitos} de ${passos.length}`}</span>}
+      >
         <progress value={feitos} max={passos.length} aria-label="Progresso dos primeiros passos" />
         <ol className="vg-lista-passos">
           {passos.map((p) => (
@@ -321,15 +335,14 @@ function PrimeirosPassos({
             </li>
           ))}
         </ol>
-      </section>
-      <section className="panel vg-painel" aria-label="Como o app trabalha">
-        <h3>Como o app trabalha</h3>
+      </Painel>
+      <Painel titulo="Como o app trabalha" rotulo="Como o app trabalha">
         <ol className="vg-como">
           {COMO_O_APP_TRABALHA.map((t) => (
             <li key={t}>{t}</li>
           ))}
         </ol>
-      </section>
+      </Painel>
     </div>
   );
 }
@@ -347,48 +360,45 @@ function ProximosPassos({
 }) {
   const { visiveis, total } = proximosPassos(resumo, ambienteAPreparar(ambiente));
   return (
-    <section className="panel vg-painel vg-passos" aria-label="Próximos passos">
-      <h3>
-        Próximos passos
-        {total > 0 && (
-          <button type="button" className="link" onClick={aoVerTodas}>
-            {`Ver ${total === 1 ? "a atividade" : `as ${total} atividades`}`}
-          </button>
-        )}
-      </h3>
+    <Painel
+      titulo="Próximos passos"
+      rotulo="Próximos passos"
+      className="vg-passos"
+      link={total > 0 ? `Ver ${total === 1 ? "a atividade" : `as ${total} atividades`}` : undefined}
+      aoLink={aoVerTodas}
+    >
       {visiveis.length === 0 ? (
-        <div className="vg-vazio">
-          <p>
-            <b>Nada espera por você.</b> Quando o agente perguntar, terminar uma análise ou chegar uma demanda
-            nova, o próximo passo aparece aqui.
-          </p>
-          <button type="button" className="btn btn-sm" onClick={aoVerTodas}>
-            Abrir as atividades
-          </button>
-        </div>
+        <EstadoVazio acao={{ texto: "Abrir as atividades", aoEscolher: aoVerTodas }}>
+          <b>Nada espera por você.</b> Quando o agente perguntar, terminar uma análise ou chegar uma demanda nova,
+          o próximo passo aparece aqui.
+        </EstadoVazio>
       ) : (
-        visiveis.map((p) => <PassoLinha key={p.chave} passo={p} aoIr={aoIr} />)
+        <ListaItens>
+          {visiveis.map((p) => (
+            <PassoLinha key={p.chave} passo={p} aoIr={aoIr} />
+          ))}
+        </ListaItens>
       )}
-    </section>
+    </Painel>
   );
 }
 
 function PassoLinha({ passo, aoIr }: { passo: Passo; aoIr: (d: DestinoPasso) => void }) {
   return (
-    <div className="vg-passo">
-      <span className="vg-ponto" data-tone={passo.tom} aria-hidden="true" />
-      <div className="vg-passo-texto">
-        <p className="vg-passo-titulo">{passo.titulo}</p>
-        <p className="vg-passo-descricao">{passo.descricao}</p>
-      </div>
-      <button
-        type="button"
-        className={passo.tom === "attention" ? "btn btn-primary" : "btn"}
-        onClick={() => aoIr(passo.destino)}
-      >
-        {passo.acao}
-      </button>
-    </div>
+    <ItemLista
+      acoes={
+        <button
+          type="button"
+          className={passo.tom === "attention" ? "btn btn-primary" : "btn"}
+          onClick={() => aoIr(passo.destino)}
+        >
+          {passo.acao}
+        </button>
+      }
+    >
+      <p className="vg-passo-titulo">{passo.titulo}</p>
+      <p className="vg-passo-descricao">{passo.descricao}</p>
+    </ItemLista>
   );
 }
 
@@ -454,7 +464,7 @@ function Numeros({ resumo, ir }: { resumo: ResumoProjeto; ir: Irs }) {
         <button
           key={k.chave}
           type="button"
-          className="panel vg-kpi"
+          className="vg-kpi"
           data-tone={k.n > 0 ? k.tom : undefined}
           onClick={k.ir}
         >
@@ -502,15 +512,10 @@ function Analises({
   return (
     <Painel titulo="Análises por situação" rotulo="Análises" link="Abrir as análises" aoLink={aoAbrir}>
       {resumo.analises.total === 0 ? (
-        <div className="vg-vazio">
-          <p>
-            <b>Nenhuma análise ainda.</b> Uma análise é uma conversa com o agente sobre o código: ele lê, responde
-            com evidências e o que você aprova vira regra na base.
-          </p>
-          <button type="button" className="btn btn-sm" onClick={aoCriar}>
-            Nova análise
-          </button>
-        </div>
+        <EstadoVazio acao={{ texto: "Nova análise", aoEscolher: aoCriar }}>
+          <b>Nenhuma análise ainda.</b> Uma análise é uma conversa com o agente sobre o código: ele lê, responde
+          com evidências e o que você aprova vira regra na base.
+        </EstadoVazio>
       ) : (
         <>
           <Pilha segmentos={segmentosDeAnalises(resumo)} rotulo="Análises por situação" />
@@ -536,7 +541,7 @@ const ROTULO_SESSAO = {
   ativa: "trabalhando",
   "aguardando-analista": "aguarda você",
 } as const;
-const TOM_SESSAO = { ativa: "running", "aguardando-analista": "attention" } as const;
+const TOM_SESSAO = { ativa: "andamento", "aguardando-analista": "atencao" } as const;
 const ROTULO_CLIENTE = {
   "claude-code": "Claude Code",
   "claude-desktop": "Claude Desktop",
@@ -558,16 +563,15 @@ function SessoesEAtividade({
   return (
     <Painel titulo="Sessões do agente" rotulo="Sessões e atividade">
       {vivas.length === 0 ? (
-        <p className="vg-nota">
+        <EstadoVazio>
           Nenhuma sessão ativa. O agente trabalha numa sessão por análise; ela aparece aqui enquanto roda.
-        </p>
+        </EstadoVazio>
       ) : (
-        <ul className="vg-linhas" aria-label="Sessões ativas">
+        <ListaItens rotulo="Sessões ativas">
           {vivas.map((s) => (
-            <li key={s.id}>
-              <span className="vg-ponto" data-tone={TOM_SESSAO[s.estado]} aria-hidden="true" />
+            <ItemLista key={s.id} meta={<Selo tom={TOM_SESSAO[s.estado]}>{ROTULO_SESSAO[s.estado]}</Selo>}>
               {s.analise ? (
-                <>
+                <span className="vg-linha">
                   <span className="vg-id">{s.analise}</span>
                   <button
                     type="button"
@@ -577,33 +581,27 @@ function SessoesEAtividade({
                   >
                     {s.titulo ?? "Abrir a análise"}
                   </button>
-                </>
+                </span>
               ) : (
-                <span className="vg-titulo muted">
-                  {`${ROTULO_CLIENTE[s.cliente]}, ainda sem análise`}
-                </span>
+                <span className="vg-titulo muted">{`${ROTULO_CLIENTE[s.cliente]}, ainda sem análise`}</span>
               )}
-              <span className="vg-fim">
-                <span className="vg-chip vg-chip-estatico" data-tone={TOM_SESSAO[s.estado]}>
-                  {ROTULO_SESSAO[s.estado]}
-                </span>
-              </span>
-            </li>
+            </ItemLista>
           ))}
-        </ul>
+        </ListaItens>
       )}
       <h4 className="vg-subtitulo">Atividade recente</h4>
       {recentes.length === 0 ? (
-        <p className="vg-nota">Ainda não aconteceu nada neste projeto.</p>
+        <EstadoVazio>Ainda não aconteceu nada neste projeto.</EstadoVazio>
       ) : (
-        <ul className="vg-linhas vg-recentes" aria-label="Atividade recente">
-          {recentes.map((r) => (
-            <li key={r.chave}>
-              <span className="vg-quando">{quando(r.ms)}</span>
-              <span className="vg-titulo">{r.texto}</span>
-            </li>
-          ))}
-        </ul>
+        <div className="vg-recentes">
+          <ListaItens rotulo="Atividade recente">
+            {recentes.map((r) => (
+              <ItemLista key={r.chave} meta={quando(r.ms)}>
+                {r.texto}
+              </ItemLista>
+            ))}
+          </ListaItens>
+        </div>
       )}
     </Painel>
   );
@@ -650,18 +648,16 @@ function CoberturaDaBase({
     >
       {cobertura.tipo === "lendo" && <p className="muted">Calculando…</p>}
       {cobertura.tipo === "falha" && (
-        <p className="error-text" role="alert">
-          Não foi possível calcular a cobertura: {cobertura.mensagem}
-        </p>
+        <Alerta tom="erro" titulo="Não foi possível calcular a cobertura.">
+          {cobertura.mensagem}
+        </Alerta>
       )}
       {cobertura.tipo === "ok" &&
         (areas.length === 0 ? (
-          <div className="vg-vazio">
-            <p>
-              <b>Nenhuma área na base ainda.</b> As áreas aparecem quando as regras e os termos aprovados em
-              análises são classificados por área do negócio.
-            </p>
-          </div>
+          <EstadoVazio>
+            <b>Nenhuma área na base ainda.</b> As áreas aparecem quando as regras e os termos aprovados em
+            análises são classificados por área do negócio.
+          </EstadoVazio>
         ) : (
           <ul className="vg-barras" aria-label="Cobertura por área">
             {areas.map((a) => (
@@ -691,24 +687,21 @@ function EstadoDoMapa({ mapa, aoAbrir }: { mapa: Leitura<MapaFuncionalidades>; a
   if (mapa.tipo === "lendo") return <p className="muted">Lendo o mapa de funcionalidades…</p>;
   if (mapa.tipo === "falha")
     return (
-      <p className="vg-nota" role="status">
-        Não foi possível ler o mapa de funcionalidades: {mapa.mensagem}
-      </p>
+      <Alerta tom="atencao" titulo="Não foi possível ler o mapa de funcionalidades.">
+        {mapa.mensagem}
+      </Alerta>
     );
   const m = mapa.valor;
   if (m.total === 0) {
     const pontos = m.completude?.semTratamento.length ?? 0;
     return (
-      <div className="vg-vazio" aria-label="Mapa de funcionalidades">
-        <b>Mapa de funcionalidades vazio</b>
-        <span>
+      <div aria-label="Mapa de funcionalidades">
+        <EstadoVazio acao={{ texto: "Mapear com o Claude", aoEscolher: aoAbrir }}>
+          <b>Mapa de funcionalidades vazio.</b>{" "}
           {pontos > 0
             ? `${contar(pontos, "ponto de entrada do código", "pontos de entrada do código")} ainda não viraram funcionalidades com nome de negócio.`
             : "O código ainda não foi mapeado em funcionalidades com nome de negócio."}
-        </span>
-        <button type="button" className="btn btn-sm" onClick={aoAbrir}>
-          Mapear com o Claude
-        </button>
+        </EstadoVazio>
       </div>
     );
   }
@@ -745,15 +738,10 @@ function Demandas({
   return (
     <Painel titulo="Demandas" rotulo="Demandas" link="Abrir as demandas" aoLink={aoAbrir}>
       {vazio ? (
-        <div className="vg-vazio">
-          <p>
-            <b>Nenhuma demanda ainda.</b> Demandas vêm das issues do rastreador do projeto ou você cria uma na
-            seção Demandas; cada uma pode ter análises ligadas.
-          </p>
-          <button type="button" className="btn btn-sm" onClick={aoAbrir}>
-            Abrir as demandas
-          </button>
-        </div>
+        <EstadoVazio acao={{ texto: "Abrir as demandas", aoEscolher: aoAbrir }}>
+          <b>Nenhuma demanda ainda.</b> Demandas vêm das issues do rastreador do projeto ou você cria uma na seção
+          Demandas; cada uma pode ter análises ligadas.
+        </EstadoVazio>
       ) : (
         <>
           <Pilha segmentos={segmentosDeDemandas(resumo)} rotulo="Demandas por situação" />
@@ -761,28 +749,26 @@ function Demandas({
             <p className="vg-nota">{contar(d.semAnalise, "demanda aberta sem análise", "demandas abertas sem análise")}.</p>
           )}
           {demandas.tipo === "falha" && (
-            <p className="vg-nota" role="status">
-              Não foi possível listar as demandas: {demandas.mensagem}
-            </p>
+            <Alerta tom="atencao" titulo="Não foi possível listar as demandas.">
+              {demandas.mensagem}
+            </Alerta>
           )}
           {abertas.length > 0 && (
-            <ul className="vg-linhas" aria-label="Demandas abertas">
+            <ListaItens rotulo="Demandas abertas">
               {abertas.slice(0, DEMANDAS_VISIVEIS).map((x) => (
-                <li key={x.id}>
-                  <span className="vg-id">{x.chave ?? x.id}</span>
-                  <button type="button" className="link vg-titulo" onClick={() => aoAbrirDemanda(x.id)}>
-                    {x.titulo}
-                  </button>
-                  {x.rastreador && (
-                    <span className="vg-fim">
-                      <span className="vg-chip vg-chip-estatico" data-tone={x.rastreador.estado === "em-andamento" ? "running" : undefined}>
-                        {ROTULO_ESTADO_RASTREADOR[x.rastreador.estado]}
-                      </span>
-                    </span>
-                  )}
-                </li>
+                <ItemLista
+                  key={x.id}
+                  meta={x.rastreador && <Selo>{ROTULO_ESTADO_RASTREADOR[x.rastreador.estado]}</Selo>}
+                >
+                  <span className="vg-linha">
+                    <span className="vg-id">{x.chave ?? x.id}</span>
+                    <button type="button" className="link vg-titulo" onClick={() => aoAbrirDemanda(x.id)}>
+                      {x.titulo}
+                    </button>
+                  </span>
+                </ItemLista>
               ))}
-            </ul>
+            </ListaItens>
           )}
           {conferida && (
             <p className="vg-nota">

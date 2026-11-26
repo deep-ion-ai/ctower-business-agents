@@ -1,4 +1,5 @@
 import { AjudaTermo } from "./AjudaTermo";
+import { Alerta, EstadoVazio, ItemLista, ListaItens, Secao, Selo } from "./componentes";
 import {
   ambienteAPreparar,
   atividadeVisivel,
@@ -149,7 +150,7 @@ export function TelaAtividades({ projeto, nomeProjeto, resumo, falha, ambiente, 
   return (
     <section className="page atividades" aria-label="Atividades">
       <div>
-        <h2>Atividades</h2>
+        <h2 className="atividades-titulo">Atividades</h2>
         <p className="muted">
           {projeto
             ? `O que espera por você em ${nomeProjeto}, do mais urgente ao menos.`
@@ -157,17 +158,16 @@ export function TelaAtividades({ projeto, nomeProjeto, resumo, falha, ambiente, 
         </p>
       </div>
       {falha && (
-        <p className="error-text" role="alert">
-          Não foi possível carregar as atividades: {falha}
-        </p>
+        <Alerta tom="erro" titulo="Não foi possível carregar as atividades.">
+          {falha}
+        </Alerta>
       )}
       {projeto && !resumo && !falha && <p className="muted">Carregando…</p>}
       {projeto && resumo && (
         <>
           {primeira && (
-            <section className="panel atividades-grupo" aria-label="Primeira análise">
-              <h2>Comece pela primeira análise</h2>
-              <ul className="atividades-linhas">
+            <Secao titulo="Comece pela primeira análise" rotulo="Primeira análise" className="atividades-grupo">
+              <ListaItens>
                 <Linha
                   item={{
                     chave: "primeira",
@@ -178,32 +178,34 @@ export function TelaAtividades({ projeto, nomeProjeto, resumo, falha, ambiente, 
                     aoAgir: () => navegar({ tipo: "analise", projeto }),
                   }}
                 />
-              </ul>
-            </section>
+              </ListaItens>
+            </Secao>
           )}
           {gruposVisiveis().map((g) => {
             const itens = porGrupo.get(g.id) ?? [];
             return (
-              <section key={g.id} className="panel atividades-grupo" aria-label={g.titulo}>
-                <h2>
-                  {g.titulo}
-                  <AjudaTermo termo={g.titulo.toLowerCase()}>{g.ajuda}</AjudaTermo>
-                  {itens.length > 0 && (
-                    <span className="badge" data-tone="attention">
-                      {itens.length}
-                    </span>
-                  )}
-                </h2>
+              <Secao
+                key={g.id}
+                rotulo={g.titulo}
+                className="atividades-grupo"
+                titulo={
+                  <>
+                    {g.titulo}
+                    <AjudaTermo termo={g.titulo.toLowerCase()}>{g.ajuda}</AjudaTermo>
+                    {itens.length > 0 && <Selo tom="atencao">{itens.length}</Selo>}
+                  </>
+                }
+              >
                 {itens.length > 0 ? (
-                  <ul className="atividades-linhas">
+                  <ListaItens>
                     {itens.map((i) => (
                       <Linha key={i.chave} item={i} />
                     ))}
-                  </ul>
+                  </ListaItens>
                 ) : (
-                  <p className="muted atividades-vazio">{vazio(g)}</p>
+                  <EstadoVazio>{vazio(g)}</EstadoVazio>
                 )}
-              </section>
+              </Secao>
             );
           })}
         </>
@@ -214,20 +216,25 @@ export function TelaAtividades({ projeto, nomeProjeto, resumo, falha, ambiente, 
 
 function Linha({ item }: { item: Item }) {
   return (
-    <li>
-      {item.id && <span className="atividades-id mono">{item.id}</span>}
-      <span className="atividades-texto">
-        <strong>{item.titulo}</strong>
-        <span className="muted">{item.detalhe}</span>
+    <ItemLista
+      acoes={
+        <button
+          type="button"
+          className={item.principal ? "btn btn-primary" : "btn"}
+          aria-label={item.id ? `${item.acao}: ${item.id}` : undefined}
+          onClick={item.aoAgir}
+        >
+          {item.acao}
+        </button>
+      }
+    >
+      <span className="atividades-linha">
+        {item.id && <span className="atividades-id mono">{item.id}</span>}
+        <span className="atividades-texto">
+          <strong>{item.titulo}</strong>
+          <span className="muted">{item.detalhe}</span>
+        </span>
       </span>
-      <button
-        type="button"
-        className={item.principal ? "btn btn-primary" : "btn"}
-        aria-label={item.id ? `${item.acao}: ${item.id}` : undefined}
-        onClick={item.aoAgir}
-      >
-        {item.acao}
-      </button>
-    </li>
+    </ItemLista>
   );
 }

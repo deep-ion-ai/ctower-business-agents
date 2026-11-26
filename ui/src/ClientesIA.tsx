@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { estadoClientes, type EstadoClientes, type Passo } from "./clientes";
+import { Alerta, Secao } from "./componentes";
 
 export type CargaClientes =
   { tipo: "verificando" } | { tipo: "pronto"; estado: EstadoClientes } | { tipo: "erro" };
@@ -38,12 +39,9 @@ export function ClientesIA({ abrirLink = abrirPeloTauri }: { abrirLink?: AbrirLi
   const { carga, verificar } = useEstadoClientes();
 
   return (
-    <section className="clientes" aria-label="Clientes de IA">
-      <h2>Clientes de IA</h2>
+    <Secao titulo="Clientes de IA" className="clientes">
       {carga.tipo === "verificando" && <p className="muted">Verificando…</p>}
-      {carga.tipo === "erro" && (
-        <p className="muted">Não foi possível verificar os clientes de IA.</p>
-      )}
+      {carga.tipo === "erro" && <Alerta tom="atencao" titulo="Não foi possível verificar os clientes de IA." />}
       {carga.tipo === "pronto" && (
         <div className="clientes-lista">
           <CartaoClaudeCode estado={carga.estado} abrirLink={abrirLink} />
@@ -58,7 +56,7 @@ export function ClientesIA({ abrirLink = abrirPeloTauri }: { abrirLink?: AbrirLi
       >
         Verificar de novo
       </button>
-    </section>
+    </Secao>
   );
 }
 
