@@ -146,11 +146,11 @@ describe("TelaBase (#328)", () => {
       within(resultados).getByRole("heading", { name: /^Multas por atraso/ }),
     ).toBeInTheDocument();
     expect(resultados).not.toHaveTextContent("multas-por-atraso");
-    const itens = within(cobranca.parentElement!).getAllByRole("listitem");
+    const itens = within(cobranca.closest(".grupo-base") as HTMLElement).getAllByRole("listitem");
     expect(itens[0]).toHaveTextContent("RN-COB-002");
     expect(itens[0]).toHaveAttribute("data-status", "a-revalidar");
-    expect(within(itens[0]).getByText("a revalidar")).toHaveAttribute("data-tone", "attention");
-    expect(within(itens[1]).getByText("confirmada")).not.toHaveAttribute("data-tone", "attention");
+    expect(within(itens[0]).getByText("a revalidar")).toHaveAttribute("data-tom", "atencao");
+    expect(within(itens[1]).getByText("confirmada")).toHaveAttribute("data-tom", "concluido");
   });
 
   it("mostra o título limpo, sem a marcação de Markdown", async () => {
@@ -299,7 +299,8 @@ describe("TelaBase (#328)", () => {
     render(
       <TelaBase api={falsa.api} projetos={PROJETOS} projetoInicial={PROJETO} navegar={navegar} />,
     );
-    const aviso = await screen.findByRole("alert", { name: "Documentos com problema" });
+    const regiao = await screen.findByRole("region", { name: "Documentos com problema" });
+    const aviso = within(regiao).getByRole("alert");
     expect(aviso).toHaveTextContent("1 documento com problema");
     expect(aviso).toHaveTextContent("RN-MUL-999.md");
     expect(aviso).toHaveTextContent(/estrutura incompleta ou mal formada/);

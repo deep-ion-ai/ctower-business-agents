@@ -13,7 +13,9 @@
   font-weight: var(--fw-strong);
 }
 
-.page h3 {
+/* Sem peso de classe no h3: o `TituloSecao` (componentes.css, que entra antes desta folha)
+   e os títulos das telas ganham deste padrão antigo (#410). */
+.page :where(h3) {
   margin: 0;
   font-size: var(--fs-support);
   font-weight: var(--fw-strong);
@@ -38,7 +40,6 @@ h3.titulo-formulario {
 /* Seções de uma tela: painéis. */
 .tela-inicio > section,
 .tela-projeto > section,
-.tela-base > section,
 .tela-analise.page > section,
 .tela-analise.page > form {
   padding: 18px;
@@ -111,8 +112,6 @@ h3.titulo-formulario {
 .lista-regras,
 .lista-termos,
 .lista-areas,
-.lista-pastas,
-.lista-arquivos,
 .lista-demandas,
 .lista-itens-ata,
 .linha-do-tempo,
@@ -128,8 +127,6 @@ h3.titulo-formulario {
 .lista-regras > li,
 .lista-termos > li,
 .lista-areas > li,
-.lista-pastas > li,
-.lista-arquivos > li,
 .lista-demandas > li,
 .lista-itens-ata > li,
 .linha-do-tempo > li,
@@ -147,8 +144,6 @@ h3.titulo-formulario {
 .lista-regras > li:last-child,
 .lista-termos > li:last-child,
 .lista-areas > li:last-child,
-.lista-pastas > li:last-child,
-.lista-arquivos > li:last-child,
 .lista-demandas > li:last-child,
 .lista-itens-ata > li:last-child,
 .linha-do-tempo > li:last-child,
@@ -412,12 +407,10 @@ h3.titulo-formulario {
 
 /* ---- Projeto ---- */
 
-.mapa-projeto,
-.resultados-base,
 .documento-aberto {
-  padding: 14px 16px;
+  padding: var(--space-4) var(--space-6);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-card);
   background: var(--surface);
 }
 
@@ -519,8 +512,8 @@ h3.titulo-formulario {
   margin: 8px 0;
 }
 
-.grupo-base h3 {
-  margin: 12px 0 4px;
+.grupo-base {
+  margin-top: var(--space-3);
 }
 
 .grupo-base li .id {
@@ -533,27 +526,9 @@ h3.titulo-formulario {
   box-shadow: inset 3px 0 0 var(--attention);
 }
 
-.vazio-base {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  margin-top: 12px;
-  padding: 10px 12px;
-  border: 1px dashed var(--border-strong);
-  border-radius: 8px;
-}
-
-.aviso-documentos {
-  margin: 8px 0;
-  padding: 10px 12px;
-  border: 1px solid var(--attention);
-  border-radius: 8px;
-  background: var(--attention-card);
-}
-
-.aviso-documentos h3 {
-  margin: 0 0 4px;
+.documentos-com-problema {
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-4);
 }
 
 .detalhes-arquivo {
@@ -565,8 +540,14 @@ h3.titulo-formulario {
   cursor: pointer;
 }
 
-.onde-no-codigo h3 {
-  margin: 16px 0 4px;
+.onde-no-codigo,
+.ligacoes > div {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.onde-no-codigo {
+  margin-top: var(--space-4);
 }
 
 .onde-no-codigo ul {
@@ -629,10 +610,6 @@ h3.titulo-formulario {
   flex-wrap: wrap;
   gap: 24px;
   font-size: var(--fs-support);
-}
-
-.ligacoes h3 {
-  margin: 8px 0 4px;
 }
 
 .ligacoes ul {
@@ -2806,24 +2783,11 @@ h3.titulo-formulario {
 }
 
 /* Mapa e catálogo de funcionalidades (#208). */
-.funcionalidades-ao-vivo .funcionalidade {
-  margin: 12px 0;
-  padding: 12px 16px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-}
-.funcionalidades-ao-vivo .funcionalidade.situacao-descartada,
-.funcionalidades-ao-vivo .funcionalidade.situacao-juntada {
-  opacity: 0.6;
-}
-.funcionalidades-ao-vivo .pontos-entrada {
-  margin: 6px 0;
-  padding-left: 18px;
-}
-.funcionalidades-ao-vivo .pontos-entrada li,
 .pontos-sem-funcionalidade li {
   overflow-wrap: anywhere;
+}
+.pontos-sem-funcionalidade > .btn-link {
+  align-self: flex-start;
 }
 .form-funcionalidade {
   display: grid;
@@ -2842,9 +2806,6 @@ h3.titulo-formulario {
   align-items: center;
   gap: 6px;
   overflow-wrap: anywhere;
-}
-.funcionalidades-fechadas .funcionalidade {
-  opacity: 0.6;
 }
 
 /* Tela do mapa de funcionalidades (#208): revisão à esquerda, sessão do Claude à direita. */
@@ -2937,21 +2898,11 @@ h3.titulo-formulario {
 .arvore-funcionalidade.situacao-aceita .arvore-marca {
   color: var(--accent);
 }
-.pagina-funcionalidade h3 {
-  margin: 4px 0 8px;
-}
-.pagina-funcionalidade .funcionalidade {
-  margin-top: 0;
-}
 .pagina-trilha {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px;
-}
-.funcionalidades-ao-vivo .funcionalidade.selecionada {
-  border-color: var(--accent);
-  scroll-margin-top: 8px;
 }
 .mapa-cabecalho {
   display: flex;
@@ -2960,7 +2911,6 @@ h3.titulo-formulario {
   justify-content: space-between;
   gap: 8px;
 }
-.mapa-cabecalho .acoes,
 .mapa-filtros {
   display: flex;
   flex-wrap: wrap;
@@ -2993,14 +2943,7 @@ h3.titulo-formulario {
 .sessao-mapeamento {
   position: sticky;
   top: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
   min-width: 0;
-  padding: 16px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
 }
 /* Formulário de início da sessão (#268): rótulo acima do campo, no padrão `.field`. */
 .form-mapeamento {
@@ -3019,15 +2962,6 @@ h3.titulo-formulario {
 .acoes-form-mapeamento {
   display: flex;
   justify-content: flex-end;
-}
-.sessao-cabecalho {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.sessao-cabecalho h3 {
-  margin: 0;
 }
 .terminal-mapeamento {
   height: 70vh;
@@ -3067,16 +3001,11 @@ h3.titulo-formulario {
 .pf-titulo p {
   margin: 0;
 }
-.painel-cabecalho > .acoes,
 .linha-cabecalho {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
-}
-.linha-cabecalho h3 {
-  margin: 0;
-  flex: 1 1 auto;
 }
 .indicadores {
   display: grid;
@@ -3118,17 +3047,6 @@ button.indicador:hover {
   color: var(--attention);
   font-weight: var(--fw-strong);
 }
-.alerta-revalidar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 14px;
-  border-radius: 10px;
-  background: var(--attention-bg);
-  border: 1px solid var(--attention-border);
-}
 .abas-painel {
   display: flex;
   flex-wrap: wrap;
@@ -3168,22 +3086,6 @@ button.indicador:hover {
   display: flex;
   flex-direction: column;
   gap: 16px;
-}
-.cartao-painel {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface);
-}
-.cartao-painel h3 {
-  margin: 0;
-  font-size: var(--fs-reading);
-}
-.cartao-painel p {
-  margin: 0;
 }
 .pf-passos {
   list-style: none;
@@ -3251,31 +3153,6 @@ button.indicador:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.menu-revisar {
-  position: relative;
-}
-.menu-revisar > summary {
-  list-style: none;
-  cursor: pointer;
-}
-.menu-revisar > summary::-webkit-details-marker {
-  display: none;
-}
-.menu-itens {
-  position: absolute;
-  right: 0;
-  z-index: 5;
-  margin-top: 4px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 180px;
-  padding: 6px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-  box-shadow: var(--shadow);
-}
 .novas-analises {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -3325,7 +3202,8 @@ button.indicador:hover {
   padding: 8px;
 }
 .ligar-demanda {
-  flex-direction: row;
+  display: flex;
+  gap: var(--space-2);
   flex-wrap: wrap;
   align-items: flex-end;
 }
@@ -3535,38 +3413,6 @@ button.indicador:hover {
   cursor: pointer;
 }
 
-.vincular-aviso {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  padding: 8px 12px;
-  border: 1px solid var(--attention-border);
-  border-radius: 8px;
-  background: var(--attention-card);
-  color: var(--text-2);
-}
-.vincular-aviso svg {
-  color: var(--attention);
-  flex-shrink: 0;
-}
-
-.vincular-vazio {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 48px 16px;
-  border: 1px dashed var(--border-strong);
-  border-radius: 12px;
-  color: var(--muted);
-  text-align: center;
-}
-.vincular-vazio svg {
-  width: 28px;
-  height: 28px;
-}
-
 /* Progresso e chips de situação, que também filtram. */
 .vincular-painel {
   display: flex;
@@ -3755,49 +3601,11 @@ button.indicador:hover {
   flex-wrap: wrap;
   gap: 4px;
 }
-.vincular-estado,
-.vincular-rotulo,
-.vincular-tipo {
-  padding: 0 6px;
-  border-radius: 4px;
-  font-size: var(--fs-small);
-  line-height: 1.6;
-  white-space: nowrap;
-}
-.vincular-estado {
-  background: var(--running-bg);
-  color: var(--running);
-}
-.vincular-estado.fechada {
-  background: var(--idle-bg);
-  color: var(--muted);
-}
-.vincular-rotulo {
-  border: 1px solid var(--border-strong);
-  color: var(--muted);
-}
 .vincular-acoes {
   display: flex;
   align-items: center;
   gap: 2px;
   flex-shrink: 0;
-}
-.vincular-selo {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-right: 6px;
-  padding: 1px 8px;
-  border: 1px solid var(--ok);
-  border-radius: var(--radius-pill);
-  color: var(--ok);
-  font-size: var(--fs-small);
-  font-weight: var(--fw-strong);
-  white-space: nowrap;
-}
-.vincular-selo svg {
-  width: 12px;
-  height: 12px;
 }
 .vincular-ligada,
 .vincular-justificada {
@@ -3862,25 +3670,6 @@ button.indicador:hover {
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 6px;
-}
-.vincular-tipo {
-  background: var(--idle-bg);
-  color: var(--text-2);
-}
-.vincular-ia {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 0 6px;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--epic) 18%, transparent);
-  color: var(--epic);
-  font-size: var(--fs-small);
-  font-weight: var(--fw-strong);
-}
-.vincular-ia svg {
-  width: 12px;
-  height: 12px;
 }
 .vincular-ia-texto {
   max-width: 28rem;
@@ -4382,10 +4171,8 @@ code[data-tone="attention"] {
   flex-wrap: wrap;
   gap: 4px;
 }
-.mapa-vazio ol {
-  text-align: left;
-  margin: 8px auto;
-  max-width: 480px;
+.mapa-vazio {
+  align-items: flex-start;
 }
 
 /* Análises (#350): a lista é o conteúdo; "Nova análise" abre um painel lateral. */
