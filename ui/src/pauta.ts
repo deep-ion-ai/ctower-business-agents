@@ -159,6 +159,23 @@ export function destinatarioDoValor(valor: string): Destinatario | null {
   return null;
 }
 
+/**
+ * A origem curta de uma pergunta, sem o título da análise (#408): `A-0011/1` vira
+ * `A-0011 · pergunta 1`, e `R-0001/DV-2`, `R-0001 · dúvida 2`. Referência fora
+ * desses formatos sai como veio.
+ */
+export function origemCurta(p: Pick<PerguntaDaPauta, "referencia" | "fonte">): string {
+  const barra = p.referencia.indexOf("/");
+  if (barra < 0) return p.referencia;
+  const doc = p.referencia.slice(0, barra);
+  const item = p.referencia.slice(barra + 1);
+  if (p.fonte.tipo === "analise" && /^\d+$/.test(item))
+    return `${doc} · pergunta ${item}`;
+  const duvida = /^DV-(\d+)$/.exec(item);
+  if (p.fonte.tipo === "ata" && duvida) return `${doc} · dúvida ${duvida[1]}`;
+  return p.referencia;
+}
+
 export type Agrupamento = "destinatario" | "papel" | "tema";
 
 /** Grupos da pauta no agrupamento escolhido (por destinatário, os do app). */

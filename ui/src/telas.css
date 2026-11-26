@@ -1418,11 +1418,21 @@ h3.titulo-formulario {
   font-weight: var(--fw-strong);
 }
 
+/* Títulos das seções do documento (Pergunta, Afirmações, Perguntas, Propostas): como o
+   TituloSecao, com espaço próprio abaixo, sem encostar no conteúdo (#403). */
 .documento-ao-vivo h3 {
-  margin: 0 0 6px;
-  font-size: var(--fs-support);
+  margin: 0 0 var(--space-3);
+  font-size: var(--fs-section);
   font-weight: var(--fw-strong);
-  color: var(--muted);
+  color: var(--text);
+}
+
+.documento-ao-vivo .titulo-secao {
+  margin-bottom: var(--space-3);
+}
+
+.documento-ao-vivo .titulo-secao > h3 {
+  margin: 0;
 }
 
 .documento-ao-vivo h4 {
@@ -2481,8 +2491,17 @@ h3.titulo-formulario {
 .documento-conteudo {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--space-6);
   min-width: 0;
+}
+
+/* A entrada da análise é Markdown (#403): o espaço vem dos blocos, sem sobra nas pontas. */
+.documento-entrada .texto-rico > :first-child {
+  margin-top: 0;
+}
+
+.documento-entrada .texto-rico > :last-child {
+  margin-bottom: 0;
 }
 
 .sumario-analise {

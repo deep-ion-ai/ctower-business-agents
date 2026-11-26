@@ -259,6 +259,11 @@ echo '{"fields":{"summary":"Multa por atraso","description":"Revisar o cálculo 
         "{doc}"
     );
     assert!(doc.contains("PROJ-123"), "{doc}");
+    // A vista traz o link da issue: os links desse host, na entrada, abrem (#403).
+    assert_eq!(
+        vista.link.as_deref(),
+        Some("https://jira.example.com/browse/PROJ-123")
+    );
     // Sem rastreador cadastrado, recusa com orientação.
     let mut p = cadastrado(&c.dados, PROJETO).unwrap();
     p.repositorios = Repositorios::default();

@@ -1,96 +1,225 @@
-/* Pauta de perguntas pendentes (#123). Cores só por token de theme.css. */
+/*
+ * Pauta de perguntas pendentes (#123), redesenhada na #408 (prancheta Demanda
+ * reorganizada). A seção, o cartão, o selo, o menu e o texto rico vêm de
+ * componentes/; aqui só o arranjo da pauta. Só tokens de theme.css.
+ */
 
-.pauta-cabecalho {
-  display: flex;
-  flex-wrap: wrap;
+.pauta-agrupar {
+  display: inline-flex;
   align-items: center;
-  gap: 8px 12px;
+  gap: var(--space-2);
+  color: var(--muted);
+  font-size: var(--fs-support);
 }
 
-.pauta-acoes {
+/* ---- Grupo: título, quantidade e "Copiar como e-mail" ---- */
+
+.pauta-grupo {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-left: auto;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
-.pauta-grupo h4 {
+.pauta-grupo-cabecalho {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border);
 }
+
+.pauta-grupo-cabecalho h4 {
+  margin: 0;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-strong);
+}
+
+.pauta-grupo-qtd,
+.pauta-grupo-cabecalho .link {
+  font-size: var(--fs-support);
+}
+
+.pauta-grupo-qtd {
+  color: var(--muted);
+}
+
+.pauta-mais {
+  align-self: center;
+  padding: var(--space-2);
+}
+
+/* ---- Cartão da pergunta ---- */
 
 .pauta-itens {
   list-style: none;
+  margin: 0;
   padding: 0;
-  display: grid;
-  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
-.pauta-itens > li {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-2);
-  padding: 8px 14px;
+.pauta-item {
+  gap: var(--space-3);
   min-width: 0;
 }
 
-.pauta-itens > li[data-antiga] {
-  border-color: var(--border-strong);
-  background: var(--running-bg);
+.pauta-item-antiga {
+  border-color: var(--attention-border);
+}
+
+.pauta-item-topo {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.pauta-numero {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-control);
+  background: var(--idle-bg);
+  font-size: var(--fs-support);
+  font-weight: var(--fw-strong);
 }
 
 .pauta-texto {
-  font-weight: var(--fw-strong);
+  flex: 1;
+  min-width: 0;
+  max-width: 72ch;
+  margin: 0;
+  font-size: var(--fs-reading);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-reading);
   overflow-wrap: anywhere;
 }
 
-.pauta-contexto,
-.pauta-origens {
+.pauta-selos {
+  flex: none;
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+/* O corpo alinha com o texto da pergunta, depois do número. */
+.pauta-item-corpo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-left: calc(24px + var(--space-3));
+  min-width: 0;
+}
+
+.pauta-contexto {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.pauta-alternar {
+  align-self: flex-start;
+  font-size: var(--fs-support);
+  text-decoration: none;
+}
+
+.pauta-contexto-texto {
+  max-width: 72ch;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface-2);
+  color: var(--text-2);
   overflow-wrap: anywhere;
 }
 
+.pauta-contexto-texto > .texto-rico > :first-child {
+  margin-top: 0;
+}
+
+.pauta-contexto-texto > .texto-rico > :last-child {
+  margin-bottom: 0;
+}
+
+/* Origem à esquerda; "Para" e "Registrar resposta" à direita, na mesma linha. */
+.pauta-rodape {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
+
 .pauta-origens {
-  margin: 4px 0;
-  padding-left: 18px;
+  flex: 1 1 16rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-support);
+  overflow-wrap: anywhere;
+}
+
+.pauta-origem {
+  font-family: var(--mono);
 }
 
 .pauta-item-acoes,
 .pauta-linha {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 8px 12px;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
 }
+
+.pauta-item-acoes label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--muted);
+  font-size: var(--fs-support);
+}
+
+/* ---- Registrar resposta ---- */
 
 .pauta-resposta {
   display: grid;
-  gap: 8px;
-  margin-top: 8px;
-  padding-top: 8px;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
   border-top: 1px solid var(--border);
+}
+
+.pauta-resposta .pauta-linha {
+  align-items: flex-end;
 }
 
 .pauta-resposta label {
   display: grid;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .pauta-resposta .pauta-opcao {
   display: block;
 }
 
+.pauta-resposta .pauta-item-acoes label {
+  color: inherit;
+}
+
 .pauta-detalhe {
   display: grid;
-  gap: 6px;
-  margin: 4px 0 8px 22px;
+  gap: var(--space-2);
+  margin: var(--space-1) 0 var(--space-2) var(--space-6);
 }
 
 .pauta-aviso-regra {
   margin: 0;
-  padding: 6px 10px;
+  padding: var(--space-2) var(--space-3);
   border-left: 3px solid var(--border-strong);
   background: var(--running-bg);
 }
