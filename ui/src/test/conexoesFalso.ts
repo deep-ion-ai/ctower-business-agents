@@ -176,6 +176,7 @@ export function apiConexoesFalsa(iniciais: Conexao[] = [GITLAB_INTERNO, JIRA_EMP
       });
       return Promise.resolve(r);
     }),
+    erroMigracaoConexoes: vi.fn((): Promise<string | null> => Promise.resolve(null)),
   } satisfies ApiConexoes;
   return Object.assign(api, {
     conexoes,
