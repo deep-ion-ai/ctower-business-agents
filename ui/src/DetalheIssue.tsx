@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { abrirLinkDoProjeto } from "./abrirLinkProjeto";
 import { mensagemDe } from "./analise";
 import type { ApiConhecimento, Encontrado } from "./conhecimento";
 import { situacaoEmTexto, type Acao } from "./acaoIssue";
 import type { Tela } from "./Navegacao";
 import type { IssueDoProjeto } from "./issuesProjeto";
-import { TextoRico } from "./componentes";
+import { BarraAcoes, TextoRico, type Acao as AcaoBotao } from "./componentes";
 
 export const ROTULO_ORIGEM = { github: "GitHub", gitlab: "GitLab", jira: "Jira" } as const;
 
@@ -69,26 +69,51 @@ export function DescricaoIssue({ issue, abrir }: { issue: IssueDoProjeto; abrir:
   );
 }
 
-/** O que a issue tem na base e as ações dela: situação, demanda, análise e funcionalidades. */
+/**
+ * A ação principal da demanda, no topo (#404): "Analisar impacto" (ou o rótulo que a
+ * situação der) e, quando houver, "Abrir em nova aba". O motivo do bloqueio fica
+ * junto do botão. No topo, ela não some numa descrição longa.
+ */
+export function AcoesDaIssue({
+  acao,
+  analisando = false,
+  aoAgir,
+  secundarias,
+}: {
+  acao: Acao;
+  analisando?: boolean;
+  aoAgir: () => void;
+  /** Ações a mais na mesma fileira (ex.: "Abrir em nova aba"). */
+  secundarias?: AcaoBotao[];
+}) {
+  return (
+    <div className="demandas-acoes">
+      <BarraAcoes
+        rotulo="Ações da demanda"
+        alinhamento="fim"
+        principal={{
+          texto: analisando ? "Analisando…" : acao.rotulo,
+          aoEscolher: aoAgir,
+          desabilitado: analisando || !!acao.bloqueio,
+        }}
+        secundarias={secundarias}
+      />
+      {acao.bloqueio && <p className="muted demandas-bloqueio">{acao.bloqueio}</p>}
+    </div>
+  );
+}
+
+/** O que a issue tem na base: situação, demanda, análise e funcionalidades. */
 export function NaBaseIssue({
   issue,
   projeto,
-  acao,
-  analisando,
-  aoAgir,
   navegar,
   aoAbrirAnalise,
-  acoesExtra,
 }: {
   issue: IssueDoProjeto;
   projeto: string;
-  acao: Acao;
-  analisando: boolean;
-  aoAgir: () => void;
   navegar: (t: Tela) => void;
   aoAbrirAnalise: (id: string) => void;
-  /** Botões a mais na mesma fileira da ação (ex.: "Abrir em nova aba"). */
-  acoesExtra?: ReactNode;
 }) {
   return (
     <div className="demandas-nabase">
@@ -130,13 +155,6 @@ export function NaBaseIssue({
           Vincular a funcionalidades
         </button>
       </p>
-      <div className="acoes">
-        <button type="button" className="btn btn-primary" disabled={analisando || !!acao.bloqueio} onClick={aoAgir}>
-          {analisando ? "Analisando…" : acao.rotulo}
-        </button>
-        {acoesExtra}
-      </div>
-      {acao.bloqueio && <p className="muted">{acao.bloqueio}</p>}
     </div>
   );
 }

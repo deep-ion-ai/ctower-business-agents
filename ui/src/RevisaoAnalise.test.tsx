@@ -296,6 +296,11 @@ describe("Revisão, aprovação e exportação", () => {
     );
     expect(await screen.findByText("Depois da carência, a multa é de 2%.")).toBeInTheDocument();
     expect(screen.getByText(/texto editado pelo analista/)).toBeInTheDocument();
+    fireEvent.click(
+      within(afirmacao(1).closest("li")!).getByRole("button", {
+        name: "Ver a evidência no código",
+      }),
+    );
     expect(
       within(afirmacao(1).closest("li")!).getByRole("button", {
         name: "03_pkg_cobranca.sql:71-72",

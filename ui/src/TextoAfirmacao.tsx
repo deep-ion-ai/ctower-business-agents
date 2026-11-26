@@ -172,19 +172,27 @@ function SemLink({ children }: { children?: ReactNode }) {
   return <span className="link-externo">{children}</span>;
 }
 
-// Fora do componente: um objeto novo a cada render remontaria o conteúdo.
+/**
+ * O código recolhido e os títulos como destaque, também para o {@link TextoRico} dos
+ * blocos de premissa e verificação (#404). Fora do componente: um objeto novo a cada
+ * render remontaria o conteúdo.
+ */
+export const OVERRIDES_TEXTO_AFIRMACAO = {
+  code: { component: Codigo },
+  pre: { component: Bloco },
+  h1: { component: Destaque },
+  h2: { component: Destaque },
+  h3: { component: Destaque },
+  h4: { component: Destaque },
+  h5: { component: Destaque },
+  h6: { component: Destaque },
+} as const;
+
 const OPCOES = {
   disableParsingRawHTML: true,
   wrapper: Fragment,
   overrides: {
-    code: { component: Codigo },
-    pre: { component: Bloco },
-    h1: { component: Destaque },
-    h2: { component: Destaque },
-    h3: { component: Destaque },
-    h4: { component: Destaque },
-    h5: { component: Destaque },
-    h6: { component: Destaque },
+    ...OVERRIDES_TEXTO_AFIRMACAO,
     a: { component: SemLink },
     img: { component: ({ alt }: { alt?: string }) => <span>{alt}</span> },
   },

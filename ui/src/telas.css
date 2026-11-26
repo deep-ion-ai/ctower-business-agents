@@ -1735,6 +1735,81 @@ h3.titulo-formulario {
   font-variant-numeric: tabular-nums;
 }
 
+/* Afirmação no formato premissa/verificação (#404): dois blocos com rótulo, o selo do
+   veredito e uma linha tracejada entre eles. */
+.afirmacao-blocos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.afirmacao-bloco {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.afirmacao-verificacao {
+  padding-top: var(--space-3);
+  border-top: 1px dashed var(--border-strong);
+}
+
+.afirmacao-verificacao-cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.afirmacao-rotulo {
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.afirmacao-bloco .texto {
+  line-height: var(--lh-reading);
+}
+
+.selo-icone {
+  font-weight: var(--fw-strong);
+}
+
+/* Evidências de uma afirmação: ocultas por padrão, abertas pelo `</> N` ou pelo
+   seletor global, sob o título, antes das ações (#404). */
+.cartao-cabeca .btn-codigo {
+  margin-left: auto;
+}
+
+.evidencias-afirmacao {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.evidencias-titulo {
+  font-size: var(--fs-small);
+  color: var(--muted);
+}
+
+.cartao .evidencias-afirmacao .evidencias {
+  margin-top: 0;
+}
+
+.seletor-evidencias {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  align-self: flex-start;
+  min-height: 36px;
+  font-size: var(--fs-support);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
 /* Texto da afirmação em Markdown (#130): o primeiro parágrafo abre o texto; listas e
    parágrafos seguintes vêm abaixo. */
 .afirmacao .texto > p {
@@ -4139,39 +4214,77 @@ code[data-tone="attention"] {
   text-align: left;
   cursor: pointer;
 }
+/* O painel acompanha a lista e rola inteiro: a descrição não tem rolagem própria (#404). */
 .demandas-painel {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
   position: sticky;
   top: 0;
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+}
+/* Aba da issue: as partes em coluna, com o mesmo espaço do painel. */
+.demandas-aba {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 .demandas-painel h3,
 .demandas-painel h4 {
   margin: 0;
 }
-.demandas-painel h4 {
-  margin-top: 6px;
+/* Rótulos de seção ("Descrição", "Na base", "Parecidas"): afastados do bloco de cima,
+   colados no próprio texto, nunca por cima dele (#404). */
+.demandas-painel h4,
+.demandas-aba h3.demandas-rotulo,
+.demandas-aba h4 {
+  margin: var(--space-3) 0 0;
   font-size: var(--fs-support);
+  font-weight: var(--fw-strong);
+  line-height: 1.4;
   color: var(--muted);
+}
+/* Cabeçalho: chave, estado e link à esquerda; a ação principal à direita (#404). */
+.demandas-topo {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
 }
 .demandas-painel-cab {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
+  min-height: 36px;
+}
+.demandas-acoes {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+.demandas-bloqueio {
+  max-width: 32em;
+  font-size: var(--fs-support);
+  text-align: right;
 }
 .demandas-painel-titulo {
   margin: 0;
   font-size: var(--fs-section);
   font-weight: var(--fw-strong);
 }
+/* A descrição inteira, sem altura máxima: rola com a página ou com o painel (#404). */
 .demandas-descricao {
   margin: 0;
-  max-height: 14em;
-  overflow: auto;
   white-space: pre-wrap;
   color: var(--text-2);
+}
+.demandas-descricao > :first-child {
+  margin-top: 0;
 }
 /* A descrição é Markdown (#398): o espaço vem do próprio Markdown, não do pre-wrap. */
 .demandas-descricao.markdown {
