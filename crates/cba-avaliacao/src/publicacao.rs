@@ -365,6 +365,7 @@ pub fn publicar(
             nome: &ambiente.projeto.nome,
             repositorios,
             escopo: Some(&ambiente.escopo),
+            mascarar_demanda: ambiente.projeto.mascarar_demanda,
         },
     )
 }

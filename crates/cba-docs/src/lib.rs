@@ -4,7 +4,8 @@
 //! Exportação para Markdown, Word e HTML: [`exportar_markdown`],
 //! [`exportar_word`], [`exportar_html`] (com o template e os tokens CSS de
 //! [`ModeloHtml`]) e [`gravar_exportacao`] (módulo `exportacao`). Planilha do
-//! Excel: [`xlsx`].
+//! Excel: [`xlsx`]. Dados pessoais do texto da demanda, mascarados na saída
+//! (#454): [`mascarar_demanda`].
 //!
 //! Documentação legível para a forja (#288): [`gerar_documentacao`] monta as
 //! páginas (README, funcionalidades, regras por área, glossário e análises) e
@@ -37,6 +38,7 @@
 
 mod ata;
 mod conteudo;
+mod demanda;
 mod diagrama;
 mod documentacao;
 mod exportacao;
@@ -62,6 +64,7 @@ pub use ata::{
 pub use conteudo::{
     Afirmacao, Citacao, Confianca, Conteudo, Pergunta, ReferenciaSugestao, Texto, bloco_de_codigo,
 };
+pub use demanda::{SECOES_DA_DEMANDA, mascarar_demanda};
 pub use diagrama::{
     ArestaDiagrama, AtributoDiagrama, Diagrama, EntidadeDiagrama, LINGUAGEM_MERMAID,
     Multiplicidade, NoDiagrama, OrigemRelacao, PapelNo, RelacaoDiagrama, TipoDiagrama, mermaid,

@@ -444,6 +444,7 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
           inventario: inventarioFicticio(),
         }),
     ),
+    salvarMascararDemanda: vi.fn((_projeto: string, ligado: boolean) => Promise.resolve(ligado)),
     salvarLeitura: vi.fn((a: AjusteLeitura) =>
       Promise.resolve({
         id: a.projeto,

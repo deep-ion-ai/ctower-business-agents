@@ -42,7 +42,10 @@ o aviso de alteração.
    afetadas. Se o PR/MR aberto já tem esta versão, a prévia diz que não há o que enviar.
    Sem nenhum documento aprovado, ela avisa que ainda não há aprovados no projeto.
 4. Confira que não há segredos (senhas, tokens, chaves, endereços internos) nem dados pessoais nos
-   documentos e marque a confirmação.
+   documentos e marque a confirmação. Por padrão, o CPF, o CNPJ, o e-mail e o telefone de "Demanda como
+   veio" e "Demanda como entendida" já saem mascarados (`[CPF mascarado]`, `[telefone mascarado]`),
+   como na exportação; a base local guarda o texto original. A preferência fica no projeto, em
+   Código e demandas, "Dados pessoais da demanda". Nomes de pessoas não são mascarados: confira-os.
 5. Clique em **Publicar**. O app grava as páginas na branch `docs/cba-<projeto>` e abre o PR/MR;
    o resultado traz o link. Nada é gravado direto na branch base, e o seu clone fica como estava.
 
@@ -121,7 +124,7 @@ A sincronização recorta as páginas pelos marcadores: cada regra, termo ou an�
 documento próprio, com o caminho da página e a âncora de onde veio
 (`funcionalidades/cobranca/f-cob-001-cobrar-multa.md#rn-cob-001`). O cartão mostra o commit,
 quando sincronizou, quantos documentos vieram e o que foi pulado ou mascarado (segredos, CPF,
-e-mail). Na tela da base, os documentos aparecem com o rótulo da origem e o filtro "Externos", só
+CNPJ, e-mail, telefone). Na tela da base, os documentos aparecem com o rótulo da origem e o filtro "Externos", só
 para leitura. A sua própria base não recebe de volta o que ela mesma publicou: os documentos já
 estão nela.
 

@@ -43,6 +43,8 @@ export interface ProjetoConfig {
   repositorios: Repositorios;
   /** Ambiente de teste (URL, usuários e perfis); nunca a senha. */
   ambienteTeste?: AmbienteTeste | null;
+  /** Dados pessoais do texto da demanda mascarados ao exportar e publicar (#454); ausente = ligado. */
+  mascararDemanda?: boolean;
 }
 
 export interface Configuracoes {
@@ -217,6 +219,8 @@ export interface ApiConfiguracoes
   previaLeitura(ajuste: AjusteLeitura): Promise<PreviaProjeto>;
   /** Grava pastas e exclusões e refaz o inventário; se falhar, nada muda. */
   salvarLeitura(ajuste: AjusteLeitura): Promise<ProjetoCadastrado>;
+  /** Liga ou desliga a máscara dos dados pessoais da demanda (#454); devolve o valor gravado. */
+  salvarMascararDemanda?(projeto: string, ligado: boolean): Promise<boolean>;
   /** Proteção, servidor MCP e (no último projeto) hooks. Só depois da confirmação. */
   desfazerAmbiente(projeto: string): Promise<AmbienteDesfeito>;
   /** Desfaz o ambiente e apaga o cadastro; os documentos ficam. Só depois da confirmação. */
@@ -253,6 +257,8 @@ export const apiConfiguracoesTauri: ApiConfiguracoes = {
   trocarBase: (destino, modo) => invoke("trocar_base_app", { destino, modo }),
   previaLeitura: (ajuste) => invoke("previa_leitura_app", { ajuste }),
   salvarLeitura: (ajuste) => invoke("salvar_leitura_app", { ajuste }),
+  salvarMascararDemanda: (projeto, ligado) =>
+    invoke("salvar_mascarar_demanda_app", { projeto, ligado }),
   desfazerAmbiente: (projeto) => invoke("desfazer_ambiente_projeto", { projeto }),
   descadastrar: (projeto) => invoke("descadastrar_projeto_app", { projeto }),
   textos: () => invoke("textos_editaveis_app"),
