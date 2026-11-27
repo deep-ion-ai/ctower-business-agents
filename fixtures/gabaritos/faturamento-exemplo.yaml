@@ -29,6 +29,13 @@
 #   uma afirmação com as palavras-chave ou com evidência que toca uma das
 #   esperadas; o que não valida precisa aparecer numa afirmação de `riscos` ou
 #   `funcionalidades` que o cite e tenha as palavras-chave de `sem_validacao`.
+# - `valores_de_dominio` (demandas, #455): quando o critério da correção é parte
+#   dos valores de um domínio (enum, tabela de domínio, constantes), o `campo`,
+#   as `evidencias` da lista completa e todos os `valores`, cada um com a
+#   `classificacao` esperada (`entra`, `nao_entra` ou `a_decidir`). Cada valor
+#   precisa aparecer no trecho de alguma evidência. Uma afirmação deve citar
+#   todos os valores e classificar cada um ("<VALOR>: entra | não entra | a
+#   decidir"); o valor a decidir também numa decisão para o negócio que o cita.
 # - `dados_pessoais` (demandas, #126) descreve a seção "Dados pessoais e
 #   requisitos não funcionais" esperada: os `campos` com dado pessoal que a
 #   demanda toca (`campo` TABELA.COLUNA, `categoria`, `palavras_chave` e as
@@ -954,6 +961,55 @@ demandas:
     arquivos_impactados:
       - backend/src/main/java/exemplo/faturamento/ClienteService.java
       - backend/src/main/java/exemplo/faturamento/CancelamentoService.java
+
+  # Critério com parte dos valores de um domínio (#455): o solicitante lista
+  # ABERTA e PARCELADA, mas FATURA.STATUS tem seis valores. A lista completa
+  # está no CHECK do script 04 (o comentário e o CHECK do script 01 só têm
+  # quatro). SUSPENSA (contestada) e PROTESTADA também são faturas não pagas
+  # que ficariam em cobrança depois do desligamento: incluí-las é decisão do
+  # negócio. A análise deve citar os seis valores e classificar cada um.
+  - id: D-FAT-007
+    texto: >-
+      Cliente desligado continua com cobrança em andamento. Ao desligar o
+      cliente, o sistema cancela só as faturas ABERTA dele, e as PARCELADA
+      continuam com as parcelas em cobrança. Corrigir para cancelar, no
+      desligamento, as faturas ABERTA e PARCELADA do cliente.
+    premissa: >-
+      Confere que o desligamento (ClienteService.editar) cancela só as faturas
+      ABERTA (FaturaRepository.abertasDoCliente). Mas a situação da fatura tem
+      seis valores (CHECK CK_FATURA_STATUS do script 04): além de ABERTA e
+      PARCELADA, SUSPENSA (cobrança suspensa por contestação) e PROTESTADA
+      também são faturas não pagas que ficariam em cobrança; PAGA e CANCELADA
+      não entram. Incluir SUSPENSA e PROTESTADA é decisão do negócio. Cancelar
+      a PARCELADA exige tratar as parcelas em aberto (PARCELA.STATUS).
+    abrangencia_esperada: media
+    regras: [RN-FAT-017]
+    valores_de_dominio:
+      campo: FATURA.STATUS
+      evidencias:
+        - arquivo: db/04_pkg_situacao.sql
+          linha_inicial: 9
+          linha_final: 10
+          trecho: "'SUSPENSA', 'PROTESTADA'"
+      valores:
+        - valor: ABERTA
+          classificacao: entra
+        - valor: PAGA
+          classificacao: nao_entra
+        - valor: PARCELADA
+          classificacao: entra
+        - valor: CANCELADA
+          classificacao: nao_entra
+        - valor: SUSPENSA
+          classificacao: a_decidir
+        - valor: PROTESTADA
+          classificacao: a_decidir
+    decisoes_esperadas:
+      - tema: No desligamento, cancelar também as faturas SUSPENSA e PROTESTADA?
+        palavras_chave: [[suspensa*, protestada*, contest*, protest*]]
+    arquivos_impactados:
+      - backend/src/main/java/exemplo/faturamento/FaturaRepository.java
+      - backend/src/main/java/exemplo/faturamento/ClienteService.java
 
 # Arquivos que as ferramentas devem excluir da análise (spec 4.1, passo 4).
 exclusoes:

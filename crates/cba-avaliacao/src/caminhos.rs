@@ -69,14 +69,14 @@ impl CaminhosAvaliados {
     }
 }
 
-fn toca(e: &Evidencia, esperada: &EvidenciaEsperada) -> bool {
+pub(crate) fn toca(e: &Evidencia, esperada: &EvidenciaEsperada) -> bool {
     e.arquivo.as_str() == esperada.arquivo
         && e.linhas.fim - e.linhas.inicio < LINHAS_PARA_CASAR
         && e.linhas.inicio <= esperada.linha_final
         && esperada.linha_inicial <= e.linhas.fim
 }
 
-fn texto_do_agente(a: &Afirmacao) -> &str {
+pub(crate) fn texto_do_agente(a: &Afirmacao) -> &str {
     a.texto_original.as_deref().unwrap_or(&a.texto)
 }
 

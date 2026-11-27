@@ -926,3 +926,130 @@ fn decisao_esperada_registrada_como_decisao_com_opcoes() {
     let av = avaliar_item(&a, "D-FAT-005");
     assert_eq!(av.decisoes_esperadas[0].atendida_por, None);
 }
+
+/// D-FAT-007 (#455): o critério usa parte dos valores de FATURA.STATUS. A análise
+/// cita os seis valores, com a evidência do CHECK mais recente, classifica cada
+/// um e registra a decisão dos que ficam a decidir.
+#[test]
+fn valores_de_dominio_lista_completa_classificada_e_decisoes() {
+    let sem = analise_vazia("impacto", "Cancelar ABERTA e PARCELADA ...");
+    let v = avaliar_item(&sem, "D-FAT-007").valores_de_dominio.unwrap();
+    assert_eq!(v.campo, "FATURA.STATUS");
+    assert_eq!(v.valores.len(), 6);
+    assert_eq!(v.classificados(), 0);
+    assert_eq!(v.lista_em, None);
+    assert!(!v.completos());
+
+    // A lista do script 01 (quatro valores) não é a completa.
+    let mut a = analise_vazia("impacto", "Cancelar ABERTA e PARCELADA ...");
+    afirmar(
+        &mut a,
+        "como_e_hoje",
+        "Valores de FATURA.STATUS: ABERTA: entra; PAGA: não entra; PARCELADA: entra; \
+         CANCELADA: não entra.",
+        Confianca::Confirmado,
+        vec![ev(
+            "db/01_tabelas.sql",
+            35,
+            36,
+            "CHECK (STATUS IN ('ABERTA', 'PAGA', 'PARCELADA', 'CANCELADA'))",
+        )],
+    );
+    let v = avaliar_item(&a, "D-FAT-007").valores_de_dominio.unwrap();
+    assert_eq!(v.lista_em, None);
+    assert_eq!(v.classificados(), 4, "{v:?}");
+    assert!(!v.completos());
+
+    // A lista completa, com a evidência do CHECK do script 04; SUSPENSA a decidir,
+    // mas PROTESTADA dada como fora sem decisão.
+    let mut a = analise_vazia("impacto", "Cancelar ABERTA e PARCELADA ...");
+    afirmar(
+        &mut a,
+        "como_e_hoje",
+        "Valores de FATURA.STATUS: ABERTA: entra (já cancelada hoje); PAGA: não entra \
+         (quitada); PARCELADA: entra (pedido da demanda); CANCELADA: não entra (já \
+         cancelada); SUSPENSA: a decidir (cobrança suspensa por contestação); \
+         PROTESTADA: não entra.",
+        Confianca::Confirmado,
+        vec![ev(
+            "db/04_pkg_situacao.sql",
+            9,
+            10,
+            "'SUSPENSA', 'PROTESTADA'",
+        )],
+    );
+    let v = avaliar_item(&a, "D-FAT-007").valores_de_dominio.unwrap();
+    assert_eq!(v.lista_em, Some(1));
+    assert!(v.lista_com_evidencia);
+    assert_eq!(v.classificados(), 5, "{v:?}");
+    let suspensa = v.valores.iter().find(|x| x.valor == "SUSPENSA").unwrap();
+    assert_eq!(suspensa.decisao_em, None);
+    assert!(!suspensa.atendido());
+    assert!(!v.completos());
+
+    // Corrigida a classificação e registradas as decisões, fica completo.
+    a.afirmacoes[0].texto = a.afirmacoes[0].texto.replace(
+        "PROTESTADA: não entra.",
+        "PROTESTADA: a decidir (em protesto).",
+    );
+    perguntar(
+        &mut a,
+        "No desligamento, cancelar também as faturas SUSPENSA (em contestação) e PROTESTADA?",
+    );
+    a.perguntas[0].tipo = TipoPergunta::Decisao;
+    a.perguntas[0].opcoes = vec![
+        OpcaoDecisao {
+            texto: "Cancelar".into(),
+            efeito: "a cobrança das faturas suspensas e protestadas acaba no desligamento".into(),
+        },
+        OpcaoDecisao {
+            texto: "Manter em cobrança".into(),
+            efeito: "seguem cobradas depois do desligamento".into(),
+        },
+    ];
+    let av = avaliar_item(&a, "D-FAT-007");
+    let v = av.valores_de_dominio.as_ref().unwrap();
+    assert!(v.completos(), "{v:?}");
+    assert!(v.valores.iter().filter(|x| x.decisao_em.is_some()).count() == 2);
+    assert_eq!(av.decisoes_esperadas[0].atendida_por, Some(1));
+
+    // Só como dúvida, sem opções, a decisão não conta.
+    let mut b = a.clone();
+    b.perguntas[0].tipo = TipoPergunta::Duvida;
+    b.perguntas[0].opcoes.clear();
+    let v = avaliar_item(&b, "D-FAT-007").valores_de_dominio.unwrap();
+    assert!(!v.completos());
+
+    // O relatório da execução mostra a lista e a classificação.
+    let rel = Relatorio::novo(
+        None,
+        vec![Execucao {
+            fluxo: "impacto".into(),
+            item: "D-FAT-007".into(),
+            repeticao: 1,
+            avaliacao: Some(av),
+            ata: None,
+            transcript: None,
+            mapa: None,
+            publicacao: None,
+            conducao: None,
+            arquivos_alterados: vec![],
+            claude: None,
+            erro: None,
+        }],
+    );
+    let dir = tempfile::tempdir().unwrap();
+    rel.gravar(dir.path()).unwrap();
+    let md = std::fs::read_to_string(dir.path().join("relatorio.md")).unwrap();
+    assert!(
+        md.contains(
+            "Valores de FATURA.STATUS usados como critério: 6 de 6 classificados como o \
+             esperado; lista completa na afirmação 1, com evidência"
+        ),
+        "{md}"
+    );
+    assert!(
+        md.contains("PROTESTADA (esperado: a decidir): a decidir (afirmação 1); decisão 1"),
+        "{md}"
+    );
+}
