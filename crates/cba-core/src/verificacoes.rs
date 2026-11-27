@@ -138,7 +138,7 @@ impl Analise {
         if let Some(n) = self
             .verificacoes
             .iter()
-            .find(|v| v.sql == sql)
+            .find(|v| mesmo_sql(&v.sql, &sql))
             .map(|v| v.numero)
         {
             return Err(invalida(format!(
@@ -208,6 +208,18 @@ impl Analise {
         p.verificacao = Some(verificacao);
         Ok(())
     }
+}
+
+/// A mesma consulta com outra quebra de linha, outros espaços ou outras
+/// maiúsculas (#453): o SQL comparado sem diferenciar espaços nem maiúsculas.
+fn mesmo_sql(a: &str, b: &str) -> bool {
+    let normal = |s: &str| {
+        s.split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_lowercase()
+    };
+    normal(a) == normal(b)
 }
 
 #[cfg(test)]
@@ -284,6 +296,11 @@ mod tests {
         ));
         a.registrar_verificacao(nova(), 1).unwrap();
         let erro = a.registrar_verificacao(nova(), 2).unwrap_err();
+        assert!(erro.to_string().contains("V1"), "{erro}");
+        // Só outra formatação: é a mesma consulta.
+        let mut reformatada = nova();
+        reformatada.sql = "select STATUS\n  from FATURA   where ID_FATURA = :id_fatura".into();
+        let erro = a.registrar_verificacao(reformatada, 3).unwrap_err();
         assert!(erro.to_string().contains("V1"), "{erro}");
     }
 
