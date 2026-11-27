@@ -690,6 +690,10 @@ fn criterios_das_analises(s: &mut String) {
     );
     let _ = writeln!(
         s,
+        "- **Valores de domínio usados como critério** (correção que depende de parte dos valores de um enum ou de uma tabela de domínio): uma afirmação cita todos os valores, com as maiúsculas do código; cada valor classificado como o esperado no formato \"<VALOR>: entra | não entra | a decidir\"; o valor a decidir também numa decisão para o negócio, com as opções, que o cita."
+    );
+    let _ = writeln!(
+        s,
         "- **Decisões para o negócio** (impacto): decisão esperada atendida por uma pergunta do tipo decisão, não descartada, com as palavras-chave e ao menos duas opções; o tema perguntado só como dúvida, sem opções, aparece à parte."
     );
     let _ = writeln!(
@@ -896,6 +900,41 @@ fn analise_md(s: &mut String, e: &Execucao) {
                     (true, _) => String::new(),
                     (false, Some(n)) => format!("; falta de validação apontada (afirmação {n})"),
                     (false, None) => "; falta de validação não apontada".to_owned(),
+                }
+            );
+        }
+    }
+    if let Some(v) = &a.valores_de_dominio {
+        let _ = writeln!(
+            s,
+            "- Valores de {} usados como critério: {} de {} classificados como o esperado; {}",
+            v.campo,
+            v.classificados(),
+            v.valores.len(),
+            match (v.lista_em, v.lista_com_evidencia) {
+                (Some(n), true) => format!("lista completa na afirmação {n}, com evidência"),
+                (Some(n), false) => format!("lista completa na afirmação {n}, sem evidência"),
+                (None, _) => "lista completa não citada".to_owned(),
+            }
+        );
+        for valor in &v.valores {
+            let _ = writeln!(
+                s,
+                "  - {} (esperado: {}): {}{}",
+                valor.valor,
+                valor.esperada.rotulo(),
+                match (valor.classificado_como, valor.classificado_em) {
+                    (Some(c), Some(n)) => format!("{} (afirmação {n})", c.rotulo()),
+                    _ => "não classificado".to_owned(),
+                },
+                match (valor.esperada, valor.decisao_em) {
+                    (crate::gabarito::Classificacao::ADecidir, Some(n)) => {
+                        format!("; decisão {n}")
+                    }
+                    (crate::gabarito::Classificacao::ADecidir, None) => {
+                        "; sem decisão para o negócio".to_owned()
+                    }
+                    _ => String::new(),
                 }
             );
         }

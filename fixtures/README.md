@@ -139,6 +139,13 @@ deve encontrar:
   edição do cliente (`ClienteService.editar`), ao desligá-lo, chama o mesmo
   método do portal (`CancelamentoService.cancelar`) com a validação desligada
   (#451).
+- `valores_de_dominio` (numa demanda): quando o critério da correção é parte
+  dos valores de um domínio, a lista completa, com a evidência, e a
+  classificação esperada de cada valor (entra, não entra ou a decidir). A
+  `D-FAT-007` pede cancelar, no desligamento do cliente, as faturas `ABERTA` e
+  `PARCELADA`; `FATURA.STATUS` tem seis valores, e a lista completa só está no
+  CHECK do script 04 (o do script 01 tem quatro): `SUSPENSA` e `PROTESTADA`
+  ficam a decidir pelo negócio (#455).
 
 ## Testes
 

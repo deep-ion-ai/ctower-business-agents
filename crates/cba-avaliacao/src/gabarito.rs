@@ -220,6 +220,52 @@ pub struct Demanda {
     /// Caminhos que gravam o estado de que a demanda trata (#451).
     #[serde(default)]
     pub caminhos_de_escrita: Option<CaminhosEsperados>,
+    /// Valores de domínio usados como critério da correção (#455).
+    #[serde(default)]
+    pub valores_de_dominio: Option<ValoresDeDominioEsperados>,
+}
+
+/// Valores de domínio usados como critério da correção (#455): quando a correção
+/// depende de um subconjunto dos valores de um enum, de uma tabela de domínio ou
+/// de constantes, a análise de impacto deve citar a lista completa, com
+/// evidência, e classificar cada valor; os valores a decidir viram decisões para
+/// o negócio.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ValoresDeDominioEsperados {
+    /// O campo ou o tipo do domínio (`FATURA.STATUS`).
+    pub campo: String,
+    /// Onde está a lista completa dos valores.
+    pub evidencias: Vec<EvidenciaEsperada>,
+    /// Todos os valores do domínio, cada um com a classificação esperada.
+    pub valores: Vec<ValorDeDominio>,
+}
+
+/// Um valor do domínio e a classificação esperada dele no critério.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ValorDeDominio {
+    /// O valor como está no código (`SUSPENSA`).
+    pub valor: String,
+    pub classificacao: Classificacao,
+}
+
+/// Classificação de um valor de domínio no critério da correção (#455).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Classificacao {
+    Entra,
+    NaoEntra,
+    ADecidir,
+}
+
+impl Classificacao {
+    /// Como aparece no relatório e no texto da análise.
+    pub fn rotulo(self) -> &'static str {
+        match self {
+            Self::Entra => "entra",
+            Self::NaoEntra => "não entra",
+            Self::ADecidir => "a decidir",
+        }
+    }
 }
 
 /// Todos os caminhos que gravam um estado (#451): numa demanda sobre um estado
@@ -660,6 +706,9 @@ pub struct Item {
     /// Decisões para o negócio esperadas, só no fluxo impacto (#452).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub decisoes_esperadas: Vec<PerguntaEsperada>,
+    /// Valores de domínio usados como critério, só no fluxo impacto (#455).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub valores_de_dominio: Option<ValoresDeDominioEsperados>,
 }
 
 /// Erro ao ler o gabarito ou ao achar um item.
@@ -781,6 +830,7 @@ impl Gabarito {
                 origem: None,
                 caminhos: None,
                 decisoes_esperadas: Vec::new(),
+                valores_de_dominio: None,
             });
         }
         if let Some(f) = self.funcionalidades.iter().find(|f| f.id == id) {
@@ -808,6 +858,7 @@ impl Gabarito {
                 origem: None,
                 caminhos: None,
                 decisoes_esperadas: Vec::new(),
+                valores_de_dominio: None,
             });
         }
         if let Some(d) = self.demandas.iter().find(|d| d.id == id) {
@@ -830,6 +881,7 @@ impl Gabarito {
                 origem: d.origem.clone(),
                 caminhos: d.caminhos_de_escrita.clone(),
                 decisoes_esperadas: d.decisoes_esperadas.clone(),
+                valores_de_dominio: d.valores_de_dominio.clone(),
             });
         }
         if let Some(r) = self.revisoes.iter().find(|r| r.id == id) {
@@ -853,6 +905,7 @@ impl Gabarito {
                 origem: None,
                 caminhos: None,
                 decisoes_esperadas: Vec::new(),
+                valores_de_dominio: None,
             });
         }
         if let Some(h) = self.historias.iter().find(|h| h.id == id) {
@@ -876,6 +929,7 @@ impl Gabarito {
                 origem: None,
                 caminhos: None,
                 decisoes_esperadas: Vec::new(),
+                valores_de_dominio: None,
             });
         }
         if let Some(c) = self.cenarios.iter().find(|c| c.id == id) {
@@ -898,6 +952,7 @@ impl Gabarito {
                 origem: None,
                 caminhos: None,
                 decisoes_esperadas: Vec::new(),
+                valores_de_dominio: None,
             });
         }
         if let Some(c) = self.ciclos_vida.iter().find(|c| c.id == id) {
@@ -920,6 +975,7 @@ impl Gabarito {
                 origem: None,
                 caminhos: None,
                 decisoes_esperadas: Vec::new(),
+                valores_de_dominio: None,
             });
         }
         Err(Erro(format!(

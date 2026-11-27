@@ -40,7 +40,11 @@
 //!   `funcionalidades` ([`crate::caminhos`]);
 //! - **decisões para o negócio** (impacto, #452): cada decisão esperada é
 //!   atendida por uma pergunta do tipo decisão, não descartada, com as
-//!   palavras-chave no texto e ao menos duas opções.
+//!   palavras-chave no texto e ao menos duas opções;
+//! - **valores de domínio usados como critério** (impacto, #455): a lista
+//!   completa dos valores citada numa afirmação, cada valor classificado como o
+//!   esperado (entra, não entra ou a decidir) e os a decidir numa decisão para o
+//!   negócio ([`crate::dominio`]).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -58,6 +62,7 @@ use crate::caminhos::{CaminhosAvaliados, avaliar_caminhos};
 use crate::cenarios::{CenariosAvaliados, avaliar_cenarios};
 use crate::ciclo_vida::{CicloVidaAvaliado, avaliar_ciclo_vida};
 use crate::dados_pessoais::{DadosPessoaisAvaliados, avaliar_dados_pessoais};
+use crate::dominio::{ValoresAvaliados, avaliar_valores};
 use crate::gabarito::{Gabarito, Item, OrigemEsperada, PerguntaEsperada, Regra, Veredito};
 use crate::historias::{HistoriasAvaliadas, avaliar_historias};
 use crate::modelagem::{ModelagemAvaliada, avaliar_modelagem};
@@ -128,6 +133,9 @@ pub struct Avaliacao {
     /// Decisões para o negócio esperadas (impacto, #452).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub decisoes_esperadas: Vec<DecisaoAvaliada>,
+    /// Valores de domínio usados como critério da correção (impacto, #455).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub valores_de_dominio: Option<ValoresAvaliados>,
 }
 
 /// Uma decisão para o negócio esperada (#452): a pergunta do tipo decisão que a
@@ -593,6 +601,10 @@ pub fn avaliar(analise: &Analise, item: &Item, gabarito: &Gabarito, escopo: &Esc
             .iter()
             .map(|d| avaliar_decisao(analise, d))
             .collect(),
+        valores_de_dominio: item
+            .valores_de_dominio
+            .as_ref()
+            .map(|v| avaliar_valores(analise, v, &validas_por_afirmacao)),
     }
 }
 
