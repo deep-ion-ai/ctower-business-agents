@@ -10,6 +10,8 @@
 //! - Todo nó sobe, mesmo quando já é ponto de entrada: um método de serviço é
 //!   ponto de entrada pela heurística do mapa, mas costuma ser chamado por uma
 //!   rota, e parar nele esconderia o caminho.
+//! - Do segundo nível em diante, uma menção numa string que liga a mais de uma
+//!   rotina (texto de mensagem com o nome comum de um método) não sobe.
 //! - Uma rotina que já apareceu em outro ramo entra de novo como repetida, sem
 //!   subir outra vez; a que chama um ancestral fecha um ciclo.
 //! - A construção é por nível: ao passar do limite de nós, cortam-se os mais
@@ -133,6 +135,9 @@ fn chamadores<'a>(mapa: &'a Mapa, rotina: Achado<'a>) -> Vec<Uso<'a>> {
         .iter()
         .flat_map(|id| mapa.referencias_a(*id))
         .filter(|u| SOBE_POR.contains(&u.referencia.tipo))
+        // Menção ambígua numa string costuma ser texto de mensagem ("Falha ao
+        // cancelar a fatura"), não uma chamada por nome: não sobe por ela.
+        .filter(|u| u.referencia.tipo != TipoReferencia::Mencao || u.alvos.len() <= 1)
         .filter(|u| u.origem.is_none_or(|o| !ids.contains(&o.id)))
         .filter(|u| vistos.insert((u.arquivo, u.referencia.linha, u.origem.map(|o| o.id))))
         .collect();
