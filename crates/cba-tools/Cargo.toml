@@ -14,6 +14,7 @@ cba-index.workspace = true
 cba-kb.workspace = true
 cba-repos.workspace = true
 cba-reunioes.workspace = true
+cba-sql.workspace = true
 dunce = "1"
 regex = "1"
 serde.workspace = true

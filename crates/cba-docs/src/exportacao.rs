@@ -28,12 +28,21 @@
 //! As seções são reconhecidas pelo título, porque o documento na base pode ter
 //! vindo de um template editado: a seção de perguntas é a de título que começa
 //! com "Perguntas", e a de evidências é a de título "Evidências".
+//!
+//! Notas para a equipe técnica (#452): na análise de impacto, as seções de
+//! detalhe técnico ([`SECOES_TECNICAS`]: dados, integrações, documentos e telas,
+//! dados pessoais e requisitos não funcionais, sugestões de alteração) são o que
+//! o solicitante não precisa ler para decidir. Na exportação sem evidências (a do
+//! solicitante), elas vão para o fim, no bloco "Notas para a equipe técnica",
+//! depois das decisões, do escopo e das perguntas. Com a opção `notas_tecnicas`
+//! desligada, saem, com ou sem evidências. O selo de confiança (`[inferido]`)
+//! fica visível em toda exportação: é ele que separa a dedução do fato.
 
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 
-use cba_kb::CaminhoRelativo;
 use cba_kb::frontmatter::Linhas;
+use cba_kb::{CaminhoRelativo, TipoDocumento};
 use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 use serde::{Deserialize, Serialize};
 
@@ -57,6 +66,10 @@ pub struct OpcoesExportacao {
     /// No Word e no HTML, apêndice com o código Mermaid de cada diagrama
     /// desenhado como figura. No Markdown o código já está no lugar do diagrama.
     pub codigo_diagramas: bool,
+    /// Na análise de impacto, as seções de detalhe técnico (#452). Ligada, sem
+    /// evidências, elas vão para o bloco "Notas para a equipe técnica", no fim;
+    /// com evidências, ficam no lugar. Desligada, saem.
+    pub notas_tecnicas: bool,
 }
 
 impl Default for OpcoesExportacao {
@@ -66,9 +79,23 @@ impl Default for OpcoesExportacao {
             perguntas: true,
             trechos: true,
             codigo_diagramas: true,
+            notas_tecnicas: true,
         }
     }
 }
+
+/// Marcadores das seções de detalhe técnico da análise de impacto (#452), que
+/// vão para "Notas para a equipe técnica" na exportação para o solicitante.
+pub const SECOES_TECNICAS: [&str; 5] = [
+    "dados",
+    "integracoes",
+    "documentos_e_telas",
+    crate::modelo::DADOS_PESSOAIS_E_RNF,
+    crate::modelo::SUGESTOES,
+];
+
+/// Título do bloco com as seções de detalhe técnico.
+pub const TITULO_NOTAS_TECNICAS: &str = "Notas para a equipe técnica";
 
 /// Formato de exportação.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -175,6 +202,9 @@ pub fn exportar_markdown_com_links(
     links: Option<(&dyn LinksDeEvidencia, Option<&str>)>,
 ) -> String {
     let mut texto = limpar(sem_frontmatter(documento), opcoes);
+    if tipo_no_frontmatter(documento) == Some(TipoDocumento::AnaliseImpacto.como_str()) {
+        texto = com_notas_tecnicas(&texto, opcoes);
+    }
     if opcoes.evidencias
         && let Some((forge, commit_padrao)) = links
     {
@@ -415,6 +445,92 @@ pub(crate) fn sem_frontmatter(texto: &str) -> &str {
         }
     }
     texto
+}
+
+/// O valor de `tipo:` no frontmatter, se houver.
+fn tipo_no_frontmatter(texto: &str) -> Option<&str> {
+    let texto = texto.strip_prefix('\u{feff}').unwrap_or(texto);
+    let resto = texto
+        .strip_prefix("---\n")
+        .or_else(|| texto.strip_prefix("---\r\n"))?;
+    for linha in resto.lines() {
+        if linha.trim_end() == "---" {
+            break;
+        }
+        if let Some(valor) = linha.strip_prefix("tipo:") {
+            return Some(valor.trim().trim_matches(['"', '\'']));
+        }
+    }
+    None
+}
+
+/// Seções de detalhe técnico da análise de impacto: tiradas, ou, na exportação
+/// sem evidências, levadas para o bloco "Notas para a equipe técnica", no fim,
+/// um nível abaixo (veja o módulo).
+fn com_notas_tecnicas(texto: &str, opcoes: &OpcoesExportacao) -> String {
+    if opcoes.notas_tecnicas && opcoes.evidencias {
+        return texto.to_owned();
+    }
+    let Some(modelo) = crate::modelo::modelo(TipoDocumento::AnaliseImpacto) else {
+        return texto.to_owned();
+    };
+    let tecnicas: Vec<&str> = SECOES_TECNICAS
+        .iter()
+        .filter_map(|m| modelo.secao(m))
+        .map(|s| s.titulo)
+        .collect();
+    let eventos: Vec<(Event, Range<usize>)> = Parser::new_ext(texto, opcoes_markdown())
+        .into_offset_iter()
+        .collect();
+    let titulos = titulos(&eventos);
+    let mut edicoes: Vec<(Range<usize>, String)> = Vec::new();
+    let mut notas: Vec<String> = Vec::new();
+    for (i, t) in titulos.iter().enumerate() {
+        if t.nivel != HeadingLevel::H2 || !tecnicas.contains(&t.texto.trim()) {
+            continue;
+        }
+        let fim = titulos[i + 1..]
+            .iter()
+            .find(|o| o.nivel <= t.nivel)
+            .map_or(texto.len(), |o| o.inicio);
+        notas.push(um_nivel_abaixo(&texto[t.inicio..fim]).trim_end().to_owned());
+        edicoes.push((t.inicio..fim, String::new()));
+    }
+    if edicoes.is_empty() {
+        return texto.to_owned();
+    }
+    let mut saida = aplicar(texto, edicoes).trim_end().to_owned();
+    if opcoes.notas_tecnicas {
+        saida.push_str(&format!(
+            "\n\n## {TITULO_NOTAS_TECNICAS}\n\n_Detalhe para quem vai implementar a mudança; \
+             não é preciso ler para decidir._\n\n{}",
+            notas.join("\n\n")
+        ));
+    }
+    normalizar(&saida)
+}
+
+/// Os títulos do trecho um nível abaixo (`## Dados` vira `### Dados`), fora
+/// dos blocos de código.
+fn um_nivel_abaixo(trecho: &str) -> String {
+    let mut saida = String::with_capacity(trecho.len() + 8);
+    let mut em_bloco = false;
+    for linha in trecho.split_inclusive('\n') {
+        let l = linha.trim_start();
+        if l.starts_with("```") || l.starts_with("~~~") {
+            em_bloco = !em_bloco;
+        } else if !em_bloco
+            && linha.starts_with('#')
+            && linha.trim_start_matches('#').starts_with(' ')
+        {
+            let nivel = linha.len() - linha.trim_start_matches('#').len();
+            if nivel < 6 {
+                saida.push('#');
+            }
+        }
+        saida.push_str(linha);
+    }
+    saida
 }
 
 /// Se o destino de um link aponta para dentro da base (caminho relativo), e não
@@ -697,6 +813,7 @@ mod tests {
             perguntas: false,
             trechos: true,
             codigo_diagramas: true,
+            notas_tecnicas: true,
         };
         assert_eq!(limpar(md, &opcoes), "# T\n\n## A\n\nTexto.\n");
     }

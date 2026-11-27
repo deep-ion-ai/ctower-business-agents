@@ -45,6 +45,13 @@ impl Modelo {
 
 /// Marcadores com papel especial em qualquer tipo.
 pub(crate) const PERGUNTAS: &str = "perguntas";
+/// Seção da análise de impacto com as decisões para o negócio (#452), logo
+/// depois de "Demanda como entendida". Nos tipos sem ela, as decisões saem na
+/// seção de perguntas.
+pub const DECISOES: &str = "decisoes";
+/// Seção depois da qual [`DECISOES`] entra quando o template da base, copiado
+/// antes da #452, não tem o marcador dela.
+pub(crate) const ANTES_DAS_DECISOES: &str = "demanda_como_entendida";
 pub(crate) const SUGESTOES: &str = "sugestoes";
 pub(crate) const EVIDENCIAS: &str = "evidencias";
 /// Seções da ata com texto próprio quando vazias.
@@ -71,6 +78,10 @@ pub const MODELO_DADOS: &str = "modelo_dados";
 /// funcionais (auditoria, desempenho, segurança e acesso) afetados pela demanda
 /// (#126).
 pub const DADOS_PESSOAIS_E_RNF: &str = "dados_pessoais_e_rnf";
+/// Seção da análise de impacto com as consultas de verificação em dados (#453):
+/// o objetivo, o SQL só de leitura e o que cada resultado significa, para quem
+/// tem acesso ao banco rodar. Montada a partir do estado da análise.
+pub const VERIFICACOES_EM_DADOS: &str = "verificacoes_em_dados";
 /// Seções do mapa de funcionalidades (#208), montadas a partir do estado da
 /// análise, e do catálogo, montadas a partir do estado do catálogo.
 pub const FUNCIONALIDADES_MAPEADAS: &str = "funcionalidades_mapeadas";
@@ -122,7 +133,8 @@ pub const MODELOS: [Modelo; 15] = [
         tipo: TipoDocumento::AnaliseImpacto,
         secoes: &[
             s("demanda_como_veio", "Demanda como veio"),
-            s("demanda_como_entendida", "Demanda como entendida"),
+            s(ANTES_DAS_DECISOES, "Demanda como entendida"),
+            s(DECISOES, "Decisões para o negócio"),
             s("como_e_hoje", "Como é hoje"),
             s("funcionalidades", "Funcionalidades"),
             s("dados", "Dados"),
@@ -134,6 +146,7 @@ pub const MODELOS: [Modelo; 15] = [
             ),
             s("riscos", "Riscos"),
             s("abrangencia", "Abrangência"),
+            s(VERIFICACOES_EM_DADOS, "Verificações em dados"),
             s(PERGUNTAS, "Perguntas para o solicitante"),
             SUGESTOES_SECAO,
             EVIDENCIAS_SECAO,
@@ -402,6 +415,7 @@ pub(crate) fn texto_vazio(marcador: &str) -> &'static str {
         NAO_MAPEADOS => "_Todos os pontos de entrada têm funcionalidade._",
         INDICE_CATALOGO => "_Catálogo vazio._",
         PASSO_A_PASSO => "_Nenhum passo registrado._",
+        VERIFICACOES_EM_DADOS => "_Nenhuma verificação em dados registrada._",
         _ => "_Nada registrado._",
     }
 }

@@ -341,7 +341,8 @@ function GrupoPauta({
 /**
  * O cartão de uma pergunta (ou de perguntas iguais juntas): número, pergunta e
  * idade; "O que o sistema faz hoje" recolhido; a origem curta, o "Para" e o
- * "Registrar resposta" numa linha só.
+ * "Registrar resposta" numa linha só. Numa decisão para o negócio (#452), o selo
+ * "Decisão", as opções com o efeito de cada uma e a recomendação.
  */
 function CartaoPergunta({
   numero,
@@ -374,7 +375,13 @@ function CartaoPergunta({
   return (
     <Cartao
       como="li"
-      className={item.antiga ? "pauta-item pauta-item-antiga" : "pauta-item"}
+      className={[
+        "pauta-item",
+        item.antiga ? "pauta-item-antiga" : "",
+        item.decisao ? "pauta-item-decisao" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
       <div className="pauta-item-topo">
         <span className="pauta-numero" aria-hidden="true">
@@ -382,6 +389,7 @@ function CartaoPergunta({
         </span>
         <p className="pauta-texto">{item.texto}</p>
         <span className="pauta-selos">
+          {item.decisao && <Selo tom="neutro">Decisão</Selo>}
           <Selo tom={item.antiga ? "atencao" : undefined}>
             {idade(item.idadeDias)}
           </Selo>
@@ -391,6 +399,23 @@ function CartaoPergunta({
         </span>
       </div>
       <div className="pauta-item-corpo">
+        {item.decisao && (
+          <div className="pauta-decisao">
+            <ol className="pauta-decisao-opcoes" aria-label="Opções">
+              {item.decisao.opcoes.map((o, i) => (
+                <li key={i}>
+                  <strong>{o.texto}</strong>
+                  <span className="muted"> — efeito: {o.efeito}</span>
+                </li>
+              ))}
+            </ol>
+            {item.decisao.recomendacao && (
+              <p className="pauta-decisao-recomendacao">
+                <strong>Recomendação:</strong> {item.decisao.recomendacao}
+              </p>
+            )}
+          </div>
+        )}
         {contextos.length > 0 && (
           <div className="pauta-contexto">
             <button
@@ -565,6 +590,22 @@ function FormResposta({
       aria-label="Registrar resposta"
       onSubmit={enviar}
     >
+      {item.decisao && (
+        <fieldset>
+          <legend>Opção escolhida</legend>
+          {item.decisao.opcoes.map((o, i) => (
+            <label key={i} className="pauta-opcao">
+              <input
+                type="radio"
+                name="opcao-da-decisao"
+                checked={texto === o.texto}
+                onChange={() => setTexto(o.texto)}
+              />{" "}
+              {o.texto}
+            </label>
+          ))}
+        </fieldset>
+      )}
       <label>
         Resposta
         <textarea

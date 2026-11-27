@@ -82,6 +82,9 @@ pub struct ProjetoConfig {
     /// Ambiente de teste (URL, usuários e perfis); nunca a senha, que fica no
     /// chaveiro do sistema.
     pub ambiente_teste: Option<cba_index::AmbienteTeste>,
+    /// Dados pessoais do texto da demanda mascarados na exportação e na
+    /// publicação (#454). Ligado por padrão.
+    pub mascarar_demanda: bool,
 }
 
 /// O que a tela de configurações mostra ao abrir.
@@ -121,6 +124,7 @@ pub fn configuracoes(
             inclusoes: s.inclusoes,
             repositorios: s.repositorios,
             ambiente_teste: s.ambiente_teste,
+            mascarar_demanda: s.mascarar_demanda,
         })
         .collect();
     Ok(Configuracoes {
@@ -601,6 +605,22 @@ fn cadastrado(dados: &DiretorioDados, projeto: &str) -> Result<cba_index::Projet
         .obter(projeto)
         .map_err(|e| e.to_string())?
         .ok_or_else(|| format!("o projeto \"{projeto}\" não está cadastrado"))
+}
+
+/// Liga ou desliga a máscara dos dados pessoais do texto da demanda na
+/// exportação e na publicação do projeto (#454). Devolve o valor gravado.
+pub fn salvar_mascarar_demanda(
+    dados: &DiretorioDados,
+    projeto: &str,
+    ligado: bool,
+) -> Result<bool, String> {
+    let mut p = cadastrado(dados, projeto)?;
+    p.mascarar_demanda = ligado;
+    Cadastro::em(dados.projetos())
+        .salvar(&p)
+        .map_err(|e| e.to_string())?;
+    tracing::info!(projeto = %p.id, ligado, "máscara dos dados pessoais da demanda");
+    Ok(p.mascarar_demanda)
 }
 
 fn ajustado(dados: &DiretorioDados, ajuste: &AjusteLeitura) -> Result<cba_index::Projeto, String> {
@@ -1305,6 +1325,12 @@ pub async fn previa_leitura_app(ajuste: AjusteLeitura) -> Result<PreviaProjeto, 
 pub async fn salvar_leitura_app(ajuste: AjusteLeitura) -> Result<ProjetoCadastrado, String> {
     let dados = dados()?;
     bloqueante(move || salvar_leitura(&dados, &ajuste)).await
+}
+
+#[tauri::command]
+pub async fn salvar_mascarar_demanda_app(projeto: String, ligado: bool) -> Result<bool, String> {
+    let dados = dados()?;
+    bloqueante(move || salvar_mascarar_demanda(&dados, &projeto, ligado)).await
 }
 
 #[tauri::command]

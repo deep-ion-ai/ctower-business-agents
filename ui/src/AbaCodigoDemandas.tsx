@@ -4,6 +4,7 @@ import { Alerta, EstadoVazio, Secao, Selo } from "./componentes";
 import { rastreadorComConexao } from "./conexoes";
 import { BancosDoProjeto } from "./BancosDoProjeto";
 import { DestinoDocumentacao } from "./DestinoDocumentacao";
+import { MascaraDaDemanda } from "./MascaraDaDemanda";
 import { SeletorConexao } from "./SeletorConexao";
 import type { PropsConfigProjeto } from "./ConfigProjeto";
 import {
@@ -51,14 +52,15 @@ type Edicao =
 /**
  * Aba “Código e demandas” (#192): os repositórios de código, com o acesso conferido
  * sozinho ao abrir a página, de onde vêm as demandas (origem em pílulas, campos
- * essenciais, “Mais opções” e “Testar conexão”), onde a documentação é publicada
- * (#274) e os bancos de dados que as análises podem consultar (#440).
+ * essenciais, “Mais opções” e “Testar conexão”), se os dados pessoais da demanda saem
+ * mascarados na exportação (#454), onde a documentação é publicada (#274) e os bancos de dados que as análises podem consultar (#440).
  */
 export function AbaCodigoDemandas(props: PropsConfigProjeto) {
   return (
     <div className="aba-codigo">
       <RepositoriosDeCodigo {...props} />
       <Demandas {...props} />
+      <MascaraDaDemanda {...props} />
       <DestinoDocumentacao {...props} />
       <BancosDoProjeto projeto={props.projeto.id} />
     </div>

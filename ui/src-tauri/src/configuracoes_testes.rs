@@ -956,3 +956,19 @@ fn editor_da_exportacao_html_lista_variaveis_valida_e_mostra_a_previa() {
     assert!(previa_exportacao(&c.dados, ROTEIRO, "x").is_err());
     assert!(previa_exportacao(&c.dados, "../fora.html", "x").is_err());
 }
+
+#[test]
+fn mascara_da_demanda_ligada_por_padrao_e_desligavel_por_projeto() {
+    let c = cenario();
+    let cfg = configuracoes(&c.dados, None).unwrap();
+    assert!(cfg.projetos[0].mascarar_demanda);
+    let json = serde_json::to_value(&cfg).unwrap();
+    assert_eq!(json["projetos"][0]["mascararDemanda"], true);
+
+    assert!(!salvar_mascarar_demanda(&c.dados, PROJETO, false).unwrap());
+    assert!(!configuracoes(&c.dados, None).unwrap().projetos[0].mascarar_demanda);
+    assert!(!cadastrado(&c.dados, PROJETO).unwrap().mascarar_demanda);
+    assert!(salvar_mascarar_demanda(&c.dados, PROJETO, true).unwrap());
+    assert!(configuracoes(&c.dados, None).unwrap().projetos[0].mascarar_demanda);
+    assert!(salvar_mascarar_demanda(&c.dados, "nao-existe", false).is_err());
+}

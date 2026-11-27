@@ -12,7 +12,8 @@ use cba_avaliacao::gabarito::{Gabarito, Veredito};
 use cba_avaliacao::gabarito_padrao;
 use cba_avaliacao::relatorio::{Execucao, Relatorio};
 use cba_core::analise::{
-    Afirmacao, Analise, Confianca, EstadoAfirmacao, EstadoPergunta, Evidencia, Pergunta,
+    Afirmacao, Analise, Confianca, EstadoAfirmacao, EstadoPergunta, Evidencia, EvidenciaOrigem,
+    OpcaoDecisao, Pergunta, TipoPergunta,
 };
 use cba_tools::evidencias::{EvidenciaCitada, validar};
 
@@ -64,6 +65,7 @@ fn afirmar(a: &mut Analise, secao: &str, texto: &str, confianca: Confianca, evs:
         confianca,
         evidencias: evs,
         dados: Vec::new(),
+        origens: Vec::new(),
         estado: EstadoAfirmacao::Registrada,
         antes_de_revalidar: None,
         contestacao: None,
@@ -77,6 +79,9 @@ fn perguntar(a: &mut Analise, texto: &str) {
     a.perguntas.push(Pergunta {
         numero,
         texto: texto.into(),
+        tipo: TipoPergunta::Duvida,
+        opcoes: Vec::new(),
+        recomendacao: None,
         afirmacao: None,
         estado: EstadoPergunta::Aberta,
         resposta_enviada: false,
@@ -86,6 +91,7 @@ fn perguntar(a: &mut Analise, texto: &str) {
         evidencias: vec![],
         destinatario: None,
         informada: None,
+        verificacao: None,
     });
 }
 
@@ -666,4 +672,385 @@ fn estados_de_execucoes_reais_continuam_sem_falhas() {
         );
         assert!(av.regras_encontradas > 0, "{item}");
     }
+}
+
+/// D-FAT-005 (#450): a análise cita a DEM-12, que criou a RN-FAT-012 de propósito,
+/// em "Como é hoje" e pergunta se a regra continua valendo.
+#[test]
+fn origem_da_regra_citada_em_como_e_hoje_e_a_pergunta_se_continua_valendo() {
+    let sem = analise_vazia("impacto", "Corrigir o cancelamento ...");
+    let av = avaliar_item(&sem, "D-FAT-005");
+    let o = av.origem.as_ref().unwrap();
+    assert_eq!(
+        (o.chave.as_str(), o.regra.as_str()),
+        ("DEM-12", "RN-FAT-012")
+    );
+    assert_eq!(o.citada_em, None);
+    assert!(!o.com_commit);
+
+    let mut a = analise_vazia("impacto", "Corrigir o cancelamento ...");
+    afirmar(
+        &mut a,
+        "como_e_hoje",
+        "Fatura com pagamento parcial não pode ser cancelada. A regra foi criada de \
+         propósito pela demanda DEM-12, em 2024-03-12.",
+        Confianca::Confirmado,
+        vec![ev(
+            "db/03_pkg_cobranca.sql",
+            115,
+            117,
+            "IF V_VL_PAGO > 0 THEN",
+        )],
+    );
+    perguntar(
+        &mut a,
+        "A regra da DEM-12, que impede cancelar fatura com pagamento parcial, continua valendo?",
+    );
+    perguntar(
+        &mut a,
+        "Cancelada a fatura, o valor já pago será estornado ou fica como crédito?",
+    );
+    let av = avaliar_item(&a, "D-FAT-005");
+    assert!(av.falhas().is_empty(), "{:?}", av.falhas());
+    assert!(regra(&av, "RN-FAT-012"));
+    let o = av.origem.as_ref().unwrap();
+    assert_eq!(o.citada_em, Some(1));
+    assert!(!o.com_commit);
+    assert!(
+        av.perguntas_esperadas
+            .iter()
+            .all(|p| p.atendida_por.is_some()),
+        "{:?}",
+        av.perguntas_esperadas
+    );
+
+    // Com o commit em `origens`, sem a chave no texto.
+    let mut b = analise_vazia("impacto", "Corrigir o cancelamento ...");
+    afirmar(
+        &mut b,
+        "como_e_hoje",
+        "Fatura com pagamento parcial não pode ser cancelada, por pedido do financeiro.",
+        Confianca::Confirmado,
+        vec![ev(
+            "db/03_pkg_cobranca.sql",
+            115,
+            117,
+            "IF V_VL_PAGO > 0 THEN",
+        )],
+    );
+    b.afirmacoes[0].origens.push(EvidenciaOrigem {
+        commit: "0123456789abcdef0123456789abcdef01234567".into(),
+        data: "2024-03-12".into(),
+        assunto: "[DEM-12] Impedir o cancelamento de fatura com pagamento parcial".into(),
+        chaves: vec!["DEM-12".into()],
+        autor: None,
+    });
+    let o = avaliar_item(&b, "D-FAT-005").origem.unwrap();
+    assert_eq!(o.citada_em, Some(1));
+    assert!(o.com_commit);
+}
+
+const CLIENTE_SERVICE: &str = "backend/src/main/java/exemplo/faturamento/ClienteService.java";
+
+/// D-FAT-006 (#451): a análise lista os caminhos que gravam CANCELADA (a tela da
+/// retaguarda, o portal e a edição do cliente) e aponta, em riscos, o que não
+/// valida.
+#[test]
+fn caminhos_que_gravam_o_estado_e_o_que_nao_valida() {
+    let sem = analise_vazia("impacto", "Desativar a rota antiga ...");
+    let c = avaliar_item(&sem, "D-FAT-006").caminhos.unwrap();
+    assert_eq!(c.caminhos.len(), 3);
+    assert_eq!(c.citados(), 0);
+    assert!(!c.completos());
+    assert_eq!(c.lista_em, None);
+
+    let mut a = analise_vazia("impacto", "Desativar a rota antiga ...");
+    afirmar(
+        &mut a,
+        "como_e_hoje",
+        "Caminhos que gravam a situação CANCELADA: 1. tela da retaguarda → \
+         PRC_CANCELAR_FATURA: valida a situação, o pagamento parcial e o motivo; 2. portal \
+         → CancelamentoService.cancelar: valida o mesmo; 3. edição do cliente, ao desligá-lo \
+         → ClienteService.editar: não valida. A lista é completa.",
+        Confianca::Confirmado,
+        vec![ev(
+            "db/03_pkg_cobranca.sql",
+            123,
+            127,
+            "SET STATUS          = 'CANCELADA'",
+        )],
+    );
+    // O desligamento sem dizer o que não valida não basta.
+    afirmar(
+        &mut a,
+        "riscos",
+        "O desligamento do cliente cancela as faturas abertas dele.",
+        Confianca::Confirmado,
+        vec![ev(
+            CLIENTE_SERVICE,
+            44,
+            49,
+            "\"DESLIGADO\".equals(cliente.situacao())",
+        )],
+    );
+    let c = avaliar_item(&a, "D-FAT-006").caminhos.unwrap();
+    assert_eq!(c.citados(), 3, "{c:?}");
+    assert_eq!(c.lista_em, Some(1));
+    assert!(!c.completos(), "{c:?}");
+    assert_eq!(c.caminhos[2].sem_validacao_em, None);
+
+    afirmar(
+        &mut a,
+        "riscos",
+        "O cancelamento chamado pela edição do cliente passa a validação desligada: \
+         fatura com pagamento parcial é cancelada sem a recusa da RN-FAT-012.",
+        Confianca::Confirmado,
+        vec![ev(
+            CLIENTE_SERVICE,
+            47,
+            47,
+            "cancelamentoService.cancelar(idFatura, MOTIVO_DESLIGAMENTO, usuario, false)",
+        )],
+    );
+    let av = avaliar_item(&a, "D-FAT-006");
+    let c = av.caminhos.as_ref().unwrap();
+    assert!(c.completos(), "{c:?}");
+    assert_eq!(c.caminhos[2].sem_validacao_em, Some(3));
+    assert!(c.caminhos[0].valida && c.caminhos[1].valida && !c.caminhos[2].valida);
+    // Em como_e_hoje, a falta de validação não conta: precisa ser item de riscos
+    // ou de funcionalidades.
+    let mut b = analise_vazia("impacto", "Desativar a rota antiga ...");
+    afirmar(
+        &mut b,
+        "como_e_hoje",
+        "A edição do cliente cancela sem validar o pagamento parcial.",
+        Confianca::Confirmado,
+        vec![ev(
+            CLIENTE_SERVICE,
+            47,
+            47,
+            "cancelamentoService.cancelar(idFatura, MOTIVO_DESLIGAMENTO, usuario, false)",
+        )],
+    );
+    let c = avaliar_item(&b, "D-FAT-006").caminhos.unwrap();
+    assert_eq!(c.caminhos[2].citado_em, Some(1));
+    assert_eq!(c.caminhos[2].sem_validacao_em, None);
+
+    // O relatório da execução mostra os caminhos.
+    let rel = Relatorio::novo(
+        None,
+        vec![Execucao {
+            fluxo: "impacto".into(),
+            item: "D-FAT-006".into(),
+            repeticao: 1,
+            avaliacao: Some(av),
+            ata: None,
+            transcript: None,
+            mapa: None,
+            publicacao: None,
+            conducao: None,
+            arquivos_alterados: vec![],
+            claude: None,
+            erro: None,
+        }],
+    );
+    let dir = tempfile::tempdir().unwrap();
+    rel.gravar(dir.path()).unwrap();
+    let md = std::fs::read_to_string(dir.path().join("relatorio.md")).unwrap();
+    assert!(
+        md.contains("Caminhos que gravam FATURA.STATUS = CANCELADA: 3 de 3 citados"),
+        "{md}"
+    );
+    assert!(
+        md.contains("falta de validação apontada (afirmação 3)"),
+        "{md}"
+    );
+}
+
+/// D-FAT-005 (#452): manter ou revogar a regra da DEM-12 é uma decisão para o
+/// negócio, com as opções; registrada só como dúvida, o relatório mostra.
+#[test]
+fn decisao_esperada_registrada_como_decisao_com_opcoes() {
+    let texto =
+        "A regra da DEM-12, que impede cancelar fatura com pagamento parcial, continua valendo?";
+    let mut a = analise_vazia("impacto", "Corrigir o cancelamento ...");
+    perguntar(&mut a, texto);
+    let av = avaliar_item(&a, "D-FAT-005");
+    assert_eq!(av.decisoes_esperadas.len(), 1);
+    let d = &av.decisoes_esperadas[0];
+    assert_eq!(d.atendida_por, None);
+    assert_eq!(d.so_como_duvida, Some(1));
+    let execucao = Execucao {
+        fluxo: "impacto".into(),
+        item: "D-FAT-005".into(),
+        repeticao: 1,
+        avaliacao: Some(av),
+        ata: None,
+        transcript: None,
+        mapa: None,
+        publicacao: None,
+        conducao: None,
+        arquivos_alterados: vec![],
+        claude: None,
+        erro: None,
+    };
+    let dir = tempfile::tempdir().unwrap();
+    Relatorio::novo(None, vec![execucao])
+        .gravar(dir.path())
+        .unwrap();
+    let md = std::fs::read_to_string(dir.path().join("relatorio.md")).unwrap();
+    assert!(md.contains("- Decisões para o negócio esperadas:"), "{md}");
+    assert!(
+        md.contains("só como dúvida (pergunta 1, sem opções)"),
+        "{md}"
+    );
+
+    // Como decisão, com as duas opções e o efeito de cada uma.
+    a.perguntas[0].tipo = TipoPergunta::Decisao;
+    a.perguntas[0].opcoes = vec![
+        OpcaoDecisao {
+            texto: "Manter a regra".into(),
+            efeito: "a fatura com pagamento parcial segue sem cancelamento".into(),
+        },
+        OpcaoDecisao {
+            texto: "Revogar a regra".into(),
+            efeito: "revoga a regra da DEM-12; decidir o destino do valor pago".into(),
+        },
+    ];
+    let av = avaliar_item(&a, "D-FAT-005");
+    assert_eq!(av.decisoes_esperadas[0].atendida_por, Some(1));
+    // A decisão também atende à pergunta esperada sobre a regra.
+    assert_eq!(av.perguntas_esperadas[0].atendida_por, Some(1));
+
+    // Descartada, não conta.
+    a.perguntas[0].estado = EstadoPergunta::Descartada;
+    let av = avaliar_item(&a, "D-FAT-005");
+    assert_eq!(av.decisoes_esperadas[0].atendida_por, None);
+}
+
+/// D-FAT-007 (#455): o critério usa parte dos valores de FATURA.STATUS. A análise
+/// cita os seis valores, com a evidência do CHECK mais recente, classifica cada
+/// um e registra a decisão dos que ficam a decidir.
+#[test]
+fn valores_de_dominio_lista_completa_classificada_e_decisoes() {
+    let sem = analise_vazia("impacto", "Cancelar ABERTA e PARCELADA ...");
+    let v = avaliar_item(&sem, "D-FAT-007").valores_de_dominio.unwrap();
+    assert_eq!(v.campo, "FATURA.STATUS");
+    assert_eq!(v.valores.len(), 6);
+    assert_eq!(v.classificados(), 0);
+    assert_eq!(v.lista_em, None);
+    assert!(!v.completos());
+
+    // A lista do script 01 (quatro valores) não é a completa.
+    let mut a = analise_vazia("impacto", "Cancelar ABERTA e PARCELADA ...");
+    afirmar(
+        &mut a,
+        "como_e_hoje",
+        "Valores de FATURA.STATUS: ABERTA: entra; PAGA: não entra; PARCELADA: entra; \
+         CANCELADA: não entra.",
+        Confianca::Confirmado,
+        vec![ev(
+            "db/01_tabelas.sql",
+            35,
+            36,
+            "CHECK (STATUS IN ('ABERTA', 'PAGA', 'PARCELADA', 'CANCELADA'))",
+        )],
+    );
+    let v = avaliar_item(&a, "D-FAT-007").valores_de_dominio.unwrap();
+    assert_eq!(v.lista_em, None);
+    assert_eq!(v.classificados(), 4, "{v:?}");
+    assert!(!v.completos());
+
+    // A lista completa, com a evidência do CHECK do script 04; SUSPENSA a decidir,
+    // mas PROTESTADA dada como fora sem decisão.
+    let mut a = analise_vazia("impacto", "Cancelar ABERTA e PARCELADA ...");
+    afirmar(
+        &mut a,
+        "como_e_hoje",
+        "Valores de FATURA.STATUS: ABERTA: entra (já cancelada hoje); PAGA: não entra \
+         (quitada); PARCELADA: entra (pedido da demanda); CANCELADA: não entra (já \
+         cancelada); SUSPENSA: a decidir (cobrança suspensa por contestação); \
+         PROTESTADA: não entra.",
+        Confianca::Confirmado,
+        vec![ev(
+            "db/04_pkg_situacao.sql",
+            9,
+            10,
+            "'SUSPENSA', 'PROTESTADA'",
+        )],
+    );
+    let v = avaliar_item(&a, "D-FAT-007").valores_de_dominio.unwrap();
+    assert_eq!(v.lista_em, Some(1));
+    assert!(v.lista_com_evidencia);
+    assert_eq!(v.classificados(), 5, "{v:?}");
+    let suspensa = v.valores.iter().find(|x| x.valor == "SUSPENSA").unwrap();
+    assert_eq!(suspensa.decisao_em, None);
+    assert!(!suspensa.atendido());
+    assert!(!v.completos());
+
+    // Corrigida a classificação e registradas as decisões, fica completo.
+    a.afirmacoes[0].texto = a.afirmacoes[0].texto.replace(
+        "PROTESTADA: não entra.",
+        "PROTESTADA: a decidir (em protesto).",
+    );
+    perguntar(
+        &mut a,
+        "No desligamento, cancelar também as faturas SUSPENSA (em contestação) e PROTESTADA?",
+    );
+    a.perguntas[0].tipo = TipoPergunta::Decisao;
+    a.perguntas[0].opcoes = vec![
+        OpcaoDecisao {
+            texto: "Cancelar".into(),
+            efeito: "a cobrança das faturas suspensas e protestadas acaba no desligamento".into(),
+        },
+        OpcaoDecisao {
+            texto: "Manter em cobrança".into(),
+            efeito: "seguem cobradas depois do desligamento".into(),
+        },
+    ];
+    let av = avaliar_item(&a, "D-FAT-007");
+    let v = av.valores_de_dominio.as_ref().unwrap();
+    assert!(v.completos(), "{v:?}");
+    assert!(v.valores.iter().filter(|x| x.decisao_em.is_some()).count() == 2);
+    assert_eq!(av.decisoes_esperadas[0].atendida_por, Some(1));
+
+    // Só como dúvida, sem opções, a decisão não conta.
+    let mut b = a.clone();
+    b.perguntas[0].tipo = TipoPergunta::Duvida;
+    b.perguntas[0].opcoes.clear();
+    let v = avaliar_item(&b, "D-FAT-007").valores_de_dominio.unwrap();
+    assert!(!v.completos());
+
+    // O relatório da execução mostra a lista e a classificação.
+    let rel = Relatorio::novo(
+        None,
+        vec![Execucao {
+            fluxo: "impacto".into(),
+            item: "D-FAT-007".into(),
+            repeticao: 1,
+            avaliacao: Some(av),
+            ata: None,
+            transcript: None,
+            mapa: None,
+            publicacao: None,
+            conducao: None,
+            arquivos_alterados: vec![],
+            claude: None,
+            erro: None,
+        }],
+    );
+    let dir = tempfile::tempdir().unwrap();
+    rel.gravar(dir.path()).unwrap();
+    let md = std::fs::read_to_string(dir.path().join("relatorio.md")).unwrap();
+    assert!(
+        md.contains(
+            "Valores de FATURA.STATUS usados como critério: 6 de 6 classificados como o \
+             esperado; lista completa na afirmação 1, com evidência"
+        ),
+        "{md}"
+    );
+    assert!(
+        md.contains("PROTESTADA (esperado: a decidir): a decidir (afirmação 1); decisão 1"),
+        "{md}"
+    );
 }

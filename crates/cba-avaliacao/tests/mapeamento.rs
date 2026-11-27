@@ -135,7 +135,12 @@ fn mapa(g: &Gabarito, com_suspensao: bool) -> MapaFuncionalidades {
         3,
         "Cancelar fatura",
         "cancelamento",
-        vec![p("#FrmCancelamento"), p("PRC_CANCELAR_FATURA")],
+        vec![
+            p("#FrmCancelamento"),
+            p("PRC_CANCELAR_FATURA"),
+            p("CancelamentoService.cancelar"),
+            p("/api/faturas/{}/cancelamento"),
+        ],
     );
     registrar(
         &mut a,
@@ -160,6 +165,13 @@ fn mapa(g: &Gabarito, com_suspensao: bool) -> MapaFuncionalidades {
             vec![p("PRC_SUSPENDER_COBRANCA")],
         );
     }
+    registrar(
+        &mut a,
+        9,
+        "Manter o cadastro de clientes",
+        "cadastro",
+        vec![p("ClienteService.editar"), p("/api/clientes/{}")],
+    );
     justificar(&mut a, &pontos, "FN_PARAMETRO");
     a
 }

@@ -4,7 +4,8 @@
 //! Exportação para Markdown, Word e HTML: [`exportar_markdown`],
 //! [`exportar_word`], [`exportar_html`] (com o template e os tokens CSS de
 //! [`ModeloHtml`]) e [`gravar_exportacao`] (módulo `exportacao`). Planilha do
-//! Excel: [`xlsx`].
+//! Excel: [`xlsx`]. Dados pessoais do texto da demanda, mascarados na saída
+//! (#454): [`mascarar_demanda`].
 //!
 //! Documentação legível para a forja (#288): [`gerar_documentacao`] monta as
 //! páginas (README, funcionalidades, regras por área, glossário e análises) e
@@ -37,6 +38,7 @@
 
 mod ata;
 mod conteudo;
+mod demanda;
 mod diagrama;
 mod documentacao;
 mod exportacao;
@@ -60,8 +62,10 @@ pub use ata::{
     StatusCitacao, TipoItem,
 };
 pub use conteudo::{
-    Afirmacao, Citacao, Confianca, Conteudo, Pergunta, ReferenciaSugestao, Texto, bloco_de_codigo,
+    Afirmacao, Citacao, Confianca, Conteudo, Decisao, Opcao, Pergunta, ReferenciaSugestao, Texto,
+    bloco_de_codigo,
 };
+pub use demanda::{SECOES_DA_DEMANDA, mascarar_demanda};
 pub use diagrama::{
     ArestaDiagrama, AtributoDiagrama, Diagrama, EntidadeDiagrama, LINGUAGEM_MERMAID,
     Multiplicidade, NoDiagrama, OrigemRelacao, PapelNo, RelacaoDiagrama, TipoDiagrama, mermaid,
@@ -72,17 +76,18 @@ pub use documentacao::{
 };
 pub use exportacao::{
     CodigoEmPasta, ErroExportacao, FonteDeTrechos, Formato, HtmlExportado, LinksDeEvidencia,
-    OpcoesExportacao, exportar, exportar_com_links, exportar_html, exportar_markdown,
-    exportar_markdown_com_links, exportar_word, gravar_exportacao, gravar_exportacao_com_links,
+    OpcoesExportacao, SECOES_TECNICAS, TITULO_NOTAS_TECNICAS, exportar, exportar_com_links,
+    exportar_html, exportar_markdown, exportar_markdown_com_links, exportar_word,
+    gravar_exportacao, gravar_exportacao_com_links,
 };
 pub use figura::{
     ErroFigura, Figura, Figuras, MAXIMO_DE_FIGURAS, TAMANHO_MAXIMO_DA_FIGURA, blocos_mermaid,
     imagens_da_base,
 };
 pub use modelo::{
-    CENARIOS, DADOS_PESSOAIS_E_RNF, FLUXO_PROCESSO, FUNCIONALIDADES_MAPEADAS, HISTORIAS,
+    CENARIOS, DADOS_PESSOAIS_E_RNF, DECISOES, FLUXO_PROCESSO, FUNCIONALIDADES_MAPEADAS, HISTORIAS,
     INDICE_CATALOGO, MODELO_DADOS, MODELOS, Modelo, Montavel, NAO_MAPEADOS, PASSO_A_PASSO,
-    RASTREABILIDADE, Secao, TABELAS_DECISAO, TELAS, VALORES_LIMITE, modelo,
+    RASTREABILIDADE, Secao, TABELAS_DECISAO, TELAS, VALORES_LIMITE, VERIFICACOES_EM_DADOS, modelo,
 };
 pub use modelo_html::{
     ArquivoHtml, AvisoHtml, FOLHA_PADRAO, ModeloHtml, PASTA_EXPORTACAO, VARIAVEIS_HTML,

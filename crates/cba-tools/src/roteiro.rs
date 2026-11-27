@@ -439,7 +439,9 @@ pub fn orientacao_da_issue(id: &cba_kb::Id, chave: &str) -> String {
 ///   confirmar o diagnóstico no caso relatado e medir a abrangência, com
 ///   agregados e amostras pequenas, cada consulta aprovada pelo analista.
 /// - Sem ele, na análise de impacto, deixar o SQL pronto no documento para quem
-///   tem acesso ao banco.
+///   tem acesso ao banco, com `registrar_verificacao` (#453).
+/// - Com ele, na análise de impacto, registrar a consulta também no documento,
+///   para quem lê depois conferir de novo.
 /// - Nos outros fluxos sem banco, nada.
 pub fn orientacao_dos_dados(
     analise: &Analise,
@@ -457,16 +459,24 @@ pub fn orientacao_dos_dados(
              pequenas (`LIMIT`); nunca traga linhas inteiras de pessoas. Os dados pessoais \
              chegam mascarados. Se o analista recusar, leve o motivo em conta. Cite o \
              resultado com `afirmar` e `dados: [{{consulta, resumo}}]`: vira uma \
-             evidência de dados, que vale para a data da consulta.\n"
+             evidência de dados, que vale para a data da consulta.\n{}",
+            if analise.fluxo == Fluxo::Impacto {
+                "Registre também cada consulta com `registrar_verificacao`, para ela ficar \
+                 pronta no documento, na seção \"Verificações em dados\": quem ler depois \
+                 confere de novo.\n"
+            } else {
+                ""
+            }
         ),
         None if analise.fluxo == Fluxo::Impacto => format!(
             "\n\n## Verificação em dados\n\n\
              Esta análise não tem banco ligado: siga só com o código. Quando a confirmação \
              do diagnóstico ou a medida da abrangência depender dos dados, escreva as \
              consultas prontas para quem tem acesso ao banco: registre cada uma com \
-             `perguntar` (`analise: \"{id}\"`), com o objetivo, o SQL só de leitura em \
-             bloco ```sql``` (agregados, sem trazer dados pessoais) e o que cada resultado \
-             significa para a análise.\n"
+             `registrar_verificacao` (`analise: \"{id}\"`), com o objetivo, o SQL só de \
+             leitura (agregados, sem trazer dados pessoais, com o caso num parâmetro \
+             nomeado) e o que cada resultado significa para a análise, e aponte para ela a \
+             pergunta de verificação (`perguntar` com `verificacao`).\n"
         ),
         None => String::new(),
     }
@@ -625,6 +635,65 @@ mod tests {
             r.contains("chame `mudancas_em_andamento` (analise: \"A-0003\""),
             "{r}"
         );
+        // A origem de cada regra que a demanda muda, depois de como é hoje (#450).
+        let hoje = r.find("**Descreva como é hoje**").unwrap();
+        let origem = r
+            .find("**Consulte a origem de cada regra que a demanda muda.**")
+            .unwrap();
+        assert!(hoje < origem, "{r}");
+        assert!(r.contains("chame `historico_do_trecho`"), "{r}");
+        assert!(r.contains("continua valendo"), "{r}");
+        assert!(r.contains("`origens` do `afirmar`"), "{r}");
+        // Numa demanda sobre um estado errado, todos os caminhos que gravam o
+        // estado, subindo com `referencias` em profundidade (#451).
+        let caminhos = r
+            .find("**Feche o conjunto de quem grava o estado,**")
+            .unwrap();
+        assert!(hoje < caminhos, "{r}");
+        assert!(r.contains("`profundidade: 2` ou `3`"), "{r}");
+        assert!(r.contains("\"Caminhos que gravam <estado>: "), "{r}");
+        assert!(r.contains("diga se a lista é completa"), "{r}");
+        assert!(r.contains("dizendo o que valida e o que não valida"), "{r}");
+        // Decisões para o negócio e hipótese que não vira escopo (#452).
+        assert!(r.contains("**Escolher a regra é do negócio.**"), "{r}");
+        assert!(r.contains("`tipo: \"decisao\"`"), "{r}");
+        assert!(r.contains("**Hipótese não vira escopo.**"), "{r}");
+        assert!(r.contains("- primeiro, as decisões para o negócio"), "{r}");
+        // Critério com valores de domínio: a lista completa, cada valor
+        // classificado e os a decidir como decisão (#455).
+        let dominio = r
+            .find("**Confira a lista completa quando o critério usa valores de domínio.**")
+            .unwrap();
+        assert!(caminhos < dominio, "{r}");
+        assert!(
+            r.contains("\"Valores de <campo>: <VALOR>: entra (<por quê>); <VALOR>: não entra"),
+            "{r}"
+        );
+        assert!(r.contains("<VALOR>: a decidir"), "{r}");
+        assert!(
+            r.contains("Cada valor a decidir vai para `perguntar`"),
+            "{r}"
+        );
+        assert!(r.contains("vale a definição mais recente"), "{r}");
+        // Demanda sobre estado ou volume de dados: as consultas de verificação
+        // escritas no documento, com a pergunta apontando para elas (#453).
+        let verificacoes = r.find("**Escreva as verificações em dados,**").unwrap();
+        assert!(dominio < verificacoes, "{r}");
+        assert!(
+            r.contains("Registre com `registrar_verificacao` (analise: \"A-0003\")"),
+            "{r}"
+        );
+        assert!(
+            r.contains("**reproduz a condição da regra no caso relatado**"),
+            "{r}"
+        );
+        assert!(
+            r.contains("**conta os registros na mesma situação**"),
+            "{r}"
+        );
+        assert!(r.contains("parâmetro nomeado (`:id_fatura`)"), "{r}");
+        assert!(r.contains("`perguntar` com `verificacao`"), "{r}");
+        assert!(r.contains("- as verificações em dados,"), "{r}");
         assert!(r.ends_with("## Contexto da base\n\nNada.\n"), "{r}");
     }
 

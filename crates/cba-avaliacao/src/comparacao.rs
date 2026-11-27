@@ -30,21 +30,40 @@
 //!   modelo de dados conceitual ([`crate::modelagem`]);
 //! - **dados pessoais e requisitos não funcionais** (impacto, #126): os campos
 //!   pessoais apontados com evidência, os falsos positivos e os aspectos de
-//!   auditoria, desempenho e acesso ([`crate::dados_pessoais`]).
+//!   auditoria, desempenho e acesso ([`crate::dados_pessoais`]);
+//! - **origem da regra** (impacto, #450): com o histórico git sintético, uma
+//!   afirmação de `como_e_hoje` cita a chave da demanda que criou a regra, no
+//!   texto ou no commit guardado em `origens`; a pergunta se a regra continua
+//!   valendo é uma das perguntas esperadas;
+//! - **caminhos que gravam o estado** (impacto, #451): cada caminho esperado
+//!   citado numa afirmação, e o que não valida apontado em `riscos` ou
+//!   `funcionalidades` ([`crate::caminhos`]);
+//! - **decisões para o negócio** (impacto, #452): cada decisão esperada é
+//!   atendida por uma pergunta do tipo decisão, não descartada, com as
+//!   palavras-chave no texto e ao menos duas opções;
+//! - **valores de domínio usados como critério** (impacto, #455): a lista
+//!   completa dos valores citada numa afirmação, cada valor classificado como o
+//!   esperado (entra, não entra ou a decidir) e os a decidir numa decisão para o
+//!   negócio ([`crate::dominio`]).
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use cba_core::analise::{Afirmacao, Analise, Confianca, EstadoAfirmacao, EstadoAnalise, Evidencia};
+use cba_core::analise::{
+    Afirmacao, Analise, Confianca, EstadoAfirmacao, EstadoAnalise, EstadoPergunta, Evidencia,
+    MIN_OPCOES,
+};
 use cba_index::Escopo;
 use cba_kb::frontmatter::Abrangencia;
 use cba_tools::documento::{SECAO_DA_ABRANGENCIA, abrangencia_do_texto};
 use cba_tools::evidencias::{EvidenciaCitada, validar};
 use serde::Serialize;
 
+use crate::caminhos::{CaminhosAvaliados, avaliar_caminhos};
 use crate::cenarios::{CenariosAvaliados, avaliar_cenarios};
 use crate::ciclo_vida::{CicloVidaAvaliado, avaliar_ciclo_vida};
 use crate::dados_pessoais::{DadosPessoaisAvaliados, avaliar_dados_pessoais};
-use crate::gabarito::{Gabarito, Item, Regra, Veredito};
+use crate::dominio::{ValoresAvaliados, avaliar_valores};
+use crate::gabarito::{Gabarito, Item, OrigemEsperada, PerguntaEsperada, Regra, Veredito};
 use crate::historias::{HistoriasAvaliadas, avaliar_historias};
 use crate::modelagem::{ModelagemAvaliada, avaliar_modelagem};
 use crate::parecer::{ParecerAvaliado, avaliar_parecer};
@@ -105,6 +124,42 @@ pub struct Avaliacao {
     /// [`crate::dados_pessoais`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dados_pessoais: Option<DadosPessoaisAvaliados>,
+    /// Regra criada de propósito por uma demanda anterior (impacto, #450).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origem: Option<OrigemAvaliada>,
+    /// Caminhos que gravam o estado de que a demanda trata (impacto, #451).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub caminhos: Option<CaminhosAvaliados>,
+    /// Decisões para o negócio esperadas (impacto, #452).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub decisoes_esperadas: Vec<DecisaoAvaliada>,
+    /// Valores de domínio usados como critério da correção (impacto, #455).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub valores_de_dominio: Option<ValoresAvaliados>,
+}
+
+/// Uma decisão para o negócio esperada (#452): a pergunta do tipo decisão que a
+/// atende, com as opções, ou, se o tema virou só uma dúvida, o número dela.
+#[derive(Debug, Clone, Serialize)]
+pub struct DecisaoAvaliada {
+    pub tema: String,
+    /// Decisão (com ao menos duas opções) com as palavras-chave.
+    pub atendida_por: Option<u32>,
+    /// Dúvida (sem opções) com as palavras-chave: o tema foi perguntado, mas não
+    /// como decisão.
+    pub so_como_duvida: Option<u32>,
+}
+
+/// A demanda de origem de uma regra citada em `como_e_hoje` (#450).
+#[derive(Debug, Clone, Serialize)]
+pub struct OrigemAvaliada {
+    pub chave: String,
+    pub regra: String,
+    /// Primeira afirmação de `como_e_hoje` que cita a chave (no texto ou no commit
+    /// de origem).
+    pub citada_em: Option<u32>,
+    /// Alguma afirmação guarda o commit da chave em `origens`.
+    pub com_commit: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -536,6 +591,67 @@ pub fn avaliar(analise: &Analise, item: &Item, gabarito: &Gabarito, escopo: &Esc
             .dados_pessoais
             .as_ref()
             .map(|d| avaliar_dados_pessoais(analise, d, &validas_por_afirmacao)),
+        origem: item.origem.as_ref().map(|o| avaliar_origem(analise, o)),
+        caminhos: item
+            .caminhos
+            .as_ref()
+            .map(|c| avaliar_caminhos(analise, c, &validas_por_afirmacao)),
+        decisoes_esperadas: item
+            .decisoes_esperadas
+            .iter()
+            .map(|d| avaliar_decisao(analise, d))
+            .collect(),
+        valores_de_dominio: item
+            .valores_de_dominio
+            .as_ref()
+            .map(|v| avaliar_valores(analise, v, &validas_por_afirmacao)),
+    }
+}
+
+/// A decisão esperada entre as perguntas da análise (#452).
+fn avaliar_decisao(analise: &Analise, esperada: &PerguntaEsperada) -> DecisaoAvaliada {
+    let candidatas = || {
+        analise
+            .perguntas
+            .iter()
+            .filter(|p| p.estado != EstadoPergunta::Descartada)
+            .filter(|p| texto::atende(&p.texto, &esperada.palavras_chave))
+    };
+    DecisaoAvaliada {
+        tema: esperada.tema.clone(),
+        atendida_por: candidatas()
+            .find(|p| p.e_decisao() && p.opcoes.len() >= MIN_OPCOES)
+            .map(|p| p.numero),
+        so_como_duvida: candidatas().find(|p| !p.e_decisao()).map(|p| p.numero),
+    }
+}
+
+/// Seção em que a origem da regra deve aparecer (#450).
+pub const SECAO_DA_ORIGEM: &str = "como_e_hoje";
+
+/// A chave da demanda de origem citada numa afirmação de `como_e_hoje`, no texto
+/// ou no commit guardado em `origens` (#450).
+fn avaliar_origem(analise: &Analise, o: &OrigemEsperada) -> OrigemAvaliada {
+    let chave = texto::normalizar(o.chave.trim());
+    let no_commit = |a: &Afirmacao| {
+        a.origens
+            .iter()
+            .any(|c| c.chaves.iter().any(|k| texto::normalizar(k) == chave))
+    };
+    let validas: Vec<&Afirmacao> = analise
+        .afirmacoes
+        .iter()
+        .filter(|a| a.secao == SECAO_DA_ORIGEM)
+        .filter(|a| !matches!(a.estado, EstadoAfirmacao::Incorreta { .. }))
+        .collect();
+    OrigemAvaliada {
+        chave: o.chave.clone(),
+        regra: o.regra.clone(),
+        citada_em: validas
+            .iter()
+            .find(|a| texto::contem(&texto::normalizar(do_agente(a)), &o.chave) || no_commit(a))
+            .map(|a| a.numero),
+        com_commit: validas.iter().copied().any(no_commit),
     }
 }
 

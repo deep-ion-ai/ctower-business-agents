@@ -9,9 +9,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use cba_docs::{
-    Afirmacao, ArestaDiagrama, Aviso, Citacao, Confianca, Conteudo, DADOS_PESSOAIS_E_RNF, Diagrama,
-    ErroMontagem, Montavel, NoDiagrama, Origem, PapelNo, Pergunta, ReferenciaSugestao, Templates,
-    Texto, TipoDiagrama, arquivo_do_template, bloco_de_codigo,
+    Afirmacao, ArestaDiagrama, Aviso, Citacao, Confianca, Conteudo, DADOS_PESSOAIS_E_RNF, Decisao,
+    Diagrama, ErroMontagem, Montavel, NoDiagrama, Opcao, Origem, PapelNo, Pergunta,
+    ReferenciaSugestao, Templates, Texto, TipoDiagrama, arquivo_do_template, bloco_de_codigo,
 };
 use cba_kb::frontmatter::{
     Abrangencia, Area, Data, Demanda, Evidencia, FrontmatterAnalise, FrontmatterFuncionalidade,
@@ -289,6 +289,7 @@ fn conteudo_pergunta(g: &Gabarito) -> Conteudo<FrontmatterAnalise> {
     conteudo.perguntas.push(Pergunta {
         texto: "O lote de cobrança deveria ler os parâmetros em vez de usar valores fixos?".into(),
         evidencias: vec![],
+        decisao: None,
     });
     conteudo
 }
@@ -360,13 +361,20 @@ fn conteudo_analise_impacto(g: &Gabarito) -> Conteudo<FrontmatterAnalise> {
         "Pequena: o parcelamento já existe; a mudança se limita a um parâmetro e à tela.",
     ));
     conteudo.perguntas.push(Pergunta {
+        texto: "O limite de parcelas da pessoa jurídica deve cair para 3?".into(),
+        evidencias: vec![],
+        decisao: Some(decisao_do_limite()),
+    });
+    conteudo.perguntas.push(Pergunta {
         texto: "O limite de 3 parcelas vale também para órgão público?".into(),
         evidencias: vec![],
+        decisao: None,
     });
     conteudo.perguntas.push(Pergunta {
         texto: "A tela deve deixar de oferecer até 12 parcelas?\nHoje o backend recusa acima de 6."
             .into(),
         evidencias: vec![],
+        decisao: None,
     });
     conteudo.sugestoes.push(ReferenciaSugestao {
         id: Serie::Sugestao.id(1),
@@ -374,6 +382,23 @@ fn conteudo_analise_impacto(g: &Gabarito) -> Conteudo<FrontmatterAnalise> {
         arquivo: Some(c("frontend/src/telas/parcelamento-form.ts")),
     });
     conteudo
+}
+
+/// A decisão do exemplo da análise de impacto (#452).
+fn decisao_do_limite() -> Decisao {
+    Decisao {
+        opcoes: vec![
+            Opcao {
+                texto: "Limitar a 3 parcelas".into(),
+                efeito: "muda o parâmetro MAX_PARCELAS, que vale também para órgão público".into(),
+            },
+            Opcao {
+                texto: "Manter até 6 parcelas.".into(),
+                efeito: "nada muda; a demanda já está atendida".into(),
+            },
+        ],
+        recomendacao: Some("Manter até 6, se o objetivo era só permitir o parcelamento.".into()),
+    }
 }
 
 fn conteudo_funcionalidade(g: &Gabarito) -> Conteudo<FrontmatterFuncionalidade> {
@@ -415,6 +440,7 @@ fn conteudo_funcionalidade(g: &Gabarito) -> Conteudo<FrontmatterFuncionalidade> 
     conteudo.perguntas.push(Pergunta {
         texto: "Qual dos limites de parcelas (tela ou backend) é o correto?".into(),
         evidencias: vec![],
+        decisao: None,
     });
     conteudo
 }

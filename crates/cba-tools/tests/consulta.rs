@@ -288,6 +288,129 @@ fn referencias_da_funcao_de_multa_devolve_os_chamadores() {
     );
 }
 
+fn nomes(nos: &Value) -> Vec<&str> {
+    nos.as_array()
+        .unwrap()
+        .iter()
+        .map(|n| n["nome"].as_str().unwrap())
+        .collect()
+}
+
+/// Critério de aceite (#451): com `profundidade`, `referencias` devolve a árvore
+/// de quem chama até os pontos de entrada, inclusive a edição de outro registro
+/// que chama o método com a validação desligada, e respeita o limite de nós.
+#[test]
+fn referencias_com_profundidade_sobem_ate_os_pontos_de_entrada() {
+    let c = cenario();
+    let (texto, dados) = c.chamar(
+        "referencias",
+        json!({ "identificador": "CancelamentoService.cancelar", "profundidade": 2 }),
+    );
+    // Os usos diretos continuam na lista paginada.
+    assert_eq!(dados["pagina"]["total"], 2, "{dados}");
+    let arvore = &dados["arvore"];
+    assert_eq!(arvore["profundidade"], 2, "{arvore:#}");
+    assert_eq!(arvore["nos"], 3, "{arvore:#}");
+    assert_eq!(arvore["cortada"], false);
+    let primeiro = &arvore["chamadores"];
+    assert_eq!(
+        nomes(primeiro),
+        [
+            "exemplo.faturamento.ClienteService.editar",
+            "exemplo.faturamento.FaturaController.cancelar"
+        ],
+        "{arvore:#}"
+    );
+    // A edição do cliente chama o cancelamento e é chamada pela rota do cadastro.
+    let edicao = &primeiro[0];
+    assert_eq!(edicao["nivel"], 1);
+    assert_eq!(edicao["usos"], json!([{ "linha": 47, "tipo": "chamada" }]));
+    assert_eq!(edicao["ponto_de_entrada"]["tipo"], "servico", "{edicao:#}");
+    assert_eq!(
+        nomes(&edicao["chamadores"]),
+        ["exemplo.faturamento.ClienteController.editar"]
+    );
+    let rota = &edicao["chamadores"][0];
+    assert_eq!(rota["nivel"], 2);
+    assert_eq!(rota["usos"], json!([{ "linha": 30, "tipo": "chamada" }]));
+    assert_eq!(rota["ponto_de_entrada"]["tipo"], "endpoint", "{rota:#}");
+    assert_eq!(
+        rota["ponto_de_entrada"]["detalhe"],
+        "endpoint PUT /api/clientes/{id}"
+    );
+    // O portal: a rota com validação, sem chamador no mapa.
+    let portal = &primeiro[1];
+    assert_eq!(portal["usos"], json!([{ "linha": 27, "tipo": "chamada" }]));
+    assert_eq!(
+        portal["ponto_de_entrada"]["detalhe"],
+        "endpoint POST /api/faturas/{id}/cancelamento"
+    );
+    assert_eq!(portal["situacao"], "sem_chamador", "{portal:#}");
+    assert!(
+        texto.contains(
+            "Quem chama, até 2 níveis a partir de `CancelamentoService.cancelar` (3 nós):"
+        ),
+        "{texto}"
+    );
+    assert!(
+        texto.contains("\n  - exemplo.faturamento.ClienteController.editar ("),
+        "{texto}"
+    );
+    assert!(
+        texto.contains("[ponto de entrada: endpoint PUT /api/clientes/{id}]"),
+        "{texto}"
+    );
+    assert!(!texto.contains("Aviso: a árvore foi cortada"), "{texto}");
+
+    // Do método que grava, três níveis: o cancelamento, quem o chama e a rota.
+    let (_, inteira) = c.chamar(
+        "referencias",
+        json!({ "identificador": "FaturaRepository.gravarCancelamento", "profundidade": 3 }),
+    );
+    assert_eq!(inteira["arvore"]["nos"], 4, "{inteira:#}");
+    assert_eq!(
+        nomes(&inteira["arvore"]["chamadores"]),
+        ["exemplo.faturamento.CancelamentoService.cancelar"]
+    );
+    assert_eq!(
+        nomes(&inteira["arvore"]["chamadores"][0]["chamadores"][0]["chamadores"]),
+        ["exemplo.faturamento.ClienteController.editar"]
+    );
+
+    // Com limite de 2 nós: corta os mais distantes e avisa.
+    let (texto, cortada) = c.chamar(
+        "referencias",
+        json!({
+            "identificador": "FaturaRepository.gravarCancelamento",
+            "profundidade": 3,
+            "limite_de_nos": 2
+        }),
+    );
+    assert_eq!(cortada["arvore"]["nos"], 2, "{cortada:#}");
+    assert_eq!(cortada["arvore"]["cortada"], true);
+    assert_eq!(cortada["arvore"]["limite_de_nos"], 2);
+    assert!(
+        texto.contains("Aviso: a árvore foi cortada em 2 nós"),
+        "{texto}"
+    );
+
+    // Sem profundidade, nada de árvore; e ela só sobe (quem usa).
+    let (_, direto) = c.chamar(
+        "referencias",
+        json!({ "identificador": "CancelamentoService.cancelar" }),
+    );
+    assert!(direto["arvore"].is_null(), "{direto}");
+    let m = c.recusa(
+        "referencias",
+        json!({
+            "identificador": "CancelamentoService.cancelar",
+            "sentido": "o_que_usa",
+            "profundidade": 2
+        }),
+    );
+    assert!(m.contains("só vale com"), "{m}");
+}
+
 /// Critério de aceite: respostas acima do limite vêm paginadas, com o total e o
 /// cursor da próxima página, e as páginas juntas trazem tudo, sem repetir.
 #[test]
@@ -692,11 +815,11 @@ fn mapa_do_projeto_e_de_um_modulo() {
         .iter()
         .find(|e| e["caminho"] == "db")
         .unwrap();
-    assert_eq!(db["arquivos"], 5);
+    assert_eq!(db["arquivos"], 6);
 
     let (texto, modulo) = c.chamar("mapa", json!({ "modulo": "db/" }));
     assert_eq!(modulo["modulo"], "db");
-    assert_eq!(modulo["arquivos"], 5);
+    assert_eq!(modulo["arquivos"], 6);
     assert!(texto.contains("- db/03_pkg_cobranca.sql — sql"), "{texto}");
 
     let m = c.recusa("mapa", json!({ "modulo": "nao-existe" }));
@@ -715,6 +838,14 @@ fn fora_do_schema_os_argumentos_sao_recusados() {
         (
             "referencias",
             json!({ "identificador": "X", "sentido": "outro" }),
+        ),
+        (
+            "referencias",
+            json!({ "identificador": "X", "profundidade": 4 }),
+        ),
+        (
+            "referencias",
+            json!({ "identificador": "X", "profundidade": 2, "limite_de_nos": 0 }),
         ),
         ("conhecimento", json!({ "termo": "x", "cursor": -1 })),
         ("conhecimento", json!({ "termo": "x", "tipos": ["outro"] })),

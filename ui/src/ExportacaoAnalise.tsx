@@ -12,6 +12,8 @@ interface Props {
   aprovada: boolean;
   /** Oferece o CSV com uma linha por cenário (análise de cenários de teste, #117). */
   csv?: boolean;
+  /** Análise de impacto: oferece as notas para a equipe técnica (#452). */
+  impacto?: boolean;
   /** Desenha um diagrama em PNG (testes trocam; o padrão usa o Mermaid empacotado). */
   desenharPng?: (codigo: string) => Promise<FiguraPng>;
 }
@@ -28,7 +30,13 @@ const FORMATOS: FormatoExportacao[] = ["word", "html", "markdown", "csv"];
 const CHAVE_PREFERENCIA = "cba.exportacao";
 const PADRAO: { formato: FormatoExportacao; opcoes: OpcoesExportacao } = {
   formato: "word",
-  opcoes: { evidencias: true, perguntas: true, trechos: true, codigo_diagramas: true },
+  opcoes: {
+    evidencias: true,
+    perguntas: true,
+    trechos: true,
+    codigo_diagramas: true,
+    notas_tecnicas: true,
+  },
 };
 
 /** Última escolha de formato e opções do Exportar; qualquer falha cai no padrão. */
@@ -88,6 +96,7 @@ export function ExportacaoAnalise({
   analise,
   aprovada,
   csv = false,
+  impacto = false,
   desenharPng = pngDoMermaid,
 }: Props) {
   const [lembrado] = useState(lerPreferencia);
@@ -228,6 +237,24 @@ export function ExportacaoAnalise({
           />{" "}
           Código dos diagramas (anexo do Word e do HTML)
         </label>
+        {impacto && (
+          <>
+            {" "}
+            <label
+              title={
+                "Dados, integrações, documentos e telas, dados pessoais e sugestões de alteração. " +
+                "Sem evidências, vão para o fim, no bloco Notas para a equipe técnica."
+              }
+            >
+              <input
+                type="checkbox"
+                checked={opcoes.notas_tecnicas}
+                onChange={marcar("notas_tecnicas")}
+              />{" "}
+              Notas para a equipe técnica
+            </label>
+          </>
+        )}
       </fieldset>
       <button className="btn btn-primary" type="button" disabled={ocupado} onClick={exportar}>
         Exportar…

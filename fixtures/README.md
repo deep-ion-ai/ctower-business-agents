@@ -10,6 +10,8 @@ aceite 2). Nenhum nome, termo ou dado de sistema real entra aqui.
 fixtures/
   faturamento-exemplo/            # o sistema analisado
   reunioes/                       # transcripts de reuniões sobre o sistema
+  historicos/
+    faturamento-exemplo/          # histórico git sintético da cópia (#450)
   gabaritos/
     faturamento-exemplo.yaml      # as respostas esperadas
 ```
@@ -37,6 +39,11 @@ ter:
   lidos de tabela;
 - divergências entre camadas, como acontece em projetos que evoluíram aos
   poucos;
+- mais de um caminho que grava o mesmo estado: a fatura é cancelada pela tela
+  da retaguarda, pelo portal (`FaturaController`, com validação) e pela edição
+  do cliente (`ClienteService`, que desliga o cliente e cancela as faturas em
+  aberto com a validação desligada), para a análise de impacto fechar o
+  conjunto de quem grava um estado (#451);
 - dados pessoais fictícios nas tabelas de clientes (`CLIENTE` e
   `CLIENTE_CONTATO`, em `db/05_cliente_contato.sql`: nome, documento, e-mail,
   telefone, endereço, data de nascimento e um texto livre do atendimento), ao
@@ -116,6 +123,29 @@ deve encontrar:
   e `REU-FAT-002`), com o papel de cada participante e os itens esperados por
   seção, para a avaliação do fluxo "Analisar reunião". Os transcripts ficam
   fora da pasta do projeto, como o gabarito.
+- `origem` (numa demanda): a regra que uma demanda anterior criou de
+  propósito, com a chave dela e o histórico git sintético que a avaliação
+  reproduz na cópia da fixture (`historicos/<nome>/historico.yaml`, com as
+  versões anteriores dos arquivos). O histórico termina exatamente na
+  fixture, para as linhas citadas continuarem valendo. A `D-FAT-005` trata
+  como defeito a recusa de cancelar fatura com pagamento parcial
+  (RN-FAT-012), que o commit `[DEM-12] Impedir o cancelamento de fatura com
+  pagamento parcial` criou (#450).
+- `caminhos_de_escrita` (numa demanda): todos os caminhos que gravam o
+  estado de que a demanda trata, com o que valida e o que não valida. A
+  `D-FAT-006` atribui as faturas com pagamento parcial canceladas a uma "rota
+  antiga" que não existe: o cancelamento pela tela da retaguarda
+  (`PRC_CANCELAR_FATURA`) e pelo portal (`FaturaController`) valida, mas a
+  edição do cliente (`ClienteService.editar`), ao desligá-lo, chama o mesmo
+  método do portal (`CancelamentoService.cancelar`) com a validação desligada
+  (#451).
+- `valores_de_dominio` (numa demanda): quando o critério da correção é parte
+  dos valores de um domínio, a lista completa, com a evidência, e a
+  classificação esperada de cada valor (entra, não entra ou a decidir). A
+  `D-FAT-007` pede cancelar, no desligamento do cliente, as faturas `ABERTA` e
+  `PARCELADA`; `FATURA.STATUS` tem seis valores, e a lista completa só está no
+  CHECK do script 04 (o do script 01 tem quatro): `SUSPENSA` e `PROTESTADA`
+  ficam a decidir pelo negócio (#455).
 
 ## Testes
 

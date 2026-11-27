@@ -487,4 +487,11 @@ fn roteiro_de_impacto_orienta_agregados_ou_sql_pronto() {
         .unwrap();
     assert!(r.texto.contains("## Verificação em dados"), "{}", r.texto);
     assert!(!r.texto.contains("consultar_dados"), "{}", r.texto);
+    // As consultas ficam no documento pela ferramenta própria (#453).
+    assert!(
+        r.texto
+            .contains("registre cada uma com `registrar_verificacao`"),
+        "{}",
+        r.texto
+    );
 }
