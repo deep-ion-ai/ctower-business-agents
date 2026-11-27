@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.12.0](https://github.com/deep-ion-ai/ctower-business-agents/compare/v0.11.0...v0.12.0) (2026-11-27)
+
+
+### Features
+
+* **agente:** histórico do trecho, a origem de cada regra afetada ([4af232f](https://github.com/deep-ion-ai/ctower-business-agents/commit/4af232ff8c353e554266c5bc7af057b53c15a804)), closes [#450](https://github.com/deep-ion-ai/ctower-business-agents/issues/450)
+* **agente:** todos os caminhos que gravam o estado, com referencias em profundidade ([bdf65f6](https://github.com/deep-ion-ai/ctower-business-agents/commit/bdf65f6a0abddfbfb8ab495571371dbb8640321d)), closes [#451](https://github.com/deep-ion-ai/ctower-business-agents/issues/451)
+* análise de impacto — aprendizados de uma comparação com um agente de desenvolvimento ([#449](https://github.com/deep-ion-ai/ctower-business-agents/issues/449)) ([df053f8](https://github.com/deep-ion-ai/ctower-business-agents/commit/df053f811ca314bc8d0047d43f3231f19487f043))
+* **analise:** consultas de verificação em dados, escritas no documento ([00a8cbc](https://github.com/deep-ion-ai/ctower-business-agents/commit/00a8cbc14daea300bb698bf81de4a4d9362ee879)), closes [#453](https://github.com/deep-ion-ai/ctower-business-agents/issues/453)
+* **analise:** decisões para o negócio no topo, e hipótese não verificada não vira escopo ([6e3e7b4](https://github.com/deep-ion-ai/ctower-business-agents/commit/6e3e7b47eb18ecbd0d6d173c17ce8468fa9d46b4)), closes [#452](https://github.com/deep-ion-ai/ctower-business-agents/issues/452)
+* **docs:** mascarar dados pessoais do texto da demanda na exportação ([060a302](https://github.com/deep-ion-ai/ctower-business-agents/commit/060a30213978c5856f2e6d0d0ff5129724d6606d)), closes [#454](https://github.com/deep-ion-ai/ctower-business-agents/issues/454)
+* **roteiro:** lista completa ao usar valores de domínio como critério ([f74cd05](https://github.com/deep-ion-ai/ctower-business-agents/commit/f74cd053c50c2db1764d0a4e78798bc074433dfe)), closes [#455](https://github.com/deep-ion-ai/ctower-business-agents/issues/455)
+* **ui:** decisões primeiro na pauta, com as opções, e notas técnicas na exportação ([11e29bc](https://github.com/deep-ion-ai/ctower-business-agents/commit/11e29bc69de2253306957128eacb106c1b92be69)), closes [#452](https://github.com/deep-ion-ai/ctower-business-agents/issues/452)
+
+
+### Bug Fixes
+
+* **agente:** árvore de referencias não sobe por menção ambígua em string ([b629178](https://github.com/deep-ion-ai/ctower-business-agents/commit/b629178ce232ebd293f2d4dfccd046e12a50b3a3))
+* **pauta:** decisões com opções diferentes não se juntam num item ([08a0749](https://github.com/deep-ion-ai/ctower-business-agents/commit/08a0749e459062435acf7a77611e979afcd3f8e6))
+* **roteiro:** sem banco, as consultas prontas vão por registrar_verificacao ([9ccbeda](https://github.com/deep-ion-ai/ctower-business-agents/commit/9ccbeda7e7c1317cffff65fef1a1e452a13a5c0d)), closes [#453](https://github.com/deep-ion-ai/ctower-business-agents/issues/453)
+* **sql:** sem dado real em número, BETWEEN, LIKE, CAST e parâmetro :1 na verificação ([e0cfcf6](https://github.com/deep-ion-ai/ctower-business-agents/commit/e0cfcf65352d2bbe955bbf8d56857f65e28a2199))
+* **verificacao:** diz quando o catálogo do banco ligado não pôde ser lido ([9d691a2](https://github.com/deep-ion-ai/ctower-business-agents/commit/9d691a2a9f6d495da10a561d3f88c4d9869c8e74))
+* **verificacoes:** mesma consulta com outra formatação é repetida ([c1e93ed](https://github.com/deep-ion-ai/ctower-business-agents/commit/c1e93edd66468e3aab449a4dfa4d0c2aa8bd81f2))
+
 ## [0.11.0](https://github.com/deep-ion-ai/ctower-business-agents/compare/v0.10.0...v0.11.0) (2026-11-26)
 
 
