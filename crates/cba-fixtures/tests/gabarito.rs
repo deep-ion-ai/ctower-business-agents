@@ -523,6 +523,117 @@ struct Demanda {
     perguntas_esperadas: Vec<PerguntaEsperada>,
     #[serde(default)]
     dados_pessoais: Option<DadosPessoais>,
+    #[serde(default)]
+    origem: Option<OrigemDaRegra>,
+    /// Decisões para o negócio esperadas (#452), com o mesmo formato das
+    /// perguntas esperadas.
+    #[serde(default)]
+    decisoes_esperadas: Vec<PerguntaEsperada>,
+    #[serde(default)]
+    caminhos_de_escrita: Option<CaminhosDeEscrita>,
+    #[serde(default)]
+    valores_de_dominio: Option<ValoresDeDominio>,
+}
+
+/// Todos os caminhos que gravam um estado (#451): cada um com palavras-chave e
+/// evidência; ao menos um não valida e diz, em `sem_validacao`, como reconhecer
+/// a afirmação que aponta isso.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CaminhosDeEscrita {
+    estado: String,
+    caminhos: Vec<CaminhoDeEscrita>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CaminhoDeEscrita {
+    nome: String,
+    valida: bool,
+    palavras_chave: Vec<Vec<String>>,
+    evidencias: Vec<Evidencia>,
+    #[serde(default)]
+    sem_validacao: Vec<Vec<String>>,
+}
+
+/// Valores de domínio usados como critério da correção (#455): a lista completa,
+/// com a evidência, e a classificação esperada de cada valor.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ValoresDeDominio {
+    campo: String,
+    evidencias: Vec<Evidencia>,
+    valores: Vec<ValorDeDominio>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ValorDeDominio {
+    valor: String,
+    classificacao: String,
+}
+
+/// Valores de domínio (#455): evidências que conferem, valores únicos, cada um
+/// com uma classificação válida e presente no intervalo de alguma evidência (a
+/// lista é a do código), e o critério é um subconjunto de fato: ao menos um valor
+/// entra e um não entra ou fica a decidir.
+fn conferir_valores(c: &mut Conferencia, onde: &str, v: &ValoresDeDominio) {
+    let onde = format!("{onde}, valores de domínio");
+    c.texto_preenchido(&onde, "campo", &v.campo);
+    if v.evidencias.is_empty() {
+        c.erro(format!("{onde}: sem evidências"));
+    }
+    let mut intervalos = Vec::new();
+    for ev in &v.evidencias {
+        c.evidencia(&onde, ev);
+        if let Some(caminho) = c.arquivo(&onde, &ev.arquivo) {
+            let conteudo = fs::read_to_string(&caminho).unwrap_or_default();
+            let linhas: Vec<&str> = conteudo.lines().collect();
+            if ev.linha_inicial >= 1
+                && ev.linha_inicial <= ev.linha_final
+                && ev.linha_final <= linhas.len()
+            {
+                intervalos.push(linhas[ev.linha_inicial - 1..ev.linha_final].join("\n"));
+            }
+        }
+    }
+    if v.valores.len() < 2 {
+        c.erro(format!("{onde}: menos de dois valores"));
+    }
+    let mut vistos = HashSet::new();
+    for valor in &v.valores {
+        let onde = format!("{onde}, {}", valor.valor);
+        c.texto_preenchido(&onde, "valor", &valor.valor);
+        if !vistos.insert(valor.valor.as_str()) {
+            c.erro(format!("{onde}: valor repetido"));
+        }
+        if !["entra", "nao_entra", "a_decidir"].contains(&valor.classificacao.as_str()) {
+            c.erro(format!(
+                "{onde}: classificação `{}` deve ser entra, nao_entra ou a_decidir",
+                valor.classificacao
+            ));
+        }
+        if !intervalos.iter().any(|t| t.contains(&valor.valor)) {
+            c.erro(format!("{onde}: o valor não aparece em nenhuma evidência"));
+        }
+    }
+    if !v.valores.iter().any(|x| x.classificacao == "entra")
+        || v.valores.iter().all(|x| x.classificacao == "entra")
+    {
+        c.erro(format!(
+            "{onde}: o critério precisa ser parte do domínio (valores que entram e que não entram)"
+        ));
+    }
+}
+/// Regra criada de propósito por uma demanda anterior, com o histórico git
+/// sintético em `fixtures/historicos/<historico>/` (#450). A reprodução do
+/// histórico é conferida pela crate `cba-avaliacao`.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct OrigemDaRegra {
+    historico: String,
+    chave: String,
+    regra: String,
 }
 
 /// Pergunta que o agente deve fazer ao solicitante (avaliação dos fluxos, #33).
@@ -586,6 +697,44 @@ fn coluna_nos_scripts(raiz: &Path, campo: &str) -> bool {
             .lines()
             .any(|l| l.split_whitespace().next() == Some(coluna))
     })
+}
+
+/// Caminhos que gravam um estado (#451): ao menos dois (o objetivo é fechar o
+/// conjunto), nomes únicos, palavras-chave, evidências que conferem e, nos que
+/// não validam, as palavras-chave do que falta validar; ao menos um não valida.
+fn conferir_caminhos(c: &mut Conferencia, onde: &str, ce: &CaminhosDeEscrita) {
+    let onde = format!("{onde}, caminhos de escrita");
+    c.texto_preenchido(&onde, "estado", &ce.estado);
+    if ce.caminhos.len() < 2 {
+        c.erro(format!("{onde}: menos de dois caminhos"));
+    }
+    if ce.caminhos.iter().all(|k| k.valida) {
+        c.erro(format!("{onde}: nenhum caminho sem validação"));
+    }
+    let mut nomes = HashSet::new();
+    for k in &ce.caminhos {
+        let onde = format!("{onde}, {}", k.nome);
+        c.texto_preenchido(&onde, "nome", &k.nome);
+        if !nomes.insert(k.nome.as_str()) {
+            c.erro(format!("{onde}: caminho repetido"));
+        }
+        c.palavras_chave(&onde, &k.palavras_chave);
+        if k.evidencias.is_empty() {
+            c.erro(format!("{onde}: sem evidências"));
+        }
+        for ev in &k.evidencias {
+            c.evidencia(&onde, ev);
+        }
+        if k.valida {
+            if !k.sem_validacao.is_empty() {
+                c.erro(format!("{onde}: `sem_validacao` num caminho que valida"));
+            }
+        } else if k.sem_validacao.is_empty() {
+            c.erro(format!("{onde}: caminho sem validação sem `sem_validacao`"));
+        } else {
+            c.palavras_chave(&onde, &k.sem_validacao);
+        }
+    }
 }
 
 fn conferir_dados_pessoais(c: &mut Conferencia, raiz: &Path, onde: &str, d: &DadosPessoais) {
@@ -970,6 +1119,7 @@ fn conferir(caminho: &Path) -> Vec<String> {
         }
         citar(&mut c, &onde, &d.regras);
         c.perguntas_esperadas(&onde, &d.perguntas_esperadas);
+        c.perguntas_esperadas(&format!("{onde}, decisões"), &d.decisoes_esperadas);
         if let Some(v) = &d.verificacao_da_premissa {
             if !["nao_confere", "confere_em_parte"].contains(&v.veredito.as_str()) {
                 c.erro(format!(
@@ -984,6 +1134,31 @@ fn conferir(caminho: &Path) -> Vec<String> {
         }
         if let Some(dp) = &d.dados_pessoais {
             conferir_dados_pessoais(&mut c, &raiz, &onde, dp);
+        }
+        if let Some(o) = &d.origem {
+            c.texto_preenchido(&onde, "origem.chave", &o.chave);
+            if !d.regras.contains(&o.regra) {
+                c.erro(format!(
+                    "{onde}: a regra de origem {} não está nas regras da demanda",
+                    o.regra
+                ));
+            }
+            let historico = pasta_gabarito
+                .join("../historicos")
+                .join(&o.historico)
+                .join("historico.yaml");
+            if !historico.is_file() {
+                c.erro(format!(
+                    "{onde}: o histórico {} não existe",
+                    historico.display()
+                ));
+            }
+        }
+        if let Some(ce) = &d.caminhos_de_escrita {
+            conferir_caminhos(&mut c, &onde, ce);
+        }
+        if let Some(v) = &d.valores_de_dominio {
+            conferir_valores(&mut c, &onde, v);
         }
         if d.arquivos_impactados.is_empty() {
             c.erro(format!("{onde}: nenhum arquivo impactado"));
@@ -1262,6 +1437,9 @@ fn conferir_mapeamento(
             c.erro(format!("{onde}: chave fora do formato <arquivo>#<nome>"));
             continue;
         };
+        // Endpoint: o método seguido da rota normalizada (`Classe.metodo./api/x/{}`);
+        // confere-se o método.
+        let nome = nome.split_once("./").map_or(nome, |(metodo, _)| metodo);
         let simples = nome.rsplit('.').next().unwrap_or(nome).to_uppercase();
         match fs::read(raiz.join(arquivo)) {
             Ok(bytes) => {

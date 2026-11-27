@@ -738,6 +738,7 @@ export function PainelAnalise({
                   analise={analise}
                   aprovada={vista.analise.estado === "aprovada"}
                   csv={vista.analise.fluxo === "cenarios"}
+                  impacto={vista.analise.fluxo === "impacto"}
                 />
               </BotaoPainel>
               <BotaoPainel

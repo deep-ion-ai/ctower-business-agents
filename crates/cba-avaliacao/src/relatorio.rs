@@ -682,6 +682,22 @@ fn criterios_das_analises(s: &mut String) {
     );
     let _ = writeln!(
         s,
+        "- **Origem da regra** (com histórico git sintético): uma afirmação de \"Como é hoje\" cita a chave da demanda que criou a regra, no texto ou no commit guardado em `origens`."
+    );
+    let _ = writeln!(
+        s,
+        "- **Caminhos que gravam o estado** (demanda sobre um estado errado): cada caminho esperado citado numa afirmação, pelas palavras-chave ou por evidência que toca a esperada; o caminho sem validação apontado em \"Riscos\" ou \"Funcionalidades\" com o que ele não valida."
+    );
+    let _ = writeln!(
+        s,
+        "- **Valores de domínio usados como critério** (correção que depende de parte dos valores de um enum ou de uma tabela de domínio): uma afirmação cita todos os valores, com as maiúsculas do código; cada valor classificado como o esperado no formato \"<VALOR>: entra | não entra | a decidir\"; o valor a decidir também numa decisão para o negócio, com as opções, que o cita."
+    );
+    let _ = writeln!(
+        s,
+        "- **Decisões para o negócio** (impacto): decisão esperada atendida por uma pergunta do tipo decisão, não descartada, com as palavras-chave e ao menos duas opções; o tema perguntado só como dúvida, sem opções, aparece à parte."
+    );
+    let _ = writeln!(
+        s,
         "- **Falha grave:** afirmação `confirmado` sem evidência válida, nenhuma afirmação, estado ausente ou arquivo do projeto alterado."
     );
     let _ = writeln!(
@@ -825,6 +841,103 @@ fn analise_md(s: &mut String, e: &Execucao) {
                 None => "não".to_owned(),
             }
         );
+    }
+    if !a.decisoes_esperadas.is_empty() {
+        let _ = writeln!(s, "- Decisões para o negócio esperadas:");
+        for d in &a.decisoes_esperadas {
+            let _ = writeln!(
+                s,
+                "  - {}: {}",
+                d.tema,
+                match (d.atendida_por, d.so_como_duvida) {
+                    (Some(n), _) => format!("decisão {n}"),
+                    (None, Some(n)) => format!("só como dúvida (pergunta {n}, sem opções)"),
+                    (None, None) => "não registrada".to_owned(),
+                }
+            );
+        }
+    }
+    if let Some(o) = &a.origem {
+        let _ = writeln!(
+            s,
+            "- Origem da regra {} ({}): {}",
+            o.regra,
+            o.chave,
+            match (o.citada_em, o.com_commit) {
+                (Some(n), true) => format!("citada (afirmação {n}, com o commit)"),
+                (Some(n), false) => format!("citada (afirmação {n}, sem o commit)"),
+                (None, _) => "não citada".to_owned(),
+            }
+        );
+    }
+    if let Some(c) = &a.caminhos {
+        let _ = writeln!(
+            s,
+            "- Caminhos que gravam {}: {} de {} citados{}",
+            c.estado,
+            c.citados(),
+            c.caminhos.len(),
+            match c.lista_em {
+                Some(n) => format!(", lista na afirmação {n}"),
+                None => String::new(),
+            }
+        );
+        for caminho in &c.caminhos {
+            let _ = writeln!(
+                s,
+                "  - {} ({}): {}{}",
+                caminho.nome,
+                if caminho.valida {
+                    "valida"
+                } else {
+                    "não valida"
+                },
+                match caminho.citado_em {
+                    Some(n) => format!("citado (afirmação {n})"),
+                    None => "não citado".to_owned(),
+                },
+                match (caminho.valida, caminho.sem_validacao_em) {
+                    (true, _) => String::new(),
+                    (false, Some(n)) => format!("; falta de validação apontada (afirmação {n})"),
+                    (false, None) => "; falta de validação não apontada".to_owned(),
+                }
+            );
+        }
+    }
+    if let Some(v) = &a.valores_de_dominio {
+        let _ = writeln!(
+            s,
+            "- Valores de {} usados como critério: {} de {} classificados como o esperado; {}",
+            v.campo,
+            v.classificados(),
+            v.valores.len(),
+            match (v.lista_em, v.lista_com_evidencia) {
+                (Some(n), true) => format!("lista completa na afirmação {n}, com evidência"),
+                (Some(n), false) => format!("lista completa na afirmação {n}, sem evidência"),
+                (None, _) => "lista completa não citada".to_owned(),
+            }
+        );
+        for valor in &v.valores {
+            let _ = writeln!(
+                s,
+                "  - {} (esperado: {}): {}{}",
+                valor.valor,
+                valor.esperada.rotulo(),
+                match (valor.classificado_como, valor.classificado_em) {
+                    (Some(c), Some(n)) => format!("{} (afirmação {n})", c.rotulo()),
+                    _ => "não classificado".to_owned(),
+                },
+                match (valor.esperada, valor.decisao_em) {
+                    (crate::gabarito::Classificacao::ADecidir, Some(n)) => {
+                        format!("; decisão {n}")
+                    }
+                    (crate::gabarito::Classificacao::ADecidir, None) => {
+                        "; sem decisão para o negócio".to_owned()
+                    }
+                    _ => String::new(),
+                }
+            );
+        }
     }
     if let Some(ab) = &a.abrangencia {
         let _ = writeln!(

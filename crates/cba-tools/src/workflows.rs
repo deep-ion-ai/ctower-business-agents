@@ -163,6 +163,83 @@ mod tests {
         assert!(!texto.contains("contestar_afirmacao"));
     }
 
+    /// O impacto consulta a origem de cada regra na fase Investigar (#450): o
+    /// histórico do trecho, a chave da demanda de origem em como_e_hoje e a
+    /// pergunta se a regra continua valendo.
+    #[test]
+    fn padrao_de_impacto_consulta_a_origem_das_regras() {
+        let texto = padrao("impacto").unwrap();
+        let investigar = texto.find("Fase Investigar").unwrap();
+        let verificar = texto.find("Fase Verificar").unwrap();
+        let fase = &texto[investigar..verificar];
+        assert!(fase.contains("historico_do_trecho"), "{fase}");
+        assert!(fase.contains("continua valendo"), "{fase}");
+        assert!(texto.contains("origens do afirmar"));
+    }
+
+    /// Numa demanda sobre um estado errado, o impacto fecha o conjunto de quem
+    /// grava o estado (#451): uma frente própria no Preparar, a árvore de
+    /// chamadores no Investigar e a lista conferida no Verificar.
+    #[test]
+    fn padrao_de_impacto_fecha_os_caminhos_que_gravam_o_estado() {
+        let texto = padrao("impacto").unwrap();
+        let preparar = texto.find("Fase Preparar").unwrap();
+        let investigar = texto.find("Fase Investigar").unwrap();
+        let verificar = texto.find("Fase Verificar").unwrap();
+        let consolidar = texto.find("Fase Consolidar").unwrap();
+        assert!(texto[preparar..investigar].contains("Caminhos que gravam <o estado>"));
+        let fase = &texto[investigar..verificar];
+        assert!(fase.contains("profundidade 2 ou 3"), "{fase}");
+        assert!(fase.contains("\"Caminhos que gravam <estado>: "), "{fase}");
+        assert!(fase.contains("o que valida e o que não valida"), "{fase}");
+        let fase = &texto[verificar..consolidar];
+        assert!(fase.contains("confira se a lista ficou fechada"), "{fase}");
+    }
+
+    /// Critério com valores de domínio: a lista completa, classificada, no
+    /// Investigar e no Consolidar, e conferida na fase Verificar (#455).
+    #[test]
+    fn padrao_de_impacto_pede_a_lista_completa_dos_valores_de_dominio() {
+        let texto = padrao("impacto").unwrap();
+        assert!(texto.contains("Lista completa quando o critério usa valores de domínio"));
+        assert!(texto.contains(
+            "\"Valores de <campo>: <VALOR>: entra (<por quê>); <VALOR>: não entra (<por quê>); <VALOR>: a decidir"
+        ));
+        assert!(texto.contains("Cada valor a decidir vai para perguntar, tipo \"decisao\""));
+        let verificar = texto.find("Fase Verificar").unwrap();
+        let consolidar = texto.find("Fase Consolidar").unwrap();
+        let fase = &texto[verificar..consolidar];
+        assert!(fase.contains("(\"Valores de ...\")"), "{fase}");
+        assert!(fase.contains("confira se a lista ficou completa"), "{fase}");
+    }
+
+    /// Verificações em dados (#453): as consultas registradas nas fases que
+    /// registram, e conferidas no Consolidar, com a pergunta apontando para elas.
+    #[test]
+    fn padrao_de_impacto_escreve_as_verificacoes_em_dados() {
+        let texto = padrao("impacto").unwrap();
+        assert!(texto.contains("Verificações em dados: quando a demanda trata do estado"));
+        assert!(texto.contains("reproduz a condição da regra no caso relatado"));
+        assert!(texto.contains("perguntar com verificacao"));
+        let consolidar = texto.find("Fase Consolidar").unwrap();
+        assert!(texto[consolidar..].contains("registrar_verificacao"));
+    }
+
+    /// Decisões para o negócio com opções, e hipótese não verificada fora do
+    /// escopo, também na fase Verificar (#452).
+    #[test]
+    fn padrao_de_impacto_registra_decisoes_e_nao_poe_hipotese_no_escopo() {
+        let texto = padrao("impacto").unwrap();
+        assert!(texto.contains("Escolher a regra é do negócio"));
+        assert!(texto.contains("tipo \"decisao\""));
+        let verificar = texto.find("Fase Verificar").unwrap();
+        let consolidar = texto.find("Fase Consolidar").unwrap();
+        let fase = &texto[verificar..consolidar];
+        assert!(fase.contains("Hipótese não vira escopo"), "{fase}");
+        assert!(fase.contains("contestar_afirmacao"), "{fase}");
+        assert!(fase.contains("perguntar"), "{fase}");
+    }
+
     #[test]
     fn padroes_tem_um_por_tipo_com_o_nome_do_app() {
         let todos = padroes();

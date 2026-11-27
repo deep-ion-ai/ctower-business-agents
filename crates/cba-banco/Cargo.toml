@@ -10,6 +10,7 @@ publish = false
 [dependencies]
 cba-core.workspace = true
 cba-repos.workspace = true
+cba-sql.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror = "2"
@@ -18,8 +19,6 @@ tracing.workspace = true
 # conferidas em tempo de compilação) e sem SQLite: o app só lê bancos externos.
 # `mysql-rsa`: senha do MySQL 8 (caching_sha2_password) com o TLS desligado.
 sqlx = { version = "0.9", default-features = false, features = ["postgres", "mysql", "mysql-rsa", "runtime-tokio", "tls-rustls"] }
-# Validação da instrução antes de enviar: só um SELECT (ou WITH … SELECT).
-sqlparser = { version = "0.64", features = ["visitor"] }
 # Runtime só desta crate: a API é síncrona, como a das ferramentas.
 tokio = { version = "1", features = ["rt", "time", "net"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }

@@ -10,6 +10,14 @@ Permitir parcelamento da fatura em até 3 vezes para clientes pessoa jurídica. 
 
 A suposição está errada: o parcelamento já existe para pessoa jurídica (e órgão público), em até 6 vezes. A demanda já está atendida; se o objetivo for limitar a 3, mudar MAX_PARCELAS afeta também órgão público, e a tela continua oferecendo até 12 (INC-FAT-001).
 
+## Decisões para o negócio
+
+1. O limite de parcelas da pessoa jurídica deve cair para 3?
+   - **Opção 1:** Limitar a 3 parcelas. Efeito: muda o parâmetro MAX_PARCELAS, que vale também para órgão público
+   - **Opção 2:** Manter até 6 parcelas. Efeito: nada muda; a demanda já está atendida
+
+   **Recomendação:** Manter até 6, se o objetivo era só permitir o parcelamento.
+
 ## Como é hoje
 
 - **[confirmado]** Parcelamento só para pessoa jurídica e órgão público (RN-FAT-007): Pessoa física não pode parcelar fatura. Pessoa jurídica e órgão público podem.[^1][^2]
@@ -44,6 +52,10 @@ _Nada registrado._
 Estimativa: **pequena**
 
 Pequena: o parcelamento já existe; a mudança se limita a um parâmetro e à tela.
+
+## Verificações em dados
+
+_Nenhuma verificação em dados registrada._
 
 ## Perguntas para o solicitante
 

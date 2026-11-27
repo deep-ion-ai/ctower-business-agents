@@ -23,6 +23,7 @@ pub fn previa(
             nome: &a.projeto.nome,
             repositorios: &a.projeto.repositorios,
             escopo: Some(&a.escopo),
+            mascarar_demanda: a.projeto.mascarar_demanda,
         },
     )
 }
@@ -41,6 +42,7 @@ pub fn publicar(
             nome: &a.projeto.nome,
             repositorios: &a.projeto.repositorios,
             escopo: Some(&a.escopo),
+            mascarar_demanda: a.projeto.mascarar_demanda,
         },
     )
 }

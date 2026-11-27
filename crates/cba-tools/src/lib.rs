@@ -10,6 +10,8 @@
 //! - [`registro_padrao`]: as ferramentas que o produto expõe, cada uma no seu
 //!   módulo: [`analises`] (`listar_analises`), [`ciclo`] (`iniciar_analise`,
 //!   `retomar_analise` e `concluir_analise`), [`afirmar`], [`perguntar`],
+//!   [`verificacao`] (`registrar_verificacao`: a consulta de verificação em dados
+//!   escrita no documento da análise de impacto, #453),
 //!   [`sugestao`] (`registrar_sugestao`), [`termo`] (`propor_termo`),
 //!   [`memoria`] (`memorizar`, a memória de trabalho que a retomada devolve),
 //!   [`reuniao`] (`ler_transcript`, `propor_papel`, `registrar_item_ata`,
@@ -44,6 +46,8 @@
 //!   rastreador, com os comentários, #351), [`andamento`]
 //!   (`mudancas_em_andamento`: os PRs e MRs abertos nos arquivos da análise,
 //!   #441) e
+//!   [`historico`] (`historico_do_trecho`: os commits que criaram e mudaram um
+//!   trecho, com as chaves de issue das mensagens, #450) e
 //!   [`rastreabilidade`] (matriz da demanda e consulta reversa por regra ou
 //!   arquivo, #121, que também exporta a matriz para Excel e Word).
 //! - [`roteiro`] e [`contexto`]: o roteiro do fluxo e o contexto da base que
@@ -109,6 +113,7 @@ pub mod evidencias;
 mod fontes;
 pub mod fundamentos;
 pub mod historias;
+pub mod historico;
 pub mod issue_da_demanda;
 pub mod manual;
 pub mod mapa;
@@ -138,6 +143,7 @@ pub mod status_demandas;
 pub mod sugestao;
 pub mod termo;
 pub mod tokens;
+pub mod verificacao;
 pub mod vincular;
 pub mod vinculo;
 pub mod workflows;
@@ -165,8 +171,10 @@ pub fn registro_padrao() -> Registro {
         .registrar(consultar_dados::consultar_dados())
         .registrar(issue_da_demanda::ler_issue_da_demanda())
         .registrar(andamento::mudancas_em_andamento())
+        .registrar(historico::historico_do_trecho())
         .registrar(afirmar::afirmar())
         .registrar(perguntar::perguntar())
+        .registrar(verificacao::registrar_verificacao())
         .registrar(sugestao::registrar_sugestao())
         .registrar(termo::propor_termo())
         .registrar(memoria::memorizar())
@@ -228,8 +236,10 @@ mod tests {
             "schema",
             "ler_issue_da_demanda",
             "mudancas_em_andamento",
+            "historico_do_trecho",
             "afirmar",
             "perguntar",
+            "registrar_verificacao",
             "registrar_sugestao",
             "propor_termo",
             "memorizar",
@@ -270,6 +280,11 @@ mod tests {
         // As de registro alteram a análise.
         assert!(!r.obter("afirmar").unwrap().e_somente_leitura());
         assert!(!r.obter("memorizar").unwrap().e_somente_leitura());
+        assert!(
+            !r.obter("registrar_verificacao")
+                .unwrap()
+                .e_somente_leitura()
+        );
         assert!(!r.obter("contestar_afirmacao").unwrap().e_somente_leitura());
         assert!(!r.obter("contestar_achado").unwrap().e_somente_leitura());
         assert!(!r.obter("registrar_historia").unwrap().e_somente_leitura());
@@ -332,6 +347,7 @@ mod tests {
             "schema",
             "ler_issue_da_demanda",
             "mudancas_em_andamento",
+            "historico_do_trecho",
             "ler_transcript",
             "sugerir_demanda",
             "verificar_termos_vagos",

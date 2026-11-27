@@ -74,7 +74,7 @@ pub use mapa::{
     Achado, ArquivoMapeado, Dependencia, EstatisticasMapa, FORMATO_MAPA, LIMITE_EXTRACAO, Mapa,
     Modulo, SimboloId, Uso, mapear,
 };
-pub use projeto::{Escopo, Pasta, Projeto, Recusa, slug};
+pub use projeto::{Escopo, PADROES_DE_CHAVE, Pasta, Projeto, Recusa, slug};
 
 /// Nome da crate, para diagnóstico.
 pub const NOME: &str = env!("CARGO_PKG_NAME");

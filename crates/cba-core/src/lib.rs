@@ -62,6 +62,7 @@ pub mod qualidade;
 pub mod requisito;
 pub mod tempo;
 pub mod tokens;
+pub mod verificacoes;
 pub mod vinculos;
 
 /// Nome da crate, para diagnóstico.

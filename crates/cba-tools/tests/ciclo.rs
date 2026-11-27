@@ -522,6 +522,224 @@ fn concluir_analise_exige_afirmacoes_e_secoes_obrigatorias() {
     c.chamar("concluir_analise", json!({ "analise": e.id }));
 }
 
+/// Análise de impacto com as seções obrigatórias e uma mudança em
+/// `funcionalidades` que depende de hipótese (#452). Devolve o número dela.
+fn impacto_com_hipotese(c: &Cenario) -> (String, u64) {
+    let i = c.criar(
+        Fluxo::Impacto,
+        "Multa",
+        "A multa não está sendo cobrada; corrigir.",
+    );
+    let id = i.id.to_string();
+    let mut args = multa(&id, "como_e_hoje");
+    c.chamar("afirmar", args.clone());
+    args["secao"] = json!("demanda_como_entendida");
+    c.chamar("afirmar", args.clone());
+    args["secao"] = json!("abrangencia");
+    args["texto"] = json!("Pequena: só o lote muda.");
+    args["confianca"] = json!("inferido");
+    c.chamar("afirmar", args.clone());
+    args["secao"] = json!("funcionalidades");
+    args["texto"] = json!(
+        "Validar o percentual antes de calcular, que pode estar zerado (mudança opcional, \
+         preventiva)."
+    );
+    let r = c.chamar("afirmar", args);
+    (id, r["afirmacao"].as_u64().unwrap())
+}
+
+#[test]
+fn hipotese_em_funcionalidades_sem_pergunta_vira_pendencia() {
+    let c = cenario();
+    let (id, n) = impacto_com_hipotese(&c);
+    let pendencia = format!("afirmação {n}: mudança em `funcionalidades` que depende de hipótese");
+    let saida = c
+        .saida("concluir_analise", json!({ "analise": id }))
+        .unwrap();
+    assert!(saida.texto.contains(&pendencia), "{}", saida.texto);
+    assert!(
+        saida.texto.contains(&format!("(afirmacao: {n})")),
+        "{}",
+        saida.texto
+    );
+
+    // Com a dúvida vinculada, a pendência sai.
+    c.chamar(
+        "perguntar",
+        json!({
+            "analise": id,
+            "texto": "O percentual de multa pode estar zerado na tabela de parâmetros?",
+            "afirmacao": n
+        }),
+    );
+    let saida = c
+        .saida("concluir_analise", json!({ "analise": id }))
+        .unwrap();
+    assert!(!saida.texto.contains(&pendencia), "{}", saida.texto);
+
+    // Fora de `funcionalidades`, ou confirmada, não é escopo por hipótese.
+    let c = cenario();
+    let (id, n) = impacto_com_hipotese(&c);
+    c.amb
+        .analises
+        .alterar(&Id::analisar(&id).unwrap(), Mudanca::Afirmacao, |a, _| {
+            a.afirmacoes[n as usize - 1].confianca = cba_core::analise::Confianca::Confirmado;
+            Ok(())
+        })
+        .unwrap();
+    let saida = c
+        .saida("concluir_analise", json!({ "analise": id }))
+        .unwrap();
+    assert!(
+        !saida.texto.contains("depende de hipótese"),
+        "{}",
+        saida.texto
+    );
+}
+
+#[test]
+fn decisao_para_o_negocio_abre_o_documento_e_a_resposta_da_conclusao() {
+    let c = cenario();
+    let (id, n) = impacto_com_hipotese(&c);
+    let decisao = json!({
+        "analise": id,
+        "tipo": "decisao",
+        "texto": "A regra da DEM-12, que zera a multa no primeiro atraso, continua valendo?",
+        "afirmacao": n,
+        "opcoes": [
+            { "texto": "Manter a regra", "efeito": "a multa continua zerada no primeiro atraso" },
+            { "texto": "Revogar a regra", "efeito": "revoga a regra da DEM-12; toda fatura vencida paga multa" }
+        ],
+        "recomendacao": "Confirmar com o financeiro antes de revogar."
+    });
+    // Uma opção só não é decisão; opções numa dúvida, também não.
+    let mut uma = decisao.clone();
+    uma["opcoes"] = json!([{ "texto": "Manter", "efeito": "nada muda" }]);
+    assert!(matches!(
+        c.erro("perguntar", uma),
+        ErroFerramenta::Argumentos(_)
+    ));
+    let mut duvida_com_opcoes = decisao.clone();
+    duvida_com_opcoes["tipo"] = json!("duvida");
+    match c.erro("perguntar", duvida_com_opcoes) {
+        ErroFerramenta::Recusa(m) => assert!(m.contains("use tipo `decisao`"), "{m}"),
+        outro => panic!("{outro:?}"),
+    }
+    let r = c.chamar("perguntar", decisao);
+    assert_eq!(r["pergunta"], 1);
+    assert_eq!(r["tipo"], "decisao");
+    c.chamar(
+        "perguntar",
+        json!({ "analise": id, "texto": "Quantas faturas vencidas existem hoje?" }),
+    );
+
+    let saida = c
+        .saida("concluir_analise", json!({ "analise": id }))
+        .unwrap();
+    let t = &saida.texto;
+    // A decisão vinculada tira a pendência da hipótese.
+    assert!(!t.contains("depende de hipótese"), "{t}");
+    assert!(t.contains("primeiro as decisões para o negócio"), "{t}");
+    assert!(
+        t.contains(
+            "Decisões para o negócio (1):\n1. A regra da DEM-12, que zera a multa no primeiro \
+             atraso, continua valendo?\n   - Opção 1: Manter a regra — efeito:"
+        ),
+        "{t}"
+    );
+    assert!(
+        t.contains("Perguntas em aberto (1):\n1. Quantas faturas vencidas"),
+        "{t}"
+    );
+    let d = saida.dados.unwrap();
+    assert_eq!(d["decisoes_abertas"][0]["numero"], 1);
+    assert_eq!(
+        d["decisoes_abertas"][0]["opcoes"][1]["texto"],
+        "Revogar a regra"
+    );
+    assert_eq!(d["perguntas_abertas"].as_array().unwrap().len(), 1);
+
+    // No documento, "Decisões para o negócio" vem antes de "Como é hoje", com as
+    // opções e o efeito de cada uma; a dúvida fica nas perguntas.
+    let corpo = c.documento(&id).corpo;
+    let decisoes = corpo.find("## Decisões para o negócio\n").expect("seção");
+    assert!(
+        decisoes < corpo.find("## Como é hoje\n").unwrap(),
+        "{corpo}"
+    );
+    assert!(
+        corpo.contains(
+            "1. A regra da DEM-12, que zera a multa no primeiro atraso, continua valendo?\n   \
+             - **Opção 1:** Manter a regra. Efeito: a multa continua zerada no primeiro atraso\n   \
+             - **Opção 2:** Revogar a regra. Efeito: revoga a regra da DEM-12; toda fatura \
+             vencida paga multa\n\n   **Recomendação:** Confirmar com o financeiro antes de \
+             revogar."
+        ),
+        "{corpo}"
+    );
+    assert!(
+        corpo.contains("## Perguntas para o solicitante\n\n1. Quantas faturas vencidas"),
+        "{corpo}"
+    );
+
+    // retomar_analise mostra a decisão com as opções.
+    let r = c
+        .saida("retomar_analise", json!({ "analise": id }))
+        .unwrap();
+    assert!(
+        r.texto.contains("1. [decisão, aberta] A regra da DEM-12"),
+        "{}",
+        r.texto
+    );
+    assert!(
+        r.texto.contains("   - Opção 2: Revogar a regra — efeito:"),
+        "{}",
+        r.texto
+    );
+    let dados = r.dados.unwrap();
+    assert_eq!(dados["perguntas"][0]["tipo"], "decisao");
+    assert!(dados["perguntas"][1].get("tipo").is_none());
+}
+
+#[test]
+fn template_da_base_sem_o_marcador_recebe_as_decisoes_depois_da_demanda_entendida() {
+    let c = cenario();
+    let (id, n) = impacto_com_hipotese(&c);
+    // `iniciar_analise` copia os templates para a base; a cópia de antes da #452
+    // não tem `{{decisoes}}`.
+    c.chamar("iniciar_analise", json!({ "analise": id }));
+    let template = c.amb.base.raiz().join("_templates/analise-impacto.md");
+    // No Windows, o template embutido vem do checkout com CRLF.
+    let antigo = std::fs::read_to_string(&template)
+        .unwrap()
+        .replace("\r\n", "\n")
+        .replace("## Decisões para o negócio\n\n{{decisoes}}\n\n", "");
+    assert!(!antigo.contains("## Decisões para o negócio"));
+    std::fs::write(&template, antigo).unwrap();
+    c.chamar(
+        "perguntar",
+        json!({
+            "analise": id,
+            "tipo": "decisao",
+            "texto": "A multa vale no primeiro atraso?",
+            "afirmacao": n,
+            "opcoes": [
+                { "texto": "Sim", "efeito": "toda fatura vencida paga multa" },
+                { "texto": "Não", "efeito": "mantém a regra atual" }
+            ]
+        }),
+    );
+    let corpo = c.documento(&id).corpo;
+    let entendida = corpo.find("## Demanda como entendida\n").unwrap();
+    let decisoes = corpo.find("## Decisões para o negócio\n").expect("seção");
+    assert!(entendida < decisoes, "{corpo}");
+    assert!(
+        decisoes < corpo.find("## Como é hoje\n").unwrap(),
+        "{corpo}"
+    );
+    assert_eq!(corpo.matches("## Decisões para o negócio").count(), 1);
+}
+
 #[test]
 fn concluir_analise_monta_o_documento_final_e_aponta_pendencias() {
     let c = cenario();

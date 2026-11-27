@@ -177,7 +177,8 @@ impl From<&Evidencia> for Citacao {
     }
 }
 
-/// Pergunta em aberto, registrada com `perguntar`.
+/// Pergunta em aberto, registrada com `perguntar`: uma dúvida, na seção
+/// `perguntas`, ou uma decisão para o negócio (#452), na seção `decisoes`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Pergunta {
     pub texto: String,
@@ -185,6 +186,36 @@ pub struct Pergunta {
     /// como notas de rodapé.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub evidencias: Vec<Citacao>,
+    /// As opções e a recomendação, quando é uma decisão para o negócio.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decisao: Option<Decisao>,
+}
+
+impl Pergunta {
+    /// Uma dúvida, sem opções.
+    pub fn duvida(texto: impl Into<String>) -> Self {
+        Self {
+            texto: texto.into(),
+            evidencias: Vec::new(),
+            decisao: None,
+        }
+    }
+}
+
+/// Decisão para o negócio (#452): as opções, com o efeito de cada uma, e a
+/// recomendação, se houver.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Decisao {
+    pub opcoes: Vec<Opcao>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recomendacao: Option<String>,
+}
+
+/// Uma opção de uma decisão e o efeito de escolhê-la.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Opcao {
+    pub texto: String,
+    pub efeito: String,
 }
 
 /// Sugestão de alteração citada num documento.

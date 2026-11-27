@@ -270,11 +270,11 @@ fn modulos_por_pasta() {
     assert_eq!(dep("db", "backend"), None);
 
     let db = mapa.modulo("db/").unwrap();
-    assert_eq!(db.arquivos, 5);
-    assert_eq!(db.linguagens[&Linguagem::Sql], 5);
+    assert_eq!(db.arquivos, 6);
+    assert_eq!(db.linguagens[&Linguagem::Sql], 6);
     assert_eq!(db.simbolos[&TipoSimbolo::Tabela], 6);
     assert_eq!(db.simbolos[&TipoSimbolo::Pacote], 4);
-    assert_eq!(db.arquivos_diretos.len(), 5);
+    assert_eq!(db.arquivos_diretos.len(), 6);
     assert!(db.subpastas.is_empty());
     assert!(mapa.modulo("nao-existe").is_none());
 
@@ -423,8 +423,8 @@ fn mapa_gravado_e_incremental() {
     let mut registro = Registro::padrao();
     registro.registrar(SqlV2);
     let quarto = cadastro.mapear_com(&projeto.id, &registro).unwrap();
-    assert_eq!(quarto.estatisticas.processados, 5);
-    assert_eq!(quarto.estatisticas.reaproveitados, n - 5);
+    assert_eq!(quarto.estatisticas.processados, 6);
+    assert_eq!(quarto.estatisticas.reaproveitados, n - 6);
 
     // Mapa ilegível só faz perder o cache.
     fs::write(

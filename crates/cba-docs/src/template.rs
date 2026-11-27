@@ -49,6 +49,14 @@ pub enum Aviso {
     /// Uma seção tem registros, mas o template não tem o marcador dela; o
     /// conteúdo foi para o fim do documento.
     SecaoSemMarcador { tipo: TipoDocumento, secao: String },
+    /// Uma seção tem registros e o template não tem o marcador dela, mas tem o da
+    /// seção que a precede no template padrão; o conteúdo entrou logo depois dela
+    /// (as decisões para o negócio num template copiado antes da #452).
+    SecaoInserida {
+        tipo: TipoDocumento,
+        secao: String,
+        depois_de: String,
+    },
     /// Um registro aponta para uma seção que o tipo não tem; foi para o fim do
     /// documento.
     SecaoDesconhecida { tipo: TipoDocumento, secao: String },
@@ -75,6 +83,14 @@ impl fmt::Display for Aviso {
             Self::SecaoSemMarcador { tipo, secao } => write!(
                 f,
                 "o template de {tipo} não tem o marcador `{{{{{secao}}}}}`; a seção foi para o fim do documento"
+            ),
+            Self::SecaoInserida {
+                tipo,
+                secao,
+                depois_de,
+            } => write!(
+                f,
+                "o template de {tipo} não tem o marcador `{{{{{secao}}}}}`; a seção entrou depois de `{{{{{depois_de}}}}}`"
             ),
             Self::SecaoDesconhecida { tipo, secao } => write!(
                 f,

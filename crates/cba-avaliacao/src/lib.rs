@@ -23,14 +23,17 @@
 //! O relatório ([`relatorio`]) sai em JSON e Markdown.
 
 pub mod ata;
+pub mod caminhos;
 pub mod cenarios;
 pub mod ciclo_vida;
 pub mod comparacao;
 pub mod conducao;
 pub mod dados_pessoais;
+pub mod dominio;
 pub mod execucao;
 pub mod gabarito;
 pub mod historias;
+pub mod historico;
 pub mod longa;
 pub mod mapeamento;
 pub mod modelagem;

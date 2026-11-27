@@ -196,6 +196,33 @@ fn mapear_quase_tudo(c: &Cenario) {
             "justificativa": "Lê os parâmetros para as rotinas de cobrança e de parcelamento.",
         }),
     );
+    // Os caminhos do backend que gravam o cancelamento (#451) ficam fora deste
+    // mapa: justificados, para a conclusão só cobrar a suspensão.
+    let novos: Vec<Value> = c
+        .pontos
+        .iter()
+        .filter(|p| {
+            [
+                "CancelamentoService",
+                "FaturaController",
+                "ClienteService",
+                "ClienteController",
+            ]
+            .iter()
+            .any(|classe| p.arquivo.ends_with(&format!("/{classe}.java")))
+        })
+        .map(|p| {
+            json!({
+                "ponto": p.chave,
+                "tratamento": "justificar",
+                "motivo": "outro",
+                "justificativa": "Fora do recorte deste teste.",
+            })
+        })
+        .collect();
+    assert_eq!(novos.len(), 4, "{:?}", c.pontos);
+    let r = c.ok("tratar_ponto_de_entrada", json!({ "pontos": novos }));
+    assert_eq!(r["aplicados"], 4, "{r:#}");
 }
 
 #[test]
@@ -288,7 +315,7 @@ fn mapeia_conclui_revisa_e_mantem_os_ids() {
     assert!(m.contains("1 ponto(s) de entrada"), "{m}");
     let sem = c.ok("pontos_de_entrada", json!({ "so_sem_tratamento": true }));
     assert_eq!(sem["sem_tratamento"], 1);
-    assert_eq!(sem["total"], 15);
+    assert_eq!(sem["total"], 19);
     // No recorte da área Parcelamento, nada falta.
     let r = c.ok("concluir_mapeamento", json!({ "area": "Parcelamento" }));
     assert_eq!(r["pontos_de_entrada"], 4);

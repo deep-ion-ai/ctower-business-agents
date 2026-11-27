@@ -163,7 +163,7 @@ fn data_da_base_e_a_maior_dos_frontmatters() {
 #[test]
 fn paginas_legiveis_da_base_aprovada() {
     let (_tmp, projeto) = base();
-    let g = paginas_do_projeto(&projeto, None).unwrap();
+    let g = paginas_do_projeto(&projeto, None, true).unwrap();
     assert_eq!(g.aprovados, 3);
     assert!(g.avisos.is_empty(), "{:?}", g.avisos);
     let caminhos: Vec<&str> = g.paginas.iter().map(|p| p.caminho.as_str()).collect();
@@ -188,7 +188,45 @@ fn paginas_legiveis_da_base_aprovada() {
         leia_me.contains("**Atualizada em:** 2026-11-10"),
         "{leia_me}"
     );
-    assert_eq!(paginas_do_projeto(&projeto, None).unwrap(), g);
+    assert_eq!(paginas_do_projeto(&projeto, None, true).unwrap(), g);
+}
+
+#[test]
+fn paginas_mascaram_os_dados_pessoais_da_demanda() {
+    let (_tmp, projeto) = base();
+    let caminho = projeto.raiz().join("analises/A-0001.md");
+    let original = analise("A-0001", "aprovada", "Cancelamento", "2026-11-10").replace(
+        "## Resumo",
+        "## Demanda como veio\n\nCliente CPF 529.982.247-25, empresa 11.222.333/0001-81, \
+         ana@example.com, (11) 98765-4321.\n\n## Resumo",
+    );
+    std::fs::write(&caminho, &original).unwrap();
+    let pagina = |mascarar: bool| {
+        let g = paginas_do_projeto(&projeto, None, mascarar).unwrap();
+        let p = g
+            .paginas
+            .iter()
+            .find(|p| p.caminho == "analises/A-0001.md")
+            .unwrap();
+        String::from_utf8(p.conteudo.clone()).unwrap()
+    };
+    let mascarada = pagina(true);
+    for marca in [
+        "[CPF mascarado]",
+        "[CNPJ mascarado]",
+        "[e-mail mascarado]",
+        "[telefone mascarado]",
+    ] {
+        assert!(mascarada.contains(marca), "{marca}: {mascarada}");
+    }
+    assert!(!mascarada.contains("529.982.247-25"), "{mascarada}");
+    // A base fica com o original; sem a preferência, a página também.
+    assert_eq!(std::fs::read_to_string(&caminho).unwrap(), original);
+    let como_veio = pagina(false);
+    assert!(
+        como_veio.contains("CPF 529.982.247-25, empresa 11.222.333/0001-81"),
+        "{como_veio}"
+    );
 }
 
 #[test]
@@ -202,7 +240,7 @@ fn sem_aprovados_nao_ha_paginas() {
         std::fs::remove_file(projeto.raiz().join(c)).unwrap();
     }
     assert_eq!(
-        paginas_do_projeto(&projeto, None).unwrap(),
+        paginas_do_projeto(&projeto, None, true).unwrap(),
         Paginas::default()
     );
 }
@@ -856,6 +894,7 @@ fn sem_destino_explica_o_que_fazer() {
             nome: "Faturamento Exemplo",
             repositorios: &repositorios,
             escopo: None,
+            mascarar_demanda: true,
         },
     )
     .unwrap_err();
@@ -878,6 +917,7 @@ fn sem_destino_explica_o_que_fazer() {
             nome: "Faturamento Exemplo",
             repositorios: &repositorios,
             escopo: None,
+            mascarar_demanda: true,
         },
     )
     .unwrap_err();
@@ -1046,6 +1086,7 @@ esac"#,
                 nome: "Faturamento Exemplo",
                 repositorios: &self.repositorios,
                 escopo: None,
+                mascarar_demanda: true,
             }
         }
 

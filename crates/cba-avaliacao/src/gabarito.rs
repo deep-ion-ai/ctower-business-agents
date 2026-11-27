@@ -210,6 +210,104 @@ pub struct Demanda {
     /// Seção "Dados pessoais e requisitos não funcionais" esperada (#126).
     #[serde(default)]
     pub dados_pessoais: Option<DadosPessoaisEsperados>,
+    /// Regra criada de propósito por uma demanda anterior (#450).
+    #[serde(default)]
+    pub origem: Option<OrigemEsperada>,
+    /// Decisões para o negócio esperadas (#452): perguntas do tipo decisão, com
+    /// as opções, em "Decisões para o negócio".
+    #[serde(default)]
+    pub decisoes_esperadas: Vec<PerguntaEsperada>,
+    /// Caminhos que gravam o estado de que a demanda trata (#451).
+    #[serde(default)]
+    pub caminhos_de_escrita: Option<CaminhosEsperados>,
+    /// Valores de domínio usados como critério da correção (#455).
+    #[serde(default)]
+    pub valores_de_dominio: Option<ValoresDeDominioEsperados>,
+}
+
+/// Valores de domínio usados como critério da correção (#455): quando a correção
+/// depende de um subconjunto dos valores de um enum, de uma tabela de domínio ou
+/// de constantes, a análise de impacto deve citar a lista completa, com
+/// evidência, e classificar cada valor; os valores a decidir viram decisões para
+/// o negócio.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ValoresDeDominioEsperados {
+    /// O campo ou o tipo do domínio (`FATURA.STATUS`).
+    pub campo: String,
+    /// Onde está a lista completa dos valores.
+    pub evidencias: Vec<EvidenciaEsperada>,
+    /// Todos os valores do domínio, cada um com a classificação esperada.
+    pub valores: Vec<ValorDeDominio>,
+}
+
+/// Um valor do domínio e a classificação esperada dele no critério.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ValorDeDominio {
+    /// O valor como está no código (`SUSPENSA`).
+    pub valor: String,
+    pub classificacao: Classificacao,
+}
+
+/// Classificação de um valor de domínio no critério da correção (#455).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Classificacao {
+    Entra,
+    NaoEntra,
+    ADecidir,
+}
+
+impl Classificacao {
+    /// Como aparece no relatório e no texto da análise.
+    pub fn rotulo(self) -> &'static str {
+        match self {
+            Self::Entra => "entra",
+            Self::NaoEntra => "não entra",
+            Self::ADecidir => "a decidir",
+        }
+    }
+}
+
+/// Todos os caminhos que gravam um estado (#451): numa demanda sobre um estado
+/// errado, a análise de impacto deve listar cada caminho, inclusive chamadas
+/// internas e edições de outros registros, e apontar o que não valida em
+/// `riscos` ou em `funcionalidades`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CaminhosEsperados {
+    /// O estado gravado (`FATURA.STATUS = CANCELADA`).
+    pub estado: String,
+    pub caminhos: Vec<CaminhoEsperado>,
+}
+
+/// Um caminho que grava o estado.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CaminhoEsperado {
+    /// Para quem lê o relatório.
+    pub nome: String,
+    /// O caminho valida o estado antes de gravar.
+    pub valida: bool,
+    /// Citado quando a afirmação tem estas palavras-chave ...
+    pub palavras_chave: Vec<Vec<String>>,
+    /// ... ou uma evidência que toca uma destas.
+    pub evidencias: Vec<EvidenciaEsperada>,
+    /// Caminho sem validação: palavras-chave do que ele não valida, na afirmação
+    /// de `riscos` ou `funcionalidades` que o cita.
+    #[serde(default)]
+    pub sem_validacao: Vec<Vec<String>>,
+}
+
+/// Regra que uma demanda anterior criou de propósito (#450). A cópia da fixture
+/// recebe o histórico git sintético (`fixtures/historicos/<historico>/`), e a
+/// análise deve citar a chave da demanda de origem em `como_e_hoje` e perguntar
+/// se a regra continua valendo (a pergunta fica em `perguntas_esperadas`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrigemEsperada {
+    /// Pasta do histórico em `fixtures/historicos/`.
+    pub historico: String,
+    /// Chave da demanda de origem na mensagem do commit (`DEM-12`).
+    pub chave: String,
+    /// Regra que a demanda de origem criou.
+    pub regra: String,
 }
 
 /// O que a seção "Dados pessoais e requisitos não funcionais" da análise de
@@ -598,6 +696,19 @@ pub struct Item {
     /// (#126).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dados_pessoais: Option<DadosPessoaisEsperados>,
+    /// Regra criada de propósito por uma demanda anterior, só no fluxo impacto
+    /// (#450): a cópia recebe o histórico git sintético.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origem: Option<OrigemEsperada>,
+    /// Caminhos que gravam o estado, só no fluxo impacto (#451).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub caminhos: Option<CaminhosEsperados>,
+    /// Decisões para o negócio esperadas, só no fluxo impacto (#452).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub decisoes_esperadas: Vec<PerguntaEsperada>,
+    /// Valores de domínio usados como critério, só no fluxo impacto (#455).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub valores_de_dominio: Option<ValoresDeDominioEsperados>,
 }
 
 /// Erro ao ler o gabarito ou ao achar um item.
@@ -639,6 +750,12 @@ impl Gabarito {
         self.raiz
             .split('/')
             .fold(self.pasta.clone(), |acc, parte| acc.join(parte))
+    }
+
+    /// Pasta de um histórico git sintético (#450), ao lado da pasta dos gabaritos:
+    /// `fixtures/historicos/<nome>/`.
+    pub fn pasta_do_historico(&self, nome: &str) -> PathBuf {
+        self.pasta.join("..").join("historicos").join(nome)
     }
 
     /// Reunião pelo id (`REU-*`).
@@ -710,6 +827,10 @@ impl Gabarito {
                 ciclo_vida: None,
                 modelagem: None,
                 dados_pessoais: None,
+                origem: None,
+                caminhos: None,
+                decisoes_esperadas: Vec::new(),
+                valores_de_dominio: None,
             });
         }
         if let Some(f) = self.funcionalidades.iter().find(|f| f.id == id) {
@@ -734,6 +855,10 @@ impl Gabarito {
                     }
                 }),
                 dados_pessoais: None,
+                origem: None,
+                caminhos: None,
+                decisoes_esperadas: Vec::new(),
+                valores_de_dominio: None,
             });
         }
         if let Some(d) = self.demandas.iter().find(|d| d.id == id) {
@@ -753,6 +878,10 @@ impl Gabarito {
                 ciclo_vida: None,
                 modelagem: None,
                 dados_pessoais: d.dados_pessoais.clone(),
+                origem: d.origem.clone(),
+                caminhos: d.caminhos_de_escrita.clone(),
+                decisoes_esperadas: d.decisoes_esperadas.clone(),
+                valores_de_dominio: d.valores_de_dominio.clone(),
             });
         }
         if let Some(r) = self.revisoes.iter().find(|r| r.id == id) {
@@ -773,6 +902,10 @@ impl Gabarito {
                 ciclo_vida: None,
                 modelagem: None,
                 dados_pessoais: None,
+                origem: None,
+                caminhos: None,
+                decisoes_esperadas: Vec::new(),
+                valores_de_dominio: None,
             });
         }
         if let Some(h) = self.historias.iter().find(|h| h.id == id) {
@@ -793,6 +926,10 @@ impl Gabarito {
                 ciclo_vida: None,
                 modelagem: None,
                 dados_pessoais: None,
+                origem: None,
+                caminhos: None,
+                decisoes_esperadas: Vec::new(),
+                valores_de_dominio: None,
             });
         }
         if let Some(c) = self.cenarios.iter().find(|c| c.id == id) {
@@ -812,6 +949,10 @@ impl Gabarito {
                 ciclo_vida: None,
                 modelagem: None,
                 dados_pessoais: None,
+                origem: None,
+                caminhos: None,
+                decisoes_esperadas: Vec::new(),
+                valores_de_dominio: None,
             });
         }
         if let Some(c) = self.ciclos_vida.iter().find(|c| c.id == id) {
@@ -831,6 +972,10 @@ impl Gabarito {
                 ciclo_vida: Some(c.esperado.clone()),
                 modelagem: None,
                 dados_pessoais: None,
+                origem: None,
+                caminhos: None,
+                decisoes_esperadas: Vec::new(),
+                valores_de_dominio: None,
             });
         }
         Err(Erro(format!(

@@ -222,6 +222,7 @@ describe("diagramas Mermaid (#118)", () => {
           perguntas: true,
           trechos: true,
           codigo_diagramas: true,
+          notas_tecnicas: true,
         },
         figuras: [
           { codigo: CODIGO, png: [137, 80, 78, 71], largura: 200, altura: 80 },
@@ -279,7 +280,13 @@ describe("diagramas Mermaid (#118)", () => {
       expect(exportar).toHaveBeenCalledWith("faturamento-exemplo", "A-0001", {
         destino: "/home/analista/A-0001.html",
         formato: "html",
-        opcoes: { evidencias: true, perguntas: true, trechos: true, codigo_diagramas: true },
+        opcoes: {
+          evidencias: true,
+          perguntas: true,
+          trechos: true,
+          codigo_diagramas: true,
+          notas_tecnicas: true,
+        },
         figuras: [{ codigo: CODIGO, png: [137, 80, 78, 71], largura: 200, altura: 80 }],
       }),
     );
