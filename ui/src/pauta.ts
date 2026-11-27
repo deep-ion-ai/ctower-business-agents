@@ -14,6 +14,18 @@ export type FontePergunta =
   | { tipo: "analise"; id: string; titulo: string; fluxo: Fluxo }
   | { tipo: "ata"; id: string; data: string };
 
+/** Uma opção de uma decisão para o negócio e o efeito de escolhê-la (#452). */
+export interface OpcaoDecisao {
+  texto: string;
+  efeito: string;
+}
+
+/** Decisão para o negócio (#452): as opções e a recomendação do agente, se houver. */
+export interface DecisaoDaPauta {
+  opcoes: OpcaoDecisao[];
+  recomendacao: string | null;
+}
+
 export interface PerguntaDaPauta {
   /** `A-0001/2` ou `R-0001/DV-1`. */
   referencia: string;
@@ -29,6 +41,8 @@ export interface PerguntaDaPauta {
   bloqueia: string[];
   /** Documento de origem, relativo à raiz da base. */
   documento: string;
+  /** As opções, quando é uma decisão para o negócio (#452). */
+  decisao?: DecisaoDaPauta | null;
 }
 
 export interface ItemDaPauta {
@@ -37,6 +51,8 @@ export interface ItemDaPauta {
   perguntas: PerguntaDaPauta[];
   idadeDias: number;
   antiga: boolean;
+  /** As opções, quando o item é uma decisão para o negócio (#452). */
+  decisao?: DecisaoDaPauta | null;
 }
 
 export interface GrupoDaPauta {
@@ -199,9 +215,15 @@ export function agrupar(
     }
     grupos.set(chave, [...(grupos.get(chave) ?? []), item]);
   }
+  // As decisões primeiro em cada grupo, como nos grupos do app (#452).
   return [...grupos.entries()]
     .sort(([a], [b]) => a.localeCompare(b, "pt-BR"))
-    .map(([rotulo, itens]) => ({ rotulo, itens }));
+    .map(([rotulo, itens]) => ({ rotulo, itens: decisoesPrimeiro(itens) }));
+}
+
+/** Os itens com as decisões para o negócio primeiro, na ordem em que vieram. */
+export function decisoesPrimeiro(itens: ItemDaPauta[]): ItemDaPauta[] {
+  return [...itens.filter((i) => i.decisao), ...itens.filter((i) => !i.decisao)];
 }
 
 /** Data de hoje no fuso local, `AAAA-MM-DD`. */
