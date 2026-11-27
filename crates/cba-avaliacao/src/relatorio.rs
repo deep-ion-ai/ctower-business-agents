@@ -690,6 +690,10 @@ fn criterios_das_analises(s: &mut String) {
     );
     let _ = writeln!(
         s,
+        "- **Decisões para o negócio** (impacto): decisão esperada atendida por uma pergunta do tipo decisão, não descartada, com as palavras-chave e ao menos duas opções; o tema perguntado só como dúvida, sem opções, aparece à parte."
+    );
+    let _ = writeln!(
+        s,
         "- **Falha grave:** afirmação `confirmado` sem evidência válida, nenhuma afirmação, estado ausente ou arquivo do projeto alterado."
     );
     let _ = writeln!(
@@ -833,6 +837,21 @@ fn analise_md(s: &mut String, e: &Execucao) {
                 None => "não".to_owned(),
             }
         );
+    }
+    if !a.decisoes_esperadas.is_empty() {
+        let _ = writeln!(s, "- Decisões para o negócio esperadas:");
+        for d in &a.decisoes_esperadas {
+            let _ = writeln!(
+                s,
+                "  - {}: {}",
+                d.tema,
+                match (d.atendida_por, d.so_como_duvida) {
+                    (Some(n), _) => format!("decisão {n}"),
+                    (None, Some(n)) => format!("só como dúvida (pergunta {n}, sem opções)"),
+                    (None, None) => "não registrada".to_owned(),
+                }
+            );
+        }
     }
     if let Some(o) = &a.origem {
         let _ = writeln!(

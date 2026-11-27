@@ -881,6 +881,11 @@ demandas:
         palavras_chave: [[dem-12], [continua*, vale, valendo, vigente, mant*, revog*, substitu*]]
       - tema: Cancelada a fatura com pagamento parcial, o que acontece com o valor já pago?
         palavras_chave: [[pago, pagamento, valor, vl_pago], [estorn*, devol*, credit*, compens*, reembols*, destino]]
+    # Decisão para o negócio (#452): manter ou revogar a regra da DEM-12 é escolha
+    # do negócio, com o efeito de cada opção, e abre o documento.
+    decisoes_esperadas:
+      - tema: Manter ou revogar a regra da DEM-12, que impede cancelar fatura com pagamento parcial?
+        palavras_chave: [[dem-12, regra, cancel*], [continua*, vale, valendo, vigente, mant*, revog*, permit*]]
     arquivos_impactados:
       - db/03_pkg_cobranca.sql
 

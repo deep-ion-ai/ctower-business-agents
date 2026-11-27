@@ -13,7 +13,7 @@ use cba_avaliacao::gabarito_padrao;
 use cba_avaliacao::relatorio::{Execucao, Relatorio};
 use cba_core::analise::{
     Afirmacao, Analise, Confianca, EstadoAfirmacao, EstadoPergunta, Evidencia, EvidenciaOrigem,
-    Pergunta,
+    OpcaoDecisao, Pergunta, TipoPergunta,
 };
 use cba_tools::evidencias::{EvidenciaCitada, validar};
 
@@ -79,6 +79,9 @@ fn perguntar(a: &mut Analise, texto: &str) {
     a.perguntas.push(Pergunta {
         numero,
         texto: texto.into(),
+        tipo: TipoPergunta::Duvida,
+        opcoes: Vec::new(),
+        recomendacao: None,
         afirmacao: None,
         estado: EstadoPergunta::Aberta,
         resposta_enviada: false,
@@ -861,4 +864,65 @@ fn caminhos_que_gravam_o_estado_e_o_que_nao_valida() {
         md.contains("falta de validação apontada (afirmação 3)"),
         "{md}"
     );
+}
+
+/// D-FAT-005 (#452): manter ou revogar a regra da DEM-12 é uma decisão para o
+/// negócio, com as opções; registrada só como dúvida, o relatório mostra.
+#[test]
+fn decisao_esperada_registrada_como_decisao_com_opcoes() {
+    let texto =
+        "A regra da DEM-12, que impede cancelar fatura com pagamento parcial, continua valendo?";
+    let mut a = analise_vazia("impacto", "Corrigir o cancelamento ...");
+    perguntar(&mut a, texto);
+    let av = avaliar_item(&a, "D-FAT-005");
+    assert_eq!(av.decisoes_esperadas.len(), 1);
+    let d = &av.decisoes_esperadas[0];
+    assert_eq!(d.atendida_por, None);
+    assert_eq!(d.so_como_duvida, Some(1));
+    let execucao = Execucao {
+        fluxo: "impacto".into(),
+        item: "D-FAT-005".into(),
+        repeticao: 1,
+        avaliacao: Some(av),
+        ata: None,
+        transcript: None,
+        mapa: None,
+        publicacao: None,
+        conducao: None,
+        arquivos_alterados: vec![],
+        claude: None,
+        erro: None,
+    };
+    let dir = tempfile::tempdir().unwrap();
+    Relatorio::novo(None, vec![execucao])
+        .gravar(dir.path())
+        .unwrap();
+    let md = std::fs::read_to_string(dir.path().join("relatorio.md")).unwrap();
+    assert!(md.contains("- Decisões para o negócio esperadas:"), "{md}");
+    assert!(
+        md.contains("só como dúvida (pergunta 1, sem opções)"),
+        "{md}"
+    );
+
+    // Como decisão, com as duas opções e o efeito de cada uma.
+    a.perguntas[0].tipo = TipoPergunta::Decisao;
+    a.perguntas[0].opcoes = vec![
+        OpcaoDecisao {
+            texto: "Manter a regra".into(),
+            efeito: "a fatura com pagamento parcial segue sem cancelamento".into(),
+        },
+        OpcaoDecisao {
+            texto: "Revogar a regra".into(),
+            efeito: "revoga a regra da DEM-12; decidir o destino do valor pago".into(),
+        },
+    ];
+    let av = avaliar_item(&a, "D-FAT-005");
+    assert_eq!(av.decisoes_esperadas[0].atendida_por, Some(1));
+    // A decisão também atende à pergunta esperada sobre a regra.
+    assert_eq!(av.perguntas_esperadas[0].atendida_por, Some(1));
+
+    // Descartada, não conta.
+    a.perguntas[0].estado = EstadoPergunta::Descartada;
+    let av = avaliar_item(&a, "D-FAT-005");
+    assert_eq!(av.decisoes_esperadas[0].atendida_por, None);
 }
