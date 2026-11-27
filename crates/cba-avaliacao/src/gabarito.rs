@@ -210,6 +210,23 @@ pub struct Demanda {
     /// Seção "Dados pessoais e requisitos não funcionais" esperada (#126).
     #[serde(default)]
     pub dados_pessoais: Option<DadosPessoaisEsperados>,
+    /// Regra criada de propósito por uma demanda anterior (#450).
+    #[serde(default)]
+    pub origem: Option<OrigemEsperada>,
+}
+
+/// Regra que uma demanda anterior criou de propósito (#450). A cópia da fixture
+/// recebe o histórico git sintético (`fixtures/historicos/<historico>/`), e a
+/// análise deve citar a chave da demanda de origem em `como_e_hoje` e perguntar
+/// se a regra continua valendo (a pergunta fica em `perguntas_esperadas`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrigemEsperada {
+    /// Pasta do histórico em `fixtures/historicos/`.
+    pub historico: String,
+    /// Chave da demanda de origem na mensagem do commit (`DEM-12`).
+    pub chave: String,
+    /// Regra que a demanda de origem criou.
+    pub regra: String,
 }
 
 /// O que a seção "Dados pessoais e requisitos não funcionais" da análise de
@@ -598,6 +615,10 @@ pub struct Item {
     /// (#126).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dados_pessoais: Option<DadosPessoaisEsperados>,
+    /// Regra criada de propósito por uma demanda anterior, só no fluxo impacto
+    /// (#450): a cópia recebe o histórico git sintético.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origem: Option<OrigemEsperada>,
 }
 
 /// Erro ao ler o gabarito ou ao achar um item.
@@ -639,6 +660,12 @@ impl Gabarito {
         self.raiz
             .split('/')
             .fold(self.pasta.clone(), |acc, parte| acc.join(parte))
+    }
+
+    /// Pasta de um histórico git sintético (#450), ao lado da pasta dos gabaritos:
+    /// `fixtures/historicos/<nome>/`.
+    pub fn pasta_do_historico(&self, nome: &str) -> PathBuf {
+        self.pasta.join("..").join("historicos").join(nome)
     }
 
     /// Reunião pelo id (`REU-*`).
@@ -710,6 +737,7 @@ impl Gabarito {
                 ciclo_vida: None,
                 modelagem: None,
                 dados_pessoais: None,
+                origem: None,
             });
         }
         if let Some(f) = self.funcionalidades.iter().find(|f| f.id == id) {
@@ -734,6 +762,7 @@ impl Gabarito {
                     }
                 }),
                 dados_pessoais: None,
+                origem: None,
             });
         }
         if let Some(d) = self.demandas.iter().find(|d| d.id == id) {
@@ -753,6 +782,7 @@ impl Gabarito {
                 ciclo_vida: None,
                 modelagem: None,
                 dados_pessoais: d.dados_pessoais.clone(),
+                origem: d.origem.clone(),
             });
         }
         if let Some(r) = self.revisoes.iter().find(|r| r.id == id) {
@@ -773,6 +803,7 @@ impl Gabarito {
                 ciclo_vida: None,
                 modelagem: None,
                 dados_pessoais: None,
+                origem: None,
             });
         }
         if let Some(h) = self.historias.iter().find(|h| h.id == id) {
@@ -793,6 +824,7 @@ impl Gabarito {
                 ciclo_vida: None,
                 modelagem: None,
                 dados_pessoais: None,
+                origem: None,
             });
         }
         if let Some(c) = self.cenarios.iter().find(|c| c.id == id) {
@@ -812,6 +844,7 @@ impl Gabarito {
                 ciclo_vida: None,
                 modelagem: None,
                 dados_pessoais: None,
+                origem: None,
             });
         }
         if let Some(c) = self.ciclos_vida.iter().find(|c| c.id == id) {
@@ -831,6 +864,7 @@ impl Gabarito {
                 ciclo_vida: Some(c.esperado.clone()),
                 modelagem: None,
                 dados_pessoais: None,
+                origem: None,
             });
         }
         Err(Erro(format!(

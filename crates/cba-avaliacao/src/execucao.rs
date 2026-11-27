@@ -112,12 +112,25 @@ struct Projeto {
     ambiente: Ambiente,
 }
 
-fn preparar_projeto(raiz: &Path, projeto: &Path) -> Result<Projeto, String> {
+/// Copia a fixture e cria o repositório git: um commit só ou, com `historico` (a
+/// pasta de um histórico sintético, #450), os commits dele.
+fn preparar_projeto(
+    raiz: &Path,
+    projeto: &Path,
+    historico: Option<&Path>,
+) -> Result<Projeto, String> {
     let codigo = raiz.join("faturamento");
     pastas::copiar(projeto, &codigo).map_err(erro("cópia da fixture"))?;
-    git(&codigo, &["init", "-q"])?;
-    git(&codigo, &["add", "-A"])?;
-    git(&codigo, &["commit", "-q", "-m", "inicial"])?;
+    match historico {
+        Some(pasta) => {
+            crate::historico::Historico::ler(pasta)?.reproduzir(pasta, projeto, &codigo)?
+        }
+        None => {
+            git(&codigo, &["init", "-q"])?;
+            git(&codigo, &["add", "-A"])?;
+            git(&codigo, &["commit", "-q", "-m", "inicial"])?;
+        }
+    }
     cadastrar_projeto(
         raiz,
         &codigo,
@@ -414,7 +427,11 @@ pub fn executar_com(
     let projeto = gabarito.raiz_do_projeto();
 
     let preparado = (|| {
-        let p = preparar_projeto(&raiz, &projeto)?;
+        let historico = item
+            .origem
+            .as_ref()
+            .map(|o| gabarito.pasta_do_historico(&o.historico));
+        let p = preparar_projeto(&raiz, &projeto, historico.as_deref())?;
         let analise = match &item.historias {
             // Cenários: as regras pedidas gravadas na base e a análise de cenários
             // criada a partir do pedido, como pela nova análise do app.
@@ -601,7 +618,7 @@ pub fn executar_mapeamento(
     };
     let projeto = gabarito.raiz_do_projeto();
     let preparado = (|| {
-        let p = preparar_projeto(&raiz, &projeto)?;
+        let p = preparar_projeto(&raiz, &projeto, None)?;
         let (mcp, settings) = preparar_claude(&raiz, &p, &opcoes.cba)?;
         Ok::<_, String>(Preparado {
             projeto: p,
@@ -737,7 +754,7 @@ pub fn executar_reuniao(
     let projeto = gabarito.raiz_do_projeto();
 
     let preparado = (|| {
-        let p = preparar_projeto(&raiz, &projeto)?;
+        let p = preparar_projeto(&raiz, &projeto, None)?;
         let agora = cba_core::tempo::agora_ms();
         let hoje = cba_core::tempo::data_utc(agora);
         let demanda = p
@@ -936,7 +953,7 @@ pub fn executar_publicacao(
             .map_err(|e| e.to_string())?;
 
         // 1. Analisar, na base A.
-        let a = preparar_projeto(&raiz, &projeto)?;
+        let a = preparar_projeto(&raiz, &projeto, None)?;
         let codigo = a.codigo.clone();
         let analise_a = criar_analise(&a.ambiente, &item_a)?;
         resultado.primeira_analise = Some(analise_a.id.to_string());

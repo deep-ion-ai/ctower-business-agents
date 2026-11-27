@@ -44,6 +44,8 @@
 //!   rastreador, com os comentários, #351), [`andamento`]
 //!   (`mudancas_em_andamento`: os PRs e MRs abertos nos arquivos da análise,
 //!   #441) e
+//!   [`historico`] (`historico_do_trecho`: os commits que criaram e mudaram um
+//!   trecho, com as chaves de issue das mensagens, #450) e
 //!   [`rastreabilidade`] (matriz da demanda e consulta reversa por regra ou
 //!   arquivo, #121, que também exporta a matriz para Excel e Word).
 //! - [`roteiro`] e [`contexto`]: o roteiro do fluxo e o contexto da base que
@@ -109,6 +111,7 @@ pub mod evidencias;
 mod fontes;
 pub mod fundamentos;
 pub mod historias;
+pub mod historico;
 pub mod issue_da_demanda;
 pub mod manual;
 pub mod mapa;
@@ -165,6 +168,7 @@ pub fn registro_padrao() -> Registro {
         .registrar(consultar_dados::consultar_dados())
         .registrar(issue_da_demanda::ler_issue_da_demanda())
         .registrar(andamento::mudancas_em_andamento())
+        .registrar(historico::historico_do_trecho())
         .registrar(afirmar::afirmar())
         .registrar(perguntar::perguntar())
         .registrar(sugestao::registrar_sugestao())
@@ -228,6 +232,7 @@ mod tests {
             "schema",
             "ler_issue_da_demanda",
             "mudancas_em_andamento",
+            "historico_do_trecho",
             "afirmar",
             "perguntar",
             "registrar_sugestao",

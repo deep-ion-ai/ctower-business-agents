@@ -179,6 +179,25 @@ pub enum EstadoEvidencia {
     ARevalidar,
 }
 
+/// Commit citado como origem de uma regra (#450): o que o criou ou o mudou, com
+/// as chaves de issue da mensagem. Complementa a evidência de código, não a
+/// substitui. O autor é detalhe técnico: fica no estado e não vai para o
+/// documento.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EvidenciaOrigem {
+    /// Hash completo.
+    pub commit: String,
+    /// `AAAA-MM-DD`.
+    pub data: String,
+    /// A primeira linha da mensagem.
+    pub assunto: String,
+    /// Chaves de issue tiradas da mensagem pelos padrões do projeto.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub chaves: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub autor: Option<String>,
+}
+
 /// Trecho do código que sustenta uma afirmação: caminho relativo à raiz do projeto,
 /// intervalo de linhas, trecho citado, hash do trecho e commit (spec, seção 6.5).
 ///
@@ -264,6 +283,10 @@ pub struct Afirmacao {
     /// para a data em que foram tiradas; a revalidação não as reexecuta.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub dados: Vec<EvidenciaDados>,
+    /// Commits citados como origem da regra (#450): evidência complementar, ao
+    /// lado da evidência de código, com a demanda que pediu o comportamento.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub origens: Vec<EvidenciaOrigem>,
     #[serde(flatten)]
     pub estado: EstadoAfirmacao,
     /// Estado da afirmação antes de a revalidação a marcar como a revalidar. Volta a
@@ -955,6 +978,19 @@ impl Analise {
         dados: Vec<EvidenciaDados>,
         agora_ms: u64,
     ) -> Result<u32, ErroModelo> {
+        self.registrar_afirmacao_com_evidencias(nova, dados, Vec::new(), agora_ms)
+    }
+
+    /// Como [`Analise::registrar_afirmacao_com_dados`], com os commits citados como
+    /// origem da regra (#450). A origem não sustenta sozinha uma afirmação
+    /// confirmada: a evidência continua sendo o código (ou os dados).
+    pub fn registrar_afirmacao_com_evidencias(
+        &mut self,
+        nova: NovaAfirmacao,
+        dados: Vec<EvidenciaDados>,
+        origens: Vec<EvidenciaOrigem>,
+        agora_ms: u64,
+    ) -> Result<u32, ErroModelo> {
         exigir("secao", &nova.secao)?;
         exigir("texto", &nova.texto)?;
         if nova.confianca == Confianca::Confirmado && nova.evidencias.is_empty() && dados.is_empty()
@@ -971,6 +1007,7 @@ impl Analise {
             confianca: nova.confianca,
             evidencias: nova.evidencias,
             dados,
+            origens,
             estado: EstadoAfirmacao::Registrada,
             antes_de_revalidar: None,
             contestacao: None,

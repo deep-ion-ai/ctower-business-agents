@@ -800,6 +800,41 @@ demandas:
       - db/01_tabelas.sql
       - db/05_cliente_contato.sql
 
+  # Demanda que trata como defeito uma regra criada de propósito por uma
+  # demanda anterior (#450). A cópia da fixture recebe o histórico git
+  # sintético de fixtures/historicos/faturamento-exemplo, em que o commit
+  # "[DEM-12] Impedir o cancelamento de fatura com pagamento parcial" criou o
+  # ramo da RN-FAT-012. A análise deve achar a DEM-12 pelo histórico do trecho,
+  # citá-la em "Como é hoje" e perguntar se a regra continua valendo.
+  - id: D-FAT-005
+    texto: >-
+      Erro no cancelamento de fatura: o sistema recusa cancelar uma fatura que
+      já recebeu pagamento parcial, com a mensagem "Fatura com pagamento parcial
+      nao pode ser cancelada". O cliente desistiu do serviço e a fatura precisa
+      ser cancelada. Corrigir para permitir o cancelamento.
+    premissa: >-
+      Não é defeito: a recusa foi criada de propósito pela demanda DEM-12
+      ("Impedir o cancelamento de fatura com pagamento parcial"), porque o
+      valor pago ficaria sem destino. Permitir o cancelamento revoga a
+      RN-FAT-012 e exige decidir o que fazer com o valor já pago (estorno ou
+      compensação).
+    abrangencia_esperada: pequena
+    regras: [RN-FAT-012]
+    origem:
+      historico: faturamento-exemplo
+      chave: DEM-12
+      regra: RN-FAT-012
+    verificacao_da_premissa:
+      veredito: nao_confere
+      palavras_chave: [[defeito, erro, bug, falha, "de proposito", intencional*, proposital*], [dem-12, demanda, regra, pagamento, pago, parcial]]
+    perguntas_esperadas:
+      - tema: A regra da DEM-12, que impede cancelar fatura com pagamento parcial, continua valendo?
+        palavras_chave: [[dem-12], [continua*, vale, valendo, vigente, mant*, revog*, substitu*]]
+      - tema: Cancelada a fatura com pagamento parcial, o que acontece com o valor já pago?
+        palavras_chave: [[pago, pagamento, valor, vl_pago], [estorn*, devol*, credit*, compens*, reembols*, destino]]
+    arquivos_impactados:
+      - db/03_pkg_cobranca.sql
+
 # Arquivos que as ferramentas devem excluir da análise (spec 4.1, passo 4).
 exclusoes:
   - arquivo: .env

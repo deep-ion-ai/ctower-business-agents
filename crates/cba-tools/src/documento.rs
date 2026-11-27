@@ -23,6 +23,10 @@
 //!   SQL e as linhas; as notas ficam na seção de evidências, avisando que valem
 //!   para a data em que foram tiradas. A exportação sem evidências tira as notas
 //!   e fica só o resumo.
+//! - os commits citados como origem da regra (#450): "(origem: commit <hash curto>,
+//!   <chaves>)" no texto da afirmação, com a nota de rodapé (`[^origem-<hash>]`)
+//!   que leva o hash, a data e a mensagem, na seção de evidências. O autor do
+//!   commit fica só no estado.
 //!
 //! Os termos propostos ficam no estado e viram glossário na aprovação (#11).
 //!
@@ -30,7 +34,9 @@
 //! verificação INVEST vêm do parecer do estado ([`crate::parecer::textos`]); os
 //! achados descartados pelo analista ficam de fora.
 
-use cba_core::analise::{Analise, Confianca, EstadoAfirmacao, EstadoPergunta, Evidencia, Fluxo};
+use cba_core::analise::{
+    Analise, Confianca, EstadoAfirmacao, EstadoPergunta, Evidencia, EvidenciaOrigem, Fluxo,
+};
 use cba_core::consultas::EvidenciaDados;
 use cba_docs::{Citacao, Conteudo, Templates, Texto};
 use cba_kb::frontmatter::{Abrangencia, FrontmatterAnalise, StatusSugestao};
@@ -262,6 +268,8 @@ pub fn conteudo(
     }
     let mut notas_de_dados: Vec<String> = Vec::new();
     let mut citadas: Vec<u32> = Vec::new();
+    let mut notas_de_origem: Vec<String> = Vec::new();
+    let mut commits_citados: Vec<String> = Vec::new();
     conteudo.afirmacoes = analise
         .afirmacoes
         .iter()
@@ -273,6 +281,13 @@ pub fn conteudo(
                 if !citadas.contains(&d.consulta) {
                     citadas.push(d.consulta);
                     notas_de_dados.push(nota_de_dados(d));
+                }
+            }
+            for o in &a.origens {
+                texto.push_str(&em_origem(o));
+                if !commits_citados.contains(&o.commit) {
+                    commits_citados.push(o.commit.clone());
+                    notas_de_origem.push(nota_de_origem(o));
                 }
             }
             cba_docs::Afirmacao {
@@ -291,6 +306,17 @@ pub fn conteudo(
                  uma vale para a data e hora em que foi tirada: a revalidação confere o \
                  código, não reexecuta consultas.\n\n{}",
                 notas_de_dados.join("\n\n")
+            ),
+        ));
+    }
+    if !notas_de_origem.is_empty() {
+        conteudo.textos.push(Texto::novo(
+            "evidencias",
+            format!(
+                "**Origem das regras.** Commits que criaram ou mudaram o trecho, achados no \
+                 histórico do código. Complementam as evidências de código: dizem qual \
+                 demanda pediu o comportamento.\n\n{}",
+                notas_de_origem.join("\n\n")
             ),
         ));
     }
@@ -333,6 +359,35 @@ fn em_dados(d: &EvidenciaDados) -> String {
         &quando(d.executada_ms)[..10],
         d.resumo.trim(),
         d.consulta
+    )
+}
+
+/// Hash curto de um commit citado como origem.
+fn commit_curto(o: &EvidenciaOrigem) -> &str {
+    o.commit.get(..10).unwrap_or(&o.commit)
+}
+
+/// A origem no texto da afirmação, com a nota de rodapé: o commit curto e as
+/// chaves de issue da mensagem. A exportação sem evidências tira a nota.
+fn em_origem(o: &EvidenciaOrigem) -> String {
+    let curto = commit_curto(o);
+    let chaves = if o.chaves.is_empty() {
+        String::new()
+    } else {
+        format!(", {}", o.chaves.join(", "))
+    };
+    format!(" (origem: commit {curto}{chaves})[^origem-{curto}]")
+}
+
+/// A nota de rodapé da origem: hash, data e mensagem. O autor do commit não entra
+/// no documento.
+fn nota_de_origem(o: &EvidenciaOrigem) -> String {
+    format!(
+        "[^origem-{curto}]: Origem, commit {hash} de {data}: {assunto}",
+        curto = commit_curto(o),
+        hash = codigo_em_linha(&o.commit),
+        data = o.data,
+        assunto = codigo_em_linha(o.assunto.trim()),
     )
 }
 

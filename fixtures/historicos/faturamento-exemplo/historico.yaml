@@ -1,0 +1,43 @@
+# Histórico git sintético do Faturamento Exemplo (#450).
+#
+# A avaliação reproduz estes commits na cópia da fixture quando o item do
+# gabarito pede (`origem.historico: faturamento-exemplo`), no lugar do commit
+# único. O primeiro commit é a fixture inteira com os arquivos de `versoes` na
+# versão indicada; cada commit seguinte troca os arquivos que lista (`atual` é o
+# arquivo como está na fixture). O histórico termina exatamente na fixture, e
+# as linhas citadas pelo gabarito continuam valendo.
+#
+# A história contada: o cancelamento nasceu só com a checagem da situação; o
+# motivo mínimo veio depois, sem demanda na mensagem; a demanda DEM-12 criou de
+# propósito a recusa de fatura com pagamento parcial (RN-FAT-012, linhas
+# 115-117 de db/03_pkg_cobranca.sql); e um ajuste posterior só padronizou a
+# mensagem de erro. A análise da D-FAT-005, que trata essa recusa como defeito,
+# deve chegar à DEM-12 pelo histórico do trecho.
+commits:
+  - data: 2023-02-06
+    mensagem: Carga inicial do faturamento
+    versoes:
+      db/03_pkg_cobranca.sql: versoes/03_pkg_cobranca.v1.sql
+
+  - data: 2023-08-21
+    mensagem: |-
+      Exige motivo de ao menos 10 caracteres no cancelamento
+
+      A retaguarda aceitava motivo em branco.
+    versoes:
+      db/03_pkg_cobranca.sql: versoes/03_pkg_cobranca.v2.sql
+
+  - data: 2024-03-12
+    mensagem: |-
+      [DEM-12] Impedir o cancelamento de fatura com pagamento parcial
+
+      Pedido do financeiro: fatura que já recebeu algum pagamento não pode ser
+      cancelada, porque o valor pago ficaria sem destino. O valor precisa ser
+      estornado ou compensado antes.
+    versoes:
+      db/03_pkg_cobranca.sql: versoes/03_pkg_cobranca.v3.sql
+
+  - data: 2025-05-19
+    mensagem: Padroniza as mensagens de erro do cancelamento
+    versoes:
+      db/03_pkg_cobranca.sql: atual

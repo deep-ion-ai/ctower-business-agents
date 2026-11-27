@@ -59,6 +59,12 @@ pub struct Projeto {
     /// local guarda sempre o texto original.
     #[serde(default = "ligado", skip_serializing_if = "e_ligado")]
     pub mascarar_demanda: bool,
+    /// Padrões (expressões regulares) das chaves de issue nas mensagens de commit
+    /// (#450), para o histórico do trecho ligar o commit à demanda que o pediu.
+    /// Vazio: [`PADROES_DE_CHAVE`]. Com grupo de captura, a chave é o primeiro
+    /// grupo; sem ele, o texto casado inteiro.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub padroes_de_chave: Vec<String>,
 }
 
 fn ligado() -> bool {
@@ -68,6 +74,15 @@ fn ligado() -> bool {
 fn e_ligado(valor: &bool) -> bool {
     *valor
 }
+
+/// Padrões de chave de issue usados quando o projeto não define os seus: a chave
+/// do Jira (`DEM-12`) e o número do GitHub ou do GitLab (`#12`, sem pegar a
+/// entidade HTML `&#39;`).
+pub const PADROES_DE_CHAVE: [&str; 2] = [r"\b([A-Z][A-Z0-9]+-\d+)\b", r"(?:^|[^\w&])(#\d+)\b"];
+
+/// Padrões de chave no máximo, cada um com até [`TAMANHO_DO_PADRAO`] caracteres.
+const MAXIMO_DE_PADROES: usize = 10;
+const TAMANHO_DO_PADRAO: usize = 200;
 
 impl Projeto {
     /// Monta um projeto novo a partir do nome e das pastas.
@@ -100,6 +115,7 @@ impl Projeto {
             ambiente_teste: None,
             bancos: Vec::new(),
             mascarar_demanda: true,
+            padroes_de_chave: Vec::new(),
         };
         projeto.validar()?;
         Ok(projeto)
@@ -177,7 +193,73 @@ impl Projeto {
         if let Some(a) = &self.ambiente_teste {
             a.validar().map_err(Erro::AmbienteTeste)?;
         }
+        self.padroes_de_chave_compilados()?;
         Ok(())
+    }
+
+    /// Os padrões de chave de issue do projeto, compilados: os do cadastro ou, sem
+    /// eles, [`PADROES_DE_CHAVE`].
+    pub fn padroes_de_chave_compilados(&self) -> Result<Vec<regex::Regex>, Erro> {
+        if self.padroes_de_chave.len() > MAXIMO_DE_PADROES {
+            return Err(Erro::PadraoDeChave {
+                padrao: format!("{} padrões", self.padroes_de_chave.len()),
+                detalhe: format!("no máximo {MAXIMO_DE_PADROES}"),
+            });
+        }
+        let lista: Vec<&str> = if self.padroes_de_chave.is_empty() {
+            PADROES_DE_CHAVE.to_vec()
+        } else {
+            self.padroes_de_chave.iter().map(String::as_str).collect()
+        };
+        lista
+            .into_iter()
+            .map(|p| {
+                let erro = |detalhe: String| Erro::PadraoDeChave {
+                    padrao: p.to_owned(),
+                    detalhe,
+                };
+                if p.trim().is_empty() || p.chars().count() > TAMANHO_DO_PADRAO {
+                    return Err(erro(format!(
+                        "o padrão precisa ter de 1 a {TAMANHO_DO_PADRAO} caracteres"
+                    )));
+                }
+                regex::RegexBuilder::new(p)
+                    .size_limit(1 << 20)
+                    .build()
+                    .map_err(|e| erro(e.to_string()))
+            })
+            .collect()
+    }
+
+    /// As chaves de issue citadas num texto (a mensagem de um commit), pelos
+    /// padrões compilados, sem repetir e na ordem em que aparecem. Siglas técnicas
+    /// que têm a forma de chave do Jira (`UTF-8`, `SHA-256`, `ISO-8859`) não
+    /// contam.
+    pub fn chaves_de_issue(padroes: &[regex::Regex], texto: &str) -> Vec<String> {
+        const NAO_SAO_CHAVES: [&str; 14] = [
+            "UTF", "UCS", "ISO", "SHA", "MD", "AES", "RSA", "TLS", "SSL", "HTTP", "IPV", "ES",
+            "CP", "WIN",
+        ];
+        let tecnica = |chave: &str| {
+            chave
+                .split_once('-')
+                .is_some_and(|(sigla, _)| NAO_SAO_CHAVES.contains(&sigla))
+        };
+        let mut achadas: Vec<(usize, String)> = Vec::new();
+        for p in padroes {
+            for c in p.captures_iter(texto) {
+                let Some(m) = c.get(1).or_else(|| c.get(0)) else {
+                    continue;
+                };
+                let chave = m.as_str().trim();
+                if !chave.is_empty() && !tecnica(chave) && !achadas.iter().any(|(_, a)| a == chave)
+                {
+                    achadas.push((m.start(), chave.to_owned()));
+                }
+            }
+        }
+        achadas.sort_by_key(|(i, _)| *i);
+        achadas.into_iter().map(|(_, c)| c).collect()
     }
 
     /// O projeto com outra lista de pastas (#192): adiciona e remove pastas sem
@@ -854,5 +936,49 @@ mod tests {
                 .resolver("faturamento-docs/a.md")
                 .is_ok()
         );
+    }
+}
+
+#[cfg(test)]
+mod testes_das_chaves {
+    use super::*;
+
+    fn chaves(padroes: &[&str], texto: &str) -> Vec<String> {
+        let mut p = Projeto::novo("Chaves", [std::env::temp_dir()]).unwrap();
+        p.padroes_de_chave = padroes.iter().map(|s| s.to_string()).collect();
+        Projeto::chaves_de_issue(&p.padroes_de_chave_compilados().unwrap(), texto)
+    }
+
+    #[test]
+    fn padrao_acha_jira_e_cerquilha_sem_inventar() {
+        assert_eq!(
+            chaves(
+                &[],
+                "[DEM-12] Manter a fatura em aberto (ver #34 e DEM-12)\n\nRef. FAT-7"
+            ),
+            ["DEM-12", "#34", "FAT-7"]
+        );
+        assert!(chaves(&[], "Ajusta a mensagem do cancelamento").is_empty());
+        // Entidade HTML, chave em minúsculas e siglas técnicas não contam.
+        assert!(chaves(&[], "troca &#39; por aspas; dem-12 em minusculas").is_empty());
+        assert!(chaves(&[], "Leitura em UTF-8 e hash SHA-256 (ISO-8859-1)").is_empty());
+    }
+
+    #[test]
+    fn padroes_do_projeto_substituem_o_padrao() {
+        assert_eq!(
+            chaves(&[r"chamado (\d+)"], "Corrige o chamado 4521 e DEM-12"),
+            ["4521"]
+        );
+        assert_eq!(chaves(&[r"OS\d{4}"], "OS1234: ajuste"), ["OS1234"]);
+    }
+
+    #[test]
+    fn padrao_invalido_e_recusado_no_cadastro() {
+        let mut p = Projeto::novo("Chaves", [std::env::temp_dir()]).unwrap();
+        p.padroes_de_chave = vec!["([A-Z".into()];
+        assert!(matches!(p.validar(), Err(Erro::PadraoDeChave { .. })));
+        p.padroes_de_chave = vec![" ".into()];
+        assert!(matches!(p.validar(), Err(Erro::PadraoDeChave { .. })));
     }
 }

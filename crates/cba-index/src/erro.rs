@@ -45,6 +45,9 @@ pub enum Erro {
     #[error("repositórios do projeto: {0}")]
     Repositorios(String),
 
+    #[error("padrão de chave de issue inválido {padrao:?}: {detalhe}")]
+    PadraoDeChave { padrao: String, detalhe: String },
+
     #[error("ambiente de teste: {0}")]
     AmbienteTeste(String),
 

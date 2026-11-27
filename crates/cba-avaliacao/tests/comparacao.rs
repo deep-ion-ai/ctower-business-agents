@@ -12,7 +12,8 @@ use cba_avaliacao::gabarito::{Gabarito, Veredito};
 use cba_avaliacao::gabarito_padrao;
 use cba_avaliacao::relatorio::{Execucao, Relatorio};
 use cba_core::analise::{
-    Afirmacao, Analise, Confianca, EstadoAfirmacao, EstadoPergunta, Evidencia, Pergunta,
+    Afirmacao, Analise, Confianca, EstadoAfirmacao, EstadoPergunta, Evidencia, EvidenciaOrigem,
+    Pergunta,
 };
 use cba_tools::evidencias::{EvidenciaCitada, validar};
 
@@ -64,6 +65,7 @@ fn afirmar(a: &mut Analise, secao: &str, texto: &str, confianca: Confianca, evs:
         confianca,
         evidencias: evs,
         dados: Vec::new(),
+        origens: Vec::new(),
         estado: EstadoAfirmacao::Registrada,
         antes_de_revalidar: None,
         contestacao: None,
@@ -666,4 +668,80 @@ fn estados_de_execucoes_reais_continuam_sem_falhas() {
         );
         assert!(av.regras_encontradas > 0, "{item}");
     }
+}
+
+/// D-FAT-005 (#450): a análise cita a DEM-12, que criou a RN-FAT-012 de propósito,
+/// em "Como é hoje" e pergunta se a regra continua valendo.
+#[test]
+fn origem_da_regra_citada_em_como_e_hoje_e_a_pergunta_se_continua_valendo() {
+    let sem = analise_vazia("impacto", "Corrigir o cancelamento ...");
+    let av = avaliar_item(&sem, "D-FAT-005");
+    let o = av.origem.as_ref().unwrap();
+    assert_eq!(
+        (o.chave.as_str(), o.regra.as_str()),
+        ("DEM-12", "RN-FAT-012")
+    );
+    assert_eq!(o.citada_em, None);
+    assert!(!o.com_commit);
+
+    let mut a = analise_vazia("impacto", "Corrigir o cancelamento ...");
+    afirmar(
+        &mut a,
+        "como_e_hoje",
+        "Fatura com pagamento parcial não pode ser cancelada. A regra foi criada de \
+         propósito pela demanda DEM-12, em 2024-03-12.",
+        Confianca::Confirmado,
+        vec![ev(
+            "db/03_pkg_cobranca.sql",
+            115,
+            117,
+            "IF V_VL_PAGO > 0 THEN",
+        )],
+    );
+    perguntar(
+        &mut a,
+        "A regra da DEM-12, que impede cancelar fatura com pagamento parcial, continua valendo?",
+    );
+    perguntar(
+        &mut a,
+        "Cancelada a fatura, o valor já pago será estornado ou fica como crédito?",
+    );
+    let av = avaliar_item(&a, "D-FAT-005");
+    assert!(av.falhas().is_empty(), "{:?}", av.falhas());
+    assert!(regra(&av, "RN-FAT-012"));
+    let o = av.origem.as_ref().unwrap();
+    assert_eq!(o.citada_em, Some(1));
+    assert!(!o.com_commit);
+    assert!(
+        av.perguntas_esperadas
+            .iter()
+            .all(|p| p.atendida_por.is_some()),
+        "{:?}",
+        av.perguntas_esperadas
+    );
+
+    // Com o commit em `origens`, sem a chave no texto.
+    let mut b = analise_vazia("impacto", "Corrigir o cancelamento ...");
+    afirmar(
+        &mut b,
+        "como_e_hoje",
+        "Fatura com pagamento parcial não pode ser cancelada, por pedido do financeiro.",
+        Confianca::Confirmado,
+        vec![ev(
+            "db/03_pkg_cobranca.sql",
+            115,
+            117,
+            "IF V_VL_PAGO > 0 THEN",
+        )],
+    );
+    b.afirmacoes[0].origens.push(EvidenciaOrigem {
+        commit: "0123456789abcdef0123456789abcdef01234567".into(),
+        data: "2024-03-12".into(),
+        assunto: "[DEM-12] Impedir o cancelamento de fatura com pagamento parcial".into(),
+        chaves: vec!["DEM-12".into()],
+        autor: None,
+    });
+    let o = avaliar_item(&b, "D-FAT-005").origem.unwrap();
+    assert_eq!(o.citada_em, Some(1));
+    assert!(o.com_commit);
 }
