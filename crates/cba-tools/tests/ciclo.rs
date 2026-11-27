@@ -709,8 +709,10 @@ fn template_da_base_sem_o_marcador_recebe_as_decisoes_depois_da_demanda_entendid
     // não tem `{{decisoes}}`.
     c.chamar("iniciar_analise", json!({ "analise": id }));
     let template = c.amb.base.raiz().join("_templates/analise-impacto.md");
+    // No Windows, o template embutido vem do checkout com CRLF.
     let antigo = std::fs::read_to_string(&template)
         .unwrap()
+        .replace("\r\n", "\n")
         .replace("## Decisões para o negócio\n\n{{decisoes}}\n\n", "");
     assert!(!antigo.contains("## Decisões para o negócio"));
     std::fs::write(&template, antigo).unwrap();
