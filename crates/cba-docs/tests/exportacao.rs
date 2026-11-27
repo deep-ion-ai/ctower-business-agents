@@ -490,12 +490,12 @@ fn docx_da_analise_tem_secoes_confianca_e_evidencias() {
     // Link para a sugestão vira texto.
     assert!(corpo.contains("S-0001 · Limitar a tela ao parâmetro MAX_PARCELAS (frontend/src/telas/parcelamento-form.ts)"));
 
-    // Parágrafos: título do documento e identificação (2), 15 seções, 1 + 1 de
+    // Parágrafos: título do documento e identificação (2), 16 seções, 1 + 1 de
     // demanda, 1 decisão (a pergunta, 2 opções e a recomendação), 2 + 1 + 1 + 1
-    // + 1 + 1 itens, 1 vazio (integrações), 2 de abrangência, 2 perguntas, 1
-    // sugestão, 6 evidências e 6 trechos com o seu título:
-    // 2 + 15 + 2 + 4 + 7 + 1 + 2 + 2 + 1 + 6 + 12 = 54.
-    assert_eq!(paragrafos(doc), 54);
+    // + 1 + 1 itens, 2 vazios (integrações e verificações em dados), 2 de
+    // abrangência, 2 perguntas, 1 sugestão, 6 evidências e 6 trechos com o seu
+    // título: 2 + 16 + 2 + 4 + 7 + 2 + 2 + 2 + 1 + 6 + 12 = 56.
+    assert_eq!(paragrafos(doc), 56);
 }
 
 #[test]
