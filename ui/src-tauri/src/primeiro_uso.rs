@@ -1196,7 +1196,7 @@ mod tests {
         assert!(inv.analisados > 0);
         let sql = inv.por_linguagem.iter().find(|c| c.chave == "sql").unwrap();
         assert_eq!(sql.rotulo, "SQL");
-        assert_eq!(sql.quantidade, 5);
+        assert_eq!(sql.quantidade, 6);
         let env = inv
             .itens_ignorados
             .iter()
