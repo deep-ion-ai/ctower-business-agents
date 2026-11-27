@@ -171,6 +171,7 @@ fn coluna(e: &Expr) -> Option<&str> {
         Expr::Identifier(i) => Some(&i.value),
         Expr::CompoundIdentifier(v) => v.last().map(|i| i.value.as_str()),
         Expr::Nested(e) => coluna(e),
+        Expr::Cast { expr, .. } => coluna(expr),
         _ => None,
     }
 }
@@ -186,7 +187,10 @@ fn literal(e: &Expr) -> Option<String> {
     match e {
         Expr::Value(v) => match &v.value {
             Value::Number(n, _) => Some(n.clone()),
-            Value::SingleQuotedString(s) | Value::DoubleQuotedString(s) => Some(format!("'{s}'")),
+            Value::SingleQuotedString(s)
+            | Value::DoubleQuotedString(s)
+            | Value::NationalStringLiteral(s)
+            | Value::EscapedStringLiteral(s) => Some(format!("'{s}'")),
             _ => None,
         },
         Expr::Nested(e) => literal(e),
@@ -304,7 +308,11 @@ impl Visitor for Leitor {
             Expr::Value(v) => match &v.value {
                 Value::Placeholder(p) => {
                     let nome = p.strip_prefix(':').unwrap_or_default();
-                    if nome.is_empty() || !nome.chars().all(|c| c.is_alphanumeric() || c == '_') {
+                    let comeca_por_letra = nome
+                        .chars()
+                        .next()
+                        .is_some_and(|c| c.is_alphabetic() || c == '_');
+                    if !comeca_por_letra || !nome.chars().all(|c| c.is_alphanumeric() || c == '_') {
                         return recusa(format!(
                             "o parâmetro `{p}` não é nomeado: use dois-pontos e um nome \
                              (`:id_fatura`), que o leitor troca pelo valor do caso"
@@ -312,7 +320,11 @@ impl Visitor for Leitor {
                     }
                     sem_repetir(&mut self.parametros, nome.to_owned());
                 }
-                Value::SingleQuotedString(s) | Value::DoubleQuotedString(s) => {
+                Value::Number(s, _)
+                | Value::SingleQuotedString(s)
+                | Value::DoubleQuotedString(s)
+                | Value::NationalStringLiteral(s)
+                | Value::EscapedStringLiteral(s) => {
                     if let Some(tipo) = parece_dado_pessoal(s) {
                         return recusa(format!(
                             "o valor '{s}' parece um {tipo}: a consulta não leva dado real; \
@@ -324,7 +336,13 @@ impl Visitor for Leitor {
             },
             Expr::BinaryOp {
                 left,
-                op: BinaryOperator::Eq | BinaryOperator::NotEq,
+                op:
+                    BinaryOperator::Eq
+                    | BinaryOperator::NotEq
+                    | BinaryOperator::Lt
+                    | BinaryOperator::LtEq
+                    | BinaryOperator::Gt
+                    | BinaryOperator::GtEq,
                 right,
             } => {
                 for (a, b) in [(left, right), (right, left)] {
@@ -343,6 +361,24 @@ impl Visitor for Leitor {
                 if let Some(c) = coluna(expr)
                     && e_identificador(c)
                     && let Some(v) = lista.iter().find_map(literal)
+                {
+                    return com_valor_fixo(c, &v);
+                }
+            }
+            Expr::Between {
+                expr, low, high, ..
+            } => {
+                if let Some(c) = coluna(expr)
+                    && e_identificador(c)
+                    && let Some(v) = literal(low).or_else(|| literal(high))
+                {
+                    return com_valor_fixo(c, &v);
+                }
+            }
+            Expr::Like { expr, pattern, .. } | Expr::ILike { expr, pattern, .. } => {
+                if let Some(c) = coluna(expr)
+                    && e_identificador(c)
+                    && let Some(v) = literal(pattern)
                 {
                     return com_valor_fixo(c, &v);
                 }
@@ -485,6 +521,27 @@ mod tests {
             "parece um e-mail",
         );
         recusada("SELECT * FROM FATURA WHERE ID_FATURA = ?", "não é nomeado");
+        recusada("SELECT * FROM FATURA WHERE ID_FATURA = :1", "não é nomeado");
+        recusada(
+            "SELECT * FROM CLIENTE WHERE CPF = 52998224725",
+            "parece um CPF",
+        );
+        recusada(
+            "SELECT * FROM FATURA WHERE ID_FATURA BETWEEN 4711 AND 4711",
+            "valor fixo (4711)",
+        );
+        recusada(
+            "SELECT * FROM FATURA WHERE ID_FATURA >= 4711 AND ID_FATURA <= 4711",
+            "valor fixo (4711)",
+        );
+        recusada(
+            "SELECT * FROM FATURA WHERE CAST(ID_FATURA AS VARCHAR(10)) = '4711'",
+            "valor fixo ('4711')",
+        );
+        recusada(
+            "SELECT * FROM FATURA WHERE ID_FATURA LIKE '4711%'",
+            "valor fixo",
+        );
     }
 
     #[test]
