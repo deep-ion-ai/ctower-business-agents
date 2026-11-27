@@ -419,10 +419,6 @@ regras:
         linha_inicial: 18
         linha_final: 18
         trecho: "MOTIVO_DESLIGAMENTO = \"Cliente desligado do cadastro\""
-      - arquivo: db/06_situacao_cliente.sql
-        linha_inicial: 6
-        linha_final: 9
-        trecho: "SITUACAO IN ('ATIVO', 'DESLIGADO')"
 
 # Divergências deliberadas entre camadas, que um analista deve apontar.
 inconsistencias:
