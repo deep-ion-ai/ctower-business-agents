@@ -70,7 +70,7 @@ public class FaturaRepository {
             ps.setLong(3, idFatura);
             ps.executeUpdate();
         } catch (SQLException e) {
-            throw new IllegalStateException("Falha ao cancelar a fatura " + idFatura, e);
+            throw new IllegalStateException("Falha ao gravar o cancelamento da fatura " + idFatura, e);
         }
     }
 
