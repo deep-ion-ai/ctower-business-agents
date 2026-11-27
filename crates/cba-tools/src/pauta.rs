@@ -21,6 +21,10 @@
 //!   de [`DIAS_PARA_ANTIGA`], a pergunta é antiga e fica em destaque.
 //! - **O que bloqueia:** os critérios de aceite das histórias que dependem da
 //!   pergunta (`HU-0001 · CA-2`).
+//! - **Decisões para o negócio** (#452): a pergunta da análise registrada como
+//!   decisão leva as opções, com o efeito de cada uma, e a recomendação
+//!   ([`DecisaoDaPauta`]). Em cada grupo, as decisões vêm primeiro; uma decisão
+//!   nunca se junta a uma dúvida. A resposta é a opção escolhida pelo analista.
 //!
 //! ## Resposta
 //!
@@ -41,7 +45,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use cba_core::ambiente::Ambiente;
-use cba_core::analise::{Analise, EstadoPergunta, Fluxo, Pergunta};
+use cba_core::analise::{Analise, EstadoPergunta, Fluxo, OpcaoDecisao, Pergunta};
 use cba_core::analises;
 use cba_core::eventos::Mudanca;
 use cba_core::requisito::RefItem;
@@ -170,6 +174,17 @@ pub struct PerguntaDaPauta {
     pub bloqueia: Vec<String>,
     /// Documento de origem, relativo à raiz da base.
     pub documento: String,
+    /// As opções, quando a pergunta é uma decisão para o negócio (#452).
+    pub decisao: Option<DecisaoDaPauta>,
+}
+
+/// Decisão para o negócio na pauta (#452): as opções, com o efeito de cada uma,
+/// e a recomendação do agente, se houver.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DecisaoDaPauta {
+    pub opcoes: Vec<OpcaoDecisao>,
+    pub recomendacao: Option<String>,
 }
 
 /// Item da pauta: uma pergunta ou várias iguais, para o mesmo destinatário.
@@ -185,6 +200,9 @@ pub struct ItemDaPauta {
     pub idade_dias: i64,
     /// Pendente há [`DIAS_PARA_ANTIGA`] dias ou mais.
     pub antiga: bool,
+    /// As opções da decisão, quando o item é uma decisão para o negócio (as da
+    /// pergunta mais antiga).
+    pub decisao: Option<DecisaoDaPauta>,
 }
 
 /// Grupo da pauta: as perguntas de um destinatário.
@@ -330,6 +348,10 @@ fn pergunta_da_analise(
         bloqueia: bloqueios.get(&referencia).cloned().unwrap_or_default(),
         documento: amb.kb.na_base(&analise.documento).as_str().to_owned(),
         referencia,
+        decisao: p.e_decisao().then(|| DecisaoDaPauta {
+            opcoes: p.opcoes.clone(),
+            recomendacao: p.recomendacao.clone(),
+        }),
     }
 }
 
@@ -367,6 +389,7 @@ fn pergunta_da_ata(
         idade_dias: idade(estado.data, hoje),
         bloqueia: Vec::new(),
         documento: amb.kb.na_base(ata).as_str().to_owned(),
+        decisao: None,
     }
 }
 
@@ -432,17 +455,22 @@ fn pendentes(
 
 /// Junta as perguntas iguais para o mesmo destinatário em itens da pauta.
 fn agrupar_itens(mut perguntas: Vec<PerguntaDaPauta>) -> Vec<ItemDaPauta> {
-    // Da mais antiga para a mais nova: o texto da pauta é o da mais antiga.
+    // As decisões primeiro (#452); em cada parte, da mais antiga para a mais
+    // nova: o texto da pauta é o da mais antiga.
     perguntas.sort_by(|a, b| {
-        b.idade_dias
-            .cmp(&a.idade_dias)
+        b.decisao
+            .is_some()
+            .cmp(&a.decisao.is_some())
+            .then_with(|| b.idade_dias.cmp(&a.idade_dias))
             .then_with(|| a.referencia.cmp(&b.referencia))
     });
     let mut itens: Vec<ItemDaPauta> = Vec::new();
     for p in perguntas {
-        let igual = itens
-            .iter_mut()
-            .find(|i| i.destinatario == p.destinatario && mesma_pergunta(&i.texto, &p.texto));
+        let igual = itens.iter_mut().find(|i| {
+            i.destinatario == p.destinatario
+                && i.decisao.is_some() == p.decisao.is_some()
+                && mesma_pergunta(&i.texto, &p.texto)
+        });
         match igual {
             Some(i) => i.perguntas.push(p),
             None => itens.push(ItemDaPauta {
@@ -450,6 +478,7 @@ fn agrupar_itens(mut perguntas: Vec<PerguntaDaPauta>) -> Vec<ItemDaPauta> {
                 destinatario: p.destinatario.clone(),
                 idade_dias: p.idade_dias,
                 antiga: p.idade_dias >= DIAS_PARA_ANTIGA,
+                decisao: p.decisao.clone(),
                 perguntas: vec![p],
             }),
         }
@@ -1032,7 +1061,28 @@ pub fn markdown(pauta: &Pauta) -> String {
         md.push_str(&format!("\n## {}\n", linha(&g.rotulo)));
         for item in &g.itens {
             numero += 1;
-            md.push_str(&format!("\n### {numero}. {}\n\n", linha(&item.texto)));
+            let rotulo = if item.decisao.is_some() {
+                "Decisão: "
+            } else {
+                ""
+            };
+            md.push_str(&format!(
+                "\n### {numero}. {rotulo}{}\n\n",
+                linha(&item.texto)
+            ));
+            if let Some(d) = &item.decisao {
+                for (i, o) in d.opcoes.iter().enumerate() {
+                    md.push_str(&format!(
+                        "- **Opção {}:** {} — efeito: {}\n",
+                        i + 1,
+                        linha(&o.texto),
+                        linha(&o.efeito)
+                    ));
+                }
+                if let Some(r) = &d.recomendacao {
+                    md.push_str(&format!("- **Recomendação:** {}\n", linha(r)));
+                }
+            }
             let contextos: BTreeSet<String> = item
                 .perguntas
                 .iter()
@@ -1079,6 +1129,19 @@ pub fn email(pauta: &Pauta, grupo: &GrupoDaPauta) -> String {
         texto.push_str(&format!("\n{}. {}", i + 1, linha(&item.texto)));
         if let Some(c) = item.perguntas.iter().find_map(|p| p.contexto.as_deref()) {
             texto.push_str(&format!("\n   Hoje o sistema: {}", linha(c)));
+        }
+        if let Some(d) = &item.decisao {
+            for (j, o) in d.opcoes.iter().enumerate() {
+                texto.push_str(&format!(
+                    "\n   Opção {}: {} — efeito: {}",
+                    j + 1,
+                    linha(&o.texto),
+                    linha(&o.efeito)
+                ));
+            }
+            if let Some(r) = &d.recomendacao {
+                texto.push_str(&format!("\n   Recomendação: {}", linha(r)));
+            }
         }
     }
     texto.push_str("\n\nObrigado.\n");

@@ -236,6 +236,78 @@ fn perguntas_de_duas_analises_juntas_por_destinatario() {
 }
 
 #[test]
+fn decisoes_vem_primeiro_com_as_opcoes_e_nao_se_juntam_a_duvidas() {
+    use cba_core::analise::{NovaDecisao, OpcaoDecisao};
+    let c = cenario();
+    let opcao = |texto: &str, efeito: &str| OpcaoDecisao {
+        texto: texto.into(),
+        efeito: efeito.into(),
+    };
+    // Uma decisão com o mesmo texto de uma dúvida, registrada depois (mais nova).
+    c.amb
+        .analises
+        .alterar(&c.a2, Mudanca::Pergunta, |a, agora| {
+            a.registrar_decisao(
+                "O limite de parcelas vale para PJ?",
+                NovaDecisao {
+                    opcoes: vec![
+                        opcao("Só para PJ", "mantém a regra atual para órgão público"),
+                        opcao("Para PJ e órgão público", "muda o parâmetro para os dois"),
+                    ],
+                    recomendacao: Some("Só para PJ.".into()),
+                },
+                None,
+                None,
+                agora,
+            )
+        })
+        .unwrap();
+    let p = pauta(&c.amb, Some(c.demanda), data(20)).unwrap();
+    assert_eq!(p.total, 5);
+    let sem = p.grupos.iter().find(|g| g.destinatario.is_none()).unwrap();
+    // A decisão abre o grupo, sozinha, com as opções; as dúvidas iguais seguem
+    // juntas.
+    let primeiro = &sem.itens[0];
+    let d = primeiro.decisao.as_ref().expect("decisão primeiro");
+    assert_eq!(primeiro.perguntas.len(), 1);
+    assert_eq!(primeiro.perguntas[0].referencia, format!("{}/2", c.a2));
+    assert_eq!(d.opcoes.len(), 2);
+    assert_eq!(d.recomendacao.as_deref(), Some("Só para PJ."));
+    assert!(sem.itens[1..].iter().all(|i| i.decisao.is_none()));
+    assert!(
+        sem.itens
+            .iter()
+            .any(|i| i.decisao.is_none() && i.perguntas.len() == 2),
+        "as dúvidas iguais continuam juntas"
+    );
+
+    let md = markdown(&p);
+    assert!(
+        md.contains(". Decisão: O limite de parcelas vale para PJ?\n\n- **Opção 1:** Só para PJ — efeito: mantém a regra atual para órgão público\n"),
+        "{md}"
+    );
+    assert!(md.contains("- **Recomendação:** Só para PJ.\n"), "{md}");
+    let texto = email(&p, sem);
+    assert!(
+        texto.contains("\n   Opção 2: Para PJ e órgão público — efeito: muda"),
+        "{texto}"
+    );
+
+    // A resposta é a opção escolhida, e fecha a decisão como uma pergunta.
+    let decisao = format!("{}/2", c.a2);
+    let mut r = resposta(&[decisao.as_str()], DestinoDaResposta::SoRegistrar);
+    r.texto = "Só para PJ".into();
+    registrar_resposta(&c.amb, &r, data(20)).unwrap();
+    let a = c.amb.analises.carregar(&c.a2).unwrap();
+    assert_eq!(
+        a.perguntas[1].estado,
+        EstadoPergunta::Respondida {
+            resposta: "Só para PJ".into()
+        }
+    );
+}
+
+#[test]
 fn resposta_fecha_a_pergunta_nas_duas_analises_e_vira_regra_informada() {
     let c = cenario();
     let a1 = format!("{}/1", c.a1);

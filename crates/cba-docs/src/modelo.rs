@@ -45,6 +45,13 @@ impl Modelo {
 
 /// Marcadores com papel especial em qualquer tipo.
 pub(crate) const PERGUNTAS: &str = "perguntas";
+/// Seção da análise de impacto com as decisões para o negócio (#452), logo
+/// depois de "Demanda como entendida". Nos tipos sem ela, as decisões saem na
+/// seção de perguntas.
+pub const DECISOES: &str = "decisoes";
+/// Seção depois da qual [`DECISOES`] entra quando o template da base, copiado
+/// antes da #452, não tem o marcador dela.
+pub(crate) const ANTES_DAS_DECISOES: &str = "demanda_como_entendida";
 pub(crate) const SUGESTOES: &str = "sugestoes";
 pub(crate) const EVIDENCIAS: &str = "evidencias";
 /// Seções da ata com texto próprio quando vazias.
@@ -122,7 +129,8 @@ pub const MODELOS: [Modelo; 15] = [
         tipo: TipoDocumento::AnaliseImpacto,
         secoes: &[
             s("demanda_como_veio", "Demanda como veio"),
-            s("demanda_como_entendida", "Demanda como entendida"),
+            s(ANTES_DAS_DECISOES, "Demanda como entendida"),
+            s(DECISOES, "Decisões para o negócio"),
             s("como_e_hoje", "Como é hoje"),
             s("funcionalidades", "Funcionalidades"),
             s("dados", "Dados"),

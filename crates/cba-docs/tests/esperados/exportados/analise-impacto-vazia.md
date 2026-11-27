@@ -10,6 +10,10 @@ _Nada registrado._
 
 _Nada registrado._
 
+## Decisões para o negócio
+
+_Nenhuma decisão em aberto._
+
 ## Como é hoje
 
 _Nada registrado._

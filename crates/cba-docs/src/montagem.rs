@@ -16,6 +16,11 @@
 //!   `arquivo:linhas`. A numeração segue a ordem em que as notas aparecem no
 //!   documento; o mesmo trecho citado duas vezes usa a mesma nota.
 //! - A seção `evidencias` lista as definições das notas.
+//! - Na análise de impacto, as decisões para o negócio (#452) saem na seção
+//!   `decisoes`, com as opções, o efeito de cada uma e a recomendação, e as
+//!   dúvidas em `perguntas`. Nos outros tipos, tudo sai em `perguntas`. Um
+//!   template da base copiado antes da #452, sem `{{decisoes}}`, recebe a seção
+//!   logo depois de `{{demanda_como_entendida}}`, com aviso.
 //! - Registros de uma seção sem marcador no template, ou de uma seção que o tipo
 //!   não tem, vão para o fim do documento, com aviso: nada registrado se perde.
 
@@ -23,10 +28,15 @@ use std::collections::BTreeMap;
 
 use cba_kb::{Documento, Projeto, TipoDocumento};
 
-use crate::conteudo::{Citacao, Conteudo};
+use crate::conteudo::{Citacao, Conteudo, Pergunta};
 use crate::link;
-use crate::modelo::{EVIDENCIAS, Montavel, PERGUNTAS, SUGESTOES, texto_vazio};
+use crate::modelo::{
+    ANTES_DAS_DECISOES, DECISOES, EVIDENCIAS, Montavel, PERGUNTAS, SUGESTOES, texto_vazio,
+};
 use crate::template::{Aviso, Parte, Template, Templates};
+
+/// Texto da seção de decisões sem nenhuma decisão em aberto.
+const SEM_DECISOES: &str = "_Nenhuma decisão em aberto._";
 
 /// Valor de um campo que o tipo conhece, mas este frontmatter não tem.
 const CAMPO_AUSENTE: &str = "—";
@@ -118,9 +128,19 @@ impl Template {
                 com_registros.push(secao);
             }
         }
+        // Decisões em seção própria só onde o tipo tem a seção (a ata tem uma
+        // seção `decisoes` com outro sentido: as decisões da reunião).
+        let decisoes_proprias = tipo == TipoDocumento::AnaliseImpacto;
         let tem_conteudo = |marcador: &str| {
             com_registros.contains(&marcador)
-                || (marcador == PERGUNTAS && !conteudo.perguntas.is_empty())
+                || (marcador == PERGUNTAS
+                    && conteudo
+                        .perguntas
+                        .iter()
+                        .any(|p| !decisoes_proprias || p.decisao.is_none()))
+                || (marcador == DECISOES
+                    && decisoes_proprias
+                    && conteudo.perguntas.iter().any(|p| p.decisao.is_some()))
                 || (marcador == SUGESTOES && !conteudo.sugestoes.is_empty())
         };
 
@@ -137,7 +157,26 @@ impl Template {
             }
         }
         let mut no_fim: Vec<(String, &str)> = Vec::new();
+        // Seção que entra logo depois do marcador de outra: (marcador anterior,
+        // título, marcador).
+        let mut inseridas: Vec<(&str, String, &str)> = Vec::new();
         for s in modelo.secoes {
+            if s.marcador == DECISOES
+                && decisoes_proprias
+                && !no_template.contains(&DECISOES)
+                && tem_conteudo(DECISOES)
+                && let Some(p) = ordem.iter().position(|m| *m == ANTES_DAS_DECISOES)
+            {
+                avisos.push(Aviso::SecaoInserida {
+                    tipo,
+                    secao: DECISOES.into(),
+                    depois_de: ANTES_DAS_DECISOES.into(),
+                });
+                inseridas.push((ANTES_DAS_DECISOES, s.titulo.into(), DECISOES));
+                // Na ordem do documento, para as notas seguirem a numeração.
+                ordem.insert(p + 1, DECISOES);
+                continue;
+            }
             if s.marcador != EVIDENCIAS
                 && !no_template.contains(&s.marcador)
                 && tem_conteudo(s.marcador)
@@ -164,11 +203,11 @@ impl Template {
         let mut notas = Notas::default();
         let mut secoes: BTreeMap<&str, String> = BTreeMap::new();
         for m in ordem {
-            let texto = montar_secao(m, conteudo, &mut notas);
+            let texto = montar_secao(m, conteudo, &mut notas, decisoes_proprias);
             secoes.insert(m, texto);
         }
         let evidencias = {
-            let mut texto = montar_secao(EVIDENCIAS, conteudo, &mut notas);
+            let mut texto = montar_secao(EVIDENCIAS, conteudo, &mut notas, decisoes_proprias);
             let definicoes = notas.definicoes();
             if !definicoes.is_empty() {
                 texto = if texto == texto_vazio(EVIDENCIAS) {
@@ -195,10 +234,15 @@ impl Template {
         for parte in &self.partes {
             match parte {
                 Parte::Texto(t) => corpo.push_str(t),
-                Parte::Marcador(m) => match secoes.get(m.as_str()) {
-                    Some(s) => corpo.push_str(s),
-                    None => corpo.push_str(campos.get(m.as_str()).map_or(CAMPO_AUSENTE, |v| v)),
-                },
+                Parte::Marcador(m) => {
+                    match secoes.get(m.as_str()) {
+                        Some(s) => corpo.push_str(s),
+                        None => corpo.push_str(campos.get(m.as_str()).map_or(CAMPO_AUSENTE, |v| v)),
+                    }
+                    for (_, titulo, marcador) in inseridas.iter().filter(|i| i.0 == m.as_str()) {
+                        corpo.push_str(&format!("\n\n## {titulo}\n\n{}\n", secoes[marcador]));
+                    }
+                }
             }
         }
         for (titulo, marcador) in no_fim {
@@ -268,7 +312,12 @@ impl Notas {
     }
 }
 
-fn montar_secao<F>(marcador: &str, conteudo: &Conteudo<F>, notas: &mut Notas) -> String {
+fn montar_secao<F>(
+    marcador: &str,
+    conteudo: &Conteudo<F>,
+    notas: &mut Notas,
+    decisoes_proprias: bool,
+) -> String {
     let mut blocos: Vec<String> = Vec::new();
     for t in conteudo.textos.iter().filter(|t| t.secao == marcador) {
         let refs = notas.referencias(&t.citacoes);
@@ -296,17 +345,32 @@ fn montar_secao<F>(marcador: &str, conteudo: &Conteudo<F>, notas: &mut Notas) ->
     if !afirmacoes.is_empty() {
         blocos.push(afirmacoes.join("\n"));
     }
-    if marcador == PERGUNTAS && !conteudo.perguntas.is_empty() {
-        let itens: Vec<String> = conteudo
+    let lista_de_perguntas = |filtro: &dyn Fn(&Pergunta) -> bool, notas: &mut Notas| {
+        conteudo
             .perguntas
             .iter()
+            .filter(|&p| filtro(p))
             .enumerate()
-            .map(|(i, p)| {
-                let refs = notas.referencias(&p.evidencias);
-                format!("{}. {}{refs}", i + 1, recuar(p.texto.trim(), 3))
-            })
-            .collect();
-        blocos.push(itens.join("\n"));
+            .map(|(i, p)| pergunta(i + 1, p, notas))
+            .collect::<Vec<String>>()
+    };
+    if marcador == PERGUNTAS {
+        let itens = lista_de_perguntas(
+            &|p: &Pergunta| !decisoes_proprias || p.decisao.is_none(),
+            &mut *notas,
+        );
+        if !itens.is_empty() {
+            blocos.push(itens.join("\n"));
+        }
+    }
+    if marcador == DECISOES && decisoes_proprias {
+        let itens = lista_de_perguntas(&|p: &Pergunta| p.decisao.is_some(), &mut *notas);
+        if itens.is_empty() && blocos.is_empty() {
+            return SEM_DECISOES.to_owned();
+        }
+        if !itens.is_empty() {
+            blocos.push(itens.join("\n\n"));
+        }
     }
     if marcador == SUGESTOES && !conteudo.sugestoes.is_empty() {
         let itens: Vec<String> = conteudo
@@ -333,6 +397,49 @@ fn montar_secao<F>(marcador: &str, conteudo: &Conteudo<F>, notas: &mut Notas) ->
         texto_vazio(marcador).to_owned()
     } else {
         blocos.join("\n\n")
+    }
+}
+
+/// Item numerado de uma pergunta. Uma decisão leva as opções, cada uma com o
+/// efeito, e a recomendação (#452):
+///
+/// ```text
+/// 1. A regra da DEM-12 continua valendo?
+///    - **Opção 1:** Manter a regra. Efeito: a fatura segue sem cancelamento.
+///    - **Opção 2:** Revogar a regra. Efeito: revoga a regra da DEM-12.
+///
+///    **Recomendação:** Opção 2, com estorno do valor pago.
+/// ```
+fn pergunta(numero: usize, p: &Pergunta, notas: &mut Notas) -> String {
+    let refs = notas.referencias(&p.evidencias);
+    let mut item = format!("{numero}. {}{refs}", recuar(p.texto.trim(), 3));
+    if let Some(d) = &p.decisao {
+        for (i, o) in d.opcoes.iter().enumerate() {
+            item.push_str(&format!(
+                "\n   - **Opção {}:** {} Efeito: {}",
+                i + 1,
+                com_ponto(o.texto.trim()),
+                recuar(o.efeito.trim(), 5)
+            ));
+        }
+        if let Some(r) = d
+            .recomendacao
+            .as_deref()
+            .map(str::trim)
+            .filter(|r| !r.is_empty())
+        {
+            item.push_str(&format!("\n\n   **Recomendação:** {}", recuar(r, 3)));
+        }
+    }
+    item
+}
+
+/// O texto terminado em ponto (ou outra pontuação final), para a frase seguinte.
+fn com_ponto(texto: &str) -> String {
+    if texto.ends_with(['.', '!', '?', ':', ';']) {
+        texto.to_owned()
+    } else {
+        format!("{texto}.")
     }
 }
 

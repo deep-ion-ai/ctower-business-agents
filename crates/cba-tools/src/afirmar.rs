@@ -173,6 +173,10 @@ pub fn afirmar() -> Ferramenta {
             if !secoes.contains(&secao) {
                 let dica = match secao {
                     "perguntas" => " Para perguntas ao solicitante, use `perguntar`.",
+                    "decisoes" => {
+                        " Para uma decisão do negócio, use `perguntar` com tipo `decisao` e \
+                         as opções."
+                    }
                     "sugestoes" => " Para sugestões de alteração, use `registrar_sugestao`.",
                     "evidencias" => " As evidências vão no campo `evidencias`.",
                     _ => "",

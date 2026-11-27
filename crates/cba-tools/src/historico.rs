@@ -615,8 +615,9 @@ fn markdown(pedido: &Pedido, h: &Historico) -> String {
             t,
             "Se a origem, ou um commit que mudou a regra, cita uma demanda que pediu esse \
              comportamento de propósito, registre isso em `como_e_hoje` (com a chave e a \
-             intenção da demanda) e pergunte com `perguntar` se a regra da demanda continua \
-             valendo, citando a chave. Para guardar o commit como evidência complementar, \
+             intenção da demanda) e registre com `perguntar`, tipo `decisao`, se a regra da \
+             demanda continua valendo, citando a chave, com as opções (manter ou revogar) e o \
+             efeito de cada uma. Para guardar o commit como evidência complementar, \
              passe o hash em `origens` do `afirmar`; a evidência da regra continua sendo o \
              trecho de código. Não cite nomes de pessoas. Commit sem chave é só ajuste: não \
              invente a demanda."
