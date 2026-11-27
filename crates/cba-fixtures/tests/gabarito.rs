@@ -525,6 +525,10 @@ struct Demanda {
     dados_pessoais: Option<DadosPessoais>,
     #[serde(default)]
     origem: Option<OrigemDaRegra>,
+    /// Decisões para o negócio esperadas (#452), com o mesmo formato das
+    /// perguntas esperadas.
+    #[serde(default)]
+    decisoes_esperadas: Vec<PerguntaEsperada>,
     #[serde(default)]
     caminhos_de_escrita: Option<CaminhosDeEscrita>,
 }
@@ -1044,6 +1048,7 @@ fn conferir(caminho: &Path) -> Vec<String> {
         }
         citar(&mut c, &onde, &d.regras);
         c.perguntas_esperadas(&onde, &d.perguntas_esperadas);
+        c.perguntas_esperadas(&format!("{onde}, decisões"), &d.decisoes_esperadas);
         if let Some(v) = &d.verificacao_da_premissa {
             if !["nao_confere", "confere_em_parte"].contains(&v.veredito.as_str()) {
                 c.erro(format!(

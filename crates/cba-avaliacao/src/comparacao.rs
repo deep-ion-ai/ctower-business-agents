@@ -37,11 +37,17 @@
 //!   valendo é uma das perguntas esperadas;
 //! - **caminhos que gravam o estado** (impacto, #451): cada caminho esperado
 //!   citado numa afirmação, e o que não valida apontado em `riscos` ou
-//!   `funcionalidades` ([`crate::caminhos`]).
+//!   `funcionalidades` ([`crate::caminhos`]);
+//! - **decisões para o negócio** (impacto, #452): cada decisão esperada é
+//!   atendida por uma pergunta do tipo decisão, não descartada, com as
+//!   palavras-chave no texto e ao menos duas opções.
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use cba_core::analise::{Afirmacao, Analise, Confianca, EstadoAfirmacao, EstadoAnalise, Evidencia};
+use cba_core::analise::{
+    Afirmacao, Analise, Confianca, EstadoAfirmacao, EstadoAnalise, EstadoPergunta, Evidencia,
+    MIN_OPCOES,
+};
 use cba_index::Escopo;
 use cba_kb::frontmatter::Abrangencia;
 use cba_tools::documento::{SECAO_DA_ABRANGENCIA, abrangencia_do_texto};
@@ -52,7 +58,7 @@ use crate::caminhos::{CaminhosAvaliados, avaliar_caminhos};
 use crate::cenarios::{CenariosAvaliados, avaliar_cenarios};
 use crate::ciclo_vida::{CicloVidaAvaliado, avaliar_ciclo_vida};
 use crate::dados_pessoais::{DadosPessoaisAvaliados, avaliar_dados_pessoais};
-use crate::gabarito::{Gabarito, Item, OrigemEsperada, Regra, Veredito};
+use crate::gabarito::{Gabarito, Item, OrigemEsperada, PerguntaEsperada, Regra, Veredito};
 use crate::historias::{HistoriasAvaliadas, avaliar_historias};
 use crate::modelagem::{ModelagemAvaliada, avaliar_modelagem};
 use crate::parecer::{ParecerAvaliado, avaliar_parecer};
@@ -119,6 +125,21 @@ pub struct Avaliacao {
     /// Caminhos que gravam o estado de que a demanda trata (impacto, #451).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub caminhos: Option<CaminhosAvaliados>,
+    /// Decisões para o negócio esperadas (impacto, #452).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub decisoes_esperadas: Vec<DecisaoAvaliada>,
+}
+
+/// Uma decisão para o negócio esperada (#452): a pergunta do tipo decisão que a
+/// atende, com as opções, ou, se o tema virou só uma dúvida, o número dela.
+#[derive(Debug, Clone, Serialize)]
+pub struct DecisaoAvaliada {
+    pub tema: String,
+    /// Decisão (com ao menos duas opções) com as palavras-chave.
+    pub atendida_por: Option<u32>,
+    /// Dúvida (sem opções) com as palavras-chave: o tema foi perguntado, mas não
+    /// como decisão.
+    pub so_como_duvida: Option<u32>,
 }
 
 /// A demanda de origem de uma regra citada em `como_e_hoje` (#450).
@@ -567,6 +588,29 @@ pub fn avaliar(analise: &Analise, item: &Item, gabarito: &Gabarito, escopo: &Esc
             .caminhos
             .as_ref()
             .map(|c| avaliar_caminhos(analise, c, &validas_por_afirmacao)),
+        decisoes_esperadas: item
+            .decisoes_esperadas
+            .iter()
+            .map(|d| avaliar_decisao(analise, d))
+            .collect(),
+    }
+}
+
+/// A decisão esperada entre as perguntas da análise (#452).
+fn avaliar_decisao(analise: &Analise, esperada: &PerguntaEsperada) -> DecisaoAvaliada {
+    let candidatas = || {
+        analise
+            .perguntas
+            .iter()
+            .filter(|p| p.estado != EstadoPergunta::Descartada)
+            .filter(|p| texto::atende(&p.texto, &esperada.palavras_chave))
+    };
+    DecisaoAvaliada {
+        tema: esperada.tema.clone(),
+        atendida_por: candidatas()
+            .find(|p| p.e_decisao() && p.opcoes.len() >= MIN_OPCOES)
+            .map(|p| p.numero),
+        so_como_duvida: candidatas().find(|p| !p.e_decisao()).map(|p| p.numero),
     }
 }
 

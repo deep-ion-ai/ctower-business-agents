@@ -213,6 +213,10 @@ pub struct Demanda {
     /// Regra criada de propósito por uma demanda anterior (#450).
     #[serde(default)]
     pub origem: Option<OrigemEsperada>,
+    /// Decisões para o negócio esperadas (#452): perguntas do tipo decisão, com
+    /// as opções, em "Decisões para o negócio".
+    #[serde(default)]
+    pub decisoes_esperadas: Vec<PerguntaEsperada>,
     /// Caminhos que gravam o estado de que a demanda trata (#451).
     #[serde(default)]
     pub caminhos_de_escrita: Option<CaminhosEsperados>,
@@ -653,6 +657,9 @@ pub struct Item {
     /// Caminhos que gravam o estado, só no fluxo impacto (#451).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub caminhos: Option<CaminhosEsperados>,
+    /// Decisões para o negócio esperadas, só no fluxo impacto (#452).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub decisoes_esperadas: Vec<PerguntaEsperada>,
 }
 
 /// Erro ao ler o gabarito ou ao achar um item.
@@ -773,6 +780,7 @@ impl Gabarito {
                 dados_pessoais: None,
                 origem: None,
                 caminhos: None,
+                decisoes_esperadas: Vec::new(),
             });
         }
         if let Some(f) = self.funcionalidades.iter().find(|f| f.id == id) {
@@ -799,6 +807,7 @@ impl Gabarito {
                 dados_pessoais: None,
                 origem: None,
                 caminhos: None,
+                decisoes_esperadas: Vec::new(),
             });
         }
         if let Some(d) = self.demandas.iter().find(|d| d.id == id) {
@@ -820,6 +829,7 @@ impl Gabarito {
                 dados_pessoais: d.dados_pessoais.clone(),
                 origem: d.origem.clone(),
                 caminhos: d.caminhos_de_escrita.clone(),
+                decisoes_esperadas: d.decisoes_esperadas.clone(),
             });
         }
         if let Some(r) = self.revisoes.iter().find(|r| r.id == id) {
@@ -842,6 +852,7 @@ impl Gabarito {
                 dados_pessoais: None,
                 origem: None,
                 caminhos: None,
+                decisoes_esperadas: Vec::new(),
             });
         }
         if let Some(h) = self.historias.iter().find(|h| h.id == id) {
@@ -864,6 +875,7 @@ impl Gabarito {
                 dados_pessoais: None,
                 origem: None,
                 caminhos: None,
+                decisoes_esperadas: Vec::new(),
             });
         }
         if let Some(c) = self.cenarios.iter().find(|c| c.id == id) {
@@ -885,6 +897,7 @@ impl Gabarito {
                 dados_pessoais: None,
                 origem: None,
                 caminhos: None,
+                decisoes_esperadas: Vec::new(),
             });
         }
         if let Some(c) = self.ciclos_vida.iter().find(|c| c.id == id) {
@@ -906,6 +919,7 @@ impl Gabarito {
                 dados_pessoais: None,
                 origem: None,
                 caminhos: None,
+                decisoes_esperadas: Vec::new(),
             });
         }
         Err(Erro(format!(
