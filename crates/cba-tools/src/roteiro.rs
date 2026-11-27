@@ -649,6 +649,22 @@ mod tests {
         assert!(r.contains("`tipo: \"decisao\"`"), "{r}");
         assert!(r.contains("**Hipótese não vira escopo.**"), "{r}");
         assert!(r.contains("- primeiro, as decisões para o negócio"), "{r}");
+        // Critério com valores de domínio: a lista completa, cada valor
+        // classificado e os a decidir como decisão (#455).
+        let dominio = r
+            .find("**Confira a lista completa quando o critério usa valores de domínio.**")
+            .unwrap();
+        assert!(caminhos < dominio, "{r}");
+        assert!(
+            r.contains("\"Valores de <campo>: <VALOR>: entra (<por quê>); <VALOR>: não entra"),
+            "{r}"
+        );
+        assert!(r.contains("<VALOR>: a decidir"), "{r}");
+        assert!(
+            r.contains("Cada valor a decidir vai para `perguntar`"),
+            "{r}"
+        );
+        assert!(r.contains("vale a definição mais recente"), "{r}");
         assert!(r.ends_with("## Contexto da base\n\nNada.\n"), "{r}");
     }
 

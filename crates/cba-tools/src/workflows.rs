@@ -196,6 +196,23 @@ mod tests {
         assert!(fase.contains("confira se a lista ficou fechada"), "{fase}");
     }
 
+    /// Critério com valores de domínio: a lista completa, classificada, no
+    /// Investigar e no Consolidar, e conferida na fase Verificar (#455).
+    #[test]
+    fn padrao_de_impacto_pede_a_lista_completa_dos_valores_de_dominio() {
+        let texto = padrao("impacto").unwrap();
+        assert!(texto.contains("Lista completa quando o critério usa valores de domínio"));
+        assert!(texto.contains(
+            "\"Valores de <campo>: <VALOR>: entra (<por quê>); <VALOR>: não entra (<por quê>); <VALOR>: a decidir"
+        ));
+        assert!(texto.contains("Cada valor a decidir vai para perguntar, tipo \"decisao\""));
+        let verificar = texto.find("Fase Verificar").unwrap();
+        let consolidar = texto.find("Fase Consolidar").unwrap();
+        let fase = &texto[verificar..consolidar];
+        assert!(fase.contains("(\"Valores de ...\")"), "{fase}");
+        assert!(fase.contains("confira se a lista ficou completa"), "{fase}");
+    }
+
     /// Decisões para o negócio com opções, e hipótese não verificada fora do
     /// escopo, também na fase Verificar (#452).
     #[test]
