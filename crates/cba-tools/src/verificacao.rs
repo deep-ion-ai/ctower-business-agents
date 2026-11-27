@@ -335,6 +335,7 @@ fn conferir_nomes(
     let mapa = &carregado.mapa;
     let mut catalogo: Option<SchemaBanco> = None;
     let mut banco_lido = false;
+    let mut falha_do_banco: Option<String> = None;
     let mut conhecidas: Vec<(String, TabelaConhecida)> = Vec::new();
     let mut desconhecidas: Vec<String> = Vec::new();
     for r in &consulta.relacoes {
@@ -344,7 +345,10 @@ fn conferir_nomes(
         {
             if !banco_lido {
                 banco_lido = true;
-                catalogo = banco.ler_schema().ok();
+                match banco.ler_schema() {
+                    Ok(s) => catalogo = Some(s),
+                    Err(e) => falha_do_banco = Some(e),
+                }
             }
             achada = catalogo.as_ref().and_then(|s| do_banco(s, &r.nome));
         }
@@ -370,7 +374,14 @@ fn conferir_nomes(
                     "tabelas"
                 },
                 desconhecidas.join(", ")
-            )
+            ) + &falha_do_banco
+                .map(|e| {
+                    format!(
+                        " (o catálogo do banco ligado não pôde ser lido: {e}; a tabela pode \
+                         existir só no banco: tente de novo depois)"
+                    )
+                })
+                .unwrap_or_default()
         }));
     }
     let tabela_de = |escrita: &str| {
