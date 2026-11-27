@@ -439,7 +439,9 @@ pub fn orientacao_da_issue(id: &cba_kb::Id, chave: &str) -> String {
 ///   confirmar o diagnóstico no caso relatado e medir a abrangência, com
 ///   agregados e amostras pequenas, cada consulta aprovada pelo analista.
 /// - Sem ele, na análise de impacto, deixar o SQL pronto no documento para quem
-///   tem acesso ao banco.
+///   tem acesso ao banco, com `registrar_verificacao` (#453).
+/// - Com ele, na análise de impacto, registrar a consulta também no documento,
+///   para quem lê depois conferir de novo.
 /// - Nos outros fluxos sem banco, nada.
 pub fn orientacao_dos_dados(
     analise: &Analise,
@@ -457,16 +459,24 @@ pub fn orientacao_dos_dados(
              pequenas (`LIMIT`); nunca traga linhas inteiras de pessoas. Os dados pessoais \
              chegam mascarados. Se o analista recusar, leve o motivo em conta. Cite o \
              resultado com `afirmar` e `dados: [{{consulta, resumo}}]`: vira uma \
-             evidência de dados, que vale para a data da consulta.\n"
+             evidência de dados, que vale para a data da consulta.\n{}",
+            if analise.fluxo == Fluxo::Impacto {
+                "Registre também cada consulta com `registrar_verificacao`, para ela ficar \
+                 pronta no documento, na seção \"Verificações em dados\": quem ler depois \
+                 confere de novo.\n"
+            } else {
+                ""
+            }
         ),
         None if analise.fluxo == Fluxo::Impacto => format!(
             "\n\n## Verificação em dados\n\n\
              Esta análise não tem banco ligado: siga só com o código. Quando a confirmação \
              do diagnóstico ou a medida da abrangência depender dos dados, escreva as \
              consultas prontas para quem tem acesso ao banco: registre cada uma com \
-             `perguntar` (`analise: \"{id}\"`), com o objetivo, o SQL só de leitura em \
-             bloco ```sql``` (agregados, sem trazer dados pessoais) e o que cada resultado \
-             significa para a análise.\n"
+             `registrar_verificacao` (`analise: \"{id}\"`), com o objetivo, o SQL só de \
+             leitura (agregados, sem trazer dados pessoais, com o caso num parâmetro \
+             nomeado) e o que cada resultado significa para a análise, e aponte para ela a \
+             pergunta de verificação (`perguntar` com `verificacao`).\n"
         ),
         None => String::new(),
     }
