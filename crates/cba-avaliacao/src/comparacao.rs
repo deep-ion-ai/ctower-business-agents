@@ -582,7 +582,7 @@ fn avaliar_origem(analise: &Analise, o: &OrigemEsperada) -> OrigemAvaliada {
         regra: o.regra.clone(),
         citada_em: validas
             .iter()
-            .find(|a| texto::contem(&texto::normalizar(do_agente(a)), &o.chave) || no_commit(**a))
+            .find(|a| texto::contem(&texto::normalizar(do_agente(a)), &o.chave) || no_commit(a))
             .map(|a| a.numero),
         com_commit: validas.iter().copied().any(no_commit),
     }
