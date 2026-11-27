@@ -29,7 +29,6 @@ mod conectado;
 mod introspeccao;
 pub mod prontidao;
 mod sessao;
-pub mod validacao;
 
 use std::fmt;
 use std::time::Duration;
@@ -41,6 +40,10 @@ use cba_repos::providers::{
 };
 use serde::Serialize;
 
+/// A validação da instrução (só uma, e só leitura) fica na crate `cba-sql`, sem o
+/// driver, para as ferramentas também validarem o SQL que o agente escreve no
+/// documento (#453).
+pub use cba_sql::validacao;
 pub use conectado::{BancoDaConexao, FonteDoCatalogo};
 pub use introspeccao::ler_schema;
 pub use sessao::{ColunaResultado, ResultadoConsulta, consultar, testar};

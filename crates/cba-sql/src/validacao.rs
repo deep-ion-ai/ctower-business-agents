@@ -23,7 +23,7 @@ use sqlparser::ast::{
     Expr, ObjectName, ObjectNamePart, Query, Select, SetExpr, Statement, TableFactor, Visit,
     Visitor,
 };
-use sqlparser::dialect::{Dialect, MySqlDialect, PostgreSqlDialect};
+use sqlparser::dialect::{Dialect, GenericDialect, MySqlDialect, PostgreSqlDialect};
 use sqlparser::parser::Parser;
 use sqlparser::tokenizer::{Token, Tokenizer, Whitespace};
 
@@ -94,45 +94,55 @@ const FUNCOES_RECUSADAS: &[&str] = &[
 /// Prefixos recusados (travas consultivas do PostgreSQL).
 const PREFIXOS_RECUSADOS: &[&str] = &["pg_advisory_", "pg_try_advisory_"];
 
-fn dialeto(d: DialetoSql) -> Box<dyn Dialect> {
+/// O dialeto do parser: o da conexão ou, sem conexão (o SQL escrito no
+/// documento, #453), o genérico, que aceita a sintaxe comum aos bancos.
+fn dialeto(d: Option<DialetoSql>) -> Box<dyn Dialect> {
     match d {
-        DialetoSql::Postgres => Box::new(PostgreSqlDialect {}),
-        DialetoSql::Mysql => Box::new(MySqlDialect {}),
+        Some(DialetoSql::Postgres) => Box::new(PostgreSqlDialect {}),
+        Some(DialetoSql::Mysql) => Box::new(MySqlDialect {}),
+        None => Box::new(GenericDialect {}),
     }
 }
 
 /// Confere `sql` no dialeto `d`. Devolve a instrução sem espaços nas pontas e
 /// sem o `;` final, pronta para enviar.
 pub fn validar(d: DialetoSql, sql: &str) -> Result<String, Recusa> {
+    validar_e_ler(Some(d), sql).map(|(texto, _)| texto)
+}
+
+/// Como [`validar`], com o dialeto genérico quando `d` é `None`, e devolve também
+/// a instrução lida, para quem precisa dos nomes que ela usa
+/// ([`crate::consulta`]).
+pub(crate) fn validar_e_ler(
+    d: Option<DialetoSql>,
+    sql: &str,
+) -> Result<(String, Statement), Recusa> {
     let dialeto = dialeto(d);
     let texto = sql.trim();
     if texto.is_empty() {
         return Err(recusa("a consulta está vazia"));
     }
     conferir_comentarios(dialeto.as_ref(), texto)?;
-    let instrucoes = Parser::parse_sql(dialeto.as_ref(), texto)
+    let mut instrucoes = Parser::parse_sql(dialeto.as_ref(), texto)
         .map_err(|e| recusa(format!("a consulta não é SQL válido: {e}")))?;
-    let instrucao = match instrucoes.as_slice() {
-        [] => return Err(recusa("a consulta está vazia")),
-        [uma] => uma,
-        _ => {
-            return Err(recusa(format!(
-                "envie uma instrução por vez; vieram {}",
-                instrucoes.len()
-            )));
+    let instrucao = match instrucoes.len() {
+        0 => return Err(recusa("a consulta está vazia")),
+        1 => instrucoes.remove(0),
+        n => {
+            return Err(recusa(format!("envie uma instrução por vez; vieram {n}")));
         }
     };
-    let Statement::Query(_) = instrucao else {
+    let Statement::Query(_) = &instrucao else {
         return Err(recusa(format!(
             "só consultas de leitura (SELECT ou WITH … SELECT) são aceitas; recebida: {}",
-            tipo_da_instrucao(instrucao)
+            tipo_da_instrucao(&instrucao)
         )));
     };
     let mut fiscal = Fiscal { instrucoes: 0 };
     if let ControlFlow::Break(r) = instrucao.visit(&mut fiscal) {
         return Err(r);
     }
-    Ok(texto.trim_end_matches(';').trim_end().to_owned())
+    Ok((texto.trim_end_matches(';').trim_end().to_owned(), instrucao))
 }
 
 /// Recusa comentários executáveis do MySQL e comentários com `;`, que poderiam

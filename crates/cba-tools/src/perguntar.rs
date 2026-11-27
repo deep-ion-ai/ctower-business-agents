@@ -1,7 +1,9 @@
 //! `perguntar`: registra uma pergunta em aberto para o solicitante: uma dúvida
 //! ou uma decisão para o negócio, com as opções (#452).
 
-use cba_core::analise::{MAX_OPCOES, MIN_OPCOES, NovaDecisao, OpcaoDecisao, TipoPergunta};
+use cba_core::analise::{
+    ErroModelo, MAX_OPCOES, MIN_OPCOES, NovaDecisao, OpcaoDecisao, TipoPergunta,
+};
 use cba_core::eventos::Mudanca;
 use serde::Deserialize;
 use serde_json::json;
@@ -27,6 +29,8 @@ struct Args {
     opcoes: Vec<Opcao>,
     #[serde(default)]
     recomendacao: Option<String>,
+    #[serde(default)]
+    verificacao: Option<u32>,
 }
 
 /// `perguntar`: perguntas que o código não responde (parâmetros em tabela, regras
@@ -47,8 +51,10 @@ pub fn perguntar() -> Ferramenta {
          entra em \"Decisões para o negócio\", no topo do documento. Quando a correção \
          exige escolher uma regra, ou uma mudança depende de uma hipótese não \
          verificada, registre a decisão (ou a dúvida, com o que confirmaria a hipótese) \
-         em vez de propor a regra em `funcionalidades`. Uma afirmação com confiança \
-         a_confirmar já cria a sua pergunta; não repita.",
+         em vez de propor a regra em `funcionalidades`. Quando uma consulta em dados \
+         responde a pergunta, registre-a antes com `registrar_verificacao` e passe o \
+         número em `verificacao`. Uma afirmação com confiança a_confirmar já cria a sua \
+         pergunta; não repita.",
         json!({
             "type": "object",
             "properties": {
@@ -99,6 +105,11 @@ pub fn perguntar() -> Ferramenta {
                     "type": "string",
                     "maxLength": 2000,
                     "description": "Só na decisão: a opção que você recomenda e por quê, se recomenda alguma."
+                },
+                "verificacao": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Número da verificação em dados que responde à pergunta (devolvido por registrar_verificacao, V1 é 1): quem tem acesso ao banco roda a consulta no lugar de esperar o solicitante."
                 }
             },
             "required": ["analise", "texto"],
@@ -131,11 +142,25 @@ pub fn perguntar() -> Ferramenta {
                 }),
             };
             let e_decisao = decisao.is_some();
-            let registrado =
-                comum::alterar(ambiente, &id, Mudanca::Pergunta, |a, agora| match decisao {
-                    Some(d) => a.registrar_decisao(&args.texto, d, args.afirmacao, None, agora),
-                    None => a.registrar_pergunta(&args.texto, args.afirmacao, None, agora),
-                })?;
+            let verificacao = args.verificacao;
+            let registrado = comum::alterar(ambiente, &id, Mudanca::Pergunta, |a, agora| {
+                if let Some(v) = verificacao
+                    && a.verificacao(v).is_none()
+                {
+                    return Err(ErroModelo::ItemDesconhecido {
+                        tipo: "verificação",
+                        numero: v,
+                    });
+                }
+                let numero = match decisao {
+                    Some(d) => a.registrar_decisao(&args.texto, d, args.afirmacao, None, agora)?,
+                    None => a.registrar_pergunta(&args.texto, args.afirmacao, None, agora)?,
+                };
+                if let Some(v) = verificacao {
+                    a.apontar_verificacao(numero, v)?;
+                }
+                Ok(numero)
+            })?;
             let numero = registrado.resultado;
             Ok(comum::resposta(
                 ambiente,
@@ -144,6 +169,7 @@ pub fn perguntar() -> Ferramenta {
                     "pergunta": numero,
                     "afirmacao": args.afirmacao,
                     "tipo": if e_decisao { "decisao" } else { "duvida" },
+                    "verificacao": verificacao,
                 }),
             ))
         },

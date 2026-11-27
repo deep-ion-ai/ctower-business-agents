@@ -213,6 +213,18 @@ mod tests {
         assert!(fase.contains("confira se a lista ficou completa"), "{fase}");
     }
 
+    /// Verificações em dados (#453): as consultas registradas nas fases que
+    /// registram, e conferidas no Consolidar, com a pergunta apontando para elas.
+    #[test]
+    fn padrao_de_impacto_escreve_as_verificacoes_em_dados() {
+        let texto = padrao("impacto").unwrap();
+        assert!(texto.contains("Verificações em dados: quando a demanda trata do estado"));
+        assert!(texto.contains("reproduz a condição da regra no caso relatado"));
+        assert!(texto.contains("perguntar com verificacao"));
+        let consolidar = texto.find("Fase Consolidar").unwrap();
+        assert!(texto[consolidar..].contains("registrar_verificacao"));
+    }
+
     /// Decisões para o negócio com opções, e hipótese não verificada fora do
     /// escopo, também na fase Verificar (#452).
     #[test]

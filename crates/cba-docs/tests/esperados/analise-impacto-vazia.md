@@ -66,6 +66,10 @@ Estimativa: **a definir**
 
 _Nada registrado._
 
+## Verificações em dados
+
+_Nenhuma verificação em dados registrada._
+
 ## Perguntas para o solicitante
 
 _Nenhuma pergunta em aberto._

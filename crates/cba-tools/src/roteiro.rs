@@ -665,6 +665,25 @@ mod tests {
             "{r}"
         );
         assert!(r.contains("vale a definição mais recente"), "{r}");
+        // Demanda sobre estado ou volume de dados: as consultas de verificação
+        // escritas no documento, com a pergunta apontando para elas (#453).
+        let verificacoes = r.find("**Escreva as verificações em dados,**").unwrap();
+        assert!(dominio < verificacoes, "{r}");
+        assert!(
+            r.contains("Registre com `registrar_verificacao` (analise: \"A-0003\")"),
+            "{r}"
+        );
+        assert!(
+            r.contains("**reproduz a condição da regra no caso relatado**"),
+            "{r}"
+        );
+        assert!(
+            r.contains("**conta os registros na mesma situação**"),
+            "{r}"
+        );
+        assert!(r.contains("parâmetro nomeado (`:id_fatura`)"), "{r}");
+        assert!(r.contains("`perguntar` com `verificacao`"), "{r}");
+        assert!(r.contains("- as verificações em dados,"), "{r}");
         assert!(r.ends_with("## Contexto da base\n\nNada.\n"), "{r}");
     }
 
