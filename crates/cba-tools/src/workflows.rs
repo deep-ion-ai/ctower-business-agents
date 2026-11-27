@@ -177,6 +177,25 @@ mod tests {
         assert!(texto.contains("origens do afirmar"));
     }
 
+    /// Numa demanda sobre um estado errado, o impacto fecha o conjunto de quem
+    /// grava o estado (#451): uma frente própria no Preparar, a árvore de
+    /// chamadores no Investigar e a lista conferida no Verificar.
+    #[test]
+    fn padrao_de_impacto_fecha_os_caminhos_que_gravam_o_estado() {
+        let texto = padrao("impacto").unwrap();
+        let preparar = texto.find("Fase Preparar").unwrap();
+        let investigar = texto.find("Fase Investigar").unwrap();
+        let verificar = texto.find("Fase Verificar").unwrap();
+        let consolidar = texto.find("Fase Consolidar").unwrap();
+        assert!(texto[preparar..investigar].contains("Caminhos que gravam <o estado>"));
+        let fase = &texto[investigar..verificar];
+        assert!(fase.contains("profundidade 2 ou 3"), "{fase}");
+        assert!(fase.contains("\"Caminhos que gravam <estado>: "), "{fase}");
+        assert!(fase.contains("o que valida e o que não valida"), "{fase}");
+        let fase = &texto[verificar..consolidar];
+        assert!(fase.contains("confira se a lista ficou fechada"), "{fase}");
+    }
+
     #[test]
     fn padroes_tem_um_por_tipo_com_o_nome_do_app() {
         let todos = padroes();

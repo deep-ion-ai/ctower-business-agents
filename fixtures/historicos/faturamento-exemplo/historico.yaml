@@ -11,13 +11,15 @@
 # motivo mínimo veio depois, sem demanda na mensagem; a demanda DEM-12 criou de
 # propósito a recusa de fatura com pagamento parcial (RN-FAT-012, linhas
 # 115-117 de db/03_pkg_cobranca.sql); e um ajuste posterior só padronizou a
-# mensagem de erro. A análise da D-FAT-005, que trata essa recusa como defeito,
-# deve chegar à DEM-12 pelo histórico do trecho.
+# mensagem de erro. O cancelamento pelo portal (CancelamentoService.java, #451)
+# ganhou a mesma recusa no commit da DEM-12. A análise da D-FAT-005, que trata
+# essa recusa como defeito, deve chegar à DEM-12 pelo histórico do trecho.
 commits:
   - data: 2023-02-06
     mensagem: Carga inicial do faturamento
     versoes:
       db/03_pkg_cobranca.sql: versoes/03_pkg_cobranca.v1.sql
+      backend/src/main/java/exemplo/faturamento/CancelamentoService.java: versoes/CancelamentoService.v1.java
 
   - data: 2023-08-21
     mensagem: |-
@@ -36,6 +38,7 @@ commits:
       estornado ou compensado antes.
     versoes:
       db/03_pkg_cobranca.sql: versoes/03_pkg_cobranca.v3.sql
+      backend/src/main/java/exemplo/faturamento/CancelamentoService.java: atual
 
   - data: 2025-05-19
     mensagem: Padroniza as mensagens de erro do cancelamento

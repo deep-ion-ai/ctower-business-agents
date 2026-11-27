@@ -39,6 +39,11 @@ ter:
   lidos de tabela;
 - divergências entre camadas, como acontece em projetos que evoluíram aos
   poucos;
+- mais de um caminho que grava o mesmo estado: a fatura é cancelada pela tela
+  da retaguarda, pelo portal (`FaturaController`, com validação) e pela edição
+  do cliente (`ClienteService`, que desliga o cliente e cancela as faturas em
+  aberto com a validação desligada), para a análise de impacto fechar o
+  conjunto de quem grava um estado (#451);
 - dados pessoais fictícios nas tabelas de clientes (`CLIENTE` e
   `CLIENTE_CONTATO`, em `db/05_cliente_contato.sql`: nome, documento, e-mail,
   telefone, endereço, data de nascimento e um texto livre do atendimento), ao
@@ -126,6 +131,14 @@ deve encontrar:
   como defeito a recusa de cancelar fatura com pagamento parcial
   (RN-FAT-012), que o commit `[DEM-12] Impedir o cancelamento de fatura com
   pagamento parcial` criou (#450).
+- `caminhos_de_escrita` (numa demanda): todos os caminhos que gravam o
+  estado de que a demanda trata, com o que valida e o que não valida. A
+  `D-FAT-006` atribui as faturas com pagamento parcial canceladas a uma "rota
+  antiga" que não existe: o cancelamento pela tela da retaguarda
+  (`PRC_CANCELAR_FATURA`) e pelo portal (`FaturaController`) valida, mas a
+  edição do cliente (`ClienteService.editar`), ao desligá-lo, chama o mesmo
+  método do portal (`CancelamentoService.cancelar`) com a validação desligada
+  (#451).
 
 ## Testes
 

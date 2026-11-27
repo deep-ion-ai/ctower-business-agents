@@ -686,6 +686,10 @@ fn criterios_das_analises(s: &mut String) {
     );
     let _ = writeln!(
         s,
+        "- **Caminhos que gravam o estado** (demanda sobre um estado errado): cada caminho esperado citado numa afirmação, pelas palavras-chave ou por evidência que toca a esperada; o caminho sem validação apontado em \"Riscos\" ou \"Funcionalidades\" com o que ele não valida."
+    );
+    let _ = writeln!(
+        s,
         "- **Falha grave:** afirmação `confirmado` sem evidência válida, nenhuma afirmação, estado ausente ou arquivo do projeto alterado."
     );
     let _ = writeln!(
@@ -842,6 +846,40 @@ fn analise_md(s: &mut String, e: &Execucao) {
                 (None, _) => "não citada".to_owned(),
             }
         );
+    }
+    if let Some(c) = &a.caminhos {
+        let _ = writeln!(
+            s,
+            "- Caminhos que gravam {}: {} de {} citados{}",
+            c.estado,
+            c.citados(),
+            c.caminhos.len(),
+            match c.lista_em {
+                Some(n) => format!(", lista na afirmação {n}"),
+                None => String::new(),
+            }
+        );
+        for caminho in &c.caminhos {
+            let _ = writeln!(
+                s,
+                "  - {} ({}): {}{}",
+                caminho.nome,
+                if caminho.valida {
+                    "valida"
+                } else {
+                    "não valida"
+                },
+                match caminho.citado_em {
+                    Some(n) => format!("citado (afirmação {n})"),
+                    None => "não citado".to_owned(),
+                },
+                match (caminho.valida, caminho.sem_validacao_em) {
+                    (true, _) => String::new(),
+                    (false, Some(n)) => format!("; falta de validação apontada (afirmação {n})"),
+                    (false, None) => "; falta de validação não apontada".to_owned(),
+                }
+            );
+        }
     }
     if let Some(ab) = &a.abrangencia {
         let _ = writeln!(

@@ -745,3 +745,120 @@ fn origem_da_regra_citada_em_como_e_hoje_e_a_pergunta_se_continua_valendo() {
     assert_eq!(o.citada_em, Some(1));
     assert!(o.com_commit);
 }
+
+const CLIENTE_SERVICE: &str = "backend/src/main/java/exemplo/faturamento/ClienteService.java";
+
+/// D-FAT-006 (#451): a análise lista os caminhos que gravam CANCELADA (a tela da
+/// retaguarda, o portal e a edição do cliente) e aponta, em riscos, o que não
+/// valida.
+#[test]
+fn caminhos_que_gravam_o_estado_e_o_que_nao_valida() {
+    let sem = analise_vazia("impacto", "Desativar a rota antiga ...");
+    let c = avaliar_item(&sem, "D-FAT-006").caminhos.unwrap();
+    assert_eq!(c.caminhos.len(), 3);
+    assert_eq!(c.citados(), 0);
+    assert!(!c.completos());
+    assert_eq!(c.lista_em, None);
+
+    let mut a = analise_vazia("impacto", "Desativar a rota antiga ...");
+    afirmar(
+        &mut a,
+        "como_e_hoje",
+        "Caminhos que gravam a situação CANCELADA: 1. tela da retaguarda → \
+         PRC_CANCELAR_FATURA: valida a situação, o pagamento parcial e o motivo; 2. portal \
+         → CancelamentoService.cancelar: valida o mesmo; 3. edição do cliente, ao desligá-lo \
+         → ClienteService.editar: não valida. A lista é completa.",
+        Confianca::Confirmado,
+        vec![ev(
+            "db/03_pkg_cobranca.sql",
+            123,
+            127,
+            "SET STATUS          = 'CANCELADA'",
+        )],
+    );
+    // O desligamento sem dizer o que não valida não basta.
+    afirmar(
+        &mut a,
+        "riscos",
+        "O desligamento do cliente cancela as faturas abertas dele.",
+        Confianca::Confirmado,
+        vec![ev(
+            CLIENTE_SERVICE,
+            44,
+            49,
+            "\"DESLIGADO\".equals(cliente.situacao())",
+        )],
+    );
+    let c = avaliar_item(&a, "D-FAT-006").caminhos.unwrap();
+    assert_eq!(c.citados(), 3, "{c:?}");
+    assert_eq!(c.lista_em, Some(1));
+    assert!(!c.completos(), "{c:?}");
+    assert_eq!(c.caminhos[2].sem_validacao_em, None);
+
+    afirmar(
+        &mut a,
+        "riscos",
+        "O cancelamento chamado pela edição do cliente passa a validação desligada: \
+         fatura com pagamento parcial é cancelada sem a recusa da RN-FAT-012.",
+        Confianca::Confirmado,
+        vec![ev(
+            CLIENTE_SERVICE,
+            47,
+            47,
+            "cancelamentoService.cancelar(idFatura, MOTIVO_DESLIGAMENTO, usuario, false)",
+        )],
+    );
+    let av = avaliar_item(&a, "D-FAT-006");
+    let c = av.caminhos.as_ref().unwrap();
+    assert!(c.completos(), "{c:?}");
+    assert_eq!(c.caminhos[2].sem_validacao_em, Some(3));
+    assert!(c.caminhos[0].valida && c.caminhos[1].valida && !c.caminhos[2].valida);
+    // Em como_e_hoje, a falta de validação não conta: precisa ser item de riscos
+    // ou de funcionalidades.
+    let mut b = analise_vazia("impacto", "Desativar a rota antiga ...");
+    afirmar(
+        &mut b,
+        "como_e_hoje",
+        "A edição do cliente cancela sem validar o pagamento parcial.",
+        Confianca::Confirmado,
+        vec![ev(
+            CLIENTE_SERVICE,
+            47,
+            47,
+            "cancelamentoService.cancelar(idFatura, MOTIVO_DESLIGAMENTO, usuario, false)",
+        )],
+    );
+    let c = avaliar_item(&b, "D-FAT-006").caminhos.unwrap();
+    assert_eq!(c.caminhos[2].citado_em, Some(1));
+    assert_eq!(c.caminhos[2].sem_validacao_em, None);
+
+    // O relatório da execução mostra os caminhos.
+    let rel = Relatorio::novo(
+        None,
+        vec![Execucao {
+            fluxo: "impacto".into(),
+            item: "D-FAT-006".into(),
+            repeticao: 1,
+            avaliacao: Some(av),
+            ata: None,
+            transcript: None,
+            mapa: None,
+            publicacao: None,
+            conducao: None,
+            arquivos_alterados: vec![],
+            claude: None,
+            erro: None,
+        }],
+    );
+    let dir = tempfile::tempdir().unwrap();
+    rel.gravar(dir.path()).unwrap();
+    let md = std::fs::read_to_string(dir.path().join("relatorio.md")).unwrap();
+    assert!(
+        md.contains("Caminhos que gravam FATURA.STATUS = CANCELADA: 3 de 3 citados"),
+        "{md}"
+    );
+    assert!(
+        md.contains("falta de validação apontada (afirmação 3)"),
+        "{md}"
+    );
+}

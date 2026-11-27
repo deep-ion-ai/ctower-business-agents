@@ -23,6 +23,12 @@
 # - `verificacao_da_premissa` (demandas) diz como o agente deve julgar a
 #   suposição do solicitante, na seção "Demanda como entendida": `veredito`
 #   (`nao_confere` ou `confere_em_parte`) e `palavras_chave`, no mesmo formato.
+# - `caminhos_de_escrita` (demandas, #451) lista todos os caminhos que gravam o
+#   `estado` de que a demanda trata: cada um com `nome`, se `valida` o estado
+#   antes de gravar, `palavras_chave` e `evidencias`. Um caminho é citado por
+#   uma afirmação com as palavras-chave ou com evidência que toca uma das
+#   esperadas; o que não valida precisa aparecer numa afirmação de `riscos` ou
+#   `funcionalidades` que o cite e tenha as palavras-chave de `sem_validacao`.
 # - `dados_pessoais` (demandas, #126) descreve a seção "Dados pessoais e
 #   requisitos não funcionais" esperada: os `campos` com dado pessoal que a
 #   demanda toca (`campo` TABELA.COLUNA, `categoria`, `palavras_chave` e as
@@ -397,6 +403,27 @@ regras:
         linha_final: 34
         trecho: "01  REG-COBRANCA."
 
+  - id: RN-FAT-017
+    titulo: Desligar o cliente cancela as faturas em aberto dele
+    area: cancelamento
+    enunciado: >-
+      Ao editar o cadastro do cliente com a situação DESLIGADO, o backend
+      cancela todas as faturas ABERTA do cliente, com o motivo fixo "Cliente
+      desligado do cadastro" e o usuário que editou o cadastro.
+    evidencias:
+      - arquivo: backend/src/main/java/exemplo/faturamento/ClienteService.java
+        linha_inicial: 44
+        linha_final: 49
+        trecho: "\"DESLIGADO\".equals(cliente.situacao())"
+      - arquivo: backend/src/main/java/exemplo/faturamento/ClienteService.java
+        linha_inicial: 18
+        linha_final: 18
+        trecho: "MOTIVO_DESLIGAMENTO = \"Cliente desligado do cadastro\""
+      - arquivo: db/06_situacao_cliente.sql
+        linha_inicial: 6
+        linha_final: 9
+        trecho: "SITUACAO IN ('ATIVO', 'DESLIGADO')"
+
 # Divergências deliberadas entre camadas, que um analista deve apontar.
 inconsistencias:
   - id: INC-FAT-001
@@ -458,6 +485,32 @@ inconsistencias:
         linha_inicial: 42
         linha_final: 45
         trecho: "totalParcelado"
+
+  # Caminho interno que grava o estado sem a validação (#451): o mesmo método
+  # de cancelamento é chamado pelo portal com a validação e pela edição do
+  # cliente com ela desligada.
+  - id: INC-FAT-004
+    titulo: Desligamento do cliente cancela fatura sem as validações do cancelamento
+    enunciado: >-
+      O cancelamento pelo portal chama CancelamentoService.cancelar com a
+      validação ligada (situação ABERTA, sem pagamento parcial, motivo com ao
+      menos 10 caracteres). A edição do cliente, ao desligá-lo, chama o mesmo
+      método com a validação desligada: faturas com pagamento parcial são
+      canceladas, contra a RN-FAT-012.
+    regras: [RN-FAT-012, RN-FAT-017]
+    evidencias:
+      - arquivo: backend/src/main/java/exemplo/faturamento/ClienteService.java
+        linha_inicial: 47
+        linha_final: 47
+        trecho: "cancelamentoService.cancelar(idFatura, MOTIVO_DESLIGAMENTO, usuario, false)"
+      - arquivo: backend/src/main/java/exemplo/faturamento/CancelamentoService.java
+        linha_inicial: 19
+        linha_final: 30
+        trecho: "if (validar) {"
+      - arquivo: backend/src/main/java/exemplo/faturamento/FaturaController.java
+        linha_inicial: 27
+        linha_final: 27
+        trecho: "cancelamentoService.cancelar(id, pedido.motivo(), usuario, true)"
 
 # Fluxo "perguntar ao sistema" (spec 4.3).
 perguntas:
@@ -834,6 +887,72 @@ demandas:
         palavras_chave: [[pago, pagamento, valor, vl_pago], [estorn*, devol*, credit*, compens*, reembols*, destino]]
     arquivos_impactados:
       - db/03_pkg_cobranca.sql
+
+  # Demanda sobre um estado errado (#451): o solicitante culpa uma "rota
+  # antiga" que não existe. Três caminhos gravam CANCELADA: a tela da
+  # retaguarda (PRC_CANCELAR_FATURA) e o portal validam; a edição do cliente,
+  # ao desligá-lo, chama o mesmo método do portal com a validação desligada. A
+  # análise deve listar os três e apontar o que não valida.
+  - id: D-FAT-006
+    texto: >-
+      Há faturas com pagamento parcial na situação CANCELADA, e o valor pago
+      ficou sem destino. O cancelamento pela tela e pelo portal recusa fatura
+      com pagamento parcial, então essas faturas devem ter sido canceladas pela
+      rota antiga de cancelamento, que não valida. Desativar a rota antiga.
+    premissa: >-
+      Não há rota antiga de cancelamento. A tela da retaguarda
+      (PRC_CANCELAR_FATURA) e o portal (POST /api/faturas/{id}/cancelamento)
+      recusam fatura com pagamento parcial. O caminho que cancela sem validar é
+      a edição do cliente: ao desligar o cliente (PUT /api/clientes/{id}),
+      ClienteService.editar cancela as faturas ABERTA dele chamando
+      CancelamentoService.cancelar com a validação desligada, inclusive as que
+      têm pagamento parcial. As faturas já canceladas assim precisam de
+      tratamento (estorno ou compensação do valor pago).
+    abrangencia_esperada: media
+    regras: [RN-FAT-012, RN-FAT-017, INC-FAT-004]
+    verificacao_da_premissa:
+      veredito: nao_confere
+      palavras_chave: [[antiga, "nao existe", "nao ha", inexist*, nenhuma], [cliente, deslig*, clienteservice]]
+    caminhos_de_escrita:
+      estado: FATURA.STATUS = CANCELADA
+      caminhos:
+        - nome: Tela de cancelamento da retaguarda (PKG_COBRANCA.PRC_CANCELAR_FATURA)
+          valida: true
+          palavras_chave: [[prc_cancelar_fatura, frmcancelamento, retaguarda, delphi]]
+          evidencias:
+            - arquivo: db/03_pkg_cobranca.sql
+              linha_inicial: 123
+              linha_final: 127
+              trecho: "SET STATUS          = 'CANCELADA'"
+            - arquivo: delphi/UFrmCancelamento.pas
+              linha_inicial: 94
+              linha_final: 94
+              trecho: "PRC_CANCELAR_FATURA"
+        - nome: Cancelamento pelo portal (POST /api/faturas/{id}/cancelamento)
+          valida: true
+          palavras_chave: [[portal, faturacontroller, "api/faturas"]]
+          evidencias:
+            - arquivo: backend/src/main/java/exemplo/faturamento/FaturaController.java
+              linha_inicial: 23
+              linha_final: 28
+              trecho: "cancelamentoService.cancelar(id, pedido.motivo(), usuario, true)"
+        - nome: Edição do cliente, ao desligá-lo (PUT /api/clientes/{id})
+          valida: false
+          palavras_chave: [[deslig*, clienteservice, clientecontroller, "edicao do cliente", "api/clientes"]]
+          evidencias:
+            - arquivo: backend/src/main/java/exemplo/faturamento/ClienteService.java
+              linha_inicial: 44
+              linha_final: 49
+              trecho: "cancelamentoService.cancelar(idFatura, MOTIVO_DESLIGAMENTO, usuario, false)"
+          sem_validacao: [[valid*, verific*, checag*, confer*, recus*], [sem, nao, desligad*, ignor*, pul*, false, nenhum*]]
+    perguntas_esperadas:
+      - tema: Ao desligar o cliente, o que fazer com a fatura que já recebeu pagamento parcial?
+        palavras_chave: [[deslig*, cliente], [pago, pagamento, parcial, vl_pago], [estorn*, devol*, credit*, compens*, cancel*, mant*, aberta]]
+      - tema: O que fazer com as faturas com pagamento parcial já canceladas pelo desligamento?
+        palavras_chave: [[cancelad*, "ja cancel*"], [estorn*, devol*, credit*, compens*, reabr*, corrig*, trat*]]
+    arquivos_impactados:
+      - backend/src/main/java/exemplo/faturamento/ClienteService.java
+      - backend/src/main/java/exemplo/faturamento/CancelamentoService.java
 
 # Arquivos que as ferramentas devem excluir da análise (spec 4.1, passo 4).
 exclusoes:
@@ -1253,6 +1372,17 @@ mapeamentos:
         funcionalidades: [F-FAT-002]
       - chave: frontend/src/telas/parcelamento-form.ts#enviarParcelamento
         funcionalidades: [F-FAT-002]
+      # Caminhos do backend que gravam o cancelamento (#451). O endpoint é o
+      # ponto de entrada do método do controller: a chave é o método seguido da
+      # rota normalizada.
+      - chave: backend/src/main/java/exemplo/faturamento/CancelamentoService.java#exemplo.faturamento.CancelamentoService.cancelar
+        funcionalidades: [F-FAT-003]
+      - chave: backend/src/main/java/exemplo/faturamento/FaturaController.java#exemplo.faturamento.FaturaController.cancelar./api/faturas/{}/cancelamento
+        funcionalidades: [F-FAT-003]
+      - chave: backend/src/main/java/exemplo/faturamento/ClienteService.java#exemplo.faturamento.ClienteService.editar
+        funcionalidades: [F-FAT-007, F-FAT-003]
+      - chave: backend/src/main/java/exemplo/faturamento/ClienteController.java#exemplo.faturamento.ClienteController.editar./api/clientes/{}
+        funcionalidades: [F-FAT-007, F-FAT-003]
     funcionalidades:
       - id: F-FAT-001
         area: cobranca
@@ -1274,6 +1404,10 @@ mapeamentos:
         nome: Suspensão da cobrança por contestação
         area: cobranca
         palavras_chave: [[suspen*, contesta*]]
+      - id: F-FAT-007
+        nome: Manutenção do cadastro de clientes
+        area: cadastro
+        palavras_chave: [[client*], [cadastr*, edit*, manut*, alter*, deslig*]]
 
 # Ciclo de publicação da documentação (#279): o item `analise` é analisado,
 # aprovado e publicado no repositório de docs `repositorio` (na avaliação, um
