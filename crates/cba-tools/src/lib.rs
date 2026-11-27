@@ -337,6 +337,7 @@ mod tests {
             "schema",
             "ler_issue_da_demanda",
             "mudancas_em_andamento",
+            "historico_do_trecho",
             "ler_transcript",
             "sugerir_demanda",
             "verificar_termos_vagos",
