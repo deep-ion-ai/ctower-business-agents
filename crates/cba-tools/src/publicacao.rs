@@ -208,17 +208,30 @@ pub struct Paginas {
 }
 
 /// Gera as páginas legíveis da base aprovada. Sem documento aprovado, nenhuma
-/// página (nem o README): não há o que publicar.
+/// página (nem o README): não há o que publicar. Com `mascarar_demanda` (a
+/// preferência do projeto, #454), os dados pessoais das seções da demanda saem
+/// mascarados nas páginas ([`cba_docs::mascarar_demanda`]).
 pub fn paginas_do_projeto(
     projeto: &Projeto,
     links: Option<&dyn LinksDeEvidencia>,
+    mascarar_demanda: bool,
 ) -> Result<Paginas, String> {
-    let documentos = documentos_aprovados(projeto)?;
+    let mut documentos = documentos_aprovados(projeto)?;
     let aprovados = documentos.len();
     if aprovados == 0 {
         return Ok(Paginas::default());
     }
     let data = data_da_base(&documentos);
+    if mascarar_demanda {
+        for d in &mut documentos {
+            if let Ok(texto) = std::str::from_utf8(&d.conteudo) {
+                let (mascarado, n) = cba_docs::mascarar_demanda(texto);
+                if n > 0 {
+                    d.conteudo = mascarado.into_bytes();
+                }
+            }
+        }
+    }
     let d = crate::documentacao::documentacao_dos_aprovados(projeto, documentos, links, data)?;
     Ok(Paginas {
         paginas: d
@@ -546,6 +559,9 @@ pub struct Alvo<'a> {
     /// nas páginas ([`crate::documentacao::LinksNaForja`]). Sem ele, as
     /// evidências ficam como texto.
     pub escopo: Option<&'a Escopo>,
+    /// Mascara os dados pessoais do texto da demanda nas páginas (#454): a
+    /// preferência do projeto (`cba_index::Projeto::mascarar_demanda`).
+    pub mascarar_demanda: bool,
 }
 
 struct Preparo<'a> {
@@ -577,6 +593,7 @@ fn preparar<'a>(f: &Ferramentas, alvo: &Alvo<'a>) -> Result<Preparo<'a>, String>
     let geradas = paginas_do_projeto(
         alvo.projeto,
         links.as_ref().map(|l| l as &dyn LinksDeEvidencia),
+        alvo.mascarar_demanda,
     )?;
     let manifesto = destino.caminho_no_repositorio(MANIFESTO);
     let remoto = escrita::ler_remoto(

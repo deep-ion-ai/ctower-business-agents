@@ -25,7 +25,9 @@
 //!   cenários de teste também em CSV, uma linha por cenário
 //!   ([`crate::cenarios::csv`]). No Word, os diagramas saem como as figuras que o
 //!   app renderizou ([`cba_docs::Figuras`]), a partir dos blocos que
-//!   [`diagramas_para_exportar`] lista.
+//!   [`diagramas_para_exportar`] lista. Com a preferência do projeto ligada (o
+//!   padrão, #454), os dados pessoais de "Demanda como veio" e "Demanda como
+//!   entendida" saem mascarados ([`cba_docs::mascarar_demanda`]).
 //!
 //! # O que é obrigatório antes de aprovar
 //!
@@ -1105,6 +1107,12 @@ fn texto_para_exportar(
     };
     // Premissas, decisões, riscos e restrições da demanda (#122).
     let texto = crate::registros::com_registros(amb, analise, texto);
+    // Dados pessoais do texto da demanda (#454): só na saída, a base fica como está.
+    let texto = if amb.projeto.mascarar_demanda {
+        cba_docs::mascarar_demanda(&texto).0
+    } else {
+        texto
+    };
     Ok((texto, commit))
 }
 

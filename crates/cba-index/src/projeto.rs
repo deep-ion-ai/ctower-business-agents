@@ -54,6 +54,19 @@ pub struct Projeto {
     /// <nome> nesta análise"); sem isso, o agente nem vê `consultar_dados`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub bancos: Vec<String>,
+    /// Mascara os dados pessoais (CPF, CNPJ, e-mail, telefone) do texto da
+    /// demanda na exportação e na publicação (#454). Ligado por padrão; a base
+    /// local guarda sempre o texto original.
+    #[serde(default = "ligado", skip_serializing_if = "e_ligado")]
+    pub mascarar_demanda: bool,
+}
+
+fn ligado() -> bool {
+    true
+}
+
+fn e_ligado(valor: &bool) -> bool {
+    *valor
 }
 
 impl Projeto {
@@ -86,6 +99,7 @@ impl Projeto {
             repositorios: Repositorios::default(),
             ambiente_teste: None,
             bancos: Vec::new(),
+            mascarar_demanda: true,
         };
         projeto.validar()?;
         Ok(projeto)
