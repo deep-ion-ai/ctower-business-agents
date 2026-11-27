@@ -777,6 +777,22 @@ fn fluxo_de_ponta_a_ponta(
             }),
         ));
         id += 1;
+        // Verificação em dados (#453): quantas faturas de PJ já passam de 3
+        // parcelas, validada contra os scripts de banco da fixture.
+        mensagens.push(chamada(
+            id,
+            "registrar_verificacao",
+            json!({
+                "analise": "A-0001",
+                "objetivo": "Contar as faturas de pessoa jurídica parceladas em mais de 3 vezes",
+                "sql": "SELECT COUNT(DISTINCT P.ID_FATURA) AS FATURAS\n  FROM PARCELA P\n  JOIN FATURA F ON F.ID_FATURA = P.ID_FATURA\n  JOIN CLIENTE C ON C.ID_CLIENTE = F.ID_CLIENTE\n WHERE C.TIPO_CLIENTE = 'PJ'\n   AND P.NR_PARCELA > 3",
+                "resultados": [
+                    { "resultado": "Zero", "significado": "limitar a 3 parcelas não afeta parcelamentos já feitos" },
+                    { "resultado": "Mais de zero", "significado": "há parcelamentos acima do novo limite: decidir se eles seguem como estão" }
+                ]
+            }),
+        ));
+        id += 1;
     }
     mensagens.push(chamada(
         id,
@@ -808,7 +824,7 @@ fn fluxo_de_ponta_a_ponta(
     let respostas = conversar(iniciar_mcp(&fixture(), dados), &mensagens);
     assert_eq!(
         respostas.len(),
-        registros.len() + 6 + usize::from(com_decisao),
+        registros.len() + 6 + 2 * usize::from(com_decisao),
         "{respostas:?}"
     );
     for r in &respostas[2..] {
@@ -993,6 +1009,7 @@ fn mcp_analise_de_impacto_do_inicio_ao_documento_na_base() {
             "Dados pessoais e requisitos não funcionais",
             "Riscos",
             "Abrangência",
+            "Verificações em dados",
             "Perguntas para o solicitante",
             "Sugestões de alteração",
             "Evidências",
