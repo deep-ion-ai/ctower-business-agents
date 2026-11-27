@@ -16,8 +16,8 @@ fn mapa_revisao_explicacao_e_exportacao() {
     assert_eq!(vazio.total, 0);
     assert!(vazio.documento.is_none());
     let completude = vazio.completude.as_ref().unwrap();
-    assert_eq!(completude.total, 15);
-    assert_eq!(completude.sem_tratamento.len(), 15);
+    assert_eq!(completude.total, 19);
+    assert_eq!(completude.sem_tratamento.len(), 19);
 
     // O agente registra uma funcionalidade (sem análise).
     let amb = ambiente(&c.dados, PROJETO).unwrap();
@@ -44,7 +44,7 @@ fn mapa_revisao_explicacao_e_exportacao() {
 
     let mapa = mapa_funcionalidades(&c.dados, PROJETO).unwrap();
     assert_eq!((mapa.total, mapa.pendentes), (1, 1));
-    assert_eq!(mapa.completude.as_ref().unwrap().sem_tratamento.len(), 14);
+    assert_eq!(mapa.completude.as_ref().unwrap().sem_tratamento.len(), 18);
     assert!(
         mapa.documento
             .as_deref()
