@@ -448,7 +448,7 @@ fn ler_tudo(
                 ));
             }
             // Do mais recente ao mais antigo, como o git log de uma pasta só.
-            todos.sort_by(|a, b| b.instante.cmp(&a.instante));
+            todos.sort_by_key(|c| std::cmp::Reverse(c.instante));
             Ok(todos)
         }
     }
