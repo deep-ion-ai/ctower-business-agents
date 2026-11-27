@@ -138,7 +138,10 @@ fora de seção: 529.982.247-25
         assert!(saida.contains("CPF [CPF mascarado], empresa [CNPJ mascarado],"));
         assert!(saida.contains("e-mail [e-mail mascarado], telefone [telefone mascarado]."));
         assert!(saida.contains("gerente: [telefone mascarado]."), "{saida}");
-        assert!(saida.contains("Premissa: o CPF [CPF mascarado] está"), "{saida}");
+        assert!(
+            saida.contains("Premissa: o CPF [CPF mascarado] está"),
+            "{saida}"
+        );
         // Fora da demanda e no bloco de código, o texto fica.
         assert!(saida.contains("atende em (11) 3456-7890; ver ana@example.com."));
         assert!(saida.contains("fora de seção: 529.982.247-25"), "{saida}");
@@ -154,7 +157,10 @@ fora de seção: 529.982.247-25
 
     #[test]
     fn titulos() {
-        assert_eq!(titulo("## Demanda como veio\n"), Some((2, "Demanda como veio")));
+        assert_eq!(
+            titulo("## Demanda como veio\n"),
+            Some((2, "Demanda como veio"))
+        );
         assert_eq!(titulo("  ### Anexo ###\r\n"), Some((3, "Anexo")));
         assert_eq!(titulo("#hashtag\n"), None);
         assert_eq!(titulo("####### sete\n"), None);
