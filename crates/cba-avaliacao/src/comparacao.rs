@@ -34,7 +34,10 @@
 //! - **origem da regra** (impacto, #450): com o histórico git sintético, uma
 //!   afirmação de `como_e_hoje` cita a chave da demanda que criou a regra, no
 //!   texto ou no commit guardado em `origens`; a pergunta se a regra continua
-//!   valendo é uma das perguntas esperadas.
+//!   valendo é uma das perguntas esperadas;
+//! - **caminhos que gravam o estado** (impacto, #451): cada caminho esperado
+//!   citado numa afirmação, e o que não valida apontado em `riscos` ou
+//!   `funcionalidades` ([`crate::caminhos`]).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -45,6 +48,7 @@ use cba_tools::documento::{SECAO_DA_ABRANGENCIA, abrangencia_do_texto};
 use cba_tools::evidencias::{EvidenciaCitada, validar};
 use serde::Serialize;
 
+use crate::caminhos::{CaminhosAvaliados, avaliar_caminhos};
 use crate::cenarios::{CenariosAvaliados, avaliar_cenarios};
 use crate::ciclo_vida::{CicloVidaAvaliado, avaliar_ciclo_vida};
 use crate::dados_pessoais::{DadosPessoaisAvaliados, avaliar_dados_pessoais};
@@ -112,6 +116,9 @@ pub struct Avaliacao {
     /// Regra criada de propósito por uma demanda anterior (impacto, #450).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub origem: Option<OrigemAvaliada>,
+    /// Caminhos que gravam o estado de que a demanda trata (impacto, #451).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub caminhos: Option<CaminhosAvaliados>,
 }
 
 /// A demanda de origem de uma regra citada em `como_e_hoje` (#450).
@@ -556,6 +563,10 @@ pub fn avaliar(analise: &Analise, item: &Item, gabarito: &Gabarito, escopo: &Esc
             .as_ref()
             .map(|d| avaliar_dados_pessoais(analise, d, &validas_por_afirmacao)),
         origem: item.origem.as_ref().map(|o| avaliar_origem(analise, o)),
+        caminhos: item
+            .caminhos
+            .as_ref()
+            .map(|c| avaliar_caminhos(analise, c, &validas_por_afirmacao)),
     }
 }
 

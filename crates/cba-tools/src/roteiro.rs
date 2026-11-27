@@ -634,6 +634,16 @@ mod tests {
         assert!(r.contains("chame `historico_do_trecho`"), "{r}");
         assert!(r.contains("continua valendo"), "{r}");
         assert!(r.contains("`origens` do `afirmar`"), "{r}");
+        // Numa demanda sobre um estado errado, todos os caminhos que gravam o
+        // estado, subindo com `referencias` em profundidade (#451).
+        let caminhos = r
+            .find("**Feche o conjunto de quem grava o estado,**")
+            .unwrap();
+        assert!(hoje < caminhos, "{r}");
+        assert!(r.contains("`profundidade: 2` ou `3`"), "{r}");
+        assert!(r.contains("\"Caminhos que gravam <estado>: "), "{r}");
+        assert!(r.contains("diga se a lista é completa"), "{r}");
+        assert!(r.contains("dizendo o que valida e o que não valida"), "{r}");
         assert!(r.ends_with("## Contexto da base\n\nNada.\n"), "{r}");
     }
 

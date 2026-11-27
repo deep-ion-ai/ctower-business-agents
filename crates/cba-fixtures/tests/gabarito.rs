@@ -525,6 +525,29 @@ struct Demanda {
     dados_pessoais: Option<DadosPessoais>,
     #[serde(default)]
     origem: Option<OrigemDaRegra>,
+    #[serde(default)]
+    caminhos_de_escrita: Option<CaminhosDeEscrita>,
+}
+
+/// Todos os caminhos que gravam um estado (#451): cada um com palavras-chave e
+/// evidência; ao menos um não valida e diz, em `sem_validacao`, como reconhecer
+/// a afirmação que aponta isso.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CaminhosDeEscrita {
+    estado: String,
+    caminhos: Vec<CaminhoDeEscrita>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CaminhoDeEscrita {
+    nome: String,
+    valida: bool,
+    palavras_chave: Vec<Vec<String>>,
+    evidencias: Vec<Evidencia>,
+    #[serde(default)]
+    sem_validacao: Vec<Vec<String>>,
 }
 
 /// Regra criada de propósito por uma demanda anterior, com o histórico git
@@ -599,6 +622,44 @@ fn coluna_nos_scripts(raiz: &Path, campo: &str) -> bool {
             .lines()
             .any(|l| l.split_whitespace().next() == Some(coluna))
     })
+}
+
+/// Caminhos que gravam um estado (#451): ao menos dois (o objetivo é fechar o
+/// conjunto), nomes únicos, palavras-chave, evidências que conferem e, nos que
+/// não validam, as palavras-chave do que falta validar; ao menos um não valida.
+fn conferir_caminhos(c: &mut Conferencia, onde: &str, ce: &CaminhosDeEscrita) {
+    let onde = format!("{onde}, caminhos de escrita");
+    c.texto_preenchido(&onde, "estado", &ce.estado);
+    if ce.caminhos.len() < 2 {
+        c.erro(format!("{onde}: menos de dois caminhos"));
+    }
+    if ce.caminhos.iter().all(|k| k.valida) {
+        c.erro(format!("{onde}: nenhum caminho sem validação"));
+    }
+    let mut nomes = HashSet::new();
+    for k in &ce.caminhos {
+        let onde = format!("{onde}, {}", k.nome);
+        c.texto_preenchido(&onde, "nome", &k.nome);
+        if !nomes.insert(k.nome.as_str()) {
+            c.erro(format!("{onde}: caminho repetido"));
+        }
+        c.palavras_chave(&onde, &k.palavras_chave);
+        if k.evidencias.is_empty() {
+            c.erro(format!("{onde}: sem evidências"));
+        }
+        for ev in &k.evidencias {
+            c.evidencia(&onde, ev);
+        }
+        if k.valida {
+            if !k.sem_validacao.is_empty() {
+                c.erro(format!("{onde}: `sem_validacao` num caminho que valida"));
+            }
+        } else if k.sem_validacao.is_empty() {
+            c.erro(format!("{onde}: caminho sem validação sem `sem_validacao`"));
+        } else {
+            c.palavras_chave(&onde, &k.sem_validacao);
+        }
+    }
 }
 
 fn conferir_dados_pessoais(c: &mut Conferencia, raiz: &Path, onde: &str, d: &DadosPessoais) {
@@ -1017,6 +1078,9 @@ fn conferir(caminho: &Path) -> Vec<String> {
                 ));
             }
         }
+        if let Some(ce) = &d.caminhos_de_escrita {
+            conferir_caminhos(&mut c, &onde, ce);
+        }
         if d.arquivos_impactados.is_empty() {
             c.erro(format!("{onde}: nenhum arquivo impactado"));
         }
@@ -1294,6 +1358,9 @@ fn conferir_mapeamento(
             c.erro(format!("{onde}: chave fora do formato <arquivo>#<nome>"));
             continue;
         };
+        // Endpoint: o método seguido da rota normalizada (`Classe.metodo./api/x/{}`);
+        // confere-se o método.
+        let nome = nome.split_once("./").map_or(nome, |(metodo, _)| metodo);
         let simples = nome.rsplit('.').next().unwrap_or(nome).to_uppercase();
         match fs::read(raiz.join(arquivo)) {
             Ok(bytes) => {

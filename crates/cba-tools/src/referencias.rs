@@ -16,7 +16,11 @@ use serde_json::{Value, json};
 
 use crate::fontes;
 use crate::paginacao::{ArgsPagina, Item, Pagina, com_paginacao, nome};
-use crate::registro::{Ferramenta, Saida, ler_argumentos};
+use crate::registro::{ErroFerramenta, Ferramenta, Saida, ler_argumentos};
+
+mod arvore;
+
+use arvore::{Arvore, LIMITE_DE_NOS, LIMITE_DE_NOS_MAXIMO, PROFUNDIDADE_MAXIMA};
 
 /// Definições listadas no cabeçalho.
 const DEFINICOES: usize = 10;
@@ -53,6 +57,10 @@ struct Args {
     sentido: Sentido,
     #[serde(default)]
     tipos: Vec<String>,
+    #[serde(default)]
+    profundidade: Option<u8>,
+    #[serde(default)]
+    limite_de_nos: Option<usize>,
     #[serde(flatten)]
     pagina: ArgsPagina,
 }
@@ -84,7 +92,19 @@ pub fn referencias() -> Ferramenta {
                 "tipos": {
                     "type": "array",
                     "items": { "type": "string", "enum": TIPOS },
-                    "description": "Só estes tipos de uso (\"escrita\" para quem grava numa tabela, por exemplo). Sem o campo: todos."
+                    "description": "Só estes tipos de uso (\"escrita\" para quem grava numa tabela, por exemplo). Sem o campo: todos. Com `profundidade`, filtra só o primeiro nível."
+                },
+                "profundidade": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": PROFUNDIDADE_MAXIMA,
+                    "description": "Só com quem_usa. 1 (padrão): os usos diretos. 2 ou 3: também a árvore de quem chama, subindo pela rotina de cada uso até os pontos de entrada (telas, rotas, lotes), inclusive chamadas internas e edições de outros registros. Use para listar todos os caminhos que gravam um estado: parta do campo (com tipos [\"escrita\"]) ou do método de escrita."
+                },
+                "limite_de_nos": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": LIMITE_DE_NOS_MAXIMO,
+                    "description": format!("Nós da árvore (padrão {LIMITE_DE_NOS}). Passando dele, os níveis mais distantes são cortados, com aviso.")
                 }
             },
             "required": ["identificador"],
@@ -102,11 +122,30 @@ pub fn referencias() -> Ferramenta {
                 Sentido::OQueUsa => o_que_usa(mapa, &definicoes),
             };
             let tipos: BTreeSet<&str> = args.tipos.iter().map(String::as_str).collect();
+            let usos: Vec<Uso<'_>> = usos
+                .into_iter()
+                .filter(|u| tipos.is_empty() || tipos.contains(nome(&u.referencia.tipo).as_str()))
+                .collect();
             let itens: Vec<Item> = usos
                 .iter()
-                .filter(|u| tipos.is_empty() || tipos.contains(nome(&u.referencia.tipo).as_str()))
                 .map(|u| item(mapa, u, args.sentido, &identificador))
                 .collect();
+            let profundidade = args.profundidade.unwrap_or(1).clamp(1, PROFUNDIDADE_MAXIMA);
+            if profundidade > 1 && args.sentido == Sentido::OQueUsa {
+                return Err(ErroFerramenta::Recusa(
+                    "`profundidade` sobe pelos chamadores e só vale com `sentido: \"quem_usa\"`. \
+                     Para descer pelo que a rotina usa, chame `referencias` de novo com cada \
+                     rotina usada."
+                        .into(),
+                ));
+            }
+            let arvore = (profundidade > 1).then(|| {
+                let limite = args
+                    .limite_de_nos
+                    .unwrap_or(LIMITE_DE_NOS)
+                    .clamp(1, LIMITE_DE_NOS_MAXIMO);
+                Arvore::montar(mapa, &usos, profundidade, limite)
+            });
             let pagina = Pagina::da_lista(itens, args.pagina);
 
             let mut texto = String::new();
@@ -149,6 +188,9 @@ pub fn referencias() -> Ferramenta {
                 texto.push_str(&pagina.linhas());
                 let _ = writeln!(texto, "\n{}", pagina.rodape());
             }
+            if let Some(a) = arvore.as_ref().filter(|_| pagina.inicio == 0) {
+                texto.push_str(&a.texto(&identificador));
+            }
             let _ = writeln!(texto, "{}", carregado.nota());
 
             Ok(Saida {
@@ -170,6 +212,7 @@ pub fn referencias() -> Ferramenta {
                     "total_de_definicoes": definicoes.len(),
                     "referencias": pagina.dados(),
                     "pagina": pagina.json(),
+                    "arvore": arvore.as_ref().map(Arvore::dados),
                     "mapa": carregado.json(),
                 })),
             })

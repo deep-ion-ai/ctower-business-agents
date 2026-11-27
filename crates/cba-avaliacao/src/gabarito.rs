@@ -213,6 +213,37 @@ pub struct Demanda {
     /// Regra criada de propósito por uma demanda anterior (#450).
     #[serde(default)]
     pub origem: Option<OrigemEsperada>,
+    /// Caminhos que gravam o estado de que a demanda trata (#451).
+    #[serde(default)]
+    pub caminhos_de_escrita: Option<CaminhosEsperados>,
+}
+
+/// Todos os caminhos que gravam um estado (#451): numa demanda sobre um estado
+/// errado, a análise de impacto deve listar cada caminho, inclusive chamadas
+/// internas e edições de outros registros, e apontar o que não valida em
+/// `riscos` ou em `funcionalidades`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CaminhosEsperados {
+    /// O estado gravado (`FATURA.STATUS = CANCELADA`).
+    pub estado: String,
+    pub caminhos: Vec<CaminhoEsperado>,
+}
+
+/// Um caminho que grava o estado.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CaminhoEsperado {
+    /// Para quem lê o relatório.
+    pub nome: String,
+    /// O caminho valida o estado antes de gravar.
+    pub valida: bool,
+    /// Citado quando a afirmação tem estas palavras-chave ...
+    pub palavras_chave: Vec<Vec<String>>,
+    /// ... ou uma evidência que toca uma destas.
+    pub evidencias: Vec<EvidenciaEsperada>,
+    /// Caminho sem validação: palavras-chave do que ele não valida, na afirmação
+    /// de `riscos` ou `funcionalidades` que o cita.
+    #[serde(default)]
+    pub sem_validacao: Vec<Vec<String>>,
 }
 
 /// Regra que uma demanda anterior criou de propósito (#450). A cópia da fixture
@@ -619,6 +650,9 @@ pub struct Item {
     /// (#450): a cópia recebe o histórico git sintético.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub origem: Option<OrigemEsperada>,
+    /// Caminhos que gravam o estado, só no fluxo impacto (#451).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub caminhos: Option<CaminhosEsperados>,
 }
 
 /// Erro ao ler o gabarito ou ao achar um item.
@@ -738,6 +772,7 @@ impl Gabarito {
                 modelagem: None,
                 dados_pessoais: None,
                 origem: None,
+                caminhos: None,
             });
         }
         if let Some(f) = self.funcionalidades.iter().find(|f| f.id == id) {
@@ -763,6 +798,7 @@ impl Gabarito {
                 }),
                 dados_pessoais: None,
                 origem: None,
+                caminhos: None,
             });
         }
         if let Some(d) = self.demandas.iter().find(|d| d.id == id) {
@@ -783,6 +819,7 @@ impl Gabarito {
                 modelagem: None,
                 dados_pessoais: d.dados_pessoais.clone(),
                 origem: d.origem.clone(),
+                caminhos: d.caminhos_de_escrita.clone(),
             });
         }
         if let Some(r) = self.revisoes.iter().find(|r| r.id == id) {
@@ -804,6 +841,7 @@ impl Gabarito {
                 modelagem: None,
                 dados_pessoais: None,
                 origem: None,
+                caminhos: None,
             });
         }
         if let Some(h) = self.historias.iter().find(|h| h.id == id) {
@@ -825,6 +863,7 @@ impl Gabarito {
                 modelagem: None,
                 dados_pessoais: None,
                 origem: None,
+                caminhos: None,
             });
         }
         if let Some(c) = self.cenarios.iter().find(|c| c.id == id) {
@@ -845,6 +884,7 @@ impl Gabarito {
                 modelagem: None,
                 dados_pessoais: None,
                 origem: None,
+                caminhos: None,
             });
         }
         if let Some(c) = self.ciclos_vida.iter().find(|c| c.id == id) {
@@ -865,6 +905,7 @@ impl Gabarito {
                 modelagem: None,
                 dados_pessoais: None,
                 origem: None,
+                caminhos: None,
             });
         }
         Err(Erro(format!(

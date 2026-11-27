@@ -219,8 +219,8 @@ fn inventario_da_fixture_ignora_segredos_e_dependencias() {
     // Resumo.
     let r = inv.resumo();
     assert_eq!(r.analisados, esperados.len());
-    assert_eq!(r.por_linguagem[&Linguagem::Java], 6);
-    assert_eq!(r.por_linguagem[&Linguagem::Sql], 5);
+    assert_eq!(r.por_linguagem[&Linguagem::Java], 11);
+    assert_eq!(r.por_linguagem[&Linguagem::Sql], 6);
     assert_eq!(r.ignorados_por_motivo[&Motivo::Segredo], 2);
     assert_eq!(
         r.ignorados,
