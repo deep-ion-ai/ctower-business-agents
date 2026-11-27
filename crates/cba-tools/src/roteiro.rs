@@ -625,6 +625,15 @@ mod tests {
             r.contains("chame `mudancas_em_andamento` (analise: \"A-0003\""),
             "{r}"
         );
+        // A origem de cada regra que a demanda muda, depois de como é hoje (#450).
+        let hoje = r.find("**Descreva como é hoje**").unwrap();
+        let origem = r
+            .find("**Consulte a origem de cada regra que a demanda muda.**")
+            .unwrap();
+        assert!(hoje < origem, "{r}");
+        assert!(r.contains("chame `historico_do_trecho`"), "{r}");
+        assert!(r.contains("continua valendo"), "{r}");
+        assert!(r.contains("`origens` do `afirmar`"), "{r}");
         assert!(r.ends_with("## Contexto da base\n\nNada.\n"), "{r}");
     }
 

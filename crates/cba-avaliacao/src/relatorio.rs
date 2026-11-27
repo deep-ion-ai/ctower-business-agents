@@ -682,6 +682,10 @@ fn criterios_das_analises(s: &mut String) {
     );
     let _ = writeln!(
         s,
+        "- **Origem da regra** (com histórico git sintético): uma afirmação de \"Como é hoje\" cita a chave da demanda que criou a regra, no texto ou no commit guardado em `origens`."
+    );
+    let _ = writeln!(
+        s,
         "- **Falha grave:** afirmação `confirmado` sem evidência válida, nenhuma afirmação, estado ausente ou arquivo do projeto alterado."
     );
     let _ = writeln!(
@@ -823,6 +827,19 @@ fn analise_md(s: &mut String, e: &Execucao) {
             match p.afirmacao {
                 Some(n) => format!("sim (afirmação {n})"),
                 None => "não".to_owned(),
+            }
+        );
+    }
+    if let Some(o) = &a.origem {
+        let _ = writeln!(
+            s,
+            "- Origem da regra {} ({}): {}",
+            o.regra,
+            o.chave,
+            match (o.citada_em, o.com_commit) {
+                (Some(n), true) => format!("citada (afirmação {n}, com o commit)"),
+                (Some(n), false) => format!("citada (afirmação {n}, sem o commit)"),
+                (None, _) => "não citada".to_owned(),
             }
         );
     }

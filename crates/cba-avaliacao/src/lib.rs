@@ -31,6 +31,7 @@ pub mod dados_pessoais;
 pub mod execucao;
 pub mod gabarito;
 pub mod historias;
+pub mod historico;
 pub mod longa;
 pub mod mapeamento;
 pub mod modelagem;

@@ -1,6 +1,6 @@
 //! `afirmar`: registra uma afirmação com confiança e evidências (spec, seção 6.5).
 
-use cba_core::analise::{Confianca, ErroModelo, NovaAfirmacao};
+use cba_core::analise::{Confianca, ErroModelo, EvidenciaOrigem, NovaAfirmacao};
 use cba_core::eventos::Mudanca;
 use serde::Deserialize;
 use serde_json::json;
@@ -38,6 +38,15 @@ struct Args {
     pergunta: Option<String>,
     #[serde(default)]
     dados: Vec<DadoCitado>,
+    #[serde(default)]
+    origens: Vec<OrigemCitada>,
+}
+
+/// Commit citado como origem da regra (#450), pelo hash que
+/// `historico_do_trecho` devolveu.
+#[derive(Debug, Deserialize)]
+struct OrigemCitada {
+    commit: String,
 }
 
 /// Resultado de uma consulta citado como evidência de dados (#440).
@@ -67,7 +76,9 @@ pub fn afirmar() -> Ferramenta {
          uma regra ou fato por afirmação. Na seção `abrangencia` da análise de impacto, \
          o texto começa pela estimativa (\"Pequena:\", \"Média:\" ou \"Grande:\"). \
          O resultado de uma consulta ao banco (`consultar_dados`) entra em `dados`, como \
-         evidência de dados, separada da evidência de código.",
+         evidência de dados, separada da evidência de código. O commit que criou ou \
+         mudou a regra (de `historico_do_trecho`) entra em `origens`, como evidência \
+         complementar: a evidência da regra continua sendo o código.",
         json!({
             "type": "object",
             "properties": {
@@ -111,6 +122,19 @@ pub fn afirmar() -> Ferramenta {
                             "resumo": { "type": "string", "minLength": 1, "maxLength": 500, "description": "O que o resultado mostra, sem dado pessoal (\"312 faturas vencidas com multa zerada\")." }
                         },
                         "required": ["consulta", "resumo"],
+                        "additionalProperties": false
+                    }
+                },
+                "origens": {
+                    "type": "array",
+                    "maxItems": 5,
+                    "description": "Commits que criaram ou mudaram a regra, pelo hash devolvido por `historico_do_trecho` (#450). O app confere o commit no repositório e guarda a data, a mensagem e as chaves de issue; no documento entram o hash curto, a data e a mensagem. Complementam as evidências de código, não as substituem.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "commit": { "type": "string", "minLength": 7, "maxLength": 40, "description": "Hash do commit (de 7 a 40 dígitos hexadecimais)." }
+                        },
+                        "required": ["commit"],
                         "additionalProperties": false
                     }
                 }
@@ -177,6 +201,14 @@ pub fn afirmar() -> Ferramenta {
             }
             let evidencias = evidencias::validar_todas(&ambiente.escopo, &args.evidencias)
                 .map_err(ErroFerramenta::Recusa)?;
+            let mut origens: Vec<EvidenciaOrigem> = Vec::new();
+            for o in &args.origens {
+                let origem = crate::historico::resolver_commit(ambiente, &o.commit)
+                    .map_err(|e| ErroFerramenta::Recusa(format!("origens: {e}")))?;
+                if !origens.iter().any(|x| x.commit == origem.commit) {
+                    origens.push(origem);
+                }
+            }
             let pergunta = match (args.confianca, args.pergunta) {
                 (_, Some(p)) => Some(p),
                 (Confianca::AConfirmar, None) => Some(format!(
@@ -198,7 +230,7 @@ pub fn afirmar() -> Ferramenta {
                     .iter()
                     .map(|d| a.evidencia_de_dados(d.consulta, &d.resumo))
                     .collect::<Result<Vec<_>, _>>()?;
-                let numero = a.registrar_afirmacao_com_dados(nova, dados, agora)?;
+                let numero = a.registrar_afirmacao_com_evidencias(nova, dados, origens, agora)?;
                 let pergunta = match &pergunta {
                     Some(p) => Some(a.registrar_pergunta(p, Some(numero), None, agora)?),
                     None => None,
@@ -233,6 +265,11 @@ pub fn afirmar() -> Ferramenta {
                     "confianca": afirmacao.confianca,
                     "evidencias": evidencias,
                     "dados": afirmacao.dados.iter().map(|d| d.consulta).collect::<Vec<_>>(),
+                    "origens": afirmacao
+                        .origens
+                        .iter()
+                        .map(|o| json!({ "commit": o.commit, "data": o.data, "assunto": o.assunto, "chaves": o.chaves }))
+                        .collect::<Vec<_>>(),
                     "pergunta": pergunta,
                 }),
             ))

@@ -40,7 +40,7 @@ const esforcoVerificacao = limites.esforcoVerificacao || 'low'
 const COMUM =
   'Você é um agente do workflow cba-impacto, na análise ' + analise + ' do ctower. ' +
   'As ferramentas do servidor MCP cba (mcp__cba__...) carregam-se com ToolSearch; passe sempre analise ' + analise + '. ' +
-  'Você não altera arquivos do projeto: só lê o código (Read, Grep, Glob e as ferramentas de consulta do cba: mapa, estrutura, referencias, schema, conhecimento). ' +
+  'Você não altera arquivos do projeto: só lê o código (Read, Grep, Glob e as ferramentas de consulta do cba: mapa, estrutura, referencias, schema, conhecimento, historico_do_trecho). ' +
   'Não chame iniciar_analise nem concluir_analise, e não siga o roteiro que retomar_analise devolve: siga só este pedido. ' +
   'Escreva para quem não lê código, em português.'
 
@@ -49,7 +49,7 @@ const REGRAS_DE_REGISTRO =
   'Cada evidência é o arquivo relativo à raiz do projeto, as linhas e o trecho copiado do código exatamente como está; evidência recusada volta com o motivo: corrija e chame de novo. Documentação não é evidência: o código é. ' +
   'Seções da análise de impacto: demanda_como_entendida, como_e_hoje, funcionalidades, dados, integracoes, documentos_e_telas, dados_pessoais_e_rnf, riscos. ' +
   'Premissa do solicitante vai em demanda_como_entendida no formato: "Premissa do solicitante: <o que ele afirmou ou supôs>. Verificação: <confere | não confere | confere em parte>. <o que o código mostra, com valores>." ' +
-  'Em como_e_hoje, as regras atuais com valores e condições. No que muda (funcionalidades, dados, integracoes, documentos_e_telas), cada item com o arquivo ou a tabela onde a mudança acontece; siga os valores até a origem (constante, parâmetro, configuração) e confira as outras camadas (tela, serviço, banco, lotes), onde a regra pode estar repetida, fixa ou diferente. ' +
+  'Em como_e_hoje, as regras atuais com valores e condições. A regra criada de propósito por uma demanda anterior vai em como_e_hoje com a chave, a data e a intenção da demanda, e o hash do commit em origens do afirmar (complementa a evidência de código, não a substitui). No que muda (funcionalidades, dados, integracoes, documentos_e_telas), cada item com o arquivo ou a tabela onde a mudança acontece; siga os valores até a origem (constante, parâmetro, configuração) e confira as outras camadas (tela, serviço, banco, lotes), onde a regra pode estar repetida, fixa ou diferente. ' +
   'Em dados_pessoais_e_rnf, só com evidência: campo pessoal (use schema com a tabela; o indício não é prova) no formato "Campo <TABELA.COLUNA>: <categoria> (dado pessoal | dado pessoal sensível). Finalidade aparente: ... Onde aparece: ...", e auditoria, desempenho e acesso afetados. ' +
   'Quando a mesma mudança se repete em muitos lugares, uma afirmação para o grupo, com a contagem e dois ou três exemplos citados. ' +
   'O que o código não responde (valores em tabela de parâmetros, jobs agendados, sistemas vizinhos, decisões do negócio, volume e janela) vira perguntar, escrita para o solicitante. ' +
@@ -159,6 +159,7 @@ const resultados = await pipeline(
         'Foco da frente: ' + frente.foco + '\n' +
         (frente.pistas && frente.pistas.length ? 'Por onde começar: ' + frente.pistas.join('; ') + '\n' : '') +
         '\nVerifique no código cada premissa e cada regra da frente, uma por uma; nenhuma afirmação do solicitante entra como verdade sem verificação. Levante como é hoje e o que muda (funcionalidades, dados, inclusive os já gravados no formato atual, integrações, documentos e telas), os dados pessoais e os riscos da frente. ' +
+        'Depois de descrever como é hoje, consulte a origem de cada regra que a demanda muda: chame historico_do_trecho com o arquivo e as linhas da evidência (ou com texto, o identificador da regra). O commit mais antigo é a origem; veja também os que mudaram a regra depois. Quando a mensagem cita uma demanda (uma chave como DEM-12 ou #12) que pediu esse comportamento de propósito, registre isso em como_e_hoje, com a chave e o hash do commit em origens, e pergunte com perguntar, citando a chave, se a regra da demanda continua valendo: a mudança pode revogá-la sem o negócio saber. Commit sem chave é só ajuste: não invente a demanda, e não cite nomes de pessoas. ' +
         'Não registre a abrangência nem a afirmação final "Demanda como entendida": isso é da fase Consolidar.\n\n' +
         REGRAS_DE_REGISTRO + '\n\n' +
         'Ao terminar, grave com memorizar, secao investigado, um item: "Frente ' + frente.titulo + ': <o que concluiu, com os arquivos principais>". ' +

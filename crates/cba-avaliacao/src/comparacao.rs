@@ -30,7 +30,11 @@
 //!   modelo de dados conceitual ([`crate::modelagem`]);
 //! - **dados pessoais e requisitos não funcionais** (impacto, #126): os campos
 //!   pessoais apontados com evidência, os falsos positivos e os aspectos de
-//!   auditoria, desempenho e acesso ([`crate::dados_pessoais`]).
+//!   auditoria, desempenho e acesso ([`crate::dados_pessoais`]);
+//! - **origem da regra** (impacto, #450): com o histórico git sintético, uma
+//!   afirmação de `como_e_hoje` cita a chave da demanda que criou a regra, no
+//!   texto ou no commit guardado em `origens`; a pergunta se a regra continua
+//!   valendo é uma das perguntas esperadas.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -44,7 +48,7 @@ use serde::Serialize;
 use crate::cenarios::{CenariosAvaliados, avaliar_cenarios};
 use crate::ciclo_vida::{CicloVidaAvaliado, avaliar_ciclo_vida};
 use crate::dados_pessoais::{DadosPessoaisAvaliados, avaliar_dados_pessoais};
-use crate::gabarito::{Gabarito, Item, Regra, Veredito};
+use crate::gabarito::{Gabarito, Item, OrigemEsperada, Regra, Veredito};
 use crate::historias::{HistoriasAvaliadas, avaliar_historias};
 use crate::modelagem::{ModelagemAvaliada, avaliar_modelagem};
 use crate::parecer::{ParecerAvaliado, avaliar_parecer};
@@ -105,6 +109,21 @@ pub struct Avaliacao {
     /// [`crate::dados_pessoais`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dados_pessoais: Option<DadosPessoaisAvaliados>,
+    /// Regra criada de propósito por uma demanda anterior (impacto, #450).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origem: Option<OrigemAvaliada>,
+}
+
+/// A demanda de origem de uma regra citada em `como_e_hoje` (#450).
+#[derive(Debug, Clone, Serialize)]
+pub struct OrigemAvaliada {
+    pub chave: String,
+    pub regra: String,
+    /// Primeira afirmação de `como_e_hoje` que cita a chave (no texto ou no commit
+    /// de origem).
+    pub citada_em: Option<u32>,
+    /// Alguma afirmação guarda o commit da chave em `origens`.
+    pub com_commit: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -536,6 +555,36 @@ pub fn avaliar(analise: &Analise, item: &Item, gabarito: &Gabarito, escopo: &Esc
             .dados_pessoais
             .as_ref()
             .map(|d| avaliar_dados_pessoais(analise, d, &validas_por_afirmacao)),
+        origem: item.origem.as_ref().map(|o| avaliar_origem(analise, o)),
+    }
+}
+
+/// Seção em que a origem da regra deve aparecer (#450).
+pub const SECAO_DA_ORIGEM: &str = "como_e_hoje";
+
+/// A chave da demanda de origem citada numa afirmação de `como_e_hoje`, no texto
+/// ou no commit guardado em `origens` (#450).
+fn avaliar_origem(analise: &Analise, o: &OrigemEsperada) -> OrigemAvaliada {
+    let chave = texto::normalizar(o.chave.trim());
+    let no_commit = |a: &Afirmacao| {
+        a.origens
+            .iter()
+            .any(|c| c.chaves.iter().any(|k| texto::normalizar(k) == chave))
+    };
+    let validas: Vec<&Afirmacao> = analise
+        .afirmacoes
+        .iter()
+        .filter(|a| a.secao == SECAO_DA_ORIGEM)
+        .filter(|a| !matches!(a.estado, EstadoAfirmacao::Incorreta { .. }))
+        .collect();
+    OrigemAvaliada {
+        chave: o.chave.clone(),
+        regra: o.regra.clone(),
+        citada_em: validas
+            .iter()
+            .find(|a| texto::contem(&texto::normalizar(do_agente(a)), &o.chave) || no_commit(**a))
+            .map(|a| a.numero),
+        com_commit: validas.iter().copied().any(no_commit),
     }
 }
 

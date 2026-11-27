@@ -523,6 +523,19 @@ struct Demanda {
     perguntas_esperadas: Vec<PerguntaEsperada>,
     #[serde(default)]
     dados_pessoais: Option<DadosPessoais>,
+    #[serde(default)]
+    origem: Option<OrigemDaRegra>,
+}
+
+/// Regra criada de propósito por uma demanda anterior, com o histórico git
+/// sintético em `fixtures/historicos/<historico>/` (#450). A reprodução do
+/// histórico é conferida pela crate `cba-avaliacao`.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct OrigemDaRegra {
+    historico: String,
+    chave: String,
+    regra: String,
 }
 
 /// Pergunta que o agente deve fazer ao solicitante (avaliação dos fluxos, #33).
@@ -984,6 +997,25 @@ fn conferir(caminho: &Path) -> Vec<String> {
         }
         if let Some(dp) = &d.dados_pessoais {
             conferir_dados_pessoais(&mut c, &raiz, &onde, dp);
+        }
+        if let Some(o) = &d.origem {
+            c.texto_preenchido(&onde, "origem.chave", &o.chave);
+            if !d.regras.contains(&o.regra) {
+                c.erro(format!(
+                    "{onde}: a regra de origem {} não está nas regras da demanda",
+                    o.regra
+                ));
+            }
+            let historico = pasta_gabarito
+                .join("../historicos")
+                .join(&o.historico)
+                .join("historico.yaml");
+            if !historico.is_file() {
+                c.erro(format!(
+                    "{onde}: o histórico {} não existe",
+                    historico.display()
+                ));
+            }
         }
         if d.arquivos_impactados.is_empty() {
             c.erro(format!("{onde}: nenhum arquivo impactado"));

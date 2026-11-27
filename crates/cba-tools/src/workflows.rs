@@ -163,6 +163,20 @@ mod tests {
         assert!(!texto.contains("contestar_afirmacao"));
     }
 
+    /// O impacto consulta a origem de cada regra na fase Investigar (#450): o
+    /// histórico do trecho, a chave da demanda de origem em como_e_hoje e a
+    /// pergunta se a regra continua valendo.
+    #[test]
+    fn padrao_de_impacto_consulta_a_origem_das_regras() {
+        let texto = padrao("impacto").unwrap();
+        let investigar = texto.find("Fase Investigar").unwrap();
+        let verificar = texto.find("Fase Verificar").unwrap();
+        let fase = &texto[investigar..verificar];
+        assert!(fase.contains("historico_do_trecho"), "{fase}");
+        assert!(fase.contains("continua valendo"), "{fase}");
+        assert!(texto.contains("origens do afirmar"));
+    }
+
     #[test]
     fn padroes_tem_um_por_tipo_com_o_nome_do_app() {
         let todos = padroes();

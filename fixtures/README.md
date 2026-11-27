@@ -10,6 +10,8 @@ aceite 2). Nenhum nome, termo ou dado de sistema real entra aqui.
 fixtures/
   faturamento-exemplo/            # o sistema analisado
   reunioes/                       # transcripts de reuniões sobre o sistema
+  historicos/
+    faturamento-exemplo/          # histórico git sintético da cópia (#450)
   gabaritos/
     faturamento-exemplo.yaml      # as respostas esperadas
 ```
@@ -116,6 +118,14 @@ deve encontrar:
   e `REU-FAT-002`), com o papel de cada participante e os itens esperados por
   seção, para a avaliação do fluxo "Analisar reunião". Os transcripts ficam
   fora da pasta do projeto, como o gabarito.
+- `origem` (numa demanda): a regra que uma demanda anterior criou de
+  propósito, com a chave dela e o histórico git sintético que a avaliação
+  reproduz na cópia da fixture (`historicos/<nome>/historico.yaml`, com as
+  versões anteriores dos arquivos). O histórico termina exatamente na
+  fixture, para as linhas citadas continuarem valendo. A `D-FAT-005` trata
+  como defeito a recusa de cancelar fatura com pagamento parcial
+  (RN-FAT-012), que o commit `[DEM-12] Impedir o cancelamento de fatura com
+  pagamento parcial` criou (#450).
 
 ## Testes
 

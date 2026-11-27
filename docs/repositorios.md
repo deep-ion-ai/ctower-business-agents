@@ -172,6 +172,23 @@ prontidão não bloqueia o app.
   consultar antes de concluir, com os arquivos da correção, e registrar cada PR/MR encontrado em
   `riscos` (dependência ou conflito, com número, título e link), conferindo se ele já cobre a
   demanda.
+- **Histórico do trecho (#450):** a ferramenta MCP `historico_do_trecho` (só leitura) lê o
+  histórico do git do analista, offline: com `arquivo`, `linha_inicial` e `linha_final`, os commits
+  dessas linhas (`git log -L`); com `texto`, os commits que puseram ou tiraram um identificador
+  (`git log -S`, no arquivo ou em cada pasta do projeto). De cada commit: hash, data, assunto,
+  corpo (cortado) e as chaves de issue da mensagem. Os padrões de chave ficam no cadastro do
+  projeto (`padroes_de_chave`, expressões regulares, validadas ao salvar; com grupo de captura,
+  vale o grupo); sem eles, `\b([A-Z][A-Z0-9]+-\d+)\b` (Jira) e `#N` (GitHub e GitLab), sem contar
+  siglas técnicas como `UTF-8`. Com rastreador cadastrado, o título de até 5 chaves vem de
+  `ler_issue` (#351), com aviso se falhar. A saída traz o commit mais antigo (a origem) e os mais
+  recentes, até `limite` (10 por padrão, até 50), com aviso quando corta; avisa também de clone
+  raso e de alterações sem commit. O autor do commit não sai da ferramenta: quando o agente cita o
+  commit como origem da regra (`afirmar`, campo `origens`), o app confere o commit no repositório
+  e guarda hash, data, assunto, chaves e autor no estado; o documento mostra o hash curto, a data e
+  a mensagem numa nota de rodapé da seção de evidências, sem o autor. O roteiro e o workflow de
+  impacto mandam, depois de "Como é hoje", consultar a origem de cada regra que a demanda muda e,
+  quando uma demanda anterior criou a regra de propósito, registrar isso em `como_e_hoje` e
+  perguntar se ela continua valendo, citando a chave.
 - **Evidências exportadas:** cada nota vira um link para o arquivo e as linhas no commit da
   evidência (ou, na falta dele, o `base.commit` da análise), no repositório cuja pasta contém o
   arquivo (a mais funda, se um estiver dentro do outro); o caminho no link é relativo à pasta do

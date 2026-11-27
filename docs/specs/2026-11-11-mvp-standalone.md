@@ -208,7 +208,8 @@ Operam só dentro das pastas cadastradas do projeto, respeitam a lista de exclus
 | `rastreabilidade` | Só leitura (#121): o que depende de uma regra ou de um arquivo (demandas, análises, critérios, cenários) ou a matriz de uma demanda, com as lacunas. |
 | `ler_issue_da_demanda` | Só leitura (#351): a issue da demanda da análise no rastreador (situação, responsáveis, rótulos, comentários, anexos e issues ligadas), com limites e o token só no ambiente da CLI ([repositorios.md](../repositorios.md), seção "Uso nas análises"). |
 | `mudancas_em_andamento` | Só leitura (#441): os PRs e MRs abertos que alteram os arquivos informados (por padrão, os das evidências), com número, título, branch, autor, data, chaves de demanda e link; o token só no ambiente da CLI ([repositorios.md](../repositorios.md), seção "Uso nas análises"). |
-| `afirmar` | Registra uma afirmação: `secao`, texto, confiança e evidências (6.5). |
+| `historico_do_trecho` | Só leitura (#450): os commits que criaram e mudaram um trecho (`git log -L` pelo arquivo e as linhas, ou `git log -S` por um identificador), com hash, data, mensagem e as chaves de issue da mensagem (padrões do cadastro, `padroes_de_chave`; com rastreador, o título da issue). A saída traz a origem (o mais antigo) e os mais recentes, com aviso quando corta; o autor não sai. |
+| `afirmar` | Registra uma afirmação: `secao`, texto, confiança e evidências (6.5); opcionalmente as evidências de dados (`dados`, #440) e os commits de origem da regra (`origens`, #450: hash, data, mensagem e chaves no documento, o autor só no estado). |
 | `perguntar` | Registra uma pergunta em aberto para o solicitante. |
 | `registrar_sugestao` | Registra uma sugestão de alteração: arquivo, trecho atual, trecho proposto, motivo, impacto. |
 | `propor_termo` | Propõe uma entrada para o glossário (termo de negócio, sinônimos, onde vive no código). |
