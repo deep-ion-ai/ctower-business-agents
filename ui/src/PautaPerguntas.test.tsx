@@ -265,6 +265,61 @@ describe("PautaPerguntas", () => {
     );
   });
 
+  it("mostra a decisão com as opções e registra a opção escolhida como resposta", async () => {
+    const api = apiFalsa();
+    const p = pautaFicticia();
+    const [sem] = p.grupos.slice(-1);
+    const decisao = {
+      opcoes: [
+        { texto: "Manter a regra da DEM-12", efeito: "a fatura com pagamento parcial segue sem cancelamento" },
+        { texto: "Revogar a regra", efeito: "revoga a regra da DEM-12" },
+      ],
+      recomendacao: "Revogar, com estorno do valor pago.",
+    };
+    sem.itens.unshift({
+      texto: "A regra da DEM-12 continua valendo?",
+      destinatario: null,
+      idadeDias: 0,
+      antiga: false,
+      decisao,
+      perguntas: [
+        {
+          ...sem.itens[0].perguntas[0],
+          referencia: "A-0001/3",
+          texto: "A regra da DEM-12 continua valendo?",
+          decisao,
+        },
+      ],
+    });
+    vi.mocked(api.pauta).mockResolvedValue(p);
+    render(<PautaPerguntas projeto={PROJETO} demanda="D-0001" api={api} />);
+    const grupo = await screen.findByRole("region", { name: "Sem destinatário" });
+    const cartoes = within(grupo).getAllByRole("listitem").filter((li) =>
+      li.classList.contains("pauta-item"),
+    );
+    // A decisão vem primeiro, com o selo, as opções e o efeito de cada uma.
+    expect(cartoes[0]).toHaveClass("pauta-item-decisao");
+    expect(within(cartoes[0]).getByText("Decisão")).toBeInTheDocument();
+    const opcoes = within(cartoes[0]).getByRole("list", { name: "Opções" });
+    expect(within(opcoes).getAllByRole("listitem")).toHaveLength(2);
+    expect(opcoes).toHaveTextContent("Revogar a regra — efeito: revoga a regra da DEM-12");
+    expect(cartoes[0]).toHaveTextContent("Recomendação: Revogar, com estorno do valor pago.");
+
+    fireEvent.click(within(cartoes[0]).getByRole("button", { name: "Registrar resposta" }));
+    const form = screen.getByRole("form", { name: "Registrar resposta" });
+    fireEvent.click(within(form).getByRole("radio", { name: "Revogar a regra" }));
+    expect(within(form).getByLabelText("Resposta")).toHaveValue("Revogar a regra");
+    fireEvent.change(within(form).getByLabelText("Nome"), {
+      target: { value: "Maria Silva" },
+    });
+    fireEvent.click(within(form).getByRole("button", { name: "Registrar" }));
+    await waitFor(() => expect(api.registrarResposta).toHaveBeenCalled());
+    expect(vi.mocked(api.registrarResposta).mock.calls[0][1]).toMatchObject({
+      texto: "Revogar a regra",
+      perguntas: ["A-0001/3"],
+    });
+  });
+
   it("mostra o que o sistema faz hoje recolhido e, aberto, em Markdown", async () => {
     const api = apiFalsa();
     render(<PautaPerguntas projeto={PROJETO} demanda="D-0001" api={api} />);

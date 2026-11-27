@@ -161,6 +161,11 @@ export interface OpcoesExportacao {
   trechos: boolean;
   /** Word e HTML: apêndice com o código Mermaid dos diagramas desenhados (#118). */
   codigo_diagramas: boolean;
+  /**
+   * Análise de impacto: as seções de detalhe técnico (#452). Sem evidências, vão
+   * para o bloco "Notas para a equipe técnica", no fim; desmarcada, saem.
+   */
+  notas_tecnicas: boolean;
 }
 
 /** Figura de um diagrama renderizada pela tela, para o Word e o HTML (#118, #166). */
