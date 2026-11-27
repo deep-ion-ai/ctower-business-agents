@@ -468,7 +468,9 @@ fn agrupar_itens(mut perguntas: Vec<PerguntaDaPauta>) -> Vec<ItemDaPauta> {
     for p in perguntas {
         let igual = itens.iter_mut().find(|i| {
             i.destinatario == p.destinatario
-                && i.decisao.is_some() == p.decisao.is_some()
+                // Decisões só se juntam com as mesmas opções: a resposta é o
+                // texto de uma delas, gravado em todas as perguntas do item.
+                && i.decisao.as_ref().map(|d| &d.opcoes) == p.decisao.as_ref().map(|d| &d.opcoes)
                 && mesma_pergunta(&i.texto, &p.texto)
         });
         match igual {
