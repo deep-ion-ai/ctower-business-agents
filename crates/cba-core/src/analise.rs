@@ -39,6 +39,7 @@ use crate::parecer::{
 };
 use crate::prototipo::Prototipo;
 use crate::requisito::{Fundamento, ItemRequisito, Revalidacao};
+use crate::verificacoes::VerificacaoDados;
 
 /// Versão do formato do arquivo de estado. Sobe quando um campo muda de sentido;
 /// campos novos com valor padrão não exigem mudança.
@@ -392,6 +393,10 @@ pub struct Pergunta {
     /// Quem informou a resposta, quando e de onde, se ela veio pela pauta (#123).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub informada: Option<Informacao>,
+    /// Verificação em dados que responde à pergunta (#453), se houver: o leitor
+    /// com acesso ao banco roda a consulta no lugar de esperar o solicitante.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verificacao: Option<u32>,
 }
 
 impl Pergunta {
@@ -694,6 +699,11 @@ pub struct Analise {
     /// sem os valores ([`crate::consultas`]).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub consultas: Vec<ConsultaDados>,
+    /// Verificações em dados (#453): as consultas que quem tem acesso ao banco
+    /// roda para confirmar o diagnóstico e medir a abrangência, escritas no
+    /// documento ([`crate::verificacoes`]).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub verificacoes: Vec<VerificacaoDados>,
 }
 
 /// Operação recusada pelo modelo. As mensagens se dirigem a quem chamou (o agente
@@ -811,6 +821,13 @@ pub enum ErroModelo {
     ColunaInvalida(String),
     #[error("consulta recusada: {0}")]
     ConsultaRecusada(String),
+    #[error(
+        "a análise {0} não é uma análise de impacto: as verificações em dados só entram \
+         no documento da análise de impacto"
+    )]
+    ForaDoImpacto(Id),
+    #[error("verificação recusada: {0}")]
+    VerificacaoInvalida(String),
     #[error("diagrama recusado: {0}")]
     DiagramaInvalido(String),
     #[error("o {origem} já virou a pergunta {numero}")]
@@ -906,6 +923,7 @@ impl Analise {
             prototipo: None,
             banco: None,
             consultas: Vec::new(),
+            verificacoes: Vec::new(),
         }
     }
 
@@ -1285,6 +1303,7 @@ impl Analise {
             evidencias: Vec::new(),
             destinatario: None,
             informada: None,
+            verificacao: None,
         });
         Ok(numero)
     }
@@ -1352,6 +1371,7 @@ impl Analise {
             evidencias,
             destinatario: None,
             informada: None,
+            verificacao: None,
         });
         Ok(numero)
     }

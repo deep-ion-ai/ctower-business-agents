@@ -24,6 +24,7 @@ cba-repos = { path = "crates/cba-repos" }
 cba-session = { path = "crates/cba-session" }
 cba-reunioes = { path = "crates/cba-reunioes" }
 cba-banco = { path = "crates/cba-banco" }
+cba-sql = { path = "crates/cba-sql" }
 
 # Dependências de terceiros usadas por mais de uma crate.
 dirs = "6"

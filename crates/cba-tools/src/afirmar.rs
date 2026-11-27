@@ -178,6 +178,10 @@ pub fn afirmar() -> Ferramenta {
                          as opções."
                     }
                     "sugestoes" => " Para sugestões de alteração, use `registrar_sugestao`.",
+                    cba_docs::VERIFICACOES_EM_DADOS => {
+                        " Para uma consulta de verificação em dados, use \
+                         `registrar_verificacao`."
+                    }
                     "evidencias" => " As evidências vão no campo `evidencias`.",
                     _ => "",
                 };

@@ -1373,8 +1373,20 @@ fn retomar(ambiente: &Ambiente, analise: &Analise, memoria: &Memoria) -> Saida {
         if let Some(r) = &p.recomendacao {
             let _ = writeln!(t, "   - Recomendação: {r}");
         }
+        if let Some(v) = p.verificacao {
+            let _ = writeln!(t, "   - Responde com a verificação em dados V{v}");
+        }
     }
     let _ = writeln!(t);
+    if !analise.verificacoes.is_empty() {
+        let _ = writeln!(t, "## Verificações em dados");
+        let _ = writeln!(t);
+        for v in &analise.verificacoes {
+            let _ = writeln!(t, "V{}. {}", v.numero, v.objetivo);
+            let _ = writeln!(t, "```sql\n{}\n```", v.sql);
+        }
+        let _ = writeln!(t);
+    }
     if !analise.sugestoes.is_empty() {
         let _ = writeln!(t, "## Sugestões de alteração");
         let _ = writeln!(t);
@@ -1479,6 +1491,9 @@ fn retomar(ambiente: &Ambiente, analise: &Analise, memoria: &Memoria) -> Saida {
                 v["opcoes"] = json!(p.opcoes);
                 v["recomendacao"] = json!(p.recomendacao);
             }
+            if let Some(n) = p.verificacao {
+                v["verificacao"] = json!(n);
+            }
             v
         })
         .collect();
@@ -1521,6 +1536,7 @@ fn retomar(ambiente: &Ambiente, analise: &Analise, memoria: &Memoria) -> Saida {
             "perguntas": perguntas,
             "sugestoes": sugestoes,
             "termos": termos,
+            "verificacoes": analise.verificacoes,
             "memoria": {
                 "arquivo": ambiente.kb.na_base(&cba_core::analises::Analises::arquivo_de_memoria(&analise.id)),
                 "vazia": memoria.vazia(),

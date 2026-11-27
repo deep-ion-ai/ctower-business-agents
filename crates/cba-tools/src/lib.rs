@@ -10,6 +10,8 @@
 //! - [`registro_padrao`]: as ferramentas que o produto expõe, cada uma no seu
 //!   módulo: [`analises`] (`listar_analises`), [`ciclo`] (`iniciar_analise`,
 //!   `retomar_analise` e `concluir_analise`), [`afirmar`], [`perguntar`],
+//!   [`verificacao`] (`registrar_verificacao`: a consulta de verificação em dados
+//!   escrita no documento da análise de impacto, #453),
 //!   [`sugestao`] (`registrar_sugestao`), [`termo`] (`propor_termo`),
 //!   [`memoria`] (`memorizar`, a memória de trabalho que a retomada devolve),
 //!   [`reuniao`] (`ler_transcript`, `propor_papel`, `registrar_item_ata`,
@@ -141,6 +143,7 @@ pub mod status_demandas;
 pub mod sugestao;
 pub mod termo;
 pub mod tokens;
+pub mod verificacao;
 pub mod vincular;
 pub mod vinculo;
 pub mod workflows;
@@ -171,6 +174,7 @@ pub fn registro_padrao() -> Registro {
         .registrar(historico::historico_do_trecho())
         .registrar(afirmar::afirmar())
         .registrar(perguntar::perguntar())
+        .registrar(verificacao::registrar_verificacao())
         .registrar(sugestao::registrar_sugestao())
         .registrar(termo::propor_termo())
         .registrar(memoria::memorizar())
@@ -235,6 +239,7 @@ mod tests {
             "historico_do_trecho",
             "afirmar",
             "perguntar",
+            "registrar_verificacao",
             "registrar_sugestao",
             "propor_termo",
             "memorizar",
@@ -275,6 +280,11 @@ mod tests {
         // As de registro alteram a análise.
         assert!(!r.obter("afirmar").unwrap().e_somente_leitura());
         assert!(!r.obter("memorizar").unwrap().e_somente_leitura());
+        assert!(
+            !r.obter("registrar_verificacao")
+                .unwrap()
+                .e_somente_leitura()
+        );
         assert!(!r.obter("contestar_afirmacao").unwrap().e_somente_leitura());
         assert!(!r.obter("contestar_achado").unwrap().e_somente_leitura());
         assert!(!r.obter("registrar_historia").unwrap().e_somente_leitura());

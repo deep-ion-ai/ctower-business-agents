@@ -71,6 +71,10 @@ Estimativa: **pequena**
 
 Pequena: o parcelamento já existe; a mudança se limita a um parâmetro e à tela.
 
+## Verificações em dados
+
+_Nenhuma verificação em dados registrada._
+
 ## Perguntas para o solicitante
 
 1. O limite de 3 parcelas vale também para órgão público?

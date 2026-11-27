@@ -1,0 +1,14 @@
+[package]
+name = "cba-sql"
+description = "Leitura de SQL sem driver: validação só leitura da instrução e os nomes que a consulta usa (tabelas, colunas, parâmetros)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+cba-repos.workspace = true
+thiserror = "2"
+# Parser SQL (sem expressões regulares): só um SELECT (ou WITH … SELECT).
+sqlparser = { version = "0.64", features = ["visitor"] }

@@ -545,10 +545,10 @@ version = "0.11.0"
 dependencies = [
  "cba-core",
  "cba-repos",
+ "cba-sql",
  "futures-util",
  "serde",
  "serde_json",
- "sqlparser",
  "sqlx",
  "thiserror 2.0.21",
  "tokio",
@@ -702,6 +702,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cba-sql"
+version = "0.11.0"
+dependencies = [
+ "cba-repos",
+ "sqlparser",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "cba-tools"
 version = "0.11.0"
 dependencies = [
@@ -711,6 +720,7 @@ dependencies = [
  "cba-kb",
  "cba-repos",
  "cba-reunioes",
+ "cba-sql",
  "dunce",
  "regex",
  "serde",

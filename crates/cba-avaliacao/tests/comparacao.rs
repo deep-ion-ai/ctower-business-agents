@@ -91,6 +91,7 @@ fn perguntar(a: &mut Analise, texto: &str) {
         evidencias: vec![],
         destinatario: None,
         informada: None,
+        verificacao: None,
     });
 }
 

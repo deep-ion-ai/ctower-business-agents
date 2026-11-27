@@ -17,6 +17,10 @@
 //!   impacto, as decisões para o negócio (#452) na seção `decisoes`, com as
 //!   opções, o efeito de cada uma e a recomendação;
 //! - as sugestões que têm documento e não foram recusadas, com link para ele;
+//! - na análise de impacto, as verificações em dados (#453), na seção
+//!   `verificacoes_em_dados`: a orientação de rodar numa sessão só de leitura e,
+//!   para cada consulta, o objetivo, o SQL, os parâmetros e o que cada resultado
+//!   significa; a pergunta ligada a uma consulta aponta para ela;
 //! - os diagramas registrados ([`diagrama`]), que a montagem transforma em
 //!   Mermaid, com legenda e tabela de elementos.
 //!
@@ -62,6 +66,7 @@ fn secoes_estruturadas(fluxo: Fluxo) -> &'static [&'static str] {
         ],
         Fluxo::Manual => &[cba_docs::PASSO_A_PASSO],
         Fluxo::Prototipo => &[cba_docs::TELAS, cba_docs::RASTREABILIDADE],
+        Fluxo::Impacto => &[cba_docs::VERIFICACOES_EM_DADOS],
         _ => &[],
     }
 }
@@ -268,6 +273,11 @@ pub fn conteudo(
             .textos
             .extend(crate::prototipo::textos(analise, &analise.documento));
     }
+    if analise.fluxo == Fluxo::Impacto
+        && let Some(t) = crate::verificacao::texto(analise)
+    {
+        conteudo.textos.push(t);
+    }
     let mut notas_de_dados: Vec<String> = Vec::new();
     let mut citadas: Vec<u32> = Vec::new();
     let mut notas_de_origem: Vec<String> = Vec::new();
@@ -328,7 +338,7 @@ pub fn conteudo(
         .iter()
         .filter(|p| p.estado == EstadoPergunta::Aberta)
         .map(|p| cba_docs::Pergunta {
-            texto: p.texto.clone(),
+            texto: crate::verificacao::pergunta_com_verificacao(analise, &p.texto, p.verificacao),
             evidencias: p.evidencias.iter().map(citacao).collect(),
             decisao: p.e_decisao().then(|| cba_docs::Decisao {
                 opcoes: p
