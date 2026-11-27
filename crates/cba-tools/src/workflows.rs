@@ -196,6 +196,21 @@ mod tests {
         assert!(fase.contains("confira se a lista ficou fechada"), "{fase}");
     }
 
+    /// Decisões para o negócio com opções, e hipótese não verificada fora do
+    /// escopo, também na fase Verificar (#452).
+    #[test]
+    fn padrao_de_impacto_registra_decisoes_e_nao_poe_hipotese_no_escopo() {
+        let texto = padrao("impacto").unwrap();
+        assert!(texto.contains("Escolher a regra é do negócio"));
+        assert!(texto.contains("tipo \"decisao\""));
+        let verificar = texto.find("Fase Verificar").unwrap();
+        let consolidar = texto.find("Fase Consolidar").unwrap();
+        let fase = &texto[verificar..consolidar];
+        assert!(fase.contains("Hipótese não vira escopo"), "{fase}");
+        assert!(fase.contains("contestar_afirmacao"), "{fase}");
+        assert!(fase.contains("perguntar"), "{fase}");
+    }
+
     #[test]
     fn padroes_tem_um_por_tipo_com_o_nome_do_app() {
         let todos = padroes();

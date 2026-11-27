@@ -644,6 +644,11 @@ mod tests {
         assert!(r.contains("\"Caminhos que gravam <estado>: "), "{r}");
         assert!(r.contains("diga se a lista é completa"), "{r}");
         assert!(r.contains("dizendo o que valida e o que não valida"), "{r}");
+        // Decisões para o negócio e hipótese que não vira escopo (#452).
+        assert!(r.contains("**Escolher a regra é do negócio.**"), "{r}");
+        assert!(r.contains("`tipo: \"decisao\"`"), "{r}");
+        assert!(r.contains("**Hipótese não vira escopo.**"), "{r}");
+        assert!(r.contains("- primeiro, as decisões para o negócio"), "{r}");
         assert!(r.ends_with("## Contexto da base\n\nNada.\n"), "{r}");
     }
 

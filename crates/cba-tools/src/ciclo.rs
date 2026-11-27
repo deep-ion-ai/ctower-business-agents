@@ -1359,7 +1359,20 @@ fn retomar(ambiente: &Ambiente, analise: &Analise, memoria: &Memoria) -> Saida {
             EstadoPergunta::Respondida { resposta } => format!("respondida: {resposta}"),
             EstadoPergunta::Descartada => "descartada".to_owned(),
         };
-        let _ = writeln!(t, "{}. [{estado}] {}", p.numero, p.texto);
+        let tipo = if p.e_decisao() { "decisão, " } else { "" };
+        let _ = writeln!(t, "{}. [{tipo}{estado}] {}", p.numero, p.texto);
+        for (i, o) in p.opcoes.iter().enumerate() {
+            let _ = writeln!(
+                t,
+                "   - Opção {}: {} — efeito: {}",
+                i + 1,
+                o.texto,
+                o.efeito
+            );
+        }
+        if let Some(r) = &p.recomendacao {
+            let _ = writeln!(t, "   - Recomendação: {r}");
+        }
     }
     let _ = writeln!(t);
     if !analise.sugestoes.is_empty() {
@@ -1454,13 +1467,19 @@ fn retomar(ambiente: &Ambiente, analise: &Analise, memoria: &Memoria) -> Saida {
                 EstadoPergunta::Respondida { resposta } => ("respondida", Some(resposta)),
                 EstadoPergunta::Descartada => ("descartada", None),
             };
-            json!({
+            let mut v = json!({
                 "numero": p.numero,
                 "texto": p.texto,
                 "afirmacao": p.afirmacao,
                 "estado": estado,
                 "resposta": resposta,
-            })
+            });
+            if p.e_decisao() {
+                v["tipo"] = json!("decisao");
+                v["opcoes"] = json!(p.opcoes);
+                v["recomendacao"] = json!(p.recomendacao);
+            }
+            v
         })
         .collect();
     let sugestoes: Vec<Value> = analise
@@ -1556,6 +1575,94 @@ fn diagramas_faltando(analise: &Analise) -> Vec<String> {
         ));
     }
     faltam
+}
+
+/// Seção do que muda na análise de impacto, onde uma hipótese não vira escopo.
+const SECAO_DO_ESCOPO: &str = "funcionalidades";
+
+/// Palavras que indicam hipótese numa afirmação (#452), comparadas sem acento e
+/// sem diferenciar maiúsculas, como palavras inteiras (o hífen não separa:
+/// "aplica-se" não conta como "se").
+const PALAVRAS_DE_HIPOTESE: [&str; 16] = [
+    "se",
+    "pode",
+    "podem",
+    "poderia",
+    "poderiam",
+    "possivelmente",
+    "talvez",
+    "eventualmente",
+    "opcional",
+    "opcionalmente",
+    "preventiva",
+    "preventivo",
+    "preventivas",
+    "preventivos",
+    "preventivamente",
+    "hipotese",
+];
+
+/// Expressões que indicam uma regra nova, sem acento.
+const EXPRESSOES_DE_REGRA_NOVA: [&str; 6] = [
+    "regra nova",
+    "nova regra",
+    "nova validacao",
+    "passa a",
+    "passar a",
+    "passara a",
+];
+
+/// Se o texto indica hipótese ou traz uma regra nova (veja as listas acima).
+pub(crate) fn indica_hipotese(texto: &str) -> bool {
+    let palavras: Vec<String> = texto
+        .split(|c: char| !(c.is_alphanumeric() || c == '-'))
+        .filter(|p| !p.is_empty())
+        .map(|p| {
+            p.split('-')
+                .map(cba_kb::normalizar_texto)
+                .collect::<Vec<_>>()
+                .join("-")
+        })
+        .collect();
+    if palavras
+        .iter()
+        .any(|p| PALAVRAS_DE_HIPOTESE.contains(&p.as_str()))
+    {
+        return true;
+    }
+    let frase = format!(" {} ", palavras.join(" "));
+    EXPRESSOES_DE_REGRA_NOVA
+        .iter()
+        .any(|e| frase.contains(&format!(" {e} ")))
+}
+
+/// Afirmações `inferido` de `funcionalidades` que indicam hipótese ou regra nova
+/// e não têm pergunta nem decisão vinculada (#452): sem as evidências, o leitor
+/// não distingue a hipótese de um fato, e ela entra no escopo. Viram pendência.
+fn hipoteses_no_escopo(analise: &Analise) -> Vec<String> {
+    if analise.fluxo != Fluxo::Impacto {
+        return Vec::new();
+    }
+    let vinculada = |numero: u32| {
+        analise
+            .perguntas
+            .iter()
+            .any(|p| p.afirmacao == Some(numero) && p.estado != EstadoPergunta::Descartada)
+    };
+    afirmacoes_validas(analise)
+        .filter(|a| a.secao == SECAO_DO_ESCOPO && a.confianca == Confianca::Inferido)
+        .filter(|a| indica_hipotese(&a.texto) && !vinculada(a.numero))
+        .map(|a| {
+            format!(
+                "afirmação {}: mudança em `{SECAO_DO_ESCOPO}` que depende de hipótese não \
+                 verificada ou traz uma regra nova, sem pergunta nem decisão vinculada. \
+                 Verifique no código; se não der, registre com `perguntar` (afirmacao: {}) a \
+                 dúvida, com o que confirmaria a hipótese, ou a decisão (tipo `decisao`, com \
+                 as opções), e marque a mudança como dependente dela",
+                a.numero, a.numero
+            )
+        })
+        .collect()
 }
 
 /// `concluir_analise`: fecha a rodada e devolve o caminho do documento.
@@ -1827,8 +1934,13 @@ fn concluir(ambiente: &Ambiente, id: &Id) -> Result<Saida, ErroFerramenta> {
         }
     }
     pendencias.extend(diagramas_faltando(analise));
+    pendencias.extend(hipoteses_no_escopo(analise));
     let abertas: Vec<&str> = perguntas_abertas(analise)
+        .filter(|p| !p.e_decisao())
         .map(|p| p.texto.as_str())
+        .collect();
+    let decisoes: Vec<&cba_core::analise::Pergunta> = perguntas_abertas(analise)
+        .filter(|p| p.e_decisao())
         .collect();
 
     let mut t = String::new();
@@ -1848,7 +1960,7 @@ fn concluir(ambiente: &Ambiente, id: &Id) -> Result<Saida, ErroFerramenta> {
                 "a resposta, as regras numeradas, um exemplo com números e as perguntas em aberto",
             Fluxo::Explicar => "objetivo, regras principais e as perguntas em aberto",
             Fluxo::Impacto =>
-                "a demanda como entendida, a abrangência, os principais riscos e as perguntas para o solicitante",
+                "primeiro as decisões para o negócio, com as opções; depois a demanda como entendida, a abrangência, os principais riscos e as perguntas para o solicitante",
             Fluxo::Reuniao =>
                 "o objetivo da reunião, as decisões, as pendências com responsável e prazo e as dúvidas em aberto",
             Fluxo::Revisar =>
@@ -1863,6 +1975,24 @@ fn concluir(ambiente: &Ambiente, id: &Id) -> Result<Saida, ErroFerramenta> {
                 "as telas (TL-n, nome, nova ou alterada) com o número de elementos, os elementos e as telas a confirmar",
         }
     );
+    if !decisoes.is_empty() {
+        let _ = writeln!(t, "\nDecisões para o negócio ({}):", decisoes.len());
+        for (i, d) in decisoes.iter().enumerate() {
+            let _ = writeln!(t, "{}. {}", i + 1, d.texto);
+            for (j, o) in d.opcoes.iter().enumerate() {
+                let _ = writeln!(
+                    t,
+                    "   - Opção {}: {} — efeito: {}",
+                    j + 1,
+                    o.texto,
+                    o.efeito
+                );
+            }
+            if let Some(r) = &d.recomendacao {
+                let _ = writeln!(t, "   - Recomendação: {r}");
+            }
+        }
+    }
     if !abertas.is_empty() {
         let _ = writeln!(t, "\nPerguntas em aberto ({}):", abertas.len());
         for (i, p) in abertas.iter().enumerate() {
@@ -1884,6 +2014,12 @@ fn concluir(ambiente: &Ambiente, id: &Id) -> Result<Saida, ErroFerramenta> {
             "arquivo": arquivo,
             "registros": contagem(analise),
             "perguntas_abertas": abertas,
+            "decisoes_abertas": decisoes.iter().map(|d| json!({
+                "numero": d.numero,
+                "texto": d.texto,
+                "opcoes": d.opcoes,
+                "recomendacao": d.recomendacao,
+            })).collect::<Vec<Value>>(),
             "pendencias": pendencias,
         }),
     ))
@@ -1903,6 +2039,29 @@ fn banco_da_sessao(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hipotese_e_regra_nova_no_texto() {
+        for texto in [
+            "Validar o status antes de gravar, que pode estar inconsistente.",
+            "Opcional, preventiva: bloquear a gravação.",
+            "Se houver faturas antigas, migrar o status.",
+            "Possivelmente o lote também precisa mudar.",
+            "A tela PASSA A exigir o motivo do cancelamento.",
+            "Criar uma nova regra para o estorno.",
+            "Uma HIPÓTESE: o lote regrava o status.",
+        ] {
+            assert!(indica_hipotese(texto), "{texto}");
+        }
+        for texto in [
+            "O limite de parcelas muda de 6 para 3 no parâmetro MAX_PARCELAS.",
+            "Aplica-se a todas as faturas em aberto.",
+            "Remover a trava de cancelamento em db/03_pkg_cobranca.sql.",
+            "Passagem do status para cancelada.",
+        ] {
+            assert!(!indica_hipotese(texto), "{texto}");
+        }
+    }
 
     #[test]
     fn titulo_vem_da_primeira_linha_e_corta_em_palavra() {

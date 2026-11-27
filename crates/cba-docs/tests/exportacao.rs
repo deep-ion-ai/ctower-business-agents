@@ -142,6 +142,107 @@ fn opcoes_tiram_perguntas_e_evidencias() {
     assert!(md.contains("**[confirmado]**"));
 }
 
+/// Posição de `trecho` em `texto`, ou falha com o texto.
+fn posicao(texto: &str, trecho: &str) -> usize {
+    texto
+        .find(trecho)
+        .unwrap_or_else(|| panic!("falta {trecho:?} em:\n{texto}"))
+}
+
+#[test]
+fn exportacao_para_o_solicitante_abre_com_as_decisoes_e_junta_as_notas_tecnicas() {
+    // Sem evidências (a exportação para o solicitante, #452).
+    let opcoes = OpcoesExportacao {
+        evidencias: false,
+        ..OpcoesExportacao::default()
+    };
+    let md = exportar_markdown(&documento("analise-impacto"), &opcoes, Some(&codigo()));
+    // As decisões, com as opções e o efeito, antes de "Como é hoje".
+    let decisoes = posicao(&md, "\n## Decisões para o negócio\n");
+    assert!(decisoes < posicao(&md, "\n## Como é hoje\n"));
+    assert!(
+        md.contains(
+            "   - **Opção 1:** Limitar a 3 parcelas. Efeito: muda o parâmetro MAX_PARCELAS"
+        )
+    );
+    assert!(md.contains("**Recomendação:** Manter até 6"));
+    // O selo de confiança fica: a dedução não passa por fato.
+    assert!(md.contains("- **[inferido]** Parcelamento de fatura (F-FAT-002)"));
+    // O detalhe técnico vai para o fim, um nível abaixo, depois das perguntas.
+    let notas = posicao(&md, "\n## Notas para a equipe técnica\n");
+    assert!(notas > posicao(&md, "\n## Perguntas para o solicitante\n"));
+    assert!(notas > posicao(&md, "\n## Abrangência\n"));
+    for titulo in [
+        "Dados",
+        "Integrações",
+        "Documentos e telas",
+        "Dados pessoais e requisitos não funcionais",
+        "Sugestões de alteração",
+    ] {
+        assert!(!md.contains(&format!("\n## {titulo}\n")), "{titulo}");
+        assert!(
+            posicao(&md, &format!("\n### {titulo}\n")) > notas,
+            "{titulo}"
+        );
+    }
+    assert!(md.contains("- **[inferido]** Nenhuma tabela muda"));
+    // Escopo, riscos e abrangência ficam no corpo.
+    for titulo in ["Funcionalidades", "Riscos", "Abrangência"] {
+        assert!(
+            posicao(&md, &format!("\n## {titulo}\n")) < notas,
+            "{titulo}"
+        );
+    }
+    assert!(!md.contains("[^"));
+
+    // Sem as notas técnicas, o bloco sai inteiro; as decisões ficam.
+    let enxuto = OpcoesExportacao {
+        notas_tecnicas: false,
+        ..opcoes
+    };
+    let md = exportar_markdown(&documento("analise-impacto"), &enxuto, Some(&codigo()));
+    assert!(!md.contains("Notas para a equipe técnica"), "{md}");
+    assert!(!md.contains("Integrações"));
+    assert!(!md.contains("Nenhuma tabela muda"));
+    assert!(!md.contains("S-0001"));
+    assert!(md.contains("\n## Decisões para o negócio\n"));
+    assert!(md.contains("**[inferido]**"));
+    assert!(md.contains("\n## Riscos\n"));
+}
+
+#[test]
+fn notas_tecnicas_com_evidencias_ficam_no_lugar_ou_saem() {
+    // Com evidências, a exportação padrão não muda a ordem.
+    let md = exportar_markdown(
+        &documento("analise-impacto"),
+        &OpcoesExportacao::default(),
+        Some(&codigo()),
+    );
+    assert!(!md.contains("Notas para a equipe técnica"));
+    assert!(posicao(&md, "\n## Dados\n") < posicao(&md, "\n## Riscos\n"));
+
+    let sem_notas = OpcoesExportacao {
+        notas_tecnicas: false,
+        ..OpcoesExportacao::default()
+    };
+    let md = exportar_markdown(&documento("analise-impacto"), &sem_notas, Some(&codigo()));
+    assert!(!md.contains("\n## Dados\n"));
+    assert!(!md.contains("Integrações"));
+    assert!(md.contains("\n## Evidências\n"));
+    assert!(md.contains("\n## Como é hoje\n"));
+
+    // Só a análise de impacto tem notas técnicas: a funcionalidade não muda.
+    let f = exportar_markdown(&documento("funcionalidade"), &sem_notas, Some(&codigo()));
+    assert!(f.contains("\n## Integrações\n"));
+    assert!(f.contains("\n## Dados lidos e gravados\n"));
+}
+
+#[test]
+fn opcoes_antigas_sem_notas_tecnicas_mantem_as_notas() {
+    let opcoes: OpcoesExportacao = serde_norway::from_str("evidencias: false").unwrap();
+    assert!(opcoes.notas_tecnicas);
+}
+
 #[test]
 fn trecho_inexistente_fica_indicado() {
     struct Vazio;
@@ -329,6 +430,7 @@ fn docx_da_analise_tem_secoes_confianca_e_evidencias() {
     let secoes = [
         "Demanda como veio",
         "Demanda como entendida",
+        "Decisões para o negócio",
         "Como é hoje",
         "Funcionalidades",
         "Dados",
@@ -388,11 +490,12 @@ fn docx_da_analise_tem_secoes_confianca_e_evidencias() {
     // Link para a sugestão vira texto.
     assert!(corpo.contains("S-0001 · Limitar a tela ao parâmetro MAX_PARCELAS (frontend/src/telas/parcelamento-form.ts)"));
 
-    // Parágrafos: título do documento e identificação (2), 14 seções, 1 + 1 de
-    // demanda, 2 + 1 + 1 + 1 + 1 + 1 itens, 1 vazio (integrações), 2 de
-    // abrangência, 2 perguntas, 1 sugestão, 6 evidências e 6 trechos com o seu
-    // título: 2 + 14 + 2 + 7 + 1 + 2 + 2 + 1 + 6 + 12 = 49.
-    assert_eq!(paragrafos(doc), 49);
+    // Parágrafos: título do documento e identificação (2), 15 seções, 1 + 1 de
+    // demanda, 1 decisão (a pergunta, 2 opções e a recomendação), 2 + 1 + 1 + 1
+    // + 1 + 1 itens, 1 vazio (integrações), 2 de abrangência, 2 perguntas, 1
+    // sugestão, 6 evidências e 6 trechos com o seu título:
+    // 2 + 15 + 2 + 4 + 7 + 1 + 2 + 2 + 1 + 6 + 12 = 54.
+    assert_eq!(paragrafos(doc), 54);
 }
 
 #[test]

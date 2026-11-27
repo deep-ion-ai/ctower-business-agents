@@ -62,7 +62,8 @@ pub use ata::{
     StatusCitacao, TipoItem,
 };
 pub use conteudo::{
-    Afirmacao, Citacao, Confianca, Conteudo, Pergunta, ReferenciaSugestao, Texto, bloco_de_codigo,
+    Afirmacao, Citacao, Confianca, Conteudo, Decisao, Opcao, Pergunta, ReferenciaSugestao, Texto,
+    bloco_de_codigo,
 };
 pub use demanda::{SECOES_DA_DEMANDA, mascarar_demanda};
 pub use diagrama::{
@@ -75,15 +76,16 @@ pub use documentacao::{
 };
 pub use exportacao::{
     CodigoEmPasta, ErroExportacao, FonteDeTrechos, Formato, HtmlExportado, LinksDeEvidencia,
-    OpcoesExportacao, exportar, exportar_com_links, exportar_html, exportar_markdown,
-    exportar_markdown_com_links, exportar_word, gravar_exportacao, gravar_exportacao_com_links,
+    OpcoesExportacao, SECOES_TECNICAS, TITULO_NOTAS_TECNICAS, exportar, exportar_com_links,
+    exportar_html, exportar_markdown, exportar_markdown_com_links, exportar_word,
+    gravar_exportacao, gravar_exportacao_com_links,
 };
 pub use figura::{
     ErroFigura, Figura, Figuras, MAXIMO_DE_FIGURAS, TAMANHO_MAXIMO_DA_FIGURA, blocos_mermaid,
     imagens_da_base,
 };
 pub use modelo::{
-    CENARIOS, DADOS_PESSOAIS_E_RNF, FLUXO_PROCESSO, FUNCIONALIDADES_MAPEADAS, HISTORIAS,
+    CENARIOS, DADOS_PESSOAIS_E_RNF, DECISOES, FLUXO_PROCESSO, FUNCIONALIDADES_MAPEADAS, HISTORIAS,
     INDICE_CATALOGO, MODELO_DADOS, MODELOS, Modelo, Montavel, NAO_MAPEADOS, PASSO_A_PASSO,
     RASTREABILIDADE, Secao, TABELAS_DECISAO, TELAS, VALORES_LIMITE, modelo,
 };

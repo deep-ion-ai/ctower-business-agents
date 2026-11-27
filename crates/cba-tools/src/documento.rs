@@ -13,7 +13,9 @@
 //!   confiança e as evidências como notas de rodapé;
 //! - na análise de impacto, a abrangência estimada no frontmatter, tirada da
 //!   afirmação mais recente da seção `abrangencia` ([`abrangencia_do_texto`]);
-//! - as perguntas abertas;
+//! - as perguntas abertas: as dúvidas na seção de perguntas e, na análise de
+//!   impacto, as decisões para o negócio (#452) na seção `decisoes`, com as
+//!   opções, o efeito de cada uma e a recomendação;
 //! - as sugestões que têm documento e não foram recusadas, com link para ele;
 //! - os diagramas registrados ([`diagrama`]), que a montagem transforma em
 //!   Mermaid, com legenda e tabela de elementos.
@@ -43,7 +45,7 @@ use cba_kb::frontmatter::{Abrangencia, FrontmatterAnalise, StatusSugestao};
 use cba_kb::{Base, Documento};
 
 /// Seções com papel especial, que não recebem afirmações.
-const ESPECIAIS: [&str; 3] = ["perguntas", "sugestoes", "evidencias"];
+const ESPECIAIS: [&str; 4] = ["perguntas", cba_docs::DECISOES, "sugestoes", "evidencias"];
 
 /// Seções montadas a partir de registros próprios do fluxo, que também não
 /// recebem afirmações (o parecer de revisão e as histórias têm ferramentas
@@ -328,6 +330,17 @@ pub fn conteudo(
         .map(|p| cba_docs::Pergunta {
             texto: p.texto.clone(),
             evidencias: p.evidencias.iter().map(citacao).collect(),
+            decisao: p.e_decisao().then(|| cba_docs::Decisao {
+                opcoes: p
+                    .opcoes
+                    .iter()
+                    .map(|o| cba_docs::Opcao {
+                        texto: o.texto.clone(),
+                        efeito: o.efeito.clone(),
+                    })
+                    .collect(),
+                recomendacao: p.recomendacao.clone(),
+            }),
         })
         .collect();
     conteudo.sugestoes = analise

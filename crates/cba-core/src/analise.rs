@@ -323,12 +323,52 @@ pub enum EstadoPergunta {
     Descartada,
 }
 
-/// Pergunta em aberto (`perguntar`).
+/// O que uma pergunta pede ao negócio (#452): uma dúvida factual, que o código
+/// não responde, ou uma decisão entre opções, que vai para a seção "Decisões
+/// para o negócio", no topo do documento.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TipoPergunta {
+    /// Padrão, inclusive nas análises gravadas antes da #452.
+    #[default]
+    Duvida,
+    Decisao,
+}
+
+impl TipoPergunta {
+    pub fn e_duvida(&self) -> bool {
+        *self == Self::Duvida
+    }
+}
+
+/// Uma opção de uma decisão para o negócio, com o efeito de escolhê-la ("revoga
+/// a regra da DEM-12", "mantém a exceção para pessoa jurídica").
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OpcaoDecisao {
+    pub texto: String,
+    pub efeito: String,
+}
+
+/// Quantas opções uma decisão tem: de [`MIN_OPCOES`] a [`MAX_OPCOES`].
+pub const MIN_OPCOES: usize = 2;
+pub const MAX_OPCOES: usize = 4;
+
+/// Pergunta em aberto (`perguntar`): uma dúvida ou uma decisão para o negócio.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Pergunta {
     pub numero: u32,
     pub texto: String,
-    /// Afirmação que originou a pergunta (confiança `a_confirmar`), se houver.
+    /// Dúvida ou decisão (#452). Ausente nas análises antigas: dúvida.
+    #[serde(default, skip_serializing_if = "TipoPergunta::e_duvida")]
+    pub tipo: TipoPergunta,
+    /// Opções da decisão, com o efeito de cada uma. Vazio numa dúvida.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub opcoes: Vec<OpcaoDecisao>,
+    /// A opção que o agente recomenda e por quê, se recomenda alguma.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recomendacao: Option<String>,
+    /// Afirmação que originou a pergunta (confiança `a_confirmar`), ou a que a
+    /// pergunta ou a decisão se refere, se houver.
     #[serde(default)]
     pub afirmacao: Option<u32>,
     #[serde(flatten)]
@@ -352,6 +392,20 @@ pub struct Pergunta {
     /// Quem informou a resposta, quando e de onde, se ela veio pela pauta (#123).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub informada: Option<Informacao>,
+}
+
+impl Pergunta {
+    /// Uma decisão para o negócio (#452), e não uma dúvida.
+    pub fn e_decisao(&self) -> bool {
+        self.tipo == TipoPergunta::Decisao
+    }
+}
+
+/// Opções e recomendação de uma decisão nova ([`Analise::registrar_decisao`]).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct NovaDecisao {
+    pub opcoes: Vec<OpcaoDecisao>,
+    pub recomendacao: Option<String>,
 }
 
 /// Item da análise que o analista transformou em pergunta ("Virar pergunta",
@@ -653,6 +707,11 @@ pub enum ErroModelo {
          cite o trecho do código ou use `inferido` ou `a_confirmar`"
     )]
     ConfirmadoSemEvidencia,
+    #[error(
+        "uma decisão tem de {MIN_OPCOES} a {MAX_OPCOES} opções, cada uma com o texto e o \
+         efeito (recebidas: {0}); se não há opções a escolher, registre uma dúvida"
+    )]
+    OpcoesDaDecisao(usize),
     #[error("a análise {0} já foi aprovada e não aceita registros novos")]
     AnaliseAprovada(Id),
     #[error("a análise {id} está em `{estado:?}` e não pode passar para `{destino:?}`")]
@@ -1145,10 +1204,42 @@ impl Analise {
         Ok(())
     }
 
-    /// Registra uma pergunta para o solicitante e devolve o número dela.
+    /// Registra uma pergunta (dúvida) para o solicitante e devolve o número dela.
     pub fn registrar_pergunta(
         &mut self,
         texto: &str,
+        afirmacao: Option<u32>,
+        sessao: Option<String>,
+        agora_ms: u64,
+    ) -> Result<u32, ErroModelo> {
+        self.registrar_pergunta_do_tipo(texto, NovaDecisao::default(), afirmacao, sessao, agora_ms)
+    }
+
+    /// Registra uma decisão para o negócio (#452), com as opções e o efeito de
+    /// cada uma, e devolve o número dela (a numeração é a das perguntas).
+    pub fn registrar_decisao(
+        &mut self,
+        texto: &str,
+        decisao: NovaDecisao,
+        afirmacao: Option<u32>,
+        sessao: Option<String>,
+        agora_ms: u64,
+    ) -> Result<u32, ErroModelo> {
+        if !(MIN_OPCOES..=MAX_OPCOES).contains(&decisao.opcoes.len()) {
+            return Err(ErroModelo::OpcoesDaDecisao(decisao.opcoes.len()));
+        }
+        for o in &decisao.opcoes {
+            exigir("opcoes.texto", &o.texto)?;
+            exigir("opcoes.efeito", &o.efeito)?;
+        }
+        self.registrar_pergunta_do_tipo(texto, decisao, afirmacao, sessao, agora_ms)
+    }
+
+    /// Dúvida (sem opções) ou decisão (com opções, já conferidas).
+    fn registrar_pergunta_do_tipo(
+        &mut self,
+        texto: &str,
+        decisao: NovaDecisao,
         afirmacao: Option<u32>,
         sessao: Option<String>,
         agora_ms: u64,
@@ -1164,9 +1255,27 @@ impl Analise {
         }
         self.aceitar_registro()?;
         let numero = proximo(&self.perguntas, |p| p.numero);
+        let tipo = if decisao.opcoes.is_empty() {
+            TipoPergunta::Duvida
+        } else {
+            TipoPergunta::Decisao
+        };
         self.perguntas.push(Pergunta {
             numero,
             texto: texto.trim().to_owned(),
+            tipo,
+            opcoes: decisao
+                .opcoes
+                .into_iter()
+                .map(|o| OpcaoDecisao {
+                    texto: o.texto.trim().to_owned(),
+                    efeito: o.efeito.trim().to_owned(),
+                })
+                .collect(),
+            recomendacao: decisao
+                .recomendacao
+                .map(|r| r.trim().to_owned())
+                .filter(|r| !r.is_empty()),
             afirmacao,
             estado: EstadoPergunta::Aberta,
             resposta_enviada: false,
@@ -1231,6 +1340,9 @@ impl Analise {
         self.perguntas.push(Pergunta {
             numero,
             texto: texto.trim().to_owned(),
+            tipo: TipoPergunta::Duvida,
+            opcoes: Vec::new(),
+            recomendacao: None,
             afirmacao: None,
             estado: EstadoPergunta::Aberta,
             resposta_enviada: false,
@@ -2456,6 +2568,100 @@ mod tests {
         assert_eq!(json["afirmacoes"][0]["evidencias"][0]["linhas"], "10-12");
         let volta: Analise = serde_json::from_value(json).unwrap();
         assert_eq!(volta, a);
+    }
+
+    fn opcao(texto: &str, efeito: &str) -> OpcaoDecisao {
+        OpcaoDecisao {
+            texto: texto.into(),
+            efeito: efeito.into(),
+        }
+    }
+
+    #[test]
+    fn decisao_para_o_negocio_com_opcoes() {
+        let mut a = analise();
+        a.registrar_afirmacao(afirmacao(Confianca::Confirmado, vec![evidencia()]), 1)
+            .unwrap();
+        // Uma opção só não é decisão; cinco é demais; opção sem efeito, recusada.
+        for opcoes in [
+            vec![opcao("Manter", "nada muda")],
+            vec![opcao("a", "1"); 5],
+            vec![opcao("Manter", "nada muda"), opcao("Revogar", " ")],
+        ] {
+            assert!(
+                a.registrar_decisao(
+                    "Vale?",
+                    NovaDecisao {
+                        opcoes,
+                        recomendacao: None,
+                    },
+                    None,
+                    None,
+                    2,
+                )
+                .is_err()
+            );
+        }
+        assert!(a.perguntas.is_empty());
+        let n = a
+            .registrar_decisao(
+                " A regra da DEM-12 continua valendo? ",
+                NovaDecisao {
+                    opcoes: vec![
+                        opcao(
+                            "Manter a regra",
+                            "a fatura com pagamento parcial segue sem cancelamento",
+                        ),
+                        opcao(
+                            "Revogar a regra",
+                            "revoga a regra da DEM-12; decidir o destino do valor pago",
+                        ),
+                    ],
+                    recomendacao: Some("  ".into()),
+                },
+                Some(1),
+                None,
+                3,
+            )
+            .unwrap();
+        assert_eq!(n, 1);
+        let d = &a.perguntas[0];
+        assert!(d.e_decisao());
+        assert_eq!(d.texto, "A regra da DEM-12 continua valendo?");
+        assert_eq!(d.opcoes.len(), 2);
+        assert_eq!(d.recomendacao, None);
+        assert_eq!(d.afirmacao, Some(1));
+        // A dúvida continua na mesma numeração.
+        assert_eq!(a.registrar_pergunta("Qual o volume?", None, None, 4), Ok(2));
+        assert!(!a.perguntas[1].e_decisao());
+
+        let json = serde_json::to_value(&a).unwrap();
+        assert_eq!(json["perguntas"][0]["tipo"], "decisao");
+        assert_eq!(
+            json["perguntas"][0]["opcoes"][1]["texto"],
+            "Revogar a regra"
+        );
+        // A dúvida grava como antes: sem tipo e sem opções.
+        assert!(json["perguntas"][1].get("tipo").is_none());
+        assert!(json["perguntas"][1].get("opcoes").is_none());
+        let volta: Analise = serde_json::from_value(json).unwrap();
+        assert_eq!(volta, a);
+    }
+
+    #[test]
+    fn pergunta_gravada_antes_das_decisoes_le_como_duvida() {
+        let p: Pergunta = serde_json::from_value(serde_json::json!({
+            "numero": 1,
+            "texto": "Qual o volume?",
+            "afirmacao": null,
+            "estado": "aberta",
+            "sessao": null,
+            "registrada_ms": 1
+        }))
+        .unwrap();
+        assert_eq!(p.tipo, TipoPergunta::Duvida);
+        assert!(p.opcoes.is_empty());
+        assert!(!p.e_decisao());
     }
 
     #[test]
