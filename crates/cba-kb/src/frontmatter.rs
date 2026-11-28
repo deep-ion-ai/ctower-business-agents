@@ -88,10 +88,13 @@ pub enum TipoDocumento {
     /// afetadas pela análise de origem, cada uma nova ou alterada, com os
     /// elementos ligados às regras e aos critérios de aceite de onde vêm.
     Prototipo,
+    /// Entregável por demanda publicado na base depois da revisão final (#463),
+    /// em `demandas/D-NNNN-<slug>/entregaveis/E-n-<tipo>.md`.
+    Entregavel,
 }
 
 impl TipoDocumento {
-    pub const TODOS: [TipoDocumento; 24] = [
+    pub const TODOS: [TipoDocumento; 25] = [
         Self::Projeto,
         Self::AnaliseImpacto,
         Self::Pergunta,
@@ -116,6 +119,7 @@ impl TipoDocumento {
         Self::DocExterno,
         Self::Manual,
         Self::Prototipo,
+        Self::Entregavel,
     ];
 
     /// Valor no frontmatter (`analise-impacto`).
@@ -145,6 +149,7 @@ impl TipoDocumento {
             Self::DocExterno => "doc-externo",
             Self::Manual => "manual",
             Self::Prototipo => "prototipo",
+            Self::Entregavel => "entregavel",
         }
     }
 
@@ -882,6 +887,32 @@ impl Frontmatter for FrontmatterFuncionalidade {
         TipoDocumento::CasoDeUso,
         TipoDocumento::Manual,
     ];
+}
+
+/// Entregável por demanda publicado na base (#463), em
+/// `demandas/D-NNNN-<slug>/entregaveis/`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FrontmatterEntregavel {
+    pub tipo: TipoDocumento,
+    pub titulo: String,
+    /// Id do tipo no catálogo de entregáveis (`historia-usuario`).
+    pub entregavel: String,
+    pub demanda: IdDemanda,
+    /// Análise validada de origem (`A-NNNN`).
+    pub analise: Id,
+    /// Versão do rascunho publicada.
+    pub versao: u32,
+    /// Quem fez a revisão final.
+    pub revisor: String,
+    pub publicado: Data,
+}
+
+impl Frontmatter for FrontmatterEntregavel {
+    const TIPOS: &'static [TipoDocumento] = &[TipoDocumento::Entregavel];
+
+    fn validar(&self) -> Result<(), ErroCampo> {
+        exigir_serie(&self.analise, &Serie::Analise, "análise (A-NNNN)")
+    }
 }
 
 /// Mapa de funcionalidades do projeto, em `funcionalidades/mapa.md` (#208). O

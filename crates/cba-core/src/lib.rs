@@ -32,6 +32,8 @@
 //!   (#371).
 //! - [`tokens`]: os tokens CSS do projeto analisado (#384), extraídos do código
 //!   da interface e revisados pelo analista antes de o protótipo de telas usar.
+//! - [`entregaveis`]: os entregáveis gerados numa demanda a partir de uma análise
+//!   validada (#463): rascunhos versionados, revisão final obrigatória e envios.
 //! - [`ambiente`]: identificação do projeto pelo diretório de trabalho do processo.
 //! - [`config`], [`dados`] e [`log`]: configuração, diretório de dados e log.
 //!
@@ -49,6 +51,7 @@ pub mod consultas;
 pub mod dados;
 pub mod diagramas;
 pub mod documentos_vivos;
+pub mod entregaveis;
 pub mod eventos;
 pub mod funcionalidades;
 pub mod historias;
