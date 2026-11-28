@@ -87,6 +87,13 @@ pub enum TipoCampo {
     Lista,
     /// Lista de identificadores de regra (`RN-FAT-001`): a rastreabilidade.
     Regras,
+    /// Etapas de um fluxo (o principal, os alternativos, as exceções do caso de
+    /// uso): uma lista de textos em que cada etapa cita no próprio texto ao
+    /// menos uma regra (`RN-FAT-001`). O app numera as etapas.
+    Etapas,
+    /// Histórias do épico, na ordem sugerida: cada uma é um objeto com os
+    /// campos da história de usuário ([`CAMPOS_DA_HISTORIA_DO_EPICO`]).
+    Historias,
 }
 
 /// Campo do esquema de um tipo.
@@ -145,34 +152,168 @@ impl TipoEntregavel {
     /// campo desconhecido, cada valor do tipo declarado e os obrigatórios
     /// preenchidos. Devolve todos os problemas, não só o primeiro.
     pub fn validar_campos(&self, valor: &Value) -> Result<(), Vec<ErroCampo>> {
-        let erro = |campo: &str, motivo: String| ErroCampo {
-            campo: campo.to_owned(),
-            motivo,
-        };
-        let Some(objeto) = valor.as_object() else {
-            return Err(vec![erro("", "os campos vêm num objeto".into())]);
-        };
         let mut erros = Vec::new();
-        for nome in objeto.keys() {
-            if self.campo(nome).is_none() {
-                erros.push(erro(nome, format!("campo desconhecido em {}", self.nome)));
-            }
-        }
-        for c in self.campos {
-            match objeto.get(c.nome) {
-                None | Some(Value::Null) => {
-                    if c.obrigatorio {
-                        erros.push(erro(c.nome, "obrigatório".into()));
-                    }
-                }
-                Some(v) => {
-                    if let Err(motivo) = valor_do_tipo(c, v) {
-                        erros.push(erro(c.nome, motivo));
-                    }
-                }
-            }
-        }
+        validar_objeto(self.campos, self.nome, valor, "", &mut erros);
         if erros.is_empty() { Ok(()) } else { Err(erros) }
+    }
+
+    /// As regras que os campos citam, na ordem e sem repetição: as dos campos
+    /// [`TipoCampo::Regras`], as citadas no texto das [`TipoCampo::Etapas`] e
+    /// as das histórias do épico. É a rastreabilidade do item.
+    pub fn regras_citadas(&self, campos: &Value) -> Vec<String> {
+        let mut ids = Vec::new();
+        coletar_regras(self.campos, campos, &mut ids);
+        ids
+    }
+}
+
+/// Confere um objeto contra os `campos` (os do tipo ou os de uma história do
+/// épico), acumulando os problemas em `erros` com o nome do campo prefixado.
+fn validar_objeto(
+    campos: &[Campo],
+    nome: &str,
+    valor: &Value,
+    prefixo: &str,
+    erros: &mut Vec<ErroCampo>,
+) {
+    let erro = |campo: &str, motivo: String| ErroCampo {
+        campo: format!("{prefixo}{campo}"),
+        motivo,
+    };
+    let Some(objeto) = valor.as_object() else {
+        erros.push(erro("", "os campos vêm num objeto".into()));
+        return;
+    };
+    for chave in objeto.keys() {
+        if !campos.iter().any(|c| c.nome == chave) {
+            erros.push(erro(chave, format!("campo desconhecido em {nome}")));
+        }
+    }
+    for c in campos {
+        match objeto.get(c.nome) {
+            None | Some(Value::Null) => {
+                if c.obrigatorio {
+                    erros.push(erro(c.nome, "obrigatório".into()));
+                }
+            }
+            Some(v) if c.tipo == TipoCampo::Historias => {
+                validar_historias(c, v, &format!("{prefixo}{}", c.nome), erros);
+            }
+            Some(v) => {
+                if let Err(motivo) = valor_do_tipo(c, v) {
+                    erros.push(erro(c.nome, motivo));
+                }
+            }
+        }
+    }
+}
+
+/// Rótulo da história do épico pela posição (`H1`, `H2`).
+fn rotulo_da_historia(i: usize) -> String {
+    format!("H{}", i + 1)
+}
+
+/// As histórias do épico: uma lista de objetos, cada um no esquema da história
+/// de usuário; `depende_de` só aponta para histórias anteriores (a ordem da
+/// lista é a ordem sugerida).
+fn validar_historias(c: &Campo, v: &Value, campo: &str, erros: &mut Vec<ErroCampo>) {
+    let Some(itens) = v.as_array() else {
+        erros.push(ErroCampo {
+            campo: campo.to_owned(),
+            motivo: "esperada uma lista de histórias".into(),
+        });
+        return;
+    };
+    if c.obrigatorio && itens.is_empty() {
+        erros.push(ErroCampo {
+            campo: campo.to_owned(),
+            motivo: "precisa de pelo menos uma história".into(),
+        });
+    }
+    for (i, h) in itens.iter().enumerate() {
+        let rotulo = rotulo_da_historia(i);
+        validar_objeto(
+            CAMPOS_DA_HISTORIA_DO_EPICO,
+            "história do épico",
+            h,
+            &format!("{campo}[{rotulo}]."),
+            erros,
+        );
+        for d in h
+            .get("depende_de")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+        {
+            let anterior = d
+                .trim()
+                .strip_prefix('H')
+                .and_then(|n| n.parse::<usize>().ok())
+                .is_some_and(|n| n >= 1 && n <= i);
+            if !anterior {
+                erros.push(ErroCampo {
+                    campo: format!("{campo}[{rotulo}].depende_de"),
+                    motivo: format!(
+                        "`{d}` não é uma história anterior (H1 a H{i}): a lista segue a ordem \
+                         sugerida, então a dependência vem antes"
+                    ),
+                });
+            }
+        }
+    }
+}
+
+/// Os identificadores de regra (`RN-FAT-001`) citados num texto, na ordem e
+/// sem repetição.
+pub fn regras_no_texto(texto: &str) -> Vec<String> {
+    let mut ids: Vec<String> = Vec::new();
+    for p in texto.split(|c: char| !(c.is_ascii_alphanumeric() || c == '-')) {
+        let p = p.trim_end_matches('-');
+        if p.starts_with("RN-")
+            && matches!(Id::analisar(p), Ok(id) if matches!(id.serie(), Serie::Regra { .. }))
+            && !ids.iter().any(|i| i == p)
+        {
+            ids.push(p.to_owned());
+        }
+    }
+    ids
+}
+
+fn coletar_regras(campos: &[Campo], valor: &Value, ids: &mut Vec<String>) {
+    let mut juntar = |id: String| {
+        if !ids.contains(&id) {
+            ids.push(id);
+        }
+    };
+    for c in campos {
+        let itens = valor
+            .get(c.nome)
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten();
+        match c.tipo {
+            TipoCampo::Regras => {
+                for id in itens.filter_map(Value::as_str) {
+                    juntar(id.trim().to_owned());
+                }
+            }
+            TipoCampo::Etapas => {
+                for id in itens.filter_map(Value::as_str).flat_map(regras_no_texto) {
+                    juntar(id);
+                }
+            }
+            TipoCampo::Historias => {
+                let mut das_historias = Vec::new();
+                for h in itens {
+                    coletar_regras(CAMPOS_DA_HISTORIA_DO_EPICO, h, &mut das_historias);
+                }
+                for id in das_historias {
+                    juntar(id);
+                }
+            }
+            TipoCampo::Texto | TipoCampo::TextoLongo | TipoCampo::Lista => {}
+        }
     }
 }
 
@@ -223,18 +364,38 @@ impl TipoEntregavel {
                     }
                 }
                 TipoCampo::Lista | TipoCampo::Regras => {
-                    let itens: Vec<String> = campos
+                    let itens: Vec<String> = textos_da_lista(campos, c.nome)
+                        .into_iter()
+                        .map(|i| format!("- {i}"))
+                        .collect();
+                    if !itens.is_empty() {
+                        partes.push(format!("{sub} {}\n\n{}", c.rotulo, itens.join("\n")));
+                    }
+                }
+                TipoCampo::Etapas => {
+                    let itens = textos_da_lista(campos, c.nome);
+                    if !itens.is_empty() {
+                        partes.push(format!(
+                            "{sub} {}\n\n{}",
+                            c.rotulo,
+                            etapas_em_markdown(c.nome, &itens)
+                        ));
+                    }
+                }
+                TipoCampo::Historias => {
+                    let itens: Vec<&Value> = campos
                         .get(c.nome)
                         .and_then(Value::as_array)
                         .into_iter()
                         .flatten()
-                        .filter_map(Value::as_str)
-                        .map(|i| {
-                            format!("- {}", i.split_whitespace().collect::<Vec<_>>().join(" "))
-                        })
                         .collect();
                     if !itens.is_empty() {
-                        partes.push(format!("{sub} {}\n\n{}", c.rotulo, itens.join("\n")));
+                        let historias: Vec<String> = itens
+                            .iter()
+                            .enumerate()
+                            .map(|(i, h)| historia_em_markdown(i, h, &"#".repeat(nivel + 2)))
+                            .collect();
+                        partes.push(format!("{sub} {}\n\n{}", c.rotulo, historias.join("\n\n")));
                     }
                 }
             }
@@ -259,7 +420,7 @@ impl TipoEntregavel {
     pub fn sem_item(&self) -> &'static str {
         match self.id {
             HISTORIA => "sem história",
-            EPICO => "fora do épico",
+            EPICO => "sem história no épico",
             CASO_DE_USO => "fora do caso de uso",
             CASOS_DE_TESTE => "sem caso de teste",
             PROTOTIPO => "fora do protótipo",
@@ -267,6 +428,115 @@ impl TipoEntregavel {
             _ => "sem item no entregável",
         }
     }
+}
+
+/// Os textos de um campo de lista, cada um numa linha só.
+fn textos_da_lista(campos: &Value, nome: &str) -> Vec<String> {
+    campos
+        .get(nome)
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .map(em_uma_linha)
+        .filter(|i| !i.is_empty())
+        .collect()
+}
+
+fn em_uma_linha(texto: &str) -> String {
+    texto.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Prefixo da numeração das etapas: o fluxo principal em `1.`, os fluxos
+/// alternativos em `FA1`, as exceções em `FE1`.
+fn prefixo_das_etapas(campo: &str) -> Option<&'static str> {
+    match campo {
+        "fluxos_alternativos" => Some("FA"),
+        "excecoes" => Some("FE"),
+        _ => None,
+    }
+}
+
+/// Tira a numeração que o agente tenha posto ("3. ", "FA1 - ", "FE2:"): o app
+/// numera.
+fn sem_numeracao(etapa: &str, prefixo: Option<&str>) -> String {
+    let mut resto = etapa.trim_start();
+    if let Some(p) = prefixo
+        && let Some(r) = resto.strip_prefix(p)
+    {
+        resto = r;
+    }
+    let digitos = resto.len() - resto.trim_start_matches(|c: char| c.is_ascii_digit()).len();
+    if digitos == 0 {
+        return etapa.trim().to_owned();
+    }
+    let depois = &resto[digitos..];
+    let pontuado = depois
+        .trim_start()
+        .starts_with(['.', ')', ':', '-', '—', '–']);
+    if !pontuado && prefixo.is_none() {
+        // "3 parcelas..." não é numeração.
+        return etapa.trim().to_owned();
+    }
+    depois
+        .trim_start_matches(['.', ')', ':', '-', '—', '–', ' '])
+        .trim()
+        .to_owned()
+}
+
+fn etapas_em_markdown(campo: &str, etapas: &[String]) -> String {
+    let prefixo = prefixo_das_etapas(campo);
+    etapas
+        .iter()
+        .enumerate()
+        .map(|(i, e)| {
+            let texto = sem_numeracao(e, prefixo);
+            match prefixo {
+                Some(p) => format!("- **{p}{}.** {texto}", i + 1),
+                None => format!("{}. {texto}", i + 1),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Uma história do épico: o título com o rótulo (`H1`), a narrativa, as
+/// dependências, os critérios e as regras.
+fn historia_em_markdown(i: usize, h: &Value, titulo: &str) -> String {
+    let texto = |nome: &str| {
+        h.get(nome)
+            .and_then(Value::as_str)
+            .map(em_uma_linha)
+            .unwrap_or_default()
+    };
+    let mut partes = vec![
+        format!("{titulo} {}. {}", rotulo_da_historia(i), texto("titulo")),
+        format!(
+            "**Como** {}, **quero** {}, **para** {}.",
+            texto("papel"),
+            texto("acao").trim_end_matches('.'),
+            texto("beneficio").trim_end_matches('.')
+        ),
+    ];
+    let depende = textos_da_lista(h, "depende_de");
+    if !depende.is_empty() {
+        partes.push(format!("**Depende de:** {}", depende.join(", ")));
+    }
+    let criterios: Vec<String> = textos_da_lista(h, "criterios")
+        .into_iter()
+        .map(|c| format!("- {c}"))
+        .collect();
+    if !criterios.is_empty() {
+        partes.push(format!(
+            "**Critérios de aceite:**\n\n{}",
+            criterios.join("\n")
+        ));
+    }
+    let regras = textos_da_lista(h, "regras");
+    if !regras.is_empty() {
+        partes.push(format!("**Regras:** {}", regras.join(", ")));
+    }
+    partes.join("\n\n")
 }
 
 fn valor_do_tipo(c: &Campo, v: &Value) -> Result<(), String> {
@@ -299,6 +569,31 @@ fn valor_do_tipo(c: &Campo, v: &Value) -> Result<(), String> {
                 }
             }
         }
+        TipoCampo::Etapas => {
+            let itens = v.as_array().ok_or("esperada uma lista de etapas")?;
+            if c.obrigatorio && itens.is_empty() {
+                return Err("precisa de pelo menos uma etapa".into());
+            }
+            let mut sem_regra = Vec::new();
+            for (i, item) in itens.iter().enumerate() {
+                let texto = item.as_str().ok_or("cada etapa é um texto")?;
+                if texto.trim().is_empty() {
+                    return Err("etapa vazia".into());
+                }
+                if regras_no_texto(texto).is_empty() {
+                    sem_regra.push((i + 1).to_string());
+                }
+            }
+            if !sem_regra.is_empty() {
+                return Err(format!(
+                    "etapa {} sem regra citada: cada etapa cita no texto a regra que a \
+                     sustenta (RN-<SIGLA>-NNN)",
+                    sem_regra.join(", ")
+                ));
+            }
+        }
+        // Conferido por `validar_historias`.
+        TipoCampo::Historias => {}
     }
     Ok(())
 }
@@ -328,6 +623,22 @@ use TipoCampo as C;
 const REGRAS: Campo = campo("regras", "Regras de origem", C::Regras);
 const FUNCIONALIDADE: Campo = campo("funcionalidade", "Funcionalidade do mapa", C::Texto);
 const TITULO: Campo = campo("titulo", "Título", C::Texto);
+const PAPEL: Campo = campo("papel", "Como (papel)", C::Texto);
+const ACAO: Campo = campo("acao", "Quero (ação)", C::Texto);
+const BENEFICIO: Campo = campo("beneficio", "Para (benefício)", C::Texto);
+const CRITERIOS: Campo = campo("criterios", "Critérios de aceite", C::Lista);
+
+/// Os campos de cada história do épico: os da história de usuário do catálogo
+/// ([`HISTORIA`]), mais as histórias anteriores de que ela depende (`H1`).
+pub const CAMPOS_DA_HISTORIA_DO_EPICO: &[Campo] = &[
+    TITULO,
+    PAPEL,
+    ACAO,
+    BENEFICIO,
+    CRITERIOS,
+    REGRAS,
+    opcional("depende_de", "Depende de", C::Lista),
+];
 
 /// Ids dos tipos que as predefinições e o legado usam.
 pub const HISTORIA: &str = "historia-usuario";
@@ -357,14 +668,7 @@ pub const CATALOGO: [TipoEntregavel; 15] = [
         grupo: Grupo::Agil,
         ciclo: CicloDeVida::PorDemanda,
         geracao: Geracao::Agente,
-        campos: &[
-            TITULO,
-            campo("papel", "Como (papel)", C::Texto),
-            campo("acao", "Quero (ação)", C::Texto),
-            campo("beneficio", "Para (benefício)", C::Texto),
-            campo("criterios", "Critérios de aceite", C::Lista),
-            REGRAS,
-        ],
+        campos: &[TITULO, PAPEL, ACAO, BENEFICIO, CRITERIOS, REGRAS],
         template: "historias",
         fontes: &[F::Analise, F::Regras, F::Termos],
         disponivel: true,
@@ -404,20 +708,22 @@ pub const CATALOGO: [TipoEntregavel; 15] = [
     TipoEntregavel {
         id: EPICO,
         nome: "Épico com quebra em histórias",
-        descricao: "O objetivo da demanda e as histórias em que ela se divide.",
+        descricao: "O objetivo da demanda e as histórias em que ela se divide, em ordem, com as dependências e os riscos.",
         grupo: Grupo::Agil,
         ciclo: CicloDeVida::PorDemanda,
         geracao: Geracao::Agente,
+        // As regras do épico são as das histórias.
         campos: &[
             TITULO,
             campo("objetivo", "Objetivo", C::TextoLongo),
-            campo("historias", "Histórias", C::Lista),
+            campo("historias", "Histórias (em ordem sugerida)", C::Historias),
+            opcional("dependencias", "Dependências", C::Lista),
+            opcional("riscos", "Riscos", C::Lista),
             opcional("fora_do_escopo", "Fora do escopo", C::Lista),
-            REGRAS,
         ],
         template: "epico",
         fontes: &[F::Analise, F::Regras, F::Mapa],
-        disponivel: false,
+        disponivel: true,
     },
     TipoEntregavel {
         id: RESUMO_REFINAMENTO,
@@ -457,24 +763,26 @@ pub const CATALOGO: [TipoEntregavel; 15] = [
     TipoEntregavel {
         id: CASO_DE_USO,
         nome: "Especificação de caso de uso",
-        descricao: "Atores, pré-condições, fluxo principal, alternativos e exceções da funcionalidade.",
+        descricao: "Atores, pré-condições, fluxo principal, alternativos, exceções e pós-condições da funcionalidade, cada etapa com a regra citada.",
         grupo: Grupo::Rup,
         ciclo: CicloDeVida::Vivo,
         geracao: Geracao::Agente,
+        // Na ordem e com os títulos do template `caso-de-uso.md`.
         campos: &[
             TITULO,
             campo("objetivo", "Objetivo", C::TextoLongo),
             campo("atores", "Atores", C::Lista),
             opcional("gatilho", "Gatilho", C::Texto),
             opcional("pre_condicoes", "Pré-condições", C::Lista),
-            campo("fluxo_principal", "Fluxo principal", C::Lista),
-            opcional("fluxos_alternativos", "Fluxos alternativos", C::Lista),
-            opcional("excecoes", "Exceções", C::Lista),
+            campo("fluxo_principal", "Fluxo principal", C::Etapas),
+            opcional("fluxos_alternativos", "Fluxos alternativos", C::Etapas),
+            opcional("excecoes", "Exceções", C::Etapas),
+            opcional("pos_condicoes", "Pós-condições", C::Lista),
             REGRAS,
         ],
         template: "caso-de-uso",
         fontes: &[F::Mapa, F::Analise, F::Regras, F::Termos],
-        disponivel: false,
+        disponivel: true,
     },
     TipoEntregavel {
         id: CATALOGO_REGRAS,
@@ -950,10 +1258,24 @@ mod tests {
                 );
                 assert!(t.fontes.contains(&Fonte::Mapa), "{}: vivo sem o mapa", t.id);
             }
-            // O que o agente redige cita a regra de origem de cada item.
+            // O que o agente redige cita a regra de origem de cada item; no
+            // épico, de cada história.
             if t.geracao == Geracao::Agente {
-                let regras = t
-                    .campo("regras")
+                let campos = match t.campos.iter().find(|c| c.tipo == TipoCampo::Historias) {
+                    Some(h) => {
+                        assert!(h.obrigatorio, "{}", t.id);
+                        assert!(
+                            t.campo("regras").is_none(),
+                            "{}: regras nas histórias",
+                            t.id
+                        );
+                        CAMPOS_DA_HISTORIA_DO_EPICO
+                    }
+                    None => t.campos,
+                };
+                let regras = campos
+                    .iter()
+                    .find(|c| c.nome == "regras")
                     .unwrap_or_else(|| panic!("{}: sem regras", t.id));
                 assert_eq!(
                     (regras.tipo, regras.obrigatorio),
@@ -996,7 +1318,8 @@ mod tests {
 
     #[test]
     fn os_tipos_disponiveis_tem_o_template_embutido() {
-        for t in CATALOGO.iter().filter(|t| t.disponivel) {
+        // O épico é montado pelo esquema (#463), sem template de documento.
+        for t in CATALOGO.iter().filter(|t| t.disponivel && t.id != EPICO) {
             let doc = TipoDocumento::de_str(t.template).unwrap_or_else(|| {
                 panic!("{}: template {} sem tipo de documento", t.id, t.template)
             });
@@ -1006,9 +1329,174 @@ mod tests {
                 t.id
             );
         }
-        // O caso de uso já tem template, mas ainda nenhum fluxo o gera.
-        assert!(modelo::modelo(TipoDocumento::CasoDeUso).is_some());
-        assert!(!tipo(CASO_DE_USO).unwrap().disponivel);
+        assert!(tipo(CASO_DE_USO).unwrap().disponivel);
+        assert!(tipo(EPICO).unwrap().disponivel);
+    }
+
+    #[test]
+    fn caso_de_uso_segue_as_secoes_do_template() {
+        let m = modelo::modelo(TipoDocumento::CasoDeUso).unwrap();
+        let uc = tipo(CASO_DE_USO).unwrap();
+        for c in uc
+            .campos
+            .iter()
+            .filter(|c| !matches!(c.nome, "titulo" | "regras"))
+        {
+            let s = m
+                .secoes
+                .iter()
+                .find(|s| s.marcador == c.nome)
+                .unwrap_or_else(|| panic!("{}: sem seção no template", c.nome));
+            assert_eq!(s.titulo, c.rotulo, "{}", c.nome);
+        }
+        let ordem = |nome: &str| m.secoes.iter().position(|s| s.marcador == nome).unwrap();
+        let campos: Vec<usize> = uc
+            .campos
+            .iter()
+            .filter(|c| !matches!(c.nome, "titulo"))
+            .map(|c| ordem(c.nome))
+            .collect();
+        assert!(campos.is_sorted(), "{campos:?}");
+    }
+
+    #[test]
+    fn etapas_do_caso_de_uso_citam_a_regra() {
+        let uc = tipo(CASO_DE_USO).unwrap();
+        let mut campos = json!({
+            "titulo": "Parcelar fatura",
+            "objetivo": "Dividir a fatura em parcelas.",
+            "atores": ["Atendente"],
+            "fluxo_principal": [
+                "O atendente abre uma fatura ABERTA (RN-FAT-010).",
+                "O atendente informa a quantidade de parcelas.",
+                "O sistema gera as parcelas (RN-FAT-011)."
+            ],
+            "fluxos_alternativos": ["Órgão público não tem valor mínimo de parcela (RN-FAT-009)."],
+            "regras": ["RN-FAT-010"],
+        });
+        let erros = uc.validar_campos(&campos).unwrap_err();
+        assert_eq!(erros.len(), 1);
+        assert_eq!(erros[0].campo, "fluxo_principal");
+        assert!(
+            erros[0].motivo.starts_with("etapa 2 sem regra citada"),
+            "{}",
+            erros[0]
+        );
+        campos["fluxo_principal"][1] = json!("O atendente informa de 2 a 6 parcelas (RN-FAT-008).");
+        assert_eq!(uc.validar_campos(&campos), Ok(()));
+        assert_eq!(
+            uc.regras_citadas(&campos),
+            ["RN-FAT-010", "RN-FAT-008", "RN-FAT-011", "RN-FAT-009"]
+        );
+        let texto = uc.markdown_do_item(&campos, &[], 1);
+        assert!(
+            texto.contains(
+                "## Fluxo principal\n\n1. O atendente abre uma fatura ABERTA (RN-FAT-010).\n\
+                 2. O atendente informa de 2 a 6 parcelas (RN-FAT-008).\n3."
+            ),
+            "{texto}"
+        );
+        assert!(
+            texto.contains(
+                "## Fluxos alternativos\n\n- **FA1.** Órgão público não tem valor mínimo"
+            ),
+            "{texto}"
+        );
+    }
+
+    #[test]
+    fn numeracao_do_agente_sai_da_etapa() {
+        assert_eq!(
+            sem_numeracao("3. Gera as parcelas", None),
+            "Gera as parcelas"
+        );
+        assert_eq!(
+            sem_numeracao("3 parcelas no máximo", None),
+            "3 parcelas no máximo"
+        );
+        assert_eq!(
+            sem_numeracao("FA2 — Órgão público", Some("FA")),
+            "Órgão público"
+        );
+        assert_eq!(sem_numeracao("FE1: Recusa", Some("FE")), "Recusa");
+        assert_eq!(sem_numeracao("Recusa PF", Some("FE")), "Recusa PF");
+    }
+
+    #[test]
+    fn regras_no_texto_acha_so_identificadores_de_regra() {
+        assert_eq!(
+            regras_no_texto("Passo (RN-FAT-001), RN-FAT-012; F-FAT-001, RN-sem e RN-FAT-001."),
+            ["RN-FAT-001", "RN-FAT-012"]
+        );
+    }
+
+    #[test]
+    fn epico_tem_historias_no_esquema_da_historia_de_usuario() {
+        let ep = tipo(EPICO).unwrap();
+        let historia = |titulo: &str, regras: &[&str], depende: &[&str]| {
+            json!({
+                "titulo": titulo,
+                "papel": "atendente",
+                "acao": "parcelar a fatura de pessoa física",
+                "beneficio": "atender o cliente PF",
+                "criterios": ["Dado um cliente PF, quando pede 3 parcelas, então o parcelamento é aceito"],
+                "regras": regras,
+                "depende_de": depende,
+            })
+        };
+        let mut campos = json!({
+            "titulo": "Parcelamento para pessoa física",
+            "objetivo": "Permitir que PF parcele em até 3 vezes.",
+            "historias": [
+                historia("Liberar PF", &["RN-FAT-007"], &[]),
+                historia("Limites por tipo", &["RN-FAT-008", "RN-FAT-009"], &["H1"]),
+            ],
+            "riscos": ["O parâmetro único muda os outros tipos."],
+        });
+        assert_eq!(ep.validar_campos(&campos), Ok(()));
+        assert_eq!(
+            ep.regras_citadas(&campos),
+            ["RN-FAT-007", "RN-FAT-008", "RN-FAT-009"]
+        );
+        let texto = ep.markdown_do_item(&campos, &[], 2);
+        assert!(
+            texto.starts_with("## Parcelamento para pessoa física"),
+            "{texto}"
+        );
+        assert!(
+            texto.contains("### Histórias (em ordem sugerida)\n\n#### H1. Liberar PF"),
+            "{texto}"
+        );
+        assert!(texto.contains("#### H2. Limites por tipo"), "{texto}");
+        assert!(texto.contains("**Depende de:** H1"), "{texto}");
+        assert!(
+            texto.contains("**Regras:** RN-FAT-008, RN-FAT-009"),
+            "{texto}"
+        );
+        assert!(
+            texto.contains("### Riscos\n\n- O parâmetro único"),
+            "{texto}"
+        );
+
+        // Dependência para a frente, história sem regra e campo estranho.
+        campos["historias"][0]["depende_de"] = json!(["H2"]);
+        campos["historias"][1]["regras"] = json!([]);
+        campos["historias"][1]["extra"] = json!(1);
+        let erros = ep.validar_campos(&campos).unwrap_err();
+        let nomes: Vec<&str> = erros.iter().map(|e| e.campo.as_str()).collect();
+        assert_eq!(
+            nomes,
+            [
+                "historias[H1].depende_de",
+                "historias[H2].extra",
+                "historias[H2].regras"
+            ]
+        );
+        assert!(
+            ep.validar_campos(&json!({"titulo": "x", "objetivo": "y", "historias": []}))
+                .is_err()
+        );
+        assert_eq!(ep.sem_item(), "sem história no épico");
     }
 
     #[test]
@@ -1053,7 +1541,7 @@ mod tests {
             "titulo": "Cancelar fatura",
             "objetivo": "Cancelar.\n\nCom multa.",
             "atores": ["Atendente"],
-            "fluxo_principal": ["Abre a fatura", "Cancela"],
+            "fluxo_principal": ["Abre a fatura (RN-FAT-001)", "Cancela (RN-FAT-001)"],
             "excecoes": null,
             "regras": ["RN-FAT-001"],
         });
@@ -1096,7 +1584,7 @@ mod tests {
                 "objetivo": "Cancelar.",
                 "atores": ["Atendente"],
                 "excecoes": [],
-                "fluxo_principal": ["Abre", "Cancela"],
+                "fluxo_principal": ["Abre (RN-FAT-001)", "Cancela (RN-FAT-001)"],
                 "regras": []
             }),
             &[],

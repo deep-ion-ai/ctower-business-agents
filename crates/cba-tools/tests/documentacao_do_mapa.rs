@@ -209,22 +209,55 @@ impl Cenario {
             .clone()
     }
 
-    /// O agente: inicia e registra a versão inicial do caso de uso.
-    fn agente_registra(&self, n: u32) {
+    /// O agente: inicia e registra a versão inicial do caso de uso pelos campos
+    /// do esquema, citando a regra `regra` da funcionalidade.
+    fn agente_registra(&self, n: u32, regra: &str) {
         let alvo = json!({ "tipo": CASO, "funcionalidade": fid(n).to_string() });
         let roteiro = self.chamar("iniciar_versao_inicial", alvo).unwrap();
         assert!(roteiro.contains("registrar_versao_inicial"), "{roteiro}");
-        let texto = format!(
-            "# Caso de uso: funcionalidade {n}\n\n## Objetivo\n\nAtender o atendente.\n\n\
-             ## Fluxo principal\n\n1. O atendente pede (RN-FAT-001).\n"
-        );
         self.chamar(
             "registrar_versao_inicial",
-            json!({ "tipo": CASO, "funcionalidade": fid(n).to_string(), "texto": texto }),
+            json!({ "tipo": CASO, "funcionalidade": fid(n).to_string(),
+                    "campos": caso_de_uso(n, regra) }),
         )
         .unwrap();
     }
 }
+
+/// Os campos de um caso de uso com uma etapa e uma exceção, ambas com a regra.
+fn caso_de_uso(n: u32, regra: &str) -> Value {
+    json!({
+        "titulo": format!("Funcionalidade {n}"),
+        "objetivo": "Atender o atendente.",
+        "atores": ["Atendente"],
+        "fluxo_principal": [format!("O atendente pede ({regra}).")],
+        "excecoes": [format!("Na etapa 1, se a fatura está paga, o sistema recusa ({regra}).")],
+        "regras": [regra],
+    })
+}
+
+/// Liga uma regra nova à funcionalidade pelo vínculo da regra.
+fn ligar_regra(amb: &Ambiente, id: &str, f: IdFuncionalidade) {
+    let id = Id::analisar(id).unwrap();
+    let regra = Documento::novo(
+        FrontmatterRegra {
+            tipo: TipoDocumento::Regra,
+            id: id.clone(),
+            titulo: format!("Regra de {f}"),
+            area: "cobranca".into(),
+            status: StatusRegra::Confirmada,
+            evidencias: Vec::new(),
+            origem: None,
+            informada: None,
+            historico: Vec::new(),
+            funcionalidades: vec![f],
+        },
+        format!("# {id}\n\n## Enunciado\n\nRegra de exemplo.\n"),
+    );
+    amb.kb.gravar(&id.arquivo(), &regra).unwrap();
+}
+
+impl Cenario {}
 
 #[test]
 fn rup_mostra_as_colunas_vivas_com_o_estado_e_a_cobertura_bate_com_as_celulas() {
@@ -374,8 +407,10 @@ fn lote_de_casos_de_uso_deixa_tres_rascunhos_e_nenhum_e_publicado_sem_revisao() 
     // Ainda nada foi gerado: as sessões é que registram.
     assert_eq!(c.estado(CASO, 1), EstadoDocumento::SemDocumento);
 
+    ligar_regra(&c.amb, "RN-FAT-002", fid(2));
+    ligar_regra(&c.amb, "RN-FAT-003", fid(3));
     for n in 1..=3 {
-        c.agente_registra(n);
+        c.agente_registra(n, &format!("RN-FAT-00{n}"));
     }
     let docs = DocumentosVivos::carregar(&c.amb.kb).unwrap();
     for n in 1..=3 {
@@ -387,6 +422,17 @@ fn lote_de_casos_de_uso_deixa_tres_rascunhos_e_nenhum_e_publicado_sem_revisao() 
         assert!(d.historico.is_empty(), "nada publicado");
         // Os arquivos dos pontos de entrada (e das regras) entram citados.
         assert!(p.arquivos.contains(&ARQUIVOS[n as usize - 1].to_owned()));
+        // O texto é montado pelo app a partir dos campos.
+        assert!(
+            p.texto.starts_with(&format!("# Funcionalidade {n}")),
+            "{}",
+            p.texto
+        );
+        assert!(
+            p.texto.contains("## Exceções\n\n- **FE1.** Na etapa 1"),
+            "{}",
+            p.texto
+        );
         assert!(!c.amb.kb.caminho(&d.caminho).exists());
         assert!(matches!(
             c.estado(CASO, n),
@@ -478,10 +524,38 @@ fn registro_recusa_regra_inexistente_documento_publicado_e_tipo_que_nao_e_da_fun
     let erro = c
         .chamar(
             "registrar_versao_inicial",
-            json!({ "tipo": CASO, "funcionalidade": f, "texto": "# Caso\n\nPasso (RN-FAT-042)." }),
+            json!({ "tipo": CASO, "funcionalidade": f, "campos": caso_de_uso(1, "RN-FAT-042") }),
         )
         .unwrap_err();
     assert!(erro.to_string().contains("RN-FAT-042"), "{erro}");
+    // O caso de uso vem pelos campos, cada etapa com a regra citada.
+    let erro = c
+        .chamar(
+            "registrar_versao_inicial",
+            json!({ "tipo": CASO, "funcionalidade": f, "texto": "# Caso\n\nPasso (RN-FAT-001)." }),
+        )
+        .unwrap_err();
+    assert!(erro.to_string().contains("`campos`"), "{erro}");
+    let mut sem_regra = caso_de_uso(1, "RN-FAT-001");
+    sem_regra["fluxo_principal"] = json!(["O atendente pede (RN-FAT-001).", "O sistema cancela."]);
+    let erro = c
+        .chamar(
+            "registrar_versao_inicial",
+            json!({ "tipo": CASO, "funcionalidade": f, "campos": sem_regra }),
+        )
+        .unwrap_err();
+    assert!(
+        erro.to_string().contains("etapa 2 sem regra citada"),
+        "{erro}"
+    );
+    // O manual continua pelo texto.
+    let erro = c
+        .chamar(
+            "registrar_versao_inicial",
+            json!({ "tipo": MANUAL, "funcionalidade": f }),
+        )
+        .unwrap_err();
+    assert!(erro.to_string().contains("`texto`"), "{erro}");
 
     let erro = c
         .chamar(
@@ -512,23 +586,40 @@ fn registro_recusa_regra_inexistente_documento_publicado_e_tipo_que_nao_e_da_fun
         )
         .unwrap();
     for trecho in [
-        "Fluxo principal",
-        "Fluxos alternativos",
+        "## Esquema (campos)",
+        "`fluxo_principal` (Fluxo principal)",
+        "`fluxos_alternativos` (Fluxos alternativos)",
+        "`pos_condicoes` (Pós-condições)",
+        "## Como redigir o caso de uso",
+        "com os `campos` do esquema",
         "RN-FAT-001",
         "PONTO_1",
     ] {
-        assert!(roteiro.contains(trecho), "{trecho}");
+        assert!(roteiro.contains(trecho), "{trecho}\n{roteiro}");
     }
+    assert!(!roteiro.contains("{{"), "{roteiro}");
+    // O manual continua pelas seções do template, sem o esquema.
+    let manual = c
+        .chamar(
+            "iniciar_versao_inicial",
+            json!({ "tipo": MANUAL, "funcionalidade": f }),
+        )
+        .unwrap();
+    assert!(
+        manual.contains("## Seções") && manual.contains("com o texto completo"),
+        "{manual}"
+    );
+    assert!(!manual.contains("{{"), "{manual}");
 
     // Publicado, não se registra outra 1.0.
-    c.agente_registra(1);
+    c.agente_registra(1, "RN-FAT-001");
     let caminho = c.caminho(CASO, 1);
     marcar_revisada(&c.amb, &caminho, "Ana Exemplo").unwrap();
     publicar(&c.amb, &caminho).unwrap();
     let erro = c
         .chamar(
             "registrar_versao_inicial",
-            json!({ "tipo": CASO, "funcionalidade": f, "texto": "# Outro\n" }),
+            json!({ "tipo": CASO, "funcionalidade": f, "campos": caso_de_uso(1, "RN-FAT-001") }),
         )
         .unwrap_err();
     assert!(erro.to_string().contains("nunca é recriado"), "{erro}");

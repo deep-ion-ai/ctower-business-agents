@@ -1,6 +1,6 @@
 # Avaliação dos fluxos contra o gabarito
 
-Roteiros, limites e modelos mudam com o tempo. A avaliação mostra se um ajuste piorou a análise (spec, critério de aceite 2): roda os fluxos com o Claude Code real no sistema fictício **Faturamento Exemplo** e compara o que o agente registrou com o gabarito `fixtures/gabaritos/faturamento-exemplo.yaml`. Além dos três fluxos de análise (perguntar, explicar, impacto), avalia o fluxo **Analisar reunião** (`reuniao`) com os transcripts fictícios de `fixtures/reunioes/` e mede o custo de uma reunião longa, de cerca de 2 h ([seção própria](#fluxo-reuniao)), o fluxo **Revisar requisito** (`revisar`) com uma história fictícia com problemas plantados ([seção própria](#fluxo-revisar)) o fluxo **Histórias e critérios** (`historias`) a partir da análise de impacto de uma demanda ([seção própria](#fluxo-historias)) o fluxo **Cenários de teste** (`cenarios`) a partir das regras ([seção própria](#fluxo-cenarios)) o **ciclo de vida** de uma entidade, o diagrama de estados numa análise de explicar ([seção própria](#ciclo-de-vida)), o fluxo **Mapear funcionalidades** (`mapear`), o catálogo do projeto a partir do código ([seção própria](#fluxo-mapear)), e o **ciclo de publicação** (`publicacao`): analisar, aprovar, publicar a documentação num repositório e analisar de novo com ela ([seção própria](#ciclo-de-publicação)).
+Roteiros, limites e modelos mudam com o tempo. A avaliação mostra se um ajuste piorou a análise (spec, critério de aceite 2): roda os fluxos com o Claude Code real no sistema fictício **Faturamento Exemplo** e compara o que o agente registrou com o gabarito `fixtures/gabaritos/faturamento-exemplo.yaml`. Além dos três fluxos de análise (perguntar, explicar, impacto), avalia o fluxo **Analisar reunião** (`reuniao`) com os transcripts fictícios de `fixtures/reunioes/` e mede o custo de uma reunião longa, de cerca de 2 h ([seção própria](#fluxo-reuniao)), o fluxo **Revisar requisito** (`revisar`) com uma história fictícia com problemas plantados ([seção própria](#fluxo-revisar)) o fluxo **Histórias e critérios** (`historias`) a partir da análise de impacto de uma demanda ([seção própria](#fluxo-historias)) o fluxo **Cenários de teste** (`cenarios`) a partir das regras ([seção própria](#fluxo-cenarios)) o **ciclo de vida** de uma entidade, o diagrama de estados numa análise de explicar ([seção própria](#ciclo-de-vida)), o fluxo **Mapear funcionalidades** (`mapear`), o catálogo do projeto a partir do código ([seção própria](#fluxo-mapear)), os **entregáveis da demanda** (`entregaveis`): o caso de uso e o épico com quebra em histórias ([seção própria](#entregáveis-da-demanda)), e o **ciclo de publicação** (`publicacao`): analisar, aprovar, publicar a documentação num repositório e analisar de novo com ela ([seção própria](#ciclo-de-publicação)).
 
 Ela fica na crate `crates/cba-avaliacao` e tem duas partes:
 
@@ -40,9 +40,9 @@ Opções principais:
 |---|---|---|
 | `--modelo` | `sonnet` | modelo do `claude` |
 | `--orcamento` | `1.5` | `--max-budget-usd` de **cada** execução, em US$ |
-| `--fluxos` | `perguntar,explicar,impacto` | fluxos a rodar; também `revisar`, `historias`, `cenarios`, `ciclo-vida`, `mapear`, `publicacao`, `reuniao` e `reuniao-longa` |
+| `--fluxos` | `perguntar,explicar,impacto` | fluxos a rodar; também `revisar`, `historias`, `cenarios`, `ciclo-vida`, `mapear`, `entregaveis`, `publicacao`, `reuniao` e `reuniao-longa` |
 | `--repeticoes` | `1` | execuções de cada fluxo (o modelo varia de uma para outra; use 3 ou mais para comparar versões) |
-| `--pergunta`, `--funcionalidade`, `--demanda` (aceita lista: `D-FAT-001,D-FAT-003`), `--revisao`, `--historias`, `--cenarios`, `--ciclo-vida`, `--mapeamento` | `P-FAT-001`, `F-FAT-002`, `D-FAT-001`, `REV-FAT-001`, `HIS-FAT-001`, `CEN-FAT-001`, `CV-FAT-001`, `MAP-FAT-001` | item do gabarito de cada fluxo |
+| `--pergunta`, `--funcionalidade`, `--demanda` (aceita lista: `D-FAT-001,D-FAT-003`), `--revisao`, `--historias`, `--cenarios`, `--ciclo-vida`, `--mapeamento`, `--entregavel` (aceita lista) | `P-FAT-001`, `F-FAT-002`, `D-FAT-001`, `REV-FAT-001`, `HIS-FAT-001`, `CEN-FAT-001`, `CV-FAT-001`, `MAP-FAT-001`, `ENT-FAT-001,ENT-FAT-002` | item do gabarito de cada fluxo |
 | `--reuniao` | `REU-FAT-001` | reunião do gabarito dos fluxos `reuniao` e `reuniao-longa` |
 | `--publicacao` | `PUB-FAT-001` | ciclo de publicação do gabarito (fluxo `publicacao`, duas execuções do `claude`) |
 | `--orcamento-longa` | `3` | `--max-budget-usd` da reunião longa, em US$ |
@@ -236,6 +236,29 @@ O roteiro foi avaliado com o modelo real na #258 ([relatório](avaliacao/2026-11
 - **Utilitários.** As justificativas diziam a quais rotinas o ajudante serve por suposição (uma citou o cancelamento, que não chama `FN_PARAMETRO`). O roteiro passou a pedir as que o chamam, por `referencias`; depois do ajuste, as justificativas citam `FN_CALCULAR_MULTA` e `FN_CALCULAR_JUROS`.
 
 Números de referência (rodada final, três execuções): nenhuma falha grave; 7 funcionalidades registradas por execução; funcionalidades esperadas 100% (6 de 6) e pontos de entrada bem tratados 100% (15 de 15) nas três; área conferindo em 4 de 6 (o agente põe o cancelamento em Cobrança, e o gabarito em Cancelamento; e o pagamento numa área Pagamento, e o gabarito em Cobrança: escolhas defensáveis, só cobertura); US$ 0,27 a 0,28, 21 turnos e cerca de 50 s por execução (US$ 0,82 no total). Antes dos ajustes: funcionalidades 100%, pontos 93% nas três (pela comparação antiga), US$ 0,26 e 48 a 50 s por execução. Como o mapeamento não cria análise, as colunas de regras, evidências e "Concluídas" do resumo não se aplicam (a conclusão aparece como a ausência de ponto sem tratamento). O mapa usa o roteiro embutido no app (não há cópia na base), então não entra em `roteiro::revisado`, que é dos fluxos de análise.
+
+## Entregáveis da demanda
+
+Os entregáveis redigidos pelo agente a partir da análise validada de uma demanda (#464) não são análises: o analista os gera na seção "Entregáveis" da demanda, e o agente segue o roteiro de `iniciar_entregavel` (com o trecho próprio do tipo em `crates/cba-tools/textos/entregaveis/`) e registra com `registrar_entregavel`, que confere o esquema do tipo e as regras citadas. O gabarito tem, em `entregaveis`, dois itens a partir da `D-FAT-003` (parcelamento para pessoa física): `ENT-FAT-001`, o **caso de uso** do parcelamento (vivo: a versão inicial é pedida pela demanda, com as regras da análise e as da funcionalidade `F-FAT-002`), e `ENT-FAT-002`, o **épico com quebra em histórias**.
+
+```sh
+cargo run -p cba-avaliacao -- rodar --fluxos entregaveis --orcamento 1.5
+cargo run -p cba-avaliacao -- rodar --fluxos entregaveis --entregavel ENT-FAT-002 --orcamento 1.5
+```
+
+### Preparo
+
+Antes do `claude`, o preparo habilita o tipo no cadastro do projeto, cria a demanda na base e a análise de impacto de origem ligada a ela, como nas histórias (uma afirmação confirmada por regra da demanda, as regras na base, uma pergunta em aberto por pergunta esperada, concluída e aprovada). No caso de uso, registra a funcionalidade do gabarito no mapa (o ponto de entrada é a primeira evidência das regras dela) e grava as regras dela ligadas a ela. Depois "Gera" o entregável (`cba_tools::entregaveis::gerar`, o mesmo da tela), e o pedido é o prompt do app (`Gere o entregável E-1 da demanda D-0001 pelo ctower...`).
+
+### Critérios
+
+- **Regras.** Cada regra esperada é citada pelo item: no caso de uso, em `regras` ou no texto de uma etapa; no épico, nas `regras` de uma história.
+- **Caso de uso.** O fluxo principal tem ao menos `minimo_de_etapas` etapas; cada ator, fluxo alternativo e exceção esperados é atendido por um texto do campo com as palavras-chave.
+- **Épico.** Ao menos `minimo_de_historias` histórias; cada história esperada é atendida pelo título e pela narrativa (Como / quero / para) com as palavras-chave; cada risco esperado, pelos riscos, pelas dependências ou pelo fora do escopo.
+
+Falha grave (entregáveis): nada registrado, etapa ou história sem regra citada (a ferramenta já recusa; pegaria uma regressão), caso de uso sem fluxo principal ou sem nenhum fluxo alternativo, épico sem história, erro da execução ou arquivo do projeto alterado.
+
+O teste `crates/cba-avaliacao/tests/entregaveis.rs` roda o preparo na fixture e registra os dois entregáveis pelas ferramentas reais, como o agente faria, sem chamar o Claude. Os trechos do roteiro ainda não foram avaliados com o modelo real.
 
 ## Manual do usuário
 

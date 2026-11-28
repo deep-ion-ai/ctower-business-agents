@@ -42,6 +42,35 @@ struct Gabarito {
     mapeamentos: Vec<Mapeamento>,
     #[serde(default)]
     publicacoes: Vec<Publicacao>,
+    #[serde(default)]
+    entregaveis: Vec<Entregavel>,
+}
+
+/// Entregável da demanda (#464): o caso de uso e o épico com quebra.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Entregavel {
+    id: String,
+    titulo: String,
+    tipo: String,
+    demanda: String,
+    #[serde(default)]
+    funcionalidade: Option<String>,
+    regras: Vec<String>,
+    #[serde(default)]
+    minimo_de_etapas: usize,
+    #[serde(default)]
+    atores: Vec<HistoriaEsperada>,
+    #[serde(default)]
+    fluxos_alternativos: Vec<HistoriaEsperada>,
+    #[serde(default)]
+    excecoes: Vec<HistoriaEsperada>,
+    #[serde(default)]
+    minimo_de_historias: usize,
+    #[serde(default)]
+    historias_esperadas: Vec<HistoriaEsperada>,
+    #[serde(default)]
+    riscos: Vec<HistoriaEsperada>,
 }
 
 /// Ciclo de publicação da documentação (#279).
@@ -970,6 +999,17 @@ fn conferir(caminho: &Path) -> Vec<String> {
         .chain(gabarito.ciclos_vida.iter().map(|c| &c.id))
         .chain(gabarito.mapeamentos.iter().map(|m| &m.id))
         .chain(gabarito.publicacoes.iter().map(|p| &p.id))
+        .chain(gabarito.entregaveis.iter().flat_map(|e| {
+            std::iter::once(&e.id).chain(
+                e.atores
+                    .iter()
+                    .chain(&e.fluxos_alternativos)
+                    .chain(&e.excecoes)
+                    .chain(&e.historias_esperadas)
+                    .chain(&e.riscos)
+                    .map(|x| &x.id),
+            )
+        }))
         .chain(
             gabarito
                 .ciclos_vida
@@ -1368,6 +1408,9 @@ fn conferir(caminho: &Path) -> Vec<String> {
     for p in &gabarito.publicacoes {
         conferir_publicacao(&mut c, &gabarito, p);
     }
+    for e in &gabarito.entregaveis {
+        conferir_entregavel(&mut c, &gabarito, e);
+    }
 
     // Toda regra é exercitada por ao menos um fluxo.
     for regra in &gabarito.regras {
@@ -1380,6 +1423,76 @@ fn conferir(caminho: &Path) -> Vec<String> {
     }
 
     c.erros
+}
+
+/// Entregável da demanda (#464): o tipo é o caso de uso (com a funcionalidade
+/// do gabarito, que é vivo) ou o épico (sem ela); a demanda existe; as regras
+/// esperadas são regras (RN-…) da demanda ou, no caso de uso, da
+/// funcionalidade; os textos esperados têm palavras-chave; o caso de uso espera
+/// ao menos um fluxo alternativo e o épico ao menos duas histórias.
+fn conferir_entregavel(c: &mut Conferencia, gabarito: &Gabarito, e: &Entregavel) {
+    let onde = format!("entregável {}", e.id);
+    c.texto_preenchido(&onde, "titulo", &e.titulo);
+    let demanda = gabarito.demandas.iter().find(|d| d.id == e.demanda);
+    if demanda.is_none() {
+        c.erro(format!("{onde}: demanda `{}` não existe", e.demanda));
+    }
+    let funcionalidade = e
+        .funcionalidade
+        .as_ref()
+        .map(|id| (id, gabarito.funcionalidades.iter().find(|f| &f.id == id)));
+    match (e.tipo.as_str(), &funcionalidade) {
+        ("caso-de-uso", Some((_, Some(_)))) => {
+            if e.minimo_de_etapas == 0 {
+                c.erro(format!("{onde}: caso de uso sem minimo_de_etapas"));
+            }
+            if e.fluxos_alternativos.is_empty() {
+                c.erro(format!(
+                    "{onde}: caso de uso sem fluxo alternativo esperado"
+                ));
+            }
+        }
+        ("caso-de-uso", Some((id, None))) => {
+            c.erro(format!("{onde}: funcionalidade `{id}` não existe"))
+        }
+        ("caso-de-uso", None) => c.erro(format!(
+            "{onde}: o caso de uso é vivo e precisa da funcionalidade"
+        )),
+        ("epico", None) => {
+            if e.minimo_de_historias < 2 || e.historias_esperadas.is_empty() {
+                c.erro(format!(
+                    "{onde}: o épico espera ao menos duas histórias e as histórias esperadas"
+                ));
+            }
+        }
+        ("epico", Some(_)) => c.erro(format!("{onde}: o épico é por demanda, sem funcionalidade")),
+        (outro, _) => c.erro(format!("{onde}: tipo `{outro}` (use caso-de-uso ou epico)")),
+    }
+    if e.regras.is_empty() {
+        c.erro(format!("{onde}: nenhuma regra"));
+    }
+    for id in &e.regras {
+        let da_demanda = demanda.is_some_and(|d| d.regras.contains(id));
+        let da_funcionalidade =
+            matches!(&funcionalidade, Some((_, Some(f))) if f.regras.contains(id));
+        if !id.starts_with("RN-") || !(da_demanda || da_funcionalidade) {
+            c.erro(format!(
+                "{onde}: regra `{id}` não é uma regra (RN-…) da demanda nem da funcionalidade"
+            ));
+        }
+    }
+    for x in e
+        .atores
+        .iter()
+        .chain(&e.fluxos_alternativos)
+        .chain(&e.excecoes)
+        .chain(&e.historias_esperadas)
+        .chain(&e.riscos)
+    {
+        let onde = format!("{onde}, {}", x.id);
+        c.texto_preenchido(&onde, "descricao", &x.descricao);
+        c.palavras_chave(&onde, &x.palavras_chave);
+    }
 }
 
 /// Ciclo de publicação (#279): os dois itens são de análise (pergunta,
