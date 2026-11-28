@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.13.0](https://github.com/deep-ion-ai/ctower-business-agents/compare/v0.12.0...v0.13.0) (2026-11-28)
+
+
+### Features
+
+* **entregaveis:** artefatos por metodologia (RUP, Ágil) com documentos vivos versionados ([3f3d00a](https://github.com/deep-ion-ai/ctower-business-agents/commit/3f3d00af90439d2583a1609d259a1e124298883b))
+* **entregaveis:** caso de uso e épico com quebra em histórias, com roteiro, esquema e gabarito ([c19df04](https://github.com/deep-ion-ai/ctower-business-agents/commit/c19df0419aad0f15194e98b40982201555fedd95)), closes [#464](https://github.com/deep-ion-ai/ctower-business-agents/issues/464)
+* **entregaveis:** catálogo de tipos e configuração por projeto, com metodologia Ágil e RUP ([2f74e04](https://github.com/deep-ion-ai/ctower-business-agents/commit/2f74e04d85092d50dda74248ce516029e94868d4)), closes [#460](https://github.com/deep-ion-ai/ctower-business-agents/issues/460)
+* **entregaveis:** documentos vivos ligados à funcionalidade, com versões, histórico de revisões e estado ([5dc7124](https://github.com/deep-ion-ai/ctower-business-agents/commit/5dc7124f8ea9c3139efbce1fceb0d0ccee666f41)), closes [#461](https://github.com/deep-ion-ai/ctower-business-agents/issues/461)
+* **entregaveis:** gerar entregável a partir da demanda, com revisão final obrigatória e proposta de versão ([d362b4c](https://github.com/deep-ion-ai/ctower-business-agents/commit/d362b4c0cd706d631240a67d982ac3b98a1927c9)), closes [#463](https://github.com/deep-ion-ai/ctower-business-agents/issues/463)
+* **mapa:** documentação por funcionalidade, cobertura por tipo e geração da versão inicial em lote ([26a98ae](https://github.com/deep-ion-ai/ctower-business-agents/commit/26a98ae677bd9e8b2b9e77c200e091872819c8ea)), closes [#462](https://github.com/deep-ion-ai/ctower-business-agents/issues/462)
+
+
+### Bug Fixes
+
+* **entregaveis:** corrige os achados do code review da integração do épico ([07db447](https://github.com/deep-ion-ai/ctower-business-agents/commit/07db4471ea49523cdcdf30d749703046275e579c))
+* **entregaveis:** renomeia a API da seção para não colidir com o componente em disco sem caixa ([d9a5d93](https://github.com/deep-ion-ai/ctower-business-agents/commit/d9a5d93885769411b3e656fc9693ffeec54d7017))
+
 ## [0.12.0](https://github.com/deep-ion-ai/ctower-business-agents/compare/v0.11.0...v0.12.0) (2026-11-27)
 
 
