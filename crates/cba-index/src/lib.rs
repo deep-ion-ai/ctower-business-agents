@@ -46,6 +46,7 @@
 pub mod ambiente_teste;
 mod cadastro;
 mod entradas;
+pub mod entregaveis;
 mod erro;
 pub mod estilo;
 mod exclusoes;
@@ -59,6 +60,7 @@ mod projeto;
 pub use ambiente_teste::{AmbienteTeste, UsuarioTeste};
 pub use cadastro::Cadastro;
 pub use entradas::{PontoEntrada, TipoEntrada};
+pub use entregaveis::{Destino, Entregaveis, Metodologia, TipoHabilitado};
 pub use erro::Erro;
 pub use estilo::{CategoriaToken, OrigemToken, TokenEstilo, extrair_estilo};
 pub use exclusoes::{Exclusao, Exclusoes, Motivo, REGRAS_PADRAO};

@@ -398,6 +398,37 @@ O agente registra dados estruturados pelas ferramentas MCP, e o app monta cada d
 - **Ciclo de vida (#119):** no diagrama de estados, a chave do nó é o valor que o código grava no campo de status e cada transição traz a condição (guarda) e os efeitos; a tabela de transições ganha as colunas Condição e Efeitos quando alguma transição as tem. O app calcula os achados do ciclo de vida (estado inalcançável: não é o inicial e nenhuma transição chega; estado sem saída: não é final, é alcançado e nenhuma transição sai; transição sem condição) e os lista abaixo das tabelas, no documento e na tela. Na revisão, **Virar pergunta** transforma um achado numa pergunta para o solicitante, com o texto editável, as evidências do elemento e a origem; a pergunta aparece com as demais, não impede a aprovação e não reabre a análise, e o achado mostra a pergunta em que virou, sem duplicar.
 - **O chat não é o documento.** No chat, o agente dá um resumo e o link do documento (devolvido por `concluir_analise`). O documento completo se lê no app ou em qualquer editor de Markdown.
 
+### 7.3.1 Entregáveis por metodologia (#460)
+
+A análise investiga e reúne as evidências; o **entregável** é o artefato da metodologia do projeto, derivado de uma análise validada ou do mapa. O catálogo dos tipos é embutido no app (`cba_docs::entregaveis`). Cada tipo declara o grupo, o ciclo de vida, a geração, o esquema dos campos (que o app valida: campo desconhecido, tipo do valor, obrigatórios e identificadores de regra), o template padrão e as fontes (análise, regras, termos, mapa ou cenários). Todo tipo redigido pelo agente tem o campo obrigatório "Regras de origem".
+
+| Grupo | Tipo | Ciclo | Geração | Template padrão |
+|---|---|---|---|---|
+| Ágil | História de usuário | por demanda | agente | `historias` |
+| Ágil | Critérios em Gherkin | por demanda | app | `criterios-gherkin` |
+| Ágil | Cenários `.feature` | vivo | app | `cenarios-feature` |
+| Ágil | Épico com quebra em histórias | por demanda | agente | `epico` |
+| Ágil | Resumo para refinamento | por demanda | agente | `resumo-refinamento` |
+| Ágil | Definition of Ready | por demanda | app | `definition-of-ready` |
+| RUP | Especificação de caso de uso | vivo | agente | `caso-de-uso` |
+| RUP | Catálogo de regras de negócio | vivo | app | `catalogo-regras` |
+| RUP | Especificação suplementar | vivo | app | `especificacao-suplementar` |
+| RUP | Casos de teste | por demanda | agente | `cenarios-teste` |
+| RUP | Documento de visão | por demanda | agente | `documento-visao` |
+| Comuns | Protótipo | por demanda | agente | `prototipo` |
+| Comuns | Glossário | vivo | app | `glossario` |
+| Comuns | Manual do usuário | vivo | agente | `manual` |
+| Comuns | Documento negocial | vivo | agente | `funcionalidade` |
+
+- **Já gerados pelo app:** história, casos de teste (o fluxo "Cenários de teste"), protótipo, manual e documento negocial. Os demais podem ser habilitados, e a tela os marca com "geração em breve" até as próximas sub-issues do épico #459.
+- **Configuração do projeto** (Configurações › projeto › aba "Entregáveis"), gravada no cadastro do projeto (`entregaveis`):
+  - **Metodologia:** Ágil, RUP, Personalizado e "Orientado a agentes" (desabilitado, "em breve"; recusado ao salvar).
+  - **Predefinições:** Ágil habilita o épico (padrão), a história, os critérios em Gherkin, os cenários `.feature` e o protótipo; RUP habilita o caso de uso (padrão), o catálogo de regras, a especificação suplementar, o protótipo e o glossário.
+  - Habilitar ou desabilitar um tipo ou trocar o tipo padrão à mão passa para Personalizado, com um aviso. O app também normaliza ao salvar: o que não bate com a predefinição é gravado como Personalizado.
+  - **Por tipo habilitado:** o template (o padrão do app ou um `.md` de `<base>/_templates/`, que precisa existir) e o destino (exportar, repositório de documentação ou comentário no rastreador). Template e destino não mudam a metodologia.
+  - **Tipo padrão:** um dos habilitados.
+- **Projetos existentes** (sem `entregaveis` no cadastro) abrem em Personalizado com os tipos que o app já gerava: histórias (padrão), casos de teste, protótipo, manual e documento negocial.
+
 ### 7.4 Como a base cresce
 
 - **Análise aprovada alimenta a base:** as afirmações confirmadas pelo analista viram regras (com identificador estável) e os termos propostos viram entradas do glossário.

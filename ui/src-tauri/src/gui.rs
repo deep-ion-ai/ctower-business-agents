@@ -213,6 +213,8 @@ pub fn rodar() {
             configuracoes::previa_leitura_app,
             configuracoes::salvar_leitura_app,
             configuracoes::salvar_mascarar_demanda_app,
+            configuracoes::entregaveis_projeto_app,
+            configuracoes::salvar_entregaveis_app,
             configuracoes::desfazer_ambiente_projeto,
             configuracoes::descadastrar_projeto_app,
             configuracoes::textos_editaveis_app,

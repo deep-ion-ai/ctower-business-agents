@@ -578,6 +578,7 @@ name = "cba-docs"
 version = "0.12.0"
 dependencies = [
  "cba-core",
+ "cba-index",
  "cba-kb",
  "cba-repos",
  "pulldown-cmark",
