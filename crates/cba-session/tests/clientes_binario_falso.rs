@@ -12,6 +12,27 @@ use cba_session::clientes::{
     Plataforma, Saida, detectar_claude_code,
 };
 
+/// Executa de verdade, esperando o script recém-gravado ficar livre. No Linux, um
+/// teste em paralelo que cria um processo herda, até o `exec` dele, o descritor
+/// de escrita do script que outro teste acabou de gravar, e executar o script
+/// nessa janela falha com `ETXTBSY` (`ExecutableFileBusy`). É do teste, que grava
+/// o binário na hora; o `claude` de verdade não está sendo gravado.
+fn executar_de_verdade(
+    programa: &Path,
+    args: &[&str],
+    limite: Duration,
+) -> Result<Saida, ErroExecucao> {
+    for _ in 0..50 {
+        match AmbienteReal.executar(programa, args, limite) {
+            Err(ErroExecucao::NaoIniciou(tipo)) if tipo == "ExecutableFileBusy" => {
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            r => return r,
+        }
+    }
+    AmbienteReal.executar(programa, args, limite)
+}
+
 /// Sistema de verdade para arquivos e processos, com `PATH` e pasta do usuário
 /// controlados pelo teste.
 struct Isolado {
@@ -48,7 +69,7 @@ impl Ambiente for Isolado {
         args: &[&str],
         limite: Duration,
     ) -> Result<Saida, ErroExecucao> {
-        AmbienteReal.executar(programa, args, limite)
+        executar_de_verdade(programa, args, limite)
     }
 }
 
@@ -155,7 +176,7 @@ fn comando_que_trava_e_encerrado_no_limite() {
     std::fs::write(&caminho, "#!/bin/sh\nexec sleep 30\n").unwrap();
     std::fs::set_permissions(&caminho, std::fs::Permissions::from_mode(0o755)).unwrap();
     let inicio = std::time::Instant::now();
-    let r = AmbienteReal.executar(&caminho, &[], Duration::from_millis(300));
+    let r = executar_de_verdade(&caminho, &[], Duration::from_millis(300));
     assert_eq!(r, Err(ErroExecucao::TempoEsgotado));
     assert!(inicio.elapsed() < Duration::from_secs(10));
 }

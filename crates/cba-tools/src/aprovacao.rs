@@ -274,6 +274,15 @@ pub fn aprovar_analise(
     let kb = base.projeto(projeto)?;
     let analises = Analises::new(kb, Arc::new(DiarioEventos::do_diretorio(dados)));
     let mut aprovacao = aprovar(&base, &analises, id, opcoes)?;
+    // O aviso da aprovação (estado da análise) sai antes de as regras, os termos e o
+    // documento negocial chegarem à base e ao mapa: a tela que relê o mapa naquele
+    // aviso fica sem o vínculo. Avisa de novo, pelo mapa, depois de tudo gravado (#499).
+    if aprovacao.documento_negocial.is_some() || !aprovacao.funcionalidades.is_empty() {
+        match MapaFuncionalidades::carregar(analises.projeto()) {
+            Ok(mapa) => crate::mapear::notificar(dados, projeto, mapa.versao),
+            Err(_) => tracing::warn!("mapa ilegível: o app não foi avisado da aprovação"),
+        }
+    }
     let sincronizado =
         Indice::abrir(dados.arquivo_do_indice(), &base).and_then(|mut i| i.sincronizar());
     if let Err(e) = sincronizado {
@@ -665,6 +674,15 @@ fn sem_marcador_de_bloco(linha: &str) -> String {
             l = r.trim_start();
             break;
         }
+    }
+    // Item de lista numerada (`1. `, `12) `): o número do passo não é título (#499).
+    let digitos = l.len() - l.trim_start_matches(|c: char| c.is_ascii_digit()).len();
+    if digitos > 0
+        && let Some(r) = l[digitos..]
+            .strip_prefix(". ")
+            .or_else(|| l[digitos..].strip_prefix(") "))
+    {
+        l = r.trim_start();
     }
     l.to_owned()
 }
@@ -1106,6 +1124,30 @@ mod tests {
         assert!(t.chars().count() <= LIMITE_DO_TITULO, "{t}");
         assert!(longo.starts_with(t.trim_end_matches('…')), "{t}");
         assert!(!t.ends_with(" …"), "{t}");
+    }
+
+    /// #499: passo de fluxo numerado ("1. O operador…") não vira o título "1".
+    #[test]
+    fn titulo_ignora_o_numero_do_passo() {
+        assert_eq!(
+            titulo_da_regra(
+                "1. O operador abre a tela de reembolso. Na instalação padrão são dois tipos."
+            ),
+            "O operador abre a tela de reembolso"
+        );
+        assert_eq!(
+            titulo_da_regra("- 12) O sistema grava o pedido. Depois aprova."),
+            "O sistema grava o pedido"
+        );
+        // Número que é parte da frase continua.
+        assert_eq!(
+            titulo_da_regra("30 dias de carência. Depois, multa."),
+            "30 dias de carência"
+        );
+        assert_eq!(
+            limpar_titulo("2. Rateio do pagamento"),
+            "Rateio do pagamento"
+        );
     }
 
     /// #287: o título não termina no meio da frase ("…da parcela em aberto mais").

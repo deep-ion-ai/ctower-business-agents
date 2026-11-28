@@ -387,6 +387,9 @@ fn rup_mostra_as_colunas_vivas_com_o_estado_e_a_cobertura_bate_com_as_celulas() 
 fn lote_de_casos_de_uso_deixa_tres_rascunhos_e_nenhum_e_publicado_sem_revisao() {
     let c = cenario(rup_com_manual());
     let todas: Vec<String> = (1..=3).map(|n| fid(n).to_string()).collect();
+    // O caso de uso cita uma regra por etapa: cada funcionalidade precisa de regras.
+    ligar_regra(&c.amb, "RN-FAT-002", fid(2));
+    ligar_regra(&c.amb, "RN-FAT-003", fid(3));
     let lote = gerar_em_lote(&c.amb, CASO, &todas).unwrap();
     // Redigido pelo agente: uma sessão por funcionalidade.
     assert_eq!(lote.geracao, Geracao::Agente);
@@ -407,8 +410,6 @@ fn lote_de_casos_de_uso_deixa_tres_rascunhos_e_nenhum_e_publicado_sem_revisao() 
     // Ainda nada foi gerado: as sessões é que registram.
     assert_eq!(c.estado(CASO, 1), EstadoDocumento::SemDocumento);
 
-    ligar_regra(&c.amb, "RN-FAT-002", fid(2));
-    ligar_regra(&c.amb, "RN-FAT-003", fid(3));
     for n in 1..=3 {
         c.agente_registra(n, &format!("RN-FAT-00{n}"));
     }
@@ -454,6 +455,57 @@ fn lote_de_casos_de_uso_deixa_tres_rascunhos_e_nenhum_e_publicado_sem_revisao() 
     assert!(de_novo.itens.iter().all(
         |i| matches!(i, ItemDoLote::Pulada { motivo, .. } if motivo.contains("nunca é recriado"))
     ));
+}
+
+#[test]
+fn caso_de_uso_sem_regras_fica_fora_do_lote_e_a_tabela_avisa() {
+    let c = cenario(rup_com_manual());
+    // Só a funcionalidade 1 tem regra (pela evidência no arquivo do ponto de entrada).
+    let t = tabela(&c.amb).unwrap();
+    let caso = t.colunas.iter().position(|col| col.tipo == CASO).unwrap();
+    assert!(t.colunas[caso].exige_regras);
+    assert!(
+        t.colunas
+            .iter()
+            .filter(|col| col.tipo != CASO)
+            .all(|col| !col.exige_regras)
+    );
+    let regras: Vec<usize> = t.linhas.iter().map(|l| l.regras).collect();
+    assert_eq!(regras, [1, 0, 0]);
+    let j = serde_json::to_value(&t).unwrap();
+    assert_eq!(j["colunas"][caso]["exigeRegras"], true);
+    assert_eq!(j["linhas"][0]["regras"], 1);
+    // Sem explicação aprovada, nenhuma tem o documento negocial.
+    assert!(t.linhas.iter().all(|l| !l.explicada));
+    // O glossário do RUP é vivo, mas ainda sem geração: fica fora das colunas.
+    assert!(t.colunas.iter().all(|col| col.tipo != "glossario"));
+    assert_eq!(j["emBreve"][0]["tipo"], "glossario");
+    assert_eq!(j["emBreve"][0]["nome"], "Glossário");
+
+    let todas: Vec<String> = (1..=3).map(|n| fid(n).to_string()).collect();
+    let lote = gerar_em_lote(&c.amb, CASO, &todas).unwrap();
+    assert!(matches!(&lote.itens[0], ItemDoLote::Sessao { .. }));
+    for (item, f) in lote.itens.iter().zip(&todas).skip(1) {
+        match item {
+            ItemDoLote::Pulada {
+                funcionalidade,
+                motivo,
+            } => {
+                assert_eq!(funcionalidade, f);
+                assert!(motivo.contains("sem regras de negócio"), "{motivo}");
+                assert!(motivo.contains("Explique a funcionalidade"), "{motivo}");
+            }
+            outro => panic!("esperava a funcionalidade pulada: {outro:?}"),
+        }
+    }
+
+    // Os tipos montados pelo app não dependem das regras.
+    let lote = gerar_em_lote(&c.amb, REGRAS, &todas[1..]).unwrap();
+    assert!(
+        lote.itens
+            .iter()
+            .all(|i| matches!(i, ItemDoLote::Gerada { .. }))
+    );
 }
 
 #[test]

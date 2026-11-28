@@ -11,7 +11,7 @@ use cba_core::analise::{Analise, EstadoAfirmacao, EstadoAnalise, EstadoTermo, Fl
 use cba_core::analises::NovaAnalise;
 use cba_core::config::Config;
 use cba_core::dados::DiretorioDados;
-use cba_core::eventos::Mudanca;
+use cba_core::eventos::{ALVO_MAPA, DiarioEventos, Mudanca};
 use cba_kb::frontmatter::{
     Area, FrontmatterAnalise, FrontmatterProjeto, FrontmatterRegra, FrontmatterTermo,
     StatusAnalise, StatusRegra,
@@ -530,6 +530,63 @@ fn nova_analise_com_a_mesma_evidencia_atualiza_a_regra_e_o_termo() {
     );
     assert_eq!(termo.frontmatter.area.as_deref(), Some("cobranca"));
     assert!(termo.corpo.contains("Multa única de 2%"), "{}", termo.corpo);
+}
+
+/// #499: o aviso da aprovação (estado da análise) sai antes de a base e o mapa
+/// receberem o que ela grava; a tela que relê o mapa nele ficava com o vínculo
+/// antigo. A aprovação ligada a funcionalidades avisa de novo pelo mapa, no fim.
+#[test]
+fn aprovacao_ligada_a_funcionalidade_avisa_o_mapa_depois_do_estado() {
+    let c = cenario();
+    c.areas_do_gabarito();
+    c.chamar(
+        "registrar_funcionalidade",
+        json!({
+            "nome": "Calcular multa",
+            "area": "Cobrança",
+            "descricao": "Calcula a multa de uma fatura em atraso.",
+            "atores": ["Sistema"],
+            "pontos_de_entrada": [{
+                "ponto": "PKG_COBRANCA.FN_CALCULAR_MULTA",
+                "evidencia": {
+                    "arquivo": "db/03_pkg_cobranca.sql",
+                    "linha_inicial": 71, "linha_final": 72,
+                    "trecho": "FN_PARAMETRO('PERC_MULTA_ATRASO') / 100, 2)"
+                }
+            }]
+        }),
+    );
+    let mapa = cba_core::funcionalidades::MapaFuncionalidades::carregar(&c.amb.kb).unwrap();
+    let f = mapa.funcionalidades[0].id.clone();
+    let a = analise_da_multa(&c);
+    let diario = DiarioEventos::do_diretorio(&c.dados);
+    let antes = diario.ler("faturamento-exemplo").unwrap().len();
+    let r = aprovar_analise(
+        &c.dados,
+        "faturamento-exemplo",
+        &a.id,
+        &OpcoesAprovacao {
+            funcionalidades: Some(vec![f.clone()]),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(r.funcionalidades, [f]);
+    let novos: Vec<_> = diario
+        .ler("faturamento-exemplo")
+        .unwrap()
+        .into_iter()
+        .skip(antes)
+        .collect();
+    let estado = novos
+        .iter()
+        .position(|e| e.mudanca == Mudanca::Estado)
+        .expect("aviso do estado");
+    let mapa = novos
+        .iter()
+        .rposition(|e| e.mudanca == Mudanca::Funcionalidade && e.analise == ALVO_MAPA)
+        .expect("aviso do mapa");
+    assert!(mapa > estado, "{novos:?}");
 }
 
 #[test]

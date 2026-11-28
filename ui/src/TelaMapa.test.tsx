@@ -81,8 +81,8 @@ describe("TelaMapa", () => {
     expect(
       await screen.findByRole("table", { name: "Documentação por funcionalidade" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Cobertura por tipo" })).toHaveTextContent(
-      "Especificação de caso de uso0 de 2 funcionalidades",
+    expect(screen.getByLabelText("Cobertura de Especificação de caso de uso")).toHaveTextContent(
+      "0 de 2 com documento",
     );
     expect(apiDocumentacao.tabela).toHaveBeenCalledWith("faturamento-exemplo");
     // O nome da funcionalidade abre o painel dela.

@@ -711,6 +711,9 @@ function MapaDoProjeto({
             navegar={navegar}
             aoVoltar={() => setSelecionada(null)}
             aoEscolher={setSelecionada}
+            apiDocumentacao={apiDocumentacao}
+            apiTerminal={apiTerminal}
+            criarTela={criarTela}
           />
         ) : visao === "documentacao" && mapa && mapa.total > 0 ? (
           <DocumentacaoDoMapa
@@ -720,6 +723,10 @@ function MapaDoProjeto({
             apiTerminal={apiTerminal}
             criarTela={criarTela}
             aoAbrirFuncionalidade={setSelecionada}
+            aoRevisar={(r) =>
+              navegar({ tipo: "revisao", projeto, documento: r.caminho, titulo: r.titulo })
+            }
+            aoConfigurar={() => navegar({ tipo: "configurar", projeto })}
           />
         ) : (
           <>
