@@ -37,7 +37,7 @@ fn funcionalidade(n: u32, nome: &str, descricao: &str) -> Funcionalidade {
         situacao: SituacaoFuncionalidade::Aceita,
         juntada_em: None,
         editada: false,
-        documento: None,
+        documentos: Vec::new(),
         explicacao: None,
         demandas: vec![],
         sessao: None,

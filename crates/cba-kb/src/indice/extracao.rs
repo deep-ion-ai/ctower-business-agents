@@ -10,8 +10,8 @@ use crate::caminho::CaminhoRelativo;
 use crate::documento::Documento;
 use crate::frontmatter::{
     self, Frontmatter, FrontmatterAnalise, FrontmatterAta, FrontmatterDemanda,
-    FrontmatterDocExterno, FrontmatterFuncionalidade, FrontmatterLivre, FrontmatterMapa,
-    FrontmatterMemoria, FrontmatterPessoa, FrontmatterProjeto, FrontmatterRegra,
+    FrontmatterDocExterno, FrontmatterEntregavel, FrontmatterFuncionalidade, FrontmatterLivre,
+    FrontmatterMapa, FrontmatterMemoria, FrontmatterPessoa, FrontmatterProjeto, FrontmatterRegra,
     FrontmatterSugestao, FrontmatterTermo, TipoDocumento,
 };
 use crate::id::{Id, IdDemanda};
@@ -213,6 +213,7 @@ fn validar(tipo: TipoDocumento, relativo: &CaminhoRelativo, texto: &str) -> Resu
         | TipoDocumento::Risco
         | TipoDocumento::Restricao => com::<crate::registros::FrontmatterRegistro>(texto),
         TipoDocumento::DocExterno => com::<FrontmatterDocExterno>(texto),
+        TipoDocumento::Entregavel => com::<FrontmatterEntregavel>(texto),
     }
 }
 

@@ -9,7 +9,8 @@
 //!
 //! - [`Funcionalidade`]: nome, área, descrição, atores, pontos de entrada (cada um
 //!   com evidência), dados lidos e gravados, relacionadas, a decisão do analista e
-//!   o documento negocial, quando a funcionalidade foi explicada. Funcionalidade
+//!   os documentos vinculados, um por tipo ([`DocumentoVinculado`]: o negocial,
+//!   quando a funcionalidade foi explicada, e os documentos vivos). Funcionalidade
 //!   sem ponto de entrada é recusada.
 //! - [`PontoJustificado`]: ponto de entrada do mapa que fica sem funcionalidade,
 //!   com o motivo (código morto, utilitário ou outro).
@@ -31,8 +32,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::analise::Evidencia;
 
-/// Versão do formato do estado do mapa.
-pub const VERSAO_DO_MAPA: u32 = 1;
+/// Versão do formato do estado do mapa. A 2 (#461) troca o `documento` de cada
+/// funcionalidade pela lista `documentos`; o formato 1 é lido e migrado.
+pub const VERSAO_DO_MAPA: u32 = 2;
 
 /// Ponto de entrada atribuído a uma funcionalidade.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -75,8 +77,22 @@ pub enum SituacaoFuncionalidade {
     Juntada,
 }
 
+/// Tipo do documento negocial no catálogo de entregáveis
+/// (`cba_docs::entregaveis::DOCUMENTO_NEGOCIAL`).
+pub const TIPO_DOCUMENTO_NEGOCIAL: &str = "documento-negocial";
+
+/// Documento ligado a uma funcionalidade: o tipo do catálogo de entregáveis e o
+/// caminho na base. Um por tipo.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DocumentoVinculado {
+    /// Id do tipo no catálogo (`caso-de-uso`, `documento-negocial`).
+    pub tipo: String,
+    pub caminho: CaminhoRelativo,
+}
+
 /// Funcionalidade de negócio do mapa.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(from = "legado::FuncionalidadeGravada")]
 pub struct Funcionalidade {
     pub id: IdFuncionalidade,
     /// Nome de negócio ("Parcelar fatura").
@@ -104,10 +120,14 @@ pub struct Funcionalidade {
     /// Nome, área ou descrição editados pelo analista.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub editada: bool,
-    /// Documento negocial (`funcionalidades/<area>/<tema>/negocial.md`), quando a
-    /// funcionalidade foi explicada e a explicação aprovada.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub documento: Option<CaminhoRelativo>,
+    /// Documentos vinculados, um por tipo do catálogo de entregáveis (#461): o
+    /// documento negocial (`funcionalidades/<area>/<tema>/negocial.md`), quando a
+    /// funcionalidade foi explicada e a explicação aprovada, e os documentos vivos
+    /// (caso de uso, regras, manual). O estado de cada um, com as versões, fica
+    /// em [`crate::documentos_vivos`]. O campo `documento` do formato 1 vira o
+    /// vínculo do tipo [`TIPO_DOCUMENTO_NEGOCIAL`] na leitura.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub documentos: Vec<DocumentoVinculado>,
     /// Análise do fluxo `explicar` ligada à funcionalidade (a mais recente).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub explicacao: Option<Id>,
@@ -136,6 +156,51 @@ impl Funcionalidade {
     /// Chaves dos pontos do mapa atribuídos.
     pub fn chaves(&self) -> impl Iterator<Item = &str> {
         self.pontos.iter().filter_map(|p| p.chave.as_deref())
+    }
+
+    /// Caminho do documento vinculado do tipo.
+    pub fn documento(&self, tipo: &str) -> Option<&CaminhoRelativo> {
+        self.documentos
+            .iter()
+            .find(|d| d.tipo == tipo)
+            .map(|d| &d.caminho)
+    }
+
+    /// O documento negocial, gerado por "Explicar".
+    pub fn documento_negocial(&self) -> Option<&CaminhoRelativo> {
+        self.documento(TIPO_DOCUMENTO_NEGOCIAL)
+    }
+
+    /// Algum documento vinculado.
+    pub fn documentada(&self) -> bool {
+        !self.documentos.is_empty()
+    }
+
+    /// Vincula o documento do tipo, no lugar do que havia. Devolve se mudou.
+    pub fn vincular_documento(&mut self, tipo: &str, caminho: CaminhoRelativo) -> bool {
+        match self.documentos.iter_mut().find(|d| d.tipo == tipo) {
+            Some(d) if d.caminho == caminho => false,
+            Some(d) => {
+                d.caminho = caminho;
+                true
+            }
+            None => {
+                self.documentos.push(DocumentoVinculado {
+                    tipo: tipo.to_owned(),
+                    caminho,
+                });
+                true
+            }
+        }
+    }
+
+    /// Soma os vínculos de `outra` nos tipos que esta ainda não tem.
+    fn somar_documentos(&mut self, outra: Vec<DocumentoVinculado>) {
+        for d in outra {
+            if self.documento(&d.tipo).is_none() {
+                self.documentos.push(d);
+            }
+        }
     }
 }
 
@@ -557,7 +622,7 @@ impl MapaFuncionalidades {
             situacao: SituacaoFuncionalidade::Pendente,
             juntada_em: None,
             editada: false,
-            documento: None,
+            documentos: Vec::new(),
             explicacao: None,
             demandas: Vec::new(),
             sessao: nova.sessao,
@@ -570,7 +635,7 @@ impl MapaFuncionalidades {
         match self.funcionalidades.iter_mut().find(|f| f.id == id) {
             Some(f) => {
                 let anterior = std::mem::replace(f, funcionalidade);
-                f.documento = anterior.documento;
+                f.documentos = anterior.documentos;
                 f.explicacao = anterior.explicacao;
                 f.demandas = anterior.demandas;
                 f.registrada_ms = anterior.registrada_ms;
@@ -787,10 +852,14 @@ impl MapaFuncionalidades {
         d.relacionadas.retain(|r| r != origem);
         d.situacao = SituacaoFuncionalidade::Pendente;
         d.atualizada_ms = agora_ms;
-        if d.documento.is_none() {
-            d.documento = o.documento;
+        if d.documento_negocial().is_none()
+            && o.documentos
+                .iter()
+                .any(|x| x.tipo == TIPO_DOCUMENTO_NEGOCIAL)
+        {
             d.explicacao = o.explicacao;
         }
+        d.somar_documentos(o.documentos);
         for dem in o.demandas {
             if !d.demandas.contains(&dem) {
                 d.demandas.push(dem);
@@ -868,7 +937,7 @@ impl MapaFuncionalidades {
             situacao: SituacaoFuncionalidade::Pendente,
             juntada_em: None,
             editada: true,
-            documento: None,
+            documentos: Vec::new(),
             explicacao: None,
             demandas: Vec::new(),
             sessao: None,
@@ -894,6 +963,23 @@ impl MapaFuncionalidades {
         Ok(())
     }
 
+    /// Vincula à funcionalidade aberta o documento do tipo (#461), no lugar do que
+    /// havia. Devolve se mudou.
+    pub fn vincular_documento(
+        &mut self,
+        id: &IdFuncionalidade,
+        tipo: &str,
+        caminho: CaminhoRelativo,
+        agora_ms: u64,
+    ) -> Result<bool, ErroMapa> {
+        let f = self.aberta_mut(id)?;
+        let mudou = f.vincular_documento(tipo, caminho);
+        if mudou {
+            f.atualizada_ms = agora_ms;
+        }
+        Ok(mudou)
+    }
+
     /// Liga o documento negocial aprovado de uma explicação à funcionalidade.
     /// Devolve se a funcionalidade existe e está aberta.
     pub fn ligar_documento(
@@ -905,7 +991,7 @@ impl MapaFuncionalidades {
         match self.aberta_mut(id) {
             Ok(f) => {
                 f.explicacao = Some(explicacao.clone());
-                f.documento = Some(documento);
+                f.vincular_documento(TIPO_DOCUMENTO_NEGOCIAL, documento);
                 true
             }
             Err(_) => false,
@@ -943,6 +1029,7 @@ impl MapaFuncionalidades {
         let mut mapa = Self::carregar(kb)?;
         let agora = crate::tempo::agora_ms();
         let resultado = f(&mut mapa, agora)?;
+        mapa.formato = VERSAO_DO_MAPA;
         mapa.versao += 1;
         mapa.atualizado_ms = agora;
         mapa.gravar(kb)?;
@@ -991,6 +1078,85 @@ fn travar(kb: &cba_kb::Projeto) -> Result<fs::File, ErroArquivoMapa> {
 /// análise do fluxo `mapear` aprovada para dentro de um catálogo.
 mod legado {
     use super::*;
+
+    /// A funcionalidade como foi gravada: no formato 1, com o `documento` único
+    /// (o negocial) no lugar da lista `documentos`.
+    #[derive(Deserialize)]
+    pub(super) struct FuncionalidadeGravada {
+        id: IdFuncionalidade,
+        nome: String,
+        area: String,
+        area_nome: String,
+        descricao: String,
+        #[serde(default)]
+        atores: Vec<String>,
+        pontos: Vec<PontoAtribuido>,
+        #[serde(default)]
+        dados_lidos: Vec<String>,
+        #[serde(default)]
+        dados_gravados: Vec<String>,
+        #[serde(default)]
+        relacionadas: Vec<IdFuncionalidade>,
+        #[serde(default)]
+        situacao: SituacaoFuncionalidade,
+        #[serde(default)]
+        juntada_em: Option<IdFuncionalidade>,
+        #[serde(default)]
+        editada: bool,
+        #[serde(default)]
+        documentos: Vec<DocumentoVinculado>,
+        /// Formato 1.
+        #[serde(default)]
+        documento: Option<CaminhoRelativo>,
+        #[serde(default)]
+        explicacao: Option<Id>,
+        #[serde(default)]
+        demandas: Vec<IdDemanda>,
+        #[serde(default)]
+        sessao: Option<String>,
+        registrada_ms: u64,
+        #[serde(default)]
+        atualizada_ms: u64,
+    }
+
+    impl From<FuncionalidadeGravada> for Funcionalidade {
+        fn from(g: FuncionalidadeGravada) -> Self {
+            let mut f = Funcionalidade {
+                id: g.id,
+                nome: g.nome,
+                area: g.area,
+                area_nome: g.area_nome,
+                descricao: g.descricao,
+                atores: g.atores,
+                pontos: g.pontos,
+                dados_lidos: g.dados_lidos,
+                dados_gravados: g.dados_gravados,
+                relacionadas: g.relacionadas,
+                situacao: g.situacao,
+                juntada_em: g.juntada_em,
+                editada: g.editada,
+                documentos: g.documentos,
+                explicacao: g.explicacao,
+                demandas: g.demandas,
+                sessao: g.sessao,
+                registrada_ms: g.registrada_ms,
+                atualizada_ms: g.atualizada_ms,
+            };
+            f.somar_documentos(vinculo_negocial(g.documento));
+            f
+        }
+    }
+
+    /// O `documento` do formato 1 como vínculo do tipo documento negocial.
+    pub(super) fn vinculo_negocial(documento: Option<CaminhoRelativo>) -> Vec<DocumentoVinculado> {
+        documento
+            .map(|caminho| DocumentoVinculado {
+                tipo: TIPO_DOCUMENTO_NEGOCIAL.to_owned(),
+                caminho,
+            })
+            .into_iter()
+            .collect()
+    }
 
     #[derive(Deserialize)]
     struct ItemCatalogo {
@@ -1067,7 +1233,7 @@ mod legado {
                     situacao: SituacaoFuncionalidade::Aceita,
                     juntada_em: None,
                     editada: false,
-                    documento: i.documento,
+                    documentos: vinculo_negocial(i.documento),
                     explicacao: i.explicacao,
                     demandas: Vec::new(),
                     sessao: None,
@@ -1098,10 +1264,10 @@ mod legado {
             for f in a.funcionalidades {
                 match mapa.funcionalidades.iter_mut().find(|x| x.id == f.id) {
                     Some(x) => {
-                        let documento = x.documento.take();
+                        let documentos = std::mem::take(&mut x.documentos);
                         let explicacao = x.explicacao.take();
                         *x = f;
-                        x.documento = x.documento.take().or(documento);
+                        x.somar_documentos(documentos);
                         x.explicacao = x.explicacao.take().or(explicacao);
                     }
                     None => mapa.funcionalidades.push(f),
@@ -1210,7 +1376,7 @@ mod tests {
         );
         let um = m.funcionalidade(&f(1)).unwrap();
         assert_eq!(um.situacao, SituacaoFuncionalidade::Pendente);
-        assert!(um.documento.is_some());
+        assert!(um.documento_negocial().is_some());
         assert_eq!(um.registrada_ms, 2);
         assert_eq!(m.pontos_atribuidos().len(), 2);
         assert_eq!(m.pendentes(), 1);
@@ -1369,6 +1535,100 @@ mod tests {
     }
 
     #[test]
+    fn migra_o_documento_unico_para_a_lista_sem_perder_o_vinculo() {
+        let tmp = tempfile::tempdir().unwrap();
+        let kb = projeto(&tmp);
+        let negocial = "funcionalidades/cobranca/cobrar/negocial.md";
+        let ev = serde_json::json!({
+            "arquivo": "db/x.sql", "linhas": "1-1", "trecho": "X", "hash": "h"
+        });
+        let formato_1 = serde_json::json!({
+            "formato": 1,
+            "funcionalidades": [{
+                "id": "F-FAT-001", "nome": "Cobrar", "area": "cobranca",
+                "area_nome": "Cobrança", "descricao": "D.",
+                "pontos": [{"chave": "db/x.sql#A", "nome": "A", "evidencia": ev}],
+                "situacao": "aceita", "registrada_ms": 1,
+                "documento": negocial, "explicacao": "A-0003"
+            }, {
+                "id": "F-FAT-002", "nome": "Parcelar", "area": "cobranca",
+                "area_nome": "Cobrança", "descricao": "P.",
+                "pontos": [{"chave": "db/x.sql#B", "nome": "B", "evidencia": ev}],
+                "registrada_ms": 1
+            }],
+            "versao": 4
+        });
+        let destino = kb.caminho(&layout::estado_do_mapa());
+        fs::create_dir_all(destino.parent().unwrap()).unwrap();
+        fs::write(&destino, formato_1.to_string()).unwrap();
+
+        let m = MapaFuncionalidades::carregar(&kb).unwrap();
+        let um = m.funcionalidade(&f(1)).unwrap();
+        assert_eq!(
+            um.documentos,
+            vec![DocumentoVinculado {
+                tipo: TIPO_DOCUMENTO_NEGOCIAL.into(),
+                caminho: CaminhoRelativo::novo(negocial).unwrap(),
+            }]
+        );
+        assert_eq!(um.documento_negocial().unwrap().as_str(), negocial);
+        assert!(um.explicacao.is_some());
+        assert!(!m.funcionalidade(&f(2)).unwrap().documentada());
+
+        // Gravado de novo, sai no formato 2, com a lista e sem o campo antigo.
+        MapaFuncionalidades::alterar(&kb, |m, agora| {
+            m.vincular_documento(
+                &f(1),
+                "caso-de-uso",
+                CaminhoRelativo::novo("funcionalidades/cobranca/cobrar/caso-de-uso.md").unwrap(),
+                agora,
+            )
+        })
+        .unwrap();
+        let gravado: serde_json::Value =
+            serde_json::from_slice(&fs::read(&destino).unwrap()).unwrap();
+        assert_eq!(gravado["formato"], VERSAO_DO_MAPA);
+        let um = &gravado["funcionalidades"][0];
+        assert!(um.get("documento").is_none(), "{um}");
+        assert_eq!(um["documentos"][0]["tipo"], TIPO_DOCUMENTO_NEGOCIAL);
+        assert_eq!(um["documentos"][0]["caminho"], negocial);
+        assert_eq!(um["documentos"][1]["tipo"], "caso-de-uso");
+        let lido = MapaFuncionalidades::carregar(&kb).unwrap();
+        assert_eq!(lido.funcionalidade(&f(1)).unwrap().documentos.len(), 2);
+    }
+
+    #[test]
+    fn juntar_soma_os_documentos_por_tipo() {
+        let mut m = MapaFuncionalidades::default();
+        m.registrar(nova("A", vec![ponto("db/x.sql#A", 1)]), f(1), 2)
+            .unwrap();
+        m.registrar(nova("B", vec![ponto("db/x.sql#B", 2)]), f(2), 2)
+            .unwrap();
+        let c = |s: &str| CaminhoRelativo::novo(s).unwrap();
+        m.vincular_documento(&f(1), "caso-de-uso", c("funcionalidades/a/a/uc.md"), 3)
+            .unwrap();
+        m.ligar_documento(
+            &f(2),
+            &cba_kb::Serie::Analise.id(4),
+            c("funcionalidades/b/b/negocial.md"),
+        );
+        m.vincular_documento(&f(2), "caso-de-uso", c("funcionalidades/b/b/uc.md"), 3)
+            .unwrap();
+        m.juntar(&f(2), &f(1), 5).unwrap();
+        let a = m.funcionalidade(&f(1)).unwrap();
+        // O caso de uso do destino fica; o negocial da origem entra.
+        assert_eq!(
+            a.documento("caso-de-uso").unwrap().as_str(),
+            "funcionalidades/a/a/uc.md"
+        );
+        assert_eq!(
+            a.documento_negocial().unwrap().as_str(),
+            "funcionalidades/b/b/negocial.md"
+        );
+        assert_eq!(a.explicacao, Some(cba_kb::Serie::Analise.id(4)));
+    }
+
+    #[test]
     fn importa_o_catalogo_e_as_analises_da_primeira_versao() {
         let tmp = tempfile::tempdir().unwrap();
         let kb = projeto(&tmp);
@@ -1423,7 +1683,7 @@ mod tests {
         let um = m.funcionalidade(&f(1)).unwrap();
         assert_eq!(um.nome, "Cobrar fatura");
         assert_eq!(um.situacao, SituacaoFuncionalidade::Pendente);
-        assert!(um.documento.is_some());
+        assert!(um.documento_negocial().is_some());
         assert_eq!(m.pontos_justificados.len(), 1);
         assert_eq!(m.maior_numero("FAT"), 8);
         assert_eq!(m.retirados, vec![f(7)]);

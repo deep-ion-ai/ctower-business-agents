@@ -9,6 +9,7 @@ publish = false
 
 [dependencies]
 cba-core.workspace = true
+cba-index.workspace = true
 cba-kb.workspace = true
 pulldown-cmark = { version = "0.13", default-features = false }
 serde.workspace = true

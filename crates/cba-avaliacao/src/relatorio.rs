@@ -171,6 +171,10 @@ pub struct Execucao {
     /// Mapeamento de funcionalidades (#208): comparação do mapa com o gabarito.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mapa: Option<crate::mapeamento::MapeamentoAvaliado>,
+    /// Entregável da demanda (#464): comparação do caso de uso ou do épico com
+    /// o gabarito.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entregavel: Option<crate::entregaveis::EntregavelAvaliado>,
     /// Ciclo de publicação da documentação (#279): as etapas e o uso da
     /// documentação publicada na segunda análise (comparada em `avaliacao`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -193,21 +197,24 @@ impl Execucao {
         if let Some(e) = &self.erro {
             f.push(e.clone());
         }
-        match (&self.avaliacao, &self.ata, &self.mapa) {
+        match (&self.avaliacao, &self.ata, &self.mapa, &self.entregavel) {
             (Some(a), ..) => f.extend(a.falhas()),
-            (None, Some(a), _) => f.extend(a.falhas()),
-            (None, None, Some(m)) => f.extend(m.falhas()),
-            (None, None, None) if self.erro.is_none() => f.push(
+            (None, Some(a), ..) => f.extend(a.falhas()),
+            (None, None, Some(m), _) => f.extend(m.falhas()),
+            (None, None, None, Some(e)) => f.extend(e.falhas()),
+            (None, None, None, None) if self.erro.is_none() => f.push(
                 if self.e_reuniao() {
                     "sem estado da ata"
                 } else if self.fluxo == "mapear" {
                     "sem estado do mapa"
+                } else if self.fluxo == "entregaveis" {
+                    "sem estado do entregável"
                 } else {
                     "sem estado da análise"
                 }
                 .to_owned(),
             ),
-            (None, None, None) => {}
+            (None, None, None, None) => {}
         }
         if let Some(c) = &self.publicacao {
             f.extend(c.falhas());
@@ -657,6 +664,11 @@ fn execucao_md(s: &mut String, e: &Execucao) {
         let _ = writeln!(s);
         return;
     }
+    if let Some(en) = &e.entregavel {
+        entregavel_md(s, en);
+        let _ = writeln!(s);
+        return;
+    }
     if let Some(c) = &e.publicacao {
         publicacao_md(s, c);
     }
@@ -720,6 +732,10 @@ fn criterios_das_analises(s: &mut String) {
     let _ = writeln!(
         s,
         "- **Mapa de funcionalidades** (`mapear`, sem análise: o agente começa por `iniciar_mapeamento` e o mapa do projeto é comparado): funcionalidade esperada encontrada quando uma funcionalidade registrada (não descartada nem juntada) tem as palavras-chave no nome ou na descrição e ao menos um ponto de entrada esperado dela; área confere pelo slug. Ponto de entrada esperado bem tratado quando está numa funcionalidade que atende uma das esperadas para ele (cada parte de uma funcionalidade dividida conta), ou justificado quando o gabarito o aceita como utilitário. Falha grave: nenhuma funcionalidade, ponto de entrada do gabarito sem tratamento ou evidência de ponto de entrada que não confere."
+    );
+    let _ = writeln!(
+        s,
+        "- **Entregáveis da demanda** (`entregaveis`, sem análise: o preparo deixa a demanda, a análise de impacto validada e, no caso de uso, a funcionalidade no mapa; o agente começa pelo prompt de `iniciar_entregavel`): regra esperada citada pelo item (no caso de uso, em `regras` ou no texto de uma etapa; no épico, por uma história); ator, fluxo alternativo, exceção, história e risco esperados atendidos pelas palavras-chave no texto. Falha grave: nada registrado, etapa ou história sem regra citada, caso de uso sem fluxo principal ou sem fluxo alternativo, épico sem história."
     );
     let _ = writeln!(
         s,
@@ -1079,6 +1095,49 @@ fn publicacao_md(s: &mut String, c: &crate::publicacao::CicloAvaliado) {
         None => {
             let _ = writeln!(s, "  - Analisar {} de novo: não rodou", c.reanalise);
         }
+    }
+}
+
+fn entregavel_md(s: &mut String, e: &crate::entregaveis::EntregavelAvaliado) {
+    if !e.registrado {
+        let _ = writeln!(s, "- Entregável ({}): nada registrado", e.tipo);
+        return;
+    }
+    let partes = if e.e_caso_de_uso() {
+        format!(
+            "{} etapas no fluxo principal (mínimo {}), {} fluxo(s) alternativo(s), {} exceção(ões)",
+            e.etapas, e.minimo_de_etapas, e.fluxos_alternativos, e.excecoes
+        )
+    } else {
+        format!(
+            "{} história(s) (mínimo {})",
+            e.historias, e.minimo_de_historias
+        )
+    };
+    let _ = writeln!(
+        s,
+        "- Entregável ({}): {partes}; regras citadas {} de {}; esperados {} de {}",
+        e.tipo,
+        e.regras_citadas(),
+        e.regras.len(),
+        e.esperados_atendidos(),
+        e.esperados.len()
+    );
+    for r in e.regras.iter().filter(|r| r.citada_em.is_none()) {
+        let _ = writeln!(s, "  - {}: não citada", r.id);
+    }
+    for x in e.esperados.iter().filter(|x| x.atendido_por.is_none()) {
+        let _ = writeln!(
+            s,
+            "  - {} ({}): {}: não encontrado",
+            x.id, x.tipo, x.descricao
+        );
+    }
+    for etapa in &e.etapas_sem_regra {
+        let _ = writeln!(s, "  - Etapa sem regra citada: {etapa}");
+    }
+    for h in &e.historias_sem_regra {
+        let _ = writeln!(s, "  - História sem regra citada: {h}");
     }
 }
 
@@ -1723,6 +1782,7 @@ mod tests {
             ata: None,
             transcript: None,
             mapa: None,
+            entregavel: None,
             publicacao: None,
             conducao: None,
             arquivos_alterados: vec![Diferenca::Alterado("db/a.sql".into())],

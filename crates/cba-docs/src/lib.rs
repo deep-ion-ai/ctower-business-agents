@@ -25,6 +25,10 @@
 //!
 //! Seções e campos de cada tipo: [`MODELOS`].
 //!
+//! Entregáveis por metodologia (#460): o catálogo dos tipos (Ágil, RUP e
+//! Comuns), com o ciclo de vida, a geração, o esquema e o template padrão de
+//! cada um, e as predefinições de cada metodologia, em [`entregaveis`].
+//!
 //! Diagramas (#118): o agente registra nós e arestas com evidências e a montagem
 //! gera o bloco ` ```mermaid ` ([`mermaid`]), com legenda e tabela de elementos.
 //! Na exportação para Word, o bloco vira a figura renderizada pelo app
@@ -41,6 +45,7 @@ mod conteudo;
 mod demanda;
 mod diagrama;
 mod documentacao;
+pub mod entregaveis;
 mod exportacao;
 mod figura;
 mod html;

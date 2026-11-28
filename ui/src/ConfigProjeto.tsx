@@ -3,6 +3,7 @@ import { AbaAgente } from "./AbaAgente";
 import { AbaAmbienteTeste } from "./AbaAmbienteTeste";
 import { AbaAvancado } from "./AbaAvancado";
 import { AbaCodigoDemandas } from "./AbaCodigoDemandas";
+import { AbaEntregaveis } from "./AbaEntregaveis";
 import { AbaLeitura } from "./AbaLeitura";
 import { AbaVisaoGeral } from "./AbaVisaoGeral";
 import { Secao, Selo } from "./componentes";
@@ -44,6 +45,13 @@ export interface PropsConfigProjeto {
   aoPendencia?: (pendente: boolean) => void;
 }
 
+/** Abas com “Salvar”: sair delas com alterações pede confirmação. */
+const ABAS_COM_RASCUNHO: Partial<Record<AbaProjeto, string>> = {
+  leitura: "O que é analisado",
+  teste: "Ambiente de teste",
+  entregaveis: "Entregáveis",
+};
+
 const SELO = {
   ok: "✓ Tudo pronto",
 } as const;
@@ -51,9 +59,9 @@ const SELO = {
 /**
  * Página do projeto nas configurações (#192): cabeçalho com nome, selo de saúde e
  * resumo, e as abas Saúde do cadastro (antes "Visão geral", #319), Código e demandas, O que é analisado, Ambiente de
- * teste, Agente e Avançado. As abas seguem o padrão WAI-ARIA (setas, Home e End; uma
- * só aba no Tab). Sair de “O que é analisado” ou de “Ambiente de teste” com
- * alterações não salvas pede confirmação.
+ * teste, Entregáveis (#460), Agente e Avançado. As abas seguem o padrão WAI-ARIA (setas,
+ * Home e End; uma só aba no Tab). Sair de “O que é analisado”, de “Ambiente de teste”
+ * ou de “Entregáveis” com alterações não salvas pede confirmação.
  */
 export function ConfigProjeto(props: PropsConfigProjeto) {
   const { projeto, estado, aoConferirProntidao, aoPendencia } = props;
@@ -83,7 +91,7 @@ export function ConfigProjeto(props: PropsConfigProjeto) {
 
   const irPara = (nova: AbaProjeto) => {
     if (nova === aba) return;
-    if ((aba === "leitura" || aba === "teste") && pendente) {
+    if (ABAS_COM_RASCUNHO[aba] && pendente) {
       setSaida(nova);
       return;
     }
@@ -178,6 +186,7 @@ export function ConfigProjeto(props: PropsConfigProjeto) {
         {aba === "codigo" && <AbaCodigoDemandas {...props} />}
         {aba === "leitura" && <AbaLeitura {...props} aoPendencia={setPendente} />}
         {aba === "teste" && <AbaAmbienteTeste {...props} aoPendencia={setPendente} />}
+        {aba === "entregaveis" && <AbaEntregaveis {...props} aoPendencia={setPendente} />}
         {aba === "agente" && <AbaAgente {...props} />}
         {aba === "avancado" && <AbaAvancado {...props} />}
       </div>
@@ -205,8 +214,8 @@ export function ConfigProjeto(props: PropsConfigProjeto) {
           }
         >
           <p>
-            As alterações em “{aba === "teste" ? "Ambiente de teste" : "O que é analisado"}” ainda
-            não foram salvas e serão perdidas.
+            As alterações em “{ABAS_COM_RASCUNHO[aba]}” ainda não foram salvas e serão
+            perdidas.
           </p>
         </DialogoConfirmacao>
       )}

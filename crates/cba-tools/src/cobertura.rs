@@ -21,16 +21,25 @@
 //!   nenhuma regra ou funcionalidade documentada. O valor da lacuna é
 //!   `centralidade / (1 + documentação)`; o mapa de calor é esse valor relativo
 //!   ao maior.
+//! - **Documentação por tipo** (#462): para cada tipo vivo habilitado no
+//!   projeto, quantas funcionalidades abertas do mapa têm o documento, quantos
+//!   estão em dia, desatualizados ou com proposta pendente
+//!   ([`cobertura_por_tipo`]). A conta é por funcionalidade e por tipo, sobre as
+//!   mesmas células da visão "Documentação" do mapa
+//!   ([`crate::documentacao_do_mapa`]).
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use cba_core::ambiente::Ambiente;
 use cba_core::analise::Fluxo;
+use cba_core::documentos_vivos::{DocumentosVivos, EstadoDocumento};
 use cba_core::funcionalidades::MapaFuncionalidades;
 use cba_index::{Mapa, TipoSimbolo};
 use cba_kb::frontmatter::{Area, TipoDocumento};
 use cba_kb::indice::{DocumentoIndexado, EvidenciaIndexada, Tipo};
 use serde::Serialize;
+
+use crate::documentacao_do_mapa::{ColunaDeDocumentacao, LinhaDeDocumentacao};
 
 /// Regra sem modificação há mais dias que isto conta como "sem confirmação recente".
 pub const DIAS_SEM_CONFIRMACAO: u64 = 90;
@@ -119,6 +128,22 @@ pub struct TotaisCobertura {
     pub a_revalidar: usize,
 }
 
+/// Documentação de um tipo vivo nas funcionalidades do mapa (#462).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CoberturaDoTipo {
+    pub tipo: String,
+    pub nome: String,
+    /// Funcionalidades abertas do mapa.
+    pub funcionalidades: usize,
+    /// Com o documento (em dia, desatualizado ou com proposta pendente).
+    pub com_documento: usize,
+    pub em_dia: usize,
+    pub desatualizados: usize,
+    pub propostas_pendentes: usize,
+    pub sem_documento: usize,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Cobertura {
@@ -127,6 +152,40 @@ pub struct Cobertura {
     pub pastas: Vec<CoberturaPasta>,
     pub sugestao: Option<Sugestao>,
     pub totais: TotaisCobertura,
+    /// Uma por tipo vivo habilitado, na ordem do catálogo. Vazia em [`calcular`]:
+    /// [`cobertura_do_projeto`] a preenche com o estado dos documentos.
+    pub por_tipo: Vec<CoberturaDoTipo>,
+}
+
+/// Conta, por tipo (coluna), as células da tabela de documentação: uma por
+/// funcionalidade. A proposta pendente de uma 1.0 ainda não publicada conta como
+/// documento (um rascunho existe) e como proposta pendente.
+pub fn cobertura_por_tipo(
+    colunas: &[ColunaDeDocumentacao],
+    linhas: &[LinhaDeDocumentacao],
+) -> Vec<CoberturaDoTipo> {
+    colunas
+        .iter()
+        .enumerate()
+        .map(|(i, c)| {
+            let mut t = CoberturaDoTipo {
+                tipo: c.tipo.to_owned(),
+                nome: c.nome.to_owned(),
+                funcionalidades: linhas.len(),
+                ..Default::default()
+            };
+            for l in linhas {
+                match l.documentos.get(i).map(|d| &d.estado) {
+                    Some(EstadoDocumento::EmDia { .. }) => t.em_dia += 1,
+                    Some(EstadoDocumento::Desatualizado { .. }) => t.desatualizados += 1,
+                    Some(EstadoDocumento::PropostaPendente { .. }) => t.propostas_pendentes += 1,
+                    Some(EstadoDocumento::SemDocumento) | None => t.sem_documento += 1,
+                }
+            }
+            t.com_documento = t.funcionalidades - t.sem_documento;
+            t
+        })
+        .collect()
 }
 
 fn dias(agora_ns: i64, ns: i64) -> u64 {
@@ -262,7 +321,7 @@ pub fn calcular(e: &Entrada<'_>) -> Cobertura {
             a.nome = f.area_nome.clone();
         }
         a.funcionalidades += 1;
-        if f.documento.is_none() {
+        if f.documento_negocial().is_none() {
             a.sem_documento += 1;
         }
         let arquivos: BTreeSet<String> = f
@@ -348,7 +407,7 @@ pub fn calcular(e: &Entrada<'_>) -> Cobertura {
         for pasta in pontos {
             if let Some(p) = pastas.get_mut(pasta) {
                 p.funcionalidades += 1;
-                if f.documento.is_some() {
+                if f.documento_negocial().is_some() {
                     p.documentadas += 1;
                 }
             }
@@ -396,6 +455,7 @@ pub fn calcular(e: &Entrada<'_>) -> Cobertura {
         pastas,
         sugestao,
         totais,
+        por_tipo: Vec::new(),
     }
 }
 
@@ -416,14 +476,18 @@ pub fn cobertura_do_projeto(ambiente: &Ambiente) -> Result<Cobertura, String> {
     let agora_ns = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| i64::try_from(d.as_nanos()).unwrap_or(i64::MAX));
-    Ok(calcular(&Entrada {
+    let mut cobertura = calcular(&Entrada {
         mapa: &estrutural.mapa,
         documentos: &documentos,
         evidencias: &evidencias,
         funcionalidades: &funcionalidades,
         areas: &areas,
         agora_ns,
-    }))
+    });
+    let vivos = DocumentosVivos::carregar(&ambiente.kb).map_err(|e| e.to_string())?;
+    cobertura.por_tipo =
+        crate::documentacao_do_mapa::montar_tabela(ambiente, &funcionalidades, &vivos).cobertura;
+    Ok(cobertura)
 }
 
 fn sugerir(
@@ -447,7 +511,7 @@ fn sugerir(
         let funcionalidade = e
             .funcionalidades
             .abertas()
-            .filter(|f| f.area == a.id && f.documento.is_none())
+            .filter(|f| f.area == a.id && f.documento_negocial().is_none())
             .max_by_key(|f| {
                 (
                     central_da_funcionalidade

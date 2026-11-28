@@ -148,6 +148,16 @@ pub fn gravar_regra(
     regra: &crate::gabarito::Regra,
     origem: Option<cba_kb::CaminhoRelativo>,
 ) -> Result<Vec<cba_core::analise::Evidencia>, String> {
+    gravar_regra_ligada(ambiente, regra, origem, Vec::new())
+}
+
+/// Como [`gravar_regra`], com a regra ligada às funcionalidades do mapa.
+pub fn gravar_regra_ligada(
+    ambiente: &cba_core::ambiente::Ambiente,
+    regra: &crate::gabarito::Regra,
+    origem: Option<cba_kb::CaminhoRelativo>,
+    funcionalidades: Vec<cba_kb::IdFuncionalidade>,
+) -> Result<Vec<cba_core::analise::Evidencia>, String> {
     use cba_kb::frontmatter::{FrontmatterRegra, StatusRegra, TipoDocumento};
     use cba_tools::evidencias::{EvidenciaCitada, validar};
 
@@ -163,6 +173,20 @@ pub fn gravar_regra(
         evidencias.push(validar(&ambiente.escopo, &citada).map_err(|r| format!("{id}: {r:?}"))?);
     }
     let rn = cba_kb::Id::analisar(id).map_err(|e| e.to_string())?;
+    // Gravada de novo (pela origem de uma análise e pelo mapa): fica a origem
+    // que já tinha e os vínculos somam.
+    let (origem, funcionalidades) = match ambiente.kb.ler::<FrontmatterRegra>(&rn.arquivo()) {
+        Ok(antes) => {
+            let mut todas = antes.frontmatter.funcionalidades;
+            for f in funcionalidades {
+                if !todas.contains(&f) {
+                    todas.push(f);
+                }
+            }
+            (origem.or(antes.frontmatter.origem), todas)
+        }
+        Err(_) => (origem, funcionalidades),
+    };
     let documento = cba_kb::Documento::novo(
         FrontmatterRegra {
             tipo: TipoDocumento::Regra,
@@ -182,7 +206,7 @@ pub fn gravar_regra(
             origem,
             informada: None,
             historico: Vec::new(),
-            funcionalidades: Vec::new(),
+            funcionalidades,
         },
         format!(
             "\n# {id} · {}\n\n{}\n",
@@ -209,24 +233,42 @@ pub fn preparar_origem(
     gabarito: &Gabarito,
     esperado: &HistoriasEsperadas,
 ) -> Result<cba_kb::Id, String> {
-    use cba_core::analise::{Confianca, EstadoAfirmacao, Fluxo, NovaAfirmacao};
-    use cba_core::analises::NovaAnalise;
-    use cba_core::eventos::Mudanca;
-
     let demanda = gabarito
         .demandas
         .iter()
         .find(|d| d.id == esperado.demanda)
         .ok_or_else(|| format!("a demanda {} não existe no gabarito", esperado.demanda))?;
+    preparar_origem_da_demanda(ambiente, gabarito, demanda, None)
+}
+
+/// Como [`preparar_origem`], a partir da demanda do gabarito e, se houver, ligada
+/// à demanda `ligada` da base (a origem de um entregável, #464).
+pub fn preparar_origem_da_demanda(
+    ambiente: &cba_core::ambiente::Ambiente,
+    gabarito: &Gabarito,
+    demanda: &crate::gabarito::Demanda,
+    ligada: Option<cba_kb::IdDemanda>,
+) -> Result<cba_kb::Id, String> {
+    use cba_core::analise::{Confianca, EstadoAfirmacao, Fluxo, NovaAfirmacao};
+    use cba_core::analises::NovaAnalise;
+    use cba_core::eventos::Mudanca;
+
     let origem = ambiente
         .analises
-        .criar(NovaAnalise {
-            fluxo: Fluxo::Impacto,
-            titulo: format!("Impacto · {}", demanda.id),
-            entrada: demanda.texto.clone(),
-            analista: None,
-            base: None,
-        })
+        .criar_com_demanda(
+            NovaAnalise {
+                fluxo: Fluxo::Impacto,
+                titulo: format!("Impacto · {}", demanda.id),
+                entrada: demanda.texto.clone(),
+                analista: None,
+                base: None,
+            },
+            ligada.map(|id| cba_kb::frontmatter::Demanda {
+                id: Some(id),
+                origem: "texto".into(),
+                chave: None,
+            }),
+        )
         .map_err(|e| format!("análise de origem: {e}"))?;
     let mut afirmacoes = Vec::new();
     for id in demanda.regras.iter().filter(|r| r.starts_with("RN-")) {

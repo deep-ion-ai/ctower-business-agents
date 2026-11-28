@@ -51,6 +51,10 @@ pub struct Gabarito {
     /// analisar de novo com a documentação publicada.
     #[serde(default)]
     pub publicacoes: Vec<Publicacao>,
+    /// Entregáveis redigidos pelo agente a partir da análise validada de uma
+    /// demanda (#464): o caso de uso e o épico com quebra em histórias.
+    #[serde(default)]
+    pub entregaveis: Vec<Entregavel>,
     /// Pasta do gabarito, para resolver `raiz`. Preenchida por [`Gabarito::carregar`].
     #[serde(skip)]
     pub pasta: PathBuf,
@@ -124,6 +128,9 @@ pub struct Pergunta {
 pub struct Funcionalidade {
     pub id: String,
     pub nome: String,
+    /// O que a funcionalidade faz (a descrição no mapa, nos entregáveis).
+    #[serde(default)]
+    pub objetivo: String,
     pub regras: Vec<String>,
     #[serde(default)]
     pub arquivos: Vec<String>,
@@ -419,6 +426,61 @@ pub struct HistoriasEsperadas {
     /// palavras-chave conferidas no texto do critério.
     #[serde(default)]
     pub a_confirmar: Vec<PerguntaEsperada>,
+}
+
+/// Entregável esperado a partir da análise validada de uma demanda (#464),
+/// avaliado à parte das análises.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Entregavel {
+    pub id: String,
+    pub titulo: String,
+    #[serde(flatten)]
+    pub esperado: EntregavelEsperado,
+}
+
+/// O que o entregável deve ter.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EntregavelEsperado {
+    /// Tipo do catálogo: `caso-de-uso` ou `epico`.
+    pub tipo: String,
+    /// Demanda do gabarito cuja análise de impacto é a origem (preparada como a
+    /// das histórias).
+    pub demanda: String,
+    /// Funcionalidade do gabarito (só no caso de uso, que é vivo): o preparo a
+    /// registra no mapa, com as regras dela ligadas.
+    #[serde(default)]
+    pub funcionalidade: Option<String>,
+    /// Regras que o entregável deve citar (no épico, cobertas pelas histórias).
+    pub regras: Vec<String>,
+    /// Caso de uso: etapas mínimas no fluxo principal.
+    #[serde(default)]
+    pub minimo_de_etapas: usize,
+    /// Caso de uso: atores esperados.
+    #[serde(default)]
+    pub atores: Vec<TextoEsperado>,
+    /// Caso de uso: fluxos alternativos esperados.
+    #[serde(default)]
+    pub fluxos_alternativos: Vec<TextoEsperado>,
+    /// Caso de uso: exceções esperadas.
+    #[serde(default)]
+    pub excecoes: Vec<TextoEsperado>,
+    /// Épico: histórias mínimas na quebra.
+    #[serde(default)]
+    pub minimo_de_historias: usize,
+    /// Épico: histórias esperadas (título e narrativa).
+    #[serde(default)]
+    pub historias_esperadas: Vec<HistoriaEsperada>,
+    /// Épico: riscos esperados (nos riscos, nas dependências ou fora do escopo).
+    #[serde(default)]
+    pub riscos: Vec<TextoEsperado>,
+}
+
+/// Um texto esperado, pelas palavras-chave.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TextoEsperado {
+    pub id: String,
+    pub descricao: String,
+    pub palavras_chave: Vec<Vec<String>>,
 }
 
 /// História esperada, pelas palavras-chave do título e da narrativa.
@@ -769,6 +831,16 @@ impl Gabarito {
         })
     }
 
+    /// Entregável da demanda (#464), avaliado à parte das análises.
+    pub fn entregavel(&self, id: &str) -> Result<&Entregavel, Erro> {
+        self.entregaveis.iter().find(|e| e.id == id).ok_or_else(|| {
+            Erro(format!(
+                "o entregável `{id}` não existe no gabarito (use o id de um entregável, como \
+                 ENT-FAT-001)"
+            ))
+        })
+    }
+
     /// Ciclo de publicação da documentação (#279).
     pub fn publicacao(&self, id: &str) -> Result<&Publicacao, Erro> {
         self.publicacoes.iter().find(|p| p.id == id).ok_or_else(|| {
@@ -986,7 +1058,7 @@ impl Gabarito {
 }
 
 /// Título curto da análise de uma demanda: a primeira frase, até 80 caracteres.
-fn titulo_da_demanda(texto: &str) -> String {
+pub(crate) fn titulo_da_demanda(texto: &str) -> String {
     let frase = texto.split('.').next().unwrap_or(texto).trim();
     let mut titulo: String = frase.chars().take(80).collect();
     if frase.chars().count() > 80 {

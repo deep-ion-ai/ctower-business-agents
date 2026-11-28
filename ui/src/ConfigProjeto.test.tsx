@@ -154,7 +154,7 @@ function montar({
 
 describe("ConfigProjeto", () => {
   describe("cabeçalho e abas", () => {
-    it("mostra nome, selo, resumo e as seis abas com aria de abas", () => {
+    it("mostra nome, selo, resumo e as sete abas com aria de abas", () => {
       montar();
       expect(
         screen.getByRole("heading", { name: "Faturamento Exemplo" }),
@@ -173,6 +173,7 @@ describe("ConfigProjeto", () => {
         "Código e demandas",
         "O que é analisado",
         "Ambiente de teste",
+        "Entregáveis",
         "Agente",
         "Avançado",
       ]);
@@ -960,6 +961,23 @@ describe("ConfigProjeto", () => {
       );
     });
 
+    it("sair de Entregáveis com alterações não salvas pede confirmação", async () => {
+      const { aba } = montar();
+      const painel = aba("Entregáveis");
+      fireEvent.click(await painel.findByRole("radio", { name: "RUP" }));
+      fireEvent.click(screen.getByRole("tab", { name: "Agente" }));
+      const dialogo = within(
+        screen.getByRole("dialog", { name: "Sair sem salvar?" }),
+      );
+      expect(dialogo.getByText(/“Entregáveis” ainda não foram salvas/)).toBeInTheDocument();
+      fireEvent.click(dialogo.getByRole("button", { name: "Cancelar" }));
+      expect(screen.getByRole("tab", { name: "Entregáveis" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+      expect(screen.getByRole("radio", { name: "RUP" })).toBeChecked();
+    });
+
     it("a falha ao salvar aparece e as alterações continuam", async () => {
       const { aba, api } = montar();
       api.salvarLeitura.mockRejectedValueOnce(
@@ -1268,7 +1286,8 @@ describe("aba Ambiente de teste", () => {
     expect(p.getByText("✓ Senha guardada no chaveiro")).toBeInTheDocument();
     expect(p.getByText("Sem senha guardada")).toBeInTheDocument();
     expect(p.getByText("2 usuários · 2 perfis")).toBeInTheDocument();
-    expect(m.aoPendencia).toHaveBeenLastCalledWith(false);
+    // A pendência é recalculada num efeito depois do salvamento.
+    await waitFor(() => expect(m.aoPendencia).toHaveBeenLastCalledWith(false));
   });
 
   it("aponta URL inválida e usuário sem perfil sem chamar o app", async () => {

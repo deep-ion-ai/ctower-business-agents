@@ -32,10 +32,16 @@
 //!   hospedado, #383) e [`mapear`]
 //!   (`iniciar_mapeamento`, `pontos_de_entrada`, `registrar_funcionalidade`,
 //!   `tratar_ponto_de_entrada` e `concluir_mapeamento`: o mapa de funcionalidades
-//!   do projeto, #208, fora das análises) e [`mudancas`]
+//!   do projeto, #208, fora das análises) e [`documentacao_do_mapa`]
+//!   (`iniciar_versao_inicial` e `registrar_versao_inicial`: a versão inicial
+//!   de um documento vivo da funcionalidade, por engenharia reversa, #462) e
+//!   [`mudancas`]
 //!   (`relatorio_de_mudancas` e `propor_atualizacao_de_regra`: o que mudou no
 //!   código desde a última análise e a explicação por regra, #124) e [`tokens`]
-//!   (`tokens_css`: os tokens CSS do projeto para o protótipo de telas, #384).
+//!   (`tokens_css`: os tokens CSS do projeto para o protótipo de telas, #384) e
+//!   [`entregaveis`] (`iniciar_entregavel` e `registrar_entregavel`: o
+//!   entregável gerado na demanda a partir de uma análise validada, com o
+//!   esquema do tipo e a rastreabilidade conferidos, #463, fora das análises).
 //! - Consulta, só de leitura e paginada ([`paginacao`]): [`conhecimento`] (busca no
 //!   índice da base), [`mapa`], [`estrutura`], [`banco`] (`schema`, com os indícios
 //!   de dado pessoal de [`dados_pessoais`]) e
@@ -106,8 +112,11 @@ pub mod dados_pessoais;
 pub mod diagramas;
 pub mod docs_externos;
 pub mod documentacao;
+pub mod documentacao_do_mapa;
 pub mod documento;
+pub mod documentos_vivos;
 pub mod editavel;
+pub mod entregaveis;
 pub mod estrutura;
 pub mod evidencias;
 mod fontes;
@@ -205,9 +214,13 @@ pub fn registro_padrao() -> Registro {
         .registrar(mapear::tratar_ponto_de_entrada())
         .registrar(mapear::propor_vinculo_de_issue())
         .registrar(mapear::concluir_mapeamento())
+        .registrar(documentacao_do_mapa::iniciar_versao_inicial())
+        .registrar(documentacao_do_mapa::registrar_versao_inicial())
         .registrar(mudancas::relatorio_de_mudancas())
         .registrar(mudancas::propor_atualizacao_de_regra())
         .registrar(tokens::tokens_css())
+        .registrar(entregaveis::iniciar_entregavel())
+        .registrar(entregaveis::registrar_entregavel())
         .registrar(ciclo::concluir_analise());
     registro
 }
@@ -270,9 +283,13 @@ mod tests {
             "tratar_ponto_de_entrada",
             "propor_vinculo_de_issue",
             "concluir_mapeamento",
+            "iniciar_versao_inicial",
+            "registrar_versao_inicial",
             "relatorio_de_mudancas",
             "propor_atualizacao_de_regra",
             "tokens_css",
+            "iniciar_entregavel",
+            "registrar_entregavel",
             "concluir_analise",
         ] {
             assert!(r.obter(nome).is_some(), "{nome}");
@@ -325,11 +342,17 @@ mod tests {
                 .e_somente_leitura()
         );
         assert!(
+            !r.obter("registrar_versao_inicial")
+                .unwrap()
+                .e_somente_leitura()
+        );
+        assert!(
             !r.obter("propor_atualizacao_de_regra")
                 .unwrap()
                 .e_somente_leitura()
         );
         assert!(!r.obter("iniciar_analise").unwrap().e_somente_leitura());
+        assert!(!r.obter("registrar_entregavel").unwrap().e_somente_leitura());
         assert!(!r.obter("concluir_analise").unwrap().e_somente_leitura());
         assert!(!r.obter("propor_papel").unwrap().e_somente_leitura());
         assert!(!r.obter("registrar_item_ata").unwrap().e_somente_leitura());
@@ -354,8 +377,10 @@ mod tests {
             "iniciar_mapeamento",
             "pontos_de_entrada",
             "concluir_mapeamento",
+            "iniciar_versao_inicial",
             "relatorio_de_mudancas",
             "tokens_css",
+            "iniciar_entregavel",
         ] {
             assert!(r.obter(consulta).unwrap().e_somente_leitura(), "{consulta}");
         }

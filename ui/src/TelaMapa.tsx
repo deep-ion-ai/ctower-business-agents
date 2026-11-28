@@ -20,6 +20,8 @@ import {
   TituloSecao,
   type Acao,
 } from "./componentes";
+import { DocumentacaoDoMapa } from "./DocumentacaoDoMapa";
+import type { ApiDocumentacao } from "./documentacaoMapa";
 import { contar } from "./formatacao";
 import {
   apiMapaTauri,
@@ -48,6 +50,9 @@ const MOSTRADOS = 100;
 const LACUNAS_MOSTRADAS = 5;
 
 type Filtro = "todas" | "pendentes" | "aceitas" | "sem-ponto";
+
+/** Visão do mapa: a lista para revisar ou a documentação por funcionalidade (#462). */
+type Visao = "funcionalidades" | "documentacao";
 
 const FILTROS: { valor: Filtro; rotulo: string }[] = [
   { valor: "todas", rotulo: "Todas" },
@@ -423,6 +428,7 @@ function MapaDoProjeto({
   projeto,
   api,
   apiConhecimento,
+  apiDocumentacao,
   vigiar,
   apiTerminal,
   criarTela,
@@ -432,6 +438,7 @@ function MapaDoProjeto({
   projeto: string;
   api: ApiMapa;
   apiConhecimento?: ApiConhecimento;
+  apiDocumentacao?: ApiDocumentacao;
   vigiar: ApiAnalise["vigiar"];
   apiTerminal?: ApiTerminal;
   criarTela?: () => TelaTerminal;
@@ -439,6 +446,7 @@ function MapaDoProjeto({
   aoMudarConversa?: (estado: EstadoConversa) => void;
 }) {
   const { mapa, setMapa, erro, recarregar } = useMapa(api, vigiar, projeto);
+  const [visao, setVisao] = useState<Visao>("funcionalidades");
   const [ocupado, setOcupado] = useState(false);
   const [falha, setFalha] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -559,6 +567,27 @@ function MapaDoProjeto({
                   .join(" · ")
               : "Carregando…"}
           </p>
+          {mapa && mapa.total > 0 && !pagina && (
+            <div className="mapa-visoes" role="tablist" aria-label="Visão">
+              {(
+                [
+                  ["funcionalidades", "Funcionalidades"],
+                  ["documentacao", "Documentação"],
+                ] as const
+              ).map(([valor, rotulo]) => (
+                <button
+                  key={valor}
+                  type="button"
+                  role="tab"
+                  aria-selected={visao === valor}
+                  className="btn"
+                  onClick={() => setVisao(valor)}
+                >
+                  {rotulo}
+                </button>
+              ))}
+            </div>
+          )}
           <label className="opcao-evidencias">
             <input
               type="checkbox"
@@ -682,6 +711,15 @@ function MapaDoProjeto({
             navegar={navegar}
             aoVoltar={() => setSelecionada(null)}
             aoEscolher={setSelecionada}
+          />
+        ) : visao === "documentacao" && mapa && mapa.total > 0 ? (
+          <DocumentacaoDoMapa
+            projeto={projeto}
+            api={apiDocumentacao}
+            recarga={recarga}
+            apiTerminal={apiTerminal}
+            criarTela={criarTela}
+            aoAbrirFuncionalidade={setSelecionada}
           />
         ) : (
           <>
@@ -873,6 +911,7 @@ export function TelaMapa({
   api = apiMapaTauri,
   apiAnalise = apiAnaliseTauri,
   apiConhecimento,
+  apiDocumentacao,
   apiTerminal,
   criarTela,
   navegar,
@@ -885,6 +924,8 @@ export function TelaMapa({
   apiAnalise?: ApiAnalise;
   /** Para testes: a revalidação do painel. */
   apiConhecimento?: ApiConhecimento;
+  /** Para testes: a visão "Documentação" (#462). */
+  apiDocumentacao?: ApiDocumentacao;
   apiTerminal?: ApiTerminal;
   criarTela?: () => TelaTerminal;
   navegar: (t: Tela) => void;
@@ -921,6 +962,7 @@ export function TelaMapa({
           projeto={projeto}
           api={api}
           apiConhecimento={apiConhecimento}
+          apiDocumentacao={apiDocumentacao}
           vigiar={vigiar}
           apiTerminal={apiTerminal}
           criarTela={criarTela}

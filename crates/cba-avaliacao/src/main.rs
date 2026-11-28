@@ -13,8 +13,8 @@ use std::time::Duration;
 use cba_avaliacao::ata::{Transcripts, avaliar_ata};
 use cba_avaliacao::comparacao::{avaliar, nome_do_fluxo};
 use cba_avaliacao::execucao::{
-    Opcoes, escopo, executar_com, executar_mapeamento, executar_publicacao, executar_reuniao,
-    falas_da_reuniao, versao_do_claude,
+    Opcoes, escopo, executar_com, executar_entregavel, executar_mapeamento, executar_publicacao,
+    executar_reuniao, falas_da_reuniao, versao_do_claude,
 };
 use cba_avaliacao::gabarito::{Gabarito, Item, Reuniao};
 use cba_avaliacao::longa::{self, OpcoesLonga, TamanhoTranscript};
@@ -35,7 +35,8 @@ USO
       --modelo <m>            modelo do claude (padrão: sonnet)
       --orcamento <usd>       --max-budget-usd de cada execução (padrão: 1.5)
       --fluxos <lista>        perguntar,explicar,impacto,revisar,historias,cenarios,
-                              ciclo-vida,mapear,publicacao,reuniao,reuniao-longa
+                              ciclo-vida,mapear,entregaveis,publicacao,reuniao,
+                              reuniao-longa
                               (padrão: perguntar,explicar,impacto)
       --repeticoes <n>        execuções de cada fluxo (padrão: 1)
       --pergunta <id>         item do fluxo perguntar (padrão: P-FAT-001)
@@ -52,6 +53,8 @@ USO
       --cenarios <id>         item do fluxo cenarios (padrão: CEN-FAT-001)
       --ciclo-vida <id>       item do ciclo de vida, no fluxo explicar (padrão: CV-FAT-001)
       --mapeamento <id>       item do fluxo mapear (padrão: MAP-FAT-001)
+      --entregavel <ids>      entregáveis da demanda: caso de uso e épico com quebra
+                              (padrão: ENT-FAT-001,ENT-FAT-002)
       --publicacao <id>       ciclo de publicação da documentação: analisar, aprovar,
                               publicar e analisar de novo (padrão: PUB-FAT-001; duas
                               execuções do claude, teto de 2 x --orcamento)
@@ -228,6 +231,7 @@ fn comparar(resto: &[String]) -> Result<bool, String> {
             ata: None,
             transcript: None,
             mapa: None,
+            entregavel: None,
             publicacao: None,
             conducao: None,
             arquivos_alterados: Vec::new(),
@@ -288,6 +292,7 @@ fn comparar_ata(args: &Args) -> Result<bool, String> {
             ata: Some(ata),
             transcript: Some(TamanhoTranscript::de(&lido)),
             mapa: None,
+            entregavel: None,
             publicacao: None,
             conducao: None,
             arquivos_alterados: Vec::new(),
@@ -348,6 +353,7 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
         "--cenarios",
         "--ciclo-vida",
         "--mapeamento",
+        "--entregavel",
         "--publicacao",
         "--saida",
         "--cba",
@@ -430,6 +436,8 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
     let mut mapeamento = None;
     // Ciclo de publicação da documentação (#279).
     let mut publicacao = None;
+    // Entregáveis da demanda (#464), fora das análises.
+    let mut entregaveis = Vec::new();
     for fluxo in args
         .valor("--fluxos")
         .unwrap_or("perguntar,explicar,impacto")
@@ -450,6 +458,18 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
                 mapeamento = Some(gabarito.mapeamento(id).map_err(|e| e.to_string())?);
                 continue;
             }
+            "entregaveis" => {
+                for id in args
+                    .valor("--entregavel")
+                    .unwrap_or("ENT-FAT-001,ENT-FAT-002")
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|i| !i.is_empty())
+                {
+                    entregaveis.push(gabarito.entregavel(id).map_err(|e| e.to_string())?);
+                }
+                continue;
+            }
             "publicacao" => {
                 let id = args.valor("--publicacao").unwrap_or("PUB-FAT-001");
                 publicacao = Some(gabarito.publicacao(id).map_err(|e| e.to_string())?);
@@ -466,7 +486,7 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
             outro => {
                 return Err(format!(
                     "fluxo desconhecido: {outro} (use perguntar, explicar, impacto, revisar, historias, cenarios, \
-                     ciclo-vida, mapear, publicacao, reuniao ou reuniao-longa)"
+                     ciclo-vida, mapear, entregaveis, publicacao, reuniao ou reuniao-longa)"
                 ));
             }
         };
@@ -497,6 +517,7 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
     if itens.is_empty()
         && reunioes == (false, false)
         && mapeamento.is_none()
+        && entregaveis.is_empty()
         && publicacao.is_none()
     {
         return Err("nenhum fluxo escolhido".into());
@@ -546,6 +567,7 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
             .count() as u32
         + u32::from(reunioes.0)
         + u32::from(mapeamento.is_some())
+        + entregaveis.len() as u32
         + 2 * u32::from(publicacao.is_some()))
         * repeticoes;
     let longas = u32::from(reunioes.1) * repeticoes;
@@ -648,6 +670,37 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
             execucoes.push(e);
         }
     }
+    for en in &entregaveis {
+        for r in 1..=repeticoes {
+            eprintln!("- entregaveis {} (repetição {r})...", en.id);
+            let pasta = saida.join(format!("entregaveis-{}-{r}", en.id));
+            let e = executar_entregavel(&gabarito, en, r, &opcoes, &pasta);
+            let custo = e
+                .claude
+                .as_ref()
+                .and_then(|c| c.custo_usd)
+                .map_or("?".to_owned(), |c| format!("{c:.2}"));
+            let resultado = e.entregavel.as_ref().map_or("-".to_owned(), |a| {
+                format!(
+                    "regras {} de {}, esperados {} de {}",
+                    a.regras_citadas(),
+                    a.regras.len(),
+                    a.esperados_atendidos(),
+                    a.esperados.len()
+                )
+            });
+            let falhas = e.falhas();
+            eprintln!(
+                "  {resultado}, custo US$ {custo}{}",
+                if falhas.is_empty() {
+                    String::new()
+                } else {
+                    format!(", falhas: {}", falhas.join("; "))
+                }
+            );
+            execucoes.push(e);
+        }
+    }
     if let Some(p) = publicacao {
         let exe = std::env::current_exe()
             .map_err(|e| format!("executável da avaliação (forja falsa): {e}"))?;
@@ -727,6 +780,7 @@ fn rodar(resto: &[String]) -> Result<bool, String> {
     if let Some(m) = mapeamento {
         nomes.push(m.id.clone());
     }
+    nomes.extend(entregaveis.iter().map(|e| e.id.clone()));
     if let Some(p) = publicacao {
         nomes.push(p.id.clone());
     }

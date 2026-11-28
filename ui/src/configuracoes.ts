@@ -20,6 +20,7 @@ import {
 } from "./primeiroUso";
 import { apiRepositoriosTauri, type ApiRepositorios, type Repositorios } from "./repositorios";
 import { apiAcessosTauri, type ApiAcessos } from "./acessos";
+import type { Entregaveis, EntregaveisDoProjeto } from "./entregaveis";
 
 /**
  * Espelho dos comandos das configurações (`ui/src-tauri/src/configuracoes.rs`, campos
@@ -221,6 +222,10 @@ export interface ApiConfiguracoes
   salvarLeitura(ajuste: AjusteLeitura): Promise<ProjetoCadastrado>;
   /** Liga ou desliga a máscara dos dados pessoais da demanda (#454); devolve o valor gravado. */
   salvarMascararDemanda?(projeto: string, ligado: boolean): Promise<boolean>;
+  /** Catálogo de entregáveis, predefinições e a configuração que vale no projeto (#460). */
+  entregaveisDoProjeto?(projeto: string): Promise<EntregaveisDoProjeto>;
+  /** Grava os entregáveis do projeto; devolve o que foi gravado (já normalizado). */
+  salvarEntregaveis?(projeto: string, entregaveis: Entregaveis): Promise<Entregaveis>;
   /** Proteção, servidor MCP e (no último projeto) hooks. Só depois da confirmação. */
   desfazerAmbiente(projeto: string): Promise<AmbienteDesfeito>;
   /** Desfaz o ambiente e apaga o cadastro; os documentos ficam. Só depois da confirmação. */
@@ -259,6 +264,9 @@ export const apiConfiguracoesTauri: ApiConfiguracoes = {
   salvarLeitura: (ajuste) => invoke("salvar_leitura_app", { ajuste }),
   salvarMascararDemanda: (projeto, ligado) =>
     invoke("salvar_mascarar_demanda_app", { projeto, ligado }),
+  entregaveisDoProjeto: (projeto) => invoke("entregaveis_projeto_app", { projeto }),
+  salvarEntregaveis: (projeto, entregaveis) =>
+    invoke("salvar_entregaveis_app", { projeto, entregaveis }),
   desfazerAmbiente: (projeto) => invoke("desfazer_ambiente_projeto", { projeto }),
   descadastrar: (projeto) => invoke("descadastrar_projeto_app", { projeto }),
   textos: () => invoke("textos_editaveis_app"),

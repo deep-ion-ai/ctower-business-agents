@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import type { Fluxo } from "./analise";
 import { AvisoTranscriptGuardado, dataDoDia, PainelDemanda } from "./PainelDemanda";
 import type { ApiPauta, Pauta } from "./pauta";
 import type { ApiRegistros, RegistrosDaDemanda } from "./registros";
@@ -374,6 +375,32 @@ describe("PainelDemanda", () => {
     fireEvent.click(await within(secao).findByRole("button", { name: "Gerar histórias e critérios" }));
     const nova = screen.getByRole("region", { name: "Nova análise da demanda" });
     expect(within(nova).getByRole("form", { name: "Histórias e critérios" })).toBeInTheDocument();
+  });
+
+  it("projeto RUP sem histórias habilitadas não oferece Histórias nem Cenários (#465)", async () => {
+    const falsa = apiConhecimentoFalsa();
+    const fluxosOcultos = vi.fn(async () => ["historias", "cenarios"] as Fluxo[]);
+    Object.assign(falsa.api, { fluxosOcultos });
+    const rastreabilidade = apiRastreabilidadeFalsa();
+    rastreabilidade.matriz.mockResolvedValue({ ...matrizFicticia(), historias: [] });
+    montar(falsa, { apiRastreabilidade: rastreabilidade });
+    const secao = await screen.findByRole("region", { name: "Matriz de rastreabilidade" });
+    await waitFor(() => expect(fluxosOcultos).toHaveBeenCalledWith(PROJETO));
+
+    fireEvent.click(screen.getByRole("button", { name: "Nova análise" }));
+    const tipos = screen.getByRole("menu", { name: "Nova análise" });
+    await waitFor(() =>
+      expect(within(tipos).getAllByRole("menuitem").map((b) => b.textContent)).toEqual([
+        "Perguntar ao sistema",
+        "Explicar funcionalidade",
+        "Analisar reunião",
+        "Revisar requisito",
+        "Protótipo de telas",
+      ]),
+    );
+    expect(
+      within(secao).queryByRole("button", { name: "Gerar histórias e critérios" }),
+    ).toBeNull();
   });
 });
 
