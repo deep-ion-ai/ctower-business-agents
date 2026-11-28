@@ -133,7 +133,7 @@ Num sistema que o analista ainda não conhece, falta saber quais funcionalidades
 - **Sessão de mapeamento:** a tela abre o terminal do Claude com o pedido de `iniciar_mapeamento` (o recorte opcional, pasta ou área, e a orientação do analista). Projetos grandes são mapeados por partes.
 - **Completude, sem IA:** `concluir_mapeamento` cruza os pontos do recorte com os atribuídos e os justificados e recusa enquanto sobrar algum, listando quais. O agente atribui, cria uma funcionalidade ou justifica (código morto, utilitário, outro motivo).
 - **Revisão:** na tela, o analista aceita, edita (nome, área, descrição), junta, divide ou descarta cada funcionalidade, e pode desfazer uma justificativa. Registrar de novo uma funcionalidade (pelo `id` ou por um ponto de entrada dela) a substitui e a devolve para revisão; a tela marca as que perderam todos os pontos de entrada no código.
-- **Explicar:** cada funcionalidade tem a ação "Explicar", que abre o fluxo `explicar` com ela preenchida. Aprovada a explicação, o documento negocial vai para `funcionalidades/<area>/<tema>/negocial.md` e fica ligado à funcionalidade.
+- **Explicar:** cada funcionalidade tem a ação "Explicar", que abre o fluxo `explicar` com ela preenchida. Aprovada a explicação, o documento negocial vai para `funcionalidades/<area>/<tema>/negocial.md` e fica ligado à funcionalidade. A funcionalidade guarda os documentos ligados numa lista, um por tipo do catálogo de entregáveis (`documentos`: tipo e caminho, #461); o estado no formato 1, com o campo único `documento`, é lido e migrado para a lista como o tipo `documento-negocial`, sem perder o vínculo.
 - **Manual do usuário (#272):** no painel de uma funcionalidade aceita, "Gerar manual do usuário" abre o fluxo `manual` (análise A-NNNN ligada à funcionalidade, uma em andamento por vez). A entrada traz a funcionalidade como o mapa a descreve (descrição, atores, pontos de entrada, com as telas como prints sugeridos), a explicação aprovada, as regras confirmadas ligadas a ela e as demandas ligadas. O agente escreve em linguagem de usuário final: objetivo, quem usa, antes de começar, resultados esperados, mensagens e erros comuns e perguntas frequentes com `afirmar`, e o passo a passo com `registrar_passo_manual` (título, instrução, a tela do "print sugerido" e o resultado). O analista inclui, troca e remove o print de cada passo (colar da área de transferência, escolher ou arrastar a imagem; o app converte para PNG, até 8 MiB, com legenda e texto alternativo, e avisa para não anexar dados pessoais, porque a base pode ir para um repositório) ou dispensa o print. Os prints ficam em `funcionalidades/<area>/<tema>/manual/`, e o estado guarda o caminho. Passo sem print e sem dispensa é pendência da aprovação; aprovado, o manual vai para `funcionalidades/<area>/<tema>/manual.md` (tipo `manual`), ao lado dos prints, e não cria regras sem a escolha do analista. Quando a funcionalidade muda depois da aprovação (mapeamento alterado, explicação aprovada mais nova, regra ligada a revalidar ou afirmação do manual cujo código mudou), o painel mostra o manual "a revisar", com os motivos, sem apagar nada; "Revisar o manual" abre outro manual com os passos e os prints do aprovado. A exportação leva os prints com a legenda: no Markdown, copiados para a pasta `<nome>-imagens/` ao lado do arquivo; no HTML e no Word, embutidos (com o texto alternativo). O manual ainda não vai para a publicação no repositório de docs.
 - **Dados da primeira versão:** sem `mapa.estado.json`, o app importa o `catalogo.estado.json` e as análises do antigo fluxo `mapear` ainda não aprovadas.
 
@@ -317,6 +317,7 @@ Para clientes que não são o Claude Desktop nem o Claude Code, o app terá um l
     areas/<area>/memoria.md          # memória de uma área funcional
     funcionalidades/mapa.md          # mapa de funcionalidades (F-<SIGLA>-NNN), montado do estado
     funcionalidades/mapa.estado.json # estado do mapa: as funcionalidades e os identificadores
+    funcionalidades/documentos.estado.json # documentos vivos (#461): versões, proposta e histórico
     funcionalidades/<area>/<tema>/   # documento negocial (negocial.md), manual do usuário (manual.md),
                                      # casos de uso, rastreabilidade
     funcionalidades/<area>/<tema>/manual/  # prints do manual do usuário (PNG), ao lado do manual.md
@@ -428,6 +429,24 @@ A análise investiga e reúne as evidências; o **entregável** é o artefato da
   - **Por tipo habilitado:** o template (o padrão do app ou um `.md` de `<base>/_templates/`, que precisa existir) e o destino (exportar, repositório de documentação ou comentário no rastreador). Template e destino não mudam a metodologia.
   - **Tipo padrão:** um dos habilitados.
 - **Projetos existentes** (sem `entregaveis` no cadastro) abrem em Personalizado com os tipos que o app já gerava: histórias (padrão), casos de teste, protótipo, manual e documento negocial.
+
+### 7.3.2 Documentos vivos (#461)
+
+O tipo **vivo** do catálogo (caso de uso, regras, especificação suplementar, cenários `.feature`, glossário, manual, documento negocial) pertence a uma funcionalidade do mapa, ou a uma área no caso do glossário e da visão, e **nunca é recriado**: cada demanda propõe a versão seguinte. O modelo segue o das regras (`VersaoDaRegra`) e fica em `cba_core::documentos_vivos`; as operações sobre o projeto, em `cba_tools::documentos_vivos`.
+
+- **Documento vivo** (`funcionalidades/documentos.estado.json`, alterado sob trava): o tipo, o dono (funcionalidade ou área), o caminho na base, a proposta pendente e o histórico de revisões. A versão publicada é a da última revisão. Cada revisão guarda a versão (`1.3`), a data, a demanda e a análise de origem, quem fez a revisão final, o que mudou, o **texto completo da versão** e os arquivos citados nas evidências com o hash. A versão anterior continua acessível depois da publicação da seguinte. Um dono tem um documento por tipo, e um caminho é de um documento só.
+- **Proposta de versão:** quem propõe manda o texto completo; o app compara com a versão publicada bloco a bloco do Markdown (parágrafo, título, item de lista, bloco de código) e marca cada trecho como **novo**, **alterado** (com o texto anterior) ou **removido**, sem IA. Espaços não contam como mudança, e uma proposta igual à versão publicada é recusada. A primeira proposta é a 1.0; as seguintes sobem a menor (1.3 → 1.4).
+- **Revisão final obrigatória:** a proposta sai como rascunho. "Marcar como revisado" grava quem revisou; editar o texto ou gerar de novo volta a rascunho. Publicar sem a revisão final é recusado.
+- **Publicar:** grava a revisão no histórico (com o hash de cada arquivo citado, lido agora), reescreve o arquivo na base com o texto da versão e a tabela **"Histórico de revisões"** (Versão, Data, Demanda, Análise, Revisado por, O que mudou), mantendo o frontmatter que havia, e vincula o documento à funcionalidade. Sem arquivo, ele nasce com o frontmatter de funcionalidade (tipo `caso-de-uso` ou `manual` quando é o caso). A exportação do arquivo leva a tabela. A seção do histórico é do app: quem propõe a partir do arquivo publicado tem a tabela tirada do texto.
+- **Caminho padrão:** `funcionalidades/<area>/<tema>/<tipo>.md` para a funcionalidade e `areas/<area>/<tipo>.md` para a área; o documento que já existe (ou o já vinculado à funcionalidade) mantém o caminho.
+- **Documento de antes do histórico** (o negocial vinculado no formato antigo): conta como em dia, na 1.0; na primeira proposta, o texto atual entra no histórico como a 1.0 ("Versão anterior ao histórico de revisões").
+- **Estado de cada documento**, calculado sem IA:
+  - **em dia;**
+  - **proposta pendente** (com a indicação de já revisada);
+  - **desatualizado:** um arquivo citado mudou ou sumiu depois da versão publicada. O app compara o SHA-256 do arquivo inteiro, normalizado como o hash das evidências (espaços nas pontas e repetidos e fim de linha não contam), lido pelo escopo do projeto. A mudança em qualquer ponto do arquivo marca, mesmo fora do trecho citado;
+  - **sem documento.**
+
+  Um documento desatualizado não se reescreve sozinho: a ação é "Propor atualização". A proposta pendente tem precedência sobre o desatualizado.
 
 ### 7.4 Como a base cresce
 

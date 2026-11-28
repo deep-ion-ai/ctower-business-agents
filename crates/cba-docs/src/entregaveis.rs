@@ -244,7 +244,8 @@ pub const DOCUMENTO_VISAO: &str = "documento-visao";
 pub const PROTOTIPO: &str = "prototipo";
 pub const GLOSSARIO: &str = "glossario";
 pub const MANUAL: &str = "manual";
-pub const DOCUMENTO_NEGOCIAL: &str = "documento-negocial";
+/// O mesmo id que o mapa usa no vínculo do documento negocial.
+pub const DOCUMENTO_NEGOCIAL: &str = cba_core::funcionalidades::TIPO_DOCUMENTO_NEGOCIAL;
 
 /// Os tipos embutidos, na ordem da tela: Ágil, RUP e Comuns.
 pub const CATALOGO: [TipoEntregavel; 15] = [

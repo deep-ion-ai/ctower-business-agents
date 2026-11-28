@@ -262,7 +262,7 @@ pub fn calcular(e: &Entrada<'_>) -> Cobertura {
             a.nome = f.area_nome.clone();
         }
         a.funcionalidades += 1;
-        if f.documento.is_none() {
+        if f.documento_negocial().is_none() {
             a.sem_documento += 1;
         }
         let arquivos: BTreeSet<String> = f
@@ -348,7 +348,7 @@ pub fn calcular(e: &Entrada<'_>) -> Cobertura {
         for pasta in pontos {
             if let Some(p) = pastas.get_mut(pasta) {
                 p.funcionalidades += 1;
-                if f.documento.is_some() {
+                if f.documento_negocial().is_some() {
                     p.documentadas += 1;
                 }
             }
@@ -447,7 +447,7 @@ fn sugerir(
         let funcionalidade = e
             .funcionalidades
             .abertas()
-            .filter(|f| f.area == a.id && f.documento.is_none())
+            .filter(|f| f.area == a.id && f.documento_negocial().is_none())
             .max_by_key(|f| {
                 (
                     central_da_funcionalidade

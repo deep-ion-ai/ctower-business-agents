@@ -518,6 +518,16 @@ pub fn hash_das_linhas(texto: &str, linhas: Linhas) -> Option<String> {
     Some(digest.iter().map(|b| format!("{b:02x}")).collect())
 }
 
+/// Hash do arquivo inteiro, normalizado como [`hash_das_linhas`]: SHA-256, em
+/// hexadecimal minúsculo, das linhas sem espaços nas pontas e com os repetidos
+/// reduzidos a um, unidas por `\n`. Os documentos vivos (#461) guardam este hash
+/// de cada arquivo citado para saber se ele mudou depois da publicação.
+pub fn hash_do_arquivo(texto: &str) -> String {
+    let normalizado: Vec<String> = texto.lines().map(normalizar).collect();
+    let digest = Sha256::digest(normalizado.join("\n").as_bytes());
+    digest.iter().map(|b| format!("{b:02x}")).collect()
+}
+
 /// Intervalos de linhas em que o trecho aparece no texto, em ordem. Linhas em
 /// branco são ignoradas dos dois lados; o trecho pode começar e terminar no meio de
 /// uma linha.

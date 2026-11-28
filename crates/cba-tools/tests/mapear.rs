@@ -517,7 +517,7 @@ fn explicacao_do_mapa_grava_o_documento_negocial_ligado() {
     assert!(texto.contains("Só fatura aberta"), "{texto}");
     let mapa = c.mapa();
     let item = mapa.funcionalidade(&f("F-CAN-001")).unwrap();
-    assert_eq!(item.documento.as_ref(), Some(&negocial));
+    assert_eq!(item.documento_negocial(), Some(&negocial));
     assert_eq!(item.explicacao.as_ref(), Some(&e));
     assert_eq!(item.situacao, SituacaoFuncionalidade::Aceita);
     let md = std::fs::read_to_string(c.amb.kb.caminho(&layout::mapa_de_funcionalidades())).unwrap();
