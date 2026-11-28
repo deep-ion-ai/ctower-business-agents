@@ -1286,7 +1286,8 @@ describe("aba Ambiente de teste", () => {
     expect(p.getByText("✓ Senha guardada no chaveiro")).toBeInTheDocument();
     expect(p.getByText("Sem senha guardada")).toBeInTheDocument();
     expect(p.getByText("2 usuários · 2 perfis")).toBeInTheDocument();
-    expect(m.aoPendencia).toHaveBeenLastCalledWith(false);
+    // A pendência é recalculada num efeito depois do salvamento.
+    await waitFor(() => expect(m.aoPendencia).toHaveBeenLastCalledWith(false));
   });
 
   it("aponta URL inválida e usuário sem perfil sem chamar o app", async () => {
