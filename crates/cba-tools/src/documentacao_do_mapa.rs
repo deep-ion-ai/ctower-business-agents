@@ -33,7 +33,7 @@ use cba_core::documentos_vivos::{
     DocumentosVivos, Dono, EstadoDocumento, NovaProposta, sem_historico,
 };
 use cba_core::funcionalidades::{Funcionalidade, MapaFuncionalidades, SituacaoFuncionalidade};
-use cba_docs::entregaveis::{self, Geracao, TipoCampo, TipoEntregavel};
+use cba_docs::entregaveis::{self, CicloDeVida, Geracao, TipoCampo, TipoEntregavel};
 
 use cba_index::Metodologia;
 use cba_kb::frontmatter::{FrontmatterRegra, StatusRegra};
@@ -96,8 +96,19 @@ pub struct LinhaDeDocumentacao {
     pub situacao: SituacaoFuncionalidade,
     /// Regras da base ligadas à funcionalidade (as que a versão inicial cita).
     pub regras: usize,
+    /// A explicação foi aprovada: o documento negocial está vinculado. É dela que
+    /// saem as regras; sem regras, a tela diz o que falta.
+    pub explicada: bool,
     /// Na ordem das colunas.
     pub documentos: Vec<DocumentoDoTipo>,
+}
+
+/// Tipo habilitado sem geração ainda.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TipoEmBreve {
+    pub tipo: &'static str,
+    pub nome: &'static str,
 }
 
 /// A visão "Documentação" do mapa.
@@ -106,6 +117,9 @@ pub struct LinhaDeDocumentacao {
 pub struct TabelaDeDocumentacao {
     pub metodologia: Metodologia,
     pub colunas: Vec<ColunaDeDocumentacao>,
+    /// Documentos vivos habilitados que o app ainda não gera: não viram coluna, a
+    /// tela os cita à parte (#499).
+    pub em_breve: Vec<TipoEmBreve>,
     pub linhas: Vec<LinhaDeDocumentacao>,
     /// Uma por coluna, contada sobre as células.
     pub cobertura: Vec<CoberturaDoTipo>,
@@ -133,13 +147,28 @@ pub fn montar_tabela(
             area_nome: f.area_nome.clone(),
             situacao: f.situacao,
             regras: regras_da_funcionalidade(&regras, f).len(),
+            explicada: f.documento_negocial().is_some(),
             documentos: documentos_da_funcionalidade(&ambiente.escopo, documentos, f, &ids),
         })
         .collect();
     let cobertura = cobertura_por_tipo(&colunas, &linhas);
+    let em_breve = entregaveis::CATALOGO
+        .iter()
+        .filter(|t| {
+            t.ciclo == CicloDeVida::Vivo
+                && !t.disponivel
+                && config.habilitado(t.id).is_some()
+                && !ids.contains(&t.id)
+        })
+        .map(|t| TipoEmBreve {
+            tipo: t.id,
+            nome: t.nome,
+        })
+        .collect();
     TabelaDeDocumentacao {
         metodologia: config.metodologia,
         colunas,
+        em_breve,
         linhas,
         cobertura,
     }

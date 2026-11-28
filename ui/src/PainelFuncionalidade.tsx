@@ -755,6 +755,9 @@ export function PainelFuncionalidade({
                       aoExplicar={
                         !f.explicacao ? () => criar("explicar", null, null) : undefined
                       }
+                      aoRevisar={(r) =>
+                        navegar({ tipo: "revisao", projeto, documento: r.caminho, titulo: r.titulo })
+                      }
                     />
                   </Secao>
                 )}

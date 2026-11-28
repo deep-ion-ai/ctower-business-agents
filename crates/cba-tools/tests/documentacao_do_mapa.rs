@@ -475,6 +475,12 @@ fn caso_de_uso_sem_regras_fica_fora_do_lote_e_a_tabela_avisa() {
     let j = serde_json::to_value(&t).unwrap();
     assert_eq!(j["colunas"][caso]["exigeRegras"], true);
     assert_eq!(j["linhas"][0]["regras"], 1);
+    // Sem explicação aprovada, nenhuma tem o documento negocial.
+    assert!(t.linhas.iter().all(|l| !l.explicada));
+    // O glossário do RUP é vivo, mas ainda sem geração: fica fora das colunas.
+    assert!(t.colunas.iter().all(|col| col.tipo != "glossario"));
+    assert_eq!(j["emBreve"][0]["tipo"], "glossario");
+    assert_eq!(j["emBreve"][0]["nome"], "Glossário");
 
     let todas: Vec<String> = (1..=3).map(|n| fid(n).to_string()).collect();
     let lote = gerar_em_lote(&c.amb, CASO, &todas).unwrap();

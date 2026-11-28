@@ -35,6 +35,7 @@ export function linha(
   nome: string,
   documentos: DocumentoDoTipo[] = COLUNAS.map((c) => sem(c.tipo)),
   regras = 2,
+  explicada = regras > 0,
 ): LinhaDeDocumentacao {
   return {
     funcionalidade,
@@ -43,6 +44,7 @@ export function linha(
     areaNome: "Cobrança",
     situacao: "aceita",
     regras,
+    explicada,
     documentos,
   };
 }
@@ -72,6 +74,7 @@ export function tabelaDe(linhas: LinhaDeDocumentacao[]): TabelaDeDocumentacao {
   return {
     metodologia: "rup",
     colunas: COLUNAS,
+    emBreve: [{ tipo: "glossario", nome: "Glossário" }],
     linhas,
     cobertura: contarCobertura(COLUNAS, linhas),
   };

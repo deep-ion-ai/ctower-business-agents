@@ -1,3 +1,4 @@
+import { RevisaoDocumentoVivo } from "./RevisaoDocumentoVivo";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { apiAnaliseTauri, mensagemDe, type ApiAnalise, type EstadoAnalise } from "./analise";
 import { seloAtividades, type AmbienteConferido } from "./atividades";
@@ -74,7 +75,9 @@ export type Tela =
   /** Mapa estrutural e "O que mudou no código" (#319). */
   | { tipo: "codigo"; projeto?: string }
   /** Vincular as issues do rastreador às funcionalidades (#270), em aba própria. */
-  | { tipo: "vincular"; projeto: string };
+  | { tipo: "vincular"; projeto: string }
+  /** Revisão final de um documento vivo (#499), em aba própria: "Revisão · F-CRE-009 · Caso de uso". */
+  | { tipo: "revisao"; projeto: string; documento: string; titulo: string };
 
 interface Props {
   /** Tela ao abrir (ex.: a análise sugerida no fim do primeiro uso). Sem ela, a Visão geral. */
@@ -141,6 +144,8 @@ export function chaveDoObjeto(t: Tela): string | null {
       return `issue:${t.projeto}:${t.origem}:${t.chave}`;
     case "vincular":
       return `vincular:${t.projeto}`;
+    case "revisao":
+      return `revisao:${t.projeto}:${t.documento}`;
     default:
       return null;
   }
@@ -167,6 +172,7 @@ export function secaoDaTela(t: Tela): Secao {
       return "demandas";
     case "mapa":
     case "vincular":
+    case "revisao":
       return "funcionalidades";
     case "codigo":
       return "codigo";
@@ -519,6 +525,7 @@ export function Navegacao({
     if (t.tipo === "demanda") return t.demanda;
     if (t.tipo === "issue") return t.chave;
     if (t.tipo === "vincular") return `Vincular demandas · ${nomeProjeto(t.projeto)}`;
+    if (t.tipo === "revisao") return t.titulo;
     return ROTULO_SECAO[secaoDaTela(t)];
   };
 
@@ -555,6 +562,7 @@ export function Navegacao({
   const secaoAVista = lidos && ativa === null;
   const chaveSecao = `${secao.id}:${projeto}:${secao.vez}`;
   const tela = secao.tela;
+  const revisaoAberta = aba?.tela.tipo === "revisao" ? aba.tela : null;
 
   return (
     <div className="shell">
@@ -793,6 +801,21 @@ export function Navegacao({
                   projeto={aba.tela.projeto}
                   demanda={aba.tela.demanda}
                   navegar={navegar}
+                />
+              )}
+              {revisaoAberta && aba && (
+                <RevisaoDocumentoVivo
+                  key={aba.vez}
+                  projeto={revisaoAberta.projeto}
+                  documento={revisaoAberta.documento}
+                  aoAbrir={(r) =>
+                    navegar({
+                      tipo: "revisao",
+                      projeto: revisaoAberta.projeto,
+                      documento: r.caminho,
+                      titulo: r.titulo,
+                    })
+                  }
                 />
               )}
               {aba?.tela.tipo === "issue" && api.issues && (

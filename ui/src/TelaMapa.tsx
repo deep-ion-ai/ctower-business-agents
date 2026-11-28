@@ -723,6 +723,10 @@ function MapaDoProjeto({
             apiTerminal={apiTerminal}
             criarTela={criarTela}
             aoAbrirFuncionalidade={setSelecionada}
+            aoRevisar={(r) =>
+              navegar({ tipo: "revisao", projeto, documento: r.caminho, titulo: r.titulo })
+            }
+            aoConfigurar={() => navegar({ tipo: "configurar", projeto })}
           />
         ) : (
           <>

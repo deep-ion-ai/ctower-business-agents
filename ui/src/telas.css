@@ -4656,14 +4656,411 @@ textarea.sql-consulta {
   color: var(--attention);
   font-size: var(--fs-small);
 }
+/* Barra do lote: fixa no rodapé enquanto há seleção (#499). */
 .barra-lote {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.botao-lote {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+}
+.botao-lote .muted {
+  font-size: var(--fs-small);
+}
+
+/* Documentação do mapa (#499): cabeçalho, filtros, grupos e estados da célula. */
+.documentacao-cabecalho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.documentacao-cabecalho > p {
+  margin: 0;
+}
+.documentacao-cabecalho-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.btn-revisao-final:not(:disabled) {
+  background: var(--attention-bg);
+  border-color: var(--attention-border);
+  color: var(--attention);
+  font-weight: var(--fw-medium);
+}
+.barra-empilhada {
+  display: flex;
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+}
+.faixa-em_dia {
+  background: var(--done);
+}
+.faixa-a_revisar {
+  background: var(--attention);
+}
+.faixa-desatualizado {
+  background: var(--error);
+}
+.faixa-pronta {
+  background: var(--running);
+}
+.faixa-aguardando {
+  background: var(--border-strong);
+}
+.contagens-cobertura {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 10px;
+  font-size: var(--fs-small);
+}
+.contagens-cobertura .btn-link {
+  padding: 0;
+}
+.contagens-cobertura .btn-link[aria-pressed="true"] {
+  font-weight: var(--fw-strong);
+  text-decoration: underline;
+}
+.filtros-documentacao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.filtros-documentacao input[type="search"] {
+  min-width: 220px;
+}
+.abas-estado {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.abas-estado .btn[aria-pressed="true"] {
+  background: var(--selected);
+  border-color: var(--border-strong);
+}
+.abas-estado .contagem {
+  color: var(--muted);
+  margin-left: 4px;
+}
+.col-selecao {
+  width: 28px;
+}
+.cabecalho-geracao {
+  display: block;
+  font-size: var(--fs-small);
+  font-weight: normal;
+}
+.grupo-area th,
+.grupo-area td {
+  background: var(--surface-2);
+}
+.grupo-area-alternar {
+  padding: 0;
+  font-weight: var(--fw-medium);
+  color: var(--text);
+}
+.cobertura-area {
+  font-size: var(--fs-small);
+}
+.celula-doc {
+  position: relative;
+  min-width: 160px;
+}
+.estado-celula {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-small);
+  line-height: 1.6;
+  background: none;
+  color: inherit;
+  font-family: inherit;
+}
+button.estado-celula {
+  cursor: pointer;
+}
+.estado-em_dia {
+  background: var(--done-bg);
+  color: var(--done);
+}
+.estado-a_revisar {
+  background: var(--attention-bg);
+  border-color: var(--attention-border);
+  color: var(--attention);
+}
+.estado-desatualizado {
+  background: var(--error-bg);
+  border-color: var(--error-border);
+  color: var(--error);
+}
+.estado-pronta {
+  border-color: var(--border);
+  color: var(--text-2);
+}
+.estado-aguardando {
+  border-style: dashed;
+  border-color: var(--border-strong);
+  color: var(--muted);
+}
+.estado-lote {
+  background: var(--running-bg);
+  color: var(--running);
+}
+/* A ação da célula aparece no foco ou no passar do mouse; continua no teclado. */
+.acao-celula {
+  margin-left: 6px;
+  opacity: 0;
+}
+.celula-doc:hover .acao-celula,
+.celula-doc:focus-within .acao-celula,
+.acao-celula:focus-visible {
+  opacity: 1;
+}
+@media (hover: none) {
+  .acao-celula {
+    opacity: 1;
+  }
+}
+.painel-prerequisitos {
+  position: absolute;
+  z-index: 4;
+  top: calc(100% - 4px);
+  left: 0;
+  width: 320px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  white-space: normal;
+}
+.painel-prerequisitos-cabecalho {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.painel-prerequisitos p {
+  margin: 4px 0 8px;
+}
+.lista-prerequisitos {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--fs-small);
+}
+.lista-prerequisitos li {
+  display: flex;
+  gap: 8px;
+}
+.marca-prerequisito {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-weight: var(--fw-strong);
+}
+.lista-prerequisitos li[data-ok="sim"] .marca-prerequisito {
+  background: var(--done-bg);
+  color: var(--done);
+}
+.lista-prerequisitos li[data-ok="nao"] .marca-prerequisito {
+  background: var(--attention-bg);
+  color: var(--attention);
+}
+.acoes-prerequisitos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Gaveta do lote, à direita, sobre a tabela (#499). */
+.gaveta-lote {
+  position: fixed;
+  z-index: 20;
+  top: 64px;
+  right: 16px;
+  bottom: 40px;
+  width: min(520px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  overflow-y: auto;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.gaveta-lote[hidden] {
+  display: none;
+}
+.gaveta-lote p {
+  margin: 0;
+}
+.gaveta-lote .barra-progresso {
+  width: 100%;
+}
+.gaveta-lote-cabecalho,
+.gaveta-lote-acoes {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.gaveta-lote-acoes {
+  justify-content: flex-end;
+}
+.itens-lote {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--fs-small);
+}
+.gaveta-lote-sessao {
+  flex: 1;
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+}
+.gaveta-lote-sessao .terminal-lote {
+  flex: 1;
+  height: auto;
+  min-height: 260px;
+}
+
+/* Revisão final em aba (#499). */
+.revisao-documento {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .revisao-documento {
+    grid-template-columns: 1fr;
+  }
+}
+.fila-revisao {
+  position: sticky;
+  top: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface-2);
+}
+.fila-revisao h2 {
+  margin: 0 0 8px;
+  font-size: var(--fs-section);
+}
+.fila-revisao h3 {
+  margin: 8px 0 4px;
+  font-size: var(--fs-small);
+  text-transform: uppercase;
+}
+.fila-revisao ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.fila-revisao li[aria-current="page"] {
+  background: var(--selected);
+  border-radius: var(--radius-control);
+}
+.item-fila {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  padding: 4px 6px;
+  text-align: left;
+  color: var(--text);
+}
+.item-fila .muted {
+  font-size: var(--fs-small);
+}
+.revisao-principal h1 {
+  margin: 0 0 4px;
+  font-size: var(--fs-title);
+}
+.revisao-principal > p {
+  margin: 0 0 8px;
+}
+.passos-revisao {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 8px 0 12px;
+  padding: 0;
+}
+.marca-passo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  font-size: var(--fs-small);
+}
+.passos-revisao li[data-feito="sim"] .marca-passo {
+  background: var(--done-bg);
+  border-color: var(--done);
+  color: var(--done);
+}
+.desfecho-revisao {
+  margin: 8px 0;
   padding: 8px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
+  background: var(--surface-2);
+}
+.acoes-revisao-documento {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 0;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+}
+.acoes-revisao-documento .espaco {
+  flex: 1;
 }
 .tabela-documentacao-rolagem {
   overflow-x: auto;
