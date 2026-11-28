@@ -277,6 +277,99 @@ describe("DocumentacaoDoMapa", () => {
     expect(screen.getByText(/a atualização vem da demanda/)).toBeInTheDocument();
   });
 
+  it("sem regras na funcionalidade, o caso de uso avisa e leva ao Explicar em vez de gerar", async () => {
+    const { api } = apiDocumentacaoFalsa(
+      tabelaDe([linha("F-FAT-002", "Calcular multa", undefined, 0)]),
+    );
+    const { aoAbrirFuncionalidade } = abrir(api);
+    const t = await tabela();
+    const f2 = within(t).getByRole("row", { name: "F-FAT-002: Calcular multa" });
+    const [caso, catalogo] = within(f2).getAllByRole("cell").slice(1);
+    expect(caso).toHaveTextContent("precisa de regras: explique a funcionalidade e aprove a análise");
+    expect(within(caso).queryByRole("button", { name: /Gerar versão inicial/ })).toBeNull();
+    fireEvent.click(
+      within(caso).getByRole("button", {
+        name: "Explicar F-FAT-002 para gerar Especificação de caso de uso",
+      }),
+    );
+    expect(aoAbrirFuncionalidade).toHaveBeenCalledWith("F-FAT-002");
+    // Os tipos montados pelo app não dependem das regras.
+    expect(within(catalogo).getByRole("button")).toHaveTextContent("Gerar versão inicial");
+    expect(api.gerar).not.toHaveBeenCalled();
+  });
+
+  it("ao abrir o lote, leva a vista até as sessões", async () => {
+    const rolar = vi.fn();
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = rolar;
+    try {
+      const { api } = apiDocumentacaoFalsa(tabelaDe([linha("F-FAT-001", "Cancelar fatura")]));
+      api.gerar.mockResolvedValue({
+        tipo: "caso-de-uso",
+        geracao: "agente",
+        itens: [{ resultado: "sessao", funcionalidade: "F-FAT-001", pedido: "Gere F-FAT-001" }],
+      });
+      abrir(api);
+      await tabela();
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Gerar versão inicial: Especificação de caso de uso de F-FAT-001",
+        }),
+      );
+      const sessoes = await screen.findByRole("region", { name: "Sessões do lote" });
+      await waitFor(() => expect(rolar).toHaveBeenCalledTimes(1));
+      expect(rolar.mock.contexts[0]).toContainElement(sessoes);
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
+  });
+
+  it("ao abrir a revisão de uma proposta, leva a vista até ela", async () => {
+    const rolar = vi.fn();
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = rolar;
+    try {
+      abrir(apiDocumentacaoFalsa().api);
+      await tabela();
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Revisar proposta: Catálogo de regras de negócio de F-FAT-001",
+        }),
+      );
+      const revisao = await screen.findByRole("region", { name: "Revisão da proposta" });
+      await waitFor(() => expect(rolar).toHaveBeenCalledTimes(1));
+      expect(rolar.mock.contexts[0]).toContainElement(revisao);
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
+  });
+
+  it("no cartão da funcionalidade, mostra só os documentos dela, sem o lote nem a cobertura", async () => {
+    const { api } = apiDocumentacaoFalsa();
+    const aoExplicar = vi.fn();
+    render(
+      <DocumentacaoDoMapa
+        projeto="faturamento-exemplo"
+        api={api}
+        funcionalidade="F-FAT-001"
+        aoExplicar={aoExplicar}
+      />,
+    );
+    const lista = await screen.findByRole("list", { name: "Documentos vivos de F-FAT-001" });
+    const itens = within(lista).getAllByRole("listitem");
+    expect(itens.map((i) => i.getAttribute("aria-label"))).toEqual(COLUNAS.map((c) => c.nome));
+    expect(itens[0]).toHaveTextContent("v1.3");
+    expect(itens[0]).toHaveTextContent("em dia");
+    expect(within(itens[1]).getByRole("button")).toHaveTextContent("Revisar proposta");
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.queryByRole("group", { name: "Geração em lote" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Cobertura por tipo" })).toBeNull();
+    expect(screen.queryByText("Calcular multa")).toBeNull();
+
+    fireEvent.click(within(itens[1]).getByRole("button", { name: /Revisar proposta/ }));
+    expect(await screen.findByRole("region", { name: "Revisão da proposta" })).toBeInTheDocument();
+  });
+
   it("sem tipo vivo habilitado, explica onde habilitar", async () => {
     const { api } = apiDocumentacaoFalsa({ ...tabelaInicial(), colunas: [], cobertura: [] });
     abrir(api);

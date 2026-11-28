@@ -4706,6 +4706,20 @@ textarea.sql-consulta {
   font-size: var(--fs-small);
   overflow-wrap: anywhere;
 }
+/* Entregáveis no cartão da funcionalidade (#499): um bloco por tipo vivo. */
+.documentos-da-funcionalidade {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+.documento-da-funcionalidade > * {
+  display: block;
+  width: fit-content;
+  margin-bottom: 4px;
+}
 .legenda-documentacao {
   display: flex;
   flex-wrap: wrap;

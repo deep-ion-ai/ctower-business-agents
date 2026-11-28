@@ -37,6 +37,10 @@ import {
 import type { Tela } from "./Navegacao";
 import { ROTULO_ESTADO_RASTREADOR } from "./demandas";
 import { EstadoNoRastreador } from "./EstadoNoRastreador";
+import { DocumentacaoDoMapa } from "./DocumentacaoDoMapa";
+import type { ApiDocumentacao } from "./documentacaoMapa";
+import type { ApiTerminal } from "./terminal";
+import type { TelaTerminal } from "./telaXterm";
 
 /** O estado no rastreador, quando conferido (pode ser "em andamento"); senão, o local. */
 function rotuloDaDemanda(d: DemandaNoPainel): string {
@@ -365,6 +369,9 @@ export function PainelFuncionalidade({
   navegar,
   aoVoltar,
   aoEscolher,
+  apiDocumentacao,
+  apiTerminal,
+  criarTela,
 }: {
   projeto: string;
   /** A funcionalidade como o mapa a tem (atualiza com a revisão). */
@@ -379,6 +386,10 @@ export function PainelFuncionalidade({
   navegar: (t: Tela) => void;
   aoVoltar: () => void;
   aoEscolher: (id: string) => void;
+  /** Os documentos vivos da funcionalidade (entregáveis, #499). */
+  apiDocumentacao?: ApiDocumentacao;
+  apiTerminal?: ApiTerminal;
+  criarTela?: () => TelaTerminal;
 }) {
   const [painel, setPainel] = useState<Painel | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -727,6 +738,26 @@ export function PainelFuncionalidade({
                   aoAbrirAnalise={abrirAnalise}
                   aoAbrirDocumento={(d) => navegar({ tipo: "base", documento: d })}
                 />
+
+                {aberta && (
+                  <Secao titulo="Entregáveis" nivel={3} rotulo="Entregáveis da funcionalidade">
+                    <p className="muted">
+                      Os documentos vivos da metodologia do projeto. Cada um começa na versão
+                      inicial e evolui com as demandas; todo rascunho espera a revisão final.
+                    </p>
+                    <DocumentacaoDoMapa
+                      projeto={projeto}
+                      funcionalidade={f.id}
+                      recarga={recarga + releitura}
+                      api={apiDocumentacao}
+                      apiTerminal={apiTerminal}
+                      criarTela={criarTela}
+                      aoExplicar={
+                        !f.explicacao ? () => criar("explicar", null, null) : undefined
+                      }
+                    />
+                  </Secao>
+                )}
 
                 <Secao
                   titulo="Análises"

@@ -4,6 +4,7 @@ import { Alerta, EstadoVazio, Secao, Selo, TextoRico, type TomSelo } from "./com
 import {
   alertasDaCobertura,
   apiDocumentacaoTauri,
+  faltamRegras,
   resumoDaCobertura,
   resumoDoLote,
   ROTULO_ESTADO,
@@ -49,37 +50,64 @@ interface Sessoes {
   puladas: string[];
 }
 
-function Celula({
-  d,
-  linha,
-  coluna,
-  ocupado,
-  aoAgir,
-}: {
+interface PropsDaCelula {
   d: DocumentoDoTipo;
   linha: LinhaDeDocumentacao;
   coluna: ColunaDeDocumentacao;
   ocupado: boolean;
   aoAgir: (d: DocumentoDoTipo, linha: LinhaDeDocumentacao, coluna: ColunaDeDocumentacao) => void;
-}) {
+  /** Leva ao "Explicar" da funcionalidade, quando faltam regras; sem ele, só o aviso. */
+  aoExplicar?: (funcionalidade: string) => void;
+}
+
+/** O que a célula mostra: o documento, o estado e a ação (ou o que falta para ela). */
+function ConteudoDaCelula({ d, linha, coluna, ocupado, aoAgir, aoExplicar }: PropsDaCelula) {
   const rotulo = rotuloDoDocumento(d);
   const extra = detalhe(d);
+  const semRegras = faltamRegras(d, linha, coluna);
   return (
-    <td className="celula-documento">
+    <>
       {rotulo && <span className="celula-documento-versao">{rotulo}</span>}
       <Selo tom={TOM[d.estado.estado]}>{ROTULO_ESTADO[d.estado.estado]}</Selo>
       {extra && <span className="muted celula-documento-detalhe">{extra}</span>}
-      {d.acao && (
-        <button
-          type="button"
-          className="btn btn-sm"
-          disabled={ocupado}
-          aria-label={`${d.acao}: ${coluna.nome} de ${linha.funcionalidade}`}
-          onClick={() => aoAgir(d, linha, coluna)}
-        >
-          {d.acao}
-        </button>
+      {semRegras ? (
+        <>
+          <span className="muted celula-documento-detalhe">
+            precisa de regras: explique a funcionalidade e aprove a análise
+          </span>
+          {aoExplicar && (
+            <button
+              type="button"
+              className="btn btn-sm"
+              disabled={ocupado}
+              aria-label={`Explicar ${linha.funcionalidade} para gerar ${coluna.nome}`}
+              onClick={() => aoExplicar(linha.funcionalidade)}
+            >
+              Explicar
+            </button>
+          )}
+        </>
+      ) : (
+        d.acao && (
+          <button
+            type="button"
+            className="btn btn-sm"
+            disabled={ocupado}
+            aria-label={`${d.acao}: ${coluna.nome} de ${linha.funcionalidade}`}
+            onClick={() => aoAgir(d, linha, coluna)}
+          >
+            {d.acao}
+          </button>
+        )
       )}
+    </>
+  );
+}
+
+function Celula(props: PropsDaCelula) {
+  return (
+    <td className="celula-documento">
+      <ConteudoDaCelula {...props} />
     </td>
   );
 }
@@ -175,6 +203,9 @@ function RevisaoDaProposta({
  * inicial em lote. Os tipos montados pelo app saem na hora; os redigidos pelo
  * agente rodam uma sessão do Claude por funcionalidade, em sequência. Todo
  * documento gerado fica como rascunho até a revisão final.
+ *
+ * Com `funcionalidade`, mostra só os documentos dela, como cartão na página da
+ * funcionalidade: sem a cobertura, o lote e a legenda.
  */
 export function DocumentacaoDoMapa({
   projeto,
@@ -183,6 +214,8 @@ export function DocumentacaoDoMapa({
   apiTerminal,
   criarTela,
   aoAbrirFuncionalidade,
+  funcionalidade,
+  aoExplicar = aoAbrirFuncionalidade,
 }: {
   projeto: string;
   api?: ApiDocumentacao;
@@ -192,6 +225,10 @@ export function DocumentacaoDoMapa({
   criarTela?: () => TelaTerminal;
   /** Abre o painel da funcionalidade (a atualização do que o agente redige vem da demanda). */
   aoAbrirFuncionalidade?: (funcionalidade: string) => void;
+  /** Só esta funcionalidade, no cartão da página dela. */
+  funcionalidade?: string;
+  /** Leva ao "Explicar" de uma funcionalidade sem as regras que o tipo exige. */
+  aoExplicar?: (funcionalidade: string) => void;
 }) {
   const [tabela, setTabela] = useState<TabelaDeDocumentacao | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -203,6 +240,8 @@ export function DocumentacaoDoMapa({
   const [revisao, setRevisao] = useState<PropostaVista | null>(null);
   const [sessoes, setSessoes] = useState<Sessoes | null>(null);
   const ativo = useRef(true);
+  const painelDoLote = useRef<HTMLDivElement>(null);
+  const painelDaProposta = useRef<HTMLDivElement>(null);
 
   const carregar = useCallback(() => {
     Promise.resolve()
@@ -224,6 +263,19 @@ export function DocumentacaoDoMapa({
   }, [carregar, recarga]);
 
   const colunas = useMemo(() => tabela?.colunas ?? [], [tabela]);
+
+  // O lote abre acima da tabela: leva a vista até ele, que pode estar fora da
+  // tela quando a geração começou numa linha mais abaixo.
+  const loteAberto = sessoes !== null;
+  useEffect(() => {
+    if (loteAberto) painelDoLote.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  }, [loteAberto]);
+  // A revisão da proposta também abre acima da tabela.
+  const propostaAberta = revisao?.caminho ?? null;
+  useEffect(() => {
+    if (propostaAberta)
+      painelDaProposta.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  }, [propostaAberta]);
   const tipoEscolhido = colunas.find((c) => c.tipo === tipo) ?? colunas[0] ?? null;
 
   // Lote do agente: relê a tabela enquanto a sessão está aberta e passa para a
@@ -348,9 +400,121 @@ export function DocumentacaoDoMapa({
   if (tabela.linhas.length === 0)
     return <p className="muted">O mapa ainda não tem funcionalidades para documentar.</p>;
 
+  const atual = sessoes && sessoes.atual < sessoes.fila.length ? sessoes.fila[sessoes.atual] : null;
+  const avisos = (
+    <>
+      {falha && <Alerta tom="erro" titulo={falha} />}
+      {aviso && (
+        <p className="muted" role="status">
+          {aviso}
+        </p>
+      )}
+    </>
+  );
+  const painelDasSessoes = sessoes && (
+    <div ref={painelDoLote}>
+      <Secao
+        titulo={`Versão inicial: ${sessoes.tipo.nome}`}
+        nivel={3}
+        rotulo="Sessões do lote"
+        className="sessoes-lote"
+        acoes={
+          <button type="button" className="btn" onClick={() => setSessoes(null)}>
+            {atual ? "Encerrar o lote" : "Fechar"}
+          </button>
+        }
+      >
+        <p role="status" aria-label="Progresso do lote">
+          {atual
+            ? `Sessão ${sessoes.atual + 1} de ${sessoes.fila.length}: ${atual.funcionalidade}`
+            : `Lote concluído: ${contar(sessoes.feitas.length, "rascunho gerado", "rascunhos gerados")}`}
+          {sessoes.puladas.length > 0 && ` · ${contar(sessoes.puladas.length, "pulada", "puladas")}`}
+          . Cada rascunho espera a revisão final.
+        </p>
+        <div
+          className="barra-progresso"
+          role="progressbar"
+          aria-label="Sessões concluídas"
+          aria-valuemin={0}
+          aria-valuemax={sessoes.fila.length}
+          aria-valuenow={sessoes.atual}
+        >
+          <div style={{ width: `${(100 * sessoes.atual) / sessoes.fila.length}%` }} />
+        </div>
+        {atual && (
+          <>
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() =>
+                setSessoes({
+                  ...sessoes,
+                  atual: sessoes.atual + 1,
+                  puladas: [...sessoes.puladas, atual.funcionalidade],
+                })
+              }
+            >
+              Pular {atual.funcionalidade}
+            </button>
+            <div className="terminal-lote">
+              <TerminalClaude
+                key={atual.funcionalidade}
+                projeto={projeto}
+                pedido={{ promptInicial: atual.pedido }}
+                api={apiTerminal}
+                criarTela={criarTela}
+              />
+            </div>
+          </>
+        )}
+      </Secao>
+    </div>
+  );
+  const painelDaRevisao = revisao && (
+    <div ref={painelDaProposta}>
+      <RevisaoDaProposta
+        vista={revisao}
+        ocupado={ocupado}
+        aoMarcar={() => revisar("marcar")}
+        aoPublicar={() => revisar("publicar")}
+        aoDescartar={() => revisar("descartar")}
+        aoFechar={() => setRevisao(null)}
+      />
+    </div>
+  );
+
+  if (funcionalidade !== undefined) {
+    const l = tabela.linhas.find((x) => x.funcionalidade === funcionalidade);
+    if (!l) return <p className="muted">A funcionalidade não está aberta no mapa.</p>;
+    return (
+      <div className="documentacao-funcionalidade">
+        <ul
+          className="documentos-da-funcionalidade"
+          aria-label={`Documentos vivos de ${l.funcionalidade}`}
+        >
+          {colunas.map((c, i) => (
+            <li key={c.tipo} className="documento-da-funcionalidade" aria-label={c.nome}>
+              <strong>{c.nome}</strong>
+              <ConteudoDaCelula
+                d={l.documentos[i]}
+                linha={l}
+                coluna={c}
+                ocupado={ocupado || emSessao}
+                aoAgir={agir}
+                aoExplicar={aoExplicar}
+              />
+            </li>
+          ))}
+        </ul>
+        {avisos}
+        {painelDasSessoes}
+        {painelDaRevisao}
+      </div>
+    );
+  }
+
   const todas = tabela.linhas.map((l) => l.funcionalidade);
   const todasMarcadas = todas.every((f) => selecionadas.has(f));
-  const atual = sessoes && sessoes.atual < sessoes.fila.length ? sessoes.fila[sessoes.atual] : null;
 
   return (
     <div className="documentacao-mapa">
@@ -414,81 +578,9 @@ export function DocumentacaoDoMapa({
         )}
       </div>
 
-      {falha && <Alerta tom="erro" titulo={falha} />}
-      {aviso && (
-        <p className="muted" role="status">
-          {aviso}
-        </p>
-      )}
-
-      {sessoes && (
-        <Secao
-          titulo={`Versão inicial: ${sessoes.tipo.nome}`}
-          nivel={3}
-          rotulo="Sessões do lote"
-          className="sessoes-lote"
-          acoes={
-            <button type="button" className="btn" onClick={() => setSessoes(null)}>
-              {atual ? "Encerrar o lote" : "Fechar"}
-            </button>
-          }
-        >
-          <p role="status" aria-label="Progresso do lote">
-            {atual
-              ? `Sessão ${sessoes.atual + 1} de ${sessoes.fila.length}: ${atual.funcionalidade}`
-              : `Lote concluído: ${contar(sessoes.feitas.length, "rascunho gerado", "rascunhos gerados")}`}
-            {sessoes.puladas.length > 0 && ` · ${contar(sessoes.puladas.length, "pulada", "puladas")}`}
-            . Cada rascunho espera a revisão final.
-          </p>
-          <div
-            className="barra-progresso"
-            role="progressbar"
-            aria-label="Sessões concluídas"
-            aria-valuemin={0}
-            aria-valuemax={sessoes.fila.length}
-            aria-valuenow={sessoes.atual}
-          >
-            <div style={{ width: `${(100 * sessoes.atual) / sessoes.fila.length}%` }} />
-          </div>
-          {atual && (
-            <>
-              <button
-                type="button"
-                className="btn btn-sm"
-                onClick={() =>
-                  setSessoes({
-                    ...sessoes,
-                    atual: sessoes.atual + 1,
-                    puladas: [...sessoes.puladas, atual.funcionalidade],
-                  })
-                }
-              >
-                Pular {atual.funcionalidade}
-              </button>
-              <div className="terminal-lote">
-                <TerminalClaude
-                  key={atual.funcionalidade}
-                  projeto={projeto}
-                  pedido={{ promptInicial: atual.pedido }}
-                  api={apiTerminal}
-                  criarTela={criarTela}
-                />
-              </div>
-            </>
-          )}
-        </Secao>
-      )}
-
-      {revisao && (
-        <RevisaoDaProposta
-          vista={revisao}
-          ocupado={ocupado}
-          aoMarcar={() => revisar("marcar")}
-          aoPublicar={() => revisar("publicar")}
-          aoDescartar={() => revisar("descartar")}
-          aoFechar={() => setRevisao(null)}
-        />
-      )}
+      {avisos}
+      {painelDasSessoes}
+      {painelDaRevisao}
 
       <div className="tabela-documentacao-rolagem">
         <table className="tabela-documentacao" aria-label="Documentação por funcionalidade">
@@ -546,6 +638,7 @@ export function DocumentacaoDoMapa({
                     coluna={c}
                     ocupado={ocupado || emSessao}
                     aoAgir={agir}
+                    aoExplicar={aoExplicar}
                   />
                 ))}
               </tr>
