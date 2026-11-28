@@ -36,6 +36,8 @@ import type {
   ResultadoClone,
 } from "../repositorios";
 import { apiPrimeiroUsoFalsa, inventarioFicticio } from "./falsos";
+import { entregaveisFicticios } from "./entregaveisFalso";
+import type { Entregaveis } from "../entregaveis";
 
 export const BASE = "/Users/analista/Documents/ctower-business";
 export const CODIGO = "/codigo/faturamento-exemplo";
@@ -445,6 +447,8 @@ export function apiConfiguracoesFalsa(cfg: Configuracoes = configuracoesFicticia
         }),
     ),
     salvarMascararDemanda: vi.fn((_projeto: string, ligado: boolean) => Promise.resolve(ligado)),
+    entregaveisDoProjeto: vi.fn((_projeto: string) => Promise.resolve(entregaveisFicticios())),
+    salvarEntregaveis: vi.fn((_projeto: string, e: Entregaveis) => Promise.resolve(e)),
     salvarLeitura: vi.fn((a: AjusteLeitura) =>
       Promise.resolve({
         id: a.projeto,

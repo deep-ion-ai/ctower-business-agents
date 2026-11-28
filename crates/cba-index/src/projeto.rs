@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::Erro;
 use crate::ambiente_teste::AmbienteTeste;
+use crate::entregaveis::Entregaveis;
 use crate::exclusoes::{Exclusao, Exclusoes, Motivo};
 
 /// Uma pasta local do projeto.
@@ -65,6 +66,12 @@ pub struct Projeto {
     /// grupo; sem ele, o texto casado inteiro.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub padroes_de_chave: Vec<String>,
+    /// Entregáveis do projeto (#460): a metodologia e os tipos habilitados.
+    /// Ausente no cadastro de um projeto antigo ou ainda não configurado: vale a
+    /// predefinição de `cba_docs::entregaveis::efetiva`, com os tipos que o app
+    /// já gerava.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entregaveis: Option<Entregaveis>,
 }
 
 fn ligado() -> bool {
@@ -116,6 +123,7 @@ impl Projeto {
             bancos: Vec::new(),
             mascarar_demanda: true,
             padroes_de_chave: Vec::new(),
+            entregaveis: None,
         };
         projeto.validar()?;
         Ok(projeto)

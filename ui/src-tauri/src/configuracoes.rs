@@ -23,6 +23,9 @@
 //!   projeto, os hooks. A configuração do Claude volta a ser a de antes.
 //! - **Descadastrar** um projeto: desfaz o ambiente como acima e só então apaga o
 //!   cadastro. Os documentos do projeto na base ficam.
+//! - **Entregáveis** do projeto (#460): a metodologia (Ágil, RUP ou
+//!   Personalizado) e, por tipo habilitado do catálogo de `cba_docs::entregaveis`,
+//!   o template e o destino, com o tipo padrão.
 //! - **Textos editáveis**: templates, roteiros, prompts prontos e as regras de cada
 //!   projeto, com a indicação de quando o arquivo da base sobrepõe o padrão embutido.
 //!   O app não tem editor próprio: abre o arquivo no editor padrão do sistema operacional
@@ -37,6 +40,7 @@ use std::time::SystemTime;
 
 use cba_core::config::Config;
 use cba_core::dados::DiretorioDados;
+use cba_docs::entregaveis;
 use cba_index::Cadastro;
 use cba_kb::indice::{Indice, Sincronizacao};
 use cba_kb::{Base, CaminhoRelativo, layout};
@@ -621,6 +625,95 @@ pub fn salvar_mascarar_demanda(
         .map_err(|e| e.to_string())?;
     tracing::info!(projeto = %p.id, ligado, "máscara dos dados pessoais da demanda");
     Ok(p.mascarar_demanda)
+}
+
+// ---------------------------------------------------------------------------
+// Entregáveis (#460)
+
+/// A aba "Entregáveis" do projeto: o catálogo, as predefinições e a
+/// configuração que vale.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EntregaveisDoProjeto {
+    pub catalogo: &'static [entregaveis::TipoEntregavel],
+    pub predefinicoes: &'static [entregaveis::Predefinicao],
+    /// A gravada ou, num projeto que ainda não a tem, a dos tipos que o app já
+    /// gerava ([`entregaveis::LEGADO`]).
+    pub entregaveis: cba_index::Entregaveis,
+    /// Se o projeto já tem a configuração gravada.
+    pub configurada: bool,
+    /// Templates da base que podem substituir o padrão (`_templates/*.md`).
+    pub templates_da_base: Vec<String>,
+}
+
+pub fn entregaveis_do_projeto(
+    dados: &DiretorioDados,
+    projeto: &str,
+) -> Result<EntregaveisDoProjeto, String> {
+    let p = cadastrado(dados, projeto)?;
+    Ok(EntregaveisDoProjeto {
+        catalogo: &entregaveis::CATALOGO,
+        predefinicoes: &entregaveis::PREDEFINICOES,
+        entregaveis: entregaveis::efetiva(p.entregaveis.as_ref()),
+        configurada: p.entregaveis.is_some(),
+        templates_da_base: templates_da_base(dados)?,
+    })
+}
+
+/// Nomes dos `.md` em `<base>/_templates/`, em ordem; vazio sem base.
+fn templates_da_base(dados: &DiretorioDados) -> Result<Vec<String>, String> {
+    let config = Config::ler(dados).map_err(|e| e.to_string())?;
+    let Some(base) = config.base() else {
+        return Ok(Vec::new());
+    };
+    let pasta = base.join(layout::TEMPLATES);
+    let Ok(itens) = fs::read_dir(&pasta) else {
+        return Ok(Vec::new());
+    };
+    let mut nomes: Vec<String> = itens
+        .flatten()
+        .filter(|e| e.file_type().is_ok_and(|t| t.is_file()))
+        .filter_map(|e| e.file_name().into_string().ok())
+        .filter(|n| n.ends_with(".md"))
+        .collect();
+    nomes.sort();
+    Ok(nomes)
+}
+
+/// Grava os entregáveis do projeto. Confere contra o catálogo e a existência
+/// dos templates escolhidos em `_templates/`, e passa para Personalizado o que
+/// não bate com a predefinição da metodologia. Devolve o que foi gravado.
+pub fn salvar_entregaveis(
+    dados: &DiretorioDados,
+    projeto: &str,
+    config: cba_index::Entregaveis,
+) -> Result<cba_index::Entregaveis, String> {
+    let mut p = cadastrado(dados, projeto)?;
+    let config = entregaveis::normalizar(config);
+    entregaveis::validar(&config).map_err(|e| e.to_string())?;
+    let existentes = templates_da_base(dados)?;
+    for t in &config.tipos {
+        if let Some(arquivo) = &t.template
+            && !existentes.contains(arquivo)
+        {
+            return Err(format!(
+                "o template {}/{arquivo} não existe na base",
+                layout::TEMPLATES
+            ));
+        }
+    }
+    p.entregaveis = Some(config);
+    Cadastro::em(dados.projetos())
+        .salvar(&p)
+        .map_err(|e| e.to_string())?;
+    let gravada = p.entregaveis.expect("acabou de ser gravada");
+    tracing::info!(
+        projeto = %p.id,
+        metodologia = ?gravada.metodologia,
+        tipos = gravada.tipos.len(),
+        "entregáveis do projeto"
+    );
+    Ok(gravada)
 }
 
 fn ajustado(dados: &DiretorioDados, ajuste: &AjusteLeitura) -> Result<cba_index::Projeto, String> {
@@ -1331,6 +1424,21 @@ pub async fn salvar_leitura_app(ajuste: AjusteLeitura) -> Result<ProjetoCadastra
 pub async fn salvar_mascarar_demanda_app(projeto: String, ligado: bool) -> Result<bool, String> {
     let dados = dados()?;
     bloqueante(move || salvar_mascarar_demanda(&dados, &projeto, ligado)).await
+}
+
+#[tauri::command]
+pub async fn entregaveis_projeto_app(projeto: String) -> Result<EntregaveisDoProjeto, String> {
+    let dados = dados()?;
+    bloqueante(move || entregaveis_do_projeto(&dados, &projeto)).await
+}
+
+#[tauri::command]
+pub async fn salvar_entregaveis_app(
+    projeto: String,
+    entregaveis: cba_index::Entregaveis,
+) -> Result<cba_index::Entregaveis, String> {
+    let dados = dados()?;
+    bloqueante(move || salvar_entregaveis(&dados, &projeto, entregaveis)).await
 }
 
 #[tauri::command]

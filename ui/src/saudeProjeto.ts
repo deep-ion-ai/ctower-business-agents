@@ -14,13 +14,14 @@ import {
  * quatro dizerem a mesma coisa.
  */
 export type AbaProjeto =
-  "geral" | "codigo" | "leitura" | "teste" | "agente" | "avancado";
+  "geral" | "codigo" | "leitura" | "teste" | "entregaveis" | "agente" | "avancado";
 
 export const ABAS_DO_PROJETO: { id: AbaProjeto; rotulo: string }[] = [
   { id: "geral", rotulo: "Saúde do cadastro" },
   { id: "codigo", rotulo: "Código e demandas" },
   { id: "leitura", rotulo: "O que é analisado" },
   { id: "teste", rotulo: "Ambiente de teste" },
+  { id: "entregaveis", rotulo: "Entregáveis" },
   { id: "agente", rotulo: "Agente" },
   { id: "avancado", rotulo: "Avançado" },
 ];
