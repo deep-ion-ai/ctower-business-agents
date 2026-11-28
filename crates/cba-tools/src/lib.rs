@@ -32,7 +32,10 @@
 //!   hospedado, #383) e [`mapear`]
 //!   (`iniciar_mapeamento`, `pontos_de_entrada`, `registrar_funcionalidade`,
 //!   `tratar_ponto_de_entrada` e `concluir_mapeamento`: o mapa de funcionalidades
-//!   do projeto, #208, fora das análises) e [`mudancas`]
+//!   do projeto, #208, fora das análises) e [`documentacao_do_mapa`]
+//!   (`iniciar_versao_inicial` e `registrar_versao_inicial`: a versão inicial
+//!   de um documento vivo da funcionalidade, por engenharia reversa, #462) e
+//!   [`mudancas`]
 //!   (`relatorio_de_mudancas` e `propor_atualizacao_de_regra`: o que mudou no
 //!   código desde a última análise e a explicação por regra, #124) e [`tokens`]
 //!   (`tokens_css`: os tokens CSS do projeto para o protótipo de telas, #384).
@@ -106,6 +109,7 @@ pub mod dados_pessoais;
 pub mod diagramas;
 pub mod docs_externos;
 pub mod documentacao;
+pub mod documentacao_do_mapa;
 pub mod documento;
 pub mod documentos_vivos;
 pub mod editavel;
@@ -206,6 +210,8 @@ pub fn registro_padrao() -> Registro {
         .registrar(mapear::tratar_ponto_de_entrada())
         .registrar(mapear::propor_vinculo_de_issue())
         .registrar(mapear::concluir_mapeamento())
+        .registrar(documentacao_do_mapa::iniciar_versao_inicial())
+        .registrar(documentacao_do_mapa::registrar_versao_inicial())
         .registrar(mudancas::relatorio_de_mudancas())
         .registrar(mudancas::propor_atualizacao_de_regra())
         .registrar(tokens::tokens_css())
@@ -271,6 +277,8 @@ mod tests {
             "tratar_ponto_de_entrada",
             "propor_vinculo_de_issue",
             "concluir_mapeamento",
+            "iniciar_versao_inicial",
+            "registrar_versao_inicial",
             "relatorio_de_mudancas",
             "propor_atualizacao_de_regra",
             "tokens_css",
@@ -326,6 +334,11 @@ mod tests {
                 .e_somente_leitura()
         );
         assert!(
+            !r.obter("registrar_versao_inicial")
+                .unwrap()
+                .e_somente_leitura()
+        );
+        assert!(
             !r.obter("propor_atualizacao_de_regra")
                 .unwrap()
                 .e_somente_leitura()
@@ -355,6 +368,7 @@ mod tests {
             "iniciar_mapeamento",
             "pontos_de_entrada",
             "concluir_mapeamento",
+            "iniciar_versao_inicial",
             "relatorio_de_mudancas",
             "tokens_css",
         ] {

@@ -7,10 +7,11 @@ use std::sync::Arc;
 
 use crate::{
     acessos, alteracoes, ambiente_teste, analise, base, clones, cobertura, conducao, conexoes,
-    configuracoes, consultas, conversa, demandas, docs_externos, funcionalidades, inicio,
-    issues_projeto, links_projeto, manual, migracao_conexoes, mudancas, painel_funcionalidade,
-    pauta, primeiro_uso, projeto, prompts, prototipo, publicacao, rastreabilidade, registros,
-    repositorios, resumo, reunioes, revisao, terminal, tokens, vigia, vincular_issues, workflows,
+    configuracoes, consultas, conversa, demandas, docs_externos, documentacao_do_mapa,
+    funcionalidades, inicio, issues_projeto, links_projeto, manual, migracao_conexoes, mudancas,
+    painel_funcionalidade, pauta, primeiro_uso, projeto, prompts, prototipo, publicacao,
+    rastreabilidade, registros, repositorios, resumo, reunioes, revisao, terminal, tokens, vigia,
+    vincular_issues, workflows,
 };
 
 pub fn rodar() {
@@ -119,6 +120,13 @@ pub fn rodar() {
             funcionalidades::explicar_funcionalidade_app,
             funcionalidades::exportar_mapa_projeto,
             funcionalidades::religar_funcionalidades_app,
+            documentacao_do_mapa::documentacao_do_mapa_app,
+            documentacao_do_mapa::gerar_versoes_iniciais_app,
+            documentacao_do_mapa::proposta_documento_vivo_app,
+            documentacao_do_mapa::marcar_documento_vivo_revisado_app,
+            documentacao_do_mapa::publicar_documento_vivo_app,
+            documentacao_do_mapa::propor_atualizacao_documento_vivo_app,
+            documentacao_do_mapa::descartar_proposta_documento_vivo_app,
             prototipo::html_da_tela_prototipo_app,
             prototipo::exportar_prototipo_app,
             tokens::tokens_css_projeto,
