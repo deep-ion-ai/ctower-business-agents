@@ -438,6 +438,7 @@ pub fn rotulo_do_tipo(tipo: TipoDocumento) -> &'static str {
         T::DocExterno => "Documento externo",
         T::Manual => "Manual do usuário",
         T::Prototipo => "Protótipo de telas",
+        T::Entregavel => "Entregável",
     }
 }
 

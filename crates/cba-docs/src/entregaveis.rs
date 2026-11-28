@@ -175,6 +175,99 @@ impl TipoEntregavel {
     }
 }
 
+/// Campos que viram o título do item, não uma seção.
+const CAMPOS_DO_TITULO: [&str; 2] = ["titulo", "funcionalidade"];
+
+impl TipoEntregavel {
+    /// O item em Markdown, montado pelo app a partir dos campos já validados
+    /// ([`TipoEntregavel::validar_campos`]), sem IA: o título (o campo `titulo`,
+    /// a funcionalidade ou o nome do tipo) num cabeçalho de nível `nivel`, cada
+    /// campo preenchido na ordem do esquema (a linha como "**Rótulo:** valor", o
+    /// texto longo e a lista numa seção) e, no fim, as regras de origem com o
+    /// título de cada uma (`regras`: id e título, na ordem citada).
+    pub fn markdown_do_item(
+        &self,
+        campos: &Value,
+        regras: &[(String, String)],
+        nivel: usize,
+    ) -> String {
+        let nivel = nivel.clamp(1, 5);
+        let h = "#".repeat(nivel);
+        let sub = "#".repeat(nivel + 1);
+        let texto = |nome: &str| {
+            campos
+                .get(nome)
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|t| !t.is_empty())
+        };
+        let titulo = CAMPOS_DO_TITULO
+            .iter()
+            .find_map(|n| texto(n))
+            .unwrap_or(self.nome);
+        let mut partes = vec![format!("{h} {titulo}")];
+        for c in self.campos {
+            if CAMPOS_DO_TITULO.contains(&c.nome) || c.tipo == TipoCampo::Regras {
+                continue;
+            }
+            match c.tipo {
+                TipoCampo::Texto => {
+                    if let Some(v) = texto(c.nome) {
+                        partes.push(format!("**{}:** {v}", c.rotulo));
+                    }
+                }
+                TipoCampo::TextoLongo => {
+                    if let Some(v) = texto(c.nome) {
+                        partes.push(format!("{sub} {}\n\n{v}", c.rotulo));
+                    }
+                }
+                TipoCampo::Lista | TipoCampo::Regras => {
+                    let itens: Vec<String> = campos
+                        .get(c.nome)
+                        .and_then(Value::as_array)
+                        .into_iter()
+                        .flatten()
+                        .filter_map(Value::as_str)
+                        .map(|i| {
+                            format!("- {}", i.split_whitespace().collect::<Vec<_>>().join(" "))
+                        })
+                        .collect();
+                    if !itens.is_empty() {
+                        partes.push(format!("{sub} {}\n\n{}", c.rotulo, itens.join("\n")));
+                    }
+                }
+            }
+        }
+        if !regras.is_empty() {
+            let linhas: Vec<String> = regras
+                .iter()
+                .map(|(id, titulo)| {
+                    if titulo.trim().is_empty() {
+                        format!("- {id}")
+                    } else {
+                        format!("- {id}: {}", titulo.trim())
+                    }
+                })
+                .collect();
+            partes.push(format!("{sub} {}\n\n{}", REGRAS.rotulo, linhas.join("\n")));
+        }
+        partes.join("\n\n")
+    }
+
+    /// Palavra do item no aviso de cobertura ("RN-FAT-005 sem história").
+    pub fn sem_item(&self) -> &'static str {
+        match self.id {
+            HISTORIA => "sem história",
+            EPICO => "fora do épico",
+            CASO_DE_USO => "fora do caso de uso",
+            CASOS_DE_TESTE => "sem caso de teste",
+            PROTOTIPO => "fora do protótipo",
+            MANUAL => "fora do manual",
+            _ => "sem item no entregável",
+        }
+    }
+}
+
 fn valor_do_tipo(c: &Campo, v: &Value) -> Result<(), String> {
     match c.tipo {
         TipoCampo::Texto | TipoCampo::TextoLongo => {
@@ -923,6 +1016,51 @@ mod tests {
             "gatilho"
         );
         assert!(uc.validar_campos(&json!([])).is_err());
+    }
+
+    #[test]
+    fn markdown_do_item_segue_o_esquema_sem_ia() {
+        let h = tipo(HISTORIA).unwrap();
+        let campos = json!({
+            "titulo": "Cancelar fatura em atraso",
+            "papel": "atendente",
+            "acao": "cancelar a fatura",
+            "beneficio": "corrigir a cobrança",
+            "criterios": ["A multa é\nrecalculada", "O cliente é avisado"],
+            "regras": ["RN-FAT-001"],
+        });
+        let regras = [("RN-FAT-001".to_owned(), "Multa de 2% ao mês".to_owned())];
+        assert_eq!(
+            h.markdown_do_item(&campos, &regras, 2),
+            "## Cancelar fatura em atraso\n\n\
+             **Como (papel):** atendente\n\n\
+             **Quero (ação):** cancelar a fatura\n\n\
+             **Para (benefício):** corrigir a cobrança\n\n\
+             ### Critérios de aceite\n\n- A multa é recalculada\n- O cliente é avisado\n\n\
+             ### Regras de origem\n\n- RN-FAT-001: Multa de 2% ao mês"
+        );
+        // Sem título, vale a funcionalidade ou o nome do tipo; opcionais vazios
+        // ficam de fora.
+        let uc = tipo(CASO_DE_USO).unwrap();
+        let texto = uc.markdown_do_item(
+            &json!({
+                "objetivo": "Cancelar.",
+                "atores": ["Atendente"],
+                "excecoes": [],
+                "fluxo_principal": ["Abre", "Cancela"],
+                "regras": []
+            }),
+            &[],
+            1,
+        );
+        assert!(texto.starts_with("# Especificação de caso de uso\n\n## Objetivo\n\nCancelar."));
+        assert!(!texto.contains("Exceções"));
+        assert!(!texto.contains("Regras de origem"));
+        assert_eq!(h.sem_item(), "sem história");
+        assert_eq!(
+            tipo(GLOSSARIO).unwrap().sem_item(),
+            "sem item no entregável"
+        );
     }
 
     #[test]

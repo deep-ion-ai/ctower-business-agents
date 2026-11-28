@@ -62,6 +62,13 @@ pub const ARQUIVO_TRAVA_MAPA: &str = ".mapa.trava";
 pub const ARQUIVO_ESTADO_DOCUMENTOS_VIVOS: &str = "documentos.estado.json";
 /// Trava do estado dos documentos vivos.
 pub const ARQUIVO_TRAVA_DOCUMENTOS_VIVOS: &str = ".documentos.trava";
+/// Estado dos entregáveis gerados numa demanda (#463), dentro da pasta dela.
+pub const ARQUIVO_ESTADO_ENTREGAVEIS: &str = "entregaveis.estado.json";
+/// Trava do estado dos entregáveis da demanda.
+pub const ARQUIVO_TRAVA_ENTREGAVEIS: &str = ".entregaveis.trava";
+/// Entregáveis publicados na base, dentro da pasta da demanda
+/// (`entregaveis/E-1-historia-usuario.md`).
+pub const ENTREGAVEIS: &str = "entregaveis";
 /// Estado do catálogo da primeira versão do #208, quando o mapa era aprovado por
 /// análise: só lido, para importar.
 pub const ARQUIVO_ESTADO_CATALOGO_LEGADO: &str = "catalogo.estado.json";
