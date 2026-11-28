@@ -8,11 +8,10 @@ use std::sync::Arc;
 use crate::{
     acessos, alteracoes, ambiente_teste, analise, base, clones, cobertura, conducao, conexoes,
     configuracoes, consultas, conversa, demandas, docs_externos, documentacao_do_mapa,
-    entregaveis_demanda,
-    funcionalidades, inicio, issues_projeto, links_projeto, manual, migracao_conexoes, mudancas,
-    painel_funcionalidade, pauta, primeiro_uso, projeto, prompts, prototipo, publicacao,
-    rastreabilidade, registros, repositorios, resumo, reunioes, revisao, terminal, tokens, vigia,
-    vincular_issues, workflows,
+    entregaveis_demanda, funcionalidades, inicio, issues_projeto, links_projeto, manual,
+    migracao_conexoes, mudancas, painel_funcionalidade, pauta, primeiro_uso, projeto, prompts,
+    prototipo, publicacao, rastreabilidade, registros, repositorios, resumo, reunioes, revisao,
+    terminal, tokens, vigia, vincular_issues, workflows,
 };
 
 pub fn rodar() {
