@@ -871,7 +871,7 @@ fn rotulo_situacao(f: &Funcionalidade) -> &'static str {
 }
 
 fn situacao_no_documento(f: &Funcionalidade) -> String {
-    if f.documento.is_some() {
+    if f.documento_negocial().is_some() {
         format!("{} · documentada", rotulo_situacao(f))
     } else {
         rotulo_situacao(f).to_owned()
@@ -887,7 +887,7 @@ fn bloco(f: &Funcionalidade, caminho: &CaminhoRelativo, demandas: &[cba_kb::Dema
         em_uma_linha(&f.descricao),
         situacao_no_documento(f)
     );
-    if let Some(d) = &f.documento {
+    if let Some(d) = f.documento_negocial() {
         let _ = write!(
             t,
             " · documento negocial: {}",
@@ -989,7 +989,7 @@ pub fn textos_com_demandas(
                 );
                 area_atual = Some(f.area_nome.as_str());
             }
-            let nome = match &f.documento {
+            let nome = match f.documento_negocial() {
                 Some(d) => cba_docs::link(&f.nome, caminho, d),
                 None => f.nome.clone(),
             };

@@ -107,6 +107,7 @@ pub mod diagramas;
 pub mod docs_externos;
 pub mod documentacao;
 pub mod documento;
+pub mod documentos_vivos;
 pub mod editavel;
 pub mod estrutura;
 pub mod evidencias;

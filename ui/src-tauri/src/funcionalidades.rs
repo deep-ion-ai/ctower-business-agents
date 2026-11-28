@@ -186,7 +186,7 @@ pub(crate) fn vista_da(
         situacao: f.situacao,
         juntada_em: f.juntada_em.as_ref().map(ToString::to_string),
         editada: f.editada,
-        documento: f.documento.as_ref().map(|d| kb.na_base(d).to_string()),
+        documento: f.documento_negocial().map(|d| kb.na_base(d).to_string()),
         explicacao: explicacoes.get(&f.id).map(AnaliseResumo::from),
         sem_ponto_de_entrada: chaves.is_some_and(|c| mapear::sem_ponto_de_entrada(f, c)),
         com_manual: false,
@@ -251,7 +251,10 @@ fn vista(
         fechadas,
         total: mapa.abertas().count(),
         pendentes: mapa.pendentes(),
-        documentadas: mapa.abertas().filter(|f| f.documento.is_some()).count(),
+        documentadas: mapa
+            .abertas()
+            .filter(|f| f.documento_negocial().is_some())
+            .count(),
         justificados: mapa
             .pontos_justificados
             .iter()

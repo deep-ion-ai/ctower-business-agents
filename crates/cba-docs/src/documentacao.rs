@@ -517,9 +517,7 @@ impl<'a> Gerador<'a> {
                         m.funcionalidades
                             .iter()
                             .filter(|f| {
-                                f.documento
-                                    .as_ref()
-                                    .is_some_and(|d| d.as_str() == n.caminho)
+                                f.documentos.iter().any(|d| d.caminho.as_str() == n.caminho)
                             })
                             .map(|f| f.id.to_string()),
                     );

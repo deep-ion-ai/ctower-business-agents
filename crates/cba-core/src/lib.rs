@@ -48,6 +48,7 @@ pub mod config;
 pub mod consultas;
 pub mod dados;
 pub mod diagramas;
+pub mod documentos_vivos;
 pub mod eventos;
 pub mod funcionalidades;
 pub mod historias;
