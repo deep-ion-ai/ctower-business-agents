@@ -45,6 +45,7 @@ mod consultas;
 mod conversa;
 mod demandas;
 mod docs_externos;
+mod documentacao_do_mapa;
 mod funcionalidades;
 mod gui;
 mod inicio;

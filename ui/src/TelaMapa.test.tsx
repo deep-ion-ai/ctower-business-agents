@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ApiAnalise, AvisoAnalise } from "./analise";
 import type { ApiMapa } from "./funcionalidades";
+import { apiDocumentacaoFalsa, linha, tabelaDe } from "./test/documentacaoFalsa";
 import { apiFalsa, MAPA } from "./test/mapaFalso";
 import { TelaMapa } from "./TelaMapa";
 import type { ApiTerminal } from "./terminal";
@@ -55,6 +56,43 @@ function abrir(
 }
 
 describe("TelaMapa", () => {
+  it("a aba Documentação mostra a tabela dos documentos vivos e a cobertura por tipo (#462)", async () => {
+    const { api: apiDocumentacao } = apiDocumentacaoFalsa(
+      tabelaDe([linha("F-CAN-001", "Cancelar fatura"), linha("F-COB-001", "Calcular encargos")]),
+    );
+    render(
+      <TelaMapa
+        projetos={PROJETOS as never}
+        api={apiFalsa()}
+        apiAnalise={analiseFalsa().api}
+        apiDocumentacao={apiDocumentacao}
+        criarTela={() => telaFalsa() as never}
+        navegar={vi.fn()}
+      />,
+    );
+    const aba = await screen.findByRole("tab", { name: "Documentação" });
+    expect(screen.getByRole("tab", { name: "Funcionalidades" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.queryByRole("table", { name: "Documentação por funcionalidade" })).toBeNull();
+    fireEvent.click(aba);
+    expect(aba).toHaveAttribute("aria-selected", "true");
+    expect(
+      await screen.findByRole("table", { name: "Documentação por funcionalidade" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Cobertura por tipo" })).toHaveTextContent(
+      "Especificação de caso de uso0 de 2 funcionalidades",
+    );
+    expect(apiDocumentacao.tabela).toHaveBeenCalledWith("faturamento-exemplo");
+    // O nome da funcionalidade abre o painel dela.
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar fatura" }));
+    expect(
+      await screen.findByRole("button", { name: "← Todas as funcionalidades" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("tablist", { name: "Visão" })).toBeNull();
+  });
+
   it("o vínculo das demandas vive na área Demandas: o Mapa não tem mais o botão (#323)", async () => {
     const api = apiFalsa();
     abrir(api);

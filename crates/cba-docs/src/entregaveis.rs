@@ -130,6 +130,12 @@ pub struct ErroCampo {
 }
 
 impl TipoEntregavel {
+    /// Documento vivo de uma funcionalidade do mapa: uma coluna da visão
+    /// "Documentação" do mapa (#462). O glossário é vivo, mas pertence à área.
+    pub fn da_funcionalidade(&self) -> bool {
+        self.ciclo == CicloDeVida::Vivo && self.id != GLOSSARIO
+    }
+
     pub fn campo(&self, nome: &str) -> Option<&'static Campo> {
         self.campos.iter().find(|c| c.nome == nome)
     }
@@ -508,6 +514,16 @@ pub fn tipo(id: &str) -> Option<&'static TipoEntregavel> {
     CATALOGO.iter().find(|t| t.id == id)
 }
 
+/// Os tipos habilitados no projeto que são documentos vivos de uma
+/// funcionalidade, na ordem do catálogo: as colunas da visão "Documentação" do
+/// mapa (#462).
+pub fn vivos_da_funcionalidade(e: &Entregaveis) -> Vec<&'static TipoEntregavel> {
+    CATALOGO
+        .iter()
+        .filter(|t| t.da_funcionalidade() && e.habilitado(t.id).is_some())
+        .collect()
+}
+
 /// Tipos e tipo padrão de uma predefinição.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -805,6 +821,35 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn vivos_da_funcionalidade_sao_as_colunas_do_mapa() {
+        let ids = |e: &Entregaveis| -> Vec<&str> {
+            vivos_da_funcionalidade(e).iter().map(|t| t.id).collect()
+        };
+        // RUP: o glossário é da área e o protótipo é por demanda.
+        let rup = predefinicao(Metodologia::Rup).unwrap().entregaveis();
+        assert_eq!(
+            ids(&rup),
+            [CASO_DE_USO, CATALOGO_REGRAS, ESPECIFICACAO_SUPLEMENTAR]
+        );
+        // Com o manual habilitado, ele entra na ordem do catálogo.
+        let mut com_manual = rup.clone();
+        com_manual.tipos.push(TipoHabilitado::novo(MANUAL));
+        assert_eq!(
+            ids(&com_manual),
+            [
+                CASO_DE_USO,
+                CATALOGO_REGRAS,
+                ESPECIFICACAO_SUPLEMENTAR,
+                MANUAL
+            ]
+        );
+        let agil = predefinicao(Metodologia::Agil).unwrap().entregaveis();
+        assert_eq!(ids(&agil), [CENARIOS_FEATURE]);
+        assert_eq!(ids(&LEGADO.entregaveis()), [MANUAL, DOCUMENTO_NEGOCIAL]);
+        assert!(!tipo(GLOSSARIO).unwrap().da_funcionalidade());
     }
 
     #[test]
