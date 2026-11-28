@@ -274,6 +274,15 @@ pub fn aprovar_analise(
     let kb = base.projeto(projeto)?;
     let analises = Analises::new(kb, Arc::new(DiarioEventos::do_diretorio(dados)));
     let mut aprovacao = aprovar(&base, &analises, id, opcoes)?;
+    // O aviso da aprovação (estado da análise) sai antes de as regras, os termos e o
+    // documento negocial chegarem à base e ao mapa: a tela que relê o mapa naquele
+    // aviso fica sem o vínculo. Avisa de novo, pelo mapa, depois de tudo gravado (#499).
+    if aprovacao.documento_negocial.is_some() || !aprovacao.funcionalidades.is_empty() {
+        match MapaFuncionalidades::carregar(analises.projeto()) {
+            Ok(mapa) => crate::mapear::notificar(dados, projeto, mapa.versao),
+            Err(_) => tracing::warn!("mapa ilegível: o app não foi avisado da aprovação"),
+        }
+    }
     let sincronizado =
         Indice::abrir(dados.arquivo_do_indice(), &base).and_then(|mut i| i.sincronizar());
     if let Err(e) = sincronizado {
