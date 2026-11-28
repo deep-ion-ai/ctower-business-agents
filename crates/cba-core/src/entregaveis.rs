@@ -396,9 +396,23 @@ impl Entregavel {
         agora_ms: u64,
     ) -> Result<&Envio, ErroEntregavel> {
         self.conferir_envio()?;
+        let versao = self.atual().versao;
+        self.registrar_envio_feito(destino, onde, versao, por, agora_ms)
+    }
+
+    /// Registra o envio da versão `versao`, conferida com [`Self::conferir_envio`]
+    /// antes do envio. Não confere de novo: o envio já aconteceu, e um item ou
+    /// uma edição que chegou nesse meio-tempo (e tirou a revisão) não o desfaz.
+    pub fn registrar_envio_feito(
+        &mut self,
+        destino: Destino,
+        onde: &str,
+        versao: u32,
+        por: &str,
+        agora_ms: u64,
+    ) -> Result<&Envio, ErroEntregavel> {
         let onde = exigir("onde", onde)?;
         let por = exigir("por", por)?;
-        let versao = self.atual().versao;
         self.envios.push(Envio {
             destino,
             onde,

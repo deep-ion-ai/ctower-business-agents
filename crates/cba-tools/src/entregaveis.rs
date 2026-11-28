@@ -1073,8 +1073,17 @@ fn registrar(
         documento = Some(registrada.caminho);
     }
 
+    let rascunho = e.atual().versao;
     let (estado, item) = EntregaveisDaDemanda::alterar(&ambiente.kb, &lida.pasta, |d, agora| {
         let alvo = d.entregavel_mut(numero)?;
+        // "Gerar de novo" no meio do registro: o item era do rascunho anterior.
+        if alvo.atual().versao != rascunho {
+            return Err(ErroFerramenta::Recusa(format!(
+                "o analista gerou de novo o entregável E-{numero} (agora no rascunho v{}); \
+                 chame iniciar_entregavel de novo e registre sobre o rascunho atual",
+                alvo.atual().versao
+            )));
+        }
         let item = alvo.registrar_item(
             NovoItem {
                 campos,
@@ -1167,12 +1176,16 @@ pub fn marcar_revisado(
     numero: u32,
     por: &str,
 ) -> Result<Entregavel, ErroFerramenta> {
+    // A proposta primeiro: se ela foi descartada ou publicada (na visão
+    // Documentação do mapa), o entregável não fica revisado com "Publicar"
+    // habilitado sem nada a publicar.
+    let (_, atual) = carregar(ambiente, demanda_id, numero)?;
+    if let Some(c) = &atual.documento {
+        documentos_vivos::marcar_revisada(ambiente, c, por)?;
+    }
     let (e, ()) = alterar_entregavel(ambiente, demanda_id, numero, |e, agora| {
         Ok(e.marcar_revisado(por, agora)?)
     })?;
-    if let Some(c) = &e.documento {
-        documentos_vivos::marcar_revisada(ambiente, c, por)?;
-    }
     Ok(e)
 }
 
@@ -1199,6 +1212,7 @@ pub fn exportar(
 ) -> Result<Entregavel, ErroFerramenta> {
     let (_, atual) = carregar(ambiente, demanda_id, numero)?;
     atual.conferir_envio()?;
+    let versao = atual.atual().versao;
     let destino = if destino.extension().is_some_and(|e| e == "md") {
         destino.to_path_buf()
     } else {
@@ -1236,7 +1250,7 @@ pub fn exportar(
     })?;
     let onde = destino.display().to_string();
     let (e, _) = alterar_entregavel(ambiente, demanda_id, numero, |e, agora| {
-        e.registrar_envio(Destino::Exportar, &onde, por, agora)?;
+        e.registrar_envio_feito(Destino::Exportar, &onde, versao, por, agora)?;
         Ok(())
     })?;
     Ok(e)
@@ -1268,6 +1282,7 @@ pub fn publicar(
 ) -> Result<Entregavel, ErroFerramenta> {
     let (lida, atual) = carregar(ambiente, demanda_id, numero)?;
     atual.conferir_envio()?;
+    let versao = atual.atual().versao;
     let t = tipo_do_catalogo(&atual.tipo)?;
     let onde = if let Some(c) = &atual.documento {
         let p = documentos_vivos::publicar(ambiente, c)?;
@@ -1292,7 +1307,7 @@ pub fn publicar(
         caminho.to_string()
     };
     let (e, _) = alterar_entregavel(ambiente, demanda_id, numero, |e, agora| {
-        e.registrar_envio(Destino::RepositorioDocs, &onde, por, agora)?;
+        e.registrar_envio_feito(Destino::RepositorioDocs, &onde, versao, por, agora)?;
         Ok(())
     })?;
     Ok(e)
@@ -1318,6 +1333,7 @@ pub fn preparar_comentario(
 ) -> Result<(Entregavel, ComentarioPreparado), ErroFerramenta> {
     let (lida, atual) = carregar(ambiente, demanda_id, numero)?;
     atual.conferir_envio()?;
+    let versao = atual.atual().versao;
     let f = &lida.documento.frontmatter;
     let link = f
         .origem
@@ -1334,7 +1350,7 @@ pub fn preparar_comentario(
         chave,
     };
     let (e, _) = alterar_entregavel(ambiente, demanda_id, numero, |e, agora| {
-        e.registrar_envio(Destino::ComentarioRastreador, &onde, por, agora)?;
+        e.registrar_envio_feito(Destino::ComentarioRastreador, &onde, versao, por, agora)?;
         Ok(())
     })?;
     Ok((e, comentario))

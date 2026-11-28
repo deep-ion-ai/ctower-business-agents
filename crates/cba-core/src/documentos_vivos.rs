@@ -324,6 +324,15 @@ pub enum ErroDocumento {
         dono: Dono,
         existente: CaminhoRelativo,
     },
+    #[error(
+        "a proposta {versao} de `{caminho}` está pendente e veio {origem}; publique ou \
+         descarte essa proposta antes de propor outra"
+    )]
+    PropostaDeOutraOrigem {
+        caminho: CaminhoRelativo,
+        versao: Versao,
+        origem: String,
+    },
     #[error("`{caminho}` já é o documento `{tipo}` de {dono}")]
     CaminhoEmUso {
         caminho: CaminhoRelativo,
@@ -419,12 +428,27 @@ impl DocumentoVivo {
     }
 
     /// Registra (ou refaz) a proposta da versão seguinte sobre a publicada. Uma
-    /// proposta pendente é substituída e volta a rascunho ("Gerar de novo").
+    /// proposta pendente da mesma origem (a mesma demanda, ou o mapa e as
+    /// explicações, sem demanda) é substituída e volta a rascunho ("Gerar de
+    /// novo"); a de outra origem é recusada, para uma demanda não apagar o
+    /// trabalho de outra.
     pub fn propor(
         &mut self,
         nova: NovaProposta,
         agora_ms: u64,
     ) -> Result<&Proposta, ErroDocumento> {
+        if let Some(p) = &self.proposta
+            && p.demanda != nova.demanda
+        {
+            return Err(ErroDocumento::PropostaDeOutraOrigem {
+                caminho: self.caminho.clone(),
+                versao: p.versao,
+                origem: p.demanda.as_ref().map_or_else(
+                    || "do mapa ou de uma explicação".to_owned(),
+                    |d| format!("da demanda {d}"),
+                ),
+            });
+        }
         let texto = sem_historico(&exigir("texto", &nova.texto)?);
         let mudancas = exigir("mudancas", &nova.mudancas)?;
         let base = self.versao_publicada();
@@ -813,6 +837,26 @@ impl DocumentosVivos {
             .filter(move |d| matches!(&d.dono, Dono::Funcionalidade(f) if f == id))
     }
 
+    /// Junção de funcionalidades no mapa: os documentos de `origem` passam a ser
+    /// de `destino` nos tipos que o destino ainda não tem (como os vínculos do
+    /// mapa). Devolve quantos mudaram de dono.
+    pub fn transferir(&mut self, origem: &IdFuncionalidade, destino: &IdFuncionalidade) -> usize {
+        let de = Dono::Funcionalidade(origem.clone());
+        let para = Dono::Funcionalidade(destino.clone());
+        let mut n = 0;
+        for i in 0..self.documentos.len() {
+            if self.documentos[i].dono != de {
+                continue;
+            }
+            let tipo = self.documentos[i].tipo.clone();
+            if self.do_dono(&tipo, &para).is_none() {
+                self.documentos[i].dono = para.clone();
+                n += 1;
+            }
+        }
+        n
+    }
+
     fn documento_mut(
         &mut self,
         caminho: &CaminhoRelativo,
@@ -1051,6 +1095,68 @@ mod tests {
     }
 
     const CASO: &str = "caso-de-uso";
+
+    #[test]
+    fn transferir_passa_os_documentos_que_o_destino_nao_tem() {
+        let outra = IdFuncionalidade::novo("FAT", 2).unwrap();
+        let negocial =
+            CaminhoRelativo::novo("funcionalidades/cobranca/cancelar-fatura/negocial.md").unwrap();
+        let mut docs = DocumentosVivos::default();
+        docs.documentos.push(caso_de_uso_v13());
+        docs.documentos.push(DocumentoVivo::novo(
+            "documento-negocial",
+            dono(),
+            negocial,
+            1,
+        ));
+        let do_destino =
+            CaminhoRelativo::novo("funcionalidades/cobranca/outra/negocial.md").unwrap();
+        let destino = Dono::Funcionalidade(outra.clone());
+        docs.documentos.push(DocumentoVivo::novo(
+            "documento-negocial",
+            destino.clone(),
+            do_destino.clone(),
+            1,
+        ));
+        let origem = IdFuncionalidade::novo("FAT", 1).unwrap();
+        assert_eq!(docs.transferir(&origem, &outra), 1);
+        let caso = docs.do_dono(CASO, &destino).unwrap();
+        assert_eq!(caso.versao_publicada(), Some(Versao::nova(1, 3)));
+        assert_eq!(
+            docs.do_dono("documento-negocial", &destino)
+                .unwrap()
+                .caminho,
+            do_destino
+        );
+        assert!(docs.do_dono("documento-negocial", &dono()).is_some());
+    }
+
+    #[test]
+    fn proposta_de_outra_origem_nao_e_substituida() {
+        let mut d = caso_de_uso_v13();
+        let nova = |texto: &str, demanda: Option<IdDemanda>| NovaProposta {
+            texto: format!("{V13}\n\n{texto}"),
+            mudancas: "muda".into(),
+            demanda,
+            ..Default::default()
+        };
+        d.propor(nova("da D-0010", Some(demanda(10))), 20).unwrap();
+        d.marcar_revisada("Ana", 21).unwrap();
+        // Outra demanda, ou o mapa e as explicações, não apagam a proposta.
+        for outra in [Some(demanda(11)), None] {
+            let erro = d.propor(nova("de outra", outra), 22).unwrap_err();
+            assert!(
+                matches!(erro, ErroDocumento::PropostaDeOutraOrigem { .. }),
+                "{erro}"
+            );
+            assert!(erro.to_string().contains("da demanda D-0010"), "{erro}");
+        }
+        let p = d.proposta.as_ref().unwrap();
+        assert!(p.texto.ends_with("da D-0010") && p.revisada.is_some());
+        // A mesma demanda gera de novo, e a proposta volta a rascunho.
+        let p = d.propor(nova("de novo", Some(demanda(10))), 23).unwrap();
+        assert!(p.texto.ends_with("de novo") && p.revisada.is_none());
+    }
 
     #[test]
     fn versao_le_escreve_e_sobe() {

@@ -241,6 +241,9 @@ export function acaoDoDestino(e: Pick<EntregavelVisto, "ciclo" | "destino" | "pr
   }
 }
 
-/** Pode enviar ou publicar: só depois da revisão final. */
-export const podeEnviar = (e: Pick<EntregavelVisto, "situacao">) =>
-  e.situacao === "revisado" || e.situacao === "enviado";
+/**
+ * Pode enviar ou publicar: só depois da revisão final. No vivo, só com a
+ * proposta pendente: publicada a versão, não há mais o que publicar.
+ */
+export const podeEnviar = (e: Pick<EntregavelVisto, "situacao" | "ciclo" | "proposta">) =>
+  (e.situacao === "revisado" || e.situacao === "enviado") && (e.ciclo !== "vivo" || !!e.proposta);

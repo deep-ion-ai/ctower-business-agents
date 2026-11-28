@@ -461,10 +461,12 @@ fn prefixo_das_etapas(campo: &str) -> Option<&'static str> {
 /// numera.
 fn sem_numeracao(etapa: &str, prefixo: Option<&str>) -> String {
     let mut resto = etapa.trim_start();
+    let mut tinha_prefixo = false;
     if let Some(p) = prefixo
         && let Some(r) = resto.strip_prefix(p)
     {
-        resto = r;
+        resto = r.trim_start();
+        tinha_prefixo = true;
     }
     let digitos = resto.len() - resto.trim_start_matches(|c: char| c.is_ascii_digit()).len();
     if digitos == 0 {
@@ -474,8 +476,8 @@ fn sem_numeracao(etapa: &str, prefixo: Option<&str>) -> String {
     let pontuado = depois
         .trim_start()
         .starts_with(['.', ')', ':', '-', '—', '–']);
-    if !pontuado && prefixo.is_none() {
-        // "3 parcelas..." não é numeração.
+    if !pontuado && !tinha_prefixo {
+        // "3 parcelas..." não é numeração, nem nos FA e FE sem o prefixo.
         return etapa.trim().to_owned();
     }
     depois
@@ -1420,6 +1422,12 @@ mod tests {
         );
         assert_eq!(sem_numeracao("FE1: Recusa", Some("FE")), "Recusa");
         assert_eq!(sem_numeracao("Recusa PF", Some("FE")), "Recusa PF");
+        assert_eq!(
+            sem_numeracao("3 tentativas bloqueiam a conta", Some("FE")),
+            "3 tentativas bloqueiam a conta"
+        );
+        assert_eq!(sem_numeracao("2. Recusa", Some("FE")), "Recusa");
+        assert_eq!(sem_numeracao("FE 1 Recusa", Some("FE")), "Recusa");
     }
 
     #[test]

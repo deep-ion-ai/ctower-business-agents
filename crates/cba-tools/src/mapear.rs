@@ -283,7 +283,11 @@ pub fn revisar_mapa(
     revisao: RevisaoDoMapa,
 ) -> Result<Alterado<Option<IdFuncionalidade>>, ErroAlteracaoMapa> {
     let areas = areas_do_projeto(kb);
-    alterar_no_projeto(base, kb, dados, |m, agora| match revisao {
+    let juncao = match &revisao {
+        RevisaoDoMapa::Juntar { origem, destino } => Some((origem.clone(), destino.clone())),
+        _ => None,
+    };
+    let alterado = alterar_no_projeto(base, kb, dados, |m, agora| match revisao {
         RevisaoDoMapa::Decidir {
             funcionalidade,
             decisao,
@@ -329,7 +333,18 @@ pub fn revisar_mapa(
         } => m
             .ligar_demanda(&funcionalidade, demanda, ligar)
             .map(|_| None),
-    })
+    })?;
+    // Os documentos vivos da origem seguem os vínculos que o destino herdou;
+    // sem isso, o destino não consegue propor versão do documento herdado.
+    if let Some((origem, destino)) = juncao
+        && let Err(e) = DocumentosVivos::alterar(kb, |docs, _| {
+            docs.transferir(&origem, &destino);
+            Ok::<_, cba_core::documentos_vivos::ErroArquivoDocumentos>(())
+        })
+    {
+        tracing::warn!("documentos vivos de {origem} não passaram para {destino}: {e}");
+    }
+    Ok(alterado)
 }
 
 // ---------------------------------------------------------------------------
