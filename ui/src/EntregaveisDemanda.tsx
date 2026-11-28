@@ -14,7 +14,7 @@ import {
   type Situacao,
   type TipoNaDemanda,
   type VistaEntregaveis,
-} from "./entregaveisDemanda";
+} from "./entregaveisDaDemanda";
 import { TerminalClaude } from "./TerminalClaude";
 import type { ApiTerminal } from "./terminal";
 import type { TelaTerminal } from "./telaXterm";

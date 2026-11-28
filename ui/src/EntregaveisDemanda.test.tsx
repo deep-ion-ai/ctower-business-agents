@@ -6,7 +6,7 @@ import {
   type ApiEntregaveisDemanda,
   type EntregavelVisto,
   type VistaEntregaveis,
-} from "./entregaveisDemanda";
+} from "./entregaveisDaDemanda";
 import type { ApiTerminal } from "./terminal";
 import { telaFalsa } from "./test/falsos";
 

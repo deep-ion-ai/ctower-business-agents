@@ -33,7 +33,7 @@ import {
 } from "./demandas";
 import { ROTULO_SESSAO } from "./DocumentoAoVivo";
 import { EntregaveisDemanda } from "./EntregaveisDemanda";
-import { apiEntregaveisDemandaTauri, type ApiEntregaveisDemanda } from "./entregaveisDemanda";
+import { apiEntregaveisDemandaTauri, type ApiEntregaveisDemanda } from "./entregaveisDaDemanda";
 import { contar } from "./formatacao";
 import { IconeReticencias } from "./icones";
 import { MatrizRastreabilidade } from "./MatrizRastreabilidade";
