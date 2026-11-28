@@ -122,6 +122,9 @@ pub fn aprovado(texto: &str) -> bool {
         // O manual do usuário (#272) leva os prints, que a documentação legível
         // ainda não publica: fica de fora até as páginas levarem as imagens.
         T::Manual => false,
+        // O entregável por demanda (#463) só é gravado na base depois da
+        // revisão final.
+        T::Entregavel => true,
     }
 }
 

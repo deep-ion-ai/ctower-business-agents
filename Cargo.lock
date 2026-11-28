@@ -566,6 +566,7 @@ dependencies = [
  "dunce",
  "serde",
  "serde_json",
+ "similar",
  "tempfile",
  "thiserror 2.0.21",
  "tracing",
@@ -578,6 +579,7 @@ name = "cba-docs"
 version = "0.12.0"
 dependencies = [
  "cba-core",
+ "cba-index",
  "cba-kb",
  "cba-repos",
  "pulldown-cmark",

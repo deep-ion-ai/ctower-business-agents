@@ -39,11 +39,14 @@ use std::fmt::Write as _;
 use cba_core::ambiente::Ambiente;
 use cba_core::analise::{Analise, Fluxo};
 use cba_core::analises::NovaAnalise;
+use cba_core::documentos_vivos::{
+    DocumentoVivo, DocumentosVivos, Dono, ErroDocumento, NovaProposta,
+};
 use cba_core::eventos::{ALVO_MAPA, DiarioEventos, Evento, Mudanca, Notificador};
 use cba_core::funcionalidades::{
     ErroAlteracaoMapa, ErroMapa, EscopoMapa, Funcionalidade, MapaFuncionalidades,
     MotivoSemFuncionalidade, NovaFuncionalidade, PontoAtribuido, PontoJustificado,
-    SituacaoFuncionalidade,
+    SituacaoFuncionalidade, TIPO_DOCUMENTO_NEGOCIAL,
 };
 use cba_docs::{
     Citacao, Conteudo, FUNCIONALIDADES_MAPEADAS, INDICE_CATALOGO, NAO_MAPEADOS, Templates, Texto,
@@ -280,7 +283,11 @@ pub fn revisar_mapa(
     revisao: RevisaoDoMapa,
 ) -> Result<Alterado<Option<IdFuncionalidade>>, ErroAlteracaoMapa> {
     let areas = areas_do_projeto(kb);
-    alterar_no_projeto(base, kb, dados, |m, agora| match revisao {
+    let juncao = match &revisao {
+        RevisaoDoMapa::Juntar { origem, destino } => Some((origem.clone(), destino.clone())),
+        _ => None,
+    };
+    let alterado = alterar_no_projeto(base, kb, dados, |m, agora| match revisao {
         RevisaoDoMapa::Decidir {
             funcionalidade,
             decisao,
@@ -326,7 +333,18 @@ pub fn revisar_mapa(
         } => m
             .ligar_demanda(&funcionalidade, demanda, ligar)
             .map(|_| None),
-    })
+    })?;
+    // Os documentos vivos da origem seguem os vínculos que o destino herdou;
+    // sem isso, o destino não consegue propor versão do documento herdado.
+    if let Some((origem, destino)) = juncao
+        && let Err(e) = DocumentosVivos::alterar(kb, |docs, _| {
+            docs.transferir(&origem, &destino);
+            Ok::<_, cba_core::documentos_vivos::ErroArquivoDocumentos>(())
+        })
+    {
+        tracing::warn!("documentos vivos de {origem} não passaram para {destino}: {e}");
+    }
+    Ok(alterado)
 }
 
 // ---------------------------------------------------------------------------
@@ -830,12 +848,51 @@ pub fn ligar_explicacao(
              análise"
         ));
     };
-    let pasta = layout::funcionalidade(&f.area, &f.nome).map_err(|e| e.to_string())?;
-    let destino = pasta.juntar(ARQUIVO_NEGOCIAL).map_err(|e| e.to_string())?;
     let corpo = kb
         .ler::<cba_kb::frontmatter::FrontmatterAnalise>(&analise.documento)
         .map_err(|e| e.to_string())?
         .corpo;
+    // O documento negocial é um documento vivo (#465): o negocial de antes do
+    // histórico entra como v1.0 e, com o documento vivo, a explicação nova é a
+    // proposta da versão seguinte, sem sobrescrever o publicado.
+    crate::documentos_vivos::importar_negociais(kb)?;
+    let dono = Dono::Funcionalidade(id.clone());
+    let vivo = DocumentosVivos::carregar(kb)
+        .map_err(|e| e.to_string())?
+        .do_dono(TIPO_DOCUMENTO_NEGOCIAL, &dono)
+        .map(|d| d.caminho.clone());
+    if let Some(caminho) = vivo {
+        let arquivos: Vec<String> = analise
+            .afirmacoes
+            .iter()
+            .flat_map(|a| &a.evidencias)
+            .map(|e| e.arquivo.as_str().to_owned())
+            .collect();
+        let nova = NovaProposta {
+            texto: corpo,
+            mudancas: format!("Explicação {} aprovada", analise.id),
+            demanda: None,
+            analise: Some(analise.id.clone()),
+            arquivos,
+        };
+        DocumentosVivos::alterar(kb, |docs, agora| {
+            match docs.propor(&caminho, nova, agora) {
+                // A explicação repete o texto publicado: nada a propor.
+                Ok(_) | Err(ErroDocumento::SemMudanca(_)) => Ok(()),
+                Err(e) => Err(ErroFerramenta::Recusa(e.to_string())),
+            }
+        })
+        .map_err(|e| e.to_string())?;
+        let (gravado, _) = MapaFuncionalidades::alterar(kb, |m, _| {
+            m.ligar_documento(id, &analise.id, caminho.clone());
+            Ok(())
+        })
+        .map_err(|e| e.to_string())?;
+        gravar_documento(base, kb, &gravado)?;
+        return Ok(Some(caminho));
+    }
+    let pasta = layout::funcionalidade(&f.area, &f.nome).map_err(|e| e.to_string())?;
+    let destino = pasta.juntar(ARQUIVO_NEGOCIAL).map_err(|e| e.to_string())?;
     let doc = Documento::novo(
         FrontmatterFuncionalidade {
             tipo: TipoDocumento::Funcionalidade,
@@ -848,7 +905,25 @@ pub fn ligar_explicacao(
         },
         corpo,
     );
+    let texto = doc.corpo.trim().to_owned();
     kb.gravar(&destino, &doc).map_err(|e| e.to_string())?;
+    DocumentosVivos::alterar(kb, |docs, agora| {
+        let mut v1 = DocumentoVivo::importado(
+            TIPO_DOCUMENTO_NEGOCIAL,
+            dono.clone(),
+            destino.clone(),
+            &texto,
+            &format!("Versão inicial, da explicação {}", analise.id),
+            cba_core::tempo::data_utc(agora),
+            agora,
+        );
+        if let Some(r) = v1.historico.first_mut() {
+            r.analise = Some(analise.id.clone());
+        }
+        docs.importar(v1)
+            .map_err(|e| ErroFerramenta::Recusa(e.to_string()))
+    })
+    .map_err(|e| e.to_string())?;
     let (gravado, _) = MapaFuncionalidades::alterar(kb, |m, _| {
         m.ligar_documento(id, &analise.id, destino.clone());
         Ok(())
@@ -871,7 +946,7 @@ fn rotulo_situacao(f: &Funcionalidade) -> &'static str {
 }
 
 fn situacao_no_documento(f: &Funcionalidade) -> String {
-    if f.documento.is_some() {
+    if f.documento_negocial().is_some() {
         format!("{} · documentada", rotulo_situacao(f))
     } else {
         rotulo_situacao(f).to_owned()
@@ -887,7 +962,7 @@ fn bloco(f: &Funcionalidade, caminho: &CaminhoRelativo, demandas: &[cba_kb::Dema
         em_uma_linha(&f.descricao),
         situacao_no_documento(f)
     );
-    if let Some(d) = &f.documento {
+    if let Some(d) = f.documento_negocial() {
         let _ = write!(
             t,
             " · documento negocial: {}",
@@ -989,7 +1064,7 @@ pub fn textos_com_demandas(
                 );
                 area_atual = Some(f.area_nome.as_str());
             }
-            let nome = match &f.documento {
+            let nome = match f.documento_negocial() {
                 Some(d) => cba_docs::link(&f.nome, caminho, d),
                 None => f.nome.clone(),
             };

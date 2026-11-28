@@ -11,6 +11,11 @@
 
 Cancelar uma fatura emitida, registrando motivo e responsável.
 
+## Atores
+
+- Atendente da retaguarda
+- Supervisor
+
 ## Gatilho
 
 O atendente pede o cancelamento de uma fatura emitida.
@@ -32,6 +37,10 @@ O atendente pede o cancelamento de uma fatura emitida.
 ## Exceções
 
 - **[confirmado]** Motivo do cancelamento com ao menos 10 caracteres (RN-FAT-013): O cancelamento exige motivo com ao menos 10 caracteres (desprezando espaços nas pontas). O motivo, a data e o usuário ficam gravados na fatura e no log.[^5][^6][^7]
+
+## Pós-condições
+
+- A fatura fica CANCELADA, com o motivo, a data e o responsável gravados.
 
 ## Regras de negócio
 

@@ -972,3 +972,77 @@ fn mascara_da_demanda_ligada_por_padrao_e_desligavel_por_projeto() {
     assert!(configuracoes(&c.dados, None).unwrap().projetos[0].mascarar_demanda);
     assert!(salvar_mascarar_demanda(&c.dados, "nao-existe", false).is_err());
 }
+
+#[test]
+fn entregaveis_projeto_antigo_abre_com_os_tipos_atuais_e_a_escolha_persiste() {
+    use cba_docs::entregaveis::{self as e, CASO_DE_USO, GLOSSARIO};
+    use cba_index::{Destino, Metodologia};
+
+    let c = cenario();
+    // O cadastro da fixture é anterior ao catálogo: sem a configuração.
+    assert!(cadastrado(&c.dados, PROJETO).unwrap().entregaveis.is_none());
+    let tela = entregaveis_do_projeto(&c.dados, PROJETO).unwrap();
+    assert!(!tela.configurada);
+    assert_eq!(tela.entregaveis, e::LEGADO.entregaveis());
+    assert_eq!(tela.catalogo.len(), e::CATALOGO.len());
+    let json = serde_json::to_value(&tela).unwrap();
+    assert_eq!(json["entregaveis"]["metodologia"], "personalizado");
+    assert_eq!(json["catalogo"][0]["ciclo"], "por_demanda");
+    assert_eq!(json["predefinicoes"][1]["metodologia"], "rup");
+    assert!(json["templatesDaBase"].is_array());
+
+    // RUP, com o glossário no repositório de documentação.
+    let mut rup = e::aplicar(&tela.entregaveis, Metodologia::Rup);
+    rup.tipos
+        .iter_mut()
+        .find(|t| t.tipo == GLOSSARIO)
+        .unwrap()
+        .destino = Destino::RepositorioDocs;
+    let gravada = salvar_entregaveis(&c.dados, PROJETO, rup.clone()).unwrap();
+    assert_eq!(gravada, rup);
+    let tela = entregaveis_do_projeto(&c.dados, PROJETO).unwrap();
+    assert!(tela.configurada);
+    assert_eq!(tela.entregaveis, rup);
+    assert_eq!(tela.entregaveis.padrao.as_deref(), Some(CASO_DE_USO));
+
+    // Tirar um tipo à mão grava Personalizado.
+    let mut sem_glossario = rup;
+    sem_glossario.tipos.retain(|t| t.tipo != GLOSSARIO);
+    let gravada = salvar_entregaveis(&c.dados, PROJETO, sem_glossario).unwrap();
+    assert_eq!(gravada.metodologia, Metodologia::Personalizado);
+    assert_eq!(
+        cadastrado(&c.dados, PROJETO).unwrap().entregaveis,
+        Some(gravada)
+    );
+}
+
+#[test]
+fn entregaveis_recusa_template_inexistente_e_metodologia_indisponivel() {
+    use cba_docs::entregaveis as e;
+    use cba_index::Metodologia;
+
+    let c = cenario();
+    let mut config = e::LEGADO.entregaveis();
+    config.tipos[0].template = Some("historias-empresa.md".into());
+    let erro = salvar_entregaveis(&c.dados, PROJETO, config.clone()).unwrap_err();
+    assert!(erro.contains("_templates/historias-empresa.md"), "{erro}");
+
+    // Com o arquivo na base, o template do projeto vale e aparece na lista.
+    let templates = base_atual(&c.dados).join(cba_kb::layout::TEMPLATES);
+    fs::create_dir_all(&templates).unwrap();
+    fs::write(templates.join("historias-empresa.md"), "# {{titulo}}\n").unwrap();
+    let tela = entregaveis_do_projeto(&c.dados, PROJETO).unwrap();
+    assert!(
+        tela.templates_da_base
+            .contains(&"historias-empresa.md".to_owned())
+    );
+    let gravada = salvar_entregaveis(&c.dados, PROJETO, config.clone()).unwrap();
+    assert_eq!(
+        gravada.tipos[0].template.as_deref(),
+        Some("historias-empresa.md")
+    );
+
+    config.metodologia = Metodologia::OrientadoAgentes;
+    assert!(salvar_entregaveis(&c.dados, PROJETO, config).is_err());
+    assert!(salvar_entregaveis(&c.dados, "nao-existe", e::LEGADO.entregaveis()).is_err());
+}

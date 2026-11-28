@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { CoberturaDoTipo } from "./documentacaoMapa";
 import type { Fluxo } from "./analise";
 
 /** Cobertura da base por área e por pasta (#125): conta, sem IA. */
@@ -50,6 +51,8 @@ export interface Cobertura {
   pastas: CoberturaPasta[];
   sugestao: SugestaoCobertura | null;
   totais: { regras: number; termos: number; documentos: number; aRevalidar: number };
+  /** Documentação por tipo vivo nas funcionalidades do mapa (#462); a do mapa mostra a mesma. */
+  porTipo?: CoberturaDoTipo[];
 }
 
 export interface ApiCobertura {

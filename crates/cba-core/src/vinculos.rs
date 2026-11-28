@@ -219,7 +219,7 @@ mod tests {
             situacao: SituacaoFuncionalidade::Aceita,
             juntada_em: None,
             editada: false,
-            documento: None,
+            documentos: Vec::new(),
             explicacao: None,
             demandas: vec![],
             sessao: None,

@@ -58,6 +58,17 @@ pub const ARQUIVO_MAPA: &str = "mapa.md";
 pub const ARQUIVO_ESTADO_MAPA: &str = "mapa.estado.json";
 /// Trava das alterações do estado do mapa (app e servidor MCP).
 pub const ARQUIVO_TRAVA_MAPA: &str = ".mapa.trava";
+/// Estado dos documentos vivos, em `funcionalidades/` (#461).
+pub const ARQUIVO_ESTADO_DOCUMENTOS_VIVOS: &str = "documentos.estado.json";
+/// Trava do estado dos documentos vivos.
+pub const ARQUIVO_TRAVA_DOCUMENTOS_VIVOS: &str = ".documentos.trava";
+/// Estado dos entregáveis gerados numa demanda (#463), dentro da pasta dela.
+pub const ARQUIVO_ESTADO_ENTREGAVEIS: &str = "entregaveis.estado.json";
+/// Trava do estado dos entregáveis da demanda.
+pub const ARQUIVO_TRAVA_ENTREGAVEIS: &str = ".entregaveis.trava";
+/// Entregáveis publicados na base, dentro da pasta da demanda
+/// (`entregaveis/E-1-historia-usuario.md`).
+pub const ENTREGAVEIS: &str = "entregaveis";
 /// Estado do catálogo da primeira versão do #208, quando o mapa era aprovado por
 /// análise: só lido, para importar.
 pub const ARQUIVO_ESTADO_CATALOGO_LEGADO: &str = "catalogo.estado.json";
@@ -154,6 +165,23 @@ pub fn estado_do_mapa() -> CaminhoRelativo {
 /// `funcionalidades/.mapa.trava`.
 pub fn trava_do_mapa() -> CaminhoRelativo {
     caminho(format!("{FUNCIONALIDADES}/{ARQUIVO_TRAVA_MAPA}")).expect("nome fixo válido")
+}
+
+/// `funcionalidades/documentos.estado.json`: os documentos vivos (#461), com as
+/// versões, a proposta pendente e o histórico de revisões.
+pub fn estado_dos_documentos_vivos() -> CaminhoRelativo {
+    caminho(format!(
+        "{FUNCIONALIDADES}/{ARQUIVO_ESTADO_DOCUMENTOS_VIVOS}"
+    ))
+    .expect("nome fixo válido")
+}
+
+/// `funcionalidades/.documentos.trava`.
+pub fn trava_dos_documentos_vivos() -> CaminhoRelativo {
+    caminho(format!(
+        "{FUNCIONALIDADES}/{ARQUIVO_TRAVA_DOCUMENTOS_VIVOS}"
+    ))
+    .expect("nome fixo válido")
 }
 
 /// `funcionalidades/catalogo.estado.json` (legado, só para importar).

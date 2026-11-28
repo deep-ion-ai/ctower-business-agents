@@ -407,6 +407,7 @@ pub fn executar_com(
         ata: None,
         transcript: None,
         mapa: None,
+        entregavel: None,
         publicacao: None,
         conducao: None,
         arquivos_alterados: Vec::new(),
@@ -599,6 +600,7 @@ pub fn executar_mapeamento(
         ata: None,
         transcript: None,
         mapa: None,
+        entregavel: None,
         publicacao: None,
         conducao: None,
         arquivos_alterados: Vec::new(),
@@ -678,6 +680,103 @@ pub fn executar_mapeamento(
     execucao
 }
 
+/// Roda um entregável da demanda (#464) uma vez e compara o item registrado
+/// com o gabarito. O entregável não é uma análise: o preparo deixa a demanda,
+/// a análise de impacto validada e (no caso de uso) a funcionalidade no mapa,
+/// "Gera" o entregável e o agente começa pelo prompt do app
+/// (`iniciar_entregavel`). O estado dos entregáveis da demanda fica em
+/// `pasta_saida`.
+pub fn executar_entregavel(
+    gabarito: &Gabarito,
+    entregavel: &crate::gabarito::Entregavel,
+    repeticao: u32,
+    opcoes: &Opcoes,
+    pasta_saida: &Path,
+) -> Execucao {
+    let mut execucao = Execucao {
+        fluxo: "entregaveis".to_owned(),
+        item: entregavel.id.clone(),
+        repeticao,
+        avaliacao: None,
+        ata: None,
+        transcript: None,
+        mapa: None,
+        entregavel: None,
+        publicacao: None,
+        conducao: None,
+        arquivos_alterados: Vec::new(),
+        claude: None,
+        erro: None,
+    };
+    if let Err(e) = fs::create_dir_all(pasta_saida) {
+        execucao.erro = Some(format!("pasta de saída: {e}"));
+        return execucao;
+    }
+    let (temporaria, raiz) = match temporaria() {
+        Ok(t) => t,
+        Err(e) => {
+            execucao.erro = Some(e);
+            return execucao;
+        }
+    };
+    let projeto = gabarito.raiz_do_projeto();
+    let preparado = (|| {
+        let mut p = preparar_projeto(&raiz, &projeto, None)?;
+        let ent = crate::entregaveis::preparar_entregavel(
+            &mut p.ambiente,
+            &p.dados,
+            gabarito,
+            &entregavel.esperado,
+        )?;
+        let (mcp, settings) = preparar_claude(&raiz, &p, &opcoes.cba)?;
+        Ok::<_, String>((
+            Preparado {
+                projeto: p,
+                pedido: ent.prompt.clone(),
+                mcp,
+                settings,
+                sessao: None,
+            },
+            ent,
+        ))
+    })();
+    let (preparado, ent) = match preparado {
+        Ok(p) => p,
+        Err(e) => {
+            execucao.erro = Some(e);
+            return execucao;
+        }
+    };
+    match rodar_claude(&preparado, opcoes, pasta_saida) {
+        Ok(saida) => execucao.claude = Some(SaidaClaude::do_json(&saida)),
+        Err(e) => execucao.erro = Some(e),
+    }
+    match pastas::diferencas(&projeto, &preparado.projeto.codigo) {
+        Ok(d) => execucao.arquivos_alterados = d,
+        Err(e) => execucao.erro = Some(format!("comparação da cópia: {e}")),
+    }
+    let ambiente = &preparado.projeto.ambiente;
+    if let Ok(lida) = ambiente.kb.demanda(ent.demanda) {
+        let estado = cba_core::entregaveis::arquivo_do_estado(&lida.pasta);
+        if let Ok(bytes) = fs::read(ambiente.kb.caminho(&estado)) {
+            let _ = fs::write(pasta_saida.join("entregaveis.estado.json"), bytes);
+        }
+    }
+    match crate::entregaveis::campos_registrados(ambiente, &ent) {
+        Ok(campos) => {
+            execucao.entregavel = Some(crate::entregaveis::avaliar_entregavel(
+                campos.as_ref(),
+                &entregavel.esperado,
+            ))
+        }
+        Err(e) => {
+            execucao.erro.get_or_insert(e);
+        }
+    }
+    manter_se_pedido(temporaria, opcoes, pasta_saida);
+    execucao
+}
+
 /// Falas do transcript da reunião do gabarito, lidas pelo mesmo parser do app.
 pub fn falas_da_reuniao(gabarito: &Gabarito, reuniao: &Reuniao) -> Result<Transcript, String> {
     let caminho = gabarito.transcript(reuniao);
@@ -718,6 +817,7 @@ pub fn executar_reuniao(
         ata: None,
         transcript: None,
         mapa: None,
+        entregavel: None,
         publicacao: None,
         conducao: None,
         arquivos_alterados: Vec::new(),
@@ -917,6 +1017,7 @@ pub fn executar_publicacao(
         ata: None,
         transcript: None,
         mapa: None,
+        entregavel: None,
         publicacao: None,
         conducao: None,
         arquivos_alterados: Vec::new(),

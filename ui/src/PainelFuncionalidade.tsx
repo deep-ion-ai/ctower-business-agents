@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { mensagemDe, type Fluxo } from "./analise";
 import { apiConhecimentoTauri, type ApiConhecimento } from "./conhecimento";
+import { useFluxosOcultos } from "./fluxosDoProjeto";
 import { contar } from "./formatacao";
 import {
   Alerta,
@@ -238,9 +239,12 @@ function NovaAnalise({
   fluxoInicial,
   demandaInicial,
   ocupado,
+  ocultos,
   aoCriar,
 }: {
   painel: Painel;
+  /** Fluxos que o projeto não oferece (#465). */
+  ocultos: Fluxo[];
   fluxoInicial: Fluxo | null;
   demandaInicial: string;
   ocupado: boolean;
@@ -270,7 +274,7 @@ function NovaAnalise({
     <Secao titulo="Nova análise para esta funcionalidade" nivel={3}>
       <p className="muted">A entrada já vem com a funcionalidade e os pontos de entrada.</p>
       <div className="novas-analises" role="group" aria-label="Fluxo">
-        {NOVAS.map((n) => {
+        {NOVAS.filter((n) => !ocultos.includes(n.fluxo)).map((n) => {
           const motivo = desabilitado(n.fluxo);
           return (
             <button
@@ -389,6 +393,7 @@ export function PainelFuncionalidade({
   const [aviso, setAviso] = useState<string | null>(null);
   const [ligar, setLigar] = useState("");
   const [releitura, setReleitura] = useState(0);
+  const fluxosOcultos = useFluxosOcultos(apiConhecimento, projeto);
 
   useEffect(() => {
     let vivo = true;
@@ -901,6 +906,7 @@ export function PainelFuncionalidade({
                   fluxoInicial={nova.fluxo}
                   demandaInicial={nova.demanda}
                   ocupado={ocupado}
+                  ocultos={fluxosOcultos}
                   aoCriar={criar}
                 />
               )}

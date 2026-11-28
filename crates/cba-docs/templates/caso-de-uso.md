@@ -3,9 +3,9 @@ Template do caso de uso. Este comentário inicial não vai para o documento.
 
 Marcadores de campo: {{titulo}}, {{area}}, {{tema}}, {{status}}, {{origem}}.
 
-Marcadores de seção: {{identificacao}}, {{objetivo}}, {{gatilho}},
+Marcadores de seção: {{identificacao}}, {{objetivo}}, {{atores}}, {{gatilho}},
 {{pre_condicoes}}, {{fluxo_principal}}, {{fluxos_alternativos}}, {{excecoes}},
-{{regras}}, {{evidencias}}.
+{{pos_condicoes}}, {{regras}}, {{evidencias}}.
 -->
 # Caso de uso: {{titulo}}
 
@@ -21,6 +21,10 @@ Marcadores de seção: {{identificacao}}, {{objetivo}}, {{gatilho}},
 ## Objetivo
 
 {{objetivo}}
+
+## Atores
+
+{{atores}}
 
 ## Gatilho
 
@@ -41,6 +45,10 @@ Marcadores de seção: {{identificacao}}, {{objetivo}}, {{gatilho}},
 ## Exceções
 
 {{excecoes}}
+
+## Pós-condições
+
+{{pos_condicoes}}
 
 ## Regras de negócio
 

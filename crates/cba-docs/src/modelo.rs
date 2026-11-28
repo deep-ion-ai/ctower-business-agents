@@ -193,11 +193,13 @@ pub const MODELOS: [Modelo; 15] = [
         secoes: &[
             s("identificacao", "Identificação"),
             s("objetivo", "Objetivo"),
+            s("atores", "Atores"),
             s("gatilho", "Gatilho"),
             s("pre_condicoes", "Pré-condições"),
             s("fluxo_principal", "Fluxo principal"),
             s("fluxos_alternativos", "Fluxos alternativos"),
             s("excecoes", "Exceções"),
+            s("pos_condicoes", "Pós-condições"),
             s("regras", "Regras de negócio"),
             EVIDENCIAS_SECAO,
         ],

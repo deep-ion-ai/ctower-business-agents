@@ -463,8 +463,16 @@ fn conteudo_caso_de_uso(g: &Gabarito) -> Conteudo<FrontmatterFuncionalidade> {
     let mut conteudo = Conteudo::novo(fm, caminho);
     conteudo.textos.push(Texto::novo("objetivo", &f.objetivo));
     conteudo.textos.push(Texto::novo(
+        "atores",
+        "- Atendente da retaguarda\n- Supervisor",
+    ));
+    conteudo.textos.push(Texto::novo(
         "gatilho",
         "O atendente pede o cancelamento de uma fatura emitida.",
+    ));
+    conteudo.textos.push(Texto::novo(
+        "pos_condicoes",
+        "- A fatura fica CANCELADA, com o motivo, a data e o responsável gravados.",
     ));
     conteudo.afirmacoes.push(
         g.regra("RN-FAT-012")

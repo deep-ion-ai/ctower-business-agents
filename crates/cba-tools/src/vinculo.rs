@@ -352,7 +352,7 @@ pub fn religar(kb: &cba_kb::Projeto, analises: &Analises) -> Result<Religacao, S
             .funcionalidades
             .iter()
             .filter(|f| f.aberta())
-            .find(|f| f.documento.as_ref() == Some(&caminho))
+            .find(|f| f.documentos.iter().any(|d| d.caminho == caminho))
             .map(|f| f.id.clone());
         let Some(id) = do_mapa.or_else(|| {
             pela_origem(doc.frontmatter.origem.as_ref()).and_then(|l| l.first().cloned())

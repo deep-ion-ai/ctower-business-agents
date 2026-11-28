@@ -110,6 +110,19 @@
 #   mapeamento cobre, com o `nome`, a `area` e as `palavras_chave` no nome ou na
 #   descrição. Uma funcionalidade registrada atende quando tem as palavras-chave
 #   e ao menos um ponto de entrada esperado dela.
+# - `entregaveis` (entregáveis da demanda, #464) traz o entregável esperado
+#   que o agente redige a partir da análise de impacto validada de uma
+#   `demanda` (o preparo é o das `historias`): o `tipo` do catálogo
+#   (`caso-de-uso` ou `epico`) e as `regras` que ele deve citar (no épico,
+#   cobertas pelas histórias). No caso de uso, que é vivo, a `funcionalidade`
+#   do gabarito vai para o mapa com as regras dela ligadas, e a versão inicial
+#   é pedida pela demanda; o esperado traz o `minimo_de_etapas` do fluxo
+#   principal e os `atores`, `fluxos_alternativos` e `excecoes` (palavras-chave
+#   no texto do item). Toda etapa precisa citar uma regra, e o caso de uso
+#   precisa de ao menos um fluxo alternativo. No épico, o
+#   `minimo_de_historias`, as `historias_esperadas` (palavras-chave no título e
+#   na narrativa) e os `riscos` (palavras-chave nos riscos, nas dependências ou
+#   no fora do escopo); toda história precisa citar uma regra.
 # - A avaliação dos fluxos (crate cba-avaliacao, docs/avaliacao.md) usa este
 #   arquivo como referência.
 
@@ -1479,3 +1492,56 @@ publicacoes:
     analise: P-FAT-001
     reanalise: P-FAT-003
     repositorio: exemplo/faturamento-docs
+
+# Entregáveis da demanda (#464): o caso de uso e o épico com quebra, redigidos
+# pelo agente a partir da análise de impacto validada da D-FAT-003.
+entregaveis:
+  - id: ENT-FAT-001
+    titulo: Caso de uso do parcelamento de fatura
+    tipo: caso-de-uso
+    demanda: D-FAT-003
+    funcionalidade: F-FAT-002
+    # O caso de uso descreve o parcelamento de hoje (versão inicial): as
+    # regras da análise e as da funcionalidade.
+    regras: [RN-FAT-007, RN-FAT-008, RN-FAT-009, RN-FAT-010, RN-FAT-011]
+    minimo_de_etapas: 3
+    atores:
+      - id: ENT-FAT-001-A1
+        descricao: Quem pede o parcelamento (o atendente ou o operador da tela).
+        palavras_chave: [[atendente*, operador*, usuario*, cliente*, solicitante*]]
+    fluxos_alternativos:
+      - id: ENT-FAT-001-FA1
+        descricao: Órgão público não tem valor mínimo de parcela.
+        palavras_chave: [[orgao publico, orgaos publicos, pub, publico*], [minim*, valor_min_parcela]]
+    excecoes:
+      - id: ENT-FAT-001-FE1
+        descricao: Pessoa física é recusada.
+        palavras_chave: [[pessoa fisica, pf], [recus*, bloque*, nao pode, impede*, rejeit*, apenas, somente, nao permit*, nao e permit*, disponivel]]
+      - id: ENT-FAT-001-FE2
+        descricao: Quantidade de parcelas fora de 2 a MAX_PARCELAS.
+        palavras_chave: [[quantidade*, parcelas, max_parcelas], ["2", duas, minim*, "6", maxim*, entre, fora]]
+      - id: ENT-FAT-001-FE3
+        descricao: Só fatura ABERTA pode ser parcelada.
+        palavras_chave: [[aberta, abert*, status, situacao]]
+      - id: ENT-FAT-001-FE4
+        descricao: Parcela abaixo do valor mínimo.
+        palavras_chave: [[minim*, valor_min_parcela, "50"], [parcela*]]
+
+  - id: ENT-FAT-002
+    titulo: Épico do parcelamento para pessoa física
+    tipo: epico
+    demanda: D-FAT-003
+    regras: [RN-FAT-007, RN-FAT-008, RN-FAT-009]
+    # Abrangência média: liberar PF e parametrizar os limites por tipo.
+    minimo_de_historias: 2
+    historias_esperadas:
+      - id: ENT-FAT-002-H1
+        descricao: Pessoa física passa a poder parcelar a fatura (hoje bloqueada na tela e no backend).
+        palavras_chave: [[pessoa fisica, pessoas fisicas, pf], [parcel*]]
+      - id: ENT-FAT-002-H2
+        descricao: Limite de 3 parcelas e parcela mínima de R$ 100,00 para pessoa física, sem mudar os demais tipos.
+        palavras_chave: [["3", tres, limite*, minim*, "100", "100,00", parametr*]]
+    riscos:
+      - id: ENT-FAT-002-R1
+        descricao: O limite e o valor mínimo vêm de parâmetros únicos; mudá-los afeta os outros tipos de cliente.
+        palavras_chave: [[parametr*, max_parcelas, valor_min_parcela, unico*], [tipo*, pj, pub, "orgao publico", juridica, demais, outros, todos]]

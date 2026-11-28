@@ -4608,3 +4608,149 @@ textarea.sql-consulta {
   flex-direction: column;
   gap: 0.75rem;
 }
+
+/* Mapa › Documentação por funcionalidade (#462). */
+.mapa-visoes {
+  display: inline-flex;
+  gap: 0;
+}
+.mapa-visoes .btn {
+  border-radius: 0;
+}
+.mapa-visoes .btn:first-child {
+  border-radius: var(--radius-control) 0 0 var(--radius-control);
+}
+.mapa-visoes .btn:last-child {
+  border-radius: 0 var(--radius-control) var(--radius-control) 0;
+  border-left: 0;
+}
+.mapa-visoes .btn[aria-selected="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: var(--fw-medium);
+}
+.documentacao-mapa {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cobertura-por-tipo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+.cartao-cobertura-tipo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--paper);
+}
+.cartao-cobertura-tipo .barra-progresso {
+  width: 100%;
+  height: 6px;
+}
+.cobertura-tipo-alerta {
+  color: var(--attention);
+  font-size: var(--fs-small);
+}
+.barra-lote {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+}
+.tabela-documentacao-rolagem {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+}
+.tabela-documentacao {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+}
+.tabela-documentacao th,
+.tabela-documentacao td {
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+  border-top: 1px solid var(--border);
+}
+.tabela-documentacao thead th {
+  border-top: 0;
+  white-space: nowrap;
+  font-weight: var(--fw-medium);
+}
+.tabela-documentacao tbody th {
+  font-weight: normal;
+  min-width: 180px;
+}
+.celula-documento {
+  min-width: 140px;
+}
+.celula-documento > * {
+  display: block;
+  width: fit-content;
+  margin-bottom: 4px;
+}
+.celula-documento-versao {
+  font-weight: var(--fw-medium);
+}
+.celula-documento-detalhe {
+  font-size: var(--fs-small);
+  overflow-wrap: anywhere;
+}
+.legenda-documentacao {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  font-size: var(--fs-small);
+}
+.sessoes-lote .barra-progresso {
+  width: 100%;
+  margin: 4px 0 8px;
+}
+.terminal-lote {
+  height: 360px;
+  margin-top: 8px;
+}
+.trechos-proposta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 480px;
+  overflow-y: auto;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+}
+.trecho[data-marca="novo"] {
+  background: var(--done-bg);
+}
+.trecho[data-marca="alterado"] {
+  background: var(--attention-bg);
+}
+.trecho[data-marca="removido"] {
+  background: var(--error-bg);
+  text-decoration: line-through;
+}
+.trecho-marca {
+  font-size: var(--fs-small);
+  color: var(--muted);
+}
+.trecho-anterior {
+  display: block;
+  color: var(--muted);
+}
+.acoes-revisao-proposta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}

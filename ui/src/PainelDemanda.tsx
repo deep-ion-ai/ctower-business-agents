@@ -32,6 +32,8 @@ import {
   type TranscriptGuardado,
 } from "./demandas";
 import { ROTULO_SESSAO } from "./DocumentoAoVivo";
+import { EntregaveisDemanda } from "./EntregaveisDemanda";
+import { apiEntregaveisDemandaTauri, type ApiEntregaveisDemanda } from "./entregaveisDaDemanda";
 import { contar } from "./formatacao";
 import { IconeReticencias } from "./icones";
 import { MatrizRastreabilidade } from "./MatrizRastreabilidade";
@@ -42,6 +44,7 @@ import { NovaPrototipo } from "./NovaPrototipo";
 import { NovaReuniao } from "./NovaReuniao";
 import { apiPautaTauri, type ApiPauta } from "./pauta";
 import { PautaPerguntas } from "./PautaPerguntas";
+import { useFluxosOcultos } from "./fluxosDoProjeto";
 import { BotoesProximoPasso } from "./ProximoPasso";
 import { apiRastreabilidadeTauri, type ApiRastreabilidade } from "./rastreabilidade";
 import { apiRegistrosTauri, type ApiRegistros } from "./registros";
@@ -109,8 +112,8 @@ function irPara(ancora: RefObject<HTMLDivElement>) {
  *   criação, conferência) e, à direita, a ação principal "Analisar impacto", o menu
  *   "Nova análise ▾" com os outros tipos e o "⋯" (demanda.md, exportações, encerrar).
  * - Resumo: só os contadores com valor, cada um leva à sua seção.
- * - Linha do tempo, pauta de perguntas, registros e rastreabilidade, em largura de
- *   leitura.
+ * - Linha do tempo, pauta de perguntas, registros, rastreabilidade e entregáveis
+ *   (#463), em largura de leitura.
  * - Pendências, dúvidas e próximos passos das atas aprovadas: cada um com a sua
  *   seção quando há itens; os vazios viram uma frase no fim.
  */
@@ -123,6 +126,7 @@ export function PainelDemanda({
   apiRegistros = apiRegistrosTauri,
   apiRastreabilidade = apiRastreabilidadeTauri,
   apiPauta = apiPautaTauri,
+  apiEntregaveis = apiEntregaveisDemandaTauri,
   abrirLink = abrirLinkDoProjeto,
 }: {
   api: ApiConhecimento;
@@ -137,6 +141,8 @@ export function PainelDemanda({
   apiRastreabilidade?: ApiRastreabilidade;
   /** Pauta de perguntas pendentes (#123); para testes. */
   apiPauta?: ApiPauta;
+  /** Entregáveis gerados a partir da análise validada (#463); para testes. */
+  apiEntregaveis?: ApiEntregaveisDemanda;
   /** Abre a issue da demanda no navegador (#398); para testes. */
   abrirLink?: (projeto: string, link: string) => Promise<void>;
 }) {
@@ -149,6 +155,7 @@ export function PainelDemanda({
   const [propostas, setPropostas] = useState(0);
   const [lacunas, setLacunas] = useState(0);
   const [comHistorias, setComHistorias] = useState(false);
+  const fluxosOcultos = useFluxosOcultos(api, projeto);
 
   const ancoraAnalises = useRef<HTMLDivElement>(null);
   const ancoraPauta = useRef<HTMLDivElement>(null);
@@ -399,7 +406,7 @@ export function PainelDemanda({
           {aberta && (
             <MenuAcoes
               rotulo="Nova análise"
-              itens={FLUXOS_DO_MENU.map((f) => ({
+              itens={FLUXOS_DO_MENU.filter((f) => !fluxosOcultos.includes(f)).map((f) => ({
                 texto: ROTULO_FLUXO[f],
                 aoEscolher: () => setFluxo(f),
               }))}
@@ -507,9 +514,19 @@ export function PainelDemanda({
           api={apiRastreabilidade}
           atualizacao={painel}
           aoCarregar={aoCarregarMatriz}
-          aoGerarHistorias={aberta ? () => setFluxo("historias") : undefined}
+          aoGerarHistorias={
+            aberta && !fluxosOcultos.includes("historias") ? () => setFluxo("historias") : undefined
+          }
         />
       </div>
+
+      <EntregaveisDemanda
+        projeto={projeto}
+        demanda={d.id}
+        api={apiEntregaveis}
+        atualizacao={painel}
+        abrirLink={abrirLink}
+      />
 
       {painel.pendencias.length > 0 && (
         <ItensDasAtas titulo="Pendências" itens={painel.pendencias} />

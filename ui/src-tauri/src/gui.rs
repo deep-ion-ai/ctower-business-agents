@@ -7,10 +7,11 @@ use std::sync::Arc;
 
 use crate::{
     acessos, alteracoes, ambiente_teste, analise, base, clones, cobertura, conducao, conexoes,
-    configuracoes, consultas, conversa, demandas, docs_externos, funcionalidades, inicio,
-    issues_projeto, links_projeto, manual, migracao_conexoes, mudancas, painel_funcionalidade,
-    pauta, primeiro_uso, projeto, prompts, prototipo, publicacao, rastreabilidade, registros,
-    repositorios, resumo, reunioes, revisao, terminal, tokens, vigia, vincular_issues, workflows,
+    configuracoes, consultas, conversa, demandas, docs_externos, documentacao_do_mapa,
+    entregaveis_demanda, funcionalidades, inicio, issues_projeto, links_projeto, manual,
+    migracao_conexoes, migracao_entregaveis, mudancas, painel_funcionalidade, pauta, primeiro_uso,
+    projeto, prompts, prototipo, publicacao, rastreabilidade, registros, repositorios, resumo,
+    reunioes, revisao, terminal, tokens, vigia, vincular_issues, workflows,
 };
 
 pub fn rodar() {
@@ -24,6 +25,9 @@ pub fn rodar() {
         // Cadastros de antes das conexões (#438): migra antes de a janela abrir;
         // uma falha volta ao backup e o erro aparece em Configurações › Conexões.
         migracao_conexoes::na_abertura(dados, &cba_repos::chaveiro::ChaveiroNativo);
+        // Documento negocial de antes do catálogo de entregáveis (#465): vira a
+        // v1.0 do documento vivo; uma falha volta ao backup e vai para o log.
+        migracao_entregaveis::na_abertura(dados);
     }
     if let Some(dados) = dados {
         // Retenção dos transcripts das reuniões (#136): apaga os de prazo vencido,
@@ -119,6 +123,13 @@ pub fn rodar() {
             funcionalidades::explicar_funcionalidade_app,
             funcionalidades::exportar_mapa_projeto,
             funcionalidades::religar_funcionalidades_app,
+            documentacao_do_mapa::documentacao_do_mapa_app,
+            documentacao_do_mapa::gerar_versoes_iniciais_app,
+            documentacao_do_mapa::proposta_documento_vivo_app,
+            documentacao_do_mapa::marcar_documento_vivo_revisado_app,
+            documentacao_do_mapa::publicar_documento_vivo_app,
+            documentacao_do_mapa::propor_atualizacao_documento_vivo_app,
+            documentacao_do_mapa::descartar_proposta_documento_vivo_app,
             prototipo::html_da_tela_prototipo_app,
             prototipo::exportar_prototipo_app,
             tokens::tokens_css_projeto,
@@ -148,6 +159,13 @@ pub fn rodar() {
             demandas::encerrar_demanda_app,
             demandas::reabrir_demanda_app,
             demandas::painel_demanda_app,
+            entregaveis_demanda::entregaveis_demanda_app,
+            entregaveis_demanda::gerar_entregavel_app,
+            entregaveis_demanda::editar_entregavel_app,
+            entregaveis_demanda::marcar_entregavel_revisado_app,
+            entregaveis_demanda::exportar_entregavel_app,
+            entregaveis_demanda::publicar_entregavel_app,
+            entregaveis_demanda::comentario_entregavel_app,
             registros::registros_demanda_app,
             registros::criar_registro_app,
             registros::editar_registro_app,
@@ -213,6 +231,9 @@ pub fn rodar() {
             configuracoes::previa_leitura_app,
             configuracoes::salvar_leitura_app,
             configuracoes::salvar_mascarar_demanda_app,
+            configuracoes::entregaveis_projeto_app,
+            configuracoes::fluxos_ocultos_app,
+            configuracoes::salvar_entregaveis_app,
             configuracoes::desfazer_ambiente_projeto,
             configuracoes::descadastrar_projeto_app,
             configuracoes::textos_editaveis_app,
