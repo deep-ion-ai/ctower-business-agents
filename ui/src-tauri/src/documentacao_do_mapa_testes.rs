@@ -70,6 +70,10 @@ fn tabela_lote_e_revisao_final() {
         "Gerar versão inicial"
     );
     assert_eq!(j["cobertura"][0]["semDocumento"], 1);
+    // O caso de uso exige regras ligadas; a funcionalidade ainda não tem.
+    assert_eq!(j["colunas"][0]["exigeRegras"], true);
+    assert_eq!(j["colunas"][1]["exigeRegras"], false);
+    assert_eq!(j["linhas"][0]["regras"], 0);
 
     // Catálogo de regras: montado pelo app, fica como rascunho.
     let lote = gerar_em_lote(
@@ -83,7 +87,8 @@ fn tabela_lote_e_revisao_final() {
     assert_eq!(j["itens"][0]["resultado"], "gerada");
     let documento = j["itens"][0]["caminho"].as_str().unwrap().to_owned();
 
-    // Caso de uso: o pedido da sessão do agente.
+    // Caso de uso: cada etapa cita uma regra; sem regras ligadas, a
+    // funcionalidade fica fora do lote e a tabela avisa antes.
     let lote = gerar_em_lote(
         &c.dados,
         PROJETO,
@@ -92,8 +97,9 @@ fn tabela_lote_e_revisao_final() {
     )
     .unwrap();
     let j = serde_json::to_value(&lote).unwrap();
-    assert_eq!(j["itens"][0]["resultado"], "sessao");
-    assert!(j["itens"][0]["pedido"].as_str().unwrap().contains(&f));
+    assert_eq!(j["itens"][0]["resultado"], "pulada");
+    let motivo = j["itens"][0]["motivo"].as_str().unwrap();
+    assert!(motivo.contains("sem regras de negócio"), "{motivo}");
 
     let p = proposta(&c.dados, PROJETO, &documento).unwrap();
     assert_eq!(p.funcionalidade.as_deref(), Some(f.as_str()));

@@ -35,6 +35,8 @@ export interface ColunaDeDocumentacao {
   tipo: string;
   nome: string;
   geracao: Geracao;
+  /** A versão inicial só sai com regras ligadas à funcionalidade (cada etapa cita uma). */
+  exigeRegras: boolean;
 }
 
 export interface LinhaDeDocumentacao {
@@ -43,6 +45,8 @@ export interface LinhaDeDocumentacao {
   area: string;
   areaNome: string;
   situacao: SituacaoFuncionalidade;
+  /** Regras da base ligadas à funcionalidade. */
+  regras: number;
   /** Na ordem das colunas. */
   documentos: DocumentoDoTipo[];
 }
@@ -147,6 +151,15 @@ export function rotuloDoDocumento(d: DocumentoDoTipo): string | null {
   if (e.estado === "proposta_pendente")
     return d.versao ? `v${d.versao} → v${e.versao}` : `rascunho v${e.versao}`;
   return `v${e.versao}`;
+}
+
+/** A célula não pode gerar a versão inicial: o tipo exige regras e a funcionalidade não tem. */
+export function faltamRegras(
+  d: DocumentoDoTipo,
+  linha: LinhaDeDocumentacao,
+  coluna: ColunaDeDocumentacao,
+): boolean {
+  return d.acao === "Gerar versão inicial" && coluna.exigeRegras && linha.regras === 0;
 }
 
 /** Resumo da cobertura de um tipo: "4 de 6 funcionalidades". */

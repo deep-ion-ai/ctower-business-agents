@@ -11,10 +11,15 @@ import type {
 /** Visão "Documentação" do mapa falsa (#462): RUP com o manual habilitado. */
 
 export const COLUNAS: ColunaDeDocumentacao[] = [
-  { tipo: "caso-de-uso", nome: "Especificação de caso de uso", geracao: "agente" },
-  { tipo: "catalogo-regras", nome: "Catálogo de regras de negócio", geracao: "app" },
-  { tipo: "especificacao-suplementar", nome: "Especificação suplementar", geracao: "app" },
-  { tipo: "manual", nome: "Manual do usuário", geracao: "agente" },
+  { tipo: "caso-de-uso", nome: "Especificação de caso de uso", geracao: "agente", exigeRegras: true },
+  { tipo: "catalogo-regras", nome: "Catálogo de regras de negócio", geracao: "app", exigeRegras: false },
+  {
+    tipo: "especificacao-suplementar",
+    nome: "Especificação suplementar",
+    geracao: "app",
+    exigeRegras: false,
+  },
+  { tipo: "manual", nome: "Manual do usuário", geracao: "agente", exigeRegras: false },
 ];
 
 const SEM: DocumentoDoTipo = {
@@ -29,6 +34,7 @@ export function linha(
   funcionalidade: string,
   nome: string,
   documentos: DocumentoDoTipo[] = COLUNAS.map((c) => sem(c.tipo)),
+  regras = 2,
 ): LinhaDeDocumentacao {
   return {
     funcionalidade,
@@ -36,6 +42,7 @@ export function linha(
     area: "cobranca",
     areaNome: "Cobrança",
     situacao: "aceita",
+    regras,
     documentos,
   };
 }

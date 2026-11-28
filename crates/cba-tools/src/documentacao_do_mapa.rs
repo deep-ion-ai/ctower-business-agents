@@ -68,6 +68,10 @@ pub struct ColunaDeDocumentacao {
     pub nome: &'static str,
     /// Montado pelo app na hora ou redigido pelo agente numa sessão.
     pub geracao: Geracao,
+    /// A versão inicial só sai com regras da base ligadas à funcionalidade: o
+    /// tipo registra pelo esquema e cada etapa cita uma regra
+    /// ([`registro_pelo_esquema`]).
+    pub exige_regras: bool,
 }
 
 impl From<&'static TipoEntregavel> for ColunaDeDocumentacao {
@@ -76,6 +80,7 @@ impl From<&'static TipoEntregavel> for ColunaDeDocumentacao {
             tipo: t.id,
             nome: t.nome,
             geracao: t.geracao,
+            exige_regras: registro_pelo_esquema(t),
         }
     }
 }
@@ -89,6 +94,8 @@ pub struct LinhaDeDocumentacao {
     pub area: String,
     pub area_nome: String,
     pub situacao: SituacaoFuncionalidade,
+    /// Regras da base ligadas à funcionalidade (as que a versão inicial cita).
+    pub regras: usize,
     /// Na ordem das colunas.
     pub documentos: Vec<DocumentoDoTipo>,
 }
@@ -111,6 +118,7 @@ pub fn montar_tabela(
     mapa: &MapaFuncionalidades,
     documentos: &DocumentosVivos,
 ) -> TabelaDeDocumentacao {
+    let regras = regras_da_base(ambiente);
     let config = entregaveis::efetiva(ambiente.projeto.entregaveis.as_ref());
     let tipos = entregaveis::vivos_da_funcionalidade(&config);
     let ids: Vec<&str> = tipos.iter().map(|t| t.id).collect();
@@ -124,6 +132,7 @@ pub fn montar_tabela(
             area: f.area.clone(),
             area_nome: f.area_nome.clone(),
             situacao: f.situacao,
+            regras: regras_da_funcionalidade(&regras, f).len(),
             documentos: documentos_da_funcionalidade(&ambiente.escopo, documentos, f, &ids),
         })
         .collect();
@@ -214,7 +223,7 @@ fn regras_da_base(ambiente: &Ambiente) -> Vec<(FrontmatterRegra, String)> {
 /// As regras ligadas à funcionalidade: pelo vínculo da regra (#287) ou por uma
 /// evidência num arquivo dos pontos de entrada. As obsoletas ficam de fora.
 fn regras_da_funcionalidade(
-    regras: Vec<(FrontmatterRegra, String)>,
+    regras: &[(FrontmatterRegra, String)],
     f: &Funcionalidade,
 ) -> Vec<RegraDaFuncionalidade> {
     let arquivos: BTreeSet<&str> = f
@@ -223,7 +232,7 @@ fn regras_da_funcionalidade(
         .map(|p| p.evidencia.arquivo.as_str())
         .collect();
     let mut saida: Vec<RegraDaFuncionalidade> = regras
-        .into_iter()
+        .iter()
         .filter(|(r, _)| r.status != StatusRegra::Obsoleta)
         .filter(|(r, _)| {
             r.funcionalidades.contains(&f.id)
@@ -238,8 +247,8 @@ fn regras_da_funcionalidade(
             arquivos.dedup();
             RegraDaFuncionalidade {
                 id: r.id.to_string(),
-                titulo: r.titulo,
-                enunciado,
+                titulo: r.titulo.clone(),
+                enunciado: enunciado.clone(),
                 status: r.status,
                 arquivos,
             }
@@ -296,7 +305,7 @@ pub fn contexto(
     let tipo = tipo_da_funcionalidade(tipo)?;
     let mapa = MapaFuncionalidades::carregar(&ambiente.kb).map_err(interno)?;
     let f = aberta(&mapa, funcionalidade)?;
-    let regras = regras_da_funcionalidade(regras_da_base(ambiente), &f);
+    let regras = regras_da_funcionalidade(&regras_da_base(ambiente), &f);
     Ok(Contexto {
         tipo,
         funcionalidade: f,
@@ -677,6 +686,15 @@ pub enum ItemDoLote {
     },
 }
 
+/// Por que uma funcionalidade sem regras fica fora do lote de um tipo que as exige.
+fn sem_regras(t: &TipoEntregavel) -> String {
+    format!(
+        "sem regras de negócio na base: cada etapa de {} cita uma regra. Explique a \
+         funcionalidade e aprove a análise antes",
+        t.nome
+    )
+}
+
 /// Resultado da geração em lote.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -709,6 +727,9 @@ pub fn gerar_em_lote(
     }
     let mapa = MapaFuncionalidades::carregar(&ambiente.kb).map_err(interno)?;
     let estado = DocumentosVivos::carregar(&ambiente.kb)?;
+    // Só os tipos registrados pelo esquema dependem das regras: sem elas, a
+    // sessão do agente abriria para ser recusada no registro.
+    let regras = registro_pelo_esquema(t).then(|| regras_da_base(ambiente));
     let mut vistas = BTreeSet::new();
     let mut itens = Vec::new();
     for texto in funcionalidades {
@@ -741,6 +762,12 @@ pub fn gerar_em_lote(
                 "já tem o documento ({}): um documento vivo nunca é recriado",
                 d.estado.rotulo()
             )));
+            continue;
+        }
+        if let Some(regras) = &regras
+            && regras_da_funcionalidade(regras, &f).is_empty()
+        {
+            itens.push(pulada(sem_regras(t)));
             continue;
         }
         let item = match t.geracao {
