@@ -75,6 +75,23 @@ const MAX_LINHAS_DO_TRECHO: usize = 40;
 /// Caracteres do enunciado de cada regra no roteiro.
 const MAX_ENUNCIADO: usize = 600;
 
+/// Como redigir o tipo: o trecho próprio do roteiro, quando o tipo tem um. Vale
+/// na demanda (`iniciar_entregavel`) e na versão inicial pelo mapa
+/// (`iniciar_versao_inicial`).
+pub fn guia_do_tipo(tipo: &str) -> Option<&'static str> {
+    match tipo {
+        catalogo::CASO_DE_USO => Some(include_str!("../textos/entregaveis/caso-de-uso.md")),
+        catalogo::EPICO => Some(include_str!("../textos/entregaveis/epico.md")),
+        _ => None,
+    }
+}
+
+/// O tipo tem um item só, que registrar de novo substitui: o documento vivo e
+/// o épico (as histórias vêm dentro dele).
+pub fn item_unico(t: &TipoEntregavel) -> bool {
+    t.ciclo == CicloDeVida::Vivo || t.id == catalogo::EPICO
+}
+
 fn interno(e: impl std::fmt::Display) -> ErroFerramenta {
     ErroFerramenta::Interno(e.to_string())
 }
@@ -531,12 +548,18 @@ fn carregar(
     Ok((lida, e))
 }
 
-fn descricao_do_campo(c: &catalogo::Campo) -> String {
+pub(crate) fn descricao_do_campo(c: &catalogo::Campo) -> String {
     let tipo = match c.tipo {
         catalogo::TipoCampo::Texto => "uma linha",
         catalogo::TipoCampo::TextoLongo => "texto de um ou mais parágrafos",
         catalogo::TipoCampo::Lista => "lista de textos",
         catalogo::TipoCampo::Regras => "lista de regras RN-<SIGLA>-NNN",
+        catalogo::TipoCampo::Etapas => {
+            "lista de etapas, cada uma citando no texto a regra que a sustenta (RN-<SIGLA>-NNN)"
+        }
+        catalogo::TipoCampo::Historias => {
+            "lista de histórias na ordem sugerida, cada uma um objeto com os campos abaixo"
+        }
     };
     let obrigatorio = if c.obrigatorio {
         "obrigatório"
@@ -550,9 +573,31 @@ fn esquema_json(t: &TipoEntregavel) -> Value {
     Value::Array(
         t.campos
             .iter()
-            .map(|c| serde_json::to_value(c).unwrap_or_default())
+            .map(|c| {
+                let mut v = serde_json::to_value(c).unwrap_or_default();
+                if c.tipo == catalogo::TipoCampo::Historias {
+                    v["campos"] = serde_json::to_value(catalogo::CAMPOS_DA_HISTORIA_DO_EPICO)
+                        .unwrap_or_default();
+                }
+                v
+            })
             .collect(),
     )
+}
+
+/// O esquema em Markdown, com os campos de cada história do épico.
+pub(crate) fn esquema_em_markdown(t: &TipoEntregavel) -> String {
+    let mut r = String::new();
+    for c in t.campos {
+        r.push_str(&descricao_do_campo(c));
+        r.push('\n');
+        if c.tipo == catalogo::TipoCampo::Historias {
+            for h in catalogo::CAMPOS_DA_HISTORIA_DO_EPICO {
+                let _ = writeln!(r, "  {}", descricao_do_campo(h));
+            }
+        }
+    }
+    r
 }
 
 fn linhas_das_regras(regras: &[RegraDaBase]) -> String {
@@ -622,6 +667,15 @@ fn roteiro(
              2. Registre o documento inteiro num só `registrar_entregavel`, com `mudancas` \
              dizendo em uma frase o que muda; registrar de novo substitui o anterior.\n",
         ),
+        (false, _) if item_unico(t) => {
+            let _ = writeln!(
+                r,
+                "1. O {} é um item só: registre-o inteiro num só `registrar_entregavel`; \
+                 registrar de novo substitui o anterior.\n\
+                 2. Juntas, as partes do item cobrem as regras confirmadas da análise.",
+                t.nome.to_lowercase()
+            );
+        }
         (false, _) => {
             let _ = writeln!(
                 r,
@@ -646,11 +700,12 @@ fn roteiro(
          Use `registrar_entregavel` com demanda \"{demanda}\" e entregavel {}.\n\n",
         e.numero
     );
-    r.push_str("## Esquema (campos)\n\n");
-    for c in t.campos {
-        r.push_str(&descricao_do_campo(c));
-        r.push('\n');
+    if let Some(guia) = guia_do_tipo(t.id) {
+        r.push_str(guia.trim_end());
+        r.push_str("\n\n");
     }
+    r.push_str("## Esquema (campos)\n\n");
+    r.push_str(&esquema_em_markdown(t));
     let _ = write!(
         r,
         "\n## Regras confirmadas da análise {}\n\n{}\n",
@@ -807,30 +862,6 @@ struct ArgsDoRegistro {
     campos: Value,
     #[serde(default)]
     mudancas: Option<String>,
-}
-
-/// Regras citadas nos campos do tipo `regras`, na ordem, sem repetição.
-fn regras_citadas(t: &TipoEntregavel, campos: &Value) -> Vec<String> {
-    let mut ids: Vec<String> = Vec::new();
-    for c in t
-        .campos
-        .iter()
-        .filter(|c| c.tipo == catalogo::TipoCampo::Regras)
-    {
-        for v in campos
-            .get(c.nome)
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(Value::as_str)
-        {
-            let v = v.trim().to_owned();
-            if !ids.contains(&v) {
-                ids.push(v);
-            }
-        }
-    }
-    ids
 }
 
 /// Confere as regras citadas contra as permitidas e copia a evidência da regra.
@@ -996,7 +1027,7 @@ fn registrar(
         }
         origem = format!("da análise {} ou da funcionalidade {f}", analise.id);
     }
-    let regras = conferir_regras(&regras_citadas(t, &campos), &permitidas, &base, &origem)?;
+    let regras = conferir_regras(&t.regras_citadas(&campos), &permitidas, &base, &origem)?;
     let vivo = t.ciclo == CicloDeVida::Vivo;
     let titulos: Vec<(String, String)> = regras
         .iter()
@@ -1050,7 +1081,7 @@ fn registrar(
                 regras,
                 texto,
             },
-            vivo,
+            item_unico(t),
             agora,
         )?;
         alvo.documento = documento;

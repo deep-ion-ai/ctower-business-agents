@@ -33,11 +33,11 @@ use cba_core::documentos_vivos::{
     DocumentosVivos, Dono, EstadoDocumento, NovaProposta, sem_historico,
 };
 use cba_core::funcionalidades::{Funcionalidade, MapaFuncionalidades, SituacaoFuncionalidade};
-use cba_docs::entregaveis::{self, Geracao, TipoEntregavel};
+use cba_docs::entregaveis::{self, Geracao, TipoCampo, TipoEntregavel};
 
 use cba_index::Metodologia;
 use cba_kb::frontmatter::{FrontmatterRegra, StatusRegra};
-use cba_kb::{CaminhoRelativo, Id, IdFuncionalidade, Serie, TipoDocumento, layout};
+use cba_kb::{CaminhoRelativo, IdFuncionalidade, TipoDocumento, layout};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -427,12 +427,70 @@ pub fn montar(c: &Contexto) -> String {
 
 /// Identificadores de regra (`RN-FAT-001`) citados no texto.
 fn regras_citadas(texto: &str) -> BTreeSet<String> {
-    texto
-        .split(|c: char| !(c.is_ascii_alphanumeric() || c == '-'))
-        .filter(|p| p.starts_with("RN-"))
-        .filter(|p| matches!(Id::analisar(p), Ok(id) if matches!(id.serie(), Serie::Regra { .. })))
-        .map(str::to_owned)
-        .collect()
+    entregaveis::regras_no_texto(texto).into_iter().collect()
+}
+
+/// O tipo registra a versão inicial pelos campos do esquema, e não por um texto
+/// livre: o caso de uso, cujas etapas citam a regra de origem.
+pub fn registro_pelo_esquema(tipo: &TipoEntregavel) -> bool {
+    tipo.campos.iter().any(|c| c.tipo == TipoCampo::Etapas)
+}
+
+/// Registra a versão inicial a partir dos `campos` do esquema: confere o
+/// esquema (cada etapa com a regra citada) e as regras citadas contra as da
+/// funcionalidade, monta o texto sem IA ([`TipoEntregavel::markdown_do_item`]) e
+/// registra como em [`registrar`].
+pub fn registrar_pelos_campos(
+    ambiente: &Ambiente,
+    tipo: &str,
+    funcionalidade: &IdFuncionalidade,
+    campos: &serde_json::Value,
+    arquivos: Vec<String>,
+) -> Result<PropostaRegistrada, ErroFerramenta> {
+    let c = contexto(ambiente, tipo, funcionalidade)?;
+    if let Err(erros) = c.tipo.validar_campos(campos) {
+        let lista: Vec<String> = erros.iter().map(ToString::to_string).collect();
+        return Err(ErroFerramenta::Recusa(format!(
+            "os campos não seguem o esquema de {}: {}. Confira o esquema devolvido por \
+             iniciar_versao_inicial",
+            c.tipo.nome,
+            lista.join("; ")
+        )));
+    }
+    let citadas = c.tipo.regras_citadas(campos);
+    let de_fora: Vec<&String> = citadas
+        .iter()
+        .filter(|id| !c.regras.iter().any(|r| &r.id == *id))
+        .collect();
+    if !de_fora.is_empty() {
+        let permitidas: Vec<&str> = c.regras.iter().map(|r| r.id.as_str()).collect();
+        return Err(ErroFerramenta::Recusa(format!(
+            "{} não {} da funcionalidade {funcionalidade}: cite só as regras do contexto ({}) \
+             e registre de novo",
+            de_fora
+                .iter()
+                .map(|s| s.as_str())
+                .collect::<Vec<_>>()
+                .join(", "),
+            if de_fora.len() == 1 {
+                "é regra"
+            } else {
+                "são regras"
+            },
+            if permitidas.is_empty() {
+                "nenhuma".to_owned()
+            } else {
+                permitidas.join(", ")
+            }
+        )));
+    }
+    let titulos: Vec<(String, String)> = citadas
+        .iter()
+        .filter_map(|id| c.regras.iter().find(|r| &r.id == id))
+        .map(|r| (r.id.clone(), r.titulo.clone()))
+        .collect();
+    let texto = c.tipo.markdown_do_item(campos, &titulos, 1);
+    registrar(ambiente, c.tipo.id, funcionalidade, &texto, arquivos)
 }
 
 /// Registra a versão inicial (1.0) como proposta. Recusa se a funcionalidade
@@ -748,11 +806,8 @@ fn schema_do_alvo(extra: serde_json::Map<String, serde_json::Value>) -> serde_js
             "description": "Funcionalidade do mapa (`F-FAT-001`)."
         }),
     );
-    let mut obrigatorios = vec![json!("tipo"), json!("funcionalidade")];
+    let obrigatorios = vec![json!("tipo"), json!("funcionalidade")];
     for (nome, valor) in extra {
-        if nome == "texto" {
-            obrigatorios.push(json!("texto"));
-        }
         propriedades.insert(nome, valor);
     }
     json!({
@@ -789,11 +844,40 @@ pub fn iniciar_versao_inicial() -> Ferramenta {
                     c.tipo.nome
                 )));
             }
-            let secoes: String = secoes(c.tipo)
-                .iter()
-                .enumerate()
-                .map(|(i, s)| format!("{}. {s}\n", i + 1))
-                .collect();
+            let pelo_esquema = registro_pelo_esquema(c.tipo);
+            let secoes = if pelo_esquema {
+                format!(
+                    "## Esquema (campos)\n\n{}",
+                    crate::entregaveis::esquema_em_markdown(c.tipo)
+                )
+            } else {
+                let lista: String = secoes(c.tipo)
+                    .iter()
+                    .enumerate()
+                    .map(|(i, s)| format!("{}. {s}\n", i + 1))
+                    .collect();
+                format!("## Seções\n\n{lista}")
+            };
+            let (redacao, registro) = if pelo_esquema {
+                (
+                    "**Preencha os campos do esquema** abaixo, em português e em linguagem de \
+                     negócio. Não invente: o que nem o código nem a base sustentam fica de fora, \
+                     e um campo opcional sem conteúdo não vai. O app monta o documento a partir \
+                     dos campos.",
+                    "com os `campos` do esquema (não mande `texto`).",
+                )
+            } else {
+                (
+                    "**Redija em Markdown**, em português e em linguagem de negócio, com as \
+                     seções abaixo, nesta ordem. Não invente: o que nem o código nem a base \
+                     sustentam fica de fora. Uma seção sem conteúdo leva \"Não identificado no \
+                     código.\"",
+                    "com o texto completo.",
+                )
+            };
+            let guia = crate::entregaveis::guia_do_tipo(c.tipo.id)
+                .map(|g| format!("\n{}\n", g.trim_end()))
+                .unwrap_or_default();
             let template = template_da_base(ambiente, c.tipo)
                 .map(|(nome, texto)| {
                     format!(
@@ -813,8 +897,11 @@ pub fn iniciar_versao_inicial() -> Ferramenta {
                 .replace("{{funcionalidade}}", &c.funcionalidade.nome)
                 .replace("{{id}}", &c.funcionalidade.id.to_string())
                 .replace("{{argumentos}}", &argumentos)
+                .replace("{{redacao}}", redacao)
+                .replace("{{registro}}", registro)
                 .replace("{{secoes}}", &secoes)
                 .replace("{{template}}", &template)
+                .replace("{{guia}}", &guia)
                 .replace("{{contexto}}", &contexto_em_markdown(&c, "###"));
             Ok(Saida::texto(texto))
         },
@@ -839,7 +926,17 @@ pub fn registrar_versao_inicial() -> Ferramenta {
         json!({
             "type": "string",
             "minLength": 1,
-            "description": "O documento completo, em Markdown, com as seções do roteiro."
+            "description": "O documento completo, em Markdown, com as seções do roteiro. \
+                            Não vale para o caso de uso, que vem em `campos`."
+        }),
+    );
+    extra.insert(
+        "campos".into(),
+        json!({
+            "type": "object",
+            "description": "Só nos tipos registrados pelo esquema (o caso de uso): os campos \
+                            do esquema devolvido por iniciar_versao_inicial. O app confere o \
+                            esquema e as regras citadas e monta o documento."
         }),
     );
     extra.insert(
@@ -857,20 +954,45 @@ pub fn registrar_versao_inicial() -> Ferramenta {
         "Registra a versão inicial (1.0) de um documento vivo da funcionalidade, como \
          rascunho: o analista faz a revisão final antes de publicar. Recusa se a \
          funcionalidade já tem o documento publicado (um documento vivo nunca é recriado) ou \
-         se o texto cita uma regra que não existe na base. Chamar de novo refaz o rascunho.",
+         se o texto cita uma regra que não existe na base. O caso de uso vem em `campos`, pelo \
+         esquema, com a regra citada em cada etapa. Chamar de novo refaz o rascunho.",
         schema_do_alvo(extra),
         |ambiente, args| {
             #[derive(Deserialize)]
             struct Args {
                 #[serde(flatten)]
                 alvo: ArgsDoAlvo,
-                texto: String,
+                #[serde(default)]
+                texto: Option<String>,
+                #[serde(default)]
+                campos: Option<serde_json::Value>,
                 #[serde(default)]
                 arquivos: Vec<String>,
             }
             let args: Args = ler_argumentos(args)?;
             let id = id_da_funcionalidade(&args.alvo.funcionalidade)?;
-            let r = registrar(ambiente, &args.alvo.tipo, &id, &args.texto, args.arquivos)?;
+            let tipo = tipo_da_funcionalidade(&args.alvo.tipo)?;
+            let r = match (registro_pelo_esquema(tipo), args.texto, args.campos) {
+                (true, _, Some(campos)) => {
+                    registrar_pelos_campos(ambiente, tipo.id, &id, &campos, args.arquivos)?
+                }
+                (true, _, None) => {
+                    return Err(ErroFerramenta::Argumentos(format!(
+                        "`campos`: {} é registrado pelos campos do esquema devolvido por \
+                         iniciar_versao_inicial, não por `texto`",
+                        tipo.nome
+                    )));
+                }
+                (false, Some(texto), _) if !texto.trim().is_empty() => {
+                    registrar(ambiente, tipo.id, &id, &texto, args.arquivos)?
+                }
+                (false, _, _) => {
+                    return Err(ErroFerramenta::Argumentos(format!(
+                        "`texto`: mande o documento completo de {} em Markdown",
+                        tipo.nome
+                    )));
+                }
+            };
             Ok(Saida::json(json!({
                 "caminho": ambiente.kb.na_base(&r.caminho).to_string(),
                 "versao": r.proposta.versao,
@@ -908,11 +1030,13 @@ mod tests {
             secoes(caso),
             [
                 "Objetivo",
+                "Atores",
                 "Gatilho",
                 "Pré-condições",
                 "Fluxo principal",
                 "Fluxos alternativos",
                 "Exceções",
+                "Pós-condições",
                 "Regras de negócio"
             ]
         );

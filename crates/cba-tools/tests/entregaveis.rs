@@ -35,6 +35,7 @@ const SERVICO: &str = "backend/src/main/java/exemplo/faturamento/ParcelamentoSer
 const PARAMETROS: &str = "db/02_parametros.sql";
 const HISTORIA: &str = "historia-usuario";
 const CASO: &str = "caso-de-uso";
+const EPICO: &str = "epico";
 
 fn fixture() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/faturamento-exemplo")
@@ -53,6 +54,11 @@ fn fid() -> IdFuncionalidade {
 /// Projeto com a história (padrão), o caso de uso e o catálogo de regras
 /// habilitados, uma demanda aberta e a funcionalidade "Parcelar fatura" no mapa.
 fn cenario() -> Cenario {
+    cenario_com(&[])
+}
+
+/// Como [`cenario`], com mais tipos habilitados.
+fn cenario_com(mais: &[&str]) -> Cenario {
     let dir = tempfile::tempdir().unwrap();
     let raiz = dir.path();
     let dados = DiretorioDados::em(raiz.join("dados"));
@@ -66,7 +72,10 @@ fn cenario() -> Cenario {
             },
             TipoHabilitado::novo(CASO),
             TipoHabilitado::novo("catalogo-regras"),
-        ],
+        ]
+        .into_iter()
+        .chain(mais.iter().map(|t| TipoHabilitado::novo(t)))
+        .collect(),
         padrao: Some(HISTORIA.into()),
     });
     cba_index::Cadastro::em(dados.projetos())
@@ -570,8 +579,8 @@ fn caso_de_uso_gera_a_versao_inicial_antes_da_proposta_da_demanda() {
             g.numero,
             caso(
                 &[
-                    "O atendente abre a fatura.",
-                    "O sistema recusa pessoa física.",
+                    "O atendente abre a fatura (RN-FAT-001).",
+                    "O sistema recusa pessoa física (RN-FAT-001).",
                 ],
                 &["RN-FAT-001"],
             ),
@@ -594,14 +603,14 @@ fn caso_de_uso_gera_a_versao_inicial_antes_da_proposta_da_demanda() {
     let r = c.recusa(
         "registrar_entregavel",
         json!({ "demanda": c.demanda.to_string(), "entregavel": g.numero,
-                "campos": caso(&["O atendente abre a fatura.", "O sistema parcela em até 3 vezes."], &["RN-FAT-001"]) }),
+                "campos": caso(&["O atendente abre a fatura (RN-FAT-001).", "O sistema parcela em até 3 vezes (RN-FAT-002)."], &["RN-FAT-001"]) }),
     );
     assert!(r.contains("`mudancas`"), "{r}");
     c.chamar(
         "registrar_entregavel",
         json!({ "demanda": c.demanda.to_string(), "entregavel": g.numero,
                 "mudancas": "Pessoa física passa a parcelar em até 3 vezes.",
-                "campos": caso(&["O atendente abre a fatura.", "O sistema parcela em até 3 vezes."], &["RN-FAT-001", "RN-FAT-002"]) }),
+                "campos": caso(&["O atendente abre a fatura (RN-FAT-001).", "O sistema parcela em até 3 vezes (RN-FAT-002)."], &["RN-FAT-001", "RN-FAT-002"]) }),
     )
     .unwrap();
     let v = vista_da_demanda(&c.amb, c.demanda).unwrap();
@@ -615,7 +624,7 @@ fn caso_de_uso_gera_a_versao_inicial_antes_da_proposta_da_demanda() {
         .unwrap();
     assert_eq!(
         alterado.anterior.as_deref(),
-        Some("- O sistema recusa pessoa física.")
+        Some("2. O sistema recusa pessoa física (RN-FAT-001).")
     );
     assert_eq!(p.historico.len(), 1);
     assert_eq!(e.situacao, Situacao::Rascunho);
@@ -634,4 +643,128 @@ fn caso_de_uso_gera_a_versao_inicial_antes_da_proposta_da_demanda() {
         doc.versao(Versao::INICIAL).is_some(),
         "a 1.0 continua acessível"
     );
+}
+
+fn historia_do_epico(titulo: &str, regras: &[&str], depende_de: &[&str]) -> Value {
+    json!({
+        "titulo": titulo,
+        "papel": "atendente do faturamento",
+        "acao": "parcelar a fatura de um cliente pessoa física",
+        "beneficio": "atender o cliente PF",
+        "criterios": ["Dado um cliente PF com fatura de R$ 300,00, quando pede 3 parcelas, então são geradas 3 parcelas de R$ 100,00"],
+        "regras": regras,
+        "depende_de": depende_de,
+    })
+}
+
+#[test]
+fn epico_quebra_em_historias_que_cobrem_as_regras_ou_avisa_a_que_ficou_de_fora() {
+    let c = cenario_com(&[EPICO]);
+    let a = c.analise();
+    c.aprovar(&a);
+    let g = gerar(&c.amb, c.pedido(EPICO, &a)).unwrap();
+    let (roteiro, dados) = c
+        .chamar(
+            "iniciar_entregavel",
+            json!({ "demanda": c.demanda.to_string(), "entregavel": g.numero }),
+        )
+        .unwrap();
+    for trecho in [
+        "## Como redigir o épico com quebra em histórias",
+        "é um item só",
+        "`historias` (Histórias (em ordem sugerida))",
+        "  - `depende_de` (Depende de)",
+        "RN-FAT-001: Pessoa física não parcela",
+    ] {
+        assert!(roteiro.contains(trecho), "{trecho}\n{roteiro}");
+    }
+    let historias = dados["tipo"]["campos"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["nome"] == "historias")
+        .unwrap()
+        .clone();
+    assert_eq!(historias["tipo"], "historias");
+    assert!(historias["campos"].as_array().unwrap().len() >= 6);
+
+    let epico = |historias: Vec<Value>| {
+        json!({
+            "titulo": "Parcelamento para pessoa física",
+            "objetivo": "Permitir que pessoa física parcele em até 3 vezes.",
+            "historias": historias,
+            "riscos": ["O parâmetro de parcela mínima é único para todos os tipos de cliente."],
+        })
+    };
+    // História com regra de fora da análise: recusada, como no item da história.
+    let r = c.recusa(
+        "registrar_entregavel",
+        json!({ "demanda": c.demanda.to_string(), "entregavel": g.numero,
+                "campos": epico(vec![historia_do_epico("Liberar PF", &["RN-FAT-009"], &[])]) }),
+    );
+    assert!(r.contains("RN-FAT-009 não é uma regra confirmada"), "{r}");
+    // Dependência para uma história que vem depois: recusada.
+    let r = c.recusa(
+        "registrar_entregavel",
+        json!({ "demanda": c.demanda.to_string(), "entregavel": g.numero,
+                "campos": epico(vec![historia_do_epico("Liberar PF", &["RN-FAT-001"], &["H2"])]) }),
+    );
+    assert!(r.contains("historias[H1].depende_de"), "{r}");
+
+    // Uma história só: o app avisa a regra que ficou de fora.
+    let (texto, d) = c
+        .registrar(
+            g.numero,
+            epico(vec![historia_do_epico("Liberar PF", &["RN-FAT-001"], &[])]),
+        )
+        .unwrap();
+    assert!(
+        texto.contains("RN-FAT-002 sem história no épico"),
+        "{texto}"
+    );
+    assert_eq!(d["regras_sem_item"], json!(["RN-FAT-002"]));
+
+    // Registrar de novo substitui: as duas histórias cobrem as regras.
+    let (texto, d) = c
+        .registrar(
+            g.numero,
+            epico(vec![
+                historia_do_epico("Liberar PF", &["RN-FAT-001"], &[]),
+                historia_do_epico("Parcela mínima para PF", &["RN-FAT-002"], &["H1"]),
+            ]),
+        )
+        .unwrap();
+    assert!(
+        texto.contains("Todas as regras confirmadas têm item"),
+        "{texto}"
+    );
+    assert_eq!(d["item"], 1, "o épico é um item só");
+    let pasta = c.amb.kb.demanda(c.demanda).unwrap().pasta;
+    let estado = EntregaveisDaDemanda::carregar(&c.amb.kb, &pasta).unwrap();
+    let e = estado.entregavel(g.numero).unwrap();
+    assert_eq!(e.atual().itens.len(), 1);
+    let ids: Vec<String> = e.atual().itens[0]
+        .regras
+        .iter()
+        .map(|r| r.id.to_string())
+        .collect();
+    assert_eq!(ids, ["RN-FAT-001", "RN-FAT-002"]);
+    assert!(
+        !e.atual().itens[0].regras[0].evidencias.is_empty(),
+        "a evidência vem da regra"
+    );
+    let md = e.atual().texto();
+    for trecho in [
+        "## Parcelamento para pessoa física",
+        "#### H1. Liberar PF",
+        "#### H2. Parcela mínima para PF",
+        "**Depende de:** H1",
+        "### Riscos",
+        "- RN-FAT-002: Parcela mínima por parâmetro",
+    ] {
+        assert!(md.contains(trecho), "{trecho}\n{md}");
+    }
+    let v = vista_da_demanda(&c.amb, c.demanda).unwrap();
+    let ev = v.entregaveis.iter().find(|x| x.numero == g.numero).unwrap();
+    assert!(ev.sem_cobertura.is_empty(), "{:?}", ev.sem_cobertura);
 }

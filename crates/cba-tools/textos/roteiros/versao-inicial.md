@@ -5,15 +5,13 @@ Você vai redigir a **versão 1.0** do documento "{{tipo}}" da funcionalidade {{
 ## Como fazer
 
 1. **Leia o contexto** abaixo. Se precisar entender um ponto de entrada, confira o código com as ferramentas de consulta (`referencias`, `estrutura`, `conhecimento`).
-2. **Redija em Markdown**, em português e em linguagem de negócio, com as seções abaixo, nesta ordem. Não invente: o que nem o código nem a base sustentam fica de fora. Uma seção sem conteúdo leva "Não identificado no código."
+2. {{redacao}}
 3. **Cite a regra de origem** (`RN-...`) em cada passo, requisito ou item que vem de uma regra. Cite só regras que existem na base: o app recusa o registro com uma regra inexistente.
-4. **Registre** com `registrar_versao_inicial`{{argumentos}}, com o texto completo. Em `arquivos`, liste os arquivos do código em que você se apoiou além dos pontos de entrada e das evidências das regras, que o app já inclui.
+4. **Registre** com `registrar_versao_inicial`{{argumentos}}, {{registro}} Em `arquivos`, liste os arquivos do código em que você se apoiou além dos pontos de entrada e das evidências das regras, que o app já inclui.
 5. O documento fica como **rascunho** até a revisão final do analista. Não diga que ele está publicado. Depois do registro, diga ao analista, numa frase, que o rascunho está na visão "Documentação" do mapa, e encerre.
 
-## Seções
-
 {{secoes}}
-{{template}}
+{{template}}{{guia}}
 ## Contexto
 
 {{contexto}}

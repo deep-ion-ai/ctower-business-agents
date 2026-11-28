@@ -147,6 +147,7 @@ fn historias_boas_atendem_o_gabarito() {
             ata: None,
             transcript: None,
             mapa: None,
+            entregavel: None,
             publicacao: None,
             conducao: None,
             arquivos_alterados: Vec::new(),

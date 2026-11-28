@@ -13,7 +13,7 @@ export type Grupo = "agil" | "rup" | "comuns";
 export type CicloDeVida = "vivo" | "por_demanda";
 export type Geracao = "app" | "agente";
 export type Fonte = "analise" | "regras" | "termos" | "mapa" | "cenarios";
-export type TipoCampo = "texto" | "texto_longo" | "lista" | "regras";
+export type TipoCampo = "texto" | "texto_longo" | "lista" | "regras" | "etapas" | "historias";
 
 export interface Campo {
   nome: string;

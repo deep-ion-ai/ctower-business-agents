@@ -30,6 +30,7 @@ pub mod comparacao;
 pub mod conducao;
 pub mod dados_pessoais;
 pub mod dominio;
+pub mod entregaveis;
 pub mod execucao;
 pub mod gabarito;
 pub mod historias;
