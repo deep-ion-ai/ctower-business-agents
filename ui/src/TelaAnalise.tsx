@@ -13,6 +13,7 @@ import {
 } from "./analise";
 import { Alerta, BarraAcoes, BotaoIcone, EstadoVazio, Secao, Selo, type TomSelo } from "./componentes";
 import { ROTULO_FLUXO, type ApiConhecimento } from "./conhecimento";
+import { useFluxosOcultos } from "./fluxosDoProjeto";
 import type { DemandaVista } from "./demandas";
 import { FormDemandaNegocial } from "./DemandaNegocial";
 import {
@@ -604,6 +605,7 @@ function PainelNova({
 }) {
   const painel = useRef<HTMLElement>(null);
   const [registrada, setRegistrada] = useState<DemandaVista | null>(null);
+  const fluxosOcultos = useFluxosOcultos(apiConhecimento, projeto);
   const [referencia, setReferencia] = useState("");
 
   // Ao abrir e a cada passo, o foco vai para o primeiro controle do painel.
@@ -682,7 +684,9 @@ function PainelNova({
               </span>
             </button>
           )}
-          {TIPOS.filter((t) => t === "perguntar" || apiConhecimento).map((t) => (
+          {TIPOS.filter(
+            (t) => (t === "perguntar" || apiConhecimento) && !fluxosOcultos.includes(t),
+          ).map((t) => (
             <button
               key={t}
               type="button"

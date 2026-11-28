@@ -22,6 +22,7 @@
 //! projeto ainda não tem uma) e [`normalizar`] passa para Personalizado o que foi
 //! mudado à mão.
 
+use cba_core::analise::Fluxo;
 use cba_index::{Entregaveis, Metodologia, TipoHabilitado};
 use cba_kb::{Id, Serie};
 use serde::Serialize;
@@ -730,6 +731,54 @@ pub fn normalizar(mut e: Entregaveis) -> Entregaveis {
     e
 }
 
+/// Se o fluxo de análise é oferecido no projeto (#465). Histórias e Cenários
+/// geram tipos do catálogo e só aparecem quando habilitados:
+///
+/// - **Histórias** gera a [`HISTORIA`];
+/// - **Cenários** gera os [`CASOS_DE_TESTE`] e registra os cenários de onde os
+///   tipos com a fonte [`Fonte::Cenarios`] (critérios em Gherkin, cenários
+///   `.feature`, Definition of Ready) são montados: basta um deles habilitado.
+///
+/// Os demais fluxos são análises (perguntar, explicar, impacto, reunião,
+/// revisar) ou geram tipos que continuam como hoje (manual e protótipo) e são
+/// sempre oferecidos. As análises já gravadas abrem, exportam e publicam com
+/// qualquer configuração: a trava é só para criar.
+pub fn fluxo_oferecido(e: &Entregaveis, fluxo: Fluxo) -> bool {
+    match fluxo {
+        Fluxo::Historias => e.habilitado(HISTORIA).is_some(),
+        Fluxo::Cenarios => e.ids().any(|id| {
+            id == CASOS_DE_TESTE || tipo(id).is_some_and(|t| t.fontes.contains(&Fonte::Cenarios))
+        }),
+        _ => true,
+    }
+}
+
+/// Os fluxos que o projeto não oferece, para a tela esconder.
+pub fn fluxos_ocultos(e: &Entregaveis) -> Vec<Fluxo> {
+    [Fluxo::Historias, Fluxo::Cenarios]
+        .into_iter()
+        .filter(|f| !fluxo_oferecido(e, *f))
+        .collect()
+}
+
+/// A recusa ao criar uma análise de um fluxo que o projeto não oferece.
+pub fn conferir_fluxo(e: &Entregaveis, fluxo: Fluxo) -> Result<(), String> {
+    if fluxo_oferecido(e, fluxo) {
+        return Ok(());
+    }
+    let (nome, tipos) = match fluxo {
+        Fluxo::Historias => ("Histórias", "História de usuário"),
+        _ => (
+            "Cenários",
+            "Casos de teste, Critérios em Gherkin, Cenários .feature ou Definition of Ready",
+        ),
+    };
+    Err(format!(
+        "o projeto não oferece o fluxo {nome}: habilite {tipos} em Configurações › Entregáveis \
+         (as análises já gravadas continuam abrindo)"
+    ))
+}
+
 fn ordenados(mut tipos: Vec<TipoHabilitado>) -> Vec<TipoHabilitado> {
     let posicao = |t: &TipoHabilitado| CATALOGO.iter().position(|c| c.id == t.tipo);
     tipos.sort_by_key(|t| posicao(t).unwrap_or(usize::MAX));
@@ -1172,6 +1221,42 @@ mod tests {
         assert_eq!(validar(&e), Ok(()));
         let gravada = aplicar(&e, Metodologia::Agil);
         assert_eq!(efetiva(Some(&gravada)), gravada);
+    }
+
+    #[test]
+    fn historias_e_cenarios_so_quando_habilitados() {
+        let rup = predefinicao(Metodologia::Rup).unwrap().entregaveis();
+        assert!(!fluxo_oferecido(&rup, Fluxo::Historias));
+        assert!(!fluxo_oferecido(&rup, Fluxo::Cenarios));
+        assert_eq!(fluxos_ocultos(&rup), [Fluxo::Historias, Fluxo::Cenarios]);
+        let erro = conferir_fluxo(&rup, Fluxo::Historias).unwrap_err();
+        assert!(erro.contains("História de usuário"), "{erro}");
+        // Os outros fluxos não dependem do catálogo.
+        for f in [
+            Fluxo::Perguntar,
+            Fluxo::Explicar,
+            Fluxo::Impacto,
+            Fluxo::Manual,
+            Fluxo::Prototipo,
+        ] {
+            assert!(fluxo_oferecido(&rup, f), "{f:?}");
+        }
+
+        // RUP com casos de teste: cenários, sem histórias.
+        let mut com_casos = rup.clone();
+        com_casos.tipos.push(TipoHabilitado::novo(CASOS_DE_TESTE));
+        assert_eq!(fluxos_ocultos(&com_casos), [Fluxo::Historias]);
+
+        // Ágil: a história e os tipos montados dos cenários.
+        let agil = predefinicao(Metodologia::Agil).unwrap().entregaveis();
+        assert!(fluxos_ocultos(&agil).is_empty());
+        let mut so_feature = agil.clone();
+        so_feature.tipos.retain(|t| t.tipo == CENARIOS_FEATURE);
+        assert_eq!(fluxos_ocultos(&so_feature), [Fluxo::Historias]);
+
+        // O projeto antigo (legado) continua com os dois.
+        assert!(fluxos_ocultos(&efetiva(None)).is_empty());
+        assert_eq!(conferir_fluxo(&efetiva(None), Fluxo::Cenarios), Ok(()));
     }
 
     #[test]

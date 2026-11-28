@@ -294,6 +294,11 @@ export interface ApiConhecimento extends ApiAmbiente {
   conducao?: ApiConducao;
   /** Protótipo de telas e tokens CSS do projeto (#379); sem ela, os comandos do app. */
   prototipo?: ApiPrototipo;
+  /**
+   * Fluxos que o projeto não oferece (#465): Histórias e Cenários sem os tipos deles
+   * habilitados nos entregáveis. Sem ela, a tela mostra todos.
+   */
+  fluxosOcultos?(projeto: string): Promise<Fluxo[]>;
 }
 
 export const apiConhecimentoTauri: ApiConhecimento = {
@@ -304,6 +309,7 @@ export const apiConhecimentoTauri: ApiConhecimento = {
   mudancas: apiMudancasTauri,
   situacao: () => invoke("situacao_app"),
   inicio: () => invoke("inicio_app"),
+  fluxosOcultos: (projeto) => invoke("fluxos_ocultos_app", { projeto }),
   criarAnalise: (projeto, fluxo, entrada, titulo, demanda) =>
     invoke("criar_analise_fluxo", {
       projeto,

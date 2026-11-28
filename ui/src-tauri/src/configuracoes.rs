@@ -660,6 +660,18 @@ pub fn entregaveis_do_projeto(
     })
 }
 
+/// Os fluxos de análise que o projeto não oferece (#465): Histórias e Cenários
+/// sem os tipos deles habilitados nos entregáveis.
+pub fn fluxos_ocultos(
+    dados: &DiretorioDados,
+    projeto: &str,
+) -> Result<Vec<cba_core::analise::Fluxo>, String> {
+    let p = cadastrado(dados, projeto)?;
+    Ok(entregaveis::fluxos_ocultos(&entregaveis::efetiva(
+        p.entregaveis.as_ref(),
+    )))
+}
+
 /// Nomes dos `.md` em `<base>/_templates/`, em ordem; vazio sem base.
 fn templates_da_base(dados: &DiretorioDados) -> Result<Vec<String>, String> {
     let config = Config::ler(dados).map_err(|e| e.to_string())?;
@@ -1430,6 +1442,12 @@ pub async fn salvar_mascarar_demanda_app(projeto: String, ligado: bool) -> Resul
 pub async fn entregaveis_projeto_app(projeto: String) -> Result<EntregaveisDoProjeto, String> {
     let dados = dados()?;
     bloqueante(move || entregaveis_do_projeto(&dados, &projeto)).await
+}
+
+#[tauri::command]
+pub async fn fluxos_ocultos_app(projeto: String) -> Result<Vec<cba_core::analise::Fluxo>, String> {
+    let dados = dados()?;
+    bloqueante(move || fluxos_ocultos(&dados, &projeto)).await
 }
 
 #[tauri::command]

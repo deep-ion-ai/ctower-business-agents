@@ -29,7 +29,7 @@ use cba_core::funcionalidades::{Funcionalidade, MapaFuncionalidades};
 use cba_docs::entregaveis::{self, CicloDeVida};
 use cba_index::Escopo;
 use cba_kb::frontmatter::{FrontmatterFuncionalidade, StatusAnalise};
-use cba_kb::{CaminhoRelativo, Documento, TipoDocumento, layout, slug};
+use cba_kb::{CaminhoRelativo, Documento, IdFuncionalidade, TipoDocumento, layout, slug};
 use serde::Serialize;
 
 use crate::evidencias::ArquivoDoProjeto;
@@ -231,8 +231,112 @@ pub fn caminho_padrao(
 
 /// O texto de um arquivo da base, sem o frontmatter; `None` se ele não existe.
 fn corpo_na_base(ambiente: &Ambiente, caminho: &CaminhoRelativo) -> Option<String> {
-    let texto = std::fs::read_to_string(ambiente.kb.caminho(caminho)).ok()?;
+    corpo_no_projeto(&ambiente.kb, caminho)
+}
+
+fn corpo_no_projeto(kb: &cba_kb::Projeto, caminho: &CaminhoRelativo) -> Option<String> {
+    let texto = std::fs::read_to_string(kb.caminho(caminho)).ok()?;
     Some(separar(&texto).1.trim().to_owned())
+}
+
+// ---------------------------------------------------------------------------
+// Documento negocial de antes do histórico (#465)
+
+/// Documento negocial vinculado a uma funcionalidade aberta que ainda não é um
+/// documento vivo: a migração o importa como v1.0.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct NegocialAImportar {
+    pub funcionalidade: IdFuncionalidade,
+    pub caminho: CaminhoRelativo,
+}
+
+/// Os documentos negociais (o "Explicar" de antes do catálogo) vinculados a uma
+/// funcionalidade aberta, com texto na base, e ainda sem documento vivo do tipo
+/// nem outro documento vivo no mesmo caminho. Só lê.
+pub fn negociais_sem_historico(kb: &cba_kb::Projeto) -> Result<Vec<NegocialAImportar>, String> {
+    let mapa = MapaFuncionalidades::carregar(kb).map_err(|e| e.to_string())?;
+    let docs = DocumentosVivos::carregar(kb).map_err(|e| e.to_string())?;
+    Ok(pendentes(kb, &mapa, &docs)
+        .into_iter()
+        .map(|(f, _)| NegocialAImportar {
+            funcionalidade: f.id.clone(),
+            caminho: f
+                .documento_negocial()
+                .cloned()
+                .expect("filtrada pelo vínculo"),
+        })
+        .collect())
+}
+
+fn pendentes<'a>(
+    kb: &cba_kb::Projeto,
+    mapa: &'a MapaFuncionalidades,
+    docs: &DocumentosVivos,
+) -> Vec<(&'a Funcionalidade, String)> {
+    mapa.funcionalidades
+        .iter()
+        .filter(|f| f.aberta())
+        .filter_map(|f| {
+            let caminho = f.documento_negocial()?;
+            let dono = Dono::Funcionalidade(f.id.clone());
+            if docs
+                .do_dono(entregaveis::DOCUMENTO_NEGOCIAL, &dono)
+                .is_some()
+                || docs.documento(caminho).is_some()
+            {
+                return None;
+            }
+            let texto = corpo_no_projeto(kb, caminho).filter(|t| !t.is_empty())?;
+            Some((f, texto))
+        })
+        .collect()
+}
+
+/// Importa como v1.0 de um documento vivo do tipo "Documento negocial" cada
+/// documento de [`negociais_sem_historico`]: o texto do arquivo (sem o
+/// frontmatter) vira a versão, com [`MUDANCAS_DO_IMPORTADO`], a explicação de
+/// origem e o dia em que o arquivo foi gravado. O arquivo na base não muda.
+/// Idempotente: sem pendência, não grava nada. Devolve os importados.
+pub fn importar_negociais(kb: &cba_kb::Projeto) -> Result<Vec<NegocialAImportar>, String> {
+    if negociais_sem_historico(kb)?.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mapa = MapaFuncionalidades::carregar(kb).map_err(|e| e.to_string())?;
+    let (_, importados) = DocumentosVivos::alterar(kb, |docs, agora| {
+        let mut importados = Vec::new();
+        for (f, texto) in pendentes(kb, &mapa, docs) {
+            let caminho = f
+                .documento_negocial()
+                .cloned()
+                .expect("filtrada pelo vínculo");
+            let gravado_ms = std::fs::metadata(kb.caminho(&caminho))
+                .and_then(|m| m.modified())
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map_or(agora, |d| d.as_millis() as u64);
+            let mut doc = DocumentoVivo::importado(
+                entregaveis::DOCUMENTO_NEGOCIAL,
+                Dono::Funcionalidade(f.id.clone()),
+                caminho.clone(),
+                &texto,
+                MUDANCAS_DO_IMPORTADO,
+                cba_core::tempo::data_utc(gravado_ms),
+                agora,
+            );
+            if let Some(r) = doc.historico.first_mut() {
+                r.analise = f.explicacao.clone();
+            }
+            if docs.importar(doc).map_err(recusa)? {
+                importados.push(NegocialAImportar {
+                    funcionalidade: f.id.clone(),
+                    caminho,
+                });
+            }
+        }
+        Ok::<_, ErroFerramenta>(importados)
+    })
+    .map_err(|e| e.to_string())?;
+    Ok(importados)
 }
 
 /// Registra a proposta da versão seguinte (ou da 1.0) do documento. Uma proposta
