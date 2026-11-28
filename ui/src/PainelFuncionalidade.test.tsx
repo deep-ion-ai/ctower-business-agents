@@ -13,6 +13,7 @@ function abrir(
   f: Funcionalidade = CANCELAR,
   evidencias = false,
   painel: typeof painelDe = painelDe,
+  fluxosOcultos?: ApiConhecimento["fluxosOcultos"],
 ) {
   const api = apiFalsa(MAPA, painel);
   const navegar = vi.fn();
@@ -26,7 +27,7 @@ function abrir(
       outras={[COBRANCA]}
       recarga={1}
       api={api}
-      apiConhecimento={{ revalidar } as unknown as ApiConhecimento}
+      apiConhecimento={{ revalidar, fluxosOcultos } as unknown as ApiConhecimento}
       revisao={{ ocupado: false, aoRevisar }}
       evidencias={evidencias}
       navegar={navegar}
@@ -136,6 +137,17 @@ describe("PainelFuncionalidade", () => {
     const tabela = screen.getByRole("table");
     expect(tabela).toHaveTextContent("pelo código");
     expect(tabela).toHaveTextContent("aberta aqui");
+  });
+
+  it("só oferece Histórias e Cenários com os tipos habilitados no projeto (#465)", async () => {
+    const fluxosOcultos = vi.fn(async () => ["historias" as const]);
+    abrir(CANCELAR, false, painelDe, fluxosOcultos);
+    await screen.findByRole("region", { name: "Indicadores" });
+    fireEvent.click(screen.getByRole("button", { name: "Análises (2)" }));
+    const nova = screen.getByRole("region", { name: "Nova análise para esta funcionalidade" });
+    await waitFor(() => expect(within(nova).queryByRole("button", { name: /^Histórias/ })).toBeNull());
+    expect(fluxosOcultos).toHaveBeenCalledWith("faturamento-exemplo");
+    expect(within(nova).getByRole("button", { name: /Cenários de teste/ })).toBeInTheDocument();
   });
 
   it("manual do usuário: gerar a partir da funcionalidade aceita", async () => {

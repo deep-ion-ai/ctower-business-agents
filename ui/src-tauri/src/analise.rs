@@ -293,6 +293,7 @@ pub fn criar_analise_com_demanda(
     demanda: Option<cba_kb::frontmatter::Demanda>,
 ) -> Result<AnaliseCriada, String> {
     let ambiente = ambiente(dados, projeto)?;
+    cba_tools::ciclo::fluxo_do_projeto(&ambiente, fluxo).map_err(|e| e.to_string())?;
     let titulo = titulo
         .map(str::trim)
         .filter(|t| !t.is_empty())

@@ -9,9 +9,9 @@ use crate::{
     acessos, alteracoes, ambiente_teste, analise, base, clones, cobertura, conducao, conexoes,
     configuracoes, consultas, conversa, demandas, docs_externos, documentacao_do_mapa,
     entregaveis_demanda, funcionalidades, inicio, issues_projeto, links_projeto, manual,
-    migracao_conexoes, mudancas, painel_funcionalidade, pauta, primeiro_uso, projeto, prompts,
-    prototipo, publicacao, rastreabilidade, registros, repositorios, resumo, reunioes, revisao,
-    terminal, tokens, vigia, vincular_issues, workflows,
+    migracao_conexoes, migracao_entregaveis, mudancas, painel_funcionalidade, pauta, primeiro_uso,
+    projeto, prompts, prototipo, publicacao, rastreabilidade, registros, repositorios, resumo,
+    reunioes, revisao, terminal, tokens, vigia, vincular_issues, workflows,
 };
 
 pub fn rodar() {
@@ -25,6 +25,9 @@ pub fn rodar() {
         // Cadastros de antes das conexões (#438): migra antes de a janela abrir;
         // uma falha volta ao backup e o erro aparece em Configurações › Conexões.
         migracao_conexoes::na_abertura(dados, &cba_repos::chaveiro::ChaveiroNativo);
+        // Documento negocial de antes do catálogo de entregáveis (#465): vira a
+        // v1.0 do documento vivo; uma falha volta ao backup e vai para o log.
+        migracao_entregaveis::na_abertura(dados);
     }
     if let Some(dados) = dados {
         // Retenção dos transcripts das reuniões (#136): apaga os de prazo vencido,
@@ -229,6 +232,7 @@ pub fn rodar() {
             configuracoes::salvar_leitura_app,
             configuracoes::salvar_mascarar_demanda_app,
             configuracoes::entregaveis_projeto_app,
+            configuracoes::fluxos_ocultos_app,
             configuracoes::salvar_entregaveis_app,
             configuracoes::desfazer_ambiente_projeto,
             configuracoes::descadastrar_projeto_app,

@@ -44,6 +44,7 @@ import { NovaPrototipo } from "./NovaPrototipo";
 import { NovaReuniao } from "./NovaReuniao";
 import { apiPautaTauri, type ApiPauta } from "./pauta";
 import { PautaPerguntas } from "./PautaPerguntas";
+import { useFluxosOcultos } from "./fluxosDoProjeto";
 import { BotoesProximoPasso } from "./ProximoPasso";
 import { apiRastreabilidadeTauri, type ApiRastreabilidade } from "./rastreabilidade";
 import { apiRegistrosTauri, type ApiRegistros } from "./registros";
@@ -154,6 +155,7 @@ export function PainelDemanda({
   const [propostas, setPropostas] = useState(0);
   const [lacunas, setLacunas] = useState(0);
   const [comHistorias, setComHistorias] = useState(false);
+  const fluxosOcultos = useFluxosOcultos(api, projeto);
 
   const ancoraAnalises = useRef<HTMLDivElement>(null);
   const ancoraPauta = useRef<HTMLDivElement>(null);
@@ -404,7 +406,7 @@ export function PainelDemanda({
           {aberta && (
             <MenuAcoes
               rotulo="Nova análise"
-              itens={FLUXOS_DO_MENU.map((f) => ({
+              itens={FLUXOS_DO_MENU.filter((f) => !fluxosOcultos.includes(f)).map((f) => ({
                 texto: ROTULO_FLUXO[f],
                 aoEscolher: () => setFluxo(f),
               }))}
@@ -512,7 +514,9 @@ export function PainelDemanda({
           api={apiRastreabilidade}
           atualizacao={painel}
           aoCarregar={aoCarregarMatriz}
-          aoGerarHistorias={aberta ? () => setFluxo("historias") : undefined}
+          aoGerarHistorias={
+            aberta && !fluxosOcultos.includes("historias") ? () => setFluxo("historias") : undefined
+          }
         />
       </div>
 

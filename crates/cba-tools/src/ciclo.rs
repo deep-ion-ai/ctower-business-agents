@@ -225,6 +225,13 @@ fn demanda_aberta(ambiente: &Ambiente, id: IdDemanda) -> Result<DemandaLida, Err
     Ok(lida)
 }
 
+/// Recusa criar a análise de um fluxo que os entregáveis do projeto não
+/// oferecem (#465): Histórias e Cenários geram tipos do catálogo.
+pub fn fluxo_do_projeto(ambiente: &Ambiente, fluxo: Fluxo) -> Result<(), ErroFerramenta> {
+    let config = cba_docs::entregaveis::efetiva(ambiente.projeto.entregaveis.as_ref());
+    cba_docs::entregaveis::conferir_fluxo(&config, fluxo).map_err(ErroFerramenta::Recusa)
+}
+
 /// Cria uma análise do fluxo `historias` (#115) a partir da análise de origem
 /// (`origem`, A-NNNN, que não pode ser outra de histórias) ou de uma demanda
 /// aberta (`demanda`). Sem `demanda`, a análise herda a da origem. Sem `entrada` e
@@ -237,6 +244,7 @@ pub fn criar_analise_de_historias(
     entrada: Option<String>,
     titulo: Option<String>,
 ) -> Result<Analise, ErroFerramenta> {
+    fluxo_do_projeto(ambiente, Fluxo::Historias)?;
     let lida = origem
         .as_ref()
         .map(|o| ambiente.analises.carregar(o))
@@ -311,6 +319,7 @@ pub fn criar_analise_de_cenarios(
     entrada: Option<String>,
     titulo: Option<String>,
 ) -> Result<Analise, ErroFerramenta> {
+    fluxo_do_projeto(ambiente, Fluxo::Cenarios)?;
     let lida = origem
         .as_ref()
         .map(|o| ambiente.analises.carregar(o))

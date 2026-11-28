@@ -10,8 +10,9 @@ use std::path::{Path, PathBuf};
 use cba_core::ambiente::Ambiente;
 use cba_core::config::Config;
 use cba_core::dados::DiretorioDados;
+use cba_core::documentos_vivos::{DocumentosVivos, Dono, Versao};
 use cba_core::funcionalidades::{
-    DecisaoFuncionalidade, MapaFuncionalidades, SituacaoFuncionalidade,
+    DecisaoFuncionalidade, MapaFuncionalidades, SituacaoFuncionalidade, TIPO_DOCUMENTO_NEGOCIAL,
 };
 use cba_index::PontoEntrada;
 use cba_kb::{Id, IdFuncionalidade, layout};
@@ -522,6 +523,50 @@ fn explicacao_do_mapa_grava_o_documento_negocial_ligado() {
     assert_eq!(item.situacao, SituacaoFuncionalidade::Aceita);
     let md = std::fs::read_to_string(c.amb.kb.caminho(&layout::mapa_de_funcionalidades())).unwrap();
     assert!(md.contains("aceita · documentada"), "{md}");
+
+    // O negocial é um documento vivo (#465): a primeira explicação é a v1.0.
+    let dono = Dono::Funcionalidade(f("F-CAN-001"));
+    let docs = DocumentosVivos::carregar(&c.amb.kb).unwrap();
+    let vivo = docs.do_dono(TIPO_DOCUMENTO_NEGOCIAL, &dono).unwrap();
+    assert_eq!(vivo.caminho, negocial);
+    assert_eq!(vivo.historico.len(), 1);
+    assert_eq!(vivo.historico[0].versao, Versao::INICIAL);
+    assert_eq!(vivo.historico[0].analise.as_ref(), Some(&e));
+    assert!(vivo.historico[0].texto.contains("Só fatura aberta"));
+    assert!(vivo.proposta.is_none());
+
+    // A explicação aprovada de novo, com outro texto, não sobrescreve o
+    // publicado: vira a proposta da 1.1.
+    let analise = c.amb.analises.carregar(&e).unwrap();
+    let doc_analise = c.amb.kb.caminho(&analise.documento);
+    let antes = std::fs::read_to_string(&doc_analise).unwrap();
+    std::fs::write(
+        &doc_analise,
+        antes.replace("Só fatura aberta", "Só fatura aberta e sem pagamento"),
+    )
+    .unwrap();
+    let ligado = cba_tools::mapear::ligar_explicacao(&c.amb.base, &c.amb.kb, &analise).unwrap();
+    assert_eq!(ligado.as_ref(), Some(&negocial));
+    assert_eq!(
+        std::fs::read_to_string(c.amb.kb.caminho(&negocial)).unwrap(),
+        texto,
+        "o arquivo publicado fica como estava"
+    );
+    let docs = DocumentosVivos::carregar(&c.amb.kb).unwrap();
+    let vivo = docs.do_dono(TIPO_DOCUMENTO_NEGOCIAL, &dono).unwrap();
+    assert_eq!(vivo.historico.len(), 1);
+    let p = vivo.proposta.as_ref().expect("proposta da versão seguinte");
+    assert_eq!(p.versao, Versao::nova(1, 1));
+    assert_eq!(p.analise.as_ref(), Some(&e));
+    assert!(p.texto.contains("sem pagamento"), "{}", p.texto);
+    assert!(p.revisada.is_none(), "sai como rascunho");
+
+    // O texto igual ao publicado não muda nada (nem a proposta pendente).
+    std::fs::write(&doc_analise, &antes).unwrap();
+    let antes_dos_docs = DocumentosVivos::carregar(&c.amb.kb).unwrap();
+    cba_tools::mapear::ligar_explicacao(&c.amb.base, &c.amb.kb, &analise).unwrap();
+    let docs = DocumentosVivos::carregar(&c.amb.kb).unwrap();
+    assert_eq!(docs.documentos, antes_dos_docs.documentos);
 }
 
 #[test]
